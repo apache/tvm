@@ -83,7 +83,7 @@ class Reduction(CPUScheduleRule):
         if not num_leading_s:
             return None
 
-        # Infer dtype from the last block's write buffer.
+        # Infer dtype from the last block's write tensor.
         last_block_stmt = sch.get(block_infos[-1].block_rv)
         dtype_bits = last_block_stmt.writes[0].source.dtype.bits if last_block_stmt.writes else 32
 

@@ -59,8 +59,8 @@ def sort(data, axis=-1, is_ascend=1):
             "tvm.contrib.sort.sort", ins[0], outs[0], axis, is_ascend
         ),
         dtype=data.dtype,
-        in_buffers=[data_buf],
-        out_buffers=out_buf,
+        in_tensors=[data_buf],
+        out_tensors=out_buf,
         name="sort_cpu",
         tag="sort_cpu",
     )
@@ -130,8 +130,8 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
                 "tvm.contrib.sort.argsort_nms", ins[0], ins[1], outs[0], axis, is_ascend
             ),
             dtype="int32",
-            in_buffers=[data_buf, valid_count_buf],
-            out_buffers=out_buf,
+            in_tensors=[data_buf, valid_count_buf],
+            out_tensors=out_buf,
             name="argsort_nms_cpu",
             tag="argsort_nms_cpu",
         )
@@ -144,8 +144,8 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
                 "tvm.contrib.sort.argsort", ins[0], outs[0], axis, is_ascend
             ),
             dtype=dtype,
-            in_buffers=[data_buf],
-            out_buffers=out_buf,
+            in_tensors=[data_buf],
+            out_tensors=out_buf,
             name="argsort_cpu",
             tag="argsort_cpu",
         )
@@ -211,8 +211,8 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
         lambda ins, outs: tvm.tirx.call_packed(
             "tvm.contrib.sort.topk", ins[0], *outs, kv, axis, ret_type, is_ascend
         ),
-        in_buffers=[data_buf],
-        out_buffers=out_bufs,
+        in_tensors=[data_buf],
+        out_tensors=out_bufs,
         name="topk_cpu",
         tag="topk_cpu",
     )

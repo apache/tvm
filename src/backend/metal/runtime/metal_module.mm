@@ -19,7 +19,7 @@
 
 /*!
  * \file metal_module.mm
- * \brief MetalModuleNode — runtime-side, plugin-only.  Reachable from C++
+ * \brief MetalModuleObj — runtime-side, plugin-only.  Reachable from C++
  *        only through the FFI registry keys "ffi.Module.create.metal" and
  *        "ffi.Module.load_from_bytes.metal".  No exported header — codegen-
  *        side construction goes through src/target/metal/metal_fallback_module.h.
@@ -30,6 +30,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 #include <array>
 #include <mutex>
@@ -37,11 +38,9 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
-#include "../../../runtime/file_utils.h"
+#include "../../../runtime/launch_param.h"
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/pack_args.h"
-#include "../../../runtime/thread_storage_scope.h"
-#include "../../../support/bytes_io.h"
 #include "metal_common.h"
 
 #if (defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 260000) || \
@@ -67,16 +66,16 @@ static bool MetalDeviceSupportsMetal4(id<MTLDevice> device) {
 // Module to support thread-safe multi-GPU execution.
 // The runtime will contain a per-device module table
 // The modules will be lazily loaded
-class MetalModuleNode final : public ffi::ModuleObj {
+class MetalModuleObj final : public ffi::ModuleObj {
  public:
   // Unified factory signature shared with the codegen-side fallback in
   // src/target/metal/metal_fallback_module.h.  The per-kernel `smap`
   // payload is Map<String, Bytes> regardless of whether the format is
   // text MSL ("metal") or compiled metallib ("metallib") — text vs binary
   // distinction lives in `fmt`.
-  MetalModuleNode(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
-                  ffi::Map<ffi::String, FunctionInfo> fmap,
-                  ffi::Map<ffi::String, ffi::String> source)
+  MetalModuleObj(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
+                 ffi::Map<ffi::String, FunctionInfo> fmap,
+                 ffi::Map<ffi::String, ffi::String> source)
       : smap_(std::move(smap)),
         fmt_(std::move(fmt)),
         fmap_(std::move(fmap)),
@@ -94,7 +93,7 @@ class MetalModuleNode final : public ffi::ModuleObj {
   ffi::Bytes SaveToBytes() const final {
     // 3 fields [fmt][fmap][smap].  Source map is in-memory inspection only
     // and is NEVER serialized — matches the cross-backend rule.
-    // MetalFallbackModuleNode::SaveToBytes (in
+    // MetalFallbackModuleObj::SaveToBytes (in
     // src/target/metal/metal_fallback_module.cc) MUST mirror this format
     // byte-for-byte; see one-way comment there.
     std::string result;
@@ -220,7 +219,7 @@ class MetalModuleNode final : public ffi::ModuleObj {
 class MetalWrappedFunc {
  public:
   // initialize the METAL function.
-  void Init(MetalModuleNode* m, ffi::ObjectPtr<ffi::Object> sptr, const std::string& func_name,
+  void Init(MetalModuleObj* m, ffi::ObjectPtr<ffi::Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
             const ffi::Array<ffi::String>& launch_param_tags) {
     w_ = metal::MetalWorkspace::Global();
@@ -251,7 +250,7 @@ class MetalWrappedFunc {
         scache_[device_id] = m_->GetPipelineState(device_id, func_name_);
       }
       ThreadWorkLoad wl = launch_param_config_.Extract(args);
-      int blockSize = wl.block_dim(0) * wl.block_dim(1) * wl.block_dim(2);
+      int blockSize = wl.BlockDim(0) * wl.BlockDim(1) * wl.BlockDim(2);
       auto maxTotalThreadsPerThreadgroup = scache_[device_id].maxTotalThreadsPerThreadgroup;
       TVM_FFI_ICHECK_LE(blockSize, maxTotalThreadsPerThreadgroup);
       // Reuse the pending compute encoder to batch dispatches.
@@ -268,8 +267,8 @@ class MetalWrappedFunc {
                   atIndex:num_buffer_args_];
       }
       // launch
-      MTLSize dimGrid = MTLSizeMake(wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
-      MTLSize dimBlock = MTLSizeMake(wl.block_dim(0), wl.block_dim(1), wl.block_dim(2));
+      MTLSize dimGrid = MTLSizeMake(wl.GridDim(0), wl.GridDim(1), wl.GridDim(2));
+      MTLSize dimBlock = MTLSizeMake(wl.BlockDim(0), wl.BlockDim(1), wl.BlockDim(2));
       [encoder dispatchThreadgroups:dimGrid threadsPerThreadgroup:dimBlock];
     };
   }
@@ -278,7 +277,7 @@ class MetalWrappedFunc {
   // Reference to global workspace.
   metal::MetalWorkspace* w_;
   // internal module
-  MetalModuleNode* m_;
+  MetalModuleObj* m_;
   // the resource holder
   ffi::ObjectPtr<ffi::Object> sptr_;
   // The name of the function.
@@ -294,7 +293,7 @@ class MetalWrappedFunc {
   LaunchParamConfig launch_param_config_;
 };
 
-ffi::Optional<ffi::Function> MetalModuleNode::GetFunction(const ffi::String& name) {
+ffi::Optional<ffi::Function> MetalModuleObj::GetFunction(const ffi::String& name) {
   ffi::Function ret;
   AUTORELEASEPOOL {
     ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
@@ -316,10 +315,10 @@ ffi::Optional<ffi::Function> MetalModuleNode::GetFunction(const ffi::String& nam
 static ffi::Module MetalModuleCreateImpl(ffi::Map<ffi::String, ffi::Bytes> smap, ffi::String fmt,
                                          ffi::Map<ffi::String, FunctionInfo> fmap,
                                          ffi::Map<ffi::String, ffi::String> source) {
-  ffi::ObjectPtr<MetalModuleNode> n;
+  ffi::ObjectPtr<MetalModuleObj> n;
   AUTORELEASEPOOL {
-    n = ffi::make_object<MetalModuleNode>(std::move(smap), std::move(fmt), std::move(fmap),
-                                          std::move(source));
+    n = ffi::make_object<MetalModuleObj>(std::move(smap), std::move(fmt), std::move(fmap),
+                                         std::move(source));
   };
   return ffi::Module(n);
 }

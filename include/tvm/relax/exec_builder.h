@@ -46,7 +46,7 @@ class ExecBuilder;
 /*!
  * \brief A builder provides api to build VM executable with instructions.
  */
-class ExecBuilderNode : public ffi::Object {
+class ExecBuilderObj : public ffi::Object {
  public:
   /*!
    * \brief Declare a function, it is OK to have multiple declarations.
@@ -149,11 +149,11 @@ class ExecBuilderNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ExecBuilderNode>();
+    refl::ObjectDef<ExecBuilderObj>();
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ExecBuilder", ExecBuilderNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ExecBuilder", ExecBuilderObj, ffi::Object);
 
  private:
   /*!
@@ -185,11 +185,11 @@ class ExecBuilderNode : public ffi::Object {
 
 class ExecBuilder : public ffi::ObjectRef {
  public:
-  explicit ExecBuilder(ffi::UnsafeInit tag, ffi::ObjectPtr<ExecBuilderNode> n)
+  explicit ExecBuilder(ffi::UnsafeInit tag, ffi::ObjectPtr<ExecBuilderObj> n)
       : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExecBuilder, ffi::ObjectRef, ExecBuilderNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExecBuilder, ffi::ObjectRef, ExecBuilderObj);
 };
 
 }  // namespace relax

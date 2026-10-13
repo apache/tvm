@@ -29,7 +29,6 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/stmt.h>
 #include <tvm/runtime/base.h>
-#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/op_attr_types.h>
 
 #include <initializer_list>
@@ -55,47 +54,31 @@ void RegisterTRNTargetBuiltins() {
   OpDef("tirx.nki.tensorized_instruction", "Tensorize the NKI instructions in the region body.")
       .signature()
       .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
-                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
-      .set_attr<TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace,
-                                           ffi::String("nki"))
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                    ffi::String("tirx.nki.tensorized_instruction"));
+                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>());
 }
 
 namespace {
 
-struct NKIIntrinsicNames {
-  std::string canonical;
-  std::string printer;
-};
-
-TVM_FFI_NO_INLINE NKIIntrinsicNames MakeNKIIntrinsicNames(const char* op_name) {
+TVM_FFI_NO_INLINE std::string MakeNKIIntrinsicName(const char* op_name) {
   std::string prefix = "nki_";
   std::string suffix(op_name);
   if (suffix.rfind(prefix, 0) == 0) {
     suffix = suffix.substr(prefix.size());
   }
-  return {"tirx.nki." + suffix, "tirx.nki." + suffix};
+  return "tirx.nki." + suffix;
 }
 
-TVM_FFI_NO_INLINE void RegisterNKIIntrinsicAttrs(OpDef& def, const std::string& printer_name) {
+TVM_FFI_NO_INLINE void RegisterNKIIntrinsicAttrs(OpDef& def) {
   def.set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
-      .set_attr<TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace,
-                                           ffi::String("nki"))
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kOpaque))
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                    ffi::String(printer_name));
+                                 static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
 template <typename... Specs>
 void RegisterNKIIntrinsic(const char* op_name, const Specs&... specs) {
-  NKIIntrinsicNames names = MakeNKIIntrinsicNames(op_name);
-  OpDef def(names.canonical);
+  OpDef def(MakeNKIIntrinsicName(op_name));
   def.signature(specs...);
-  RegisterNKIIntrinsicAttrs(def, names.printer);
+  RegisterNKIIntrinsicAttrs(def);
 }
 
 void RegisterNKIIntrinsicAliases() {

@@ -37,7 +37,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ::tvm::transform::PassContext::RegisterConfigOption<bool>(tvm::tirx::attr::kNoAlias);
   ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_assert");
   ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_vectorize");
-  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.enable_buffer_level_predication");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.enable_tensor_level_predication");
   ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_cse_tir");
   ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.enable_debug");
   ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_storage_rewrite");
@@ -55,10 +55,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * \brief Function level pass that applies transformations to all
  *        TIR functions within the module.
  */
-class FunctionPassNode : public PassNode {
+class FunctionPassObj : public PassObj {
  public:
-  explicit FunctionPassNode(PassInfo pass_info) : pass_info(std::move(pass_info)) {}
-  explicit FunctionPassNode(ffi::UnsafeInit) : pass_info(ffi::UnsafeInit{}) {}
+  explicit FunctionPassObj(PassInfo pass_info) : pass_info(std::move(pass_info)) {}
+  explicit FunctionPassObj(ffi::UnsafeInit) : pass_info(ffi::UnsafeInit{}) {}
 
   /* \brief The pass meta data.*/
   PassInfo pass_info;
@@ -68,7 +68,7 @@ class FunctionPassNode : public PassNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<FunctionPassNode>().def_ro("pass_info", &FunctionPassNode::pass_info);
+    refl::ObjectDef<FunctionPassObj>().def_ro("pass_info", &FunctionPassObj::pass_info);
   }
 
   /*!
@@ -85,7 +85,7 @@ class FunctionPassNode : public PassNode {
    * \brief Get the pass information/meta data.
    */
   PassInfo Info() const override { return pass_info; }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.FunctionPass", FunctionPassNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.FunctionPass", FunctionPassObj, PassObj);
 };
 
 class FunctionPass : public Pass {
@@ -95,24 +95,24 @@ class FunctionPass : public Pass {
    * \param pass_func The packed function which implements a pass.
    * \param pass_info The pass info.
    */
-  TVM_DLL FunctionPass(
+  TVM_TIRX_DLL FunctionPass(
       std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
       PassInfo pass_info);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionPass, Pass, FunctionPassNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionPass, Pass, FunctionPassObj);
 };
 
 FunctionPass::FunctionPass(
     std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
     PassInfo pass_info)
     : Pass(ffi::UnsafeInit{}) {
-  auto n = ffi::make_object<FunctionPassNode>(std::move(pass_info));
+  auto n = ffi::make_object<FunctionPassObj>(std::move(pass_info));
   n->pass_func = std::move(pass_func);
   data_ = std::move(n);
 }
 
 // Perform Module -> Module optimizations at the Function level.
-IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
+IRModule FunctionPassObj::operator()(IRModule mod, const PassContext& pass_ctx) const {
   TVM_FFI_ICHECK(mod.defined());
   std::vector<GlobalVar> deleted_list;
 
@@ -150,7 +150,7 @@ Pass CreateFunctionPass(
   return FunctionPass(std::move(pass_func), pass_info);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { FunctionPassNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { FunctionPassObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

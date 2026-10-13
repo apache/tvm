@@ -47,7 +47,7 @@ The end-to-end flow from model to execution is:
         ▼  VMCodeGen
    ExecBuilder (bytecode) + IRModule (TIR only)
         │                        │
-        │                        ▼  tirx.build()
+        │                        ▼  tirx.compile()
         │                   runtime.Module (native kernels)
         │                        │
         ▼  VMLink               ▼
@@ -87,7 +87,7 @@ Internally, ``relax.build()`` performs these steps:
 2. Create an ``ExecBuilder`` and run **VMCodeGen** (``src/relax/backend/vm/codegen_vm.cc``),
    which walks each ``relax.Function`` and emits bytecode instructions. The Relax functions are
    removed from the IRModule; only TIR functions remain.
-3. Compile the remaining TIR functions to native code via ``tirx.build()``.
+3. Compile the remaining TIR functions to native code via ``tirx.compile()``.
 4. **Link** the bytecode executable with the compiled native module using ``VMLink``, producing
    a ``VMExecutable``.
 
@@ -225,9 +225,9 @@ At runtime, a ``VirtualMachine`` is created and initialized:
 Under the hood:
 
 1. **LoadExecutable**: the bytecode and metadata are loaded from the ``VMExecutable``.
-2. **Init**: devices and memory allocators are set up. Each device gets an ``Allocator``
-   (either ``NAIVE_ALLOCATOR`` or ``POOLED_ALLOCATOR``, defaulting to pooled). A CPU device
-   is always added for shape computations.
+2. **Init**: devices and owning tensor pools are set up. Each device gets a
+   ``TensorMemoryPool`` from the shared device factory. A CPU device is always
+   added for shape computations.
 3. **InitFuncPool**: the function pool is populated — ``kPackedFunc`` entries are resolved from
    imports or the global registry; ``kVMFunc`` entries are wrapped in
    ``VMClosure`` objects.
@@ -409,7 +409,9 @@ Source Code Map
      - Built-in operations (shape matching, allocation)
    * - ``src/relax/backend/vm/codegen_vm.cc``
      - CodeGenVM: Relax IR → bytecode
-   * - ``python/tvm/runtime/vm.py``
+   * - ``python/tvm/runtime/vm/vm.py``
      - Python VirtualMachine wrapper
+   * - ``python/tvm/runtime/vm/param.py``
+     - Parameter dictionary serialization
    * - ``python/tvm/relax/vm_build.py``
      - ``relax.build()`` and VMExecutable Python class

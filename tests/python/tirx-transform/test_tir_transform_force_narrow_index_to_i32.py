@@ -49,8 +49,8 @@ def test_thread_axis2():
         T_where: T.Tensor((T.int64(1), T.int64(12), T.int64(384), 384), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        for i0_i1_i2_i3_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
-            for i0_i1_i2_i3_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
+        with T.launch_thread("blockIdx.x", T.int64(256)) as i0_i1_i2_i3_fused_1:
+            with T.launch_thread("threadIdx.x", T.int64(1024)) as i0_i1_i2_i3_fused_2:
                 for i0_i1_i2_i3_fused_0 in T.serial(T.int64(7)):
                     if (i0_i1_i2_i3_fused_0 * T.int64(256) + i0_i1_i2_i3_fused_1) * T.int64(
                         1024
@@ -150,8 +150,8 @@ def test_thread_axis2():
         T_where: T.Tensor((1, 12, 384, 384), "float32"),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        for i0_i1_i2_i3_fused_1 in T.thread_binding(256, thread="blockIdx.x"):
-            for i0_i1_i2_i3_fused_2 in T.thread_binding(1024, thread="threadIdx.x"):
+        with T.launch_thread("blockIdx.x", 256) as i0_i1_i2_i3_fused_1:
+            with T.launch_thread("threadIdx.x", 1024) as i0_i1_i2_i3_fused_2:
                 for i0_i1_i2_i3_fused_0 in range(7):
                     if (
                         i0_i1_i2_i3_fused_0 * 256 + i0_i1_i2_i3_fused_1
@@ -246,7 +246,7 @@ def test_block():
     tvm.ir.assert_structural_equal(func, expected)
 
 
-def test_i16_buffer():
+def test_i16_tensor():
     @T.function(private=True)
     def before(A: T.Tensor((128,), "int16"), B: T.Tensor((128,), "int16")):
         for i in T.serial(0, T.int64(16)):
@@ -264,7 +264,7 @@ def test_i16_buffer():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_fail_on_buffer_param():
+def test_fail_on_tensor_param():
     @T.function(private=True)
     def func(A: T.Tensor((128,), "int64"), B: T.Tensor((128,), "int64")):
         for i in T.serial(0, 16):
@@ -276,10 +276,10 @@ def test_fail_on_buffer_param():
         tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
 
 
-def test_fail_on_internal_buffer():
+def test_fail_on_internal_tensor():
     @T.function(private=True)
     def func(A: T.Tensor((128,), "int32"), B: T.Tensor((128,), "int32")):
-        C = T.alloc_tensor((128,), "int64")
+        C = T.alloc_tensor(ty_args=[T.Tensor((128,), "int64")])
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
                 C[i * 8 + j] = T.cast(A[i * 8 + j], "int64") + T.int64(1)

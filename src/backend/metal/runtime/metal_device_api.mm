@@ -24,6 +24,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/timer.h>
+#include <algorithm>
+
 #include "metal_common.h"
 
 namespace tvm {
@@ -42,64 +44,28 @@ MetalWorkspace* MetalWorkspace::Global() {
   return inst;
 }
 
-void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) {
+ffi::Any MetalWorkspace::GetAttr(Device dev, const ffi::String& name) {
+  ffi::Any rv;
   AUTORELEASEPOOL {
     size_t index = static_cast<size_t>(dev.device_id);
-    if (kind == kExist) {
-      *rv = int(index < devices.size());
+    if (name == "exist") {
+      rv = index < devices.size();
       return;
     }
     TVM_FFI_ICHECK_LT(index, devices.size()) << "Invalid device id " << index;
-    switch (kind) {
-      case kMaxThreadsPerBlock: {
-        *rv = static_cast<int>([devices[dev.device_id] maxThreadsPerThreadgroup].width);
-        break;
-      }
-      case kWarpSize: {
-#if defined(__x86_64__)
-        *rv = 1;
-#elif defined(__aarch64__)
-        *rv = 32;
+    if (name == "max_threads_per_block") {
+      rv = static_cast<int>([devices[dev.device_id] maxThreadsPerThreadgroup].width);
+    } else if (name == "warp_size") {
+#if defined(__aarch64__)
+      rv = 32;
 #else
-        LOG(WARNING) << "The CPU architecture is neither x86 nor aarch64. Fallback to warp size 1.";
-        *rv = 1;
+      rv = 1;
 #endif
-        break;
-      }
-      case kMaxSharedMemoryPerBlock:
-        return;
-      case kComputeVersion:
-        return;
-      case kDeviceName:
-        return;
-      case kMaxClockRate:
-        return;
-      case kMultiProcessorCount:
-        return;
-      case kMaxThreadDimensions:
-        return;
-      case kExist:
-        return;
-      case kMaxRegistersPerBlock:
-        return;
-      case kGcnArch:
-        return;
-      case kApiVersion:
-        return;
-      case kDriverVersion:
-        return;
-      case kL2CacheSizeBytes:
-        return;
-      case kAvailableGlobalMemory:
-        return;
-      case kTotalGlobalMemory: {
-        *rv = static_cast<int64_t>([devices[dev.device_id] recommendedMaxWorkingSetSize]);
-        return;
-      }
-      case kImagePitchAlignment:
-        return;
+    } else if (name == "total_global_memory") {
+      rv = static_cast<int64_t>([devices[dev.device_id] recommendedMaxWorkingSetSize]);
     }
   };
+  return rv;
 }
 
 static const char* kDummyKernel = R"A0B0(
@@ -177,6 +143,26 @@ MetalWorkspace::MetalWorkspace() {
 
 void MetalWorkspace::SetDevice(Device dev) {
   MetalThreadEntry::ThreadLocal()->device.device_id = dev.device_id;
+}
+
+ffi::Tensor MetalWorkspace::Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                                  ffi::Optional<ffi::String> mem_scope) {
+  TVM_FFI_CHECK(
+      !mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global",
+      ValueError)
+      << "Unsupported memory scope: " << mem_scope.value_or("");
+  struct Allocator {
+    MetalWorkspace* api;
+    void AllocData(DLTensor* tensor) {
+      size_t alignment =
+          std::max(static_cast<size_t>(kAllocAlignment),
+                   static_cast<size_t>((tensor->dtype.bits / 8) * tensor->dtype.lanes));
+      tensor->data =
+          api->AllocDataSpace(tensor->device, ffi::GetDataSize(*tensor), alignment, tensor->dtype);
+    }
+    void FreeData(DLTensor* tensor) { api->FreeDataSpace(tensor->device, tensor->data); }
+  };
+  return ffi::Tensor::FromNDAlloc(Allocator{this}, shape, dtype, device);
 }
 
 void* MetalWorkspace::AllocDataSpace(Device device, size_t nbytes, size_t alignment,
@@ -424,10 +410,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-class MetalTimerNode : public TimerNode {
+class MetalTimerObj : public TimerObj {
  public:
-  MetalTimerNode() {}
-  explicit MetalTimerNode(Device dev) : dev_(dev) {
+  MetalTimerObj() {}
+  explicit MetalTimerObj(Device dev) : dev_(dev) {
     mtl_dev_ = MetalWorkspace::Global()->GetDevice(dev_);
   }
 
@@ -440,7 +426,7 @@ class MetalTimerNode : public TimerNode {
     [mtl_dev_ sampleTimestamps:&stop_cpu_time_ gpuTimestamp:&stop_gpu_time_];
   }
   virtual int64_t SyncAndGetElapsedNanos() { return stop_gpu_time_ - start_gpu_time_; }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.metal.MetalTimerNode", MetalTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.metal.MetalTimerNode", MetalTimerObj, TimerObj);
 
  private:
   Device dev_;
@@ -455,7 +441,7 @@ class MetalTimerNode : public TimerNode {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("runtime.timer.metal",
-                        [](Device dev) { return Timer(ffi::make_object<MetalTimerNode>(dev)); });
+                        [](Device dev) { return Timer(ffi::make_object<MetalTimerObj>(dev)); });
 }
 
 }  // namespace metal

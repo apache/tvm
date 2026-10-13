@@ -36,7 +36,7 @@ def test_fallback():
             A: T.Tensor((1, 32, 1, 128), "float16"),
             C: T.Tensor((1, 1, 4096), "float16"),
         ):
-            B = Ts.sblock_alloc_buffer((1, 1, 32, 128), "float16")
+            B = Ts.sblock_alloc_tensor((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
                 with Ts.sblock("T_transpose"):
                     vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
@@ -54,8 +54,8 @@ def test_fallback():
             C: T.Tensor((1, 1, 4096), "float16"),
         ):
             T.func_attr({"tirx.is_scheduled": True})
-            for ax0_fused_0 in T.thread_binding(4, thread="blockIdx.x"):
-                for ax0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+            for ax0_fused_0 in T.parallel(4, annotations={"thread_binding": "blockIdx.x"}):
+                for ax0_fused_1 in T.parallel(1024, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_reshape"):
                         v0 = Ts.axis.spatial(4096, ax0_fused_0 * 1024 + ax0_fused_1)
                         Ts.reads(A[0, v0 // 128, 0, v0 % 128])
@@ -107,8 +107,10 @@ def test_fallback_reduction():
         @Ts.function
         def main(A: T.Tensor((1, 6144), "float32"), B: T.Tensor((1,), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
-            for ax0_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
-                for ax0_fused_1 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
+            for ax0_fused_0 in T.parallel(T.int64(1), annotations={"thread_binding": "blockIdx.x"}):
+                for ax0_fused_1 in T.parallel(
+                    T.int64(1024), annotations={"thread_binding": "threadIdx.x"}
+                ):
                     with Ts.sblock("block_init"):
                         v0 = Ts.axis.spatial(T.int64(1), T.int64(0))
                         Ts.where(ax0_fused_0 * T.int64(1024) + ax0_fused_1 < T.int64(1))
@@ -171,8 +173,8 @@ def test_fallback_irregular_spatial():
     def expected(pages: T.Tensor((num_total_pages, nlayer, nhead, page_size), 'float16'), page_table_indptr: T.Tensor((num_total_seqs_plus_1,), 'int32'), page_table_values: T.Tensor((npage,), 'int32'), values: T.Tensor((nlayer, nhead, seqlen), 'float16'), seq_id: T.int32):
         T.func_attr({"tirx.is_scheduled": True})
 
-        for ax0_ax1_ax2_fused_0 in T.thread_binding((nlayer * nhead * seqlen + 1023) // 1024, thread="blockIdx.x"):
-            for ax0_ax1_ax2_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+        for ax0_ax1_ax2_fused_0 in T.parallel((nlayer * nhead * seqlen + 1023) // 1024, annotations={"thread_binding": "blockIdx.x"}):
+            for ax0_ax1_ax2_fused_1 in T.parallel(1024, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("block"):
                     v0 = Ts.axis.spatial(nlayer, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) // (nhead * seqlen))
                     v1 = Ts.axis.spatial(nhead, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % (nhead * seqlen) // seqlen)
@@ -202,7 +204,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
             A: T.Tensor((1, 32, 1, 128), "float16"),
             C: T.Tensor((1, 1, 4096), "float16"),
         ):
-            B = Ts.sblock_alloc_buffer((1, 1, 32, 128), "float16")
+            B = Ts.sblock_alloc_tensor((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
                 with Ts.sblock("T_transpose"):
                     vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
@@ -221,7 +223,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
             C: T.Tensor((1, 1, 4096), "float16"),
         ):
             T.func_attr({"target": T.target("llvm")})
-            B = Ts.sblock_alloc_buffer((1, 1, 32, 128), "float16")
+            B = Ts.sblock_alloc_tensor((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
                 with Ts.sblock("T_transpose"):
                     vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
@@ -239,8 +241,8 @@ def test_gpu_fallback_ignores_non_gpu_functions():
             C: T.Tensor((1, 1, 4096), "float16"),
         ):
             T.func_attr({"tirx.is_scheduled": True})
-            for ax0_fused_0 in T.thread_binding(4, thread="blockIdx.x"):
-                for ax0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+            for ax0_fused_0 in T.parallel(4, annotations={"thread_binding": "blockIdx.x"}):
+                for ax0_fused_1 in T.parallel(1024, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_reshape"):
                         v0 = Ts.axis.spatial(4096, ax0_fused_0 * 1024 + ax0_fused_1)
                         Ts.reads(A[0, v0 // 128, 0, v0 % 128])
@@ -253,7 +255,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
             C: T.Tensor((1, 1, 4096), "float16"),
         ):
             T.func_attr({"target": T.target("llvm")})
-            B = Ts.sblock_alloc_buffer((1, 1, 32, 128), "float16")
+            B = Ts.sblock_alloc_tensor((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
                 with Ts.sblock("T_transpose"):
                     vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])

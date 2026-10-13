@@ -31,8 +31,8 @@ def ptx_ldmatrix(
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     T.launch_thread("blockIdx.x", 1)
     tx = T.launch_thread("threadIdx.x", 32)
-    A_shared = T.alloc_tensor([16, 16], "float16", scope="shared")
-    A_local = T.alloc_tensor([8], "float16", scope="local")
+    A_shared = T.alloc_tensor(ty_args=[T.Tensor([16, 16], "float16", scope="shared")])
+    A_local = T.alloc_tensor(ty_args=[T.Tensor([8], "float16", scope="local")])
     for i in range(8):
         A_shared[i * 2 + tx // 16, tx % 16] = A[i * 2 + tx // 16, tx % 16]
     T.evaluate(
@@ -61,7 +61,9 @@ def test_ptx_ldmatrix():
 
     for num in [1, 2, 4]:
         for trans in [False, True]:
-            mod = tvm.compile(f.specialize({param_num: num, param_trans: trans}), target="cuda")
+            mod = tvm.tirx.compile(
+                f.specialize({param_num: num, param_trans: trans}), target="cuda"
+            )
             A_np = np.random.rand(16, 16).astype("float16")
             A_mask_np = np.zeros_like(A_np)
             if num == 1:

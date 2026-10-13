@@ -37,19 +37,18 @@ namespace tvm {
 namespace backend {
 namespace cuda {
 
-bool DetectDeviceFlag(Device device, runtime::DeviceAttrKind flag, ffi::Any* val) {
+bool DetectDeviceFlag(Device device, const ffi::String& name, ffi::Any* val) {
   using runtime::DeviceAPI;
   DeviceAPI* api = DeviceAPI::Get(device, true);
   if (api == nullptr) {
     return false;
   }
-  api->GetAttr(device, runtime::kExist, val);
-  int exists = val->cast<int>();
+  bool exists = api->GetAttr(device, "exist").cast<bool>();
   if (!exists) {
     return false;
   }
-  DeviceAPI::Get(device)->GetAttr(device, flag, val);
-  return true;
+  *val = api->GetAttr(device, name);
+  return val->type_index() != kTVMFFINone;
 }
 
 void CheckOrSetAttr(ffi::Map<ffi::String, ffi::Any>* attrs, const ffi::String& name,
@@ -76,7 +75,7 @@ ffi::Map<ffi::String, ffi::Any> UpdateCUDAAttrs(ffi::Map<ffi::String, ffi::Any> 
   } else {
     int archInt;
     ffi::Any version;
-    if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
+    if (!DetectDeviceFlag({kDLCUDA, 0}, "compute_version", &version)) {
       // Generic targets are also used for backend discovery and IR construction.
       // Require an explicit architecture when resolving compilation, not here.
       return target;
@@ -100,7 +99,7 @@ ffi::Map<ffi::String, ffi::Any> UpdateNVPTXAttrs(ffi::Map<ffi::String, ffi::Any>
   } else {
     int arch;
     ffi::Any version;
-    if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
+    if (!DetectDeviceFlag({kDLCUDA, 0}, "compute_version", &version)) {
       LOG(WARNING) << "Unable to detect CUDA version, default to \"-mcpu=sm_50\" instead";
       arch = 50;
     } else {

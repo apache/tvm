@@ -38,8 +38,9 @@ bool TensorTypeNode::IsScalar(bool alloc_or_decl) const {
   // TODO(@bohan): logical scope is not considered
   return shape.size() == 1 && tvm::prim::IsOne(shape[0]) && strides.empty() &&
          (!alloc_or_decl || tvm::prim::IsZero(elem_offset)) && data_alignment == 64 &&
-         offset_factor == 1 && layout.has_value() &&
-         ffi::StructuralEqual()(layout.value(), TileLayoutNode::DefaultLayout({1}));
+         offset_factor == 1 &&
+         (!layout.has_value() ||
+          ffi::StructuralEqual()(layout.value(), TileLayoutNode::DefaultLayout({1})));
 }
 
 std::optional<int64_t> TensorTypeNode::ConstantAllocationSize() const {

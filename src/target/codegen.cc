@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/base.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 #include <tvm/target/codegen.h>
@@ -40,8 +41,6 @@
 #include <sstream>
 #include <unordered_set>
 #include <vector>
-
-#include "../support/bytes_io.h"
 
 namespace tvm {
 namespace codegen {
@@ -381,8 +380,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              DLDevice dev;
              dev.device_type = kDLCPU;
              dev.device_id = 0;
-             auto array = runtime::Tensor::Empty({size}, uchar, dev);
-             array.CopyFromBytes(buffer.data(), size);
+             auto array = runtime::Empty({size}, uchar, dev);
+             tvm::runtime::CopyFromBytes(array, buffer.data(), size);
              return array;
            })
       .def("runtime.ModulePackImportsToC", PackImportsToC)

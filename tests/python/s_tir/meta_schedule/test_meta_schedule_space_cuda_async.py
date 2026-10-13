@@ -52,12 +52,12 @@ def get_c2d_function(stage: int):
                 Ts.reads()
                 Ts.writes()
                 Ts.sblock_attr({"meta_schedule.unroll_explicit": 1024})
-                conv2d_nhwc_local = Ts.sblock_alloc_buffer((1, 112, 112, 64), scope="local")
-                PadInput_shared = Ts.sblock_alloc_buffer((1, 230, 230, 3), scope="shared")
-                weight_shared = Ts.sblock_alloc_buffer((7, 7, 3, 64), scope="shared")
-                for n_0_h_0_w_0_co_0_fused in T.thread_binding(112, thread="blockIdx.x"):
-                    for n_1_h_1_w_1_co_1_fused in T.thread_binding(8, thread="vthread.x"):
-                        for n_2_h_2_w_2_co_2_fused in T.thread_binding(64, thread="threadIdx.x"):
+                conv2d_nhwc_local = Ts.sblock_alloc_tensor((1, 112, 112, 64), scope="local")
+                PadInput_shared = Ts.sblock_alloc_tensor((1, 230, 230, 3), scope="shared")
+                weight_shared = Ts.sblock_alloc_tensor((7, 7, 3, 64), scope="shared")
+                for n_0_h_0_w_0_co_0_fused in T.parallel(112, annotations={"thread_binding": "blockIdx.x"}):
+                    for n_1_h_1_w_1_co_1_fused in T.parallel(8, annotations={"thread_binding": "vthread.x"}):
+                        for n_2_h_2_w_2_co_2_fused in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                             for rh_0, rw_0, rc_0 in T.grid(1, 1, 3):
                                 for ax0_ax1_ax2_ax3_fused in range(693):
                                     with Ts.sblock("PadInput_shared"):
@@ -113,12 +113,12 @@ def get_c2d_function(stage: int):
                 Ts.reads()
                 Ts.writes()
                 Ts.sblock_attr({"meta_schedule.unroll_explicit": 1024})
-                conv2d_nhwc_local = Ts.sblock_alloc_buffer((1, 112, 112, 64), scope="local")
-                PadInput_shared = Ts.sblock_alloc_buffer((1, 230, 230, 3), scope="shared")
-                weight_shared = Ts.sblock_alloc_buffer((7, 7, 3, 64), scope="shared")
-                for n_0_h_0_w_0_co_0_fused in T.thread_binding(112, thread="blockIdx.x"):
-                    for n_1_h_1_w_1_co_1_fused in T.thread_binding(8, thread="vthread.x"):
-                        for n_2_h_2_w_2_co_2_fused in T.thread_binding(64, thread="threadIdx.x"):
+                conv2d_nhwc_local = Ts.sblock_alloc_tensor((1, 112, 112, 64), scope="local")
+                PadInput_shared = Ts.sblock_alloc_tensor((1, 230, 230, 3), scope="shared")
+                weight_shared = Ts.sblock_alloc_tensor((7, 7, 3, 64), scope="shared")
+                for n_0_h_0_w_0_co_0_fused in T.parallel(112, annotations={"thread_binding": "blockIdx.x"}):
+                    for n_1_h_1_w_1_co_1_fused in T.parallel(8, annotations={"thread_binding": "vthread.x"}):
+                        for n_2_h_2_w_2_co_2_fused in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                             for rh_0_rw_0_rc_0_fused in T.serial(3, annotations={"software_pipeline_async_stages": [0], "software_pipeline_order": [0, 1, 2], "software_pipeline_stage": [0, 0, stage - 2]}):
                                 for ax0_ax1_ax2_ax3_fused in range(693):
                                     with Ts.sblock("PadInput_shared"):
@@ -206,12 +206,12 @@ def get_gmm_function(stage: int):
                 Ts.reads()
                 Ts.writes()
                 Ts.sblock_attr({"meta_schedule.unroll_explicit": 16})
-                Z_local = Ts.sblock_alloc_buffer((1, 1024, 1024), scope="local")
-                X_shared = Ts.sblock_alloc_buffer((1, 1024, 1024), scope="shared")
-                Y_shared = Ts.sblock_alloc_buffer((1, 1024, 1024), scope="shared")
-                for b_0_i_0_j_0_fused in T.thread_binding(256, thread="blockIdx.x"):
-                    for b_1_i_1_j_1_fused in T.thread_binding(32, thread="vthread.x"):
-                        for b_2_i_2_j_2_fused in T.thread_binding(64, thread="threadIdx.x"):
+                Z_local = Ts.sblock_alloc_tensor((1, 1024, 1024), scope="local")
+                X_shared = Ts.sblock_alloc_tensor((1, 1024, 1024), scope="shared")
+                Y_shared = Ts.sblock_alloc_tensor((1, 1024, 1024), scope="shared")
+                for b_0_i_0_j_0_fused in T.parallel(256, annotations={"thread_binding": "blockIdx.x"}):
+                    for b_1_i_1_j_1_fused in T.parallel(32, annotations={"thread_binding": "vthread.x"}):
+                        for b_2_i_2_j_2_fused in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                             for k_0 in range(64):
                                 for ax0_ax1_ax2_fused in range(1024):
                                     with Ts.sblock("X_shared"):
@@ -261,12 +261,12 @@ def get_gmm_function(stage: int):
                 Ts.reads()
                 Ts.writes()
                 Ts.sblock_attr({"meta_schedule.unroll_explicit": 16})
-                Z_local = Ts.sblock_alloc_buffer((1, 1024, 1024), scope="local")
-                X_shared = Ts.sblock_alloc_buffer((1, 1024, 1024), scope="shared")
-                Y_shared = Ts.sblock_alloc_buffer((1, 1024, 1024), scope="shared")
-                for b_0_i_0_j_0_fused in T.thread_binding(256, thread="blockIdx.x"):
-                    for b_1_i_1_j_1_fused in T.thread_binding(32, thread="vthread.x"):
-                        for b_2_i_2_j_2_fused in T.thread_binding(64, thread="threadIdx.x"):
+                Z_local = Ts.sblock_alloc_tensor((1, 1024, 1024), scope="local")
+                X_shared = Ts.sblock_alloc_tensor((1, 1024, 1024), scope="shared")
+                Y_shared = Ts.sblock_alloc_tensor((1, 1024, 1024), scope="shared")
+                for b_0_i_0_j_0_fused in T.parallel(256, annotations={"thread_binding": "blockIdx.x"}):
+                    for b_1_i_1_j_1_fused in T.parallel(32, annotations={"thread_binding": "vthread.x"}):
+                        for b_2_i_2_j_2_fused in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                             for k_0_fused in T.serial(64, annotations={"software_pipeline_async_stages": [0], "software_pipeline_order": [0, 1, 2], "software_pipeline_stage": [0, 0, stage - 2]}):
                                 for ax0_ax1_ax2_fused in range(1024):
                                     with Ts.sblock("X_shared"):

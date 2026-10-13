@@ -25,6 +25,7 @@
 #include "spirv_utils.h"
 
 #include <tvm/ir/function.h>
+#include <tvm/support/env.h>
 
 #if TVM_ENABLE_SPIRV
 #include <libspirv.h>
@@ -39,7 +40,6 @@
 #include <sstream>
 #include <vector>
 
-#include "../../../support/utils.h"
 #include "../runtime/spirv_shader.h"
 
 namespace tvm {
@@ -157,7 +157,7 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
       }
     }
 
-    if (!support::BoolEnvironmentVar("TVM_VULKAN_DISABLE_SHADER_VALIDATION")) {
+    if (!support::GetEnv<bool>("TVM_VULKAN_DISABLE_SHADER_VALIDATION", false)) {
       spirv_tools.ValidateShader(shader.data);
     }
 

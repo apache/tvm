@@ -152,9 +152,9 @@ class StringType(Type):
         self.__init_handle_by_constructor__(_ffi_api.StringType)
 
 
-@tvm_ffi.register_object("ir.PointerType")
-class PointerType(Type):
-    """PointerType used in the low-level TIR.
+@tvm_ffi.register_object("ir.PtrType")
+class PtrType(Type):
+    """PtrType used in the low-level TIR.
 
     Parameters
     ----------
@@ -166,7 +166,7 @@ class PointerType(Type):
     """
 
     def __init__(self, element_type, storage_scope=""):
-        self.__init_handle_by_constructor__(_ffi_api.PointerType, element_type, storage_scope)
+        self.__init_handle_by_constructor__(_ffi_api.PtrType, element_type, storage_scope)
 
 
 @tvm_ffi.register_object("ir.TupleType")

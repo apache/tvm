@@ -34,12 +34,12 @@ def test_rocm_inf_nan():
             @T.function
             def main(A: T.Tensor((1,), dtype), C: T.Tensor((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
-                for i_0 in T.thread_binding(1, thread="blockIdx.x"):
-                    for i_1 in T.thread_binding(128, thread="threadIdx.x"):
+                with T.launch_thread("blockIdx.x", 1) as i_0:
+                    with T.launch_thread("threadIdx.x", 128) as i_1:
                         if i_0 * 128 + i_1 < 1:
                             C[i_0 * 128 + i_1] = T.Cast(dtype, value)
 
-        fun = tvm.compile(Module, "rocm")
+        fun = tvm.tirx.compile(Module, "rocm")
 
         def run_and_check():
             dev = tvm.rocm(0)
@@ -90,11 +90,11 @@ def test_rocm_vectorize_add():
             @T.function
             def main(A: T.Tensor((n,), vec_dtype), B: T.Tensor((n,), vec_dtype)):
                 T.func_attr({"tirx.noalias": True})
-                for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
-                    for i_1 in T.thread_binding(4, thread="threadIdx.x"):
+                with T.launch_thread("blockIdx.x", num_blocks) as i_0:
+                    with T.launch_thread("threadIdx.x", 4) as i_1:
                         B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + T.Broadcast(T.Cast(dtype, 1), lanes)
 
-        fun = tvm.compile(Module, target="rocm")
+        fun = tvm.tirx.compile(Module, target="rocm")
 
         def run_and_check():
             dev = tvm.rocm(0)
@@ -116,16 +116,16 @@ def test_rocm_warp_shuffle():
     def func(
         A: T.Tensor((32,), dtype="float32"),
     ):
-        for bx in T.thread_binding(1, thread="blockIdx.x"):
-            for tx in T.thread_binding(32, thread="threadIdx.x"):
-                A_local = T.alloc_tensor((1,), "float32", scope="local")
-                mask = T.alloc_tensor((1,), "uint32", scope="local")
-                t0 = T.alloc_tensor((1,), "float32", scope="local")
+        with T.launch_thread("blockIdx.x", 1) as bx:
+            with T.launch_thread("threadIdx.x", 32) as tx:
+                A_local = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
+                mask = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="local")])
+                t0 = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
                 A_local[0] = A[tx]
                 A_local[0] = T.gpu_warp_shuffle(mask[0], A_local[0], 0, 32, 32)
                 A[tx] = A_local[0]
 
-    mod = tvm.compile(func, target="rocm")
+    mod = tvm.tirx.compile(func, target="rocm")
 
     def run_and_check():
         dev = tvm.rocm(0)
@@ -144,12 +144,12 @@ def test_rocm_vectorized_exp():
         A: T.Tensor((4,), dtype="float32"),
         B: T.Tensor((4,), dtype="float32"),
     ):
-        for bx in T.thread_binding(1, thread="blockIdx.x"):
-            for tx in T.thread_binding(1, thread="threadIdx.x"):
+        with T.launch_thread("blockIdx.x", 1) as bx:
+            with T.launch_thread("threadIdx.x", 1) as tx:
                 for i in T.vectorized(0, 4):
                     B[i] = T.exp2(A[i])
 
-    mod = tvm.compile(func, target="rocm")
+    mod = tvm.tirx.compile(func, target="rocm")
 
     def run_and_check():
         dev = tvm.rocm(0)
@@ -172,12 +172,12 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
         @T.function
         def main(A: T.Tensor((n,), "float32"), B: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
-            for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", n // 32) as i_0:
+                with T.launch_thread("threadIdx.x", 32) as i_1:
                     B[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + 1.0
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
-    host_lib = tvm.compile(Module, target="rocm")
+    host_lib = tvm.tirx.compile(Module, target="rocm")
     monkeypatch.delenv("TVM_COMPILE_FORCE_FALLBACK")
 
     lib_path = str(tmp_path / "lib.so")

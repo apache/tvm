@@ -21,14 +21,17 @@ from __future__ import annotations
 from tvm import ir as _ir
 from tvm.backend.cuda import op as _cuda_op
 
+from . import layout as layout
+from .axis import Axis as Axis
 from .backend_config import BackendConfig as BackendConfig
+from .exec_scope import ExecScope as ExecScope
 from .launch import AccessPolicyWindow as AccessPolicyWindow
 from .launch import KernelAttributes as KernelAttributes
 from .launch import LaunchCompletionEvent as LaunchCompletionEvent
 from .launch import LaunchConfig as LaunchConfig
 from .launch import MemSyncDomainMap as MemSyncDomainMap
 from .launch import ProgrammaticEvent as ProgrammaticEvent
-from .tensor_instructions import make_namespace as _make_tensor_namespace
+from .tile.instructions import make_namespace as _make_tensor_namespace
 
 # pylint: disable=protected-access
 
@@ -145,6 +148,7 @@ __shfl_down_sync = _cuda_op.__shfl_down_sync
 __shfl_xor_sync = _cuda_op.__shfl_xor_sync
 __activemask = _cuda_op.__activemask
 
+
 tile = _make_tensor_namespace()
 _ir.op._init_op_api("tirx.cuda", __name__)
 
@@ -163,6 +167,10 @@ class NVSHMEMNamespace:
         self.getmem_nbi = NVSHMEMGetMemNBINamespace()
         self.putmem_nbi = NVSHMEMPutMemNBINamespace()
         self.putmem_signal_nbi = NVSHMEMPutMemSignalNBINamespace()
+        # Canonical Op names are also exposed directly for reconstruction.
+        for name in ("getmem_nbi", "putmem_nbi", "putmem_signal_nbi"):
+            for scope in ("warp", "block"):
+                setattr(self, f"{name}_{scope}", getattr(_cuda_op, f"nvshmem_{name}_{scope}"))
 
 
 class NVSHMEMGetMemNBINamespace:

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Define SBlockDependenceInfoNode that uses the SBlockScope and StmtSRef objects
+"""Define SBlockDependenceInfoObj that uses the SBlockScope and StmtSRef objects
 to store the block level dependences"""
 
 from tvm_ffi import register_object

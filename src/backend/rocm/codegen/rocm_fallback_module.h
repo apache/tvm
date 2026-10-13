@@ -24,7 +24,7 @@
  *   `ROCmModuleCreateWithFallback` is the ONLY entry point codegen uses to
  *   construct a ROCm `ffi::Module`.  It tries the runtime-registered factory
  *   "ffi.Module.create.rocm" via the FFI registry; on miss it constructs a
- *   `ROCmFallbackModuleNode` directly.  The fallback exists so that codegen
+ *   `ROCmFallbackModuleObj` directly.  The fallback exists so that codegen
  *   can succeed on a build where the ROCm runtime is not linked.  This
  *   setup is helpful for cross compilation where we compile on one env
  *   and run on another.
@@ -35,17 +35,17 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/support/env.h>
 
 #include <utility>
 
 #include "../../../runtime/metadata.h"
-#include "../../../support/env.h"
 
 namespace tvm {
 namespace target {
 
 /*!
- * \brief Construct a `ROCmFallbackModuleNode` directly (no FFI registry
+ * \brief Construct a `ROCmFallbackModuleObj` directly (no FFI registry
  *        round-trip).  Used by `ROCmModuleCreateWithFallback` and by tests
  *        that explicitly want a fallback instance.
  */
@@ -58,8 +58,8 @@ ffi::Module ROCmFallbackModuleCreate(ffi::Bytes code, ffi::String fmt,
  *        "ffi.Module.create.rocm"; on miss or when forced via env var,
  *        falls back to `ROCmFallbackModuleCreate`.
  *
- *   - Registry hit (USE_ROCM=ON build) → real `ROCMModuleNode` returned.
- *   - Registry miss (USE_ROCM=OFF build) → `ROCmFallbackModuleNode` returned.
+ *   - Registry hit (USE_ROCM=ON build) → real `ROCMModuleObj` returned.
+ *   - Registry miss (USE_ROCM=OFF build) → `ROCmFallbackModuleObj` returned.
  *   - `TVM_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless of
  *     registry state (used by per-backend fallback tests on a USE_X=ON CI
  *     box).

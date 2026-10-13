@@ -64,7 +64,7 @@ def test_dso_module_load():
         mod = tvm.IRModule.from_expr(
             tvm.tirx.Function([Ab], stmt).with_attr("global_symbol", "main")
         )
-        m = tvm.tirx.build(mod, target="llvm")
+        m = tvm.tirx.compile(mod, target="llvm").mod
         for name in names:
             m.write_to_file(name)
 
@@ -131,8 +131,8 @@ def test_device_module_dump():
                 import tvm
 
                 f1 = tvm.runtime.load_module(path_dso)
-                a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
-                b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
+                a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(str(A.dtype)), dev)
+                b = tvm.runtime.tensor(np.zeros(1024, dtype=str(A.dtype)), dev)
                 f1(a, b)
                 np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
@@ -153,8 +153,8 @@ def test_device_module_dump():
 
         def run_and_check():
             dev = tvm.device(device, 0)
-            a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
-            b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
+            a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(str(A.dtype)), dev)
+            b = tvm.runtime.tensor(np.zeros(1024, dtype=str(A.dtype)), dev)
             f["main"](a, b)
             np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
@@ -181,8 +181,8 @@ def test_combine_module_llvm():
     def check_llvm():
         dev = tvm.cpu(0)
         temp = utils.tempdir()
-        fadd1 = tvm.tirx.build(mod1, "llvm")
-        fadd2 = tvm.tirx.build(mod2, "llvm")
+        fadd1 = tvm.tirx.compile(mod1, "llvm").mod
+        fadd2 = tvm.tirx.compile(mod2, "llvm").mod
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")
@@ -193,8 +193,8 @@ def test_combine_module_llvm():
         m = tvm.runtime.load_module(path_dso)
         fadd1 = m["myadd1"]
         fadd2 = m["myadd2"]
-        a = tvm.runtime.tensor(np.random.uniform(size=nn).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.zeros(nn, dtype=A.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=nn).astype(str(A.dtype)), dev)
+        b = tvm.runtime.tensor(np.zeros(nn, dtype=str(A.dtype)), dev)
         fadd1(a, b)
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
         fadd2(a, b)
@@ -207,8 +207,8 @@ def test_combine_module_llvm():
             return
         temp = utils.tempdir()
         print("Running popen check")
-        fadd1 = tvm.tirx.build(mod1.with_attr("system_lib_prefix", ""), "llvm")
-        fadd2 = tvm.tirx.build(mod2.with_attr("system_lib_prefix", ""), "llvm")
+        fadd1 = tvm.tirx.compile(mod1.with_attr("system_lib_prefix", ""), "llvm").mod
+        fadd2 = tvm.tirx.compile(mod2.with_attr("system_lib_prefix", ""), "llvm").mod
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")
@@ -225,8 +225,8 @@ def test_combine_module_llvm():
             ctypes.CDLL(path_dso)
             # Load the system wide library
             mm = tvm.runtime.system_lib()
-            a = tvm.runtime.tensor(np.random.uniform(size=nn).astype(A.dtype), dev)
-            b = tvm.runtime.tensor(np.zeros(nn, dtype=A.dtype), dev)
+            a = tvm.runtime.tensor(np.random.uniform(size=nn).astype(str(A.dtype)), dev)
+            b = tvm.runtime.tensor(np.zeros(nn, dtype=str(A.dtype)), dev)
             mm["myadd1"](a, b)
             np.testing.assert_equal(b.numpy(), a.numpy() + 1)
             mm["myadd2"](a, b)

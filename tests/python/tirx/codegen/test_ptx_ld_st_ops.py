@@ -22,7 +22,7 @@ import pytest
 import tvm
 from tvm.script import tirx as T
 from tvm.testing import env
-from tvm.tirx.cuda.tile_primitive.copy._common import copy_ptx_form
+from tvm.tirx.cuda.tile.copy._common import copy_ptx_form
 
 TARGET = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
 
@@ -38,7 +38,7 @@ _SHARED_COPY_CASES = {
 
 
 def _build_and_run(func, *np_args):
-    mod = tvm.compile(tvm.IRModule({"main": func}), target=TARGET, tir_pipeline="tirx")
+    mod = tvm.tirx.compile(tvm.IRModule({"main": func}), target=TARGET, pipeline="tirx")
 
     def run_and_check():
         dev = tvm.cuda(0)
@@ -78,8 +78,8 @@ def _shared_scratch_copy_kernel(num_bytes: int):
     def func(out: T.Tensor((nelems,), smem_dtype)):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
         lane = T.cuda.lane_id()
-        src_buf = T.alloc_tensor((nelems,), smem_dtype, scope="shared")
-        dst_buf = T.alloc_tensor((nelems,), smem_dtype, scope="shared")
+        src_buf = T.alloc_tensor(ty_args=[T.Tensor((nelems,), smem_dtype, scope="shared")])
+        dst_buf = T.alloc_tensor(ty_args=[T.Tensor((nelems,), smem_dtype, scope="shared")])
         tmp = T.alloc_local((lanes,), reg_dtype)
         if T.constexpr(fill_offset is not None):
             if lane < nelems:
@@ -112,8 +112,8 @@ def test_ptx_ld_st_codegen_emits_shared_asm():
 
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 32))
         tid_in_wg = T.cuda.thread_in_warpgroup()
-        smem = T.alloc_tensor((4,), "uint32", scope="shared")
-        reg = T.alloc_local((4,), "uint32")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
+        reg = T.alloc_local((4,), "uint32", layout="default")
         if tid_in_wg == 0:
             T.ptx.st.shared.v4.u32(smem.ptr_to([0]), reg[0], reg[1], reg[2], reg[3])
         T.cuda.cta_sync()
@@ -124,7 +124,7 @@ def test_ptx_ld_st_codegen_emits_shared_asm():
 
     target = TARGET
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": copy_kernel}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": copy_kernel}), target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
     assert "ld.shared" in src, "PTX ld did not emit ld.shared"
     assert "st.shared" in src, "PTX st did not emit st.shared"
@@ -137,7 +137,7 @@ def test_ptx_ld_st_raw_shared_address_codegen():
     def main(out: T.Tensor((2,), "uint64")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
         tx = T.cuda.thread_idx("x")
-        smem = T.alloc_tensor((2,), "uint64", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((2,), "uint64", scope="shared")])
         values = T.alloc_local((4,), "uint32")
         if tx == 0:
             raw_addr: T.uint32 = T.cuda.cvta_generic_to_shared(smem.data)
@@ -146,7 +146,7 @@ def test_ptx_ld_st_raw_shared_address_codegen():
             T.ptx.st.weak.shared__cta.b128(raw_addr, values.view("uint128")[0])
 
     with TARGET:
-        mod = tvm.compile(tvm.IRModule({"main": main}), target=TARGET, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": main}), target=TARGET, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
     assert "ld.shared.u64 %0, [%1];" in src
     # One cvta, for the generic pointer. The raw window address is already a
@@ -169,7 +169,7 @@ def test_ptx_ld_st_immediate_offset_codegen():
             T.ptx.st.global_.v2.b64(T.ptx.addr(out.data, 16), values[0], values[1])
 
     with TARGET:
-        mod = tvm.compile(tvm.IRModule({"main": main}), target=TARGET, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": main}), target=TARGET, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
     assert "ld.global.v2.b64 {%0, %1}, [%2+16];" in src
     assert "st.global.v2.b64 [%0+16], {%1, %2};" in src
@@ -196,7 +196,7 @@ def test_ptx_ld_global_nc_v8_codegen():
 
     target = TARGET
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": copy_kernel}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": copy_kernel}), target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
     assert "ld.global.nc.L1::no_allocate.L2::evict_first.L2::256B.v8.s32" in src
     assert "{%0, %1, %2, %3, %4, %5, %6, %7}, [%8];" in src
@@ -223,7 +223,7 @@ def test_ptx_ld_global_nc_v4_u64_256b_codegen():
 
     target = TARGET
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": copy_kernel}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": copy_kernel}), target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
     assert "ld.global.nc.L1::no_allocate.L2::evict_normal.L2::256B.v4.u64" in src
     assert "{%0, %1, %2, %3}, [%4];" in src
@@ -249,7 +249,7 @@ def test_ptx_ld_vector_scatter_dst_codegen():
 
     target = TARGET
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": copy_kernel}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": copy_kernel}), target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
     assert "ld.global.nc.v4.s32 {%0, %1, %2, %3}, [%4];" in src
     # Four independent destinations: each lane is its own reference parameter.

@@ -70,10 +70,10 @@ void JSONFileAppendLine(const ffi::String& path, const std::string& line) {
 }
 
 /*! \brief The default database implementation, which mimics two database tables with two files. */
-class JSONDatabaseNode : public DatabaseNode {
+class JSONDatabaseObj : public DatabaseObj {
  public:
-  explicit JSONDatabaseNode(ffi::String mod_eq_name = "structural")
-      : DatabaseNode(mod_eq_name),
+  explicit JSONDatabaseObj(ffi::String mod_eq_name = "structural")
+      : DatabaseObj(mod_eq_name),
         workloads2idx_(/*bucket_count*/ 0, WorkloadHash(), WorkloadEqual(GetModuleEquality())) {}
 
   /*! \brief The path to the workload table */
@@ -87,12 +87,12 @@ class JSONDatabaseNode : public DatabaseNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<JSONDatabaseNode>()
-        .def_ro("path_workload", &JSONDatabaseNode::path_workload)
-        .def_ro("path_tuning_record", &JSONDatabaseNode::path_tuning_record);
+    refl::ObjectDef<JSONDatabaseObj>()
+        .def_ro("path_workload", &JSONDatabaseObj::path_workload)
+        .def_ro("path_tuning_record", &JSONDatabaseObj::path_tuning_record);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.JSONDatabase", JSONDatabaseNode,
-                                    DatabaseNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.JSONDatabase", JSONDatabaseObj,
+                                    DatabaseObj);
 
  public:
   bool HasWorkload(const IRModule& mod) {
@@ -161,7 +161,7 @@ class JSONDatabaseNode : public DatabaseNode {
 Database Database::JSONDatabase(ffi::String path_workload, ffi::String path_tuning_record,
                                 bool allow_missing, ffi::String mod_eq_name) {
   int num_threads = std::thread::hardware_concurrency();
-  ffi::ObjectPtr<JSONDatabaseNode> n = ffi::make_object<JSONDatabaseNode>(mod_eq_name);
+  ffi::ObjectPtr<JSONDatabaseObj> n = ffi::make_object<JSONDatabaseObj>(mod_eq_name);
   // Load `n->workloads2idx_` from `path_workload`
   std::vector<Workload> workloads;
   {
@@ -175,7 +175,7 @@ Database Database::JSONDatabase(ffi::String path_workload, ffi::String path_tuni
       // Todo(tvm-team): re-enable the shash check when we get environment
       // independent structural hash values.
       if (recalc_hash != workload->shash) {
-        ffi::ObjectPtr<WorkloadNode> wkl = ffi::make_object<WorkloadNode>(*workload.get());
+        ffi::ObjectPtr<WorkloadObj> wkl = ffi::make_object<WorkloadObj>(*workload.get());
         wkl->shash = recalc_hash;
         workload = Workload(ffi::UnsafeInit{}, wkl);
       }
@@ -219,7 +219,7 @@ Database Database::JSONDatabase(ffi::String path_workload, ffi::String path_tuni
   return Database(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { JSONDatabaseNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { JSONDatabaseObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

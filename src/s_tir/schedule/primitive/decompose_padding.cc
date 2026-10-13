@@ -99,7 +99,7 @@ class PaddingInfoAnalyzer {
     const TensorStoreNode* store =
         block->body->size() == 1 ? block->body->seq[0].as<TensorStoreNode>() : nullptr;
     if (!store) {
-      SetError("Block body expect a TensorStore to the write buffer");
+      SetError("Block body expect a TensorStore to the write tensor");
       return false;
     }
     const CallNode* if_then_else = store->value.as<CallNode>();
@@ -153,10 +153,9 @@ class PaddingInfoAnalyzer {
   PrimExpr RewritePredicate(const PrimExpr& predicate) {
     PrimExpr res = IntImm::Bool(true);
     std::function<void(PrimExpr)> update = [&res, &update](PrimExpr e) {
-      sym::PVar<PrimExpr> a, b;
-      if ((a && b).Match(e)) {
-        update(a.Eval());
-        update(b.Eval());
+      if (const auto* and_node = e.as<prim::AndNode>()) {
+        update(and_node->a);
+        update(and_node->b);
       } else {
         if (const CallNode* call = e.as<CallNode>()) {
           if (call->op.same_as(prim::likely_op())) {
@@ -240,10 +239,11 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   // create new write region
   TVM_FFI_ICHECK_EQ(block->writes.size(), 1U);
   TensorRegion write_region =
-      BufferRegion(block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>(),
+      TensorRegion(block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>(),
                    block->writes[0]->region.Map([rewrite_expr](const Range& r) {
                      return Range::FromMinExtent(rewrite_expr(r->min), rewrite_expr(r->extent));
-                   }));
+                   }),
+                   TensorRegionType());
 
   // create block to fill const pad values
   TVM_FFI_ICHECK_EQ(block->body->size(), 1);
@@ -349,12 +349,12 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   // create new read/write region for in-bound accesses
   ffi::Array<TensorRegion> reads, writes;
   for (const TensorRegion& read : block->reads) {
-    reads.push_back(BufferRegion(read->source.as_or_throw<tvm::tirx::TensorVar>(),
-                                 rewrite_region(read->region)));
+    reads.push_back(TensorRegion(read->source.as_or_throw<tvm::tirx::TensorVar>(),
+                                 rewrite_region(read->region), TensorRegionType()));
   }
   for (const TensorRegion& write : block->writes) {
-    writes.push_back(BufferRegion(write->source.as_or_throw<tvm::tirx::TensorVar>(),
-                                  rewrite_region(write->region)));
+    writes.push_back(TensorRegion(write->source.as_or_throw<tvm::tirx::TensorVar>(),
+                                  rewrite_region(write->region), TensorRegionType()));
   }
 
   // create new block realize node
@@ -538,7 +538,7 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
   bool preserve_stage_pipeline = true;
   for (const StmtSRef& consumer_sref : GetConsumers(self, block_sref)) {
     StmtSRef lca = GetSRefLowestCommonAncestor({consumer_sref, block_sref});
-    const StmtSRefNode* parent = new_block_sref->parent;
+    const StmtSRefObj* parent = new_block_sref->parent;
     bool is_under_lca = false;
     while (parent) {
       if (parent == lca.get()) {

@@ -623,9 +623,7 @@ def test_fold_tensor_to_shape_int32():
     @I.ir_module
     class Module:
         @R.function
-        def before(
-            data: R.Tensor((6,), "float32"), shape_data: R.Tensor((2,), "int32")
-        ):
+        def before(data: R.Tensor((6,), "float32"), shape_data: R.Tensor((2,), "int32")):
             with R.dataflow():
                 shape: R.Shape(ndim=2) = R.tensor_to_shape(shape_data)
                 out: R.Tensor(ndim=2, dtype="float32") = R.reshape(data, shape)

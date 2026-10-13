@@ -28,7 +28,7 @@ single-thread call site has already selected that issuer; a warp-scoped call use
 against an mbarrier. It also
 provides ``Tx.cuda.tile.tcgen05.mma_block_scale`` for block-scaled low precision (fp8 / fp4 with per-block scale factors
 ``SFA`` / ``SFB`` in tensor memory). Source:
-``python/tvm/backend/cuda/tile_primitive/gemm_async/tcgen05.py``. (For the
+``python/tvm/backend/cuda/tile/gemm_async/tcgen05.py``. (For the
 synchronous warp-register path see :doc:`gemm`.)
 
 What it accepts
@@ -51,7 +51,7 @@ A single predicate — single-thread or warp scope:
    * - dtype
      - without ``is_AB_tf32``, dense A/B use the same dtype: ``float16``,
        ``bfloat16``, ``float8_e4m3fn``, or ``float8_e5m2``. Typical TF32
-       authoring uses ``float32`` buffers with ``is_AB_tf32=True``; the flag
+       authoring uses ``float32`` tensors with ``is_AB_tf32=True``; the flag
        replaces both semantic A/B dtypes with ``tf32`` before validation, so
        the current implementation does not separately validate the underlying
        storage dtypes or their equality in that mode.
@@ -92,11 +92,30 @@ into shared (from
 
 .. code-block:: python
 
-    from tvm.tirx.layout import S, TCol, TLane, TileLayout, tid_in_wg as axis_tid_in_wg
-    from tvm.backend.cuda.tile_primitive.tma_utils import mma_shared_layout
+    from tvm.tirx.layout import S, TileLayout
+    from tvm.backend.cuda.axis import TCol, TLane, tid_in_wg as axis_tid_in_wg
+    from tvm.backend.cuda.tile.tma_utils import mma_shared_layout
 
-    A_smem = Tx.alloc_tensor((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
-    B_smem = Tx.alloc_tensor((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
+    A_smem = Tx.alloc_tensor(
+        ty_args=[
+            Tx.Tensor(
+                (3, 128, 64),
+                "float16",
+                scope="shared",
+                layout=mma_shared_layout("float16", 3, (3, 128, 64)),
+            )
+        ]
+    )
+    B_smem = Tx.alloc_tensor(
+        ty_args=[
+            Tx.Tensor(
+                (3, 128, 64),
+                "float16",
+                scope="shared",
+                layout=mma_shared_layout("float16", 3, (3, 128, 64)),
+            )
+        ]
+    )
     tmem_addr = Tx.alloc_shared([1], "uint32"); mma_mbar = Tx.alloc_shared([1], "uint64")
     # ... mbarrier.init, cta_sync ...
     if warp_id == 0:

@@ -43,9 +43,9 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
+class ParallelizeVectorizeUnrollObj : public ScheduleRuleObj {
  public:
-  // Inherited from ScheduleRuleNode
+  // Inherited from ScheduleRuleObj
   void InitializeWithTuneContext(const TuneContext& context) final {
     TVM_FFI_ICHECK(context->target.has_value());
     if (this->max_jobs_per_core != -1) {
@@ -54,7 +54,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
     }
   }
 
-  // Inherited from ScheduleRuleNode
+  // Inherited from ScheduleRuleObj
   ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch, const s_tir::SBlockRV& root_rv) {
     // Currently only mark the root block with annotations.
     if (!s_tir::IsRootBlock(sch, root_rv)) {
@@ -86,10 +86,10 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
     return {sch};
   }
 
-  // Inherited from ScheduleRuleNode
+  // Inherited from ScheduleRuleObj
   ScheduleRule Clone() const final {
-    ffi::ObjectPtr<ParallelizeVectorizeUnrollNode> n =
-        ffi::make_object<ParallelizeVectorizeUnrollNode>(*this);
+    ffi::ObjectPtr<ParallelizeVectorizeUnrollObj> n =
+        ffi::make_object<ParallelizeVectorizeUnrollObj>(*this);
     return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
@@ -117,22 +117,22 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ParallelizeVectorizeUnrollNode>()
-        .def_ro("max_jobs_per_core", &ParallelizeVectorizeUnrollNode::max_jobs_per_core)
-        .def_ro("max_vectorize_extent", &ParallelizeVectorizeUnrollNode::max_vectorize_extent)
-        .def_ro("unroll_max_steps", &ParallelizeVectorizeUnrollNode::unroll_max_steps)
-        .def_ro("unroll_explicit", &ParallelizeVectorizeUnrollNode::unroll_explicit);
+    refl::ObjectDef<ParallelizeVectorizeUnrollObj>()
+        .def_ro("max_jobs_per_core", &ParallelizeVectorizeUnrollObj::max_jobs_per_core)
+        .def_ro("max_vectorize_extent", &ParallelizeVectorizeUnrollObj::max_vectorize_extent)
+        .def_ro("unroll_max_steps", &ParallelizeVectorizeUnrollObj::unroll_max_steps)
+        .def_ro("unroll_explicit", &ParallelizeVectorizeUnrollObj::unroll_explicit);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.ParallelizeVectorizeUnroll",
-                                    ParallelizeVectorizeUnrollNode, ScheduleRuleNode);
+                                    ParallelizeVectorizeUnrollObj, ScheduleRuleObj);
 };
 
 ScheduleRule ScheduleRule::ParallelizeVectorizeUnroll(int max_jobs_per_core,
                                                       int max_vectorize_extent,
                                                       ffi::Array<int64_t> unroll_max_steps,
                                                       bool unroll_explicit) {
-  ffi::ObjectPtr<ParallelizeVectorizeUnrollNode> n =
-      ffi::make_object<ParallelizeVectorizeUnrollNode>();
+  ffi::ObjectPtr<ParallelizeVectorizeUnrollObj> n =
+      ffi::make_object<ParallelizeVectorizeUnrollObj>();
   n->max_jobs_per_core = max_jobs_per_core;
   n->max_vectorize_extent = max_vectorize_extent;
   n->unroll_max_steps = unroll_max_steps;
@@ -141,7 +141,7 @@ ScheduleRule ScheduleRule::ParallelizeVectorizeUnroll(int max_jobs_per_core,
   return ScheduleRule(ffi::UnsafeInit{}, n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { ParallelizeVectorizeUnrollNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { ParallelizeVectorizeUnrollObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

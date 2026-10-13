@@ -23,6 +23,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.backend.config import merge_backend_configs
 from tvm.backend.cuda.lang.clc import query_cancel_first_ctaid_x
 from tvm.script import tirx as T
 from tvm.testing import env
@@ -34,9 +35,21 @@ def _get_source(
     if target is None:
         target = {"kind": "cuda", "arch": "sm_100a"}
     target = tvm.target.Target(target)
+    target = tvm.target.Target(
+        {
+            **target.export(),
+            "backend_config": merge_backend_configs(
+                target.attrs.get("backend_config"), backend_config
+            ),
+        }
+    )
     mod = tvm.IRModule({"main": func})
     with target:
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx", backend_config=backend_config)
+        mod = tvm.tirx.compile(
+            mod,
+            target=target,
+            pipeline="tirx",
+        )
     src = mod.mod.imports[0].inspect_source()
     return src, mod
 
@@ -139,23 +152,51 @@ def test_cuda_module_destructor_preserves_current_device():
         torch.cuda.set_device(original_device)
 
 
+def test_typed_buffer_bindings(monkeypatch):
+    @T.function
+    def main(data: T.handle("float32"), output: T.handle):
+        T.func_attr({"global_symbol": "main", "calling_conv": 2, "tirx.kernel_launch_params": []})
+        A = T.decl_tensor(data, ty_args=[T.Tensor((1,), "float32")])
+        B = T.decl_tensor(output, ty_args=[T.Tensor((1,), "float32")])
+        storage = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="shared")])
+        S = T.decl_tensor(storage.data, ty_args=[T.Tensor((1,), "float32", scope="shared")])
+        pool = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint8", scope="shared.dyn")])
+        D = T.decl_tensor(pool.data, ty_args=[T.Tensor((1,), "float32", scope="shared.dyn")])
+        alias = T.decl_tensor(D.data, ty_args=[T.Tensor((1,), "float32", scope="shared.dyn")])
+        S[0] = A[0]
+        D[0] = S[0]
+        B[0] = alias[0]
+        storage[0] = T.uint32(0)
+
+    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
+    source = tvm.get_global_func("target.build.cuda")(
+        tvm.IRModule.from_expr(main), target
+    ).inspect_source()
+    assert "float* data, void* output" in source
+    assert "float* B = ((float*)output);" in source
+    assert "__shared__ alignas(64) uint storage_ptr[1];" in source
+    assert "float* S = ((float*)storage_ptr);" in source
+    assert "extern __shared__ __align__(64) uchar pool_ptr[];" in source
+    assert "float* D = ((float*)pool_ptr);" in source
+    assert "S[0] = data[0];" in source
+    assert "D[0] = S[0];" in source
+    assert "B[0] = D[0];" in source
+    assert "storage_ptr[0] = (uint)0;" in source
+
+
 def test_vector_pointer_preserves_packed_offset(monkeypatch):
-    buffer = tvm.tirx.decl_tensor((8,), "int4x4", name="A")
-    data = tvm.tirx.Var("A_data", buffer.data.ty)
-    pointer = tvm.tirx.ptr_byte_offset(buffer.data, 4, ty=buffer.data.ty)
+    tensor = tvm.tirx.decl_tensor((8,), "int4x4", name="A")
+    data = tvm.tirx.Var("A_data", tensor.data.ty)
+    pointer = tvm.tirx.ptr_byte_offset(tensor.data, 4, ty=tensor.data.ty)
     body = tvm.ir.SeqStmt(
         [
             tvm.ir.Bind(
-                buffer,
+                tensor,
                 tvm.ir.Call(
                     "tirx.decl_tensor",
-                    [
-                        data,
-                        tvm.ir.Tuple(buffer.shape),
-                        tvm.ir.DataTypeImm(tvm.DataType(buffer.dtype)),
-                        tvm.ir.StringImm(buffer.scope()),
-                    ],
-                    ty=buffer.ty,
+                    [data],
+                    ty_args=[tensor.ty],
                 ),
             ),
             tvm.ir.Evaluate(tvm.tirx.call_extern("void", "consume", pointer)),
@@ -636,8 +677,8 @@ def test_ptx_sync_and_clc_codegen():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
         tx = T.cuda.thread_idx("x")
         if tx == 0:
-            bar = T.alloc_tensor((5,), "uint64", scope="shared", align=16)
-            response = T.alloc_tensor((4,), "uint32", scope="shared", align=16)
+            bar = T.alloc_tensor(ty_args=[T.Tensor((5,), "uint64", scope="shared", align=16)])
+            response = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared", align=16)])
             T.ptx.cp.async_.mbarrier.arrive.shared.b64(bar.ptr_to([0]))
             T.ptx.cp.async_.mbarrier.arrive.noinc.shared__cta.b64(bar.ptr_to([0]))
             T.cuda.mbarrier_wait(bar.ptr_to([0]), T.int32(0))
@@ -672,7 +713,7 @@ def test_ptx_sync_and_clc_codegen():
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": main}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": main}), target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     assert "cp.async.mbarrier.arrive.shared.b64" in src
     assert "cp.async.mbarrier.arrive.noinc.shared::cta.b64" in src
@@ -708,7 +749,7 @@ def test_ptx_mbarrier_arrive_new_forms_codegen():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
         tx = T.cuda.thread_idx("x")
         if tx == 0:
-            bar = T.alloc_tensor((6,), "uint64", scope="shared", align=16)
+            bar = T.alloc_tensor(ty_args=[T.Tensor((6,), "uint64", scope="shared", align=16)])
             state = T.local_scalar("uint64")
             T.ptx.mbarrier.arrive.relaxed.cta.shared__cta.b64(bar.ptr_to([0]))
             T.ptx.mbarrier.arrive.relaxed.cluster.shared__cluster.b64(bar.ptr_to([1]))
@@ -727,7 +768,7 @@ def test_ptx_mbarrier_arrive_new_forms_codegen():
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": main}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": main}), target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     assert "mbarrier.arrive.relaxed.cta.shared::cta.b64 _, [%0];" in src
     assert "mbarrier.arrive.relaxed.cluster.shared::cluster.b64 _, [%0];" in src
@@ -739,7 +780,7 @@ def test_ptx_mbarrier_arrive_new_forms_codegen():
 
 def test_tensor_map_param_codegen():
     @T.function
-    def main(A_map: T.TensorMap()):
+    def main(A_map: T.Ptr(T.TensorMap, "")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
         tx = T.cuda.thread_idx("x")
         if tx == 0:
@@ -774,7 +815,7 @@ def test_tma_cache_policy_operand_codegen():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
         tx = T.cuda.thread_idx("x")
         if tx == 0:
-            smem = T.alloc_tensor((128,), "float32", scope="shared", align=128)
+            smem = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared", align=128)])
             bar = T.shared_scalar("uint64")
             T.ptx[_TMA_G2S_CG2_CACHE](
                 smem.data, T.address_of(A_map), 0, 0, T.address_of(bar), Cache[0]
@@ -927,8 +968,8 @@ def test_warp_shuffle_xor_sync():
         warp_id = T.cuda.warp_id()
         lane_id = T.cuda.lane_id()
 
-        A_local = T.alloc_tensor([1], "float32", scope="local")
-        i = T.alloc_tensor([1], "int32", scope="local")
+        A_local = T.alloc_tensor(ty_args=[T.Tensor([1], "float32", scope="local")])
+        i = T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
 
         A_local[0] = T.float32(31 - lane_id)
         i[0] = 16
@@ -941,7 +982,7 @@ def test_warp_shuffle_xor_sync():
 
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": func})
-    mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     A_np = np.zeros(32, dtype="float32")
     assert "__shfl_xor_sync" in mod.mod.imports[0].inspect_source()
     A_ref = np.ones(32, dtype="float32") * 496
@@ -1040,7 +1081,7 @@ def test_ptx_ldmatrix(trans, num):
         A_local = T.alloc_local([8], "float16")
         A_local[0] = -1.0
         # ldmatrix .x{num}.b16 writes `num` b32 registers; A_local is a
-        # contiguous fp16[8] buffer, so the registers land through a uint32
+        # contiguous fp16[8] tensor, so the registers land through a uint32
         # view, two fp16 elements per word.
         A_words = A_local.view("uint32")
         if T.constexpr(num == 1):
@@ -1126,7 +1167,7 @@ def test_uint32_loop_var_runs_correctly():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         _ = T.cuda.block_idx("x")
         tx = T.cast(T.cuda.thread_idx("x"), "uint32")
-        acc = T.alloc_tensor((1,), "int32", scope="local")
+        acc = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         acc[0] = 0
         for k in T.serial(4, dtype="uint32"):
             acc[0] = acc[0] + A[tx] + T.int32(k)

@@ -273,7 +273,7 @@ def test_annotate_opkind_pooling():
             T.func_attr({"global_symbol": "max_pool2d", "T.noalias": True})
             # body
             # with Ts.sblock("root")
-            pad_temp_1 = Ts.sblock_alloc_buffer([1, 64, 114, 114], dtype="float32")
+            pad_temp_1 = Ts.sblock_alloc_tensor([1, 64, 114, 114], dtype="float32")
             for i0, i1, i2, i3 in T.grid(1, 64, 114, 114):
                 with Ts.sblock("pad_temp"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -316,9 +316,9 @@ def test_annotate_opkind_softmax():
             T.func_attr({"global_symbol": "softmax", "T.noalias": True})
             # body
             # with Ts.sblock("root")
-            T_softmax_maxelem_1 = Ts.sblock_alloc_buffer([16], dtype="float32")
-            T_softmax_exp_1 = Ts.sblock_alloc_buffer([16, 16], dtype="float32")
-            T_softmax_expsum_1 = Ts.sblock_alloc_buffer([16], dtype="float32")
+            T_softmax_maxelem_1 = Ts.sblock_alloc_tensor([16], dtype="float32")
+            T_softmax_exp_1 = Ts.sblock_alloc_tensor([16, 16], dtype="float32")
+            T_softmax_expsum_1 = Ts.sblock_alloc_tensor([16], dtype="float32")
             for i0_7, i1_3 in T.grid(16, 16):
                 with Ts.sblock("T_softmax_maxelem"):
                     i0_8, k = Ts.axis.remap("SR", [i0_7, i1_3])

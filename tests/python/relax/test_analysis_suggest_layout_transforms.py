@@ -36,10 +36,10 @@ def apply_transformations(func, suggested_transfoms, print_transformation=False)
                 sch.transform_block_layout(block_name, index_map)
             else:
                 assert tirx.is_tensor_var(obj)
-                buffer = obj
+                tensor = obj
                 if print_transformation:
-                    print("Buffer transformation: ", buffer, " :: ", index_map)
-                sch.transform_layout(blockrv, buffer, index_map)
+                    print("Tensor transformation: ", tensor, " :: ", index_map)
+                sch.transform_layout(blockrv, tensor, index_map)
     return sch.mod["main"]
 
 
@@ -62,7 +62,7 @@ def test_nested_blocks():
                         relu[v_i, v_j, v_k, v_l] = T.max(arg[v_i, v_j, v_k, v_l], T.float32(0))
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=nested_block, write_buffer_transforms=[lambda n, c, h, w: (n, h, w, c)]
+        func=nested_block, write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c)]
     )
     # no suggestions for nested block.
     assert len(suggested_transforms.items()) == 0
@@ -84,7 +84,7 @@ def test_mismatch_transformations_and_num_params():
     with pytest.raises(RuntimeError, match="Incompatible Function and write_transformations"):
         _ = relax.analysis.suggest_layout_transforms(
             func=elemwise,
-            write_buffer_transforms=[
+            write_tensor_transforms=[
                 lambda n, c, h, w: (n, h, w, c),
                 lambda n, c, h, w: (n, h, w, c),
                 lambda n, c, h, w: (n, h, w, c),
@@ -106,7 +106,7 @@ def test_empty_write_transformations():
                 relu[v_i0, v_i1, v_i2, v_i3] = T.max(arg[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=elemwise, write_buffer_transforms=[]
+        func=elemwise, write_tensor_transforms=[]
     )
     assert len(suggested_transforms.items()) == 0
 
@@ -125,7 +125,7 @@ def test_non_bijective_block_transform():
                 output[v_ax0, v_ax1] = arg[v_ax0, v_ax1]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=before, write_buffer_transforms=[lambda n, c: (n, c // 5, c % 5)]
+        func=before, write_tensor_transforms=[lambda n, c: (n, c // 5, c % 5)]
     )
     assert len(suggested_transforms.items()) == 0
 
@@ -144,7 +144,7 @@ def test_non_affine_access():
                 output[v_ax0 * v_ax1, v_ax2] = arg[v_ax0, v_ax1]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=before, write_buffer_transforms=[lambda a, b: (b, a)]
+        func=before, write_tensor_transforms=[lambda a, b: (b, a)]
     )
     assert len(suggested_transforms.items()) == 0
 
@@ -163,7 +163,7 @@ def test_unsupported_write_spatial_layout():
                 output[v_ax0 * 4 + v_ax1] = arg[v_ax0, v_ax1]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=before, write_buffer_transforms=[lambda a: (a // 4, a % 4)]
+        func=before, write_tensor_transforms=[lambda a: (a // 4, a % 4)]
     )
     assert len(suggested_transforms.items()) == 0
 
@@ -194,7 +194,7 @@ def test_unpacked_iter_used_in_read_access():
                 output[v_ax0] = arg[v_ax0 % 8, v_ax2]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=before, write_buffer_transforms=[lambda a, b: a * 8 + b]
+        func=before, write_tensor_transforms=[lambda a, b: a * 8 + b]
     )
     after = apply_transformations(before, suggested_transforms)
     tvm.ir.assert_structural_equal(after, expected)
@@ -213,12 +213,12 @@ def test_invalid_index_map():
                 Ts.writes(relu[v_i0, v_i1, v_i2, v_i3])
                 relu[v_i0, v_i1, v_i2, v_i3] = T.max(arg[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
-    with pytest.raises(RuntimeError, match="Mismatch between output buffer shape and index map"):
+    with pytest.raises(RuntimeError, match="Mismatch between output tensor shape and index map"):
         _ = relax.analysis.suggest_layout_transforms(
-            func=elemwise, write_buffer_transforms=[lambda n, h, w: (n, w, h)]
+            func=elemwise, write_tensor_transforms=[lambda n, h, w: (n, w, h)]
         )
     with pytest.raises(AssertionError):
-        _ = relax.analysis.suggest_layout_transforms(func=elemwise, write_buffer_transforms=[2])
+        _ = relax.analysis.suggest_layout_transforms(func=elemwise, write_tensor_transforms=[2])
 
 
 def test_SRSR_block():
@@ -251,7 +251,7 @@ def test_SRSR_block():
                 sum[v0, v2, v4] = sum[v0, v2, v4] + arg[v0, v1, v2, v3, v4]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=before, write_buffer_transforms=[lambda n, c: (n, c // 4, c % 4)]
+        func=before, write_tensor_transforms=[lambda n, c: (n, c // 4, c % 4)]
     )
     after = apply_transformations(before, suggested_transforms)
     tvm.ir.assert_structural_equal(after, expected)
@@ -288,7 +288,7 @@ def test_op_elemwise_symbolic():
                 Relu[v0, v1, v2, v3] = T.max(Arg[v0, v1, v2, v3], T.float32(0))
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=before, write_buffer_transforms=[lambda n, c, h, w: (n, h, w, c)]
+        func=before, write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c)]
     )
     after = apply_transformations(before, suggested_transforms)
     tvm.ir.assert_structural_equal(after, expected)
@@ -320,7 +320,7 @@ def test_op_elemwise():
                 relu[v0, v1, v2, v3] = T.max(arg[v0, v1, v2, v3], T.float32(0))
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=before, write_buffer_transforms=[lambda n, c, h, w: (n, h, w, c)]
+        func=before, write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c)]
     )
     after = apply_transformations(before, suggested_transforms)
     tvm.ir.assert_structural_equal(after, expected)
@@ -380,7 +380,7 @@ def test_op_pool_nchw_nhwc():
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
         func=before,
-        write_buffer_transforms=[lambda n, c, h, w: (n, h, w, c)],
+        write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c)],
     )
     after = apply_transformations(before, suggested_transforms)
     tvm.ir.assert_structural_equal(after, expected)
@@ -433,7 +433,7 @@ def test_op_pool_nchw16c_nhwc():
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
         func=before,
-        write_buffer_transforms=[lambda n, C, h, w, c: (n, h, w, C * 16 + c)],
+        write_tensor_transforms=[lambda n, C, h, w, c: (n, h, w, C * 16 + c)],
     )
     after = apply_transformations(before, suggested_transforms)
     tvm.ir.assert_structural_equal(after, expected)
@@ -469,7 +469,7 @@ def test_op_reduce():
                 sum[v0, v1, v4] = sum[v0, v1, v4] + arg[v0, v1, v2, v3, v4]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=before, write_buffer_transforms=[lambda n, c: (n, c // 16, c % 16)]
+        func=before, write_tensor_transforms=[lambda n, c: (n, c // 16, c % 16)]
     )
     after = apply_transformations(before, suggested_transforms)
     tvm.ir.assert_structural_equal(after, expected)
@@ -561,7 +561,7 @@ def test_op_upsampling():
                 ]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=before, write_buffer_transforms=[lambda n, c, h, w: (n, h, w, c)]
+        func=before, write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c)]
     )
     after = apply_transformations(before, suggested_transforms)
     tvm.ir.assert_structural_equal(after, expected)
@@ -608,7 +608,7 @@ def test_op_strided_slice():
                 ]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=before, write_buffer_transforms=[lambda n, c, h, w: (n, h, w, c // 4, c % 4)]
+        func=before, write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c // 4, c % 4)]
     )
     after = apply_transformations(before, suggested_transforms)
     tvm.ir.assert_structural_equal(after, expected)
@@ -651,7 +651,7 @@ def test_op_binary_broadcast():
                 T_add[v0, v1, v2, v3, v4] = arg0[v0, v1, v2, v3, v4] + arg1[v1, v2, v3, v4]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=before, write_buffer_transforms=[lambda n, c, h, w: (n, h, w, c // 4, c % 4)]
+        func=before, write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c // 4, c % 4)]
     )
     after = apply_transformations(before, suggested_transforms)
     tvm.ir.assert_structural_equal(after, expected)
@@ -683,7 +683,7 @@ def test_op_transpose():
                 T_transpose[v0, v1, v2, v3] = arg[v0, v2, v3, v1]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=before, write_buffer_transforms=[lambda n, c, h, w: (n, h, w, c)]
+        func=before, write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c)]
     )
     after = apply_transformations(before, suggested_transforms)
     tvm.ir.assert_structural_equal(after, expected)
@@ -723,7 +723,7 @@ def test_op_pad():
                 )
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=before, write_buffer_transforms=[lambda n, c, h, w: (n, h, w, c // 4, c % 4)]
+        func=before, write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c // 4, c % 4)]
     )
     after = apply_transformations(before, suggested_transforms)
     tvm.ir.assert_structural_equal(after, expected)
@@ -770,7 +770,7 @@ def test_op_split():
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
         func=before,
-        write_buffer_transforms=[lambda n, c, h, w: (n, h, w, c), lambda n, c, h, w: (n, h, w, c)],
+        write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c), lambda n, c, h, w: (n, h, w, c)],
     )
     after = apply_transformations(before, suggested_transforms)
     tvm.ir.assert_structural_equal(after, expected)
@@ -819,7 +819,7 @@ def test_op_split_tiling_split_dim():
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
         func=before,
-        write_buffer_transforms=[
+        write_tensor_transforms=[
             lambda n, c, h, w: (n, h, w, c // 4, c % 4),
             lambda n, c, h, w: (n, h, w, c // 4, c % 4),
         ],

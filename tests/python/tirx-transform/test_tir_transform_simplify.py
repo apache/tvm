@@ -26,8 +26,8 @@ from tvm.script import tirx as T
 def test_stmt_simplify():
     @T.function(private=True)
     def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
-        A_ptr = T.decl_tensor((10,), "float32", data=A)
-        C_ptr = T.decl_tensor((10,), "float32", data=C)
+        A_ptr = T.decl_tensor(A, ty_args=[T.Tensor((10,), "float32", data=A)])
+        C_ptr = T.decl_tensor(C, ty_args=[T.Tensor((10,), "float32", data=C)])
         n_val: T.let[T.int32] = 10
         for i in T.serial(n_val):
             if i < 12:
@@ -48,11 +48,11 @@ def test_stmt_simplify():
 def test_thread_extent_simplify():
     @T.function(private=True)
     def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
-        A_ptr = T.decl_tensor((10,), "float32", data=A)
-        C_ptr = T.decl_tensor((10,), "float32", data=C)
+        A_ptr = T.decl_tensor(A, ty_args=[T.Tensor((10,), "float32", data=A)])
+        C_ptr = T.decl_tensor(C, ty_args=[T.Tensor((10,), "float32", data=C)])
         n_val: T.let[T.int32] = 10
-        for tx in T.thread_binding(n_val, thread="threadIdx.x"):
-            for ty in T.thread_binding(1, thread="threadIdx.y"):
+        with T.launch_thread("threadIdx.x", n_val) as tx:
+            with T.launch_thread("threadIdx.y", 1) as ty:
                 if tx + ty < 12:
                     A_ptr[tx] = C_ptr[tx + ty]
 
@@ -61,33 +61,32 @@ def test_thread_extent_simplify():
     # After simplification: Bind is kept but the if is eliminated
     # since tx + ty < 12 is always true for tx in 0..10 and ty = 0.
     stmts = list(body) if isinstance(body, tvm.ir.SeqStmt) else [body]
-    for_stmts = [s for s in stmts if isinstance(s, tvm.ir.For)]
-    assert len(for_stmts) >= 1, f"Expected For loop, got stmts: {[type(s).__name__ for s in stmts]}"
-    # The outermost For is the tx loop
-    tx_loop = for_stmts[0]
-    assert isinstance(tx_loop, tvm.ir.For)  # tx loop
-    assert isinstance(tx_loop.body[0], tvm.ir.For)  # ty loop
-    assert isinstance(tx_loop.body[0].body[0], tvm.ir.TensorStore)  # The if was eliminated
+    launches = [s for s in stmts if isinstance(s, tvm.ir.RegionStmt)]
+    assert len(launches) == 1
+    tx_launch = launches[0]
+    assert tx_launch.op.name == "tirx.launch_thread"
+    assert tx_launch.body[0].op.name == "tirx.launch_thread"
+    assert isinstance(tx_launch.body[0].body[0], tvm.ir.TensorStore)  # The if was eliminated
 
 
 def test_if_likely():
     @T.function(private=True)
     def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
-        A_ptr = T.decl_tensor((32,), "float32", data=A)
-        C_ptr = T.decl_tensor((1024,), "float32", data=C)
-        for tx in T.thread_binding(32, thread="threadIdx.x"):
-            for ty in T.thread_binding(32, thread="threadIdx.y"):
+        A_ptr = T.decl_tensor(A, ty_args=[T.Tensor((32,), "float32", data=A)])
+        C_ptr = T.decl_tensor(C, ty_args=[T.Tensor((1024,), "float32", data=C)])
+        with T.launch_thread("threadIdx.x", 32) as tx:
+            with T.launch_thread("threadIdx.y", 32) as ty:
                 if T.likely(tx * 32 + ty < n):
                     if T.likely(tx * 32 + ty < n):
                         A_ptr[tx] = C_ptr[tx * 32 + ty]
 
     mod = tvm.IRModule.from_expr(func)
     body = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
-    # With flat semantics, skip DeclTensor/AllocTensor siblings to find the For
+    # With flat semantics, skip DeclTensor/AllocTensor siblings to find the launch.
     if isinstance(body, tvm.ir.SeqStmt):
-        for_stmts = [s for s in body.seq if isinstance(s, tvm.ir.For)]
-        body = for_stmts[0] if for_stmts else body
-    # Structure: For(tx) -> For(ty) -> If
+        launches = [s for s in body.seq if isinstance(s, tvm.ir.RegionStmt)]
+        body = launches[0] if launches else body
+    # Structure: launch_thread(tx) -> launch_thread(ty) -> If
     assert isinstance(body.body[0].body[0], tvm.ir.If)
     assert not isinstance(body.body[0].body[0].then_case[0], tvm.ir.If)
 
@@ -146,7 +145,7 @@ def test_load_store_noop():
 def test_load_store_noop_after_simplify():
     """As test_load_store_noop, but requiring simplification to identify.
 
-    Previously, a bug caused the self-assignment of a buffer to
+    Previously, a bug caused the self-assignment of a tensor to
     checked based on the pre-simplification assignment, not the
     post-simplification.  This test is to identify any similar
     regression.
@@ -237,7 +236,7 @@ def test_nested_var_condition():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_altered_buffer_contents():
+def test_altered_tensor_contents():
     """No simplification of data-dependent conditionals.
 
     A literal constraint must not be propagated if the values
@@ -1155,13 +1154,13 @@ def test_most_restrictive_conditional():
         tvm.ir.assert_structural_equal(after, expected_func)
 
 
-def test_simplify_trivial_let_buffer_var():
-    """A Bind used in a buffer definition should be retained"""
+def test_simplify_trivial_let_tensor_var():
+    """A Bind used in a tensor definition should be retained"""
 
     @T.function(private=True)
     def before(A_ptr: T.handle("float32")):
         A_ptr_redef: T.let[T.handle("float32")] = A_ptr
-        A = T.decl_tensor(1, "float32", data=A_ptr_redef)
+        A = T.decl_tensor(A_ptr_redef, ty_args=[T.Tensor(1, "float32", data=A_ptr_redef)])
         A[0] = 42.0
 
     expected = before
@@ -1171,18 +1170,22 @@ def test_simplify_trivial_let_buffer_var():
 
 
 def test_simplify_trivial_let_elem_offset():
-    """A Bind used in a buffer definition should be retained"""
+    """A Bind used in a tensor definition should be retained"""
 
     @T.function(private=True)
     def before(A_ptr: T.handle("float32"), A_offset: T.int32):
         A_offset_redef = A_offset
-        A = T.decl_tensor(1, "float32", elem_offset=A_offset_redef, data=A_ptr)
+        A = T.decl_tensor(
+            A_ptr, ty_args=[T.Tensor(1, "float32", elem_offset=A_offset_redef, data=A_ptr)]
+        )
         A[0] = 42.0
 
     @T.function(private=True)
     def expected(A_ptr: T.handle("float32"), A_offset: T.int32):
         A_offset_redef = A_offset
-        A = T.decl_tensor(1, "float32", elem_offset=A_offset_redef, data=A_ptr)
+        A = T.decl_tensor(
+            A_ptr, ty_args=[T.Tensor(1, "float32", elem_offset=A_offset_redef, data=A_ptr)]
+        )
         A[0] = 42.0
 
     after = _apply_simplify(before)
@@ -1190,18 +1193,18 @@ def test_simplify_trivial_let_elem_offset():
 
 
 def test_simplify_trivial_let_shape():
-    """A Bind used in a buffer definition should be retained"""
+    """A Bind used in a tensor definition should be retained"""
 
     @T.function(private=True)
     def before(A_ptr: T.handle("float32"), A_size: T.int32):
         A_size_redef = A_size
-        A = T.decl_tensor([A_size_redef], "float32", data=A_ptr)
+        A = T.decl_tensor(A_ptr, ty_args=[T.Tensor([A_size_redef], "float32", data=A_ptr)])
         A[0] = 42.0
 
     @T.function(private=True)
     def expected(A_ptr: T.handle("float32"), A_size: T.int32):
         A_size_redef = A_size
-        A = T.decl_tensor([A_size_redef], "float32", data=A_ptr)
+        A = T.decl_tensor(A_ptr, ty_args=[T.Tensor([A_size_redef], "float32", data=A_ptr)])
         A[0] = 42.0
 
     after = _apply_simplify(before)
@@ -1209,46 +1212,50 @@ def test_simplify_trivial_let_shape():
 
 
 def test_simplify_trivial_let_stride():
-    """A Bind used in a buffer definition should be retained"""
+    """A Bind used in a tensor definition should be retained"""
 
     @T.function(private=True)
     def before(A_ptr: T.handle("float32"), A_stride: T.int32):
         A_stride_redef = A_stride
-        A = T.decl_tensor(1, "float32", strides=[A_stride_redef], data=A_ptr)
+        A = T.decl_tensor(
+            A_ptr, ty_args=[T.Tensor(1, "float32", strides=[A_stride_redef], data=A_ptr)]
+        )
         A[0] = 42.0
 
     @T.function(private=True)
     def expected(A_ptr: T.handle("float32"), A_stride: T.int32):
         A_stride_redef = A_stride
-        A = T.decl_tensor(1, "float32", strides=[A_stride_redef], data=A_ptr)
+        A = T.decl_tensor(
+            A_ptr, ty_args=[T.Tensor(1, "float32", strides=[A_stride_redef], data=A_ptr)]
+        )
         A[0] = 42.0
 
     after = _apply_simplify(before)
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_simplify_buffer_identity_well_formed():
-    """Regression: Simplify must not diverge buffer identity between DeclTensor and TensorLoad.
+def test_simplify_tensor_identity_well_formed():
+    """Regression: Simplify must not diverge tensor identity between DeclTensor and TensorLoad.
 
     The simplifier's Dispatch calls analyzer_->Simplify() directly, bypassing
-    normal ExprMutator dispatch.  If VisitBufferDef remaps a buffer at a DeclTensor
+    normal ExprMutator dispatch.  If VisitTensorDef remaps a tensor at a DeclTensor
     site (e.g. inlining n_val -> n in the shape), TensorLoad inside a TensorStore
-    value would NOT pick up the remap because VisitBufferUse is never called.
-    This causes DeclTensor/TensorLoad buffer identity divergence.
+    value would NOT pick up the remap because VisitTensorUse is never called.
+    This causes DeclTensor/TensorLoad tensor identity divergence.
     """
 
     @T.function(private=True)
     def before(A_ptr: T.handle("float32"), B_ptr: T.handle("float32"), n: T.int32):
         n_val = n
-        A = T.decl_tensor([n_val], "float32", data=A_ptr)
-        B = T.decl_tensor([n_val], "float32", data=B_ptr)
+        A = T.decl_tensor(A_ptr, ty_args=[T.Tensor([n_val], "float32", data=A_ptr)])
+        B = T.decl_tensor(B_ptr, ty_args=[T.Tensor([n_val], "float32", data=B_ptr)])
         B[0] = A[0]
 
     after = _apply_simplify(before)
     tvm.tirx.analysis.verify_well_formed(after)
 
 
-def test_buffer_shape_constraint():
+def test_tensor_shape_constraint():
     n = T.dynamic("n")
 
     @I.ir_module(check_well_formed=False)
@@ -1269,7 +1276,7 @@ def test_buffer_shape_constraint():
     tvm.ir.assert_structural_equal(after["main"], Expected["main"])
 
 
-def test_buffer_shape_constraint_with_offset():
+def test_tensor_shape_constraint_with_offset():
     n = T.dynamic("n")
 
     @I.ir_module(check_well_formed=False)

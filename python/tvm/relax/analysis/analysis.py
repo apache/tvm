@@ -368,8 +368,8 @@ def has_reshape_pattern(func: tirx.Function) -> bool:
 
     Here the allowed reshape pattern is: for example, assume the operation is
     `B[l_0, l_1, ..., l_b] = A[r_0, r_1, ..., r_a]`, we check if we can prove
-    that the flattened index of l_0, ..., l_b under buffer B equals to the
-    flattened index of r_0, ..., r_a under buffer A.
+    that the flattened index of l_0, ..., l_b under tensor B equals to the
+    flattened index of r_0, ..., r_a under tensor A.
 
     Parameters
     ----------
@@ -537,33 +537,33 @@ def _get_function_default_dtype(func: tirx.Function):
 
 
 def suggest_layout_transforms(
-    func: tirx.Function, write_buffer_transforms: list[IndexMap | Callable]
+    func: tirx.Function, write_tensor_transforms: list[IndexMap | Callable]
 ) -> dict[SBlock, dict[SBlock | Var, IndexMap]]:
-    """Suggest Layout transformations of blocks and buffers in a Function.
+    """Suggest Layout transformations of blocks and tensors in a Function.
 
     Parameters
     ----------
     func: Function
         Function on which analysis will be performed and transformations suggested.
 
-    write_buffer_transforms: List[Union[IndexMap, Callable]
-        List of layout transformations on the output buffers. The number of layout
+    write_tensor_transforms: List[Union[IndexMap, Callable]
+        List of layout transformations on the output tensors. The number of layout
         transformations must match the number of outputs of the Function.
 
     Returns
     -------
     ret: Dict[SBlock, Dict[Union[SBlock, Var], IndexMap]]
          Suggested transforms per block in `func`. For each block the returned value is a map
-         from the object (block or buffer) to it's index map transformation.
+         from the object (block or tensor) to it's index map transformation.
     """
-    write_buffer_index_maps = []
+    write_tensor_index_maps = []
     default_index_dtype = _get_function_default_dtype(func)
-    for transform in write_buffer_transforms:
+    for transform in write_tensor_transforms:
         if callable(transform):
             transform = IndexMap.from_func(transform, index_dtype=default_index_dtype)
         assert isinstance(transform, IndexMap)
-        write_buffer_index_maps.append(transform)
-    return _ffi_api.suggest_layout_transforms(func, write_buffer_index_maps)  # type: ignore
+        write_tensor_index_maps.append(transform)
+    return _ffi_api.suggest_layout_transforms(func, write_tensor_index_maps)  # type: ignore
 
 
 def detect_recursion(mod: tvm.IRModule) -> list[list[GlobalVar]]:

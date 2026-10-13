@@ -73,10 +73,10 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::S
   // Step 0. Check frame type
   std::string method;
   std::string output_var_suffix;
-  if (frame->IsInstance<ThenFrameNode>()) {
+  if (frame->IsInstance<ThenFrameObj>()) {
     method = "R.Then";
     output_var_suffix = "_then";
-  } else if (frame->IsInstance<ElseFrameNode>()) {
+  } else if (frame->IsInstance<ElseFrameObj>()) {
     method = "R.Else";
     output_var_suffix = "_else";
   } else {

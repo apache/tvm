@@ -26,7 +26,7 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
         isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
@@ -35,12 +35,12 @@ def _is_buffer_binding(node, *op_names):
     )
 
 
-def _has_volatile_alloc_buffer(mod):
+def _has_volatile_alloc_tensor(mod):
     has_volatile_alloc = False
 
     def visit(node):
         nonlocal has_volatile_alloc
-        if _is_buffer_binding(node, "tirx.alloc_tensor") and "tirx.volatile" in node.value.attrs:
+        if _is_tensor_binding(node, "tirx.alloc_tensor") and "tirx.volatile" in node.value.attrs:
             has_volatile_alloc = has_volatile_alloc or node.value.attrs["tirx.volatile"] is True
 
     tvm_ffi.structural_walk(mod["main"].body, visit)
@@ -55,13 +55,13 @@ def test_basic():
         @Ts.function(private=True)
         def main(A: T.Tensor((128, 32), "float32"), B: T.Tensor(128, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            A_flat = T.decl_tensor(4096, data=A.data)
+            A_flat = T.decl_tensor(A.data, ty_args=[T.Tensor(4096, data=A.data)])
 
             for i in range(128):
                 threadIdx_x = T.launch_thread("threadIdx.x", 32)
 
-                reduce = T.alloc_tensor((1,), scope="local")
-                reduce_1 = T.decl_tensor(1, data=reduce.data, scope="local")
+                reduce = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
+                reduce_1 = T.decl_tensor(reduce.data, ty_args=[T.Tensor(1, scope="local")])
 
                 T.gpu_thread_allreduce(
                     T.Lambda([T.float32, T.float32], lambda x, y: x + y),
@@ -83,7 +83,7 @@ def test_basic():
     assert "gpu_warp_shuffle" in After_script
 
 
-def test_basic_with_decl_buffer():
+def test_basic_with_decl_tensor():
     transform = tvm.s_tir.transform.LowerThreadAllreduce()
 
     @I.ir_module
@@ -91,12 +91,12 @@ def test_basic_with_decl_buffer():
         @Ts.function(private=True)
         def main(A: T.Tensor((128, 32), "float32"), B: T.Tensor(128, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            A_flat = T.decl_tensor(4096, data=A.data)
+            A_flat = T.decl_tensor(A.data, ty_args=[T.Tensor(4096, data=A.data)])
 
             for i in range(128):
                 threadIdx_x = T.launch_thread("threadIdx.x", 32)
 
-                reduce = T.decl_tensor(1, dtype="float32", scope="local")
+                reduce = T.alloc_tensor(ty_args=[T.Tensor(1, "float32", scope="local")])
 
                 T.gpu_thread_allreduce(
                     T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
@@ -124,16 +124,18 @@ def test_reduce_summation():
         @Ts.function(private=True)
         def main(A: T.Tensor((128, 128), "float32"), B: T.Tensor(128, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            A_flat = T.decl_tensor(16384, data=A.data)
+            A_flat = T.decl_tensor(A.data, ty_args=[T.Tensor(16384, data=A.data)])
 
             for i in range(128):
                 threadIdx_x = T.launch_thread("threadIdx.x", 32)
 
-                normal_reduce = T.alloc_tensor((1,), scope="local")
-                normal_reduce_1 = T.decl_tensor(1, data=normal_reduce.data, scope="local")
+                normal_reduce = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
+                normal_reduce_1 = T.decl_tensor(
+                    normal_reduce.data, ty_args=[T.Tensor(1, scope="local")]
+                )
 
-                reduce = T.alloc_tensor((1,), scope="local")
-                reduce_1 = T.decl_tensor(1, data=reduce.data, scope="local")
+                reduce = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
+                reduce_1 = T.decl_tensor(reduce.data, ty_args=[T.Tensor(1, scope="local")])
 
                 normal_reduce_1[0] = T.float32(0)
 
@@ -168,10 +170,12 @@ def test_multi_group_reduction():
         def main(A: T.Tensor((32, 32), "float32"), B: T.Tensor((32,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 32)
-            cross_thread_B = T.alloc_tensor((1,), scope="local")
+            cross_thread_B = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
             threadIdx_x = T.launch_thread("threadIdx.x", 32)
-            cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            A_1 = T.decl_tensor((1024,), data=A.data)
+            cross_thread_B_1 = T.decl_tensor(
+                cross_thread_B.data, ty_args=[T.Tensor((1,), scope="local")]
+            )
+            A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((1024,), data=A.data)])
             T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
@@ -181,7 +185,7 @@ def test_multi_group_reduction():
                 (threadIdx_x,),
             )
             if threadIdx_x == 0:
-                B_1 = T.decl_tensor((32,), data=B.data)
+                B_1 = T.decl_tensor(B.data, ty_args=[T.Tensor((32,), data=B.data)])
                 B_1[threadIdx_y] = cross_thread_B_1[0]
 
     After = transform(Before)
@@ -199,10 +203,12 @@ def test_multi_group_reduction_consumed_through_alias():
         def main(A: T.Tensor((4, 128), "float32"), B: T.Tensor((4,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 4)
-            cross_thread_B = T.alloc_tensor((1,), scope="local")
+            cross_thread_B = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            cross_thread_B_alias = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            A_flat = T.decl_tensor((512,), data=A.data)
+            cross_thread_B_alias = T.decl_tensor(
+                cross_thread_B.data, ty_args=[T.Tensor((1,), scope="local")]
+            )
+            A_flat = T.decl_tensor(A.data, ty_args=[T.Tensor((512,), data=A.data)])
             T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
@@ -213,7 +219,7 @@ def test_multi_group_reduction_consumed_through_alias():
             )
             cross_thread_B_alias[0] = cross_thread_B[0]
             if threadIdx_x == 0:
-                B_flat = T.decl_tensor((4,), data=B.data)
+                B_flat = T.decl_tensor(B.data, ty_args=[T.Tensor((4,), data=B.data)])
                 B_flat[threadIdx_y] = cross_thread_B_alias[0]
 
     After = transform(Before)
@@ -235,9 +241,9 @@ def test_multi_group_reduction_with_alias_declared_after_allreduce():
         def main(A: T.Tensor((4, 128), "float32"), B: T.Tensor((4,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 4)
-            cross_thread_B = T.alloc_tensor((1,), scope="local")
+            cross_thread_B = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            A_flat = T.decl_tensor((512,), data=A.data)
+            A_flat = T.decl_tensor(A.data, ty_args=[T.Tensor((512,), data=A.data)])
             T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
@@ -246,10 +252,12 @@ def test_multi_group_reduction_with_alias_declared_after_allreduce():
                 (cross_thread_B[0],),
                 (threadIdx_x,),
             )
-            cross_thread_B_alias = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
+            cross_thread_B_alias = T.decl_tensor(
+                cross_thread_B.data, ty_args=[T.Tensor((1,), scope="local")]
+            )
             cross_thread_B[0] = cross_thread_B_alias[0]
             if threadIdx_x == 0:
-                B_flat = T.decl_tensor((4,), data=B.data)
+                B_flat = T.decl_tensor(B.data, ty_args=[T.Tensor((4,), data=B.data)])
                 B_flat[threadIdx_y] = cross_thread_B_alias[0]
 
     After = transform(Before)
@@ -271,10 +279,12 @@ def test_multi_group_mask1():
         def main(A: T.Tensor((32, 8), "float32"), B: T.Tensor((32,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 32)
-            cross_thread_B = T.alloc_tensor((1,), scope="local")
+            cross_thread_B = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
             threadIdx_x = T.launch_thread("threadIdx.x", 8)
-            cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            A_1 = T.decl_tensor((256,), data=A.data)
+            cross_thread_B_1 = T.decl_tensor(
+                cross_thread_B.data, ty_args=[T.Tensor((1,), scope="local")]
+            )
+            A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((256,), data=A.data)])
             T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
@@ -284,7 +294,7 @@ def test_multi_group_mask1():
                 (threadIdx_x,),
             )
             if threadIdx_x == 0:
-                B_1 = T.decl_tensor((32,), data=B.data)
+                B_1 = T.decl_tensor(B.data, ty_args=[T.Tensor((32,), data=B.data)])
                 B_1[threadIdx_y] = cross_thread_B_1[0]
 
     After = transform(Before)
@@ -303,9 +313,11 @@ def test_multi_warp_reduce1():
             T.func_attr({"target": T.target("cuda", host="llvm")})
             for i in range(128):
                 threadIdx_x = T.launch_thread("threadIdx.x", 128)
-                cross_thread_B = T.alloc_tensor((1,), scope="local")
-                cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-                A_1 = T.decl_tensor((16384,), data=A.data)
+                cross_thread_B = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
+                cross_thread_B_1 = T.decl_tensor(
+                    cross_thread_B.data, ty_args=[T.Tensor((1,), scope="local")]
+                )
+                A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((16384,), data=A.data)])
                 T.gpu_thread_allreduce(
                     T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                     (T.float32(0),),
@@ -315,7 +327,7 @@ def test_multi_warp_reduce1():
                     (threadIdx_x,),
                 )
                 if threadIdx_x == 0:
-                    B_1 = T.decl_tensor((128,), data=B.data)
+                    B_1 = T.decl_tensor(B.data, ty_args=[T.Tensor((128,), data=B.data)])
                     B_1[i] = cross_thread_B_1[0]
 
     After = transform(Before)
@@ -334,9 +346,11 @@ def test_multi_warp_reduce2():
         def main(A: T.Tensor((1, 1024), "float32"), B: T.Tensor((1,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_x = T.launch_thread("threadIdx.x", 1024)
-            cross_thread_B = T.alloc_tensor((1,), scope="local")
-            cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            A_1 = T.decl_tensor((1024,), data=A.data)
+            cross_thread_B = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
+            cross_thread_B_1 = T.decl_tensor(
+                cross_thread_B.data, ty_args=[T.Tensor((1,), scope="local")]
+            )
+            A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((1024,), data=A.data)])
             T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
@@ -346,7 +360,7 @@ def test_multi_warp_reduce2():
                 (threadIdx_x,),
             )
             if threadIdx_x == 0:
-                B_1 = T.decl_tensor((1,), data=B.data)
+                B_1 = T.decl_tensor(B.data, ty_args=[T.Tensor((1,), data=B.data)])
                 B_1[0] = cross_thread_B_1[0]
 
     After = transform(Before)
@@ -365,10 +379,12 @@ def test_multi_group_multi_warp_reduction():
         def main(A: T.Tensor((4, 128), "float32"), B: T.Tensor((4,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 4)
-            cross_thread_B = T.alloc_tensor((1,), scope="local")
+            cross_thread_B = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            A_1 = T.decl_tensor((512,), data=A.data)
+            cross_thread_B_1 = T.decl_tensor(
+                cross_thread_B.data, ty_args=[T.Tensor((1,), scope="local")]
+            )
+            A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((512,), data=A.data)])
             T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
@@ -378,7 +394,7 @@ def test_multi_group_multi_warp_reduction():
                 (threadIdx_x,),
             )
             if threadIdx_x == 0:
-                B_1 = T.decl_tensor((4,), data=B.data)
+                B_1 = T.decl_tensor(B.data, ty_args=[T.Tensor((4,), data=B.data)])
                 B_1[threadIdx_y] = cross_thread_B_1[0]
 
     After = transform(Before)
@@ -397,15 +413,17 @@ def test_multi_group_multi_warp_predicated_reduction():
         def main(A: T.Tensor((2, 70), "float32"), B: T.Tensor((2,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 2)
-            in_thread_B = T.alloc_tensor((1,), scope="local")
-            cross_thread_B = T.alloc_tensor((1,), scope="local")
+            in_thread_B = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
+            cross_thread_B = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
             threadIdx_x = T.launch_thread("threadIdx.x", 512)
-            in_thread_B_1 = T.decl_tensor((1,), data=in_thread_B.data, scope="local")
+            in_thread_B_1 = T.decl_tensor(in_thread_B.data, ty_args=[T.Tensor((1,), scope="local")])
             in_thread_B_1[0] = T.float32(0)
             if threadIdx_x < 70:
-                A_1 = T.decl_tensor((140,), data=A.data)
+                A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((140,), data=A.data)])
                 in_thread_B_1[0] = in_thread_B_1[0] + A_1[threadIdx_y * 70 + threadIdx_x]
-            cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
+            cross_thread_B_1 = T.decl_tensor(
+                cross_thread_B.data, ty_args=[T.Tensor((1,), scope="local")]
+            )
             T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
@@ -415,7 +433,7 @@ def test_multi_group_multi_warp_predicated_reduction():
                 (threadIdx_x,),
             )
             if threadIdx_x == 0:
-                B_1 = T.decl_tensor((2,), data=B.data)
+                B_1 = T.decl_tensor(B.data, ty_args=[T.Tensor((2,), data=B.data)])
                 B_1[threadIdx_y] = cross_thread_B_1[0]
 
     After = transform(Before)
@@ -445,12 +463,14 @@ def test_metal_no_mask():
                 }
             )
             blockIdx_x = T.launch_thread("blockIdx.x", 1)
-            cross_thread_B = T.alloc_tensor((1,), scope="local")
+            cross_thread_B = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
             threadIdx_z = T.launch_thread("threadIdx.z", 1)
             threadIdx_y = T.launch_thread("threadIdx.y", 2)
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            A_1 = T.decl_tensor((256,), data=A.data)
+            cross_thread_B_1 = T.decl_tensor(
+                cross_thread_B.data, ty_args=[T.Tensor((1,), scope="local")]
+            )
+            A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((256,), data=A.data)])
             T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
@@ -460,7 +480,7 @@ def test_metal_no_mask():
                 (threadIdx_x,),
             )
             if threadIdx_x == 0:
-                B_1 = T.decl_tensor((2,), data=B.data)
+                B_1 = T.decl_tensor(B.data, ty_args=[T.Tensor((2,), data=B.data)])
                 B_1[threadIdx_y] = cross_thread_B_1[0]
 
     After = transform(Before)
@@ -489,14 +509,14 @@ def test_webgpu_warp_reduce():
                     ),
                 }
             )
-            A_flat = T.decl_tensor(4096, data=A.data)
+            A_flat = T.decl_tensor(A.data, ty_args=[T.Tensor(4096, data=A.data)])
 
             for i in range(128):
                 threadIdx_x = T.launch_thread("threadIdx.x", 32)
 
-                reduce_data = T.alloc_tensor((1,), "float32", scope="local")
-                reduce = T.decl_tensor(1, data=reduce_data.data, scope="local")
-                reduce_alias = T.decl_tensor(1, data=reduce.data, scope="local")
+                reduce_data = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
+                reduce = T.decl_tensor(reduce_data.data, ty_args=[T.Tensor(1, scope="local")])
+                reduce_alias = T.decl_tensor(reduce.data, ty_args=[T.Tensor(1, scope="local")])
 
                 T.gpu_thread_allreduce(
                     T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
@@ -539,12 +559,14 @@ def test_webgpu_multi_warp_reduce():
                 }
             )
             blockIdx_x = T.launch_thread("blockIdx.x", 1)
-            cross_thread_B = T.alloc_tensor((1,), "float32", scope="local")
+            cross_thread_B = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
             threadIdx_z = T.launch_thread("threadIdx.z", 1)
             threadIdx_y = T.launch_thread("threadIdx.y", 2)
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            A_1 = T.decl_tensor((256,), data=A.data)
+            cross_thread_B_1 = T.decl_tensor(
+                cross_thread_B.data, ty_args=[T.Tensor((1,), scope="local")]
+            )
+            A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((256,), data=A.data)])
             T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
@@ -554,7 +576,7 @@ def test_webgpu_multi_warp_reduce():
                 (threadIdx_x,),
             )
             if threadIdx_x == 0:
-                B_1 = T.decl_tensor((2,), data=B.data)
+                B_1 = T.decl_tensor(B.data, ty_args=[T.Tensor((2,), data=B.data)])
                 B_1[threadIdx_y] = cross_thread_B_1[0]
 
     After = transform(Before)
@@ -562,7 +584,7 @@ def test_webgpu_multi_warp_reduce():
     After_script = After.script()
     assert "gpu_warp_shuffle_down" in After_script
     assert "gpu_storage_sync" in After_script
-    assert _has_volatile_alloc_buffer(After)
+    assert _has_volatile_alloc_tensor(After)
     assert "T.uint32(" not in After_script
 
 

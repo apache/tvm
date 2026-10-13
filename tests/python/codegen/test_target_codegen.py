@@ -42,7 +42,7 @@ def test_tensor_store_predicate_not_supported():
     err_msg = "Predicated buffer store is not supported."
     with pytest.raises(RuntimeError, match=err_msg):
         with tvm.target.Target(target):
-            tvm.compile(func)
+            tvm.tirx.compile(func)
 
 
 @pytest.mark.parametrize(
@@ -62,7 +62,7 @@ def test_tensor_store_predicate_not_supported_gpu(target):
     @T.function
     def func(A: T.Tensor((2, 3), "float32"), B: T.Tensor((6,), "float32")):
         T.func_attr({"global_symbol": "main"})
-        for i_0 in T.thread_binding(3, thread="threadIdx.x"):
+        with T.launch_thread("threadIdx.x", 3) as i_0:
             T.evaluate(
                 T.call_intrin(
                     "tirx.masked_store",
@@ -77,7 +77,7 @@ def test_tensor_store_predicate_not_supported_gpu(target):
     err_msg = "Predicated buffer store is not supported."
     with pytest.raises(RuntimeError, match=err_msg):
         with tvm.target.Target(target):
-            tvm.compile(func)
+            tvm.tirx.compile(func)
 
 
 def test_buffer_load_predicate_not_supported():
@@ -97,7 +97,7 @@ def test_buffer_load_predicate_not_supported():
     err_msg = "Predicated buffer load is not supported."
     with pytest.raises(RuntimeError, match=err_msg):
         with tvm.target.Target(target):
-            tvm.compile(func)
+            tvm.tirx.compile(func)
 
 
 @pytest.mark.parametrize(
@@ -116,7 +116,7 @@ def test_buffer_load_predicate_not_supported_gpu(target):
 
     @T.function
     def func(A: T.Tensor((8,), "float32"), B: T.Tensor((8,), "float32")):
-        for i_0 in T.thread_binding(3, thread="threadIdx.x"):
+        with T.launch_thread("threadIdx.x", 3) as i_0:
             B[T.Ramp(0, 2, 4)] = T.call_intrin(
                 "tirx.masked_load",
                 A,
@@ -128,7 +128,7 @@ def test_buffer_load_predicate_not_supported_gpu(target):
     err_msg = "Predicated buffer load is not supported."
     with pytest.raises(RuntimeError, match=err_msg):
         with tvm.target.Target(target):
-            tvm.compile(func)
+            tvm.tirx.compile(func)
 
 
 @pytest.mark.parametrize(
@@ -146,8 +146,10 @@ def test_decl_buffer_offset_preserves_storage_scope(target, qualifier):
                 "tirx.noalias": True,
             }
         )
-        A = T.decl_tensor((8,), "float32", data=A_ptr)
-        B = T.decl_tensor((4,), "float32", data=T.address_of(A[4]))
+        A = T.decl_tensor(A_ptr, ty_args=[T.Tensor((8,), "float32", data=A_ptr)])
+        B = T.decl_tensor(
+            T.address_of(A[4]), ty_args=[T.Tensor((4,), "float32", data=T.address_of(A[4]))]
+        )
         B[0] = T.float32(1)
 
     mod = tvm.IRModule({"kernel": kernel})
@@ -171,7 +173,7 @@ def test_codegen_loop_step(target):
         for i in T.serial(3, 1024, step=96):
             C[i] = A[i] + B[i]
 
-    lib = tvm.compile(test_loop_step, target=target)
+    lib = tvm.tirx.compile(test_loop_step, target=target)
 
     src = lib.mod.inspect_source()
     if target == "c":

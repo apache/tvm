@@ -44,7 +44,7 @@ TARGET = tvm.target.Target("cuda")
 
 def _compile_and_run(kernel, n_out):
     with TARGET:
-        mod = tvm.compile(tvm.IRModule({"main": kernel}), target=TARGET, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=TARGET, pipeline="tirx")
     result = {}
 
     def go():
@@ -72,7 +72,7 @@ def test_smem_descriptor_matches_runtime_encoder(ldo, sdo, swizzle):
     def kernel(out: T.Tensor((2,), "uint64")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
-        smem = T.alloc_tensor((64,), "uint32", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((64,), "uint32", scope="shared")])
         smem[tx] = T.uint32(0)
         smem[tx + 32] = T.uint32(0)
         if tx == 0:

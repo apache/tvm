@@ -31,7 +31,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/tile/exec_scope.h>
 
 namespace tvm {
 
@@ -148,6 +148,9 @@ class AxisNode : public ffi::EnumObj {
   /*! \brief Check if the axis is a memory axis. */
   bool IsMemoryAxis() const;
 
+  /*! \brief The backend owning this axis, if any. */
+  ffi::Optional<ffi::String> GetBackend() const;
+
   /*! \brief Get the scope of the (thread) axis. */
   ffi::Optional<ExecScope> GetScope() const;
 
@@ -173,7 +176,7 @@ class Axis : public ffi::Enum {
    * \param name Name of the axis to look up or register.
    * \return The registered axis singleton.
    */
-  TVM_DLL static Axis Get(const ffi::String& name);
+  TVM_TIRX_DLL static Axis Get(const ffi::String& name);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Axis, ffi::Enum, AxisNode);
 };
@@ -203,7 +206,7 @@ class IterNode : public ffi::Object {
 
 class Iter : public ffi::ObjectRef {
  public:
-  TVM_DLL explicit Iter(PrimExpr extent, PrimExpr stride, Axis axis);
+  TVM_TIRX_DLL explicit Iter(PrimExpr extent, PrimExpr stride, Axis axis);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Iter, ffi::ObjectRef, IterNode);
 };
 
@@ -281,9 +284,6 @@ class TileLayoutNode : public LayoutNode {
   /*! \brief Is the layout trivial (pure memory, identical mapping) */
   bool IsTrivial() const;
 
-  /*! \brief Check if the layout is trainium layout */
-  bool IsTrainium() const;
-
   /*! \brief Has Memory Axis */
   bool HasMemoryAxis() const;
 
@@ -301,8 +301,8 @@ class TileLayoutNode : public LayoutNode {
 
 class TileLayout : public Layout {
  public:
-  TVM_DLL explicit TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
-                              ffi::Map<Axis, PrimExpr> offset);
+  TVM_TIRX_DLL explicit TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
+                                   ffi::Map<Axis, PrimExpr> offset);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TileLayout, Layout, TileLayoutNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TileLayoutNode);
@@ -391,8 +391,8 @@ class ComposeLayoutNode : public LayoutNode {
 
 class ComposeLayout : public Layout {
  public:
-  TVM_DLL explicit ComposeLayout(int per_element, int swizzle_len, int atom_len,
-                                 TileLayout tile_layout, bool swizzle_inner = true);
+  TVM_TIRX_DLL explicit ComposeLayout(int per_element, int swizzle_len, int atom_len,
+                                      TileLayout tile_layout, bool swizzle_inner = true);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ComposeLayout, Layout, ComposeLayoutNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComposeLayoutNode);

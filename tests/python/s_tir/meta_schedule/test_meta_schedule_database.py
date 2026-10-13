@@ -68,7 +68,7 @@ class MatmulRelu:
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
-        C = Ts.sblock_alloc_buffer((16, 16), "float32")
+        C = Ts.sblock_alloc_tensor((16, 16), "float32")
         for i, j, k in T.grid(16, 16, 16):
             with Ts.sblock("matmul"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])

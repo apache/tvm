@@ -755,7 +755,7 @@ class Matmul(GPUScheduleRule):
         sch.bind(tx, "threadIdx.x")
         sch.vectorize(vec)
 
-        inp = sch.cache_read(matmul_block, read_buffer_index=0, storage_scope="local")
+        inp = sch.cache_read(matmul_block, read_tensor_index=0, storage_scope="local")
         sch.compute_at(inp, k3, preserve_unit_loops=True)
         sch.vectorize(sch.get_loops(inp)[-1])
 
@@ -763,10 +763,10 @@ class Matmul(GPUScheduleRule):
         sch.unroll(k3)
 
         if dequant_block is not None:
-            Aq_local = sch.cache_read(dequant_block, read_buffer_index=0, storage_scope="local")
+            Aq_local = sch.cache_read(dequant_block, read_tensor_index=0, storage_scope="local")
             sch.compute_at(Aq_local, k2, preserve_unit_loops=True)
             sch.vectorize(sch.get_loops(Aq_local)[-1])
-            As_local = sch.cache_read(dequant_block, read_buffer_index=1, storage_scope="local")
+            As_local = sch.cache_read(dequant_block, read_tensor_index=1, storage_scope="local")
             sch.compute_at(As_local, k1, preserve_unit_loops=True)
             sch.vectorize(sch.get_loops(As_local)[-1])
             sch.vectorize(sch.get_loops(dequant_block)[-1])

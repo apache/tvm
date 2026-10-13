@@ -39,6 +39,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt.h>
 #if TVM_LLVM_VERSION < 170
@@ -68,12 +69,9 @@ static inline int DetectROCMmaxThreadsPerBlock() {
   tvm_dev.device_type = kDLROCM;
   tvm_dev.device_id = 0;
   tvm::runtime::DeviceAPI* api = tvm::runtime::DeviceAPI::Get(tvm_dev, true);
-  if (api != nullptr) {
-    ffi::Any val;
-    api->GetAttr(tvm_dev, tvm::runtime::kExist, &val);
-    if (val.cast<int>() == 1) {
-      tvm::runtime::DeviceAPI::Get(tvm_dev)->GetAttr(tvm_dev, tvm::runtime::kMaxThreadsPerBlock,
-                                                     &val);
+  if (api != nullptr && api->GetAttr(tvm_dev, "exist").cast<bool>()) {
+    ffi::Any val = api->GetAttr(tvm_dev, "max_threads_per_block");
+    if (val.type_index() != kTVMFFINone) {
       return val.cast<int>();
     }
   }
@@ -107,9 +105,9 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
-    tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
-    DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
-    ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+    tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
+    DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
+    ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
     TensorVar buffer = op->var.as_or_throw<TensorVar>();
     DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
     llvm::Value* buf = nullptr;
@@ -165,7 +163,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 
   // Return the thread index via intrinsics.
   llvm::Value* GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final {
-    runtime::ThreadScope ts = runtime::ThreadScope::Create(thread_tag);
+    support::GPUThreadTag ts = support::GPUThreadTag::Parse(thread_tag);
     llvm::Intrinsic::ID intrin_id = llvm::Intrinsic::amdgcn_workitem_id_x;
     if (ts.rank == 1) {
       switch (ts.dim_index) {

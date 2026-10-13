@@ -171,8 +171,8 @@ SDLTensor<4> prepare_hwio_8b(tvm::runtime::DeviceAPI* device_api, const DLTensor
 
   auto [h, w, i, o] = getHWIO(hwio_flat);
   int64_t shape_1d[] = {h * w * i * o};
-  void* hwio_vtcm =
-      device_api->AllocDataSpace(hexagon_device, 1, shape_1d, hwio_flat->dtype, vtcm_scope);
+  void* hwio_vtcm = static_cast<HexagonDeviceAPI*>(device_api)
+                        ->AllocDataSpace(hexagon_device, 1, shape_1d, hwio_flat->dtype, vtcm_scope);
 
   chunkify_hwio_8b(ptr_table, num_chunks, hwio_vtcm, hwio_flat->data, hwio_flat->shape[0],
                    hwio_flat->shape[1], hwio_flat->shape[2], hwio_flat->shape[3], wgt_zp);
@@ -191,8 +191,8 @@ SDLTensor<4> prepare_hwio(tvm::runtime::DeviceAPI* device_api, const DLTensor* h
   // height and width of a block respectively.
   auto [h, w, i, o] = getHWIO(hwio_flat);
   int64_t shape_1d[] = {h * w * i * o};
-  void* hwio_vtcm =
-      device_api->AllocDataSpace(hexagon_device, 1, shape_1d, hwio_flat->dtype, vtcm_scope);
+  void* hwio_vtcm = static_cast<HexagonDeviceAPI*>(device_api)
+                        ->AllocDataSpace(hexagon_device, 1, shape_1d, hwio_flat->dtype, vtcm_scope);
 
   chunkify_hwio_16b(ptr_table, num_chunks, hwio_vtcm, hwio_flat->data, hwio_flat->shape[0],
                     hwio_flat->shape[1], hwio_flat->shape[2], hwio_flat->shape[3]);

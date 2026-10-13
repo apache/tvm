@@ -38,7 +38,7 @@ namespace tirx {
  * - args[0]: func_name, The function name.
  * - args[1...]: args, trailing Expr operands.
  */
-TVM_DLL const Op& call_extern_op();
+TVM_TIRX_DLL const Op& call_extern_op();
 
 /*!
  * \brief Call a pure external C function with types supplied by the caller.
@@ -47,7 +47,7 @@ TVM_DLL const Op& call_extern_op();
  * - args[0]: func_name, The function name.
  * - args[1...]: args, trailing Expr operands.
  */
-TVM_DLL const Op& call_pure_extern_op();
+TVM_TIRX_DLL const Op& call_pure_extern_op();
 
 /*!
  * \brief Invoke an LLVM intrinsic.
@@ -56,7 +56,7 @@ TVM_DLL const Op& call_pure_extern_op();
  * - args[0]: intrin_id, The intrinsic identifier.
  * - args[1...]: args, trailing Expr operands.
  */
-TVM_DLL const Op& call_llvm_intrin_op();
+TVM_TIRX_DLL const Op& call_llvm_intrin_op();
 
 /*!
  * \brief Invoke a pure LLVM intrinsic.
@@ -65,7 +65,7 @@ TVM_DLL const Op& call_llvm_intrin_op();
  * - args[0]: intrin_id, The intrinsic identifier.
  * - args[1...]: args, trailing Expr operands.
  */
-TVM_DLL const Op& call_llvm_pure_intrin_op();
+TVM_TIRX_DLL const Op& call_llvm_pure_intrin_op();
 
 /*!
  * \brief Invoke a pure GLSL450 SPIR-V intrinsic.
@@ -74,7 +74,7 @@ TVM_DLL const Op& call_llvm_pure_intrin_op();
  * - args[0]: intrin_id, The intrinsic identifier.
  * - args[1...]: args, trailing PrimExpr operands.
  */
-TVM_DLL const Op& call_spirv_pure_glsl450_op();
+TVM_TIRX_DLL const Op& call_spirv_pure_glsl450_op();
 
 enum TVMStructFieldKind : int {
   // DLTensor fields
@@ -108,7 +108,7 @@ enum TVMStructFieldKind : int {
  * - args[1]: index, The index.
  * - args[2]: field, The field index.
  */
-TVM_DLL const Op& abi_field_get_op();
+TVM_TIRX_DLL const Op& abi_field_get_op();
 
 /*!
  * \brief Write a runtime structure field.
@@ -119,12 +119,12 @@ TVM_DLL const Op& abi_field_get_op();
  * - args[2]: field, The field index.
  * - args[3]: value, The value to use.
  */
-TVM_DLL const Op& abi_field_set_op();
+TVM_TIRX_DLL const Op& abi_field_set_op();
 
 /*!
  * \brief Raise the last runtime error.
  */
-TVM_DLL const Op& throw_last_error_op();
+TVM_TIRX_DLL const Op& throw_last_error_op();
 
 /*!
  * \brief Allocate stack storage for runtime values.
@@ -133,7 +133,7 @@ TVM_DLL const Op& throw_last_error_op();
  * - args[0]: dtype_str, The data type name.
  * - args[1]: num, The number of entries.
  */
-TVM_DLL const Op& stack_alloca_op();
+TVM_TIRX_DLL const Op& stack_alloca_op();
 
 /*!
  * \brief Construct a stack-allocated shape tuple.
@@ -141,7 +141,7 @@ TVM_DLL const Op& stack_alloca_op();
  * Arguments, in order:
  * - args[0...]: args, trailing IntExpr operands.
  */
-TVM_DLL const Op& stack_make_shape_op();
+TVM_TIRX_DLL const Op& stack_make_shape_op();
 
 /*!
  * \brief Construct a stack-allocated DLTensor.
@@ -154,7 +154,7 @@ TVM_DLL const Op& stack_make_shape_op();
  * - args[4]: arr_dtype, The array data type.
  * - args[5]: elem_offset, The element offset.
  */
-TVM_DLL const Op& stack_make_dltensor_op();
+TVM_TIRX_DLL const Op& stack_make_dltensor_op();
 
 /*!
  * \brief Invoke a runtime packed function.
@@ -163,7 +163,7 @@ TVM_DLL const Op& stack_make_dltensor_op();
  * - args[0]: func_name, The function name.
  * - args[1...]: args, trailing Expr operands.
  */
-TVM_DLL const Op& call_packed_op();
+TVM_TIRX_DLL const Op& call_packed_op();
 
 /*! \brief Launch metadata for call_ffi_kernel. */
 struct CallFFIKernelAttr : public AttrsNode {
@@ -193,7 +193,7 @@ struct CallFFIKernelAttr : public AttrsNode {
  * CallFFIKernelAttr::launch_params describes the launch-value suffix.
  * Host backends may consume this call directly or lower it to call_packed.
  */
-TVM_DLL const Op& call_ffi_kernel_op();
+TVM_TIRX_DLL const Op& call_ffi_kernel_op();
 
 /*!
  * \brief Invoke a C packed function.
@@ -202,7 +202,7 @@ TVM_DLL const Op& call_ffi_kernel_op();
  * - args[0]: func_name, The function name.
  * - args[1...]: args, trailing Expr operands.
  */
-TVM_DLL const Op& call_cpacked_op();
+TVM_TIRX_DLL const Op& call_cpacked_op();
 
 /*!
  * \brief Invoke a packed function using an explicit argument stack.
@@ -213,7 +213,7 @@ TVM_DLL const Op& call_cpacked_op();
  * - args[2]: begin, The start index.
  * - args[3]: end, The end index.
  */
-TVM_DLL const Op& call_packed_lowered_op();
+TVM_TIRX_DLL const Op& call_packed_lowered_op();
 
 /*!
  * \brief Invoke a C packed function using an explicit argument stack.
@@ -224,7 +224,7 @@ TVM_DLL const Op& call_packed_lowered_op();
  * - args[2]: begin, The start index.
  * - args[3]: end, The end index.
  */
-TVM_DLL const Op& call_cpacked_lowered_op();
+TVM_TIRX_DLL const Op& call_cpacked_lowered_op();
 
 }  // namespace tirx
 }  // namespace tvm

@@ -33,7 +33,6 @@
 #include <vector>
 
 #include "../../../script/printer/ir/utils.h"
-#include "utils.h"
 
 namespace tvm {
 namespace script {
@@ -71,40 +70,8 @@ ffi::Optional<ExprDoc> SeqStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const SeqStmtNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
-  for (size_t i = 0; i < stmt->seq.size(); ++i) {
-    d->Translate(stmt->seq[i]);
-    if (i + 1 == stmt->seq.size()) continue;
-    const auto* alloc = stmt->seq[i].as<BindNode>();
-    const auto* allocation = alloc ? alloc->value.as<CallNode>() : nullptr;
-    const auto* store = stmt->seq[i + 1].as<TensorStoreNode>();
-    auto docs = d->CurrentScopeDocs();
-    if (!allocation || !allocation->op.same_as(tirx::alloc_tensor_op()) || !store ||
-        !alloc->var.same_as(store->dest) || docs.empty())
-      continue;
-    auto scalar = docs.back().as<AssignDoc>();
-    if (!IsScalarBuffer(d, alloc->var) || !scalar.has_value() ||
-        !std::all_of(store->indices.begin(), store->indices.end(), tvm::prim::IsZero))
-      continue;
-    bool reads_allocation = false;
-    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-        store->value, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-          reads_allocation |= var.same_as(alloc->var);
-          return ffi::WalkResult::Advance();
-        });
-    if (reads_allocation) continue;
-    size_t before = docs.size();
-    d->Translate(stmt->seq[++i]);
-    // Only combine a plain adjacent store. Translation may emit prerequisites.
-    if (docs.size() == before + 1) {
-      if (auto initialization = docs.back().as<AssignDoc>()) {
-        scalar.value()->rhs = initialization.value()->rhs;
-        // Preserve both statement origins using ordinary annotation/assignment
-        // occurrences while retaining the value's more precise child origin.
-        d->RecordOrigin(scalar.value()->annotation.value(), ffi::GetRef<Bind>(alloc));
-        d->RecordOrigin(scalar.value(), ffi::GetRef<TensorStore>(store));
-        docs.pop_back();
-      }
-    }
+  for (const Stmt& child : stmt->seq) {
+    d->Translate(child);
   }
   return std::nullopt;
 }
@@ -124,50 +91,17 @@ ffi::Optional<ExprDoc> RegionStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   TVM_FFI_CHECK(stmt->result_vars.empty(), ValueError)
       << "RegionStmt with result_vars has no supported outward-result script syntax";
 
-  // Inputs, attributes, and parameter types are evaluated before the body
-  // parameters enter scope. Explicit Var constructors preserve their exact types.
+  // Inputs and attributes are evaluated before the body parameters enter scope.
+  // Region construction infers and validates the parameter types.
   ffi::Array<ExprDoc> args;
   for (const Expr& arg : stmt->args) args.push_back(d->Translate(arg).value());
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
-  bool infer_params = false;
-  try {
-    auto inferred = GetRegionBodyParams(stmt->op, stmt->args, stmt->attrs);
-    infer_params = inferred.size() == stmt->body_params.size();
-    for (size_t i = 0; infer_params && i < inferred.size(); ++i) {
-      infer_params = ffi::StructuralEqual()(inferred[i]->ty, stmt->body_params[i]->ty);
-    }
-  } catch (const ffi::Error&) {
-    // Explicit parameters preserve regions whose inference is unavailable.
-  }
-  if (!infer_params) {
-    ffi::Array<ExprDoc> params;
-    for (const Var& param : stmt->body_params) {
-      ExprDoc value = NamespaceDoc("tirx")->Attr("Var")->Call(
-          {LiteralDoc::Str("", std::nullopt), TypeValue(d, param->ty)});
-      d->RecordOrigin(value, param);
-      params.push_back(value);
-    }
-    keys.push_back("body_params");
-    values.push_back(ListDoc(params));
-  }
   if (!stmt->attrs->dict.empty()) {
     keys.push_back("attrs");
     values.push_back(AnyValue(d, stmt->attrs));
   }
-  ExprDoc rhs(ffi::UnsafeInit{});
-  ffi::Optional<ffi::String> name;
-  if (Op::HasAttrMap(tvm::script::printer::op_attr::kScriptPrinterName)) {
-    auto names =
-        Op::GetAttrMap<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName);
-    if (names.count(stmt->op)) name = names[stmt->op];
-  }
-  if (name.has_value() && !name.value().empty()) {
-    rhs = NamedCallCallee(name.value())->Call(args, keys, values);
-  } else {
-    rhs = NamespaceDoc("tirx")->Attr("region")->Call(
-        {LiteralDoc::Str(stmt->op->name, std::nullopt), ListDoc(args)}, keys, values);
-  }
+  ExprDoc rhs = NamedCallCallee(stmt->op->name)->Call(args, keys, values);
 
   VarScope vars(d);
   ffi::Optional<ExprDoc> lhs = std::nullopt;

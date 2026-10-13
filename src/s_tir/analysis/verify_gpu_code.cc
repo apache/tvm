@@ -82,9 +82,9 @@ class GPUCodeVerifier : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
-    DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
-    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
+    DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
+    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
     runtime::StorageScope storage_scope = runtime::StorageScope::Create(scope);
     int64_t const_size = 1;
     for (const Expr& e : shape->fields) {
@@ -230,7 +230,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  void CheckBufferIndicesVectorizable(const ffi::Array<PrimExpr> indices) {
+  void CheckTensorIndicesVectorizable(const ffi::Array<PrimExpr> indices) {
     for (const auto index : indices) {
       if (const auto* ramp = index.as<RampNode>()) {
         PrimType ramp_ty = ramp->ty.as_or_throw<PrimType>();
@@ -270,7 +270,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
-      CheckBufferIndicesVectorizable(op->indices);
+      CheckTensorIndicesVectorizable(op->indices);
     }
     return StmtExprVisitor::Visit_(op);
   }
@@ -285,7 +285,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
-      CheckBufferIndicesVectorizable(op->indices);
+      CheckTensorIndicesVectorizable(op->indices);
     }
     return StmtExprVisitor::Visit_(op);
   }

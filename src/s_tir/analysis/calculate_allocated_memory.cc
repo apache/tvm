@@ -44,13 +44,13 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 std::string GetStorageScope(const Var& var) {
-  auto* ptr = var->ty.as<PointerTypeNode>();
-  TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
+  auto* ptr = var->ty.as<PtrTypeNode>();
+  TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PtrType";
   return ptr->storage_scope;
 }
 
 /*!
- * \brief Allocation calculator for buffer allocation bindings.
+ * \brief Allocation calculator for tensor allocation bindings.
  */
 class AllocTensorCalculator : public StmtExprVisitor {
  public:
@@ -75,9 +75,9 @@ class AllocTensorCalculator : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
-    tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
-    DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
-    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
+    DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
+    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
     auto search = _current_size.find(scope);
     if (search == _current_size.end()) {
       _current_size[scope] = 0;
@@ -122,8 +122,8 @@ class AllocTensorCalculator : public StmtExprVisitor {
 tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAllocatedBytes(
     const Function& func) {
   tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > results;
-  auto alloc_buffer_result = ffi::make_object<AllocTensorCalculator>()->operator()(func);
-  results.Set("main", alloc_buffer_result);
+  auto alloc_tensor_result = ffi::make_object<AllocTensorCalculator>()->operator()(func);
+  results.Set("main", alloc_tensor_result);
   return results;
 }
 
@@ -133,9 +133,9 @@ tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAlloca
   for (const auto& kv : mod->functions) {
     if (auto function = kv.second.as<tirx::Function>()) {
       ffi::String func_name = kv.first->name_hint;
-      auto alloc_buffer_result =
+      auto alloc_tensor_result =
           ffi::make_object<AllocTensorCalculator>()->operator()(function.value());
-      results.Set(func_name, alloc_buffer_result);
+      results.Set(func_name, alloc_tensor_result);
     }
   }
   return results;
@@ -192,14 +192,14 @@ int64_t GetVTCMCapacity(ffi::Optional<Target> target, const tvm::transform::Pass
 ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
   auto pass_list = ffi::Array<tvm::transform::Pass>();
   pass_list.push_back(s_tir::transform::LowerInitBlock());
-  pass_list.push_back(s_tir::transform::PlanAndUpdateBufferAllocationLocation());
+  pass_list.push_back(s_tir::transform::PlanAndUpdateTensorAllocationLocation());
   pass_list.push_back(s_tir::transform::ConvertBlocksToOpaque());
-  pass_list.push_back(s_tir::transform::CompactBufferAllocation());
-  pass_list.push_back(s_tir::transform::LowerMatchBuffer());
+  pass_list.push_back(s_tir::transform::CompactTensorAllocation());
+  pass_list.push_back(s_tir::transform::LowerMatchTensor());
   pass_list.push_back(s_tir::transform::InjectSoftwarePipeline());
   pass_list.push_back(s_tir::transform::LowerOpaqueBlock());
   pass_list.push_back(s_tir::transform::LowerThreadBinding());
-  pass_list.push_back(tirx::transform::FlattenBuffer());
+  pass_list.push_back(tirx::transform::FlattenTensor());
   pass_list.push_back(tirx::transform::StmtSimplify());
   pass_list.push_back(tirx::transform::VectorizeLoop(true));
   pass_list.push_back(tirx::transform::StorageRewrite());

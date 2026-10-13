@@ -33,9 +33,8 @@
 
 #include <algorithm>
 #include <functional>
+#include <numeric>
 #include <utility>
-
-#include "../../sym/int_operator.h"
 
 namespace tvm {
 namespace s_tir {
@@ -48,9 +47,6 @@ using sym::EvalSet;
 using sym::IntSet;
 
 namespace {
-using sym::ExtendedEuclidean;
-using sym::LeastCommonMultiple;
-
 // The solver's intermediate representations remain local to this analysis.
 struct IntGroupBounds {
   PrimExpr coef;
@@ -418,10 +414,9 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
                        &coef_neg, analyzer.get());
 
     // Combine each positive inequality with each negative one (by adding them together)
-    int64_t gcd_x, gcd_y;
     for (const auto& pos : coef_pos) {
       for (const auto& neg : coef_neg) {
-        auto first_gcd = ExtendedEuclidean(pos.first, -neg.first, &gcd_x, &gcd_y);
+        auto first_gcd = std::gcd(pos.first, -neg.first);
         PrimType v_ty = v.ty();
         PrimExpr c_pos = prim::MakeConst(v_ty, neg.first / first_gcd);
         PrimExpr c_neg = IntImm(v_ty, pos.first / first_gcd);
@@ -443,10 +438,10 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     // We will generate formulas of the form coef_lcm*v <= bound
     int64_t coef_lcm = 1;
     for (const auto& pos : coef_pos) {
-      coef_lcm = LeastCommonMultiple(coef_lcm, pos.first);
+      coef_lcm = std::lcm(coef_lcm, pos.first);
     }
     for (const auto& neg : coef_neg) {
-      coef_lcm = LeastCommonMultiple(coef_lcm, -neg.first);
+      coef_lcm = std::lcm(coef_lcm, -neg.first);
     }
 
     // The resulting lower and upper bounds

@@ -233,12 +233,21 @@ constexpr const char* kGlobalSymbol = "global_symbol";
 /*!
  * \brief The function uses s_tir (apache-derived TIR) semantics:
  *        parser fills layout=None, ScriptComplete wraps body in a root SBlock,
- *        and the printer emits the S-TIR `Ts.function` entry point.
+ *        independent of the script construction namespace.
  *        Default (attr absent or False) is tirx semantics.
  *
  * Type: IntImm (bool dtype)
  */
 constexpr const char* kSTir = "s_tir";
+
+/*!
+ * \brief Script construction namespace used to select the function decorator.
+ * Absent metadata selects the function kind's default namespace. This does not
+ * change the function's semantic dialect.
+ *
+ * Type: String
+ */
+constexpr const char* kScriptNamespace = "script.namespace";
 
 /*!
  * \brief Number of inputs of the Function

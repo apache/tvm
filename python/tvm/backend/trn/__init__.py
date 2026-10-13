@@ -20,17 +20,23 @@ from importlib import import_module
 
 _LAZY_SUBMODULES = {
     "layout",
+    "axis",
+    "exec_scope",
     "op",
     "pipeline",
     "script",
     "target_tags",
-    "tile_primitive",
+    "tile",
     "transform",
 }
 
 
 def register_backend():
     """Register Trainium-owned Python semantics."""
+    from . import axis, exec_scope
+
+    exec_scope.register()
+    axis.register()
     from tvm.tirx import compilation_pipeline  # pylint: disable=import-outside-toplevel
     from tvm.tirx.script.ir_builder import (
         op as builder_op,  # pylint: disable=import-outside-toplevel
@@ -39,7 +45,7 @@ def register_backend():
     for name, namespace in script_namespaces().items():
         builder_op.register_script_namespace(name, namespace)
 
-    import_module(f"{__name__}.tile_primitive")
+    import_module(f"{__name__}.tile")
     trn_pipeline = import_module(f"{__name__}.pipeline")
     import_module(f"{__name__}.target_tags")
     import_module(f"{__name__}.transform")
@@ -57,10 +63,18 @@ def script_namespaces(**_):
     """Return Trainium-owned TVMScript namespaces."""
     from types import SimpleNamespace
 
-    from .tensor_instructions import make_namespace
-    from .tile_primitive import private_alloc  # register workspace policies
+    from . import layout
+    from .axis import Axis
+    from .exec_scope import ExecScope
+    from .tile import private_alloc  # register workspace policies
+    from .tile.instructions import make_namespace
 
-    return {"nki": script_namespace(), "trn": SimpleNamespace(tile=make_namespace())}
+    return {
+        "nki": script_namespace(),
+        "trn": SimpleNamespace(
+            tile=make_namespace(), Axis=Axis, ExecScope=ExecScope, layout=layout
+        ),
+    }
 
 
 def __getattr__(name: str):
@@ -70,6 +84,8 @@ def __getattr__(name: str):
 
 
 __all__ = [
+    "axis",
+    "exec_scope",
     "layout",
     "op",
     "pipeline",
@@ -78,6 +94,6 @@ __all__ = [
     "script_namespace",
     "script_namespaces",
     "target_tags",
-    "tile_primitive",
+    "tile",
     "transform",
 ]

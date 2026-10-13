@@ -380,7 +380,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(Type type, llvm::Value*
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_ffi_any_, 0));
       // field 2 is the union value
       buf = builder_->CreateInBoundsGEP(t_tvm_ffi_any_, buf, {index, ConstInt32(2)});
-      if (type.as<PointerTypeNode>()) {
+      if (type.as<PtrTypeNode>()) {
         buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_void_p_, 0));
         return TypedPointer(t_void_p_, buf);
       }
@@ -493,6 +493,8 @@ void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
       gv_tvm_parallel_barrier_ = InitContextPtr(llvmGetPointerTo(ftype_tvm_parallel_barrier_, 0),
                                                 "__TVMBackendParallelBarrier");
       // Mark as context functions
+      gv_func_map_["TVMBackendSetDevice"] = nullptr;
+      gv_func_map_["TVMBackendGetDeviceIndex"] = nullptr;
       gv_func_map_["TVMBackendAllocWorkspace"] = nullptr;
       gv_func_map_["TVMBackendFreeWorkspace"] = nullptr;
     }
@@ -583,7 +585,7 @@ void CodeGenCPU::CreateComputeScope(const RegionStmtNode* op) {
     llvm::Argument* v = &(*it);
     const Var& var = vargs[idx];
     var_map_[var.get()] = v;
-    if ((var->ty.as<PointerTypeNode>() || var->ty.as<TensorTypeNode>()) &&
+    if ((var->ty.as<PtrTypeNode>() || var->ty.as<TensorTypeNode>()) &&
         !alias_var_set_.count(var.get())) {
       // set non alias.
       fcompute->addParamAttr(idx, llvm::Attribute::NoAlias);
@@ -605,7 +607,7 @@ void CodeGenCPU::CreateComputeScope(const RegionStmtNode* op) {
   ffi::Array<Type> debug_param_types = vargs.Map([](const Var& var) -> Type {
     if (const auto* buffer_type = var->ty.as<TensorTypeNode>()) {
       // Compute-scope captures use their physical LLVM pointer values.
-      return buffer_type->DataPointerType();
+      return buffer_type->DataPtrType();
     }
     return var->ty;
   });
@@ -841,7 +843,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<Expr>&
       if (prim_r_type) {
         return DTypeToLLVMType(tirx::APIType(prim_r_type.value()));
       }
-      TVM_FFI_ICHECK(r_type.as<PointerTypeNode>())
+      TVM_FFI_ICHECK(r_type.as<PtrTypeNode>())
           << "Packed calls may return only primitive or pointer types, but got " << r_type;
       return t_void_p_;
     }();
@@ -1033,7 +1035,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     Type op_type = op->ty;
     TypedPointer ref = CreateStructRefPtr(op_type, MakeValue(args[0]), MakeValue(args[1]), kind);
     if (kind == tirx::kDLTensorAddr) {
-      TVM_FFI_ICHECK(op_type.as<PointerTypeNode>())
+      TVM_FFI_ICHECK(op_type.as<PtrTypeNode>())
           << "The address of a DLTensor must have pointer type, but got " << op_type;
       return builder_->CreatePointerCast(ref.addr, GetLLVMType(op_type));
     }
@@ -1045,7 +1047,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
         struct_value = CreateCast(PrimType::Int(64), prim_type.value(), struct_value);
       }
     } else {
-      TVM_FFI_ICHECK(op_type.as<PointerTypeNode>())
+      TVM_FFI_ICHECK(op_type.as<PtrTypeNode>())
           << "Struct fields must have primitive or pointer type, but got " << op_type;
       llvm::Type* target = GetLLVMType(op_type);
       TVM_FFI_ICHECK(struct_value->getType()->isPointerTy());
@@ -1153,9 +1155,19 @@ void CodeGenCPU::Dispatch_(const RegionStmtNode* op) {
 
 void CodeGenCPU::Dispatch_(const ForNode* op) {
   EmitDebugLocation(op);
+  // A single iteration needs no nested threadpool launch.  Keep an explicit
+  // parallel_launch region's first loop distributed across its existing tasks.
+  if (op->kind == ForKind::kParallel && IsOne(op->extent) && op->HasTrivialStep() &&
+      op->annotations.empty() &&
+      (parallel_env_.penv == nullptr || parallel_env_.in_parallel_loop)) {
+    auto serial = ffi::make_object<ForNode>(*op);
+    serial->kind = ForKind::kDefault;
+    CodeGenLLVM::Dispatch_(serial.get());
+    return;
+  }
   if (op->kind == ForKind::kDefault || op->kind == ForKind::kUnrolled) {
     CodeGenLLVM::Dispatch_(op);
-  } else if (op->kind == ForKind::kParallel && !tvm::tirx::GetThreadBinding(op).has_value()) {
+  } else if (op->kind == ForKind::kParallel) {
     TVM_FFI_ICHECK(IsZero(op->min))
         << "Parallel launch require canonical loop with zero start index";
     TVM_FFI_ICHECK(op->HasTrivialStep())
@@ -1166,8 +1178,8 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
                            std::string("loop_parallel_") + op->loop_var->name.c_str());
     } else {
       // already in parallel env.
-      TVM_FFI_ICHECK(parallel_env_.task_id.defined());
-      TVM_FFI_ICHECK(parallel_env_.num_task.defined());
+      TVM_FFI_ICHECK(parallel_env_.task_id.has_value());
+      TVM_FFI_ICHECK(parallel_env_.num_task.has_value());
       TVM_FFI_ICHECK(parallel_env_.penv != nullptr);
       PrimType t(op->extent.ty()->dtype);
       PrimExpr num_task = cast(t, parallel_env_.num_task.value().as_or_throw<PrimExpr>());

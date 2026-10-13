@@ -32,7 +32,7 @@ def add(
     # function attr dict
     T.func_attr({"global_symbol": "main"})
 
-    A_cached = Ts.sblock_alloc_buffer([2048, 2048, 2048], dtype="float32")
+    A_cached = Ts.sblock_alloc_tensor([2048, 2048, 2048], dtype="float32")
     # body
     for i, j, k in T.grid(2048, 2048, 2048):
         with Ts.sblock("move"):

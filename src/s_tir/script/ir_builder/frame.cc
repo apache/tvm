@@ -29,12 +29,12 @@ namespace script {
 namespace ir_builder {
 namespace s_tir {
 TVM_FFI_STATIC_INIT_BLOCK() {
-  FunctionFrameNode::RegisterReflection();
-  SBlockFrameNode::RegisterReflection();
-  BlockInitFrameNode::RegisterReflection();
-  tirx::FunctionFrameNode::RegisterAttrValidator(
-      tvm::attr::kSTir, [](const tirx::FunctionFrameNode* frame, const ffi::Any& value) {
-        TVM_FFI_CHECK(frame->IsInstance<FunctionFrameNode>(), ValueError)
+  FunctionFrameObj::RegisterReflection();
+  SBlockFrameObj::RegisterReflection();
+  BlockInitFrameObj::RegisterReflection();
+  tirx::FunctionFrameObj::RegisterAttrValidator(
+      tvm::attr::kSTir, [](const tirx::FunctionFrameObj* frame, const ffi::Any& value) {
+        TVM_FFI_CHECK(frame->IsInstance<FunctionFrameObj>(), ValueError)
             << "The s_tir attribute requires Ts.function";
         bool enabled = false;
         if (auto flag = value.as<bool>()) {
@@ -48,47 +48,58 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-tvm::tirx::Function FunctionFrameNode::FinalizeFunction(tvm::tirx::Function func) {
-  TVM_FFI_CHECK(!is_declaration || root_alloc_buffers.empty(), ValueError)
-      << "A function declaration cannot allocate buffers";
+tvm::tirx::Function FunctionFrameObj::FinalizeFunction(tvm::tirx::Function func) {
+  func = WithAttr(std::move(func), tvm::attr::kScriptNamespace, ffi::String("s_tir"));
+  TVM_FFI_CHECK(!is_declaration || root_alloc_tensors.empty(), ValueError)
+      << "A function declaration cannot allocate tensors";
   if (!is_declaration) {
     func = WithAttr(std::move(func), tvm::attr::kSTir, true);
     func =
-        tvm::s_tir::ScriptComplete(std::move(func), root_alloc_buffers, root_allocated_addresses);
+        tvm::s_tir::ScriptComplete(std::move(func), root_alloc_tensors, root_allocated_addresses);
   }
   return func;
 }
 
-void SBlockFrameNode::BindBufferRegion(tvm::tirx::TensorVar buffer, tvm::TensorRegion region) {
-  match_buffers.push_back(tvm::s_tir::MatchBufferRegion(std::move(buffer), std::move(region)));
+void FunctionFrameObj::BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::TensorRegion region,
+                                        ffi::Array<PrimExpr> allocated_addr) {
+  if (auto function = IRBuilder::Current()->FindFrame<tirx::FunctionFrame>()) {
+    TVM_FFI_CHECK(function.value().as<FunctionFrameObj>() != nullptr, ValueError)
+        << "match_tensor requires Ts.function; T.function only accepts TIRx";
+  }
+  SBlockFrame frame = FindSBlockFrame("Ts.match_tensor");
+  frame->match_tensors.push_back(tvm::s_tir::MatchTensorRegion(tensor, std::move(region)));
+  if (!allocated_addr.empty()) {
+    frame->allocated_addresses.push_back(
+        ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor.var(), std::move(allocated_addr)));
+  }
 }
 
-void SBlockFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
+void SBlockFrameObj::ExitWithScope() {
+  ir::StmtFrameObj::ExitWithScope();
 
   // Shared operations remain usable in S-TIR and raw builder contexts, but
   // a TIRx function cannot contain an S-TIR block, even with validation disabled.
   if (auto function = IRBuilder::Current()->FindFrame<tirx::FunctionFrame>()) {
-    TVM_FFI_CHECK(function.value().as<FunctionFrameNode>() != nullptr, ValueError)
+    TVM_FFI_CHECK(function.value().as<FunctionFrameObj>() != nullptr, ValueError)
         << "S-TIR blocks require Ts.function; T.function only accepts TIRx";
   }
 
-  ffi::Array<tvm::tirx::TensorVar> tir_alloc_buffers;
-  for (const tvm::tirx::TensorVar& buffer : alloc_buffers) {
-    tir_alloc_buffers.push_back(buffer);
+  ffi::Array<tvm::tirx::TensorVar> tir_alloc_tensors;
+  for (const tvm::tirx::TensorVar& tensor : alloc_tensors) {
+    tir_alloc_tensors.push_back(tensor);
   }
   ffi::Map<ffi::String, Any> attrs = annotations.value_or({});
   if (!allocated_addresses.empty()) {
-    TVM_FFI_CHECK(!attrs.count(tvm::s_tir::attr::kBufferAllocatedAddr), ValueError)
-        << "Buffer placement must be specified on its allocation or match_buffer";
-    attrs.Set(tvm::s_tir::attr::kBufferAllocatedAddr, allocated_addresses);
+    TVM_FFI_CHECK(!attrs.count(tvm::s_tir::attr::kTensorAllocatedAddr), ValueError)
+        << "Tensor placement must be specified on its allocation or match_tensor";
+    attrs.Set(tvm::s_tir::attr::kTensorAllocatedAddr, allocated_addresses);
   }
   if (int detect_access = (!reads.has_value()) | (!writes.has_value() << 1)) {
     attrs.Set(tvm::s_tir::attr::kScriptParsingDetectAccess, tvm::IntImm::Int64(detect_access));
   }
   tvm::s_tir::SBlock block(iter_vars, reads.value_or(ffi::Array<tvm::TensorRegion>()),
                            writes.value_or(ffi::Array<tvm::TensorRegion>()), name, AsStmt(stmts),
-                           init, tir_alloc_buffers, match_buffers, attrs, loc);
+                           init, tir_alloc_tensors, match_tensors, attrs, loc);
   if (no_realize) {
     TVM_FFI_CHECK(iter_values.empty(), ValueError)
         << "Block bindings are not allowed when `no_realize=True`";
@@ -102,16 +113,16 @@ void SBlockFrameNode::ExitWithScope() {
   }
 }
 
-void BlockInitFrameNode::EnterWithScope() {
+void BlockInitFrameObj::EnterWithScope() {
   SBlockFrame frame = FindSBlockFrame("Ts.init");
   if (frame->init.has_value()) {
     TVM_FFI_THROW(ValueError) << "Duplicate block init declaration";
   }
-  TIRFrameNode::EnterWithScope();
+  ir::StmtFrameObj::EnterWithScope();
 }
 
-void BlockInitFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
+void BlockInitFrameObj::ExitWithScope() {
+  ir::StmtFrameObj::ExitWithScope();
   SBlockFrame frame = FindSBlockFrame("Ts.init");
   frame->init = AsStmt(stmts);
 }

@@ -42,15 +42,13 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ForNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
-  bool use_thread_binding =
-      tvm::tirx::GetThreadBinding(loop).has_value() && !loop->step.has_value();
   ffi::String method;
   switch (loop->kind) {
     case ForKind::kDefault:
       method = "serial";
       break;
     case ForKind::kParallel:
-      method = use_thread_binding ? tvm::tirx::attr::kThreadBinding : "parallel";
+      method = "parallel";
       break;
     case ForKind::kVectorized:
       method = "vectorized";
@@ -73,12 +71,6 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   }
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
-  if (use_thread_binding) {
-    TVM_FFI_CHECK(tvm::tirx::GetThreadBinding(loop).has_value(), TypeError)
-        << "printer thread-binding loop lacks thread tag";
-    keys.push_back("thread");
-    values.push_back(LiteralDoc::Str(tvm::tirx::GetThreadBinding(loop).value(), std::nullopt));
-  }
   bool unroll_option = false;
   if (loop->kind == ForKind::kDefault && loop->annotations.size() == 1) {
     const auto& [key, value] = *loop->annotations.begin();
@@ -95,11 +87,9 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
       unroll_option = true;
     }
   }
-  auto annotations = loop->annotations;
-  if (use_thread_binding) annotations.erase(tvm::tirx::attr::kThreadBinding);
-  if (!unroll_option && !annotations.empty()) {
+  if (!unroll_option && !loop->annotations.empty()) {
     std::vector<std::pair<ffi::String, ffi::Any>> sorted;
-    for (const auto& [key, value] : annotations) sorted.emplace_back(key, value);
+    for (const auto& [key, value] : loop->annotations) sorted.emplace_back(key, value);
     std::sort(sorted.begin(), sorted.end(),
               [](const auto& a, const auto& b) { return a.first < b.first; });
     ffi::Array<ExprDoc> annotation_keys;
@@ -121,9 +111,6 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   {
     IdDoc var = VarDoc(d, loop->loop_var);
     ffi::Array<ExprDoc> bounds = {min, end};
-    if (use_thread_binding && prim::IsZero(loop->min) && loop->min.ty() == loop->extent.ty()) {
-      bounds = {end};
-    }
     ExprDoc callee = NamespaceDoc("tirx")->Attr(method);
     if (loop->kind == ForKind::kDefault && loop->annotations.empty()) {
       callee = IdDoc("range");

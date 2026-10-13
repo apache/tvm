@@ -36,7 +36,7 @@ class Module:
 
     @Ts.function
     def scale_by_two_three(a: T.Tensor((128,), "int8"), c: T.Tensor((128,), "int8")):
-        B = Ts.sblock_alloc_buffer([128], dtype="int8", scope="global.vtcm")
+        B = Ts.sblock_alloc_tensor([128], dtype="int8", scope="global.vtcm")
         for i in T.serial(128):
             with Ts.sblock("B"):
                 B[i] = a[i] * T.int8(2)
@@ -75,9 +75,9 @@ def matmul_mix_scope(
     B: T.Tensor([128, 128], scope="global"),
     C: T.Tensor([128, 128], scope="global"),
 ) -> None:
-    A_allocated = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="global.texture")
-    B_allocated = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="global.texture")
-    C_allocated = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="global")
+    A_allocated = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="global.texture")
+    B_allocated = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="global.texture")
+    C_allocated = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="global")
 
     for i, j in T.grid(128, 128):
         with Ts.sblock("A.allocated"):

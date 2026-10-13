@@ -73,7 +73,7 @@ def test_non_power_of_two_head_prefill_reduces_query_tile_for_metal():
     assert func.attrs["tirx.is_scheduled"]
     assert _get_allocated_shared_memory(func) == 18_784
     assert 18_784 <= int(target.attrs["max_shared_memory_per_block"])
-    assert tvm.tirx.build(func, target=target).imports[0].inspect_source()
+    assert tvm.tirx.compile(func, target=target).mod.imports[0].inspect_source()
 
 
 def test_reduced_query_tile_keeps_the_real_head_dimension():
@@ -91,7 +91,7 @@ def test_reduced_query_tile_keeps_the_real_head_dimension():
     assert func.attrs["tirx.is_scheduled"]
     assert _get_allocated_shared_memory(func) == 20_320
     assert 20_320 <= int(target.attrs["max_shared_memory_per_block"])
-    assert tvm.tirx.build(func, target=target).imports[0].inspect_source()
+    assert tvm.tirx.compile(func, target=target).mod.imports[0].inspect_source()
 
 
 def test_fallback_can_select_larger_nearby_query_tile():
@@ -109,7 +109,7 @@ def test_fallback_can_select_larger_nearby_query_tile():
     assert func.attrs["tirx.is_scheduled"]
     assert _get_allocated_shared_memory(func) == 31_072
     assert 31_072 <= int(target.attrs["max_shared_memory_per_block"])
-    assert tvm.tirx.build(func, target=target).imports[0].inspect_source()
+    assert tvm.tirx.compile(func, target=target).mod.imports[0].inspect_source()
 
 
 @pytest.mark.parametrize(
@@ -137,7 +137,7 @@ def test_fallback_can_expand_key_tile_for_factorization(
     assert func.attrs["tirx.is_scheduled"]
     assert _get_allocated_shared_memory(func) == expected_shared_memory
     assert expected_shared_memory <= int(target.attrs["max_shared_memory_per_block"])
-    assert tvm.tirx.build(func, target=target).imports[0].inspect_source()
+    assert tvm.tirx.compile(func, target=target).mod.imports[0].inspect_source()
 
 
 def test_normal_head_prefill_keeps_existing_metal_config():
@@ -255,7 +255,10 @@ def test_merge_state_waits_before_overwriting_the_shared_lse(head_dim):
     func = _merge_state_inplace(8, head_dim, "float16", target, global_symbol="merge")
     lines = [
         line.strip()
-        for line in tvm.tirx.build(func, target=target).imports[0].inspect_source().splitlines()
+        for line in tvm.tirx.compile(func, target=target)
+        .mod.imports[0]
+        .inspect_source()
+        .splitlines()
     ]
 
     loads = [i for i, line in enumerate(lines) if "= S_ptr[" in line]

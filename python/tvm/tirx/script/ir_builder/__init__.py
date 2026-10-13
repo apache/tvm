@@ -19,8 +19,6 @@
 from tvm.script.ir_builder.ir import constexpr as constexpr
 from tvm.script.ir_builder.ir import dtype as dtype
 from tvm.script.ir_builder.ir import dynamic as dynamic
-from tvm.tirx.lang.alloc_pool import SMEMPool as SMEMPool
-from tvm.tirx.lang.alloc_pool import TMEMPool as TMEMPool
 
 from . import ir as _native
 from .ir import *
@@ -47,8 +45,6 @@ __all__ = [
     "dynamic",
     "dtype",
     "constexpr",
-    "SMEMPool",
-    "TMEMPool",
     "bool",
     "tensor_indices",
     "frame_scope",

@@ -481,16 +481,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         });
 }
 
-GenericConst MakeTensorConst(runtime::Tensor data, ffi::Optional<Type> ty_annotation,
-                             Location loc) {
+GenericConst MakeTensorConst(ffi::Tensor data, ffi::Optional<Type> ty_annotation, Location loc) {
+  TVM_FFI_ICHECK(data.defined());
   if (ty_annotation.has_value()) {
     return GenericConst(std::move(data), ty_annotation.value(), std::move(loc));
   }
   ffi::Array<PrimExpr> shape;
-  for (int64_t dim : data.Shape()) {
+  for (int64_t dim : data.shape()) {
     shape.push_back(IntImm::Int64(dim));
   }
-  TensorType ty(ShapeExpr(shape), PrimType(data.DataType()), std::nullopt, loc);
+  TensorType ty(ShapeExpr(shape), PrimType(data.dtype()), std::nullopt, loc);
   return GenericConst(std::move(data), std::move(ty), std::move(loc));
 }
 

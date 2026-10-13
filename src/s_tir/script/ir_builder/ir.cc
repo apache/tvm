@@ -28,13 +28,12 @@ namespace script {
 namespace ir_builder {
 namespace s_tir {
 
-using ir::ForFrameNode;
-using tirx::TensorDecl;
+using ir::ForFrameObj;
 using tvm::s_tir::IterVar;
 using tvm::s_tir::IterVarType;
 
 FunctionFrame Function(bool is_private, bool persistent) {
-  auto n = ffi::make_object<FunctionFrameNode>();
+  auto n = ffi::make_object<FunctionFrameObj>();
   n->is_private = is_private;
   n->persistent = persistent;
   n->attrs = {};
@@ -47,48 +46,41 @@ FunctionFrame DeclFunction(bool is_private, bool persistent) {
   return frame;
 }
 
-TensorVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType dtype,
+TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType dtype,
                       ffi::Optional<Expr> data, ffi::Array<PrimExpr> strides,
                       ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
                       int offset_factor, ffi::Optional<Layout> layout,
                       ffi::Array<PrimExpr> allocated_addr) {
-  TensorVar buffer = TensorDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
-                                offset_factor, layout);
+  if (data.has_value()) {
+    storage_scope = data.value()->ty.as_or_throw<PtrType>()->storage_scope;
+  }
+  if (!elem_offset.has_value() && offset_factor) {
+    PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
+    elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
+  }
+  TensorVar tensor("", tvm::tirx::TensorType(storage_scope, dtype, shape, strides, elem_offset,
+                                             align, offset_factor, layout));
   tvm::TensorRegion region{ffi::UnsafeInit{}};
   if (auto load = param.as<TensorLoad>()) {
     region = TensorRegionFromLoad(load.value());
   } else if (auto view = param.as<tvm::TensorRegion>()) {
     region = view.value();
   } else {
-    TVM_FFI_THROW(ValueError) << "Unexpected type for MatchBuffer";
+    TVM_FFI_THROW(ValueError) << "Unexpected type for MatchTensor";
   }
-  auto frame = IRBuilder::Current()->GetLastFrame<ir::StmtFrame>();
-  TVM_FFI_CHECK(frame.has_value(), ValueError) << "match_buffer requires a statement frame";
-  if (auto* alias_frame = frame.value().as<tirx::TIRFrameNode>()) {
-    ffi::GetRef<tirx::TIRFrame>(alias_frame)->BindBufferRegion(buffer, region);
-  } else {
-    TVM_FFI_THROW(ValueError) << "match_buffer requires a frame that supports region aliases";
-  }
-  if (!allocated_addr.empty()) {
-    auto* block_frame = frame.value().as<SBlockFrameNode>();
-    TVM_FFI_CHECK(block_frame != nullptr, ValueError)
-        << "match_buffer placement requires an S-TIR block";
-    ffi::GetRef<SBlockFrame>(block_frame)
-        ->allocated_addresses.push_back(
-            ffi::Tuple<Var, ffi::Array<PrimExpr>>(buffer.var(), allocated_addr));
-  }
-  return buffer;
+  FunctionFrameObj::BindTensorRegion(tensor, std::move(region), std::move(allocated_addr));
+  return tensor;
 }
 
 SBlockFrame Block(ffi::String name, bool no_realize, ffi::String exec_scope) {
-  ffi::ObjectPtr<SBlockFrameNode> n = ffi::make_object<SBlockFrameNode>();
+  ffi::ObjectPtr<SBlockFrameObj> n = ffi::make_object<SBlockFrameObj>();
   n->name = name;
   n->iter_vars.clear();
   n->reads = std::nullopt;
   n->writes = std::nullopt;
   n->init = std::nullopt;
-  n->alloc_buffers.clear();
-  n->match_buffers.clear();
+  n->alloc_tensors.clear();
+  n->match_tensors.clear();
   n->annotations = std::nullopt;
   n->iter_values.clear();
   n->predicate = std::nullopt;
@@ -96,7 +88,7 @@ SBlockFrame Block(ffi::String name, bool no_realize, ffi::String exec_scope) {
   return SBlockFrame(n);
 }
 
-BlockInitFrame Init() { return BlockInitFrame(ffi::make_object<BlockInitFrameNode>()); }
+BlockInitFrame Init() { return BlockInitFrame(ffi::make_object<BlockInitFrameObj>()); }
 
 void Where(PrimExpr predicate) {
   SBlockFrame frame = FindSBlockFrame("Ts.where");
@@ -108,7 +100,7 @@ void Where(PrimExpr predicate) {
   frame->predicate = predicate;
 }
 
-void Reads(ffi::Array<ffi::ObjectRef> buffer_slices) {
+void Reads(ffi::Array<ffi::ObjectRef> tensor_slices) {
   using namespace tvm::tirx;
   SBlockFrame frame = FindSBlockFrame("Ts.reads");
   if (frame->reads.has_value()) {
@@ -116,19 +108,19 @@ void Reads(ffi::Array<ffi::ObjectRef> buffer_slices) {
         << "ValueError: Duplicate read region declaration, previous one is " << frame->reads;
   }
   ffi::Array<TensorRegion> reads;
-  for (const ffi::ObjectRef& obj : buffer_slices) {
-    if (auto buffer_region = obj.as<TensorRegion>()) {
-      reads.push_back(buffer_region.value());
-    } else if (auto buffer_load = obj.as<TensorLoad>()) {
-      reads.push_back(TensorRegionFromLoad(buffer_load.value()));
+  for (const ffi::ObjectRef& obj : tensor_slices) {
+    if (auto tensor_region = obj.as<TensorRegion>()) {
+      reads.push_back(tensor_region.value());
+    } else if (auto tensor_load = obj.as<TensorLoad>()) {
+      reads.push_back(TensorRegionFromLoad(tensor_load.value()));
     } else {
-      TVM_FFI_THROW(InternalError) << "Invalid type for buffer reads.";
+      TVM_FFI_THROW(InternalError) << "Invalid type for tensor reads.";
     }
   }
   frame->reads = reads;
 }
 
-void Writes(ffi::Array<ffi::ObjectRef> buffer_slices) {
+void Writes(ffi::Array<ffi::ObjectRef> tensor_slices) {
   using namespace tvm::tirx;
   SBlockFrame frame = FindSBlockFrame("Ts.writes");
   if (frame->writes.has_value()) {
@@ -136,13 +128,13 @@ void Writes(ffi::Array<ffi::ObjectRef> buffer_slices) {
         << "ValueError: Duplicate write region declaration, previous one is " << frame->writes;
   }
   ffi::Array<TensorRegion> writes;
-  for (const ffi::ObjectRef& obj : buffer_slices) {
-    if (auto buffer_region = obj.as<TensorRegion>()) {
-      writes.push_back(buffer_region.value());
-    } else if (auto buffer_load = obj.as<TensorLoad>()) {
-      writes.push_back(TensorRegionFromLoad(buffer_load.value()));
+  for (const ffi::ObjectRef& obj : tensor_slices) {
+    if (auto tensor_region = obj.as<TensorRegion>()) {
+      writes.push_back(tensor_region.value());
+    } else if (auto tensor_load = obj.as<TensorLoad>()) {
+      writes.push_back(TensorRegionFromLoad(tensor_load.value()));
     } else {
-      TVM_FFI_THROW(InternalError) << "Invalid type for buffer writes.";
+      TVM_FFI_THROW(InternalError) << "Invalid type for tensor writes.";
     }
   }
   frame->writes = writes;
@@ -197,7 +189,7 @@ void BlockAttrs(ffi::Map<ffi::String, Any> attrs) {
       << "frame, but Ts.sblock_attr occurred outside of any such frame";
 }
 
-TensorVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Optional<Expr> data,
+TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Optional<Expr> data,
                             ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
                             ffi::String storage_scope, int align, int offset_factor,
                             ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr) {
@@ -210,12 +202,16 @@ TensorVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
         << "ValueError: For `" << scope
         << "` scope, Ts.alloc_tensor does not accept `allocated_addr`";
   }
-  TensorVar buffer = TensorDecl(shape, dtype, "", std::nullopt, strides, elem_offset, storage_scope,
-                                align, offset_factor, layout);
+  if (!elem_offset.has_value() && offset_factor) {
+    PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
+    elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
+  }
+  TensorVar tensor("", tvm::tirx::TensorType(storage_scope, dtype, shape, strides, elem_offset,
+                                             align, offset_factor, layout));
   IRBuilder builder = IRBuilder::Current();
   auto opt_func_frame = builder->FindFrame<tirx::FunctionFrame>();
   if (opt_func_frame.has_value()) {
-    TVM_FFI_CHECK(opt_func_frame.value().as<FunctionFrameNode>() != nullptr, ValueError)
+    TVM_FFI_CHECK(opt_func_frame.value().as<FunctionFrameObj>() != nullptr, ValueError)
         << "ValueError: `Ts.alloc_tensor()` is only for s_tir Functions. "
            "Use `T.alloc_tensor()` inside default (tirx) Functions.";
   }
@@ -223,25 +219,25 @@ TensorVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
   // Walk up the frame stack: attach to the innermost enclosing s_tir::SBlock (lifting
   // the allocation past any intermediate For/If/While frames). Fall back to the
   // Function root when no sblock is in scope. When neither is present (raw
-  // IRBuilder construction used by tests), just return the buffer.
+  // IRBuilder construction used by tests), just return the tensor.
   if (ffi::Optional<SBlockFrame> block_frame = builder->FindFrame<SBlockFrame>()) {
-    block_frame.value()->alloc_buffers.push_back(buffer);
+    block_frame.value()->alloc_tensors.push_back(tensor);
     if (!allocated_addr.empty()) {
       block_frame.value()->allocated_addresses.push_back(
-          ffi::Tuple<Var, ffi::Array<PrimExpr>>(buffer.var(), allocated_addr));
+          ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor.var(), allocated_addr));
     }
   } else if (opt_func_frame.has_value()) {
-    auto frame = ffi::GetRef<FunctionFrame>(opt_func_frame.value().as<FunctionFrameNode>());
-    frame->root_alloc_buffers.push_back(buffer);
+    auto frame = ffi::GetRef<FunctionFrame>(opt_func_frame.value().as<FunctionFrameObj>());
+    frame->root_alloc_tensors.push_back(tensor);
     if (!allocated_addr.empty()) {
       frame->root_allocated_addresses.push_back(
-          ffi::Tuple<Var, ffi::Array<PrimExpr>>(buffer.var(), allocated_addr));
+          ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor.var(), allocated_addr));
     }
   } else {
     TVM_FFI_CHECK(allocated_addr.empty(), ValueError)
-        << "sblock_alloc_buffer placement requires an owning block or function";
+        << "sblock_alloc_tensor placement requires an owning block or function";
   }
-  return buffer;
+  return tensor;
 }
 namespace axis {
 
@@ -289,7 +285,7 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
     TVM_FFI_ICHECK(v) << "TypeError: Only Var is supported in T.axis.remap";
     ffi::Optional<Range> dom;
     for (const auto& frame : IRBuilder::Current()->frames) {
-      if (const auto* for_frame = frame.as<ForFrameNode>()) {
+      if (const auto* for_frame = frame.as<ForFrameObj>()) {
         TVM_FFI_ICHECK_EQ(for_frame->doms.size(), for_frame->vars.size());
         int n = for_frame->doms.size();
         for (int i = 0; i < n; ++i) {
@@ -298,12 +294,12 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
             break;
           }
         }
-        if (dom.defined()) {
+        if (dom.has_value()) {
           break;
         }
       }
     }
-    TVM_FFI_ICHECK(dom.defined()) << "TypeError: Variable is not in the loop: " << v.value();
+    TVM_FFI_ICHECK(dom.has_value()) << "TypeError: Variable is not in the loop: " << v.value();
     PrimType dtype = v.value().ty();
     if (c == 'S') {
       results.push_back(PushBlockVar(IterVar(/*dom=*/dom,
@@ -342,14 +338,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("script.ir_builder.s_tir.Function", Function)
       .def("script.ir_builder.s_tir.DeclFunction", DeclFunction)
-      .def("script.ir_builder.s_tir.MatchBuffer", MatchBuffer)
+      .def("script.ir_builder.s_tir.MatchTensor", MatchTensor)
       .def("script.ir_builder.s_tir.Block", Block)
       .def("script.ir_builder.s_tir.Init", Init)
       .def("script.ir_builder.s_tir.Where", Where)
       .def("script.ir_builder.s_tir.Reads", Reads)
       .def("script.ir_builder.s_tir.Writes", Writes)
       .def("script.ir_builder.s_tir.BlockAttrs", BlockAttrs)
-      .def("script.ir_builder.s_tir.SBlockAllocBuffer", SBlockAllocBuffer)
+      .def("script.ir_builder.s_tir.SBlockAllocTensor", SBlockAllocTensor)
       .def("script.ir_builder.s_tir.AxisSpatial", axis::Spatial)
       .def("script.ir_builder.s_tir.AxisReduce", axis::Reduce)
       .def("script.ir_builder.s_tir.AxisScan", axis::Scan)

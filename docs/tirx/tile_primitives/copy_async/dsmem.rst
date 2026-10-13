@@ -25,7 +25,7 @@ destination CTA's shared
 address into its own address space (PTX ``mapa``) and issues a bulk copy
 (``cp.async.bulk.shared::cluster``); the hardware decrements the *destination* CTA's
 mbarrier when the bytes land. Source:
-``python/tvm/backend/cuda/tile_primitive/copy_async/dsmem.py``.
+``python/tvm/backend/cuda/tile/copy_async/dsmem.py``.
 
 What it accepts
 ---------------
@@ -62,7 +62,7 @@ mbarrier and writes the result out (from ``test_dsmem.py``):
 
 .. code-block:: python
 
-    from tvm.backend.cuda.lang import MBarrier
+    from tvm.backend.cuda.lang import MBarrier, SMEMPool
 
     shape, dtype, CLUSTER_N = (128, 64), "float16", 2
     src_layout = dst_layout = TileLayout(S[128, 64])
@@ -77,24 +77,32 @@ mbarrier and writes the result out (from ``test_dsmem.py``):
         cbx = Tx.cuda.cluster_cta_id("x")
         _index = Tx.cuda.block_idx("x")
         tid = Tx.cuda.thread_idx("x")
-        pool = Tx.SMEMPool()
+        pool = SMEMPool()
         src_raw = pool.alloc([8192], dtype, align=128)
         src_smem = Tx.decl_tensor(
-            list(shape),
-            dtype,
             src_raw.data,
-            byte_offset=src_raw.byte_offset,
-            scope="shared.dyn",
-            layout=src_layout,
+            ty_args=[
+                Tx.Tensor(
+                    list(shape),
+                    dtype,
+                    byte_offset=src_raw.byte_offset,
+                    scope="shared.dyn",
+                    layout=src_layout,
+                )
+            ],
         )
         dst_raw = pool.alloc([8192], dtype, align=128)
         dst_smem = Tx.decl_tensor(
-            list(shape),
-            dtype,
             dst_raw.data,
-            byte_offset=dst_raw.byte_offset,
-            scope="shared.dyn",
-            layout=dst_layout,
+            ty_args=[
+                Tx.Tensor(
+                    list(shape),
+                    dtype,
+                    byte_offset=dst_raw.byte_offset,
+                    scope="shared.dyn",
+                    layout=dst_layout,
+                )
+            ],
         )
         mbar = MBarrier(pool, 1)
         pool.commit()
@@ -137,8 +145,8 @@ and a multiple of 16 (a ``cp.async.bulk`` constraint), else it declines:
 
 **2. Map the remote address.** ``Tx.ptx.mapa.u64`` translates a local shared
 pointer into the destination CTA's window — applied to both the destination
-buffer pointer and the mbarrier (``mapa`` writes into a declared register, so
-the mapped addresses live in a small local scratch buffer):
+tensor pointer and the mbarrier (``mapa`` writes into a declared register, so
+the mapped addresses live in a small local scratch tensor):
 
 .. code-block:: python
 

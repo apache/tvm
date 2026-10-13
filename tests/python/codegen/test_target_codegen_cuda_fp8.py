@@ -55,8 +55,8 @@ def test_fp8_conversions(input):
                 C: T.Tensor((64,), dtype),
             ):
                 T.func_attr({"tirx.noalias": True})
-                for i_0 in T.thread_binding(2, thread="blockIdx.x"):
-                    for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                with T.launch_thread("blockIdx.x", 2) as i_0:
+                    with T.launch_thread("threadIdx.x", 32) as i_1:
                         C[i_0 * 32 + i_1] = T.Cast(
                             dtype,
                             T.Cast("float16", A[i_0 * 32 + i_1])
@@ -67,7 +67,7 @@ def test_fp8_conversions(input):
 
     mod = _create_mod(dtype)
     target = "cuda"
-    fadd = tvm.tirx.build(mod, target=target)
+    fadd = tvm.tirx.compile(mod, target=target).mod
 
     cuda_src = fadd.imports[0].inspect_source()
     assert nv_dtype in cuda_src, f"{nv_dtype} datatype not found in generated CUDA"
@@ -105,18 +105,18 @@ def test_fp8_packing(dtype):
                 B: T.Tensor((length,), native_dtype),
             ):
                 T.func_attr({"tirx.noalias": True})
-                for i_0 in T.thread_binding(2, thread="blockIdx.x"):
-                    for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                with T.launch_thread("blockIdx.x", 2) as i_0:
+                    with T.launch_thread("threadIdx.x", 32) as i_1:
                         R[i_0 * 32 + i_1] = T.reinterpret(A[i_0 * 32 + i_1], ty=packed_dtype)
-                for i_0 in T.thread_binding(2, thread="blockIdx.x"):
-                    for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                with T.launch_thread("blockIdx.x", 2) as i_0:
+                    with T.launch_thread("threadIdx.x", 32) as i_1:
                         B[i_0 * 32 + i_1] = T.reinterpret(R[i_0 * 32 + i_1], ty=native_dtype)
 
         return Module
 
     mod = _create_mod(native_dtype, packed_dtype, length)
     target = "cuda"
-    f = tvm.compile(mod, target=target)
+    f = tvm.tirx.compile(mod, target=target)
     dev = tvm.cuda(0)
 
     np_shape = (length, vector_length)
@@ -162,8 +162,8 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
                 C: T.Tensor((64,), native_dtype),
             ):
                 T.func_attr({"tirx.noalias": True})
-                for i_0 in T.thread_binding(2, thread="blockIdx.x"):
-                    for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                with T.launch_thread("blockIdx.x", 2) as i_0:
+                    with T.launch_thread("threadIdx.x", 32) as i_1:
                         C[i_0 * 32 + i_1] = T.Cast(
                             native_dtype,
                             T.Cast(promoted_dtype, A[i_0 * 32 + i_1])
@@ -174,7 +174,7 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
 
     mod = _create_mod(native_dtype, promoted_dtype)
     target = "cuda"
-    fadd = tvm.tirx.build(mod, target=target)
+    fadd = tvm.tirx.compile(mod, target=target).mod
     cuda_src = fadd.imports[0].inspect_source()
     dev = tvm.cuda(0)
 
@@ -216,15 +216,15 @@ def test_half_broadcast(bcast_length):
         class Module:
             @T.function
             def main(a: T.Tensor((), dtype), vec: T.Tensor((bcast_length,), dtype)):
-                for i_0 in T.thread_binding(1, thread="blockIdx.x"):
-                    for i_1 in T.thread_binding(1, thread="threadIdx.x"):
+                with T.launch_thread("blockIdx.x", 1) as i_0:
+                    with T.launch_thread("threadIdx.x", 1) as i_1:
                         vec[0:bcast_length] = T.broadcast(a[()], bcast_length)
 
         return Module
 
     mod = _create_mod(bcast_length, dtype)
     target = "cuda"
-    func = tvm.compile(mod, target=target)
+    func = tvm.tirx.compile(mod, target=target)
     dev = tvm.cuda(0)
 
     a_np = np.random.uniform(low=0, high=4, size=()).astype(dtype)
@@ -252,13 +252,13 @@ def test_half_misaligned_vector_load(vector_length):
     def vector_load(
         A: T.Tensor((length,), dtype), B: T.Tensor((length // vector_length,), vec_dtype)
     ):
-        for b in T.thread_binding(1, thread="blockIdx.x"):
-            for i in T.thread_binding(length // vector_length, thread="threadIdx.x"):
+        with T.launch_thread("blockIdx.x", 1) as b:
+            with T.launch_thread("threadIdx.x", length // vector_length) as i:
                 vec_index = T.ramp((i + 1) * vector_length - 1, -1, vector_length)
                 B[i] = A[vec_index]
 
     target = "cuda"
-    f = tvm.compile(vector_load, target=target)
+    f = tvm.tirx.compile(vector_load, target=target)
 
     dev = tvm.cuda(0)
     a_np = np.random.uniform(low=0, high=1, size=(length,)).astype(dtype)
@@ -294,12 +294,12 @@ def test_half4_vector_add():
             C: T.Tensor((64,), "float16x4"),
         ):
             T.func_attr({"tirx.noalias": True})
-            for i_0 in T.thread_binding(2, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 2) as i_0:
+                with T.launch_thread("threadIdx.x", 32) as i_1:
                     C[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + B[i_0 * 32 + i_1]
 
     target = "cuda"
-    fadd = tvm.compile(Module, target=target)
+    fadd = tvm.tirx.compile(Module, target=target)
     dev = tvm.cuda(0)
 
     a_np = np.random.uniform(-1, 1, (length, vector_length)).astype(dtype)
@@ -345,9 +345,9 @@ class BaseFP8E4M3QuantScaleOnly:
             packed: T.Tensor(quant_weight_shape, storage_dtype),
             scale: T.Tensor(scales_shape, model_dtype),
         ):
-            for row in T.thread_binding(rows, thread="blockIdx.x"):
-                for group in T.thread_binding(groups, thread="threadIdx.x"):
-                    maximum = T.alloc_tensor((1,), model_dtype, scope="local")
+            with T.launch_thread("blockIdx.x", rows) as row:
+                with T.launch_thread("threadIdx.x", groups) as group:
+                    maximum = T.alloc_tensor(ty_args=[T.Tensor((1,), model_dtype, scope="local")])
                     maximum[0] = T.Cast(model_dtype, 0)
                     for k in range(group_size):
                         if group * group_size + k < columns:
@@ -372,14 +372,14 @@ class BaseFP8E4M3QuantScaleOnly:
             scale: T.Tensor(scales_shape, model_dtype),
             output: T.Tensor(weight_shape, model_dtype),
         ):
-            for row in T.thread_binding(rows, thread="blockIdx.x"):
-                for k in T.thread_binding(packed_columns, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", rows) as row:
+                with T.launch_thread("threadIdx.x", packed_columns) as k:
                     output[row, T.ramp(k * 4, 1, 4)] = T.Cast(
                         vec_model_dtype, T.reinterpret(packed[row, k], ty=vec_quantized_dtype)
                     ) * T.Broadcast(scale[row, k * 4 // group_size], 4)
 
-        quant_func = tvm.compile(quantize, target=target_str)
-        dequant_func = tvm.compile(dequantize, target=target_str)
+        quant_func = tvm.tirx.compile(quantize, target=target_str)
+        dequant_func = tvm.tirx.compile(dequantize, target=target_str)
 
         def quant(weight):
             packed = tvm.runtime.empty(quant_weight_shape, storage_dtype, dev)
@@ -498,14 +498,14 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
 def test_const(dtype):
     @T.function
     def func(A: T.Tensor((4,), dtype)) -> None:
-        A_local = T.alloc_tensor((4,), dtype=dtype, scope="local")
-        for tx in T.thread_binding(0, 4, "threadIdx.x"):
+        A_local = T.alloc_tensor(ty_args=[T.Tensor((4,), dtype, scope="local")])
+        with T.launch_thread("threadIdx.x", 4) as tx:
             for i in T.vectorized(4):
                 A_local[i] = T.float32(1.0).astype(dtype)
             A[tx] = A_local[tx]
 
     mod = tvm.IRModule({"main": func})
-    tvm.compile(mod, target="cuda")
+    tvm.tirx.compile(mod, target="cuda")
 
 
 @pytest.mark.gpu
@@ -530,12 +530,12 @@ def test_copy(dtype, vec_len):
             dtype,
         ),
     ) -> None:
-        for tx in T.thread_binding(0, 4, "threadIdx.x"):
+        with T.launch_thread("threadIdx.x", 4) as tx:
             for i in T.vectorized(vec_len):
                 B[tx, i] = A[tx, i]
 
     mod = tvm.IRModule({"main": func})
-    rtmod = tvm.compile(mod, target="cuda")
+    rtmod = tvm.tirx.compile(mod, target="cuda")
 
 
 num_experts = 8
@@ -559,12 +559,12 @@ def test_moe_gemv_shfl_down_illegal_instr():
         scale: T.Tensor((1,), "float32"),
         output: T.Tensor((2, spatial_size), "float16"),
     ):
-        for expert in T.thread_binding(2, thread="blockIdx.y"):
-            for block in T.thread_binding(spatial_size // 4, thread="blockIdx.x"):
-                for spatial in T.thread_binding(4, thread="threadIdx.y"):
-                    for reduction in T.thread_binding(64, thread="threadIdx.x"):
-                        partial = T.alloc_tensor((1,), "float16", scope="local")
-                        reduced = T.alloc_tensor((1,), "float16", scope="local")
+        with T.launch_thread("blockIdx.y", 2) as expert:
+            with T.launch_thread("blockIdx.x", spatial_size // 4) as block:
+                with T.launch_thread("threadIdx.y", 4) as spatial:
+                    with T.launch_thread("threadIdx.x", 64) as reduction:
+                        partial = T.alloc_tensor(ty_args=[T.Tensor((1,), "float16", scope="local")])
+                        reduced = T.alloc_tensor(ty_args=[T.Tensor((1,), "float16", scope="local")])
                         partial[0] = T.float16(0)
                         for k in range(reduce_size // 64):
                             partial[0] = partial[0] + x[0, k * 64 + reduction] * (
@@ -585,7 +585,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
                         if reduction == 0:
                             output[expert, block * 4 + spatial] = reduced[0]
 
-    rt_mod = tvm.compile(moe_dequantize_gemv, target="cuda")
+    rt_mod = tvm.tirx.compile(moe_dequantize_gemv, target="cuda")
 
     x_data = np.zeros((1, reduce_size), dtype=np.float16)
     indptr_data = np.zeros((1, 2), dtype=np.int32)
@@ -623,7 +623,7 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
                 B: T.Tensor((128,), dtype),
                 C: T.Tensor((128,), dtype),
             ) -> None:
-                for i_0 in T.thread_binding(num_threads, thread="threadIdx.x"):
+                with T.launch_thread("threadIdx.x", num_threads) as i_0:
                     for i_1 in T.vectorized(vec_length):
                         C[i_0 * vec_length + i_1] = A[i_0 * vec_length + i_1].astype(dtype) * B[
                             i_0 * vec_length + i_1
@@ -633,7 +633,7 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
 
     mod = _create_mod(vec_length, dtype)
     target = tvm.target.Target.from_device(tvm.cuda())
-    f = tvm.tirx.build(mod, target=target)
+    f = tvm.tirx.compile(mod, target=target).mod
 
     a_np = np.random.rand(128).astype("float8_e4m3fn")
     b_np = np.random.rand(128).astype(dtype)

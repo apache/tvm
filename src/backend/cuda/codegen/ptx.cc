@@ -31,8 +31,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../../support/utils.h"
-
 namespace tvm {
 namespace codegen {
 

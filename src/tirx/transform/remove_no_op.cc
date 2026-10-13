@@ -30,61 +30,61 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
+#include <tvm/tirx/stmt_functor_with_analyzer.h>
 #include <tvm/tirx/transform.h>
 
 #include <unordered_map>
 
 #include "../../sym/const_fold.h"
-#include "../ir/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-struct RemoveNoOpConfigNode : public ffi::Object {
+struct RemoveNoOpConfigObj : public ffi::Object {
   int64_t max_simplification_steps;
   bool ignore_profiler_call;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RemoveNoOpConfigNode>()
-        .def_ro("max_simplification_steps", &RemoveNoOpConfigNode::max_simplification_steps,
+    refl::ObjectDef<RemoveNoOpConfigObj>()
+        .def_ro("max_simplification_steps", &RemoveNoOpConfigObj::max_simplification_steps,
                 "If non-zero, RewriteSimplifier will throw an error "
                 "after the number of steps specified.  "
                 "For use in debug and testing purposes.",
                 refl::DefaultValue(0))
-        .def_ro("ignore_profiler_call", &RemoveNoOpConfigNode::ignore_profiler_call,
+        .def_ro("ignore_profiler_call", &RemoveNoOpConfigObj::ignore_profiler_call,
                 "If true, profiler calls are rendered as no-ops.", refl::DefaultValue(false));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.RemoveNoOpConfig", RemoveNoOpConfigNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.RemoveNoOpConfig", RemoveNoOpConfigObj,
                                     ffi::Object);
 };
 
 class RemoveNoOpConfig : public ffi::ObjectRef {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RemoveNoOpConfig, ffi::ObjectRef,
-                                                RemoveNoOpConfigNode);
+                                                RemoveNoOpConfigObj);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { RemoveNoOpConfigNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { RemoveNoOpConfigObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ::tvm::transform::PassContext::RegisterConfigOption<RemoveNoOpConfig>("tirx.RemoveNoOp");
 }
 
 // Mark the statement of each stage.
-class NoOpRemover : public IRMutatorWithAnalyzer {
+class NoOpRemover : public StmtExprMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::Mutate;
-  using IRMutatorWithAnalyzer::Mutate_;
+  using StmtExprMutatorWithAnalyzer::Mutate;
+  using StmtExprMutatorWithAnalyzer::Mutate_;
   static Stmt Apply(Stmt stmt, const sym::Analyzer& analyzer, bool ignore_profiler_call = false) {
     auto visitor = ffi::make_object<NoOpRemover>(analyzer, ignore_profiler_call);
     return visitor->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
   }
 
  private:
-  using Parent = IRMutatorWithAnalyzer;
+  using Parent = StmtExprMutatorWithAnalyzer;
 
  public:
   NoOpRemover(const sym::Analyzer& analyzer, bool ignore_profiler_call = false)
@@ -180,12 +180,12 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
     // If the stored value is a load from the same location, the
     // statement is a no-op, regardless of contextual information.
     if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
-      TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
-      if (buffer.same_as(store->dest.as_or_throw<TensorVar>()) &&
-          analyzer_->CanProveEqual(buffer->elem_offset,
+      TensorVar tensor = load->source.as_or_throw<tvm::tirx::TensorVar>();
+      if (tensor.same_as(store->dest.as_or_throw<TensorVar>()) &&
+          analyzer_->CanProveEqual(tensor->elem_offset,
                                    store->dest.as_or_throw<TensorVar>()->elem_offset) &&
-          ArrayValueEqual(buffer->shape, store->dest.as_or_throw<TensorVar>()->shape) &&
-          ArrayValueEqual(buffer->strides, store->dest.as_or_throw<TensorVar>()->strides) &&
+          ArrayValueEqual(tensor->shape, store->dest.as_or_throw<TensorVar>()->shape) &&
+          ArrayValueEqual(tensor->strides, store->dest.as_or_throw<TensorVar>()->strides) &&
           ArrayValueEqual(load->indices, store->indices)) {
         return only_side_effects();
       }

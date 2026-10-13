@@ -31,7 +31,6 @@
 
 #include "../../../script/printer/ir/utils.h"
 #include "../../../script/printer/utils.h"
-#include "../../../tirx/script/printer/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -48,10 +47,10 @@ ffi::Optional<ExprDoc> GenericConstDocTranslate(DocTranslatorObj* d, ffi::AnyVie
   if (auto dtype = constant->value.as<DLDataType>()) {
     return LiteralDoc::DataType(dtype.value(), std::nullopt);
   }
-  auto tensor = constant->value.as<runtime::Tensor>();
-  if (!tensor.has_value()) return AddMetadata(d, ffi::GetRef<GenericConst>(constant));
-  const runtime::Tensor& data = tensor.value();
-  DLDataType dtype = data.DataType();
+  auto tensor = constant->value.as<ffi::Tensor>();
+  if (!tensor || !tensor->defined()) return AddMetadata(d, ffi::GetRef<GenericConst>(constant));
+  const ffi::Tensor& data = tensor.value();
+  DLDataType dtype = data.dtype();
   auto print_const = [&](ExprDoc value) -> ExprDoc {
     if (constant->ty.as<relax::distributed::DTensorTypeNode>()) {
       return NamespaceDoc("relax")->Attr("dist")->Attr("const")->Call(
@@ -60,14 +59,14 @@ ffi::Optional<ExprDoc> GenericConstDocTranslate(DocTranslatorObj* d, ffi::AnyVie
     return NamespaceDoc("relax")->Attr("const")->Call(
         {value, LiteralDoc::DataType(dtype, std::nullopt)});
   };
-  if (data->ndim != 0) return AddMetadata(d, ffi::GetRef<GenericConst>(constant));
-  if (data->device.device_type != kDLCPU)
+  if (data.ndim() != 0) return AddMetadata(d, ffi::GetRef<GenericConst>(constant));
+  if (data.device().device_type != kDLCPU)
     return AddMetadata(d, ffi::GetRef<GenericConst>(constant));
   if (dtype.lanes != 1 || dtype.bits == 0 || dtype.bits > 64 || dtype.bits % 8 != 0) {
     return AddMetadata(d, ffi::GetRef<GenericConst>(constant));
   }
   alignas(double) uint8_t scalar_bytes[sizeof(double)]{};
-  data.CopyToBytes(scalar_bytes, dtype.bits / 8);
+  tvm::runtime::CopyToBytes(data, scalar_bytes, dtype.bits / 8);
   auto read_scalar = [&](auto value) {
     std::memcpy(&value, scalar_bytes, sizeof(value));
     return value;

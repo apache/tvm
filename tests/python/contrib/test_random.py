@@ -130,7 +130,7 @@ def test_random_fill():
 
         def check_remote(server):
             remote = rpc.connect(server.host, server.port)
-            value = tvm.runtime.empty((512, 512), dtype, remote.cpu())
+            value = remote.cpu().empty((512, 512), dtype)
             random_fill = remote.get_function("tvm.contrib.random.random_fill")
             random_fill(value)
 

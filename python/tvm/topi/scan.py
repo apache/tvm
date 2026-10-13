@@ -163,7 +163,7 @@ def scanop(
         [data],
         lambda ins, outs: gen_ir(ins[0], outs[0]),
         dtype=dtype,
-        out_buffers=[out_buf],
+        out_tensors=[out_buf],
         name=op_name,
         tag=op_name,
     )

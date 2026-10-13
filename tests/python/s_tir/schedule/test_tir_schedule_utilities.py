@@ -50,7 +50,7 @@ def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 1
 def matmul_relu(
     A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024)), D: T.Tensor((1024, 1024))
 ) -> None:
-    C = Ts.sblock_alloc_buffer((1024, 1024))
+    C = Ts.sblock_alloc_tensor((1024, 1024))
 
     for i, j, k in T.grid(1024, 1024, 1024):
         with Ts.sblock("matmul"):
@@ -68,7 +68,7 @@ def matmul_relu(
 def matmul_relu_ann1(
     A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024)), D: T.Tensor((1024, 1024))
 ) -> None:
-    C = Ts.sblock_alloc_buffer((1024, 1024))
+    C = Ts.sblock_alloc_tensor((1024, 1024))
 
     for i in T.serial(0, 1024, annotations={"test1": "aaa", "test4": {"arr": [0, 0], "key": 3}}):
         for j in T.serial(0, 1024, annotations={"test2": 612, "test3": ["aa", 1]}):
@@ -88,7 +88,7 @@ def matmul_relu_ann1(
 def matmul_relu_ann2(
     A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024)), D: T.Tensor((1024, 1024))
 ) -> None:
-    C = Ts.sblock_alloc_buffer((1024, 1024))
+    C = Ts.sblock_alloc_tensor((1024, 1024))
 
     for i, j, k in T.grid(1024, 1024, 1024):
         with Ts.sblock("matmul"):
@@ -135,8 +135,8 @@ def tuple_reduction(data: T.Tensor((4, 32), "float32"), T_add: T.Tensor((4,), "f
     with Ts.sblock("root"):
         Ts.reads()
         Ts.writes()
-        data_red_temp_v0 = Ts.sblock_alloc_buffer([4], dtype="float32")
-        data_red_temp_v1 = Ts.sblock_alloc_buffer([4], dtype="float32")
+        data_red_temp_v0 = Ts.sblock_alloc_tensor([4], dtype="float32")
+        data_red_temp_v1 = Ts.sblock_alloc_tensor([4], dtype="float32")
         for i0, i1 in T.grid(4, 32):
             with Ts.sblock("data_red_temp"):
                 ax0, k1 = Ts.axis.remap("SR", [i0, i1])
@@ -297,7 +297,7 @@ def test_get_producers(use_block_name):
     verify_trace_roundtrip(sch, mod=matmul_relu)
 
 
-def test_get_producers_multiple_buffer_depdencies(use_block_name):
+def test_get_producers_multiple_tensor_depdencies(use_block_name):
     sch = tvm.s_tir.Schedule(mod=tuple_reduction, debug_mask="all")
     block = "T_add" if use_block_name else sch.get_sblock("T_add")
     (producer,) = sch.get_producers(block)
@@ -318,7 +318,7 @@ def test_get_consumers(use_block_name):
     verify_trace_roundtrip(sch, mod=matmul_relu)
 
 
-def test_get_consumers_multiple_buffer_depdencies(use_block_name):
+def test_get_consumers_multiple_tensor_depdencies(use_block_name):
     sch = tvm.s_tir.Schedule(mod=tuple_reduction, debug_mask="all")
     block = "data_red_temp" if use_block_name else sch.get_sblock("data_red_temp")
     (consumer,) = sch.get_consumers(block)

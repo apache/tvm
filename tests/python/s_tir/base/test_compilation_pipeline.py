@@ -53,7 +53,7 @@ def test_default_pipeline_selects_dialect(mixed):
                 finalized_modules.append({gv.name_hint for gv in mod.functions})
 
     with tvm.transform.PassContext(instruments=[RecordFinalization()]):
-        module = tvm.tirx.build(tvm.IRModule(functions), target="llvm")
+        module = tvm.tirx.compile(tvm.IRModule(functions), target="llvm").mod
     assert finalized_modules == [set(functions)]
     source = np.arange(16, dtype="float32")
     a = tvm.runtime.tensor(source)

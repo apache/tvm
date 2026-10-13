@@ -29,6 +29,7 @@
 #include <tvm/sym/analyzer.h>
 
 #include <limits>
+#include <numeric>
 #include <unordered_map>
 #include <utility>
 
@@ -38,10 +39,48 @@ namespace tvm {
 namespace sym {
 using namespace tvm::prim;
 
-TVM_FFI_STATIC_INIT_BLOCK() { ModularSetNode::RegisterReflection(); }
+namespace {
+int64_t ExtendedEuclidean(int64_t a, int64_t b, int64_t* x, int64_t* y) {
+  // Extended Euclidean algorithm
+  // if a < 0, the problem can be convert into
+  // |a|* (-x) + b * y = gcd(|a|, b)
+  //
+  // initial condition:
+  // a * 0 + b * 1 = b
+  // a * 1 + b * 0 = a
+  int64_t s = 0, old_s = 1;
+  int64_t r = b, old_r = a >= 0 ? a : -a;
+  // Iteration (r2 < r1):
+  // a * x1 + b * y1 = r1
+  // a * x2 + b * y2 = r2
+  // The above two eqs can derive the following eq (q = r1 / r2)
+  // a * (x1 - x2 * q) + b * (y1 - y2 * q) = r1 - r2 * q = r3
+  // Because r3 < r2, the iteration can eventually terminate
+  while (r != 0) {
+    int64_t q = old_r / r;
+    int64_t tmp = old_r;
+    old_r = r;
+    r = tmp - q * r;
+    tmp = old_s;
+    old_s = s;
+    s = tmp - q * s;
+  }
+
+  *x = a >= 0 ? old_s : -old_s;
+  if (b != 0) {
+    *y = (old_r - (*x) * a) / b;
+  } else {
+    *y = 1;
+  }
+
+  return old_r;
+}
+}  // namespace
+
+TVM_FFI_STATIC_INIT_BLOCK() { ModularSetObj::RegisterReflection(); }
 
 ModularSet::ModularSet(int64_t coeff, int64_t base) {
-  auto node = ffi::make_object<ModularSetNode>();
+  auto node = ffi::make_object<ModularSetObj>();
   node->coeff = coeff;
   node->base = base;
   // finish construction.
@@ -158,14 +197,14 @@ class ModularSetAnalyzer::Impl : public tvm::ExprFunctor<ModularSetAnalyzer::Ent
   Entry Dispatch_(const prim::AddNode* op) final {
     Entry a = Dispatch(op->a);
     Entry b = Dispatch(op->b);
-    int64_t coeff = ZeroAwareGCD(a.coeff, b.coeff);
+    int64_t coeff = std::gcd(a.coeff, b.coeff);
     return Entry(coeff, a.base + b.base);
   }
 
   Entry Dispatch_(const prim::SubNode* op) final {
     Entry a = Dispatch(op->a);
     Entry b = Dispatch(op->b);
-    int64_t coeff = ZeroAwareGCD(a.coeff, b.coeff);
+    int64_t coeff = std::gcd(a.coeff, b.coeff);
     return Entry(coeff, a.base - b.base);
   }
 
@@ -179,7 +218,7 @@ class ModularSetAnalyzer::Impl : public tvm::ExprFunctor<ModularSetAnalyzer::Ent
     int64_t pq = a.coeff * b.coeff;
     int64_t pm = a.coeff * b.base;
     int64_t qn = a.base * b.coeff;
-    int64_t coeff = ZeroAwareGCD(pq, ZeroAwareGCD(pm, qn));
+    int64_t coeff = std::gcd(pq, std::gcd(pm, qn));
     return Entry(coeff, a.base * b.base);
   }
 
@@ -237,7 +276,7 @@ class ModularSetAnalyzer::Impl : public tvm::ExprFunctor<ModularSetAnalyzer::Ent
   Entry ModByConst(const PrimExpr& lhs, int64_t val, bool round_down) {
     Entry a = Dispatch(lhs);
     TVM_FFI_ICHECK_NE(val, 0);
-    int64_t coeff = ZeroAwareGCD(a.coeff, val);
+    int64_t coeff = std::gcd(a.coeff, val);
     if (a.base % coeff == 0 ||
         (a.base > 0 && (round_down || parent_->CanProveGreaterEqual(lhs, 0)))) {
       return Entry(coeff, a.base % coeff);
@@ -330,7 +369,7 @@ class ModularSetAnalyzer::Impl : public tvm::ExprFunctor<ModularSetAnalyzer::Ent
    */
   static Entry Union(Entry a, Entry b) {
     // {ax + y} \cup {bz + h} => {gcd(a, b) x + {y or h}}
-    int64_t coeff = ZeroAwareGCD(a.coeff, b.coeff);
+    int64_t coeff = std::gcd(a.coeff, b.coeff);
     if (coeff == 0) {
       if (a.base == b.base) return a;
       return Everything();
@@ -340,7 +379,7 @@ class ModularSetAnalyzer::Impl : public tvm::ExprFunctor<ModularSetAnalyzer::Ent
     if (base0 == base1) {
       return Entry(coeff, base0);
     } else {
-      return Entry(ZeroAwareGCD(ZeroAwareGCD(base0, base1), coeff), base0);
+      return Entry(std::gcd(std::gcd(base0, base1), coeff), base0);
     }
   }
 

@@ -102,10 +102,10 @@ using namespace tvm::prim;
  * any time we find a tensor satisfying any of the conditions above, we erase
  * its storage token.
  */
-class StorageTokenNode : public ffi::Object {
+class StorageTokenObj : public ffi::Object {
  public:
-  explicit StorageTokenNode(PrimExpr bytes) : bytes(std::move(bytes)) {}
-  explicit StorageTokenNode(ffi::UnsafeInit) : bytes(ffi::UnsafeInit{}) {}
+  explicit StorageTokenObj(PrimExpr bytes) : bytes(std::move(bytes)) {}
+  explicit StorageTokenObj(ffi::UnsafeInit) : bytes(ffi::UnsafeInit{}) {}
 
   /*! \brief Reference counter. */
   int ref_counter{0};
@@ -133,12 +133,12 @@ class StorageTokenNode : public ffi::Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.StorageToken", StorageTokenNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.StorageToken", StorageTokenObj, ffi::Object);
 };
 
 /*!
- * \brief Managed reference to StorageTokenNode.
- * \sa StorageTokenNode
+ * \brief Managed reference to StorageTokenObj.
+ * \sa StorageTokenObj
  */
 class StorageToken : public ffi::ObjectRef {
  public:
@@ -185,13 +185,13 @@ class StorageToken : public ffi::ObjectRef {
 
     size = IntImm::Int64(const_coeff) * size;
 
-    ffi::ObjectPtr<StorageTokenNode> n = ffi::make_object<StorageTokenNode>(size);
+    ffi::ObjectPtr<StorageTokenObj> n = ffi::make_object<StorageTokenObj>(size);
     n->dtype = dtype;
     n->storage_scope = std::move(storage_scope);
     n->vdevice = std::move(vdevice);
     data_ = std::move(n);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StorageToken, ffi::ObjectRef, StorageTokenNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StorageToken, ffi::ObjectRef, StorageTokenObj);
 };
 
 // We use NestedMsg to store the tokens used by each Expr.
@@ -526,7 +526,7 @@ bool IsStaticShape(ffi::Array<PrimExpr> shape) {
  * used by each Expr. After the initialization, we
  * - know the tokens that each Expr is using,
  * - know the number of references for each token,
- * - rule out the builtin alloc_buffers to which the planning does not apply.
+ * - rule out the builtin alloc_tensors to which the planning does not apply.
  */
 class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
  public:
@@ -756,9 +756,9 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
   /*! \brief The domain map of dynamic TIR variables for analysis. */
   ffi::Map<tvm::Var, sym::IntSet> dom_map_;
   /*! \brief The mapping from each token to the binding block where it is created. */
-  std::unordered_map<const StorageTokenNode*, const BindingBlockNode*> token2block_;
+  std::unordered_map<const StorageTokenObj*, const BindingBlockNode*> token2block_;
   /*! \brief The mapping from each token to the Exprs that are using this token. */
-  std::unordered_map<const StorageTokenNode*, std::vector<const ExprNode*>> token2exprs_;
+  std::unordered_map<const StorageTokenObj*, std::vector<const ExprNode*>> token2exprs_;
 };
 
 /*!
@@ -801,7 +801,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
    */
   std::unordered_map<const ExprNode*, StorageToken> alloc_tensor2token;
   /*! \brief The mapping from each binding block to the storage tokens that are create inside. */
-  std::unordered_map<const BindingBlockNode*, std::vector<const StorageTokenNode*>> block2tokens;
+  std::unordered_map<const BindingBlockNode*, std::vector<const StorageTokenObj*>> block2tokens;
 
  private:
   using ExprVisitor::VisitBinding_;
@@ -811,7 +811,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
     StorageAllocatorBaseVisitor::VisitBindingBlock_(block);
     // Sanity check: each token allocated inside the block should not be
     // referenced by anyone at the end of the block.
-    for (const StorageTokenNode* token : block2tokens[block]) {
+    for (const StorageTokenObj* token : block2tokens[block]) {
       TVM_FFI_ICHECK_EQ(token->ref_counter, 0);
     }
   }
@@ -836,7 +836,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
       SetTokens(call, Tokens(new_token));
       // Record that the token is allocated in the current block.
       TVM_FFI_ICHECK(!block_stack_.empty());
-      std::vector<const StorageTokenNode*>& block_tokens = block2tokens[block_stack_.back()];
+      std::vector<const StorageTokenObj*>& block_tokens = block2tokens[block_stack_.back()];
       if (std::find(block_tokens.begin(), block_tokens.end(), new_token.get()) ==
           block_tokens.end()) {
         block_tokens.push_back(new_token.get());
@@ -900,7 +900,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
   /*! \brief The 1D memory allocator. */
   TokenAllocatorMixed allocator_;
   /*! \brief The mapping from each token to the tensors that are currently using it. */
-  std::unordered_map<const StorageTokenNode*, std::vector<Var>> token2cur_tensor_;
+  std::unordered_map<const StorageTokenObj*, std::vector<Var>> token2cur_tensor_;
 };
 
 /*!
@@ -913,8 +913,7 @@ class StorageAllocationRewriter : public ExprMutator {
  public:
   explicit StorageAllocationRewriter(
       IRModule mod, std::unordered_map<const ExprNode*, StorageToken> alloc_tensor2token,
-      std::unordered_map<const BindingBlockNode*, std::vector<const StorageTokenNode*>>
-          block2tokens)
+      std::unordered_map<const BindingBlockNode*, std::vector<const StorageTokenObj*>> block2tokens)
       : ExprMutator(std::move(mod)),
         alloc_tensor2token_(std::move(alloc_tensor2token)),
         block2tokens_(std::move(block2tokens)) {}
@@ -1053,9 +1052,9 @@ class StorageAllocationRewriter : public ExprMutator {
    */
   std::unordered_map<const ExprNode*, StorageToken> alloc_tensor2token_;
   /*! \brief The mapping from each binding block to the storage tokens that are create inside. */
-  std::unordered_map<const BindingBlockNode*, std::vector<const StorageTokenNode*>> block2tokens_;
+  std::unordered_map<const BindingBlockNode*, std::vector<const StorageTokenObj*>> block2tokens_;
   /*! \brief The mapping from each token to its storage var visible in the current scope. */
-  std::unordered_map<const StorageTokenNode*, Var> token2storage_var_;
+  std::unordered_map<const StorageTokenObj*, Var> token2storage_var_;
 };
 
 IRModule StaticPlanBlockMemory(IRModule mod) {

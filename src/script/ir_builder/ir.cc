@@ -45,7 +45,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 IRModuleFrame IRModule() {
-  ffi::ObjectPtr<IRModuleFrameNode> n = ffi::make_object<IRModuleFrameNode>();
+  ffi::ObjectPtr<IRModuleFrameObj> n = ffi::make_object<IRModuleFrameObj>();
   n->global_var_map.clear();
   n->functions.clear();
   return IRModuleFrame(n);
@@ -208,47 +208,36 @@ PrimExpr ConvertLoopBound(const PrimExpr& e, const PrimType& var_ty) {
   return tvm::prim::Cast(var_ty, e);
 }
 
-#define TVM_IR_BUILDER_FOR_FRAME(Method, Kind)                                                     \
-  ForFrame Method(PrimExpr start, PrimExpr stop,                                                   \
-                  ffi::Optional<ffi::Map<ffi::String, Any>> annotations,                           \
-                  ffi::Optional<PrimExpr> step, ffi::Optional<PrimType> dtype) {                   \
-    PrimType var_ty = InferLoopVarDtype(start, stop, dtype);                                       \
-    PrimExpr min = ConvertLoopBound(start, var_ty);                                                \
-    PrimExpr extent = sym::Analyzer()->Simplify(ConvertLoopBound(stop, var_ty) - min);             \
-    if (step.has_value()) {                                                                        \
-      step = ConvertLoopBound(step.value(), var_ty);                                               \
-    }                                                                                              \
-    ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();                             \
-    n->vars = {Var("v", var_ty)};                                                                  \
-    n->doms = {Range::FromMinExtent(min, extent)};                                                 \
-    n->steps = {step};                                                                             \
-    n->f_make_for_loop = [annotations](ffi::Array<Var> vars, ffi::Array<Range> doms,               \
-                                       ffi::Array<ffi::Optional<PrimExpr>> steps,                  \
-                                       tvm::SeqStmt body, Location loc) {                          \
-      TVM_FFI_ICHECK_EQ(vars.size(), 1);                                                           \
-      TVM_FFI_ICHECK_EQ(doms.size(), 1);                                                           \
-      TVM_FFI_ICHECK_EQ(steps.size(), 1);                                                          \
-      auto loop =                                                                                  \
-          tvm::For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent, Kind, body, \
-                   annotations.value_or(ffi::Map<ffi::String, Any>()), steps[0], loc);             \
-      return loop;                                                                                 \
-    };                                                                                             \
-    return ForFrame(n);                                                                            \
+ForFrame For(ForKind kind, PrimExpr start, PrimExpr stop, ffi::Optional<PrimExpr> step,
+             ffi::Optional<PrimType> dtype, ffi::Optional<ffi::Map<ffi::String, Any>> annotations) {
+  PrimType var_ty = InferLoopVarDtype(start, stop, dtype);
+  PrimExpr min = ConvertLoopBound(start, var_ty);
+  PrimExpr extent = sym::Analyzer()->Simplify(ConvertLoopBound(stop, var_ty) - min);
+  if (step.has_value()) {
+    step = ConvertLoopBound(step.value(), var_ty);
   }
-
-TVM_IR_BUILDER_FOR_FRAME(Serial, tvm::ForKind::kDefault);
-TVM_IR_BUILDER_FOR_FRAME(Parallel, tvm::ForKind::kParallel);
-TVM_IR_BUILDER_FOR_FRAME(Vectorized, tvm::ForKind::kVectorized);
-TVM_IR_BUILDER_FOR_FRAME(Unroll, tvm::ForKind::kUnrolled);
-
-#undef TVM_IR_BUILDER_FOR_FRAME
+  ffi::ObjectPtr<ForFrameObj> n = ffi::make_object<ForFrameObj>();
+  n->vars = {Var("v", var_ty)};
+  n->doms = {Range::FromMinExtent(min, extent)};
+  n->steps = {step};
+  n->f_make_for_loop = [kind, annotations](ffi::Array<Var> vars, ffi::Array<Range> doms,
+                                           ffi::Array<ffi::Optional<PrimExpr>> steps,
+                                           tvm::SeqStmt body, Location loc) {
+    TVM_FFI_ICHECK_EQ(vars.size(), 1);
+    TVM_FFI_ICHECK_EQ(doms.size(), 1);
+    TVM_FFI_ICHECK_EQ(steps.size(), 1);
+    return tvm::For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent, kind, body,
+                    annotations.value_or(ffi::Map<ffi::String, Any>()), steps[0], loc);
+  };
+  return ForFrame(n);
+}
 
 ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>> extents,
               ffi::Optional<PrimType> dtype) {
   if (dtype.has_value()) {
     ir::CheckExplicitIndexDtype(dtype.value());
   }
-  ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();
+  ffi::ObjectPtr<ForFrameObj> n = ffi::make_object<ForFrameObj>();
   n->vars.reserve(extents.size());
   n->doms.reserve(extents.size());
   n->steps.resize(extents.size());
@@ -278,9 +267,9 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
     for (int i = n - 1; i >= 0; --i) {
       Range dom = doms[i];
       Var var = vars[i];
-      result = For(var.as_or_throw<tvm::PrimVar>(), dom->min, dom->extent, ForKind::kDefault,
-                   SeqStmt(std::move(result)),
-                   /*annotations=*/{}, /*step=*/steps[i], loc);
+      result = tvm::For(var.as_or_throw<tvm::PrimVar>(), dom->min, dom->extent, ForKind::kDefault,
+                        SeqStmt(std::move(result)),
+                        /*annotations=*/{}, /*step=*/steps[i], loc);
     }
     return result;
   };
@@ -289,8 +278,8 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
 
 AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
                    ffi::Array<ffi::String> message_parts) {
-  ffi::ObjectPtr<AssertFrameNode> n =
-      ffi::make_object<AssertFrameNode>(condition, tvm::StringImm(error_kind));
+  ffi::ObjectPtr<AssertFrameObj> n =
+      ffi::make_object<AssertFrameObj>(condition, tvm::StringImm(error_kind));
   ffi::Array<tvm::StringImm> parts;
   for (const auto& p : message_parts) {
     parts.push_back(tvm::StringImm(p));
@@ -320,7 +309,7 @@ RegionFrame Region(Op op, ffi::Array<Expr> args, ffi::Optional<ffi::Array<Var>> 
       << op->name << " does not support region construction: FRegionGetBodyParams is required";
   auto params =
       body_params.has_value() ? body_params.value() : tvm::GetRegionBodyParams(op, args, attrs);
-  auto n = ffi::make_object<RegionFrameNode>(std::move(op));
+  auto n = ffi::make_object<RegionFrameObj>(std::move(op));
   n->args = std::move(args);
   n->body_params = std::move(params);
   n->attrs = std::move(attrs);
@@ -328,7 +317,7 @@ RegionFrame Region(Op op, ffi::Array<Expr> args, ffi::Optional<ffi::Array<Var>> 
 }
 
 WhileFrame While(PrimExpr condition) {
-  ffi::ObjectPtr<WhileFrameNode> n = ffi::make_object<WhileFrameNode>(condition);
+  ffi::ObjectPtr<WhileFrameObj> n = ffi::make_object<WhileFrameObj>(condition);
   return WhileFrame(n);
 }
 
@@ -351,19 +340,19 @@ tvm::Stmt Continue() {
 }
 
 IfFrame If(PrimExpr condition) {
-  ffi::ObjectPtr<IfFrameNode> n = ffi::make_object<IfFrameNode>(condition);
+  ffi::ObjectPtr<IfFrameObj> n = ffi::make_object<IfFrameObj>(condition);
   n->then_stmts = std::nullopt;
   n->else_stmts = std::nullopt;
   return IfFrame(n);
 }
 
 ThenFrame Then() {
-  ffi::ObjectPtr<ThenFrameNode> n = ffi::make_object<ThenFrameNode>();
+  ffi::ObjectPtr<ThenFrameObj> n = ffi::make_object<ThenFrameObj>();
   return ThenFrame(n);
 }
 
 ElseFrame Else() {
-  ffi::ObjectPtr<ElseFrameNode> n = ffi::make_object<ElseFrameNode>();
+  ffi::ObjectPtr<ElseFrameObj> n = ffi::make_object<ElseFrameObj>();
   return ElseFrame(n);
 }
 
@@ -376,6 +365,7 @@ tvm::Stmt Evaluate(Expr value) {
 // Preserve the historical FFI entry points with one shared implementation.
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::GlobalDef()
+      .def("script.ir_builder.tirx.For", For)
       .def("script.ir_builder.tirx.Grid", Grid)
       .def("script.ir_builder.tirx.Assert", Assert)
       .def("script.ir_builder.tirx.Bind", Bind)

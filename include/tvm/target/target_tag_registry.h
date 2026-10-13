@@ -45,27 +45,27 @@ class TargetTagRegistry {
   using Config = ffi::Map<ffi::String, ffi::Any>;
 
   /*! \brief Return the process-wide registry. */
-  TVM_DLL static TargetTagRegistry* Global();
+  TVM_TIRX_DLL static TargetTagRegistry* Global();
 
   /*!
    * \brief Construct the target registered under a name.
    * \param name The tag name to look up.
    * \return The constructed target, or nullopt if the name is unknown.
    */
-  TVM_DLL ffi::Optional<Target> Get(const ffi::String& name) const;
+  TVM_TIRX_DLL ffi::Optional<Target> Get(const ffi::String& name) const;
 
   /*!
    * \brief Return a tag's stored configuration without constructing a target.
    * \param name The tag name to look up.
    * \return The configuration, or nullopt if the name is unknown.
    */
-  TVM_DLL ffi::Optional<Config> GetConfig(const ffi::String& name) const;
+  TVM_TIRX_DLL ffi::Optional<Config> GetConfig(const ffi::String& name) const;
 
   /*!
    * \brief List all registered names and their constructed targets.
    * \return A map from tag names to targets; empty if no tags are registered.
    */
-  TVM_DLL ffi::Map<ffi::String, Target> ListTags() const;
+  TVM_TIRX_DLL ffi::Map<ffi::String, Target> ListTags() const;
 
   /*!
    * \brief Register a target configuration under a tag name.
@@ -74,7 +74,7 @@ class TargetTagRegistry {
    * \param override Whether to replace an existing registration; otherwise a duplicate is rejected.
    * \return The target constructed from config.
    */
-  TVM_DLL Target AddTag(ffi::String name, Config config, bool override);
+  TVM_TIRX_DLL Target AddTag(ffi::String name, Config config, bool override);
 
  private:
   TargetTagRegistry() = default;

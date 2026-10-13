@@ -89,19 +89,35 @@ def sparse_reshape(
             prev_shape_size = prev_shape_ptr.shape[0]
             new_shape_size = new_shape_ptr.shape[0]
 
-            multipliers_buf = T.alloc_tensor([prev_shape_size], new_shape_ptr.dtype, scope="local")
+            multipliers_buf = T.bind(
+                T.alloc_tensor(
+                    ty_args=[T.Tensor([prev_shape_size], new_shape_ptr.dtype, scope="local")]
+                )
+            )
             multipliers = multipliers_buf
-            dividers_buf = T.alloc_tensor([new_shape_size], new_shape_ptr.dtype, scope="local")
+            dividers_buf = T.bind(
+                T.alloc_tensor(
+                    ty_args=[T.Tensor([new_shape_size], new_shape_ptr.dtype, scope="local")]
+                )
+            )
             dividers = dividers_buf
-            flattened_indices_buf = T.alloc_tensor(
-                [sparse_indices_ptr.shape[0]], new_shape_ptr.dtype, scope="local"
+            flattened_indices_buf = T.bind(
+                T.alloc_tensor(
+                    ty_args=[
+                        T.Tensor([sparse_indices_ptr.shape[0]], new_shape_ptr.dtype, scope="local")
+                    ]
+                )
             )
             flattened_indices = flattened_indices_buf
-            total_ele_buf = T.alloc_tensor([1], new_shape_ptr.dtype, scope="local")
+            total_ele_buf = T.bind(
+                T.alloc_tensor(ty_args=[T.Tensor([1], new_shape_ptr.dtype, scope="local")])
+            )
             total_ele = total_ele_buf
-            division_total_ele_buf = T.alloc_tensor([1], new_shape_ptr.dtype, scope="local")
+            division_total_ele_buf = T.bind(
+                T.alloc_tensor(ty_args=[T.Tensor([1], new_shape_ptr.dtype, scope="local")])
+            )
             division_total_ele = division_total_ele_buf
-            equal_shape_buf = T.alloc_tensor([1], "bool", scope="local")
+            equal_shape_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], "bool", scope="local")]))
             equal_shape = equal_shape_buf
 
             T.tensor_store(
@@ -227,8 +243,10 @@ def sparse_reshape(
                             )
 
                     with T.parallel(0, new_sparse_indices_ptr.shape[0]) as i:
-                        current_element_buf = T.alloc_tensor(
-                            [1], new_shape_ptr.dtype, scope="local"
+                        current_element_buf = T.bind(
+                            T.alloc_tensor(
+                                ty_args=[T.Tensor([1], new_shape_ptr.dtype, scope="local")]
+                            )
                         )
                         current_element = current_element_buf
                         T.tensor_store(
@@ -269,7 +287,7 @@ def sparse_reshape(
         [new_sparse_indices_shape, new_shape_shape],
         [sparse_indices, prev_shape, new_shape],
         lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0], outs[1]),
-        out_buffers=[new_sparse_indices_buf, new_shape_buf],
+        out_tensors=[new_sparse_indices_buf, new_shape_buf],
         name="sparse_reshape_cpu",
         tag="sparse_reshape_cpu",
     )

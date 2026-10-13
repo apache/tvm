@@ -31,33 +31,21 @@ namespace tvm {
 namespace tirx {
 
 /*!
- * \brief Allocate a buffer: alloc_tensor(shape, dtype, scope) -> TensorType.
+ * \brief Allocate a tensor with exactly one TensorType in ty_args.
  *
- * Arguments, in order:
- * - args[0]: shape, Tuple of integer extents (IntImm or symbolic integer expressions).
- * - args[1]: dtype, DataTypeImm with a DLDataType payload for the element type.
- * - args[2]: scope, StringImm naming the storage scope.
- *
- * DictAttrs directly holds the allocation annotations, defaulting to an empty dictionary.
- * The TensorType result agrees with the operands and retains buffer access/storage metadata.
- *
+ * The optional args[0] is a Tuple of producer-owned placement coordinates.
+ * DictAttrs directly holds allocation annotations. The TensorType owns all
+ * shape, dtype, storage scope and access/layout metadata, and is the result type.
  */
-TVM_DLL const Op& alloc_tensor_op();
+TVM_TIRX_DLL const Op& alloc_tensor_op();
 
 /*!
- * \brief Declare a buffer view: decl_tensor(data, shape, dtype, scope) -> TensorType.
+ * \brief Declare a tensor view with exactly one TensorType in ty_args.
  *
- * Arguments, in order:
- * - args[0]: data, Expr for the existing physical pointer backing the buffer view.
- * - args[1]: shape, Tuple of integer extents (IntImm or symbolic integer expressions).
- * - args[2]: dtype, DataTypeImm with a DLDataType payload for the element type.
- * - args[3]: scope, StringImm naming the storage scope.
- *
- * There are no attributes. The TensorType result agrees with the operands and retains
- * buffer access/storage metadata. The operation binds a view without allocating memory.
- *
+ * args[0] is the existing physical pointer backing the view. There are no
+ * attributes. The TensorType is the result type; no memory is allocated.
  */
-TVM_DLL const Op& decl_tensor_op();
+TVM_TIRX_DLL const Op& decl_tensor_op();
 
 /*!
  * \brief Reinterpret the bits of a value as an explicit primitive or pointer type.
@@ -65,7 +53,7 @@ TVM_DLL const Op& decl_tensor_op();
  * Arguments, in order:
  * - args[0]: x, The input value.
  */
-TVM_DLL const Op& reinterpret_op();
+TVM_TIRX_DLL const Op& reinterpret_op();
 
 /*!
  * \brief perform reinterpret cast value to type.
@@ -76,7 +64,7 @@ TVM_DLL const Op& reinterpret_op();
  * \return The result expression.
  * \note This function may return value if the type is the same.
  */
-TVM_DLL Expr reinterpret(Type target_ty, Expr value, Location loc = UnknownLoc());
+TVM_TIRX_DLL Expr reinterpret(Type target_ty, Expr value, Location loc = UnknownLoc());
 
 inline PrimExpr reinterpret(PrimType t, PrimExpr value, Location loc = UnknownLoc()) {
   return reinterpret(Type(std::move(t)), Expr(std::move(value)), std::move(loc))
@@ -85,7 +73,7 @@ inline PrimExpr reinterpret(PrimType t, PrimExpr value, Location loc = UnknownLo
 
 /*! \brief Construct an opaque pointer from its integer payload. */
 inline Expr ConstHandle(int64_t value, Location loc = UnknownLoc()) {
-  return reinterpret(PointerType::VoidPointerTy(), IntImm(PrimType::UInt(64), value, loc), loc);
+  return reinterpret(PtrType::VoidPtrType(), IntImm(PrimType::UInt(64), value, loc), loc);
 }
 
 /*!
@@ -94,7 +82,7 @@ inline Expr ConstHandle(int64_t value, Location loc = UnknownLoc()) {
  * Arguments, in order:
  * - args[0]: obj, The referenced object.
  */
-TVM_DLL const Op& address_of_op();
+TVM_TIRX_DLL const Op& address_of_op();
 
 /*!
  * \brief Test whether a pointer is null.
@@ -102,7 +90,7 @@ TVM_DLL const Op& address_of_op();
  * Arguments, in order:
  * - args[0]: x, The input value.
  */
-TVM_DLL const Op& isnullptr_op();
+TVM_TIRX_DLL const Op& isnullptr_op();
 
 /*!
  * \brief Prefetch a memory address.
@@ -113,7 +101,7 @@ TVM_DLL const Op& isnullptr_op();
  * - args[2]: locality, The locality hint.
  * - args[3]: cache_type, The cache policy.
  */
-TVM_DLL const Op& prefetch_op();
+TVM_TIRX_DLL const Op& prefetch_op();
 
 /*!
  * \brief Cast a handle to a typed pointer after adding a byte offset.
@@ -123,12 +111,12 @@ TVM_DLL const Op& prefetch_op();
  * - args[1]: byte_offset, Offset in bytes.
  * The result type specifies the pointed-to element type.
  */
-TVM_DLL const Op& ptr_byte_offset_op();
+TVM_TIRX_DLL const Op& ptr_byte_offset_op();
 
 /*!
  * \brief Create a function local static handle that iniitalizes to nullptr.
  */
-TVM_DLL const Op& static_handle_op();
+TVM_TIRX_DLL const Op& static_handle_op();
 
 /*!
  * \brief Add a byte offset to an opaque pointer.
@@ -137,7 +125,7 @@ TVM_DLL const Op& static_handle_op();
  * - args[0]: handle, The handle.
  * - args[1]: offset, The offset.
  */
-TVM_DLL const Op& handle_add_byte_offset_op();
+TVM_TIRX_DLL const Op& handle_add_byte_offset_op();
 
 /*!
  * \brief atomic add instruction, corresponding e.g. to atomicAdd in CUDA.
@@ -146,7 +134,7 @@ TVM_DLL const Op& handle_add_byte_offset_op();
  * - args[0]: ptr, The pointer.
  * - args[1]: value, The value to use.
  */
-TVM_DLL const Op& atomic_add_op();
+TVM_TIRX_DLL const Op& atomic_add_op();
 
 /*!
  * \brief Assume a tensor's base address has the given constant byte alignment.
@@ -154,33 +142,33 @@ TVM_DLL const Op& atomic_add_op();
  * This leaf operation carries a compiler fact, without checking or changing
  * the address. Alignment must be a power of two between 1 and 2^27 bytes.
  */
-TVM_DLL const Op& assume_aligned_op();
+TVM_TIRX_DLL const Op& assume_aligned_op();
 
 /*!
  * \brief Returns an initialized but arbitrary value.
  */
-TVM_DLL const Op& undef_op();
+TVM_TIRX_DLL const Op& undef_op();
 
 /*!
- * \brief Masked buffer load.
+ * \brief Masked tensor load.
  *
  * Arguments, in order:
- * - args[0]: buffer, The buffer.
+ * - args[0]: tensor, The tensor.
  * - args[1]: index, The index.
  * - args[2...]: args, trailing PrimExpr operands.
  */
-TVM_DLL const Op& masked_load_op();
+TVM_TIRX_DLL const Op& masked_load_op();
 
 /*!
- * \brief Masked buffer store.
+ * \brief Masked tensor store.
  *
  * Arguments, in order:
- * - args[0]: buffer, The buffer.
+ * - args[0]: tensor, The tensor.
  * - args[1]: value, The value to use.
  * - args[2]: index, The index.
  * - args[3...]: args, trailing PrimExpr operands.
  */
-TVM_DLL const Op& masked_store_op();
+TVM_TIRX_DLL const Op& masked_store_op();
 
 /*!
  * \brief Project the physical pointer associated with a TensorVar definition.
@@ -190,7 +178,7 @@ TVM_DLL const Op& masked_store_op();
  * scope of the sole TensorVar argument.  This operation is consumed by TIRx
  * lowering and code generation.
  */
-TVM_DLL const Op& tensor_data_ptr_op();
+TVM_TIRX_DLL const Op& tensor_data_ptr_op();
 
 }  // namespace tirx
 }  // namespace tvm

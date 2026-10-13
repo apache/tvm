@@ -32,7 +32,7 @@ copies), and a VulkanStream per device.
 ### VulkanWrappedFunc
 
 Responsible for launching computation kernels. Responsible for obtaining a
-VulkanPipeline instance (from the VulkanModuleNode), and launches the kernel
+VulkanPipeline instance (from the VulkanModuleObj), and launches the kernel
 (via immediate or deferred mode) on the active VulkanStream instance.
 
 ## Stream execution in the Vulkan programming model.

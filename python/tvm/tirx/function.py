@@ -145,7 +145,7 @@ class Function(BaseFunc, Scriptable):
                 for i, j in T.grid(m, n):
                     B[i, j] = A[i, j]
 
-        Then we can make it specialized with given shapes or buffers.
+        Then we can make it specialized with given shapes or tensors.
 
         .. code-block:: python
 
@@ -243,7 +243,7 @@ class IndexMap(Object):
 
         ndim: Optional[int]
 
-            The dimensionality of the buffer to which this
+            The dimensionality of the tensor to which this
             transformation should be applied.  If mapping_function uses
             variadic argument `*args`, `ndim` must be specified.  If
             mapping_function does not use variadic arguments, ndim is
@@ -383,12 +383,12 @@ class IndexMap(Object):
         return _ffi_api.IndexMapMapIndices(self, indices, analyzer)
 
     def map_shape(self, shape: list[Expr], analyzer=None) -> list[Expr]:
-        """Apply the index map to a buffer shape
+        """Apply the index map to a tensor shape
 
         Parameters
         ----------
         shape : List[Expr]
-            The buffer shape to be mapped
+            The tensor shape to be mapped
         analyzer : Optional[tvm.sym.Analyzer]
             The analyzer to use while simplifying mapped shape expressions.
 

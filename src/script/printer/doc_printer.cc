@@ -25,6 +25,7 @@
 #include <tvm/ir/object_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/script/printer/printer.h>
+#include <tvm/support/str_escape.h>
 
 #include <algorithm>
 #include <cmath>
@@ -40,9 +41,6 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-#include "../../support/str_escape.h"
-#include "../../support/utils.h"
 
 namespace tvm {
 namespace script {
@@ -1039,10 +1037,11 @@ class PythonDocPrinter : public DocPrinter {
 
   void MaybePrintCommenMultiLines(const StmtDoc& stmt, bool new_line = false) {
     if (stmt->comment.has_value()) {
-      std::vector<std::string> comment_lines = support::Split(stmt->comment.value(), '\n');
+      std::istringstream comment_stream(stmt->comment.value());
+      std::string line;
       bool first_line = true;
       size_t start_pos = output_.tellp();
-      for (const std::string& line : comment_lines) {
+      while (std::getline(comment_stream, line)) {
         if (first_line) {
           output_ << "# " << line;
           first_line = false;
@@ -1062,8 +1061,9 @@ class PythonDocPrinter : public DocPrinter {
     size_t start_pos = output_.tellp();
     output_ << "\"\"\"";
 
-    std::vector<std::string> comment_lines = support::Split(comment, '\n');
-    for (const std::string& line : comment_lines) {
+    std::istringstream comment_stream(comment);
+    std::string line;
+    while (std::getline(comment_stream, line)) {
       if (line.empty()) {
         // No indentation on empty line
         output_ << "\n";
@@ -1152,8 +1152,7 @@ void PythonDocPrinter::PrintTypedDoc(const NamespaceDoc& doc) {
   const ffi::String& name = doc->canonical_name;
   ffi::String key = std::string(name) + ".prefix";
   ffi::String fallback = GetNamespaceAliases().Get(key).value_or(name);
-  output_ << config()->GetExtraConfig<ffi::String>(key,
-                                                   name == "ir" ? config()->ir_prefix : fallback);
+  output_ << config()->GetExtraConfig<ffi::String>(key, fallback);
 }
 
 void PythonDocPrinter::PrintTypedDoc(const AttrAccessDoc& doc) {

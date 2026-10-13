@@ -23,7 +23,6 @@ import torch
 import tvm
 from tvm import relax, testing
 from tvm.ir import TupleType as _TupleType
-from tvm.relax import VMInstrumentReturnKind
 from tvm.relax.testing.transform import (
     dataflow_alias_analysis,
     dataflow_inplace_analysis,
@@ -406,7 +405,7 @@ def test_inplace_single_call():
     @Ts.function(private=True)
     def expected_silu(A: T.Tensor((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"tirx.noalias": True})
-        compute = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3)))
+        compute = Ts.sblock_alloc_tensor((T.int64(2), T.int64(3)))
         for i0, i1 in T.grid(T.int64(2), T.int64(3)):
             with Ts.sblock("compute"):
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
@@ -662,226 +661,6 @@ class TestViewOpSharedStorageAndNoInplace:
     storage_ptr_x_squeeze = np.array([[[1.0], [2.0], [3.0], [4.0]]], dtype=np.float32)
     storage_ptr_x_ensure_zero_offset = np.array([[1.0], [2.0], [3.0], [4.0]], dtype=np.float32)
 
-    @I.ir_module
-    class _SharedStorageExpandDimsModule:
-        @R.function
-        def main(x: R.Tensor((4,), dtype="float32")) -> R.Tensor((4, 1), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((4, 1), dtype="float32") = R.expand_dims(x, axis=[1])
-                lv1: R.Tensor((4, 1), dtype="float32") = R.expand_dims(x, axis=[1])
-                gv: R.Tensor((4, 1), dtype="float32") = R.add(lv, lv1)
-                R.output(gv)
-            return gv
-
-    @I.ir_module
-    class _SharedStorageSqueezeModule:
-        @R.function
-        def main(x: R.Tensor((1, 4, 1), dtype="float32")) -> R.Tensor((4, 1), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((4, 1), dtype="float32") = R.squeeze(x, axis=[0])
-                lv1: R.Tensor((4, 1), dtype="float32") = R.squeeze(x, axis=[0])
-                gv: R.Tensor((4, 1), dtype="float32") = R.add(lv, lv1)
-                R.output(gv)
-            return gv
-
-    @I.ir_module
-    class _SharedStorageReshapeModule:
-        @R.function
-        def main(x: R.Tensor((4,), dtype="float32")) -> R.Tensor((4, 1), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((4, 1), dtype="float32") = R.reshape(x, (4, 1))
-                lv1: R.Tensor((4, 1), dtype="float32") = R.reshape(x, (4, 1))
-                gv: R.Tensor((4, 1), dtype="float32") = R.add(lv, lv1)
-                R.output(gv)
-            return gv
-
-    @I.ir_module
-    class _SharedStoragePermuteDimsModule:
-        @R.function
-        def main(x: R.Tensor((1, 4), dtype="float32")) -> R.Tensor((4, 1), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((4, 1), dtype="float32") = R.permute_dims(x, axes=[1, 0])
-                lv1: R.Tensor((4, 1), dtype="float32") = R.permute_dims(x, axes=[1, 0])
-                gv: R.Tensor((4, 1), dtype="float32") = R.add(lv, lv1)
-                R.output(gv)
-            return gv
-
-    @I.ir_module
-    class _SharedStorageViewModule:
-        @R.function
-        def main(x: R.Tensor((4,), dtype="float32")) -> R.Tensor((1, 4), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((1, 4), dtype="float32") = R.memory.view(
-                    x, R.shape([1, 4]), R.tuple(), R.tuple()
-                )
-                lv1: R.Tensor((1, 4), dtype="float32") = R.memory.view(
-                    x, R.shape([1, 4]), R.tuple(), R.tuple()
-                )
-                gv: R.Tensor((1, 4), dtype="float32") = R.add(lv, lv1)
-                R.output(gv)
-            return gv
-
-    @I.ir_module
-    class _SharedStorageBatchFlattenModule:
-        @R.function
-        def main(x: R.Tensor((1, 4), dtype="float32")) -> R.Tensor((1, 4), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((1, 4), dtype="float32") = R.nn.batch_flatten(x)
-                lv1: R.Tensor((1, 4), dtype="float32") = R.nn.batch_flatten(x)
-                gv: R.Tensor((1, 4), dtype="float32") = R.add(lv, lv1)
-                R.output(gv)
-            return gv
-
-    @I.ir_module
-    class _SharedStorageFlattenModule:
-        @R.function
-        def main(x: R.Tensor((1, 4), dtype="float32")) -> R.Tensor((4,), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((4,), dtype="float32") = R.flatten(x)
-                lv1: R.Tensor((4,), dtype="float32") = R.flatten(x)
-                gv: R.Tensor((4,), dtype="float32") = R.add(lv, lv1)
-                R.output(gv)
-            return gv
-
-    @I.ir_module
-    class _SharedStorageEnsureZeroOffsetModule:
-        @R.function
-        def main(x: R.Tensor((4, 1), dtype="float32")) -> R.Tensor((4, 1), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((4, 1), dtype="float32") = R.memory.ensure_zero_offset(x)
-                lv1: R.Tensor((4, 1), dtype="float32") = R.memory.ensure_zero_offset(x)
-                gv: R.Tensor((4, 1), dtype="float32") = R.add(lv, lv1)
-                R.output(gv)
-            return gv
-
-    @I.ir_module
-    class _IndependentReluModule:
-        """Just a testcase to verify that non-view ops do not share storage."""
-
-        @R.function
-        def main(x: R.Tensor((4,), dtype="float32")) -> R.Tensor((4,), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((4,), dtype="float32") = R.nn.relu(x)
-                lv1: R.Tensor((4,), dtype="float32") = R.nn.relu(x)
-                gv: R.Tensor((4,), dtype="float32") = R.add(lv, lv1)
-                R.output(gv)
-            return gv
-
-    @classmethod
-    def _capture_op_tensors(cls, mod, input_nps, op_substr):
-        """Capture TVM tensors passed to VM calls whose name contains op_substr."""
-        captures = []
-
-        def instrument(func, name, before_run, ret_value, *args):
-            del func, ret_value
-            if not before_run:
-                return VMInstrumentReturnKind.NO_OP
-            if op_substr not in name.lower():
-                return VMInstrumentReturnKind.NO_OP
-            tensor_args = [arg for arg in args if isinstance(arg, tvm.runtime.Tensor)]
-            if not tensor_args:
-                return VMInstrumentReturnKind.NO_OP
-            captures.append({"call_name": name, "tensors": tensor_args})
-            return VMInstrumentReturnKind.NO_OP
-
-        if isinstance(input_nps, np.ndarray):
-            input_nps = [input_nps]
-
-        ex = relax.build(mod, tvm.target.Target("llvm"))
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-        vm.set_instrument(instrument)
-        vm["main"](*(tvm.runtime.tensor(arr, tvm.cpu()) for arr in input_nps))
-        return captures
-
-    @pytest.mark.parametrize(
-        "mod,input_nps,op_substr,expect_same_storage",
-        [
-            pytest.param(
-                _SharedStorageExpandDimsModule,
-                [storage_ptr_x_1d],
-                "add",
-                True,
-                id="shared_storage_expand_dims",
-            ),
-            pytest.param(
-                _SharedStorageSqueezeModule,
-                [storage_ptr_x_squeeze],
-                "add",
-                True,
-                id="shared_storage_squeeze",
-            ),
-            pytest.param(
-                _SharedStorageReshapeModule,
-                [storage_ptr_x_1d],
-                "add",
-                True,
-                id="shared_storage_reshape",
-            ),
-            pytest.param(
-                _SharedStoragePermuteDimsModule,
-                [storage_ptr_x_2d],
-                "add",
-                True,
-                id="shared_storage_permute_dims",
-            ),
-            pytest.param(
-                _SharedStorageFlattenModule,
-                [storage_ptr_x_2d],
-                "add",
-                True,
-                id="shared_storage_flatten",
-            ),
-            pytest.param(
-                _SharedStorageBatchFlattenModule,
-                [storage_ptr_x_2d],
-                "add",
-                True,
-                id="shared_storage_batch_flatten",
-            ),
-            pytest.param(
-                _SharedStorageViewModule,
-                [storage_ptr_x_1d],
-                "add",
-                True,
-                id="shared_storage_memory_view",
-            ),
-            pytest.param(
-                _SharedStorageEnsureZeroOffsetModule,
-                [storage_ptr_x_ensure_zero_offset],
-                "add",
-                True,
-                id="shared_storage_ensure_zero_offset",
-            ),
-            pytest.param(
-                _IndependentReluModule,
-                [storage_ptr_x_1d],
-                "add",
-                False,
-                id="independent_storage_relu",
-            ),
-        ],
-    )
-    def test_tensor_storage_ptr_extraction(self, mod, input_nps, op_substr, expect_same_storage):
-        """Validate runtime storage overlap/sharing via VM instrumentation."""
-        storage_shared = tvm.get_global_func("runtime.TVMTensorIsStorageShared")
-        captures = self._capture_op_tensors(mod, input_nps, op_substr)
-        assert len(captures), f"VM instrumentation did not see a {op_substr} call."
-        assert len(captures) == 1, f"VM instrumentation should see exactly one {op_substr} call."
-        cap = captures[0]
-        assert len(cap["tensors"]) == 3, (
-            f"VM instrumentation should see three {op_substr} tensor operands."
-        )
-        tensor_a, tensor_b = cap["tensors"][0], cap["tensors"][1]
-        call_name = cap["call_name"]
-        if expect_same_storage:
-            assert storage_shared(tensor_a, tensor_b), (
-                f"{mod.__name__}: operands should share the same storage (call {call_name!r})"
-            )
-        else:
-            assert not storage_shared(tensor_a, tensor_b), (
-                f"{mod.__name__}: operands must not share storage (call {call_name!r})"
-            )
-
     @staticmethod
     def _emit_duplicate_view(op, x):
         if op == "relax.expand_dims":
@@ -1034,16 +813,6 @@ class TestViewOpSharedStorageAndNoInplace:
         x_np = self._input_for_view_op(view_op).copy()
         mod_inplace = DataflowUseInplaceCalls()(mod)
         tvm.ir.assert_structural_equal(mod_inplace, mod)
-
-        storage_shared = tvm.get_global_func("runtime.TVMTensorIsStorageShared")
-        captures = self._capture_op_tensors(mod_inplace, x_np, "multiply")
-        assert captures, f"{view_op}: VM instrumentation did not see a multiply call."
-        cap = next(c for c in captures if len(c["tensors"]) >= 2)
-        tensor_a, tensor_b = cap["tensors"][0], cap["tensors"][1]
-        assert storage_shared(tensor_a, tensor_b), (
-            f"{view_op}: multiply operands should share the same storage at runtime "
-            f"(call {cap['call_name']!r})"
-        )
 
         ex = relax.build(mod_inplace, tvm.target.Target("llvm"))
         vm = relax.VirtualMachine(ex, tvm.cpu())

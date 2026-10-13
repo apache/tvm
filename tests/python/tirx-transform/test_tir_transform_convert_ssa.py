@@ -166,12 +166,12 @@ def test_reused_parameter():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_reused_buffer_obj():
-    """De-duplicate buffer usage across entire module"""
+def test_reused_tensor_obj():
+    """De-duplicate tensor usage across entire module"""
 
     @T.function(private=True)
     def func(a: T.handle("float32")):
-        A = T.decl_tensor(shape=1, dtype="float32", data=a)
+        A = T.decl_tensor(a, ty_args=[T.Tensor(1, "float32", data=a)])
         T.evaluate(A[0])
 
     before = tvm.IRModule(
@@ -185,20 +185,20 @@ def test_reused_buffer_obj():
     class expected:
         @T.function
         def func_a(a: T.handle("float32")):
-            A = T.decl_tensor(shape=1, dtype="float32", data=a)
+            A = T.decl_tensor(a, ty_args=[T.Tensor(1, "float32", data=a)])
             T.evaluate(A[0])
 
         @T.function
         def func_b(a: T.handle("float32")):
-            A = T.decl_tensor(shape=1, dtype="float32", data=a)
+            A = T.decl_tensor(a, ty_args=[T.Tensor(1, "float32", data=a)])
             T.evaluate(A[0])
 
     after = tvm.tirx.transform.ConvertSSA()(before)
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_reused_buffer_parameter():
-    """De-duplicate buffer parameters across the entire module."""
+def test_reused_tensor_parameter():
+    """De-duplicate tensor parameters across the entire module."""
 
     @T.function(private=True)
     def func(A: T.Tensor(1, "float32")):
@@ -225,8 +225,8 @@ def test_reused_buffer_parameter():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_reused_compound_buffer_shape_var():
-    """De-duplicate implicit Vars nested in buffer parameter shapes."""
+def test_reused_compound_tensor_shape_var():
+    """De-duplicate implicit Vars nested in tensor parameter shapes."""
     n = tirx.Var("n", "int32")
     A = tirx.decl_tensor((tirx.max(n, 1),), layout=None)
     func = tirx.Function([A], tvm.ir.Evaluate(n))
@@ -453,10 +453,10 @@ def test_thread_idx_reused_within_and_across_functions():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_shared_shape_var_in_buffer_params_and_alloc_buffer():
-    """Shape var shared across buffer params and AllocTensor should not be renamed.
+def test_shared_shape_var_in_tensor_params_and_alloc_tensor():
+    """Shape var shared across tensor params and AllocTensor should not be renamed.
 
-    When the same Var (e.g., `n`) appears in multiple buffer parameter
+    When the same Var (e.g., `n`) appears in multiple tensor parameter
     annotations (A and B both have shape [n]), ConvertSSA should not treat
     the second occurrence as a redefinition.  All uses of `n` in the
     function body (including AllocTensor shapes) must remain the same
@@ -474,13 +474,9 @@ def test_shared_shape_var_in_buffer_params_and_alloc_buffer():
                 C,
                 tvm.ir.Call(
                     "tirx.alloc_tensor",
-                    [
-                        tvm.ir.Tuple(C.shape),
-                        tvm.ir.DataTypeImm(tvm.DataType(C.dtype)),
-                        tvm.ir.StringImm(C.scope()),
-                    ],
+                    [],
                     attrs=tvm.ir.DictAttrs({}),
-                    ty=C.ty,
+                    ty_args=[C.ty],
                 ),
             ),
             tvm.ir.Evaluate(1),
@@ -495,17 +491,17 @@ def test_shared_shape_var_in_buffer_params_and_alloc_buffer():
     tvm.ir.assert_structural_equal(after["main"], before)
 
 
-def test_reused_loop_var_in_decl_buffer_elem_offset():
-    """Remap a buffer whose elem_offset depends on an SSA-renamed loop var."""
+def test_reused_loop_var_in_decl_tensor_elem_offset():
+    """Remap a tensor whose elem_offset depends on an SSA-renamed loop var."""
     loop_var = tirx.Var("loop_var", "int32")
-    buffer = tirx.decl_tensor(
+    tensor = tirx.decl_tensor(
         (128,),
         "float32",
-        "buffer",
+        "tensor",
         elem_offset=loop_var * 128,
         scope="shared.dyn",
     )
-    buffer_data = tirx.Var("buffer_data", buffer.data.ty)
+    buffer_data = tirx.Var("buffer_data", tensor.data.ty)
     loop = tvm.ir.For(
         loop_var,
         0,
@@ -514,19 +510,14 @@ def test_reused_loop_var_in_decl_buffer_elem_offset():
         tvm.ir.SeqStmt(
             [
                 tvm.ir.Bind(
-                    buffer,
+                    tensor,
                     tvm.ir.Call(
                         "tirx.decl_tensor",
-                        [
-                            buffer_data,
-                            tvm.ir.Tuple(buffer.shape),
-                            tvm.ir.DataTypeImm(tvm.DataType(buffer.dtype)),
-                            tvm.ir.StringImm(buffer.scope()),
-                        ],
-                        ty=buffer.ty,
+                        [buffer_data],
+                        ty_args=[tensor.ty],
                     ),
                 ),
-                tvm.ir.Evaluate(tirx.TensorLoad(buffer, [0])),
+                tvm.ir.Evaluate(tirx.TensorLoad(tensor, [0])),
             ]
         ),
     )

@@ -124,7 +124,7 @@ class DistIRSharder : public ExprMutator {
       for (const auto& spec : old_ty.as_or_throw<DTensorType>()->placement->dim_specs) {
         TVM_FFI_ICHECK(spec->kind == PlacementSpecKind::kReplica);
       }
-      GenericConst new_constant(constant->value.cast<runtime::Tensor>(), new_ty);
+      GenericConst new_constant(constant->value.cast<ffi::Tensor>(), new_ty);
       return new_constant;
     } else {
       TVM_FFI_THROW(InternalError)

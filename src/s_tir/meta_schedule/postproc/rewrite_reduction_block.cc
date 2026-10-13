@@ -19,6 +19,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/support/gpu_thread_tag.h>
 
 #include "../utils.h"
 
@@ -54,7 +55,7 @@ struct ReductionBlockFinder : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
-    runtime::ThreadScope thread_scope = GetThreadScope(loop);
+    support::GPUThreadTag thread_scope = GetThreadBindingTag(loop);
     if (IsThreadIdx(thread_scope) || IsBlockIdx(thread_scope)) {
       thread_bound_loop_vars_.insert(loop->loop_var.get());
     }
@@ -123,29 +124,28 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief Rewrite reduction block by moving the init block out */
-class RewriteReductionBlockNode : public PostprocNode {
+class RewriteReductionBlockObj : public PostprocObj {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RewriteReductionBlockNode>();
+    refl::ObjectDef<RewriteReductionBlockObj>();
   }
 
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   void InitializeWithTuneContext(const TuneContext& context) final {}
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   bool Apply(const s_tir::Schedule& sch) final;
 
   Postproc Clone() const {
-    ffi::ObjectPtr<RewriteReductionBlockNode> n =
-        ffi::make_object<RewriteReductionBlockNode>(*this);
+    ffi::ObjectPtr<RewriteReductionBlockObj> n = ffi::make_object<RewriteReductionBlockObj>(*this);
     return Postproc(ffi::UnsafeInit{}, n);
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RewriteReductionBlock",
-                                    RewriteReductionBlockNode, PostprocNode);
+                                    RewriteReductionBlockObj, PostprocObj);
 };
 
-bool RewriteReductionBlockNode::Apply(const s_tir::Schedule& sch) {
+bool RewriteReductionBlockObj::Apply(const s_tir::Schedule& sch) {
   for (;;) {
     std::vector<std::pair<tirx::StmtSRef, ffi::String>> results =
         s_tir::ReductionBlockFinder::Find(sch->state());
@@ -188,13 +188,13 @@ bool RewriteReductionBlockNode::Apply(const s_tir::Schedule& sch) {
 }
 
 Postproc Postproc::RewriteReductionBlock() {
-  ffi::ObjectPtr<RewriteReductionBlockNode> n = ffi::make_object<RewriteReductionBlockNode>();
+  ffi::ObjectPtr<RewriteReductionBlockObj> n = ffi::make_object<RewriteReductionBlockObj>();
   return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  RewriteReductionBlockNode::RegisterReflection();
+  RewriteReductionBlockObj::RegisterReflection();
   refl::GlobalDef().def("s_tir.meta_schedule.PostprocRewriteReductionBlock",
                         Postproc::RewriteReductionBlock);
 }

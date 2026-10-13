@@ -44,7 +44,7 @@ from tvm.backend.cuda.codegen.utils import parse_str
 from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
 from tvm.ir import Call, Op, StringImm, TensorLoad, const
 from tvm.ir.op import register_op_attr
-from tvm.ir.type import PointerType, PrimType
+from tvm.ir.type import PrimType, PtrType
 from tvm.tirx.expr import CallEffectKind, IntImm
 from tvm.tirx.op import call_intrin, reinterpret
 
@@ -96,19 +96,6 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
         # Encoded variants have no shared named operand prefix; codegen checks
         # each variant's operands, predicate, modifier tokens, and marker.
         Op.get(entry.op_name).set_signature(var_args="operands")
-        # The printer name is the *surface* path a user can type, which is the
-        # mnemonic (several `mov_*` entries all answer to `T.ptx.mov`), not the
-        # table key. Reparsing re-dispatches on the operand shape.
-        #
-        # Escaped, because "a user can type it" is the whole requirement and
-        # three PTX mnemonics are Python keywords: `and`, `or` and `not` (ISA
-        # 9.7.9) print as `T.ptx.and_` and are read back by `unescape_token` in
-        # `PTXNamespace.__getattr__`. The escape is the identity for every
-        # other family, and `gen_stubs` already spells the attribute this way.
-        family = escape_token(entry.family)
-        register_op_attr(entry.op_name, "TScriptPrinterName", f"tirx.ptx.{family}")
-        register_op_attr(entry.op_name, "TIRxOpCategory", "device_intrin")
-        register_op_attr(entry.op_name, "TDeviceIntrinsicNamespace", "ptx")
         register_op_attr(entry.op_name, "TFixedReturnType", PrimType("void"))
         if Op.get(entry.op_name).get_attr("__tvm_doc_translate_op_call__") is None:
             register_op_attr(
@@ -125,9 +112,6 @@ def register_addr() -> None:
     op = Op.get(_ADDR_OP_NAME)
     op.add_arg("base", "The base pointer.")
     op.add_arg("byte_offset", "The offset in bytes.")
-    register_op_attr(_ADDR_OP_NAME, "TScriptPrinterName", "tirx.ptx.addr")
-    register_op_attr(_ADDR_OP_NAME, "TIRxOpCategory", "device_intrin")
-    register_op_attr(_ADDR_OP_NAME, "TDeviceIntrinsicNamespace", "ptx")
     register_op_attr(_ADDR_OP_NAME, "FInferType", _infer_addr_type)
     if op.get_attr("__tvm_doc_translate_op_call__") is None:
         register_op_attr(
@@ -571,7 +555,7 @@ def _coerce_address(entry, slot, value, mod_map):
     """Coerce an address-like operand (``role`` addr or ptr)."""
     ty = getattr(value, "ty", None)
     if slot.kind == "ptr":
-        if isinstance(ty, PointerType):
+        if isinstance(ty, PtrType):
             return value
         raise ValueError(f"{entry.name}: operand '{slot.name}' must be a pointer")
     space = operand_space(slot, mod_map)
@@ -586,7 +570,7 @@ def _coerce_address(entry, slot, value, mod_map):
             f"(compose it with T.cuda.get_tmem_addr)"
         )
     if space.startswith("shared"):
-        if isinstance(ty, PointerType):
+        if isinstance(ty, PtrType):
             # Any pointer is accepted and converted, which is what the legacy
             # helpers did. The pointer's storage_scope is not a reliable
             # discriminator here: a shared buffer's ptr_to() reports 'global',
@@ -598,7 +582,7 @@ def _coerce_address(entry, slot, value, mod_map):
             f"{entry.name}: operand '{slot.name}' must be a shared-scope pointer "
             f"or a uint32 shared address"
         )
-    if isinstance(ty, PointerType):
+    if isinstance(ty, PtrType):
         if ty.storage_scope.startswith("shared"):
             raise ValueError(
                 f"{entry.name}: operand '{slot.name}' is a {space or 'generic'} address "
@@ -996,10 +980,15 @@ class PTXNamespace:
         return f"<T.ptx: {len(self._family_names())} instruction families>"
 
 
-@register_global_func("script.printer.PTXCallCanRoundtrip")
-def _ptx_call_can_roundtrip(call):
-    """Check that printed operands dispatch to the same PTX instruction."""
-    name = call.op.get_attr("TScriptPrinterName").rsplit(".", 1)[-1]
+@register_global_func("script.printer.PTXCallSurfaceName")
+def _ptx_call_surface_name(call):
+    """Resolve a mnemonic only when its operands reconstruct the same instruction."""
+    from .table import TABLE  # pylint: disable=import-outside-toplevel
+
+    entry = TABLE.get(call.op.name.removeprefix("tirx.ptx."))
+    if entry is None:
+        return None
+    name = escape_token(entry.family)
     args = []
     try:
         for arg in call.args:
@@ -1008,6 +997,8 @@ def _ptx_call_can_roundtrip(call):
             elif isinstance(arg, Call) and arg.op.same_as(Op.get(_ADDR_OP_NAME)):
                 arg = AddrArg(*arg.args)
             args.append(arg)
-        return structural_equal(call, getattr(PTXNamespace(), name)(*args))
+        if structural_equal(call, getattr(PTXNamespace(), name)(*args)):
+            return f"tirx.ptx.{name}"
     except (ValueError, TypeError, IndexError, AttributeError):
-        return False
+        pass
+    return None

@@ -36,7 +36,7 @@ namespace ir {
  * \brief The IRModule declaration statement.
  * \return The IRModuleFrame.
  */
-TVM_DLL IRModuleFrame IRModule();
+TVM_TIRX_DLL IRModuleFrame IRModule();
 
 /*!
  * \brief Declare a Function without given the specific function implementation.
@@ -46,68 +46,31 @@ TVM_DLL IRModuleFrame IRModule();
  *                       (i.e. func params and func return type/shape).
  * \return The corresponding GlobalVar.
  */
-TVM_DLL GlobalVar DeclFunction(const ffi::String& func_name, const BaseFunc& func_signature);
+TVM_TIRX_DLL GlobalVar DeclFunction(const ffi::String& func_name, const BaseFunc& func_signature);
 
 /*!
  * \brief Define the function which is declared before.
  * \param func_name The function unique name.
  * \param func The given function implementation
  */
-TVM_DLL void DefFunction(const ffi::String& func_name, const BaseFunc& func);
+TVM_TIRX_DLL void DefFunction(const ffi::String& func_name, const BaseFunc& func);
 
 /*!
- * \brief The serial For statement.
+ * \brief Construct a For statement of the given kind.
+ * \param kind The kind of iteration.
  * \param start The minimum value of iteration.
  * \param stop The maximum value of iteration.
- * \param annotations The optional annotations of the For statement.
  * \param step The optional step value of iteration.
  * \param dtype The optional dtype of the loop var ("int32" or "uint32"). When omitted
  *              it is inferred from the bounds.
- * \return The ForFrame.
- */
-ForFrame Serial(PrimExpr start, PrimExpr stop,
-                ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                ffi::Optional<PrimExpr> step = std::nullopt,
-                ffi::Optional<PrimType> dtype = std::nullopt);
-/*!
- * \brief The parallel For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
  * \param annotations The optional annotations of the For statement.
- * \param step The optional step value of iteration.
- * \param dtype The optional dtype of the loop var ("int32" or "uint32").
  * \return The ForFrame.
  */
-ForFrame Parallel(PrimExpr start, PrimExpr stop,
-                  ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                  ffi::Optional<PrimExpr> step = std::nullopt,
-                  ffi::Optional<PrimType> dtype = std::nullopt);
-/*!
- * \brief The vectorized For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
- * \param annotations The optional annotations of the For statement.
- * \param step The optional step value of iteration.
- * \param dtype The optional dtype of the loop var ("int32" or "uint32").
- * \return The ForFrame.
- */
-ForFrame Vectorized(PrimExpr start, PrimExpr stop,
-                    ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                    ffi::Optional<PrimExpr> step = std::nullopt,
-                    ffi::Optional<PrimType> dtype = std::nullopt);
-/*!
- * \brief The unrolled For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
- * \param annotations The optional annotations of the For statement.
- * \param step The optional step value of iteration.
- * \param dtype The optional dtype of the loop var ("int32" or "uint32").
- * \return The ForFrame.
- */
-ForFrame Unroll(PrimExpr start, PrimExpr stop,
-                ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                ffi::Optional<PrimExpr> step = std::nullopt,
-                ffi::Optional<PrimType> dtype = std::nullopt);
+ForFrame For(ForKind kind, PrimExpr start, PrimExpr stop,
+             ffi::Optional<PrimExpr> step = std::nullopt,
+             ffi::Optional<PrimType> dtype = std::nullopt,
+             ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt);
+
 /*!
  * \brief The grid For statement.
  * \param extents The extents of the iteration.
@@ -136,7 +99,7 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
  * \param value The value to be bound.
  * \param type_annotation  The type annotation of the binding.
  *                         Usually it is used for fine-grained var typing,
- *                         particularly, PointerType.
+ *                         particularly, PtrType.
  * \param var The variable to be bound. If not specified, a new variable will be created.
  * \return The bound Var.
  */

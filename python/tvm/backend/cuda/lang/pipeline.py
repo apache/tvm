@@ -109,15 +109,15 @@ def _map_buffer_into_cta(ptr, rank, depth):
     and reinterprets the result. Callers that only need an address should use
     ``_map_addr_into_cta``, which is a register cheaper.
     """
-    from tvm.ir import PointerType, PrimType  # pylint: disable=import-outside-toplevel
+    from tvm.ir import PrimType, PtrType  # pylint: disable=import-outside-toplevel
     from tvm.tirx import Var as TIRVar  # pylint: disable=import-outside-toplevel
 
-    ptr_ty = PointerType(PrimType("uint64"), "shared")
+    ptr_ty = PtrType(PrimType("uint64"), "shared")
     mapped = T.alloc_local([1], "uint64")
     T.evaluate(T.ptx.mapa.u64(mapped[0], ptr, T.uint32(rank)))
     remote_ptr = TIRVar("remote_mbar_ptr", ptr_ty)
     T.bind(T.reinterpret(mapped[0], ty=ptr_ty), var=remote_ptr)
-    return T.decl_tensor([depth], "uint64", data=remote_ptr, scope="shared")
+    return T.bind(T.decl_tensor(remote_ptr, ty_args=[T.Tensor([depth], "uint64", scope="shared")]))
 
 
 def _mbarrier_arrive_remote(bar, pred=None, count=None):

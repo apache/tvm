@@ -44,7 +44,7 @@ def ptx_scalar_f32_math(
 @pytest.mark.skipif(not env.has_cuda_compute(7), reason="need cuda compute >= 7.0")
 def test_ptx_scalar_f32_math():
     f = ptx_scalar_f32_math
-    mod = tvm.compile(f, target="cuda")
+    mod = tvm.tirx.compile(f, target="cuda")
     rng = np.random.default_rng(0)
     A_np = rng.standard_normal(32).astype("float32")
     B_np = rng.standard_normal(32).astype("float32")

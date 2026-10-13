@@ -93,7 +93,7 @@ std::tuple<TensorType, ffi::Optional<int64_t>> GetTensorArgInfoWithIndex(const C
 }
 
 tirx::Function GetDLTensorField(tirx::TVMStructFieldKind field, PrimType field_ty) {
-  tvm::Var dlpack_handle("dlpack_handle", PointerType::VoidPointerTy());
+  tvm::Var dlpack_handle("dlpack_handle", PtrType::VoidPtrType());
 
   tvm::Var value("value", field_ty);
 
@@ -257,7 +257,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
   PrimType field_ty = call->ty.as_or_throw<tvm::PrimType>();
 
   tirx::Function getter = [&]() -> tirx::Function {
-    tvm::Var dlpack_handle("dlpack_handle", PointerType::VoidPointerTy());
+    tvm::Var dlpack_handle("dlpack_handle", PtrType::VoidPtrType());
     tvm::Var axis("axis", PrimType::Int(64));
 
     tvm::Var ndim("ndim", PrimType::Int(32));
@@ -281,14 +281,11 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
              {StringImm("Specified axis may not be larger than the tensor's dimensionality")}),
          tvm::Bind(
              shape_buffer,
-             tvm::Call(
-                 shape_buffer.type(), tvm::tirx::decl_tensor_op(),
-                 {tvm::Call(shape_buffer.type()->DataPointerType(), tirx::abi_field_get_op(),
-                            {dlpack_handle, IntImm::Int32(0),
-                             IntImm::Int32(tirx::TVMStructFieldKind::kDLTensorShape)}),
-                  tvm::Tuple(shape_buffer->shape), tvm::DataTypeImm(shape_buffer->dtype->dtype),
-                  tvm::StringImm(shape_buffer.scope())},
-                 {})),
+             tvm::Call(shape_buffer.type(), tvm::tirx::decl_tensor_op(),
+                       {tvm::Call(shape_buffer.type()->DataPtrType(), tirx::abi_field_get_op(),
+                                  {dlpack_handle, IntImm::Int32(0),
+                                   IntImm::Int32(tirx::TVMStructFieldKind::kDLTensorShape)})},
+                       {}, {shape_buffer.type()})),
          tvm::Bind(extent, tirx::MakeTensorLoad(shape_buffer, {axis.as_or_throw<PrimExpr>()})),
          tvm::Return(extent)});
 

@@ -23,11 +23,11 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/bytes_io.h>
 
 #include <string>
 #include <utility>
 
-#include "../../../support/bytes_io.h"
 #include "../../../target/build_common.h"
 #include "../runtime/spirv_shader.h"
 #include "spirv_utils.h"

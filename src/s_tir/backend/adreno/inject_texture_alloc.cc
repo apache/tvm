@@ -26,13 +26,13 @@
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/s_tir/stmt_functor_with_analyzer.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/memory.h>
 
 #include "../../../backend/opencl/runtime/texture.h"
-#include "../../../s_tir/ir/ir_mutator_with_analyzer.h"
 #include "../../../tirx/transform/ir_utils.h"
 
 namespace tvm {
@@ -45,23 +45,23 @@ using runtime::DefaultTextureLayoutSeparator;
 using runtime::IsTextureStorage;
 
 /*!
- * \brief Inject Texture Alloc Intrinsic right after buffer allocations are realized.
+ * \brief Inject Texture Alloc Intrinsic right after tensor allocations are realized.
  */
-class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
+class TextureAllocInjector : public s_tir::StmtExprMutatorWithAnalyzer {
  public:
-  using s_tir::IRMutatorWithAnalyzer::Mutate;
-  using s_tir::IRMutatorWithAnalyzer::Mutate_;
+  using s_tir::StmtExprMutatorWithAnalyzer::Mutate;
+  using s_tir::StmtExprMutatorWithAnalyzer::Mutate_;
 
   static Function Inject(Function func) {
     sym::Analyzer ana;
     auto pass = ffi::make_object<TextureAllocInjector>(ana);
     auto writer = func.CopyOnWrite();
-    pass->MarkBufferParamShapes(func);
+    pass->MarkTensorParamShapes(func);
     writer->body = pass->Mutate(func->body).ValueOrUnchanged(func->body);
     return func;
   }
 
-  explicit TextureAllocInjector(const sym::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
+  explicit TextureAllocInjector(const sym::Analyzer& ana) : StmtExprMutatorWithAnalyzer(ana) {}
 
  private:
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
@@ -75,16 +75,16 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
     if (IsTextureStorage(scope)) {
       op = stmt.as<BindNode>();
       if (const auto* call = op ? op->value.as<CallNode>() : nullptr;
           !call || !call->op.same_as(tirx::alloc_tensor_op())) {
-        TVM_FFI_THROW(InternalError) << "Expected an allocation binding after buffer mutation";
+        TVM_FFI_THROW(InternalError) << "Expected an allocation binding after tensor mutation";
       }
       const auto* allocation = op->value.as<CallNode>();
-      tvm::Tuple shape = allocation->args[0].as_or_throw<tvm::Tuple>();
-      DLDataType dtype = allocation->args[1].as_or_throw<DataTypeImm>()->value;
+      tvm::Tuple shape = tvm::Tuple(allocation->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
+      DLDataType dtype = allocation->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
       ffi::Array<PrimExpr> extents =
           shape->fields.Map([](const Expr& e) { return e.as_or_throw<PrimExpr>(); });
       TVM_FFI_ICHECK(extents.size() >= 3) << "Only 2D Array RGBA texture is currently supported";
@@ -99,17 +99,14 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       ffi::Array<Expr> args;
       args.push_back(StringImm(scope));
       args.push_back(IntImm::Int64(3));
-      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::stack_make_shape_op(),
+      args.push_back(Call(PtrType(PrimType::Int(64)), tirx::stack_make_shape_op(),
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm::Int64(channel_size));
       stmt = Bind(op->var.as_or_throw<TensorVar>(),
                   Call(op->var.as_or_throw<TensorVar>().type(), tirx::decl_tensor_op(),
-                       {Call(op->var.as_or_throw<TensorVar>().type()->DataPointerType(),
-                             tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args),
-                        tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
-                        DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
-                        StringImm(op->var.as_or_throw<TensorVar>().scope())},
-                       {}, allocation->ty_args, allocation->loc),
+                       {Call(op->var.as_or_throw<TensorVar>().type()->DataPtrType(),
+                             tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args)},
+                       {}, {op->var.as_or_throw<TensorVar>().type()}, allocation->loc),
                   op->loc);
     }
     return stmt;
@@ -117,8 +114,8 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
 
  protected:
   std::string GetStorageScope(const Var& buffer_var) {
-    auto* ptr = buffer_var->ty.as<PointerTypeNode>();
-    TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
+    auto* ptr = buffer_var->ty.as<PtrTypeNode>();
+    TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PtrType";
     return ptr->storage_scope;
   }
 };

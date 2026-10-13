@@ -69,37 +69,37 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief Check if the IRModule has any loop with non-constant extent. */
-class DisallowDynamicLoopNode : public PostprocNode {
+class DisallowDynamicLoopObj : public PostprocObj {
  public:
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   void InitializeWithTuneContext(const TuneContext& context) final {}
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   bool Apply(const s_tir::Schedule& sch) final {
     return !s_tir::DynamicExtentFinder::Find(sch->mod());
   }
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   Postproc Clone() const {
-    ffi::ObjectPtr<DisallowDynamicLoopNode> n = ffi::make_object<DisallowDynamicLoopNode>(*this);
+    ffi::ObjectPtr<DisallowDynamicLoopObj> n = ffi::make_object<DisallowDynamicLoopObj>(*this);
     return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DisallowDynamicLoopNode>();
+    refl::ObjectDef<DisallowDynamicLoopObj>();
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.DisallowDynamicLoop",
-                                    DisallowDynamicLoopNode, PostprocNode);
+                                    DisallowDynamicLoopObj, PostprocObj);
 };
 
 Postproc Postproc::DisallowDynamicLoop() {
-  ffi::ObjectPtr<DisallowDynamicLoopNode> n = ffi::make_object<DisallowDynamicLoopNode>();
+  ffi::ObjectPtr<DisallowDynamicLoopObj> n = ffi::make_object<DisallowDynamicLoopObj>();
   return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  DisallowDynamicLoopNode::RegisterReflection();
+  DisallowDynamicLoopObj::RegisterReflection();
   refl::GlobalDef().def("s_tir.meta_schedule.PostprocDisallowDynamicLoop",
                         Postproc::DisallowDynamicLoop);
 }

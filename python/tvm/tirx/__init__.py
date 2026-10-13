@@ -42,9 +42,6 @@ from .expr import Select, TensorLoad, Ramp, Broadcast, Shuffle
 from .expr import CallEffectKind, Let
 
 
-from .stmt import BufferRegion
-from .tile_dispatch import DispatchContext
-
 from .function import Function, IndexMap, renew_def
 
 from .op import call_packed_lowered, call_cpacked_lowered, register_intrin_lowering
@@ -93,7 +90,7 @@ from . import backend
 from tvm.base import _RUNTIME_ONLY as _RUNTIME_ONLY_TIRX  # pylint: disable=wrong-import-position
 
 if not _RUNTIME_ONLY_TIRX:
-    from .build import build
+    from ._compile import compile
     from .compilation_pipeline import (
         get_tir_pipeline,
         get_default_tir_pipeline,
@@ -124,3 +121,11 @@ def _initialize_script_namespace() -> None:
 from tvm.script.parser import register_namespace_initializer as _register_namespace_initializer
 
 _register_namespace_initializer(_initialize_script_namespace, aliases=("tirx", "Tx", "Axis"))
+
+
+def __getattr__(name):
+    if name == "tile":
+        from importlib import import_module
+
+        return import_module(__name__ + ".tile")
+    raise AttributeError(name)

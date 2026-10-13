@@ -84,7 +84,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              }
              {
                sch->ComputeAt(input_tile, /*loop_rv=*/loops.back(), /*preserve_unit_loops=*/true);
-               sch->SetScope(input_tile, /*buffer_index=*/0, /*storage_scope=*/"local");
+               sch->SetScope(input_tile, /*tensor_index=*/0, /*storage_scope=*/"local");
                sch->ComputeInline(data_pad);
              }
              {
@@ -134,7 +134,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              }
              {
                sch->ComputeAt(input_tile, /*loop_rv=*/outer, /*preserve_unit_loops=*/true);
-               sch->SetScope(input_tile, /*buffer_index=*/0, /*storage_scope=*/"local");
+               sch->SetScope(input_tile, /*tensor_index=*/0, /*storage_scope=*/"local");
                sch->ComputeInline(data_pad);
              }
              return {sch};
@@ -162,7 +162,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             }
             {
               sch->ComputeAt(inverse, /*loop_rv=*/outer, /*preserve_unit_loops=*/true);
-              sch->SetScope(inverse, /*buffer_index=*/0, /*storage_scope=*/"local");
+              sch->SetScope(inverse, /*tensor_index=*/0, /*storage_scope=*/"local");
               ffi::Array<LoopRV> loops = sch->GetLoops(inverse);
               TVM_FFI_ICHECK_EQ(loops.size(), 10);
               sch->Unroll(loops[6]);

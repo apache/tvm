@@ -88,7 +88,7 @@ inline void AddToParent(tvm::Stmt stmt, Location loc) {
       builder->result =
           tvm::SeqStmt({builder->result.value().as_or_throw<tvm::Stmt>(), tvm::SeqStmt(incoming)});
     }
-  } else if (const auto* stmt_frame = builder->frames.back().as<StmtFrameNode>()) {
+  } else if (const auto* stmt_frame = builder->frames.back().as<StmtFrameObj>()) {
     ffi::GetRef<StmtFrame>(stmt_frame)->stmts.push_back(stmt);
   } else {
     TVM_FFI_THROW(TypeError) << "Unsupported frame type: " << builder->frames.back();

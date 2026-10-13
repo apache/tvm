@@ -154,9 +154,9 @@ def test_closure_callee_outputs_are_preserved():
     @I.ir_module
     class Before:
         @R.function(private=True)
-        def outputs(
-            value: R.Tensor((2,), "float32"), env: R.Tensor((2,), "float32")
-        ) -> R.Tuple(R.Tensor((2,), "float32"), R.Tensor((2,), "float32")):
+        def outputs(value: R.Tensor((2,), "float32"), env: R.Tensor((2,), "float32")) -> R.Tuple(
+            R.Tensor((2,), "float32"), R.Tensor((2,), "float32")
+        ):
             return value, R.add(value, env)
 
         @R.function

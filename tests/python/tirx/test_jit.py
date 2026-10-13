@@ -53,7 +53,7 @@ def test_int_constexpr_specializes_loop_bound():
     assert_structural_equal(add.specialize(N=128), expected, map_free_vars=True)
 
 
-def test_constexpr_in_2d_buffer_shape():
+def test_constexpr_in_2d_tensor_shape():
     @T.jit(private=True)
     def matadd(
         A: T.Tensor((M, K), "int32"),
@@ -426,7 +426,7 @@ def test_present_optional_param_still_rejects_ffi_none():
     def kernel(A: T.Tensor((1,), "int32")):
         A[0] = 0
 
-    executable = tvm.compile(kernel.specialize(), target="llvm", tir_pipeline="tirx")
+    executable = tvm.tirx.compile(kernel.specialize(), target="llvm", pipeline="tirx")
     with pytest.raises(TypeError, match="expected Tensor"):
         executable(None)
 

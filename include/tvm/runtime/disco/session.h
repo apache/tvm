@@ -231,14 +231,14 @@ class SessionObj : public ffi::Object {
    * \param host_array The array to be copied to worker-0
    * \param remote_array The Tensor on worker-0
    */
-  TVM_RUNTIME_DLL virtual void CopyFromWorker0(const Tensor& host_array,
+  TVM_RUNTIME_DLL virtual void CopyFromWorker0(const ffi::Tensor& host_array,
                                                const DRef& remote_array) = 0;
   /*!
    * \brief Copy the controler-side Tensor to worker-0
    * \param host_array The array to be copied to worker-0
    * \param remote_array The Tensor on worker-0
    */
-  TVM_RUNTIME_DLL virtual void CopyToWorker0(const Tensor& host_array,
+  TVM_RUNTIME_DLL virtual void CopyToWorker0(const ffi::Tensor& host_array,
                                              const DRef& remote_array) = 0;
   /*!
    * \brief Synchrnoize the controler with a worker, and it will wait until worker finishes
@@ -346,7 +346,7 @@ class WorkerZeroData {
    * \brief The host-side arrays to passed to worker-0 for special uses, for example,
    * copy-to-worker0 and copy-from-worker0
    */
-  std::queue<Tensor> host_arrays;
+  std::queue<ffi::Tensor> host_arrays;
   /*! \brief The mutex that guards `host_arrays` */
   std::mutex queue_mutex_;
 };

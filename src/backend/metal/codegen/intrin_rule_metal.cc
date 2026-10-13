@@ -23,7 +23,6 @@
  */
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
-#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op_attr_types.h>
@@ -162,10 +161,6 @@ void RegisterMetalIntrinRules() {
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("lane", "The source thread id."))
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<tirx::TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
-      .set_attr<tirx::TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace, ffi::String("metal"))
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                          ffi::String("tirx.metal.simd_shuffle"))
       .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "simd_shuffle")
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -173,10 +168,6 @@ void RegisterMetalIntrinRules() {
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("delta", "The source lane id offset to be added."))
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<tirx::TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
-      .set_attr<tirx::TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace, ffi::String("metal"))
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                          ffi::String("tirx.metal.simd_shuffle_up"))
       .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "simd_shuffle_up")
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -184,10 +175,6 @@ void RegisterMetalIntrinRules() {
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("delta", "The source lane id offset to be subtracted."))
       .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<tirx::TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("device_intrin"))
-      .set_attr<tirx::TDeviceIntrinsicNamespace>(tvm::tirx::op_attr::kDeviceIntrinsicNamespace, ffi::String("metal"))
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
-                                          ffi::String("tirx.metal.simd_shuffle_down"))
       .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "simd_shuffle_down")
       .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
   // clang-format on

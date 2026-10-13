@@ -17,18 +17,17 @@
  * under the License.
  */
 #include <tvm/ffi/extra/structural_equal.h>
-#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/script/printer/doc_translator.h>
-#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/tile/exec_scope.h>
 
 #include <algorithm>
 #include <limits>
@@ -45,54 +44,6 @@ namespace tvm {
 namespace script {
 namespace printer {
 namespace details {
-
-ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                       const ffi::Object* destination) {
-  const auto* node =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const VarNode>(input);
-  Var var = ffi::GetRef<Var>(node);
-  IdDoc id = d->VarGetOrAllocId(var, false);
-  if (destination == node && d->GetImplicitDefs().count(var)) {
-    // Promote before translating the type, which may refer back to this Var.
-    VarDoc(d, var);
-    ffi::Optional<ExprDoc> rhs = std::nullopt;
-    ffi::Optional<ExprDoc> annotation = std::nullopt;
-    if (auto primitive = var->ty.as<PrimType>()) {
-      rhs = NamespaceDoc("ir")->Attr("dynamic")->Call(
-          {LiteralDoc::Str(var->name, std::nullopt)}, {"dtype"},
-          {LiteralDoc::DataType(primitive.value()->dtype, std::nullopt)});
-    } else if (var->ty.as<tirx::TensorTypeNode>()) {
-      rhs = NamespaceDoc("tirx")->Attr("Var")->Call(
-          {LiteralDoc::Str(var->name, std::nullopt), d->Translate(var->ty).value()});
-    } else {
-      annotation = d->Translate(var->ty).value();
-      if (var->ty.as<PointerTypeNode>()) {
-        // A module-level annotation alone does not bind a Python variable.
-        rhs = annotation.value().as<CallDoc>() ? annotation : annotation.value()->Call({});
-      }
-    }
-    // Only this type's referenced Vars must precede its declaration.
-    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-        var->ty, [&](const Var& dependency) -> ffi::Expected<ffi::WalkResult> {
-          if (d->GetImplicitDefs().count(dependency)) {
-            if (auto rhs = d->Translate(dependency, dependency)) {
-              d->Emit(AssignDoc(VarDoc(d, dependency), rhs.value(), std::nullopt), dependency);
-            }
-          }
-          return ffi::WalkResult::Skip();
-        });
-    d->Emit(AssignDoc(VarDoc(d, var), rhs, annotation), var);
-    return std::nullopt;
-  }
-  // Mutable scalar syntax binds a TensorLoad; resource uses need its buffer.
-  if (IsScalarBuffer(d, var)) return IdDoc(id->name)->Attr("source");
-  return IdDoc(id->name);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<VarNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
-                                               FDocTranslate::FromNative<&VarDocTranslate>());
-}
 
 namespace {
 
@@ -128,7 +79,7 @@ ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyVi
                                                  const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (call->attrs.defined() || !call->ty_args.empty() || call->args.empty() ||
+  if (call->attrs.has_value() || !call->ty_args.empty() || call->args.empty() ||
       !call->ty.as<PrimType>()) {
     return RawCall(d, call);
   }
@@ -168,7 +119,7 @@ ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"tirx.call_llvm_intrin", "tirx.call_llvm_pure_intrin"}) {
-    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kOpCallDocTranslate,
+    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
                                         FDocTranslate::FromNative<&LLVMIntrinsicDocTranslate>());
   }
 }
@@ -179,14 +130,14 @@ bool IsPTXAddressCall(const CallNode* call) {
 }
 
 ffi::Optional<ExprDoc> ConsumedPTXAddressDocTranslate(DocTranslatorObj* d, const CallNode* call) {
-  if (call->args.size() != 2 || call->attrs.defined() || !call->ty_args.empty())
+  if (call->args.size() != 2 || call->attrs.has_value() || !call->ty_args.empty())
     return std::nullopt;
   const Expr& base = call->args[0];
   const Expr& offset = call->args[1];
   if (const auto* nested = base.as<CallNode>(); nested && IsPTXAddressCall(nested)) {
     return std::nullopt;
   }
-  if ((!base->ty.as<PointerType>() && !ffi::StructuralEqual()(base->ty, PrimType::UInt(32))) ||
+  if ((!base->ty.as<PtrType>() && !ffi::StructuralEqual()(base->ty, PrimType::UInt(32))) ||
       !ffi::StructuralEqual()(call->ty, base->ty)) {
     return std::nullopt;
   }
@@ -217,13 +168,8 @@ ffi::Optional<ExprDoc> TensorDataPtrDocTranslate(DocTranslatorObj* d, ffi::AnyVi
                                                  const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (call->attrs.defined() || !call->ty_args.empty() || call->args.size() != 1)
+  if (call->attrs.has_value() || !call->ty_args.empty() || call->args.size() != 1)
     return RawCall(d, call);
-  try {
-    if (!ffi::StructuralEqual()(Call::ReinferType(call), call->ty)) return RawCall(d, call);
-  } catch (const ffi::Error&) {
-    return RawCall(d, call);
-  }
   return d->Translate(call->args[0]).value()->Attr("data");
 }
 
@@ -233,16 +179,13 @@ ffi::Optional<ExprDoc> PTXCallDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
                                            const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (IsPTXAddressCall(call) || call->attrs.defined() || !call->ty_args.empty() ||
+  if (IsPTXAddressCall(call) || call->attrs.has_value() || !call->ty_args.empty() ||
       !ffi::StructuralEqual()(call->ty, PrimType::Void()))
     return RawCall(d, call);
-  const Op& op = call->op.as_or_throw<Op>();
-  static const auto& names =
-      Op::GetAttrMap<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName);
-  if (!names.count(op)) return RawCall(d, call);
-  auto can_roundtrip = ffi::Function::GetGlobal("script.printer.PTXCallCanRoundtrip");
-  if (!can_roundtrip || !(*can_roundtrip)(ffi::GetRef<Call>(call)).cast<bool>())
-    return RawCall(d, call);
+  auto surface_name = ffi::Function::GetGlobal("script.printer.PTXCallSurfaceName");
+  if (!surface_name) return RawCall(d, call);
+  auto name = (*surface_name)(ffi::GetRef<Call>(call)).cast<ffi::Optional<ffi::String>>();
+  if (!name) return RawCall(d, call);
   ffi::Array<ExprDoc> args;
   for (const Expr& arg : call->args) {
     ExprDoc value = d->Translate(arg).value();
@@ -259,12 +202,12 @@ ffi::Optional<ExprDoc> PTXCallDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
     }
     args.push_back(value);
   }
-  return NamedCallCallee(names[op])->Call(args);
+  return NamedCallCallee(name.value())->Call(args);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.tensor_data_ptr")
-      .set_attr<FDocTranslate>(tvm::script::printer::op_attr::kOpCallDocTranslate,
+      .set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
                                FDocTranslate::FromNative<&TensorDataPtrDocTranslate>());
   ffi::reflection::GlobalDef().def("script.printer.PTXCallDocTranslate", []() {
     return ffi::Any(FDocTranslate::FromNative<&PTXCallDocTranslate>());

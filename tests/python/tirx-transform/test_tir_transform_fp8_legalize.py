@@ -30,10 +30,10 @@ def get_before(dtype: str):
         @T.function
         def main(Aptr: T.handle(dtype), Bptr: T.handle(dtype), Dptr: T.handle(dtype)):
             T.func_attr({"global_symbol": "main"})
-            A = T.decl_tensor((100,), dtype, data=Aptr)
-            B = T.decl_tensor((100,), dtype, data=Bptr)
-            D = T.decl_tensor((100,), dtype, data=Dptr)
-            C = T.decl_tensor((100,), dtype)
+            A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), dtype, data=Aptr)])
+            B = T.decl_tensor(Bptr, ty_args=[T.Tensor((100,), dtype, data=Bptr)])
+            D = T.decl_tensor(Dptr, ty_args=[T.Tensor((100,), dtype, data=Dptr)])
+            C = T.alloc_tensor(ty_args=[T.Tensor((100,), dtype)])
             for i in T.grid(100):
                 C[i] = A[i] + B[i]
                 D[i] = T.exp(C[i])
@@ -55,10 +55,10 @@ def get_after_compute_legalize(dtype: str, promote_dtype: str):
         @T.function
         def main(Aptr: T.handle(dtype), Bptr: T.handle(dtype), Dptr: T.handle(dtype)):
             T.func_attr({"global_symbol": "main"})
-            A = T.decl_tensor((100,), dtype, data=Aptr)
-            B = T.decl_tensor((100,), dtype, data=Bptr)
-            D = T.decl_tensor((100,), dtype, data=Dptr)
-            C = T.decl_tensor((100,), promote_dtype)
+            A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), dtype, data=Aptr)])
+            B = T.decl_tensor(Bptr, ty_args=[T.Tensor((100,), dtype, data=Bptr)])
+            D = T.decl_tensor(Dptr, ty_args=[T.Tensor((100,), dtype, data=Dptr)])
+            C = T.alloc_tensor(ty_args=[T.Tensor((100,), promote_dtype)])
             for i in T.grid(100):
                 C[i] = promote_f8(dtype, promote_dtype, A[i]) + promote_f8(
                     dtype, promote_dtype, B[i]
@@ -188,10 +188,10 @@ def get_after_storage_legalize(dtype: str, promote_dtype: str):
         @T.function
         def main(Aptr: T.handle("uint8"), Bptr: T.handle("uint8"), Dptr: T.handle("uint8")):
             T.func_attr({"global_symbol": "main"})
-            A = T.decl_tensor((100,), "uint8", data=Aptr)
-            B = T.decl_tensor((100,), "uint8", data=Bptr)
-            D = T.decl_tensor((100,), "uint8", data=Dptr)
-            C = T.decl_tensor((100,), promote_dtype)
+            A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "uint8", data=Aptr)])
+            B = T.decl_tensor(Bptr, ty_args=[T.Tensor((100,), "uint8", data=Bptr)])
+            D = T.decl_tensor(Dptr, ty_args=[T.Tensor((100,), "uint8", data=Dptr)])
+            C = T.alloc_tensor(ty_args=[T.Tensor((100,), promote_dtype)])
             for i in T.grid(100):
                 C[i] = promote_uint8(dtype, promote_dtype, A[i]) + promote_uint8(
                     dtype, promote_dtype, B[i]
@@ -216,11 +216,11 @@ def test_fp8_compute_legalize(dtype, promote_dtype):
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_fp8_compute_legalize_preserves_opaque_buffer_access(dtype, promote_dtype):
+def test_fp8_compute_legalize_preserves_opaque_tensor_access(dtype, promote_dtype):
     @T.function
     def before():
-        buffer = T.alloc_tensor((16,), dtype)
-        T.evaluate(T.call_extern("consume", buffer.data, ty="void"))
+        tensor = T.alloc_tensor(ty_args=[T.Tensor((16,), dtype)])
+        T.evaluate(T.call_extern("consume", tensor.data, ty="void"))
 
     before_mod = tvm.IRModule.from_expr(before)
     after = tvm.tirx.transform.FP8ComputeLegalize(promote_dtype)(before_mod)

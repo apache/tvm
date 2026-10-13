@@ -18,7 +18,7 @@
  */
 #include <tvm/ir/prim/op.h>
 #include <tvm/script/printer/doc_translator.h>
-#include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/tile/exec_scope.h>
 
 #include <optional>
 
@@ -37,6 +37,7 @@ ffi::Optional<ExprDoc> ExecScopeDocTranslate(DocTranslatorObj*, ffi::AnyView inp
   const auto* scope =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ExecScopeNode>(input);
   return NamespaceDoc("tirx")
+      ->Attr(scope->backend)
       ->Attr("ExecScope")
       ->Call({LiteralDoc::Str(scope->name(), std::nullopt)});
 }

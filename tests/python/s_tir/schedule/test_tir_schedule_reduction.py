@@ -299,7 +299,7 @@ def test_decompose_reduction_nested_block():
         for i, ko in T.grid(1, 2):
             with Ts.sblock("outer"):
                 vi, vko = Ts.axis.remap("SR", [i, ko])
-                C = Ts.sblock_alloc_buffer((32,), dtype="float32")
+                C = Ts.sblock_alloc_tensor((32,), dtype="float32")
                 with Ts.init():
                     B[vi] = T.float32(0)
                 for ki in T.serial(32):
@@ -324,7 +324,7 @@ def test_decompose_reduction_nested_block():
                     vi, vko = Ts.axis.remap("SR", [i, ko])
                     Ts.reads(B[vi], A[vi, vko * 32 : vko * 32 + 32])
                     Ts.writes(B[vi])
-                    C = Ts.sblock_alloc_buffer((32,))
+                    C = Ts.sblock_alloc_tensor((32,))
                     for ki in range(32):
                         with Ts.sblock("inner_1"):
                             vki = Ts.axis.spatial(32, ki)
@@ -352,7 +352,7 @@ def test_decompose_reduction_with_thread_binding():
     class Before:
         @Ts.function
         def main(A: T.Tensor((32, 16), "float32"), B: T.Tensor((32,), "float32")):
-            for t in T.thread_binding(0, 32, thread="threadIdx.x"):
+            for t in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
                 for r in T.serial(16):
                     with Ts.sblock("B"):
                         vi, vr = Ts.axis.remap("SR", [t, r])
@@ -364,11 +364,11 @@ def test_decompose_reduction_with_thread_binding():
     class Expected:
         @Ts.function
         def main(A: T.Tensor((32, 16), "float32"), B: T.Tensor((32,), "float32")):
-            for t_init in T.thread_binding(0, 32, thread="threadIdx.x"):
+            for t_init in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("B_init"):
                     vi = Ts.axis.remap("S", [t_init])
                     B[vi] = T.float32(0)
-            for t in T.thread_binding(0, 32, thread="threadIdx.x"):
+            for t in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
                 for r in T.serial(16):
                     with Ts.sblock("B"):
                         vi, vr = Ts.axis.remap("SR", [t, r])
@@ -433,7 +433,7 @@ def test_decompose_reduction_drops_mixed_rfactor_bound():
     class Expected:
         @Ts.function
         def main(A: T.Tensor((20,), "float32"), B: T.Tensor((), "float32")):
-            B_rf = Ts.sblock_alloc_buffer((16,), elem_offset=T.int64(0))
+            B_rf = Ts.sblock_alloc_tensor((16,), elem_offset=T.int64(0))
             for k_1_init in range(16):
                 with Ts.sblock("B_rf_init"):
                     vk_1 = Ts.axis.spatial(16, k_1_init)

@@ -19,17 +19,16 @@
 
 /*!
  * \file thread_storage_scope.h
- * \brief Extract launch parameters configuration from ffi::PackedArgs.
+ * \brief Thread and storage scope helpers.
  */
 #ifndef TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
 #define TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
 
-#include <tvm/ffi/function.h>
+#include <tvm/ffi/error.h>
 
+#include <cstddef>
+#include <functional>
 #include <string>
-#include <vector>
-
-#include "metadata.h"
 
 namespace tvm {
 namespace runtime {
@@ -204,162 +203,6 @@ struct StorageScope {
     }
     return r;
   }
-};
-
-/*! \brief class to represent thread scope */
-struct ThreadScope {
-  /*! \brief The rank of thread scope */
-  int rank{0};
-  /*! \brief the dimension index under the rank */
-  int dim_index{0};
-  /*!
-   * \brief Create storage scope from string
-   * \param s The string to be parsed.
-   * \return The storage scope.
-   */
-  static ThreadScope Create(const std::string& s) {
-    ThreadScope r;
-    if (s.compare(0, 7, "vthread") == 0) {
-      // virtual thread at the same level as local
-      r.rank = 1;
-      r.dim_index = -1;
-    } else if (s.compare(0, 9, "blockIdx.") == 0) {
-      r.rank = 0;
-      r.dim_index = static_cast<int>(s[9] - 'x');
-    } else if (s.compare(0, 10, "threadIdx.") == 0) {
-      r.rank = 1;
-      r.dim_index = static_cast<int>(s[10] - 'x');
-    } else if (s.compare(0, 14, "clusterCtaIdx.") == 0) {
-      r.rank = 2;
-      r.dim_index = static_cast<int>(s[14] - 'x');
-    } else if (s.compare(0, 23, "preferredClusterCtaIdx.") == 0) {
-      r.rank = 3;
-      r.dim_index = static_cast<int>(s[23] - 'x');
-    } else {
-      TVM_FFI_THROW(InternalError) << "Unknown threadscope " << s;
-    }
-    return r;
-  }
-
-  /*! \brief Whether the thread scope is a virtual thread */
-  bool IsVirtualThread() const { return rank == 1 && dim_index == -1; }
-  /*! \brief Whether the thread scope is a block */
-  bool IsBlockIdx() const { return rank == 0; }
-  /*! \brief Whether the thread scope is a thread */
-  bool IsThreadIdx() const { return rank == 1 && dim_index != -1; }
-  /*! \brief Whether the thread scope is a cluster */
-  bool IsClusterCtaIdx() const { return rank == 2; }
-};
-
-/*! \brief workload specification */
-struct ThreadWorkLoad {
-  // work_size layout: [0-2] grid, [3-5] block, [6-8] cluster, [9-11] preferred_cluster
-  size_t work_size[12];
-  // Dynamic shared memory allocation size in bytes.
-  size_t dyn_shmem_size{0};
-  /*!
-   * \param i The block dimension.
-   * \return i-th block dim
-   */
-  inline size_t block_dim(size_t i) const { return work_size[i + 3]; }
-  /*!
-   * \param i The grid dimension.
-   * \return i-th grid dim
-   */
-  inline size_t grid_dim(size_t i) const { return work_size[i]; }
-  /*!
-   * \param i The cluster dimension.
-   * \return i-th cluster dim
-   */
-  inline size_t cluster_dim(size_t i) const { return work_size[i + 6]; }
-  /*!
-   * \param i The preferred cluster dimension.
-   * \return i-th preferred cluster dim
-   */
-  inline size_t preferred_cluster_dim(size_t i) const { return work_size[i + 9]; }
-};
-
-/*! \brief Launch parameters configuration */
-class LaunchParamConfig {
- public:
-  void Init(size_t base, const ffi::Array<ffi::String>& launch_param_tags) {
-    base_ = base;
-    use_cluster_launch_ = false;
-    std::vector<bool> filled(12, false);
-    for (size_t i = 0; i < launch_param_tags.size(); ++i) {
-      std::string tag(launch_param_tags[i]);
-      if (tag == launch_param::kUseDynamicSharedMemoryTag) {
-        TVM_FFI_ICHECK_EQ(i, launch_param_tags.size() - 1)
-            << "kUseDynamicSharedMemoryTag should be the last tag in launch_param_tags.";
-        use_dyn_shared_memory_ = true;
-      } else if (tag == launch_param::kUseProgramaticDependentLaunch) {
-        use_programmatic_dependent_launch_ = true;
-      } else if (tag == launch_param::kUseCooperativeLaunch) {
-        use_cooperative_launch_ = true;
-      } else if (tag == launch_param::kUseRequiredBlockDimension) {
-        use_required_block_dimension_ = true;
-      } else {
-        ThreadScope ts = ThreadScope::Create(tag);
-        if (ts.IsClusterCtaIdx()) {
-          use_cluster_launch_ = true;
-        }
-        arg_index_map_.push_back(ts.rank * 3 + ts.dim_index);
-        filled[ts.rank * 3 + ts.dim_index] = true;
-      }
-    }
-    work_dim_ = 1;
-    for (int i = 0; i < 3; ++i) {
-      if (filled[i] || filled[i + 3]) {
-        work_dim_ = i + 1;
-      }
-    }
-  }
-  // extract workload from arguments.
-  ThreadWorkLoad Extract(ffi::PackedArgs args) const {
-    ThreadWorkLoad w;
-    std::fill(w.work_size, w.work_size + 12, 1);
-    const TVMFFIAny* raw_args = reinterpret_cast<const TVMFFIAny*>(args.data());
-
-    for (size_t i = 0; i < arg_index_map_.size(); ++i) {
-      // Dynamic shapes can result in 0 dim size. Guard to ensure that the dim size is at least 1.
-      size_t size = static_cast<size_t>(raw_args[base_ + i].v_int64);
-      if (size > 0) {
-        w.work_size[arg_index_map_[i]] = size;
-      }
-    }
-    if (use_dyn_shared_memory_) {
-      w.dyn_shmem_size = static_cast<size_t>(raw_args[base_ + arg_index_map_.size()].v_int64);
-    }
-    return w;
-  }
-  // return the work dim
-  size_t work_dim() const { return work_dim_; }
-
-  bool use_programtic_dependent_launch() const { return use_programmatic_dependent_launch_; }
-
-  bool use_cooperative_launch() const { return use_cooperative_launch_; }
-
-  bool use_required_block_dimension() const { return use_required_block_dimension_; }
-
-  bool use_cluster_launch() const { return use_cluster_launch_; }
-
- private:
-  /*! \brief base axis */
-  size_t base_;
-  /*! \brief The worker dimension */
-  size_t work_dim_;
-  /*! \brief The index mapping. */
-  std::vector<uint32_t> arg_index_map_;
-  /*! \brief Whether or not use dynamic shared memory. */
-  bool use_dyn_shared_memory_{false};
-  /*! \brief Whether or not use programmatic dependent launch. */
-  bool use_programmatic_dependent_launch_{false};
-  /*! \brief Whether or not use cooperative launch. */
-  bool use_cooperative_launch_{false};
-  /*! \brief Whether CUDA should use the kernel's statically required block dimension. */
-  bool use_required_block_dimension_{false};
-  /*! \brief Whether the kernel declares a cluster-to-CTA scope. */
-  bool use_cluster_launch_{false};
 };
 
 }  // namespace runtime

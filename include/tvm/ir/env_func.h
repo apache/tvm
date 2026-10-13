@@ -41,30 +41,30 @@ namespace tvm {
  * under the assumption that the same function is registered during load.
  * \sa EnvFunc
  */
-class EnvFuncNode : public ffi::Object {
+class EnvFuncObj : public ffi::Object {
  public:
   /*! \brief Unique name of the global function */
   ffi::String name;
   /*! \brief The internal packed function */
   ffi::Function func;
   /*! \brief constructor */
-  EnvFuncNode() {}
+  EnvFuncObj() {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     // func do not participate in structural equal and hash.
-    refl::ObjectDef<EnvFuncNode>()
-        .def_ro("name", &EnvFuncNode::name)
-        .def_ro("func", &EnvFuncNode::func, refl::AttachFieldFlag::SEqHashIgnore());
+    refl::ObjectDef<EnvFuncObj>()
+        .def_ro("name", &EnvFuncObj::name)
+        .def_ro("func", &EnvFuncObj::func, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.EnvFunc", EnvFuncNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.EnvFunc", EnvFuncObj, ffi::Object);
 };
 
 /*!
- * \brief Managed reference to EnvFuncNode.
- * \sa EnvFuncNode
+ * \brief Managed reference to EnvFuncObj.
+ * \sa EnvFuncObj
  */
 class EnvFunc : public ffi::ObjectRef {
  public:
@@ -77,7 +77,7 @@ class EnvFunc : public ffi::ObjectRef {
    */
   explicit EnvFunc(ffi::UnsafeInit tag) : ffi::ObjectRef(tag) {}
   /*! \return The internal global function pointer */
-  const EnvFuncNode* operator->() const { return static_cast<const EnvFuncNode*>(get()); }
+  const EnvFuncObj* operator->() const { return static_cast<const EnvFuncObj*>(get()); }
   /*!
    * \brief Invoke the function.
    * \param args The arguments
@@ -85,7 +85,7 @@ class EnvFunc : public ffi::ObjectRef {
    */
   template <typename... Args>
   ffi::Any operator()(Args&&... args) const {
-    const EnvFuncNode* n = operator->();
+    const EnvFuncObj* n = operator->();
     TVM_FFI_ICHECK(n != nullptr);
     return n->func(std::forward<Args>(args)...);
   }
@@ -95,9 +95,9 @@ class EnvFunc : public ffi::ObjectRef {
    * \return The created global function.
    * \note The function can be unique
    */
-  TVM_DLL static EnvFunc Get(const ffi::String& name);
+  TVM_TIRX_DLL static EnvFunc Get(const ffi::String& name);
   /*! \brief specify container node */
-  using ContainerType = EnvFuncNode;
+  using ContainerType = EnvFuncObj;
 };
 
 /*!
@@ -136,14 +136,14 @@ class TypedEnvFunc<R(Args...)> : public ffi::ObjectRef {
     return *this;
   }
   /*! \return The internal global function pointer */
-  const EnvFuncNode* operator->() const { return static_cast<const EnvFuncNode*>(get()); }
+  const EnvFuncObj* operator->() const { return static_cast<const EnvFuncObj*>(get()); }
   /*!
    * \brief Invoke the function.
    * \param args The arguments
    * \returns The return value.
    */
   R operator()(Args... args) const {
-    const EnvFuncNode* n = operator->();
+    const EnvFuncObj* n = operator->();
     TVM_FFI_ICHECK(n != nullptr);
     if constexpr (std::is_same_v<R, void>) {
       n->func(std::forward<Args>(args)...);
@@ -157,7 +157,7 @@ class TypedEnvFunc<R(Args...)> : public ffi::ObjectRef {
     }
   }
   /*! \brief specify container node */
-  using ContainerType = EnvFuncNode;
+  using ContainerType = EnvFuncObj;
 };
 
 }  // namespace tvm

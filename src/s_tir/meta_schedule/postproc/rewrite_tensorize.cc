@@ -65,11 +65,11 @@ void CollectTensorizationJobs(
   ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(func->body, walk_fn);
 }
 
-class RewriteTensorizeNode : public PostprocNode {
+class RewriteTensorizeObj : public PostprocObj {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RewriteTensorizeNode>();
+    refl::ObjectDef<RewriteTensorizeObj>();
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final {}
@@ -77,17 +77,17 @@ class RewriteTensorizeNode : public PostprocNode {
   bool Apply(const s_tir::Schedule& sch) final;
 
   Postproc Clone() const {
-    ffi::ObjectPtr<RewriteTensorizeNode> n = ffi::make_object<RewriteTensorizeNode>(*this);
+    ffi::ObjectPtr<RewriteTensorizeObj> n = ffi::make_object<RewriteTensorizeObj>(*this);
     return Postproc(ffi::UnsafeInit{}, n);
   }
 
   bool vectorize_init_loop = false;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RewriteTensorize", RewriteTensorizeNode,
-                                    PostprocNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RewriteTensorize", RewriteTensorizeObj,
+                                    PostprocObj);
 };
 
-bool RewriteTensorizeNode::Apply(const s_tir::Schedule& sch) {
+bool RewriteTensorizeObj::Apply(const s_tir::Schedule& sch) {
   // The rewriting jobs, 3-tuple (block_name, func_name, job_func)
   std::vector<std::tuple<ffi::String, ffi::String, std::function<void(s_tir::SBlockRV)>>> jobs;
   for (const auto& kv : sch->mod()->functions) {
@@ -109,14 +109,14 @@ bool RewriteTensorizeNode::Apply(const s_tir::Schedule& sch) {
 }
 
 Postproc Postproc::RewriteTensorize(bool vectorize_init_loop) {
-  ffi::ObjectPtr<RewriteTensorizeNode> n = ffi::make_object<RewriteTensorizeNode>();
+  ffi::ObjectPtr<RewriteTensorizeObj> n = ffi::make_object<RewriteTensorizeObj>();
   n->vectorize_init_loop = vectorize_init_loop;
   return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  RewriteTensorizeNode::RegisterReflection();
+  RewriteTensorizeObj::RegisterReflection();
   refl::GlobalDef().def("s_tir.meta_schedule.PostprocRewriteTensorize", Postproc::RewriteTensorize);
 }
 

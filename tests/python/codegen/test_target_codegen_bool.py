@@ -40,9 +40,9 @@ def test_cmp_load_store(target):
             D: T.Tensor((32,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            for bx in T.thread_binding(8, thread="blockIdx.x"):
-                for tx in T.thread_binding(4, thread="threadIdx.x"):
-                    C = T.alloc_tensor((1,), "bool", scope="local")
+            with T.launch_thread("blockIdx.x", 8) as bx:
+                with T.launch_thread("threadIdx.x", 4) as tx:
+                    C = T.alloc_tensor(ty_args=[T.Tensor((1,), "bool", scope="local")])
                     C[0] = B[bx * 4 + tx] < A[bx * 4 + tx]
                     D[bx * 4 + tx] = T.Cast("float32", C[0] and T.float32(1.0) < A[bx * 4 + tx])
 
@@ -55,7 +55,7 @@ def test_cmp_load_store(target):
             D: T.Tensor((32,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            C = T.alloc_tensor((32,), "bool")
+            C = T.alloc_tensor(ty_args=[T.Tensor((32,), "bool")])
             for i0 in range(32):
                 C[i0] = B[i0] < A[i0]
             for i0 in range(32):
@@ -65,7 +65,7 @@ def test_cmp_load_store(target):
     is_gpu = tvm.target.Target(target).kind.name != "llvm"
     mod = GPUModule if is_gpu else CPUModule
 
-    f = tvm.compile(mod, target=target)
+    f = tvm.tirx.compile(mod, target=target)
 
     a_np = np.random.uniform(size=arr_size).astype("float32")
     b_np = np.random.uniform(size=arr_size).astype("float32")
@@ -93,7 +93,7 @@ def test_bitwise_not_c(tmp_path):
         for i in range(5):
             output[i] = T.bitwise_not(values[i] != 0)
 
-    built = tvm.compile(complement, target="c")
+    built = tvm.tirx.compile(complement, target="c")
     library = str(tmp_path / "complement.so")
     built.export_library(library)
     built = tvm.runtime.load_module(library)

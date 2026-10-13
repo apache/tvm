@@ -84,8 +84,8 @@ def manual_sync():
     return region("s_tir.manual_sync", [])
 
 
-@_register_mutable_decl("s_tir.match_buffer")
-def match_buffer(
+@_register_mutable_decl("s_tir.match_tensor")
+def match_tensor(
     param: TensorLoad | TensorRegion,
     shape: list[Expr] | tuple[Expr] | Expr | Integral = None,
     dtype: str = "float32",
@@ -98,21 +98,21 @@ def match_buffer(
     layout: str | Layout | None = MISSING,
     allocated_addr: Expr | int | tuple[Expr | int, ...] | None = None,
 ) -> Var:
-    """Bind a buffer subregion inside an S-TIR block.
+    """Bind a tensor subregion inside an S-TIR block.
 
     Function inputs use Tensor annotations in the function signature.
     Shape and dtype are inferred when the source is a TensorRegion.
     """
     if not isinstance(param, TensorLoad | TensorRegion):
-        raise TypeError("match_buffer requires a buffer subregion; use Tensor for function inputs")
+        raise TypeError("match_tensor requires a tensor subregion; use Tensor for function inputs")
     if isinstance(param, TensorRegion) and not tir.is_tensor_var(param.source):
-        raise TypeError("match_buffer requires a TensorRegion with a TensorVar source")
+        raise TypeError("match_tensor requires a TensorRegion with a TensorVar source")
     if shape is None:
         if isinstance(param, TensorRegion):
             dtype = param.source.ty.dtype
             shape = [region.extent for region in param.region]
         else:
-            raise ValueError("Shape must be specified when binding a scalar buffer access")
+            raise ValueError("Shape must be specified when binding a scalar tensor access")
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
     if strides is None:
         strides = []
@@ -120,7 +120,7 @@ def match_buffer(
         allocated_addr = []
     if not isinstance(allocated_addr, list | tuple):
         allocated_addr = [allocated_addr]
-    result = _ffi_api.MatchBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+    result = _ffi_api.MatchTensor(  # type: ignore[attr-defined] # pylint: disable=no-member
         param,
         shape,
         dtype,
@@ -183,44 +183,44 @@ def where(predicate: Expr | int) -> None:
     _ffi_api.Where(predicate)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def reads(*buffer_slices: list[TensorRegion | TensorLoad]) -> None:
-    """The block buffer region reading statement.
+def reads(*tensor_slices: list[TensorRegion | TensorLoad]) -> None:
+    """The block tensor region reading statement.
 
     Parameters
     ----------
-    buffer_slices : List[Union[TensorRegion, TensorLoad]]
-        The array of buffer regions to read.
+    tensor_slices : List[Union[TensorRegion, TensorLoad]]
+        The array of tensor regions to read.
     """
-    if len(buffer_slices) == 1:
-        if isinstance(buffer_slices[0], tuple):
-            buffer_slices = list(buffer_slices[0])
-        elif isinstance(buffer_slices[0], list):
-            buffer_slices = buffer_slices[0]  # type: ignore[assignment]
+    if len(tensor_slices) == 1:
+        if isinstance(tensor_slices[0], tuple):
+            tensor_slices = list(tensor_slices[0])
+        elif isinstance(tensor_slices[0], list):
+            tensor_slices = tensor_slices[0]  # type: ignore[assignment]
         else:
-            buffer_slices = [buffer_slices[0]]
+            tensor_slices = [tensor_slices[0]]
     else:
-        buffer_slices = list(buffer_slices)  # type: ignore[assignment]
-    _ffi_api.Reads(buffer_slices)  # type: ignore[attr-defined] # pylint: disable=no-member
+        tensor_slices = list(tensor_slices)  # type: ignore[assignment]
+    _ffi_api.Reads(tensor_slices)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def writes(*buffer_slices: list[TensorRegion | TensorLoad]) -> None:
-    """The block buffer region writing statement.
+def writes(*tensor_slices: list[TensorRegion | TensorLoad]) -> None:
+    """The block tensor region writing statement.
 
     Parameters
     ----------
-    buffer_slices : List[Union[TensorRegion, TensorLoad]]
-        The array of buffer regions to write.
+    tensor_slices : List[Union[TensorRegion, TensorLoad]]
+        The array of tensor regions to write.
     """
-    if len(buffer_slices) == 1:
-        if isinstance(buffer_slices[0], tuple):
-            buffer_slices = list(buffer_slices[0])
-        elif isinstance(buffer_slices[0], list):
-            buffer_slices = buffer_slices[0]  # type: ignore[assignment]
+    if len(tensor_slices) == 1:
+        if isinstance(tensor_slices[0], tuple):
+            tensor_slices = list(tensor_slices[0])
+        elif isinstance(tensor_slices[0], list):
+            tensor_slices = tensor_slices[0]  # type: ignore[assignment]
         else:
-            buffer_slices = [buffer_slices[0]]
+            tensor_slices = [tensor_slices[0]]
     else:
-        buffer_slices = list(buffer_slices)  # type: ignore[assignment]
-    _ffi_api.Writes(buffer_slices)  # type: ignore[attr-defined] # pylint: disable=no-member
+        tensor_slices = list(tensor_slices)  # type: ignore[assignment]
+    _ffi_api.Writes(tensor_slices)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def sblock_attr(attrs: dict[str, Any]) -> None:
@@ -234,7 +234,7 @@ def sblock_attr(attrs: dict[str, Any]) -> None:
     return _ffi_api.BlockAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def sblock_alloc_buffer(
+def sblock_alloc_tensor(
     shape: list[Expr] | tuple[Expr] | Expr | Integral,
     dtype: str = "float32",
     data: Var = None,
@@ -246,14 +246,14 @@ def sblock_alloc_buffer(
     layout: str | Layout | None = MISSING,
     allocated_addr: int | tuple[int, ...] | None = None,
 ) -> Var:
-    """SBlock-level buffer allocation function.
+    """SBlock-level tensor allocation function.
 
     Parameters
     ----------
     shape : Union[List[Expr], Tuple[Expr], Expr, Integral]
-        The type of the buffer prior to flattening.
+        The type of the tensor prior to flattening.
     dtype : str
-        The data type in the content of the buffer.
+        The data type in the content of the tensor.
     data : Var
         The pointer to the head of the data.
     strides : List[Expr]
@@ -261,24 +261,24 @@ def sblock_alloc_buffer(
     elem_offset : Expr
         The offset in terms of number of dtype elements (including lanes).
     scope : str
-        The optional storage scope of buffer data pointer.
+        The optional storage scope of tensor data pointer.
     align : int
         The alignment requirement of data pointer in bytes.
     offset_factor : int
         The factor of elem_offset field.
     layout: Optional[Union[str, Layout]]
-        The layout of the buffer.
+        The layout of the tensor.
 
     allocated_addr: Optional[Union[int, Tuple[int]]]
-        The address of the allocated buffer. Might be multi-dimensional.
+        The address of the allocated tensor. Might be multi-dimensional.
         There can be pooled storage scopes on some devices. For example,
-        the Trainium device has a pooled storage scope for the SRAN buffers. ("trn.sbuf")
+        the Trainium device has a pooled storage scope for the SRAN tensors. ("trn.sbuf")
         CUDA has a pooled storage scope for the shared memory ("shared.dyn")
 
     Returns
     -------
     res : Var
-        The allocated buffer.
+        The allocated tensor.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
     if strides is None:
@@ -287,7 +287,7 @@ def sblock_alloc_buffer(
         allocated_addr = []
     if not isinstance(allocated_addr, list | tuple):
         allocated_addr = [allocated_addr]
-    buf = _ffi_api.SBlockAllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+    tensor = _ffi_api.SBlockAllocTensor(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
         data,
@@ -299,8 +299,8 @@ def sblock_alloc_buffer(
         _get_layout(layout, shape, scope),
         allocated_addr,
     )
-    _record_meta_resource(buf, skip_frames=2)
-    return buf
+    _record_meta_resource(tensor, skip_frames=2)
+    return tensor
 
 
 def _as_range(dom: ir.Range | list[Expr]) -> ir.Range:
@@ -490,9 +490,9 @@ __all__ = [
     "comm_reducer",
     "iter_var",
     "manual_sync",
-    "match_buffer",
+    "match_tensor",
     "reads",
-    "sblock_alloc_buffer",
+    "sblock_alloc_tensor",
     "sblock_attr",
     "where",
     "writes",

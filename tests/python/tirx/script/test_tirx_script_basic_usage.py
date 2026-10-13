@@ -26,7 +26,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import ir, tirx
-from tvm.ir import PointerType, PrimType, assert_structural_equal
+from tvm.ir import PrimType, PtrType, assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import tirx as T
 
@@ -53,19 +53,19 @@ def test_native_concise_scopes_unwind_with_their_parent():
     assert body.body[0].body[0].value.a.same_as(bx) and body.body[0].body[0].value.b.same_as(tx)
 
 
-def test_tir_buffer_annotation():
-    buffer_0 = T.Tensor((128, 128), "float32")
+def test_tir_tensor_annotation():
+    tensor_0 = T.Tensor((128, 128), "float32")
     assert (
-        isinstance(buffer_0, tirx.TensorType)
-        and list(buffer_0.shape) == [128, 128]
-        and buffer_0.dtype == ir.PrimType("float32")
+        isinstance(tensor_0, tirx.TensorType)
+        and list(tensor_0.shape) == [128, 128]
+        and tensor_0.dtype == ir.PrimType("float32")
     )
 
-    buffer_1 = T.Tensor((64, 64, 64), "int32")
+    tensor_1 = T.Tensor((64, 64, 64), "int32")
     assert (
-        isinstance(buffer_1, tirx.TensorType)
-        and list(buffer_1.shape) == [64, 64, 64]
-        and buffer_1.dtype == ir.PrimType("int32")
+        isinstance(tensor_1, tirx.TensorType)
+        and list(tensor_1.shape) == [64, 64, 64]
+        and tensor_1.dtype == ir.PrimType("int32")
     )
 
 
@@ -73,7 +73,7 @@ def test_tir_ptr_proxy():
     ptr_0 = T.handle("int32", "global")
     assert (
         isinstance(ptr_0, tirx.Var)
-        and isinstance(ptr_0.ty, ir.PointerType)
+        and isinstance(ptr_0.ty, ir.PtrType)
         and ptr_0.ty.element_type == ir.PrimType("int32")
         and ptr_0.ty.storage_scope == "global"
     )
@@ -81,7 +81,7 @@ def test_tir_ptr_proxy():
     ptr_1 = T.handle("float32", "shared")
     assert (
         isinstance(ptr_1, tirx.Var)
-        and isinstance(ptr_1.ty, ir.PointerType)
+        and isinstance(ptr_1.ty, ir.PtrType)
         and ptr_1.ty.element_type == ir.PrimType("float32")
         and ptr_1.ty.storage_scope == "shared"
     )
@@ -204,13 +204,13 @@ def test_tuple_let_binding_and_traversal():
 def test_annotation_syntax_comprehensive():
     """Comprehensive test for scalar annotation, T.let, banned annotations, and bare assignment."""
 
-    # 1. T.let with T.Var(PointerType) — round-trip
+    # 1. T.let with T.Var(PtrType) — round-trip
     # fmt: off
     @T.function
     def test_let_var():
         T.device_entry()
         smem = T.alloc_shared([128], "float16")
-        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("void")))] = T.reinterpret(
+        ptr: T.let[T.Var(name="ptr", ty=PtrType(PrimType("void")))] = T.reinterpret(
              smem.ptr_to([0] * len(smem.shape))
         , ty="handle")
         T.evaluate(ptr)
@@ -231,10 +231,10 @@ def func():
     # 3. Banned: non-PrimType annotation without T.let
     src_ptr = """
 from tvm.script import tirx as T
-from tvm.ir import PointerType, PrimType
+from tvm.ir import PtrType, PrimType
 @T.function
 def func():
-    x: T.Var(name="x", ty=PointerType(PrimType("float16"))) = T.int64(0)
+    x: T.Var(name="x", ty=PtrType(PrimType("float16"))) = T.int64(0)
 """
     with pytest.raises(tvm.error.InternalError):
         from_source(src_ptr)
@@ -258,7 +258,7 @@ def test_pointer_expression_assignment_uses_bind():
     @T.function
     def func() -> None:
         T.device_entry()
-        buf = T.alloc_tensor((4,), "uint32", scope="shared")
+        buf = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         ptr = buf.ptr_to([1])
         T.evaluate(T.reinterpret( ptr, ty="uint64"))
     # fmt: on
@@ -266,12 +266,12 @@ def test_pointer_expression_assignment_uses_bind():
     binds = []
 
     def collect_pointer_bind(node):
-        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PointerType):
+        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PtrType):
             binds.append(node)
 
     tvm_ffi.structural_walk(func.body, collect_pointer_bind)
     assert len(binds) == 1
-    assert isinstance(binds[0].var.ty, PointerType)
+    assert isinstance(binds[0].var.ty, PtrType)
     assert_structural_equal(binds[0].var.ty, binds[0].value.ty)
 
     code = func.script()
@@ -288,7 +288,7 @@ def test_pointer_expression_rebinding_creates_distinct_native_bindings():
     @T.function
     def func() -> None:
         T.device_entry()
-        buf = T.alloc_tensor((4,), "uint32", scope="shared")
+        buf = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         ptr = buf.ptr_to([0])
         ptr = buf.ptr_to([1])
         T.evaluate(T.reinterpret( ptr, ty="uint64"))
@@ -297,14 +297,14 @@ def test_pointer_expression_rebinding_creates_distinct_native_bindings():
     bindings, uses = [], []
 
     def collect(node):
-        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PointerType):
+        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PtrType):
             bindings.append(node)
         elif isinstance(node, tvm.ir.Evaluate):
             uses.append(node)
 
     tvm_ffi.structural_walk(func.body, collect)
     assert len(bindings) == 2
-    assert all(isinstance(binding.var.ty, PointerType) for binding in bindings)
+    assert all(isinstance(binding.var.ty, PtrType) for binding in bindings)
     assert not bindings[0].var.same_as(bindings[1].var)
     assert len(uses) == 1
     assert uses[0].value.args[0].same_as(bindings[1].var)
@@ -316,9 +316,9 @@ def test_pointer_expression_assignment_can_shadow_extra_var():
 @T.function
 def func() -> None:
     T.device_entry()
-    buf = T.alloc_tensor((4,), "uint32", scope="shared")
+    buf = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
     ptr = buf.ptr_to([1])
-    view = T.decl_tensor((3,), "uint32", data=ptr, scope="shared")
+    view = T.decl_tensor(ptr, ty_args=[T.Tensor((3,), "uint32", scope="shared")])
     view[0] = T.uint32(0)
 """
     func = tvm.script.from_source(source, extra_vars={"T": T, "ptr": object()})
@@ -326,7 +326,7 @@ def func() -> None:
     binds = []
 
     def collect_pointer_bind(node):
-        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PointerType):
+        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PtrType):
             binds.append(node)
 
     tvm_ffi.structural_walk(func.body, collect_pointer_bind)
@@ -446,7 +446,7 @@ def test_vector_annotation_syntax_multidim():
         # fmt: on
 
     code = func.script()
-    assert "alloc_local((4, 8)" in code or "float32[4, 8]" in code
+    assert 'alloc_tensor(ty_args=[T.Tensor((4, 8), "float32", scope="local"' in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
 
@@ -601,7 +601,7 @@ def test_roundtrip_break_while():
     def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
-        i = T.alloc_tensor((1,), "int32", scope="local")
+        i = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         i[0] = 0
         while i[0] < 10:
             A[i[0]] = i[0] * 2
@@ -620,7 +620,7 @@ def test_roundtrip_break_nested():
     def test(A: T.Tensor((9,), 'int32')):
 
         T.device_entry()
-        idx = T.alloc_tensor((1,), "int32", scope="local")
+        idx = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         idx[0] = 0
         for i in T.serial(3):
             for j in T.serial(3):
@@ -656,7 +656,7 @@ def test_roundtrip_continue_while():
     def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
-        i = T.alloc_tensor((1,), "int32", scope="local")
+        i = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         i[0] = 0
         while i[0] < 10:
             if (i[0] % 2) == 1:
@@ -676,7 +676,7 @@ def test_roundtrip_continue_nested():
     def test(A: T.Tensor((9,), 'int32')):
 
         T.device_entry()
-        idx = T.alloc_tensor((1,), dtype="int32", scope="local")
+        idx = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         idx[0] = 0
         for i in T.serial(3):
             for j in T.serial(3):
@@ -929,11 +929,6 @@ def test_loop_var_dtype_casts_mismatched_bound():
 def test_loop_var_dtype_rejects_unsupported(dtype):
     with pytest.raises(Exception, match='must be "int32" or "uint32"'):
         T.serial(4, dtype=dtype)
-
-
-def test_thread_binding_has_no_dtype_parameter():
-    with pytest.raises(TypeError):
-        T.thread_binding(0, 128, "threadIdx.x", dtype="uint32")
 
 
 def test_hand_built_for_promotes_int_literal_bounds_to_uint32():

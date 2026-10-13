@@ -30,6 +30,8 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/timer.h>
 
+#include <algorithm>
+
 #include "rocm_common.h"
 
 namespace tvm {
@@ -38,115 +40,131 @@ namespace runtime {
 class ROCMDeviceAPI final : public DeviceAPI {
  public:
   void SetDevice(Device dev) final { ROCM_CALL(hipSetDevice(dev.device_id)); }
-  void GetAttr(Device device, DeviceAttrKind kind, ffi::Any* rv) final {
+  ffi::Any GetAttr(Device device, const ffi::String& name) final {
+    ffi::Any rv;
     int value = 0;
-    switch (kind) {
-      case kExist: {
-        if (hsa_init() == HSA_STATUS_SUCCESS) {
-          int dev;
-          ROCM_CALL(hipGetDeviceCount(&dev));
-          value = dev > device.device_id ? 1 : 0;
-          hsa_shut_down();
-        } else {
-          value = 0;
-        }
-        break;
+    if (name == "exist") {
+      if (hsa_init() == HSA_STATUS_SUCCESS) {
+        int count = 0;
+        auto err = hipGetDeviceCount(&count);
+        value = err == hipSuccess && device.device_id >= 0 && device.device_id < count;
+        hsa_shut_down();
+      } else {
+        value = 0;
       }
-      case kMaxThreadsPerBlock: {
-        ROCM_CALL(
-            hipDeviceGetAttribute(&value, hipDeviceAttributeMaxThreadsPerBlock, device.device_id));
-        break;
-      }
-      case kWarpSize: {
-        ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeWarpSize, device.device_id));
-        break;
-      }
-      case kMaxSharedMemoryPerBlock: {
-        ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeMaxSharedMemoryPerBlock,
-                                        device.device_id));
-        break;
-      }
-      case kComputeVersion: {
-        std::ostringstream os;
-        ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeComputeCapabilityMajor,
-                                        device.device_id));
-        os << value << ".";
-        ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeComputeCapabilityMinor,
-                                        device.device_id));
-        os << value;
-        *rv = os.str();
-        return;
-      }
-      case kDeviceName: {
-        std::string name(256, 0);
-        ROCM_CALL(hipDeviceGetName(&name[0], name.size(), device.device_id));
-        name.resize(strlen(name.c_str()));
-        *rv = std::move(name);
-        return;
-      }
-      case kMaxClockRate: {
-        ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeClockRate, device.device_id));
-        break;
-      }
-      case kMultiProcessorCount: {
-        ROCM_CALL(
-            hipDeviceGetAttribute(&value, hipDeviceAttributeMultiprocessorCount, device.device_id));
-        break;
-      }
-      case kMaxThreadDimensions: {
-        int dims[3];
-        ROCM_CALL(
-            hipDeviceGetAttribute(&dims[0], hipDeviceAttributeMaxBlockDimX, device.device_id));
-        ROCM_CALL(
-            hipDeviceGetAttribute(&dims[1], hipDeviceAttributeMaxBlockDimY, device.device_id));
-        ROCM_CALL(
-            hipDeviceGetAttribute(&dims[2], hipDeviceAttributeMaxBlockDimZ, device.device_id));
-
-        std::stringstream ss;
-        ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
-        *rv = ss.str();
-        return;
-      }
-      case kMaxRegistersPerBlock:
-        ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeMaxRegistersPerBlock,
-                                        device.device_id));
-        break;
-      case kGcnArch: {
-        hipDeviceProp_t prop;
-        ROCM_CALL(hipGetDeviceProperties(&prop, device.device_id));
-        *rv = prop.gcnArchName;
-        return;
-      }
-      case kApiVersion: {
-        *rv = HIP_VERSION;
-        return;
-      }
-      case kDriverVersion:
-        return;
-      case kL2CacheSizeBytes: {
-        // Get size of device l2 cache size in bytes.
-        int l2_size;
-        ROCM_CALL(hipDeviceGetAttribute(&l2_size, hipDeviceAttributeL2CacheSize, device.device_id));
-        *rv = l2_size;
-        return;
-      }
-      case kTotalGlobalMemory: {
-        hipDeviceProp_t prop;
-        ROCM_CALL(hipGetDeviceProperties(&prop, device.device_id));
-        int64_t total_global_memory = prop.totalGlobalMem;
-        *rv = total_global_memory;
-        return;
-      }
-      case kImagePitchAlignment:
-        return;
-      case kAvailableGlobalMemory:
-        // Not currently implemented.
-        *rv = nullptr;
-        return;
+      return bool(value);
     }
-    *rv = value;
+    if (name == "max_threads_per_block") {
+      ROCM_CALL(
+          hipDeviceGetAttribute(&value, hipDeviceAttributeMaxThreadsPerBlock, device.device_id));
+      return value;
+    }
+    if (name == "warp_size") {
+      ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeWarpSize, device.device_id));
+      return value;
+    }
+    if (name == "max_shared_memory_per_block") {
+      ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeMaxSharedMemoryPerBlock,
+                                      device.device_id));
+      return value;
+    }
+    if (name == "compute_version") {
+      std::ostringstream os;
+      ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeComputeCapabilityMajor,
+                                      device.device_id));
+      os << value << ".";
+      ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeComputeCapabilityMinor,
+                                      device.device_id));
+      os << value;
+      rv = os.str();
+      return rv;
+    }
+    if (name == "device_name") {
+      std::string name(256, 0);
+      ROCM_CALL(hipDeviceGetName(&name[0], name.size(), device.device_id));
+      name.resize(strlen(name.c_str()));
+      rv = std::move(name);
+      return rv;
+    }
+    if (name == "max_clock_rate") {
+      ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeClockRate, device.device_id));
+      return value;
+    }
+    if (name == "multi_processor_count") {
+      ROCM_CALL(
+          hipDeviceGetAttribute(&value, hipDeviceAttributeMultiprocessorCount, device.device_id));
+      return value;
+    }
+    if (name == "max_thread_dimensions") {
+      int dims[3];
+      ROCM_CALL(hipDeviceGetAttribute(&dims[0], hipDeviceAttributeMaxBlockDimX, device.device_id));
+      ROCM_CALL(hipDeviceGetAttribute(&dims[1], hipDeviceAttributeMaxBlockDimY, device.device_id));
+      ROCM_CALL(hipDeviceGetAttribute(&dims[2], hipDeviceAttributeMaxBlockDimZ, device.device_id));
+
+      std::stringstream ss;
+      ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
+      rv = ss.str();
+      return rv;
+    }
+    if (name == "max_registers_per_block") {
+      ROCM_CALL(
+          hipDeviceGetAttribute(&value, hipDeviceAttributeMaxRegistersPerBlock, device.device_id));
+      return value;
+    }
+    if (name == "gcn_arch") {
+      hipDeviceProp_t prop;
+      ROCM_CALL(hipGetDeviceProperties(&prop, device.device_id));
+      rv = prop.gcnArchName;
+      return rv;
+    }
+    if (name == "api_version") {
+      rv = HIP_VERSION;
+      return rv;
+    }
+    if (name == "l2_cache_size_bytes") {
+      // Get size of device l2 cache size in bytes.
+      int l2_size;
+      ROCM_CALL(hipDeviceGetAttribute(&l2_size, hipDeviceAttributeL2CacheSize, device.device_id));
+      rv = l2_size;
+      return rv;
+    }
+    if (name == "total_global_memory") {
+      hipDeviceProp_t prop;
+      ROCM_CALL(hipGetDeviceProperties(&prop, device.device_id));
+      int64_t total_global_memory = prop.totalGlobalMem;
+      rv = total_global_memory;
+      return rv;
+    }
+    if (name == "available_global_memory") {
+      // Not currently implemented.
+      rv = nullptr;
+      return rv;
+    }
+
+    return rv;
   }
-  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
+  ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final {
+    TVM_FFI_CHECK(
+        !mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global",
+        ValueError)
+        << "Unsupported memory scope: " << mem_scope.value_or("");
+    struct Allocator {
+      ROCMDeviceAPI* api;
+      void AllocData(DLTensor* tensor) {
+        size_t alignment =
+            std::max(static_cast<size_t>(kAllocAlignment),
+                     static_cast<size_t>((tensor->dtype.bits / 8) * tensor->dtype.lanes));
+        tensor->data = api->AllocDataSpace(tensor->device, ffi::GetDataSize(*tensor), alignment,
+                                           tensor->dtype);
+      }
+      void FreeData(DLTensor* tensor) { api->FreeDataSpace(tensor->device, tensor->data); }
+    };
+    return ffi::Tensor::FromNDAlloc(Allocator{this}, shape, dtype, device);
+  }
+
+ private:
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) {
     TVM_FFI_ICHECK_EQ(256 % alignment, 0U) << "ROCM space is aligned at 256 bytes";
     void* ret;
     if (dev.device_type == kDLROCMHost) {
@@ -160,7 +178,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
     return ret;
   }
 
-  void FreeDataSpace(Device dev, void* ptr) final {
+  void FreeDataSpace(Device dev, void* ptr) {
     if (dev.device_type == kDLROCMHost) {
       ROCM_CALL(hipHostFree(ptr));
     } else {
@@ -169,6 +187,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
     }
   }
 
+ public:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
                       Device dev_from, Device dev_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
@@ -215,11 +234,15 @@ class ROCMDeviceAPI final : public DeviceAPI {
   }
 
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
-    return ROCMThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);
+    auto* entry = ROCMThreadEntry::ThreadLocal();
+    auto& pool = dev.device_type == kDLROCMHost ? entry->host_pool : entry->pool;
+    return pool.AllocWorkspace(dev, size);
   }
 
   void FreeWorkspace(Device dev, void* data) final {
-    ROCMThreadEntry::ThreadLocal()->pool.FreeWorkspace(dev, data);
+    auto* entry = ROCMThreadEntry::ThreadLocal();
+    auto& pool = dev.device_type == kDLROCMHost ? entry->host_pool : entry->pool;
+    pool.FreeWorkspace(dev, data);
   }
 
   static ROCMDeviceAPI* Global() {
@@ -238,7 +261,8 @@ class ROCMDeviceAPI final : public DeviceAPI {
   }
 };
 
-ROCMThreadEntry::ROCMThreadEntry() : pool(kDLROCM, ROCMDeviceAPI::Global()) {}
+ROCMThreadEntry::ROCMThreadEntry()
+    : pool(kDLROCM, ROCMDeviceAPI::Global()), host_pool(kDLROCMHost, ROCMDeviceAPI::Global()) {}
 
 ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() {
   static thread_local ROCMThreadEntry inst;
@@ -259,7 +283,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-class ROCMTimerNode : public TimerNode {
+class ROCMTimerObj : public TimerObj {
  public:
   virtual void Start() {
     int device_id;
@@ -278,15 +302,15 @@ class ROCMTimerNode : public TimerNode {
     ROCM_CALL(hipEventElapsedTime(&milliseconds, start_, stop_));
     return milliseconds * 1e6;
   }
-  virtual ~ROCMTimerNode() {
+  virtual ~ROCMTimerObj() {
     ROCM_CALL(hipEventDestroy(start_));
     ROCM_CALL(hipEventDestroy(stop_));
   }
-  ROCMTimerNode() {
+  ROCMTimerObj() {
     ROCM_CALL(hipEventCreate(&start_));
     ROCM_CALL(hipEventCreate(&stop_));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.rocm.ROCMTimerNode", ROCMTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.rocm.ROCMTimerNode", ROCMTimerObj, TimerObj);
 
  private:
   hipEvent_t start_;
@@ -298,7 +322,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.timer.rocm",
-           [](Device dev) { return Timer(ffi::UnsafeInit{}, ffi::make_object<ROCMTimerNode>()); })
+           [](Device dev) { return Timer(ffi::UnsafeInit{}, ffi::make_object<ROCMTimerObj>()); })
       .def("runtime.get_rocm_stream", []() {
         int device_id;
         ROCM_CALL(hipGetDevice(&device_id));

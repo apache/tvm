@@ -57,14 +57,14 @@ def _check_error(func):
 
 @Ts.function
 def trivial_pipeline(A: T.Tensor((16, 1), "float32"), C: T.Tensor((16, 1), "float32")):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0, 1, annotations={"software_pipeline_stage": [0, 1], "software_pipeline_order": [0, 1]}
         ):
             with Ts.sblock():
                 Ts.reads(A[tx, i])
                 Ts.writes(C[tx, i])
-                B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(B[tx, 0])
@@ -79,11 +79,11 @@ def trivial_pipeline(A: T.Tensor((16, 1), "float32"), C: T.Tensor((16, 1), "floa
 def transformed_trivial_pipeline(
     A: T.Tensor((16, 1), "float32"), C: T.Tensor((16, 1), "float32")
 ) -> None:
-    for tx in T.thread_binding(16, thread="threadIdx.x"):
+    for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads(A[tx, 0])
             Ts.writes(C[tx, 0])
-            B = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            B = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads(A[tx, 0])
                 Ts.writes(B[0, tx, 0])
@@ -101,7 +101,7 @@ def transformed_trivial_pipeline(
 def gen_simple_compute(num_stages):
     @Ts.function
     def simple_compute(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
-        for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+        for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
             for i in T.serial(
                 0,
                 16,
@@ -113,7 +113,7 @@ def gen_simple_compute(num_stages):
                 with Ts.sblock("compute"):
                     Ts.reads(A[tx, i])
                     Ts.writes(C[tx, i])
-                    B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                    B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                     with Ts.sblock():
                         Ts.reads(A[tx, i])
                         Ts.writes(B[tx, 0])
@@ -130,11 +130,11 @@ def gen_simple_compute(num_stages):
 def transformed_simple_compute(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16]])
             Ts.writes([C[tx, 0:16]])
-            B = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            B = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads([A[tx, 0]])
                 Ts.writes([B[0, tx, 0]])
@@ -162,7 +162,7 @@ k = T.dynamic("k", "int32")
 
 @Ts.function
 def dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16, k), "float32")):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             k,
@@ -174,7 +174,7 @@ def dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16, k), "float
             with Ts.sblock("compute"):
                 Ts.reads(A[tx, i])
                 Ts.writes(C[tx, i])
-                B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(B[tx, 0])
@@ -190,11 +190,11 @@ k = T.dynamic("k", "int32")
 
 @Ts.function
 def transformed_dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16, k), "float32")):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads(A[tx, 0 : T.max(1, k)])
             Ts.writes(C[tx, T.min(0, k - 1) : T.min(0, k - 1) + T.max(k, 1)])
-            B = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            B = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
             with Ts.sblock(""):
                 Ts.reads(A[tx, 0])
                 Ts.writes(B[0, tx, 0])
@@ -229,7 +229,7 @@ def transformed_dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16
 def simple_compute_with_other_annotation(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -242,7 +242,7 @@ def simple_compute_with_other_annotation(
             with Ts.sblock("compute"):
                 Ts.reads(A[tx, i])
                 Ts.writes(C[tx, i])
-                B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(B[tx, 0])
@@ -257,11 +257,11 @@ def simple_compute_with_other_annotation(
 def transformed_simple_compute_with_other_annotation(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16]])
             Ts.writes([C[tx, 0:16]])
-            B = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            B = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads([A[tx, 0]])
                 Ts.writes([B[0, tx, 0]])
@@ -290,7 +290,7 @@ def transformed_simple_compute_with_other_annotation(
 
 @Ts.function
 def three_stage_compute(A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -302,8 +302,8 @@ def three_stage_compute(A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), 
             with Ts.sblock("compute"):
                 Ts.reads(A[tx, i])
                 Ts.writes(D[tx, i])
-                B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                C = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
+                C = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(B[tx, 0])
@@ -322,12 +322,12 @@ def three_stage_compute(A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), 
 def transformed_three_stage_compute(
     A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(16, thread="threadIdx.x"):
+    for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads(A[tx, 0:16])
             Ts.writes(D[tx, 0:16])
-            B = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
-            C = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            B = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
+            C = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads(A[tx, 0:2], B[0:2, tx, 0])
                 Ts.writes(B[0:2, tx, 0], C[0:2, tx, 0])
@@ -378,7 +378,7 @@ def dag_interleaving(
     B: T.Tensor((16, 16), "float32"),
     C: T.Tensor((16, 16), "float32"),
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -390,10 +390,10 @@ def dag_interleaving(
             with Ts.sblock():
                 Ts.reads(A[tx, i])
                 Ts.writes(C[tx, i])
-                AS = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                BS = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                AL = Ts.sblock_alloc_buffer((1, 1), dtype="float32", scope="local")
-                BL = Ts.sblock_alloc_buffer((1, 1), dtype="float32", scope="local")
+                AS = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
+                BS = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
+                AL = Ts.sblock_alloc_tensor((1, 1), dtype="float32", scope="local")
+                BL = Ts.sblock_alloc_tensor((1, 1), dtype="float32", scope="local")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(AS[tx, 0])
@@ -422,14 +422,14 @@ def transformed_dag_interleaving(
     B: T.Tensor((16, 16), "float32"),
     C: T.Tensor((16, 16), "float32"),
 ) -> None:
-    for tx in T.thread_binding(16, thread="threadIdx.x"):
+    for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads(A[tx, 0:16], B[tx, 0:16])
             Ts.writes(C[tx, 0:16])
-            AS = Ts.sblock_alloc_buffer([16, 1], dtype="float32", scope="shared")
-            BS = Ts.sblock_alloc_buffer([16, 1], dtype="float32", scope="shared")
-            AL = Ts.sblock_alloc_buffer([2, 1, 1], dtype="float32", scope="local")
-            BL = Ts.sblock_alloc_buffer([2, 1, 1], dtype="float32", scope="local")
+            AS = Ts.sblock_alloc_tensor([16, 1], dtype="float32", scope="shared")
+            BS = Ts.sblock_alloc_tensor([16, 1], dtype="float32", scope="shared")
+            AL = Ts.sblock_alloc_tensor([2, 1, 1], dtype="float32", scope="local")
+            BL = Ts.sblock_alloc_tensor([2, 1, 1], dtype="float32", scope="local")
             with Ts.sblock():
                 Ts.reads(A[tx, 0], B[tx, 0], AS[tx, 0], BS[tx, 0])
                 Ts.writes(AS[tx, 0], BS[tx, 0], AL[0, 0, 0], BL[0, 0, 0])
@@ -485,7 +485,7 @@ def transformed_dag_interleaving(
 def nested_pipeline_simple(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -497,7 +497,7 @@ def nested_pipeline_simple(
             with Ts.sblock():
                 Ts.reads(A[tx, i, 0:16])
                 Ts.writes(C[tx, i, 0:16])
-                A_shared = Ts.sblock_alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
+                A_shared = Ts.sblock_alloc_tensor((16, 1, 16), dtype="float32", scope="shared")
                 for j in T.serial(0, 16):
                     with Ts.sblock():
                         Ts.reads(A[tx, i, j])
@@ -514,7 +514,7 @@ def nested_pipeline_simple(
                     with Ts.sblock():
                         Ts.reads(A_shared[tx, 0, j])
                         Ts.writes(C[tx, i, j])
-                        B = Ts.sblock_alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
+                        B = Ts.sblock_alloc_tensor((16, 1, 1), dtype="float32", scope="shared")
                         with Ts.sblock():
                             Ts.reads(A_shared[tx, i, j])
                             Ts.writes(B[tx, i, 0])
@@ -529,12 +529,12 @@ def nested_pipeline_simple(
 def transformed_nested_pipeline_simple(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16, 0:16]])
             Ts.writes([C[tx, 0:16, 0:16]])
-            A_shared = Ts.sblock_alloc_buffer([2, 16, 1, 16], dtype="float32", scope="shared")
-            B = Ts.sblock_alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
+            A_shared = Ts.sblock_alloc_tensor([2, 16, 1, 16], dtype="float32", scope="shared")
+            B = Ts.sblock_alloc_tensor([2, 16, 1, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads([A[tx, 0, 0:16]])
                 Ts.writes([A_shared[0, tx, 0, 0:16]])
@@ -606,7 +606,7 @@ def transformed_nested_pipeline_simple(
 def nested_pipeline_prefetch_inner(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -618,7 +618,7 @@ def nested_pipeline_prefetch_inner(
             with Ts.sblock():
                 Ts.reads(A[tx, i, 0:16])
                 Ts.writes(C[tx, i, 0:16])
-                A_shared = Ts.sblock_alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
+                A_shared = Ts.sblock_alloc_tensor((16, 1, 16), dtype="float32", scope="shared")
                 for j in T.serial(0, 16):
                     with Ts.sblock():
                         Ts.reads(A[tx, i, j])
@@ -635,7 +635,7 @@ def nested_pipeline_prefetch_inner(
                     with Ts.sblock():
                         Ts.reads(A_shared[tx, 0, j])
                         Ts.writes(C[tx, i, j])
-                        B = Ts.sblock_alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
+                        B = Ts.sblock_alloc_tensor((16, 1, 1), dtype="float32", scope="shared")
                         with Ts.sblock():
                             Ts.reads(A_shared[tx, i, j])
                             Ts.writes(B[tx, i, 0])
@@ -650,12 +650,12 @@ def nested_pipeline_prefetch_inner(
 def transformed_nested_pipeline_prefetch_inner(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16, 0:16]])
             Ts.writes([C[tx, 0:16, 0:16]])
-            A_shared = Ts.sblock_alloc_buffer([2, 16, 1, 16], dtype="float32", scope="shared")
-            B = Ts.sblock_alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
+            A_shared = Ts.sblock_alloc_tensor([2, 16, 1, 16], dtype="float32", scope="shared")
+            B = Ts.sblock_alloc_tensor([2, 16, 1, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads([A[tx, 0, 0:16], A_shared[0, tx, 0, 0]])
                 Ts.writes([A_shared[0, tx, 0, 0:16], B[0, tx, 0, 0]])
@@ -730,7 +730,7 @@ def transformed_nested_pipeline_prefetch_inner(
 def nested_pipeline_interleaving(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -742,8 +742,8 @@ def nested_pipeline_interleaving(
             with Ts.sblock():
                 Ts.reads(A[tx, i, 0:16])
                 Ts.writes(C[tx, i, 0:16])
-                A_shared = Ts.sblock_alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
-                A_local = Ts.sblock_alloc_buffer((1, 1, 16), dtype="float32", scope="local")
+                A_shared = Ts.sblock_alloc_tensor((16, 1, 16), dtype="float32", scope="shared")
+                A_local = Ts.sblock_alloc_tensor((1, 1, 16), dtype="float32", scope="local")
                 for j in T.serial(0, 16):
                     with Ts.sblock():
                         Ts.reads(A[tx, i, j])
@@ -765,7 +765,7 @@ def nested_pipeline_interleaving(
                     with Ts.sblock():
                         Ts.reads(A_local[0, 0, j])
                         Ts.writes(C[tx, i, j])
-                        B = Ts.sblock_alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
+                        B = Ts.sblock_alloc_tensor((16, 1, 1), dtype="float32", scope="shared")
                         with Ts.sblock():
                             Ts.reads(A_local[tx, i, j])
                             Ts.writes(B[tx, i, 0])
@@ -780,13 +780,13 @@ def nested_pipeline_interleaving(
 def transformed_nested_pipeline_interleaving(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16, 0:16]])
             Ts.writes([C[tx, 0:16, 0:16]])
-            A_shared = Ts.sblock_alloc_buffer([16, 1, 16], dtype="float32", scope="shared")
-            A_local = Ts.sblock_alloc_buffer([1, 1, 16], dtype="float32", scope="local")
-            B = Ts.sblock_alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
+            A_shared = Ts.sblock_alloc_tensor([16, 1, 16], dtype="float32", scope="shared")
+            A_local = Ts.sblock_alloc_tensor([1, 1, 16], dtype="float32", scope="local")
+            B = Ts.sblock_alloc_tensor([2, 16, 1, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads([A[tx, 0, 0:16], A_shared[tx, 0, 0:16], A_local[tx, 0, 0]])
                 Ts.writes([A_shared[tx, 0, 0:16], A_local[0, 0, 0:16], B[0, tx, 0, 0]])
@@ -889,7 +889,7 @@ def transformed_nested_pipeline_interleaving(
 def nested_pipeline_double_buffer(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -901,8 +901,8 @@ def nested_pipeline_double_buffer(
             with Ts.sblock():
                 Ts.reads(A[tx, i, 0:16])
                 Ts.writes(C[tx, i, 0:16])
-                A_shared = Ts.sblock_alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
-                A_local = Ts.sblock_alloc_buffer((1, 1, 16), dtype="float32", scope="local")
+                A_shared = Ts.sblock_alloc_tensor((16, 1, 16), dtype="float32", scope="shared")
+                A_local = Ts.sblock_alloc_tensor((1, 1, 16), dtype="float32", scope="local")
                 for j in T.serial(0, 16):
                     with Ts.sblock():
                         Ts.reads(A[tx, i, j])
@@ -925,7 +925,7 @@ def nested_pipeline_double_buffer(
                     with Ts.sblock():
                         Ts.reads(A_local[0, 0, j])
                         Ts.writes(C[tx, i, j])
-                        B = Ts.sblock_alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
+                        B = Ts.sblock_alloc_tensor((16, 1, 1), dtype="float32", scope="shared")
                         with Ts.sblock():
                             Ts.reads(A_local[tx, i, j])
                             Ts.writes(B[tx, i, 0])
@@ -940,13 +940,13 @@ def nested_pipeline_double_buffer(
 def transformed_nested_pipeline_double_buffer(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16, 0:16]])
             Ts.writes([C[tx, 0:16, 0:16]])
-            A_shared = Ts.sblock_alloc_buffer([16, 1, 16], dtype="float32", scope="shared")
-            A_local = Ts.sblock_alloc_buffer([2, 1, 1, 16], dtype="float32", scope="local")
-            B = Ts.sblock_alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
+            A_shared = Ts.sblock_alloc_tensor([16, 1, 16], dtype="float32", scope="shared")
+            A_local = Ts.sblock_alloc_tensor([2, 1, 1, 16], dtype="float32", scope="local")
+            B = Ts.sblock_alloc_tensor([2, 16, 1, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads([A[tx, 0, 0:16], A_shared[tx, 0, 0:16], A_local[0, tx, 0, 0]])
                 Ts.writes([A_shared[tx, 0, 0:16], A_local[0, 0, 0, 0:16], B[0, tx, 0, 0]])
@@ -1053,7 +1053,7 @@ def transformed_nested_pipeline_double_buffer(
 def simple_compute_incorrect_reorder(
     A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -1065,8 +1065,8 @@ def simple_compute_incorrect_reorder(
             with Ts.sblock():
                 Ts.reads(A[tx, i])
                 Ts.writes(D[tx, i])
-                B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                C = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
+                C = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(B[tx, 0])
@@ -1085,7 +1085,7 @@ def simple_compute_incorrect_reorder(
 def simple_compute_conflicting_order(
     A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -1097,8 +1097,8 @@ def simple_compute_conflicting_order(
             with Ts.sblock():
                 Ts.reads(A[tx, i])
                 Ts.writes(D[tx, i])
-                B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                C = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
+                C = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(B[tx, 0])
@@ -1117,12 +1117,12 @@ def simple_compute_conflicting_order(
 def simple_compute_missing_annotation(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(0, 16, annotations={"software_pipeline_stage": [0, 1]}):
             with Ts.sblock():
                 Ts.reads(A[tx, i])
                 Ts.writes(C[tx, i])
-                B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(B[tx, 0])
@@ -1195,11 +1195,11 @@ def test_simple_compute_async():
 
     @Ts.function
     def ref(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
-        for tx in T.thread_binding(16, thread="threadIdx.x"):
+        for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock():
                 Ts.reads(A[tx, 0:16])
                 Ts.writes(C[tx, 0:16])
-                B = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, 0])
                     Ts.writes(B[T.FloorMod(0, 2), tx, 0])
@@ -1240,11 +1240,11 @@ def test_simple_compute_async():
 
     @Ts.function
     def ref(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
-        for tx in T.thread_binding(16, thread="threadIdx.x"):
+        for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock():
                 Ts.reads(A[tx, 0:16])
                 Ts.writes(C[tx, 0:16])
-                B = Ts.sblock_alloc_buffer([4, 16, 1], dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor([4, 16, 1], dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, 0:3])
                     Ts.writes(B[0:3, tx, 0])
@@ -1294,13 +1294,13 @@ def test_async_producer_interleaving():
         B: T.Tensor((16, 16), "float32"),
         C: T.Tensor((16, 16), "float32"),
     ):
-        for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+        for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
             for i in range(16):
                 with Ts.sblock("compute"):
                     Ts.reads(A[tx, i])
                     Ts.writes(C[tx, i])
-                    A_shared = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                    B_shared = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                    A_shared = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
+                    B_shared = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                     with Ts.sblock():
                         Ts.reads(A[tx, i])
                         Ts.writes(A_shared[tx, 0])
@@ -1329,12 +1329,12 @@ def test_async_producer_interleaving():
         B: T.Tensor((16, 16), "float32"),
         C: T.Tensor((16, 16), "float32"),
     ) -> None:
-        for tx in T.thread_binding(16, thread="threadIdx.x"):
+        for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock():
                 Ts.reads(A[tx, 0:16], B[tx, 0:16])
                 Ts.writes(C[tx, 0:16])
-                A_shared = Ts.sblock_alloc_buffer([4, 16, 1], dtype="float32", scope="shared")
-                B_shared = Ts.sblock_alloc_buffer([4, 16, 1], dtype="float32", scope="shared")
+                A_shared = Ts.sblock_alloc_tensor([4, 16, 1], dtype="float32", scope="shared")
+                B_shared = Ts.sblock_alloc_tensor([4, 16, 1], dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, 0:3], B[tx, 0:3])
                     Ts.writes(A_shared[0:3, tx, 0], B_shared[0:3, tx, 0])
@@ -1402,12 +1402,12 @@ def test_three_stage_compute_two_stage_async():
 
     @Ts.function
     def ref(A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")) -> None:
-        for tx in T.thread_binding(16, thread="threadIdx.x"):
+        for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock():
                 Ts.reads(A[tx, 0:16])
                 Ts.writes(D[tx, 0:16])
-                B = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
-                C = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
+                C = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, 0:2], B[0:2, tx, 0])
                     Ts.writes(B[0:2, tx, 0], C[0:2, tx, 0])
@@ -1546,9 +1546,9 @@ def test_async_pipelined_mma_gemm_simple():
 
     seq = tvm.transform.Sequential(
         [
-            tvm.s_tir.transform.PlanAndUpdateBufferAllocationLocation(),
+            tvm.s_tir.transform.PlanAndUpdateTensorAllocationLocation(),
             tvm.s_tir.transform.ConvertBlocksToOpaque(),
-            tvm.s_tir.transform.LowerMatchBuffer(),
+            tvm.s_tir.transform.LowerMatchTensor(),
             tvm.s_tir.transform.InjectSoftwarePipeline(),
         ]
     )
@@ -1598,9 +1598,9 @@ def test_async_nested_pipeline_mma_gemm_ideal_annotation():
 
     seq = tvm.transform.Sequential(
         [
-            tvm.s_tir.transform.PlanAndUpdateBufferAllocationLocation(),
+            tvm.s_tir.transform.PlanAndUpdateTensorAllocationLocation(),
             tvm.s_tir.transform.ConvertBlocksToOpaque(),
-            tvm.s_tir.transform.LowerMatchBuffer(),
+            tvm.s_tir.transform.LowerMatchTensor(),
             tvm.s_tir.transform.InjectSoftwarePipeline(),
         ]
     )
@@ -1647,9 +1647,9 @@ def test_less_loop_than_num_stage():
             },
         ):
             with Ts.sblock("compute"):
-                B = Ts.sblock_alloc_buffer((1), dtype="float32", scope="shared")
-                C = Ts.sblock_alloc_buffer((1), dtype="float32", scope="shared")
-                D = Ts.sblock_alloc_buffer((1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((1), dtype="float32", scope="shared")
+                C = Ts.sblock_alloc_tensor((1), dtype="float32", scope="shared")
+                D = Ts.sblock_alloc_tensor((1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     B[0] = A[i] * T.float32(2)
                 with Ts.sblock():
@@ -1667,9 +1667,9 @@ def test_less_loop_than_num_stage():
             with Ts.sblock(""):
                 Ts.reads(A[0:3])
                 Ts.writes(E[0:2])
-                B = Ts.sblock_alloc_buffer((2, 1), scope="shared")
-                C = Ts.sblock_alloc_buffer((2, 1), scope="shared")
-                D = Ts.sblock_alloc_buffer((2, 1), scope="shared")
+                B = Ts.sblock_alloc_tensor((2, 1), scope="shared")
+                C = Ts.sblock_alloc_tensor((2, 1), scope="shared")
+                D = Ts.sblock_alloc_tensor((2, 1), scope="shared")
                 with Ts.sblock(""):
                     Ts.reads(A[0:3], B[0:2, 0], C[0:2, 0])
                     Ts.writes(B[0:2, 0], C[0:2, 0], D[0:2, 0])
@@ -1724,9 +1724,9 @@ def test_less_loop_than_num_stage_dynamic():
             },
         ):
             with Ts.sblock("compute"):
-                B = Ts.sblock_alloc_buffer((1), dtype="float32", scope="shared")
-                C = Ts.sblock_alloc_buffer((1), dtype="float32", scope="shared")
-                D = Ts.sblock_alloc_buffer((1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((1), dtype="float32", scope="shared")
+                C = Ts.sblock_alloc_tensor((1), dtype="float32", scope="shared")
+                D = Ts.sblock_alloc_tensor((1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     B[0] = A[i] * T.float32(2)
                 with Ts.sblock():
@@ -1746,9 +1746,9 @@ def test_less_loop_than_num_stage_dynamic():
             with Ts.sblock(""):
                 Ts.reads(A[0 : T.max(3, K)])
                 Ts.writes(E[T.min(0, K - 3) : T.min(0, K - 3) + T.max(K, 3)])
-                B = Ts.sblock_alloc_buffer((2, 1), scope="shared")
-                C = Ts.sblock_alloc_buffer((2, 1), scope="shared")
-                D = Ts.sblock_alloc_buffer((2, 1), scope="shared")
+                B = Ts.sblock_alloc_tensor((2, 1), scope="shared")
+                C = Ts.sblock_alloc_tensor((2, 1), scope="shared")
+                D = Ts.sblock_alloc_tensor((2, 1), scope="shared")
                 with Ts.sblock(""):
                     Ts.reads(A[0:3], B[0:2, 0], C[0:2, 0])
                     Ts.writes(B[0:2, 0], C[0:2, 0], D[0:2, 0])

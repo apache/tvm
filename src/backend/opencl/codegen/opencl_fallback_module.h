@@ -24,7 +24,7 @@
  *   `OpenCLModuleCreateWithFallback` is the ONLY entry point codegen uses
  *   to construct an OpenCL `ffi::Module`.  It tries the runtime-registered
  *   factory "ffi.Module.create.opencl" via the FFI registry; on miss it
- *   constructs an `OpenCLFallbackModuleNode` directly.  The fallback exists
+ *   constructs an `OpenCLFallbackModuleObj` directly.  The fallback exists
  *   so that codegen can succeed on a build where the OpenCL runtime is
  *   not linked.  This setup is helpful for cross compilation where we
  *   compile on one env and run on another.
@@ -35,17 +35,17 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/support/env.h>
 
 #include <utility>
 
 #include "../../../runtime/metadata.h"
-#include "../../../support/env.h"
 
 namespace tvm {
 namespace target {
 
 /*!
- * \brief Construct an `OpenCLFallbackModuleNode` directly (no FFI
+ * \brief Construct an `OpenCLFallbackModuleObj` directly (no FFI
  *        registry round-trip).  Used by `OpenCLModuleCreateWithFallback`
  *        and by tests that explicitly want a fallback instance.
  */
@@ -59,7 +59,7 @@ ffi::Module OpenCLFallbackModuleCreate(ffi::Bytes code, ffi::String fmt,
  *        var, falls back to `OpenCLFallbackModuleCreate`.
  *
  *   - Registry hit (USE_OPENCL=ON build) → real OpenCL module returned.
- *   - Registry miss (USE_OPENCL=OFF build) → `OpenCLFallbackModuleNode`
+ *   - Registry miss (USE_OPENCL=OFF build) → `OpenCLFallbackModuleObj`
  *     returned.
  *   - `TVM_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless
  *     of registry state (used by per-backend fallback tests on a

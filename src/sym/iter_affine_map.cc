@@ -20,6 +20,7 @@
 /*!
  * \file src/sym/iter_affine_map.cc
  */
+#include <tvm/ffi/base_details.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/expected.h>
 #include <tvm/ffi/extra/structural_visit.h>
@@ -32,7 +33,6 @@
 #include <unordered_set>
 #include <utility>
 
-#include "../support/utils.h"
 #include "const_fold.h"
 #include "pattern_match.h"
 #include "product_normal_form.h"
@@ -45,7 +45,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IterMarkNode::RegisterReflection();
   IterSplitExprNode::RegisterReflection();
   IterSumExprNode::RegisterReflection();
-  IterMapResultNode::RegisterReflection();
+  IterMapResultObj::RegisterReflection();
 }
 
 IterMark::IterMark(PrimExpr source, PrimExpr extent) {
@@ -414,7 +414,8 @@ class IterMapRewriter : public tvm::ExprMutator {
       // for now only hash on source index.
       size_t hash = value->args.size();
       for (const IterSplitExpr& arg : value->args) {
-        hash = support::HashCombine(hash, std::hash<const ffi::Object*>()(arg->source.get()));
+        hash = ffi::details::StableHashCombine(hash,
+                                               std::hash<const ffi::Object*>()(arg->source.get()));
       }
       return hash;
     }
@@ -1895,7 +1896,7 @@ std::optional<std::pair<IterSplitExpr, PrimExpr>> IterMapRewriter::PadDividendTo
       << "The padding factor " << info.padding_factor << " is not divisible by " << divisor
       << " for the split " << split;
 
-  if (!info.padded.defined()) {
+  if (!info.padded.has_value()) {
     // the first time encounter the iter mark to pad, update the padded mark.
     PrimExpr mark_left_pad = info.left_pad;
     if (CanProveDivisible(mark_left_pad, split->lower_factor)) {

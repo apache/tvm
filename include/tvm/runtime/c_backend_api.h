@@ -35,6 +35,41 @@ extern "C" {
 #endif
 
 /*!
+ * \brief Select the runtime device for the calling host thread.
+ *
+ * Dispatches to DeviceAPI::SetDevice with the given local DLPack device type
+ * and runtime device index (DLDevice::device_id). This does not save or restore
+ * the previous selection. Backends without device-selection state may treat
+ * selection as a no-op. Valid indices and index validation are backend-specific.
+ *
+ * \param device_type Local DLPack device type, not an RPC session-encoded type.
+ * \param device_index Nonnegative runtime device index, not a device type or
+ * target configuration index.
+ * \return 0 on success, -1 on invalid arguments, unavailable backend, or backend
+ * failure. Failure records the raised TVM FFI error on the calling thread; no
+ * C++ exception crosses this C entry point.
+ */
+TVM_RUNTIME_DLL int TVMBackendSetDevice(int device_type, int device_index);
+
+/*!
+ * \brief Query the selected runtime device index on the calling host thread.
+ *
+ * Dispatches to DeviceAPI::GetDeviceIndex without changing device selection.
+ * Getter support is optional and independent of setter support: the default
+ * implementation reports NotImplementedError, including for backends without
+ * device-selection state. RPC devices are not supported.
+ *
+ * \param device_type Local DLPack device type, not an RPC session-encoded type.
+ * \param out_device_index Non-null pointer receiving the runtime device index
+ * (DLDevice::device_id), not a device type or target configuration index. Written
+ * only on success; its previous value is unchanged on failure.
+ * \return 0 on success, -1 on invalid arguments, unavailable backend, unsupported
+ * query, or backend failure. Failure records the raised TVM FFI error on the
+ * calling thread; no C++ exception crosses this C entry point.
+ */
+TVM_RUNTIME_DLL int TVMBackendGetDeviceIndex(int device_type, int* out_device_index);
+
+/*!
  * \brief Backend function to allocate temporal workspace.
  *
  * \note The result allocated space is ensured to be aligned to kTempAllocaAlignment.

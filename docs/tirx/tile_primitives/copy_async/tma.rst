@@ -81,13 +81,13 @@ are only known at runtime.
 ``tma_explicit``
 ----------------
 
-``tma_explicit`` maps the supplied global Buffer or view directly:
+``tma_explicit`` maps the supplied global Tensor or view directly:
 
-* Buffer/view shape becomes ``globalDim``;
+* Tensor/view shape becomes ``globalDim``;
 * layout strides become byte ``globalStrides``;
 * region start becomes the instruction coordinates;
 * region extent becomes ``boxDim``; and
-* Buffer data plus ``elem_offset`` becomes the TensorMap base.
+* Tensor data plus ``elem_offset`` becomes the TensorMap base.
 
 It never regroups, compresses, promotes, shrinks, or splits a copy.  One
 explicit descriptor call emits exactly one TMA instruction, so a caller must
@@ -132,7 +132,7 @@ declared byte stride.
 Descriptor selection
 ~~~~~~~~~~~~~~~~~~~~
 
-``src_selector`` selects among alternate global Buffers or views while reusing
+``src_selector`` selects among alternate global Tensors or views while reusing
 the main operand's region and gather coordinates:
 
 .. code-block:: python
@@ -150,7 +150,7 @@ the main operand's region and gather coordinates:
     )
 
 Candidates must cover the entire tensor view; use a subview to change its base.
-Conditions use first-true priority and the main Buffer is the default.  Every
+Conditions use first-true priority and the main Tensor is the default.  Every
 candidate gets its own validated and encoded TensorMap.  Candidates may have
 different bases, global shapes, and strides, but must have the same descriptor
 dtype, rank, box, swizzle, and transfer byte count.  Lowering selects a

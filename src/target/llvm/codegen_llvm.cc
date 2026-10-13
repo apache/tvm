@@ -288,7 +288,7 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
   is_restricted_ = func->HasNonzeroAttr(tvm::tirx::attr::kNoAlias);
   for (Var param : func->params) {
     param_types.push_back(GetLLVMType(param->ty));
-    if (!is_restricted_ && param->ty.as<PointerTypeNode>()) {
+    if (!is_restricted_ && param->ty.as<PtrTypeNode>()) {
       alias_var_set_.insert(param.get());
     }
   }
@@ -340,7 +340,7 @@ void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const Function& f) 
     var_map_[var.get()] = v;
     v->setName(std::string(var->name));
     if (is_restricted_) {
-      if (var->ty.as<PointerTypeNode>() && !alias_var_set_.count(var.get())) {
+      if (var->ty.as<PtrTypeNode>() && !alias_var_set_.count(var.get())) {
         // set non alias.
         function_->addParamAttr(i, llvm::Attribute::NoAlias);
       }
@@ -607,7 +607,7 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const PrimType& dtype) const {
 llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
   if (auto* ptr = type.as<PrimTypeNode>()) {
     return DTypeToLLVMType(PrimType(ptr->dtype));
-  } else if (auto* ptr = type.as<PointerTypeNode>()) {
+  } else if (auto* ptr = type.as<PtrTypeNode>()) {
     // LLVM IR doesn't allow void*, so pointer element types that do not
     // have an LLVM scalar equivalent need explicit handling.
     if (auto* primtype = ptr->element_type.as<PrimTypeNode>()) {
@@ -712,8 +712,9 @@ void CodeGenLLVM::GetAlignment(PrimType t, const VarNode* buf_var, const PrimExp
   auto it = alloc_storage_info_.find(buf_var);
   if (it != alloc_storage_info_.end()) {
     const StorageInfo& info = it->second;
-    *p_native_bits = NativeVectorBits(
-        runtime::StorageScope::Create(GetPtrStorageScope(ffi::GetRef<Var>(buf_var))));
+    *p_native_bits = NativeVectorBits(runtime::StorageScope::Create(
+        (buf_var->ty.as<TensorTypeNode>() ? buf_var->ty.as<TensorTypeNode>()->storage_scope
+                                          : buf_var->ty.as_or_throw<PtrType>()->storage_scope)));
     max_align_bits = info.alignment * 8;
   } else {
     *p_native_bits = native_vector_bits_;
@@ -988,7 +989,7 @@ CodeGenLLVM::TypedPointer CodeGenLLVM::CreateBufferPtr(llvm::Value* buffer_ptr,
         << " has padding for alignment.  TVM data arrays are expected to be densely packed, with "
            "no padding for alignment.";
   } else {
-    TVM_FFI_ICHECK(buffer_element_type.as<PointerTypeNode>())
+    TVM_FFI_ICHECK(buffer_element_type.as<PtrTypeNode>())
         << "Buffer elements must have primitive or pointer type, but got " << buffer_element_type;
   }
   llvm::Value* value_ptr = builder_->CreateInBoundsGEP(llvm_element_type, buffer_ptr, index);
@@ -2198,8 +2199,8 @@ void CodeGenLLVM::Dispatch_(const IfNode* op) {
 }
 
 void CodeGenLLVM::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
-  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
-  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
+  DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
   EmitDebugLocation(op);
@@ -2288,7 +2289,7 @@ void CodeGenLLVM::Dispatch_(const BindNode* op) {
   EmitDebugLocation(op);
   const VarNode* v = op->var.get();
   TVM_FFI_ICHECK(!var_map_.count(v));
-  bool is_pointer = v->ty.as<PointerTypeNode>();
+  bool is_pointer = v->ty.as<PtrTypeNode>();
   if (is_pointer) {
     if (!is_restricted_) {
       alias_var_set_.insert(v);
@@ -2301,7 +2302,7 @@ void CodeGenLLVM::Dispatch_(const BindNode* op) {
   // need to introduce a pointer-cast, even though pointer-to-pointer
   // casts are not expressible with the `prim::CastNode`.
   if (is_pointer && !v->ty.as<MissingType>().has_value()) {
-    TVM_FFI_ICHECK(op->value->ty.as<PointerTypeNode>())
+    TVM_FFI_ICHECK(op->value->ty.as<PtrTypeNode>())
         << "Variable " << op->var << " is a pointer with type " << op->value
         << ", but is being bound to expression with type " << op->value->ty;
     auto* llvm_type = GetLLVMType(v->ty);
@@ -2332,8 +2333,8 @@ void CodeGenLLVM::Dispatch_(const SeqStmtNode* op) {
 
 void CodeGenLLVM::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
   Expr data = buffer_call->args[0];
-  DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
-  ffi::String scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
+  DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
+  ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   EmitDebugLocation(op);
   const VarNode* buffer_var = buffer.get();
@@ -2352,7 +2353,7 @@ void CodeGenLLVM::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_
     buffer_physical_root_[buffer_var] = GetBufferPhysicalRoot(source);
   }
 
-  llvm::Type* expected_type = GetLLVMType(PointerType(PrimType(dtype), scope));
+  llvm::Type* expected_type = GetLLVMType(PtrType(PrimType(dtype), scope));
   if (value->getType() != expected_type) {
     value->setName((buffer.name() + "_source_ptr").c_str());
     value = builder_->CreatePointerCast(value, expected_type);
@@ -2458,7 +2459,7 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
   if (const auto* buffer_type = debug_type.as<TensorTypeNode>()) {
     // A TensorVar is a compiler-side identity.  Its LLVM value is the physical
     // data pointer installed by AllocTensor or DeclTensor.
-    debug_type = buffer_type->DataPointerType();
+    debug_type = buffer_type->DataPtrType();
   }
   auto dbg_dtype = GetDebugType(debug_type);
   // no invalid dtypes
@@ -2518,7 +2519,7 @@ llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm)
     return nullptr;
 
   } else if (ty_llvm->isPointerTy()) {
-    auto* ptr_type = ty_tir.as<PointerTypeNode>();
+    auto* ptr_type = ty_tir.as<PtrTypeNode>();
     TVM_FFI_ICHECK(ptr_type != nullptr)
         << "Got LLVM pointer type from non-pointer IR type: " << ty_tir;
     auto* pointee_type = GetDebugType(ptr_type->element_type, GetLLVMType(ptr_type->element_type));

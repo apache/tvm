@@ -36,23 +36,23 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/bytes_io.h>
 
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "../../../runtime/metadata.h"
-#include "../../../support/bytes_io.h"
 
 namespace tvm {
 namespace runtime {
 
 using HexagonSourceMap = ffi::Map<ffi::String, ffi::Variant<ffi::String, ffi::Bytes>>;
 
-class HexagonModuleNode : public ffi::ModuleObj {
+class HexagonModuleObj : public ffi::ModuleObj {
  public:
-  HexagonModuleNode(ffi::Bytes code, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
-                    HexagonSourceMap source)
+  HexagonModuleObj(ffi::Bytes code, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
+                   HexagonSourceMap source)
       : code_(std::move(code)),
         fmt_(std::move(fmt)),
         fmap_(std::move(fmap)),
@@ -65,7 +65,7 @@ class HexagonModuleNode : public ffi::ModuleObj {
   }
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
-    TVM_FFI_THROW(InternalError) << "HexagonModuleNode::GetFunction is not implemented.";
+    TVM_FFI_THROW(InternalError) << "HexagonModuleObj::GetFunction is not implemented.";
     TVM_FFI_UNREACHABLE();
   }
 
@@ -118,8 +118,8 @@ class HexagonModuleNode : public ffi::ModuleObj {
 static ffi::Module HexagonModuleCreateImpl(ffi::Bytes code, ffi::String fmt,
                                            ffi::Map<ffi::String, FunctionInfo> fmap,
                                            HexagonSourceMap source) {
-  auto n = ffi::make_object<HexagonModuleNode>(std::move(code), std::move(fmt), std::move(fmap),
-                                               std::move(source));
+  auto n = ffi::make_object<HexagonModuleObj>(std::move(code), std::move(fmt), std::move(fmap),
+                                              std::move(source));
   return ffi::Module(n);
 }
 

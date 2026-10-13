@@ -25,6 +25,11 @@ from . import _ffi_api
 from .function_pass import function_pass
 
 
+def DecorateDeviceScope():
+    """Wrap a function body in a device scope region."""
+    return _ffi_api.DecorateDeviceScope()
+
+
 def Apply(ftransform):
     """Apply ftransform to each function in the Module.
 
@@ -282,14 +287,14 @@ def MakePackedAPI():
     and `TensorType::elem_offset` fields are used to
     generate runtime checks on the corresponding member variables in
     the user-provided `DLTensor*` or `tvm.runtime.tensor` argument.  (e.g. A
-    Function that accepts a buffer of shape `[16,32]` validates that
+    Function that accepts a tensor of shape `[16,32]` validates that
     the `DLTensor::shape` array is `[16,32]`.)
 
-    For dynamic Buffers, in which one or more of these `TensorType` fields
+    For dynamic Tensors, in which one or more of these `TensorType` fields
     use `tirx.Var` that are not defined by other Function
     parameters, these are instead used to define the variables based on
     the corresponding `DLTensor` members.  (e.g. A Function that accepts a
-    buffer of shape `[tirx.Var("n", "int64"), tirx.Var("m", "int64")]`,
+    tensor of shape `[tirx.Var("n", "int64"), tirx.Var("m", "int64")]`,
     when passed a `DLTensor` of shape `[16, 32]`, will define `n = 16` and
     `m = 32`, based on the argument's shape.
 
@@ -375,16 +380,15 @@ def NarrowDataType(target_bits: int):
 
     Note
     ----
-    Run this pass after FlattenBuffer.
+    Run this pass after FlattenTensor.
     """
     return _ffi_api.NarrowDataType(target_bits)  # type: ignore
 
 
 def ForceNarrowIndexToInt32():
-    """Force narrow down indexing expressions and integer buffers to int32 dtype.
+    """Force narrow down indexing expressions and integer tensors to int32 dtype.
 
-    The function must not contain S-TIR blocks. Use
-    :py:func:`tvm.s_tir.transform.ForceNarrowIndexToInt32` before block lowering.
+    The function must not contain S-TIR blocks.
 
     Returns
     -------
@@ -409,7 +413,7 @@ def VerifyMemory():
     return _ffi_api.VerifyMemory()  # type: ignore
 
 
-def FlattenBuffer():
+def FlattenTensor():
     """Flatten the multi-dimensional TensorLoad and TensorStore to single dimensional
     TensorLoad/TensorStore for the TIR not contains opaque block.
 
@@ -418,11 +422,15 @@ def FlattenBuffer():
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.FlattenBuffer()  # type: ignore
+    return _ffi_api.FlattenTensor()  # type: ignore
 
 
 def BindTarget(target):
     """Annotate a Function with a given target.
+
+    Device helper calls must be inside explicit launch_thread or device_entry
+    regions. Lower S-TIR thread bindings before classifying host/device calls.
+
     Parameters
     -------
     target : tvm.target.Target
@@ -479,23 +487,3 @@ def LowerTIRx():
         The result pass
     """
     return _ffi_api.LowerTIRx()  # type: ignore
-
-
-def LowerTIRxOpaque():
-    """Lower opaque constructs in TIRX programs.
-
-    Handles allocation call lowering, For(thread_binding) to RegionStmt(launch_thread)
-    conversion, unit loop elimination, and pragma annotation handling.
-    This is the tirx-specific counterpart of s_tir.LowerOpaqueBlock and
-    s_tir.LowerThreadBinding,
-    without any SBlock/SBlockRealize handling.
-
-    Run s_tir.transform.LoopPartition first when thread-binding loops carry
-    loop_partition_hint.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerTIRxOpaque()  # type: ignore

@@ -52,7 +52,7 @@ def element_wise_parallelized(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) 
 
 @Ts.function
 def element_wise_i_bound(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
-    for i0 in T.thread_binding(0, 128, thread="threadIdx.x"):
+    for i0 in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
         for i1 in T.serial(0, 128):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i0, i1])
@@ -61,7 +61,7 @@ def element_wise_i_bound(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> No
 
 @Ts.function
 def element_wise_compute_at_split(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
-    B = Ts.sblock_alloc_buffer((128, 128))
+    B = Ts.sblock_alloc_tensor((128, 128))
     for i in T.serial(0, 128):
         for j0 in T.serial(0, 128):
             with Ts.sblock("B"):
@@ -78,7 +78,7 @@ def element_wise_compute_at_split(A: T.Tensor((128, 128)), C: T.Tensor((128, 128
 def element_wise_compute_at_split_vectorized(
     A: T.Tensor((128, 128)), C: T.Tensor((128, 128))
 ) -> None:
-    B = Ts.sblock_alloc_buffer((128, 128))
+    B = Ts.sblock_alloc_tensor((128, 128))
     for i in T.serial(0, 128):
         for j0 in T.serial(0, 128):
             with Ts.sblock("B"):
@@ -133,13 +133,13 @@ def element_wise_split_predicate_vectorized(
 def element_wise_compute_at_split_j0_j1o_bound(
     A: T.Tensor((128, 128)), C: T.Tensor((128, 128))
 ) -> None:
-    B = Ts.sblock_alloc_buffer((128, 128))
+    B = Ts.sblock_alloc_tensor((128, 128))
     for i in T.serial(0, 128):
-        for j0 in T.thread_binding(0, 128, thread="threadIdx.x"):
+        for j0 in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j0])
                 B[vi, vj] = A[vi, vj] * 2.0
-        for j1o in T.thread_binding(0, 32, thread="threadIdx.x"):
+        for j1o in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
             for j1i in T.serial(0, 4):
                 with Ts.sblock("C"):
                     vi = Ts.axis.S(128, i)
@@ -202,7 +202,7 @@ def rowsum_not_compact_data_flow(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -
 @Ts.function
 def rowsum_cross_thread_reduction(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
     for i0 in T.serial(0, 128):
-        for i1 in T.thread_binding(0, 128, thread="threadIdx.x"):
+        for i1 in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("B"):
                 vi, vk = Ts.axis.remap("SR", [i0, i1])
                 with Ts.init():
@@ -240,7 +240,7 @@ def block_inside_init(
 def thread_bound_block_inside_init(
     A: T.Tensor([128, 128, 128], dtype="float32"), B: T.Tensor([128, 128], dtype="float32")
 ) -> None:
-    for i in T.thread_binding(0, 128, thread="threadIdx.x"):
+    for i in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock("outer"):
             vi = Ts.axis.S(128, i)
             with Ts.init():
@@ -261,7 +261,7 @@ def decomposed_gemm(
     B: T.Tensor((16, 16), "float32"),
     C: T.Tensor((16, 16), "float32"),
 ):
-    local = Ts.sblock_alloc_buffer((16, 16), "float32")
+    local = Ts.sblock_alloc_tensor((16, 16), "float32")
     for i, j in T.grid(4, 4):
         for ii, jj in T.grid(4, 4):
             with Ts.sblock("init"):
@@ -287,7 +287,7 @@ def decomposed_gemm_after_vectorize(
     B: T.Tensor((16, 16), "float32"),
     C: T.Tensor((16, 16), "float32"),
 ):
-    local = Ts.sblock_alloc_buffer((16, 16), "float32")
+    local = Ts.sblock_alloc_tensor((16, 16), "float32")
     for i, j in T.grid(4, 4):
         for ii, jj in T.grid(4, 4):
             with Ts.sblock("init"):
@@ -328,11 +328,11 @@ def thread_bound_nested_block(
     A: T.Tensor((16, 16, 16, 16), "float32"), B: T.Tensor((16, 16, 16), "float32")
 ) -> None:
     for i in T.serial(16):
-        for j in T.thread_binding(16, thread="blockIdx.x"):
+        for j in T.parallel(16, annotations={"thread_binding": "blockIdx.x"}):
             with Ts.sblock("outer"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
                 for k in T.serial(16):
-                    for l in T.thread_binding(16, thread="threadIdx.x"):
+                    for l in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock("inner"):
                             vk, vl = Ts.axis.remap("SR", [k, l])
                             with Ts.init():
@@ -347,7 +347,7 @@ def nested_block_bind_after_cache_read(
     for i in T.serial(16):
         with Ts.sblock("outer"):
             vi = Ts.axis.spatial(16, i)
-            A_shared = Ts.sblock_alloc_buffer([1, 16], dtype="float32", scope="shared")
+            A_shared = Ts.sblock_alloc_tensor([1, 16], dtype="float32", scope="shared")
             for ax0, ax1 in T.grid(1, 16):
                 with Ts.sblock("A_shared"):
                     v0 = Ts.axis.spatial(16, vi + ax0)
@@ -365,16 +365,16 @@ def nested_block_bind_after_cache_read(
 def thread_bound_nested_block_after_cache_read(
     A: T.Tensor((16, 16), "float32"), B: T.Tensor((16,), "float32")
 ) -> None:
-    for i in T.thread_binding(16, thread="blockIdx.x"):
+    for i in T.parallel(16, annotations={"thread_binding": "blockIdx.x"}):
         with Ts.sblock("outer"):
             vi = Ts.axis.spatial(16, i)
-            A_shared = Ts.sblock_alloc_buffer([1, 16], dtype="float32", scope="shared")
+            A_shared = Ts.sblock_alloc_tensor([1, 16], dtype="float32", scope="shared")
             for ax0, ax1 in T.grid(1, 16):
                 with Ts.sblock("A_shared"):
                     v0 = Ts.axis.spatial(16, vi + ax0)
                     v1 = Ts.axis.spatial(16, ax1)
                     A_shared[v0, v1] = A[v0, v1]
-            for j in T.thread_binding(16, thread="threadIdx.x"):
+            for j in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("inner"):
                     vj = Ts.axis.reduce(16, j)
                     with Ts.init():
@@ -388,7 +388,7 @@ def decomposed_gemm_parallelize_init(
     B: T.Tensor((16, 16), "float32"),
     C: T.Tensor((16, 16), "float32"),
 ) -> None:
-    local = Ts.sblock_alloc_buffer([16, 16], dtype="float32")
+    local = Ts.sblock_alloc_tensor([16, 16], dtype="float32")
     for i, j in T.grid(4, 4):
         for ii in T.serial(4):
             for jj in T.vectorized(4):
@@ -659,7 +659,7 @@ def test_bind_thread_iter_var_dtype():
         A: T.Tensor((T.int64(128), T.int64(128))),
         B: T.Tensor((T.int64(128), T.int64(128))),
     ) -> None:
-        for i0 in T.thread_binding(T.int64(128), thread="threadIdx.x"):
+        for i0 in T.parallel(T.int64(128), annotations={"thread_binding": "threadIdx.x"}):
             # Use T.serial with explicit int64 min so the inner sblock iter_var dom
             # is all-int64 (matches what `s.bind` emits; `range(T.int64(128))` parses
             # min as int32 even when extent is int64).

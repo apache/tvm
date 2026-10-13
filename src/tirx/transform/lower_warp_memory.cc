@@ -33,7 +33,6 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/pattern.h>
 #include <tvm/target/target.h>
@@ -156,10 +155,10 @@ PrimExpr NormalizeWarpIndex(const PrimExpr& index, const WarpThreadBindings& act
 
 class WarpStoreCoeffFinder : public StmtExprVisitor {
  public:
-  WarpStoreCoeffFinder(const VarNode* buffer, const WarpThreadBindings& bindings,
+  WarpStoreCoeffFinder(const VarNode* tensor, const WarpThreadBindings& bindings,
                        WarpThreadBindings active_bindings, Var warp_index,
                        sym::AnalyzerObj* analyzer, const WarpIndexAliases& aliases)
-      : buffer_(buffer),
+      : tensor_(tensor),
         bindings_(bindings),
         active_bindings_(std::move(active_bindings)),
         warp_index_(warp_index),
@@ -206,17 +205,17 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     static const Op mma_fill_op = Op::Get("tirx.cuda.mma_fill");
     static const Op ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
-    if (op->op.same_as(mma_fill_op) && GetTensorVar(op->args[1]) == buffer_) {
+    if (op->op.same_as(mma_fill_op) && GetTensorVar(op->args[1]) == tensor_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
       UpdateCoefficient(local_size->value.as<int>().value());
-    } else if (op->op.same_as(ptx_ldmatrix_legacy_op) && GetTensorVar(op->args[3]) == buffer_) {
-      // ldmatrix writes the warp buffer; its local_offset carries
+    } else if (op->op.same_as(ptx_ldmatrix_legacy_op) && GetTensorVar(op->args[3]) == tensor_) {
+      // ldmatrix writes the warp tensor; its local_offset carries
       // ``... + lift(local_size) * tx`` from which the warp coefficient
       // is derived.
       UpdatePattern(op->args[4].as_or_throw<PrimExpr>());
     }
-    // mma_store/ptx_mma_legacy only *use* the warp buffer
+    // mma_store/ptx_mma_legacy only *use* the warp tensor
     // (read+rewrite); WarpStoreCoeffFinder relies on ldmatrix/mma_fill
     // (the actual stores) for the warp coefficient.
 
@@ -224,12 +223,12 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-    if (op->dest.as_or_throw<TensorVar>().get() != buffer_) {
+    if (op->dest.as_or_throw<TensorVar>().get() != tensor_) {
       return StmtExprVisitor::Visit_(op);
     }
 
     TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
-                                             << "Has FlattenBuffer been run?";
+                                             << "Has FlattenTensor been run?";
 
     PrimExpr index = op->indices[0];
     PrimType value_ty = op->value.ty();
@@ -268,8 +267,8 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
     UpdateCoefficient(mcoeff_as_int->value.as<int>().value());
   }
 
-  // The buffer variable
-  const VarNode* buffer_;
+  // The tensor variable
+  const VarNode* tensor_;
   const WarpThreadBindings& bindings_;
   WarpThreadBindings active_bindings_;
   // The active lexical warp index.
@@ -341,13 +340,13 @@ class WarpAccessRewriter : public StmtExprMutator {
   // Rewrite the AllocTensor statement which transforms
   // warp memory to local memory.
   // \param op The allocation binding for warp memory.
-  // \param buffer_call The matched allocation Call.
-  // \param body The remaining statements (siblings) that use this buffer.
-  Stmt Rewrite(const BindNode* op, const CallNode* buffer_call, Stmt body) {
-    tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
-    DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  // \param tensor_call The matched allocation Call.
+  // \param body The remaining statements (siblings) that use this tensor.
+  Stmt Rewrite(const BindNode* op, const CallNode* tensor_call, Stmt body) {
+    tvm::Tuple shape = tvm::Tuple(tensor_call->ty_args[0].as_or_throw<TensorType>()->shape);
+    DLDataType dtype = tensor_call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
     PrimType element_type(dtype);
-    buffer_ = op->var.get();
+    tensor_ = op->var.get();
     int64_t alloc_size = 1;
     for (const auto& dim : shape->fields) {
       if (const IntImmNode* int_size = dim.as<IntImmNode>()) {
@@ -360,7 +359,7 @@ class WarpAccessRewriter : public StmtExprMutator {
     alloc_size *= element_type.lanes();
     std::tie(bindings_, width_) =
         ffi::make_object<WarpIndexFinder>(warp_size_, bindings_)->Find(body);
-    warp_coeff_ = ffi::make_object<WarpStoreCoeffFinder>(buffer_, bindings_, active_bindings_,
+    warp_coeff_ = ffi::make_object<WarpStoreCoeffFinder>(tensor_, bindings_, active_bindings_,
                                                          warp_index_, analyzer_, aliases_)
                       ->Find(body);
 
@@ -377,18 +376,16 @@ class WarpAccessRewriter : public StmtExprMutator {
     type->strides = {};
     type->elem_offset = IntImm(op->var.as_or_throw<TensorVar>()->elem_offset.ty(), 0);
     TensorVar new_buf = RebuildTensorVar(op->var.as_or_throw<TensorVar>(), std::move(type));
-    new_buffer_ = new_buf;
+    new_tensor_ = new_buf;
     Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
-    ffi::Array<Expr> args = buffer_call->args;
-    if (args.size() == 4) {
-      args.Set(3, Mutate(args[3], InplaceMode::kDisallow).ValueOrUnchanged(args[3]));
+    ffi::Array<Expr> args = tensor_call->args;
+    if (!args.empty()) {
+      args.Set(0, Mutate(args[0], InplaceMode::kDisallow).ValueOrUnchanged(args[0]));
     }
-    args.Set(0, tvm::Tuple(new_buf->shape, buffer_call->args[0]->loc));
-    args.Set(1, DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->loc));
-    args.Set(2, StringImm(new_buf.scope(), buffer_call->args[2]->loc));
+
     return SeqStmt({Bind(new_buf.var(),
-                         Call(new_buf.type(), tirx::alloc_tensor_op(), args, buffer_call->attrs,
-                              buffer_call->ty_args, buffer_call->loc),
+                         Call(new_buf.type(), tirx::alloc_tensor_op(), args, tensor_call->attrs,
+                              {new_buf.type()}, tensor_call->loc),
                          op->loc),
                     rewritten_body});
   }
@@ -416,9 +413,9 @@ class WarpAccessRewriter : public StmtExprMutator {
     ffi::Array<Expr> new_args = op->args;
     for (int i : indices) {
       // Preserve the pointer operand as an Expr and narrow only its scalar index.
-      if (GetTensorVar(op->args[i]) == buffer_) {
+      if (GetTensorVar(op->args[i]) == tensor_) {
         PrimExpr local_index = SplitIndexByGroup(op->args[i + 1].as_or_throw<PrimExpr>()).first;
-        new_args.Set(i, new_buffer_.data());
+        new_args.Set(i, new_tensor_.data());
         new_args.Set(i + 1, local_index);
       }
     }
@@ -444,7 +441,7 @@ class WarpAccessRewriter : public StmtExprMutator {
     }
     if (op->op.same_as(ptx_ldmatrix_legacy_op)) {
       // args: trans, num, type, local_ptr, local_offset, smem_ptr_call, smem_offset
-      // Only local_ptr is a raw warp buffer Var; smem_ptr is an
+      // Only local_ptr is a raw warp tensor Var; smem_ptr is an
       // pointer expression referencing shared memory.
       return RewriteIndicesAt(op, {3});
     }
@@ -454,7 +451,7 @@ class WarpAccessRewriter : public StmtExprMutator {
 
   UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) override {
     if (def_region_kind() == kTVMFFIDefRegionKindNone) {
-      TVM_FFI_ICHECK(op != buffer_) << "Cannot access address of warp memory directly";
+      TVM_FFI_ICHECK(op != tensor_) << "Cannot access address of warp memory directly";
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
@@ -471,15 +468,15 @@ class WarpAccessRewriter : public StmtExprMutator {
       n->indices = std::move(indices).ValueOrUnchanged(op->indices);
     }
 
-    if (store->dest.as_or_throw<TensorVar>().get() == buffer_) {
+    if (store->dest.as_or_throw<TensorVar>().get() == tensor_) {
       TVM_FFI_ICHECK_EQ(store->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
-                                                  << "Has FlattenBuffer been run?";
+                                                  << "Has FlattenTensor been run?";
 
       auto [local_index, group] = SplitIndexByGroup(store->indices[0]);
       (void)group;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
 
       auto writer = store.CopyOnWrite();
-      writer->dest = new_buffer_;
+      writer->dest = new_tensor_;
       writer->indices = {local_index};
     }
 
@@ -495,12 +492,12 @@ class WarpAccessRewriter : public StmtExprMutator {
       load.CopyOnWrite()->indices = std::move(indices).ValueUnchecked();
     }
 
-    if (load->source.as_or_throw<tvm::tirx::TensorVar>().get() != buffer_) {
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().get() != tensor_) {
       return load;
     }
 
     TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
-                                             << "Has FlattenBuffer been run?";
+                                             << "Has FlattenTensor been run?";
 
     auto [local_index, group] = SplitIndexByGroup(op->indices[0]);
     // invariance: local index must do not contain warp id
@@ -512,7 +509,7 @@ class WarpAccessRewriter : public StmtExprMutator {
         << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->indices[0]
         << " local_index=" << local_index;
 
-    load = MakeTensorLoad(new_buffer_, {local_index}, load->loc);
+    load = MakeTensorLoad(new_tensor_, {local_index}, load->loc);
 
     if (analyzer_->CanProveEqual(group, warp_index_.as_or_throw<PrimExpr>())) {
       return load;
@@ -561,10 +558,10 @@ class WarpAccessRewriter : public StmtExprMutator {
  private:
   // the warp size
   int warp_size_{0};
-  // The buffer variable
-  const VarNode* buffer_;
-  // The fresh local buffer replacing the warp-scoped definition.
-  TensorVar new_buffer_{ffi::UnsafeInit{}};
+  // The tensor variable
+  const VarNode* tensor_;
+  // The fresh local tensor replacing the warp-scoped definition.
+  TensorVar new_tensor_{ffi::UnsafeInit{}};
   // number of threads involved in one shuffle
   int width_{0};
   // Warp index
@@ -673,7 +670,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
       const auto* alloc = op->seq[i].as<BindNode>();
       if (const auto* call = alloc ? alloc->value.as<CallNode>() : nullptr;
           call && call->op.same_as(alloc_tensor_op()) &&
-          call->args[2].as_or_throw<StringImm>()->value == "warp") {
+          call->ty_args[0].as_or_throw<TensorType>()->storage_scope == "warp") {
         new_storage_scopes_[alloc->var] = "local";
         // Gather remaining siblings as the "body" for rewriting.
         ffi::Array<Stmt> remaining;

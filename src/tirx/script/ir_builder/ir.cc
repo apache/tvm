@@ -26,12 +26,10 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/sym/analyzer.h>
-#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
-#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/script/ir_builder/ir.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/tile/exec_scope.h>
 
 #include "./utils.h"
 
@@ -52,7 +50,7 @@ tvm::tirx::TensorType TensorTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
                                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
                                      int align, int offset_factor, ffi::Optional<Layout> layout) {
   if (data.has_value()) {
-    storage_scope = data.value()->ty.as_or_throw<PointerType>()->storage_scope;
+    storage_scope = data.value()->ty.as_or_throw<PtrType>()->storage_scope;
   }
   if (!elem_offset.has_value() && offset_factor) {
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
@@ -65,16 +63,8 @@ tvm::tirx::TensorType TensorTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
 
 }  // namespace
 
-TensorVar TensorDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                     int offset_factor, ffi::Optional<Layout> layout) {
-  return TensorVar(buffer_name, TensorTypeDecl(shape, dtype, data, strides, elem_offset,
-                                               storage_scope, align, offset_factor, layout));
-}
-
 FunctionFrame Function(bool is_private, bool persistent) {
-  ffi::ObjectPtr<FunctionFrameNode> n = ffi::make_object<FunctionFrameNode>();
+  ffi::ObjectPtr<FunctionFrameObj> n = ffi::make_object<FunctionFrameObj>();
   n->name = std::nullopt;
   n->is_private = is_private;
   n->args.clear();
@@ -97,9 +87,9 @@ Var Arg(ffi::String name, Var var) {
   return var;
 }
 
-TensorVar Arg(ffi::String name, TensorVar buffer) {
-  Arg(std::move(name), buffer.var());
-  return buffer;
+TensorVar Arg(ffi::String name, TensorVar tensor) {
+  Arg(std::move(name), tensor.var());
+  return tensor;
 }
 
 void FuncName(ffi::String name) {
@@ -144,84 +134,15 @@ tvm::Type FuncRet(tvm::Type ret_type) {
   return ret_type;
 }
 
-namespace {
-ForFrame WithThreadBindingValidation(ForFrame frame) {
-  auto make_loop = frame->f_make_for_loop;
-  frame->f_make_for_loop = [make_loop](ffi::Array<Var> vars, ffi::Array<Range> doms,
-                                       ffi::Array<ffi::Optional<PrimExpr>> steps, tvm::SeqStmt body,
-                                       Location loc) {
-    auto loop = make_loop(vars, doms, steps, body, loc).as_or_throw<tvm::For>();
-    tvm::tirx::GetThreadBinding(loop);
-    return loop;
-  };
-  return frame;
-}
-}  // namespace
-
-ForFrame Serial(PrimExpr start, PrimExpr stop,
-                ffi::Optional<ffi::Map<ffi::String, Any>> annotations, ffi::Optional<PrimExpr> step,
-                ffi::Optional<PrimType> dtype) {
-  return WithThreadBindingValidation(ir::Serial(start, stop, annotations, step, dtype));
-}
-
-ForFrame Parallel(PrimExpr start, PrimExpr stop,
-                  ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
-                  ffi::Optional<PrimExpr> step, ffi::Optional<PrimType> dtype) {
-  return WithThreadBindingValidation(ir::Parallel(start, stop, annotations, step, dtype));
-}
-
-ForFrame Vectorized(PrimExpr start, PrimExpr stop,
-                    ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
-                    ffi::Optional<PrimExpr> step, ffi::Optional<PrimType> dtype) {
-  return WithThreadBindingValidation(ir::Vectorized(start, stop, annotations, step, dtype));
-}
-
-ForFrame Unroll(PrimExpr start, PrimExpr stop,
-                ffi::Optional<ffi::Map<ffi::String, Any>> annotations, ffi::Optional<PrimExpr> step,
-                ffi::Optional<PrimType> dtype) {
-  return WithThreadBindingValidation(ir::Unroll(start, stop, annotations, step, dtype));
-}
-
-ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
-                       ffi::Optional<ffi::Map<ffi::String, Any>> annotations) {
-  using namespace tvm::tirx;
-  PrimExpr min = start;
-  PrimExpr extent = sym::Analyzer()->Simplify(stop - start);
-  ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();
-  PrimType min_ty = min.ty();
-  PrimType extent_ty = extent.ty();
-  int bits = std::max(min_ty.bits(), extent_ty.bits());
-  PrimType dtype = min_ty.WithBits(bits).WithLanes(1);
-  n->vars = {Var("v", dtype)};
-  n->doms = {Range::FromMinExtent(min, extent)};
-  n->steps = {std::nullopt};
-  n->f_make_for_loop = [annotations, thread, dtype](ffi::Array<Var> vars, ffi::Array<Range> doms,
-                                                    ffi::Array<ffi::Optional<PrimExpr>> steps,
-                                                    SeqStmt body, Location loc) -> For {
-    TVM_FFI_ICHECK_EQ(vars.size(), 1);
-    TVM_FFI_ICHECK_EQ(doms.size(), 1);
-    TVM_FFI_ICHECK(steps.size() == 1 && (!steps[0].has_value() || IsOne(*steps[0])));
-    auto loop_annotations = annotations.value_or(ffi::Map<ffi::String, ffi::Any>());
-    if (auto existing = loop_annotations.Get(tvm::tirx::attr::kThreadBinding)) {
-      TVM_FFI_CHECK(existing->cast<ffi::String>() == thread, ValueError)
-          << "Conflicting thread_binding annotation and thread argument";
-    }
-    loop_annotations.Set(tvm::tirx::attr::kThreadBinding, thread);
-    return For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent,
-               ForKind::kParallel, body, std::move(loop_annotations), std::nullopt, loc);
-  };
-  return ForFrame(n);
-}
-
 tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value) {
   auto tensor_type = dest->ty.as_or_throw<tvm::tirx::TensorType>();
-  PrimType buffer_dtype = tensor_type->dtype;
+  PrimType tensor_dtype = tensor_type->dtype;
   PrimType index_ty = indices.empty() ? PrimType::Int(32) : indices.back().ty();
   bool is_index_scalable = !indices.empty() && index_ty.IsScalableVector();
-  bool is_buffer_dtype_scalable = buffer_dtype.IsScalableVector();
+  bool is_tensor_dtype_scalable = tensor_dtype.IsScalableVector();
 
-  TVM_FFI_ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
-      << "Index dtype and buffer dtype can't both be scalable.";
+  TVM_FFI_ICHECK(!(is_index_scalable && is_tensor_dtype_scalable))
+      << "Index dtype and tensor dtype can't both be scalable.";
 
   int index_lanes;
   if (indices.empty()) {
@@ -232,14 +153,14 @@ tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value) {
     index_lanes = index_ty.lanes();
   }
 
-  int buffer_lanes = is_buffer_dtype_scalable ? buffer_dtype.VScaleFactor() : buffer_dtype.lanes();
+  int tensor_lanes = is_tensor_dtype_scalable ? tensor_dtype.VScaleFactor() : tensor_dtype.lanes();
 
-  PrimType lhs_dtype = buffer_dtype;
-  if (is_buffer_dtype_scalable || is_index_scalable) {
-    lhs_dtype = PrimType::ScalableVector(buffer_dtype.code(), buffer_dtype.bits(),
-                                         buffer_lanes * index_lanes);
+  PrimType lhs_dtype = tensor_dtype;
+  if (is_tensor_dtype_scalable || is_index_scalable) {
+    lhs_dtype = PrimType::ScalableVector(tensor_dtype.code(), tensor_dtype.bits(),
+                                         tensor_lanes * index_lanes);
   } else {
-    lhs_dtype = buffer_dtype.WithLanes(buffer_dtype.lanes() * index_lanes);
+    lhs_dtype = tensor_dtype.WithLanes(tensor_dtype.lanes() * index_lanes);
   }
 
   PrimType rhs_dtype = value.ty();
@@ -284,72 +205,8 @@ tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value) {
   return store;
 }
 
-TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                     int offset_factor, ffi::Optional<Layout> layout,
-                     ffi::Optional<PrimExpr> allocated_addr) {
-  std::string scope = static_cast<std::string>(storage_scope);
-  if (scope.empty()) {
-    scope = "global";
-  }
-
-  TensorVar buffer = TensorDecl(shape, dtype, buffer_name, data, strides, elem_offset,
-                                storage_scope, align, offset_factor, layout);
-  if (scope == "tmem" && allocated_addr.has_value()) {
-    TVM_FFI_CHECK(!data.has_value(), ValueError)
-        << "A TMEM declaration cannot have both data and an address";
-    Location loc = IRBuilder::Current()->GetCurrentLoc();
-    AddToParent(tvm::Bind(buffer.var(),
-                          Call(std::nullopt, Op::Get("tirx.cuda.decl_tmem"),
-                               {allocated_addr.value()}, {}, {buffer.type()}, loc),
-                          loc));
-    return buffer;
-  }
-  TVM_FFI_CHECK(!allocated_addr.has_value() || !data.has_value(), ValueError)
-      << "Placement addresses apply to allocations, not pointer-backed declarations";
-  TVM_FFI_CHECK(!allocated_addr.has_value() || (scope != "global" && scope != "shared" &&
-                                                scope != "shared.dyn" && scope != "local"),
-                ValueError)
-      << "This storage scope does not support allocation placement";
-  Location loc = IRBuilder::Current()->GetCurrentLoc();
-  if (data.has_value()) {
-    AddToParent(tvm::Bind(buffer.var(),
-                          Call(buffer.type(), tvm::tirx::decl_tensor_op(),
-                               {data.value(), tvm::Tuple(buffer->shape),
-                                DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
-                               {}, {}, loc),
-                          loc));
-  } else {
-    // Without a backing pointer, declare and allocate the tensor together.
-    ffi::Array<Expr> args{tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                          StringImm(buffer.scope())};
-    if (allocated_addr.has_value()) args.push_back(tvm::Tuple({allocated_addr.value()}));
-    AddToParent(tvm::Bind(
-        buffer.var(), Call(buffer.type(), tvm::tirx::alloc_tensor_op(), args, DictAttrs(), {}, loc),
-        loc));
-  }
-  return buffer;
-}
-
-TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String storage_scope,
-                      ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
-  TensorVar buffer = TensorDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt,
-                                storage_scope, 0, 0, std::nullopt);
-  ffi::Array<Expr> args{tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                        StringImm(buffer.scope())};
-  auto attrs = annotations.value_or(ffi::Map<ffi::String, ffi::Any>());
-  if (auto placement = attrs.Get("buffer_allocated_addr")) {
-    args.push_back(tvm::Tuple(placement.value().as_or_throw<ffi::Array<PrimExpr>>()));
-    attrs.erase("buffer_allocated_addr");
-  }
-  AddToParent(tvm::Bind(buffer.var(), Call(buffer.type(), tvm::tirx::alloc_tensor_op(), args,
-                                           DictAttrs(std::move(attrs)))));
-  return buffer;
-}
-
 Var Ptr(PrimType dtype, ffi::String storage_scope = "global") {
-  PointerType type_annotation(dtype, storage_scope);
+  PtrType type_annotation(dtype, storage_scope);
   return tvm::Var("", type_annotation);
 }
 
@@ -359,8 +216,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   Namer::vtable().SetDispatch<TensorLoadNode>(
       [](const ffi::ObjectRef& node, ffi::String name) -> void {
         using namespace tvm::tirx;
-        TensorLoadNode* buffer = const_cast<TensorLoadNode*>(node.as<TensorLoadNode>());
-        Namer::Name(buffer->source.as_or_throw<tvm::tirx::TensorVar>(), name);
+        TensorLoadNode* tensor = const_cast<TensorLoadNode*>(node.as<TensorLoadNode>());
+        Namer::Name(tensor->source.as_or_throw<tvm::tirx::TensorVar>(), name);
       });
 }
 
@@ -408,13 +265,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.FuncName", FuncName)
       .def("script.ir_builder.tirx.FuncAttrs", FuncAttrs)
       .def("script.ir_builder.tirx.FuncRet", FuncRet)
-      .def("script.ir_builder.tirx.AllocTensor", AllocTensor)
-      .def("script.ir_builder.tirx.Serial", Serial)
-      .def("script.ir_builder.tirx.Parallel", Parallel)
-      .def("script.ir_builder.tirx.Vectorized", Vectorized)
-      .def("script.ir_builder.tirx.Unroll", Unroll)
-      .def("script.ir_builder.tirx.ThreadBinding", ThreadBinding)
-      .def("script.ir_builder.tirx.DeclTensor", DeclTensor)
       .def("script.ir_builder.tirx.TensorStore", TensorStore)
       .def("script.ir_builder.tirx.Ptr", Ptr);
 }

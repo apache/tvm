@@ -374,27 +374,22 @@ class DocTranslator : public ffi::ObjectRef {
  * \param extra_config The translation configuration snapshot.
  * \return The translated Doc, with text headers and diagnostic recovery left to the text adapter.
  */
-TVM_DLL Doc DocTranslate(ffi::AnyView ir, ffi::Dict<Doc, ffi::ObjectRef>* doc_origins = nullptr,
-                         ffi::Map<ffi::String, ffi::Any> extra_config = {});
+TVM_TIRX_DLL Doc DocTranslate(ffi::AnyView ir,
+                              ffi::Dict<Doc, ffi::ObjectRef>* doc_origins = nullptr,
+                              ffi::Map<ffi::String, ffi::Any> extra_config = {});
 
 namespace type_attr {
 /*!
  * \brief Type attribute containing a native or packed translation hook.
  */
 inline constexpr const char* kDocTranslate = "__tvm_doc_translate__";
-/*!
- * \brief Source-Type hook receiving the original TensorLoad and optional binder.
- */
-inline constexpr const char* kTensorLoadDocTranslate = "__tvm_doc_translate_tensor_load__";
 }  // namespace type_attr
 
 namespace op_attr {
-inline constexpr const char* kScriptPrinterName = "TScriptPrinterName";
-
 /*!
  * \brief Op-specific Call translation hook with the FDocTranslate contract.
  */
-inline constexpr const char* kOpCallDocTranslate = "__tvm_doc_translate_op_call__";
+inline constexpr const char* kDocTranslateOpCall = "__tvm_doc_translate_op_call__";
 }  // namespace op_attr
 
 inline ffi::Optional<ExprDoc> DocTranslatorObj::DefaultTranslate(ffi::AnyView value,

@@ -28,22 +28,22 @@ from .schedule import SBlockRV, Schedule
 
 
 def suggest_index_map(
-    buffer: Var,
+    tensor: Var,
     indices: list[Expr],
     loops: list[For],
     predicate: Expr,
 ) -> IndexMap | None:
-    """Provided the access pattern to a buffer, suggest one of the possible layout
+    """Provided the access pattern to a tensor, suggest one of the possible layout
     transformation to maximize the locality of the access pattern.
 
     Parameters
     ----------
-    buffer : Var
-        The buffer to be transformed.
+    tensor : Var
+        The tensor to be transformed.
     indices : List[Expr]
-        The access pattern to the buffer.
+        The access pattern to the tensor.
     loops : List[For]
-        The loops above the buffer.
+        The loops above the tensor.
     predicate : Expr
         The predicate of the access.
 
@@ -53,7 +53,7 @@ def suggest_index_map(
         The suggested index map. None if no transformation is suggested.
     """
     return _ffi_api.SuggestIndexMap(  # type: ignore # pylint: disable=no-member
-        buffer,
+        tensor,
         indices,
         loops,
         predicate,

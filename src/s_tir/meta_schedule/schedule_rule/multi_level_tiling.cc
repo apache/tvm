@@ -33,15 +33,15 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref) {
+std::vector<int> GetReadTensorNDims(const StmtSRef& block_sref) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  const VarNode* write_buffer = block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>().get();
+  const VarNode* write_tensor = block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>().get();
   int n = block->reads.size();
   std::vector<int> results(n, -1);
   for (int i = 0; i < n; ++i) {
-    const VarNode* read_buffer = block->reads[i]->source.as_or_throw<tvm::tirx::TensorVar>().get();
-    if (read_buffer != write_buffer) {
-      results[i] = GetTensorVar(read_buffer)->shape.size();
+    const VarNode* read_tensor = block->reads[i]->source.as_or_throw<tvm::tirx::TensorVar>().get();
+    if (read_tensor != write_tensor) {
+      results[i] = GetTensorVar(read_tensor)->shape.size();
     }
   }
   return results;
@@ -61,24 +61,24 @@ using s_tir::LoopRV;
 using s_tir::SBlockRV;
 using s_tir::Schedule;
 
-TVM_FFI_STATIC_INIT_BLOCK() { MultiLevelTilingNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { MultiLevelTilingObj::RegisterReflection(); }
 
 State::State(s_tir::Schedule sch, s_tir::SBlockRV block_rv,
              ffi::Array<ffi::Array<s_tir::LoopRV>> tiles) {
-  ffi::ObjectPtr<StateNode> node = ffi::make_object<StateNode>(std::move(sch));
+  ffi::ObjectPtr<StateObj> node = ffi::make_object<StateObj>(std::move(sch));
   node->block_rv = std::move(block_rv);
   node->tiles = std::move(tiles);
   data_ = std::move(node);
 }
 
-State StateNode::Copy() const {
-  ffi::ObjectPtr<StateNode> node = ffi::make_object<StateNode>(*this);
+State StateObj::Copy() const {
+  ffi::ObjectPtr<StateObj> node = ffi::make_object<StateObj>(*this);
   node->sch = sch->Copy();
   return State(ffi::UnsafeInit{}, node);
 }
 
-// Do nothing; Inherited from ScheduleRuleNode
-void MultiLevelTilingNode::InitializeWithTuneContext(const TuneContext& context) {
+// Do nothing; Inherited from ScheduleRuleObj
+void MultiLevelTilingObj::InitializeWithTuneContext(const TuneContext& context) {
   if (ffi::Optional<int64_t> v =
           context->target.value()->GetAttr<int64_t>("max_threads_per_block")) {
     this->max_threads_per_block_ = v.value();
@@ -90,7 +90,7 @@ void MultiLevelTilingNode::InitializeWithTuneContext(const TuneContext& context)
   }
   if (ffi::Optional<ffi::String> opt_sm = context->target.value()->GetAttr<ffi::String>("arch")) {
     std::string sm = opt_sm.value();
-    if (support::StartsWith(sm, "sm_")) {
+    if (sm.starts_with("sm_")) {
       sm = sm.substr(3);
       try {
         // only sm_80 or higher supports async memcopy
@@ -108,8 +108,8 @@ void MultiLevelTilingNode::InitializeWithTuneContext(const TuneContext& context)
   logger = context->logger;
 }
 
-// Entry of the mega rule; Inherited from ScheduleRuleNode
-ffi::Array<Schedule> MultiLevelTilingNode::Apply(const Schedule& sch, const SBlockRV& block_rv) {
+// Entry of the mega rule; Inherited from ScheduleRuleObj
+ffi::Array<Schedule> MultiLevelTilingObj::Apply(const Schedule& sch, const SBlockRV& block_rv) {
   if ((filter_fn_ && filter_fn_.value()(sch, sch->GetSRef(block_rv)).cast<bool>()) ||
       NeedsMultiLevelTiling(sch->state(), sch->GetSRef(block_rv))) {
     sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleTilingStructure, structure);
@@ -123,13 +123,13 @@ ffi::Array<Schedule> MultiLevelTilingNode::Apply(const Schedule& sch, const SBlo
   return {sch};
 }
 
-// Inherited from ScheduleRuleNode
-ScheduleRule MultiLevelTilingNode::Clone() const {
-  ffi::ObjectPtr<MultiLevelTilingNode> n = ffi::make_object<MultiLevelTilingNode>(*this);
+// Inherited from ScheduleRuleObj
+ScheduleRule MultiLevelTilingObj::Clone() const {
+  ffi::ObjectPtr<MultiLevelTilingObj> n = ffi::make_object<MultiLevelTilingObj>(*this);
   return ScheduleRule(ffi::UnsafeInit{}, n);
 }
 
-std::vector<State> MultiLevelTilingNode::ApplySubRules(std::vector<State> states) {
+std::vector<State> MultiLevelTilingObj::ApplySubRules(std::vector<State> states) {
   states = SubRule(std::move(states), [&](State state) { return TileLoopNest(std::move(state)); });
   states = SubRule(std::move(states), [&](State state) { return AddWriteReuse(std::move(state)); });
   states = SubRule(std::move(states), [&](State state) { return AddReadReuse(std::move(state)); });
@@ -138,7 +138,7 @@ std::vector<State> MultiLevelTilingNode::ApplySubRules(std::vector<State> states
   return states;
 }
 
-std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
+std::vector<State> MultiLevelTilingObj::AddWriteReuse(State state) const {
   const ReuseConfig& config = this->reuse_write_;
   if (config.req == ReuseType::kNoReuse) {
     return {std::move(state)};
@@ -175,7 +175,7 @@ std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
 
   // Case 3. Add one write cache
   SBlockRV write_cache =
-      state->sch->CacheWrite(/*block_rv=*/state->block_rv, /*read_buffer_index=*/0,
+      state->sch->CacheWrite(/*block_rv=*/state->block_rv, /*read_tensor_index=*/0,
                              /*storage_scope=*/config.scope);
   state->write_reuse.emplace(0, write_cache);
   for (int level : levels) {
@@ -188,8 +188,8 @@ std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
 }
 
 std::pair<ffi::Array<ffi::Optional<s_tir::ExprRV>>, ffi::Array<s_tir::LoopRV>>
-MultiLevelTilingNode::SplitLoop(const Schedule& sch, SBlockRV block, LoopRV loop,
-                                int n_tiles) const {
+MultiLevelTilingObj::SplitLoop(const Schedule& sch, SBlockRV block, LoopRV loop,
+                               int n_tiles) const {
   ffi::Array<ffi::Optional<s_tir::ExprRV>> factors = sch->SamplePerfectTile(
       /*loop=*/loop,
       /*n=*/n_tiles,
@@ -199,8 +199,8 @@ MultiLevelTilingNode::SplitLoop(const Schedule& sch, SBlockRV block, LoopRV loop
   return {factors, splits};
 }
 
-std::vector<State> MultiLevelTilingNode::TileLoopNest(State state,
-                                                      int tile_inner_most_space_loop_num) const {
+std::vector<State> MultiLevelTilingObj::TileLoopNest(State state,
+                                                     int tile_inner_most_space_loop_num) const {
   Schedule& sch = state->sch;
   const SBlockRV& block_rv = state->block_rv;
   // Step 1. Assuming trivial binding, pair the loops and their iter-var-types
@@ -293,7 +293,7 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state,
   return {state};
 }
 
-std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const {
+std::vector<State> MultiLevelTilingObj::AddReadReuse(State state) const {
   const ReuseConfig& config = this->reuse_read_;
   if (config.req == ReuseType::kNoReuse) {
     return {std::move(state)};
@@ -306,11 +306,11 @@ std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const {
     State new_state = state->Copy();
     Schedule& sch = new_state->sch;
     const LoopRV& loop_rv = state->tiles[level - 1].back();
-    // Enumerate all buffers that are read but not written
-    std::vector<int> read_buffer_ndims = s_tir::GetReadBufferNDims(sch->GetSRef(block_rv));
-    for (int i = 0, n_reads = read_buffer_ndims.size(); i < n_reads; ++i) {
-      int buffer_ndim = read_buffer_ndims[i];
-      if (buffer_ndim == -1) {
+    // Enumerate all tensors that are read but not written
+    std::vector<int> read_tensor_ndims = s_tir::GetReadTensorNDims(sch->GetSRef(block_rv));
+    for (int i = 0, n_reads = read_tensor_ndims.size(); i < n_reads; ++i) {
+      int tensor_ndim = read_tensor_ndims[i];
+      if (tensor_ndim == -1) {
         continue;
       }
       // Do cache_read
@@ -318,9 +318,9 @@ std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const {
       // Insert cache_read block to the proper place
       sch->ComputeAt(cache_read_block, loop_rv, true);
       // Fuse the iterators of the cache_read
-      ffi::Array<LoopRV> buffer_loops = sch->GetLoops(cache_read_block);
-      sch->Fuse(ffi::Array<LoopRV>{buffer_loops.end() - buffer_ndim,  //
-                                   buffer_loops.end()});
+      ffi::Array<LoopRV> tensor_loops = sch->GetLoops(cache_read_block);
+      sch->Fuse(ffi::Array<LoopRV>{tensor_loops.end() - tensor_ndim,  //
+                                   tensor_loops.end()});
       AnnotateCooperativeFetching(&sch, cache_read_block);
       new_state->read_reuse.emplace(i, cache_read_block);
     }
@@ -329,7 +329,7 @@ std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const {
   return results;
 }
 
-std::vector<State> MultiLevelTilingNode::AddAsyncPipeline(State state) const {
+std::vector<State> MultiLevelTilingObj::AddAsyncPipeline(State state) const {
   // For arch that does not support async pipeline, this->stages will be an empty vector
   if (r_indices_.size() < 1 || this->stages.empty()) {
     return {state};
@@ -366,8 +366,8 @@ std::vector<State> MultiLevelTilingNode::AddAsyncPipeline(State state) const {
   return ret;
 }
 
-void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
-                                                       const s_tir::SBlockRV& block) const {
+void MultiLevelTilingObj::AnnotateCooperativeFetching(Schedule* sch,
+                                                      const s_tir::SBlockRV& block) const {
   // Filter out invalid vector lanes according to the data type.
   const s_tir::SBlockNode* block_node = (*sch)->GetSRef(block)->StmtAs<s_tir::SBlockNode>();
   TVM_FFI_ICHECK_EQ(block_node->writes.size(), 1);
@@ -413,7 +413,7 @@ ScheduleRule ScheduleRule::MultiLevelTiling(
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write,
     ffi::Optional<ffi::Function> filter_fn) {
-  auto node = MultiLevelTilingInitCommon<MultiLevelTilingNode>(
+  auto node = MultiLevelTilingInitCommon<MultiLevelTilingObj>(
       structure, tile_binds, max_innermost_factor, vector_load_lens, reuse_read, reuse_write);
   node->filter_fn_ = filter_fn;
   return ScheduleRule(ffi::UnsafeInit{}, node);

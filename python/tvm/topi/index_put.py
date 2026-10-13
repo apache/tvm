@@ -152,17 +152,17 @@ def index_put(data, indices, values, accumulate=False):
     reduce_func = add_func if accumulate else update_func
 
     # Prepare input buffers
-    in_buffers = [data]
-    in_buffers.extend(indices)
-    in_buffers.append(values)
+    in_tensors = [data]
+    in_tensors.extend(indices)
+    in_tensors.append(values)
 
     out_buf = tirx.decl_tensor(data.shape, data.dtype, "out_buf", layout=None)
     return te.extern(
         [data.shape],
-        in_buffers,
+        in_tensors,
         lambda ins, outs: gen_ir(ins[0], ins[1:-1], ins[-1], outs[0], reduce_func),
         dtype=data.dtype,
-        out_buffers=[out_buf],
+        out_tensors=[out_buf],
         name="index_put.generic",
         tag="index_put.generic",
     )

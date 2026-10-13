@@ -22,79 +22,65 @@ import operator
 import pytest
 
 import tvm
+from tvm.backend.cuda.axis import Axis as CUDAAxis
+from tvm.backend.cuda.axis import TCol, TLane, laneid, tid_in_wg, tx, warpid, wgid, wid_in_wg
+from tvm.backend.cuda.lang import SMEMPool
+from tvm.backend.cuda.layout import tmem_mma_operand_layout, wg_local_layout
+from tvm.backend.trn.axis import Axis as TRNAxis
+from tvm.backend.trn.axis import F, P
+from tvm.backend.trn.layout import to_psum_layout, trainium_layout
 from tvm.ir import assert_structural_equal
-from tvm.ir.type import PointerType, PrimType
-from tvm.script import tirx as T
+from tvm.ir.type import PrimType, PtrType
 from tvm.script.ir_builder import IRBuilder
 from tvm.sym import Analyzer
 from tvm.tirx import Var
-from tvm.tirx.cuda.tile_primitive.tma_utils import (
+from tvm.tirx.cuda.tile.tma_utils import (
     SwizzleMode,
     mma_shared_layout,
 )
-from tvm.tirx.layout import (
-    Axis,
-    ComposeLayout,
-    F,
-    Iter,
-    P,
-    R,
-    S,
-    TCol,
-    TileLayout,
-    TLane,
-    laneid,
-    m,
-    tid_in_wg,
-    tmem_mma_operand_layout,
-    tx,
-    warpid,
-    wg_local_layout,
-    wgid,
-    wid_in_wg,
-)
+from tvm.tirx.layout import Axis, ComposeLayout, Iter, R, S, TileLayout, m
 from tvm.tirx.script import ir_builder as Tx_builder
 
 
 def test_axis():
-    assert Axis.bx == Axis.get("bx")
-    assert Axis.by == Axis.get("by")
-    assert Axis.bz == Axis.get("bz")
-    assert Axis.cbx == Axis.get("cbx")
-    assert Axis.cby == Axis.get("cby")
-    assert Axis.cbz == Axis.get("cbz")
-    assert Axis.tx == Axis.get("tx")
-    assert Axis.warpid == Axis.get("warpid")
-    assert Axis.laneid == Axis.get("laneid")
-    assert Axis.wgid == Axis.get("wgid")
-    assert Axis.tid_in_wg == Axis.get("tid_in_wg")
-    assert Axis.wid_in_wg == Axis.get("wid_in_wg")
+    assert CUDAAxis.bx == Axis.get("bx")
+    assert CUDAAxis.by == Axis.get("by")
+    assert CUDAAxis.bz == Axis.get("bz")
+    assert CUDAAxis.cbx == Axis.get("cbx")
+    assert CUDAAxis.cby == Axis.get("cby")
+    assert CUDAAxis.cbz == Axis.get("cbz")
+    assert CUDAAxis.tx == Axis.get("tx")
+    assert CUDAAxis.warpid == Axis.get("warpid")
+    assert CUDAAxis.laneid == Axis.get("laneid")
+    assert CUDAAxis.wgid == Axis.get("wgid")
+    assert CUDAAxis.tid_in_wg == Axis.get("tid_in_wg")
+    assert CUDAAxis.wid_in_wg == Axis.get("wid_in_wg")
     assert Axis.m == Axis.get("m")
-    assert Axis.P == Axis.get("P")
-    assert Axis.F == Axis.get("F")
-    assert Axis.TCol == Axis.get("TCol")
-    assert Axis.TLane == Axis.get("TLane")
+    assert TRNAxis.P == Axis.get("P")
+    assert TRNAxis.F == Axis.get("F")
+    assert CUDAAxis.TCol == Axis.get("TCol")
+    assert CUDAAxis.TLane == Axis.get("TLane")
 
-    assert Axis.bx.is_thread()
-    assert Axis.by.is_thread()
-    assert Axis.bz.is_thread()
-    assert Axis.cbx.is_thread()
-    assert Axis.cby.is_thread()
-    assert Axis.cbz.is_thread()
-    assert Axis.tx.is_thread()
-    assert Axis.warpid.is_thread()
-    assert Axis.laneid.is_thread()
-    assert Axis.wgid.is_thread()
-    assert Axis.tid_in_wg.is_thread()
-    assert Axis.wid_in_wg.is_thread()
+    assert CUDAAxis.bx.is_thread()
+    assert CUDAAxis.by.is_thread()
+    assert CUDAAxis.bz.is_thread()
+    assert CUDAAxis.cbx.is_thread()
+    assert CUDAAxis.cby.is_thread()
+    assert CUDAAxis.cbz.is_thread()
+    assert CUDAAxis.tx.is_thread()
+    assert CUDAAxis.warpid.is_thread()
+    assert CUDAAxis.laneid.is_thread()
+    assert CUDAAxis.wgid.is_thread()
+    assert CUDAAxis.tid_in_wg.is_thread()
+    assert CUDAAxis.wid_in_wg.is_thread()
     assert Axis.m.is_memory()
-    assert Axis.P.is_memory()
-    assert Axis.F.is_memory()
-    assert Axis.TCol.is_memory()
-    assert Axis.TLane.is_memory()
+    assert TRNAxis.P.is_memory()
+    assert TRNAxis.F.is_memory()
+    assert CUDAAxis.TCol.is_memory()
+    assert CUDAAxis.TLane.is_memory()
 
-    assert Axis.bx.get_scope().name == "thread"
-    assert Axis.bx.get_subscope().name == "cta"
+    assert CUDAAxis.bx.get_scope().name == "kernel"
+    assert CUDAAxis.bx.get_subscope().name == "cta"
 
 
 def test_constructor():
@@ -1046,15 +1032,15 @@ def test_size_span():
         layout_free = TileLayout(S[8 : 1 @ F])
         assert layout_free.size("P") == 1 and layout_free.size("F") == 8
 
-        layout = TileLayout.trainium("PF", (128, 128))
+        layout = trainium_layout("PF", (128, 128))
         assert layout.size("P") == 128 and layout.size("F") == 128
 
-        layout = TileLayout.trainium("FPF", (32, 512, 512))
+        layout = trainium_layout("FPF", (32, 512, 512))
         assert_structural_equal(
             layout, TileLayout(S[(32, 4, 128, 512) : (512 @ F, (512 * 32) @ F, 1 @ P, 1 @ F)])
         )
 
-        layout = TileLayout.trainium("FPPF", (2, 4, 32, 512))
+        layout = trainium_layout("FPPF", (2, 4, 32, 512))
         assert_structural_equal(
             layout, TileLayout(S[(2, 4, 32, 512) : (512 @ F, 32 @ P, 1 @ P, 1 @ F)])
         )
@@ -1252,7 +1238,7 @@ def test_apply():
 
     ################ Trainium PSUM Layout
     def test_trainium_psum_layout_0():
-        layout = TileLayout(S[(1024, 8) : (1 @ F, 1 @ P)]).to_psum()
+        layout = to_psum_layout(TileLayout(S[(1024, 8) : (1 @ F, 1 @ P)]))
         for i, j in itertools.product(range(1024), range(8)):
             coord = layout.apply(i, j, shape=(1024, 8))
             assert coord["Bank"] == i // 512
@@ -1492,7 +1478,7 @@ def test_pool_allocator_alloc_mma():
     def alloc_layout(shape, dtype, swizzle_mode="auto"):
         with IRBuilder():
             with Tx_builder.function():
-                pool = T.SMEMPool(Var("smem_ptr", PointerType(PrimType("uint8"))))
+                pool = SMEMPool(Var("smem_ptr", PtrType(PrimType("uint8"))))
                 buf = pool.alloc_tcgen05_mma_AB(shape, dtype, swizzle_mode=swizzle_mode)
         return buf.layout
 
@@ -1748,7 +1734,7 @@ def test_slice():
 
 
 def test_cuda_copy_extract_swizzle_tile_simplifies_constant_region_extents():
-    from tvm.tirx.cuda.tile_primitive.copy._common import _extract_tile
+    from tvm.tirx.cuda.tile.copy._common import _extract_tile
 
     zero = tvm.tirx.Mul(tvm.tirx.IntImm("int32", 0), tvm.tirx.IntImm("int32", 64))
     end = tvm.tirx.Add(zero, tvm.tirx.IntImm("int32", 64))

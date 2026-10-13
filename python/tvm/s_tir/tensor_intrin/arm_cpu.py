@@ -179,7 +179,7 @@ def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
     Parameters
     ----------
     tensor : tvm.ir.Var
-        The tensor the buffer access will be performed on.
+        The tensor the tensor access will be performed on.
     relative_offsets : Tuple[Expr, Expr]
         The vertical and horizontal offsets into the accumulator tile.
     vertical_limit : Expr
@@ -350,7 +350,7 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
     In the fp16 instance, the accumulator tile consists of two sub-tiles numbered 0-1. Rows
     of A are loaded onto the accumulator tile by interleaving rows in the first half (0, SVL//2]
     of the tile and rows in the second half (SVL//2, SVL]. Columns of fp32 values are stored
-    into the output buffer. The fp32 store is used to group pairs of consecutive values together,
+    into the output tensor. The fp32 store is used to group pairs of consecutive values together,
     resulting in the arrangement displayed below::
 
         A:                                Accumulator tile:
@@ -626,8 +626,8 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
 
                         # Ideally we'd rely on predicating the loads and use the same predicate
                         # for the outer product operation. However, support for predicated
-                        # buffers is not currently supported by multiple lowering passes such as
-                        # "LowerMatchBuffer", therefore the predicate is passed directly to the
+                        # tensors is not currently supported by multiple lowering passes such as
+                        # "LowerMatchTensor", therefore the predicate is passed directly to the
                         # outer product operation for now.
                         if in_dtype == "float32":
                             a_low = (

@@ -43,11 +43,11 @@ namespace sym {
  * \note We intentionally keep the internal of IntSet private,
          as we might change it later.
  */
-class IntervalSetNode : public IntSetNode {
+class IntervalSetObj : public IntSetObj {
  public:
-  explicit IntervalSetNode(PrimExpr min_value, PrimExpr max_value)
+  explicit IntervalSetObj(PrimExpr min_value, PrimExpr max_value)
       : min_value(std::move(min_value)), max_value(std::move(max_value)) {}
-  explicit IntervalSetNode(ffi::UnsafeInit)
+  explicit IntervalSetObj(ffi::UnsafeInit)
       : min_value(ffi::UnsafeInit{}), max_value(ffi::UnsafeInit{}) {}
 
   /*! \brief Minimum value in the interval. */
@@ -58,9 +58,9 @@ class IntervalSetNode : public IntSetNode {
   // visitor overload.
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<IntervalSetNode>()
-        .def_ro("min_value", &IntervalSetNode::min_value)
-        .def_ro("max_value", &IntervalSetNode::max_value);
+    refl::ObjectDef<IntervalSetObj>()
+        .def_ro("min_value", &IntervalSetObj::min_value)
+        .def_ro("max_value", &IntervalSetObj::max_value);
   }
 
   /*! \return Whether the interval has upper bound. */
@@ -81,12 +81,12 @@ class IntervalSetNode : public IntSetNode {
   }
   /*! \return whether interval represent everything */
   bool IsEverything() const { return is_neg_inf(min_value) && is_pos_inf(max_value); }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.IntervalSet", IntervalSetNode, IntSetNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.IntervalSet", IntervalSetObj, IntSetObj);
 };
 
 /*!
  * \brief Interval set used for symbolic integer analysis.
- * \sa IntervalSetNode
+ * \sa IntervalSetObj
  */
 class IntervalSet : public IntSet {
  public:
@@ -96,7 +96,7 @@ class IntervalSet : public IntSet {
    * \param max_value The maximum value in the interval.
    * \return The created set.
    */
-  TVM_DLL IntervalSet(PrimExpr min_value, PrimExpr max_value);
+  TVM_TIRX_DLL IntervalSet(PrimExpr min_value, PrimExpr max_value);
 
   /*!
    * \brief Create an IntervalSet that represents a single point.
@@ -116,8 +116,8 @@ class IntervalSet : public IntSet {
    */
   static IntervalSet Empty() { return IntervalSet(pos_inf(), neg_inf()); }
 
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(IntervalSetNode);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IntervalSet, IntSet, IntervalSetNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IntervalSetObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IntervalSet, IntSet, IntervalSetObj);
 };
 
 /*!
@@ -127,7 +127,7 @@ class IntervalSet : public IntSet {
  * \param b The second set.
  * \return The result set.
  */
-TVM_DLL IntervalSet Union(AnalyzerObj* analyzer, IntervalSet a, IntervalSet b);
+TVM_TIRX_DLL IntervalSet Union(AnalyzerObj* analyzer, IntervalSet a, IntervalSet b);
 
 /*!
  * \brief Create insersection of two IntervalSets.
@@ -136,7 +136,7 @@ TVM_DLL IntervalSet Union(AnalyzerObj* analyzer, IntervalSet a, IntervalSet b);
  * \param b The second set.
  * \return The result set.
  */
-TVM_DLL IntervalSet Intersect(AnalyzerObj* analzyer, IntervalSet a, IntervalSet b);
+TVM_TIRX_DLL IntervalSet Intersect(AnalyzerObj* analzyer, IntervalSet a, IntervalSet b);
 
 }  // namespace sym
 }  // namespace tvm

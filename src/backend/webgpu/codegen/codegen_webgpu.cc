@@ -27,6 +27,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/support/bytes_io.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/support/io.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
@@ -44,10 +46,8 @@
 #include <utility>
 #include <vector>
 
-#include "../../../runtime/file_utils.h"
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/thread_storage_scope.h"
-#include "../../../support/bytes_io.h"
 #include "../../../sym/pattern_match.h"
 #include "../../../target/build_common.h"
 #include "webgpu_fallback_module.h"
@@ -113,7 +113,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     Var buffer_var = ffi::GetRef<Var>(op);
-    if (buffer_var->ty.as<PointerTypeNode>()) {
+    if (buffer_var->ty.as<PtrTypeNode>()) {
       info_.write_access_set.insert(buffer_var);
     }
 
@@ -140,16 +140,14 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     if (op->op.same_as(tirx::launch_thread_op())) {
-      TVM_FFI_CHECK(
-          std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
-          ValueError)
+      TVM_FFI_CHECK(!op->args[0].as_or_throw<StringImm>()->value.starts_with("vthread"), ValueError)
           << "Virtual thread launches must be lowered before code generation";
       ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       auto [it, inserted] = thread_extents_.emplace(tag, extent);
       TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
           << "Conflicting launch extents for " << tag;
-      runtime::ThreadScope ts = runtime::ThreadScope::Create(tag);
+      support::GPUThreadTag ts = support::GPUThreadTag::Parse(tag);
       TVM_FFI_ICHECK_GE(ts.dim_index, 0);
       TVM_FFI_ICHECK_LT(ts.dim_index, 3);
       if (ts.rank == 1) {
@@ -192,7 +190,7 @@ void CodeGenWebGPU::InitFuncState(const Function& f) {
   workgroup_memory_bytes_ = 0;
   // analyze the data;
   for (Var arg : f->params) {
-    if (arg->ty.as<PointerTypeNode>()) {
+    if (arg->ty.as<PtrTypeNode>()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -253,12 +251,12 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const Function& f, bool skip_re
   os_param_access << "paramWriteAccess:[";
   // setup buffer argumemts
   for (Var arg : f->params) {
-    if (auto* ptr = arg->ty.as<PointerTypeNode>()) {
+    if (auto* ptr = arg->ty.as<PtrTypeNode>()) {
       runtime_arg_types.push_back(kRuntimeOpaqueHandleType);
       auto* prim = ptr->element_type.as<PrimTypeNode>();
       TVM_FFI_ICHECK(prim)
           << "All handles passed to the CodeGenWebGPU must have a type_annotation as a "
-             "PointerType, "
+             "PtrType, "
           << "and must point to a PrimType";
       PrimType value_storage_type = ffi::GetRef<PrimType>(prim);
       TVM_FFI_ICHECK(!value_storage_type.IsVoid())
@@ -366,8 +364,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const Function& f, bool skip_re
 
 void CodeGenWebGPU::Dispatch_(const RegionStmtNode* op) {
   if (op->op.same_as(tirx::launch_thread_op())) {
-    TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
-                  ValueError)
+    TVM_FFI_CHECK(!op->args[0].as_or_throw<StringImm>()->value.starts_with("vthread"), ValueError)
         << "Virtual thread launches must be lowered before code generation";
     PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
     PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
@@ -769,10 +766,25 @@ void CodeGenWebGPU::Dispatch_(const TensorStoreNode* op) {
   }
 }
 
+void CodeGenWebGPU::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
+  Expr data = buffer_call->args[0];
+  const VarNode* source = data.as<VarNode>();
+  if (const auto* call = data.as<CallNode>();
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
+    source = call->args[0].as<VarNode>();
+  }
+  TVM_FFI_CHECK(source && var_idmap_.count(source), ValueError)
+      << "WebGPU tensor views require a named storage array";
+  // WGSL storage is an array, not a C pointer. Preserve its physical element
+  // representation and access mode by sharing the existing array name.
+  TVM_FFI_ICHECK(!var_idmap_.count(op->var.get()));
+  var_idmap_[op->var.get()] = GetVarID(source);
+}
+
 void CodeGenWebGPU::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
-  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
-  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
-  ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
+  DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
+  ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   TVM_FFI_ICHECK(buffer.defined());
   std::string vid = AllocVarID(buffer.get());
@@ -890,7 +902,7 @@ void CodeGenWebGPU::Dispatch_(const ContinueNode* op) {
 // Build logic.
 //-------------------------------------------------
 //
-// The "C++ side" canonical WebGPU module is `WebGPUFallbackModuleNode` in
+// The "C++ side" canonical WebGPU module is `WebGPUFallbackModuleObj` in
 // src/backend/webgpu/codegen/webgpu_fallback_module.{h,cc} — there is no native
 // WebGPU runtime in the C++ tree (the real receiver is the wasm runtime
 // in web/emcc/webgpu_runtime.cc).

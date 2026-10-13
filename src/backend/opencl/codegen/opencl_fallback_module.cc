@@ -19,8 +19,8 @@
 
 /*!
  * \file opencl_fallback_module.cc
- * \brief OpenCLFallbackModuleNode — codegen-time placeholder used when
- *        the OpenCL runtime is not linked.  Mirrors `OpenCLModuleNode`'s
+ * \brief OpenCLFallbackModuleObj — codegen-time placeholder used when
+ *        the OpenCL runtime is not linked.  Mirrors `OpenCLModuleObj`'s
  *        save/load format byte-for-byte; see one-way comment in
  *        `SaveToBytes` below.  Always compiled (independent of
  *        USE_OPENCL); never registered as an FFI factory or loader.
@@ -30,20 +30,19 @@
 
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/support/bytes_io.h>
 
 #include <string>
 #include <utility>
 
-#include "../../../support/bytes_io.h"
-
 namespace tvm {
 namespace target {
 
-class OpenCLFallbackModuleNode : public ffi::ModuleObj {
+class OpenCLFallbackModuleObj : public ffi::ModuleObj {
  public:
-  OpenCLFallbackModuleNode(ffi::Bytes code, ffi::String fmt,
-                           ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
-                           ffi::Map<ffi::String, ffi::String> source)
+  OpenCLFallbackModuleObj(ffi::Bytes code, ffi::String fmt,
+                          ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
+                          ffi::Map<ffi::String, ffi::String> source)
       : code_(std::move(code)),
         fmt_(std::move(fmt)),
         fmap_(std::move(fmap)),
@@ -51,7 +50,7 @@ class OpenCLFallbackModuleNode : public ffi::ModuleObj {
 
   // Mirror the real module's kind ("opencl") so consumers cannot
   // distinguish at the kind/api layer.  Saved bytes load back as a real
-  // OpenCLModuleNode on a USE_OPENCL=ON receiver.
+  // OpenCLModuleObj on a USE_OPENCL=ON receiver.
   const char* kind() const final { return "opencl"; }
 
   int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; }
@@ -66,7 +65,7 @@ class OpenCLFallbackModuleNode : public ffi::ModuleObj {
 
   ffi::Bytes SaveToBytes() const final {
     // NOTE: serialization format MUST remain byte-identical to
-    // OpenCLModuleNode::SaveToBytes in src/backend/opencl/runtime/opencl_module.cc
+    // OpenCLModuleObj::SaveToBytes in src/backend/opencl/runtime/opencl_module.cc
     // (the source of truth).  Both produce a kind="opencl" artifact
     // that the loader (ffi.Module.load_from_bytes.opencl, registered
     // only when USE_OPENCL=ON) deserializes.  If the real impl's
@@ -119,8 +118,8 @@ class OpenCLFallbackModuleNode : public ffi::ModuleObj {
 ffi::Module OpenCLFallbackModuleCreate(ffi::Bytes code, ffi::String fmt,
                                        ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
                                        ffi::Map<ffi::String, ffi::String> source) {
-  auto n = ffi::make_object<OpenCLFallbackModuleNode>(std::move(code), std::move(fmt),
-                                                      std::move(fmap), std::move(source));
+  auto n = ffi::make_object<OpenCLFallbackModuleObj>(std::move(code), std::move(fmt),
+                                                     std::move(fmap), std::move(source));
   return ffi::Module(n);
 }
 

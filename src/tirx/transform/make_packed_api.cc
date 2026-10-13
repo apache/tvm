@@ -61,12 +61,22 @@ class ReturnRewriter : public StmtExprMutator {
   explicit ReturnRewriter(Var ret_var) : ret_var_(ret_var) {}
 
   UnchangedOr<Stmt> Mutate_(const ForNode* node, InplaceMode inplace_mode) override {
-    if (node->kind == ForKind::kParallel && !tvm::tirx::GetThreadBinding(node).has_value())
-      in_parallel_ += 1;
+    // Unannotated single-iteration loops execute without a threadpool launch.
+    bool is_parallel =
+        node->kind == ForKind::kParallel &&
+        !(prim::IsOne(node->extent) && node->HasTrivialStep() && node->annotations.empty());
+    if (is_parallel) in_parallel_ += 1;
     Stmt ret =
         StmtExprMutator::Mutate_(node, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(node));
-    if (node->kind == ForKind::kParallel && !tvm::tirx::GetThreadBinding(node).has_value())
-      in_parallel_ -= 1;
+    if (is_parallel) in_parallel_ -= 1;
+    return ret;
+  }
+
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* node, InplaceMode inplace_mode) override {
+    bool is_parallel = node->op.same_as(tirx::parallel_launch_op());
+    if (is_parallel) in_parallel_ += 1;
+    auto ret = StmtExprMutator::Mutate_(node, inplace_mode);
+    if (is_parallel) in_parallel_ -= 1;
     return ret;
   }
 
@@ -85,7 +95,7 @@ class ReturnRewriter : public StmtExprMutator {
     ConvertedInfo info{-1, val};
 
     // convert val's data type to FFI data type, return type code
-    if (val->ty.as<PointerTypeNode>()) {
+    if (val->ty.as<PtrTypeNode>()) {
       info.type_index = ffi::TypeIndex::kTVMFFIOpaquePtr;
       info.expr = val;
       return info;
@@ -235,10 +245,10 @@ Function MakePackedAPI(Function func) {
   auto* func_ptr = func.CopyOnWrite();
 
   // Data field definitions
-  Var v_self_handle("self_handle", PointerType::VoidPointerTy());
-  Var v_packed_args("args", PointerType::VoidPointerTy());
+  Var v_self_handle("self_handle", PtrType::VoidPtrType());
+  Var v_packed_args("args", PtrType::VoidPtrType());
   Var v_num_packed_args("num_args", PrimType::Int(32));
-  Var v_result("result", PointerType::VoidPointerTy());
+  Var v_result("result", PtrType::VoidPtrType());
 
   // The device context
   PrimVar device_id("dev_id");
@@ -269,26 +279,35 @@ Function MakePackedAPI(Function func) {
   // Set device context
   if (need_set_device) {
     if (runtime::DeviceAPI::NeedSetDevice(target_device_type)) {
-      Stmt set_device = Evaluate(Call(PrimType::Int(32), tirx::call_packed_op(),
-                                      {StringImm(runtime::symbol::tvm_set_device), device_type,
-                                       device_id.as_or_throw<PrimExpr>()})
-                                     .as_or_throw<PrimExpr>());
-      body = SeqStmt({set_device, body});
+      PrimVar status("set_device_status", PrimType::Int(32));
+      Stmt set_device =
+          Bind(status, Call(PrimType::Int(32), tirx::call_extern_op(),
+                            {StringImm("TVMBackendSetDevice"), device_type, device_id}));
+      Stmt check_status = If(
+          status != IntImm::Int32(0),
+          SeqStmt({Evaluate(
+              Call(PrimType::Int(32), tirx::throw_last_error_op(), {}).as_or_throw<PrimExpr>())}));
+      body = SeqStmt({set_device, check_status, body});
     }
   }
 
   // Return error code of zero on success
   body = SeqStmt({body, Return(IntImm::Int32(0))});
 
-  // Tensor declarations and alignment assumptions are ordinary statements,
-  // not scopes with a body hole for MergeNest to fill.
-  result.decl_buffers.push_back(body);
-  body = SeqStmt(result.decl_buffers);
-  body = MergeNest(std::move(result.asserts), body);
+  // Prepend tensor declarations and alignment assumptions.
+  result.decl_tensors.push_back(body);
+  body = SeqStmt(result.decl_tensors);
+  if (!result.asserts.empty()) {
+    result.asserts.push_back(body);
+    body = SeqStmt(result.asserts);
+  }
   if (need_set_device) {
     body = RegionStmt(tirx::device_context_op(), {device_type, device_id}, {}, DictAttrs(), body);
   }
-  body = MergeNest(std::move(result.init_nest), body);
+  if (!result.init_nest.empty()) {
+    result.init_nest.push_back(body);
+    body = SeqStmt(result.init_nest);
+  }
   func_ptr->body = body;
   func_ptr->params = args;
 

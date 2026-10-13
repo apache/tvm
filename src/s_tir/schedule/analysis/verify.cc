@@ -34,12 +34,12 @@ class SRefTreeVerifier : public StmtExprVisitor {
     return StmtExprVisitor::Visit(value);
   }
 
-  static void Verify(const ScheduleStateNode* self) {
+  static void Verify(const ScheduleStateObj* self) {
     ffi::make_object<SRefTreeVerifier>(self)->Verify();
   }
 
   /*! \brief Constructor */
-  explicit SRefTreeVerifier(const ScheduleStateNode* self) : self_(self) {}
+  explicit SRefTreeVerifier(const ScheduleStateObj* self) : self_(self) {}
 
  private:
   void Verify() {
@@ -149,9 +149,9 @@ class SRefTreeVerifier : public StmtExprVisitor {
   }
 
   /*! \brief The schedule it belongs to */
-  const ScheduleStateNode* self_;
+  const ScheduleStateObj* self_;
   /*! \brief Parent information during the visit */
-  std::vector<const StmtSRefNode*> ancestors_ = {nullptr};
+  std::vector<const StmtSRefObj*> ancestors_ = {nullptr};
   /*! \brief If the visitor is currently in the init block */
   int init_block_depth_ = 0;
   /*! \brief Number of srefs that are visited */

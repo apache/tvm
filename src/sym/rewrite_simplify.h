@@ -45,7 +45,7 @@ namespace sym {
  * These are intended for debug and testing purposes, to ensure that
  * PrimExpr simplifications and TIR passes do not require an excessive
  */
-struct RewriteSimplifierStatsNode : ffi::Object {
+struct RewriteSimplifierStatsObj : ffi::Object {
   int64_t nodes_visited{0};
   int64_t constraints_entered{0};
   int64_t rewrites_attempted{0};
@@ -55,26 +55,26 @@ struct RewriteSimplifierStatsNode : ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RewriteSimplifierStatsNode>()
-        .def_ro("nodes_visited", &RewriteSimplifierStatsNode::nodes_visited)
-        .def_ro("constraints_entered", &RewriteSimplifierStatsNode::constraints_entered)
-        .def_ro("rewrites_attempted", &RewriteSimplifierStatsNode::rewrites_attempted)
-        .def_ro("rewrites_performed", &RewriteSimplifierStatsNode::rewrites_performed)
-        .def_ro("max_recursive_depth", &RewriteSimplifierStatsNode::max_recursive_depth)
-        .def_ro("num_recursive_rewrites", &RewriteSimplifierStatsNode::num_recursive_rewrites);
+    refl::ObjectDef<RewriteSimplifierStatsObj>()
+        .def_ro("nodes_visited", &RewriteSimplifierStatsObj::nodes_visited)
+        .def_ro("constraints_entered", &RewriteSimplifierStatsObj::constraints_entered)
+        .def_ro("rewrites_attempted", &RewriteSimplifierStatsObj::rewrites_attempted)
+        .def_ro("rewrites_performed", &RewriteSimplifierStatsObj::rewrites_performed)
+        .def_ro("max_recursive_depth", &RewriteSimplifierStatsObj::max_recursive_depth)
+        .def_ro("num_recursive_rewrites", &RewriteSimplifierStatsObj::num_recursive_rewrites);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.RewriteSimplifierStats", RewriteSimplifierStatsNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.RewriteSimplifierStats", RewriteSimplifierStatsObj,
                                     ffi::Object);
 };
 
 struct RewriteSimplifierStats : ffi::ObjectRef {
-  explicit RewriteSimplifierStats(RewriteSimplifierStatsNode data) {
-    data_ = ffi::make_object<RewriteSimplifierStatsNode>(data);
+  explicit RewriteSimplifierStats(RewriteSimplifierStatsObj data) {
+    data_ = ffi::make_object<RewriteSimplifierStatsObj>(data);
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RewriteSimplifierStats, ffi::ObjectRef,
-                                                RewriteSimplifierStatsNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(RewriteSimplifierStatsNode);
+                                                RewriteSimplifierStatsObj);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(RewriteSimplifierStatsObj);
 };
 
 /*!
@@ -146,7 +146,7 @@ class RewriteSimplifier::Impl : public SimplifierBase {
 
  protected:
   int64_t maximum_rewrite_steps_{0};
-  RewriteSimplifierStatsNode stats_;
+  RewriteSimplifierStatsObj stats_;
 
   void RecordAttemptedRewrite() { stats_.rewrites_attempted++; }
   void RecordRewrite() {

@@ -141,8 +141,8 @@ def test_reshape_pattern_detect():
     class Module:
         @Ts.function
         def reshape(rxplaceholder: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float32"), T_reshape: T.Tensor((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32")):
-            for ax0_ax1_ax2_ax3_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
-                for ax0_ax1_ax2_ax3_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
+            for ax0_ax1_ax2_ax3_fused_1 in T.parallel(T.int64(256), annotations={"thread_binding": "blockIdx.x"}):
+                for ax0_ax1_ax2_ax3_fused_2 in T.parallel(T.int64(1024), annotations={"thread_binding": "threadIdx.x"}):
                     for ax0_ax1_ax2_ax3_fused_0 in range(T.int64(10)):
                         with Ts.sblock("T_reshape"):
                             v_ax0 = Ts.axis.spatial(T.int64(2), (ax0_ax1_ax2_ax3_fused_0 * T.int64(262144) + ax0_ax1_ax2_ax3_fused_1 * T.int64(1024) + ax0_ax1_ax2_ax3_fused_2) // T.int64(1310720))
@@ -198,8 +198,8 @@ def test_reshape_pattern_detect():
         @Ts.function
         def reshape(rxplaceholder: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float32"), T_reshape: T.Tensor((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32")):
             # with Ts.sblock("root"):
-            for ax0_ax1_ax2_ax3_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
-                for ax0_ax1_ax2_ax3_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
+            for ax0_ax1_ax2_ax3_fused_1 in T.parallel(T.int64(256), annotations={"thread_binding": "blockIdx.x"}):
+                for ax0_ax1_ax2_ax3_fused_2 in T.parallel(T.int64(1024), annotations={"thread_binding": "threadIdx.x"}):
                     for ax0_ax1_ax2_ax3_fused_0 in range(T.int64(10)):
                         with Ts.sblock("T_reshape"):
                             v_ax0 = Ts.axis.spatial(T.int64(2), (ax0_ax1_ax2_ax3_fused_0 * T.int64(262144) + ax0_ax1_ax2_ax3_fused_1 * T.int64(1024) + ax0_ax1_ax2_ax3_fused_2) // T.int64(1310720))
@@ -237,8 +237,12 @@ def test_reshape_dynamic_shape():
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            for ax0_ax1_ax2_fused_0 in T.thread_binding(n * 2, thread="blockIdx.x"):
-                for ax0_ax1_ax2_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+            for ax0_ax1_ax2_fused_0 in T.parallel(
+                n * 2, annotations={"thread_binding": "blockIdx.x"}
+            ):
+                for ax0_ax1_ax2_fused_1 in T.parallel(
+                    1024, annotations={"thread_binding": "threadIdx.x"}
+                ):
                     with Ts.sblock("T_reshape"):
                         v0 = Ts.axis.spatial(
                             n, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) // 2048
@@ -281,8 +285,12 @@ def test_reshape_dynamic_shape():
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            for ax0_ax1_ax2_fused_0 in T.thread_binding(n * 2, thread="blockIdx.x"):
-                for ax0_ax1_ax2_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+            for ax0_ax1_ax2_fused_0 in T.parallel(
+                n * 2, annotations={"thread_binding": "blockIdx.x"}
+            ):
+                for ax0_ax1_ax2_fused_1 in T.parallel(
+                    1024, annotations={"thread_binding": "threadIdx.x"}
+                ):
                     with Ts.sblock("T_reshape"):
                         v0 = Ts.axis.spatial(
                             n, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) // 2048

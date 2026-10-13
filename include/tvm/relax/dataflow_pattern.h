@@ -248,7 +248,7 @@ class PatternSeq final : public ffi::ObjectRef {
  * \brief A context to manage the graph-level pattern matching.
  * \sa PatternContext
  */
-class PatternContextNode : public ffi::Object {
+class PatternContextObj : public ffi::Object {
  public:
   /*! \brief Constrainting matched graph with assertion to external uses */
   enum ExternUse {
@@ -266,12 +266,12 @@ class PatternContextNode : public ffi::Object {
 
   // Non-edge constraints
   std::vector<DFConstraint> validation_constraints;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.PatternContext", PatternContextNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.PatternContext", PatternContextObj, ffi::Object);
 };
 
 /*!
  * \brief Managed reference to a pattern context.
- * \sa PatternContextNode
+ * \sa PatternContextObj
  */
 class PatternContext : public ffi::ObjectRef {
  public:
@@ -279,14 +279,14 @@ class PatternContext : public ffi::ObjectRef {
   static constexpr bool _type_is_nullable = false;
   TVM_DLL explicit PatternContext(bool incremental = false);
 
-  const PatternContextNode* operator->() const {
+  const PatternContextObj* operator->() const {
     TVM_FFI_ICHECK(get() != nullptr);
-    return static_cast<const PatternContextNode*>(get());
+    return static_cast<const PatternContextObj*>(get());
   }
 
-  PatternContextNode* operator->() {
+  PatternContextObj* operator->() {
     TVM_FFI_ICHECK(get() != nullptr);
-    return static_cast<PatternContextNode*>(get_mutable());
+    return static_cast<PatternContextObj*>(get_mutable());
   }
 
   /*!

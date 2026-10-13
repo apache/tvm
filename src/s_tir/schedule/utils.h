@@ -32,6 +32,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/utils.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/int_set.h>
 #include <tvm/sym/iter_affine_map.h>
@@ -44,7 +45,6 @@
 #include <utility>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../sym/pattern_match.h"
 #include "../support/array_utils.h"
 #include "../support/nd_int_set.h"
 #include "./analysis.h"
@@ -98,7 +98,7 @@ inline ffi::Array<StmtSRef> SBlockRVs2StmtSRefs(const Schedule& sch,
  * \return A boolean indicating the result
  */
 inline bool CanRelaxStorageUnderThread(const runtime::StorageScope& storage_scope,
-                                       const runtime::ThreadScope& thread_scope) {
+                                       const support::GPUThreadTag& thread_scope) {
   if (storage_scope.rank == runtime::StorageRank::kWarp) {
     // for warp memory, we only relax threadIdx.x
     return thread_scope.rank == 1 && thread_scope.dim_index == 0;
@@ -160,16 +160,24 @@ inline IterVar IterVarFromLoop(const For& loop, ffi::String name, IterVarType it
                  PrimVar(std::move(name), loop->loop_var.ty()), iter_var_type);
 }
 
+/*! \brief Interpret physical and virtual thread bindings for S-TIR scheduling. */
+inline support::GPUThreadTag ParseThreadBindingTag(const ffi::String& tag) {
+  if (tag.starts_with("vthread")) {
+    return {1, -1};
+  }
+  return support::GPUThreadTag::Parse(tag);
+}
+
 /*!
  * \brief Get the thread scope bound to the specific loop
  * \param loop The loop to be inspected
  * \return The thread scope bound to the loop
  */
-inline runtime::ThreadScope GetThreadScope(const ForNode* loop) {
-  if (tvm::tirx::GetThreadBinding(loop).has_value()) {
-    return runtime::ThreadScope::Create(tvm::tirx::GetThreadBinding(loop).value());
+inline support::GPUThreadTag GetThreadBindingTag(const ForNode* loop) {
+  if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
+    return ParseThreadBindingTag(tvm::s_tir::GetThreadBinding(loop).value());
   }
-  return runtime::ThreadScope{-1, -1};
+  return support::GPUThreadTag{-1, -1};
 }
 
 /*!
@@ -177,7 +185,7 @@ inline runtime::ThreadScope GetThreadScope(const ForNode* loop) {
  * \param thread_scope The thread scope to be checked
  * \return True if the thread scope is blockIdx
  */
-inline bool IsBlockIdx(const runtime::ThreadScope& thread_scope) {
+inline bool IsBlockIdx(const support::GPUThreadTag& thread_scope) {
   return thread_scope.rank == 0;  // The rank of blockIdx is 0
 }
 
@@ -186,7 +194,7 @@ inline bool IsBlockIdx(const runtime::ThreadScope& thread_scope) {
  * \param thread_scope The thread scope to be checked
  * \return True if the thread scope is threadIdx
  */
-inline bool IsThreadIdx(const runtime::ThreadScope& thread_scope) {
+inline bool IsThreadIdx(const support::GPUThreadTag& thread_scope) {
   return thread_scope.rank == 1 && thread_scope.dim_index >= 0;
 }
 
@@ -203,18 +211,29 @@ inline ffi::Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr,
     *constant = std::nullopt;
     return static_cast<Var>(var.value());
   }
-  sym::PVar<Var> var;
-  sym::PVar<IntImm> shift;
   // match: "var + shift"
-  if ((var + shift).Match(expr) || (shift + var).Match(expr)) {
-    *constant = shift.Eval();
-    return var.Eval();
+  if (const auto* add = expr.as<prim::AddNode>()) {
+    if (auto var = add->a.as<Var>()) {
+      if (auto shift = add->b.as<IntImm>()) {
+        *constant = shift;
+        return var;
+      }
+    }
+    if (auto shift = add->a.as<IntImm>()) {
+      if (auto var = add->b.as<Var>()) {
+        *constant = shift;
+        return var;
+      }
+    }
   }
   // match: "var - shift"
-  if ((var - shift).Match(expr)) {
-    IntImm result = shift.Eval();
-    *constant = IntImm(result.ty(), -result->value);
-    return var.Eval();
+  if (const auto* sub = expr.as<prim::SubNode>()) {
+    if (auto var = sub->a.as<Var>()) {
+      if (auto shift = sub->b.as<IntImm>()) {
+        *constant = IntImm(shift.value().ty(), -shift.value()->value);
+        return var;
+      }
+    }
   }
   return std::nullopt;
 }
@@ -341,15 +360,15 @@ inline void ReorderAndFuseReductionLoops(const s_tir::Schedule& sch,
 /******** Helper functions for enum conversion ********/
 
 /*!
- * \brief Convert BufferIndexType to String
- * \param buffer_index_type The BufferIndexType value to convert
- * \return The string representation of BufferIndexType
+ * \brief Convert TensorIndexType to String
+ * \param tensor_index_type The TensorIndexType value to convert
+ * \return The string representation of TensorIndexType
  */
-inline ffi::String BufferIndexType2Str(BufferIndexType buffer_index_type) {
-  if (buffer_index_type == BufferIndexType::kRead) {
+inline ffi::String TensorIndexType2Str(TensorIndexType tensor_index_type) {
+  if (tensor_index_type == TensorIndexType::kRead) {
     return "read";
   } else {
-    TVM_FFI_ICHECK(buffer_index_type == BufferIndexType::kWrite);
+    TVM_FFI_ICHECK(tensor_index_type == TensorIndexType::kWrite);
     return "write";
   }
 }

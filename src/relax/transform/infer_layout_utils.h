@@ -55,7 +55,7 @@ using tirx::SLayout;
  * \brief A layout decision node that holds the layout decision of the tensor.
  * \param layout The layout of the tensor.
  */
-class LayoutDecisionNode : public ffi::Object {
+class LayoutDecisionObj : public ffi::Object {
  public:
   /*! \brief The layout decision of the tensor. */
   ffi::Optional<SLayout> layout;
@@ -64,12 +64,12 @@ class LayoutDecisionNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<LayoutDecisionNode>()
-        .def_ro("layout", &LayoutDecisionNode::layout)
-        .def_ro("is_unknown_dim", &LayoutDecisionNode::is_unknown_dim);
+    refl::ObjectDef<LayoutDecisionObj>()
+        .def_ro("layout", &LayoutDecisionObj::layout)
+        .def_ro("is_unknown_dim", &LayoutDecisionObj::is_unknown_dim);
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.LayoutDecision", LayoutDecisionNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.LayoutDecision", LayoutDecisionObj, ffi::Object);
 };
 
 class LayoutDecision : public ffi::ObjectRef {
@@ -78,7 +78,7 @@ class LayoutDecision : public ffi::ObjectRef {
       : LayoutDecision(ffi::Optional<SLayout>(std::move(layout)), is_unknown_dim) {}
 
   LayoutDecision(ffi::Optional<SLayout> layout, bool is_unknown_dim = false) {  // NOLINT(*)
-    auto n = ffi::make_object<LayoutDecisionNode>();
+    auto n = ffi::make_object<LayoutDecisionObj>();
     n->layout = std::move(layout);
     n->is_unknown_dim = is_unknown_dim;
     data_ = n;
@@ -93,7 +93,7 @@ class LayoutDecision : public ffi::ObjectRef {
     return operator->()->layout.has_value() ? operator->()->layout.value().name() : "__undef__";
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LayoutDecision, ffi::ObjectRef, LayoutDecisionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LayoutDecision, ffi::ObjectRef, LayoutDecisionObj);
 };
 
 using NLayout = NestedMsg<LayoutDecision>;
@@ -104,7 +104,7 @@ using NLayout = NestedMsg<LayoutDecision>;
  * \param output_layouts Inferred output layouts.
  * \param new_attrs Updated attributes consistent with inferred layouts.
  */
-class InferLayoutOutputNode : public ffi::Object {
+class InferLayoutOutputObj : public ffi::Object {
  public:
   ffi::Array<NLayout> input_layouts;
   ffi::Array<NLayout> output_layouts;
@@ -113,14 +113,14 @@ class InferLayoutOutputNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<InferLayoutOutputNode>()
-        .def_ro("input_layouts", &InferLayoutOutputNode::input_layouts)
-        .def_ro("output_layouts", &InferLayoutOutputNode::output_layouts)
-        .def_ro("new_attrs", &InferLayoutOutputNode::new_attrs)
-        .def_ro("new_args", &InferLayoutOutputNode::new_args);
+    refl::ObjectDef<InferLayoutOutputObj>()
+        .def_ro("input_layouts", &InferLayoutOutputObj::input_layouts)
+        .def_ro("output_layouts", &InferLayoutOutputObj::output_layouts)
+        .def_ro("new_attrs", &InferLayoutOutputObj::new_attrs)
+        .def_ro("new_args", &InferLayoutOutputObj::new_args);
   }
 
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InferLayoutOutput", InferLayoutOutputNode,
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InferLayoutOutput", InferLayoutOutputObj,
                               ffi::Object);
 };
 
@@ -128,7 +128,7 @@ class InferLayoutOutput : public ffi::ObjectRef {
  public:
   explicit InferLayoutOutput(ffi::Array<NLayout> input_layouts, ffi::Array<NLayout> output_layouts,
                              ffi::Optional<Attrs> new_attrs, ffi::Map<IntImm, Expr> new_args = {}) {
-    auto n = ffi::make_object<InferLayoutOutputNode>();
+    auto n = ffi::make_object<InferLayoutOutputObj>();
     n->input_layouts = std::move(input_layouts);
     n->output_layouts = std::move(output_layouts);
     n->new_attrs = std::move(new_attrs);
@@ -136,7 +136,7 @@ class InferLayoutOutput : public ffi::ObjectRef {
     data_ = n;
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(InferLayoutOutput, ffi::ObjectRef,
-                                                InferLayoutOutputNode);
+                                                InferLayoutOutputObj);
 };
 
 struct NLayoutEqual {

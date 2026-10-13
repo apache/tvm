@@ -23,7 +23,7 @@ the PTX ``cp.async`` (LDGSTS) instruction: each thread issues an *asynchronous*
 vectorized copy that the hardware completes in the background, so the warp can keep
 computing while the load is in flight. Its layout planner constructs an
 ``[outer, threads, vec]`` partition. Source:
-``python/tvm/backend/cuda/tile_primitive/copy_async/ldgsts.py``.
+``python/tvm/backend/cuda/tile/copy_async/ldgsts.py``.
 
 What it accepts
 ---------------
@@ -101,7 +101,7 @@ shared, then commits and waits before reading it back (from ``test_ldgsts.py``):
         _index = Tx.cuda.warp_id()
         _lane = Tx.cuda.lane_id()
         tid = Tx.cuda.thread_idx("x")
-        A_smem = Tx.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
+        A_smem = Tx.alloc_tensor(ty_args=[Tx.Tensor(shape, dtype, scope="shared", layout=s_layout)])
         Tx.cuda.tile.cp_async(A_smem[full], A[full], scope="cta")  # async global -> shared
         Tx.ptx.cp.async_.commit_group()  # caller commits ...
         Tx.ptx.cp.async_.wait_group(0)  # ... and waits

@@ -52,13 +52,8 @@ using TFixedReturnType = Type;
 /*! \brief Infer a Call's result type from its explicit inputs without builder state. */
 using FInferType = ffi::reflection::NativeFunctionView<Type(const CallNode* call)>;
 
-/*!
- * \brief The fully qualified TVMScript name, including its dialect namespace.
- */
-using TScriptPrinterName = ffi::String;
-
 /*! \brief An operator argument's name and documentation. */
-class ArgumentInfoNode : public ffi::Object {
+class ArgumentInfoObj : public ffi::Object {
  public:
   /*! \brief Argument name. */
   ffi::String name;
@@ -67,24 +62,24 @@ class ArgumentInfoNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = ffi::reflection;
-    refl::ObjectDef<ArgumentInfoNode>()
-        .def_ro("name", &ArgumentInfoNode::name)
-        .def_ro("doc", &ArgumentInfoNode::doc);
+    refl::ObjectDef<ArgumentInfoObj>()
+        .def_ro("name", &ArgumentInfoObj::name)
+        .def_ro("doc", &ArgumentInfoObj::doc);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.ArgumentInfo", ArgumentInfoNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.ArgumentInfo", ArgumentInfoObj, ffi::Object);
 };
 
 /*! \brief Managed reference to an argument descriptor. */
 class ArgumentInfo : public ffi::ObjectRef {
  public:
-  explicit ArgumentInfo(ffi::UnsafeInit tag, ffi::ObjectPtr<ArgumentInfoNode> n)
+  explicit ArgumentInfo(ffi::UnsafeInit tag, ffi::ObjectPtr<ArgumentInfoObj> n)
       : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ArgumentInfo, ffi::ObjectRef, ArgumentInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ArgumentInfo, ffi::ObjectRef, ArgumentInfoObj);
 };
 
 /*! \brief Metadata for a canonical primitive operator invoked through Call. */
@@ -115,7 +110,7 @@ class OpNode : public ExprNode {
   /*! \brief Whether the validator was explicitly registered rather than generated. */
   bool validator_is_custom{false};
 
-  TVM_DLL static void RegisterReflection();
+  TVM_TIRX_DLL static void RegisterReflection();
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Op", OpNode, ExprNode);
@@ -170,16 +165,16 @@ class Op : public Expr {
    * \param attr_name The column name.
    * \return Whether the column has been registered.
    */
-  TVM_DLL static bool HasAttrMap(const ffi::String& attr_name);
+  TVM_TIRX_DLL static bool HasAttrMap(const ffi::String& attr_name);
   /*!
    * \brief Look up a registered operator by name.
    * \param op_name The canonical name.
    * \return A copy of the reference-counted handle to the canonical node.
    * \throws AttributeError if the operator is not registered.
    */
-  TVM_DLL static Op Get(const ffi::String& op_name);
+  TVM_TIRX_DLL static Op Get(const ffi::String& op_name);
   /*! \brief List registered operator names. \return Names in unspecified order. */
-  TVM_DLL static ffi::Array<ffi::String> ListNames();
+  TVM_TIRX_DLL static ffi::Array<ffi::String> ListNames();
 
   /*! \brief Validate a Call with this Op's callback, when one is registered. */
   TVM_FFI_INLINE void Validate(const CallNode* call) const {
@@ -198,8 +193,8 @@ class Op : public Expr {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Op, Expr, OpNode);
 
  private:
-  TVM_DLL static void ThrowInvalidCall(const OpNode* op);
-  TVM_DLL static ffi::List<ffi::Any> GetAttrColumn(const ffi::String& attr_name);
+  TVM_TIRX_DLL static void ThrowInvalidCall(const OpNode* op);
+  TVM_TIRX_DLL static ffi::List<ffi::Any> GetAttrColumn(const ffi::String& attr_name);
 };
 
 namespace sig {
@@ -270,7 +265,7 @@ struct arg : SignatureTrait {
       : name(std::move(name)), doc(std::move(doc)) {}
 
   void CollectMetadata(OpNode* op) const {
-    auto info = ffi::make_object<ArgumentInfoNode>();
+    auto info = ffi::make_object<ArgumentInfoObj>();
     info->name = name;
     info->doc = doc;
     op->args_info.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(info)));
@@ -305,7 +300,7 @@ struct var_args : SignatureTrait {
       : name(std::move(name)), doc(std::move(doc)) {}
 
   void CollectMetadata(OpNode* op) const {
-    auto info = ffi::make_object<ArgumentInfoNode>();
+    auto info = ffi::make_object<ArgumentInfoObj>();
     info->name = name;
     info->doc = doc;
     op->var_args_info = ArgumentInfo(ffi::UnsafeInit{}, std::move(info));
@@ -344,7 +339,7 @@ struct ty_arg : SignatureTrait {
       : name(std::move(name)), doc(std::move(doc)) {}
 
   void CollectMetadata(OpNode* op) const {
-    auto info = ffi::make_object<ArgumentInfoNode>();
+    auto info = ffi::make_object<ArgumentInfoObj>();
     info->name = name;
     info->doc = doc;
     op->ty_args_info.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(info)));
@@ -379,7 +374,7 @@ struct var_ty_args : SignatureTrait {
       : name(std::move(name)), doc(std::move(doc)) {}
 
   void CollectMetadata(OpNode* op) const {
-    auto info = ffi::make_object<ArgumentInfoNode>();
+    auto info = ffi::make_object<ArgumentInfoObj>();
     info->name = name;
     info->doc = doc;
     op->var_ty_args_info = ArgumentInfo(ffi::UnsafeInit{}, std::move(info));
@@ -424,10 +419,10 @@ struct call_attrs : SignatureTrait {
 
   static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
     ffi::AnyView attrs(state->call->attrs);
-    if (TVM_FFI_PREDICT_FALSE(!state->call->attrs.defined() ||
+    if (TVM_FFI_PREDICT_FALSE(!state->call->attrs.has_value() ||
                               !ffi::details::AnyUnsafe::CheckAnyViewStrict<const T*>(attrs))) {
       TVMFFIAny raw = attrs.CopyToTVMFFIAny();
-      std::string actual = state->call->attrs.defined()
+      std::string actual = state->call->attrs.has_value()
                                ? "`" + ffi::TypeTraits<const T*>::GetMismatchTypeInfo(&raw) + "`"
                                : "None";
       *out = TVM_FFI_UNEXPECTED(TypeError)
@@ -448,13 +443,13 @@ class OpDef {
    * \brief Get or create the named Op without changing its documentation.
    * \param name The canonical operator name.
    */
-  TVM_DLL explicit OpDef(const ffi::String& name);
+  TVM_TIRX_DLL explicit OpDef(const ffi::String& name);
   /*!
    * \brief Get or create the named Op and set its documentation.
    * \param name The canonical operator name.
    * \param doc Operator documentation, replacing any existing documentation.
    */
-  TVM_DLL OpDef(const ffi::String& name, const ffi::String& doc);
+  TVM_TIRX_DLL OpDef(const ffi::String& name, const ffi::String& doc);
   OpDef(const OpDef&) = delete;
   OpDef& operator=(const OpDef&) = delete;
   OpDef(OpDef&&) = delete;
@@ -467,7 +462,7 @@ class OpDef {
    * \param doc Argument documentation.
    * \return This builder. Without a variadic descriptor, this is part of the complete list.
    */
-  TVM_DLL OpDef& add_arg(const ffi::String& name, const ffi::String& doc);
+  TVM_TIRX_DLL OpDef& add_arg(const ffi::String& name, const ffi::String& doc);
   /*!
    * \brief Set the attribute object type key and runtime index together.
    * \tparam AttrsType The attribute object node type.
@@ -485,14 +480,14 @@ class OpDef {
    * \param key A registered attribute object type key.
    * \return This builder. An unknown key raises an error before modifying metadata.
    */
-  TVM_DLL OpDef& set_attrs_type_key(const ffi::String& key);
+  TVM_TIRX_DLL OpDef& set_attrs_type_key(const ffi::String& key);
   /*!
    * \brief Append a descriptor for a type argument in Call.ty_args.
    * \param name Type-argument name.
    * \param doc Type-argument documentation.
    * \return This builder. Inference retains responsibility for type-argument counts.
    */
-  TVM_DLL OpDef& add_ty_arg(const ffi::String& name, const ffi::String& doc);
+  TVM_TIRX_DLL OpDef& add_ty_arg(const ffi::String& name, const ffi::String& doc);
   /*!
    * \brief Register a complete typed Call signature and its validator.
    *
@@ -578,7 +573,7 @@ class OpDef {
    * \param attr_name Attribute column name; missing columns and values are ignored.
    * \return This builder. Existing cached maps observe the removal.
    */
-  TVM_DLL OpDef& reset_attr(const ffi::String& attr_name);
+  TVM_TIRX_DLL OpDef& reset_attr(const ffi::String& attr_name);
 
  private:
   template <typename Spec>
@@ -634,7 +629,7 @@ class OpDef {
   }
 
   OpNode* get() { return const_cast<OpNode*>(op_.operator->()); }
-  TVM_DLL void UpdateAttr(const ffi::String& attr_name, ffi::Any value, bool override);
+  TVM_TIRX_DLL void UpdateAttr(const ffi::String& attr_name, ffi::Any value, bool override);
   Op op_;
 };
 

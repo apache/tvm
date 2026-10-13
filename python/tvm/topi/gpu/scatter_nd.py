@@ -173,7 +173,7 @@ def scatter_nd(data, indices, updates, mode):
         [data, indices, updates],
         lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0]),
         dtype=data.dtype,
-        out_buffers=[out_buf],
+        out_tensors=[out_buf],
         name="scatter_nd.gpu",
         tag="scatter_nd.gpu",
     )

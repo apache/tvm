@@ -182,8 +182,8 @@ func = remote.load_module("lib.tar")
 
 # create arrays on the remote device
 dev = remote.cpu()
-a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
-b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
+a = dev.tensor(np.random.uniform(size=1024).astype(A.dtype))
+b = dev.tensor(np.zeros(1024, dtype=A.dtype))
 # the function will run on the remote device
 func(a, b)
 np.testing.assert_equal(b.numpy(), a.numpy() + 1)
@@ -437,8 +437,8 @@ def run_opencl():
 
     # run
     dev = remote.cl()
-    a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
-    b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
+    a = dev.tensor(np.random.uniform(size=1024).astype(A.dtype))
+    b = dev.tensor(np.zeros(1024, dtype=A.dtype))
     func(a, b)
     np.testing.assert_equal(b.numpy(), a.numpy() + 1)
     print("OpenCL test passed!")
@@ -606,7 +606,7 @@ def run_pytorch_model_via_rpc():
         print("   remote.upload('model_params.npz')")
         print("\n4. Load and run remotely:")
         print("   lib = remote.load_module('model_deployed.so')")
-        print("   vm = relax.VirtualMachine(lib, remote.cpu())")
+        print("   vm = rpc.virtual_machine(lib, remote.cpu())")
         print("   result = vm['main'](input, *params)")
         print("\nDevice examples:")
         print("  - Raspberry Pi: 192.168.1.100")
@@ -640,12 +640,12 @@ def run_pytorch_model_via_rpc():
     dev = remote.cpu()
 
     # Create VM and load parameters
-    vm = relax.VirtualMachine(lib, dev)
+    vm = rpc.virtual_machine(lib, dev)
 
     # Load parameters from the uploaded file
     # Note: In practice, you might load this from the remote filesystem
     params_npz = np.load(params_path)
-    remote_params = [tvm.runtime.tensor(params_npz[f"p_{i}"], dev) for i in range(len(params_npz))]
+    remote_params = [dev.tensor(params_npz[f"p_{i}"]) for i in range(len(params_npz))]
 
     ######################################################################
     # Step 5: Run Inference on Remote Device
@@ -659,7 +659,7 @@ def run_pytorch_model_via_rpc():
 
     # Prepare input data
     input_data = np.random.randn(1, 1, 28, 28).astype("float32")
-    remote_input = tvm.runtime.tensor(input_data, dev)
+    remote_input = dev.tensor(input_data)
 
     # Run inference using set_input + invoke_stateful for RPC compatibility
     vm.set_input("main", remote_input, *remote_params)

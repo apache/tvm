@@ -33,23 +33,13 @@ namespace script {
 namespace printer {
 namespace details {
 
-// The name is published only for a callable implementing the shared Op contract.
-// Semantic wrappers register their own Op hooks.
+// Semantic wrappers register their own Op hooks; ordinary calls use canonical exposure.
 ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallNode* call) {
   auto maybe_op = call->op.as<Op>();
-  if (!maybe_op || !Op::HasAttrMap(tvm::script::printer::op_attr::kScriptPrinterName))
-    return std::nullopt;
+  if (!maybe_op) return std::nullopt;
   const Op& op = maybe_op.value();
-  static const auto& names =
-      Op::GetAttrMap<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName);
-  if (!names.count(op) || names[op].empty()) return std::nullopt;
-  if (call->attrs.defined() ? op->attrs_type_key != call->attrs->GetTypeKey()
-                            : !op->attrs_type_key.empty()) {
-    return RawCall(d, call);
-  }
-  try {
-    op.Validate(call);
-  } catch (const ffi::Error&) {
+  if (call->attrs.has_value() ? op->attrs_type_key != call->attrs->GetTypeKey()
+                              : !op->attrs_type_key.empty()) {
     return RawCall(d, call);
   }
   ffi::Array<ExprDoc> args;
@@ -65,11 +55,17 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
     values.push_back(ListDoc(types));
   }
   bool default_attrs = false;
-  if (call->attrs.defined()) {
+  if (call->attrs.has_value() && call->attrs.value().as<DictAttrsNode>()) {
+    default_attrs = call->attrs.value().as_or_throw<DictAttrs>()->dict.empty();
+    if (!default_attrs) {
+      keys.push_back("attrs");
+      values.push_back(d->Translate(call->attrs.value()).value());
+    }
+  } else if (call->attrs.has_value()) {
     std::vector<std::pair<ffi::String, ffi::Any>> fields;
     ffi::reflection::ForEachFieldInfo(
         TVMFFIGetTypeInfo(call->attrs->type_index()), [&](const TVMFFIFieldInfo* field) {
-          ffi::Any value = ffi::reflection::FieldGetter(field)(call->attrs);
+          ffi::Any value = ffi::reflection::FieldGetter(field)(call->attrs.value());
           // Factory defaults can have effects or change between constructions.
           // Only a reflected literal default is safe to omit here.
           if ((field->flags & kTVMFFIFieldFlagBitMaskHasDefault) &&
@@ -94,20 +90,19 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
       values.push_back(AnyValue(d, value));
     }
   }
-  bool omit_result = false;
-  try {
-    // Match construction without ty, rather than let inference read the stored result.
-    Call inferred(std::nullopt, op, call->args, call->attrs, call->ty_args);
-    omit_result = ffi::StructuralEqual()(inferred->ty, call->ty);
-  } catch (const ffi::Error&) {
-    // Missing information, unavailable inference, or errors require the exact stored type.
-  }
+  // Well-formed calls reconstruct their result from registered inference or a fixed type.
+  // Builder-only inference is deliberately excluded: named construction cannot run it.
+  bool omit_result = call->ty.as<MissingType>().has_value() ||
+                     (Op::HasAttrMap(tvm::op_attr::kInferType) &&
+                      Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType).count(op)) ||
+                     (Op::HasAttrMap(tvm::op_attr::kFixedReturnType) &&
+                      Op::GetAttrMap<TFixedReturnType>(tvm::op_attr::kFixedReturnType).count(op));
   if (!omit_result) {
     if (default_attrs) return RawCall(d, call);
     keys.push_back("ty");
     values.push_back(TypeValue(d, call->ty));
   }
-  return NamedCallCallee(names[op])->Call(args, keys, values);
+  return NamedCallCallee(op->name)->Call(args, keys, values);
 }
 
 namespace {
@@ -117,9 +112,9 @@ ffi::Optional<ExprDoc> CallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (auto op = call->op.as<Op>();
-      op && Op::HasAttrMap(tvm::script::printer::op_attr::kOpCallDocTranslate)) {
+      op && Op::HasAttrMap(tvm::script::printer::op_attr::kDocTranslateOpCall)) {
     static const auto& overrides =
-        Op::GetAttrMap<ffi::Any>(tvm::script::printer::op_attr::kOpCallDocTranslate);
+        Op::GetAttrMap<ffi::Any>(tvm::script::printer::op_attr::kDocTranslateOpCall);
     if (overrides.count(op.value())) {
       ffi::Any hook = overrides[op.value()];
       if (hook.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {

@@ -30,8 +30,6 @@
 #include <cstring>
 #include <unordered_set>
 
-#include "file_utils.h"
-
 namespace tvm {
 namespace runtime {
 
@@ -51,7 +49,7 @@ bool RuntimeEnabled(const ffi::String& target_str) {
   } else if (target == "vulkan") {
     f_name = "device_api.vulkan";
   } else if (target == "rpc") {
-    f_name = "device_api.rpc";
+    f_name = "rpc.LocalSession";
   } else if (target == "hexagon") {
     f_name = "device_api.hexagon";
   } else if (target.length() >= 5 && target.substr(0, 5) == "nvptx") {
@@ -80,6 +78,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   TVM_INIT_CONTEXT_FUNC(TVMFFIErrorSetRaisedFromCStr);
   TVM_INIT_CONTEXT_FUNC(TVMFFIEnvModLookupFromImports);
   TVM_INIT_CONTEXT_FUNC(TVMFFIHandleInitOnce);
+  TVM_INIT_CONTEXT_FUNC(TVMBackendSetDevice);
+  TVM_INIT_CONTEXT_FUNC(TVMBackendGetDeviceIndex);
   TVM_INIT_CONTEXT_FUNC(TVMBackendAllocWorkspace);
   TVM_INIT_CONTEXT_FUNC(TVMBackendFreeWorkspace);
   TVM_INIT_CONTEXT_FUNC(TVMBackendParallelLaunch);

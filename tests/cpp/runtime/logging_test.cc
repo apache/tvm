@@ -61,14 +61,17 @@ TEST(TvmLogDebugSettings, VLogEnabledComplex) {
   EXPECT_FALSE(settings.VerboseEnabled("my/filesystem/src/baz.cc", 0));
 }
 
-#define MATCH_THROW(stmt, err_type, matcher)            \
-  try {                                                 \
-    stmt;                                               \
-  } catch (const err_type& e) {                         \
-    EXPECT_THAT(e.what(), matcher);                     \
-  } catch (...) {                                       \
-    EXPECT_FALSE("stmt threw an unexpected exception"); \
-  }
+#define MATCH_THROW(stmt, err_type, matcher)                     \
+  do {                                                           \
+    try {                                                        \
+      stmt;                                                      \
+      ADD_FAILURE() << "Expected " #stmt " to throw " #err_type; \
+    } catch (const err_type& e) {                                \
+      EXPECT_THAT(e.what(), matcher);                            \
+    } catch (...) {                                              \
+      ADD_FAILURE() << #stmt " threw an unexpected exception";   \
+    }                                                            \
+  } while (false)
 
 TEST(TvmLogDebugSettings, IllFormed) {
   MATCH_THROW(

@@ -46,6 +46,7 @@
 
 #include <optional>
 
+#include "../../runtime/metadata.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
 
@@ -67,8 +68,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
       .set_attr<FRegionValidate>(tvm::op_attr::kRegionValidate,
-                                 FRegionValidate::FromNative<&ValidateDeviceScopeRegion>())
-      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"));
+                                 FRegionValidate::FromNative<&ValidateDeviceScopeRegion>());
 }
 
 // Device-region annotation
@@ -165,11 +165,11 @@ class HostDeviceSplitter : public StmtExprMutator {
 
   Stmt SplitDeviceFunc(Stmt body, Target device_target, const RegionStmtNode* region) {
     auto [params,
-          buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<TensorVar>> {
+          tensors_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<TensorVar>> {
       ffi::Array<Var> undefined = UndefinedVars(body);
-      ffi::Array<TensorVar> buffers;
+      ffi::Array<TensorVar> tensors;
       for (const Var& var : undefined) {
-        if (auto buffer = var.as<TensorVar>()) buffers.push_back(buffer.value());
+        if (auto tensor = var.as<TensorVar>()) tensors.push_back(tensor.value());
       }
 
       // Sort first by variable type, then by variable name
@@ -178,7 +178,7 @@ class HostDeviceSplitter : public StmtExprMutator {
         std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
           auto sort_key = [](const Var& var) {
             bool is_handle =
-                var->ty.as<PointerTypeNode>() != nullptr || var->ty.as<TensorTypeNode>() != nullptr;
+                var->ty.as<PtrTypeNode>() != nullptr || var->ty.as<TensorTypeNode>() != nullptr;
             return std::tuple{
                 !is_handle,
                 var->name,
@@ -195,25 +195,25 @@ class HostDeviceSplitter : public StmtExprMutator {
         std::sort(params.begin(), params.end(),
                   [&](const Var& a, const Var& b) { return param_order[a] < param_order[b]; });
       }
-      return {params, buffers};
+      return {params, tensors};
     }();
 
-    // Buffer Vars are compiler-side values, not ABI values.  Thread their
+    // Tensor Vars are compiler-side values, not ABI values.  Thread their
     // physical pointer projection through the kernel call and recover the
-    // typed buffer at the kernel entry with an explicit DeclTensor source.
+    // typed tensor at the kernel entry with an explicit DeclTensor source.
     ffi::Array<Var> kernel_params;
     ffi::Array<Expr> call_args;
-    ffi::Map<Var, Var> buffer_data_params;
+    ffi::Map<Var, Var> tensor_data_params;
     auto kernel_rewriter = ffi::make_object<KernelBodyRewriter>();
     for (const Var& param : params) {
       if (param->ty.as<TensorTypeNode>()) {
-        TensorVar buffer = param.as_or_throw<TensorVar>();
-        TensorVar kernel_buffer(buffer.name(), buffer.type(), buffer.loc());
-        Var data_param(buffer.name() + "_ptr", buffer.type()->DataPointerType());
+        TensorVar tensor = param.as_or_throw<TensorVar>();
+        TensorVar kernel_tensor(tensor.name(), tensor.type(), tensor.loc());
+        Var data_param(tensor.name() + "_ptr", tensor.type()->DataPtrType());
         kernel_params.push_back(data_param);
-        call_args.push_back(buffer.data());
-        buffer_data_params.Set(param, data_param);
-        kernel_rewriter->VarRemapSet(param, kernel_buffer);
+        call_args.push_back(tensor.data());
+        tensor_data_params.Set(param, data_param);
+        kernel_rewriter->VarRemapSet(param, kernel_tensor);
       } else {
         kernel_params.push_back(param);
         call_args.push_back(param);
@@ -238,19 +238,16 @@ class HostDeviceSplitter : public StmtExprMutator {
       kernel_ret_type = VoidType();
     }
 
-    for (TensorVar buf : buffers_to_declare) {
-      auto data_param = buffer_data_params.Get(buf.var());
-      auto kernel_buffer = kernel_rewriter->VarRemapGet(buf);
+    for (TensorVar buf : tensors_to_declare) {
+      auto data_param = tensor_data_params.Get(buf.var());
+      auto kernel_tensor = kernel_rewriter->VarRemapGet(buf);
       TVM_FFI_ICHECK(data_param.has_value())
-          << "Undefined buffer " << buf.name() << " was not captured as a kernel parameter";
-      TVM_FFI_ICHECK(kernel_buffer != nullptr);
+          << "Undefined tensor " << buf.name() << " was not captured as a kernel parameter";
+      TVM_FFI_ICHECK(kernel_tensor != nullptr);
       body = SeqStmt(
-          {Bind(kernel_buffer.as_or_throw<TensorVar>(),
-                Call(kernel_buffer.as_or_throw<TensorVar>().type(), decl_tensor_op(),
-                     {data_param.value(), tvm::Tuple(kernel_buffer.as_or_throw<TensorVar>()->shape),
-                      DataTypeImm(kernel_buffer.as_or_throw<TensorVar>()->dtype->dtype),
-                      StringImm(kernel_buffer.as_or_throw<TensorVar>().scope())},
-                     {})),
+          {Bind(kernel_tensor.as_or_throw<TensorVar>(),
+                Call(kernel_tensor.as_or_throw<TensorVar>().type(), decl_tensor_op(),
+                     {data_param.value()}, {}, {kernel_tensor.as_or_throw<TensorVar>().type()})),
            std::move(body)});
     }
     Function device_func(kernel_params, SeqStmt(body), kernel_ret_type);
@@ -261,6 +258,10 @@ class HostDeviceSplitter : public StmtExprMutator {
       device_func = WithAttr(std::move(device_func), "backend_config", config.value());
     } else if (auto config = cur_func_->GetAttr<ffi::String>("backend_config")) {
       device_func = WithAttr(std::move(device_func), "backend_config", config.value());
+    }
+    if (auto script_namespace = cur_func_->GetAttr<ffi::String>(tvm::attr::kScriptNamespace)) {
+      device_func =
+          WithAttr(std::move(device_func), tvm::attr::kScriptNamespace, script_namespace.value());
     }
     bool is_stir = cur_func_->attrs->dict.count(tvm::attr::kSTir);
     if (is_stir) {
@@ -487,7 +488,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
-    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
     auto storage_scope = runtime::StorageScope::Create(scope);
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       TVM_FFI_ICHECK(!saw_dyn_shared_alloc_)
@@ -496,8 +497,8 @@ class DeviceInfoCollector : public StmtExprVisitor {
 
       // A zero extent is an extern placeholder; native launch regions supply
       // its resource requirement independently of the backing allocation.
-      tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
-      DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+      tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
+      DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
       PrimType element_type(dtype);
       TVM_FFI_ICHECK_GT(shape->fields.size(), 0);
       PrimExpr dyn_size = IntImm::Int32(1);

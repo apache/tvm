@@ -68,7 +68,7 @@ class MatmulReluModule:
     ) -> None:
         T.func_attr({"global_symbol": "matmul_relu", "tirx.noalias": True})
 
-        C = Ts.sblock_alloc_buffer((1024, 1024), "float32")
+        C = Ts.sblock_alloc_tensor((1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
             with Ts.sblock("matmul"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])

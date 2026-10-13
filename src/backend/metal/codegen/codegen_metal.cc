@@ -28,6 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/memory.h>
@@ -42,7 +43,6 @@
 #include <unordered_map>
 #include <utility>
 
-#include "../../../runtime/thread_storage_scope.h"
 #include "../../../target/build_common.h"
 #include "metal_fallback_module.h"
 
@@ -75,7 +75,7 @@ void CodeGenMetal::InitFuncState(const Function& f) {
   analyzer_ = sym::Analyzer();
   // analyze the data;
   for (Var arg : f->params) {
-    if (arg->ty.as<PointerTypeNode>()) {
+    if (arg->ty.as<PtrTypeNode>()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -128,7 +128,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const Function& func) {
   }
   for (size_t i = 0; i < func->params.size(); ++i, ++num_buffer) {
     Var v = func->params[i];
-    if (!v->ty.as<PointerTypeNode>()) break;
+    if (!v->ty.as<PtrTypeNode>()) break;
     this->stream << "  ";
     std::string vid = AllocVarID(v.get());
     auto it = alloc_storage_scope_.find(v.get());
@@ -139,7 +139,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const Function& func) {
     // Register handle data type
     // TODO(tvm-team): consider simply keep type info in the
     // type annotation(via a normalizing rewriting).
-    if (auto* ptr = v->ty.as<PointerTypeNode>()) {
+    if (auto* ptr = v->ty.as<PtrTypeNode>()) {
       if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
         RegisterHandleType(v.get(), ffi::GetRef<PrimType>(prim));
       }
@@ -189,7 +189,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const Function& func) {
       func->GetAttr<ffi::Array<ffi::String>>(tvm::tirx::attr::kKernelLaunchParams).value();
   for (const auto& tag : launch_params) {
     if (tag != runtime::launch_param::kUseDynamicSharedMemoryTag) {
-      runtime::ThreadScope scope = runtime::ThreadScope::Create(tag);
+      support::GPUThreadTag scope = support::GPUThreadTag::Parse(tag);
       work_dim = std::max(work_dim, scope.dim_index + 1);
     }
   }
@@ -216,7 +216,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const Function& func) {
 
 void CodeGenMetal::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {
   TVM_FFI_ICHECK(!var_idmap_.count(var.get()));
-  runtime::ThreadScope ts = runtime::ThreadScope::Create(thread_tag);
+  support::GPUThreadTag ts = support::GPUThreadTag::Parse(thread_tag);
   TVM_FFI_ICHECK(ts.rank == 0 || ts.rank == 1) << "Unsupported Metal thread tag " << thread_tag;
   TVM_FFI_ICHECK_GE(ts.dim_index, 0);
   TVM_FFI_ICHECK_LT(ts.dim_index, 3);
@@ -352,7 +352,7 @@ void CodeGenMetal::Dispatch_(const BindNode* op) {
       prim_value && SideEffect(prim_value.value()) <= CallEffectKind::kPure) {
     analyzer_->Bind(op->var, prim_value.value());
   }
-  const auto* pointer_type = op->var->ty.as<PointerTypeNode>();
+  const auto* pointer_type = op->var->ty.as<PtrTypeNode>();
   if (pointer_type == nullptr || pointer_type->storage_scope.empty()) {
     return CodeGenC::Dispatch_(op);
   }
@@ -377,9 +377,9 @@ void CodeGenMetal::Dispatch_(const BindNode* op) {
 }
 
 void CodeGenMetal::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
-  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
-  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
-  ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
+  DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
+  ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());
@@ -519,7 +519,7 @@ void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
   } else if (op->op.same_as(tirx::ptr_byte_offset_op()) ||
              op->op.same_as(tirx::handle_add_byte_offset_op())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
-    const auto* pointer_type = op->ty.as<PointerTypeNode>();
+    const auto* pointer_type = op->ty.as<PtrTypeNode>();
     TVM_FFI_ICHECK(pointer_type)
         << "Metal pointer byte offsets must have a pointer result type, but got " << op->ty;
     if (pointer_type->storage_scope.empty()) {

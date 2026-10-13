@@ -50,7 +50,7 @@ def make_function(
             B: T.Tensor((VECTOR_N_INPUTS,), dtype),
         ):
             T.func_attr({"global_symbol": name + "_kernel", "tirx.noalias": True})
-            for i in T.thread_binding(VECTOR_N_INPUTS, thread="threadIdx.x"):
+            with T.launch_thread("threadIdx.x", VECTOR_N_INPUTS) as i:
                 B[i] = op(A[i])
 
         return kernel
@@ -63,7 +63,7 @@ def make_function(
             B: T.Tensor((VECTOR_N_INPUTS,), dtype),
         ):
             T.func_attr({"global_symbol": name + "_kernel", "tirx.noalias": True})
-            for i in T.thread_binding(VECTOR_N_INPUTS, thread="threadIdx.x"):
+            with T.launch_thread("threadIdx.x", VECTOR_N_INPUTS) as i:
                 B[i] = op(A[i], E[i])
 
         return kernel
@@ -245,7 +245,7 @@ def check_cuda_source(
 ) -> Executable:
     """Check the CUDA source for the given dtype and case."""
     with tvm.transform.PassContext(config={"tirx.enable_fast_math": enable_fast_math}):
-        executable = tvm.compile(mod, target=target)
+        executable = tvm.tirx.compile(mod, target=target)
     source = executable.mod.imports[0].inspect_source()
     expected = expected_intrinsic(dtype, case, enable_fast_math)
     assert re.search(rf"(?<!_)\b{re.escape(expected)}\s*\(", source)

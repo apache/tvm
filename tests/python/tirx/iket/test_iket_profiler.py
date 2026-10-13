@@ -393,7 +393,7 @@ def test_public_interface_is_official_only():
     payload_script = payload_types.script()
     assert 'T.cuda.iket_mark("i8", T.int8(-8))' in payload_script
     assert 'T.cuda.iket_range_start("token_payload", -7)' in payload_script
-    assert "T.cuda.iket_range_end(token, 9)" in payload_script
+    assert "T.cuda.iket_range_end(token[0], 9)" in payload_script
     assert (
         tvm.script.from_source(
             payload_script, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
@@ -408,8 +408,8 @@ def test_public_interface_is_official_only():
 )
 def test_annotation_ops_are_cuda_owned(name):
     op = tvm.ir.Op.get(f"tirx.cuda.iket_{name}")
-    assert op.get_attr("TIRxOpCategory") == "device_intrin"
-    assert op.get_attr("TDeviceIntrinsicNamespace") == "cuda"
+    assert op.get_attr("FTileOpDispatch") is None
+    assert op.name.startswith("tirx.cuda.")
 
 
 def test_regular_lowering_strips_annotations_and_tokens():
@@ -433,10 +433,10 @@ def test_regular_lowering_strips_annotations_and_tokens():
 
     sources = []
     for with_annotation in (False, True):
-        executable = tvm.compile(
+        executable = tvm.tirx.compile(
             tvm.IRModule({"main": make_kernel(with_annotation)}),
             target=TARGET,
-            tir_pipeline="tirx",
+            pipeline="tirx",
         )
         sources.append(executable.mod.imports[0].inspect_source("cuda"))
     assert sources[0] == sources[1]
@@ -451,7 +451,7 @@ def test_verified_injected_child_automatically_enables_plain_jit(monkeypatch, co
     monkeypatch.delenv("TVM_IKET_OFFICIAL_PROFILE", raising=False)
     monkeypatch.setenv("CUDA_INJECTION64_PATH", "/verified/libsmodel_injection.so")
     monkeypatch.setenv(config_env, "/verified/config.json")
-    executable = tvm.compile(tvm.IRModule({"main": serial_a}), target=TARGET, tir_pipeline="tirx")
+    executable = tvm.tirx.compile(tvm.IRModule({"main": serial_a}), target=TARGET, pipeline="tirx")
     source = _cuda_source(executable)
     assert "__iket_evt_decl_a_1_attrs" in source
 
@@ -472,7 +472,7 @@ def test_injected_child_auto_enable_remains_fail_closed(monkeypatch, missing_env
     for name, value in values.items():
         monkeypatch.setenv(name, value)
     monkeypatch.delenv(config_env if missing_env == "config" else missing_env)
-    executable = tvm.compile(tvm.IRModule({"main": serial_a}), target=TARGET, tir_pipeline="tirx")
+    executable = tvm.tirx.compile(tvm.IRModule({"main": serial_a}), target=TARGET, pipeline="tirx")
     assert "iket" not in _cuda_source(executable).lower()
 
 

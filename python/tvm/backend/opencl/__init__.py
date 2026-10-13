@@ -16,6 +16,7 @@
 # under the License.
 """OpenCL-owned backend hooks."""
 
+import sys
 from pathlib import Path
 
 from tvm_ffi.libinfo import load_lib_ctypes
@@ -38,7 +39,9 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register OpenCL-owned Python semantics."""
+    from tvm.ir.op import _init_op_api
     from tvm.target.detect_target import register_device_target_detector
+    from tvm.tirx.script.ir_builder import op as builder_op
 
     runtime_dir = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent
     try:
@@ -52,6 +55,8 @@ def register_backend():
     except (OSError, FileNotFoundError, RuntimeError):
         pass
     register_device_target_detector("opencl", _detect_target_from_device)
+    _init_op_api("tirx.opencl", __name__)
+    builder_op.register_script_namespace("opencl", sys.modules[__name__])
     return None
 
 

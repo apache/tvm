@@ -16,11 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/support/str_escape.h>
+
 #include <iomanip>
 #include <sstream>
 #include <vector>
 
-#include "../../../support/str_escape.h"
 #include "../utils.h"
 
 namespace tvm {

@@ -519,7 +519,7 @@ def make_alloc_arg_and_check(
         args_info: ms.runner.rpc_runner.T_ARG_INFO_JSON_OBJ_LIST,
         alloc_repeat: int,
     ) -> list[ms.runner.rpc_runner.T_ARGUMENT_LIST]:
-        return f_with_args_alloc_argument_common(device, args_info, alloc_repeat)
+        return [[device.tensor(arg) for arg in inputs] for _ in range(alloc_repeat)]
 
     def f_with_args_run_evaluator_rpc(
         rpc_session: ms.runner.rpc_runner.RPCSession,  # pylint: disable=unused-argument

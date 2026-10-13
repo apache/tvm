@@ -87,7 +87,7 @@ def bind(  # pylint: disable=invalid-name
         The value to be bound.
     type_annotation : Optional[Type] = None
         The type annotation of the binding. Usually it is used for fine-grained var typing,
-        particularly, PointerType.
+        particularly, PtrType.
     var : Optional[Var] = None
         The variable to bind. If not specified, a new variable will be created.
 

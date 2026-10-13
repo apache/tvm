@@ -28,19 +28,9 @@ from tvm.script.ir_builder.frame import ThenFrame as ThenFrame
 from tvm.script.ir_builder.frame import WhileFrame as WhileFrame
 
 
-@_register_object("script.ir_builder.tirx.TIRFrame")
-class TIRFrame(StmtFrame): ...
-
-
 @_register_object("script.ir_builder.tirx.FunctionFrame")
-class FunctionFrame(TIRFrame):
+class FunctionFrame(StmtFrame):
     """Native function frame retaining signature and finalized results."""
-
-    def default_buffer_layout(self, shape, scope):
-        """Select the default layout for buffers constructed in this function."""
-        from tvm.tirx.layout import S, TileLayout
-
-        return None if scope in ("trn.sbuf", "trn.psum") else TileLayout(S[tuple(shape)])
 
     @property
     def params(self):

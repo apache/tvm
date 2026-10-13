@@ -27,7 +27,7 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-TVM_FFI_STATIC_INIT_BLOCK() { ScheduleStateNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { ScheduleStateObj::RegisterReflection(); }
 
 template <class K, class V>
 using SMap = std::unordered_map<K, V, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
@@ -35,10 +35,10 @@ using SMap = std::unordered_map<K, V, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 /**************** Utility functions ****************/
 
 /*!
- * \brief Analyze the buffer region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
+ * \brief Analyze the tensor region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
  * Relaxation of the region may be used in upper-bound analysis, i.e. some extra region may be added
  * to the result.
- * \param region The buffer region to be analyzed
+ * \param region The tensor region to be analyzed
  * \param dom_low_inclusive The lowest node in the sref tree path
  * \param dom_high_exclusive The highest node in the sref tree path
  * \return An n-dimensional integer set
@@ -62,10 +62,10 @@ ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(
 }
 
 /*!
- * \brief Analyze the buffer region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
+ * \brief Analyze the tensor region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
  * Some subregion may be discarded during the lower-bound analysis.
- * \param realize The block realize that touches the buffer region
- * \param region The buffer region to be analyzed
+ * \param realize The block realize that touches the tensor region
+ * \param region The tensor region to be analyzed
  * \param dom_low_inclusive The lowest node in the sref tree path
  * \param dom_high_exclusive The highest node in the sref tree path
  * \param analyzer The analyzer
@@ -95,21 +95,21 @@ ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(
 
 /*!
  * \brief Checks if the produced region can cover the consumed region
- * \param buffer_shape The shape of the buffer
+ * \param tensor_shape The shape of the tensor
  * \param produced_region The N-dimensional produced region
  * \param consumed_region The N-dimensional consumed region
  * \param analyzer The analyzer
  * \return A boolean indicating if the produced region could cover the consumed region
  */
-bool ProducerCoversConsumer(const ffi::Array<PrimExpr>& buffer_shape,
+bool ProducerCoversConsumer(const ffi::Array<PrimExpr>& tensor_shape,
                             const ffi::Array<sym::IntSet>& produced_region,
                             const ffi::Array<sym::IntSet>& consumed_region,
                             sym::AnalyzerObj* analyzer) {
-  TVM_FFI_ICHECK_EQ(buffer_shape.size(), consumed_region.size());
+  TVM_FFI_ICHECK_EQ(tensor_shape.size(), consumed_region.size());
   TVM_FFI_ICHECK_EQ(produced_region.size(), consumed_region.size());
   int ndim = produced_region.size();
   for (int i = 0; i < ndim; ++i) {
-    sym::IntSet buffer_size = sym::IntSet::FromMinExtent(0, buffer_shape[i]);
+    sym::IntSet tensor_size = sym::IntSet::FromMinExtent(0, tensor_shape[i]);
     if (produced_region[i].IsNothing()) {
       return false;
     }
@@ -122,8 +122,8 @@ bool ProducerCoversConsumer(const ffi::Array<PrimExpr>& buffer_shape,
     sym::IntSet consumed =
         sym::IntSet::Interval(analyzer->canonical_simplify(consumed_region[i].min()),
                               analyzer->canonical_simplify(consumed_region[i].max()));
-    produced = sym::Intersect({produced, buffer_size});
-    consumed = sym::Intersect({consumed, buffer_size});
+    produced = sym::Intersect({produced, tensor_size});
+    consumed = sym::Intersect({consumed, tensor_size});
 
     produced = sym::IntSet::Interval(analyzer->Simplify(produced.min()),
                                      analyzer->Simplify(produced.max()));
@@ -147,7 +147,7 @@ bool ProducerCoversConsumer(const ffi::Array<PrimExpr>& buffer_shape,
  * \param sref The sref to be updated
  * \param new_stmt The statement that replaces the statement inside the sref
  */
-void UpdateSRef(ScheduleStateNode* self, StmtSRefNode* sref, const StmtNode* new_stmt) {
+void UpdateSRef(ScheduleStateObj* self, StmtSRefObj* sref, const StmtNode* new_stmt) {
   TVM_FFI_ICHECK(new_stmt->IsInstance<SBlockNode>() || new_stmt->IsInstance<ForNode>());
   const StmtNode* old_stmt = sref->stmt;
   TVM_FFI_ICHECK_NE(new_stmt, old_stmt);
@@ -157,7 +157,7 @@ void UpdateSRef(ScheduleStateNode* self, StmtSRefNode* sref, const StmtNode* new
 }
 
 /**************** Creation ****************/
-/*! \brief A helper class to update SBlockInfo for a ScheduleStateNode */
+/*! \brief A helper class to update SBlockInfo for a ScheduleStateObj */
 class SBlockInfoCollector : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
@@ -167,12 +167,12 @@ class SBlockInfoCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit(value);
   }
 
-  static void Collect(ScheduleStateNode* self, const Stmt& stmt) {
+  static void Collect(ScheduleStateObj* self, const Stmt& stmt) {
     auto collector = ffi::make_object<SBlockInfoCollector>(self);
     collector->Visit(stmt);
   }
 
-  explicit SBlockInfoCollector(ScheduleStateNode* self)
+  explicit SBlockInfoCollector(ScheduleStateObj* self)
       : self_(self), srefs_{}, block2realize_{}, block_frames_{} {
     block_frames_.emplace_back();
   }
@@ -217,11 +217,11 @@ class SBlockInfoCollector : public StmtExprVisitor {
 
   bool CheckRegionCoverAndStagePipeline(const SBlockInfo& info, const StmtSRef& scope_root,
                                         const ffi::Array<StmtSRef>& child_block_srefs) {
-    const StmtSRefNode* limit = scope_root->parent;
+    const StmtSRefObj* limit = scope_root->parent;
     bool stage_pipeline = true;
     // Step 1. Unbind the read/write regions of each child block
-    std::unordered_map<const StmtSRefNode*, ffi::Array<TensorRegion>> block_reads_unbound;
-    std::unordered_map<const StmtSRefNode*, ffi::Array<TensorRegion>> block_writes_unbound;
+    std::unordered_map<const StmtSRefObj*, ffi::Array<TensorRegion>> block_reads_unbound;
+    std::unordered_map<const StmtSRefObj*, ffi::Array<TensorRegion>> block_writes_unbound;
     block_reads_unbound.reserve(child_block_srefs.size());
     block_writes_unbound.reserve(child_block_srefs.size());
     for (const StmtSRef& block_sref : child_block_srefs) {
@@ -243,8 +243,8 @@ class SBlockInfoCollector : public StmtExprVisitor {
                   .as_or_throw<PrimExpr>();
           return Range::FromMinExtent(min, extent);
         });
-        reads.push_back(
-            BufferRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
+        reads.push_back(TensorRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(),
+                                     mapped_region, TensorRegionType()));
       }
       block_reads_unbound.emplace(block_sref.get(), std::move(reads));
       // Step 1.2. Unbind write regions
@@ -259,8 +259,8 @@ class SBlockInfoCollector : public StmtExprVisitor {
                   .as_or_throw<PrimExpr>();
           return Range::FromMinExtent(min, extent);
         });
-        writes.push_back(
-            BufferRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
+        writes.push_back(TensorRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(),
+                                      mapped_region, TensorRegionType()));
       }
       block_writes_unbound.emplace(block_sref.get(), std::move(writes));
     }
@@ -272,8 +272,8 @@ class SBlockInfoCollector : public StmtExprVisitor {
       const SBlockRealize& consumer_realize = block2realize_.at(consumer_block);
       bool& region_cover = self_->block_info.at(consumer_block_sref).region_cover = true;
       // Step 2.1. Extract the path to the scope root
-      std::unordered_map<const StmtSRefNode*, std::vector<const StmtSRefNode*>> lca_loc;
-      for (const StmtSRefNode* p = consumer_block_sref.get(); p != limit; p = p->parent) {
+      std::unordered_map<const StmtSRefObj*, std::vector<const StmtSRefObj*>> lca_loc;
+      for (const StmtSRefObj* p = consumer_block_sref.get(); p != limit; p = p->parent) {
         TVM_FFI_ICHECK(p != nullptr);
         lca_loc[p] = {};
       }
@@ -287,7 +287,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
           continue;
         }
         const StmtSRef& producer = dep->src;
-        for (const StmtSRefNode* p = producer.get();; p = p->parent) {
+        for (const StmtSRefObj* p = producer.get();; p = p->parent) {
           TVM_FFI_ICHECK(p != nullptr);
           auto it = lca_loc.find(p);
           // Find the first (lowest) position in the ancestor of the consumer,
@@ -300,30 +300,30 @@ class SBlockInfoCollector : public StmtExprVisitor {
       }
       // Step 2.3. For each LCA, gather the produced regions,
       // then check if it could cover the consumed region
-      for (const StmtSRefNode* lca_node = consumer_block_sref.get();
+      for (const StmtSRefObj* lca_node = consumer_block_sref.get();
            region_cover && lca_node != limit; lca_node = lca_node->parent) {
         StmtSRef lca = ffi::GetRef<StmtSRef>(lca_node);
-        const std::vector<const StmtSRefNode*>& producer_block_srefs = lca_loc.at(lca.get());
+        const std::vector<const StmtSRefObj*>& producer_block_srefs = lca_loc.at(lca.get());
         // Skip empty LCA positions
         if (producer_block_srefs.empty()) {
           continue;
         }
-        // For each buffer, record the regions generated under this loop
+        // For each tensor, record the regions generated under this loop
         std::unordered_map<TensorVar, std::vector<ffi::Array<sym::IntSet>>, ffi::ObjectPtrHash,
                            ffi::ObjectPtrEqual>
             touched_regions;
         // Step 2.3.1. Find all the regions read by the consumer that we care about
         for (const TensorRegion& region : block_reads_unbound.at(consumer_block_sref.get())) {
-          TensorVar buffer = region->source.as_or_throw<tvm::tirx::TensorVar>();
-          touched_regions[buffer] = {};
+          TensorVar tensor = region->source.as_or_throw<tvm::tirx::TensorVar>();
+          touched_regions[tensor] = {};
         }
         // Step 2.3.2. Find all the regions written by each producer
-        for (const StmtSRefNode* producer_block_sref : producer_block_srefs) {
+        for (const StmtSRefObj* producer_block_sref : producer_block_srefs) {
           const SBlockRealize& producer_realize = block2realize_.at(producer_block_sref->stmt);
           StmtSRef parent_sref = ffi::GetRef<StmtSRef>(producer_block_sref->parent);
           for (const TensorRegion& region : block_writes_unbound.at(producer_block_sref)) {
-            TensorVar buffer = region->source.as_or_throw<tvm::tirx::TensorVar>();
-            auto it = touched_regions.find(buffer);
+            TensorVar tensor = region->source.as_or_throw<tvm::tirx::TensorVar>();
+            auto it = touched_regions.find(tensor);
             // Skip the regions that is not read by the consumer
             if (it != touched_regions.end()) {
               std::vector<ffi::Array<sym::IntSet>>& touched_region = it->second;
@@ -340,12 +340,12 @@ class SBlockInfoCollector : public StmtExprVisitor {
             }
           }
         }
-        // Step 2.3.3. For each buffer, check the region cover property
+        // Step 2.3.3. For each tensor, check the region cover property
         {
           StmtSRef parent_sref = ffi::GetRef<StmtSRef>(consumer_block_sref->parent);
           for (const TensorRegion& region : block_reads_unbound.at(consumer_block_sref.get())) {
-            TensorVar buffer = region->source.as_or_throw<tvm::tirx::TensorVar>();
-            const std::vector<ffi::Array<sym::IntSet>>& touched_region = touched_regions.at(buffer);
+            TensorVar tensor = region->source.as_or_throw<tvm::tirx::TensorVar>();
+            const std::vector<ffi::Array<sym::IntSet>>& touched_region = touched_regions.at(tensor);
             if (!touched_region.empty()) {
               ffi::Array<sym::IntSet> produced_region =
                   sym::UnionRegionLowerBound({touched_region.begin(), touched_region.end()});
@@ -355,7 +355,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
                   /*dom_low_inclusive=*/parent_sref,
                   /*dom_high_exclusive=*/lca,
                   /*analyzer=*/analyzer_.get());
-              if (!ProducerCoversConsumer(buffer->shape, produced_region, consumed_region,
+              if (!ProducerCoversConsumer(tensor->shape, produced_region, consumed_region,
                                           analyzer_.get())) {
                 region_cover = false;
                 self_->block_info.at(consumer_block_sref).region_cover = region_cover;
@@ -401,8 +401,8 @@ class SBlockInfoCollector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  /*! \brief The ScheduleStateNode we are operating on */
-  ScheduleStateNode* self_;
+  /*! \brief The ScheduleStateObj we are operating on */
+  ScheduleStateObj* self_;
   /*! \brief The stack frame used to indicate the current scope */
   std::vector<StmtSRef> srefs_;
   /*! \brief The BlockRealize corresponding to blocks */
@@ -418,8 +418,8 @@ class SBlockInfoCollector : public StmtExprVisitor {
 ScheduleState::ScheduleState(IRModule mod, int debug_mask, bool enable_check) {
   TVM_FFI_CHECK_GE(debug_mask, -1, ValueError)
       << "negative `debug_mask` other than -1 is not supported";
-  ffi::ObjectPtr<ScheduleStateNode> n = ffi::make_object<ScheduleStateNode>();
-  ScheduleStateNode* self = n.get();
+  ffi::ObjectPtr<ScheduleStateObj> n = ffi::make_object<ScheduleStateObj>();
+  ScheduleStateObj* self = n.get();
   // Set `n->mod`
   n->mod = std::move(mod);
   // Set `n->debug_mask`
@@ -520,7 +520,7 @@ class ReuseCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit(value);
   }
 
-  static ReuseInfo Collect(const ScheduleStateNode* self, const Stmt& tgt_stmt) {
+  static ReuseInfo Collect(const ScheduleStateObj* self, const Stmt& tgt_stmt) {
     auto collector = ffi::make_object<ReuseCollector>(self);
     collector->Visit(tgt_stmt);
     ReuseInfo result;
@@ -531,7 +531,7 @@ class ReuseCollector : public StmtExprVisitor {
     return result;
   }
 
-  explicit ReuseCollector(const ScheduleStateNode* self) : self_(self) {}
+  explicit ReuseCollector(const ScheduleStateObj* self) : self_(self) {}
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
@@ -555,7 +555,7 @@ class ReuseCollector : public StmtExprVisitor {
   }
 
   /*! \brief The schedule state to be worked on */
-  const ScheduleStateNode* self_;
+  const ScheduleStateObj* self_;
   /*! \brief The intact statements we have collected along the way of visiting */
   std::vector<const StmtNode*> intact_;
   /*! \brief The loop variable we collected in the tgt_stmt */
@@ -590,7 +590,7 @@ class SRefTreePruner : public StmtExprVisitor {
    * where the block comes from the subtree of `tgt_stmt`
    * 3) Intact reuse: not returned
    */
-  static std::unordered_map<const ffi::Object*, StmtSRef> Prune(ScheduleStateNode* self,
+  static std::unordered_map<const ffi::Object*, StmtSRef> Prune(ScheduleStateObj* self,
                                                                 const ReuseInfo& reuse_info,
                                                                 const Stmt& src_stmt) {
     auto pruner = ffi::make_object<SRefTreePruner>(self, reuse_info);
@@ -598,7 +598,7 @@ class SRefTreePruner : public StmtExprVisitor {
     return std::move(pruner->reused_srefs_);
   }
 
-  explicit SRefTreePruner(ScheduleStateNode* self, const ReuseInfo& reuse_info)
+  explicit SRefTreePruner(ScheduleStateObj* self, const ReuseInfo& reuse_info)
       : self_(self), reuse_info_(reuse_info) {}
 
  private:
@@ -652,7 +652,7 @@ class SRefTreePruner : public StmtExprVisitor {
   }
 
   /*! \brief The schedule state we are working on */
-  ScheduleStateNode* self_;
+  ScheduleStateObj* self_;
   /*! \brief The reuse information we collected previously */
   const ReuseInfo& reuse_info_;
   /*!
@@ -667,9 +667,9 @@ class SRefTreePruner : public StmtExprVisitor {
  * \brief Update the sref in the `tgt_stmt` given the reuse information
  *
  * After being updated, in the `tgt_stmt` subtree,
- * 1) all `StmtSRefNode::parent`s are correct
- * 2) all `StmtSRefNode::seq_index`s are correct, except for the root
- * 3) all `StmtSRefNode::stmt`s are correct, except for the root
+ * 1) all `StmtSRefObj::parent`s are correct
+ * 2) all `StmtSRefObj::seq_index`s are correct, except for the root
+ * 3) all `StmtSRefObj::stmt`s are correct, except for the root
  */
 class SRefUpdater : public StmtExprVisitor {
  public:
@@ -680,13 +680,13 @@ class SRefUpdater : public StmtExprVisitor {
     return StmtExprVisitor::Visit(value);
   }
 
-  static void Update(ScheduleStateNode* self, StmtSRefNode* src_stmt_parent,
+  static void Update(ScheduleStateObj* self, StmtSRefObj* src_stmt_parent,
                      const std::unordered_map<const ffi::Object*, StmtSRef>& reused_srefs,
                      const Stmt& tgt_stmt) {
     ffi::make_object<SRefUpdater>(self, src_stmt_parent, reused_srefs)->Visit(tgt_stmt);
   }
 
-  explicit SRefUpdater(ScheduleStateNode* self, StmtSRefNode* src_stmt_parent,
+  explicit SRefUpdater(ScheduleStateObj* self, StmtSRefObj* src_stmt_parent,
                        const std::unordered_map<const ffi::Object*, StmtSRef>& reused_srefs)
       : self_(ffi::GetRef<ScheduleState>(self)),
         ancestors_{src_stmt_parent},
@@ -788,7 +788,7 @@ class SRefUpdater : public StmtExprVisitor {
   /*! \brief The schedule state class to be worked on */
   ScheduleState self_;
   /*! \brief A stack containing all the ancestor For/Block nodes during the visit */
-  std::vector<StmtSRefNode*> ancestors_;
+  std::vector<StmtSRefObj*> ancestors_;
   /*! \brief Maps the loop var / block to the reused sref */
   const std::unordered_map<const ffi::Object*, StmtSRef>& reused_srefs_;
 };
@@ -915,13 +915,13 @@ class ChildReplacer : public StmtExprMutator {
   const Stmt& tgt_stmt_;
   /*!
    * \brief The `seq_index` of the `src_stmt`
-   * \sa StmtSRefNode
+   * \sa StmtSRefObj
    */
   int seq_index_;
 };
 
-void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt_stmt,
-                                const ffi::Map<SBlock, SBlock>& _block_sref_reuse) {
+void ScheduleStateObj::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt_stmt,
+                               const ffi::Map<SBlock, SBlock>& _block_sref_reuse) {
   if (this->debug_mask != 0) {
     const StmtNode* src_stmt = _src_sref->stmt;
     bool input_correct =
@@ -984,8 +984,8 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
   GlobalVar g_var{ffi::UnsafeInit{}};
   {
     int i = 0;
-    const StmtSRefNode* p = src_sref.get();
-    const StmtSRefNode* child = nullptr;
+    const StmtSRefObj* p = src_sref.get();
+    const StmtSRefObj* child = nullptr;
     while (true) {
       if (child != nullptr) {
         // The sref tree omits body sequences and BlockRealize wrappers. A shared
@@ -1042,7 +1042,7 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
   // 1) Create `parent_stmt` that corresponds to `child_sref->parent`
   // 2) Point `child_sref` to `child_tgt_stmt`
   // 3) `tgt_stmt` is of type Loop or Block
-  StmtSRefNode* child_sref = src_sref.get();
+  StmtSRefObj* child_sref = src_sref.get();
   Stmt child_tgt_stmt = std::move(tgt_stmt);
   for (int i = 0; (need_module_copy || i <= num_copy_steps) && child_sref->parent != nullptr; ++i) {
     bool can_directly_mutate_parent = !need_module_copy && i == num_copy_steps;
@@ -1116,7 +1116,7 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
   }
 }
 
-void ScheduleStateNode::DebugVerify() const {
+void ScheduleStateObj::DebugVerify() const {
   TVM_FFI_ICHECK_GE(debug_mask, -1);
   uint32_t flag = (debug_mask != -1)                       //
                       ? static_cast<uint32_t>(debug_mask)  //
@@ -1131,7 +1131,7 @@ void ScheduleStateNode::DebugVerify() const {
 
 /**************** SBlockInfo-related ****************/
 
-SBlockInfo ScheduleStateNode::GetSBlockInfo(const StmtSRef& block_sref) const {
+SBlockInfo ScheduleStateObj::GetSBlockInfo(const StmtSRef& block_sref) const {
   TVM_SREF_TO_SBLOCK(block_sref);
   auto it = this->block_info.find(block_sref);
   TVM_FFI_CHECK(it != this->block_info.end(), IndexError)
@@ -1140,7 +1140,7 @@ SBlockInfo ScheduleStateNode::GetSBlockInfo(const StmtSRef& block_sref) const {
   return it->second;
 }
 
-void ScheduleStateNode::UpdateScopeSBlockInfo(const Stmt& stmt) {
+void ScheduleStateObj::UpdateScopeSBlockInfo(const Stmt& stmt) {
   SBlockInfoCollector::Collect(this, stmt);
 }
 
@@ -1160,8 +1160,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](IRModule mod, int debug_mask, bool enable_check) -> ScheduleState {
              return ScheduleState(mod, debug_mask, enable_check);
            })
-      .def_method("s_tir.schedule.ScheduleStateGetSBlockScope", &ScheduleStateNode::GetSBlockScope)
-      .def_method("s_tir.schedule.ScheduleStateReplace", &ScheduleStateNode::Replace)
+      .def_method("s_tir.schedule.ScheduleStateGetSBlockScope", &ScheduleStateObj::GetSBlockScope)
+      .def_method("s_tir.schedule.ScheduleStateReplace", &ScheduleStateObj::Replace)
       .def("s_tir.schedule.ScheduleStateGetSRef",
            [](ScheduleState self, Stmt stmt) -> ffi::Optional<StmtSRef> {
              auto it = self->stmt2ref.find(stmt.get());

@@ -588,34 +588,34 @@ bool OpSupportsInplace(const Op& op) { return SUPPORTED_OPS.count(op->name); }
 /*! \brief Corresponds to a binding where at least one argument meets the conditions to be
  *  made in-place. Contains the binding index and indices of the applicable arguments
  */
-class InplaceOpportunityNode : public ffi::Object {
+class InplaceOpportunityObj : public ffi::Object {
  public:
   int64_t binding_idx;
   ffi::Array<int64_t> arg_idxs;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<InplaceOpportunityNode>()
-        .def_ro("binding_idx", &InplaceOpportunityNode::binding_idx)
-        .def_ro("arg_idxs", &InplaceOpportunityNode::arg_idxs);
+    refl::ObjectDef<InplaceOpportunityObj>()
+        .def_ro("binding_idx", &InplaceOpportunityObj::binding_idx)
+        .def_ro("arg_idxs", &InplaceOpportunityObj::arg_idxs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InplaceOpportunity", InplaceOpportunityNode,
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.transform.InplaceOpportunity", InplaceOpportunityObj,
                               ffi::Object);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { InplaceOpportunityNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { InplaceOpportunityObj::RegisterReflection(); }
 
 class InplaceOpportunity : public ffi::ObjectRef {
  public:
   TVM_DLL InplaceOpportunity(int64_t binding_idx, const ffi::Array<int64_t>& arg_idxs) {
-    auto node = ffi::make_object<InplaceOpportunityNode>();
+    auto node = ffi::make_object<InplaceOpportunityObj>();
     node->binding_idx = binding_idx;
     node->arg_idxs = arg_idxs;
     data_ = std::move(node);
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(InplaceOpportunity, ffi::ObjectRef,
-                                                InplaceOpportunityNode);
+                                                InplaceOpportunityObj);
 };
 
 // Check for in-place eligibility:
@@ -764,19 +764,19 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
   return {size_match_list, exact_match_list};
 }
 
-// Replace buffers in a tirx::Function according to the mapping.
-tvm::Stmt RemapBuffers(const tvm::Stmt& stmt,
-                       const ffi::Map<tirx::TensorVar, tirx::TensorVar>& buffer_map) {
-  class BufferMapper : public tirx::StmtExprMutator {
+// Replace tensors in a tirx::Function according to the mapping.
+tvm::Stmt RemapTensors(const tvm::Stmt& stmt,
+                       const ffi::Map<tirx::TensorVar, tirx::TensorVar>& tensor_map) {
+  class TensorMapper : public tirx::StmtExprMutator {
    public:
-    explicit BufferMapper(const ffi::Map<tirx::TensorVar, tirx::TensorVar>& buffer_map) {
-      for (const auto& [source, target] : buffer_map) {
+    explicit TensorMapper(const ffi::Map<tirx::TensorVar, tirx::TensorVar>& tensor_map) {
+      for (const auto& [source, target] : tensor_map) {
         VarRemapSet(source, target);
       }
     }
   };
 
-  return ffi::make_object<BufferMapper>(buffer_map)->Mutate(stmt).ValueOrUnchanged(stmt);
+  return ffi::make_object<TensorMapper>(tensor_map)->Mutate(stmt).ValueOrUnchanged(stmt);
 }
 
 class ModuleInplaceTransformer : public ExprMutator {
@@ -888,13 +888,13 @@ class ModuleInplaceTransformer : public ExprMutator {
     size_t num_params = old_function->params.size();
 
     // the replacement we must make:
-    // 1. For each output var, replace its corresponding buffers with the corresponding inplace
+    // 1. For each output var, replace its corresponding tensors with the corresponding inplace
     // index
-    //    var's buffers
+    //    var's tensors
     // 2. For each output var, replace its instances with the corresponding inplace index var
-    // 3. Do the same for the *buffer vars* corresponding to the output vars
+    // 3. Do the same for the *tensor vars* corresponding to the output vars
     // 4. Remove the output vars from the param list
-    ffi::Map<tirx::TensorVar, tirx::TensorVar> buffer_subst_map;
+    ffi::Map<tirx::TensorVar, tirx::TensorVar> tensor_subst_map;
     ffi::Map<tvm::Var, tvm::Var> var_subst_map;
     for (size_t i = 0; i < num_outs; i++) {
       // we will substitute output i with the corresponding param indicated by inplace indices
@@ -902,15 +902,15 @@ class ModuleInplaceTransformer : public ExprMutator {
       auto inplace_var = old_function->params[inplace_indices[i]];
       var_subst_map.Set(output_var, inplace_var);
 
-      // also do the same with the buffer vars
-      auto output_buffer = output_var.as_or_throw<tirx::TensorVar>();
-      auto inplace_buffer = inplace_var.as_or_throw<tirx::TensorVar>();
-      var_subst_map.Set(output_buffer.var(), inplace_buffer.var());
-      buffer_subst_map.Set(output_buffer, inplace_buffer);
+      // also do the same with the tensor vars
+      auto output_tensor = output_var.as_or_throw<tirx::TensorVar>();
+      auto inplace_tensor = inplace_var.as_or_throw<tirx::TensorVar>();
+      var_subst_map.Set(output_tensor.var(), inplace_tensor.var());
+      tensor_subst_map.Set(output_tensor, inplace_tensor);
     }
 
     // apply substitutions
-    new_body = RemapBuffers(new_body, buffer_subst_map);
+    new_body = RemapTensors(new_body, tensor_subst_map);
     auto f_substitute =
         [&var_subst_map](const tvm::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (auto repl = var_subst_map.Get(var)) return ffi::Any(*std::move(repl));

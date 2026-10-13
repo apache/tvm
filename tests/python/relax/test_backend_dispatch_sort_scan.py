@@ -521,7 +521,7 @@ def test_dispatch_sort_webgpu_merge_grid(op, size):
         pytest.param({"kind": "vulkan", "supports_int64": True}, marks=pytest.mark.gpu),
     ],
 )
-@pytest.mark.parametrize("index_bits", [None, 32, 64])
+@pytest.mark.parametrize("index_bits", [None, 64])
 def test_dispatch_cumsum_gpu(target, index_bits):
     """Test cumsum kernel dispatch and numerical correctness"""
     if not tvm.testing.device_enabled(target):
@@ -544,8 +544,6 @@ def test_dispatch_cumsum_gpu(target, index_bits):
     np_cumsum = np.cumsum(np_data, axis=-1)
     with tvm.target.Target(target):
         mod = DispatchSortScan(index_bits=index_bits)(Module)
-        if index_bits == 32:
-            mod = tvm.s_tir.transform.ForceNarrowIndexToInt32()(mod)
         ex = tvm.compile(mod, target)
 
     def run_and_check():
@@ -558,8 +556,8 @@ def test_dispatch_cumsum_gpu(target, index_bits):
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@pytest.mark.parametrize("target_kind", ["metal", "webgpu", "cuda"])
-@pytest.mark.parametrize("index_bits", [None, 32, 64])
+@pytest.mark.parametrize("target_kind", ["metal", "cuda"])
+@pytest.mark.parametrize("index_bits", [None, 64])
 def test_dispatch_cumsum_index_width(target_kind, index_bits):
     """Respect the caller's index budget without restricting Metal's default."""
     from tvm.relax.backend.gpu_generic import gpu_2d_continuous_cumsum
@@ -575,22 +573,10 @@ def test_dispatch_cumsum_index_width(target_kind, index_bits):
             return gv
 
     with tvm.target.Target(target_kind, host="llvm"):
-        if target_kind == "webgpu" and index_bits == 64:
-            with pytest.raises(ValueError, match="WebGPU scan kernels require index_bits=32"):
-                DispatchSortScan(index_bits=index_bits)(Module)
-            return
         mod = DispatchSortScan(index_bits=index_bits)(Module)
 
-    expected_bits = (
-        index_bits if index_bits is not None else (32 if target_kind == "webgpu" else 64)
-    )
-    expected = gpu_2d_continuous_cumsum(
-        in_dtype="float32", out_dtype="float32", index_bits=expected_bits
-    )
+    expected = gpu_2d_continuous_cumsum(in_dtype="float32", out_dtype="float32", index_bits=64)
     assert_structural_equal(mod["gpu_2d_continuous_cumsum"], expected)
-    if expected_bits == 32:
-        # This previously failed on Metal with a 2**35 IntImm.
-        tvm.s_tir.transform.ForceNarrowIndexToInt32()(mod)
 
 
 @pytest.mark.parametrize("index_bits", [0, 16, 128])

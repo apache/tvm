@@ -67,8 +67,8 @@ def binary_search(y, num_boxes, scores, score_threshold, out):
 
     Must be called within an IRBuilder context.
     """
-    lo_buf = T.decl_tensor([1], "int32", scope="local")
-    hi_buf = T.decl_tensor([1], "int32", scope="local")
+    lo_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")]))
+    hi_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")]))
     lo = lo_buf
     hi = hi_buf
     T.tensor_store(lo, T.tensor_indices(lo, 0), T.int32(0))
@@ -452,7 +452,7 @@ def run_all_class_nms(
                 nms_loop,
                 ins[4] if score_threshold is not None else None,  # score_threshold
             ),
-            out_buffers=[all_class_num0_buf, all_class_num1_buf],
+            out_tensors=[all_class_num0_buf, all_class_num1_buf],
             dtype=["int32", "int32"],
             name="all_class_nms",
             tag="all_class_nms",

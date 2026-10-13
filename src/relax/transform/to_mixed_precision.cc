@@ -356,36 +356,37 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     };
 
     auto is_in_fp16_range = [this](const GenericConstNode* constant) {
-      const auto& data = constant->value.cast<runtime::Tensor>();
-      if (data->dtype.lanes > 1) {
+      const auto& data = constant->value.cast<ffi::Tensor>();
+      TVM_FFI_ICHECK(data.defined());
+      if (data.dtype().lanes > 1) {
         // Skip vectorized types for now.
         return false;
       }
 
-      if (data.DataType() == DLDataType{kDLFloat, 16, 1}) {
+      if (data.dtype() == DLDataType{kDLFloat, 16, 1}) {
         return true;
       }
 
-      auto shape = data.Shape();
+      auto shape = data.shape();
       size_t size_1d = 1;
       for (size_t i = 0; i < shape.size(); ++i) {
         size_1d *= shape[i];
       }
-      auto elem_bytes = data->dtype.bits / 8;
+      auto elem_bytes = data.dtype().bits / 8;
       std::vector<uint8_t> bytes(size_1d * elem_bytes);
-      data.CopyToBytes(bytes.data(), bytes.size());
+      tvm::runtime::CopyToBytes(data, bytes.data(), bytes.size());
 
-      if (data.DataType() == DLDataType{kDLFloat, 32, 1}) {
+      if (data.dtype() == DLDataType{kDLFloat, 32, 1}) {
         return CheckInFP16Range<float>(bytes, size_1d);
-      } else if (data.DataType() == DLDataType{kDLFloat, 64, 1}) {
+      } else if (data.dtype() == DLDataType{kDLFloat, 64, 1}) {
         return CheckInFP16Range<double>(bytes, size_1d);
-      } else if (data.DataType() == DLDataType{kDLInt, 8, 1}) {
+      } else if (data.dtype() == DLDataType{kDLInt, 8, 1}) {
         return CheckInFP16Range<std::int8_t>(bytes, size_1d);
-      } else if (data.DataType() == DLDataType{kDLInt, 16, 1}) {
+      } else if (data.dtype() == DLDataType{kDLInt, 16, 1}) {
         return CheckInFP16Range<std::int16_t>(bytes, size_1d);
-      } else if (data.DataType() == DLDataType{kDLInt, 32, 1}) {
+      } else if (data.dtype() == DLDataType{kDLInt, 32, 1}) {
         return CheckInFP16Range<std::int32_t>(bytes, size_1d);
-      } else if (data.DataType() == DLDataType{kDLInt, 64, 1}) {
+      } else if (data.dtype() == DLDataType{kDLInt, 64, 1}) {
         return CheckInFP16Range<std::int64_t>(bytes, size_1d);
       }
       return false;

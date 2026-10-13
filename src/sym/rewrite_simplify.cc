@@ -32,6 +32,7 @@
 #include <tvm/sym/analyzer.h>
 
 #include <algorithm>
+#include <numeric>
 #include <tuple>
 #include <utility>
 
@@ -50,7 +51,7 @@ TVM_FFI_INLINE bool IsVectorExpr(const ExprNode* expr) {
 }
 }  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK() { RewriteSimplifierStatsNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { RewriteSimplifierStatsObj::RegisterReflection(); }
 
 // Note: When using matches_one_of or PMatchesOneOf alongside these
 // macros, be careful which patterns are used in the ResExpr.  While
@@ -2104,9 +2105,9 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(prim::LT ret, InplaceMode in
     auto common_factor = [&]() -> int64_t {
       auto modular_a = analyzer_->modular_set(ret->a);
       auto modular_b = analyzer_->modular_set(ret->b);
-      auto gcd_lhs = ZeroAwareGCD(modular_a->base, modular_a->coeff);
-      auto gcd_rhs = ZeroAwareGCD(modular_b->base, modular_b->coeff);
-      return ZeroAwareGCD(gcd_lhs, gcd_rhs);
+      auto gcd_lhs = std::gcd(modular_a->base, modular_a->coeff);
+      auto gcd_rhs = std::gcd(modular_b->base, modular_b->coeff);
+      return std::gcd(gcd_lhs, gcd_rhs);
     }();
     if (common_factor > 1) {
       return RecursiveRewrite(floordiv(ret->a, common_factor) < floordiv(ret->b, common_factor),

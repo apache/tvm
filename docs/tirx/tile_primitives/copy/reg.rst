@@ -25,7 +25,7 @@ the width. The partition is induced by the register operand's layout: that layou
 already say which thread owns which logical coordinate, so the lowerer drops
 those axes, leaves each thread its private bundle of elements, and copies them
 in a vectorized serial loop. Source:
-``python/tvm/backend/cuda/tile_primitive/copy/vec_auto_reg.py``.
+``python/tvm/backend/cuda/tile/copy/vec_auto_reg.py``.
 
 What it accepts
 ---------------
@@ -79,7 +79,8 @@ contiguous elements). From ``test_reg.py``:
 
 .. code-block:: python
 
-    from tvm.tirx.layout import S, TileLayout, laneid
+    from tvm.tirx.layout import S, TileLayout
+    from tvm.backend.cuda.axis import laneid
 
     shape, dtype = (32, 8), "float32"
     r_layout = TileLayout(S[shape : (1 @ laneid, 1)])  # lane i -> row i, 8 regs
@@ -94,11 +95,11 @@ contiguous elements). From ``test_reg.py``:
         _index = Tx.cuda.block_idx("x")
         _lane = Tx.cuda.lane_id()
         tid = Tx.cuda.thread_idx("x")
-        A_smem = Tx.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
+        A_smem = Tx.alloc_tensor(ty_args=[Tx.Tensor(shape, dtype, scope="shared", layout=s_layout)])
         for kk in range(8):
             A_smem[tid, kk] = Tx.cast(tid * 100 + kk + 1, dtype)
         Tx.cuda.cta_sync()
-        R = Tx.alloc_tensor(shape, dtype, scope="local", layout=r_layout)
+        R = Tx.alloc_tensor(ty_args=[Tx.Tensor(shape, dtype, scope="local", layout=r_layout)])
         Tx.cuda.tile.ld(R[fs], A_smem[fs], scope="warp")  # shared -> register  (this dispatch)
         # ... clear A_smem, cta_sync ...
         Tx.cuda.tile.st(A_smem[fs], R[fs], scope="warp")  # register -> shared  (this dispatch)
@@ -122,7 +123,7 @@ address). For ``8`` contiguous ``float32`` that is ``vec = 4``, so ``outer = 2``
 
 **3. Per-thread base offset + serial loop.** The shared-side base offset is built
 from thread-axis placeholders (substituted with the real ``Tx.cuda.lane_id()`` etc.),
-and the register side is a flat per-thread ``local`` buffer. The emit is a serial
+and the register side is a flat per-thread ``local`` tensor. The emit is a serial
 loop to limit generated code size:
 
 .. code-block:: python
@@ -151,7 +152,9 @@ Generated TIRx IR
 
 .. code-block:: python
 
-    r_local = Tx.decl_tensor((8,), data=R.data, scope="local")   # 8 fp32 elements / lane
+    r_local = Tx.decl_tensor(
+        R.data, ty_args=[Tx.Tensor((8,), scope="local")]
+    )  # 8 fp32 elements / lane
     r_words = r_local.view("uint32")
     for f in range(2):                                           # outer = 8 / vec 4
         s_ptr = pointer_offset(A_smem, ...)                      # this lane's row

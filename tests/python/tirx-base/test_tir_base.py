@@ -33,7 +33,7 @@ def build_tir_func(func):
     if pass_ctx.config.get("tirx.noalias", True):
         func = func.with_attr("tirx.noalias", True)
     mod = tvm.IRModule({"main": func})
-    func = tvm.compile(mod)
+    func = tvm.tirx.compile(mod)
     return func
 
 
@@ -162,7 +162,7 @@ def test_control_flow_jump():
 
 def test_break_statement():
     @T.function
-    def func(In: T.Tensor((2,), "int32"), Out: T.Tensor((2,), "int32")):
+    def func(In: T.Tensor((2,), "int32", align=4), Out: T.Tensor((2,), "int32", align=4)):
         Out[0] = 0
         Out[1] = 1
         for i in range(10):
@@ -189,7 +189,7 @@ def test_break_statement():
 
 def test_continue_statement():
     @T.function
-    def func(Out: T.Tensor((2,), "int32")):
+    def func(Out: T.Tensor((2,), "int32", align=4)):
         T.func_attr({"global_symbol": "main"})
         Out[0] = 0
         Out[1] = 0
@@ -198,7 +198,7 @@ def test_continue_statement():
                 if (i * 10 + j) % 3 != 0:
                     continue
                 Out[0] = Out[0] + 1
-        k = T.decl_tensor([], "int32")
+        k = T.alloc_tensor(ty_args=[T.Tensor([], "int32")])
         k[()] = 0
         while k[()] < Out[0]:
             k[()] = k[()] + 1

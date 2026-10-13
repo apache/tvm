@@ -33,32 +33,31 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/stmt_functor_with_analyzer.h>
 #include <tvm/tirx/transform.h>
-
-#include "../ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-void StmtSimplifyConfigNode::RegisterReflection() {
+void StmtSimplifyConfigObj::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<StmtSimplifyConfigNode>()
+  refl::ObjectDef<StmtSimplifyConfigObj>()
       .def_ro("transitively_prove_inequalities",
-              &StmtSimplifyConfigNode::transitively_prove_inequalities,
+              &StmtSimplifyConfigObj::transitively_prove_inequalities,
               "If true, simplify conditionals with transitive combinations of scoped constraints",
               refl::DefaultValue(false))
       .def_ro("convert_boolean_to_and_of_ors",
-              &StmtSimplifyConfigNode::convert_boolean_to_and_of_ors,
+              &StmtSimplifyConfigObj::convert_boolean_to_and_of_ors,
               "If true, simplify conditionals into an AND of ORs", refl::DefaultValue(false))
       .def_ro("apply_constraints_to_boolean_branches",
-              &StmtSimplifyConfigNode::apply_constraints_to_boolean_branches,
+              &StmtSimplifyConfigObj::apply_constraints_to_boolean_branches,
               "If true, simplify each branch of AND/OR under constraints provided by the other "
               "branch",
               refl::DefaultValue(false));
 }
 
-sym::RewriteSimplifier::Extension StmtSimplifyConfigNode::GetEnabledExtensions() const {
+sym::RewriteSimplifier::Extension StmtSimplifyConfigObj::GetEnabledExtensions() const {
   sym::RewriteSimplifier::Extension flags = sym::RewriteSimplifier::kNone;
   if (transitively_prove_inequalities) {
     flags = sym::RewriteSimplifier::Extension(
@@ -79,7 +78,7 @@ static StmtSimplifyConfig MakeDefaultStmtSimplifyConfig() {
   return tvm::transform::PassConfigWithDefaults<StmtSimplifyConfig>();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { StmtSimplifyConfigNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { StmtSimplifyConfigObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ::tvm::transform::PassContext::RegisterConfigOption<StmtSimplifyConfig>("tirx.StmtSimplify");
@@ -95,7 +94,7 @@ Function StmtSimplifier::Apply(Function func, const sym::Analyzer& analyzer,
 
 Function StmtSimplifier::Run(Function func) {
   analyzer_->rewrite_simplify.SetEnabledExtensions(config_->GetEnabledExtensions());
-  MarkBufferParamShapes(func);
+  MarkTensorParamShapes(func);
   auto* n = func.CopyOnWrite();
   // Shared string literals no longer enter the primitive analyzer.  Inline their
   // SSA bindings so existing literal arguments remain constants during lowering.
@@ -144,7 +143,7 @@ UnchangedOr<Stmt> StmtSimplifier::Mutate_(const ForNode* op, InplaceMode inplace
 
 UnchangedOr<Stmt> StmtSimplifier::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
   if (const auto* call = op->value.as<CallNode>()) {
-    // Preserve buffer metadata and shape operands; only declaration data is simplified.
+    // Preserve tensor type metadata; only declaration data is simplified.
     if (call->op.same_as(tirx::alloc_tensor_op())) return ffi::Unchanged();
     if (call->op.same_as(tirx::decl_tensor_op())) {
       // The Call and its arguments may be shared even when the Bind is writable.
@@ -216,13 +215,13 @@ UnchangedOr<Stmt> StmtSimplifier::Mutate_(const TensorStoreNode* op, InplaceMode
                           .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                           .as_or_throw<TensorStore>();
   if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
-    TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
-    if (buffer.same_as(store->dest.as_or_throw<TensorVar>()) &&
+    TensorVar tensor = load->source.as_or_throw<tvm::tirx::TensorVar>();
+    if (tensor.same_as(store->dest.as_or_throw<TensorVar>()) &&
         ArrayDeepEqual(load->indices, store->indices) &&
-        prim::ExprDeepEqual()(buffer->elem_offset,
+        prim::ExprDeepEqual()(tensor->elem_offset,
                               store->dest.as_or_throw<TensorVar>()->elem_offset) &&
-        ArrayDeepEqual(buffer->shape, store->dest.as_or_throw<TensorVar>()->shape) &&
-        ArrayDeepEqual(buffer->strides, store->dest.as_or_throw<TensorVar>()->strides)) {
+        ArrayDeepEqual(tensor->shape, store->dest.as_or_throw<TensorVar>()->shape) &&
+        ArrayDeepEqual(tensor->strides, store->dest.as_or_throw<TensorVar>()->strides)) {
       return Evaluate(0);
     }
   }

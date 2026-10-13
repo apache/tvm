@@ -32,8 +32,8 @@ from tvm.ir import (
     Call,
     Expr,
     ExprWithOp,
-    PointerType,
     PrimType,
+    PtrType,
     TensorLoad,
     TensorRegion,
     Var,
@@ -181,7 +181,7 @@ def _canonical_device_intrin_name(func_name: str) -> str:
     return func_name
 
 
-def _reject_buffer_region(value, api_name):
+def _reject_tensor_region(value, api_name):
     """Reject region metadata where a call argument must denote a runtime value."""
     if isinstance(value, TensorRegion):
         raise TypeError(
@@ -211,20 +211,20 @@ def _primexpr_dtype(expr):
     return ty.dtype
 
 
-def _pack_buffer(buf, loc: Location = UNKNOWN_LOC):
-    """Build intrinsics that packs the buffer."""
+def _pack_tensor(buf, loc: Location = UNKNOWN_LOC):
+    """Build intrinsics that packs the tensor."""
     shape = Call(
         "tirx.stack_make_shape",
         buf.ty.shape,
         loc=loc,
-        ty=PointerType(tvm.ir.PrimType("int64")),
+        ty=PtrType(tvm.ir.PrimType("int64")),
     )
     strides = (
         Call(
             "tirx.stack_make_shape",
             buf.ty.strides,
             loc=loc,
-            ty=PointerType(tvm.ir.PrimType("int64")),
+            ty=PtrType(tvm.ir.PrimType("int64")),
         )
         if buf.ty.strides
         else 0
@@ -266,7 +266,7 @@ def call_packed_lowered(*args, loc: Location = UNKNOWN_LOC, ty=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [
-        _pack_buffer(x) if is_tensor_var(x) else _reject_buffer_region(x, "call_packed_lowered")
+        _pack_tensor(x) if is_tensor_var(x) else _reject_tensor_region(x, "call_packed_lowered")
         for x in args
     ]
     return Call(
@@ -300,7 +300,7 @@ def call_cpacked_lowered(*args, loc: Location = UNKNOWN_LOC, ty=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [
-        _pack_buffer(x) if is_tensor_var(x) else _reject_buffer_region(x, "call_cpacked_lowered")
+        _pack_tensor(x) if is_tensor_var(x) else _reject_tensor_region(x, "call_cpacked_lowered")
         for x in args
     ]
     return Call(
@@ -339,7 +339,7 @@ def call_packed(*args, loc: Location = UNKNOWN_LOC, ty=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [
-        _pack_buffer(x) if is_tensor_var(x) else _reject_buffer_region(x, "call_packed")
+        _pack_tensor(x) if is_tensor_var(x) else _reject_tensor_region(x, "call_packed")
         for x in args
     ]
     return Call("tirx.call_packed", call_args, ty=ty, loc=loc)
@@ -416,7 +416,7 @@ def call_cpacked(*args, loc: Location = UNKNOWN_LOC, ty=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [
-        _pack_buffer(x) if is_tensor_var(x) else _reject_buffer_region(x, "call_cpacked")
+        _pack_tensor(x) if is_tensor_var(x) else _reject_tensor_region(x, "call_cpacked")
         for x in args
     ]
     return Call("tirx.call_cpacked", call_args, ty=ty, loc=loc)
@@ -454,7 +454,7 @@ def call_intrin(
     """
     if isinstance(func_name, str):
         func_name = _canonical_device_intrin_name(func_name)
-    args = tuple(_reject_buffer_region(arg, "call_intrin") for arg in args)
+    args = tuple(_reject_tensor_region(arg, "call_intrin") for arg in args)
     return Call(func_name, args, attrs=attrs, loc=loc, ty=dtype)
 
 
@@ -482,7 +482,7 @@ def call_pure_extern(dtype, func_name, *args, loc: Location = UNKNOWN_LOC):
     """
     return Call(
         "tirx.call_pure_extern",
-        [func_name, *(_reject_buffer_region(arg, "call_pure_extern") for arg in args)],
+        [func_name, *(_reject_tensor_region(arg, "call_pure_extern") for arg in args)],
         loc=loc,
         ty=dtype,
     )
@@ -512,7 +512,7 @@ def call_extern(dtype, func_name, *args, loc: Location = UNKNOWN_LOC):
     """
     return Call(
         "tirx.call_extern",
-        [func_name, *(_reject_buffer_region(arg, "call_extern") for arg in args)],
+        [func_name, *(_reject_tensor_region(arg, "call_extern") for arg in args)],
         loc=loc,
         ty=dtype,
     )
@@ -786,16 +786,16 @@ def abi_field_set(arr, index, field, value, *, ty=None, loc: Location = UNKNOWN_
 
 
 def _is_tensormap_var(obj: Var) -> bool:
-    return isinstance(obj.ty, PointerType) and isinstance(obj.ty.element_type, TensorMapType)
+    return isinstance(obj.ty, PtrType) and isinstance(obj.ty.element_type, TensorMapType)
 
 
 def address_of(obj: Var | TensorLoad, loc: Location = UNKNOWN_LOC, *, ty=None) -> Expr:
-    """Returns the address of a buffer element or addressable variable.
+    """Returns the address of a tensor element or addressable variable.
 
     Parameters
     ----------
     obj: Union[Var, TensorLoad]
-        The buffer, buffer load, or addressable variable.
+        The tensor, tensor load, or addressable variable.
 
     loc : Location, optional
         The location of this operator in the source code.
@@ -807,8 +807,8 @@ def address_of(obj: Var | TensorLoad, loc: Location = UNKNOWN_LOC, *, ty=None) -
     """
     if is_tensor_var(obj):
         n_dim = len(obj.ty.shape)
-        buffer_load = _make_tensor_load(obj, [0] * n_dim)
-        return Call("tirx.address_of", [buffer_load], ty=ty, loc=loc)
+        tensor_load = _make_tensor_load(obj, [0] * n_dim)
+        return Call("tirx.address_of", [tensor_load], ty=ty, loc=loc)
     elif isinstance(obj, Var):
         if _is_tensormap_var(obj):
             return call_intrin(ty, "tirx.address_of", obj, loc=loc)
@@ -1197,9 +1197,7 @@ def reinterpret(dtype, value, loc: Location = UNKNOWN_LOC) -> Expr:
         The reinterpret cast value of dtype.
     """
     if isinstance(dtype, str):
-        dtype = (
-            PointerType(tvm.ir.PrimType("void")) if dtype == "handle" else tvm.ir.PrimType(dtype)
-        )
+        dtype = PtrType(tvm.ir.PrimType("void")) if dtype == "handle" else tvm.ir.PrimType(dtype)
     return _ffi_api.reinterpret(dtype, value, loc)  # type: ignore
 
 
@@ -1369,7 +1367,7 @@ def get_active_lane_mask(dtype, base, limit):
     return call_intrin(dtype, "tirx.get_active_lane_mask", base, limit)
 
 
-def masked_load(dtype, buffer, *indices_and_mask):
+def masked_load(dtype, tensor, *indices_and_mask):
     """Load vector lanes selected by a predicate mask.
 
     Parameters
@@ -1377,11 +1375,11 @@ def masked_load(dtype, buffer, *indices_and_mask):
     dtype : str
         The vector data type to load.
 
-    buffer : Var
-        The buffer to load.
+    tensor : Var
+        The tensor to load.
 
     indices_and_mask : Expr
-        The buffer indices followed by a boolean lane mask. The mask must match the
+        The tensor indices followed by a boolean lane mask. The mask must match the
         lane count and scalability of the loaded vector.
 
     Returns
@@ -1389,22 +1387,22 @@ def masked_load(dtype, buffer, *indices_and_mask):
     call : Expr
         A ``tirx.masked_load`` call with result type ``dtype``.
     """
-    return call_intrin(dtype, "tirx.masked_load", buffer, *indices_and_mask)
+    return call_intrin(dtype, "tirx.masked_load", tensor, *indices_and_mask)
 
 
-def masked_store(buffer, value, *indices_and_mask, ty=None, loc: Location = UNKNOWN_LOC):
+def masked_store(tensor, value, *indices_and_mask, ty=None, loc: Location = UNKNOWN_LOC):
     """Store vector lanes selected by a predicate mask.
 
     Parameters
     ----------
-    buffer : Var
-        The buffer to update.
+    tensor : Var
+        The tensor to update.
 
     value : Expr
         The vector value to store.
 
     indices_and_mask : Expr
-        The buffer indices followed by a boolean lane mask. The mask must match the
+        The tensor indices followed by a boolean lane mask. The mask must match the
         lane count and scalability of ``value``.
 
     Returns
@@ -1415,7 +1413,7 @@ def masked_store(buffer, value, *indices_and_mask, ty=None, loc: Location = UNKN
     return call_intrin(
         ty,
         "tirx.masked_store",
-        buffer,
+        tensor,
         value,
         *indices_and_mask,
         loc=loc,
@@ -1677,13 +1675,3 @@ def gpu_store_matrix_sync(
 def gpu_thread_return(*, ty=None, loc: Location = UNKNOWN_LOC):
     """Return from the current GPU thread without a function value."""
     return call_intrin(ty, "tirx.gpu_thread_return", loc=loc)
-
-
-def __getattr__(name):
-    # Tile classes resolve registered Ops at import time. Load the family only
-    # when requested, after the core TIRx types are available.
-    if name == "tile":
-        from importlib import import_module  # pylint: disable=import-outside-toplevel
-
-        return import_module(".tile", __name__)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

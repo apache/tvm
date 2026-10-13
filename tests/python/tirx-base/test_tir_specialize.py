@@ -80,7 +80,7 @@ n = T.dynamic("n", "int32")
 
 @T.function
 def element_wise(A: T.Tensor((m, n), "float32"), C: T.Tensor((m, n), "float32")) -> None:
-    B = T.alloc_tensor((m, n), "float32")
+    B = T.alloc_tensor(ty_args=[T.Tensor((m, n), "float32")])
 
     for i, j in T.grid(m, n):
         B[i, j] = A[i, j] * 2.0
@@ -93,7 +93,7 @@ def element_wise(A: T.Tensor((m, n), "float32"), C: T.Tensor((m, n), "float32"))
 def element_wise_128_64(
     A: T.Tensor((128, 64), "float32"), C: T.Tensor((128, 64), "float32")
 ) -> None:
-    B = T.alloc_tensor((128, 64), "float32")
+    B = T.alloc_tensor(ty_args=[T.Tensor((128, 64), "float32")])
 
     for i, j in T.grid(128, 64):
         B[i, j] = A[i, j] * 2.0
@@ -107,7 +107,7 @@ n = T.dynamic("n", "int32")
 
 @T.function
 def element_wise_128_n(A: T.Tensor((128, n), "float32"), C: T.Tensor((128, n), "float32")) -> None:
-    B = T.alloc_tensor((128, n), "float32")
+    B = T.alloc_tensor(ty_args=[T.Tensor((128, n), "float32")])
 
     for i, j in T.grid(128, n):
         B[i, j] = A[i, j] * 2.0
@@ -234,18 +234,18 @@ def test_specialize_with_const_folding():
     assert_structural_equal_ignore_global_symbol(expected, after)
 
 
-def test_specialize_decl_buffer():
-    """Buffers occurring in a DeclTensor statement should be updated"""
+def test_specialize_decl_tensor():
+    """Tensors occurring in a DeclTensor statement should be updated"""
 
     @T.function(private=True)
     def before(A_data: T.handle("float32"), A_size: T.int32):
-        A_buf = T.decl_tensor(A_size, "float32", data=A_data)
+        A_buf = T.decl_tensor(A_data, ty_args=[T.Tensor(A_size, "float32", data=A_data)])
         for i in range(A_size):
             A_buf[i] = A_buf[i] * 2.0
 
     @T.function(private=True)
     def expected(A_data: T.handle("float32")):
-        A_buf = T.decl_tensor(16, "float32", data=A_data)
+        A_buf = T.decl_tensor(A_data, ty_args=[T.Tensor(16, "float32", data=A_data)])
         for i in range(16):
             A_buf[i] = A_buf[i] * 2.0
 
@@ -255,17 +255,17 @@ def test_specialize_decl_buffer():
     tvm.ir.assert_structural_equal(expected, after)
 
 
-def test_specialize_preserves_decl_buffer_alias():
+def test_specialize_preserves_decl_tensor_alias():
     before_n = T.int32()
 
     @T.function(private=True)
     def before(A: T.Tensor((before_n,), "int32"), n: before_n):
-        A_flat = T.decl_tensor((n,), "int32", data=A.data)
+        A_flat = T.decl_tensor(A.data, ty_args=[T.Tensor((n,), "int32", data=A.data)])
         A_flat[n - 1] = 42
 
     @T.function(private=True)
     def expected(A: T.Tensor((8,), "int32")):
-        A_flat = T.decl_tensor((8,), "int32", data=A.data)
+        A_flat = T.decl_tensor(A.data, ty_args=[T.Tensor((8,), "int32", data=A.data)])
         A_flat[7] = 42
 
     after = before.specialize({before.params[1]: 8})
@@ -273,24 +273,24 @@ def test_specialize_preserves_decl_buffer_alias():
     tvm.ir.assert_structural_equal(expected, after)
 
 
-def test_specialize_buffer_var_to_var():
-    """A buffer var may be remapped by specialization
+def test_specialize_tensor_var_to_var():
+    """A tensor var may be remapped by specialization
 
-    If a buffer variable is replaced by a specialization, then other
-    buffers using the same buffer var should also be updated.
+    If a tensor variable is replaced by a specialization, then other
+    tensors using the same tensor var should also be updated.
     """
 
     @T.function(private=True)
     def before(A: T.Tensor([16, 16], "float32"), B: T.Tensor([16, 16], "float32")):
-        A_flat = T.decl_tensor([256], "float32", data=A.data)
-        B_flat = T.decl_tensor([256], "float32", data=B.data)
+        A_flat = T.decl_tensor(A.data, ty_args=[T.Tensor([256], "float32", data=A.data)])
+        B_flat = T.decl_tensor(B.data, ty_args=[T.Tensor([256], "float32", data=B.data)])
         for i in range(256):
             B_flat[i] = A_flat[i] * 2.0
 
     @T.function(private=True)
     def expected(A: T.Tensor([16, 16], "float32")):
-        A_flat = T.decl_tensor([256], "float32", data=A.data)
-        B_flat = T.decl_tensor([256], "float32", data=A.data)
+        A_flat = T.decl_tensor(A.data, ty_args=[T.Tensor([256], "float32", data=A.data)])
+        B_flat = T.decl_tensor(A.data, ty_args=[T.Tensor([256], "float32", data=A.data)])
         for i in range(256):
             B_flat[i] = A_flat[i] * 2.0
 
@@ -302,20 +302,22 @@ def test_specialize_buffer_var_to_var():
     tvm.ir.assert_structural_equal(expected, after)
 
 
-def test_specialize_buffer_var_to_expr():
+def test_specialize_tensor_var_to_expr():
     """A DeclTensor source expression may be specialized directly."""
 
     @T.function(private=True)
     def before(A_data: T.handle("float32"), B_data: T.handle("float32")):
-        A_buf = T.decl_tensor(32, "float32", data=A_data)
-        B_buf = T.decl_tensor(16, "float32", data=B_data)
+        A_buf = T.decl_tensor(A_data, ty_args=[T.Tensor(32, "float32", data=A_data)])
+        B_buf = T.decl_tensor(B_data, ty_args=[T.Tensor(16, "float32", data=B_data)])
         for i in range(16):
             B_buf[i] = A_buf[i] * 2.0
 
     @T.function(private=True)
     def expected(A_data: T.handle("float32")):
-        A_buf = T.decl_tensor(32, "float32", data=A_data)
-        B_buf = T.decl_tensor(16, "float32", data=T.address_of(A_buf[16]))
+        A_buf = T.decl_tensor(A_data, ty_args=[T.Tensor(32, "float32", data=A_data)])
+        B_buf = T.decl_tensor(
+            T.address_of(A_buf[16]), ty_args=[T.Tensor(16, "float32", data=T.address_of(A_buf[16]))]
+        )
         for i in range(16):
             B_buf[i] = A_buf[i] * 2.0
 

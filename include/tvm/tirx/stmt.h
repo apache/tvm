@@ -23,8 +23,8 @@
 #define TVM_TIRX_STMT_H_
 
 #include <tvm/ir/stmt.h>
-#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/expr.h>
+#include <tvm/tirx/tile/exec_scope.h>
 
 namespace tvm {
 namespace tirx {
@@ -39,8 +39,6 @@ inline bool IsNoOp(const Stmt& stmt) {
 
 /*! \brief Statement attribute and loop annotation keys. */
 namespace attr {
-constexpr const char* kThreadBinding = "thread_binding";
-
 constexpr const char* kPragmaUnroll = "pragma_unroll";
 
 constexpr const char* kDisableUnroll = "disable_unroll";
@@ -59,26 +57,10 @@ constexpr const char* kAutoUnrollMaxStep = "auto_unroll_max_step";
 constexpr const char* kUnrollExplicit = "unroll_explicit";
 /*! \brief Annotation key on AllocTensor marking the allocation as volatile. */
 constexpr const char* kVolatile = "tirx.volatile";
-/*! \brief Mark buffer initial addr alignment in bytes */
-constexpr const char* kBufferDataAlignment = "buffer_data_alignment";
+/*! \brief Mark tensor initial addr alignment in bytes */
+constexpr const char* kTensorDataAlignment = "tensor_data_alignment";
 
 }  // namespace attr
-
-/*! \brief Interpret and validate TIRx thread placement on a shared loop. */
-inline ffi::Optional<ffi::String> GetThreadBinding(const ForNode* loop) {
-  if (auto tag = loop->annotations.Get(tvm::tirx::attr::kThreadBinding)) {
-    TVM_FFI_CHECK(loop->kind == ForKind::kParallel, ValueError)
-        << "thread_binding requires a parallel loop";
-    TVM_FFI_CHECK(tag->as<ffi::String>().has_value(), TypeError)
-        << "thread_binding annotation must be a string";
-    TVM_FFI_CHECK(loop->HasTrivialStep(), ValueError) << "Thread binding loops require a unit step";
-    return tag->cast<ffi::String>();
-  }
-  return std::nullopt;
-}
-inline ffi::Optional<ffi::String> GetThreadBinding(const For& loop) {
-  return GetThreadBinding(loop.get());
-}
 
 }  // namespace tirx
 }  // namespace tvm

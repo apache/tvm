@@ -19,11 +19,12 @@
 
 /*!
  * \file tvm/runtime/tensor.h
- * \brief A device-independent managed Tensor abstraction.
+ * \brief Device-independent tensor allocation, copies, views and serialization.
  */
 #ifndef TVM_RUNTIME_TENSOR_H_
 #define TVM_RUNTIME_TENSOR_H_
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/dtype.h>
@@ -34,8 +35,12 @@
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 
+#include <algorithm>
 #include <atomic>
 #include <functional>
+#include <limits>
+#include <mutex>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -43,200 +48,60 @@ namespace tvm {
 namespace runtime {
 
 /*!
- * \brief Managed Tensor.
- *  The array is backed by reference counted blocks.
+ * \brief Allocate an uninitialized tensor through the runtime device allocator.
+ * \param shape The tensor shape.
+ * \param dtype The tensor data type.
+ * \param dev The allocation device.
+ * \param mem_scope The optional device memory scope.
  */
-class Tensor : public tvm::ffi::Tensor {
- public:
-  static constexpr bool _type_is_nullable = false;
-  explicit Tensor(ffi::UnsafeInit tag) : tvm::ffi::Tensor(tag) {}
-  Tensor(ffi::Tensor&& other) : tvm::ffi::Tensor(std::move(other)) {
-    TVM_FFI_ICHECK(defined());
-  }  // NOLINT(*)
-  Tensor(const ffi::Tensor& other) : tvm::ffi::Tensor(other) {
-    TVM_FFI_ICHECK(defined());
-  }  // NOLINT(*)
-
-  ffi::ShapeView Shape() const { return this->shape(); }
-  DLDataType DataType() const { return this->dtype(); }
-
-  // DLPack handling
-  static Tensor FromDLPack(DLManagedTensor* tensor) {
-    return tvm::ffi::Tensor::FromDLPack(tensor, kAllocAlignment, true);
-  }
-
-  static Tensor FromDLPackVersioned(DLManagedTensorVersioned* tensor) {
-    return tvm::ffi::Tensor::FromDLPackVersioned(tensor, kAllocAlignment, true);
-  }
-  inline const DLTensor* operator->() const { return this->get(); }
-  /*!
-   * \brief Copy data content from another array.
-   * \param other The source array to be copied from.
-   * \note The copy may happen asynchronously if it involves a GPU context.
-   *       TVMSynchronize is necessary.
-   */
-  inline void CopyFrom(const DLTensor* other);
-  inline void CopyFrom(const Tensor& other);
-  /*!
-   * \brief Copy data content from a byte buffer.
-   * \param data The source bytes to be copied from.
-   * \param nbytes The size of the buffer in bytes
-   *        Must be equal to the size of the Tensor.
-   * \note The copy always triggers a TVMSynchronize.
-   */
-  TVM_RUNTIME_DLL void CopyFromBytes(const void* data, size_t nbytes);
-  /*!
-   * \brief Copy data content into another array.
-   * \param other The source array to be copied from.
-   * \note The copy may happen asynchronously if it involves a GPU context.
-   *       TVMSynchronize is necessary.
-   */
-  inline void CopyTo(DLTensor* other) const;
-  inline void CopyTo(const Tensor& other) const;
-  /*!
-   * \brief Copy data content into another array.
-   * \param data The source bytes to be copied from.
-   * \param nbytes The size of the data buffer.
-   *        Must be equal to the size of the Tensor.
-   * \note The copy always triggers a TVMSynchronize.
-   */
-  TVM_RUNTIME_DLL void CopyToBytes(void* data, size_t nbytes) const;
-  /*!
-   * \brief Copy the data to another device.
-   * \param dev The target device.
-   * \param mem_scope The memory scope of the target array.
-   * \return The array under another device.
-   * \note The copy always triggers a TVMSynchronize.
-   */
-  TVM_RUNTIME_DLL Tensor CopyTo(const Device& dev,
-                                ffi::Optional<ffi::String> mem_scope = std::nullopt) const;
-  /*!
-   * \brief Load Tensor from stream
-   * \param stream The input data stream
-   * \return Whether load is successful
-   */
-  inline bool Load(support::Stream* stream);
-  /*!
-   * \brief Save Tensor to stream
-   * \param stream The output data stream
-   */
-  inline void Save(support::Stream* stream) const;
-
-  /*!
-   * \brief Create a Tensor that shares the data memory with the current one.
-   *
-   * \param shape The shape of the new array.
-   *
-   * \param dtype The data type of the new array.
-   *
-   * \param relative_byte_offset The offset of the output Tensor,
-   *     relative to the current byte offset.
-   *
-   *     By default, the offset of the view is the same as the offset
-   *     of the current array.
-   *
-   * \note The new array must not allow access of addresses which
-   *       would be out of bounds in the current array.  If the new
-   *       array is larger than the current array, or if the
-   *       `relative_byte_offset` would place the end of the new array
-   *       outside the bounds of the current array, this function will
-   *       raise an exception.
-   */
-  TVM_RUNTIME_DLL Tensor CreateView(ffi::Shape shape, DLDataType dtype,
-                                    uint64_t relative_byte_offset = 0) const;
-  /*!
-   * \brief Create an empty Tensor.
-   * \param shape The shape of the new array.
-   * \param dtype The data type of the new array.
-   * \param dev The device of the array.
-   * \param mem_scope The memory scope of the array.
-   * \return The created Array
-   */
-  TVM_RUNTIME_DLL static Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
-                                      ffi::Optional<ffi::String> mem_scope = std::nullopt);
-  /*!
-   * \brief Function to copy data from one array to another.
-   * \param from The source array.
-   * \param to The target array.
-   * \param stream The stream used in copy.
-   */
-  TVM_RUNTIME_DLL static void CopyFromTo(const DLTensor* from, DLTensor* to,
-                                         TVMStreamHandle stream = nullptr);
-
-  /*!
-   * \brief Function to copy data from one array to a byte buffer.
-   * \param from The source array.
-   * \param to The target byte buffer.
-   * \param nbytes The size of the data buffer.
-   * \param stream The stream used in copy.
-   */
-  TVM_RUNTIME_DLL static void CopyToBytes(const DLTensor* from, void* to, size_t nbytes,
-                                          TVMStreamHandle stream = nullptr);
-
-  /*!
-   * \brief Function to copy data from one array to a byte buffer.
-   * \param from The source array.
-   * \param to The target byte buffer.
-   * \param nbytes The size of the data buffer.
-   * \param stream The stream used in copy.
-   */
-  TVM_RUNTIME_DLL static void CopyFromBytes(const DLTensor* to, void* from, size_t nbytes,
-                                            TVMStreamHandle stream = nullptr);
-
-  /*!
-   * \brief Check if two tensors share the same underlying storage.
-   *
-   * This detects runtime storage aliasing (e.g. views from CreateView, etc.) but does
-   * not imply either tensor was created by CreateView.
-   *
-   * \param a The first tensor.
-   * \param b The second tensor.
-   * \return True if the tensors share the same storage.
-   */
-  TVM_RUNTIME_DLL static bool IsStorageShared(const DLTensor* a, const DLTensor* b);
-
-  /*!
-   * \brief Tensor overload of IsStorageShared.
-   * \param a The first tensor.
-   * \param b The second tensor.
-   * \return True if the tensors share the same storage.
-   */
-  static bool IsStorageShared(const Tensor& a, const Tensor& b);
-};
+TVM_RUNTIME_DLL ffi::Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
+                                  ffi::Optional<ffi::String> mem_scope = std::nullopt);
 
 /*!
- * \brief Save a DLTensor to stream
- * \param strm The output stream
- * \param tensor The tensor to be saved.
+ * \brief Copy between existing tensors with exactly matching byte sizes.
+ * \note The copy may be asynchronous. The caller owns stream synchronization.
  */
-inline bool SaveDLTensor(support::Stream* strm, const DLTensor* tensor);
+TVM_RUNTIME_DLL void CopyFromTo(ffi::TensorView source, ffi::TensorView destination,
+                                TVMStreamHandle stream = nullptr);
 
-inline void Tensor::CopyFrom(const DLTensor* other) {
-  TVM_FFI_ICHECK(data_ != nullptr);
-  CopyFromTo(other, get_mutable());
-}
+/*!
+ * \brief Allocate a fresh tensor on dev, copy source, and synchronize the copy.
+ * \note A fresh allocation is made even when source already resides on dev.
+ */
+TVM_RUNTIME_DLL ffi::Tensor CopyTo(ffi::TensorView source, Device dev,
+                                   ffi::Optional<ffi::String> mem_scope = std::nullopt);
 
-inline void Tensor::CopyFrom(const Tensor& other) {
-  TVM_FFI_ICHECK(data_ != nullptr);
-  TVM_FFI_ICHECK(other.data_ != nullptr);
-  CopyFromTo(other.get_mutable(), get_mutable());
-}
+/*!
+ * \brief Create a compact view retaining ownership of source.
+ * \param source The owning source tensor, which must be compact.
+ * \param shape The view shape.
+ * \param dtype The view data type.
+ * \param relative_byte_offset Byte offset relative to the source's byte offset.
+ * \note The view must fit within the source's storage extent.
+ */
+TVM_RUNTIME_DLL ffi::Tensor CreateView(ffi::Tensor source, ffi::Shape shape, DLDataType dtype,
+                                       uint64_t relative_byte_offset = 0);
 
-inline void Tensor::CopyTo(DLTensor* other) const {
-  TVM_FFI_ICHECK(data_ != nullptr);
-  CopyFromTo(get_mutable(), other);
-}
+/*!
+ * \brief Copy exactly nbytes from a byte buffer into a contiguous tensor.
+ * \note Synchronizes stream before returning.
+ */
+TVM_RUNTIME_DLL void CopyFromBytes(ffi::TensorView destination, const void* source_bytes,
+                                   size_t nbytes, TVMStreamHandle stream = nullptr);
 
-inline void Tensor::CopyTo(const Tensor& other) const {
-  TVM_FFI_ICHECK(data_ != nullptr);
-  TVM_FFI_ICHECK(other.data_ != nullptr);
-  CopyFromTo(get_mutable(), other.get_mutable());
-}
+/*!
+ * \brief Copy a contiguous tensor into a byte buffer of exactly nbytes.
+ * \note Synchronizes stream before returning.
+ */
+TVM_RUNTIME_DLL void CopyToBytes(ffi::TensorView source, void* destination_bytes, size_t nbytes,
+                                 TVMStreamHandle stream = nullptr);
 
 /*! \brief Magic number for Tensor file */
 constexpr uint64_t kTVMTensorMagic = 0xDD5E40F096B4A13F;
 
-inline bool SaveDLTensor(support::Stream* strm, const DLTensor* tensor) {
+/*! \brief Save a tensor in the portable CPU tensor format. */
+inline void SaveTensor(ffi::TensorView source, support::Stream* strm) {
+  const DLTensor* tensor = ffi::AnyView(source).cast<DLTensor*>();
   uint64_t header = kTVMTensorMagic, reserved = 0;
   strm->Write(header);
   strm->Write(reserved);
@@ -271,18 +136,16 @@ inline bool SaveDLTensor(support::Stream* strm, const DLTensor* tensor) {
     strm->Write(tensor->data, data_byte_size);
   } else {
     std::vector<uint8_t> bytes(data_byte_size);
-    Tensor::CopyToBytes(const_cast<DLTensor*>(tensor), bytes.data(), data_byte_size);
+    CopyToBytes(source, bytes.data(), data_byte_size);
     if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
       ffi::ByteSwap(bytes.data(), type_bytes, num_elems);
     }
     strm->Write(bytes.data(), data_byte_size);
   }
-  return true;
 }
 
-inline void Tensor::Save(support::Stream* strm) const { SaveDLTensor(strm, operator->()); }
-
-inline bool Tensor::Load(support::Stream* strm) {
+/*! \brief Load a tensor from the portable format into CPU storage. */
+inline ffi::Tensor LoadTensor(support::Stream* strm) {
   uint64_t header, reserved;
   TVM_FFI_ICHECK(strm->Read(&header)) << "Invalid DLTensor file format";
   TVM_FFI_ICHECK(strm->Read(&reserved)) << "Invalid DLTensor file format";
@@ -299,25 +162,24 @@ inline bool Tensor::Load(support::Stream* strm) {
   if (ndim != 0) {
     TVM_FFI_ICHECK(strm->ReadArray(&shape[0], ndim)) << "Invalid DLTensor file format";
   }
-  Tensor ret = Tensor::Empty(ffi::Shape(shape), dtype, dev);
+  ffi::Tensor ret = Empty(ffi::Shape(shape), dtype, dev);
   int64_t num_elems = 1;
-  int elem_bytes = (ret->dtype.bits + 7) / 8;
-  for (int i = 0; i < ret->ndim; ++i) {
-    num_elems *= ret->shape[i];
+  int elem_bytes = (ret.GetDLTensorPtr()->dtype.bits + 7) / 8;
+  for (int i = 0; i < ret.GetDLTensorPtr()->ndim; ++i) {
+    num_elems *= ret.shape()[i];
   }
   int64_t data_byte_size;
   TVM_FFI_ICHECK(strm->Read(&data_byte_size)) << "Invalid DLTensor file format";
   TVM_FFI_ICHECK(data_byte_size == num_elems * elem_bytes) << "Invalid DLTensor file format";
-  auto read_ret = strm->Read(ret->data, data_byte_size);
+  auto read_ret = strm->Read(ret.GetDLTensorPtr()->data, data_byte_size);
   // Only check non-empty data
   if (ndim > 0 && shape[0] != 0) {
     TVM_FFI_ICHECK(read_ret) << "Invalid DLTensor file format";
   }
   if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
-    ffi::ByteSwap(ret->data, elem_bytes, num_elems);
+    ffi::ByteSwap(ret.GetDLTensorPtr()->data, elem_bytes, num_elems);
   }
-  *this = ret;
-  return true;
+  return ret;
 }
 
 /*!
@@ -336,6 +198,172 @@ inline Device GetPreferredHostDevice(Device device) {
     return Device{DLDeviceType::kDLCPU, 0};
   }
 }
+
+class TensorMemoryPool;
+
+/*! \brief Create the default pool for a device. */
+TVM_RUNTIME_DLL ffi::ObjectPtr<TensorMemoryPool> CreateTensorMemoryPool(DLDevice device);
+
+/*!
+ * \brief A cache of owning device tensors.
+ *
+ * Construct pools with ffi::make_object. Live tensors retain the pool directly;
+ * only unpooled backing tensors enter its cache. A backend supplies independent
+ * backing owners, never a deleter that calls or retains this pool.
+ *
+ * This class protects host ownership, not device execution. An adapter must keep
+ * separate pools for incompatible contexts/streams, or establish device ordering
+ * before reuse. Callers must finish using tensors before releasing their owners.
+ */
+class TensorMemoryPool : public ffi::Object {
+ public:
+  explicit TensorMemoryPool(size_t page_size = 4096) : page_size_(page_size), used_memory_(0) {
+    TVM_FFI_CHECK_GT(page_size_, 0, ValueError) << "Pool page size must be positive";
+    TVM_FFI_CHECK_LE(page_size_, static_cast<size_t>(std::numeric_limits<int64_t>::max()),
+                     ValueError);
+  }
+
+  virtual ~TensorMemoryPool() { Clear(); }
+
+  /*! \brief Return an owning compact tensor in ordinary global memory. */
+  virtual ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                            ffi::Optional<ffi::String> mem_scope = std::nullopt) {
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    if (mem_scope.has_value() && !(*mem_scope).empty() && *mem_scope != "global") {
+      return DeviceAPI::Get(device)->Empty(shape, dtype, device, mem_scope);
+    }
+    size_t nbytes = ffi::GetDataSize(shape.Product(), dtype);
+    TVM_FFI_CHECK_LE(std::max<size_t>(nbytes, 1),
+                     static_cast<size_t>(std::numeric_limits<int64_t>::max()) - (page_size_ - 1),
+                     ValueError)
+        << "Rounded tensor allocation size overflows";
+    size_t size = ((std::max<size_t>(nbytes, 1) + page_size_ - 1) / page_size_) * page_size_;
+    size_t alignment = kAllocAlignment;
+    size_t element_bytes = (static_cast<size_t>(dtype.bits) * dtype.lanes + 7) / 8;
+    while (alignment < element_bytes) alignment *= 2;
+
+    ffi::Tensor backing;
+    auto it = memory_pool_.find(size);
+    if (it != memory_pool_.end()) {
+      auto& pool = it->second;
+      bool addressable = DeviceAPI::Get(device)->SupportsDevicePointerArithmeticsOnHost();
+      auto candidate = std::find_if(pool.begin(), pool.end(), [&](const ffi::Tensor& tensor) {
+        return tensor.device().device_type == device.device_type &&
+               tensor.device().device_id == device.device_id &&
+               (!addressable || reinterpret_cast<uintptr_t>(tensor.data_ptr()) % alignment == 0);
+      });
+      if (candidate != pool.end()) {
+        backing = std::move(*candidate);
+        pool.erase(candidate);
+      }
+    }
+    if (!backing.defined()) {
+      // Collective backends cannot retry by unilaterally releasing cached buffers.
+      // Any allocation-pressure retry belongs to the non-collective adapter.
+      backing = AllocBacking(size, alignment, device);
+      used_memory_.fetch_add(size, std::memory_order_relaxed);
+    }
+    Lease lease{ffi::GetObjectPtr<TensorMemoryPool>(this), std::move(backing)};
+    try {
+      return ffi::Tensor::FromNDAlloc(lease, shape, dtype, device);
+    } catch (...) {
+      // Tensor metadata allocation may fail before the owning tensor exists.
+      Recycle(std::move(lease.backing));
+      throw;
+    }
+  }
+
+  /*! \brief Create a bounded owning view of a backing tensor. */
+  virtual ffi::Tensor CreateView(ffi::Tensor backing, ffi::Shape shape, DLDataType dtype,
+                                 uint64_t byte_offset = 0,
+                                 ffi::Optional<ffi::String> mem_scope = std::nullopt) {
+    TVM_FFI_CHECK(!mem_scope.has_value() || (*mem_scope).empty() || *mem_scope == "global" ||
+                      (backing.device().device_type == kDLHexagon &&
+                       (*mem_scope == "global.vtcm" || *mem_scope == "global.ddr")),
+                  ValueError)
+        << "Unsupported tensor view memory scope";
+    auto view = runtime::CreateView(std::move(backing), std::move(shape), dtype, byte_offset);
+    if (view.device().device_type == kDLHexagon &&
+        (!mem_scope.has_value() || (*mem_scope).empty() || *mem_scope == "global")) {
+      // Hexagon kernels receive the adjusted pointer rather than a byte offset.
+      auto* tensor = const_cast<DLTensor*>(view.GetDLTensorPtr());
+      if (tensor->byte_offset != 0) {
+        tensor->data = static_cast<char*>(tensor->data) + tensor->byte_offset;
+      }
+      tensor->byte_offset = 0;
+    }
+    return view;
+  }
+
+  /*! \brief Release cached backing; live tensors remain valid and may return later. */
+  void Clear() {
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    for (const auto& [size, pool] : memory_pool_) {
+      used_memory_.fetch_sub(size * pool.size(), std::memory_order_relaxed);
+    }
+    memory_pool_.clear();
+  }
+
+  /*! \brief Bytes held by this pool, including checked-out backing. */
+  size_t UsedMemory() const { return used_memory_.load(std::memory_order_relaxed); }
+
+  static constexpr bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("runtime.TensorMemoryPool", TensorMemoryPool, ffi::Object);
+
+ protected:
+  /*!
+   * \brief Allocate fresh owning uint8[nbytes] backing at the requested alignment.
+   * \note Opaque handles must satisfy backend alignment requirements. The backing
+   * owner releases its resources independently of the pool and must not allocate
+   * through a DeviceAPI::Empty implementation that routes back to this pool.
+   */
+  virtual ffi::Tensor AllocBacking(size_t nbytes, size_t alignment, DLDevice device) {
+    auto allocate = [&]() {
+      auto* api = DeviceAPI::Get(device);
+      DLDataType bytes{kDLUInt, 8, 1};
+      if (alignment <= kAllocAlignment) {
+        return api->Empty({static_cast<int64_t>(nbytes)}, bytes, device);
+      }
+      // Preserve the backend's dtype alignment contract for wide vector elements.
+      TVM_FFI_CHECK_LE(alignment, std::numeric_limits<uint16_t>::max(), ValueError);
+      auto owner = api->Empty({static_cast<int64_t>((nbytes + alignment - 1) / alignment)},
+                              DLDataType{kDLUInt, 8, static_cast<uint16_t>(alignment)}, device);
+      return runtime::CreateView(std::move(owner), {static_cast<int64_t>(nbytes)}, bytes);
+    };
+    try {
+      return allocate();
+    } catch (const ffi::Error&) {
+      // This default allocator is non-collective; release cached memory and retry.
+      Clear();
+      return allocate();
+    }
+  }
+
+ private:
+  struct Lease {
+    ffi::ObjectPtr<TensorMemoryPool> pool;
+    ffi::Tensor backing;
+
+    void AllocData(DLTensor* tensor) { tensor->data = backing.data_ptr(); }
+    void FreeData(DLTensor*) { pool->Recycle(std::move(backing)); }
+  };
+
+  void Recycle(ffi::Tensor backing) {
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    size_t size = ffi::GetDataSize(backing);
+    try {
+      memory_pool_[size].push_back(std::move(backing));
+    } catch (const std::bad_alloc&) {
+      // A cache insertion failure must not escape tensor destruction.
+      used_memory_.fetch_sub(size, std::memory_order_relaxed);
+    }
+  }
+
+  size_t page_size_;
+  std::atomic<size_t> used_memory_;
+  std::unordered_map<size_t, std::vector<ffi::Tensor>> memory_pool_;
+  std::recursive_mutex mu_;
+};
 
 }  // namespace runtime
 }  // namespace tvm

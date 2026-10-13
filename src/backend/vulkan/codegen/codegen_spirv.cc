@@ -25,7 +25,7 @@
 
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/s_tir/stmt.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/gpu.h>
@@ -33,10 +33,11 @@
 #include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt.h>
 
+#include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "../../../runtime/pack_args.h"
-#include "../../../tirx/transform/ir_utils.h"
 #include "../runtime/vulkan_common.h"
 
 namespace tvm {
@@ -44,6 +45,36 @@ namespace codegen {
 using namespace tvm::prim;
 
 namespace {
+
+int Stoi(const std::string& str) {
+  try {
+    return std::stoi(str);
+  } catch (std::invalid_argument& e) {
+    TVM_FFI_THROW(InternalError) << "Cannot convert \"" << str << "\" to int";
+    throw;
+  }
+}
+
+std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
+                                                   const std::string& scope) {
+  size_t m, n, k;
+  size_t last_pos = 0, pos = 0;
+  pos = shape_str.find(", ", last_pos);
+  m = Stoi(shape_str.substr(last_pos, pos - last_pos));
+  last_pos = pos + 2;
+  pos = shape_str.find(", ", last_pos);
+  n = Stoi(shape_str.substr(last_pos, pos - last_pos));
+  last_pos = pos + 2;
+  k = Stoi(shape_str.substr(last_pos, shape_str.length() - last_pos));
+  if (scope == "wmma.matrix_a") {
+    return std::pair<int32_t, int32_t>(m, k);
+  } else if (scope == "wmma.matrix_b") {
+    return std::pair<int32_t, int32_t>(k, n);
+  } else if (scope == "wmma.accumulator") {
+    return std::pair<int32_t, int32_t>(m, n);
+  }
+  return std::pair<int32_t, int32_t>(0, 0);
+}
 
 const IntImmNode* AsIntImmNode(const Expr& expr) {
   const IntImmNode* node = expr.as<IntImmNode>();
@@ -93,11 +124,11 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const Function& f, const std::s
   const uint32_t descriptor_set = 0;
 
   for (Var arg : f->params) {
-    if (auto* ptr = arg->ty.as<PointerTypeNode>()) {
+    if (auto* ptr = arg->ty.as<PtrTypeNode>()) {
       auto* prim = ptr->element_type.as<PrimTypeNode>();
       TVM_FFI_ICHECK(prim)
           << "All handles passed to the Vulkan codegen must have a type_annotation as a "
-             "PointerType, "
+             "PtrType, "
           << "and must point to a PrimType";
       PrimType value_storage_type = ffi::GetRef<PrimType>(prim);
       if (value_storage_type == PrimType::Bool()) {
@@ -176,7 +207,7 @@ void CodeGenSPIRV::InitFuncState() {
 
 spirv::Value CodeGenSPIRV::GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag,
                                           const PrimExpr& extent) {
-  runtime::ThreadScope ts = runtime::ThreadScope::Create(thread_tag);
+  support::GPUThreadTag ts = support::GPUThreadTag::Parse(thread_tag);
   TVM_FFI_ICHECK_GE(ts.dim_index, 0);
   TVM_FFI_ICHECK_LT(ts.dim_index, 3);
   spirv::Value v;
@@ -885,9 +916,9 @@ void CodeGenSPIRV::Dispatch_(const IfNode* op) {
 }
 
 void CodeGenSPIRV::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
-  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
-  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
-  ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
+  DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
+  ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(!PrimType(dtype).IsVoid());
@@ -907,7 +938,7 @@ void CodeGenSPIRV::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
     case runtime::StorageRank::kWMMAMatrixA:
     case runtime::StorageRank::kWMMAMatrixB:
     case runtime::StorageRank::kWMMAAccumulator: {
-      auto shape = annotations->dict.Get(tvm::s_tir::attr::kFragmentShape);
+      auto shape = annotations->dict.Get("fragment_shape");
       TVM_FFI_ICHECK(shape.has_value())
           << "Cannot find shape of the wmma fragment " << buffer.name();
       fragment_info_[var_node] = {shape.value().as_or_throw<ffi::String>()};
@@ -956,7 +987,7 @@ void CodeGenSPIRV::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
 
 void CodeGenSPIRV::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
   Expr data = buffer_call->args[0];
-  DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
+  DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   const VarNode* buffer_var = buffer.get();
   TVM_FFI_ICHECK(!var_map_.count(buffer_var))
@@ -991,8 +1022,7 @@ void CodeGenSPIRV::DispatchDeclTensor(const BindNode* op, const CallNode* buffer
 
 void CodeGenSPIRV::Dispatch_(const RegionStmtNode* op) {
   if (op->op.same_as(tirx::launch_thread_op())) {
-    TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
-                  ValueError)
+    TVM_FFI_CHECK(!op->args[0].as_or_throw<StringImm>()->value.starts_with("vthread"), ValueError)
         << "Virtual thread launches must be lowered before code generation";
     PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
     PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
@@ -1023,7 +1053,7 @@ void CodeGenSPIRV::Dispatch_(const BindNode* op) {
   if (auto prim_type = op->var->ty.as<PrimType>()) {
     TVM_FFI_ICHECK(!prim_type.value().IsVoid());
   } else {
-    TVM_FFI_ICHECK(op->var->ty.as<PointerTypeNode>());
+    TVM_FFI_ICHECK(op->var->ty.as<PtrTypeNode>());
   }
   var_map_[op->var.get()] = MakeValue(op->value);
   if (auto prim_value = op->value.as<PrimExpr>()) {

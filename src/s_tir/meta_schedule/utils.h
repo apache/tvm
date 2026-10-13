@@ -41,6 +41,8 @@
 #include <tvm/s_tir/meta_schedule/tune_context.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/support/base64.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 #include <tvm/sym/analyzer.h>
@@ -53,9 +55,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../support/base64.h"
-#include "../../support/bytes_io.h"
-#include "../../support/utils.h"
 #include "../schedule/primitive.h"
 #include "../schedule/utils.h"
 #include "../support/array_utils.h"
@@ -180,12 +179,12 @@ using TRandState = LinearCongruentialEngine::TRandState;
  * \return The base64 encoded string.
  */
 inline std::string Base64Encode(std::string str) {
-  std::string m_buffer;
-  support::BytesOutStream m_stream(&m_buffer);
+  std::string m_tensor;
+  support::BytesOutStream m_stream(&m_tensor);
   support::Base64OutStream b64stream(&m_stream);
   static_cast<support::Stream*>(&b64stream)->Write(str);
   b64stream.Finish();
-  return m_buffer;
+  return m_tensor;
 }
 
 /*!
@@ -537,7 +536,7 @@ struct SortTuningRecordByMeanRunSecs {
  * \param src The source space generator.
  * \param dst The destination space generator.
  */
-inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
+inline void CloneRules(const SpaceGeneratorObj* src, SpaceGeneratorObj* dst) {
   if (src->sch_rules.has_value()) {
     ffi::Array<ScheduleRule> original = src->sch_rules.value();
     ffi::Array<ScheduleRule> sch_rules;
@@ -579,7 +578,7 @@ inline bool IsGPUTarget(const std::string& target_name) {
  * \return The AutoInline schedule rule for the given target.
  */
 inline ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
-  ffi::Array<ScheduleRule> rules{nullptr};
+  ffi::Array<ScheduleRule> rules;
   if (target_name == "llvm") {
     rules = ScheduleRule::DefaultLLVM();
   } else if (target_name == "hexagon") {

@@ -38,7 +38,9 @@ except ImportError:
 
 import tvm
 from tvm.runtime import DataType
-from tvm.support.emcc import create_tvmjs_wasm, find_wasm_lib
+
+from .emcc import create_wasm as create_tvmjs_wasm
+from .emcc import find_wasm_lib
 
 
 def _convert_f32_to_bf16(value):

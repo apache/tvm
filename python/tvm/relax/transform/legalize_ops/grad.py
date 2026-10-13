@@ -235,7 +235,7 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
             [output_grad, x, indices],
             lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0]),
             dtype=x.dtype,
-            out_buffers=[out_buf],
+            out_tensors=[out_buf],
             name="take_backward",
             tag="take_backward",
         )

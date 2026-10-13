@@ -47,7 +47,7 @@ using tvm::transform::CreateModulePass;
  * op_pattern details as part of the tirx::Function. This pass is Adreno specific and annotates each
  * BindingVar with appropriate HintInDevice. RealizeVDevice pass followed by handles these hints.
  * Followed by this pass we also invoke SpecializeFunctionBasedOnCallSite which updates the
- * var_buffer_map based on this new VDevice information.
+ * var_tensor_map based on this new VDevice information.
  */
 TVM_DLL Pass AnnotateCustomMemoryScope(Target target);
 

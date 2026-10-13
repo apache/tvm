@@ -36,7 +36,7 @@
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tirx/transform/ir_utils.h"
+#include "ir_utils.h"
 #include "storage_access.h"
 
 namespace tvm {
@@ -79,7 +79,9 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
       TVM_FFI_ICHECK(k);
       TVM_FFI_ICHECK(layout);
 
-      std::string scope = GetPtrStorageScope(ffi::GetRef<Var>(buffer_var));
+      std::string scope = (buffer_var->ty.as<TensorTypeNode>()
+                               ? buffer_var->ty.as<TensorTypeNode>()->storage_scope
+                               : buffer_var->ty.as_or_throw<PtrType>()->storage_scope);
       if (fragments.count(buffer_var)) {
         // check if the fragment has met before
         FragmentInfo info = fragments[buffer_var];
@@ -114,7 +116,9 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
       TVM_FFI_ICHECK(n);
       TVM_FFI_ICHECK(k);
 
-      std::string scope = GetPtrStorageScope(ffi::GetRef<Var>(buffer_var));
+      std::string scope = (buffer_var->ty.as<TensorTypeNode>()
+                               ? buffer_var->ty.as<TensorTypeNode>()->storage_scope
+                               : buffer_var->ty.as_or_throw<PtrType>()->storage_scope);
       if (fragments.count(buffer_var)) {
         FragmentInfo info = fragments[buffer_var];
         TVM_FFI_ICHECK_EQ(m->value, info.m);
@@ -134,17 +138,11 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
   std::unordered_map<const VarNode*, FragmentInfo> fragments;
 };
 
-}  // namespace s_tir
-
-namespace tirx {
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt) {
   auto getter = ffi::make_object<s_tir::FragmentGetter>();
   getter->Visit(stmt);
   return std::move(getter->fragments);
 }
-}  // namespace tirx
-
-namespace s_tir {
 
 // Check shape of fragment making sure it is a valid shape for gpu_mma_sync
 class FragmentChecker : public s_tir::StmtExprVisitor {

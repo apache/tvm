@@ -25,6 +25,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 
@@ -52,47 +53,61 @@ namespace runtime {
 class CPUDeviceAPI final : public DeviceAPI {
  public:
   void SetDevice(Device dev) final {}
-  void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final {
-    if (kind == kExist) {
-      *rv = 1;
-    }
-
-    switch (kind) {
-      case kExist:
-        break;
-      case kTotalGlobalMemory: {
+  ffi::Any GetAttr(Device dev, const ffi::String& name) final {
+    if (name == "exist") return dev.device_id >= 0;
+    ffi::Any rv;
+    if (name == "total_global_memory") {
 #if defined(__linux__) || defined(__ANDROID__)
-        struct sysinfo info;
-        if (sysinfo(&info) == 0) {
-          *rv = static_cast<int64_t>(info.totalram) * info.mem_unit;  // Convert to bytes
-        } else {
-          *rv = -1;
-        }
-#elif defined(_WIN32)
-        MEMORYSTATUSEX statex;
-        statex.dwLength = sizeof(statex);
-        if (GlobalMemoryStatusEx(&statex)) {
-          *rv = static_cast<int64_t>(statex.ullTotalPhys);  // Total physical memory in bytes
-        } else {
-          *rv = -1;
-        }
-#elif defined(__APPLE__)
-        int64_t mem;
-        size_t size = sizeof(mem);
-        if (sysctlbyname("hw.memsize", &mem, &size, nullptr, 0) == 0) {
-          *rv = mem;
-        } else {
-          *rv = -1;
-        }
-#else
-        *rv = -1;
-#endif
+      struct sysinfo info;
+      if (sysinfo(&info) == 0) {
+        rv = static_cast<int64_t>(info.totalram) * info.mem_unit;  // Convert to bytes
+      } else {
+        rv = -1;
       }
-      default:
-        break;
+#elif defined(_WIN32)
+      MEMORYSTATUSEX statex;
+      statex.dwLength = sizeof(statex);
+      if (GlobalMemoryStatusEx(&statex)) {
+        rv = static_cast<int64_t>(statex.ullTotalPhys);  // Total physical memory in bytes
+      } else {
+        rv = -1;
+      }
+#elif defined(__APPLE__)
+      int64_t mem;
+      size_t size = sizeof(mem);
+      if (sysctlbyname("hw.memsize", &mem, &size, nullptr, 0) == 0) {
+        rv = mem;
+      } else {
+        rv = -1;
+      }
+#else
+      rv = -1;
+#endif
     }
+    return rv;
   }
-  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
+  ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final {
+    TVM_FFI_CHECK(
+        !mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global",
+        ValueError)
+        << "Unsupported memory scope: " << mem_scope.value_or("");
+    struct Allocator {
+      CPUDeviceAPI* api;
+      void AllocData(DLTensor* tensor) {
+        size_t alignment =
+            std::max(static_cast<size_t>(kAllocAlignment),
+                     static_cast<size_t>((tensor->dtype.bits / 8) * tensor->dtype.lanes));
+        tensor->data = api->AllocDataSpace(tensor->device, ffi::GetDataSize(*tensor), alignment,
+                                           tensor->dtype);
+      }
+      void FreeData(DLTensor* tensor) { api->FreeDataSpace(tensor->device, tensor->data); }
+    };
+    return ffi::Tensor::FromNDAlloc(Allocator{this}, shape, dtype, device);
+  }
+
+ private:
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) {
     void* ptr;
 #if _MSC_VER
     ptr = _aligned_malloc(nbytes, alignment);
@@ -108,7 +123,7 @@ class CPUDeviceAPI final : public DeviceAPI {
     return ptr;
   }
 
-  void FreeDataSpace(Device dev, void* ptr) final {
+  void FreeDataSpace(Device dev, void* ptr) {
 #if _MSC_VER
     _aligned_free(ptr);
 #else
@@ -116,6 +131,7 @@ class CPUDeviceAPI final : public DeviceAPI {
 #endif
   }
 
+ public:
   void StreamSync(Device dev, TVMStreamHandle stream) final {}
 
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;

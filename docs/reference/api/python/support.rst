@@ -52,9 +52,9 @@ tvm.support.clang
 .. automodule:: tvm.support.clang
     :members:
 
-tvm.support.emcc
+tvm.contrib.emcc
 ~~~~~~~~~~~~~~~~
-.. automodule:: tvm.support.emcc
+.. automodule:: tvm.contrib.emcc
     :members:
 
 tvm.support.popen_pool

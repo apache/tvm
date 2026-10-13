@@ -104,6 +104,9 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const CallNode* op) {
   for (const auto& child : op->args) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
   }
+  for (const auto& type : op->ty_args) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(type));
+  }
   return std::nullopt;
 }
 
@@ -435,8 +438,8 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
     auto result = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow);
     if (result.UnchangedOrSameAs(ffi::GetRef<PrimExpr>(op))) return ffi::Unchanged();
     auto load = std::move(result).ValueUnchecked().as_or_throw<TensorLoad>();
-    if (auto buffer = load->source.as<TensorVar>()) {
-      return MakeTensorLoad(buffer.value(), load->indices, load->loc);
+    if (auto tensor = load->source.as<TensorVar>()) {
+      return MakeTensorLoad(tensor.value(), load->indices, load->loc);
     }
     return load;
   }

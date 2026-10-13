@@ -141,9 +141,9 @@ def _codegen_llvm_ir(mod, target):
     bound = tirx.transform.BindTarget(target.with_host(target))(mod)
     pipeline, finalize_host, _ = tirx.get_tir_pipeline("s_tir")
     lowered = pipeline(bound)
-    from tvm.tirx.build import split_host_device_mods
+    from tvm.tirx._compile import _split_host_device_modules
 
-    host_mod, _ = split_host_device_mods(lowered)
+    host_mod, _ = _split_host_device_modules(lowered)
     host_mod = finalize_host()(host_mod)
     built = tvm.target.codegen.build_module(host_mod, target)
     return built.inspect_source("ll")
@@ -154,9 +154,9 @@ def _codegen_asm(mod, target):
     bound = tirx.transform.BindTarget(target.with_host(target))(mod)
     pipeline, finalize_host, _ = tirx.get_tir_pipeline("s_tir")
     lowered = pipeline(bound)
-    from tvm.tirx.build import split_host_device_mods
+    from tvm.tirx._compile import _split_host_device_modules
 
-    host_mod, _ = split_host_device_mods(lowered)
+    host_mod, _ = _split_host_device_modules(lowered)
     host_mod = finalize_host()(host_mod)
     built = tvm.target.codegen.build_module(host_mod, target)
     return built.inspect_source("s")

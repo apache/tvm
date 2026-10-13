@@ -19,14 +19,14 @@ elementwise → reg
 =================
 
 The register lowerer expands an elementwise instruction (``sqrt``, ``exp``, ``add``,
-``fma``, …) when **all buffer operands use ``local`` scope**. Scalar inputs are
+``fma``, …) when **all tensor operands use ``local`` scope**. Scalar inputs are
 also accepted where the operation's authoring API permits them. Like the copy
 :doc:`../copy/reg` instruction the partition is *induced* by the operands'
-local-buffer layout — the thread axes are dropped, leaving each thread its
+local-tensor layout — the thread axes are dropped, leaving each thread its
 private bundle — and the op is applied to every element in that bundle. The
 lowering path uses local operands; final register allocation
 remains a CUDA compiler decision. Source:
-``python/tvm/backend/cuda/tile_primitive/elementwise/reg.py``.
+``python/tvm/backend/cuda/tile/elementwise/reg.py``.
 
 What it accepts
 ---------------
@@ -40,10 +40,10 @@ What it accepts
         if sctx.scope_kind not in ("thread", "warp", "warpgroup", "cta"): ...
         ok, reason = _all_threads_active(sctx)
         plan, msg = spec.parse(op_call)
-        for br in buffer_regions(plan):
-            if br.buffer.scope() != "local":               # every buffer operand local
-                return False, f"operand scope {br.buffer.scope()} != local"
-            if br.buffer.layout is None: ...
+        for br in tensor_regions(plan):
+            if br.tensor.scope() != "local":               # every tensor operand local
+                return False, f"operand scope {br.tensor.scope()} != local"
+            if br.tensor.layout is None: ...
         # + spec.check_extras (dtype rules), pick_anchor + _validate_anchor_layout,
         #   _validate_scope_level_anchor, NumPy-style shape broadcast checks,
         #   and agreement of operand thread/local/replica layout signatures
@@ -57,12 +57,12 @@ What it accepts
    * - target / scope
      - ``cuda``; ``thread`` / ``warp`` / ``warpgroup`` / ``cta`` (all active)
    * - operands
-     - **every buffer operand** in ``local``; scalar sources are allowed by
+     - **every tensor operand** in ``local``; scalar sources are allowed by
        ``fill``, the binary ops, and ``fma``
    * - op
      - any CUDA elementwise ``OpSpec`` listed on the parent page (unary / binary /
        ``fma``); ``spec.check_extras`` validates the dtype combo
-   * - local-buffer layout
+   * - local-tensor layout
      - the anchor layout must validate, and its thread axis must match the
        complete scope chain (it induces the partition); all operands must agree
        on their thread, per-thread storage, and replica signatures
@@ -78,7 +78,8 @@ A warp takes the elementwise ``sqrt`` of a ``32×8`` ``float32`` local tile
 
 .. code-block:: python
 
-    from tvm.tirx.layout import S, TileLayout, laneid
+    from tvm.tirx.layout import S, TileLayout
+    from tvm.backend.cuda.axis import laneid
 
     r_layout = TileLayout(S[(32, 8) : (1 @ laneid, 1)])
     fs = (slice(0, 32), slice(0, 8))
@@ -91,12 +92,14 @@ A warp takes the elementwise ``sqrt`` of a ``32×8`` ``float32`` local tile
         _index = Tx.cuda.block_idx("x")
         _lane = Tx.cuda.lane_id()
         tid = Tx.cuda.thread_idx("x")
-        A_smem = Tx.alloc_tensor((32, 8), "float32", scope="shared", layout=TileLayout(S[(32, 8)]))
+        A_smem = Tx.alloc_tensor(
+            ty_args=[Tx.Tensor((32, 8), "float32", scope="shared", layout=TileLayout(S[(32, 8)]))]
+        )
         for k in Tx.serial(8):
             value = A[tid, k]
             A_smem[tid, k] = value
         Tx.cuda.cta_sync()
-        R = Tx.alloc_tensor((32, 8), "float32", scope="local", layout=r_layout)
+        R = Tx.alloc_tensor(ty_args=[Tx.Tensor((32, 8), "float32", scope="local", layout=r_layout)])
         Tx.cuda.tile.ld(R[fs], A_smem[fs], scope="warp")
         Tx.cuda.tile.sqrt(R[fs], R[fs], scope="warp")  # elementwise reg dispatch
         Tx.cuda.tile.st(A_smem[fs], R[fs], scope="warp")
@@ -109,7 +112,7 @@ Algorithm
 ---------
 
 **1. Parse and check.** ``spec.parse`` builds the op plan; the predicate confirms
-every buffer operand is local, validates NumPy-style broadcasting, checks
+every tensor operand is local, validates NumPy-style broadcasting, checks
 the anchor against the complete scope chain, and requires compatible
 thread/local/replica layout signatures across operands.
 
@@ -125,7 +128,7 @@ Generated TIRx IR
 
 .. code-block:: python
 
-    buffer[f] = Tx.sqrt(buffer_1[f])      # over each element f in the lane's bundle
+    tensor[f] = Tx.sqrt(tensor_1[f])      # over each element f in the lane's bundle
 
 Generated CUDA
 --------------
@@ -151,6 +154,6 @@ How inputs change the algorithm
    * - dtype
      - selects the scalar operation and, where registered, a packed form such as
        ``f32x2`` or a two-element cast
-   * - local-buffer layout
+   * - local-tensor layout
      - the anchor's thread axis sets the partition; a wider per-lane bundle means a
        longer loop

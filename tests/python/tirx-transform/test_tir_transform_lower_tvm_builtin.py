@@ -55,7 +55,10 @@ def test_lower_call_packed():
             stack_ffi_any: T.let[T.handle] = T.stack_alloca("tvm_ffi_any", 4)
             stack_array: T.let[T.handle] = T.stack_alloca("array", 3)
             stack_shape = T.decl_tensor(
-                (T.int64(6),), "int64", data=T.stack_alloca("shape", 6), layout=None
+                T.stack_alloca("shape", 6),
+                ty_args=[
+                    T.Tensor((T.int64(6),), "int64", layout=None, data=T.stack_alloca("shape", 6))
+                ],
             )
             stack_shape[0] = T.int64(64)
             stack_shape[1] = T.int64(64)
@@ -144,7 +147,7 @@ def test_lower_call_packed_raw_string(call):
     tvm.ir.assert_structural_equal(After, Expected)
 
     # The typed pointer is required by the LLVM TVMFFIAny lowering.
-    tvm.compile(Before, target="llvm")
+    tvm.tirx.compile(Before, target="llvm")
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -179,7 +182,7 @@ def test_call_packed_return_non_i32():
         )
 
     mod = build_tir()
-    f = tvm.compile(mod, None)
+    f = tvm.tirx.compile(mod, None)
     a = tvm.runtime.tensor(np.zeros(2, dtype="float32"))
     f(a)
     tvm.testing.assert_allclose(a.numpy(), expected_value)
@@ -189,17 +192,23 @@ def test_lower_overflow_int32():
     @T.function(check_well_formed=False)
     def variance4(rxplaceholder: T.Tensor((T.int64(1), T.int64(32), T.int64(25690112)), "float32")):
         T.func_attr({"global_symbol": "variance4", "tirx.noalias": True})
-        rxplaceholder_red = T.alloc_tensor((32,), "float32")
-        T_subtract = T.alloc_tensor((822083584,), "float32")
-        rxplaceholder_red_1 = T.decl_tensor((T.int64(32),), data=rxplaceholder_red.data)
-        rxplaceholder_1 = T.decl_tensor((T.int64(822083584),), data=rxplaceholder.data)
-        T_subtract_1 = T.decl_tensor((T.int64(822083584),), data=T_subtract.data)
+        rxplaceholder_red = T.alloc_tensor(ty_args=[T.Tensor((32,), "float32")])
+        T_subtract = T.alloc_tensor(ty_args=[T.Tensor((822083584,), "float32")])
+        rxplaceholder_red_1 = T.decl_tensor(
+            rxplaceholder_red.data, ty_args=[T.Tensor((T.int64(32),), data=rxplaceholder_red.data)]
+        )
+        rxplaceholder_1 = T.decl_tensor(
+            rxplaceholder.data, ty_args=[T.Tensor((T.int64(822083584),), data=rxplaceholder.data)]
+        )
+        T_subtract_1 = T.decl_tensor(
+            T_subtract.data, ty_args=[T.Tensor((T.int64(822083584),), data=T_subtract.data)]
+        )
         for ax1, ax2 in T.grid(32, 25690112):
             cse_v1: T.let[T.int32] = ax1 * 25690112 + ax2
             T_subtract_1[cse_v1] = rxplaceholder_1[cse_v1] - rxplaceholder_red_1[ax1]
 
     func = variance4
-    tvm.compile(func, target="llvm")  # should not crash
+    tvm.tirx.compile(func, target="llvm")  # should not crash
 
 
 def test_lower_device_allocate():
@@ -219,8 +228,8 @@ def test_lower_device_allocate():
         def main():
             T.func_attr({"target": T.target("llvm")})
             with T.device_context(2, 0):  # kDLCuda
-                ptr = T.alloc_tensor((16,), "float32")
-                buf = T.decl_tensor(16, "float32", data=ptr.data)
+                ptr = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32")])
+                buf = T.decl_tensor(ptr.data, ty_args=[T.Tensor(16, "float32", data=ptr.data)])
                 buf[0] = 0.0
 
     After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
@@ -242,8 +251,8 @@ def test_lower_cpu_allocation():
         def main():
             T.func_attr({"target": T.target("llvm")})
             with T.device_context(1, 0):  # kDLCPU
-                ptr = T.alloc_tensor((16,), "float32")
-                buf = T.decl_tensor(16, "float32", data=ptr.data)
+                ptr = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32")])
+                buf = T.decl_tensor(ptr.data, ty_args=[T.Tensor(16, "float32", data=ptr.data)])
                 buf[0] = 0.0
 
     @I.ir_module
@@ -251,8 +260,8 @@ def test_lower_cpu_allocation():
         @T.function
         def main():
             T.func_attr({"target": T.target("llvm")})
-            ptr = T.alloc_tensor((16,), "float32")
-            buf = T.decl_tensor(16, "float32", data=ptr.data)
+            ptr = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32")])
+            buf = T.decl_tensor(ptr.data, ty_args=[T.Tensor(16, "float32", data=ptr.data)])
             buf[0] = 0.0
 
     After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
@@ -267,8 +276,8 @@ def test_lower_allocate_requires_device_id():
         @T.function
         def main():
             T.func_attr({"target": T.target("cuda"), "tirx.is_host_func": True})
-            ptr = T.alloc_tensor((16,), "float32")
-            buf = T.decl_tensor(16, "float32", data=ptr.data)
+            ptr = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32")])
+            buf = T.decl_tensor(ptr.data, ty_args=[T.Tensor(16, "float32", data=ptr.data)])
             buf[0] = 0.0
 
     with pytest.raises(RuntimeError):
@@ -290,8 +299,8 @@ def test_lower_allocate_requires_device_type():
         @T.function
         def main():
             T.func_attr({"tirx.is_host_func": True})
-            ptr = T.alloc_tensor((1024 * 1024,), "float32")
-            buf = T.decl_tensor(1024 * 1024, "float32", data=ptr.data)
+            ptr = T.alloc_tensor(ty_args=[T.Tensor((1024 * 1024,), "float32")])
+            buf = T.decl_tensor(ptr.data, ty_args=[T.Tensor(1024 * 1024, "float32", data=ptr.data)])
             buf[0] = 0.0
 
     with pytest.raises(RuntimeError):
@@ -312,8 +321,8 @@ def test_lower_cpu_alloc_with_function_attr():
         @T.function
         def main():
             T.func_attr({"target": T.target("llvm")})
-            ptr = T.alloc_tensor((16,), "float32")
-            buf = T.decl_tensor(16, "float32", data=ptr.data)
+            ptr = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32")])
+            buf = T.decl_tensor(ptr.data, ty_args=[T.Tensor(16, "float32", data=ptr.data)])
             buf[0] = 0.0
 
     # Expected is same as before for this transform

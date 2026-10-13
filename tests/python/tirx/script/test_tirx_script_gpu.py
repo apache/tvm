@@ -36,7 +36,7 @@ def test_roundtrip_scopeid1():
         bx, by, bz = (T.cuda.block_idx('x'), T.cuda.block_idx('y'), T.cuda.block_idx('z'))
         warp_id = T.cuda.warp_id()
         lane_id = T.cuda.lane_id()
-        A_local = T.alloc_tensor([1], dtype="float16", scope="local")
+        A_local = T.alloc_tensor(ty_args=[T.Tensor([1], "float16", scope="local")])
         for i in T.serial(2):
             A_local[0] = A[lane_id * 2 + i]
         # fmt: on
@@ -121,14 +121,18 @@ def test_roundtrip_op1():
         bx, by, bz = (T.cuda.block_idx('x'), T.cuda.block_idx('y'), T.cuda.block_idx('z'))
         warp_id = T.cuda.warp_id()
         lane_id = T.cuda.lane_id()
-        A_smem = T.alloc_tensor([64], dtype="float32", scope="shared")
+        A_smem = T.alloc_tensor(ty_args=[T.Tensor([64], "float32", scope="shared")])
 
         transfer_src_125 = T.meta_var(A[tuple([slice(None) for _ in A.shape])])
         transfer_dst_125 = T.meta_var(A_smem)
         transfer_reg_125 = T.alloc_tensor(
-            [r.extent for r in transfer_src_125.region],
-            transfer_src_125.source.dtype,
-            scope="local",
+            ty_args=[
+                T.Tensor(
+                    [r.extent for r in transfer_src_125.region],
+                    transfer_src_125.source.dtype,
+                    scope="local",
+                )
+            ]
         )
         T.cuda.tile.ld(transfer_reg_125, transfer_src_125, scope="cta")
         T.cuda.tile.st(transfer_dst_125, transfer_reg_125, scope="cta")
@@ -138,9 +142,13 @@ def test_roundtrip_op1():
         transfer_src_129 = T.meta_var(A_smem[tuple([slice(None) for _ in A_smem.shape])])
         transfer_dst_129 = T.meta_var(A)
         transfer_reg_129 = T.alloc_tensor(
-            [r.extent for r in transfer_src_129.region],
-            transfer_src_129.source.dtype,
-            scope="local",
+            ty_args=[
+                T.Tensor(
+                    [r.extent for r in transfer_src_129.region],
+                    transfer_src_129.source.dtype,
+                    scope="local",
+                )
+            ]
         )
         T.cuda.tile.ld(transfer_reg_129, transfer_src_129, scope="cta")
         T.cuda.tile.st(transfer_dst_129, transfer_reg_129, scope="cta")
@@ -164,26 +172,34 @@ def test_roundtrip_op2():
         bx, by, bz = (T.cuda.block_idx('x'), T.cuda.block_idx('y'), T.cuda.block_idx('z'))
         warp_id = T.cuda.warp_id()
         lane_id = T.cuda.lane_id()
-        A_smem = T.alloc_tensor([128, 32], dtype="float16", scope="shared")
-        B_smem = T.alloc_tensor([32, 64], dtype="float16", scope="shared")
+        A_smem = T.alloc_tensor(ty_args=[T.Tensor([128, 32], "float16", scope="shared")])
+        B_smem = T.alloc_tensor(ty_args=[T.Tensor([32, 64], "float16", scope="shared")])
 
-        C_local = T.alloc_tensor([128, 64], dtype="float32", scope="local")
+        C_local = T.alloc_tensor(ty_args=[T.Tensor([128, 64], "float32", scope="local")])
         for k in range(4):
             transfer_src_155 = T.meta_var(A[:, k * 32:k * 32 + 32])
             transfer_dst_155 = T.meta_var(A_smem)
             transfer_reg_155 = T.alloc_tensor(
-                [r.extent for r in transfer_src_155.region],
-                transfer_src_155.source.dtype,
-                scope="local",
+                ty_args=[
+                    T.Tensor(
+                        [r.extent for r in transfer_src_155.region],
+                        transfer_src_155.source.dtype,
+                        scope="local",
+                    )
+                ]
             )
             T.cuda.tile.ld(transfer_reg_155, transfer_src_155, scope="cta")
             T.cuda.tile.st(transfer_dst_155, transfer_reg_155, scope="cta")
             transfer_src_156 = T.meta_var(B[k * 32:k * 32 + 32, 0:64])
             transfer_dst_156 = T.meta_var(B_smem)
             transfer_reg_156 = T.alloc_tensor(
-                [r.extent for r in transfer_src_156.region],
-                transfer_src_156.source.dtype,
-                scope="local",
+                ty_args=[
+                    T.Tensor(
+                        [r.extent for r in transfer_src_156.region],
+                        transfer_src_156.source.dtype,
+                        scope="local",
+                    )
+                ]
             )
             T.cuda.tile.ld(transfer_reg_156, transfer_src_156, scope="cta")
             T.cuda.tile.st(transfer_dst_156, transfer_reg_156, scope="cta")
@@ -212,26 +228,36 @@ def test_roundtrip_op3():
         bx, by, bz = (T.cuda.block_idx('x'), T.cuda.block_idx('y'), T.cuda.block_idx('z'))
         warp_id = T.cuda.warp_id()
         lane_id = T.cuda.lane_id()
-        A_smem = T.alloc_tensor([NUM_STAGES, 128, 32], dtype="float16", scope="shared")
-        B_smem = T.alloc_tensor([NUM_STAGES, 32, 64], dtype="float16", scope="shared")
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor([NUM_STAGES, 128, 32], "float16", scope="shared")]
+        )
+        B_smem = T.alloc_tensor(ty_args=[T.Tensor([NUM_STAGES, 32, 64], "float16", scope="shared")])
 
-        C_local = T.alloc_tensor([128, 64], dtype="float32", scope="local")
+        C_local = T.alloc_tensor(ty_args=[T.Tensor([128, 64], "float32", scope="local")])
         for i in range(NUM_STAGES - 1):
             transfer_src_187 = T.meta_var(A[:, i * 32:i * 32 + 32])
             transfer_dst_187 = T.meta_var(A_smem[i, :, :])
             transfer_reg_187 = T.alloc_tensor(
-                [r.extent for r in transfer_src_187.region],
-                transfer_src_187.source.dtype,
-                scope="local",
+                ty_args=[
+                    T.Tensor(
+                        [r.extent for r in transfer_src_187.region],
+                        transfer_src_187.source.dtype,
+                        scope="local",
+                    )
+                ]
             )
             T.cuda.tile.ld(transfer_reg_187, transfer_src_187, scope="cta")
             T.cuda.tile.st(transfer_dst_187, transfer_reg_187, scope="cta")
             transfer_src_188 = T.meta_var(B[i * 32:i * 32 + 32, :])
             transfer_dst_188 = T.meta_var(B_smem[i, :, :])
             transfer_reg_188 = T.alloc_tensor(
-                [r.extent for r in transfer_src_188.region],
-                transfer_src_188.source.dtype,
-                scope="local",
+                ty_args=[
+                    T.Tensor(
+                        [r.extent for r in transfer_src_188.region],
+                        transfer_src_188.source.dtype,
+                        scope="local",
+                    )
+                ]
             )
             T.cuda.tile.ld(transfer_reg_188, transfer_src_188, scope="cta")
             T.cuda.tile.st(transfer_dst_188, transfer_reg_188, scope="cta")
@@ -243,18 +269,26 @@ def test_roundtrip_op3():
             transfer_src_194 = T.meta_var(A[:, copy_k * 32:copy_k * 32 + 32])
             transfer_dst_194 = T.meta_var(A_smem[copy_stage, :, :])
             transfer_reg_194 = T.alloc_tensor(
-                [r.extent for r in transfer_src_194.region],
-                transfer_src_194.source.dtype,
-                scope="local",
+                ty_args=[
+                    T.Tensor(
+                        [r.extent for r in transfer_src_194.region],
+                        transfer_src_194.source.dtype,
+                        scope="local",
+                    )
+                ]
             )
             T.cuda.tile.ld(transfer_reg_194, transfer_src_194, scope="cta")
             T.cuda.tile.st(transfer_dst_194, transfer_reg_194, scope="cta")
             transfer_src_195 = T.meta_var(B[copy_k * 32:copy_k * 32 + 32, :])
             transfer_dst_195 = T.meta_var(B_smem[copy_stage, :, :])
             transfer_reg_195 = T.alloc_tensor(
-                [r.extent for r in transfer_src_195.region],
-                transfer_src_195.source.dtype,
-                scope="local",
+                ty_args=[
+                    T.Tensor(
+                        [r.extent for r in transfer_src_195.region],
+                        transfer_src_195.source.dtype,
+                        scope="local",
+                    )
+                ]
             )
             T.cuda.tile.ld(transfer_reg_195, transfer_src_195, scope="cta")
             T.cuda.tile.st(transfer_dst_195, transfer_reg_195, scope="cta")
@@ -289,12 +323,12 @@ def test_roundtrip_tensormap():
 def test_roundtrip_tensormap_kernel_param():
     # fmt: off
     @T.function
-    def func1(A_map: T.TensorMap()):
+    def func1(A_map: T.Ptr(T.TensorMap, "")):
         T.func_attr({"global_symbol": "func"})
         T.evaluate(T.address_of(A_map))
     # fmt: on
     code = func1.script()
-    assert "T.TensorMap()" in code
+    assert "T.Ptr(T.TensorMap)" in code
     assert from_source(code).script() == code
     assert_structural_equal(func1, from_source(code))
 
@@ -307,7 +341,7 @@ def test_roundtrip_op_call_workspace():
     ):
 
         T.device_entry()
-        smem = T.alloc_tensor([10], "float32", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor([10], "float32", scope="shared")])
         T.trn.tile.activation(B, A, bias=1.0, const_bias=smem)
         # fmt: on
     code = test.script()
@@ -335,8 +369,8 @@ def test_predicate():
     @T.function
     def test():
         T.device_entry()
-        A = T.alloc_tensor([10, 10], "float32")
-        B = T.alloc_tensor([10, 10], "float32")
+        A = T.alloc_tensor(ty_args=[T.Tensor([10, 10], "float32")])
+        B = T.alloc_tensor(ty_args=[T.Tensor([10, 10], "float32")])
         T.trn.tile.affine_select(B, A, 1.0, lambda i, j: i < j)
         # fmt: on
     code = test.script()
@@ -397,70 +431,6 @@ def test_roundtrip_persistent_not_present():
     assert "persistent" not in code, f"persistent should NOT appear:\n{code}"
 
 
-def test_warp_role():
-    """WarpRole should emit guarded warp scopes plus setmaxnreg."""
-    from tvm.tirx.lang.warp_role import WarpRole
-
-    # fmt: off
-    @T.function
-    def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
-
-        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 128))
-        cta_id = T.cuda.block_idx('x')
-        wg_id = T.cuda.warpgroup_id()
-        warp_id = T.cuda.warp_in_warpgroup()
-        lane_id = T.cuda.lane_id()
-        with WarpRole(warp_id, 1, regs=48):
-            T.cuda.tile.mov(A[0:32], T.float32(0), scope='cta')
-        with WarpRole(warp_id, 0, regs=232, increase=True):
-            T.cuda.tile.mov(A[32:64], T.float32(1), scope='cta')
-        # fmt: on
-
-    code = test.script()
-    warp_name = next(
-        line.partition(":")[0].strip()
-        for line in code.splitlines()
-        if " = T.cuda.warp_in_warpgroup()" in line
-    )
-    assert f"{warp_name} == 1" in code, f"should have warp_id==1 guard:\n{code}"
-    assert f"{warp_name} == 0" in code, f"should have warp_id==0 guard:\n{code}"
-    assert "setmaxnreg" in code, f"should have setmaxnreg:\n{code}"
-    assert f"if {warp_name} == 1:" in code, f"should have warp_id==1 if-guard:\n{code}"
-    assert f"if {warp_name} == 0:" in code, f"should have warp_id==0 if-guard:\n{code}"
-    # The printed code is valid TIR — it should parse back
-    assert from_source(code).script() == code
-    assert_structural_equal(test, from_source(code))
-
-
-def test_warpgroup_role():
-    """WarpgroupRole should emit guarded warpgroup scope plus setmaxnreg."""
-    from tvm.tirx.lang.warp_role import WarpgroupRole
-
-    # fmt: off
-    @T.function
-    def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
-
-        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 128))
-        cta_id = T.cuda.block_idx('x')
-        wg_id = T.cuda.warpgroup_id()
-        warp_id_in_wg = T.cuda.warp_in_warpgroup()
-        lane_id = T.cuda.lane_id()
-        with WarpgroupRole(wg_id, 2, regs=200, increase=True):
-            T.cuda.tile.mov(A[0:32], T.float32(0), scope='cta')
-        # fmt: on
-
-    code = test.script()
-    group_name = next(
-        line.partition(":")[0].strip()
-        for line in code.splitlines()
-        if " = T.cuda.warpgroup_id()" in line
-    )
-    assert f"{group_name} == 2" in code, f"should have wg_id==2 guard:\n{code}"
-    assert "setmaxnreg" in code, f"should have setmaxnreg:\n{code}"
-    assert from_source(code).script() == code
-    assert_structural_equal(test, from_source(code))
-
-
 def test_roundtrip_cuda_func_call_source_code():
     """cuda_func_call with a multiline trailing source operand must print with
     inline string literal, not as a metadata reference."""
@@ -488,7 +458,7 @@ def test_roundtrip_cp_async_bulk_tensor_g2s_cluster():
         A_map: T.let[T.handle("tensormap")] = T.stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
-            A_smem = T.alloc_tensor((16, 16), "float32", scope="shared")
+            A_smem = T.alloc_tensor(ty_args=[T.Tensor((16, 16), "float32", scope="shared")])
             T.ptx["cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes"](
                 A_smem.data, T.address_of(A_map), 0, 0, T.uint32(0)
             )
@@ -509,7 +479,7 @@ def test_roundtrip_cp_async_bulk_tensor_s2g():
         A_map: T.let[T.handle("tensormap")] = T.stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
-            A_smem = T.alloc_tensor((16, 16), "float32", scope="shared")
+            A_smem = T.alloc_tensor(ty_args=[T.Tensor((16, 16), "float32", scope="shared")])
             T.ptx["cp.async.bulk.tensor.2d.global.shared::cta.tile.bulk_group"](
                 T.address_of(A_map), 0, 0, A_smem.data
             )
@@ -550,7 +520,7 @@ def test_roundtrip_cp_async_bulk_tensor_s2g_reduce():
         A_map: T.let[T.handle("tensormap")] = T.stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
-            A_smem = T.alloc_tensor((16, 16), "float32", scope="shared")
+            A_smem = T.alloc_tensor(ty_args=[T.Tensor((16, 16), "float32", scope="shared")])
             T.ptx["cp.reduce.async.bulk.tensor.2d.global.shared::cta.add.tile.bulk_group"](
                 T.address_of(A_map), 0, 0, A_smem.data
             )

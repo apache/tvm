@@ -968,12 +968,12 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
   }
 };
 
-TVM_DLL bool Z3Prover::IsEnabled() const { return true; }
-TVM_DLL bool Z3Prover::CanProve(const PrimExpr& expr) { return impl_->CanProve(expr); }
-TVM_DLL void Z3Prover::Bind(const Var& var, const Range& new_range, bool allow_override) {
+TVM_TIRX_DLL bool Z3Prover::IsEnabled() const { return true; }
+TVM_TIRX_DLL bool Z3Prover::CanProve(const PrimExpr& expr) { return impl_->CanProve(expr); }
+TVM_TIRX_DLL void Z3Prover::Bind(const Var& var, const Range& new_range, bool allow_override) {
   return impl_->Bind(var, new_range, allow_override);
 }
-TVM_DLL void Z3Prover::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
+TVM_TIRX_DLL void Z3Prover::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
   return impl_->Bind(var, expr, allow_override);
 }
 std::function<void()> Z3Prover::EnterConstraint(const PrimExpr& constraint, bool is_assume) {
@@ -991,12 +991,12 @@ void Z3Prover::SetRLimit(unsigned max_step) { impl_->SetRLimit(max_step); }
 void Z3Prover::CopyFrom(const Z3Prover& other) { impl_->CopyFrom(*other.impl_); }
 ffi::String Z3Prover::GetStats() { return impl_->GetStats(); }
 ffi::String Z3Prover::GetModel(const PrimExpr& expr) { return impl_->GetModel(expr); }
-TVM_DLL int64_t Z3Prover::CountSatisfyingValues(const Var& var, int64_t max_count,
-                                                int64_t min_consecutive) {
+TVM_TIRX_DLL int64_t Z3Prover::CountSatisfyingValues(const Var& var, int64_t max_count,
+                                                     int64_t min_consecutive) {
   return impl_->CountSatisfyingValues(var, max_count, min_consecutive);
 }
 Z3Prover::Z3Prover(AnalyzerObj* parent) : impl_(std::make_unique<Impl>(parent)) {}
-TVM_DLL Z3Prover::~Z3Prover() = default;
+TVM_TIRX_DLL Z3Prover::~Z3Prover() = default;
 
 }  // namespace tvm::sym
 
@@ -1016,10 +1016,10 @@ using namespace ffi;
 // conservatively report "cannot prove" while keeping the public API available.
 class Z3Prover::Impl {};
 
-TVM_DLL bool Z3Prover::IsEnabled() const { return false; }
-TVM_DLL bool Z3Prover::CanProve(const PrimExpr& expr) { return false; }
-TVM_DLL void Z3Prover::Bind(const Var& var, const Range& new_range, bool allow_override) {}
-TVM_DLL void Z3Prover::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {}
+TVM_TIRX_DLL bool Z3Prover::IsEnabled() const { return false; }
+TVM_TIRX_DLL bool Z3Prover::CanProve(const PrimExpr& expr) { return false; }
+TVM_TIRX_DLL void Z3Prover::Bind(const Var& var, const Range& new_range, bool allow_override) {}
+TVM_TIRX_DLL void Z3Prover::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {}
 std::function<void()> Z3Prover::EnterConstraint(const PrimExpr& constraint, bool is_assume) {
   return []() {};
 }
@@ -1029,15 +1029,15 @@ ffi::String Z3Prover::GetSMTLIB2(const ffi::Optional<PrimExpr> expr) {
 void Z3Prover::SetTimeoutMs(unsigned timeout_ms) {}
 void Z3Prover::SetRLimit(unsigned rlimit) {}
 ffi::String Z3Prover::GetModel(const PrimExpr& expr) { return "; Z3 Prover is disabled."; }
-TVM_DLL int64_t Z3Prover::CountSatisfyingValues(const Var& var, int64_t max_count,
-                                                int64_t min_consecutive) {
+TVM_TIRX_DLL int64_t Z3Prover::CountSatisfyingValues(const Var& var, int64_t max_count,
+                                                     int64_t min_consecutive) {
   return -1;  // Z3 disabled, return error
 }
 
 void Z3Prover::CopyFrom(const Z3Prover& other) {}
 ffi::String Z3Prover::GetStats() { return "; Z3 Prover is disabled."; }
 Z3Prover::Z3Prover(AnalyzerObj*) : impl_(nullptr) {}
-TVM_DLL Z3Prover::~Z3Prover() = default;
+TVM_TIRX_DLL Z3Prover::~Z3Prover() = default;
 
 }  // namespace tvm::sym
 

@@ -37,7 +37,7 @@ requires_nvcc = pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc no
 
 def _cuda_source(func, target=TARGET) -> str:
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": func}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": func}), target=target, pipeline="tirx")
     return mod.mod.imports[0].inspect_source("cuda")
 
 
@@ -71,11 +71,11 @@ def test_ptx_registration():
     for entry in TABLE.values():
         op = Op.get(entry.op_name)  # raises if unregistered
         assert op.get_attr("TCallEffectKind") is not None, entry.name
-        # The printer name is the attribute path a program types, so it is the
+        # The family is the attribute path a program types, so it uses the
         # *escaped* family: `and`/`or`/`not` (ISA 9.7.9) are Python keywords and
         # print as `T.ptx.and_`. Identity for every other family.
         family = escape_token(entry.family)  # several entries may share a mnemonic
-        assert op.get_attr("TScriptPrinterName") == f"tirx.ptx.{family}", entry.name
+        assert hasattr(T.ptx, family), entry.name
         assert entry.op_name in CODEGEN_REGISTRY, entry.name
 
 
@@ -85,7 +85,7 @@ def test_ptx_prefetch_codegen():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
         T.ptx.prefetch.global_.L2(A.ptr_to([0]))
-        A[tx] = T.float32(0)  # keep-alive store so the buffer is not elided
+        A[tx] = T.float32(0)  # keep-alive store so the tensor is not elided
 
     src = _cuda_source(kernel)
     assert "prefetch.global.L2 [%0];" in src
@@ -137,7 +137,7 @@ def test_ptx_st_shared_coercion():
     def kernel(out: T.Tensor((1,), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
-        smem = T.alloc_tensor((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         if tx == 0:
             # Shared-space slot fed a shared-scope pointer: engine must
             # auto-wrap with cvta_generic_to_shared.
@@ -155,7 +155,7 @@ def test_ptx_explicit_cvta():
     def kernel(out: T.Tensor((1,), "uint64")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
-        smem = T.alloc_tensor((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         smem[tx % 4] = T.uint32(0)
         if tx == 0:
             T.ptx.cvta.to.shared.u64(out[0], smem.data)
@@ -537,7 +537,7 @@ def test_ptx_93_sm103a_exact_renderings():
 def test_ptx_92_cp_reduce_negative_grids():
     from tvm.backend.cuda.ptx.render import render_variant
     from tvm.backend.cuda.ptx.table import TABLE, tokens_for
-    from tvm.ir.type import PointerType, PrimType
+    from tvm.ir.type import PrimType, PtrType
 
     shared_reduce = TABLE["cp_reduce_async_bulk_s2c"]
     with pytest.raises(ValueError, match=r"\.add to \.shared::cluster takes"):
@@ -567,8 +567,8 @@ def test_ptx_92_cp_reduce_negative_grids():
             type="f16",
         )
 
-    shared_ptr = tvm.tirx.Var("shared_ptr", PointerType(PrimType("uint32"), "shared"))
-    global_ptr = tvm.tirx.Var("global_ptr", PointerType(PrimType("uint32"), "global"))
+    shared_ptr = tvm.tirx.Var("shared_ptr", PtrType(PrimType("uint32"), "shared"))
+    global_ptr = tvm.tirx.Var("global_ptr", PtrType(PrimType("uint32"), "global"))
     size = tvm.tirx.Var("size", "uint32")
     with pytest.raises(ValueError, match=r"\.add to \.shared::cluster takes"):
         T.ptx[
@@ -626,8 +626,8 @@ def test_ptx_92_cp_bulk_roundtrip():
     @T.function
     def kernel(src: T.Tensor((64,), "uint32"), dst: T.Tensor((64,), "uint32")):
         T.device_entry()
-        smem = T.alloc_tensor((64,), "uint32", scope="shared")
-        mbar = T.alloc_tensor((2,), "uint64", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((64,), "uint32", scope="shared")])
+        mbar = T.alloc_tensor(ty_args=[T.Tensor((2,), "uint64", scope="shared")])
         T.ptx[
             "cp.async.bulk.shared::cta.global."
             "mbarrier::complete_tx::bytes.L2::cache_hint.ignore_oob"
@@ -839,7 +839,7 @@ def test_ptx_optional_operand_arity_dispatch():
     def kernel(A: T.Tensor((4,), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
-        bar = T.alloc_tensor((2,), "uint64", scope="shared")
+        bar = T.alloc_tensor(ty_args=[T.Tensor((2,), "uint64", scope="shared")])
         T.ptx.bar.sync(T.uint32(0))
         T.ptx.bar.sync(T.uint32(0), T.uint32(64))
         T.ptx.mbarrier.arrive.shared.b64(bar.ptr_to([0]))
@@ -870,7 +870,7 @@ def test_ptx_mbarrier_92_shapes_render_and_roundtrip():
     def kernel(out: T.Tensor((4,), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
-        bar = T.alloc_tensor((2,), "uint64", scope="shared")
+        bar = T.alloc_tensor(ty_args=[T.Tensor((2,), "uint64", scope="shared")])
         state = T.local_scalar("uint64")
         pending = T.local_scalar("uint32")
         wait_complete = T.local_scalar("uint32")
@@ -1511,13 +1511,13 @@ def test_ptx_comparison_selection_dispatch():
         q = T.local_scalar("uint32")
         d = T.local_scalar("uint32")
         f = T.local_scalar("float32")
-        p_buffer = T.alloc_local((1,), "uint32")
-        T.ptx.setp.lt.s32(p_buffer[0], A[0], A[1])  # one destination
+        p_tensor = T.alloc_local((1,), "uint32")
+        T.ptx.setp.lt.s32(p_tensor[0], A[0], A[1])  # one destination
         T.ptx.setp.lt.s32(p, q, A[0], A[1])  # ... two: `p|q`, chosen by arity
         T.ptx.setp.lt.and_.s32(p, A[0], A[1], T.ptx.pred(q))  # ... plus a BoolOp
         T.ptx.setp.gt.or_.s32(p, q, A[2], A[3], T.ptx.pred(d))  # ... and both
         T.ptx.set.lt.u32.f32(d, f, f)  # writes a value, not a predicate
-        T.ptx.selp.b32(d, d, p, T.ptx.pred(p_buffer[0]))  # predicate selects
+        T.ptx.selp.b32(d, d, p, T.ptx.pred(p_tensor[0]))  # predicate selects
         T.ptx.slct.ftz.b32.f32(d, d, p, f)  # a sign selects
         # slct treats d/a/b independently as bit-size values. This mixes all
         # three 32-bit carrier classes while c remains exactly .s32.
@@ -1906,7 +1906,7 @@ def test_ptx_data_movement_dispatch():
     def kernel(A: T.Tensor((8,), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
-        smem = T.alloc_tensor((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         d = T.local_scalar("uint32")
         p = T.local_scalar("uint32")
         v = T.local_scalar("uint32")
@@ -2118,12 +2118,12 @@ def test_ptx_parallel_sync_dispatch():
 
 
 def test_ptx_lazy_subscript_operands_realize():
-    """Raw buffer elements realize before PTX predicate operand validation."""
+    """Raw tensor elements realize before PTX predicate operand validation."""
 
     @T.function
     def kernel(A: T.Tensor((1,), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
-        regs = T.alloc_tensor((2,), "uint32", scope="local")
+        regs = T.alloc_tensor(ty_args=[T.Tensor((2,), "uint32", scope="local")])
         full = T.uint32(0xFFFFFFFF)
         T.ptx.elect_sync(regs[0], regs[1], full)
         T.ptx.vote_sync.all.pred(regs[0], T.ptx.pred(regs[1]), full)
@@ -2143,7 +2143,7 @@ def test_ptx_parser_roundtrip():
     def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
-        smem = T.alloc_tensor((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         if tx == 0:
             val = T.local_scalar("uint32")
             smem_addr = T.local_scalar("uint64")
@@ -2217,7 +2217,7 @@ def test_ptx_wgmma_scale_d_runtime_predicate_roundtrip():
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
     with target:
-        mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
     assert "wgmma.mma_async.sync.aligned.m64n8k32.s32.s8.s8" in src
     assert ".reg .pred ps0;" in src
@@ -2314,7 +2314,7 @@ def test_ptx_tcgen05_mma_ws_collector_dispatch(form, collector):
 
 @requires_nvcc
 def test_ptx_tcgen05_mma_ws_collectors_certify_sm100a():
-    """All WS kinds, B buffers/operations, and predication assemble on SM100a."""
+    """All WS kinds, B tensors/operations, and predication assemble on SM100a."""
     from tvm.backend.cuda.ptx.render import render_variant
     from tvm.backend.cuda.ptx.table import TABLE, renderings
 
@@ -2938,8 +2938,8 @@ def test_ptx_94_cp_bulk_semantics_roundtrip():
     @T.function
     def kernel(src: T.Tensor((64,), "uint32")):
         T.device_entry()
-        smem = T.alloc_tensor((64,), "uint32", scope="shared")
-        mbar = T.alloc_tensor((2,), "uint64", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((64,), "uint32", scope="shared")])
+        mbar = T.alloc_tensor(ty_args=[T.Tensor((2,), "uint64", scope="shared")])
         T.ptx[
             "cp.async.bulk.relaxed.sys.shared::cta.global."
             "mbarrier::complete_tx::bytes."
@@ -3141,10 +3141,10 @@ def test_ptx_tcgen05_mapa_address_rendering():
 
 def test_ptx_tcgen05_mapa_address_coercion():
     """Bare forms preserve generic pointers; explicit shared forms coerce only addresses."""
-    from tvm.ir.type import PointerType, PrimType
+    from tvm.ir.type import PrimType, PtrType
 
-    generic_ptr = tvm.tirx.Var("g", PointerType(PrimType("uint64"), "global"))
-    shared_ptr = tvm.tirx.Var("s", PointerType(PrimType("uint64"), "shared"))
+    generic_ptr = tvm.tirx.Var("g", PtrType(PrimType("uint64"), "global"))
+    shared_ptr = tvm.tirx.Var("s", PtrType(PrimType("uint64"), "shared"))
     raw_u32 = tvm.tirx.Var("a32", "uint32")
     raw_u64 = tvm.tirx.Var("a64", "uint64")
     ncols = tvm.tirx.Var("n", "uint32")
@@ -3759,10 +3759,10 @@ def test_ptx_helper_source_golden():
 
 def test_ptx_coercion_ir_forms():
     """The trace-time addr coercion, written down as IR-level assertions."""
-    from tvm.ir.type import PointerType, PrimType
+    from tvm.ir.type import PrimType, PtrType
 
-    shared_ptr = tvm.tirx.Var("p", PointerType(PrimType("uint32"), "shared"))
-    global_ptr = tvm.tirx.Var("g", PointerType(PrimType("uint32"), "global"))
+    shared_ptr = tvm.tirx.Var("p", PtrType(PrimType("uint32"), "shared"))
+    global_ptr = tvm.tirx.Var("g", PtrType(PrimType("uint32"), "global"))
     raw_u32 = tvm.tirx.Var("a", "uint32")
     val = tvm.tirx.Var("v", "uint32")
 
@@ -3796,7 +3796,7 @@ def test_ptx_coercion_ir_forms():
     ]
 
     # A shared-space slot converts whatever pointer it is given: TIRx pointer
-    # scopes are not a reliable discriminator (a shared buffer's ptr_to()
+    # scopes are not a reliable discriminator (a shared tensor's ptr_to()
     # reports 'global'), and the legacy helpers converted unconditionally too.
     call = T.ptx.st.shared__cta.b32(global_ptr, val)
     assert call.args[0].op.name == "tirx.cuda.cvta_generic_to_shared"
@@ -4515,7 +4515,7 @@ def test_ptx_nvcc_smoke():
     def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
-        smem = T.alloc_tensor((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         if tx == 0:
             val = T.local_scalar("uint32")
             T.ptx.ld.global_.acquire.gpu.b32(val, A.ptr_to([0]))
@@ -4540,7 +4540,7 @@ def test_ptx_ld_st_gpu_roundtrip():
         T.ptx.st.release.gpu.global_.b32(B.ptr_to([tx]), val)
 
     with TARGET:
-        mod = tvm.compile(tvm.IRModule({"main": kernel}), target=TARGET, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=TARGET, pipeline="tirx")
 
     def run_and_check():
         dev = tvm.cuda(0)

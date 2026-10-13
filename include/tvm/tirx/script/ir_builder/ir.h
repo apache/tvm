@@ -24,10 +24,9 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/script/ir_builder/ir.h>
-#include <tvm/tirx/exec_scope.h>
-#include <tvm/tirx/layout.h>
 #include <tvm/tirx/script/ir_builder/frame.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/tile/exec_scope.h>
 #include <tvm/tirx/type.h>
 
 namespace tvm {
@@ -41,6 +40,7 @@ using ir::Break;
 using ir::Continue;
 using ir::Else;
 using ir::Evaluate;
+using ir::For;
 using ir::Grid;
 using ir::If;
 using ir::Region;
@@ -49,30 +49,11 @@ using ir::Then;
 using ir::While;
 
 using tvm::Var;
+using tvm::ffi::Tensor;
 using tvm::ffi::Tuple;
 using tvm::ffi::Variant;
-using tvm::runtime::Tensor;
 using tvm::tirx::ExecScope;
-using tvm::tirx::Layout;
 using tvm::tirx::TensorVar;
-
-/*!
- * \brief The buffer declaration function.
- * \param shape The type of the buffer prior to flattening.
- * \param dtype The data type in the content of the buffer.
- * \param buffer_name The name of the buffer.
- * \param data The pointer to the head of the data.
- * \param strides The strides of each dimension.
- * \param elem_offset The offset in terms of number of dtype elements (including lanes).
- * \param storage_scope The optional storage scope of buffer data pointer.
- * \param align The alignment requirement of data pointer in bytes.
- * \param offset_factor The factor of elem_offset field.
- * \return The declared buffer.
- */
-TensorVar TensorDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt);
 
 /*!
  * \brief The primitive function statement.
@@ -92,12 +73,12 @@ FunctionFrame DeclFunction(bool is_private = false, bool persistent = false);
 Var Arg(ffi::String name, Var var);
 
 /*!
- * \brief The Function buffer arguments adding function.
- * \param name The name of the buffer.
- * \param buffer The buffer argument.
- * \return The buffer.
+ * \brief The Function tensor arguments adding function.
+ * \param name The name of the tensor.
+ * \param tensor The tensor argument.
+ * \return The tensor.
  */
-TensorVar Arg(ffi::String name, TensorVar buffer);
+TensorVar Arg(ffi::String name, TensorVar tensor);
 
 /*!
  * \brief The Function naming statement.
@@ -117,101 +98,6 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  * \return The return type.
  */
 Type FuncRet(Type ret_type);
-
-/*!
- * \brief The serial For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
- * \param annotations The optional annotations of the For statement.
- * \param step The optional step value of iteration.
- * \param dtype The optional dtype of the loop var ("int32" or "uint32"). When omitted
- *              it is inferred from the bounds.
- * \return The ForFrame.
- */
-ForFrame Serial(PrimExpr start, PrimExpr stop,
-                ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                ffi::Optional<PrimExpr> step = std::nullopt,
-                ffi::Optional<PrimType> dtype = std::nullopt);
-/*!
- * \brief The parallel For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
- * \param annotations The optional annotations of the For statement.
- * \param step The optional step value of iteration.
- * \param dtype The optional dtype of the loop var ("int32" or "uint32").
- * \return The ForFrame.
- */
-ForFrame Parallel(PrimExpr start, PrimExpr stop,
-                  ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                  ffi::Optional<PrimExpr> step = std::nullopt,
-                  ffi::Optional<PrimType> dtype = std::nullopt);
-/*!
- * \brief The vectorized For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
- * \param annotations The optional annotations of the For statement.
- * \param step The optional step value of iteration.
- * \param dtype The optional dtype of the loop var ("int32" or "uint32").
- * \return The ForFrame.
- */
-ForFrame Vectorized(PrimExpr start, PrimExpr stop,
-                    ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                    ffi::Optional<PrimExpr> step = std::nullopt,
-                    ffi::Optional<PrimType> dtype = std::nullopt);
-/*!
- * \brief The unrolled For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
- * \param annotations The optional annotations of the For statement.
- * \param step The optional step value of iteration.
- * \param dtype The optional dtype of the loop var ("int32" or "uint32").
- * \return The ForFrame.
- */
-ForFrame Unroll(PrimExpr start, PrimExpr stop,
-                ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt,
-                ffi::Optional<PrimExpr> step = std::nullopt,
-                ffi::Optional<PrimType> dtype = std::nullopt);
-/*!
- * \brief The thread-binding For statement.
- * \param start The minimum value of iteration.
- * \param stop The maximum value of iteration.
- * \param thread The thread for loop variable to bind.
- * \param annotations The optional annotations of the For statement.
- * \return The ForFrame.
- */
-ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
-                       ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt);
-/*!
- * \brief Declare a tensor binding or allocate its storage.
- * \param shape The type of the buffer prior to flattening.
- * \param dtype The data type in the content of the buffer.
- * \param buffer_name The name of the buffer.
- * \param data The pointer to the head of the data.
- * \param strides The strides of each dimension.
- * \param elem_offset The offset in terms of number of dtype elements (including lanes).
- * \param storage_scope The optional storage scope of buffer data pointer.
- * \param align The alignment requirement of data pointer in bytes.
- * \param offset_factor The factor of elem_offset field.
- * \param layout The layout of the buffer.
- * \return The declared tensor.
- */
-TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
-                     ffi::Optional<PrimExpr> allocated_addr = std::nullopt);
-
-/*!
- * \brief Statement-level buffer allocation (binds a buffer-returning allocation Call).
- * \param shape The shape of the buffer to allocate.
- * \param dtype The data type of buffer elements.
- * \param storage_scope The storage scope (e.g., "global", "shared").
- * \param annotations Optional annotations for the allocation.
- * \return The allocated buffer.
- */
-TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
-                      ffi::String storage_scope = "global",
-                      ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
 
 /*!
  * \brief Store data in a tensor destination.
@@ -234,12 +120,12 @@ tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value);
  */
 inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
                   ffi::String storage_scope = "global") {
-  Type type_annotation = dtype.has_value() ? Type(PointerType(dtype.value(), storage_scope))
-                                           : Type(PointerType::VoidPointerTy(storage_scope));
+  Type type_annotation = dtype.has_value() ? Type(PtrType(dtype.value(), storage_scope))
+                                           : Type(PtrType::VoidPtrType(storage_scope));
   return tvm::Var("", type_annotation);
 }
 
-inline Var TensorMap() { return tvm::Var("", PointerType(tvm::tirx::TensorMapType())); }
+inline Var TensorMap() { return tvm::Var("", PtrType(tvm::tirx::TensorMapType())); }
 
 #define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                \
   inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {  \

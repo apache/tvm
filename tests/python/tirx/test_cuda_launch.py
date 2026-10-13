@@ -34,6 +34,7 @@ from tvm.backend.cuda.launch import (
     ProgrammaticEvent,
 )
 from tvm.backend.cuda.launch._impl import pack_kernel_attrs, pack_launch
+from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -121,7 +122,7 @@ def test_launch_region_roundtrip_and_host_only_operands():
         bx, tx = T.cuda.block_idx("x"), T.cuda.thread_idx("x")
         A[bx * 32 + tx] = bx
 
-    parsed = tvm.script.from_source(kernel.script(), extra_vars={"T": T})
+    parsed = tvm.script.from_source(kernel.script(), extra_vars={"I": I, "T": T})
     tvm.ir.assert_structural_equal(kernel, parsed)
     target = tvm.target.Target("cuda", host="llvm")
     with target:
@@ -153,7 +154,7 @@ def _compile(kernel, host, tmp_path):
 
     arch = env.cuda_arch(0)
     target = tvm.target.Target({"kind": "cuda", "arch": arch}, host=host)
-    built = tvm.compile(kernel, target=target).mod
+    built = tvm.tirx.compile(kernel, target=target).mod
     if host == "llvm":
         return built, None
     import tvm_ffi.cpp
@@ -298,7 +299,7 @@ def test_increasing_dynamic_shared_memory(host, tmp_path):
     @T.function
     def shared(A: T.Tensor((1,), "int32"), n: T.int32, bytes_: T.int32):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32, dynamic_smem_bytes=bytes_))
-        scratch = T.alloc_tensor((n,), "int32", scope="shared.dyn")
+        scratch = T.alloc_tensor(ty_args=[T.Tensor((n,), "int32", scope="shared.dyn")])
         if T.cuda.thread_idx("x") == 0:
             scratch[n - 1] = n
             A[0] = scratch[n - 1]
@@ -322,8 +323,10 @@ def test_static_shared_memory_override_cannot_shrink_allocation():
     @T.function
     def kernel():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32, dynamic_smem_bytes=64))
-        scratch = T.alloc_tensor((128,), "int32", scope="shared.dyn")
+        scratch = T.alloc_tensor(ty_args=[T.Tensor((128,), "int32", scope="shared.dyn")])
         scratch[0] = T.cuda.thread_idx("x")
 
     with pytest.raises(ValueError, match="smaller than"):
-        tvm.compile(kernel, backend_config={"cuda": {"arch": "sm_80"}})
+        tvm.tirx.compile(
+            kernel, target={"kind": "cuda", "backend_config": {"cuda": {"arch": "sm_80"}}}
+        )

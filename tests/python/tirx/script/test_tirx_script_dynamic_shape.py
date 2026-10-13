@@ -120,7 +120,7 @@ def test_tir_return_annotation_does_not_define_symbolic_var():
 
         @T.function
         def main() -> T.Tensor((n,), "float32"):  # noqa: F821
-            A = T.alloc_tensor((n,), "float32")  # noqa: F821
+            A = T.alloc_tensor(ty_args=[T.Tensor((n,), "float32")])  # noqa: F821
             return A
 
 
@@ -136,7 +136,7 @@ def test_type_vars_roundtrip():
     script = func.script()
     assert script.startswith("from __future__ import annotations\n\n")
     assert "def main[M](" in script
-    assert 'T.Tensor((M, M * T.int64(2)), "float32", layout="default")' in script
+    assert 'T.Tensor((M, M * T.int64(2)), "float32")' in script
     assert "M = T.int64()" not in script
     typed = tvm.script.from_source(
         """
@@ -152,7 +152,7 @@ def func[M: int](A: T.Tensor((M, M * 2), "float32")):
     repeated = func.script()
     assert "from __future__ import annotations" in repeated
     assert "def main[M](" in repeated
-    assert 'T.Tensor((M, M * T.int64(2)), "float32", layout="default")' in repeated
+    assert 'T.Tensor((M, M * T.int64(2)), "float32")' in repeated
     assert "UNUSED" not in script
     assert "M = T.int64()" not in repeated
     assert len(func.params) == 1
@@ -227,7 +227,7 @@ def test_captured_shape_requires_concrete_symbols():
     n = T.dynamic("n")
     function = build((n, 16))
     assert function.params[0].ty.shape[0].same_as(n)
-    with pytest.raises(AssertionError, match="data must be int or Expr, but got n"):
+    with pytest.raises(TypeError, match="Expected `Array<ir.PrimExpr>`"):
         build(("n", 16))
 
 

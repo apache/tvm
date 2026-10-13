@@ -149,7 +149,7 @@ def test_legacy_mode_is_not_a_function_option(namespace, option):
         "reads",
         "writes",
         "sblock_attr",
-        "sblock_alloc_buffer",
+        "sblock_alloc_tensor",
         "axis",
         "block_name_suffix_context",
     ],

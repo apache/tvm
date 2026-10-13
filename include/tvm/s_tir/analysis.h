@@ -40,8 +40,8 @@ namespace tirx {
  * \brief Auto detect the block access region according to its body stmt
  *        It will detect the access region as an array in order of appearance in AST
  * \param block The block to be detected
- * \param buffer_var_map The outside buffers which may be accessed the block.
- *                       It is a map from buffer var to the buffer.
+ * \param tensor_var_map The outside tensors which may be accessed the block.
+ *                       It is a map from tensor var to the tensor.
  * \return Array of access regions.
  *         There are three arrays of TensorRegion:
  *           - first: read regions
@@ -49,28 +49,28 @@ namespace tirx {
  *           - third: opaque regions
  */
 TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockAccessRegion(
-    const s_tir::SBlock& block, const ffi::Map<Var, TensorVar>& buffer_var_map);
+    const s_tir::SBlock& block, const ffi::Map<Var, TensorVar>& tensor_var_map);
 
 /*!
  * \brief Auto detect the block read/write region according to its body stmt. An opaque access will
  *        be counted as both a read and a write access
  * \param block The block to be detected
- * \param buffer_var_map The outside buffers which may be accessed the block.
- *                       It is a map from buffer var to the buffer
+ * \param tensor_var_map The outside tensors which may be accessed the block.
+ *                       It is a map from tensor var to the tensor
  * \return An array only consisting of the read regions and write regions of the input block
  */
 TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockReadWriteRegion(
-    const s_tir::SBlock& block, const ffi::Map<Var, TensorVar>& buffer_var_map);
+    const s_tir::SBlock& block, const ffi::Map<Var, TensorVar>& tensor_var_map);
 
 /*!
- * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
+ * \brief Detect the lowest common ancestor(LCA) of tensor access, including both high-level
  *        access(TensorLoad, TensorStore) and low-level access(Load, Store and opaque access).
  *        The LCA may be a For loop or a Block.
  * \param func The Function to be detected.
- * \return The Map from buffer to the LCA of all access to it. The lca is function root if the
+ * \return The Map from tensor to the LCA of all access to it. The lca is function root if the
  *         return stmt is std::nullopt.
  */
-TVM_DLL ffi::Map<TensorVar, ffi::Optional<Stmt>> DetectBufferAccessLCA(const Function& func);
+TVM_DLL ffi::Map<TensorVar, ffi::Optional<Stmt>> DetectTensorAccessLCA(const Function& func);
 
 /*!
  * \brief Find the "anchor block" of the given module.
@@ -98,7 +98,7 @@ class Analyzer;
 namespace s_tir {
 using namespace tvm::tirx;
 
-/*! \brief Verify variable/buffer definitions, load types and schedulable block boundaries. */
+/*! \brief Verify variable/tensor definitions, load types and schedulable block boundaries. */
 TVM_DLL bool VerifyWellFormed(const tirx::Function& func, bool assert_mode = true);
 /*! \brief Verify S-TIR or mixed modules, including definitions shared across functions. */
 TVM_DLL bool VerifyWellFormed(const IRModule& mod, bool assert_mode = true);
@@ -147,14 +147,14 @@ struct MemCpyDetails {
 TVM_DLL std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, const sym::Analyzer& analyzer);
 
 /*!
- * \brief Infer the domain touched by buffer accesses within a statement.
+ * \brief Infer the domain touched by tensor accesses within a statement.
  * \param body The statement to analyze.
- * \param buffer The buffer whose accesses are analyzed.
+ * \param tensor The tensor whose accesses are analyzed.
  * \param consider_loads Whether to include loads.
  * \param consider_stores Whether to include stores.
  * \return The domain covering the selected accesses.
  */
-TVM_DLL ffi::Array<ffi::Optional<Range>> DomainTouched(const Stmt& body, const TensorVar& buffer,
+TVM_DLL ffi::Array<ffi::Optional<Range>> DomainTouched(const Stmt& body, const TensorVar& tensor,
                                                        bool consider_loads, bool consider_stores);
 
 /*!

@@ -41,7 +41,7 @@ def test_cpu_matmul():
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        C_global = Ts.sblock_alloc_buffer([512, 512], dtype="float32")
+        C_global = Ts.sblock_alloc_tensor([512, 512], dtype="float32")
         for i0_0, i1_0, i0_1, i1_1 in T.grid(1, 8, 8, 1):
             for i2_0, i0_2, i1_2, i2_1, i0_3, i1_3 in T.grid(16, 2, 8, 32, 32, 8):
                 with Ts.sblock("C"):
@@ -72,7 +72,7 @@ def test_cpu_matmul():
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        C_global = Ts.sblock_alloc_buffer([512, 512], dtype="float32")
+        C_global = Ts.sblock_alloc_tensor([512, 512], dtype="float32")
         for i0_0, i1_0 in T.grid(1, 8):
             for i0_1, i1_1, i2_0, i0_2, i1_2, i2_1, i0_3, i1_3 in T.grid(8, 1, 16, 2, 8, 32, 32, 8):
                 with Ts.sblock("C"):
@@ -159,7 +159,7 @@ def test_cpu_matmul_relu():
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        C = Ts.sblock_alloc_buffer([512, 512], dtype="float32")
+        C = Ts.sblock_alloc_tensor([512, 512], dtype="float32")
         for i0_0, i1_0, i0_1, i1_1, i2_0, i0_2, i1_2, i2_1, i0_3, i1_3 in T.grid(
             256, 4, 1, 4, 64, 1, 32, 8, 2, 1
         ):
@@ -190,7 +190,7 @@ def test_cpu_matmul_relu():
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        C = Ts.sblock_alloc_buffer([512, 512], dtype="float32")
+        C = Ts.sblock_alloc_tensor([512, 512], dtype="float32")
         for i0_0, i1_0, i0_1, i1_1 in T.grid(256, 4, 1, 4):
             for i2_0, i0_2, i1_2, i2_1, i0_3, i1_3 in T.grid(64, 1, 32, 8, 2, 1):
                 with Ts.sblock("C"):
@@ -221,7 +221,7 @@ def test_cpu_matmul_relu():
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        C = Ts.sblock_alloc_buffer([512, 512], dtype="float32")
+        C = Ts.sblock_alloc_tensor([512, 512], dtype="float32")
         for i0_0, i1_0 in T.grid(256, 4):
             for i0_1, i1_1, i2_0, i0_2, i1_2, i2_1, i0_3, i1_3 in T.grid(1, 4, 64, 1, 32, 8, 2, 1):
                 with Ts.sblock("C"):
@@ -283,12 +283,12 @@ def test_cuda_matmul():
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        C_local = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
-        A_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
-        B_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
-        for i0_0_i1_0_fused in T.thread_binding(128, thread="blockIdx.x"):
-            for i0_1_i1_1_fused in T.thread_binding(8, thread="vthread.x"):
-                for i0_2_i1_2_fused in T.thread_binding(4, thread="threadIdx.x"):
+        C_local = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="local")
+        A_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
+        B_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
+        for i0_0_i1_0_fused in T.parallel(128, annotations={"thread_binding": "blockIdx.x"}):
+            for i0_1_i1_1_fused in T.parallel(8, annotations={"thread_binding": "vthread.x"}):
+                for i0_2_i1_2_fused in T.parallel(4, annotations={"thread_binding": "threadIdx.x"}):
                     for i2_0 in T.serial(128):
                         for ax0_ax1_fused in T.serial(256):
                             with Ts.sblock("A_shared"):
@@ -389,13 +389,13 @@ def test_cuda_matmul_relu():
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        C = Ts.sblock_alloc_buffer([512, 512], dtype="float32")
-        C_local = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
-        A_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
-        B_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
-        for i0_0_i1_0_fused in T.thread_binding(64, thread="blockIdx.x"):
-            for i0_1_i1_1_fused in T.thread_binding(64, thread="vthread.x"):
-                for i0_2_i1_2_fused in T.thread_binding(8, thread="threadIdx.x"):
+        C = Ts.sblock_alloc_tensor([512, 512], dtype="float32")
+        C_local = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="local")
+        A_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
+        B_shared = Ts.sblock_alloc_tensor([512, 512], dtype="float32", scope="shared")
+        for i0_0_i1_0_fused in T.parallel(64, annotations={"thread_binding": "blockIdx.x"}):
+            for i0_1_i1_1_fused in T.parallel(64, annotations={"thread_binding": "vthread.x"}):
+                for i0_2_i1_2_fused in T.parallel(8, annotations={"thread_binding": "threadIdx.x"}):
                     for i2_0 in T.serial(8):
                         for ax0_ax1_fused in T.serial(4096):
                             with Ts.sblock("A_shared"):
@@ -530,7 +530,7 @@ def test_multi_level_tiling_hexagon():
         conv2d_nhwc: T.Tensor((1, 56, 56, 64), "float16"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        PadInput = Ts.sblock_alloc_buffer((1, 58, 58, 64), "float16")
+        PadInput = Ts.sblock_alloc_tensor((1, 58, 58, 64), "float16")
         for i0, i1, i2, i3 in T.grid(1, 58, 58, 64):
             with Ts.sblock("PadInput"):
                 v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -635,13 +635,13 @@ def test_cache_read_specify_consumer():
         T_add: T.Tensor((512, 512), "float32"),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        C = Ts.sblock_alloc_buffer((512, 512))
-        C_local = Ts.sblock_alloc_buffer((512, 512), scope="local")
-        A_shared = Ts.sblock_alloc_buffer((512, 512), scope="shared")
-        B_shared = Ts.sblock_alloc_buffer((512, 512), scope="shared")
-        for i_0_j_0_fused in T.thread_binding(2, thread="blockIdx.x"):
-            for i_1_j_1_fused in T.thread_binding(512, thread="vthread.x"):
-                for i_2_j_2_fused in T.thread_binding(16, thread="threadIdx.x"):
+        C = Ts.sblock_alloc_tensor((512, 512))
+        C_local = Ts.sblock_alloc_tensor((512, 512), scope="local")
+        A_shared = Ts.sblock_alloc_tensor((512, 512), scope="shared")
+        B_shared = Ts.sblock_alloc_tensor((512, 512), scope="shared")
+        for i_0_j_0_fused in T.parallel(2, annotations={"thread_binding": "blockIdx.x"}):
+            for i_1_j_1_fused in T.parallel(512, annotations={"thread_binding": "vthread.x"}):
+                for i_2_j_2_fused in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
                     for k_0 in range(2):
                         for ax0_ax1_fused in range(131072):
                             with Ts.sblock("A_shared"):
@@ -744,8 +744,8 @@ def test_max_pool_blocked():
         pool: T.Tensor((1, 2, 4, 4, 8, 8, 32), "uint8"),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        pool_global = Ts.sblock_alloc_buffer((1, 2, 4, 4, 8, 8, 32), "uint8")
-        X_global = Ts.sblock_alloc_buffer((1, 2, 8, 8, 8, 8, 32), "uint8")
+        pool_global = Ts.sblock_alloc_tensor((1, 2, 4, 4, 8, 8, 32), "uint8")
+        X_global = Ts.sblock_alloc_tensor((1, 2, 8, 8, 8, 8, 32), "uint8")
         for b_0, c_o_0, h_o_0, w_o_0, h_i_0, w_i_0, c_i_0 in T.grid(1, 2, 4, 1, 8, 1, 4):
             for ax0_ax1_ax2_ax3_ax4_ax5_ax6_fused in range(896):
                 with Ts.sblock("X_global"):

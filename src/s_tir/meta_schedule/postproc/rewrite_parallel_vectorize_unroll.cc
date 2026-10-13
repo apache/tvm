@@ -34,7 +34,7 @@ using namespace tvm::tirx;
  * \return Whether the loop has any annotation
  */
 inline bool HasAnnOrBinding(const ForNode* loop) {
-  return tvm::tirx::GetThreadBinding(loop).has_value() || !loop->annotations.empty();
+  return tvm::s_tir::GetThreadBinding(loop).has_value() || !loop->annotations.empty();
 }
 
 /*! \brief The visitor for extracting the stride of a var in a PrimExpr. */
@@ -210,8 +210,8 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
   }
   // check the maximal number of axes that are vectorizable (contiguous memory access)
   SBlockRealize realize = GetSBlockRealize(sch->state(), block_sref);
-  ffi::Array<TensorRegion> buffer_access(realize->block->reads);
-  buffer_access.insert(buffer_access.end(), realize->block->writes.begin(),
+  ffi::Array<TensorRegion> tensor_access(realize->block->reads);
+  tensor_access.insert(tensor_access.end(), realize->block->writes.begin(),
                        realize->block->writes.end());
   std::unordered_map<const VarNode*, PrimExpr> binding_map;
   for (size_t i = 0; i < realize->iter_values.size(); i++) {
@@ -226,13 +226,13 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
   int max_fusible = INT32_MAX;
   // for each block read/write, get the strides of the loop vars and find the fusible
   // (vectorizable) axes
-  for (const TensorRegion& access : buffer_access) {
+  for (const TensorRegion& access : tensor_access) {
     int fusible = 0;
     bool can_analyze_contiguous_access = true;
     std::vector<int64_t> strides;
     // get strides for each loop var
     for (const StmtSRef& loop_sref : loop_srefs) {
-      int64_t stride = 0, buffer_stride = 1;
+      int64_t stride = 0, tensor_stride = 1;
       const auto* var = loop_sref->StmtAs<ForNode>();
       sym::Analyzer analyzer;
       for (int i = access->region.size() - 1; i >= 0; i--) {
@@ -241,7 +241,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
                 .as_or_throw<PrimExpr>());
         int64_t coef = StrideExtractor::Extract(idx, var->loop_var);
         if (coef != 0) {
-          stride = coef * buffer_stride;
+          stride = coef * tensor_stride;
           break;
         }
         const auto* shape =
@@ -250,7 +250,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
           can_analyze_contiguous_access = false;
           break;
         }
-        buffer_stride = static_cast<int64_t>(buffer_stride * shape->value);
+        tensor_stride = static_cast<int64_t>(tensor_stride * shape->value);
       }
       if (!can_analyze_contiguous_access) {
         break;
@@ -265,7 +265,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
     // check the number of fusible loops
     for (int i = strides.size() - 1; i >= 0; i--) {
       if (strides[i] == 0) {
-        // not used in the buffer access, safe to fuse
+        // not used in the tensor access, safe to fuse
         fusible++;
         continue;
       } else if (prev_used_iter == -1) {
@@ -455,7 +455,7 @@ namespace meta_schedule {
 
 using s_tir::Schedule;
 
-class RewriteParallelVectorizeUnrollNode : public PostprocNode {
+class RewriteParallelVectorizeUnrollObj : public PostprocObj {
  public:
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
@@ -505,29 +505,29 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
   }
 
   Postproc Clone() const {
-    ffi::ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
-        ffi::make_object<RewriteParallelVectorizeUnrollNode>(*this);
+    ffi::ObjectPtr<RewriteParallelVectorizeUnrollObj> n =
+        ffi::make_object<RewriteParallelVectorizeUnrollObj>(*this);
     return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RewriteParallelVectorizeUnrollNode>();
+    refl::ObjectDef<RewriteParallelVectorizeUnrollObj>();
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RewriteParallelVectorizeUnroll",
-                                    RewriteParallelVectorizeUnrollNode, PostprocNode);
+                                    RewriteParallelVectorizeUnrollObj, PostprocObj);
 };
 
 Postproc Postproc::RewriteParallelVectorizeUnroll() {
-  ffi::ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
-      ffi::make_object<RewriteParallelVectorizeUnrollNode>();
+  ffi::ObjectPtr<RewriteParallelVectorizeUnrollObj> n =
+      ffi::make_object<RewriteParallelVectorizeUnrollObj>();
   return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  RewriteParallelVectorizeUnrollNode::RegisterReflection();
+  RewriteParallelVectorizeUnrollObj::RegisterReflection();
   refl::GlobalDef().def("s_tir.meta_schedule.PostprocRewriteParallelVectorizeUnroll",
                         Postproc::RewriteParallelVectorizeUnroll);
 }

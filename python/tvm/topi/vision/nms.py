@@ -147,8 +147,8 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
                 outs[2],
             ),
             dtype=["int32", data.dtype, "int32"],
-            out_buffers=[valid_count_buf, out_tensor_buf, out_indices_buf],
-            in_buffers=[
+            out_tensors=[valid_count_buf, out_tensor_buf, out_indices_buf],
+            in_tensors=[
                 tvm.tirx.decl_tensor(data.shape, data.dtype, "data", layout=None),
                 score_thresh_buf,
             ],
@@ -173,8 +173,8 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
             [data],
             _ir_with_const_threshold,
             dtype=["int32", data.dtype, "int32"],
-            out_buffers=[valid_count_buf, out_tensor_buf, out_indices_buf],
-            in_buffers=[tvm.tirx.decl_tensor(data.shape, data.dtype, "data", layout=None)],
+            out_tensors=[valid_count_buf, out_tensor_buf, out_indices_buf],
+            in_tensors=[tvm.tirx.decl_tensor(data.shape, data.dtype, "data", layout=None)],
             name="get_valid_counts",
             tag="get_valid_counts",
         )
@@ -212,7 +212,7 @@ def _classic_nms_ir(
 
         with T.parallel(0, batch_size) as i:
             # Step 1: Reorder data by sorted score
-            nkeep_buf = T.alloc_tensor((1,), "int32", scope="local")
+            nkeep_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")]))
             nkeep_local = nkeep_buf
             T.tensor_store(
                 nkeep_local,
@@ -251,16 +251,22 @@ def _classic_nms_ir(
                         T.tensor_store(out_box_indices, (i, j), T.int32(-1))
 
             # Step 2: Apply NMS - greedy suppression
-            num_valid_boxes_buf = T.alloc_tensor((1,), "int32", scope="local")
+            num_valid_boxes_buf = T.bind(
+                T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
+            )
             num_valid_boxes = num_valid_boxes_buf
             T.tensor_store(num_valid_boxes, T.tensor_indices(num_valid_boxes, 0), T.int32(0))
-            best_idx_buf = T.alloc_tensor((1,), "int32", scope="local")
+            best_idx_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")]))
             best_idx = best_idx_buf
-            best_score_buf = T.alloc_tensor((1,), data.dtype, scope="local")
+            best_score_buf = T.bind(
+                T.alloc_tensor(ty_args=[T.Tensor((1,), data.dtype, scope="local")])
+            )
             best_score = best_score_buf
-            tmp_idx_buf = T.alloc_tensor((1,), "int32", scope="local")
+            tmp_idx_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")]))
             tmp_idx = tmp_idx_buf
-            tmp_val_buf = T.alloc_tensor((1,), data.dtype, scope="local")
+            tmp_val_buf = T.bind(
+                T.alloc_tensor(ty_args=[T.Tensor((1,), data.dtype, scope="local")])
+            )
             tmp_val = tmp_val_buf
             zero = tvm.tirx.Cast(data.dtype, T.float32(0.0))
 
@@ -614,7 +620,9 @@ def _classic_nms_ir(
                             )
 
                 if return_indices:
-                    valid_idx_buf = T.alloc_tensor((1,), "int32", scope="local")
+                    valid_idx_buf = T.bind(
+                        T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
+                    )
                     valid_idx = valid_idx_buf
                     T.tensor_store(valid_idx, T.tensor_indices(valid_idx, 0), T.int32(0))
 
@@ -791,8 +799,8 @@ def non_max_suppression(
                 score_threshold,
             ),
             dtype=[data.dtype, "int32", "int32"],
-            out_buffers=[out_data_buf, out_box_indices_buf, out_valid_box_count_buf],
-            in_buffers=[data_buf, sort_buf, valid_count_buf, indices_buf],
+            out_tensors=[out_data_buf, out_box_indices_buf, out_valid_box_count_buf],
+            in_tensors=[data_buf, sort_buf, valid_count_buf, indices_buf],
             name="non_max_suppression",
             tag="non_max_suppression",
         )
@@ -826,8 +834,8 @@ def non_max_suppression(
             score_threshold,
         ),
         dtype=[data.dtype, "int32"],
-        out_buffers=[out_data_buf, out_box_indices_buf],
-        in_buffers=[data_buf, sort_buf, valid_count_buf, indices_buf],
+        out_tensors=[out_data_buf, out_box_indices_buf],
+        in_tensors=[data_buf, sort_buf, valid_count_buf, indices_buf],
         name="non_max_suppression",
         tag="non_max_suppression",
     )
@@ -851,7 +859,9 @@ def _rearrange_out(data, batch_size, num_anchors, box_data_length, score_index):
             out = outs[0]
 
             with T.parallel(0, batch_size) as i:
-                valid_idx_buf = T.alloc_tensor((1,), "int32", scope="local")
+                valid_idx_buf = T.bind(
+                    T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
+                )
                 valid_idx = valid_idx_buf
                 T.tensor_store(valid_idx, T.tensor_indices(valid_idx, 0), T.int32(0))
 
@@ -889,7 +899,7 @@ def _rearrange_out(data, batch_size, num_anchors, box_data_length, score_index):
         [data],
         _rearrange_ir,
         dtype=[data.dtype],
-        out_buffers=[out_buf],
+        out_tensors=[out_buf],
         name="rearrange_out",
         tag="rearrange_out",
     )
@@ -946,7 +956,9 @@ def _nms_loop(
 
         with T.if_(tvm.tirx.all(iou_threshold > te.const(0), valid_count[i] > te.const(0))):
             with T.then_():
-                num_valid_boxes_local_buf = T.alloc_tensor((1,), "int32", scope="local")
+                num_valid_boxes_local_buf = T.bind(
+                    T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
+                )
                 num_valid_boxes_local = num_valid_boxes_local_buf
                 T.tensor_store(
                     num_valid_boxes_local, T.tensor_indices(num_valid_boxes_local, 0), T.int32(0)
@@ -1017,8 +1029,8 @@ def _get_valid_box_count(scores, score_threshold):
             [scores, score_threshold],
             lambda ins, outs: searchsorted_ir(ins[0], ins[1], outs[0]),
             dtype=["int32"],
-            in_buffers=[scores_buf, score_thresh_buf],
-            out_buffers=[searchsorted_buf],
+            in_tensors=[scores_buf, score_thresh_buf],
+            out_tensors=[searchsorted_buf],
             name="searchsorted",
             tag="searchsorted",
         )
@@ -1045,8 +1057,8 @@ def _get_valid_box_count(scores, score_threshold):
             [scores],
             lambda ins, outs: searchsorted_ir_scalar(ins[0], outs[0]),
             dtype=["int32"],
-            in_buffers=[scores_buf],
-            out_buffers=[searchsorted_buf],
+            in_tensors=[scores_buf],
+            out_tensors=[searchsorted_buf],
             name="searchsorted",
             tag="searchsorted",
         )

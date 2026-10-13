@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_DEVICE_API_H_
 
 #include <tvm/ffi/any.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/device.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/optional.h>
@@ -79,29 +80,6 @@ typedef enum {
   TVMDeviceExtType_End = 36,  // sentinel value
 } TVMDeviceExtType;
 
-/*!
- * \brief the query type into GetAttr
- */
-enum DeviceAttrKind : int {
-  kExist = 0,
-  kMaxThreadsPerBlock = 1,
-  kWarpSize = 2,
-  kMaxSharedMemoryPerBlock = 3,
-  kComputeVersion = 4,
-  kDeviceName = 5,
-  kMaxClockRate = 6,
-  kMultiProcessorCount = 7,
-  kMaxThreadDimensions = 8,
-  kMaxRegistersPerBlock = 9,
-  kGcnArch = 10,
-  kApiVersion = 11,
-  kDriverVersion = 12,
-  kL2CacheSizeBytes = 13,
-  kTotalGlobalMemory = 14,
-  kAvailableGlobalMemory = 15,
-  kImagePitchAlignment = 16,
-};
-
 #ifdef TVM_KALLOC_ALIGNMENT
 /*! \brief Number of bytes each allocation must align to */
 constexpr int kAllocAlignment = TVM_KALLOC_ALIGNMENT;
@@ -137,59 +115,37 @@ class TVM_RUNTIME_DLL DeviceAPI {
    */
   virtual void SetDevice(Device dev) = 0;
   /*!
-   * \brief Get attribute of specified device.
-   * \param dev The device device
-   * \param kind The result kind
-   * \param rv The return value.
-   * \sa DeviceAttrKind
-   */
-  virtual void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) = 0;
-
-  /*!
-   * \brief Get the physical memory size required.
-   * \param arr the tensor object.
-   * \param mem_scope the memory scope if any
-   * \return the memory size.
-   */
-  virtual size_t GetDataSize(const DLTensor& arr,
-                             ffi::Optional<ffi::String> mem_scope = std::nullopt);
-
-  /*!
-   * \brief Query the device for specified properties.
+   * \brief Get the currently selected runtime device index on the calling host thread.
    *
-   * This is used to expand "-from_device=N" in the target string to
-   * all properties that can be determined from that device.
+   * The device type is determined by this DeviceAPI instance. The result is a
+   * runtime device index (DLDevice::device_id), not a device type or a target
+   * configuration index. Implementations must query the current selection without
+   * changing it. The default implementation throws NotImplementedError; support
+   * for SetDevice does not imply support for this query. RPC devices are excluded.
+   *
+   * \return The selected device index, on success.
    */
-  virtual void GetTargetProperty(Device dev, const std::string& property, ffi::Any* rv) {}
+  virtual int GetDeviceIndex();
+  /*!
+   * \brief Query an attribute of a device.
+   * \param dev The device to query.
+   * \param name Attribute name. "exist" returns a boolean; unsupported optional
+   * attributes return None. Errors querying a supported attribute are propagated.
+   * \return The attribute value.
+   */
+  virtual ffi::Any GetAttr(DLDevice dev, const ffi::String& name) = 0;
 
   /*!
-   * \brief Allocate a data space on device.
-   * \param dev The device device to perform operation.
-   * \param nbytes The number of bytes in memory.
-   * \param alignment The alignment of the memory.
-   * \param type_hint The type of elements. Only needed by certain backends such
-   * as OpenGL, as nbytes & alignment are sufficient for most backends.
-   * \return The allocated device pointer.
+   * \brief Create an owning, compact tensor with uninitialized contents.
+   * \param shape Logical shape, copied into the returned tensor.
+   * \param dtype Element datatype.
+   * \param device Device on which to allocate storage.
+   * \param mem_scope Optional backend memory scope.
+   * \return A tensor whose deleter owns the backend allocation and its resources.
    */
-  virtual void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
-                               DLDataType type_hint) = 0;
-  /*!
-   * \brief Allocate a data space on device with memory scope support.
-   * \param dev The device device to perform operation.
-   * \param ndim The number of dimension of allocated tensor.
-   * \param shape The shape of allocated tensor.
-   * \param dtype The type of elements.
-   * \param mem_scope The memory scope of allocated tensor.
-   * \return The allocated device pointer.
-   */
-  virtual void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                               ffi::Optional<ffi::String> mem_scope = std::nullopt);
-  /*!
-   * \brief Free a data space on device.
-   * \param dev The device device to perform operation.
-   * \param ptr The data space.
-   */
-  virtual void FreeDataSpace(Device dev, void* ptr) = 0;
+  virtual ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                            ffi::Optional<ffi::String> mem_scope = std::nullopt) = 0;
+
   /*!
    * \brief copy data from one place to another
    * \note This API is designed to support special memory with shape dependent layout.
@@ -354,58 +310,9 @@ inline const char* DLDeviceType2Str(int type) {
   throw;
 }
 
-/*! \brief The device type bigger than this is RPC device */
-constexpr int kRPCSessMask = 128;
-static_assert(kRPCSessMask >= TVMDeviceExtType_End);
-
-/*!
- * \brief Return true if a Device is owned by an RPC session.
- */
-inline bool IsRPCSessionDevice(Device dev) { return (dev.device_type / kRPCSessMask) > 0; }
-
-/*!
- * \brief Return the RPCSessTable index of the RPC Session that owns this device.
- * \return the table index.
- */
-inline int GetRPCSessionIndex(Device dev) {
-  TVM_FFI_ICHECK(IsRPCSessionDevice(dev)) << "GetRPCSessionIndex: dev has no RPC session";
-  return dev.device_type / kRPCSessMask - 1;
-}
-
-/*!
- * \brief Remove the RPC session mask from a Device.
- * RPC clients typically do this when encoding a Device for transmission to an RPC remote.
- * On the wire, RPCdevice are expected to be valid on the server without interpretation.
- * \param dev A Device with non-zero RPC Session mask, valid on the RPC client.
- * \return A Device without any RPC Session mask, valid on the RPC server.
- */
-inline Device RemoveRPCSessionMask(Device dev) {
-  dev.device_type = static_cast<DLDeviceType>(dev.device_type % kRPCSessMask);
-  return dev;
-}
-
 inline std::ostream& operator<<(std::ostream& os, DLDevice dev) {  // NOLINT(*)
-  if (tvm::runtime::IsRPCSessionDevice(dev)) {
-    os << "remote[" << tvm::runtime::GetRPCSessionIndex(dev) << "]-";
-    dev = tvm::runtime::RemoveRPCSessionMask(dev);
-  }
-  os << tvm::runtime::DLDeviceType2Str(static_cast<int>(dev.device_type)) << ":" << dev.device_id;
+  os << DLDeviceType2Str(static_cast<int>(dev.device_type)) << ":" << dev.device_id;
   return os;
-}
-
-/*!
- * \brief Add a RPC session mask to a Device.
- * RPC clients typically do this when decoding a Device received from a RPC remote.
- * \param dev A Device without any RPC Session mask, valid on the RPC server.
- * \param session_table_index Numeric index of the RPC session in the session table.
- * \return A Device with RPC session mask added, valid on the RPC client.
- */
-inline Device AddRPCSessionMask(Device dev, int session_table_index) {
-  TVM_FFI_ICHECK(!IsRPCSessionDevice(dev))
-      << "AddRPCSessionMask: dev already non-zero RPCSessionIndex: " << dev;
-  dev.device_type =
-      static_cast<DLDeviceType>(dev.device_type | (kRPCSessMask * (session_table_index + 1)));
-  return dev;
 }
 
 /*!
@@ -414,12 +321,6 @@ inline Device AddRPCSessionMask(Device dev, int session_table_index) {
  * \return Whether runtime is enabled.
  */
 TVM_RUNTIME_DLL bool RuntimeEnabled(const ffi::String& target);
-
-/*! \brief namespace for constant symbols */
-namespace symbol {
-/*! \brief global function to set device */
-constexpr const char* tvm_set_device = "__tvm_set_device";
-}  // namespace symbol
 
 }  // namespace runtime
 }  // namespace tvm

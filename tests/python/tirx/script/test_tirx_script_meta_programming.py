@@ -33,7 +33,7 @@ def test_meta_class_constructor_rejects_unowned_resource():
     @T.meta_class
     class Bad:
         def __init__(self):
-            tmp = T.alloc_tensor((1,), "int32", scope="local")
+            tmp = T.bind(T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")]))
 
     with pytest.raises(ValueError):
 
@@ -50,14 +50,14 @@ def test_meta_class_multiple_instances_preserve_owned_resources():
     class Holder:
         def __init__(self, external):
             self.external = external
-            self.buf = T.alloc_tensor((2,), "int32", scope="local")
+            self.buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor((2,), "int32", scope="local")]))
             self.scalar = T.local_scalar("int32")
             instances.append(self)
 
     @T.function(private=True)
     def test():
         T.device_entry()
-        external = T.alloc_tensor((2,), "int32", scope="local")
+        external = T.alloc_tensor(ty_args=[T.Tensor((2,), "int32", scope="local")])
         first = Holder(external)
         second = Holder(external)
         T.evaluate(
@@ -251,7 +251,7 @@ def test_scalar_assign_in_macro():
 
 
 def test_function_closure_shape():
-    """Closure variable used in Buffer shape annotation."""
+    """Closure variable used in Tensor shape annotation."""
 
     def f(M=16):
         @T.function
@@ -278,7 +278,7 @@ def _normalize(func):
 
 
 def test_function_closure_dtype():
-    """Closure variable used as Buffer dtype."""
+    """Closure variable used as Tensor dtype."""
 
     def f(dtype="float32"):
         @T.function

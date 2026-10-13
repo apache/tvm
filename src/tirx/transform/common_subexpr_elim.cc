@@ -73,6 +73,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/transform.h>
+#include <tvm/support/ordered_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/region.h>
@@ -86,8 +87,6 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-#include "../../support/ordered_map.h"
 
 namespace tvm {
 namespace tirx {

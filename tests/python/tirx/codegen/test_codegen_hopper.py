@@ -29,7 +29,7 @@ from tvm.testing import env
 def _get_source(func: tvm.tirx.Function) -> tuple[str, tvm.IRModule]:
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": func})
-    mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     return src, mod
 
@@ -43,14 +43,14 @@ def _run_tensormap_encode(shape, dtype, encode_args):
         T.call_packed("runtime.cuTensorMapEncodeTiled", A_map, dtype, len(shape), A.data, *encode_args)  # noqa: E501
 
         T.device_entry()
-        for blockIdx in T.thread_binding(1, thread="blockIdx.x"):
-            for threadIdx in T.thread_binding(1, thread="threadIdx.x"):
+        with T.launch_thread("blockIdx.x", 1) as blockIdx:
+            with T.launch_thread("threadIdx.x", 1) as threadIdx:
                 T.evaluate(blockIdx + threadIdx)
         # fmt: on
 
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": main})
-    mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     def run_and_check():
         A = tvm.runtime.tensor(np.zeros(shape, dtype=dtype), device=tvm.cuda(0))
         mod(A)
@@ -89,8 +89,8 @@ def test_stmatrix_sync_aligned(trans):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         cta_id = T.cuda.block_idx('x')
         tx = T.cuda.thread_idx('x')
-        A_smem = T.alloc_tensor((16, 16), "float16", scope="shared", align=16)
-        reg = T.alloc_tensor((8,), "float16", scope="local")
+        A_smem = T.alloc_tensor(ty_args=[T.Tensor((16, 16), "float16", scope="shared", align=16)])
+        reg = T.alloc_tensor(ty_args=[T.Tensor((8,), "float16", scope="local")])
         for i in range(8):
             reg[i] = tx * 8 + i
         # stmatrix stores 4 b32 registers; reg is fp16, so they ride a uint32
@@ -108,7 +108,7 @@ def test_stmatrix_sync_aligned(trans):
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": func})
     with target:
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
         if not trans:
             assert "stmatrix.sync.aligned.m8n8.x4.shared.b16" in src
@@ -181,7 +181,7 @@ def test_ptx_stmatrix(trans, num):
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": main})
     with target:
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
     A_np = np.zeros((16, 16), dtype="float16")
     A_ref = np.zeros((16, 16), dtype="float16")
@@ -257,7 +257,7 @@ def test_ptx_stmatrix_noncontiguous(trans, num):
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": main})
     with target:
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
         trans_inst = ".trans" if trans else ""
         regs = ", ".join(f"%{i + 1}" for i in range(num))
@@ -450,11 +450,13 @@ def test_cp_async_bulk_tensor_global_to_shared_unicast(dtype, inputs):
             )
 
             T.device_entry()
-            for blockIdx in T.thread_binding(1, thread="blockIdx.x"):
-                for threadIdx in T.thread_binding(128, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 1) as blockIdx:
+                with T.launch_thread("threadIdx.x", 128) as threadIdx:
                     bar = T.shared_scalar("uint64")
                     phase: T.int32
-                    A_smem = T.alloc_tensor(shape, dtype, scope="shared", align=128)
+                    A_smem = T.alloc_tensor(
+                        ty_args=[T.Tensor(shape, dtype, scope="shared", align=128)]
+                    )
 
                     phase = 0
                     if threadIdx == 0:
@@ -485,7 +487,7 @@ def test_cp_async_bulk_tensor_global_to_shared_unicast(dtype, inputs):
     target = tvm.target.Target("cuda")
     shape, tma_args = inputs
     mod = tvm.IRModule({"main": get_ir(shape, tma_args)})
-    mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     assert "const __grid_constant__ CUtensorMap" in src
 
@@ -652,9 +654,11 @@ def test_cp_async_bulk_tensor_global_to_shared_swizzle(swizzle, dtype):
             )
 
             T.device_entry()
-            for blockIdx in T.thread_binding(1, thread="blockIdx.x"):
-                for threadIdx in T.thread_binding(128, thread="threadIdx.x"):
-                    A_smem = T.alloc_tensor((total_elems,), dtype, scope="shared", align=128)
+            with T.launch_thread("blockIdx.x", 1) as blockIdx:
+                with T.launch_thread("threadIdx.x", 128) as threadIdx:
+                    A_smem = T.alloc_tensor(
+                        ty_args=[T.Tensor((total_elems,), dtype, scope="shared", align=128)]
+                    )
                     bar = T.shared_scalar("uint64")
                     phase: T.int32
 
@@ -687,7 +691,7 @@ def test_cp_async_bulk_tensor_global_to_shared_swizzle(swizzle, dtype):
     target = tvm.target.Target("cuda")
     func, shape = get_ir(swizzle, dtype)
     mod = tvm.IRModule({"main": func})
-    mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     assert "const __grid_constant__ CUtensorMap" in src
 
@@ -754,12 +758,14 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast1(inputs):
             )
 
             T.device_entry()
-            for clusterCtaIdx in T.thread_binding(4, thread="clusterCtaIdx.x"):
-                for bx in T.thread_binding(4, thread="blockIdx.x"):
-                    for tx in T.thread_binding(128, thread="threadIdx.x"):
+            with T.launch_thread("clusterCtaIdx.x", 4) as clusterCtaIdx:
+                with T.launch_thread("blockIdx.x", 4) as bx:
+                    with T.launch_thread("threadIdx.x", 128) as tx:
                         bar = T.shared_scalar("uint64")
                         phase: T.int32
-                        A_smem = T.alloc_tensor(shape[::-1], "float32", scope="shared", align=128)
+                        A_smem = T.alloc_tensor(
+                            ty_args=[T.Tensor(shape[::-1], "float32", scope="shared", align=128)]
+                        )
 
                         phase = 0
                         if tx == 0:
@@ -803,7 +809,7 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast1(inputs):
     target = tvm.target.Target("cuda")
     shape, tma_args = inputs
     mod = tvm.IRModule({"main": get_ir(shape, tma_args)})
-    mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     assert "const __grid_constant__ CUtensorMap" in src
 
@@ -865,12 +871,14 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast2(inputs):
             )
 
             T.device_entry()
-            for clusterCtaIdx in T.thread_binding(4, thread="clusterCtaIdx.x"):
-                for bx in T.thread_binding(4, thread="blockIdx.x"):
-                    for tx in T.thread_binding(128, thread="threadIdx.x"):
+            with T.launch_thread("clusterCtaIdx.x", 4) as clusterCtaIdx:
+                with T.launch_thread("blockIdx.x", 4) as bx:
+                    with T.launch_thread("threadIdx.x", 128) as tx:
                         bar = T.shared_scalar("uint64")
                         phase: T.int32
-                        A_smem = T.alloc_tensor(shape[::-1], "float32", scope="shared", align=128)
+                        A_smem = T.alloc_tensor(
+                            ty_args=[T.Tensor(shape[::-1], "float32", scope="shared", align=128)]
+                        )
 
                         phase = 0
                         if tx == 0:
@@ -942,7 +950,7 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast2(inputs):
     target = tvm.target.Target("cuda")
     shape, tma_args = inputs
     mod = tvm.IRModule({"main": get_ir(shape, tma_args)})
-    mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     assert "const __grid_constant__ CUtensorMap" in src
 
@@ -987,7 +995,7 @@ def test_cp_async_bulk_tensor_shared_to_global(inputs):
             cta_id = T.cuda.block_idx('x')
             tx = T.cuda.thread_idx('x')
 
-            A_smem = T.alloc_tensor(elems, "float32", scope="shared", align=128)
+            A_smem = T.alloc_tensor(ty_args=[T.Tensor(elems, "float32", scope="shared", align=128)])
 
             if tx == 0:
                 for i in T.serial(0, elems):
@@ -1006,7 +1014,7 @@ def test_cp_async_bulk_tensor_shared_to_global(inputs):
     target = tvm.target.Target("cuda")
     shape, tma_args = inputs
     mod = tvm.IRModule({"main": get_ir(shape, tma_args)})
-    mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     assert "const __grid_constant__ CUtensorMap" in src
 
@@ -1079,14 +1087,18 @@ def test_wgmma_ss_nt():
             cta_id = T.cuda.block_idx('x')
             tx = T.cuda.thread_idx('x')  # A warpgroup is 128 threads
 
-            A_smem = T.alloc_tensor(shapeA, in_dtype, scope="shared", align=1024)
-            B_smem = T.alloc_tensor(shapeB, in_dtype, scope="shared", align=1024)
+            A_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(shapeA, in_dtype, scope="shared", align=1024)]
+            )
+            B_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(shapeB, in_dtype, scope="shared", align=1024)]
+            )
             bar = T.shared_scalar("uint64")
             phase: T.int32
 
             descA: T.uint64
             descB: T.uint64
-            C_local = T.alloc_tensor((C_elems,), out_dtype, scope="local")
+            C_local = T.alloc_tensor(ty_args=[T.Tensor((C_elems,), out_dtype, scope="local")])
 
             # init phase and bar
             phase = 0
@@ -1184,7 +1196,7 @@ def test_wgmma_ss_nt():
         B_encode_args,
     )
     mod = tvm.IRModule({"main": func})
-    mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
     np.random.seed(0)
     A_np = np.random.randn(*shapeA).astype(in_dtype)
@@ -1250,17 +1262,21 @@ def test_wgmma_rs_nt():
             cta_id = T.cuda.block_idx('x')
             tx = T.cuda.thread_idx('x')  # A warpgroup is 128 threads
 
-            B_smem = T.alloc_tensor(shapeB, in_dtype, scope="shared", align=1024)
-            # bar = T.alloc_tensor((1,), "uint64", scope="shared", align=8)
+            B_smem = T.alloc_tensor(
+                ty_args=[T.Tensor(shapeB, in_dtype, scope="shared", align=1024)]
+            )
+            # bar = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="shared", align=8)])
             bar = T.shared_scalar("uint64")
 
-            # descB = T.alloc_tensor((1,), "uint64", scope="local")
+            # descB = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local")])
             descB: T.uint64
-            A_local = T.alloc_tensor((A_elems,), in_dtype, scope="local")
-            C_local = T.alloc_tensor((C_elems,), out_dtype, scope="local")
+            A_local = T.alloc_tensor(ty_args=[T.Tensor((A_elems,), in_dtype, scope="local")])
+            C_local = T.alloc_tensor(ty_args=[T.Tensor((C_elems,), out_dtype, scope="local")])
 
             A_elems_b32 = T.meta_var(A_elems // (32 // in_dtype_bits))
-            A_local_b32 = T.decl_tensor((A_elems_b32,), "uint32", data=A_local.data)
+            A_local_b32 = T.decl_tensor(
+                A_local.data, ty_args=[T.Tensor((A_elems_b32,), "uint32", data=A_local.data)]
+            )
 
             # load A to regs
             for i in T.serial(0, A_elems // 4):
@@ -1355,7 +1371,7 @@ def test_wgmma_rs_nt():
         shapeA, shapeB, shapeC, B_tma_args, in_dtype, in_dtype_bits, out_dtype, B_encode_args
     )
     mod = tvm.IRModule({"main": func})
-    mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
 
     np.random.seed(0)
     A_np = np.random.randn(*shapeA).astype(in_dtype)
@@ -1388,7 +1404,7 @@ def test_mapa():
         cbx = T.cuda.cluster_cta_id("x")
         cta_id = T.cuda.block_idx("x")
         tx = T.cuda.thread_idx("x")
-        A_smem = T.alloc_tensor([1], "uint32", scope="shared")
+        A_smem = T.alloc_tensor(ty_args=[T.Tensor([1], "uint32", scope="shared")])
         mapped = T.alloc_local([1], "uint64")
         if cbx == 0 and tx == 0:
             T.ptx.mapa.u64(mapped[0], A_smem.data, T.uint32(cbx))

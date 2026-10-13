@@ -28,6 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/support/gpu_thread_tag.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/op/gpu.h>
@@ -42,7 +43,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../../runtime/thread_storage_scope.h"
 #include "../../../target/build_common.h"
 #include "cuda_fallback_module.h"
 #include "literal/cuda_half_t.h"
@@ -207,9 +207,7 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
  private:
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     if (op->op.same_as(tirx::launch_thread_op())) {
-      TVM_FFI_CHECK(
-          std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
-          ValueError)
+      TVM_FFI_CHECK(!op->args[0].as_or_throw<StringImm>()->value.starts_with("vthread"), ValueError)
           << "Virtual thread launches must be lowered before code generation";
       ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
@@ -462,10 +460,10 @@ void CodeGenCUDA::Dispatch_(const WhileNode* op) {
 
 void CodeGenCUDA::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {
   TVM_FFI_ICHECK(!var_idmap_.count(var.get()));
-  const auto& scope = runtime::ThreadScope::Create(thread_tag);
+  const auto& scope = support::GPUThreadTag::Parse(thread_tag);
   TVM_FFI_ICHECK_GE(scope.dim_index, 0);
   TVM_FFI_ICHECK_LT(scope.dim_index, 3);
-  if (scope.IsClusterCtaIdx()) {
+  if (scope.rank == 2) {
     const char dim = static_cast<char>('x' + scope.dim_index);
     const std::string sreg = (scope.dim_index == 0 && cluster_cta_x_is_linear_rank_)
                                  ? "cluster_ctarank"
@@ -1042,7 +1040,7 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
           if (auto prim_type = arg_type.as<PrimType>()) {
             PrintVecElemLoad(sargs[j], prim_type.value(), i, scall);
           } else {
-            TVM_FFI_ICHECK(arg_type.as<PointerTypeNode>());
+            TVM_FFI_ICHECK(arg_type.as<PtrTypeNode>());
             scall << sargs[j];
           }
         }
@@ -1250,9 +1248,9 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     // template encoded at address 0): emit C++-style reinterpret_cast<T*>(...)
     // to match the encoded template. Runtime pointer reinterprets fall through
     // to CodeGenC, which emits the C-style (T*)... cast.
-    if (op->ty.as<PointerTypeNode>() && op->args[0].as<IntImmNode>()) {
+    if (op->ty.as<PtrTypeNode>() && op->args[0].as<IntImmNode>()) {
       os << "reinterpret_cast<";
-      if (const auto* pt = op->ty.as<PointerTypeNode>()) {
+      if (const auto* pt = op->ty.as<PtrTypeNode>()) {
         if (const auto* et = pt->element_type.as<PrimTypeNode>()) {
           this->PrintType(ffi::GetRef<PrimType>(et), os);
         } else {
@@ -1265,8 +1263,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     auto tgt_prim_type = op->ty.as<PrimType>();
     auto src_prim_type = op->args[0]->ty.as<PrimType>();
 
-    if (op->args[0]->ty.as<PointerTypeNode>() && tgt_prim_type &&
-        tgt_prim_type.value().IsScalar() &&
+    if (op->args[0]->ty.as<PtrTypeNode>() && tgt_prim_type && tgt_prim_type.value().IsScalar() &&
         tgt_prim_type.value().MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt) &&
         tgt_prim_type.value().bits() == 64) {
       os << "reinterpret_cast<";
@@ -1374,9 +1371,9 @@ void CodeGenCUDA::Dispatch_(const BindNode* op) {
 }
 
 void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
-  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
-  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
-  ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
+  DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
+  ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());
@@ -1385,7 +1382,7 @@ void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
   this->PrintIndent();
   PrintStorageScope(scope, stream);
   int align = buffer->data_alignment;
-  auto it = annotations->dict.find(tvm::tirx::attr::kBufferDataAlignment);
+  auto it = annotations->dict.find(tvm::tirx::attr::kTensorDataAlignment);
   if (it != annotations->dict.end()) {
     if (const auto* n = (*it).second.as<IntImmNode>()) {
       align = n->value.as<int>().value();
@@ -1778,7 +1775,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(const PrimType& t, int i, const std::stri
 // fallback-aware module factory.  The factory may JIT to PTX/cubin via
 // `tvm_callback_cuda_compile` when
 // USE_CUDA=ON; on USE_CUDA=OFF builds (or when TVM_COMPILE_FORCE_FALLBACK is
-// set), it returns a `CUDAFallbackModuleNode` carrying the raw source for
+// set), it returns a `CUDAFallbackModuleObj` carrying the raw source for
 // later cross-compile.
 ffi::Module BuildCUDA(IRModule mod, Target target) {
   bool output_ssa = false;
@@ -1814,8 +1811,8 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   // Hand off raw CUDA source to the fallback-aware factory.  When the real
   // CUDA runtime is registered (USE_CUDA=ON and not forced-fallback) the
   // factory invokes tvm_callback_cuda_compile and
-  // builds a real CUDAModuleNode.  Otherwise it stores the source in a
-  // CUDAFallbackModuleNode for later cross-compile.
+  // builds a real CUDAModuleObj.  Otherwise it stores the source in a
+  // CUDAFallbackModuleObj for later cross-compile.
   ffi::Map<ffi::String, ffi::String> source_map;
   auto config = mod->GetAttr<ffi::String>("backend_config");
   if (!config.has_value()) {

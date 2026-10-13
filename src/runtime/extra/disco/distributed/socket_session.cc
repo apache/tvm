@@ -176,7 +176,8 @@ class SocketSessionObj : public BcastSessionObj {
     return remote_channels_[node_id - 1]->Recv();
   }
 
-  void AppendHostTensor(const Tensor& host_array) final {
+  void AppendHostTensor(const ffi::Tensor& host_array) final {
+    TVM_FFI_ICHECK(host_array.defined());
     local_session_->AppendHostTensor(host_array);
   }
 

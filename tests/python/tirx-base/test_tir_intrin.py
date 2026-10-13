@@ -41,8 +41,8 @@ def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):
     @T.function
     def kernel(A: T.Tensor((n,), dtype), B: T.Tensor((n,), out_dtype)):
         if I.constexpr(gpu):
-            for bx in T.thread_binding(T.ceildiv(n, 64), thread="blockIdx.x"):
-                for tx in T.thread_binding(64, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", T.ceildiv(n, 64)) as bx:
+                with T.launch_thread("threadIdx.x", 64) as tx:
                     if bx * 64 + tx < n:
                         B[bx * 64 + tx] = op(A[bx * 64 + tx])
         else:
@@ -66,7 +66,7 @@ def _binary_kernel(op, rhs_dtype="float32"):
 
 
 def test_nearbyint():
-    func = tvm.compile(_unary_kernel(tvm.tirx.nearbyint), target="llvm")
+    func = tvm.tirx.compile(_unary_kernel(tvm.tirx.nearbyint), target="llvm")
 
     dev = tvm.cpu(0)
     n = 10
@@ -92,7 +92,7 @@ def test_round_ties_to_even(target):
     if target != "c" and not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    func = tvm.compile(_unary_kernel(tvm.tirx.round), target=target)
+    func = tvm.tirx.compile(_unary_kernel(tvm.tirx.round), target=target)
 
     dev = tvm.cpu(0)
     # Midpoint values where ties-to-even and ties-away differ
@@ -134,7 +134,7 @@ def test_unary_intrin():
     ]
 
     def run_test(tvm_intrin, np_func, atol=1e-5, rtol=1e-5):
-        func = tvm.compile(_unary_kernel(tvm_intrin), target="llvm")
+        func = tvm.tirx.compile(_unary_kernel(tvm_intrin), target="llvm")
 
         dev = tvm.cpu(0)
         n = 10
@@ -183,7 +183,7 @@ def test_asin_acos_boundary_values():
     ]
 
     def run_test(tvm_intrin, np_func):
-        func = tvm.compile(_unary_kernel(tvm_intrin), target="llvm")
+        func = tvm.tirx.compile(_unary_kernel(tvm_intrin), target="llvm")
 
         dev = tvm.cpu(0)
 
@@ -230,7 +230,7 @@ def test_binary_intrin():
     ]
 
     def run_test(tvm_intrin, np_func):
-        func = tvm.compile(_binary_kernel(tvm_intrin), target="llvm")
+        func = tvm.tirx.compile(_binary_kernel(tvm_intrin), target="llvm")
 
         dev = tvm.cpu(0)
         n = 10
@@ -245,7 +245,7 @@ def test_binary_intrin():
 
 
 def test_ldexp():
-    func = tvm.compile(_binary_kernel(tvm.tirx.ldexp, rhs_dtype="int32"), target="llvm")
+    func = tvm.tirx.compile(_binary_kernel(tvm.tirx.ldexp, rhs_dtype="int32"), target="llvm")
 
     dev = tvm.cpu(0)
     n = 10
@@ -281,7 +281,7 @@ def test_clz(target, dtype):
         clz[np.bitwise_and(x, x - 1) == 0] -= 1
         return clz
 
-    func = tvm.compile(
+    func = tvm.tirx.compile(
         _unary_kernel(tvm.tirx.clz, dtype, "int32", gpu=target.kind.name == "vulkan"), target=target
     )
 

@@ -96,8 +96,8 @@ class RMSNorm(ScheduleRule):
         if not any([identify_rsqrt_block(sch.get(block)) for block in blocks]):
             return None
 
-        read = sch.cache_read(block=blocks[0], read_buffer_index=0, storage_scope="local")
-        write = sch.cache_write(block=blocks[-1], write_buffer_index=0, storage_scope="local")
+        read = sch.cache_read(block=blocks[0], read_tensor_index=0, storage_scope="local")
+        write = sch.cache_write(block=blocks[-1], write_tensor_index=0, storage_scope="local")
 
         for block in blocks:
             if identify_cast_or_load_block(sch.get(block)):
@@ -135,9 +135,9 @@ class RMSNorm(ScheduleRule):
         sch.reverse_compute_at(block=write, loop=thread_loop, index=-1)
         sch.vectorize(sch.get_loops(block=write)[-1])
 
-        sch.set_scope(block=sqr, buffer_index=0, storage_scope="local")
-        sch.set_scope(block=redsum, buffer_index=0, storage_scope="local")
-        sch.set_scope(block=rsqrt, buffer_index=0, storage_scope="shared")
-        sch.set_scope(block=norm, buffer_index=0, storage_scope="local")
+        sch.set_scope(block=sqr, tensor_index=0, storage_scope="local")
+        sch.set_scope(block=redsum, tensor_index=0, storage_scope="local")
+        sch.set_scope(block=rsqrt, tensor_index=0, storage_scope="shared")
+        sch.set_scope(block=norm, tensor_index=0, storage_scope="local")
 
         return sch

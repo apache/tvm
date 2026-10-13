@@ -23,6 +23,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -62,7 +63,7 @@ class OpaqueBlockLower : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     // We have convert blocks into opaque blocks in previous passes.
     TVM_FFI_ICHECK(op->iter_values.empty())
-        << "Non-opaque blocks are not allowed in FlattenBuffer. Please "
+        << "Non-opaque blocks are not allowed in FlattenTensor. Please "
            "call pass ConvertBlocksToOpaque before.";
     // Block policy belongs to the loops inside the block after opaque lowering.
     auto parent_policy = unroll_policy_.Current();
@@ -81,30 +82,29 @@ class OpaqueBlockLower : public StmtExprMutator {
     }
     // Step 3. Handle allocations in reverse order
     ffi::Map<Var, ffi::Array<PrimExpr>> addresses;
-    if (auto value = new_block->annotations.Get(tvm::s_tir::attr::kBufferAllocatedAddr)) {
-      for (const auto& entry : value.value().cast<BufferAllocatedAddresses>()) {
+    if (auto value = new_block->annotations.Get(s_tir::attr::kTensorAllocatedAddr)) {
+      for (const auto& entry : value.value().cast<TensorAllocatedAddresses>()) {
         addresses.Set(entry.get<0>(), entry.get<1>());
       }
     }
-    for (size_t i = new_block->alloc_buffers.size(); i > 0; --i) {
-      const TensorVar& buffer = new_block->alloc_buffers[i - 1];
+    for (size_t i = new_block->alloc_tensors.size(); i > 0; --i) {
+      const TensorVar& tensor = new_block->alloc_tensors[i - 1];
       ffi::Map<ffi::String, ffi::Any> allocate_annotations;
-      auto it = storage_align_.find(buffer.var());
+      auto it = storage_align_.find(tensor.var());
       if (it != storage_align_.end()) {
         StorageAlignAnnotation allocate_aligns;
         for (auto tuple : it->second) {
           tuple.Set<0>(-1);
           allocate_aligns.push_back(tuple);
         }
-        allocate_annotations.Set(tvm::s_tir::attr::kBufferDimAlign, allocate_aligns);
+        allocate_annotations.Set(s_tir::attr::kTensorDimAlign, allocate_aligns);
       }
-      allocate_annotations.Set(tvm::tirx::attr::kBufferDataAlignment,
-                               IntImm::Int32(buffer->data_alignment));
-      ffi::Array<Expr> args{tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                            StringImm(buffer.scope())};
-      if (auto address = addresses.Get(buffer.var())) args.push_back(tvm::Tuple(address.value()));
-      body = SeqStmt({Bind(buffer.var(), Call(buffer.type(), tirx::alloc_tensor_op(), args,
-                                              DictAttrs(allocate_annotations))),
+      allocate_annotations.Set(tvm::tirx::attr::kTensorDataAlignment,
+                               IntImm::Int32(tensor->data_alignment));
+      ffi::Array<Expr> args;
+      if (auto address = addresses.Get(tensor.var())) args.push_back(tvm::Tuple(address.value()));
+      body = SeqStmt({Bind(tensor.var(), Call(tensor.type(), tirx::alloc_tensor_op(), args,
+                                              DictAttrs(allocate_annotations), {tensor.type()})),
                       std::move(body)});
     }
     return body;
@@ -118,7 +118,7 @@ class OpaqueBlockLower : public StmtExprMutator {
                     .as_or_throw<UnchangedOr<ffi::Optional<PrimExpr>>>()
                     .ValueOrUnchanged(op->step);
     auto previous_remap = VarRemapGet(op->loop_var);
-    if (!tvm::tirx::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty()) {
+    if (!tvm::s_tir::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty()) {
       // handling unit loop
       VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
     }
@@ -144,7 +144,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     VarRemapSet(op->loop_var, previous_remap);
 
     // Step 2. Keep thread-binding loops until LowerThreadBinding.
-    if (!tvm::tirx::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty() &&
+    if (!tvm::s_tir::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty() &&
         !op->annotations.count(tvm::s_tir::attr::kIrregularLoopMark)) {
       return body;
     }
@@ -167,23 +167,17 @@ class OpaqueBlockLower : public StmtExprMutator {
   // Effective policy is materialized on each surviving loop, preserving nested overrides.
   ScopeStack<UnrollPolicy> unroll_policy_;
 
-  // Preserve loop annotations while remapping enclosing bindings. Null optional
-  // policies do not override inherited values or reach code generation.
+  // Preserve loop annotations while remapping enclosing bindings.
   ffi::Map<ffi::String, ffi::Any> HandleAnnotations(
       const ffi::Map<ffi::String, ffi::Any>& annotations) {
     ffi::Map<ffi::String, ffi::Any> preserved;
     for (const auto& [key, value] : annotations) {
-      if ((key == tvm::tirx::attr::kAutoUnrollMaxStep || key == tvm::tirx::attr::kUnrollExplicit ||
-           key == tvm::tirx::attr::kPragmaUnroll) &&
-          value == nullptr) {
-        continue;
-      }
       preserved.Set(key, this->Mutate(value, InplaceMode::kDisallow).ValueOrUnchanged(value));
     }
     return preserved;
   }
 
-  /*! \brief The map from buffer var to its storage alignment information. */
+  /*! \brief The map from tensor var to its storage alignment information. */
   std::unordered_map<Var, StorageAlignAnnotation> storage_align_;
 };
 

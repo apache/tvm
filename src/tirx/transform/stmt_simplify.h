@@ -26,19 +26,18 @@
 
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
-
-#include "../ir/ir_mutator_with_analyzer.h"
+#include <tvm/tirx/stmt_functor_with_analyzer.h>
 
 namespace tvm {
 namespace tirx {
 
-struct StmtSimplifyConfigNode : public ffi::Object {
+struct StmtSimplifyConfigObj : public ffi::Object {
   bool transitively_prove_inequalities;
   bool convert_boolean_to_and_of_ors;
   bool apply_constraints_to_boolean_branches;
 
   static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.StmtSimplifyConfig", StmtSimplifyConfigNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.StmtSimplifyConfig", StmtSimplifyConfigObj,
                                     ffi::Object);
 
   sym::RewriteSimplifier::Extension GetEnabledExtensions() const;
@@ -47,21 +46,21 @@ struct StmtSimplifyConfigNode : public ffi::Object {
 class StmtSimplifyConfig : public ffi::ObjectRef {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StmtSimplifyConfig, ffi::ObjectRef,
-                                                StmtSimplifyConfigNode);
+                                                StmtSimplifyConfigObj);
 };
 
-class StmtSimplifier : public IRMutatorWithAnalyzer {
+class StmtSimplifier : public StmtExprMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::Mutate;
-  using IRMutatorWithAnalyzer::Mutate_;
+  using StmtExprMutatorWithAnalyzer::Mutate;
+  using StmtExprMutatorWithAnalyzer::Mutate_;
   static Function Apply(Function func, const sym::Analyzer& analyzer,
                         ffi::Optional<StmtSimplifyConfig> config_opt = std::nullopt);
 
   explicit StmtSimplifier(const sym::Analyzer& analyzer, StmtSimplifyConfig config)
-      : IRMutatorWithAnalyzer(analyzer), config_(config) {}
+      : StmtExprMutatorWithAnalyzer(analyzer), config_(config) {}
 
  protected:
-  using Parent = IRMutatorWithAnalyzer;
+  using Parent = StmtExprMutatorWithAnalyzer;
   StmtSimplifier(const VTable* vtable, const sym::Analyzer& analyzer, StmtSimplifyConfig config)
       : Parent(analyzer.get(), vtable), config_(config) {}
   Function Run(Function func);

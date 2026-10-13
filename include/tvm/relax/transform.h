@@ -257,16 +257,16 @@ TVM_DLL Pass LegalizeOps(ffi::Optional<ffi::Map<ffi::String, ffi::Function>> cma
 TVM_DLL Pass RealizeVDevice();
 
 /*!
- * \brief Attach layout free buffers to the tirx::Function.
+ * \brief Attach layout free tensors to the tirx::Function.
  *
- * This pass is used to attach layout free buffers to the tirx::Function according to
- * the function usage in the relax function. Currently, the layout free buffers are the model
+ * This pass is used to attach layout free tensors to the tirx::Function according to
+ * the function usage in the relax function. Currently, the layout free tensors are the model
  * weights and relax constants.
  *
  * \note We recommend applying CanonicalizeBindings before this pass.
  * \return The Pass.
  */
-TVM_DLL Pass AttachAttrLayoutFreeBuffers();
+TVM_DLL Pass AttachAttrLayoutFreeTensors();
 
 /*!
  * \brief Split the layout rewrite preproc block to a separate tirx::Function.
@@ -359,10 +359,10 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
  * fused, it needs to be matched with `pattern` and the `check` function needs to return
  * true.
  */
-class FusionPatternNode : public ffi::Object {
+class FusionPatternObj : public ffi::Object {
  public:
-  explicit FusionPatternNode(DFPattern value) : pattern(std::move(value)) {}
-  explicit FusionPatternNode(ffi::UnsafeInit) : pattern(ffi::UnsafeInit{}) {}
+  explicit FusionPatternObj(DFPattern value) : pattern(std::move(value)) {}
+  explicit FusionPatternObj(ffi::UnsafeInit) : pattern(ffi::UnsafeInit{}) {}
 
   /*!
    * \brief The name of pattern. It becomes the value of the kComposite attribute
@@ -401,15 +401,14 @@ class FusionPatternNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<FusionPatternNode>()
-        .def_ro("name", &FusionPatternNode::name)
-        .def_ro("pattern", &FusionPatternNode::pattern)
-        .def_ro("annotation_patterns", &FusionPatternNode::annotation_patterns)
-        .def_ro("check", &FusionPatternNode::check)
-        .def_ro("attrs_getter", &FusionPatternNode::attrs_getter);
+    refl::ObjectDef<FusionPatternObj>()
+        .def_ro("name", &FusionPatternObj::name)
+        .def_ro("pattern", &FusionPatternObj::pattern)
+        .def_ro("annotation_patterns", &FusionPatternObj::annotation_patterns)
+        .def_ro("check", &FusionPatternObj::check)
+        .def_ro("attrs_getter", &FusionPatternObj::attrs_getter);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.transform.FusionPattern", FusionPatternNode,
-                                    ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.transform.FusionPattern", FusionPatternObj, ffi::Object);
 };
 
 class FusionPattern : public ffi::ObjectRef {
@@ -421,16 +420,16 @@ class FusionPattern : public ffi::ObjectRef {
   FusionPattern(ffi::String name, DFPattern pattern)
       : FusionPattern(name, pattern, {}, std::nullopt, std::nullopt) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FusionPattern, ffi::ObjectRef, FusionPatternNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FusionPattern, ffi::ObjectRef, FusionPatternObj);
 };
 
 /*!
  * \brief The input of FusionPattern::check.
  */
-class PatternCheckContextNode : public ffi::Object {
+class PatternCheckContextObj : public ffi::Object {
  public:
-  explicit PatternCheckContextNode(Expr matched_expr) : matched_expr(std::move(matched_expr)) {}
-  explicit PatternCheckContextNode(ffi::UnsafeInit) : matched_expr(ffi::UnsafeInit{}) {}
+  explicit PatternCheckContextObj(Expr matched_expr) : matched_expr(std::move(matched_expr)) {}
+  explicit PatternCheckContextObj(ffi::UnsafeInit) : matched_expr(ffi::UnsafeInit{}) {}
 
   /*!
    * \brief The expression that's matched with the FusionPattern::pattern.
@@ -463,14 +462,14 @@ class PatternCheckContextNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PatternCheckContextNode>()
-        .def_ro("matched_expr", &PatternCheckContextNode::matched_expr)
-        .def_ro("annotated_expr", &PatternCheckContextNode::annotated_expr)
-        .def_ro("matched_bindings", &PatternCheckContextNode::matched_bindings)
-        .def_ro("var_usages", &PatternCheckContextNode::var_usages)
-        .def_ro("value_to_bound_var", &PatternCheckContextNode::value_to_bound_var);
+    refl::ObjectDef<PatternCheckContextObj>()
+        .def_ro("matched_expr", &PatternCheckContextObj::matched_expr)
+        .def_ro("annotated_expr", &PatternCheckContextObj::annotated_expr)
+        .def_ro("matched_bindings", &PatternCheckContextObj::matched_bindings)
+        .def_ro("var_usages", &PatternCheckContextObj::var_usages)
+        .def_ro("value_to_bound_var", &PatternCheckContextObj::value_to_bound_var);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.transform.PatternCheckContext", PatternCheckContextNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.transform.PatternCheckContext", PatternCheckContextObj,
                                     ffi::Object);
 };
 
@@ -482,7 +481,7 @@ class PatternCheckContext : public ffi::ObjectRef {
                       ffi::Map<Expr, Var> value_to_bound_var);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PatternCheckContext, ffi::ObjectRef,
-                                                PatternCheckContextNode);
+                                                PatternCheckContextObj);
 };
 
 /*!
@@ -588,18 +587,18 @@ TVM_DLL Pass DecomposeOpsForTraining(ffi::Optional<ffi::String> func_name);
 /*!
  * \brief Returns a pass which replaces Functions which have matching kOperatorName attribute in \p
  * op_impl_map, with replacement tirx::Function that could possibly have different layouts on i/o
- * buffers. The layout transformations on i/o buffers is present in the \p op_buffer_transforms. The
+ * tensors. The layout transformations on i/o tensors is present in the \p op_tensor_transforms. The
  * pass inserts the layout transformations in the call sites of Functions being replaced to
- * transform i/o buffers into expected layout.
+ * transform i/o tensors into expected layout.
  *
  * \param op_impl_map Map from kOperatorName attr (e.g., relax.conv2d) to replacement tirx::Function
- * \param op_buffer_transforms Map from kOperatorName attr to layout transformations on each of the
- * tirx::Function i/o buffers.
+ * \param op_tensor_transforms Map from kOperatorName attr to layout transformations on each of the
+ * tirx::Function i/o tensors.
  * \return The Pass.
  */
 TVM_DLL Pass AlterOpImpl(
     const ffi::Map<ffi::String, tirx::Function>& op_impl_map,
-    const ffi::Map<ffi::String, ffi::Array<ffi::Optional<tirx::IndexMap>>>& op_buffer_transforms);
+    const ffi::Map<ffi::String, ffi::Array<ffi::Optional<tirx::IndexMap>>>& op_tensor_transforms);
 
 /*!
  * \brief Layout conversion pass.
@@ -670,9 +669,9 @@ TVM_DLL Pass ToMixedPrecision(
 TVM_DLL Pass RewriteCUDAGraph();
 
 /*!
- * \brief This pass updates the var_buffer mapping of Functiontions from the call_tir info.
+ * \brief This pass updates the var_tensor mapping of Functiontions from the call_tir info.
  * Primarily used to update the VDevice information if any changes occurred from the caller.
- * This pass recreates the buffers and updates the map.
+ * This pass recreates the tensors and updates the map.
  */
 TVM_DLL Pass SpecializeFunctionBasedOnCallSite();
 

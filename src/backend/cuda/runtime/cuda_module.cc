@@ -19,7 +19,7 @@
 
 /*!
  * \file cuda_module.cc
- * \brief CUDAModuleNode — runtime-side, plugin-only.  Reachable from C++ only
+ * \brief CUDAModuleObj — runtime-side, plugin-only.  Reachable from C++ only
  *        through the FFI registry keys "ffi.Module.create.cuda" and
  *        "ffi.Module.load_from_bytes.cuda".  No exported header — codegen-side
  *        construction goes through src/target/cuda/cuda_fallback_module.h.
@@ -33,6 +33,7 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/bytes_io.h>
 
 #include <array>
 #include <memory>
@@ -43,8 +44,6 @@
 
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/pack_args.h"
-#include "../../../runtime/thread_storage_scope.h"
-#include "../../../support/bytes_io.h"
 #include "../launch/launch_config.h"
 #include "../launch/launch_plan.h"
 
@@ -70,10 +69,10 @@ static constexpr const int kMaxNumGPUs = 32;
 // cuModule is a per-GPU module
 // The runtime will contain a per-device module table
 // The modules will be lazily loaded
-class CUDAModuleNode : public ffi::ModuleObj {
+class CUDAModuleObj : public ffi::ModuleObj {
  public:
-  CUDAModuleNode(ffi::Bytes code, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
-                 ffi::Map<ffi::String, ffi::String> source)
+  CUDAModuleObj(ffi::Bytes code, ffi::String fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
+                ffi::Map<ffi::String, ffi::String> source)
       : code_(code),
         fmt_(fmt),
         fmap_(fmap),
@@ -82,7 +81,7 @@ class CUDAModuleNode : public ffi::ModuleObj {
     std::fill(module_.begin(), module_.end(), nullptr);
   }
   // destructor
-  ~CUDAModuleNode() {
+  ~CUDAModuleObj() {
     int previous_device = -1;
     cudaError_t get_device_err = cudaGetDevice(&previous_device);
     for (size_t i = 0; i < module_.size(); ++i) {
@@ -200,7 +199,7 @@ class CUDAModuleNode : public ffi::ModuleObj {
 // a wrapped function class to get packed func.
 class CUDAWrappedFunc {
  public:
-  void Init(CUDAModuleNode* m, ffi::ObjectPtr<ffi::Object> sptr, const std::string& func_name,
+  void Init(CUDAModuleObj* m, ffi::ObjectPtr<ffi::Object> sptr, const std::string& func_name,
             const FunctionInfo& info) {
     m_ = m;
     sptr_ = sptr;
@@ -254,7 +253,7 @@ class CUDAWrappedFunc {
     CUfunction function{nullptr};
     std::shared_ptr<tvm_cuda_launch::ResourceState> resources;
   };
-  CUDAModuleNode* m_;
+  CUDAModuleObj* m_;
   ffi::ObjectPtr<ffi::Object> sptr_;
   std::string func_name_;
   size_t num_kernel_args_{0};
@@ -262,7 +261,7 @@ class CUDAWrappedFunc {
   std::shared_ptr<std::array<DeviceState, kMaxNumGPUs>> devices_;
 };
 
-ffi::Optional<ffi::Function> CUDAModuleNode::GetFunction(const ffi::String& name) {
+ffi::Optional<ffi::Function> CUDAModuleObj::GetFunction(const ffi::String& name) {
   if (name == "__tvm_cuda_binary") {
     auto self = ffi::GetRef<ffi::Module>(this);
     return ffi::Function::FromTyped([self, this]() {
@@ -282,7 +281,7 @@ ffi::Optional<ffi::Function> CUDAModuleNode::GetFunction(const ffi::String& name
   return PackFuncVoidAddr(f, info->arg_types, info->arg_extra_tags);
 }
 
-// Construct a CUDAModuleNode from in-memory payload.  When fmt == "cuda" the
+// Construct a CUDAModuleObj from in-memory payload.  When fmt == "cuda" the
 // code is raw CUDA C++ source — JIT-compile via the Python callback, then
 // re-tag with the resulting compiled format ("ptx" / "cubin").
 static ffi::Module CUDAModuleCreateImpl(ffi::Bytes code, ffi::String fmt,
@@ -299,7 +298,7 @@ static ffi::Module CUDAModuleCreateImpl(ffi::Bytes code, ffi::String fmt,
     TVM_FFI_CHECK(fmt == "ptx" || fmt == "cubin" || fmt == "fatbin", ValueError)
         << "Unsupported CUDA compilation output: " << fmt;
   }
-  auto n = ffi::make_object<CUDAModuleNode>(code, fmt, fmap, source);
+  auto n = ffi::make_object<CUDAModuleObj>(code, fmt, fmap, source);
   return ffi::Module(n);
 }
 

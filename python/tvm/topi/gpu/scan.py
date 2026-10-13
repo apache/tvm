@@ -132,9 +132,15 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                     width = 2 << l2_width
 
                     blocks_per_batch = cast(ceil_div(scan_axis_size, max_threads * width), "int32")
-                    start_buf = T.decl_tensor([1], "int32", scope="local")
-                    middle_buf = T.decl_tensor([1], "int32", scope="local")
-                    end_buf = T.decl_tensor([1], "int32", scope="local")
+                    start_buf = T.bind(
+                        T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    )
+                    middle_buf = T.bind(
+                        T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    )
+                    end_buf = T.bind(
+                        T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    )
                     with T.frame_scope(
                         [
                             T.launch_thread("threadIdx.x", nthread_tx),
@@ -219,10 +225,18 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                     width = 2 << (lim - l2_width - 1)
 
                     blocks_per_batch = cast(ceil_div(scan_axis_size, max_threads * width), "int32")
-                    start_buf = T.decl_tensor([1], "int32", scope="local")
-                    middle_buf = T.decl_tensor([1], "int32", scope="local")
-                    end_buf = T.decl_tensor([1], "int32", scope="local")
-                    tmp_buf = T.decl_tensor([1], out_dtype, scope="local")
+                    start_buf = T.bind(
+                        T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    )
+                    middle_buf = T.bind(
+                        T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    )
+                    end_buf = T.bind(
+                        T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    )
+                    tmp_buf = T.bind(
+                        T.alloc_tensor(ty_args=[T.Tensor([1], out_dtype, scope="local")])
+                    )
                     with T.frame_scope(
                         [
                             T.launch_thread("threadIdx.x", nthread_tx),
@@ -410,7 +424,7 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=operator.add):
         [data, ex_scan_output],
         lambda ins, outs: ir(ins[0], ins[1], outs[0]),
         dtype=[ex_scan_output.dtype],
-        in_buffers=[data_buf, ex_scan_output_buf],
+        in_tensors=[data_buf, ex_scan_output_buf],
         name="ex_scan_reduction",
         tag="ex_scan_reduction_gpu",
     )
@@ -492,8 +506,8 @@ def scan_thrust(
         [data] if workspace is None else [data, workspace],
         f_compute,
         dtype=[output_dtype],
-        in_buffers=[data_buf] if workspace is None else [data_buf, workspace_buf],
-        out_buffers=[output_buf],
+        in_tensors=[data_buf] if workspace is None else [data_buf, workspace_buf],
+        out_tensors=[output_buf],
         name="exclusive_scan_thrust",
         tag="exclusive_scan_thrust_gpu",
     )
@@ -590,7 +604,7 @@ def exclusive_scan(
                     ins[0], outs[0], outs[1], binop=binop, identity_value=identity_value
                 ),
                 dtype=[output_dtype, output_dtype],
-                in_buffers=[data_buf],
+                in_tensors=[data_buf],
                 name="exclusive_scan",
                 tag="exclusive_scan_gpu",
             )
@@ -602,8 +616,8 @@ def exclusive_scan(
                     ins[0], outs[0], binop=binop, identity_value=identity_value
                 ),
                 dtype=[output_dtype],
-                in_buffers=[data_buf],
-                out_buffers=[output_buf],
+                in_tensors=[data_buf],
+                out_tensors=[output_buf],
                 name="exclusive_scan",
                 tag="exclusive_scan_gpu",
             )

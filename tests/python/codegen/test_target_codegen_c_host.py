@@ -40,7 +40,7 @@ def test_add():
                 C[i0] = A[i0] + B[i0]
 
     def check_c():
-        mhost = tvm.compile(Module, target="c")
+        mhost = tvm.tirx.compile(Module, target="c")
         temp = utils.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
@@ -72,7 +72,7 @@ def test_reinterpret():
                 B[i0] = T.reinterpret(A[i0] + 2, ty="float32")
 
     def check_c():
-        mhost = tvm.compile(Module, target="c")
+        mhost = tvm.tirx.compile(Module, target="c")
         temp = utils.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
@@ -103,7 +103,7 @@ def test_ceil():
                 B[i0] = T.ceil(A[i0])
 
     def check_c():
-        mhost = tvm.compile(Module, target="c")
+        mhost = tvm.tirx.compile(Module, target="c")
         temp = utils.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
@@ -134,7 +134,7 @@ def test_floor():
                 B[i0] = T.floor(A[i0])
 
     def check_c():
-        mhost = tvm.compile(Module, target="c")
+        mhost = tvm.tirx.compile(Module, target="c")
         temp = utils.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
@@ -165,7 +165,7 @@ def test_round():
                 B[i0] = T.round(A[i0])
 
     def check_c():
-        mhost = tvm.compile(Module, target="c")
+        mhost = tvm.tirx.compile(Module, target="c")
         temp = utils.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
@@ -198,10 +198,10 @@ def test_subroutine_call():
 
         @T.function(private=True)
         def subroutine(A_data: T.handle("float32")):
-            A = T.decl_tensor(1, dtype="float32", data=A_data)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(1, "float32", data=A_data)])
             A[0] = 42.0
 
-    built = tvm.tirx.build(Module, target="c")
+    built = tvm.tirx.compile(Module, target="c").mod
 
     source = built.inspect_source()
     assert source.count("__tvm_ffi_main(void*") == 2, (
@@ -220,13 +220,13 @@ def test_workspace_allocation_cast():
     class Module:
         @T.function
         def main(A: T.Tensor((256,), "float32")):
-            workspace = T.alloc_tensor((256,), "float32", scope="global")
+            workspace = T.alloc_tensor(ty_args=[T.Tensor((256,), "float32", scope="global")])
             for i in range(256):
                 workspace[i] = A[i]
             for i in range(256):
                 A[i] = workspace[i]
 
-    built = tvm.tirx.build(Module, target="c")
+    built = tvm.tirx.compile(Module, target="c").mod
     assert "((float*)TVMBackendAllocWorkspace(" in built.inspect_source()
 
     temp = utils.tempdir()
@@ -238,12 +238,12 @@ def test_local_alloc_buffer_uses_plain_c_pointer():
     class Module:
         @T.function
         def main(A: T.Tensor((1,), "float32")):
-            B = T.alloc_tensor((1,), "float32", scope="local")
+            B = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
             for i in range(1):
                 B[i] = A[i] + T.float32(1)
                 A[i] = B[i]
 
-    built = tvm.tirx.build(Module, target="c")
+    built = tvm.tirx.compile(Module, target="c").mod
     assert "local float*" not in built.inspect_source()
 
     temp = utils.tempdir()
@@ -262,7 +262,7 @@ def test_vector_pointer_uses_byte_offset():
     body = tvm.ir.Evaluate(tvm.tirx.call_extern("void", "consume", pointer))
     func = tvm.tirx.Function([buffer], body).with_attr("global_symbol", "main")
 
-    source = tvm.tirx.build(tvm.IRModule.from_expr(func), target="c").inspect_source()
+    source = tvm.tirx.compile(tvm.IRModule.from_expr(func), target="c").mod.inspect_source()
     call = next(line.strip() for line in source.splitlines() if line.strip().startswith("consume("))
     assert "int32_t2" not in call
     assert "float2*" in call
@@ -277,7 +277,7 @@ def test_if_then_else_avoids_extraneous_parentheses():
             for i in range(8):
                 B[i] = T.if_then_else(i == 0, 1, A[i])
 
-    built = tvm.tirx.build(Module, target="c")
+    built = tvm.tirx.compile(Module, target="c").mod
     source = built.inspect_source()
     assert "if ((" not in source, (
         "Generated code contains extraneous parentheses in the if condition, "

@@ -25,7 +25,7 @@ warp's registers, with the hardware performing the lane↔element shuffle that a
 MMA fragment needs. It only applies when the register and shared **layouts match
 the m8n8 fragment geometry**. An incompatible layout is rejected; use
 :doc:`reg` for ordinary memory instructions. Source:
-``python/tvm/backend/cuda/tile_primitive/copy/ld_stmatrix.py``.
+``python/tvm/backend/cuda/tile/copy/ld_stmatrix.py``.
 
 What it accepts
 ---------------
@@ -101,7 +101,8 @@ register, from ``test_ld_stmatrix.py`` (register layout = the m8n8 fragment,
 
 .. code-block:: python
 
-    from tvm.tirx.layout import S, TileLayout, laneid
+    from tvm.tirx.layout import S, TileLayout
+    from tvm.backend.cuda.axis import laneid
 
     num = 2
     M, N = 8, num * 8
@@ -117,10 +118,14 @@ register, from ``test_ld_stmatrix.py`` (register layout = the m8n8 fragment,
         _index = Tx.cuda.block_idx("x")
         _lane = Tx.cuda.lane_id()
         tid = Tx.cuda.thread_idx("x")
-        A_smem = Tx.alloc_tensor((8, 4, num, 2), "float16", scope="shared", layout=s_layout)
+        A_smem = Tx.alloc_tensor(
+            ty_args=[Tx.Tensor((8, 4, num, 2), "float16", scope="shared", layout=s_layout)]
+        )
         # ... stage A into A_smem (row = tid//4, cp = tid%4) ...
         Tx.cuda.cta_sync()
-        R = Tx.alloc_tensor((8, 4, num, 2), "float16", scope="local", layout=r_layout)
+        R = Tx.alloc_tensor(
+            ty_args=[Tx.Tensor((8, 4, num, 2), "float16", scope="local", layout=r_layout)]
+        )
         Tx.cuda.tile.ldmatrix(R[full], A_smem[full], scope="warp")  # shared -> register  (ldmatrix)
         # ... write R back out to B ...
 

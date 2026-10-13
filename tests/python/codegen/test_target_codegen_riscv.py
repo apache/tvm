@@ -71,7 +71,7 @@ def test_rvv(target):
             for j in T.vectorized(0, extent):
                 A[j] = 1
 
-        f = tvm.tirx.build(load_vec, target)
+        f = tvm.tirx.compile(load_vec, target).mod
         # Check RVV `vsetvli` prensence
         assembly = f.inspect_source("asm")
         if target_has_features("v"):
@@ -120,7 +120,7 @@ def test_rvv_vscale_llvm_dbginfo(target):
 
     # tvm.error.InternalError: Can't fetch the lanes of a scalable vector at a compile time.
     with tvm.target.Target(target):
-        f = tvm.tirx.build(rvv_with_vscale, target)
+        f = tvm.tirx.compile(rvv_with_vscale, target).mod
 
 
 @pytest.mark.skipif(not env.has_llvm_min_version(14), reason="need llvm >= 14")
@@ -152,7 +152,7 @@ def test_rvv_fixed_width_vectorized_loop_uses_scalable_chunks():
 
     def check_codegen(func):
         with target:
-            f = tvm.tirx.build(func, target)
+            f = tvm.tirx.compile(func, target).mod
 
         assembly = f.inspect_source("asm")
         assert "vle32.v" in assembly
@@ -183,7 +183,7 @@ def test_rvv_scalable_ramp_expression():
     )
 
     with target:
-        f = tvm.tirx.build(ramp_compare, target)
+        f = tvm.tirx.compile(ramp_compare, target).mod
 
     assembly = f.inspect_source("asm")
     assert "vid.v" in assembly

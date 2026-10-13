@@ -56,13 +56,12 @@ def parse_backend_config(value):
     return copy_backend_config(json.loads(value) if value else None)
 
 
-def prepare_target(target, config=None, mod=None):
+def prepare_target(target, mod=None):
     """Resolve the build target, including architectures supplied by CUDA entries."""
     import tvm_ffi
 
     from tvm.target import Target
 
-    config = copy_backend_config(config)
     active = Target.current() if target is None else target
     if isinstance(active, Target) and active.kind.name == "cuda" and "arch" not in active.attrs:
         active = dict(active.export())
@@ -71,8 +70,13 @@ def prepare_target(target, config=None, mod=None):
         or active == "cuda"
         or (isinstance(active, Mapping) and active.get("kind") == "cuda" and "arch" not in active)
     )
+    if not generic_cuda:
+        return target
+    config = (
+        copy_backend_config(active.get("backend_config", {})) if isinstance(active, Mapping) else {}
+    )
     entries = []
-    if mod is not None and generic_cuda:
+    if mod is not None:
         from tvm.ir import RegionStmt
 
         def visit(node):
@@ -83,23 +87,13 @@ def prepare_target(target, config=None, mod=None):
     if not config and not any(entries):
         return target
     cuda = config.get("cuda", {})
-    if generic_cuda:
-        arch = cuda.get("arch")
-        if arch is None and entries and all(c.get("cuda", {}).get("arch") for c in entries):
-            arch = entries[0]["cuda"]["arch"]
-        attrs = dict(active) if isinstance(active, Mapping) else {"kind": "cuda"}
-        if arch is not None:
-            attrs["arch"] = arch
-        return Target(attrs)
-    active = Target(active)
-    if cuda and active.kind.name != "cuda":
-        raise ValueError("CUDA backend_config requires a CUDA target")
     arch = cuda.get("arch")
-    if arch is not None and active.attrs.get("arch") != arch:
-        raise ValueError(
-            f"Target.arch={active.attrs.get('arch')!r} conflicts with backend_config arch={arch!r}"
-        )
-    return active
+    if arch is None and entries and all(c.get("cuda", {}).get("arch") for c in entries):
+        arch = entries[0]["cuda"]["arch"]
+    attrs = dict(active) if isinstance(active, Mapping) else {"kind": "cuda"}
+    if arch is not None:
+        attrs["arch"] = arch
+    return Target(attrs)
 
 
 def argparse_backend_config(value):

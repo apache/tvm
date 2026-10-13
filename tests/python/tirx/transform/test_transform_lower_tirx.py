@@ -22,11 +22,12 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
+from tvm.backend.cuda.axis import laneid, warpid
+from tvm.backend.cuda.layout import wg_local_layout
 from tvm.script import tirx as T
 from tvm.script.parser import register_namespace
 from tvm.script.parser.protocol_registry import register_mutable_decl
 from tvm.tirx.function import Function
-from tvm.tirx.layout import laneid, warpid, wg_local_layout
 from tvm.tirx.transform import LowerTIRx, StmtSimplify
 
 
@@ -75,40 +76,49 @@ def _launch_thread_extents(func):
 L_LANE = T.TileLayout(T.S[32 : 1 @ laneid])
 
 
-def test_lower_tirx_opaque_optional_pragma_annotations():
+def test_unroll_loop_optional_annotations():
     @T.function(private=True)
-    def before(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
+    def before(
+        A: T.Tensor(8, "float32", layout="default"), B: T.Tensor(8, "float32", layout="default")
+    ):
         for i in T.serial(8, annotations={"pragma_unroll": None}):
             B[i] = A[i] + 1.0
         for i in T.serial(8, annotations={"unroll_explicit": None}):
             B[i] = A[i] + 2.0
         for i in T.serial(8, annotations={"pragma_unroll": False}):
             B[i] = A[i] + 3.0
-        for i in T.serial(8, annotations={"unroll_explicit": 0}):
+        for i in T.serial(8, annotations={"auto_unroll_max_step": 16, "unroll_explicit": 0}):
             B[i] = A[i] + 4.0
 
     @T.function(private=True)
-    def after(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
-        for i in T.serial(8):
+    def after(
+        A: T.Tensor(8, "float32", layout="default"), B: T.Tensor(8, "float32", layout="default")
+    ):
+        for i in T.serial(8, annotations={"pragma_unroll": None}):
             B[i] = A[i] + 1.0
         for i in T.serial(8):
             B[i] = A[i] + 2.0
         for i in T.serial(8, annotations={"pragma_unroll": False}):
             B[i] = A[i] + 3.0
-        for i in T.serial(8, annotations={"unroll_explicit": 0}):
+        for i in T.unroll(8):
             B[i] = A[i] + 4.0
 
-    lowered = tvm.tirx.transform.LowerTIRxOpaque()(tvm.IRModule({"main": before}))
+    lowered = tvm.tirx.transform.UnrollLoop()(tvm.IRModule({"main": before}))
     tvm.ir.assert_structural_equal(lowered["main"], after, map_free_vars=True)
 
 
 def test_lower_view_get():
     @T.function(private=True)
-    def before1(in_buf: T.Tensor(64, "float32"), out: T.Tensor(64, "float32")) -> None:
+    def before1(
+        in_buf: T.Tensor(64, "float32", layout="default"),
+        out: T.Tensor(64, "float32", layout="default"),
+    ) -> None:
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1, 1, 1), block=1 * 32))
         bx, by, bz = (T.cuda.block_idx("x"), T.cuda.block_idx("y"), T.cuda.block_idx("z"))
         lane_id = T.cuda.lane_id()
-        A = T.alloc_tensor([2], dtype="float16", scope="local", layout=T.TileLayout(T.S[2:1]))
+        A = T.alloc_tensor(
+            ty_args=[T.Tensor([2], "float16", scope="local", layout=T.TileLayout(T.S[2:1]))]
+        )
         B_layout = A.layout.tile(L_LANE, (32,), (2,))
         B = A.view(64, layout=B_layout)
         A_local = B.local(2)
@@ -121,8 +131,10 @@ def test_lower_view_get():
 
     @T.function(private=True)
     def after1(in_buf: T.Tensor((64,), layout=None), out: T.Tensor((64,), layout=None)):
-        out_1 = T.decl_tensor((64,), data=out.data, layout=None)
-        in_buf_1 = T.decl_tensor((64,), data=in_buf.data, layout=None)
+        out_1 = T.decl_tensor(out.data, ty_args=[T.Tensor((64,), layout=None, data=out.data)])
+        in_buf_1 = T.decl_tensor(
+            in_buf.data, ty_args=[T.Tensor((64,), layout=None, data=in_buf.data)]
+        )
         with T.region(
             "tirx.device_scope",
             [1, 1, 1, 32, 1, 1],
@@ -143,19 +155,30 @@ def test_lower_view_get():
             bz: T.let[T.int32] = 0
             lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
             A = T.alloc_local((2,), "float16", layout=None)
-            B = T.decl_tensor((64,), "float16", data=A.data, scope="local", layout=None)
-            A_local = T.decl_tensor((2,), "float16", data=A.data, scope="local", layout=None)
+            B = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
+            )
+            A_local = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
+            )
             for i in T.vectorized(2):
                 A_local[i] = T.Cast("float16", in_buf_1[T.cuda.thread_idx("x") * 2 + i])
-            B_1 = T.decl_tensor((64,), "float16", data=A.data, scope="local", layout=None)
-            A_local_1 = T.decl_tensor((2,), "float16", data=A.data, scope="local", layout=None)
+            B_1 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
+            )
+            A_local_1 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
+            )
             for i in T.vectorized(2):
                 out_1[T.cuda.thread_idx("x") * 2 + i] = T.Cast("float32", A_local_1[i])
 
     compare(before1, after1, LowerTIRx)
 
     @T.function(private=True)
-    def before2(in_buf: T.Tensor((16, 16), "float32"), out: T.Tensor((16, 16), "float32")) -> None:
+    def before2(
+        in_buf: T.Tensor((16, 16), "float32", layout="default"),
+        out: T.Tensor((16, 16), "float32", layout="default"),
+    ) -> None:
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1, 1, 1), block=1 * 32))
         bx, by, bz = (T.cuda.block_idx("x"), T.cuda.block_idx("y"), T.cuda.block_idx("z"))
         lane_id = T.cuda.lane_id()
@@ -163,7 +186,9 @@ def test_lower_view_get():
         tile = T.TileLayout(T.S[(2, 2) : (2, 1)])
         warp_atom = atom.tile(L_LANE, (8, 4), (1, 2))
         A = T.alloc_tensor(
-            [4, 2], dtype="float32", scope="local", layout=atom.tile(tile, (2, 2), (1, 2))
+            ty_args=[
+                T.Tensor([4, 2], "float32", scope="local", layout=atom.tile(tile, (2, 2), (1, 2)))
+            ]
         )
         B_layout = warp_atom.tile(tile, (2, 2), (8, 8))
         B = A.view(16, 16, layout=B_layout)
@@ -180,8 +205,10 @@ def test_lower_view_get():
 
     @T.function(private=True)
     def after2(in_buf: T.Tensor((16, 16), layout=None), out: T.Tensor((16, 16), layout=None)):
-        out_1 = T.decl_tensor((256,), data=out.data, layout=None)
-        in_buf_1 = T.decl_tensor((256,), data=in_buf.data, layout=None)
+        out_1 = T.decl_tensor(out.data, ty_args=[T.Tensor((256,), layout=None, data=out.data)])
+        in_buf_1 = T.decl_tensor(
+            in_buf.data, ty_args=[T.Tensor((256,), layout=None, data=in_buf.data)]
+        )
         with T.region(
             "tirx.device_scope",
             [1, 1, 1, 32, 1, 1],
@@ -202,8 +229,8 @@ def test_lower_view_get():
             bz: T.let[T.int32] = 0
             lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
             A = T.alloc_local((8,), layout=None)
-            B = T.decl_tensor((256,), data=A.data, scope="local", layout=None)
-            A_local = T.decl_tensor((8,), data=A.data, scope="local", layout=None)
+            B = T.decl_tensor(A.data, ty_args=[T.Tensor((256,), scope="local", layout=None)])
+            A_local = T.decl_tensor(A.data, ty_args=[T.Tensor((8,), scope="local", layout=None)])
             for i in T.unroll(4):
                 for j in T.vectorized(2):
                     A_local[i * 2 + j] = in_buf_1[
@@ -213,8 +240,8 @@ def test_lower_view_get():
                         + j
                         + T.cuda.thread_idx("x") % 4
                     ]
-            B_1 = T.decl_tensor((256,), data=A.data, scope="local", layout=None)
-            A_local_1 = T.decl_tensor((8,), data=A.data, scope="local", layout=None)
+            B_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((256,), scope="local", layout=None)])
+            A_local_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((8,), scope="local", layout=None)])
             for i in T.vectorized(2):
                 out_1[T.cuda.thread_idx("x") // 4 * 128 + T.cuda.thread_idx("x") % 4 * 18 + i] = (
                     A_local_1[i]
@@ -224,7 +251,8 @@ def test_lower_view_get():
 
     @T.function(private=True)
     def before3_wgmma_layout(
-        in_buf: T.Tensor((128, 128), "float32"), out: T.Tensor((128, 128), "float32")
+        in_buf: T.Tensor((128, 128), "float32", layout="default"),
+        out: T.Tensor((128, 128), "float32", layout="default"),
     ) -> None:
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1, 1, 1), block=2 * 128))
         bx, by, bz = (T.cuda.block_idx("x"), T.cuda.block_idx("y"), T.cuda.block_idx("z"))
@@ -238,10 +266,11 @@ def test_lower_view_get():
         L_warp = T.TileLayout(T.S[8 : 1 @ warpid])
         layout = warp_layout.tile(L_warp, (8, 1), (16, 128))
         acc = T.alloc_tensor(
-            [64],
-            dtype="float32",
-            scope="local",
-            layout=atom.tile(tile, (2, 128 // 8), (1, 2)),
+            ty_args=[
+                T.Tensor(
+                    [64], "float32", scope="local", layout=atom.tile(tile, (2, 128 // 8), (1, 2))
+                )
+            ]
         )
         A = acc.view(128, 128, layout=layout)
         acc_local = A.local(16, 2, 2, layout=atom.tile(tile, (2, 128 // 8), (1, 2)))
@@ -266,8 +295,10 @@ def test_lower_view_get():
     def after3_wgmma_layout(
         in_buf: T.Tensor((128, 128), layout=None), out: T.Tensor((128, 128), layout=None)
     ):
-        out_1 = T.decl_tensor((16384,), data=out.data, layout=None)
-        in_buf_1 = T.decl_tensor((16384,), data=in_buf.data, layout=None)
+        out_1 = T.decl_tensor(out.data, ty_args=[T.Tensor((16384,), layout=None, data=out.data)])
+        in_buf_1 = T.decl_tensor(
+            in_buf.data, ty_args=[T.Tensor((16384,), layout=None, data=in_buf.data)]
+        )
         with T.region(
             "tirx.device_scope",
             [1, 1, 1, 256, 1, 1],
@@ -293,8 +324,10 @@ def test_lower_view_get():
             warp_id_in_wg: T.let[T.int32] = warp_id_in_cta % 4
             lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
             acc = T.alloc_local((64,), layout=None)
-            B = T.decl_tensor((16384,), data=acc.data, scope="local", layout=None)
-            acc_local = T.decl_tensor((64,), data=acc.data, scope="local", layout=None)
+            B = T.decl_tensor(acc.data, ty_args=[T.Tensor((16384,), scope="local", layout=None)])
+            acc_local = T.decl_tensor(
+                acc.data, ty_args=[T.Tensor((64,), scope="local", layout=None)]
+            )
             for i in range(16):
                 for j in T.unroll(2):
                     for vec in T.vectorized(2):
@@ -306,8 +339,10 @@ def test_lower_view_get():
                             + T.cuda.thread_idx("x") % 4 * 2
                             + vec
                         ]
-            B_1 = T.decl_tensor((16384,), data=acc.data, scope="local", layout=None)
-            acc_local_1 = T.decl_tensor((64,), data=acc.data, scope="local", layout=None)
+            B_1 = T.decl_tensor(acc.data, ty_args=[T.Tensor((16384,), scope="local", layout=None)])
+            acc_local_1 = T.decl_tensor(
+                acc.data, ty_args=[T.Tensor((64,), scope="local", layout=None)]
+            )
             for i in range(16):
                 for j in T.unroll(2):
                     for vec in T.vectorized(2):
@@ -324,12 +359,15 @@ def test_lower_view_get():
 
     @T.function(private=True)
     def before4_multi_view_get(
-        in_buf: T.Tensor(64, "float32"), out: T.Tensor(64, "float32")
+        in_buf: T.Tensor(64, "float32", layout="default"),
+        out: T.Tensor(64, "float32", layout="default"),
     ) -> None:
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1, 1, 1), block=1 * 32))
         bx, by, bz = (T.cuda.block_idx("x"), T.cuda.block_idx("y"), T.cuda.block_idx("z"))
         lane_id = T.cuda.lane_id()
-        A = T.alloc_tensor([2], dtype="float16", scope="local", layout=T.TileLayout(T.S[2:1]))
+        A = T.alloc_tensor(
+            ty_args=[T.Tensor([2], "float16", scope="local", layout=T.TileLayout(T.S[2:1]))]
+        )
         B_layout = A.layout.tile(L_LANE, (32,), (2,))
         B = A.view(64, layout=B_layout)
         B_1 = A.view(64, layout=B_layout)
@@ -349,8 +387,10 @@ def test_lower_view_get():
     def after4_multi_view_get(
         in_buf: T.Tensor((64,), layout=None), out: T.Tensor((64,), layout=None)
     ):
-        out_1 = T.decl_tensor((64,), data=out.data, layout=None)
-        in_buf_1 = T.decl_tensor((64,), data=in_buf.data, layout=None)
+        out_1 = T.decl_tensor(out.data, ty_args=[T.Tensor((64,), layout=None, data=out.data)])
+        in_buf_1 = T.decl_tensor(
+            in_buf.data, ty_args=[T.Tensor((64,), layout=None, data=in_buf.data)]
+        )
         with T.region(
             "tirx.device_scope",
             [1, 1, 1, 32, 1, 1],
@@ -371,17 +411,33 @@ def test_lower_view_get():
             bz: T.let[T.int32] = 0
             lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
             A = T.alloc_local((2,), "float16", layout=None)
-            B = T.decl_tensor((64,), "float16", data=A.data, scope="local", layout=None)
-            B_1 = T.decl_tensor((64,), "float16", data=A.data, scope="local", layout=None)
-            A_local = T.decl_tensor((2,), "float16", data=A.data, scope="local", layout=None)
+            B = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
+            )
+            B_1 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
+            )
+            A_local = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
+            )
             A_local[0] = T.Cast("float16", in_buf_1[T.cuda.thread_idx("x") * 2])
-            A_local_1 = T.decl_tensor((2,), "float16", data=A.data, scope="local", layout=None)
+            A_local_1 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
+            )
             A_local_1[1] = T.Cast("float16", in_buf_1[T.cuda.thread_idx("x") * 2 + 1])
-            B_2 = T.decl_tensor((64,), "float16", data=A.data, scope="local", layout=None)
-            B_3 = T.decl_tensor((64,), "float16", data=A.data, scope="local", layout=None)
-            A_local_2 = T.decl_tensor((2,), "float16", data=A.data, scope="local", layout=None)
+            B_2 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
+            )
+            B_3 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
+            )
+            A_local_2 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
+            )
             out_1[T.cuda.thread_idx("x") * 2] = T.Cast("float32", A_local_2[0])
-            A_local_3 = T.decl_tensor((2,), "float16", data=A.data, scope="local", layout=None)
+            A_local_3 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
+            )
             out_1[T.cuda.thread_idx("x") * 2 + 1] = T.Cast("float32", A_local_3[1])
 
     compare(before4_multi_view_get, after4_multi_view_get, LowerTIRx)
@@ -753,16 +809,20 @@ def test_lower_scope_id3():
 
 def test_lower_layout():
     @T.function(private=True)
-    def before(A: T.Tensor((128, 32), "float16")) -> None:
+    def before(A: T.Tensor((128, 32), "float16", layout="default")) -> None:
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1, 1, 1), block=(128,)))
         bx, by, bz = (T.cuda.block_idx("x"), T.cuda.block_idx("y"), T.cuda.block_idx("z"))
         _lane = T.cuda.lane_id()
         tid = T.cuda.thread_idx("x")
         A_smem = T.alloc_tensor(
-            [128, 32],
-            dtype="float16",
-            scope="shared",
-            layout=T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(512,)])),
+            ty_args=[
+                T.Tensor(
+                    [128, 32],
+                    "float16",
+                    scope="shared",
+                    layout=T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(512,)])),
+                )
+            ]
         )
         thread_col = T.meta_var(4)
         thread_row = T.meta_var(32)
@@ -777,7 +837,9 @@ def test_lower_layout():
 
     @T.function(private=True)
     def after(A: T.Tensor((128, 32), "float16", layout=None)) -> None:
-        A_1 = T.decl_tensor((4096,), "float16", data=A.data, layout=None)
+        A_1 = T.decl_tensor(
+            A.data, ty_args=[T.Tensor((4096,), "float16", layout=None, data=A.data)]
+        )
         with T.region(
             "tirx.device_scope",
             [1, 1, 1, 128, 1, 1],
@@ -830,17 +892,21 @@ def test_lower_layout():
 
 def test_lower_opcall_fail():
     @T.function
-    def test(A: T.Tensor((64,), "float32", scope="global")) -> None:
+    def test(A: T.Tensor((64,), "float32", scope="global", layout="default")) -> None:
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1, 1, 1), block=1 * 32))
         bx, by, bz = (T.cuda.block_idx("x"), T.cuda.block_idx("y"), T.cuda.block_idx("z"))
         _lane = T.cuda.lane_id()
-        A_smem = T.alloc_tensor([64], dtype="float32", scope="shared")
+        A_smem = T.alloc_tensor(ty_args=[T.Tensor([64], "float32", scope="shared")])
         transfer_src_710 = T.meta_var(A_smem[0:64])
         transfer_dst_710 = T.meta_var(A[0:64])
         transfer_reg_710 = T.alloc_tensor(
-            [r.extent for r in transfer_src_710.region],
-            transfer_src_710.source.dtype,
-            scope="local",
+            ty_args=[
+                T.Tensor(
+                    [r.extent for r in transfer_src_710.region],
+                    transfer_src_710.source.dtype,
+                    scope="local",
+                )
+            ]
         )
         T.cuda.tile.ld(transfer_reg_710, transfer_src_710, scope="cta")
         T.cuda.tile.st(transfer_dst_710, transfer_reg_710, scope="cta")
@@ -850,9 +916,13 @@ def test_lower_opcall_fail():
         transfer_src_714 = T.meta_var(A[0:64])
         transfer_dst_714 = T.meta_var(A_smem[0:64])
         transfer_reg_714 = T.alloc_tensor(
-            [r.extent for r in transfer_src_714.region],
-            transfer_src_714.source.dtype,
-            scope="local",
+            ty_args=[
+                T.Tensor(
+                    [r.extent for r in transfer_src_714.region],
+                    transfer_src_714.source.dtype,
+                    scope="local",
+                )
+            ]
         )
         T.cuda.tile.ld(transfer_reg_714, transfer_src_714, scope="cta")
         T.cuda.tile.st(transfer_dst_714, transfer_reg_714, scope="cta")
@@ -861,12 +931,14 @@ def test_lower_opcall_fail():
         LowerTIRx()(tvm.IRModule({"main": test}))
 
 
-def test_lower_decl_buffer_pointer():
+def test_lower_decl_tensor_pointer():
     @T.function(private=True)
     def before():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
-        buf = T.alloc_tensor([1024], "uint8", scope="shared.dyn")
-        A = T.decl_tensor([128], "float16", buf.data, elem_offset=32)
+        buf = T.alloc_tensor(ty_args=[T.Tensor([1024], "uint8", scope="shared.dyn")])
+        A = T.decl_tensor(
+            buf.data, ty_args=[T.Tensor([128], "float16", elem_offset=32, data=buf.data)]
+        )
         T.evaluate(A.ptr_to([64]))
 
     @T.function(private=True)
@@ -886,9 +958,14 @@ def test_lower_decl_buffer_pointer():
                 "cuda.kernel_attrs": {},
             },
         ):
-            buf = T.alloc_tensor((1024,), "uint8", scope="shared.dyn", layout=None)
+            buf = T.alloc_tensor(
+                ty_args=[T.Tensor((1024,), "uint8", scope="shared.dyn", layout=None)]
+            )
             A = T.decl_tensor(
-                (128,), "float16", data=buf.data, elem_offset=32, scope="shared.dyn", layout=None
+                buf.data,
+                ty_args=[
+                    T.Tensor((128,), "float16", elem_offset=32, scope="shared.dyn", layout=None)
+                ],
             )
             T.address_of(A[64])
 
@@ -962,7 +1039,7 @@ def test_lower_uint32_scope_id_casts_at_bind():
 
 
 def test_lower_exec_context_infers_plain_predicate_for_dispatch():
-    import tvm.tirx.operator.tile_primitive as _  # noqa: F401
+    import tvm.tirx.tile as _  # noqa: F401
 
     seen = []
     variant = "__probe_exec_context_plain_predicate__"
@@ -979,7 +1056,8 @@ def test_lower_exec_context_infers_plain_predicate_for_dispatch():
 
     @T.function(private=True)
     def before(
-        A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
+        A: T.Tensor((1,), "float32", scope="global", layout="default"),
+        B: T.Tensor((1,), "float32", scope="global", layout="default"),
     ):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 32))
         warp_id = T.cuda.warp_id()
@@ -1013,7 +1091,10 @@ def test_lower_exec_context_tracks_let_aliases_and_hoists_warp_shuffle():
         return impl
 
     @T.function(private=True)
-    def before(A: T.Tensor((1,), "float32"), B: T.Tensor((1,), "float32")):
+    def before(
+        A: T.Tensor((1,), "float32", layout="default"),
+        B: T.Tensor((1,), "float32", layout="default"),
+    ):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=128))
         lane: T.let[T.int32] = T.cuda.lane_id()
         alias_lane: T.let[T.int32] = lane
@@ -1048,7 +1129,10 @@ def test_lower_exec_context_respects_preferred_cluster_bounds():
         return impl
 
     @T.function(private=True)
-    def before(A: T.Tensor((1,), "float32"), B: T.Tensor((1,), "float32")):
+    def before(
+        A: T.Tensor((1,), "float32", layout="default"),
+        B: T.Tensor((1,), "float32", layout="default"),
+    ):
         T.device_entry(
             launch=T.cuda.LaunchConfig(grid=(2, 2), block=32, cluster=1, preferred_cluster=(2, 2))
         )
@@ -1064,7 +1148,10 @@ def test_lower_exec_context_respects_preferred_cluster_bounds():
     assert _int_pair(seen[0], "cby") == (1, 1)
 
     @T.function(private=True)
-    def fixed_shape_instruction(A: T.Tensor((1,), "float32"), B: T.Tensor((1,), "float32")):
+    def fixed_shape_instruction(
+        A: T.Tensor((1,), "float32", layout="default"),
+        B: T.Tensor((1,), "float32", layout="default"),
+    ):
         T.device_entry(
             launch=T.cuda.LaunchConfig(grid=(2, 2), block=32, cluster=1, preferred_cluster=(2, 2))
         )
@@ -1075,7 +1162,7 @@ def test_lower_exec_context_respects_preferred_cluster_bounds():
 
 
 def test_lower_exec_context_infers_warpgroup_range_predicate_for_dispatch():
-    import tvm.tirx.operator.tile_primitive as _  # noqa: F401
+    import tvm.tirx.tile as _  # noqa: F401
 
     seen = []
     variant = "__probe_exec_context_warpgroup_range_predicate__"
@@ -1092,7 +1179,8 @@ def test_lower_exec_context_infers_warpgroup_range_predicate_for_dispatch():
 
     @T.function(private=True)
     def before(
-        A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
+        A: T.Tensor((1,), "float32", scope="global", layout="default"),
+        B: T.Tensor((1,), "float32", scope="global", layout="default"),
     ):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=2 * 128))
         wg_id = T.cuda.warpgroup_id()
@@ -1117,7 +1205,7 @@ def test_lower_exec_context_infers_warpgroup_range_predicate_for_dispatch():
 
 
 def test_lower_exec_context_tracks_cta_thread_range_predicate_for_dispatch():
-    import tvm.tirx.operator.tile_primitive as _  # noqa: F401
+    import tvm.tirx.tile as _  # noqa: F401
 
     seen = []
     variant = "__probe_exec_context_cta_thread_range_predicate__"
@@ -1134,7 +1222,8 @@ def test_lower_exec_context_tracks_cta_thread_range_predicate_for_dispatch():
 
     @T.function(private=True)
     def before(
-        A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
+        A: T.Tensor((1,), "float32", scope="global", layout="default"),
+        B: T.Tensor((1,), "float32", scope="global", layout="default"),
     ):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(256,)))
         tid = T.cuda.thread_idx("x")
@@ -1153,7 +1242,7 @@ def test_lower_exec_context_tracks_cta_thread_range_predicate_for_dispatch():
 
 
 def test_lower_exec_context_tracks_cta_thread_single_warp_range_predicate():
-    import tvm.tirx.operator.tile_primitive as _  # noqa: F401
+    import tvm.tirx.tile as _  # noqa: F401
 
     seen = []
     variant = "__probe_exec_context_cta_thread_single_warp_range_predicate__"
@@ -1170,7 +1259,8 @@ def test_lower_exec_context_tracks_cta_thread_single_warp_range_predicate():
 
     @T.function(private=True)
     def before(
-        A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
+        A: T.Tensor((1,), "float32", scope="global", layout="default"),
+        B: T.Tensor((1,), "float32", scope="global", layout="default"),
     ):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(256,)))
         tid = T.cuda.thread_idx("x")
@@ -1189,7 +1279,7 @@ def test_lower_exec_context_tracks_cta_thread_single_warp_range_predicate():
 
 
 def test_lower_exec_context_tracks_warpgroup_thread_range_predicate():
-    import tvm.tirx.operator.tile_primitive as _  # noqa: F401
+    import tvm.tirx.tile as _  # noqa: F401
 
     seen = []
     variant = "__probe_exec_context_warpgroup_thread_range_predicate__"
@@ -1206,7 +1296,8 @@ def test_lower_exec_context_tracks_warpgroup_thread_range_predicate():
 
     @T.function(private=True)
     def before(
-        A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
+        A: T.Tensor((1,), "float32", scope="global", layout="default"),
+        B: T.Tensor((1,), "float32", scope="global", layout="default"),
     ):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=2 * 128))
         wg_id = T.cuda.warpgroup_id()
@@ -1227,7 +1318,7 @@ def test_lower_exec_context_tracks_warpgroup_thread_range_predicate():
 
 
 def test_lower_exec_context_tracks_dependent_conjunctive_predicate():
-    import tvm.tirx.operator.tile_primitive as _  # noqa: F401
+    import tvm.tirx.tile as _  # noqa: F401
 
     seen = []
     variant = "__probe_exec_context_dependent_conjunctive_predicate__"
@@ -1244,7 +1335,8 @@ def test_lower_exec_context_tracks_dependent_conjunctive_predicate():
 
     @T.function(private=True)
     def before(
-        A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
+        A: T.Tensor((1,), "float32", scope="global", layout="default"),
+        B: T.Tensor((1,), "float32", scope="global", layout="default"),
     ):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=2 * 128))
         wg_id = T.cuda.warpgroup_id()
@@ -1265,7 +1357,7 @@ def test_lower_exec_context_tracks_dependent_conjunctive_predicate():
 
 def test_lower_exec_context_keeps_plain_predicate_condition():
     @T.function(private=True)
-    def before(A: T.Tensor((1,), "float32", scope="global")):
+    def before(A: T.Tensor((1,), "float32", scope="global", layout="default")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=2 * 128))
         wg_id = T.cuda.warpgroup_id()
         _lane = T.cuda.lane_id()
@@ -1283,7 +1375,7 @@ def test_lower_exec_context_keeps_plain_predicate_condition():
 
 def test_lower_exec_context_keeps_plain_scope_predicate_condition():
     @T.function(private=True)
-    def before(A: T.Tensor((1,), "float32", scope="global")):
+    def before(A: T.Tensor((1,), "float32", scope="global", layout="default")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=2 * 128))
         wg_id = T.cuda.warpgroup_id()
         _lane = T.cuda.lane_id()
@@ -1301,7 +1393,7 @@ def test_lower_exec_context_keeps_plain_scope_predicate_condition():
 
 def test_simplify_uses_floor_div_scope_predicate_as_context_fact():
     @T.function(private=True)
-    def before(A: T.Tensor((16,), "float32", scope="global")):
+    def before(A: T.Tensor((16,), "float32", scope="global", layout="default")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=2 * 128))
         wg_id = T.cuda.warpgroup_id()
         warp_id = T.cuda.warp_in_warpgroup()
@@ -1321,7 +1413,7 @@ def test_simplify_uses_floor_div_scope_predicate_as_context_fact():
 
 
 def test_lower_exec_context_selector_filter_for_elect_sync():
-    import tvm.tirx.operator.tile_primitive as _  # noqa: F401
+    import tvm.tirx.tile as _  # noqa: F401
 
     seen = []
     variant = "__probe_exec_context_elect_selector__"
@@ -1338,7 +1430,8 @@ def test_lower_exec_context_selector_filter_for_elect_sync():
 
     @T.function(private=True)
     def before(
-        A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
+        A: T.Tensor((1,), "float32", scope="global", layout="default"),
+        B: T.Tensor((1,), "float32", scope="global", layout="default"),
     ):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
         lane_id = T.cuda.lane_id()
@@ -1364,7 +1457,7 @@ def test_lower_exec_context_selector_filter_for_elect_sync():
 
 def test_lower_cleanup_accepts_bool_elect_sync_else_path():
     @T.function(private=True)
-    def before(A: T.Tensor((32,), "int32", scope="global")):
+    def before(A: T.Tensor((32,), "int32", scope="global", layout="default")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
         lane_id = T.cuda.lane_id()
         if T.cuda.elect_sync() != T.uint32(0):
@@ -1381,7 +1474,7 @@ def test_lower_cleanup_accepts_bool_elect_sync_else_path():
 
 
 def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
-    import tvm.tirx.operator.tile_primitive as _  # noqa: F401
+    import tvm.tirx.tile as _  # noqa: F401
 
     seen = []
     variant = "__probe_exec_context_scope_guard_mixed__"
@@ -1398,7 +1491,8 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
 
     @T.function(private=True)
     def before(
-        A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
+        A: T.Tensor((1,), "float32", scope="global", layout="default"),
+        B: T.Tensor((1,), "float32", scope="global", layout="default"),
     ):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 32))
         warp_id = T.cuda.warp_id()
@@ -1420,7 +1514,7 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
 
 
 def test_lower_exec_context_tracks_factorized_cta_predicate():
-    import tvm.tirx.operator.tile_primitive as _  # noqa: F401
+    import tvm.tirx.tile as _  # noqa: F401
 
     seen = []
     variant = "__probe_exec_context_cbx_predicate__"
@@ -1437,7 +1531,8 @@ def test_lower_exec_context_tracks_factorized_cta_predicate():
 
     @T.function(private=True)
     def before(
-        A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
+        A: T.Tensor((1,), "float32", scope="global", layout="default"),
+        B: T.Tensor((1,), "float32", scope="global", layout="default"),
     ):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(2, 3), block=(32,), cluster=(2, 3)))
         cbx, cby = (T.cuda.cluster_cta_id("x"), T.cuda.cluster_cta_id("y"))
@@ -1453,7 +1548,7 @@ def test_lower_exec_context_tracks_factorized_cta_predicate():
 
 
 def test_lower_exec_context_keeps_kernel_cta_predicate_out_of_cluster_active_set():
-    import tvm.tirx.operator.tile_primitive as _  # noqa: F401
+    import tvm.tirx.tile as _  # noqa: F401
 
     seen = {}
     kernel_variant = "__probe_exec_context_kernel_cta_in_cluster__"
@@ -1481,7 +1576,8 @@ def test_lower_exec_context_keeps_kernel_cta_predicate_out_of_cluster_active_set
 
     @T.function(private=True)
     def before(
-        A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
+        A: T.Tensor((1,), "float32", scope="global", layout="default"),
+        B: T.Tensor((1,), "float32", scope="global", layout="default"),
     ):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(8,), block=(32,), cluster=(2,)))
         bx = T.cuda.block_idx("x")
@@ -1500,7 +1596,7 @@ def test_lower_exec_context_keeps_kernel_cta_predicate_out_of_cluster_active_set
 
 
 def test_lower_exec_context_tracks_cta_axis_modulo_predicate():
-    import tvm.tirx.operator.tile_primitive as _  # noqa: F401
+    import tvm.tirx.tile as _  # noqa: F401
 
     seen = []
     variant = "__probe_exec_context_cbx_modulo_predicate__"
@@ -1517,7 +1613,8 @@ def test_lower_exec_context_tracks_cta_axis_modulo_predicate():
 
     @T.function(private=True)
     def before(
-        A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
+        A: T.Tensor((1,), "float32", scope="global", layout="default"),
+        B: T.Tensor((1,), "float32", scope="global", layout="default"),
     ):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(4, 2), block=(32,), cluster=(4, 2)))
         cbx, cby = (T.cuda.cluster_cta_id("x"), T.cuda.cluster_cta_id("y"))
@@ -1533,7 +1630,7 @@ def test_lower_exec_context_tracks_cta_axis_modulo_predicate():
 
 
 def test_lower_exec_context_tracks_cta_id_in_pair_predicate():
-    import tvm.tirx.operator.tile_primitive as _  # noqa: F401
+    import tvm.tirx.tile as _  # noqa: F401
 
     seen = []
     variant = "__probe_exec_context_cta_pair_predicate__"
@@ -1550,7 +1647,8 @@ def test_lower_exec_context_tracks_cta_id_in_pair_predicate():
 
     @T.function(private=True)
     def before(
-        A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
+        A: T.Tensor((1,), "float32", scope="global", layout="default"),
+        B: T.Tensor((1,), "float32", scope="global", layout="default"),
     ):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(4, 2), block=(32,), cluster=(4, 2)))
         cbx, cby = (T.cuda.cluster_cta_id("x"), T.cuda.cluster_cta_id("y"))
@@ -1567,7 +1665,7 @@ def test_lower_exec_context_tracks_cta_id_in_pair_predicate():
 
 
 def test_lower_exec_context_tracks_two_cta_pair_predicates():
-    import tvm.tirx.operator.tile_primitive as _  # noqa: F401
+    import tvm.tirx.tile as _  # noqa: F401
 
     seen = {}
     zero_variant = "__probe_exec_context_cta_pair_two_cta_zero__"
@@ -1595,7 +1693,8 @@ def test_lower_exec_context_tracks_two_cta_pair_predicates():
 
     @T.function(private=True)
     def before(
-        A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
+        A: T.Tensor((1,), "float32", scope="global", layout="default"),
+        B: T.Tensor((1,), "float32", scope="global", layout="default"),
     ):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(32,), cluster=(2,)))
         cta_id_in_pair = T.cuda.cta_pair_id()
@@ -1613,7 +1712,7 @@ def test_lower_exec_context_tracks_two_cta_pair_predicates():
 
 
 def test_lower_exec_context_tracks_cta_id_in_pair_after_axis_predicate():
-    import tvm.tirx.operator.tile_primitive as _  # noqa: F401
+    import tvm.tirx.tile as _  # noqa: F401
 
     seen = []
     variant = "__probe_exec_context_cta_pair_after_axis_predicate__"
@@ -1630,7 +1729,8 @@ def test_lower_exec_context_tracks_cta_id_in_pair_after_axis_predicate():
 
     @T.function(private=True)
     def before(
-        A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
+        A: T.Tensor((1,), "float32", scope="global", layout="default"),
+        B: T.Tensor((1,), "float32", scope="global", layout="default"),
     ):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(3, 2), block=(32,), cluster=(3, 2)))
         cbx, cby = (T.cuda.cluster_cta_id("x"), T.cuda.cluster_cta_id("y"))
@@ -1656,7 +1756,7 @@ def test_lower_remaps_tensor_memory_address_metadata(offset):
         for i in T.serial(2):
             tensor = T.cuda.decl_tmem(
                 addr[0] + T.uint32(offset) + T.cast(i, "uint32"),
-                ty_args=[T.Tensor((64,), "float32", scope="tmem")],
+                ty_args=[T.Tensor((64,), "float32", scope="tmem", layout="default")],
             )
             T.evaluate(tensor.data)
 
@@ -1675,12 +1775,15 @@ def test_lower_remaps_tensor_memory_address_metadata(offset):
     tvm.ir.assert_structural_equal(tensor.var.ty, tensor.value.ty)
 
 
-def test_lower_buffer_offset():
+def test_lower_tensor_offset():
     @T.function(private=True)
     def before():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
-        A = T.alloc_tensor([64, 64], "float16", scope="local")
-        A0 = T.decl_tensor([64], "float16", A.ptr_to([32, 32]), elem_offset=0)
+        A = T.alloc_tensor(ty_args=[T.Tensor([64, 64], "float16", scope="local")])
+        A0 = T.decl_tensor(
+            A.ptr_to([32, 32]),
+            ty_args=[T.Tensor([64], "float16", elem_offset=0, data=A.ptr_to([32, 32]))],
+        )
         T.evaluate(T.address_of(A0[32]))
 
     @T.function(private=True)
@@ -1702,25 +1805,25 @@ def test_lower_buffer_offset():
         ):
             A = T.alloc_local((4096,), "float16", layout=None)
             A0 = T.decl_tensor(
-                (64,),
-                "float16",
-                data=T.address_of(A[2080]),
-                elem_offset=0,
-                scope="local",
-                layout=None,
+                T.address_of(A[2080]),
+                ty_args=[T.Tensor((64,), "float16", elem_offset=0, scope="local", layout=None)],
             )
             T.address_of(A0[32])
 
     compare(before, after, LowerTIRx)
 
 
-def test_lower_alloc_decl_buffer_outside_of_parser():
+def test_lower_alloc_decl_tensor_outside_of_parser():
     @T.meta_class
     class State:
         def __init__(self, smem):
             self.A = T.alloc_local([1], "float16")
             self.B = T.alloc_local([1], "float16")
-            self.C = T.decl_tensor([1], "float16", smem, elem_offset=0, scope="shared.dyn")
+            self.C = T.bind(
+                T.decl_tensor(
+                    smem, ty_args=[T.Tensor([1], "float16", elem_offset=0, scope="shared.dyn")]
+                )
+            )
 
     @register_mutable_decl("TestMutableCells.int_var1")
     def int_var1(val):
@@ -1741,7 +1844,7 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
     @T.function(private=True)
     def before():
         T.device_entry()
-        smem = T.alloc_tensor([100], "uint8", scope="shared.dyn")
+        smem = T.alloc_tensor(ty_args=[T.Tensor([100], "uint8", scope="shared.dyn")])
         state = State(smem.data)
         state.A[0] = T.float16(1)
         state.B[0] = T.float16(2)
@@ -1757,11 +1860,12 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
 
     @T.function(private=True)
     def after():
-        smem = T.alloc_tensor([100], "uint8", scope="shared.dyn", layout=None)
+        smem = T.alloc_tensor(ty_args=[T.Tensor([100], "uint8", scope="shared.dyn", layout=None)])
         A = T.alloc_local((1,), "float16", layout=None)
         B = T.alloc_local((1,), "float16", layout=None)
         C = T.decl_tensor(
-            (1,), "float16", data=smem.data, elem_offset=0, scope="shared.dyn", layout=None
+            smem.data,
+            ty_args=[T.Tensor((1,), "float16", elem_offset=0, scope="shared.dyn", layout=None)],
         )
         A[0] = T.float16(1)
         B[0] = T.float16(2)
@@ -1782,23 +1886,25 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
     compare(before, after, LowerTIRx)
 
 
-def test_alloc_buffer_with_thread_axis_layout():
-    """alloc_tensor with thread-axis layout should lower to 1D physical buffer with memory-axis span."""  # noqa: E501
+def test_alloc_tensor_with_thread_axis_layout():
+    """alloc_tensor with thread-axis layout should lower to 1D physical tensor with memory-axis span."""  # noqa: E501
 
     @T.function(private=True)
-    def before(out: T.Tensor((128, 4), "float32")) -> None:
+    def before(out: T.Tensor((128, 4), "float32", layout="default")) -> None:
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1, 1, 1), block=1 * 128))
         bx, by, bz = (T.cuda.block_idx("x"), T.cuda.block_idx("y"), T.cuda.block_idx("z"))
         warp_id = T.cuda.warp_in_warpgroup()
         lane_id = T.cuda.lane_id()
-        reg_wg = T.alloc_tensor((128, 4), "float32", scope="local", layout=wg_local_layout(4))
+        reg_wg = T.alloc_tensor(
+            ty_args=[T.Tensor((128, 4), "float32", scope="local", layout=wg_local_layout(4))]
+        )
         reg = reg_wg.local(4)
         for i in T.serial(4):
             reg[i] = out[lane_id + warp_id * 32, i]
 
     @T.function(private=True)
     def after(out: T.Tensor((128, 4), layout=None)):
-        out_1 = T.decl_tensor((512,), data=out.data, layout=None)
+        out_1 = T.decl_tensor(out.data, ty_args=[T.Tensor((512,), layout=None, data=out.data)])
         with T.region(
             "tirx.device_scope",
             [1, 1, 1, 128, 1, 1],
@@ -1823,7 +1929,7 @@ def test_alloc_buffer_with_thread_axis_layout():
             warp_id: T.let[T.int32] = warp_id_in_cta % 4
             lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
             reg_wg = T.alloc_local((4,), layout=None)
-            reg = T.decl_tensor((4,), data=reg_wg.data, scope="local", layout=None)
+            reg = T.decl_tensor(reg_wg.data, ty_args=[T.Tensor((4,), scope="local", layout=None)])
             for i in range(4):
                 reg[i] = out_1[warp_id_in_cta % 4 * 128 + T.cuda.thread_idx("x") % 32 * 4 + i]
 
@@ -1883,13 +1989,14 @@ def test_lower_preferred_cluster():
 
 def _register_probe(name):
     """Register a test instruction whose lowerer inspects its execution context."""
-    from tvm.tirx.tensor_instruction import Instruction, Operand
+    from tvm.tirx.tile.instruction import Instruction, Operand
 
     def decorate(lower):
         spec = Instruction(
             "tirx.cuda.tile." + name,
             "copy",
             (Operand("dst", "region"), Operand("src", "region")),
+            scopes=("cluster", "cta", "warpgroup", "warp", "thread"),
             lower=lower,
         )
         factory = spec.register()

@@ -28,7 +28,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/runtime/timer.h>
 
@@ -70,17 +69,14 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../../runtime/file_utils.h"
 #include "../../../runtime/metadata.h"
 #include "../../../runtime/pack_args.h"
-#include "../../../runtime/thread_storage_scope.h"
+#include "../../../runtime/workspace_pool.h"
 #include "texture.h"
 
 namespace tvm {
 namespace runtime {
 namespace cl {
-
-using tvm::runtime::memory::Buffer;
 
 static_assert(sizeof(cl_mem) == sizeof(void*), "Required to store cl_mem inside void*");
 
@@ -266,6 +262,8 @@ class OpenCLWorkspace : public DeviceAPI {
   // the mutex for initialization
   std::mutex mu;
 
+  OpenCLWorkspace();
+
   // destructor
   ~OpenCLWorkspace() {
     for (auto& it : contexts) {
@@ -352,22 +350,24 @@ class OpenCLWorkspace : public DeviceAPI {
   cl_device_id GetCLDeviceID(int device_id);
   // override device API
   void SetDevice(Device dev) final;
-  void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final;
-  void* AllocDataSpace(Device dev, size_t size, size_t alignment, DLDataType type_hint) final;
+  ffi::Any GetAttr(Device dev, const ffi::String& name) final;
+  ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                       ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
+                       ffi::Optional<ffi::String> mem_scope = std::nullopt,
+                       TensorMemoryPool* pool = nullptr);
   void* AllocDataSpace(Device dev, size_t width, size_t height, size_t depth, DLDataType type_hint,
-                       ffi::Optional<ffi::String> mem_scope = std::nullopt);
-  void* GetNativePtr(const tvm::runtime::Tensor& narr);
-  void SetNativePtr(const tvm::runtime::Tensor& narr, void* host_ptr, size_t buf_size);
+                       ffi::Optional<ffi::String> mem_scope = std::nullopt,
+                       TensorMemoryPool* pool = nullptr);
+  void* GetNativePtr(const tvm::ffi::Tensor& narr);
+  void SetNativePtr(const tvm::ffi::Tensor& narr, void* host_ptr, size_t buf_size);
   void SetPerfHint(Device dev, cl_uint perf_hint);
-  void FreeDataSpace(Device dev, void* ptr) final;
-  void StreamSync(Device dev, TVMStreamHandle stream) final;
+  void FreeDataSpace(Device dev, void* ptr);
+  void ClearMemoryPool();
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(Device dev, void* data) final;
-  size_t GetDataSize(const DLTensor& arr,
-                     ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
-
+  static ffi::Tensor AllocWorkspaceTensor(DeviceAPI* api, Device dev, size_t size);
+  void StreamSync(Device dev, TVMStreamHandle stream) final;
   // cl_mem alloc utils
   void* AllocCLBuffer(Device dev, size_t size, size_t alignment, DLDataType type_hint);
   void* AllocCLImage(Device dev, void* back_buffer, size_t width, size_t height, size_t depth,
@@ -391,6 +391,7 @@ class OpenCLWorkspace : public DeviceAPI {
     return "";
   }
   std::string noDevicesErrorMsg = "";
+  ffi::ObjectPtr<TensorMemoryPool> memory_pool_;
 };
 
 /*! \brief Thread local workspace */
@@ -405,10 +406,13 @@ class OpenCLThreadEntry {
   };
   /*! \brief The current device */
   Device device;
+  /*! \brief Thread-local linear workspace allocation cache. */
+  WorkspacePool pool;
   /*! \brief The thread-local kernel table */
   std::vector<KTEntry> kernel_table;
   // constructor
-  OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device_api) {
+  OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device_api)
+      : pool(device_type, device_api, OpenCLWorkspace::AllocWorkspaceTensor) {
     device.device_id = 0;
     device.device_type = device_type;
   }
@@ -453,7 +457,7 @@ struct BufferDescriptor {
   cl::BufferDescriptor* back_buffer{nullptr};
   cl_uchar* host_ptr{nullptr};
   MemoryLayout layout{MemoryLayout::kBuffer1D};
-  Buffer mbuf{nullptr};  // MemoryManager ref.
+  ffi::Tensor backing;  // Owns the pooled buffer underlying an image.
   bool is_compat_view{false};
 };
 }  // namespace cl
@@ -510,11 +514,11 @@ class OpenCLModuleNodeBase : public ffi::ModuleObj {
   std::vector<cl_kernel> kernels_;
 };
 
-class OpenCLModuleNode : public OpenCLModuleNodeBase {
+class OpenCLModuleObj : public OpenCLModuleNodeBase {
  public:
-  explicit OpenCLModuleNode(ffi::Bytes code, ffi::String fmt,
-                            ffi::Map<ffi::String, FunctionInfo> fmap,
-                            ffi::Map<ffi::String, ffi::String> source)
+  explicit OpenCLModuleObj(ffi::Bytes code, ffi::String fmt,
+                           ffi::Map<ffi::String, FunctionInfo> fmap,
+                           ffi::Map<ffi::String, ffi::String> source)
       : OpenCLModuleNodeBase(fmap),
         code_(std::move(code)),
         fmt_(std::move(fmt)),
@@ -548,7 +552,7 @@ class OpenCLModuleNode : public OpenCLModuleNodeBase {
 };
 
 /*! \brief OpenCL timer node */
-class OpenCLTimerNode : public TimerNode {
+class OpenCLTimerObj : public TimerObj {
  public:
   // Timer start
   virtual void Start() {
@@ -588,7 +592,7 @@ class OpenCLTimerNode : public TimerNode {
   }
   virtual int64_t SyncAndGetElapsedNanos() { return this->duration; }
   // destructor
-  virtual ~OpenCLTimerNode() {
+  virtual ~OpenCLTimerObj() {
     // Profiling session ends, recreate clCommandQueue in non-profiling mode
     // This will disable collection of cl_events in case of executing inference after profile
     if (count_timer_execs == 0) {
@@ -597,12 +601,12 @@ class OpenCLTimerNode : public TimerNode {
     }
   }
   // constructor
-  OpenCLTimerNode() {}
-  explicit OpenCLTimerNode(Device dev) : dev_(dev) {}
+  OpenCLTimerObj() {}
+  explicit OpenCLTimerObj(Device dev) : dev_(dev) {}
 
   static size_t count_timer_execs;
   static std::vector<size_t> event_start_idxs;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.opencl.OpenCLTimerNode", OpenCLTimerNode, TimerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.opencl.OpenCLTimerNode", OpenCLTimerObj, TimerObj);
 
  private:
   int64_t duration;

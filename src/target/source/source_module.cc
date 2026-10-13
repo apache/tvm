@@ -27,6 +27,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/bytes_io.h>
+#include <tvm/support/file_utils.h>
 #include <tvm/support/io.h>
 
 #include <algorithm>
@@ -35,8 +37,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../../runtime/file_utils.h"
-#include "../../support/bytes_io.h"
 #include "codegen_source_base.h"
 
 namespace tvm {
@@ -47,14 +47,12 @@ using ffi::Function;
 using ffi::PackedArgs;
 
 using runtime::FunctionInfo;
-using runtime::GetFileFormat;
-using runtime::GetMetaFilePath;
-using runtime::SaveBinaryToFile;
+using support::GetFileFormat;
 
 // Simulator function
-class SourceModuleNode : public ffi::ModuleObj {
+class SourceModuleObj : public ffi::ModuleObj {
  public:
-  SourceModuleNode(std::string code, std::string fmt) : code_(code), fmt_(fmt) {}
+  SourceModuleObj(std::string code, std::string fmt) : code_(code), fmt_(fmt) {}
   const char* kind() const final { return "source"; }
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
@@ -72,16 +70,16 @@ class SourceModuleNode : public ffi::ModuleObj {
 };
 
 ffi::Module SourceModuleCreate(std::string code, std::string fmt) {
-  auto n = ffi::make_object<SourceModuleNode>(code, fmt);
+  auto n = ffi::make_object<SourceModuleObj>(code, fmt);
   return ffi::Module(n);
 }
 
 // Simulator function
-class CSourceModuleNode : public ffi::ModuleObj {
+class CSourceModuleObj : public ffi::ModuleObj {
  public:
-  CSourceModuleNode(const std::string& code, const std::string& fmt,
-                    const ffi::Array<ffi::String>& func_names,
-                    const ffi::Array<ffi::String>& const_vars)
+  CSourceModuleObj(const std::string& code, const std::string& fmt,
+                   const ffi::Array<ffi::String>& func_names,
+                   const ffi::Array<ffi::String>& const_vars)
       : code_(code), fmt_(fmt), const_vars_(const_vars), func_names_(func_names) {
     if (fmt_.empty()) fmt_ = "c";
   }
@@ -144,16 +142,15 @@ class CSourceModuleNode : public ffi::ModuleObj {
     ffi::Array<ffi::String> const_vars;
     for (auto const_var : tmp_const_vars) const_vars.push_back(ffi::String(const_var));
 
-    auto n = ffi::make_object<CSourceModuleNode>(code, fmt, func_names, const_vars);
+    auto n = ffi::make_object<CSourceModuleObj>(code, fmt, func_names, const_vars);
     return ffi::Module(n);
   }
 
   void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final {
     std::string fmt = GetFileFormat(file_name, format);
-    std::string meta_file = GetMetaFilePath(file_name);
     if (fmt == "c" || fmt == "cc" || fmt == "cpp" || fmt == "cu") {
       TVM_FFI_ICHECK_NE(code_.length(), 0);
-      SaveBinaryToFile(file_name, code_);
+      support::WriteBytesToFile(file_name, code_);
     } else {
       TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     }
@@ -177,14 +174,14 @@ class CSourceModuleNode : public ffi::ModuleObj {
 ffi::Module CSourceModuleCreate(const ffi::String& code, const ffi::String& fmt,
                                 const ffi::Array<ffi::String>& func_names,
                                 const ffi::Array<ffi::String>& const_vars) {
-  auto n = ffi::make_object<CSourceModuleNode>(code.operator std::string(),
-                                               fmt.operator std::string(), func_names, const_vars);
+  auto n = ffi::make_object<CSourceModuleObj>(code.operator std::string(),
+                                              fmt.operator std::string(), func_names, const_vars);
   return ffi::Module(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ffi.Module.load_from_bytes.c", CSourceModuleNode::LoadFromBytes);
+  refl::GlobalDef().def("ffi.Module.load_from_bytes.c", CSourceModuleObj::LoadFromBytes);
 }
 
 /*!
@@ -204,11 +201,11 @@ class ConcreteCodegenSourceBase : public CodeGenSourceBase {
 };
 
 // supports limited save without cross compile
-class DeviceSourceModuleNode final : public ffi::ModuleObj {
+class DeviceSourceModuleObj final : public ffi::ModuleObj {
  public:
-  DeviceSourceModuleNode(std::string data, std::string fmt,
-                         ffi::Map<ffi::String, FunctionInfo> fmap, std::string type_key,
-                         std::function<std::string(const std::string&)> fget_source)
+  DeviceSourceModuleObj(std::string data, std::string fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
+                        std::string type_key,
+                        std::function<std::string(const std::string&)> fget_source)
       : data_(data), fmt_(fmt), fmap_(fmap), type_key_(type_key), fget_source_(fget_source) {}
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
@@ -231,9 +228,7 @@ class DeviceSourceModuleNode final : public ffi::ModuleObj {
   void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final {
     std::string fmt = GetFileFormat(file_name, format);
     TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
-    std::string meta_file = GetMetaFilePath(file_name);
-    SaveMetaDataToFile(meta_file, fmap_);
-    SaveBinaryToFile(file_name, data_);
+    support::WriteBytesToFile(file_name, data_);
   }
 
   ffi::Bytes SaveToBytes() const final {
@@ -256,7 +251,7 @@ class DeviceSourceModuleNode final : public ffi::ModuleObj {
 ffi::Module DeviceSourceModuleCreate(std::string data, std::string fmt,
                                      ffi::Map<ffi::String, FunctionInfo> fmap, std::string type_key,
                                      std::function<std::string(const std::string&)> fget_source) {
-  auto n = ffi::make_object<DeviceSourceModuleNode>(data, fmt, fmap, type_key, fget_source);
+  auto n = ffi::make_object<DeviceSourceModuleObj>(data, fmt, fmap, type_key, fget_source);
   return ffi::Module(n);
 }
 

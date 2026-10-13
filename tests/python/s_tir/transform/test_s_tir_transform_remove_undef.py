@@ -98,7 +98,7 @@ def test_remove_let_undef():
 
 
 def test_raise_error_for_undef_as_store_indices():
-    """Use of T.undef() as buffer indices is an error"""
+    """Use of T.undef() as tensor indices is an error"""
 
     @I.ir_module
     class Before:
@@ -112,10 +112,10 @@ def test_raise_error_for_undef_as_store_indices():
 
 
 def test_raise_error_for_undef_as_load_indices():
-    """Use of T.undef() as buffer indices is an error
+    """Use of T.undef() as tensor indices is an error
 
     Even though this occurs as part of the TensorStore's value, the
-    T.undef() may not appear in a buffer's indices.
+    T.undef() may not appear in a tensor's indices.
     """
 
     @I.ir_module

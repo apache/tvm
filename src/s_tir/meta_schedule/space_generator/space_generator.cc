@@ -19,7 +19,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 
-#include "../../../target/canonicalizer/llvm/arm_aprofile.h"
+#include "../../../target/llvm/canonicalizer/arm_aprofile.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -63,7 +63,7 @@ ffi::String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "cuda") {
     if (ffi::Optional<ffi::String> opt_sm = target->GetAttr<ffi::String>("arch")) {
       std::string sm = opt_sm.value();
-      if (support::StartsWith(sm, "sm_")) {
+      if (sm.starts_with("sm_")) {
         sm = sm.substr(3);
         try {
           if (std::stoi(sm) >= 75) {
@@ -89,7 +89,7 @@ ffi::String GetRuleKindFromTarget(const Target& target) {
   throw;
 }
 
-void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
+void SpaceGeneratorObj::InitializeWithTuneContext(const TuneContext& context) {
   if (context->target.has_value() &&  //
       !(sch_rules.has_value() &&      //
         postprocs.has_value() &&      //
@@ -170,19 +170,19 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
   }
 }
 
-void PySpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
+void PySpaceGeneratorObj::InitializeWithTuneContext(const TuneContext& context) {
   TVM_FFI_ICHECK(f_initialize_with_tune_context != nullptr)
       << "PySpaceGenerator's InitializeWithTuneContext method not implemented!";
   f_initialize_with_tune_context(context);
 }
 
-ffi::Array<s_tir::Schedule> PySpaceGeneratorNode::GenerateDesignSpace(const IRModule& mod) {
+ffi::Array<s_tir::Schedule> PySpaceGeneratorObj::GenerateDesignSpace(const IRModule& mod) {
   TVM_FFI_ICHECK(f_generate_design_space != nullptr)
       << "PySpaceGenerator's GenerateDesignSpace method not implemented!";
   return f_generate_design_space(mod);
 }
 
-SpaceGenerator PySpaceGeneratorNode::Clone() const {
+SpaceGenerator PySpaceGeneratorObj::Clone() const {
   TVM_FFI_ICHECK(f_clone != nullptr) << "PySpaceGenerator's Clone method not implemented!";
   return f_clone();
 }
@@ -193,7 +193,7 @@ SpaceGenerator SpaceGenerator::PySpaceGenerator(
     ffi::Optional<ffi::Map<Mutator, FloatImm>> mutator_probs,
     FInitializeWithTuneContext f_initialize_with_tune_context,
     FGenerateDesignSpace f_generate_design_space, FClone f_clone) {
-  ffi::ObjectPtr<PySpaceGeneratorNode> n = ffi::make_object<PySpaceGeneratorNode>();
+  ffi::ObjectPtr<PySpaceGeneratorObj> n = ffi::make_object<PySpaceGeneratorObj>();
   n->sch_rules = sch_rules;
   n->postprocs = postprocs;
   n->mutator_probs = mutator_probs;
@@ -204,19 +204,19 @@ SpaceGenerator SpaceGenerator::PySpaceGenerator(
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  SpaceGeneratorNode::RegisterReflection();
-  PySpaceGeneratorNode::RegisterReflection();
+  SpaceGeneratorObj::RegisterReflection();
+  PySpaceGeneratorObj::RegisterReflection();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("s_tir.meta_schedule.SpaceGeneratorInitializeWithTuneContext",
-                  &SpaceGeneratorNode::InitializeWithTuneContext)
+                  &SpaceGeneratorObj::InitializeWithTuneContext)
       .def_method("s_tir.meta_schedule.SpaceGeneratorGenerateDesignSpace",
-                  &SpaceGeneratorNode::GenerateDesignSpace)
+                  &SpaceGeneratorObj::GenerateDesignSpace)
       .def("s_tir.meta_schedule.SpaceGeneratorPySpaceGenerator", SpaceGenerator::PySpaceGenerator)
-      .def_method("s_tir.meta_schedule.SpaceGeneratorClone", &SpaceGeneratorNode::Clone);
+      .def_method("s_tir.meta_schedule.SpaceGeneratorClone", &SpaceGeneratorObj::Clone);
 }
 
 }  // namespace meta_schedule

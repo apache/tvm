@@ -60,8 +60,8 @@ struct ExprIdentityLess {
 };
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  transform::FusionPatternNode::RegisterReflection();
-  transform::PatternCheckContextNode::RegisterReflection();
+  transform::FusionPatternObj::RegisterReflection();
+  transform::PatternCheckContextObj::RegisterReflection();
 }
 
 /*
@@ -1515,7 +1515,7 @@ FusionPattern::FusionPattern(ffi::String name, DFPattern pattern,
                              ffi::Map<ffi::String, DFPattern> annotation_patterns,
                              ffi::Optional<ffi::Function> check,
                              ffi::Optional<ffi::Function> attrs_getter) {
-  ffi::ObjectPtr<FusionPatternNode> n = ffi::make_object<FusionPatternNode>(pattern);
+  ffi::ObjectPtr<FusionPatternObj> n = ffi::make_object<FusionPatternObj>(pattern);
   n->name = std::move(name);
   n->annotation_patterns = std::move(annotation_patterns);
   n->check = check;
@@ -1538,8 +1538,8 @@ PatternCheckContext::PatternCheckContext(Expr matched_expr,
                                          ffi::Map<Var, Expr> matched_bindings,
                                          ffi::Map<Var, ffi::Array<Var>> var_usages,
                                          ffi::Map<Expr, Var> value_to_bound_var) {
-  ffi::ObjectPtr<PatternCheckContextNode> n =
-      ffi::make_object<PatternCheckContextNode>(std::move(matched_expr));
+  ffi::ObjectPtr<PatternCheckContextObj> n =
+      ffi::make_object<PatternCheckContextObj>(std::move(matched_expr));
   n->annotated_expr = std::move(annotated_expr);
   n->matched_bindings = std::move(matched_bindings);
   n->var_usages = std::move(var_usages);

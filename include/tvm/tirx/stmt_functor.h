@@ -165,7 +165,7 @@ class StmtFunctor<R(const Stmt&, Args...)> {
  * \brief Native visitor for TIRx statements and their expression operands.
  *
  * Inherits core expression dispatch and preserves TIRx traversal order and
- * buffer definition/use boundaries. Allocate visitors with ffi::make_object;
+ * tensor definition/use boundaries. Allocate visitors with ffi::make_object;
  * hooks return the first interrupt or throw on failure.
  * To preserve thrown ffi::Error subclasses, keep child traversal native:
  * Visit(array) crosses structural callbacks that may erase the C++ subtype.
@@ -173,7 +173,7 @@ class StmtFunctor<R(const Stmt&, Args...)> {
  * Native hooks match exact types. Unregistered OpaqueExprNode subclasses use
  * structural traversal; leaf types register non-descending structural hooks.
  */
-class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
+class TVM_TIRX_DLL StmtExprVisitor : public tvm::ExprVisitor {
  public:
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprVisitor, tvm::ExprVisitor)
 
@@ -218,7 +218,7 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
  * including on in-place writes. Passes that change dtypes or index lanes must
  * provide the corresponding TensorLoad, TensorStore, or TensorRegion inference.
  */
-class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
+class TVM_TIRX_DLL StmtExprMutator : public tvm::ExprMutator {
  public:
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtExprMutator, tvm::ExprMutator)
   using tvm::ExprMutator::Mutate;
@@ -293,7 +293,7 @@ class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
  *
  * \return The result.
  */
-TVM_DLL Stmt SubstituteWithDataTypeLegalization(
+TVM_TIRX_DLL Stmt SubstituteWithDataTypeLegalization(
     Stmt stmt, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap);
 
 /*!
@@ -305,7 +305,7 @@ TVM_DLL Stmt SubstituteWithDataTypeLegalization(
  *
  * \return The result.
  */
-TVM_DLL PrimExpr SubstituteWithDataTypeLegalization(
+TVM_TIRX_DLL PrimExpr SubstituteWithDataTypeLegalization(
     PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap);
 
 /*!

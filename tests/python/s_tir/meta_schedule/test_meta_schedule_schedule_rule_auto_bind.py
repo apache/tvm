@@ -71,8 +71,8 @@ def test_cuda_element_wise():
     ) -> None:
         # body
         # with Ts.sblock("root")
-        for i_j_fused_0 in T.thread_binding(256, thread="blockIdx.x"):
-            for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+        for i_j_fused_0 in T.parallel(256, annotations={"thread_binding": "blockIdx.x"}):
+            for i_j_fused_1 in T.parallel(1024, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("C"):
                     vi = Ts.axis.spatial(512, (i_j_fused_0 * 1024 + i_j_fused_1) // 512)
                     vj = Ts.axis.spatial(512, (i_j_fused_0 * 1024 + i_j_fused_1) % 512)
@@ -105,8 +105,8 @@ def test_cuda_reduction_loop_only():
         B: T.Tensor(2, "float32"),
         C: T.Tensor((), "float32"),
     ) -> None:
-        for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
-            for u_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
+        for u_fused_0 in T.parallel(1, annotations={"thread_binding": "blockIdx.x"}):
+            for u_fused_1 in T.parallel(1, annotations={"thread_binding": "threadIdx.x"}):
                 for i0 in T.serial(2):
                     with Ts.sblock("C"):
                         k0 = Ts.axis.reduce(2, i0)
@@ -138,8 +138,8 @@ def test_cuda_zero_dim_add():
         B: T.Tensor((), "float32"),
         C: T.Tensor((), "float32"),
     ) -> None:
-        for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
-            for u_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
+        for u_fused_0 in T.parallel(1, annotations={"thread_binding": "blockIdx.x"}):
+            for u_fused_1 in T.parallel(1, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("C"):
                     vi = Ts.axis.spatial(1, 0)
                     Ts.reads(A[()], B[()])

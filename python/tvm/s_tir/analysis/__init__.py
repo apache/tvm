@@ -31,7 +31,7 @@ from . import _ffi_api
 
 
 def get_sblock_access_region(
-    block: SBlock, buffer_var_map: dict[Var, Var]
+    block: SBlock, tensor_var_map: dict[Var, Var]
 ) -> list[list[TensorRegion]]:
     """Detect which regions of tensors in this block are read or written to.
        Regions are sorted by order of appearance in the AST.
@@ -41,8 +41,8 @@ def get_sblock_access_region(
     block: tvm.s_tir.SBlock
         The block in which we are detecting read/write regions.
 
-    buffer_var_map : Dict[Var, Var]
-        The outside buffers which may access the block. Mapping from buffer var to the buffer
+    tensor_var_map : Dict[Var, Var]
+        The outside tensors which may access the block. Mapping from tensor var to the tensor
 
     Returns
     -------
@@ -52,11 +52,11 @@ def get_sblock_access_region(
             - second: write regions
             - third: opaque regions
     """
-    return _ffi_api.GetSBlockAccessRegion(block, buffer_var_map)  # type: ignore
+    return _ffi_api.GetSBlockAccessRegion(block, tensor_var_map)  # type: ignore
 
 
 def get_sblock_read_write_region(
-    block: SBlock, buffer_var_map: dict[Var, Var]
+    block: SBlock, tensor_var_map: dict[Var, Var]
 ) -> list[list[TensorRegion]]:
     """Auto detect the block read/write region according to its body stmt.
        An opaque access will be counted as both a read and a write access
@@ -66,19 +66,19 @@ def get_sblock_read_write_region(
     block: tvm.s_tir.SBlock
         The block in which we are detecting read/write regions.
 
-    buffer_var_map : Dict[Var, Var]
-        The outside buffers which may access the block. Mapping from buffer var to the buffer
+    tensor_var_map : Dict[Var, Var]
+        The outside tensors which may access the block. Mapping from tensor var to the tensor
 
     Returns
     -------
     result : List[List[TensorRegion]]
         An array only consisting of the read regions and write regions of the input block
     """
-    return _ffi_api.GetSBlockReadWriteRegion(block, buffer_var_map)  # type: ignore
+    return _ffi_api.GetSBlockReadWriteRegion(block, tensor_var_map)  # type: ignore
 
 
-def detect_buffer_access_lca(func: Function) -> dict[Var, Stmt]:
-    """Detect the lowest common ancestor(LCA) of buffer access, including both high-level
+def detect_tensor_access_lca(func: Function) -> dict[Var, Stmt]:
+    """Detect the lowest common ancestor(LCA) of tensor access, including both high-level
     access (TensorLoad, TensorStore) and low-level access (TensorLoad, TensorStore and opaque
     access).
     The LCA may be a For loop or a Block.
@@ -91,9 +91,9 @@ def detect_buffer_access_lca(func: Function) -> dict[Var, Stmt]:
     Returns
     -------
     result : Dict[Var, Stmt]
-        Map from buffer to the LCA of all access to it.
+        Map from tensor to the LCA of all access to it.
     """
-    return _ffi_api.detect_buffer_access_lca(func)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.detect_tensor_access_lca(func)  # type: ignore # pylint: disable=no-member
 
 
 def find_anchor_sblock(mod: IRModule) -> SBlock | None:
@@ -217,7 +217,7 @@ def assert_pure_function(func: Function) -> bool:
 
 
 def verify_well_formed(obj: Function | IRModule, assert_mode: bool = True) -> bool:
-    """Verify definitions, buffer loads and S-TIR block boundaries.
+    """Verify definitions, tensor loads and S-TIR block boundaries.
 
     Modules may contain both S-TIR and ordinary Functions.  Shared variable
     identities are checked across function boundaries.  Use the TIRX-specific

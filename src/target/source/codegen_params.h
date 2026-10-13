@@ -45,7 +45,7 @@ namespace codegen {
  * \param indent_chars Number of chars to indent
  * \param os Output stream where the array data should be written.
  */
-void TensorDataToC(::tvm::runtime::Tensor arr, int indent_chars, std::ostream& os,
+void TensorDataToC(::tvm::ffi::Tensor arr, int indent_chars, std::ostream& os,
                    const std::string& eol = "\n");
 
 }  // namespace codegen

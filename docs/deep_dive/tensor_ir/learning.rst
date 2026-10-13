@@ -68,7 +68,7 @@ language called TVMScript, which is a domain-specific dialect embedded in python
         def mm_relu(A: T.Tensor((128, 128), "float32"),
                     B: T.Tensor((128, 128), "float32"),
                     C: T.Tensor((128, 128), "float32")):
-            Y = T.alloc_tensor((128, 128), dtype="float32")
+            Y = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])
             for i, j, k in T.grid(128, 128, 128):
                 with Ts.sblock("Y"):
                     vi = Ts.axis.spatial(128, i)
@@ -111,7 +111,7 @@ type.
 .. code:: python
 
     # TensorIR
-    Y = T.alloc_tensor((128, 128), dtype="float32")
+    Y = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])
     # NumPy
     Y = np.empty((128, 128), dtype="float32")
 
@@ -243,7 +243,7 @@ So we can also write the programs as follows.
         def mm_relu(A: T.Tensor((128, 128), "float32"),
                     B: T.Tensor((128, 128), "float32"),
                     C: T.Tensor((128, 128), "float32")):
-            Y = T.alloc_tensor((128, 128), dtype="float32")
+            Y = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])
             for i, j, k in T.grid(128, 128, 128):
                 with Ts.sblock("Y"):
                     vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])

@@ -97,9 +97,9 @@ ffi::Array<ArgInfo> ArgInfo::FromFunction(const tirx::Function& func) {
   ffi::Array<ArgInfo> result;
   result.reserve(func->params.size());
   for (const tvm::Var& arg : func->params) {
-    if (auto buffer = arg.as<tirx::TensorVar>()) {
-      result.push_back(TensorInfo(/*dtype=*/buffer.value()->dtype->dtype,
-                                  /*shape=*/AsVector<PrimExpr, int64_t>(buffer.value()->shape)));
+    if (auto tensor = arg.as<tirx::TensorVar>()) {
+      result.push_back(TensorInfo(/*dtype=*/tensor.value()->dtype->dtype,
+                                  /*shape=*/AsVector<PrimExpr, int64_t>(tensor.value()->shape)));
     } else {
       TVM_FFI_THROW(ValueError) << "Unsupported argument type: " << arg;
     }
@@ -118,7 +118,7 @@ ffi::Array<ArgInfo> ArgInfo::FromEntryFunc(const IRModule& mod, bool remove_prep
 /******** TensorInfo ********/
 
 TensorInfo::TensorInfo(DLDataType dtype, ffi::Shape shape) {
-  ffi::ObjectPtr<TensorInfoNode> n = ffi::make_object<TensorInfoNode>();
+  ffi::ObjectPtr<TensorInfoObj> n = ffi::make_object<TensorInfoObj>();
   n->dtype = dtype;
   n->shape = shape;
   this->data_ = std::move(n);
@@ -126,27 +126,27 @@ TensorInfo::TensorInfo(DLDataType dtype, ffi::Shape shape) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  TensorInfoNode::RegisterReflection();
-  refl::TypeAttrDef<TensorInfoNode>().def(refl::type_attr::kRepr,
-                                          [](TensorInfo ti, ffi::Function fn_repr) -> ffi::String {
-                                            std::ostringstream os;
-                                            os << "TensorInfo(\"" << ti->dtype << "\", [";
-                                            bool first = true;
-                                            for (int64_t v : ti->shape) {
-                                              if (!first) os << ", ";
-                                              os << v;
-                                              first = false;
-                                            }
-                                            os << "])";
-                                            return os.str();
-                                          });
+  TensorInfoObj::RegisterReflection();
+  refl::TypeAttrDef<TensorInfoObj>().def(refl::type_attr::kRepr,
+                                         [](TensorInfo ti, ffi::Function fn_repr) -> ffi::String {
+                                           std::ostringstream os;
+                                           os << "TensorInfo(\"" << ti->dtype << "\", [";
+                                           bool first = true;
+                                           for (int64_t v : ti->shape) {
+                                             if (!first) os << ", ";
+                                             os << v;
+                                             first = false;
+                                           }
+                                           os << "])";
+                                           return os.str();
+                                         });
 
   refl::GlobalDef().def(
       "s_tir.meta_schedule.TensorInfo",
       [](DLDataType dtype, ffi::Shape shape) -> TensorInfo { return TensorInfo(dtype, shape); });
 }
 
-ffi::ObjectRef TensorInfoNode::AsJSON() const {
+ffi::ObjectRef TensorInfoObj::AsJSON() const {
   static ffi::String tag = "TENSOR";
   ffi::String dtype = ffi::DLDataTypeToString(this->dtype);
   ffi::Array<int64_t> shape = support::AsArray(this->shape);
@@ -182,7 +182,7 @@ TensorInfo TensorInfo::FromJSON(const ffi::ObjectRef& json_obj) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("s_tir.meta_schedule.ArgInfoAsJSON", &ArgInfoNode::AsJSON)
+      .def_method("s_tir.meta_schedule.ArgInfoAsJSON", &ArgInfoObj::AsJSON)
       .def("s_tir.meta_schedule.ArgInfoFromFunction", ArgInfo::FromFunction)
       .def("s_tir.meta_schedule.ArgInfoFromEntryFunc", ArgInfo::FromEntryFunc)
       .def("s_tir.meta_schedule.ArgInfoFromJSON", ArgInfo::FromJSON);

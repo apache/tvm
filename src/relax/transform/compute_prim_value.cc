@@ -116,9 +116,10 @@ class PrimExprComputeInjector : public ExprMutator {
     auto param_vars = tvm::UndefinedVars(node);
     tvm::Stmt body = tvm::Return(node);
 
-    tirx::Function func(
-        param_vars, tvm::SeqStmt(body), ret_ty,
-        DictAttrs({{tvm::tirx::attr::kIsHostFunc, true}, {tvm::attr::kSTir, true}}));
+    tirx::Function func(param_vars, tvm::SeqStmt(body), ret_ty,
+                        DictAttrs({{tvm::tirx::attr::kIsHostFunc, true},
+                                   {tvm::attr::kSTir, true},
+                                   {tvm::attr::kScriptNamespace, ffi::String("s_tir")}}));
     func = tirx::RenewDef(func);
 
     auto callee = builder_->AddFunction(func, "compute_symbolic_expr");

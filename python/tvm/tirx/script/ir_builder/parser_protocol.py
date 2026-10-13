@@ -48,7 +48,7 @@ from tvm.script.ir_builder.stmt import (
     assert_ as assert_,
 )
 from tvm.script.ir_builder.stmt import (
-    bind as bind,
+    bind as _bind,
 )
 from tvm.script.ir_builder.stmt import (
     break_ as break_,
@@ -235,6 +235,14 @@ def _name(value: Any, name: str | None, loc: _Loc) -> Any:
     return _base.at_(loc, value)
 
 
+def bind(value, type_annotation=None, *, var=None):
+    """Bind an expression and track tensor resources created in meta classes."""
+    result = _bind(value, type_annotation, var=var)
+    if _tir.is_tensor_var(result):
+        _native._record_meta_resource(result)
+    return result
+
+
 def bind_(
     value: Any = _base.MISSING,
     *,
@@ -247,7 +255,7 @@ def bind_(
 ) -> Any:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.bind_`.
 
-    Returned Vars, including buffers, and metadata retain identity, names and locs.
+    Returned Vars, including tensors, and metadata retain identity, names and locs.
     Other expressions create native Bind nodes; value_loc belongs to the RHS.
     Explicit typed bindings and frame targets retain their separate contracts.
     """
@@ -292,7 +300,7 @@ def bind_(
         frame_loc = value_loc if value_loc is not None else loc
         return _name(_enter_concise(_base.at_(frame_loc, value)), name, name_loc)
     # a = existing_var and a = producer() share the same runtime value rule.
-    # A Var already owns its declaration, including a newly constructed buffer view.
+    # A Var already owns its declaration, including a newly constructed tensor view.
     if isinstance(value, _ir.Var):
         return value
     if isinstance(value, _ir.TensorRegion):
@@ -349,7 +357,7 @@ def set_mutable_cell_(
 ) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.set_mutable_cell_`.
 
-    Updates emit a scalar buffer store. Targets must denote scalar storage.
+    Updates emit a scalar tensor store. Targets must denote scalar storage.
     """
     if isinstance(target, _ir.TensorLoad):
         return _base.at_(loc, tensor_store(target.source, list(target.indices), value))
@@ -412,9 +420,9 @@ def setattr_(
 ) -> _base.AlreadyEmitted[tvm.ir.Stmt] | None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.setattr_`."""
     previous = getattr(target, name, _base.MISSING)
-    buffer = previous.source if isinstance(previous, _ir.TensorLoad) else previous
-    if _tir.is_tensor_var(buffer):
-        shape = buffer.ty.shape
+    tensor = previous.source if isinstance(previous, _ir.TensorLoad) else previous
+    if _tir.is_tensor_var(tensor):
+        shape = tensor.ty.shape
         if len(shape) == 1 and _python.bool(shape[0] == 1):
             return set_mutable_cell_(previous, value, loc=loc)
     _python.setattr(target, name, value)
@@ -425,7 +433,7 @@ def tensor_store(
     indices: list[Expr | slice],
     value: Expr,
 ) -> AlreadyEmitted[tvm.ir.Stmt]:
-    """Emit a buffer store and return a receipt for the stored statement.
+    """Emit a tensor store and return a receipt for the stored statement.
 
     Parameters
     ----------
@@ -509,6 +517,22 @@ def range_(*args: Any, annotations: dict[str, Any] | None = None) -> frame.ForFr
     return serial(args[0], args[1], step=args[2], annotations=annotations)
 
 
+def _for(
+    kind: _ir.ForKind,
+    start: Expr,
+    stop: Expr | None = None,
+    *,
+    step: Expr | None = None,
+    dtype: str | None = None,
+    annotations: dict[str, Any] | None = None,
+) -> frame.ForFrame:
+    if stop is None:
+        stop = start
+        # Preserve the endpoint dtype when the lower bound is omitted.
+        start = IntImm(start.ty, 0) if is_prim_expr(start) else 0
+    return _ffi_api.For(kind, start, stop, step, dtype, annotations)
+
+
 def serial(
     start: Expr,
     stop: Expr = None,
@@ -545,7 +569,6 @@ def serial(
         The dtype of the loop variable, either ``"int32"`` or ``"uint32"``. When
         omitted it is inferred from the bounds. Bounds that do not already have this
         dtype are converted (literals are retyped, other expressions get a Cast).
-        Note ``T.thread_binding`` does not support this; its loop var is always int32.
 
     Returns
     -------
@@ -565,13 +588,7 @@ def serial(
             annotations["pragma_unroll"] = unroll
         else:
             raise TypeError("unroll must be a bool, a positive integer, or None")
-    if stop is None:
-        stop = start
-        if is_prim_expr(start):
-            start = IntImm(start.ty, 0)
-        else:
-            start = 0
-    return _ffi_api.Serial(start, stop, annotations, step, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _for(_ir.ForKind.DEFAULT, start, stop, step=step, dtype=dtype, annotations=annotations)
 
 
 def parallel(
@@ -613,13 +630,7 @@ def parallel(
     res : frame.ForFrame
         The ForFrame.
     """
-    if stop is None:
-        stop = start
-        if is_prim_expr(start):
-            start = IntImm(start.ty, 0)
-        else:
-            start = 0
-    return _ffi_api.Parallel(start, stop, annotations, step, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _for(_ir.ForKind.PARALLEL, start, stop, step=step, dtype=dtype, annotations=annotations)
 
 
 def vectorized(
@@ -655,13 +666,9 @@ def vectorized(
     res : frame.ForFrame
         The ForFrame.
     """
-    if stop is None:
-        stop = start
-        if is_prim_expr(start):
-            start = IntImm(start.ty, 0)
-        else:
-            start = 0
-    return _ffi_api.Vectorized(start, stop, annotations, step, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _for(
+        _ir.ForKind.VECTORIZED, start, stop, step=step, dtype=dtype, annotations=annotations
+    )
 
 
 def unroll(
@@ -697,61 +704,7 @@ def unroll(
     res : frame.ForFrame
         The ForFrame.
     """
-    if stop is None:
-        stop = start
-        if is_prim_expr(start):
-            start = IntImm(start.ty, 0)
-        else:
-            start = 0
-    return _ffi_api.Unroll(start, stop, annotations, step, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def thread_binding(
-    start: Expr,
-    stop: Expr = None,
-    thread: str | None = None,
-    *,
-    annotations: dict[str, Any] | None = None,
-) -> frame.ForFrame:
-    """The thread-binding For statement.
-
-    Parameters
-    ----------
-    start : Expr
-        The minimum value of iteration.
-
-    stop : Expr
-        The maximum value of iteration.
-
-    thread : str
-        The thread for loop variable to bind.
-
-    annotations : Dict[str, Any]
-        The optional annotations of the For statement.
-
-    Returns
-    -------
-    res : frame.ForFrame
-        The ForFrame.
-    """
-    if thread is None:
-        if not isinstance(stop, str):
-            raise ValueError("Thread cannot be None for thread_binding")
-        thread = stop
-        stop = start
-        if is_prim_expr(start):
-            start = IntImm(start.ty, 0)
-        else:
-            start = 0
-    elif stop is None:
-        stop = start
-        if is_prim_expr(start):
-            start = IntImm(start.ty, 0)
-        else:
-            start = 0
-    return _ffi_api.ThreadBinding(  # type: ignore[attr-defined] # pylint: disable=no-member
-        start, stop, thread, annotations
-    )
+    return _for(_ir.ForKind.UNROLLED, start, stop, step=step, dtype=dtype, annotations=annotations)
 
 
 def device_entry(
@@ -889,7 +842,6 @@ __all__ = [
     "setitem_",
     "tensor_store",
     "then_",
-    "thread_binding",
     "unpack_",
     "unroll",
     "vectorized",
