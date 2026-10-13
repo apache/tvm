@@ -122,7 +122,7 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
         return RawCallDocTranslate(d, call);
       }
       keys.push_back(key);
-      values.push_back(d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true,
+      values.push_back(d->WithExtraStateScope<bool>("ir.explicit_value_type", true,
                                                     [&] { return d->Translate(value).value(); }));
     }
   }

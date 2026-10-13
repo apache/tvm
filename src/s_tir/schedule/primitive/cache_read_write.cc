@@ -2280,7 +2280,7 @@ void CollectReindexCacheStageInfoAndCreateTensor(
 
   // Create new tensor
   ffi::ObjectPtr<TensorTypeNode> new_tensor = CopyTensorType(old_tensor);
-  new_tensor->storage_scope = runtime::MemoryScope::Get(storage_scope);
+  new_tensor->scope = runtime::MemoryScope::Get(storage_scope);
   new_tensor->shape = new_shape;
   TensorVar rebuilt =
       RebuildTensorVar(old_tensor, std::move(new_tensor), old_tensor.name() + "_" + storage_scope);

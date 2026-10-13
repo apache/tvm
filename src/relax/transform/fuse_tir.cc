@@ -797,9 +797,9 @@ class FusedTIRConstructor : public ExprVisitor {
         return unique_name;
       };
       // Update tensor with new symbolic shape according to the ty
-      tirx::TensorType new_type(output_shapes[i], tensor->dtype, tensor->storage_scope,
-                                tensor->strides, tensor->elem_offset, tensor->data_alignment,
-                                tensor->offset_factor, tensor->layout);
+      tirx::TensorType new_type(output_shapes[i], tensor->dtype, tensor->scope, tensor->strides,
+                                tensor->elem_offset, tensor->data_alignment, tensor->offset_factor,
+                                tensor->layout);
       tirx::TensorVar new_tensor(unify_name_hints(), std::move(new_type), tensor.loc());
       func_info_.alloc_tensors.push_back(new_tensor);
       output_tensors.push_back(new_tensor);

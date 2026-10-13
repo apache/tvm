@@ -47,7 +47,7 @@ using namespace tvm::tirx;
 runtime::MemoryScope GetStorageScope(const Var& var) {
   auto* ptr = var->ty.as<PtrTypeNode>();
   TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PtrType";
-  return ptr->storage_scope;
+  return ptr->scope;
 }
 
 /*!
@@ -78,7 +78,7 @@ class AllocTensorCalculator : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
     tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
     DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
-    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->scope;
     auto search = _current_size.find(scope);
     if (search == _current_size.end()) {
       _current_size[scope] = 0;

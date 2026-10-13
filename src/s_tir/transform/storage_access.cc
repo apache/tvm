@@ -409,10 +409,10 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
 
 MemoryScope StorageAccessVisitor::GetScope(Var buffer_var) const {
   if (auto tensor_type = buffer_var->ty.as<TensorType>()) {
-    return tensor_type.value()->storage_scope;
+    return tensor_type.value()->scope;
   }
   if (const auto* pointer_type = buffer_var->ty.as<PtrTypeNode>()) {
-    return pointer_type->storage_scope;
+    return pointer_type->scope;
   }
   return MemoryScope();  // global by default
 }

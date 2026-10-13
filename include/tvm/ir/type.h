@@ -110,14 +110,13 @@ class PtrTypeNode : public TypeNode {
   /*!
    * \brief The storage scope of the pointer
    */
-  runtime::MemoryScope storage_scope;
+  runtime::MemoryScope scope;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PtrTypeNode>()
         .def_ro("element_type", &PtrTypeNode::element_type)
-        .def_ro("storage_scope", &PtrTypeNode::storage_scope,
-                refl::DefaultValue(runtime::MemoryScope::Global()));
+        .def_ro("scope", &PtrTypeNode::scope, refl::DefaultValue(runtime::MemoryScope::Global()));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.PtrType", PtrTypeNode, TypeNode);
 };
@@ -131,12 +130,12 @@ class PtrType : public Type {
   /*!
    * \brief Constructor
    * \param element_type The type of the element which the pointer points to.
-   * \param storage_scope The storage scope into which the pointer addresses
+   * \param scope The storage scope into which the pointer addresses
    */
-  TVM_TIRX_DLL explicit PtrType(Type element_type, runtime::MemoryScope storage_scope = {});
+  TVM_TIRX_DLL explicit PtrType(Type element_type, runtime::MemoryScope scope = {});
 
   /*! \brief Construct an opaque pointer with void element type. */
-  TVM_TIRX_DLL static PtrType VoidPtrType(runtime::MemoryScope storage_scope = {});
+  TVM_TIRX_DLL static PtrType VoidPtrType(runtime::MemoryScope scope = {});
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PtrType, Type, PtrTypeNode);
 };

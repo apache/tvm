@@ -53,7 +53,7 @@ class VtcmAllocator : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
-    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->scope;
     if (IsVtcmStorage(scope)) {
       tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
       ffi::Array<Expr> args;
@@ -75,7 +75,7 @@ class VtcmAllocator : public StmtExprMutator {
   runtime::MemoryScope GetStorageScope(const Var& var) {
     auto* ptr = var->ty.as<PtrTypeNode>();
     TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PtrType";
-    return ptr->storage_scope;
+    return ptr->scope;
   }
 };
 

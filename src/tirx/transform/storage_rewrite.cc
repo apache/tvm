@@ -799,7 +799,7 @@ class StoragePlanRewriter : public StmtExprMutator {
 
   static bool RequiresExactAllocation(const CallNode* call) {
     auto type = call->ty_args[0].as_or_throw<TensorType>();
-    if (type->storage_scope.alloc_property() == MemoryAllocProperty::kSeparateAllocations) {
+    if (type->scope.alloc_property() == MemoryAllocProperty::kSeparateAllocations) {
       return true;
     }
     // Flat packing and lifetime reuse cannot reconstruct arbitrary physical views.
@@ -1192,7 +1192,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           const AllocEntry& entry = alloc_info.at(var);
           const BindNode* alloc = entry.alloc;
           const auto* call = alloc->value.as<CallNode>();
-          runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+          runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->scope;
           auto storage_scope = scope;
           StorageEntry* dst_entry = nullptr;
           // inplace detection
@@ -1875,7 +1875,7 @@ class VectorTypeRewriter : public StmtExprMutator {
             return RebuildTensorVar(old_tensor, std::move(type)).var();
           }
           return Var(old_tensor_var->name,
-                     PtrType(preferred, old_tensor_var->ty.as_or_throw<PtrType>()->storage_scope),
+                     PtrType(preferred, old_tensor_var->ty.as_or_throw<PtrType>()->scope),
                      old_tensor_var->loc);
         }();
 

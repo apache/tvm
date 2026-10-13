@@ -83,7 +83,7 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
     } else if (key == tvm::tirx::attr::kPragmaUnroll &&
                (boolean.value_or(false) || (integer.has_value() && integer.value() > 0))) {
       keys.push_back("unroll");
-      values.push_back(d->WithExtraStateScope<bool>("ir.explicit_scalar_dtype", true,
+      values.push_back(d->WithExtraStateScope<bool>("ir.explicit_value_type", true,
                                                     [&] { return d->Translate(value).value(); }));
       unroll_option = true;
     }
@@ -98,7 +98,7 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
     for (const auto& [key, value] : sorted) {
       annotation_keys.push_back(LiteralDoc::Str(key, std::nullopt));
       annotation_values.push_back(d->WithExtraStateScope<bool>(
-          "ir.explicit_scalar_dtype", true, [&] { return d->Translate(value).value(); }));
+          "ir.explicit_value_type", true, [&] { return d->Translate(value).value(); }));
     }
     keys.push_back("annotations");
     values.push_back(DictDoc(annotation_keys, annotation_values));

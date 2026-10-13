@@ -392,7 +392,7 @@ Type TIRxPackedValueType(const Type& type, bool is_result) {
       TVM_FFI_CHECK(default_layout, TypeError)
           << "A Relax-to-TIRx call cannot implicitly convert tensor layout or allocated address: "
           << type;
-      TVM_FFI_CHECK(IsGlobalMemoryScope(tensor->storage_scope), TypeError)
+      TVM_FFI_CHECK(IsGlobalMemoryScope(tensor->scope), TypeError)
           << "A Relax-to-TIRx call cannot implicitly convert tensor storage scope: " << type;
       ShapeExpr shape(
           tensor->shape.Map([](PrimExpr dim) { return prim::cast(PrimType::Int(64), dim); }));
@@ -476,7 +476,7 @@ void CheckTIRxCarrier(const Type& native, const Type& actual,
         << actual;
   }
   if (const auto* tensor = native.as<tirx::TensorTypeNode>()) {
-    auto native_scope = tensor->storage_scope;
+    auto native_scope = tensor->scope;
     const auto* argument = actual.as<TensorTypeNode>();
     ffi::Optional<runtime::MemoryScope> actual_scope;
     if (argument && argument->vdevice.has_value()) {

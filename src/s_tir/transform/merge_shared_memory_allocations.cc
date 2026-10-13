@@ -85,8 +85,8 @@ bool IsDynamicSharedMemory(Var buffer_var) {
   static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
 
   MemoryScope storage_scope =
-      (buffer_var->ty.as<TensorTypeNode>() ? buffer_var->ty.as<TensorTypeNode>()->storage_scope
-                                           : buffer_var->ty.as_or_throw<PtrType>()->storage_scope);
+      (buffer_var->ty.as<TensorTypeNode>() ? buffer_var->ty.as<TensorTypeNode>()->scope
+                                           : buffer_var->ty.as_or_throw<PtrType>()->scope);
   return storage_scope == scope_shared_dyn;
 }
 
@@ -94,8 +94,8 @@ bool IsStaticSharedMemory(Var buffer_var) {
   static const auto scope_shared = runtime::MemoryScope::Get("shared");
 
   MemoryScope storage_scope =
-      (buffer_var->ty.as<TensorTypeNode>() ? buffer_var->ty.as<TensorTypeNode>()->storage_scope
-                                           : buffer_var->ty.as_or_throw<PtrType>()->storage_scope);
+      (buffer_var->ty.as<TensorTypeNode>() ? buffer_var->ty.as<TensorTypeNode>()->scope
+                                           : buffer_var->ty.as_or_throw<PtrType>()->scope);
   return storage_scope == scope_shared;
 }
 
@@ -151,7 +151,7 @@ class AllocateCollector : public StmtExprVisitor {
     static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
     static const auto scope_shared = runtime::MemoryScope::Get("shared");
 
-    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->scope;
     MemoryScope storage_scope = scope;
     if (is_dynamic_ && storage_scope == scope_shared_dyn) {
       shmem_allocs_.insert_or_assign(op->var.as_or_throw<TensorVar>().get(),
@@ -560,7 +560,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
     static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
     static const auto scope_shared = runtime::MemoryScope::Get("shared");
 
-    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->scope;
     MemoryScope storage_scope = scope;
     if (storage_scope == (is_dynamic_ ? scope_shared_dyn : scope_shared)) {
       if (!scope_stack_.empty()) {

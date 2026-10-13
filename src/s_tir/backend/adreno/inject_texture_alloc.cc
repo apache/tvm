@@ -75,7 +75,7 @@ class TextureAllocInjector : public s_tir::StmtExprMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->scope;
     if (IsTextureStorage(scope)) {
       op = stmt.as<BindNode>();
       if (const auto* call = op ? op->value.as<CallNode>() : nullptr;
@@ -116,7 +116,7 @@ class TextureAllocInjector : public s_tir::StmtExprMutatorWithAnalyzer {
   runtime::MemoryScope GetStorageScope(const Var& buffer_var) {
     auto* ptr = buffer_var->ty.as<PtrTypeNode>();
     TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PtrType";
-    return ptr->storage_scope;
+    return ptr->scope;
   }
 };
 

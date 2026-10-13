@@ -87,9 +87,7 @@ def _descriptor_fields(fields, rank, box, default_dtype):
 
 
 def _tensor_map(ctx, region, rank, box, encoding):
-    if not isinstance(region, TensorRegion) or region.source.ty.storage_scope != MemoryScope(
-        "global"
-    ):
+    if not isinstance(region, TensorRegion) or region.source.ty.scope != MemoryScope("global"):
         raise ValueError("TMA descriptor requires a global tensor region")
     tensor = region.source
     ty = tensor.ty
