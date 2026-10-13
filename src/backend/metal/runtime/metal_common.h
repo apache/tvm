@@ -34,6 +34,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/memory_scope.h>
 
 #include <memory>
 #include <mutex>
@@ -315,7 +316,7 @@ class MetalWorkspace final : public DeviceAPI {
   void SetDevice(Device dev) final;
   ffi::Any GetAttr(Device dev, const ffi::String& name) final;
   ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
+                    ffi::Optional<runtime::MemoryScope> mem_scope = std::nullopt) final;
   TVMStreamHandle CreateStream(Device dev) final;
   void FreeStream(Device dev, TVMStreamHandle stream) final;
   void StreamSync(Device dev, TVMStreamHandle stream) final;

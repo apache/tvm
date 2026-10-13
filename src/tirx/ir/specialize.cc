@@ -253,7 +253,7 @@ class FunctionSpecializer : public StmtExprMutator {
       return std::move(mapped).as_or_throw<UnchangedOr<TensorVar>>().ValueOrUnchanged(tensor);
     }
 
-    ffi::Optional<ffi::String> specialized_storage_scope;
+    ffi::Optional<runtime::MemoryScope> specialized_storage_scope;
     if (auto it = tensor_storage_scopes_.find(tensor); it != tensor_storage_scopes_.end()) {
       specialized_storage_scope = it->second;
     }
@@ -336,7 +336,7 @@ class FunctionSpecializer : public StmtExprMutator {
   /*! \brief Definition identities used only to validate declaration order. */
   std::unordered_set<const VarNode*> defined_tensors_;
   /*! \brief Storage constraints supplied by concrete, non-parameter tensors. */
-  std::unordered_map<TensorVar, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<TensorVar, runtime::MemoryScope, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       tensor_storage_scopes_;
   /*! \brief Tensor parameters constrained by a concrete, non-parameter tensor. */
   std::unordered_set<const VarNode*> constrained_tensor_params_;

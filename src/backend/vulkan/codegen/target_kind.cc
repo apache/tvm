@@ -27,6 +27,8 @@
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
 
+#include "../../memory_scope.h"
+
 namespace tvm {
 
 #ifdef TVM_ENABLE_SPIRV
@@ -40,6 +42,10 @@ void RegisterVulkanIntrinRules();
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  for (const char* name : {"wmma.matrix_a", "wmma.matrix_b", "wmma.accumulator"}) {
+    tvm::backend::RegisterBackendMemoryScope(
+        name, tvm::runtime::MemoryAllocProperty::kSeparateAllocations);
+  }
   using namespace tvm;
   namespace refl = tvm::ffi::reflection;
 

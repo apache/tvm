@@ -24,6 +24,7 @@ from typing import ClassVar
 import tvm_ffi
 
 from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm.runtime import MemoryScope
 
 from . import _ffi_api
 from .base import Node, Scriptable
@@ -163,11 +164,11 @@ class PtrType(Type):
     element_type : tvm.ir.Type
         The type of pointer's element.
 
-    storage_scope : str
+    storage_scope : str or tvm.runtime.MemoryScope
         The storage scope into which the pointer addresses.
     """
 
-    def __init__(self, element_type, storage_scope="global", *, loc=UNKNOWN_LOC):
+    def __init__(self, element_type, storage_scope=MemoryScope("global"), *, loc=UNKNOWN_LOC):
         self.__init_handle_by_constructor__(
             _ffi_api.PtrType, _normalize_type(element_type), storage_scope
         )

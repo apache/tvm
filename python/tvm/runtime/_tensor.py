@@ -228,7 +228,7 @@ class Tensor(tvm_ffi.core.Tensor):
         target : Tensor
             The target array to be copied, must have same shape as this array.
 
-        mem_scope : Optional[str]
+        mem_scope : Optional[str or tvm.runtime.MemoryScope]
             The memory scope of the array.
         """
         if isinstance(target, Tensor):
@@ -305,7 +305,7 @@ def empty(shape, dtype="float32", device=None, mem_scope=None):
     device : Device
         The device of the array.
 
-    mem_scope : Optional[str]
+    mem_scope : Optional[str or tvm.runtime.MemoryScope]
         The memory scope of the array.
 
     Returns
@@ -332,7 +332,7 @@ def tensor(arr, device=None, mem_scope=None):
     device : Device, optional
         The device to create the array
 
-    mem_scope : Optional[str]
+    mem_scope : Optional[str or tvm.runtime.MemoryScope]
         The memory scope of the array
 
     Returns

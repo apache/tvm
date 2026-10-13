@@ -25,8 +25,11 @@ import tvm_ffi
 import tvm
 from tvm.ir import Call, PrimType, PtrType, Type, Var
 from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm.runtime import MemoryScope
 
 from . import _ffi_api, _tensor_view
+
+_SCOPE_GLOBAL = MemoryScope("global")
 
 _REARRANGE_PATTERN_UNSET = object()
 
@@ -50,7 +53,7 @@ class TensorType(Type):
     """
 
     dtype: PrimType
-    scope: str
+    scope: MemoryScope
     shape: list
     strides: list
     elem_offset: tvm.ir.Expr
@@ -62,15 +65,15 @@ class TensorType(Type):
         self,
         shape,
         dtype,
-        data=None,
+        scope=_SCOPE_GLOBAL,
         strides=None,
         elem_offset=None,
-        byte_offset=None,
-        scope="global",
         align=0,
         offset_factor=0,
         layout=None,
         *,
+        data=None,
+        byte_offset=None,
         loc: Location = UNKNOWN_LOC,
         storage_scope=None,
         data_alignment=None,
@@ -100,7 +103,9 @@ class TensorType(Type):
             elem_offset = byte_offset * 8 // tvm.DataType(dtype.dtype).bits
         if storage_scope is None:
             storage_scope = scope
-        elif scope != "global" and scope != storage_scope:
+        elif scope not in ("global", _SCOPE_GLOBAL) and MemoryScope(scope) != MemoryScope(
+            storage_scope
+        ):
             raise ValueError("scope and storage_scope must agree")
         if data_alignment is None:
             data_alignment = align
@@ -118,9 +123,9 @@ class TensorType(Type):
             raise TypeError("layout must be a Layout, None, or 'default'")
         self.__init_handle_by_constructor__(
             _ffi_api.TensorType,
-            storage_scope,
-            dtype,
             shape,
+            dtype,
+            storage_scope,
             () if strides is None else strides,
             elem_offset,
             data_alignment,
@@ -164,7 +169,7 @@ class TensorType(Type):
         """
         if self.layout is not None:
             return self.layout
-        if self.storage_scope != "global":
+        if self.storage_scope != _SCOPE_GLOBAL:
             raise ValueError(f"An explicit layout is required for {self.storage_scope} tensors")
 
         from tvm.sym import Analyzer
@@ -191,7 +196,7 @@ class TensorType(Type):
         """Return the storage scope associated with this tensor.
         Returns
         -------
-        scope : str
+        scope : tvm.runtime.MemoryScope
             The storage scope associated with this tensor.
         """
         _check_tensor_receiver(self, expr)
@@ -417,7 +422,7 @@ def decl_tensor(
     data=None,
     strides=None,
     elem_offset=None,
-    scope="",
+    scope=_SCOPE_GLOBAL,
     data_alignment=-1,
     offset_factor=0,
     loc: Location = UNKNOWN_LOC,
@@ -440,16 +445,16 @@ def decl_tensor(
         if not isinstance(data.ty.element_type, PrimType):
             raise TypeError("Tensor data must point to a primitive type")
         storage_scope = data.ty.storage_scope
-    tensor_type = _ffi_api.TensorType(  # type: ignore
-        storage_scope,
-        dtype,
+    tensor_type = TensorType(
         shape,
+        dtype,
+        storage_scope,
         strides,
         elem_offset,
         data_alignment,
         offset_factor,
         layout,
-        loc,
+        loc=loc,
     )
     return _ffi_api.TensorVar(name, tensor_type, loc)  # type: ignore
 

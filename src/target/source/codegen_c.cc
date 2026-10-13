@@ -27,6 +27,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/unique_name_supply.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/abi.h>
@@ -109,9 +110,7 @@ void CodeGenC::PrintFunctionParameters(const Function& func, std::ostream& os) {
       os << ", ";
     }
 
-    if (auto it = alloc_storage_scope_.find(v.get()); it != alloc_storage_scope_.end()) {
-      PrintStorageScope(it->second, os);
-    }
+    PrintStorageQualifier(v.get(), os);
 
     auto is_tensormap_ptr = [&]() -> bool {
       if (auto* ptr = v->ty.as<PtrTypeNode>()) {
@@ -263,7 +262,7 @@ std::string CodeGenC::GetBufferRef(const PrimType& t, const VarNode* buffer, Pri
   const VarNode* buffer_var = buffer;
   std::ostringstream os;
   std::string vid = GetVarID(buffer_var);
-  std::string scope;
+  ffi::Optional<runtime::MemoryScope> scope;
   if (alloc_storage_scope_.count(buffer_var)) {
     scope = alloc_storage_scope_.at(buffer_var);
   }
@@ -275,8 +274,8 @@ std::string CodeGenC::GetBufferRef(const PrimType& t, const VarNode* buffer, Pri
     if (is_vol) {
       ptr_os << "volatile ";
     }
-    if (!scope.empty() && IsScopePartOfType()) {
-      PrintStorageScope(scope, ptr_os);
+    if (scope.has_value() && IsScopePartOfType()) {
+      PrintStorageScope(*scope, ptr_os);
     }
     PrintType(pointed_to, ptr_os);
     ptr_os << "*)";
@@ -488,8 +487,15 @@ void CodeGenC::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag
 void CodeGenC::PrintStorageSync(const CallNode* op) {  // NOLINT(*)
 }
 
-void CodeGenC::PrintStorageScope(const std::string& scope, std::ostream& os) {  // NOLINT(*)
-  TVM_FFI_ICHECK_EQ(scope, "global");
+void CodeGenC::PrintStorageQualifier(const VarNode* var, std::ostream& os) {
+  if (auto it = alloc_storage_scope_.find(var); it != alloc_storage_scope_.end()) {
+    PrintStorageScope(it->second, os);
+  }
+}
+
+void CodeGenC::PrintStorageScope(const runtime::MemoryScope& scope,
+                                 std::ostream& os) {  // NOLINT(*)
+  TVM_FFI_ICHECK(scope == runtime::MemoryScope::Global());
 }
 
 inline void PrintConst(const IntImmNode* op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
@@ -939,7 +945,8 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimEx
 void CodeGenC::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
   Expr data = buffer_call->args[0];
   DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
-  ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
+  runtime::MemoryScope scope =
+      buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   const VarNode* source = data.as<VarNode>();
   if (const auto* call = data.as<CallNode>();
@@ -1279,7 +1286,8 @@ void CodeGenC::Dispatch_(const BindNode* op) {
 void CodeGenC::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
   tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
   DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
-  ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
+  runtime::MemoryScope scope =
+      buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());

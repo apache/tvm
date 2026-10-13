@@ -20,6 +20,7 @@
 #include "vulkan_device_api.h"
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/memory_scope.h>
 
 #include <algorithm>
 #include <memory>
@@ -246,11 +247,10 @@ ffi::Any VulkanDeviceAPI::GetAttr(Device dev, const ffi::String& name) {
 }
 
 ffi::Tensor VulkanDeviceAPI::Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                                   ffi::Optional<ffi::String> mem_scope) {
-  TVM_FFI_CHECK(
-      !mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global",
-      ValueError)
-      << "Unsupported memory scope: " << mem_scope.value_or("");
+                                   ffi::Optional<runtime::MemoryScope> mem_scope) {
+  TVM_FFI_CHECK(!mem_scope.has_value() || mem_scope.value() == runtime::MemoryScope::Global(),
+                ValueError)
+      << "Unsupported memory scope: " << mem_scope.value_or(runtime::MemoryScope::Global()).name();
   struct Allocator {
     VulkanDeviceAPI* api;
     void AllocData(DLTensor* tensor) {

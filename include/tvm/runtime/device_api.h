@@ -31,6 +31,7 @@
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/base.h>
+#include <tvm/runtime/memory_scope.h>
 
 #include <string>
 /*!
@@ -144,7 +145,7 @@ class TVM_RUNTIME_DLL DeviceAPI {
    * \return A tensor whose deleter owns the backend allocation and its resources.
    */
   virtual ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                            ffi::Optional<ffi::String> mem_scope = std::nullopt) = 0;
+                            ffi::Optional<MemoryScope> mem_scope = std::nullopt) = 0;
 
   /*!
    * \brief copy data from one place to another

@@ -29,11 +29,14 @@ import re
 
 from tvm import ir
 from tvm.backend.cuda.op import cuda_func_call
+from tvm.runtime import MemoryScope
 
 from ..codegen.registry import CODEGEN_REGISTRY, register_codegen
 from ..codegen.schema import device_intrinsic
 from ..codegen.types import PTXDataType
 from ..codegen.utils import parse_str
+
+_SCOPE_LOCAL = MemoryScope("local")
 
 # =============================================================================
 # Declared synchronization words. The four direct forms emit exactly what their
@@ -140,12 +143,7 @@ def _wait_until_same_width(dst_ty, suffix, what):
 
 
 def _wait_until_thread_local_scalar(dst, what):
-    if not isinstance(dst, ir.TensorLoad) or dst.source.scope() not in {
-        "local",
-        "local_scalar",
-        "register",
-        "reg",
-    }:
+    if not isinstance(dst, ir.TensorLoad) or dst.source.scope() != _SCOPE_LOCAL:
         raise TypeError(f"{what} dst must be a writable thread-local scalar")
     return dst.ty
 

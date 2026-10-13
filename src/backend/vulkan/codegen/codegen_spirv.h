@@ -25,6 +25,7 @@
 #define TVM_TARGET_VULKAN_CODEGEN_SPIRV_H_
 
 #include <tvm/ir/prim/expr.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
@@ -37,7 +38,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../../runtime/thread_storage_scope.h"
 #include "../runtime/spirv_shader.h"
 #include "ir_builder.h"
 #include "spirv_support.h"
@@ -188,7 +188,7 @@ class CodeGenSPIRV : public tvm::ExprFunctor<spirv::Value(const Expr&)>,
 
   struct FragmentInfo {
     std::string shape;
-    std::string scope;
+    runtime::MemoryScope scope;
     spirv::SType stype;
     spv::StorageClass sclass;
   };

@@ -65,6 +65,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "../../backend/memory_scope.h"
 #include "llvm_instance.h"
 
 namespace tvm {
@@ -1220,6 +1221,8 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  tvm::backend::RegisterBackendMemoryScope("amx.tmm",
+                                           tvm::runtime::MemoryAllocProperty::kSeparateAllocations);
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.codegen.llvm.target_cpu",
                                [](const ffi::PackedArgs& targs, ffi::Any* rv) {

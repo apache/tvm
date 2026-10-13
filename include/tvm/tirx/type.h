@@ -71,7 +71,7 @@ class TensorTypeNode : public TypeNode {
   /*! \brief dtype in the content of the tensor */
   PrimType dtype = PrimType::Void();
   /*! \brief Storage scope/address space of the tensor. */
-  ffi::String storage_scope;
+  runtime::MemoryScope storage_scope;
   /*! \brief The type of the tensor prior to flattening
    *
    * This contains the shape as it is accessed by
@@ -101,7 +101,8 @@ class TensorTypeNode : public TypeNode {
     refl::ObjectDef<TensorTypeNode>()
         .def_ro("shape", &TensorTypeNode::shape, refl::AttachFieldFlag::SEqHashDefSimple())
         .def_ro("dtype", &TensorTypeNode::dtype)
-        .def_ro("scope", &TensorTypeNode::storage_scope, refl::DefaultValue("global"))
+        .def_ro("scope", &TensorTypeNode::storage_scope,
+                refl::DefaultValue(runtime::MemoryScope::Global()))
         .def_ro("strides", &TensorTypeNode::strides, refl::AttachFieldFlag::SEqHashDefSimple(),
                 refl::DefaultValue(ffi::Array<PrimExpr>()))
         .def_ro("elem_offset", &TensorTypeNode::elem_offset,
@@ -149,10 +150,11 @@ class TensorTypeNode : public TypeNode {
  */
 class TensorType : public Type {
  public:
-  TVM_TIRX_DLL TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
-                          ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
-                          int data_alignment, int offset_factor,
-                          ffi::Optional<Layout> layout = std::nullopt, Location loc = UnknownLoc());
+  TVM_TIRX_DLL TensorType(ffi::Array<PrimExpr> shape, PrimType dtype,
+                          runtime::MemoryScope storage_scope, ffi::Array<PrimExpr> strides,
+                          ffi::Optional<PrimExpr> elem_offset, int data_alignment,
+                          int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
+                          Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorType, Type, TensorTypeNode);
 
