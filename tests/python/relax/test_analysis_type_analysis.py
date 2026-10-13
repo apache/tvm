@@ -222,7 +222,7 @@ def test_base_check():
     vdevice1 = rx.VDevice("llvm")
     vdevice2 = rx.VDevice("cuda", 0)
     vdevice3 = rx.VDevice("cuda", 2)
-    vdevice4 = rx.VDevice("cuda", 0, "")
+    vdevice4 = rx.VDevice("cuda", 0, "global")
 
     tensor0 = rx.TensorType(ndim=-1, dtype="int32")
     tensor1 = rx.TensorType(ndim=-1, dtype="float32")
