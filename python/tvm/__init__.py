@@ -39,8 +39,7 @@ from .runtime import DataType, DataTypeCode
 from . import error
 
 # tvm.ir
-from .ir import IRModule
-from .ir import transform
+from .ir import IRModule, transform
 from . import ir
 
 # tvm.script — must be imported before any dialect package so that
