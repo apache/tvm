@@ -20,6 +20,10 @@
 For example cvt.rn.f16x2.f32 has dst (...,1), a (...,1), b (...,1).
 Packed arithmetic takes its native packed register representation. Packing and
 unpacking are explicit mov instructions, rather than opportunistic vectorization.
+
+Parameters: native destination/source groups, scope; pred=None and
+preserve_dst=False. A scalar read input broadcasts; every tensor ends in its
+PTX register-group count, including an extent-one axis for a scalar register.
 """
 
 from tvm.backend.cuda.ptx import PTXNamespace

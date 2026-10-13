@@ -70,9 +70,12 @@ def apply(instruction, *operands, scope="thread", **parameters):
     """Repeat the explicitly named PTX instruction over its canonical operands.
 
     Operand axes are group, repeat, then instruction-specific atom coordinates.
-    Group axes bind execution IDs; repeat axes generate unrolled loops. Static
-    descriptor fields and runtime instruction operands are serialized as normal
-    Call arguments. See ``docs/tirx/cuda_tile_patterns.rst`` for the contracts.
+    Group axes bind execution IDs; repeat axes generate unrolled loops. Explicit
+    semantic parameters and runtime operands are ordinary Call arguments. Shared
+    matrix descriptors are extracted from canonical layouts. Each instruction
+    guide in ``docs/tirx/tile_ops/`` lists the complete parameters, operand
+    specification and generated code; common conventions are in
+    ``docs/tirx/cuda_tile_patterns.rst``.
     """
     if isinstance(instruction, StringImm):
         instruction = instruction.value

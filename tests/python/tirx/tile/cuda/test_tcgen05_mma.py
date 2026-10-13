@@ -200,8 +200,6 @@ def test_gemm_tcgen05_cta_group_1(task):
                 av,
                 bv,
                 instruction_shape=(128, 64, 16),
-                a_descriptor=(16, 1024, 3),
-                b_descriptor=(16, 1024, 3),
             )
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                 mma_mbar.ptr_to([0])
@@ -369,8 +367,6 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
                 av,
                 bv,
                 instruction_shape=(64, 64, 16),
-                a_descriptor=(16, 1024, 3),
-                b_descriptor=(16, 1024, 3),
             )
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                 mma_mbar.ptr_to([0])
@@ -617,8 +613,6 @@ def test_gemm_tcgen05_cta_group_2(task):
                     av,
                     bv,
                     instruction_shape=(256, 128, 16),
-                    a_descriptor=(16, 1024, 3),
-                    b_descriptor=(16, 1024, 3),
                 )
                 T.ptx[
                     "tcgen05.commit.cta_group::2.mbarrier::arrive::one"
@@ -851,8 +845,6 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
                     av,
                     bv,
                     instruction_shape=(128, 128, 16),
-                    a_descriptor=(16, 1024, 3),
-                    b_descriptor=(16, 1024, 3),
                 )
                 T.ptx[
                     "tcgen05.commit.cta_group::2.mbarrier::arrive::one"
@@ -1015,8 +1007,6 @@ def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
                     av,
                     bv,
                     instruction_shape=(128, 128, 16),
-                    a_descriptor=(16, 1024, 3),
-                    b_descriptor=(16, 1024, 3),
                 )
                 T.ptx[
                     "tcgen05.commit.cta_group::2.mbarrier::arrive::one"
@@ -1346,8 +1336,6 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
                 sa,
                 sb,
                 instruction_shape=(128, 32, 32),
-                a_descriptor=(16, 1024, 3),
-                b_descriptor=(16, 1024, 3),
             )
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                 mma_mbar.ptr_to([0])
@@ -1706,8 +1694,6 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
                     sa,
                     sb,
                     instruction_shape=(256, 128, 32),
-                    a_descriptor=(16, 1024, 3),
-                    b_descriptor=(16, 1024, 3),
                 )
                 T.ptx[
                     "tcgen05.commit.cta_group::2.mbarrier::arrive::one"
@@ -2066,8 +2052,6 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
                 sa,
                 sb,
                 instruction_shape=(128, 32, 64),
-                a_descriptor=(16, 1024, 3),
-                b_descriptor=(16, 1024, 3),
             )
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                 mma_mbar.ptr_to([0])
@@ -2423,8 +2407,6 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
                     sa,
                     sb,
                     instruction_shape=(256, 64, 64),
-                    a_descriptor=(16, 1024, 3),
-                    b_descriptor=(16, 1024, 3),
                 )
                 T.ptx[
                     "tcgen05.commit.cta_group::2.mbarrier::arrive::one"
@@ -2735,8 +2717,6 @@ def test_gemm_block_scaled_fp8_sf_id():
                 sa,
                 sb,
                 instruction_shape=(128, 32, 32),
-                a_descriptor=(16, 1024, 3),
-                b_descriptor=(16, 1024, 3),
             )
 
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
@@ -2898,7 +2878,7 @@ def _col_major_layout(shape):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize(
-    "task,copy_perm,a_major,b_major,a_descriptor",
+    "task,copy_perm,a_major,b_major",
     [
         (task, *recipe)
         for task, recipe in zip(
@@ -3020,14 +3000,14 @@ def _col_major_layout(shape):
                 ),
             ],
             [
-                ((0, 1, 2), "k", "k", (16, 1024, 3)),
-                ((0, 1, 2), "k", "k", (16, 1024, 3)),
-                ((0, 1, 2), "k", "mn", (16, 1024, 3)),
-                ((0, 1, 2), "mn", "k", (8192, 1024, 3)),
-                ((0, 1, 2), "mn", "mn", (16384, 1024, 3)),
-                ((1, 0, 2), "k", "k", (16, 1024, 3)),
-                ((0, 2, 1), "mn", "k", (1024, 2048, 3)),
-                ((0, 2, 1), "k", "k", (1024, 2048, 3)),
+                ((0, 1, 2), "k", "k"),
+                ((0, 1, 2), "k", "k"),
+                ((0, 1, 2), "k", "mn"),
+                ((0, 1, 2), "mn", "k"),
+                ((0, 1, 2), "mn", "mn"),
+                ((1, 0, 2), "k", "k"),
+                ((0, 2, 1), "mn", "k"),
+                ((0, 2, 1), "k", "k"),
             ],
         )
     ],
@@ -3042,7 +3022,7 @@ def _col_major_layout(shape):
         "transA_kmajor_smem",
     ],
 )
-def test_gemm_tcgen05_arbitrary_tiles(task, copy_perm, a_major, b_major, a_descriptor):
+def test_gemm_tcgen05_arbitrary_tiles(task, copy_perm, a_major, b_major):
     """Preserve the original arbitrary tiles through fixed caller views.
 
     Validates B00005 fix (K > atom width) and M/N decomposition.
@@ -3220,8 +3200,6 @@ def test_gemm_tcgen05_arbitrary_tiles(task, copy_perm, a_major, b_major, a_descr
                 instruction_shape=(128, 64, 16),
                 a_major=a_major,
                 b_major=b_major,
-                a_descriptor=a_descriptor,
-                b_descriptor=(16, 1024, 3),
                 accum=False,
             )
             T.cuda.tile.apply(
@@ -3232,8 +3210,6 @@ def test_gemm_tcgen05_arbitrary_tiles(task, copy_perm, a_major, b_major, a_descr
                 instruction_shape=(128, 64, 16),
                 a_major=a_major,
                 b_major=b_major,
-                a_descriptor=a_descriptor,
-                b_descriptor=(16, 1024, 3),
             )
             T.ptx[
                 f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"
@@ -3399,8 +3375,6 @@ def test_gemm_tcgen05_contiguous_kslice_partial_k(k_lo, k_hi):
                 av,
                 bv,
                 instruction_shape=(128, 128, 16),
-                a_descriptor=(16, 1024, 3),
-                b_descriptor=(16, 1024, 3),
             )
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                 mma_mbar.ptr_to([0])
@@ -3571,8 +3545,6 @@ def _run_dense_gemm(
                 instruction_shape=(M, N, instruction_k),
                 a_format=a_format,
                 b_format=mma_b_format,
-                a_descriptor=(16, 1024, 3),
-                b_descriptor=(16, 1024, 3),
             )
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                 mma_mbar.ptr_to([0])
@@ -3707,8 +3679,6 @@ def test_gemm_tcgen05_no_swizzle_col_major_a_ws_local_idesc():
                 instruction_shape=(M, N, 16),
                 a_major="k",
                 b_major="mn",
-                a_descriptor=(1024, 128, 0),
-                b_descriptor=(8192, 1024, 3),
             )
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                 mma_mbar.ptr_to([0])

@@ -355,13 +355,10 @@ def test_swizzled_tmem_copy_rejects_gapped_words():
             T.ptx["tcgen05.cp.cta_group::1.128x256b"],
             dst,
             src,
-            ldo_bytes=32,
-            sdo_bytes=1024,
-            swizzle=3,
         )
 
     with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
-        with pytest.raises(RuntimeError, match="explicit matrix descriptor address walk"):
+        with pytest.raises(RuntimeError, match="descriptor address walk"):
             tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": kernel}))
 
 

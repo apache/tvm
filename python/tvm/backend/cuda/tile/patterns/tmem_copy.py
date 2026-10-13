@@ -17,8 +17,8 @@
 
 """tcgen05.cp: (*group, *repeat, row, b32_word).
 
-The instruction spells the shape and multicast. Shared ldo/sdo/swizzle are
-explicit descriptor fields. Destination replicas describe the hardware's
+The instruction spells the shape and multicast. Shared descriptor fields are
+extracted from the canonical view. Destination replicas describe the hardware's
 multicast copies; no shape selection, layout permutation, or synchronization
 is performed here.
 
@@ -26,14 +26,17 @@ The optional b8x16.b4x16_p64 / b8x16.b6x16_p32 qualifiers keep this b32
 footprint: each 16-byte source block contains sixteen packed values followed
 by padding, and the destination contains sixteen expanded bytes. Hardware
 performs the conversion; the pattern does not insert scalar unpacking code.
+
+Parameters: dst, src, scope; pred=None. Shared descriptor byte strides and
+swizzle are extracted from the operand image. One repeat emits one cp.
 """
 
 from tvm.backend.cuda.op import _tmem_address
 from tvm.backend.cuda.ptx import PTXNamespace
 from tvm.script import tirx as T
 
-from .common import Context, scalar
-from .descriptors import check_matrix_rows, matrix_descriptor
+from .common import Context
+from .descriptors import matrix_descriptor
 
 
 def lower(opcode, entry, modifiers, args, params, sctx):
@@ -42,9 +45,6 @@ def lower(opcode, entry, modifiers, args, params, sctx):
     shape = modifiers["shape"]
     rows, bits = shape.split("x")
     rows, words = int(rows), int(bits[:-1]) // 32
-    ldo = int(scalar(params.pop("ldo_bytes")))
-    sdo = int(scalar(params.pop("sdo_bytes")))
-    swizzle = int(scalar(params.pop("swizzle", 0)))
     pred = params.pop("pred", None)
     if params:
         raise ValueError(f"{opcode}: unknown operands {tuple(params)}")
@@ -94,7 +94,6 @@ def lower(opcode, entry, modifiers, args, params, sctx):
             ctx.require(
                 p.get("TCol", 0) == col_base + word, "TMEM words must occupy consecutive columns"
             )
-    check_matrix_rows(ctx, src, rows, words, ldo, sdo, swizzle)
-    desc = matrix_descriptor(ctx, src, ldo, sdo, swizzle, (0, 0))
+    desc = matrix_descriptor(ctx, src, (rows, words), copy=True)
     address = T.cuda.get_tmem_addr(_tmem_address(dst.tensor), row_base, col_base)
     return ctx.finish([PTXNamespace()[opcode](address, desc, pred=pred)])

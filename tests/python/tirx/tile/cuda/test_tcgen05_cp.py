@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, missing-function-docstring
 """Native tcgen05.cp layouts, regions, multicast and CTA-pair readbacks.
 
-Instruction shape and descriptor fields are explicitly selected by each case.
+Instruction shapes and operand layouts are explicitly selected by each case.
 The host references reconstruct the original physical TMEM cells and replicas,
 independently of the caller's zero-copy view and native cp lowering.
 """
@@ -90,7 +90,7 @@ def _tmem_layout_for(shape, multicast, C):
     raise ValueError(shape)
 
 
-def _emit_cp(dst, src, t_region, s_region, shape, opcode, descriptor):
+def _emit_cp(dst, src, t_region, s_region, shape, opcode):
     """Expose fixed b32 atom regions selected by the caller's shape and bounds.
 
     These loops partition the original logical region without searching either
@@ -110,9 +110,6 @@ def _emit_cp(dst, src, t_region, s_region, shape, opcode, descriptor):
                     T.ptx[opcode],
                     destination[t_row[0] + row : t_row[0] + row + atom_rows, tc : tc + words],
                     source[s_row[0] + row : s_row[0] + row + atom_rows, sc : sc + words],
-                    ldo_bytes=descriptor[0],
-                    sdo_bytes=descriptor[1],
-                    swizzle=descriptor[2],
                 )
             )
 
@@ -152,7 +149,6 @@ def _make_cp_kernel(
     W32,
     n_tmem_cols,
     extra_cfg=None,
-    descriptor=(0, 1024, 3),
     pre_zero=False,
 ):
     s_sl = tuple(slice(a, b) for a, b in s_region)
@@ -208,7 +204,7 @@ def _make_cp_kernel(
                 T.cuda.cta_sync()
                 T.ptx.tcgen05.fence__after_thread_sync()
             if tid_in_wg == 0:
-                _emit_cp(tmem, A_smem, t_region, s_region, shape, opcode, descriptor)
+                _emit_cp(tmem, A_smem, t_region, s_region, shape, opcode)
                 T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                     cp_mbar.ptr_to([0])
                 )
@@ -316,11 +312,6 @@ def _build_case(
         W32,
         n_tmem_cols,
         extra_cfg=extra_cfg,
-        descriptor=(
-            128 if sw == 0 and atom_bits == 256 else 0,
-            256 if sw == 0 and atom_bits == 256 else 128 << sw,
-            sw,
-        ),
     )
 
     def check(mod):
@@ -412,7 +403,7 @@ def test_cp_4x256b_compile_emits_shape_and_count():
     assert helper_refs - 1 == 2, f"expected 2 cp calls, got {helper_refs - 1}; src=\n{src}"
 
 
-def test_cp_explicit_shape_and_descriptor():
+def test_cp_explicit_shape_and_inferred_descriptor():
     kernel, _ = _build_case("128x256b", None, 3, "bfloat16", 4)
     ex = _compile(kernel)
     assert len(_cp_call_lines(ex, "128x256b")) == 4
@@ -468,7 +459,6 @@ def test_cp_4x256b_lane_tiled_partial_window():
         None,
         W32,
         32,
-        descriptor=(0, 256, 1),
         pre_zero=True,
     )
     mod = _compile(kernel)
@@ -498,7 +488,6 @@ def _make_cp_kernel_cta2(s_full, s_shape, t_full, t_shape, dtype, cfg, W32, n_co
     t_sl = tuple(slice(0, e) for e in t_shape)
 
     shape = cfg["shape"]
-    descriptor = cfg["descriptor"]
     opcode = _cp_opcode(shape, cfg.get("multicast"), cfg["cta_group"], cfg.get("decompress"))
     s_region = [(0, d) for d in s_shape]
     t_region = [(0, d) for d in t_shape]
@@ -550,7 +539,7 @@ def _make_cp_kernel_cta2(s_full, s_shape, t_full, t_shape, dtype, cfg, W32, n_co
         T.cuda.cluster_sync()
         if cbx == 0:
             if tid_in_wg == 0:
-                _emit_cp(tmem, A_smem, t_region, s_region, shape, opcode, descriptor)
+                _emit_cp(tmem, A_smem, t_region, s_region, shape, opcode)
                 T.ptx.tcgen05.commit.cta_group__2.mbarrier__arrive__one.shared__cluster.multicast__cluster.b64(
                     cp_mbar.ptr_to([0]), T.uint16(3)
                 )
@@ -600,7 +589,7 @@ def test_cp_cta_group_2_128x256b_pair_collective():
         [128, C],
         t_full,
         [128, C],
-        {"shape": "128x256b", "cta_group": 2, "descriptor": (0, 256, 1)},
+        {"shape": "128x256b", "cta_group": 2},
         C * 16 // 32,
     )
     for cta in range(2):
@@ -629,7 +618,6 @@ def test_cp_cta_group_2_64x128b_warpx2_pair_collective():
             "shape": "64x128b",
             "multicast": "warpx2::02_13",
             "cta_group": 2,
-            "descriptor": (0, 128, 0),
         },
         C * 16 // 32,
     )
@@ -661,7 +649,6 @@ def test_cp_4x256b_lane_tiled_layout_f_scatter():
         None,
         W32,
         32,
-        descriptor=(0, 256, 1),
     )
     mod = _compile(kernel)
     src = mod.mod.imports[0].inspect_source()
@@ -684,7 +671,7 @@ def test_cp_4x256b_lane_tiled_layout_f_scatter():
 def test_cp_explicit_32x128b_instruction_sequence():
     """The original four-tile input produces four explicit 32x128b.warpx4 calls.
 
-    The selected descriptor is (ldo=0, sdo=128B, swizzle=0); native operations
+    The selected descriptor is (ldo=16B, sdo=128B, swizzle=0); native operations
     read shared bytes 0/512/1024/1536 into TMEM columns 0/4/8/12.
     """
     s_full = TileLayout(S[(4, 32, 16) : (512, 16, 1)])
@@ -723,8 +710,6 @@ def test_cp_explicit_32x128b_instruction_sequence():
                     T.ptx["tcgen05.cp.cta_group::1.32x128b.warpx4"],
                     tmem.view("uint32"),
                     A_smem.view("uint32"),
-                    ldo_bytes=0,
-                    sdo_bytes=128,
                 )
             if warp_id == 0:
                 T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
@@ -869,15 +854,12 @@ def test_cp_native_decompression(shape, multicast, sw, bits, cta_group):
         if atom_bits == 128:
             s_shape = [s_rows, cols]
             s_layout = TileLayout(S[tuple(s_shape)])
-            descriptor = (0, 128, 0)
         else:
             s_shape = [s_rows, cols]
             s_layout = TileLayout(S[(s_rows // 8, 8, 2, 16) : (256, 16, 128, 1)])
-            descriptor = (128, 256, 0)
     else:
         s_shape = [s_rows, max(cols, 16 << sw)]
         s_layout = mma_shared_layout("uint8", sw, s_shape)
-        descriptor = (0, 128 << sw, sw)
     t_layout, t_shape = _tmem_layout_for(shape, multicast, cols)
     s_region, t_region = [(0, rows), (0, cols)], [(0, rows), (0, cols)]
     fmt = "b8x16.b4x16_p64" if bits == 4 else "b8x16.b6x16_p32"
@@ -896,7 +878,6 @@ def test_cp_native_decompression(shape, multicast, sw, bits, cta_group):
             width32,
             32,
             extra_cfg={"decompress": fmt},
-            descriptor=descriptor,
             pre_zero=True,
         )
     else:
@@ -906,9 +887,7 @@ def test_cp_native_decompression(shape, multicast, sw, bits, cta_group):
             t_layout,
             t_shape,
             "uint8",
-            dict(
-                shape=shape, multicast=multicast, cta_group=2, descriptor=descriptor, decompress=fmt
-            ),
+            dict(shape=shape, multicast=multicast, cta_group=2, decompress=fmt),
             width32,
             32,
         )
@@ -970,7 +949,7 @@ def test_cp_rejects_non_canonical_swizzle_family():
     bits = 16
     C = 128 // bits
     # per_element=2 is the f32 family; with a bf16 source it disagrees with the
-    # descriptor permutation. Linear part is valid, so only family check rejects.
+    # descriptor permutation. The full address walk determines legality.
     s_full = ComposeLayout(2, 3, 3, TileLayout(S[(16, 8, 64) : (512, 64, 1)]))
     t_full = TileLayout(S[(128, C) : (1 @ TLane, 1 @ TCol)])
     kernel = _make_cp_kernel(
@@ -1000,7 +979,7 @@ def test_cp_rejects_flipped_swizzle_inner():
     bits = 16
     C = 128 // bits
     # Same linear tiling and correct (per_element=3, atom_len=3) bf16 family;
-    # only the permutation direction is flipped, so only swizzle_inner rejects.
+    # the permutation direction is flipped; no hardware mode matches its address walk.
     s_full = ComposeLayout(3, 3, 3, TileLayout(S[(16, 8, 64) : (512, 64, 1)]), swizzle_inner=False)
     t_full = TileLayout(S[(128, C) : (1 @ TLane, 1 @ TCol)])
     kernel = _make_cp_kernel(
@@ -1041,7 +1020,6 @@ def _make_2d_kernel(
     t_c1,
     dtype,
     cta_group=1,
-    descriptor=(0, 128, 0),
 ):
     """2D variant: SMEM/TMEM are both 2D; copy a rectangular sub-region."""
     n_tmem_cols_total = max(32, t_full_shape[-1])
@@ -1087,7 +1065,6 @@ def _make_2d_kernel(
                     [(s_r0, s_r1), (s_c0, s_c1)],
                     "32x128b",
                     _cp_opcode("32x128b", "warpx4", cta_group),
-                    descriptor,
                 )
                 T.ptx[
                     f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"
@@ -1159,8 +1136,6 @@ def _make_3d_4tile_kernel(s_full, t_full, s_full_shape, t_full_shape, dtype, cta
                     T.ptx[_cp_opcode("32x128b", "warpx4", cta_group)],
                     tmem.view("uint32"),
                     A_smem.view("uint32"),
-                    ldo_bytes=0,
-                    sdo_bytes=128,
                 )
                 T.ptx[
                     f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"
@@ -1192,7 +1167,7 @@ def _make_3d_4tile_kernel(s_full, t_full, s_full_shape, t_full_shape, dtype, cta
     return kernel
 
 
-def _run_2d(s_full, t_full, s_full_shape, s_region, dtype, A_init, expected, descriptor):
+def _run_2d(s_full, t_full, s_full_shape, s_region, dtype, A_init, expected):
     s_r0, s_r1 = s_region[0]
     s_c0, s_c1 = s_region[1]
     kernel = _make_2d_kernel(
@@ -1209,7 +1184,6 @@ def _run_2d(s_full, t_full, s_full_shape, s_region, dtype, A_init, expected, des
         0,
         16,
         dtype,
-        descriptor=descriptor,
     )
     return _execute(kernel, A_init, expected)
 
@@ -1287,17 +1261,7 @@ def test_single_cp(name, s_full, s_full_shape, s_region):
     r0, r1 = s_region[0]
     c0, c1 = s_region[1]
     expected = A_np[r0:r1, c0:c1]
-    descriptor = {
-        "sw0_plain_atom_aligned": (0, 128, 0),
-        "sw1_32B_atom": (0, 256, 1),
-        "sw2_64B_atom": (0, 512, 2),
-        "sw3_128B_atom": (0, 1024, 3),
-        "sw3_64x128_corner": (0, 1024, 3),
-        "sw3_64x128_atom_row_8": (0, 1024, 3),
-        "sw2_32x256_col_64": (0, 512, 2),
-        "sw0_M_atom_major_4_0": (0, 128, 0),
-    }[name]
-    _run_2d(s_full, T_LAY_BASIC, s_full_shape, s_region, "uint8", A_np, expected, descriptor)
+    _run_2d(s_full, T_LAY_BASIC, s_full_shape, s_region, "uint8", A_np, expected)
 
 
 @pytest.mark.gpu
@@ -1369,8 +1333,6 @@ def test_align_middle_2_to_1_nvfp4_sfb():
                     A_smem.view(2, 4, 32, 4, 4)
                     .rearrange("a b r c v -> a c r (b v)")
                     .view("uint32"),
-                    ldo_bytes=0,
-                    sdo_bytes=128,
                 )
                 T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                     cp_mbar.ptr_to([0])
@@ -1448,7 +1410,7 @@ def test_align_middle_2_to_1_nvfp4_sfb():
     ],
 )
 def test_cp_subregion_descriptor_contract(case):
-    """Two former planner restrictions are legal explicit descriptor regions.
+    """Two nonzero-origin regions match an inferred hardware descriptor.
 
     A 64-byte unswizzled row stride still disagrees with the native 16-byte
     row step; the other two cases are checked against an independent readback.
@@ -1456,11 +1418,6 @@ def test_cp_subregion_descriptor_contract(case):
     name, s_full, s_full_shape, s_region = case
     s_r0, s_r1 = s_region[0]
     s_c0, s_c1 = s_region[1]
-    descriptor = {
-        "sw3_mid_atom_row": (0, 1024, 3),
-        "sw2_mid_atom_col": (0, 512, 2),
-        "sw0_row_stride_64": (0, 128, 0),
-    }[name]
     kernel = _make_2d_kernel(
         s_full,
         T_LAY_BASIC,
@@ -1475,7 +1432,6 @@ def test_cp_subregion_descriptor_contract(case):
         0,
         16,
         "uint8",
-        descriptor=descriptor,
     )
     if name == "sw0_row_stride_64":
         _assert_compile_raises(kernel, "descriptor address walk")
@@ -1484,7 +1440,7 @@ def test_cp_subregion_descriptor_contract(case):
         _execute(kernel, source, source[s_r0:s_r1, s_c0:s_c1])
 
 
-def test_multi_cp_reuses_explicit_descriptor_fields():
+def test_multi_cp_infers_descriptor_fields():
     s_full = TileLayout(S[(4, 32, 16) : (512, 16, 1)])
     t_full = TileLayout(S[(4, 32, 16) : (16 @ TCol, 1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane])
     kernel = _make_3d_4tile_kernel(s_full, t_full, [4, 32, 16], [4, 32, 16], "uint8")
@@ -1492,6 +1448,72 @@ def test_multi_cp_reuses_explicit_descriptor_fields():
     calls = _cp_call_lines(ex, "32x128b", "warpx4")
     assert len(calls) == 4
     assert all("16383" in line for line in calls)
+
+
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="Blackwell required")
+@pytest.mark.parametrize("swizzle", [0, 1, 2, 3])
+@pytest.mark.parametrize("row_start", [0, 8])
+def test_cp_infers_padded_row_groups(swizzle, row_start):
+    """Keep padding and a nonzero swizzle phase when extracting byte strides."""
+    row_words = 4 << swizzle
+    sdo_words = (64 if swizzle == 0 else 8 * row_words) + 16
+    columns = max(8, row_words)
+    source_shape = (144, columns)
+    if swizzle:
+        layout = ComposeLayout(
+            2, swizzle, 3, TileLayout(S[(18, 8, columns) : (sdo_words, row_words, 1)])
+        )
+    else:
+        layout = TileLayout(S[(18, 8, 2, 4) : (sdo_words, 4, 32, 1)])
+    _check_inferred_cp(layout, source_shape, row_start, "128x256b")
+
+
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="Blackwell required")
+def test_cp_small_plain_region_matches_swizzled_descriptor():
+    """The first four 32B rows expose no XOR bits, but require swizzle mode 1.
+
+    The plain TileLayout must remain valid: requiring ComposeLayout would
+    unnecessarily reject this physical image. Eight rows provide backing space.
+    """
+    _check_inferred_cp(TileLayout(S[(8, 8) : (8, 1)]), (8, 8), 0, "4x256b")
+
+
+def _check_inferred_cp(source_layout, source_shape, row_start, shape):
+    rows, bits = _shape_dims(shape)
+    words = bits // 32
+    destination_layout, destination_shape = _tmem_layout_for(shape, None, words)
+    source_region = [(row_start, row_start + rows), (0, words)]
+    destination_region = [(0, rows), (0, words)]
+    kernel = _make_cp_kernel(
+        source_layout,
+        source_shape,
+        source_region,
+        destination_layout,
+        destination_shape,
+        destination_region,
+        "uint32",
+        shape,
+        None,
+        words,
+        32,
+        pre_zero=True,
+    )
+    compiled = _compile(kernel)
+    assert len(_cp_call_lines(compiled, shape)) == 1
+    source = np.arange(np.prod(source_shape), dtype="uint32").reshape(source_shape)
+    expected, mask = _expected_readback(
+        source,
+        source_region,
+        destination_layout,
+        destination_shape,
+        destination_region,
+        None,
+        32,
+        words,
+    )
+    output = tvm.runtime.tensor(np.zeros((128, words), dtype="uint32"), tvm.cuda())
+    compiled(tvm.runtime.tensor(source, tvm.cuda()), output)
+    np.testing.assert_array_equal(output.numpy(), np.where(mask, expected, 0))
 
 
 if __name__ == "__main__":

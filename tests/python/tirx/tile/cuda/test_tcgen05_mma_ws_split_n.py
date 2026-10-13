@@ -100,7 +100,6 @@ def test_gemm_tcgen05_explicit_mma_tile_preserves_ws_datapath():
                 A_tmem.view(1, 1, 2, M, K),
                 B_prepared.view(2, 1, 64, K),
                 instruction_shape=(M, 64, K),
-                b_descriptor=(16, 256, 1),
             )
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                 barrier.ptr_to([0])
