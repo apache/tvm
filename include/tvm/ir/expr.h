@@ -28,6 +28,7 @@
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/extra/dataclass.h>
+#include <tvm/ffi/reflection/native_function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/attrs.h>
@@ -460,10 +461,24 @@ class TensorLoadNode : public ExprNode {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TensorLoad", TensorLoadNode, ExprNode);
 };
 
+/*!
+ * \brief Infer a load's primitive result type from its populated source, indices and location.
+ * \note The callback must derive the result from those inputs, not the unpublished result type.
+ */
+using FTensorLoadInferType = ffi::reflection::NativeFunctionView<PrimType(const TensorLoadNode*)>;
+
 /*! \brief Managed reference to TensorLoadNode. */
 class TensorLoad : public PrimExpr {
  public:
-  explicit TensorLoad(ffi::ObjectPtr<TensorLoadNode> node) : PrimExpr(std::move(node)) {}
+  /*! \brief Construct a load using the inference hook on the runtime class of source->ty. */
+  TVM_TIRX_DLL TensorLoad(Expr source, ffi::Array<PrimExpr> indices, Location loc = UnknownLoc());
+
+  /*! \brief Construct with an explicit primitive result type, bypassing source-type inference. */
+  TVM_TIRX_DLL static TensorLoad Unchecked(PrimType ty, Expr source, ffi::Array<PrimExpr> indices,
+                                           Location loc = UnknownLoc());
+
+  /*! \brief Wrap an existing node, requiring a concrete primitive result type. */
+  TVM_TIRX_DLL explicit TensorLoad(ffi::ObjectPtr<TensorLoadNode> node);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorLoad, PrimExpr, TensorLoadNode);
   static constexpr bool _type_container_is_exact = true;
@@ -1172,7 +1187,8 @@ inline constexpr const char* kCallEffectKind = "TCallEffectKind";
 }  // namespace op_attr
 
 namespace type_attr {
-inline constexpr const char* kSubscriptExprRealize = "__subscript_expr_realize__";
+inline constexpr const char* kTensorLoadInferType = "__tvm_tensor_load_infer_type__";
+inline constexpr const char* kSubscriptExprRealize = "__tvm_subscript_expr_realize__";
 }  // namespace type_attr
 
 }  // namespace tvm

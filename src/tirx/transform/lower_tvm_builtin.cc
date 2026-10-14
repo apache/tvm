@@ -152,7 +152,8 @@ class BuiltinLower : public StmtExprMutator {
     {
       // NOTE: this scope reference is invalid after any mutation is applied to alloca_scope_.
       auto& scope = precheck->alloca_scope_.back();
-      scope.stack_shape = decl_tensor({IntImm::Int64(0)}, PrimType::Int(64), "stack_shape");
+      scope.stack_shape =
+          TensorVar("stack_shape", TensorType({IntImm::Int64(0)}, PrimType::Int(64)));
     }
 
     precheck->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
@@ -196,15 +197,15 @@ class BuiltinLower : public StmtExprMutator {
       }
 
       if (scope.max_sizes.shape_stack != -1) {
-        scope.stack_shape = decl_tensor({IntImm::Int64(scope.max_sizes.shape_stack)},
-                                        PrimType::Int(64), "stack_shape");
+        scope.stack_shape =
+            TensorVar("stack_shape",
+                      TensorType({IntImm::Int64(scope.max_sizes.shape_stack)}, PrimType::Int(64)));
         stmt = SeqStmt(
             {Bind(scope.stack_shape.value(),
-                  Call(scope.stack_shape.value().type(), decl_tensor_op(),
-                       {Call(scope.stack_shape.value().type()->DataPtrType(),
-                             tirx::stack_alloca_op(),
+                  Call(scope.stack_shape.value().ty(), decl_tensor_op(),
+                       {Call(scope.stack_shape.value().ty()->DataPtrType(), tirx::stack_alloca_op(),
                              {StringImm("shape"), IntImm::Int32(scope.max_sizes.shape_stack)})},
-                       {}, {scope.stack_shape.value().type()})),
+                       {}, {scope.stack_shape.value().ty()})),
              stmt});
       }
 
@@ -328,12 +329,12 @@ class BuiltinLower : public StmtExprMutator {
 
     Stmt alloc_bind =
         Bind(op->var.as_or_throw<TensorVar>(),
-             Call(op->var.as_or_throw<TensorVar>().type(), decl_tensor_op(),
-                  {Call(op->var.as_or_throw<TensorVar>().type()->DataPtrType(), alloc_workspace_op,
+             Call(op->var.as_or_throw<TensorVar>().ty(), decl_tensor_op(),
+                  {Call(op->var.as_or_throw<TensorVar>().ty()->DataPtrType(), alloc_workspace_op,
                         {prim::cast(PrimType::Int(32), device_type_.value()),
                          prim::cast(PrimType::Int(32), device_id_.value()), total_bytes,
                          IntImm::Int32(element_type.code()), IntImm::Int32(element_type.bits())})},
-                  {}, {op->var.as_or_throw<TensorVar>().type()}, tensor_call->loc),
+                  {}, {op->var.as_or_throw<TensorVar>().ty()}, tensor_call->loc),
              op->loc);
 
     return SeqStmt({alloc_bind, alloc_nullptr_check});
@@ -500,8 +501,8 @@ class BuiltinLower : public StmtExprMutator {
                       prim::cast(PrimType::Int(64), op->args[i].as_or_throw<PrimExpr>())));
     }
     PrimExpr offset = IntImm::Int32(stack_begin);
-    TensorLoad load = MakeTensorLoad(scope.stack_shape.value(), {offset});
-    return Call(scope.stack_shape.value().type()->DataPtrType(), address_of_op(), {load});
+    TensorLoad load = TensorLoad(scope.stack_shape.value(), {offset});
+    return Call(scope.stack_shape.value().ty()->DataPtrType(), address_of_op(), {load});
   }
   // make array
   Expr MakeArray(const CallNode* op) {

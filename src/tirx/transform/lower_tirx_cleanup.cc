@@ -63,23 +63,23 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
         new_params.push_back(param);
         continue;
       }
-      storage_lower->tensor_aliases_.Set(tensor.value().var(), tensor.value().var());
+      storage_lower->tensor_aliases_.Set(tensor.value(), tensor.value());
       TensorVar flattened = storage_lower->GetFlattenedTensor(tensor.value());
       TensorVar source = tensor.value();
-      if (source->layout.has_value()) {
-        auto type = CopyTensorType(source);
+      if (source.ty()->layout.has_value()) {
+        auto type = ffi::make_object<TensorTypeNode>(*source.ty().get());
         type->layout = std::nullopt;
-        source = RebuildTensorVar(source, std::move(type));
+        source = TensorVar(source->name, TensorType(std::move(type)), source->loc);
       }
       if (!flattened.same_as(source)) {
         param_flattened_tensors.emplace_back(flattened, source);
       }
-      new_params.push_back(source.var());
+      new_params.push_back(source);
     }
     auto new_stmt = storage_lower->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
     for (const auto& [buf, source] : param_flattened_tensors) {
       new_stmt =
-          SeqStmt({Bind(buf, Call(buf.type(), decl_tensor_op(), {source.data()}, {}, {buf.type()})),
+          SeqStmt({Bind(buf, Call(buf.ty(), decl_tensor_op(), {source.data()}, {}, {buf.ty()})),
                    std::move(new_stmt)});
     }
     return std::make_pair(new_stmt, new_params);
@@ -126,8 +126,7 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (auto source = op->value.as<TensorVar>(); source.has_value()) {
       auto tensor = op->var.as_or_throw<TensorVar>();
-      Call declaration(tensor.type(), decl_tensor_op(), {source.value().data()}, {},
-                       {tensor.type()});
+      Call declaration(tensor.ty(), decl_tensor_op(), {source.value().data()}, {}, {tensor.ty()});
       Bind binding(op->var, declaration, op->loc);
       return MutateDeclTensor(binding.get(), declaration.get(), inplace_mode)
           .ValueOrUnchanged(binding);
@@ -139,9 +138,9 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
         auto tensor = op->var.as_or_throw<TensorVar>();
         // TMEM is already allocated by the pool.  Retain an explicit backing pointer so
         // ordinary data projections also work for views and function parameters.
-        Call declaration(tensor.type(), decl_tensor_op(),
-                         {Call(tensor->DataPtrType(), reinterpret_op(), {call->args[0]})}, {},
-                         {tensor.type()});
+        Call declaration(tensor.ty(), decl_tensor_op(),
+                         {Call(tensor.ty()->DataPtrType(), reinterpret_op(), {call->args[0]})}, {},
+                         {tensor.ty()});
         Bind binding(op->var, declaration, op->loc);
         return MutateDeclTensor(binding.get(), declaration.get(), inplace_mode)
             .ValueOrUnchanged(binding);
@@ -160,9 +159,9 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
     if (!args.empty()) {
       args.Set(0, Mutate(args[0], inplace_mode).ValueOrUnchanged(args[0]));
     }
-    return Bind(tensor.var(),
-                Call(tensor.type(), tirx::alloc_tensor_op(), args, tensor_call->attrs,
-                     {tensor.type()}, tensor_call->loc),
+    return Bind(tensor,
+                Call(tensor.ty(), tirx::alloc_tensor_op(), args, tensor_call->attrs, {tensor.ty()},
+                     tensor_call->loc),
                 op->loc);
   }
 
@@ -177,8 +176,8 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
       return ffi::Unchanged();
     }
     return Bind(tensor,
-                Call(tensor.type(), decl_tensor_op(), {std::move(data)}, tensor_call->attrs,
-                     {tensor.type()}, tensor_call->loc),
+                Call(tensor.ty(), decl_tensor_op(), {std::move(data)}, tensor_call->attrs,
+                     {tensor.ty()}, tensor_call->loc),
                 op->loc);
   }
 
@@ -189,7 +188,7 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
     TensorVar flattened = buf;
     ffi::ObjectPtr<TensorTypeNode> type;
     if (is_alloc) {
-      if (auto tile_layout = buf->layout.as<TileLayoutNode>()) {
+      if (auto tile_layout = buf.ty()->layout.as<TileLayoutNode>()) {
         // Allocation must cover the memory-axis span, including gaps, whether
         // or not the layout also distributes elements across threads.
         sym::Analyzer ana;
@@ -210,10 +209,10 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
           }
         }
         flattened = buf;
-        type = CopyTensorType(flattened);
+        type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
         type->shape = {ana->Simplify(mem_span)};
         type->strides = {};
-      } else if (auto compose = buf->layout.as<ComposeLayoutNode>()) {
+      } else if (auto compose = buf.ty()->layout.as<ComposeLayoutNode>()) {
         // A swizzle permutes addresses, so the logical element count is not
         // the allocation footprint of a strided view. Round the underlying
         // memory span to a block whose upper bits the swizzle cannot change.
@@ -221,7 +220,7 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
         PrimExpr mem_span = compose->tile_layout->GetSpan(ffi::String("m"));
         if (compose->tile_layout->IsTrivial()) {
           mem_span = IntImm::Int32(1);
-          for (const auto& extent : buf->shape) mem_span = mem_span * extent;
+          for (const auto& extent : buf.shape()) mem_span = mem_span * extent;
         }
         if (compose->swizzle_len != 0) {
           int changed_bits = compose->per_element + compose->swizzle_len;
@@ -229,16 +228,16 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
           PrimExpr block = IntImm(mem_span.ty(), int64_t{1} << changed_bits);
           mem_span = floordiv(mem_span + block - 1, block) * block;
         }
-        type = CopyTensorType(buf);
+        type = ffi::make_object<TensorTypeNode>(*buf.ty().get());
         type->shape = {analyzer_->Simplify(mem_span)};
         type->strides = {};
       } else {
         flattened = FlattenedTensor(buf);
-        type = CopyTensorType(flattened);
+        type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
       }
     } else {
       flattened = FlattenedTensor(buf);
-      type = CopyTensorType(flattened);
+      type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
     }
     // Remap variables the pass has already rebuilt (a shape may load from
     // another local tensor), then canonicalize.
@@ -257,13 +256,13 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
     }
     type->layout = std::nullopt;
     type->elem_offset =
-        StmtExprMutator::Mutate(ffi::AnyView(buf->elem_offset), InplaceMode::kDisallow)
-            .ValueOrUnchanged(buf->elem_offset)
+        StmtExprMutator::Mutate(ffi::AnyView(buf.elem_offset()), InplaceMode::kDisallow)
+            .ValueOrUnchanged(buf.elem_offset())
             .as_or_throw<PrimExpr>();
-    if (ffi::StructuralEqual()(buf.type(), TensorType(type))) {
+    if (ffi::StructuralEqual()(buf.ty(), TensorType(type))) {
       return buf;
     }
-    flattened = RebuildTensorVar(flattened, std::move(type));
+    flattened = TensorVar(flattened->name, TensorType(std::move(type)), flattened->loc);
 
     VarRemapSet(buf, flattened);
     return flattened;
@@ -295,17 +294,18 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
 
   ffi::Array<PrimExpr> GetSimplifiedElemOffset(const TensorVar& tensor,
                                                const ffi::Array<PrimExpr>& indices) {
-    if (tensor->layout.has_value()) {
-      if (auto tile = tensor->layout.value().as<TileLayoutNode>(); tile && tile->HasThreadAxis()) {
+    if (tensor.ty()->layout.has_value()) {
+      if (auto tile = tensor.ty()->layout.value().as<TileLayoutNode>();
+          tile && tile->HasThreadAxis()) {
         LOG(FATAL) << "Cannot lower direct TensorLoad/TensorStore on a tensor with thread-axis "
                    << "layout: unable to verify that the coordinate matches the current thread. "
                    << "Use .view() + .local() to decompose thread and memory axes.";
       }
-      auto res = tensor->layout.value()->Canonicalize()->Apply(indices, tensor->shape);
+      auto res = tensor.ty()->layout.value()->Canonicalize()->Apply(indices, tensor.shape());
       TVM_FFI_ICHECK_EQ(res.size(), 1) << "Expected a single element offset";
       return {analyzer_->Simplify((*res.begin()).second)};
     }
-    auto flattened_indices = tensor->ElemOffset(indices, true);
+    auto flattened_indices = tensor.ty()->ElemOffset(indices, true);
     TVM_FFI_ICHECK_EQ(flattened_indices.size(), 1) << "Expected a single element offset";
     return {analyzer_->Simplify(flattened_indices[0])};
   }
@@ -325,15 +325,15 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
   TensorLoad VisitTensorAccess(TensorLoad node) {
     TensorVar tensor = node->source.as_or_throw<tvm::tirx::TensorVar>();
     TVM_FFI_ICHECK(tensor.defined());
-    return MakeTensorLoad(GetFlattenedTensor(tensor),
-                          GetSimplifiedElemOffset(tensor, node->indices), node->loc);
+    return TensorLoad(GetFlattenedTensor(tensor), GetSimplifiedElemOffset(tensor, node->indices),
+                      node->loc);
   }
 
   /*! \brief Map of variables being remapped, including tensor variables. */
 
  private:
   void RegisterTensorAlias(TensorVar tensor, const Expr& data) {
-    Var root = tensor.var();
+    Var root = tensor;
     if (const auto* call = data.as<CallNode>();
         call && call->op.same_as(tensor_data_ptr_op()) && call->args.size() == 1) {
       if (auto source = call->args[0].as<Var>();
@@ -345,7 +345,7 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
         root = source_root.value();
       }
     }
-    tensor_aliases_.Set(tensor.var(), root);
+    tensor_aliases_.Set(tensor, root);
   }
 
   /*! \brief Physical roots of tensor aliases, flattened at each declaration. */

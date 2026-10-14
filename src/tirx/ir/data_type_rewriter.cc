@@ -353,8 +353,8 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const TensorStoreNode* op,
   bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
   auto value = std::move(value_result).ValueOrUnchanged(op->value);
   PrimType value_dtype = value.ty();
-  if (new_tensor->dtype != value_dtype && value_dtype.IsScalar()) {
-    value = prim::cast(new_tensor->dtype, value);
+  if (new_tensor.dtype() != value_dtype && value_dtype.IsScalar()) {
+    value = prim::cast(new_tensor.dtype(), value);
     value_unchanged = false;
   }
   auto indices = VisitIndices(op->indices, inplace_mode);
@@ -380,7 +380,7 @@ UnchangedOr<PrimExpr> IndexDataTypeRewriter::Mutate_(const TensorLoadNode* op,
 
   if (!new_tensor.same_as(op->source.as_or_throw<tvm::tirx::TensorVar>()) ||
       !indices.same_as(op->indices)) {
-    return MakeTensorLoad(new_tensor, indices, op->loc);
+    return TensorLoad(new_tensor, indices, op->loc);
   }
 
   return load;

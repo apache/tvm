@@ -58,7 +58,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         ffi::ObjectRef result =
             packed_realize.cast<ffi::Function>()(value, slice, loc).cast<ffi::ObjectRef>();
         TVM_FFI_CHECK(result.defined(), TypeError)
-            << "__subscript_expr_realize__ for type " << value->ty->GetTypeKey()
+            << "__tvm_subscript_expr_realize__ for type " << value->ty->GetTypeKey()
             << " returned an undefined object";
         return result;
       });

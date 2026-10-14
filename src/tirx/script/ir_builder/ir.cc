@@ -85,7 +85,7 @@ Var Arg(ffi::String name, Var var) {
 }
 
 TensorVar Arg(ffi::String name, TensorVar tensor) {
-  Arg(std::move(name), tensor.var());
+  Arg(std::move(name), Var(tensor));
   return tensor;
 }
 

@@ -678,8 +678,8 @@ inline constexpr const char* kRegionValidate = "FRegionValidate";
 }  // namespace op_attr
 
 namespace type_attr {
-inline constexpr const char* kEvaluateValidate = "__evaluate_validate__";
-inline constexpr const char* kTensorStoreValidate = "__tensor_store_validate__";
+inline constexpr const char* kEvaluateValidate = "__tvm_evaluate_validate__";
+inline constexpr const char* kTensorStoreValidate = "__tvm_tensor_store_validate__";
 }  // namespace type_attr
 
 }  // namespace tvm
