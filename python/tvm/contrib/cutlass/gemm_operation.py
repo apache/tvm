@@ -347,7 +347,7 @@ def instantiate_gemm_template(attrs):
   status = gemm_op.initialize(arguments, workspace.get());
   TVM_FFI_ICHECK(status == cutlass::Status::kSuccess);
 
-  cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, ${A_arg}->device.device_id));
+  cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, ${lhs_arg}->device.device_id));
 
   status = gemm_op(stream);
   TVM_FFI_ICHECK(status == cutlass::Status::kSuccess);

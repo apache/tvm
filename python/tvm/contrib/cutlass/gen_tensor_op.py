@@ -490,7 +490,11 @@ def instantiate_template(func_name, annotations, func_args):
         if k in annotations:
             attrs[k] = annotations[k]
 
-    headers = ["tvm/ffi/function.h", "tvm/ffi/extra/c_env_api.h"]
+    headers = [
+        "tvm/ffi/function.h",
+        "tvm/ffi/extra/c_env_api.h",
+        "tvm/ffi/container/tensor.h",
+    ]
 
     if "relu" in func_name:
         headers.append("cutlass/epilogue/thread/linear_combination_bias_relu.h")
