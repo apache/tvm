@@ -20,6 +20,7 @@
  *  Compile executable modules.
  * \file src/target/target.cc
  */
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -147,7 +148,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   TargetObj::RegisterReflection();
   // Register __ffi_repr__ so that ffi.ReprPrint uses JSON format for Target
   refl::TypeAttrDef<TargetObj>().def(
-      refl::type_attr::kRepr,
+      ffi::type_attr::kRepr.name,
       [](Target target, ffi::Function) -> ffi::String { return target->str(); });
 }
 

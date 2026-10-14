@@ -594,8 +594,8 @@ class CodeGenLLVM : public tvm::ExprFunctor<llvm::Value*(const Expr&)>,
   llvm::DISubprogram* di_subprogram_{nullptr};
   // Cache potential common path ops to slightly improve lookup time.
   // global symbol table.
-  OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ =
-      Op::GetAttrMap<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol);
+  decltype(Op::GetAttrMap(tvm::tirx::op_attr::kGlobalSymbol)) op_attr_global_symbol_ =
+      Op::GetAttrMap(tvm::tirx::op_attr::kGlobalSymbol);
   const Op& builtin_call_extern_ = tirx::call_extern_op();
   const Op& builtin_call_pure_extern_ = tirx::call_pure_extern_op();
   const Op& builtin_call_llvm_intrin_ = tirx::call_llvm_intrin_op();

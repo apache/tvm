@@ -21,6 +21,7 @@
  * \brief The implementation of the source map data structure.
  */
 #include <tvm/ffi/extra/dataclass.h>
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/location.h>
@@ -65,14 +66,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   SourceNameNode::RegisterReflection();
   // overrride SourceNameNode to serialization mechanism
   refl::TypeAttrDef<SourceNameNode>()
-      .def(tvm::ffi::reflection::type_attr::kDataToJson,
+      .def(tvm::ffi::type_attr::kDataToJson.name,
            [](const SourceNameNode* node) {
              // simply save as the string
              return node->name;
            })
-      .def(tvm::ffi::reflection::type_attr::kDataFromJson, SourceName::Get);
+      .def(tvm::ffi::type_attr::kDataFromJson.name, SourceName::Get);
   refl::TypeAttrDef<SourceNameNode>().def(
-      refl::type_attr::kRepr, [](SourceName sn, ffi::Function) -> ffi::String {
+      ffi::type_attr::kRepr.name, [](SourceName sn, ffi::Function) -> ffi::String {
         std::ostringstream os;
         os << "SourceName(" << sn->name << ", " << static_cast<const void*>(sn.get()) << ")";
         return os.str();
@@ -125,12 +126,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   SourceLocNode::RegisterReflection();
   CallSiteLocNode::RegisterReflection();
   refl::TypeAttrDef<UnknownLocNode>()
-      .def(refl::type_attr::kRepr,
+      .def(ffi::type_attr::kRepr.name,
            [](UnknownLoc, ffi::Function) -> ffi::String { return "UnknownLoc()"; })
-      .def(refl::type_attr::kDataToJson, [](const UnknownLocNode*) { return nullptr; })
-      .def(refl::type_attr::kDataFromJson, [](ffi::AnyView) { return UnknownLoc(); });
+      .def(ffi::type_attr::kDataToJson.name, [](const UnknownLocNode*) { return nullptr; })
+      .def(ffi::type_attr::kDataFromJson.name, [](ffi::AnyView) { return UnknownLoc(); });
   refl::TypeAttrDef<SourceLocNode>().def(
-      refl::type_attr::kRepr, [](SourceLoc loc, ffi::Function fn_repr) -> ffi::String {
+      ffi::type_attr::kRepr.name, [](SourceLoc loc, ffi::Function fn_repr) -> ffi::String {
         std::ostringstream os;
         os << "SourceLoc(" << fn_repr(ffi::AnyView(loc->source_name)).cast<ffi::String>() << ", "
            << loc->start_line << ", " << loc->start_column << ", " << loc->end_line << ", "
@@ -138,7 +139,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         return os.str();
       });
   refl::TypeAttrDef<CallSiteLocNode>().def(
-      refl::type_attr::kRepr, [](CallSiteLoc loc, ffi::Function fn_repr) -> ffi::String {
+      ffi::type_attr::kRepr.name, [](CallSiteLoc loc, ffi::Function fn_repr) -> ffi::String {
         return "CallSiteLoc(" + fn_repr(loc->callee).cast<ffi::String>() + ", " +
                fn_repr(loc->caller).cast<ffi::String>() + ")";
       });

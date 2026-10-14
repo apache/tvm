@@ -119,8 +119,8 @@ ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"tirx.call_llvm_intrin", "tirx.call_llvm_pure_intrin"}) {
-    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
-                                        FDocTranslate::FromNative<&LLVMIntrinsicDocTranslate>());
+    OpDef(name).set_native_fn_attr<&LLVMIntrinsicDocTranslate>(
+        tvm::script::printer::op_attr::kDocTranslateOpCall);
   }
 }
 
@@ -207,8 +207,8 @@ ffi::Optional<ExprDoc> PTXCallDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.tensor_data_ptr")
-      .set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
-                               FDocTranslate::FromNative<&TensorDataPtrDocTranslate>());
+      .set_native_fn_attr<&TensorDataPtrDocTranslate>(
+          tvm::script::printer::op_attr::kDocTranslateOpCall);
   ffi::reflection::GlobalDef().def("script.printer.PTXCallDocTranslate", []() {
     return ffi::Any(FDocTranslate::FromNative<&PTXCallDocTranslate>());
   });

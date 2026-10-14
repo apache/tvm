@@ -33,7 +33,7 @@ class AxisDef {
 
   template <typename T>
   AxisDef& set_attr(const char* name, T value) {
-    ffi::reflection::TypeAttrColumn column(ffi::reflection::type_attr::kEnumState);
+    ffi::reflection::TypeAttrColumn column(ffi::type_attr::kEnumState);
     auto state =
         ffi::Any(column[AxisNode::_GetOrAllocRuntimeTypeIndex()]).as_or_throw<ffi::EnumState>();
     ffi::String key(name);

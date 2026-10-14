@@ -104,7 +104,7 @@ Texture2DShape<T> ApplyTexture2DFlattening(const S& shape, size_t rank, size_t a
 }
 
 inline bool IsTextureStorage(MemoryScope scope) {
-  static ffi::reflection::TypeAttrColumn state_column(ffi::reflection::type_attr::kEnumState);
+  static ffi::reflection::TypeAttrColumn state_column(ffi::type_attr::kEnumState);
   auto state = state_column[MemoryScopeObj::_GetOrAllocRuntimeTypeIndex()].cast<ffi::EnumState>();
   if (auto column = state->attrs.Get(backend::opencl::kTextureStorage)) {
     if (auto value = column->Get(scope)) return value->cast<bool>();

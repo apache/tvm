@@ -73,21 +73,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.cuda.tcgen05_encode_instr_descriptor")
       .signature(sig::arg("desc"), sig::call_attrs<backend::cuda::TCGen05InstrDescriptorAttrs>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kOpaque))
-      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void());
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void());
   OpDef("tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled")
       .signature(sig::arg("desc"),
                  sig::call_attrs<backend::cuda::TCGen05InstrDescriptorBlockScaledAttrs>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kOpaque))
-      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void());
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void());
   OpDef("tirx.cuda.tcgen05_encode_matrix_descriptor")
       .signature(sig::arg("desc"), sig::arg("addr"), sig::arg<IntExpr>("ldo"),
                  sig::arg<IntExpr>("sdo"), sig::arg<IntExpr>("swizzle"))
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kOpaque))
-      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void());
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void());
 }
 
 }  // namespace cuda
