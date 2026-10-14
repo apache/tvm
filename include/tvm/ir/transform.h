@@ -313,7 +313,7 @@ class Pass : public ffi::ObjectRef {
    *
    * \return The transformed module.
    */
-  IRModule operator()(IRModule mod) const;
+  TVM_TIRX_DLL IRModule operator()(IRModule mod) const;
 
   /*!
    * \brief Transform mod using a functor under a given pass context.

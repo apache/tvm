@@ -83,7 +83,7 @@ def test_nearbyint():
 
 
 # Covers the host targets the regression can recur on: the C host lowers
-# through src/target/intrin_rule.cc (the path #19368 left behind and #20131
+# through src/codegen/intrin_rule.cc (the path #19368 left behind and #20131
 # fixed), llvm through llvm.nearbyint. Device backends have their own
 # lowering rules and belong in their own codegen tests.
 @pytest.mark.parametrize("target", ["c", "llvm"])

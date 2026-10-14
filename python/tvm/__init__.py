@@ -57,6 +57,9 @@ from . import backend
 from . import target
 from .target import device_from_target
 
+# Shared code generation helpers
+from . import codegen
+
 # tvm.te
 from . import te
 

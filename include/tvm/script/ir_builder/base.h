@@ -41,7 +41,7 @@ namespace ir_builder {
  * Frames capture construction context and nested scopes. Language variant builders define
  * concrete frame subclasses and decide how their contents contribute to the result.
  */
-class IRBuilderFrameObj : public ffi::Object {
+class TVM_TIRX_DLL IRBuilderFrameObj : public ffi::Object {
  public:
   /*! \brief Capture the source-call context when this frame is constructed. */
   IRBuilderFrameObj();
@@ -180,19 +180,19 @@ class IRBuilderObj : public ffi::Object {
    * \brief Push a frontend source location for IR constructed in the nested scope.
    * \return The index of the pushed scope, valid until it is popped.
    */
-  int64_t PushLoc(Location loc);
+  TVM_TIRX_DLL int64_t PushLoc(Location loc);
   /*!
    * \brief Update a source location without changing its nested scopes.
    * \param index The index returned by PushLoc for a scope that has not been popped.
    * \param loc The replacement location for that scope.
    */
-  void UpdateLoc(int64_t index, Location loc);
+  TVM_TIRX_DLL void UpdateLoc(int64_t index, Location loc);
   /*! \brief Pop the innermost frontend source location. */
-  void PopLoc();
+  TVM_TIRX_DLL void PopLoc();
   /*! \brief Normalize the full active source stack with an optional explicit location. */
-  Location ResolveLoc(Location location = UnknownLoc()) const;
+  TVM_TIRX_DLL Location ResolveLoc(Location location = UnknownLoc()) const;
   /*! \brief Compose active and explicit source context onto the same supported node or frame. */
-  ffi::ObjectRef AttachLoc(ffi::ObjectRef obj, Location loc = UnknownLoc()) const;
+  TVM_TIRX_DLL ffi::ObjectRef AttachLoc(ffi::ObjectRef obj, Location loc = UnknownLoc()) const;
 };
 
 /*!
@@ -202,7 +202,7 @@ class IRBuilderObj : public ffi::Object {
 class IRBuilder : public ffi::ObjectRef {
  public:
   /*! \brief Creates an IRBuilder. */
-  IRBuilder();
+  TVM_TIRX_DLL IRBuilder();
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRBuilder, ffi::ObjectRef, IRBuilderObj);
 
  public:
@@ -223,14 +223,14 @@ class IRBuilder : public ffi::ObjectRef {
    * \sa IRBuilder::ExitWithScope
    * \sa tvm::support::With
    */
-  void EnterWithScope();
+  TVM_TIRX_DLL void EnterWithScope();
   /*!
    * \brief Exit the RAII scope.
    * \sa IRBuilder::EnterWithScope
    * \sa IRBuilder::Current
    * \sa tvm::support::With
    */
-  void ExitWithScope();
+  TVM_TIRX_DLL void ExitWithScope();
   /*!
    * \brief Get the current IRBuilder in the current thread-local scope.
    * \return The current IRBuilder.
@@ -238,9 +238,9 @@ class IRBuilder : public ffi::ObjectRef {
    * \sa IRBuilder::ExitWithScope
    * \sa tvm::support::With
    */
-  static IRBuilder Current();
+  TVM_TIRX_DLL static IRBuilder Current();
   /*! \brief See if the current thread-local scope has an IRBuilder. */
-  static bool IsInScope();
+  TVM_TIRX_DLL static bool IsInScope();
   /*!
    * \brief Give a string name to the `obj`
    * \tparam TObjectRef The type of the object to name.
@@ -259,14 +259,14 @@ namespace details {
 class LocationAccessor {
  public:
   using FType = ObjectFunctor<Location*(const ffi::ObjectRef&)>;
-  static FType& vtable();
+  TVM_TIRX_DLL static FType& vtable();
 };
 
 class Namer {
  public:
   using FType = ObjectFunctor<void(const ffi::ObjectRef&, ffi::String)>;
-  static FType& vtable();
-  static void Name(ffi::ObjectRef node, ffi::String name);
+  TVM_TIRX_DLL static FType& vtable();
+  TVM_TIRX_DLL static void Name(ffi::ObjectRef node, ffi::String name);
 };
 
 }  // namespace details

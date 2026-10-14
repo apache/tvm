@@ -145,7 +145,7 @@ def _codegen_llvm_ir(mod, target):
 
     host_mod, _ = _split_host_device_modules(lowered)
     host_mod = finalize_host()(host_mod)
-    built = tvm.target.codegen.build_module(host_mod, target)
+    built = tvm.codegen.build_module(host_mod, target)
     return built.inspect_source("ll")
 
 
@@ -158,7 +158,7 @@ def _codegen_asm(mod, target):
 
     host_mod, _ = _split_host_device_modules(lowered)
     host_mod = finalize_host()(host_mod)
-    built = tvm.target.codegen.build_module(host_mod, target)
+    built = tvm.codegen.build_module(host_mod, target)
     return built.inspect_source("s")
 
 

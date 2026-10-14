@@ -135,7 +135,7 @@ class CPUDeviceAPI final : public DeviceAPI {
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(Device dev, void* data) final;
 
-  bool SupportsDevicePointerArithmeticsOnHost() final { return true; }
+  bool SupportsDevicePtrArithmeticOnHost() final { return true; }
 
   static CPUDeviceAPI* Global() {
     // NOTE: explicitly use new to avoid exit-time destruction of global state

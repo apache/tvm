@@ -34,7 +34,7 @@
 #include <string>
 #include <vector>
 
-#include "../../../target/build_common.h"
+#include "../../../codegen/build_common.h"
 #include "../runtime/texture.h"
 #include "opencl_fallback_module.h"
 

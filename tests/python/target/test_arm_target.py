@@ -24,9 +24,9 @@ import numpy as np
 import pytest
 
 import tvm
+from tvm import codegen
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.target import codegen
 from tvm.testing import env
 
 

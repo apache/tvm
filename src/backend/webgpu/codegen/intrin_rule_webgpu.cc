@@ -21,13 +21,12 @@
  * \file intrin_rule_webgpu.cc
  * \brief WebGPU intrinsic rules.
  */
+#include <tvm/codegen/intrin_rule.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op_attr_types.h>
-
-#include "../../../target/intrin_rule.h"
 
 namespace tvm {
 namespace codegen {
@@ -160,7 +159,7 @@ void RegisterWebGPUIntrinRules() {
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
   OpDef("prim.tanh")
-      .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchNumericalStableTanh);
+      .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchNumericallyStableTanh);
 
   OpDef("prim.trunc")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);

@@ -302,7 +302,7 @@ class CUDADeviceAPI final : public DeviceAPI {
     ThreadLocalWorkspacePool(dev.device_type)->FreeWorkspace(dev, data);
   }
 
-  bool SupportsDevicePointerArithmeticsOnHost() final { return true; }
+  bool SupportsDevicePtrArithmeticOnHost() final { return true; }
 
   static CUDADeviceAPI* Global() {
     // NOTE: explicitly use new to avoid exit-time destruction of global state

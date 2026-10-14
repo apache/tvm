@@ -18,8 +18,9 @@
 import pytest
 
 import tvm
-from tvm.target import Target, _ffi_api, codegen
-from tvm.target.codegen import llvm_get_vector_width, target_has_features
+from tvm import codegen
+from tvm.codegen import llvm_get_vector_width, target_has_features
+from tvm.target import Target
 
 LLVM_VERSION = codegen.llvm_version_major()
 

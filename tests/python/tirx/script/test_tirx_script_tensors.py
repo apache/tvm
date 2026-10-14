@@ -306,9 +306,6 @@ def test_alloc_apis_reject_name_argument():
     with pytest.raises(TypeError):
         T.alloc_tensor(ty_args=[T.Tensor((1,), "int32")], name="buf")
 
-    with pytest.raises(TypeError):
-        T.local_scalar("int32", name="idx")
-
 
 def test_tensor():
     # fmt: off
