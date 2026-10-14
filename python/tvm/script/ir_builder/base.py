@@ -328,8 +328,9 @@ def at(loc: LocationEntry | ir.Location | None, value: _T) -> _T:
 
     Notes
     -----
-    Native mutation annotates the statement held by the builder itself.  Keep
-    the original Python facade as well, including callable objects and frames.
+    Native mutation annotates the wrapped object in the builder IR. For an
+    operator receipt this is the Call inside its Evaluate statement. Keep the
+    original Python facade as well, including callable objects and frames.
     Unsupported objects and ordinary Python values pass through unchanged.
     """
     if loc is None:

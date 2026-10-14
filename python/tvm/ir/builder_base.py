@@ -29,18 +29,18 @@ import tvm_ffi
 
 if TYPE_CHECKING:
     from .expr import Call
-    from .stmt import Stmt
 
 _T = TypeVar("_T")
 
 
 class AlreadyEmitted(Generic[_T]):
-    """Hold the exact native object already emitted by a builder.
+    """Hold the exact native result of an already emitted builder operation.
 
     Parameters
     ----------
     value : T
-        Emitted native object. It is retained without copying or emitting it.
+        Native result retained without copying or emitting it. Operator APIs
+        wrap their original Call; statement APIs wrap the emitted statement.
 
     Attributes
     ----------
@@ -72,7 +72,7 @@ _builder_maybe_emit_void_call = tvm_ffi.get_global_func(
 )
 
 
-def builder_maybe_emit_void_call(call: "Call") -> "Call | AlreadyEmitted[Stmt]":
+def builder_maybe_emit_void_call(call: "Call") -> "Call | AlreadyEmitted[Call]":
     """Emit a void operator call once when an IRBuilder is active.
 
     Parameters
@@ -84,11 +84,12 @@ def builder_maybe_emit_void_call(call: "Call") -> "Call | AlreadyEmitted[Stmt]":
 
     Returns
     -------
-    Call or AlreadyEmitted[Stmt]
+    Call or AlreadyEmitted[Call]
         The original call when the optional native hook is absent, the result
         is non-void, or no builder is active. Otherwise, a receipt containing
-        the exact Evaluate statement stored by the active builder. Both
-        primitive void and an empty tuple result count as void.
+        the exact original Call after emitting one Evaluate(call). Both
+        primitive void and an empty tuple result count as void. FFI conversion
+        of the receipt exposes that same Call.
 
     Notes
     -----
@@ -99,5 +100,4 @@ def builder_maybe_emit_void_call(call: "Call") -> "Call | AlreadyEmitted[Stmt]":
     """
     if _builder_maybe_emit_void_call is None:
         return call
-    statement = _builder_maybe_emit_void_call(call)
-    return call if statement is None else AlreadyEmitted(statement)
+    return AlreadyEmitted(call) if _builder_maybe_emit_void_call(call) else call

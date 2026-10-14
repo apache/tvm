@@ -41,8 +41,9 @@ def test_void_emission_and_fallback(ty):
         receipt = tirx.cpu_parallel_barrier(ty=ty)
         assert isinstance(receipt, AlreadyEmitted)
         assert T.evaluate(receipt) is receipt
-    assert builder.get().same_as(receipt.value)
-    assert receipt.value.value.ty.same_as(ty)
+    assert builder.get().value.same_as(receipt.value)
+    assert receipt.value.ty.same_as(ty)
+    assert receipt.__tvm_ffi_object__() is receipt.value
     assert tvm_ffi.convert(receipt).same_as(receipt.value)
 
 

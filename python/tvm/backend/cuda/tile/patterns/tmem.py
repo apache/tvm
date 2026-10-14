@@ -154,4 +154,4 @@ def lower(opcode, entry, modifiers, args, params, sctx):
     values = [regs.value(register_coordinate(shape, T.cuda.lane_id(), r)) for r in range(registers)]
     immediate = [split_offset] if split else []
     native_args = [*values, address, *immediate] if load else [address, *immediate, *values]
-    return ctx.finish([PTXNamespace()[opcode]._make_call(*native_args)])
+    return ctx.finish([PTXNamespace()[opcode](*native_args)])
