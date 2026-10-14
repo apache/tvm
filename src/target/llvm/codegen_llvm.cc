@@ -109,6 +109,22 @@ namespace tvm {
 namespace codegen {
 using namespace tvm::prim;
 
+int CodeGenLLVM::GetTempAllocaAlignment(const PrimType& type, int64_t const_size) {
+  int align = runtime::kTempAllocaAlignment;
+  if (const_size > 0) {
+    int64_t element_bytes = type.StorageBytes();
+    // Only compute the total size when it can reduce the alignment. This also avoids
+    // overflowing for very large allocations.
+    if (element_bytes > 0 && const_size <= (align - 1) / element_bytes) {
+      int64_t const_s = const_size * element_bytes;
+      while (align > const_s) {
+        align = align / 2;
+      }
+    }
+  }
+  return align;
+}
+
 namespace {
 
 int GetLanesOrVScaleFactor(const PrimType& dtype) {

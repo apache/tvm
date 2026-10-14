@@ -149,17 +149,6 @@ def HoistIf():
     return _ffi_api.HoistIf()
 
 
-def RemoveAssume():
-    """Remove all instances of prim::assume_op
-
-    Returns
-    -------
-    fpass : tvm.ir.transform.Pass
-        The result pass
-    """
-    return _ffi_api.RemoveAssume()  # type: ignore
-
-
 def BF16ComputeLegalize():
     """Legalize bf16 compute Ops.
 

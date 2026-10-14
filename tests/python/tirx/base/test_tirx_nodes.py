@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
 import numpy as np
 import pytest
 
@@ -353,6 +352,11 @@ def test_tensor_load_store():
     tvm.ir.assert_structural_equal(core_load, restored, map_free_vars=True)
     s = tvm.ir.TensorStore(b, [0], 0.1)
     assert isinstance(s, tvm.ir.TensorStore)
+
+    tensor = tvm.tirx.decl_tensor((4, 8), "float32", elem_offset=100)
+    tvm.ir.assert_structural_equal(
+        tensor[2, 3].indices, [tvm.ir.prim.IntImm("int32", 2), tvm.ir.prim.IntImm("int32", 3)]
+    )
 
 
 @pytest.mark.parametrize("constructor", [tvm.ir.TensorLoad, tvm.tirx.TensorLoad])

@@ -155,75 +155,116 @@ def test_call_packed_return_non_i32():
     # This call packed that return non i32 types
     expected_value = np.array([1.2, 1.4], dtype="float32")
 
-    def packed_echo(value):
-        return tvm.tirx.call_intrin(
-            value.ty, tvm.ir.Op.get("tirx.call_packed"), "testing.echo", value
-        )
+    @I.ir_module
+    class Before:
+        @T.function
+        def packed_test(A: T.Tensor((2,), "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            A[0] = T.call_intrin("tirx.call_packed", "testing.echo", T.float32(1.2), ty="float32")
+            duplicate = T.call_intrin("tirx.call_packed", "testing.echo", A.data, ty=A.data.ty)
+            A[1] = T.float32(1.4)
 
-    def build_tir():
-        Ab = tvm.tirx.decl_tensor((2,), "float32")
+    @I.ir_module
+    class Expected:
+        @T.function
+        def packed_test(A: T.Tensor((2,), T.float32)):
+            T.func_attr({"target": T.target("llvm")})
+            stack_ffi_any: T.let[T.Ptr(T.PrimType("void"))] = T.stack_alloca("tvm_ffi_any", 2)
+            T.abi_field_set(stack_ffi_any, 0, 13, 3)
+            T.abi_field_set(stack_ffi_any, 0, 14, 0)
+            T.abi_field_set(stack_ffi_any, 0, 15, T.Cast(T.float32(1.2), "float64"))
+            T.abi_field_set(stack_ffi_any, 1, 13, 0)
+            T.abi_field_set(stack_ffi_any, 1, 14, 0)
+            T.abi_field_set(stack_ffi_any, 1, 15, T.int64(0))
+            A[0] = T.call_packed_lowered("testing.echo", stack_ffi_any, 0, 1, ty="float32")
+            if T.isnullptr(A.data):
+                T.abi_field_set(stack_ffi_any, 0, 13, 0)
+            else:
+                T.abi_field_set(stack_ffi_any, 0, 13, 4)
+            T.abi_field_set(stack_ffi_any, 0, 14, 0)
+            T.abi_field_set(stack_ffi_any, 0, 15, A.data)
+            T.abi_field_set(stack_ffi_any, 1, 13, 0)
+            T.abi_field_set(stack_ffi_any, 1, 14, 0)
+            T.abi_field_set(stack_ffi_any, 1, 15, T.int64(0))
+            duplicate: T.let[T.Ptr(T.PrimType("float32"))] = T.call_packed_lowered(
+                "testing.echo", stack_ffi_any, 0, 1, ty=A.data.ty
+            )
+            A[1] = T.float32(1.3999999999999999)
 
-        # Build statements using direct TIR construction (no ir_builder)
-        # 1. Store packed_echo(const) result into Ab[0]
-        store0 = tvm.ir.TensorStore(
-            Ab, [0], packed_echo(tvm.tirx.const(expected_value[0], "float32"))
-        )
-
-        # 2. Let binding: Aptr_dup = packed_echo(Ab.data), then store const into Ab[1]
-        Aptr_dup = tvm.tirx.Var("Aptr_dup", Ab.data.ty)
-        store1 = tvm.ir.TensorStore(Ab, [1], tvm.tirx.const(expected_value[1], "float32"))
-        bind_stmt = tvm.ir.Bind(Aptr_dup, packed_echo(Ab.data))
-
-        # Combine into sequence
-        stmt = tvm.ir.SeqStmt([store0, bind_stmt, store1])
-
-        return tvm.IRModule.from_expr(
-            tvm.tirx.Function([Ab], stmt).with_attr("global_symbol", "packed_test")
-        )
-
-    mod = build_tir()
-    f = tvm.tirx.compile(mod, None)
+    After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+    f = tvm.tirx.compile(Before, "llvm")
     a = tvm.runtime.tensor(np.zeros(2, dtype="float32"))
     f(a)
     tvm.testing.assert_allclose(a.numpy(), expected_value)
 
 
 def test_lower_overflow_int32():
-    @T.function(check_well_formed=False)
-    def variance4(rxplaceholder: T.Tensor((T.int64(1), T.int64(32), T.int64(25690112)), "float32")):
-        T.func_attr({"global_symbol": "variance4", "tirx.noalias": True})
-        rxplaceholder_red = T.alloc_tensor(ty_args=[T.Tensor((32,), "float32")])
-        T_subtract = T.alloc_tensor(ty_args=[T.Tensor((822083584,), "float32")])
-        rxplaceholder_red_1 = T.decl_tensor(
-            rxplaceholder_red.data,
-            ty_args=[T.Tensor((T.int64(32),), "float32", data=rxplaceholder_red.data)],
-        )
-        rxplaceholder_1 = T.decl_tensor(
-            rxplaceholder.data,
-            ty_args=[T.Tensor((T.int64(822083584),), "float32", data=rxplaceholder.data)],
-        )
-        T_subtract_1 = T.decl_tensor(
-            T_subtract.data,
-            ty_args=[T.Tensor((T.int64(822083584),), "float32", data=T_subtract.data)],
-        )
-        for ax1, ax2 in T.grid(32, 25690112):
-            cse_v1: T.let[T.int32] = ax1 * 25690112 + ax2
-            T_subtract_1[cse_v1] = rxplaceholder_1[cse_v1] - rxplaceholder_red_1[ax1]
+    @I.ir_module(check_well_formed=False)
+    class Before:
+        @T.function(check_well_formed=False)
+        def variance4(
+            rxplaceholder: T.Tensor((T.int64(1), T.int64(32), T.int64(25690112)), "float32"),
+        ):
+            T.func_attr(
+                {"global_symbol": "variance4", "tirx.noalias": True, "target": T.target("llvm")}
+            )
+            with T.device_context(1, 0):
+                rxplaceholder_red = T.alloc_tensor(ty_args=[T.Tensor((32,), "float32")])
+                T_subtract = T.alloc_tensor(ty_args=[T.Tensor((822083584,), "float32")])
+                rxplaceholder_red_1 = T.decl_tensor(
+                    rxplaceholder_red.data,
+                    ty_args=[T.Tensor((T.int64(32),), "float32", data=rxplaceholder_red.data)],
+                )
+                rxplaceholder_1 = T.decl_tensor(
+                    rxplaceholder.data,
+                    ty_args=[T.Tensor((T.int64(822083584),), "float32", data=rxplaceholder.data)],
+                )
+                T_subtract_1 = T.decl_tensor(
+                    T_subtract.data,
+                    ty_args=[T.Tensor((T.int64(822083584),), "float32", data=T_subtract.data)],
+                )
+                for ax1, ax2 in T.grid(32, 25690112):
+                    cse_v1: T.let[T.int32] = ax1 * 25690112 + ax2
+                    T_subtract_1[cse_v1] = rxplaceholder_1[cse_v1] - rxplaceholder_red_1[ax1]
 
-    func = variance4
-    tvm.tirx.compile(func, target="llvm")  # should not crash
+    @I.ir_module
+    class Expected:
+        @T.function
+        def variance4(
+            rxplaceholder: T.Tensor((T.int64(1), T.int64(32), T.int64(25690112)), T.float32),
+        ):
+            T.func_attr({"target": T.target("llvm"), "tirx.noalias": True})
+            rxplaceholder_red = T.alloc_tensor(ty_args=[T.Tensor((32,), T.float32)])
+            T_subtract = T.decl_tensor(
+                T.alloc_workspace(1, 0, T.uint64(3288334336), 2, 32, ty=T.Ptr(T.float32)),
+                ty_args=[T.Tensor((822083584,), T.float32)],
+            )
+            if T.isnullptr(T_subtract.data):
+                T.throw_last_error(ty="int32")
+            rxplaceholder_red_1 = T.decl_tensor(
+                rxplaceholder_red.data, ty_args=[T.Tensor((T.int64(32),), T.float32)]
+            )
+            rxplaceholder_1 = T.decl_tensor(
+                rxplaceholder.data, ty_args=[T.Tensor((T.int64(822083584),), T.float32)]
+            )
+            T_subtract_1 = T.decl_tensor(
+                T_subtract.data, ty_args=[T.Tensor((T.int64(822083584),), T.float32)]
+            )
+            for ax1 in range(32):
+                for ax2 in range(25690112):
+                    cse_v1: T.let[T.int32] = ax1 * 25690112 + ax2
+                    T_subtract_1[cse_v1] = rxplaceholder_1[cse_v1] - rxplaceholder_red_1[ax1]
+            if T.free_workspace(1, 0, T_subtract.data) != 0:
+                T.throw_last_error(ty="int32")
+
+    After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.tirx.compile(Before, target="llvm")
 
 
 def test_lower_device_allocate():
-    """Device allocations are lowered to TVMBackend* calls
-
-    This test validates the current behavior of LowerTVMBuiltin.  This
-    unit test may be improved in the future by addressing:
-
-    - TVMScript always produces "handle" dtype for
-      `T.throw_last_error`, while LowerTVMBuiltin outputs "int32"
-      dtype.
-    """
+    """Device allocations are lowered to workspace operations."""
 
     @I.ir_module
     class Before:
@@ -235,14 +276,24 @@ def test_lower_device_allocate():
                 buf = T.decl_tensor(ptr.data, ty_args=[T.Tensor(16, "float32", data=ptr.data)])
                 buf[0] = 0.0
 
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main():
+            T.func_attr({"target": T.target("llvm")})
+            ptr = T.decl_tensor(
+                T.alloc_workspace(2, 0, T.uint64(64), 2, 32, ty=T.Ptr(T.float32)),
+                ty_args=[T.Tensor((16,), T.float32)],
+            )
+            if T.isnullptr(ptr.data):
+                T.throw_last_error(ty="int32")
+            buf = T.decl_tensor(ptr.data, ty_args=[T.Tensor((16,), T.float32)])
+            buf[0] = T.float32(0.0)
+            if T.free_workspace(2, 0, ptr.data) != 0:
+                T.throw_last_error(ty="int32")
+
     After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
-    # Verify the lowered module can be printed (no crash)
-    script_output = After.script()
-    # Should contain the canonical workspace operations
-    assert "T.alloc_workspace(" in script_output
-    assert "T.free_workspace(" in script_output
-    # DeclTensor should appear as a flat statement
-    assert "T.decl_tensor" in script_output
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 def test_lower_cpu_allocation():

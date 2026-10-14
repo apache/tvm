@@ -16,10 +16,13 @@
 # under the License.
 from __future__ import annotations
 
+import pytest
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.tirx.transform import FlattenTensor
 
 
 def _transform():
@@ -419,20 +422,253 @@ def test_flatten_inside_block():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-def test_build_with_optional_unroll_explicit():
-    def check(value):
-        @I.ir_module
-        class Module:
-            @T.function
-            def main(A: T.Tensor((4, 5, 6), "int16"), B: T.Tensor((4, 5, 6), "int16")):
-                for ax0 in T.serial(4, annotations={"unroll_explicit": value}):
-                    for ax1, ax2 in T.grid(5, 6):
-                        B[ax0, ax1, ax2] = A[ax0, ax1, ax2]
+@pytest.mark.parametrize("value", [None, True, False])
+def test_build_with_optional_unroll_explicit(value):
+    @I.ir_module
+    class Before:
+        @T.function
+        def main(A: T.Tensor((4, 5, 6), "int16"), B: T.Tensor((4, 5, 6), "int16")):
+            for ax0 in T.serial(4, annotations={"unroll_explicit": value}):
+                for ax1, ax2 in T.grid(5, 6):
+                    B[ax0, ax1, ax2] = A[ax0, ax1, ax2]
 
-        tvm.tirx.compile(Module, target="llvm").mod
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main(A: T.Tensor((4, 5, 6), "int16"), B: T.Tensor((4, 5, 6), "int16")):
+            A_1 = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((120,), "int16", layout=None, data=A.data)]
+            )
+            B_1 = T.decl_tensor(
+                B.data, ty_args=[T.Tensor((120,), "int16", layout=None, data=B.data)]
+            )
+            for ax0 in T.serial(4, annotations={"unroll_explicit": value}):
+                for ax1, ax2 in T.grid(5, 6):
+                    B_1[ax0 * 30 + ax1 * 6 + ax2] = A_1[ax0 * 30 + ax1 * 6 + ax2]
 
-    for value in [None, True, False]:
-        check(value)
+    After = FlattenTensor()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.tirx.compile(Before, target="llvm").mod
+
+
+def test_flatten_remaps_loads_in_view_shape():
+    @I.ir_module
+    class Before:
+        @T.function(private=True)
+        def main():
+            n = T.alloc_local([1], "int32")
+            n[0] = 8
+            data = T.alloc_shared([64], "float16")
+            view = T.decl_tensor(data.data, ty_args=[T.Tensor((n[0],), "float16", scope="shared")])
+            view[0] = T.float16(0)
+
+    @I.ir_module
+    class Expected:
+        @T.function(private=True)
+        def main():
+            n = T.alloc_local([1], "int32", layout=None)
+            n[0] = 8
+            data = T.alloc_shared([64], "float16", layout=None)
+            view = T.decl_tensor(
+                data.data, ty_args=[T.Tensor((n[0],), "float16", scope="shared", layout=None)]
+            )
+            view[0] = T.float16(0)
+
+    After = FlattenTensor()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+    body = After["main"].body
+    assert body[3].var.shape[0].source.same_as(body[0].var)
+    assert not tvm.tirx.analysis.undefined_vars(body, [])
+
+
+def test_flatten_remaps_loads_in_folded_elem_offset():
+    @I.ir_module
+    class Before:
+        @T.function(private=True)
+        def main():
+            n = T.alloc_local([1], "int32")
+            n[0] = 4
+            base = T.alloc_shared([128], "uint64")
+            mbar = T.decl_tensor(
+                base.data, ty_args=[T.Tensor((1,), "uint64", elem_offset=n[0], scope="shared")]
+            )
+            mbar[0] = T.uint64(1)
+
+    @I.ir_module
+    class Expected:
+        @T.function(private=True)
+        def main():
+            n = T.alloc_local([1], "int32", layout=None)
+            n[0] = 4
+            base = T.alloc_shared([128], "uint64", layout=None)
+            mbar = T.decl_tensor(
+                base.data,
+                ty_args=[
+                    T.Tensor((1,), "uint64", elem_offset=T.int32(0), scope="shared", layout=None)
+                ],
+            )
+            mbar[n[0]] = T.uint64(1)
+
+    After = FlattenTensor()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+    body = After["main"].body
+    assert body[-1].indices[0].source.same_as(body[0].var)
+    assert not tvm.tirx.analysis.undefined_vars(body, [])
+
+
+def test_flatten_keeps_identity_of_already_flat_tensors():
+    @I.ir_module
+    class Before:
+        @T.function(private=True)
+        def main():
+            flat = T.alloc_shared([32], "float32", layout=None)
+            flat[0] = T.float32(0)
+
+    Expected = Before
+    After = FlattenTensor()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+    assert After["main"].body[0].var.same_as(Before["main"].body[0].var)
+
+
+def test_tensor_flatten_offset():
+    m = T.dynamic("m", "int32")
+    n = T.dynamic("n", "int32")
+
+    @I.ir_module
+    class Before:
+        @T.function(private=True)
+        def main(m: T.int32, n: T.int32, A: T.Tensor((m, n), "float32", elem_offset=T.int32(100))):
+            T.evaluate(A[2, 3])
+
+    @I.ir_module
+    class Expected:
+        @T.function(private=True)
+        def main(m: T.int32, n: T.int32, A: T.Tensor((m, n), "float32", elem_offset=T.int32(100))):
+            flat = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((m * n,), "float32", elem_offset=T.int32(0), layout=None)]
+            )
+            T.evaluate(flat[n * 2 + 103])
+
+    After = FlattenTensor()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+@pytest.mark.parametrize(
+    "shape,strides,span",
+    [([16, 32], None, 512), ([16], None, 16), ([], None, 1), ([16, 32], [40, 1], 640)],
+    ids=["matrix", "vector", "scalar", "strided"],
+)
+def test_tensor_flatten(shape, strides, span):
+    @I.ir_module
+    class Before:
+        @T.function(private=True)
+        def main(A: T.Tensor(shape, "float32", strides=strides)):
+            T.evaluate(A[tuple(0 for _ in shape)])
+
+    @I.ir_module
+    class Expected:
+        @T.function(private=True)
+        def main(A: T.Tensor(shape, "float32", strides=strides)):
+            flat = T.decl_tensor(A.data, ty_args=[T.Tensor((span,), "float32", layout=None)])
+            T.evaluate(flat[0])
+
+    After = FlattenTensor()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+    source = After["main"].params[0]
+    flat = After["main"].body[0].var
+    assert not source.same_as(flat)
+    assert flat.data.args[0].same_as(flat)
+    assert flat.data.op.name == "tirx.tensor_data_ptr"
+
+
+@pytest.mark.parametrize(
+    "pattern", [1, 2, 3, 4], ids=["strided", "nested-mod", "split-sum", "unmerged"]
+)
+def test_tensor_index_merge_mult_mod(pattern):
+    m = T.dynamic("m", "int32")
+    n = T.dynamic("n", "int32")
+    s = T.dynamic("s", "int32")
+
+    def tensor_strides(s):
+        return (s, 1) if pattern == 1 else None
+
+    def storage_span(m, n, s):
+        return T.max(s * m, (m - 1) * s + n) if pattern == 1 else m * n
+
+    def indices(k0, k1, s, n):
+        if pattern == 1:
+            return ((k0 % k1) // s, (k0 % k1) % s + (k0 // k1) * k1)
+        if pattern == 2:
+            return ((k0 % (k1 // s)) // n, (k0 % (k1 // s)) % n + k0 % k1)
+        if pattern == 3:
+            q = (k0 // (k1 // s)) * (k1 // s)
+            return (q // n + (k0 % (k1 // s)) // n, q % n + (k0 % (k1 // s)) % n)
+        return ((k0 % (k1 // s)) // n, (k0 % (k1 // n)) % n + k0 % k1)
+
+    def expected_index(k0, k1, s, n):
+        if pattern in (1, 3):
+            return k0
+        if pattern == 2:
+            return k0 % (k1 // s) + k0 % k1
+        return ((k0 % (k1 // s)) // n) * n + (k0 % (k1 // n)) % n + k0 % k1
+
+    @I.ir_module
+    class Before:
+        @T.function(private=True)
+        def main(
+            m: T.int32,
+            n: T.int32,
+            s: T.int32,
+            k0: T.int32,
+            k1: T.int32,
+            A: T.Tensor((m, n), "float32", strides=tensor_strides(s)),
+        ):
+            T.evaluate(A[indices(k0, k1, s, n)])
+
+    @I.ir_module
+    class Expected:
+        @T.function(private=True)
+        def main(
+            m: T.int32,
+            n: T.int32,
+            s: T.int32,
+            k0: T.int32,
+            k1: T.int32,
+            A: T.Tensor((m, n), "float32", strides=tensor_strides(s)),
+        ):
+            flat = T.decl_tensor(
+                A.data, ty_args=[T.Tensor((storage_span(m, n, s),), "float32", layout=None)]
+            )
+            T.evaluate(flat[expected_index(k0, k1, s, n)])
+
+    After = FlattenTensor()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+@pytest.mark.parametrize("factored", [False, True], ids=["linear", "factored"])
+def test_tensor_index_merge_rank_four(factored):
+    def indices(i, j, k):
+        if factored:
+            q = i * 49 + j * 28 + k // 1024
+            return (q // 14 // 14, (q // 14) % 14, (i * 7 + k // 1024) % 14, k % 1024)
+        q = i * 50176 + j * 28672 + k
+        return (q // 1024 // 14 // 14, (q // 1024 // 14) % 14, (q // 1024) % 14, q % 1024)
+
+    @I.ir_module
+    class Before:
+        @T.function(private=True)
+        def main(i: T.int32, j: T.int32, k: T.int32, A: T.Tensor((1, 14, 14, 1024), "float32")):
+            T.evaluate(A[indices(i, j, k)])
+
+    @I.ir_module
+    class Expected:
+        @T.function(private=True)
+        def main(i: T.int32, j: T.int32, k: T.int32, A: T.Tensor((1, 14, 14, 1024), "float32")):
+            flat = T.decl_tensor(A.data, ty_args=[T.Tensor((200704,), "float32", layout=None)])
+            T.evaluate(flat[i * 50176 + j * 28672 + k])
+
+    After = FlattenTensor()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

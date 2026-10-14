@@ -14,9 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
 import pytest
-import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -65,14 +63,15 @@ def test_vectorize_vector():
                 for j in T.vectorized(4):
                     A[j] = T.Broadcast(T.float32(1), 4)
 
-    mod = tvm.tirx.transform.VectorizeLoop()(Module)
-    stmt = mod["main"].body[0]
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main(A: T.Tensor((4,), "float32x4"), n: T.int32):
+            for i in T.serial(n):
+                A[T.Ramp(0, 1, 4)] = T.Broadcast(T.float32(1), 16)
 
-    assert isinstance(stmt, tvm.ir.For)
-    assert not isinstance(stmt.body[0], tvm.ir.For)
-    assert len(stmt.body[0].indices) == 1
-    assert isinstance(stmt.body[0].indices[0], tvm.tirx.Ramp)
-    assert isinstance(stmt.body[0].value, tvm.tirx.Broadcast)
+    After = tvm.tirx.transform.VectorizeLoop()(Module)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 def test_vectorize_vector_scalable_error():
@@ -233,37 +232,36 @@ def test_vectorize_let(extent, target):
 
 
 @pytest.mark.parametrize("extent, target", [(4, simple_target), (T.vscale() * 4, sve_target)])
-def test_vectorize_with_le_cond(extent, target):
+@pytest.mark.parametrize("comparison", ["le", "ge"])
+def test_vectorize_with_bound_condition(extent, target, comparison):
     @I.ir_module
-    class Module:
+    class Before:
         @T.function
         def main(A: T.Tensor((16,), "float32"), n: T.int32):
             T.func_attr({"target": target})
             for i in T.vectorized(extent):
-                if i <= n:
-                    A[i] = A[i] + T.float32(1)
+                if T.constexpr(comparison == "le"):
+                    if i <= n:
+                        A[i] = A[i] + T.float32(1)
+                else:
+                    if i >= n:
+                        A[i] = A[i] + T.float32(1)
 
-    stmt = tvm.tirx.transform.VectorizeLoop()(Module)["main"].body[0]
-
-    # Check that the loop wasn't vectorised
-    assert isinstance(stmt, tvm.ir.For)
-
-
-@pytest.mark.parametrize("extent, target", [(4, simple_target), (T.vscale() * 4, sve_target)])
-def test_vectorize_with_ge_cond(extent, target):
     @I.ir_module
-    class Module:
+    class Expected:
         @T.function
         def main(A: T.Tensor((16,), "float32"), n: T.int32):
             T.func_attr({"target": target})
-            for i in T.vectorized(extent):
-                if i >= n:
-                    A[i] = A[i] + T.float32(1)
+            for i in T.serial(extent):
+                if T.constexpr(comparison == "le"):
+                    if i <= n:
+                        A[i] = A[i] + T.float32(1)
+                else:
+                    if i >= n:
+                        A[i] = A[i] + T.float32(1)
 
-    stmt = tvm.tirx.transform.VectorizeLoop()(Module)["main"].body[0]
-
-    # Check that the loop wasn't vectorised
-    assert isinstance(stmt, tvm.ir.For)
+    After = tvm.tirx.transform.VectorizeLoop()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 @pytest.mark.parametrize("extent, target", [(4, simple_target), (T.vscale() * 4, sve_target)])
@@ -360,13 +358,8 @@ def test_vectorize_while_fail():
                     C[j] = C[j] + A[j] + B[j]
                     i[0] = i[0] + 1
 
-    try:
+    with pytest.raises(RuntimeError, match="A while loop inside a vectorized loop not supported"):
         tvm.tirx.compile(Module, target="llvm")
-        assert False
-    except RuntimeError as e:
-        error_msg = str(e).split("\n")[-1]
-        expected = "A while loop inside a vectorized loop not supported"
-        assert expected in error_msg
 
 
 @pytest.mark.parametrize(
@@ -567,7 +560,13 @@ def test_vectorize_and_predicate_all_tensor_loads_stores():
                 )
             )
 
-    mod = tvm.IRModule.from_expr(before)
+    input_func = before
+
+    @I.ir_module(check_well_formed=False)
+    class InputModule:
+        main = input_func
+
+    mod = InputModule
     with tvm.ir.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
         after = tvm.tirx.transform.VectorizeLoop()(mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
@@ -591,7 +590,13 @@ def test_vectorize_and_predicate_some_tensor_loads_stores():
             if i_0 * 4 + i_1_s < 14:
                 B[i_0 * 4 + i_1_s] = A[i_0] + T.float32(1)
 
-    mod = tvm.IRModule.from_expr(before)
+    input_func = before
+
+    @I.ir_module(check_well_formed=False)
+    class InputModule:
+        main = input_func
+
+    mod = InputModule
     with tvm.ir.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
         after = tvm.tirx.transform.VectorizeLoop()(mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
@@ -632,7 +637,13 @@ def test_vectorize_and_predicate_multiple_access_statements():
                 )
             )
 
-    before_mod = tvm.IRModule.from_expr(before)
+    input_func = before
+
+    @I.ir_module(check_well_formed=False)
+    class InputModule:
+        main = input_func
+
+    before_mod = InputModule
     with tvm.ir.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
         after = tvm.tirx.transform.VectorizeLoop()(before_mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
@@ -653,17 +664,49 @@ def test_vectorize_nested_predicates_preserve_both_masks():
                         A[i_0 * 4 + i_1] = T.float32(1)
                     B[i_0 * 4 + i_1] = T.float32(2)
 
-    after = tvm.tirx.transform.VectorizeLoop()(tvm.IRModule.from_expr(before))["before"]
+    input_func = before
 
-    predicates = []
+    @I.ir_module(check_well_formed=False)
+    class InputModule:
+        before = input_func
 
-    def collect_predicates(node):
-        if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.masked_store":
-            predicates.append(node.args[-1])
+    after = tvm.tirx.transform.VectorizeLoop()(InputModule)
+    after = tvm.tirx.transform.StmtSimplify()(after)["before"]
 
-    tvm_ffi.structural_walk(after.body, (tvm.ir.Call, collect_predicates))
-    assert len(predicates) == 2
-    assert any(isinstance(predicate, tvm.tirx.BitwiseAnd) for predicate in predicates)
+    @I.ir_module
+    class Expected:
+        @T.function
+        def before(A: T.Tensor((16,), T.float32), B: T.Tensor((16,), T.float32)):
+            T.func_attr({"target": rvv_target})
+            for i_0 in range(4):
+                for i_1_vla_o in range((T.vscale() * 4 + 3) // (T.vscale() * 4)):
+                    T.masked_store(
+                        A,
+                        T.Broadcast(T.float32(1.0), T.vscale() * 4),
+                        T.Ramp(i_0 * 4 + i_1_vla_o * T.vscale() * 4, 1, T.vscale() * 4),
+                        T.get_active_lane_mask(
+                            i_0 * 4 + i_1_vla_o * T.vscale() * 4, 14, ty="uint1xvscalex4"
+                        )
+                        & T.get_active_lane_mask(
+                            i_0 * 4 + i_1_vla_o * T.vscale() * 4, 15, ty="uint1xvscalex4"
+                        )
+                        & T.get_active_lane_mask(
+                            i_1_vla_o * T.vscale() * 4, 4, ty="uint1xvscalex4"
+                        ),
+                    )
+                    T.masked_store(
+                        B,
+                        T.Broadcast(T.float32(2.0), T.vscale() * 4),
+                        T.Ramp(i_0 * 4 + i_1_vla_o * T.vscale() * 4, 1, T.vscale() * 4),
+                        T.get_active_lane_mask(
+                            i_0 * 4 + i_1_vla_o * T.vscale() * 4, 15, ty="uint1xvscalex4"
+                        )
+                        & T.get_active_lane_mask(
+                            i_1_vla_o * T.vscale() * 4, 4, ty="uint1xvscalex4"
+                        ),
+                    )
+
+    tvm.ir.assert_structural_equal(after, Expected["before"])
 
 
 def test_vectorize_and_predicate_invalid_conditions():
@@ -693,7 +736,13 @@ def test_vectorize_and_predicate_invalid_conditions():
                 if i_0 * 4 + i_1_s < i_0 * 4 + i_1_s:
                     A[i_0 * 4 + i_1_s] = T.float32(2)
 
-    before_mod = tvm.IRModule.from_expr(before)
+    input_func = before
+
+    @I.ir_module(check_well_formed=False)
+    class InputModule:
+        main = input_func
+
+    before_mod = InputModule
     with tvm.ir.transform.PassContext(config={"tirx.enable_tensor_level_predication": True}):
         after = tvm.tirx.transform.VectorizeLoop()(before_mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
@@ -718,7 +767,13 @@ def test_vectorize_with_explicitly_disabled_tensor_level_predication():
             if i_0 * 4 + i_1_s < 14:
                 B[i_0 * 4 + i_1_s] = A[i_0 * 4 + i_1_s] + T.float32(1)
 
-    mod = tvm.IRModule.from_expr(before)
+    input_func = before
+
+    @I.ir_module(check_well_formed=False)
+    class InputModule:
+        main = input_func
+
+    mod = InputModule
     with tvm.ir.transform.PassContext(config={"tirx.enable_tensor_level_predication": False}):
         after = tvm.tirx.transform.VectorizeLoop()(mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
@@ -757,7 +812,13 @@ def test_vectorize_and_predicate_tensor_load_stores_with_sve_func_attr_target():
                 )
             )
 
-    mod = tvm.IRModule.from_expr(before)
+    input_func = before
+
+    @I.ir_module(check_well_formed=False)
+    class InputModule:
+        main = input_func
+
+    mod = InputModule
     after = tvm.tirx.transform.VectorizeLoop()(mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
 

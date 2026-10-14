@@ -18,18 +18,25 @@ import tvm
 
 
 def test_equal_expr():
-    x = tvm.tirx.Var("x", "int32")
-    y = tvm.tirx.Var("y", "int32")
+    x = tvm.ir.Var("x", tvm.ir.PrimType("int32"))
+    y = tvm.ir.Var("y", tvm.ir.PrimType("int32"))
 
     def func1():
         return x + y + 1
 
     def func2():
-        return tvm.tirx.exp(tvm.tirx.truncdiv((x + y + 1) * y, 4))
+        return tvm.ir.prim.truncdiv((x + y + 1) * y, 4)
 
     assert tvm.ir.prim.expr_deep_equal(func1(), func1())
     assert tvm.ir.prim.expr_deep_equal(func2(), func2())
     assert not tvm.ir.prim.expr_deep_equal(func2(), func1())
+
+
+def test_structural_equal_maps_free_variables():
+    x = tvm.ir.Var("x", tvm.ir.PrimType("int32"))
+    y = tvm.ir.Var("y", tvm.ir.PrimType("int32"))
+    tvm.ir.assert_structural_equal(x + 1, y + 1, map_free_vars=True)
+    assert not tvm.ir.prim.expr_deep_equal(x + 1, y + 1)
 
 
 if __name__ == "__main__":

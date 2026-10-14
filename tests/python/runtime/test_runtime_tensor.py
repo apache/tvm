@@ -80,5 +80,54 @@ def test_from_dlpack_shape_one():
     np.testing.assert_equal(view.numpy(), values.numpy().reshape(2, 8))
 
 
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        "float4_e2m1fn",
+        "float8_e3m4",
+        "float8_e4m3",
+        "float8_e4m3b11fnuz",
+        "float8_e4m3fn",
+        "float8_e4m3fnuz",
+        "float8_e5m2",
+        "float8_e5m2fnuz",
+        "float8_e8m0fnu",
+    ],
+)
+def test_low_precision_numpy_roundtrip(dtype):
+    ml_dtypes = pytest.importorskip("ml_dtypes")
+    if not hasattr(ml_dtypes, dtype):
+        pytest.skip(f"ml_dtypes does not provide {dtype}")
+    values = np.random.default_rng(0).random((8, 8)).astype(getattr(ml_dtypes, dtype))
+    tensor = tvm.runtime.tensor(values)
+    assert tensor.dtype == dtype
+    np.testing.assert_equal(tensor.numpy(), values)
+
+
+@pytest.mark.parametrize("container", [False, True], ids=["tensor", "tensor-dict"])
+def test_tensor_json_roundtrip(container):
+    tensor = tvm.runtime.tensor(np.arange(4, dtype="float32"))
+    value = (
+        {"key1": tensor, "key2": tvm.runtime.tensor(np.arange(4, dtype="float32") + 1)}
+        if container
+        else tensor
+    )
+    restored = tvm.ir.load_json(tvm.ir.save_json(value))
+    tvm.ir.assert_structural_equal(value, restored)
+    if container:
+        for key in value:
+            np.testing.assert_array_equal(value[key].numpy(), restored[key].numpy())
+    else:
+        np.testing.assert_array_equal(value.numpy(), restored.numpy())
+
+
+def test_tensor_container_identity():
+    tensor = tvm.runtime.tensor([1, 2, 3])
+    values = tvm.runtime.convert([tensor, tensor])
+    assert values[0].same_as(tensor)
+    assert values[1].same_as(tensor)
+    assert isinstance(values[0], tvm.runtime.Tensor)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

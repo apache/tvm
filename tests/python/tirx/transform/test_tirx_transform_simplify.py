@@ -25,7 +25,7 @@ from tvm.script import tirx as T
 
 def test_stmt_simplify():
     @T.function(private=True)
-    def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
+    def before(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
         A_ptr = T.decl_tensor(A, ty_args=[T.Tensor((10,), "float32", data=A)])
         C_ptr = T.decl_tensor(C, ty_args=[T.Tensor((10,), "float32", data=C)])
         n_val: T.let[T.int32] = 10
@@ -33,21 +33,21 @@ def test_stmt_simplify():
             if i < 12:
                 A_ptr[i] = C_ptr[i]
 
-    mod = tvm.IRModule.from_expr(func)
-    body = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
-    # After simplification, Bind is kept (not inlined) but the if is eliminated
-    # since i < 12 is always true for i in 0..10.
-    # Body is SeqStmt(Bind(n_val, 10), For(i, ...))
-    stmts = body if isinstance(body, tvm.ir.SeqStmt) else [body]
-    # Find the For loop in the sequence
-    for_stmt = [s for s in stmts if isinstance(s, tvm.ir.For)]
-    assert len(for_stmt) == 1, f"Expected one For loop, got {len(for_stmt)}"
-    assert isinstance(for_stmt[0].body[0], tvm.ir.TensorStore)
+    @T.function(private=True)
+    def expected(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
+        A_ptr = T.decl_tensor(A, ty_args=[T.Tensor((10,), "float32", data=A)])
+        C_ptr = T.decl_tensor(C, ty_args=[T.Tensor((10,), "float32", data=C)])
+        n_val: T.let[T.int32] = 10
+        for i in T.serial(10):
+            A_ptr[i] = C_ptr[i]
+
+    after = _apply_simplify(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_thread_extent_simplify():
     @T.function(private=True)
-    def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
+    def before(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
         A_ptr = T.decl_tensor(A, ty_args=[T.Tensor((10,), "float32", data=A)])
         C_ptr = T.decl_tensor(C, ty_args=[T.Tensor((10,), "float32", data=C)])
         n_val: T.let[T.int32] = 10
@@ -56,22 +56,22 @@ def test_thread_extent_simplify():
                 if tx + ty < 12:
                     A_ptr[tx] = C_ptr[tx + ty]
 
-    mod = tvm.IRModule.from_expr(func)
-    body = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
-    # After simplification: Bind is kept but the if is eliminated
-    # since tx + ty < 12 is always true for tx in 0..10 and ty = 0.
-    stmts = list(body) if isinstance(body, tvm.ir.SeqStmt) else [body]
-    launches = [s for s in stmts if isinstance(s, tvm.ir.RegionStmt)]
-    assert len(launches) == 1
-    tx_launch = launches[0]
-    assert tx_launch.op.name == "tirx.launch_thread"
-    assert tx_launch.body[0].op.name == "tirx.launch_thread"
-    assert isinstance(tx_launch.body[0].body[0], tvm.ir.TensorStore)  # The if was eliminated
+    @T.function(private=True)
+    def expected(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
+        A_ptr = T.decl_tensor(A, ty_args=[T.Tensor((10,), "float32", data=A)])
+        C_ptr = T.decl_tensor(C, ty_args=[T.Tensor((10,), "float32", data=C)])
+        n_val: T.let[T.int32] = 10
+        with T.launch_thread("threadIdx.x", 10) as tx:
+            with T.launch_thread("threadIdx.y", 1) as ty:
+                A_ptr[tx] = C_ptr[tx]
+
+    after = _apply_simplify(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_if_likely():
     @T.function(private=True)
-    def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
+    def before(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
         A_ptr = T.decl_tensor(A, ty_args=[T.Tensor((32,), "float32", data=A)])
         C_ptr = T.decl_tensor(C, ty_args=[T.Tensor((1024,), "float32", data=C)])
         with T.launch_thread("threadIdx.x", 32) as tx:
@@ -80,15 +80,17 @@ def test_if_likely():
                     if T.likely(tx * 32 + ty < n):
                         A_ptr[tx] = C_ptr[tx * 32 + ty]
 
-    mod = tvm.IRModule.from_expr(func)
-    body = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
-    # With flat semantics, skip DeclTensor/AllocTensor siblings to find the launch.
-    if isinstance(body, tvm.ir.SeqStmt):
-        launches = [s for s in body.seq if isinstance(s, tvm.ir.RegionStmt)]
-        body = launches[0] if launches else body
-    # Structure: launch_thread(tx) -> launch_thread(ty) -> If
-    assert isinstance(body.body[0].body[0], tvm.ir.If)
-    assert not isinstance(body.body[0].body[0].then_case[0], tvm.ir.If)
+    @T.function(private=True)
+    def expected(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
+        A_ptr = T.decl_tensor(A, ty_args=[T.Tensor((32,), "float32", data=A)])
+        C_ptr = T.decl_tensor(C, ty_args=[T.Tensor((1024,), "float32", data=C)])
+        with T.launch_thread("threadIdx.x", 32) as tx:
+            with T.launch_thread("threadIdx.y", 32) as ty:
+                if T.likely(tx * 32 + ty < n):
+                    A_ptr[tx] = C_ptr[tx * 32 + ty]
+
+    after = _apply_simplify(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_loop_body_knows_dynamic_extent_is_positive():
@@ -103,14 +105,25 @@ def test_loop_body_knows_dynamic_extent_is_positive():
         for i in T.serial(m, n // 4):
             A[0] = 1.0
 
-    after = tvm.tirx.transform.StmtSimplify()(tvm.IRModule.from_expr(before))["main"]
+    input_func = before
+
+    @I.ir_module(check_well_formed=False)
+    class InputModule:
+        main = input_func
+
+    after = tvm.tirx.transform.StmtSimplify()(InputModule)["main"]
     tvm.ir.assert_structural_equal(after, expected)
 
 
 def _apply_simplify(func):
     """Helper to apply the default statement simplification."""
-    mod = tvm.IRModule.from_expr(func)
-    return tvm.tirx.transform.StmtSimplify()(mod)["main"]
+    input_func = func
+
+    @I.ir_module(check_well_formed=False)
+    class InputModule:
+        main = input_func
+
+    return tvm.tirx.transform.StmtSimplify()(InputModule)["main"]
 
 
 def test_load_store_noop():
@@ -406,7 +419,7 @@ def test_prove_condition_using_let():
     @T.function(private=True)
     def expected(A: T.Tensor(4, "bool")):
         for i in T.serial(4):
-            condition: T.let[T.bool] = i < 3  # noqa: F841
+            condition: T.let[T.bool] = i < 3
             A[i] = i < 3
 
     after = _apply_simplify(before)
@@ -431,7 +444,7 @@ def test_prove_let_condition():
     @T.function(private=True)
     def expected(A: T.Tensor(4, "bool")):
         for i in T.serial(4):
-            condition: T.let[T.bool] = i < 3  # noqa: F841
+            condition: T.let[T.bool] = i < 3
             if i < 3:
                 A[i] = T.bool(True)
 
@@ -458,7 +471,7 @@ def test_prove_repeated_let_condition():
     @T.function(private=True)
     def expected(A: T.Tensor(4, "bool")):
         for i in T.serial(4):
-            condition: T.let[T.bool] = i < 3  # noqa: F841
+            condition: T.let[T.bool] = i < 3
             if i < 3:
                 A[i] = T.bool(True)
 
@@ -518,7 +531,7 @@ def test_left_ceil_log2_lower_bound():
     @T.function(private=True)
     def expected(A: T.Tensor(16, "float32")):
         for i in T.serial(16):
-            x: T.let[T.int32] = T.Cast(  # noqa: F841
+            x: T.let[T.int32] = T.Cast(
                 T.ceil(T.log2(T.Cast(i + 1025, "float64"))),
                 "int32",
             )
@@ -673,8 +686,8 @@ def test_most_restrictive_conditional():
     allow for later rewrites.  For example, if it is known that `a <= b`,
     then `a >= b` cannot be proven, but can be reduced to `a == b`.
     """
-    i, j, k = [tvm.tirx.Var(name, "int32") for name in "ijk"]
-    tir_int = tvm.tirx.IntImm("int32", 0)
+    i, j, k = [T.dynamic(name, "int32") for name in "ijk"]
+    tir_int = T.int32(0)
 
     test_cases = [
         (i <= tir_int, tir_int <= i, i == tir_int),
@@ -801,7 +814,15 @@ def test_simplify_tensor_identity_well_formed():
         B = T.decl_tensor(B_ptr, ty_args=[T.Tensor([n_val], "float32", data=B_ptr)])
         B[0] = A[0]
 
+    @T.function(private=True)
+    def expected(A_ptr: T.handle("float32"), B_ptr: T.handle("float32"), n: T.int32):
+        n_val = n
+        A = T.decl_tensor(A_ptr, ty_args=[T.Tensor([n], "float32", data=A_ptr)])
+        B = T.decl_tensor(B_ptr, ty_args=[T.Tensor([n], "float32", data=B_ptr)])
+        B[0] = A[0]
+
     after = _apply_simplify(before)
+    tvm.ir.assert_structural_equal(after, expected)
     tvm.tirx.analysis.verify_well_formed(after)
 
 
@@ -867,27 +888,25 @@ def test_nested_if_elimination():
 @pytest.mark.parametrize("else_branch", [False, True])
 @pytest.mark.parametrize("write_before_loop", [False, True])
 def test_mutable_branch_predicate_preserves_while_bound(else_branch, write_before_loop):
-    # Build both branch directions from the same body. A store before the loop
-    # and a store on its back edge both invalidate the entry predicate.
-    from tvm import tirx
+    @T.function(private=True)
+    def before(x: T.Tensor((1,), "int32"), count: T.Tensor((1,), "int32")):
+        if T.constexpr(else_branch):
+            if 8 <= x[0]:
+                T.evaluate(0)
+            else:
+                if T.constexpr(write_before_loop):
+                    x[0] = x[0] + 1
+                while x[0] < 8 and count[0] == 0:
+                    x[0] = x[0] + 1
+        else:
+            if x[0] < 8:
+                if T.constexpr(write_before_loop):
+                    x[0] = x[0] + 1
+                while x[0] < 8 and count[0] == 0:
+                    x[0] = x[0] + 1
 
-    x = tirx.decl_tensor((1,), "int32", name="x")
-    count = tirx.decl_tensor((1,), "int32", name="count")
-    loop = tvm.ir.While(
-        T.And(x[0] < 8, count[0] == 0),
-        tvm.ir.TensorStore(x, [0], x[0] + 1),
-    )
-    body = (
-        tvm.ir.SeqStmt([tvm.ir.TensorStore(x, [0], x[0] + 1), loop]) if write_before_loop else loop
-    )
-    branch = (
-        tvm.ir.If(T.int32(8) <= x[0], tvm.ir.Evaluate(0), body)
-        if else_branch
-        else tvm.ir.If(x[0] < 8, body, None)
-    )
-    func = tirx.Function([x, count], branch)
-    after = _apply_simplify(func)
-    tvm.ir.assert_structural_equal(after, func)
+    after = _apply_simplify(before)
+    tvm.ir.assert_structural_equal(after, before)
 
 
 def test_mutable_branch_predicate_preserves_later_load():

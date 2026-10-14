@@ -26,21 +26,6 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
-def _is_tensor_binding(node, *op_names):
-    return (
-        isinstance(node, tvm.ir.Bind)
-        and isinstance(node.value, tvm.ir.Call)
-        and isinstance(node.value.op, tvm.ir.Op)
-        and node.value.op.name in op_names
-    )
-
-
-def test_public_api_surface():
-    assert hasattr(tvm.tirx.transform, "SplitHostDevice")
-    assert not hasattr(tvm.tirx.transform, "AnnotateDeviceRegions")
-    assert not hasattr(tvm.tirx.transform, "LowerDeviceKernelLaunch")
-
-
 def test_ssa_across_entire_module():
     """The host and device functions should not share TIR vars
 
@@ -63,6 +48,30 @@ def test_ssa_across_entire_module():
     param_var = after["main_kernel"].params[0]
 
     assert not loop_var.same_as(param_var)
+
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main():
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            for i in range(16):
+                T.call_ffi_kernel("main_kernel", i)
+
+        @T.function
+        def main_kernel(i: T.int32):
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "target": T.target("cuda"),
+                    "tirx.is_global_func": True,
+                    "tirx.kernel_launch_params": [],
+                    "tirx.noalias": True,
+                }
+            )
+            for j in range(16):
+                T.evaluate(i)
+
+    tvm.ir.assert_structural_equal(after, Expected)
 
 
 def test_split_host_device():
@@ -99,6 +108,10 @@ def test_split_host_device():
 
     After = tvm.tirx.transform.SplitHostDevice()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
+
+    assert hasattr(tvm.tirx.transform, "SplitHostDevice")
+    assert not hasattr(tvm.tirx.transform, "AnnotateDeviceRegions")
+    assert not hasattr(tvm.tirx.transform, "LowerDeviceKernelLaunch")
 
 
 def test_split_host_device_on_cpu():
@@ -139,21 +152,25 @@ def test_split_host_device_on_cpu():
 def test_device_kernel_nonzero_return_is_rejected():
     """A device kernel may only return the zero success code."""
 
-    device_target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
-    target = tvm.target.Target(device_target, host="llvm")
-    body = tvm.ir.RegionStmt(
-        tvm.ir.Op.get("tirx.device_scope"),
-        [],
-        [],
-        tvm.ir.DictAttrs({"target": device_target}),
-        tvm.ir.Return(tvm.tirx.IntImm("int32", 1)),
-    )
-    func = tvm.tirx.Function([], body)
-    func = func.with_attr("global_symbol", "main")
-    func = func.with_attr("target", target)
+    @I.ir_module
+    class Before:
+        @T.function
+        def main() -> T.int32:
+            T.func_attr(
+                {
+                    "global_symbol": "main",
+                    "target": T.target({"kind": "cuda", "arch": "sm_100a"}, host="llvm"),
+                }
+            )
+            T.region(
+                "tirx.device_scope",
+                [],
+                attrs={"target": T.target({"kind": "cuda", "arch": "sm_100a"})},
+            )
+            return 1
 
     with pytest.raises(tvm.error.InternalError, match="successful return"):
-        tvm.tirx.transform.SplitHostDevice()(tvm.IRModule({"main": func}))
+        tvm.tirx.transform.SplitHostDevice()(Before)
 
 
 def test_split_host_device_without_func_host_attribute():
@@ -211,7 +228,13 @@ def test_split_host_device_without_device_region():
 
     Expected = Before
 
-    After = tvm.tirx.transform.SplitHostDevice()(tvm.IRModule.from_expr(Before))
+    input_func = Before
+
+    @I.ir_module(check_well_formed=False)
+    class InputModule:
+        Before = input_func
+
+    After = tvm.tirx.transform.SplitHostDevice()(InputModule)
     tvm.ir.assert_structural_equal(After["Before"], Expected)
 
 
@@ -343,7 +366,7 @@ def test_dynamic_launch_thread():
 
 
 def test_symbolic_var_parameter():
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Module:
@@ -361,6 +384,33 @@ def test_symbolic_var_parameter():
     assert len(after["main_kernel"].params) == 3
     assert isinstance(after["main_kernel"].params[2], tvm.tirx.Var)
 
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main(A: T.Tensor((m,), T.float32), B: T.Tensor((m,), T.float32)):
+            T.func_attr({"target": T.target("cuda")})
+            Expected.main_kernel(A.data, B.data, m)
+
+        @T.function(private=True)
+        def main_kernel(
+            A_ptr: T.Ptr(T.PrimType("float32")), B_ptr: T.Ptr(T.PrimType("float32")), m_1: T.int64
+        ):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "tirx.is_global_func": True,
+                    "tirx.noalias": True,
+                }
+            )
+            A = T.decl_tensor(A_ptr, ty_args=[T.Tensor((m_1,), T.float32)])
+            B = T.decl_tensor(B_ptr, ty_args=[T.Tensor((m_1,), T.float32)])
+            with T.launch_thread("blockIdx.x", m_1) as blockIdx_x:
+                B_1 = T.decl_tensor(B.data, ty_args=[T.Tensor((m_1,), T.float32)])
+                A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((m_1,), T.float32)])
+                B_1[blockIdx_x] = A_1[blockIdx_x]
+
+    tvm.ir.assert_structural_equal(after, Expected)
+
 
 def test_tensor_used_only_through_data_projection():
     @I.ir_module
@@ -373,15 +423,30 @@ def test_tensor_used_only_through_data_projection():
 
     after = tvm.tirx.transform.SplitHostDevice()(Before)
     kernel = after["main_kernel"]
-    declared_tensors = []
-
-    def collect(node):
-        if _is_tensor_binding(node, "tirx.decl_tensor"):
-            declared_tensors.append(node.var)
-
-    tvm_ffi.structural_walk(kernel.body, collect)
-    assert len(declared_tensors) == 1
     assert not tvm.tirx.analysis.undefined_vars(kernel.body, kernel.params)
+
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main(A: T.Tensor((16,), T.float32)):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            T.call_ffi_kernel("main_kernel", A.data)
+
+        @T.function
+        def main_kernel(A_ptr: T.Ptr(T.PrimType("float32"))):
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "target": T.target("cuda"),
+                    "tirx.is_global_func": True,
+                    "tirx.kernel_launch_params": [],
+                    "tirx.noalias": True,
+                }
+            )
+            A = T.decl_tensor(A_ptr, ty_args=[T.Tensor((16,), T.float32)])
+            T.call_extern("consume", A.data, ty="int32")
+
+    tvm.ir.assert_structural_equal(after, Expected)
 
 
 def test_thread_extent_region_extracted_as_device_kernel():
@@ -463,6 +528,46 @@ def test_cuda_launch_preserves_flag_metadata():
         ),
     )
 
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main(A: T.Tensor((16,), T.float32)):
+            T.func_attr(
+                {
+                    "target": T.target("cuda", host="llvm"),
+                    "tirx.kernel_launch_params": [
+                        "threadIdx.x",
+                        "tirx.use_programtic_dependent_launch",
+                    ],
+                }
+            )
+            T.call_ffi_kernel(
+                "main_kernel",
+                A.data,
+                16,
+                launch_params=["threadIdx.x", "tirx.use_programtic_dependent_launch"],
+            )
+
+        @T.function
+        def main_kernel(A_ptr: T.Ptr(T.PrimType("float32"))):
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "target": T.target("cuda"),
+                    "tirx.is_global_func": True,
+                    "tirx.kernel_launch_params": [
+                        "threadIdx.x",
+                        "tirx.use_programtic_dependent_launch",
+                    ],
+                    "tirx.noalias": True,
+                }
+            )
+            A = T.decl_tensor(A_ptr, ty_args=[T.Tensor((16,), T.float32)])
+            with T.launch_thread("threadIdx.x", 16) as tx:
+                A[tx] = T.float32(0.0)
+
+    tvm.ir.assert_structural_equal(after, Expected)
+
 
 def test_cuda_required_block_size_coexists_with_launch_bounds():
     @I.ir_module
@@ -510,6 +615,78 @@ def test_cuda_required_block_size_coexists_with_launch_bounds():
     assert len(launch.args) == 8
     assert [int(arg) for arg in launch.args[-6:]] == [4, 1, 1, 128, 1, 1]
 
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main(A: T.Tensor((4,), T.float32)):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            T.call_ffi_kernel(
+                "main_kernel",
+                A.data,
+                4,
+                1,
+                1,
+                128,
+                1,
+                1,
+                kernel_attrs={
+                    "min_blocks_per_sm": 1,
+                    "required_block_size": 1,
+                    "required_block_x": 128,
+                    "required_block_y": 1,
+                    "required_block_z": 1,
+                    "required_cluster_x": 1,
+                    "required_cluster_y": 1,
+                    "required_cluster_z": 1,
+                },
+                launch_fields=["grid.x", "grid.y", "grid.z", "block.x", "block.y", "block.z"],
+                num_kernel_args=1,
+            )
+
+        @T.function
+        def main_kernel(A_ptr: T.Ptr(T.PrimType("float32"))):
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "cuda.kernel_attrs": {
+                        "min_blocks_per_sm": 1,
+                        "required_block_size": 1,
+                        "required_block_x": 128,
+                        "required_block_y": 1,
+                        "required_block_z": 1,
+                        "required_cluster_x": 1,
+                        "required_cluster_y": 1,
+                        "required_cluster_z": 1,
+                    },
+                    "cuda.launch_dimensions": [
+                        T.IntImm("int32", 128),
+                        T.IntImm("int32", 1),
+                        T.IntImm("int32", 1),
+                        T.IntImm("int32", 1),
+                        T.IntImm("int32", 1),
+                        T.IntImm("int32", 1),
+                    ],
+                    "cuda.launch_fields": [
+                        "grid.x",
+                        "grid.y",
+                        "grid.z",
+                        "block.x",
+                        "block.y",
+                        "block.z",
+                    ],
+                    "target": T.target("cuda"),
+                    "tirx.is_global_func": True,
+                    "tirx.noalias": True,
+                }
+            )
+            A = T.decl_tensor(A_ptr, ty_args=[T.Tensor((4,), T.float32)])
+            bx: T.let[T.int32] = T.cuda.block_idx("x")
+            tx: T.let[T.int32] = T.cuda.thread_idx("x")
+            if tx == 0:
+                A[T.cuda.block_idx("x")] = T.float32(0.0)
+
+    tvm.ir.assert_structural_equal(after, Expected)
+
 
 def test_cuda_launch_preserves_singleton_cluster_dimensions():
     @I.ir_module
@@ -538,6 +715,55 @@ def test_cuda_launch_preserves_singleton_cluster_dimensions():
     launch = after["main"].body[0].value
     assert isinstance(launch, tvm.ir.Call)
     assert [int(arg) for arg in launch.args[-5:]] == [4, 1, 1, 1, 32]
+
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main(A: T.Tensor((1,), T.float32)):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            T.call_ffi_kernel(
+                "main_kernel",
+                A.data,
+                4,
+                1,
+                1,
+                1,
+                32,
+                launch_params=[
+                    "blockIdx.x",
+                    "clusterCtaIdx.x",
+                    "clusterCtaIdx.y",
+                    "clusterCtaIdx.z",
+                    "threadIdx.x",
+                ],
+            )
+
+        @T.function
+        def main_kernel(A_ptr: T.Ptr(T.PrimType("float32"))):
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "target": T.target("cuda"),
+                    "tirx.is_global_func": True,
+                    "tirx.kernel_launch_params": [
+                        "blockIdx.x",
+                        "clusterCtaIdx.x",
+                        "clusterCtaIdx.y",
+                        "clusterCtaIdx.z",
+                        "threadIdx.x",
+                    ],
+                    "tirx.noalias": True,
+                }
+            )
+            A = T.decl_tensor(A_ptr, ty_args=[T.Tensor((1,), T.float32)])
+            with T.launch_thread("blockIdx.x", 4) as v:
+                with T.launch_thread("clusterCtaIdx.x", 1) as v_1:
+                    with T.launch_thread("clusterCtaIdx.y", 1) as v_2:
+                        with T.launch_thread("clusterCtaIdx.z", 1) as v_3:
+                            with T.launch_thread("threadIdx.x", 32) as v_4:
+                                A[0] = T.float32(0.0)
+
+    tvm.ir.assert_structural_equal(after, Expected)
 
 
 def test_device_scope_region_extracted_as_device_kernel():
