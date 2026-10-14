@@ -53,6 +53,8 @@ else
 fi
 
 JVM_TEST_ARGS="${JVM_TEST_ARGS:--DskipTests -Dcheckstyle.skip=true}"
+# Native-library assembly needs more heap than some container JVM defaults provide.
+export MAVEN_OPTS="${MAVEN_OPTS:--Xmx1g}"
 
 cd "${ROOTDIR}/jvm"
 # shellcheck disable=SC2086
