@@ -22,14 +22,11 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/memory_scope.h>
 
-#include <string_view>
-
 namespace tvm {
 namespace runtime {
-namespace {
 namespace refl = ffi::reflection;
 
-void RegisterBuiltinScopes() {
+void detail::RegisterBuiltinMemoryScopes() {
   // Lookups and defaults can run in other translation units' static initializers.
   // Initialize the complete set once, before any lookup, without relying on order.
   static const bool initialized = [] {
@@ -48,50 +45,10 @@ void RegisterBuiltinScopes() {
   }();
   (void)initialized;
 }
-}  // namespace
-
-MemoryAllocProperty MemoryScope::alloc_property() const {
-  static ffi::reflection::TypeAttrColumn state_column(ffi::type_attr::kEnumState);
-  auto state = state_column[MemoryScopeObj::RuntimeTypeIndex()].cast<ffi::EnumState>();
-  if (auto column = state->attrs.Get(attr::kMemoryAllocProperty)) {
-    if (auto value = column->Get(*this)) {
-      int property = value->cast<int>();
-      TVM_FFI_CHECK(property >= static_cast<int>(MemoryAllocProperty::kNormal) &&
-                        property <= static_cast<int>(MemoryAllocProperty::kSeparateAllocations),
-                    ValueError)
-          << "Invalid memory allocation property for " << name();
-      return static_cast<MemoryAllocProperty>(property);
-    }
-  }
-  return MemoryAllocProperty::kNormal;
-}
-
-bool MemoryScope::IsDefined(const ffi::String& name) {
-  constexpr auto key = refl::AsByteArray(ffi::type_attr::kEnumState.name);
-  if (TVMFFIGetTypeAttrColumn(&key) == nullptr) return false;
-  auto value = refl::TypeAttrColumn(
-      ffi::type_attr::kEnumState)[MemoryScopeObj::_GetOrAllocRuntimeTypeIndex()];
-  if (value == nullptr) return false;
-  TVM_FFI_CHECK(value.type_index() == ffi::EnumStateObj::_GetOrAllocRuntimeTypeIndex(), TypeError)
-      << "Expected enum state for memory scopes";
-  // The derived EnumState type index may still be deferred during static initialization.
-  auto* state = static_cast<const ffi::EnumStateObj*>(value.cast<ffi::ObjectRef>().get());
-  return state->indexes.count(name) != 0;
-}
 
 MemoryScope MemoryScope::Get(const ffi::String& name) {
-  RegisterBuiltinScopes();
+  detail::RegisterBuiltinMemoryScopes();
   return ffi::EnumObj::_GetByStrIndex<MemoryScopeObj>(name).as_or_throw<MemoryScope>();
-}
-
-MemoryScope MemoryScope::Register(const ffi::String& name) {
-  RegisterBuiltinScopes();
-  TVM_FFI_CHECK(!name.empty(), ValueError) << "Memory scope name must not be empty";
-  TVM_FFI_CHECK(std::string_view(name.data(), name.size()).find('\0') == std::string_view::npos,
-                ValueError)
-      << "Memory scope name must not contain a null character";
-  refl::EnumDef<MemoryScopeObj>(name.c_str());
-  return Get(name);
 }
 
 const MemoryScope& MemoryScope::Global() {
@@ -100,7 +57,7 @@ const MemoryScope& MemoryScope::Global() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  RegisterBuiltinScopes();
+  detail::RegisterBuiltinMemoryScopes();
   refl::TypeAttrDef<MemoryScopeObj>()
       .def(ffi::type_attr::kDataToJson.name,
            [](const MemoryScopeObj* node) -> ffi::String { return node->_str_index; })
