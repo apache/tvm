@@ -292,8 +292,94 @@ assign_source_group("Source" ${GROUP_SOURCE})
 assign_source_group("Include" ${GROUP_INCLUDE})
 
 # Source file lists
-include(cmake/modules/CompilerSources.cmake)
-include(cmake/modules/RuntimeSources.cmake)
+# Core compiler sources, extended by the backend modules.
+tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
+    src/ir/*.cc
+    src/sym/*.cc
+    src/te/*.cc
+    src/tirx/*.cc
+    src/s_tir/*.cc
+    src/topi/*.cc
+    src/driver/*.cc
+    src/support/*.cc
+    # Shared printer and TVMScript IR builder. Per-dialect printer/builder pieces
+    # live under src/<dialect>/script/. List shared files explicitly so a dialect
+    # implementation cannot be silently included through a recursive glob.
+    src/script/ir_builder/base.cc
+    src/script/ir_builder/ir.cc
+    src/script/ir_builder/frame.cc
+    src/script/printer/config.cc
+    src/script/printer/doc.cc
+    src/script/printer/doc_translator.cc
+    src/script/printer/ir/call.cc
+    src/script/printer/ir/utils.cc
+    src/script/printer/ir/ir.cc
+    src/script/printer/ir/misc.cc
+    src/script/printer/ir/prim_type.cc
+    src/script/printer/ir/prim_expr.cc
+    src/script/printer/ir/stmt.cc
+    src/script/printer/printer.cc
+    src/script/printer/doc_printer.cc
+    src/script/printer/script_printer.cc
+    src/relax/ir/*.cc
+    src/relax/op/*.cc
+    src/relax/analysis/*.cc
+    src/relax/transform/*.cc
+    src/relax/backend/vm/*.cc
+    src/relax/backend/adreno/*.cc
+    src/relax/backend/task_extraction.cc
+    src/relax/backend/pattern_registry.cc
+    src/relax/utils.cc
+    src/relax/distributed/*.cc
+    src/relax/distributed/transform/*.cc
+    src/relax/op/distributed/*.cc
+    src/relax/script/*.cc
+    src/relax/testing/*.cc
+    )
+
+tvm_file_glob(GLOB CODEGEN_SRCS
+  src/target/*.cc
+  src/target/source/*.cc
+  src/target/canonicalizer/*.cc
+  src/target/llvm/canonicalizer/*.cc
+  src/backend/cuda/codegen/*.cc
+  src/backend/cuda/op/*.cc
+  src/backend/cuda/transforms/*.cc
+  src/backend/cuda/tile/*.cc
+  src/backend/cuda/layout/*.cc
+  src/backend/hexagon/codegen/*.cc
+  src/backend/metal/codegen/*.cc
+  src/backend/metal/op/*.cc
+  src/backend/opencl/codegen/*.cc
+  src/backend/opencl/op/*.cc
+  src/backend/rocm/codegen/*.cc
+  src/backend/trn/codegen/*.cc
+  src/backend/trn/op/*.cc
+  src/backend/trn/transform/*.cc
+  src/backend/trn/layout/*.cc
+  src/backend/vulkan/codegen/target_kind.cc
+  src/backend/vulkan/codegen/vulkan_fallback_module.cc
+  src/backend/webgpu/codegen/*.cc
+    )
+
+list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
+# Core runtime sources, extended by the backend modules.
+tvm_file_glob(GLOB RUNTIME_SRCS
+  src/runtime/*.cc
+  src/runtime/rpc/minrpc/*.cc
+)
+# VM-owned runtime implementations, including external-module constant loading.
+tvm_file_glob(GLOB RUNTIME_VM_SRCS src/runtime/vm/*.cc)
+list(APPEND RUNTIME_SRCS ${RUNTIME_VM_SRCS})
+# Note: src/runtime/extra/disco/** moves to libtvm_runtime_extra.
+# Note: src/backend/*/runtime sources move to per-backend DSOs.
+set(TVM_RUNTIME_EXT_OBJS "")
+
+if(USE_RPC)
+  message(STATUS "Build with RPC support...")
+  tvm_file_glob(GLOB RUNTIME_RPC_SRCS src/runtime/rpc/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_RPC_SRCS})
+endif(USE_RPC)
 
 if(BUILD_FOR_HEXAGON)
   # Allow undefined symbols in the shared runtime (there will be some from libc).
@@ -371,8 +457,157 @@ if(TVM_DEBUG_WITH_ABI_CHANGE)
   message(STATUS "Building with debug code that may cause ABI changes...")
 endif()
 
-include(cmake/modules/Runtime.cmake)
-include(cmake/modules/Compiler.cmake)
+# Core runtime objects are shared by the dynamic and static libraries.
+add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
+target_link_libraries(tvm_runtime_objs PUBLIC tvm_ffi_header)
+if(TVM_VISIBILITY_FLAG)
+  target_compile_options(tvm_runtime_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
+endif()
+if(TVM_DEBUG_WITH_ABI_CHANGE)
+  target_compile_definitions(tvm_runtime_objs PRIVATE TVM_DEBUG_WITH_ABI_CHANGE)
+endif()
+if(MSVC)
+  # Runtime objects export only runtime/FFI symbols, never compiler symbols.
+  target_compile_definitions(tvm_runtime_objs PRIVATE TVM_RUNTIME_EXPORTS TVM_FFI_EXPORTS)
+endif()
+
+# Loaded with RTLD_GLOBAL so downstream runtime modules can resolve its symbols.
+add_library(tvm_runtime SHARED
+  $<TARGET_OBJECTS:tvm_runtime_objs>
+  ${TVM_RUNTIME_EXT_OBJS}
+)
+target_link_libraries(tvm_runtime PUBLIC tvm_ffi_shared)
+set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
+set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
+
+# Static consumers must retain registration objects from both archives, with
+# tvm_ffi_static before tvm_runtime_static so FFI type attributes initialize first:
+#   -Wl,--whole-archive tvm_ffi_static tvm_runtime_static -Wl,--no-whole-archive
+# Use the corresponding archive-retention flags on other platforms.
+add_library(tvm_runtime_static STATIC
+  $<TARGET_OBJECTS:tvm_runtime_objs>
+  ${TVM_RUNTIME_EXT_OBJS}
+)
+target_link_libraries(tvm_runtime_static PUBLIC tvm_ffi_static)
+if(MSVC)
+  # Static consumers reference ordinary symbols rather than DLL import stubs.
+  target_compile_definitions(tvm_runtime_static INTERFACE
+    TVM_RUNTIME_DLL= TVM_RUNTIME_DLL_EXPORT= TVM_FFI_DLL= TVM_FFI_DLL_EXPORT=)
+endif()
+
+foreach(runtime_target tvm_runtime tvm_runtime_static)
+  target_include_directories(${runtime_target} PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
+  target_link_libraries(${runtime_target} PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
+  if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
+    target_link_libraries(${runtime_target} PUBLIC Threads::Threads)
+  endif()
+endforeach()
+
+set_target_properties(tvm_runtime tvm_runtime_static PROPERTIES
+  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+)
+if(MSVC)
+  foreach(config_type Release RELEASE Debug DEBUG RelWithDebInfo RELWITHDEBINFO MinSizeRel MINSIZEREL)
+    set_target_properties(tvm_runtime tvm_runtime_static PROPERTIES
+      ARCHIVE_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
+      LIBRARY_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
+      RUNTIME_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
+    )
+  endforeach()
+endif()
+
+if(TVM_IS_DEBUG_BUILD AND FILE_PREFIX_MAP_SUPPORTED)
+  target_compile_options(tvm_runtime PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
+  target_compile_options(tvm_runtime_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
+endif()
+
+tvm_ffi_add_apple_dsymutil(tvm_runtime)
+tvm_configure_target_library(tvm_runtime)
+add_custom_target(runtime DEPENDS tvm_runtime tvm_runtime_static)
+install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
+# Keep wheel contents unchanged; the archive is available to native consumers.
+if(NOT TVM_BUILD_PYTHON_MODULE)
+  install(TARGETS tvm_runtime_static DESTINATION lib${LIB_SUFFIX})
+endif()
+add_library(tvm_objs OBJECT ${COMPILER_SRCS})
+target_link_libraries(tvm_objs PUBLIC tvm_ffi_header)
+if(TARGET tvm_llvm_header)
+  target_link_libraries(tvm_objs PUBLIC tvm_llvm_header)
+endif()
+if(TVM_VISIBILITY_FLAG)
+  target_compile_options(tvm_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
+endif()
+if(TVM_DEBUG_WITH_ABI_CHANGE)
+  target_compile_definitions(tvm_objs PRIVATE TVM_DEBUG_WITH_ABI_CHANGE)
+endif()
+if(MSVC)
+  # Compiler objects import runtime symbols from the separate runtime DLL.
+  target_compile_definitions(tvm_objs PRIVATE TVM_EXPORTS TVM_FFI_EXPORTS)
+endif()
+
+# Compiler library: built from compiler-only sources.
+# Links against tvm_runtime (and tvm_ffi_shared transitively). Loaded with
+# RTLD_LOCAL so compiler-internal symbols don't leak into the global namespace.
+add_library(tvm_compiler SHARED
+  $<TARGET_OBJECTS:tvm_objs>
+)
+target_link_libraries(tvm_compiler PUBLIC tvm_runtime tvm_ffi_shared)
+target_include_directories(tvm_compiler PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
+set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
+set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
+
+# Work around a GNU ld (binutils) relaxation bug that miscompiles
+# R_X86_64_GOTPCRELX relocations inside very large statically-linked archives.
+# When the full LLVM static libraries are linked into libtvm_compiler.so, the
+# library is large enough that ld can relax an indirect GOT call (LLVM built
+# with -fno-plt emits these) into a direct call with an incorrect displacement.
+# The call then targets read-only data instead of the intended function and
+# crashes at runtime with a SIGSEGV inside llvm::X86Subtarget during code
+# generation. Disabling linker relaxation keeps the GOT-indirect sequences and
+# avoids the miscompilation; it is harmless when LLVM is linked dynamically.
+# See binutils bug ld/25754.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT "${USE_LLVM}" MATCHES ${IS_FALSE_PATTERN})
+  set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "-Wl,--no-relax")
+  # LLVM's --system-libs reports -lxml2, but TVM calls no libxml2 symbols. The
+  # manylinux toolchain does not default to --as-needed, so set it explicitly:
+  # the unused libxml2 is then not recorded as a NEEDED dependency, so auditwheel
+  # does not vendor it (and its deps) into the wheel.
+  set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "-Wl,--as-needed")
+endif()
+
+set_target_properties(tvm_compiler PROPERTIES
+  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+)
+if(MSVC)
+  foreach(config_type Release RELEASE Debug DEBUG RelWithDebInfo RELWITHDEBINFO MinSizeRel MINSIZEREL)
+    set_target_properties(tvm_compiler PROPERTIES
+      ARCHIVE_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
+      LIBRARY_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
+      RUNTIME_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
+    )
+  endforeach()
+endif()
+
+if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
+  target_link_libraries(tvm_compiler PUBLIC Threads::Threads)
+endif()
+target_link_libraries(tvm_compiler PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
+
+if(TVM_IS_DEBUG_BUILD)
+  target_compile_options(tvm_compiler PRIVATE "${FILE_PREFIX_MAP_FLAG}")
+  if(FILE_PREFIX_MAP_SUPPORTED)
+    target_compile_options(tvm_compiler PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
+    target_compile_options(tvm_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
+  endif()
+endif()
+
+tvm_ffi_add_apple_dsymutil(tvm_compiler)
+tvm_configure_target_library(tvm_compiler)
+install(TARGETS tvm_compiler DESTINATION lib${LIB_SUFFIX})
 
 # logging option for libbacktrace
 include(cmake/modules/Logging.cmake)
