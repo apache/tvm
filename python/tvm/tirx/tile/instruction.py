@@ -204,8 +204,8 @@ def _expr(value):
         return Tuple([_expr(v) for v in value])
     if isinstance(value, str):
         return StringImm(value)
-    if hasattr(value, "asobject"):
-        return value.asobject()
+    if hasattr(value, "__tvm_ffi_object__"):
+        return value.__tvm_ffi_object__()
     return const(value)
 
 

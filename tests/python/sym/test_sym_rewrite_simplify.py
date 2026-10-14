@@ -34,9 +34,9 @@ from tvm.tirx import truncmod as tmod
 class TestCase:
     def __init__(self, before, expected, preconditions=None):
         if isinstance(before, tirx.expr.EqualOp):
-            before = before.asobject()
+            before = before.__tvm_ffi_object__()
         if isinstance(expected, tirx.expr.EqualOp):
-            expected = expected.asobject()
+            expected = expected.__tvm_ffi_object__()
 
         self.before = self._convert(before)
         self.expected = self._convert(expected)
@@ -45,7 +45,7 @@ class TestCase:
     @staticmethod
     def _convert(expr):
         if isinstance(expr, tirx.expr.EqualOp):
-            return expr.asobject()
+            return expr.__tvm_ffi_object__()
         elif isinstance(expr, int):
             return T.int32(expr)
         elif isinstance(expr, float):

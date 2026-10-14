@@ -24,8 +24,6 @@ import numbers as _numbers
 from types import SimpleNamespace as _Namespace
 from typing import Any
 
-import tvm_ffi as _ffi
-
 import tvm
 from tvm import ir as _ir
 from tvm import relax as _relax
@@ -236,7 +234,6 @@ from tvm.relax.op import to_vdevice as _to_vdevice
 from tvm.relax.op.builtin import stop_lift_params
 from tvm.relax.type import Type
 from tvm.relax.utils import convert_to_expr
-from tvm.runtime import ObjectConvertible
 from tvm.script.ir_builder import base as _base
 
 from . import distributed as dist  # noqa: F401
@@ -316,8 +313,8 @@ def call_packed(
         (
             ty()
             if callable(ty) and not isinstance(ty, _ir.Type)
-            else ty.asobject()
-            if isinstance(ty, ObjectConvertible)
+            else ty.__tvm_ffi_object__()
+            if hasattr(ty, "__tvm_ffi_object__")
             else ty
         )
         for ty in ty_args
@@ -487,15 +484,17 @@ def select(condition, true_value, false_value):
 
 def if_then_else_(condition: Any, true_value: Any, false_value: Any) -> Any:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.if_then_else_`."""
-    if isinstance(condition, _ffi.ObjectConvertible):
-        condition = condition.asobject()
+    if hasattr(condition, "__tvm_ffi_object__"):
+        condition = condition.__tvm_ffi_object__()
     if not isinstance(condition, _ir.Expr):
         return true_value if condition else false_value
     true_value = (
-        true_value.asobject() if isinstance(true_value, _ffi.ObjectConvertible) else true_value
+        true_value.__tvm_ffi_object__() if hasattr(true_value, "__tvm_ffi_object__") else true_value
     )
     false_value = (
-        false_value.asobject() if isinstance(false_value, _ffi.ObjectConvertible) else false_value
+        false_value.__tvm_ffi_object__()
+        if hasattr(false_value, "__tvm_ffi_object__")
+        else false_value
     )
     if _ir.is_prim_expr(condition) and all(
         _ir.is_prim_expr(value)

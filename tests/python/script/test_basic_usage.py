@@ -471,7 +471,7 @@ def test_host_equality_result_is_not_arbitrarily_converted(primitive_language):
     M = primitive_language.M
 
     class CustomEquality(EqualOp):
-        def asobject(self):
+        def __tvm_ffi_object__(self):
             raise AssertionError("custom equality subclasses are host values")
 
     result = CustomEquality(ir.Var("x", "int32"), 0)
