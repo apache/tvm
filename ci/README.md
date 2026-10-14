@@ -26,7 +26,7 @@ TVM project in a healthy state and preventing breakages. CI in TVM is broken int
  - The tests themselves, all of which live underneath [`tests`](../tests).
  - Definitions of test suites, with each suite defined as a separate `task_` script in
    [`tests/scripts`](../tests/scripts).
- - GitHub automation [`ci/github`](github), package builds [`ci/package`](package),
+ - GitHub automation [`ci/github`](github), wheel builds [`ci/wheel`](wheel),
    and Jenkins host commands [`ci/jenkins/scripts`](jenkins/scripts).
  - The linux test sequence (in [`Jenkinsfile`](../ci/jenkins/generated/)), which lints and builds TVM and runs test
    suites using Docker on Linux.

@@ -69,6 +69,15 @@ runs once before preparation. Trusted helper changes use Jenkins' selected
 revision directly. Host scripts and artifact metadata follow the pinned target
 revision for PR authors outside `CONTRIBUTORS.md`.
 
+Migrate each trusted target branch as a unit before testing untrusted PRs against
+it. A target predating the shared helper cannot supply the fallback. An older
+helper or monolithic entry point may also call a renamed host script before the
+merge and trusted-file restoration, so a PR deleting that old path can fail
+preparation. This includes the node-information command moved into `scripts/`.
+A trusted branch build exercises the complete new layout; it does not establish
+compatibility with an unmigrated target. Do not bypass these failures by loading
+PR-owned helpers or a different target revision.
+
 Before enabling the migration on production jobs, validate it with the existing
 Jenkins plugin versions and sandbox settings on a trusted branch: run all five
 entry points, suspend/resume across a node step, and exercise spot loss, a normal

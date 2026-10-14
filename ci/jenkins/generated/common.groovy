@@ -46,7 +46,7 @@ def init_git() {
 
   // Add more info about job node
   sh (
-    script: './tests/scripts/task_show_node_info.sh',
+    script: './ci/jenkins/scripts/show_node_info.sh',
     label: 'Show executor node info',
   )
 
