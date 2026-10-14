@@ -36,6 +36,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/with_context.h>
 
+#include <functional>
 #include <string>
 #include <type_traits>
 #include <utility>
