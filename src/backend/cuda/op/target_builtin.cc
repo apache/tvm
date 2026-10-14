@@ -129,21 +129,6 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg<IntExpr>("cp_size", "The copy size."), sig::var_args("args"))
       .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
 
-  OpDef("tirx.cuda.mma_store")
-      .signature(sig::arg<IntExpr>("m", "The M dimension."),
-                 sig::arg<IntExpr>("n", "The N dimension."),
-                 sig::arg("dst_ptr", "The destination pointer."),
-                 sig::arg("src_ptr", "The source pointer."),
-                 sig::arg<IntExpr>("src_offset", "The source offset."),
-                 sig::arg<IntExpr>("dst_stride", "The destination stride."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
-
-  OpDef("tirx.cuda.mma_fill")
-      .signature(sig::arg<IntExpr>("local_size", "The local allocation size."),
-                 sig::arg("local_ptr", "The local pointer."),
-                 sig::arg<IntExpr>("offset", "The offset."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
-
   OpDef("tirx.cuda.timer_init")
       .signature(sig::arg("profiler_buffer", "The profiler buffer."),
                  sig::arg("profiler_tag", "The profiler tag."),
@@ -412,16 +397,6 @@ void RegisterDeviceIntrinsics() {
                           sig::arg("ivar"), sig::arg("cmp"), sig::arg<IntExpr>("cmp_value"),
                           sig::arg("type"))
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void());
-  RegisterDeviceIntrinsic(OpDef("tirx.ptx_legacy.ldmatrix"), CallEffectKind::kOpaque,
-                          sig::arg("trans"), sig::arg<IntExpr>("num"), sig::arg("dtype"),
-                          sig::arg("local_ptr"), sig::arg<IntExpr>("local_offset"),
-                          sig::arg("smem_ptr"), sig::arg<IntExpr>("smem_offset"));
-  RegisterDeviceIntrinsic(
-      OpDef("tirx.ptx_legacy.mma"), CallEffectKind::kOpaque, sig::arg("shape"),
-      sig::arg("a_layout"), sig::arg("b_layout"), sig::arg("a_dtype"), sig::arg("b_dtype"),
-      sig::arg("c_dtype"), sig::arg("a_ptr"), sig::arg<IntExpr>("a_offset"), sig::arg("b_ptr"),
-      sig::arg<IntExpr>("b_offset"), sig::arg("acc_ptr"), sig::arg<IntExpr>("c_offset"),
-      sig::arg("saturate"), sig::var_args("args"));
 }
 
 }  // namespace

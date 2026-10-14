@@ -316,17 +316,6 @@ def SkipAssert():
     return _ffi_api.SkipAssert()  # type: ignore
 
 
-def LowerWarpMemory():
-    """Lower warp memory access to low-level device related function calls.
-
-    Returns
-    -------
-    fpass : tvm.ir.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerWarpMemory()  # type: ignore
-
-
 def LowerTVMBuiltin():
     """Lower tvm builtin intrinsics.
 
