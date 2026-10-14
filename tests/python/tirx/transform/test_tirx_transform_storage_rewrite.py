@@ -30,7 +30,8 @@ for _scope_name in ("local.L0A", "local.L0A2"):
 
 def _scope_with_property(value):
     scope = tvm.runtime.MemoryScope.register("test.storage_rewrite." + uuid.uuid4().hex)
-    tvm.runtime.MemoryScope.def_attr("runtime.memory_alloc_property")[scope] = value
+    if value != "absent":
+        tvm.runtime.MemoryScope.def_attr("runtime.memory_alloc_property")[scope] = value
     return scope
 
 
@@ -42,7 +43,7 @@ def _rewrite(func):
     return tvm.tirx.transform.StorageRewrite()(Before)["main"]
 
 
-@pytest.mark.parametrize("property_value", [0, 1, 2])
+@pytest.mark.parametrize("property_value", ["absent", None, False, True, 0, 1, 2, 99])
 def test_allocation_property_controls_reuse(property_value):
     scope = _scope_with_property(property_value)
 
@@ -70,8 +71,15 @@ def test_allocation_property_controls_reuse(property_value):
                 A_1[i_1] = T.Cast(i_1 + 1, "float32")
             output[1] = A_1[127]
 
-    expected = Expected["func"] if property_value != 2 else func
-    tvm.ir.assert_structural_equal(_rewrite(func), expected)
+    if property_value is None:
+        with pytest.raises(TypeError):
+            _rewrite(func)
+    elif property_value == 99:
+        with pytest.raises(ValueError, match="Invalid memory allocation property"):
+            _rewrite(func)
+    else:
+        expected = Expected["func"] if property_value != 2 else func
+        tvm.ir.assert_structural_equal(_rewrite(func), expected)
 
 
 @pytest.mark.parametrize("property_value", [0, 1, 2])
