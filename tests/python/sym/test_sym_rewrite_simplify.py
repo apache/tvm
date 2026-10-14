@@ -68,11 +68,8 @@ class TestCase:
 
 
 class BaseCompare:
-    extensions = tvm.sym.Extension.NoExtensions
-
     def test_simplify(self, test_case):
         analyzer = tvm.sym.Analyzer()
-        analyzer.enabled_extensions = self.extensions
 
         if inspect.isclass(test_case.expected) and issubclass(test_case.expected, Exception):
             with pytest.raises(test_case.expected):
@@ -1169,39 +1166,6 @@ class TestComparisons(BaseCompare):
         TestCase(y * y >= 0, tvm.tirx.const(1, "bool"), y <= 0),
         TestCase(x * 6 <= -3, tvm.tirx.const(0, "bool"), x >= 0),
         TestCase(tmod(y - 1, 3) == 0, tmod(y + (-1), 3) == 0),
-    )
-
-
-class TestComparisonOfProductAndSum(BaseCompare):
-    extensions = tvm.sym.Extension.ComparisonOfProductAndSum
-
-    x, y, z = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32"), tvm.tirx.Var("z", "int32")
-
-    test_case = tvm.testing.parameter(
-        # Special inequality cases
-        TestCase(
-            x * y < (x + y) * 2048,
-            tvm.tirx.const(1, "bool"),
-            [x > 0, y > 0, x < 2048],
-        ),
-        TestCase(
-            x * y < (x + y) * 2048,
-            tvm.tirx.const(1, "bool"),
-            [x > 0, y > 0, x < 4096, y < 4096],
-        ),
-        TestCase(
-            # Both sides are divisible by 8192
-            x * y * 8192 < (y + x) * 16777216,
-            tvm.tirx.const(1, "bool"),
-            [x > 0, y > 0, x < 4096, y < 4096],
-        ),
-        TestCase(
-            # The two sides have co-prime factors, but the bounds are
-            # still sufficient to prove the inequality.
-            x * y * 59 < (y + x) * 176128,
-            tvm.tirx.const(1, "bool"),
-            [x > 0, y > 0, x < 4096, y < 4096],
-        ),
     )
 
 

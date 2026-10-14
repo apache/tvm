@@ -52,19 +52,6 @@ class CompareResult(enum.IntEnum):
     UNKNOWN = 7
 
 
-class Extension(enum.Flag):
-    """Extensions enabled for RewriteSimplifier
-
-    Values should match `RewriteSimplifier::Extensions`
-    """
-
-    NoExtensions = 0
-    TransitivelyProveInequalities = 1 << 0
-    ConvertBooleanToAndOfOrs = 1 << 1
-    ApplyConstraintsToBooleanBranches = 1 << 2
-    ComparisonOfProductAndSum = 1 << 3
-
-
 @tvm_ffi.register_object("sym.ModularSet")
 class ModularSet(Object):
     """Represent range of (coeff * x + base) for x in Z"""
@@ -485,10 +472,8 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerCanProveEqual(self, lhs, rhs)
 
-    def try_compare(
-        self, lhs: ir.Expr, rhs: ir.Expr, propagate_inequalities: bool = True
-    ) -> CompareResult:
-        """Compare lhs and rhs using previously provided known comparisons.
+    def try_compare(self, lhs: ir.Expr, rhs: ir.Expr) -> CompareResult:
+        """Compare lhs and rhs using directly known comparisons and constant offsets.
 
         Parameters
         ----------
@@ -498,36 +483,13 @@ class Analyzer(Object):
         rhs : Expr
             The right-hand side of the comparison.
 
-        propagate_inequalities : bool
-            If true, attempt to find a sequence of transitive inequalities that
-            allow lhs and rhs to be compared.
-
         Returns
         -------
         result : CompareResult
             The most specific result that can be proven about the comparison.
             Returns ``CompareResult.UNKNOWN`` when nothing can be proven.
         """
-        return CompareResult(_ffi_api.AnalyzerTryCompare(self, lhs, rhs, propagate_inequalities))
-
-    @property
-    def enabled_extensions(self) -> Extension:
-        """Return the currently enabled extensions"""
-        value = _ffi_api.AnalyzerGetEnabledExtensions(self)
-        return Extension(value)
-
-    @enabled_extensions.setter
-    def enabled_extensions(self, flags: int | Extension):
-        """Enable extensions for the analyzer
-
-        Parameters
-        ----------
-        flags: Union[int,Extension]
-
-            The extensions to enable.
-        """
-        flags = Extension(flags).value
-        _ffi_api.AnalyzerSetEnabledExtensions(self, flags)
+        return CompareResult(_ffi_api.AnalyzerTryCompare(self, lhs, rhs))
 
 
 @contextmanager

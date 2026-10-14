@@ -63,7 +63,7 @@ void AnalyzerObj::Bind(const Var& var, const PrimExpr& expr, bool allow_override
   this->rewrite_simplify.Update(var, new_expr, allow_override);
   this->canonical_simplify.Update(var, new_expr, allow_override);
   this->int_set.Update(var, this->int_set(new_expr), allow_override);
-  this->transitive_comparisons.Bind(var, expr, allow_override);
+  this->known_comparisons.Bind(var, expr, allow_override);
   this->z3_prover.Bind(var, expr, allow_override);
 }
 
@@ -74,7 +74,7 @@ void AnalyzerObj::Bind(const Var& var, const Range& range, bool allow_override) 
   } else {
     this->const_int_bound.Bind(var, range, allow_override);
     this->int_set.Bind(var, range, allow_override);
-    this->transitive_comparisons.Bind(var, range, allow_override);
+    this->known_comparisons.Bind(var, range, allow_override);
     this->z3_prover.Bind(var, range, allow_override);
   }
   // skip modular_set
@@ -147,7 +147,7 @@ void ConstraintContext::EnterWithScope() {
   recovery_functions_.push_back(
       analyzer_->rewrite_simplify.EnterConstraint(constraint_, is_assume_));
   recovery_functions_.push_back(analyzer_->int_set.EnterConstraint(constraint_));
-  recovery_functions_.push_back(analyzer_->transitive_comparisons.EnterConstraint(constraint_));
+  recovery_functions_.push_back(analyzer_->known_comparisons.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->z3_prover.EnterConstraint(constraint_, is_assume_));
 }
 
@@ -289,7 +289,7 @@ Analyzer AnalyzerObj::Clone() const {
   cloned->rewrite_simplify.CopyFrom(this->rewrite_simplify);
   cloned->canonical_simplify.CopyFrom(this->canonical_simplify);
   cloned->int_set.CopyFrom(this->int_set);
-  cloned->transitive_comparisons.CopyFrom(this->transitive_comparisons);
+  cloned->known_comparisons.CopyFrom(this->known_comparisons);
   cloned->z3_prover.CopyFrom(this->z3_prover);
   return cloned;
 }
@@ -377,10 +377,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def_method("sym.AnalyzerCanProveEqual", &AnalyzerObj::CanProveEqual)
       .def("sym.AnalyzerTryCompare",
-           [](Analyzer analyzer, const PrimExpr& lhs, const PrimExpr& rhs,
-              bool propagate_inequalities) {
-             return static_cast<int64_t>(
-                 analyzer->transitive_comparisons.TryCompare(lhs, rhs, propagate_inequalities));
+           [](Analyzer analyzer, const PrimExpr& lhs, const PrimExpr& rhs) {
+             return static_cast<int64_t>(analyzer->known_comparisons.TryCompare(lhs, rhs));
            })
       .def("sym.AnalyzerIsZ3Enabled",
            [](Analyzer analyzer) { return analyzer->z3_prover.IsEnabled(); })
@@ -397,15 +395,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              analyzer->z3_prover.SetRLimit(static_cast<unsigned>(rlimit));
            })
       .def("sym.AnalyzerGetZ3Stats",
-           [](Analyzer analyzer) { return analyzer->z3_prover.GetStats(); })
-      .def("sym.AnalyzerGetEnabledExtensions",
-           [](Analyzer analyzer) {
-             return static_cast<std::int64_t>(analyzer->rewrite_simplify.GetEnabledExtensions());
-           })
-      .def("sym.AnalyzerSetEnabledExtensions", [](Analyzer analyzer, int64_t flags) {
-        analyzer->rewrite_simplify.SetEnabledExtensions(
-            static_cast<RewriteSimplifier::Extension>(flags));
-      });
+           [](Analyzer analyzer) { return analyzer->z3_prover.GetStats(); });
 }
 
 }  // namespace sym
