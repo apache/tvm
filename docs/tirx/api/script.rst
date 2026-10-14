@@ -97,7 +97,7 @@ expression ranges. Python loops and branches execute during construction; use
 the native statement frames to construct runtime control flow.
 
 Tensor parameters and shared dimensions
---------------------------------------
+---------------------------------------
 
 Traced frontends can bind native types directly with ``I.arg_``. A shared symbolic
 dimension imposes the same size constraint on multiple tensor arguments::
