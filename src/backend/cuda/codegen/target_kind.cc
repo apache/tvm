@@ -23,16 +23,16 @@
  */
 #include <dlpack/dlpack.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/enum_def.h>
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
 
 #include <string>
-
-#include "../../memory_scope.h"
 
 namespace tvm {
 
@@ -119,8 +119,9 @@ ffi::Map<ffi::String, ffi::Any> UpdateNVPTXAttrs(ffi::Map<ffi::String, ffi::Any>
 TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"tmem", "wmma.matrix_a", "wmma.matrix_b", "wmma.accumulator",
                            "mma.matrixA", "mma.matrixB", "mma.matrixC"}) {
-    tvm::backend::RegisterBackendMemoryScope(
-        name, tvm::runtime::MemoryAllocProperty::kSeparateAllocations);
+    tvm::ffi::reflection::EnumDef<tvm::runtime::MemoryScopeObj>(name).set_attr(
+        tvm::runtime::attr::kMemoryAllocProperty,
+        static_cast<int>(tvm::runtime::MemoryAllocProperty::kSeparateAllocations));
   }
   using namespace tvm;
   using namespace tvm::backend::cuda;
