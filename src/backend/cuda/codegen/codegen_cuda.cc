@@ -31,7 +31,6 @@
 #include <tvm/runtime/memory_scope.h>
 #include <tvm/support/gpu_thread_tag.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/index_map.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
@@ -48,21 +47,12 @@
 #include "cuda_fallback_module.h"
 #include "literal/cuda_half_t.h"
 #include "literal/cuda_int8_t.h"
-#include "ptx.h"
 
 namespace tvm {
 namespace codegen {
 using namespace tvm::prim;
 
 namespace {
-
-bool IsOp(const CallNode* call, const Op& compat_op, const char* canonical_name) {
-  if (call->op.same_as(compat_op)) {
-    return true;
-  }
-  const auto* op_node = call->op.as<OpNode>();
-  return op_node != nullptr && op_node->name == canonical_name;
-}
 
 TVM_FFI_INLINE bool IsFloat8(const PrimType& ty) {
   return ty.MatchesCode(DLDataTypeCode::kDLFloat8_e3m4, DLDataTypeCode::kDLFloat8_e4m3,
@@ -917,6 +907,8 @@ void CodeGenCUDA::PrintStorageScope(const runtime::MemoryScope& scope,
   TVM_FFI_ICHECK(scope != runtime::MemoryScope::Global())
       << "Cannot allocate global memory when targeting CUDA. You must pass "
          "all global arrays as input instead";
+  TVM_FFI_ICHECK(scope != runtime::MemoryScope::Get("warp"))
+      << "CUDA warp storage is unsupported; use explicit per-thread local storage and shuffles";
   if (scope == scope_shared) {
     os << "__shared__ ";
   } else if (scope == scope_shared_dyn) {
@@ -1128,126 +1120,9 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     }
   }
 
-  static const Op mma_store_op = Op::Get("tirx.cuda.mma_store");
-  static const Op mma_fill_op = Op::Get("tirx.cuda.mma_fill");
-  static const Op ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
-  static const Op ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
   static const Op cuda_func_call_op = Op::Get("tirx.cuda.func_call");
 
-  if (op->op.same_as(mma_store_op)) {
-    int m = op->args[0].as_or_throw<IntImm>()->value.as<int>().value();
-    int n = op->args[1].as_or_throw<IntImm>()->value.as<int>().value();
-    std::string dst = this->PrintExpr(op->args[2]);
-    std::string src = this->PrintExpr(op->args[3]);
-    std::string src_offset = this->PrintExpr(op->args[4]);
-    PrimExpr stride = op->args[5].as_or_throw<PrimExpr>();
-
-    TVM_FFI_ICHECK(m == 16 && n == 16) << "Only m == 16 && n == 16 case supported for now";
-
-    // Each thread in a warp holds a certain number of elements of an MMA output.
-    // For example, if we compute a 16x16 tile using MMA, each thread holds 8 elements
-    // in its registers. So conceptually, a warp memory is organized as a 32x8 block.
-    // A map from a 16x16 tile to a 32x8 block of memory is specified by the index map below.
-
-    // To store the 32x8 output back to a 16x16 tile in shared or global memory, we invert this map
-    // to determine the output location for each 8 element.
-
-    const auto index_map_func =
-        tvm::ffi::Function::GetGlobal("tirx.index_map.shared_16x16_to_ldmatrix_32x8_layout");
-    TVM_FFI_ICHECK(index_map_func.has_value());
-
-    sym::Analyzer analyzer;
-    auto inverse_index_map =
-        IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)}, analyzer);
-    auto indices_16x16 = inverse_index_map->final_indices;
-
-    // "//" and "%" in the index map are translated to FloorDiv/Mod, but the plain Div/Mod are fine.
-    // FloorDiv/Mod are supposed to be lowered before they reach codegen, so manually replace them
-    // to the plain ones here.
-    class LowerFloorDivMod : public tirx::StmtExprMutator {
-     public:
-      UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) {
-        return prim::Div(this->Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a),
-                         this->Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b));
-      }
-      UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) {
-        return prim::Mod(this->Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a),
-                         this->Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b));
-      }
-    };
-
-    PrimExpr dst_expr = indices_16x16[0] * stride + indices_16x16[1];
-    auto dst_ind =
-        ffi::make_object<LowerFloorDivMod>()->Mutate(dst_expr).ValueOrUnchanged(dst_expr);
-
-    var_idmap_[inverse_index_map->initial_indices[0].get()] = "threadIdx.x";
-    var_idmap_[inverse_index_map->initial_indices[1].get()] = "local_id";
-
-    os << "for (int local_id = 0; local_id < 8; ++local_id) {\n";
-    os << dst << "[" + this->PrintExpr(dst_ind) + "] = " << src << "[" << src_offset
-       << " + local_id];\n";
-    os << "}\n";
-
-  } else if (op->op.same_as(mma_fill_op)) {
-    std::string num_elem = this->PrintExpr(op->args[0]);
-    std::string dst = this->PrintExpr(op->args[1]);
-    std::string dst_offset = this->PrintExpr(op->args[2]);
-
-    os << "for (int i = 0; i < " << num_elem << "; ++i) {\n";
-    os << dst << "[" << dst_offset << " + i] = 0.0;";
-    os << "}\n";
-  } else if (IsOp(op, ptx_mma_legacy_op, "tirx.ptx_legacy.mma")) {
-    // args: shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype,
-    //       a_ptr_var, a_offset, b_ptr_var, b_offset,
-    //       c_ptr_var, c_offset, saturate, [bit_op]
-    codegen_tags_.insert("mma");
-    TVM_FFI_ICHECK(op->args.size() == 13U || op->args.size() == 14U);
-    std::string shape = op->args[0].as_or_throw<StringImm>()->value;
-    std::string A_layout = op->args[1].as_or_throw<StringImm>()->value;
-    std::string B_layout = op->args[2].as_or_throw<StringImm>()->value;
-    std::string A_dtype = op->args[3].as_or_throw<StringImm>()->value;
-    std::string B_dtype = op->args[4].as_or_throw<StringImm>()->value;
-    std::string C_dtype = op->args[5].as_or_throw<StringImm>()->value;
-    std::string a_ref = this->PrintExpr(op->args[6]);
-    std::string a_bias = this->PrintExpr(op->args[7]);
-    std::string b_ref = this->PrintExpr(op->args[8]);
-    std::string b_bias = this->PrintExpr(op->args[9]);
-    std::string c_ref = this->PrintExpr(op->args[10]);
-    std::string c_bias = this->PrintExpr(op->args[11]);
-    bool saturate = op->args[12].as_or_throw<IntImm>()->value != 0;
-    std::string bit_op = op->args.size() > 13 ? op->args[13].as_or_throw<StringImm>()->value : "";
-    this->stream << PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref,
-                                     a_bias, b_ref, b_bias, c_ref, c_bias, bit_op, saturate);
-  } else if (IsOp(op, ptx_ldmatrix_legacy_op, "tirx.ptx_legacy.ldmatrix")) {
-    // args: trans, num, type, local_ptr_var, local_offset, smem_ptr_var, smem_offset
-    codegen_tags_.insert("mma");
-    TVM_FFI_ICHECK_EQ(op->args.size(), 7U);
-    // `trans` and `num` may arrive as Bool/IntImm; both Downcastable
-    // to PrimExpr whose IntImmNode value tells us the literal.
-    bool trans = op->args[0].as_or_throw<IntImm>()->value != 0;
-    int num = op->args[1].as_or_throw<IntImm>()->value.as<int>().value();
-    std::string type_str = op->args[2].as_or_throw<StringImm>()->value;
-    std::string local_ptr = this->PrintExpr(op->args[3]);
-    std::string local_offset = this->PrintExpr(op->args[4]);
-    std::string smem_ptr = this->PrintExpr(op->args[5]);
-    PrimType res_ty = op->ty.as_or_throw<PrimType>();
-    if (trans && res_ty.bits() == 8) {
-      // ldmatrix can't transpose 8-bit elements (it assumes 16-bit), so
-      // synthesize the equivalent manual gather loop. args[6] is the
-      // shared-memory stride for this fallback.
-      std::string smem_stride = this->PrintExpr(op->args[6]);
-      TVM_FFI_ICHECK(num == 4);
-      os << "for (int i = 0; i < 16; ++i) {\n";
-      os << local_ptr << "[" + local_offset + " + i] = " << smem_ptr
-         << "[(i % 8) / 4 * " + smem_stride + " * 16 + (threadIdx.x % 4) * 4 * " + smem_stride +
-                "+ (i % 4) * " + smem_stride + " + threadIdx.x / 4 +  (i / 8) * 8];\n";
-      os << "}\n";
-    } else {
-      std::string smem_offset = this->PrintExpr(op->args[6]);
-      this->stream << PrintLoadMatrixAssembly(trans, num, type_str, local_ptr, local_offset,
-                                              smem_ptr, smem_offset);
-    }
-  } else if (op->op.same_as(tirx::reinterpret_op())) {
+  if (op->op.same_as(tirx::reinterpret_op())) {
     // Compile-time pointer reinterpret of a literal (e.g. a tcgen05 descriptor
     // template encoded at address 0): emit C++-style reinterpret_cast<T*>(...)
     // to match the encoded template. Runtime pointer reinterprets fall through
