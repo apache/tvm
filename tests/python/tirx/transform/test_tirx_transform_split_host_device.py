@@ -369,7 +369,7 @@ def test_dynamic_launch_thread():
 
 
 def test_symbolic_var_parameter():
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Module:

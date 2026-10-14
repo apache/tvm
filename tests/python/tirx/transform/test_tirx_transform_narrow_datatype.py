@@ -54,13 +54,16 @@ def _index_module(m, n, input_dtype, loop_dtype, kind, index_dtype="int32"):
     return Module
 
 
-@pytest.mark.parametrize("m,n,input_dtype,target_bits,expected_dtype", [
-    (2, 2, "int32", 32, "int32"),
-    (2, 2, "int64", 32, "int32"),
-    (2**16, 2**16, "int64", 32, "int64"),
-    (2, 2, "int32", 16, "int16"),
-    (2**10, 2**10, "int32", 16, "int32"),
-])
+@pytest.mark.parametrize(
+    "m,n,input_dtype,target_bits,expected_dtype",
+    [
+        (2, 2, "int32", 32, "int32"),
+        (2, 2, "int64", 32, "int32"),
+        (2**16, 2**16, "int64", 32, "int64"),
+        (2, 2, "int32", 16, "int16"),
+        (2**10, 2**10, "int32", 16, "int32"),
+    ],
+)
 def test_basic(m, n, input_dtype, target_bits, expected_dtype):
     Before = _index_module(m, n, input_dtype, input_dtype, "serial")
     Expected = _index_module(m, n, input_dtype, expected_dtype, "serial")
@@ -86,8 +89,12 @@ def test_symbolic_extent(dtype):
     class Expected:
         @T.function
         def main(A: T.handle("float32"), B: T.handle("float32"), m: scalar, n: scalar):
-            A_buf = T.decl_tensor(A, ty_args=[T.Tensor((m * n,), "float32", data=A, elem_offset=T.int32(0))])
-            B_buf = T.decl_tensor(B, ty_args=[T.Tensor((m * n,), "float32", data=B, elem_offset=T.int32(0))])
+            A_buf = T.decl_tensor(
+                A, ty_args=[T.Tensor((m * n,), "float32", data=A, elem_offset=T.int32(0))]
+            )
+            B_buf = T.decl_tensor(
+                B, ty_args=[T.Tensor((m * n,), "float32", data=B, elem_offset=T.int32(0))]
+            )
             for i in T.serial(m):
                 for j in T.serial(n):
                     B_buf[i * n + j] = A_buf[i * n + j] + T.float32(1)
@@ -96,13 +103,16 @@ def test_symbolic_extent(dtype):
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-@pytest.mark.parametrize("m,n,input_dtype,target_bits,expected_dtype", [
-    (2, 32, "int32", 32, "int32"),
-    (2, 32, "int64", 32, "int32"),
-    (2**30, 32, "int64", 32, "int64"),
-    (2, 32, "int32", 16, "int16"),
-    (2**14, 32, "int32", 16, "int32"),
-])
+@pytest.mark.parametrize(
+    "m,n,input_dtype,target_bits,expected_dtype",
+    [
+        (2, 32, "int32", 32, "int32"),
+        (2, 32, "int64", 32, "int32"),
+        (2**30, 32, "int64", 32, "int64"),
+        (2, 32, "int32", 16, "int16"),
+        (2**14, 32, "int32", 16, "int32"),
+    ],
+)
 def test_thread_axis(m, n, input_dtype, target_bits, expected_dtype):
     Before = _index_module(m, n, input_dtype, input_dtype, "thread")
     Expected = _index_module(m, n, input_dtype, expected_dtype, "thread")
@@ -110,13 +120,16 @@ def test_thread_axis(m, n, input_dtype, target_bits, expected_dtype):
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-@pytest.mark.parametrize("m,input_dtype,target_bits,expected_dtype", [
-    (2**10, "int32", 32, "int32"),
-    (2**10, "int64", 32, "int32"),
-    (2**32, "int64", 32, "int64"),
-    (2**10, "int32", 16, "int16"),
-    (2**16, "int32", 16, "int32"),
-])
+@pytest.mark.parametrize(
+    "m,input_dtype,target_bits,expected_dtype",
+    [
+        (2**10, "int32", 32, "int32"),
+        (2**10, "int64", 32, "int32"),
+        (2**32, "int64", 32, "int64"),
+        (2**10, "int32", 16, "int16"),
+        (2**16, "int32", 16, "int32"),
+    ],
+)
 def test_multilanes(m, input_dtype, target_bits, expected_dtype):
     Before = _index_module(m, 1, input_dtype, input_dtype, "vector")
     Expected = _index_module(m, 1, input_dtype, expected_dtype, "vector", f"int{target_bits}")
@@ -159,9 +172,7 @@ def test_condition():
     class Before:
         main = before.with_attr("global_symbol", "main")
 
-    after = tvm.tirx.transform.NarrowDataType(32)(
-        Before
-    )["main"]
+    after = tvm.tirx.transform.NarrowDataType(32)(Before)["main"]
     tvm.ir.assert_structural_equal(after, expected_after.with_attr("global_symbol", "main"))
 
 
@@ -182,9 +193,7 @@ def test_block():
     class Before:
         main = before.with_attr("global_symbol", "main")
 
-    after = tvm.tirx.transform.NarrowDataType(32)(
-        Before
-    )["main"]
+    after = tvm.tirx.transform.NarrowDataType(32)(Before)["main"]
     tvm.ir.assert_structural_equal(after, expected_after.with_attr("global_symbol", "main"))
 
 
@@ -248,9 +257,8 @@ def test_avg_pool2d():
     class Before:
         main = before.with_attr("global_symbol", "main")
 
-    after = tvm.tirx.transform.NarrowDataType(32)(
-        Before
-    )
+    after = tvm.tirx.transform.NarrowDataType(32)(Before)
+
     @I.ir_module
     class Before:
         main = before.with_attr("global_symbol", "main")
@@ -274,9 +282,7 @@ def test_narrow_i64_valued_tensorload_index_to_i32():
     class Before:
         main = before.with_attr("global_symbol", "main")
 
-    after = tvm.tirx.transform.NarrowDataType(32)(
-        Before
-    )["main"]
+    after = tvm.tirx.transform.NarrowDataType(32)(Before)["main"]
     tvm.ir.assert_structural_equal(after, expect.with_attr("global_symbol", "main"))
 
 

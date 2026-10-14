@@ -86,10 +86,10 @@ def test_target_host_removed():
     class Expected:
         @T.function
         def main(
-            self_handle: T.Ptr(T.PrimType("void")),
-            args: T.Ptr(T.PrimType("void")),
+            self_handle: T.Ptr(T.void),
+            args: T.Ptr(T.void),
             num_args: T.int32,
-            result: T.Ptr(T.PrimType("void")),
+            result: T.Ptr(T.void),
         ) -> T.int32:
             T.func_attr({"global_symbol": "__tvm_ffi_main"})
             T.func_attr({"calling_conv": 1, "target": T.target("llvm")})
@@ -127,12 +127,10 @@ def test_target_host_removed():
                     "Tensor",
                 ],
             )
-            A_handle: T.let[T.Ptr(T.PrimType("void"))] = T.if_then_else(
+            A_handle: T.let[T.Ptr(T.void)] = T.if_then_else(
                 A_type_index == 70,
-                T.handle_add_byte_offset(
-                    T.abi_field_get(args, 0, 15, ty=T.Ptr(T.PrimType("void"))), 24
-                ),
-                T.abi_field_get(args, 0, 15, ty=T.Ptr(T.PrimType("void"))),
+                T.handle_add_byte_offset(T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)), 24),
+                T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)),
             )
             assert not T.isnullptr(A_handle), (
                 "TypeError",
@@ -211,8 +209,8 @@ def test_target_host_removed():
                     )
                 assert not T.isnullptr(
                     T.reinterpret(
-                        T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.PrimType("void"))),
-                        ty=T.Ptr(T.PrimType("float32")),
+                        T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)),
+                        ty=T.Ptr(T.float32),
                     )
                 ), (
                     "ValueError",
@@ -229,10 +227,10 @@ def test_target_host_removed():
                     T.reinterpret(
                         T.reinterpret(
                             T.reinterpret(
-                                T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.PrimType("void"))),
-                                ty=T.Ptr(T.PrimType("float32")),
+                                T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)),
+                                ty=T.Ptr(T.float32),
                             ),
-                            ty=T.Ptr(T.PrimType("void")),
+                            ty=T.Ptr(T.void),
                         ),
                         ty="uint64",
                     ),
@@ -277,8 +275,8 @@ def test_target_host_removed():
                 )
                 A = T.decl_tensor(
                     T.reinterpret(
-                        T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.PrimType("void"))),
-                        ty=T.Ptr(T.PrimType("float32")),
+                        T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)),
+                        ty=T.Ptr(T.float32),
                     ),
                     ty_args=[T.Tensor((1,), T.float32)],
                 )
@@ -324,10 +322,10 @@ def test_internal_subroutine_call():
     class Expected:
         @T.function
         def main(
-            self_handle: T.Ptr(T.PrimType("void")),
-            args: T.Ptr(T.PrimType("void")),
+            self_handle: T.Ptr(T.void),
+            args: T.Ptr(T.void),
             num_args: T.int32,
-            result: T.Ptr(T.PrimType("void")),
+            result: T.Ptr(T.void),
         ) -> T.int32:
             T.func_attr({"global_symbol": "__tvm_ffi_main"})
             T.func_attr({"calling_conv": 1, "target": T.target("llvm")})
@@ -338,7 +336,7 @@ def test_internal_subroutine_call():
                     "1",
                     " arguments",
                     " when calling:\n  `",
-                    'main(A: T.Ptr(T.PrimType("float32")))',
+                    "main(A: T.Ptr(T.float32))",
                     "`",
                 ],
             )
@@ -347,7 +345,7 @@ def test_internal_subroutine_call():
                 [
                     "args pointer is NULL",
                     " when calling:\n  `",
-                    'main(A: T.Ptr(T.PrimType("float32")))',
+                    "main(A: T.Ptr(T.float32))",
                     "`",
                 ],
             )
@@ -360,27 +358,25 @@ def test_internal_subroutine_call():
                     "Mismatched type on argument #",
                     "0",
                     " when calling:\n  `",
-                    'main(A: T.Ptr(T.PrimType("float32")))',
+                    "main(A: T.Ptr(T.float32))",
                     "`,\n  expected ",
                     "pointer",
                 ],
             )
-            A: T.let[T.Ptr(T.PrimType("float32"))] = T.reinterpret(
+            A: T.let[T.Ptr(T.float32)] = T.reinterpret(
                 T.if_then_else(
                     A_type_index == 70,
-                    T.handle_add_byte_offset(
-                        T.abi_field_get(args, 0, 15, ty=T.Ptr(T.PrimType("void"))), 24
-                    ),
-                    T.abi_field_get(args, 0, 15, ty=T.Ptr(T.PrimType("void"))),
+                    T.handle_add_byte_offset(T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)), 24),
+                    T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)),
                 ),
-                ty=T.Ptr(T.PrimType("float32")),
+                ty=T.Ptr(T.float32),
             )
             with T.compute_scope("main_compute_"):
                 Expected.subroutine(A)
             return 0
 
         @T.function(private=True)
-        def subroutine(A_data: T.Ptr(T.PrimType("float32"))):
+        def subroutine(A_data: T.Ptr(T.float32)):
             T.func_attr({"target": T.target("llvm")})
             T.evaluate(A_data)
 
@@ -421,10 +417,10 @@ def test_subroutine_call_to_externally_visible_subroutine():
     class Expected:
         @T.function
         def main(
-            self_handle: T.Ptr(T.PrimType("void")),
-            args: T.Ptr(T.PrimType("void")),
+            self_handle: T.Ptr(T.void),
+            args: T.Ptr(T.void),
             num_args: T.int32,
-            result: T.Ptr(T.PrimType("void")),
+            result: T.Ptr(T.void),
         ) -> T.int32:
             T.func_attr({"global_symbol": "__tvm_ffi_main"})
             T.func_attr({"calling_conv": 1, "target": T.target("llvm")})
@@ -435,7 +431,7 @@ def test_subroutine_call_to_externally_visible_subroutine():
                     "1",
                     " arguments",
                     " when calling:\n  `",
-                    'main(A: T.Ptr(T.PrimType("float32")))',
+                    "main(A: T.Ptr(T.float32))",
                     "`",
                 ],
             )
@@ -444,7 +440,7 @@ def test_subroutine_call_to_externally_visible_subroutine():
                 [
                     "args pointer is NULL",
                     " when calling:\n  `",
-                    'main(A: T.Ptr(T.PrimType("float32")))',
+                    "main(A: T.Ptr(T.float32))",
                     "`",
                 ],
             )
@@ -457,36 +453,34 @@ def test_subroutine_call_to_externally_visible_subroutine():
                     "Mismatched type on argument #",
                     "0",
                     " when calling:\n  `",
-                    'main(A: T.Ptr(T.PrimType("float32")))',
+                    "main(A: T.Ptr(T.float32))",
                     "`,\n  expected ",
                     "pointer",
                 ],
             )
-            A: T.let[T.Ptr(T.PrimType("float32"))] = T.reinterpret(
+            A: T.let[T.Ptr(T.float32)] = T.reinterpret(
                 T.if_then_else(
                     A_type_index == 70,
-                    T.handle_add_byte_offset(
-                        T.abi_field_get(args, 0, 15, ty=T.Ptr(T.PrimType("void"))), 24
-                    ),
-                    T.abi_field_get(args, 0, 15, ty=T.Ptr(T.PrimType("void"))),
+                    T.handle_add_byte_offset(T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)), 24),
+                    T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)),
                 ),
-                ty=T.Ptr(T.PrimType("float32")),
+                ty=T.Ptr(T.float32),
             )
             with T.compute_scope("main_compute_"):
                 T.call_cpacked(
                     "subroutine",
                     A,
-                    T.reinterpret(T.uint64(0), ty=T.Ptr(T.PrimType("void"))),
+                    T.reinterpret(T.uint64(0), ty=T.Ptr(T.void)),
                     ty=T.Tuple(),
                 )
             return 0
 
         @T.function
         def subroutine(
-            self_handle: T.Ptr(T.PrimType("void")),
-            args: T.Ptr(T.PrimType("void")),
+            self_handle: T.Ptr(T.void),
+            args: T.Ptr(T.void),
             num_args: T.int32,
-            result: T.Ptr(T.PrimType("void")),
+            result: T.Ptr(T.void),
         ) -> T.int32:
             T.func_attr({"global_symbol": "__tvm_ffi_subroutine"})
             T.func_attr({"calling_conv": 1, "target": T.target("llvm")})
@@ -497,7 +491,7 @@ def test_subroutine_call_to_externally_visible_subroutine():
                     "1",
                     " arguments",
                     " when calling:\n  `",
-                    'subroutine(A_data: T.Ptr(T.PrimType("float32")))',
+                    "subroutine(A_data: T.Ptr(T.float32))",
                     "`",
                 ],
             )
@@ -506,7 +500,7 @@ def test_subroutine_call_to_externally_visible_subroutine():
                 [
                     "args pointer is NULL",
                     " when calling:\n  `",
-                    'subroutine(A_data: T.Ptr(T.PrimType("float32")))',
+                    "subroutine(A_data: T.Ptr(T.float32))",
                     "`",
                 ],
             )
@@ -522,20 +516,18 @@ def test_subroutine_call_to_externally_visible_subroutine():
                     "Mismatched type on argument #",
                     "0",
                     " when calling:\n  `",
-                    'subroutine(A_data: T.Ptr(T.PrimType("float32")))',
+                    "subroutine(A_data: T.Ptr(T.float32))",
                     "`,\n  expected ",
                     "pointer",
                 ],
             )
-            A_data: T.let[T.Ptr(T.PrimType("float32"))] = T.reinterpret(
+            A_data: T.let[T.Ptr(T.float32)] = T.reinterpret(
                 T.if_then_else(
                     A_data_type_index == 70,
-                    T.handle_add_byte_offset(
-                        T.abi_field_get(args, 0, 15, ty=T.Ptr(T.PrimType("void"))), 24
-                    ),
-                    T.abi_field_get(args, 0, 15, ty=T.Ptr(T.PrimType("void"))),
+                    T.handle_add_byte_offset(T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)), 24),
+                    T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)),
                 ),
-                ty=T.Ptr(T.PrimType("float32")),
+                ty=T.Ptr(T.float32),
             )
             with T.compute_scope("subroutine_compute_"):
                 T.evaluate(A_data)
@@ -613,10 +605,10 @@ def test_pointer_return():
     class Expected:
         @T.function
         def main(
-            self_handle: T.Ptr(T.PrimType("void")),
-            args: T.Ptr(T.PrimType("void")),
+            self_handle: T.Ptr(T.void),
+            args: T.Ptr(T.void),
             num_args: T.int32,
-            result: T.Ptr(T.PrimType("void")),
+            result: T.Ptr(T.void),
         ) -> T.int32:
             T.func_attr({"global_symbol": "__tvm_ffi_main"})
             T.func_attr({"calling_conv": 1, "target": T.target("llvm")})
@@ -627,7 +619,7 @@ def test_pointer_return():
                     "1",
                     " arguments",
                     " when calling:\n  `",
-                    'main(arg: T.Ptr(T.PrimType("void")))',
+                    "main(arg: T.Ptr(T.void))",
                     "`",
                 ],
             )
@@ -636,7 +628,7 @@ def test_pointer_return():
                 [
                     "args pointer is NULL",
                     " when calling:\n  `",
-                    'main(arg: T.Ptr(T.PrimType("void")))',
+                    "main(arg: T.Ptr(T.void))",
                     "`",
                 ],
             )
@@ -652,20 +644,18 @@ def test_pointer_return():
                     "Mismatched type on argument #",
                     "0",
                     " when calling:\n  `",
-                    'main(arg: T.Ptr(T.PrimType("void")))',
+                    "main(arg: T.Ptr(T.void))",
                     "`,\n  expected ",
                     "pointer",
                 ],
             )
-            arg: T.let[T.Ptr(T.PrimType("void"))] = T.reinterpret(
+            arg: T.let[T.Ptr(T.void)] = T.reinterpret(
                 T.if_then_else(
                     arg_type_index == 70,
-                    T.handle_add_byte_offset(
-                        T.abi_field_get(args, 0, 15, ty=T.Ptr(T.PrimType("void"))), 24
-                    ),
-                    T.abi_field_get(args, 0, 15, ty=T.Ptr(T.PrimType("void"))),
+                    T.handle_add_byte_offset(T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)), 24),
+                    T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)),
                 ),
-                ty=T.Ptr(T.PrimType("void")),
+                ty=T.Ptr(T.void),
             )
             with T.compute_scope("main_compute_"):
                 T.abi_field_set(result, 0, 13, 4)
@@ -911,8 +901,6 @@ def test_float_parameter():
 
 
 def test_forward_reference_symbolic_variable():
-    signature = "main(A: Tensor([batch_size + T.int64(1)], int32), B: Tensor([batch_size], int32))"
-
     """MakePackedAPI succeeds when a symbolic variable is used before it is defined.
 
     When tensor A has shape (batch_size+1,) and tensor B has shape (batch_size,),
@@ -921,7 +909,9 @@ def test_forward_reference_symbolic_variable():
     ensures all variable definitions precede all assertions.
     """
 
-    batch_size = T.dynamic("batch_size")
+    signature = "main(A: Tensor([batch_size + T.int64(1)], int32), B: Tensor([batch_size], int32))"
+
+    batch_size = T.dynamic("batch_size", "int64")
 
     @I.ir_module
     class Before:
@@ -937,10 +927,10 @@ def test_forward_reference_symbolic_variable():
     class Expected:
         @T.function
         def main(
-            self_handle: T.Ptr(T.PrimType("void")),
-            args: T.Ptr(T.PrimType("void")),
+            self_handle: T.Ptr(T.void),
+            args: T.Ptr(T.void),
             num_args: T.int32,
-            result: T.Ptr(T.PrimType("void")),
+            result: T.Ptr(T.void),
         ) -> T.int32:
             T.func_attr({"global_symbol": "__tvm_ffi_main"})
             T.func_attr({"calling_conv": 1, "target": T.target("llvm")})
@@ -978,12 +968,10 @@ def test_forward_reference_symbolic_variable():
                     "Tensor",
                 ],
             )
-            A_handle: T.let[T.Ptr(T.PrimType("void"))] = T.if_then_else(
+            A_handle: T.let[T.Ptr(T.void)] = T.if_then_else(
                 A_type_index == 70,
-                T.handle_add_byte_offset(
-                    T.abi_field_get(args, 0, 15, ty=T.Ptr(T.PrimType("void"))), 24
-                ),
-                T.abi_field_get(args, 0, 15, ty=T.Ptr(T.PrimType("void"))),
+                T.handle_add_byte_offset(T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)), 24),
+                T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)),
             )
             B_type_index: T.let[T.int32] = T.abi_field_get(args, 1, 13, ty="int32")
             assert (
@@ -999,12 +987,10 @@ def test_forward_reference_symbolic_variable():
                     "Tensor",
                 ],
             )
-            B_handle: T.let[T.Ptr(T.PrimType("void"))] = T.if_then_else(
+            B_handle: T.let[T.Ptr(T.void)] = T.if_then_else(
                 B_type_index == 70,
-                T.handle_add_byte_offset(
-                    T.abi_field_get(args, 1, 15, ty=T.Ptr(T.PrimType("void"))), 24
-                ),
-                T.abi_field_get(args, 1, 15, ty=T.Ptr(T.PrimType("void"))),
+                T.handle_add_byte_offset(T.abi_field_get(args, 1, 15, ty=T.Ptr(T.void)), 24),
+                T.abi_field_get(args, 1, 15, ty=T.Ptr(T.void)),
             )
             assert not T.isnullptr(A_handle), (
                 "TypeError",
@@ -1146,7 +1132,7 @@ def test_forward_reference_symbolic_variable():
                     )
                 assert batch_size + T.int64(1) == T.int64(0) or not T.isnullptr(
                     T.reinterpret(
-                        T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.PrimType("void"))),
+                        T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)),
                         ty=T.Ptr(T.PrimType("int32")),
                     )
                 ), (
@@ -1164,10 +1150,10 @@ def test_forward_reference_symbolic_variable():
                     T.reinterpret(
                         T.reinterpret(
                             T.reinterpret(
-                                T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.PrimType("void"))),
+                                T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)),
                                 ty=T.Ptr(T.PrimType("int32")),
                             ),
-                            ty=T.Ptr(T.PrimType("void")),
+                            ty=T.Ptr(T.void),
                         ),
                         ty="uint64",
                     ),
@@ -1214,7 +1200,7 @@ def test_forward_reference_symbolic_variable():
                 )
                 assert batch_size == T.int64(0) or not T.isnullptr(
                     T.reinterpret(
-                        T.abi_field_get(B_handle, 0, 1, ty=T.Ptr(T.PrimType("void"))),
+                        T.abi_field_get(B_handle, 0, 1, ty=T.Ptr(T.void)),
                         ty=T.Ptr(T.PrimType("int32")),
                     )
                 ), (
@@ -1232,10 +1218,10 @@ def test_forward_reference_symbolic_variable():
                     T.reinterpret(
                         T.reinterpret(
                             T.reinterpret(
-                                T.abi_field_get(B_handle, 0, 1, ty=T.Ptr(T.PrimType("void"))),
+                                T.abi_field_get(B_handle, 0, 1, ty=T.Ptr(T.void)),
                                 ty=T.Ptr(T.PrimType("int32")),
                             ),
-                            ty=T.Ptr(T.PrimType("void")),
+                            ty=T.Ptr(T.void),
                         ),
                         ty="uint64",
                     ),
@@ -1295,7 +1281,7 @@ def test_forward_reference_symbolic_variable():
                 )
                 A = T.decl_tensor(
                     T.reinterpret(
-                        T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.PrimType("void"))),
+                        T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)),
                         ty=T.Ptr(T.PrimType("int32")),
                     ),
                     ty_args=[T.Tensor((batch_size + T.int64(1),), T.int32)],
@@ -1304,7 +1290,7 @@ def test_forward_reference_symbolic_variable():
                     T.assume_aligned(A, 64)
                 B = T.decl_tensor(
                     T.reinterpret(
-                        T.abi_field_get(B_handle, 0, 1, ty=T.Ptr(T.PrimType("void"))),
+                        T.abi_field_get(B_handle, 0, 1, ty=T.Ptr(T.void)),
                         ty=T.Ptr(T.PrimType("int32")),
                     ),
                     ty_args=[T.Tensor((batch_size,), T.int32)],
@@ -1335,10 +1321,10 @@ def test_tensor_alignment_attached_to_tensor_var():
     class Expected:
         @T.function
         def main(
-            self_handle: T.Ptr(T.PrimType("void")),
-            args: T.Ptr(T.PrimType("void")),
+            self_handle: T.Ptr(T.void),
+            args: T.Ptr(T.void),
             num_args: T.int32,
-            result: T.Ptr(T.PrimType("void")),
+            result: T.Ptr(T.void),
         ) -> T.int32:
             T.func_attr({"global_symbol": "__tvm_ffi_main"})
             T.func_attr({"calling_conv": 1, "target": T.target("llvm")})
@@ -1376,12 +1362,10 @@ def test_tensor_alignment_attached_to_tensor_var():
                     "Tensor",
                 ],
             )
-            A_handle: T.let[T.Ptr(T.PrimType("void"))] = T.if_then_else(
+            A_handle: T.let[T.Ptr(T.void)] = T.if_then_else(
                 A_type_index == 70,
-                T.handle_add_byte_offset(
-                    T.abi_field_get(args, 0, 15, ty=T.Ptr(T.PrimType("void"))), 24
-                ),
-                T.abi_field_get(args, 0, 15, ty=T.Ptr(T.PrimType("void"))),
+                T.handle_add_byte_offset(T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)), 24),
+                T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)),
             )
             assert not T.isnullptr(A_handle), (
                 "TypeError",
@@ -1462,8 +1446,8 @@ def test_tensor_alignment_attached_to_tensor_var():
                     )
                 assert not T.isnullptr(
                     T.reinterpret(
-                        T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.PrimType("void"))),
-                        ty=T.Ptr(T.PrimType("float32")),
+                        T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)),
+                        ty=T.Ptr(T.float32),
                     )
                 ), (
                     "ValueError",
@@ -1480,10 +1464,10 @@ def test_tensor_alignment_attached_to_tensor_var():
                     T.reinterpret(
                         T.reinterpret(
                             T.reinterpret(
-                                T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.PrimType("void"))),
-                                ty=T.Ptr(T.PrimType("float32")),
+                                T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)),
+                                ty=T.Ptr(T.float32),
                             ),
-                            ty=T.Ptr(T.PrimType("void")),
+                            ty=T.Ptr(T.void),
                         ),
                         ty="uint64",
                     ),
@@ -1528,8 +1512,8 @@ def test_tensor_alignment_attached_to_tensor_var():
                 )
                 A = T.decl_tensor(
                     T.reinterpret(
-                        T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.PrimType("void"))),
-                        ty=T.Ptr(T.PrimType("float32")),
+                        T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)),
+                        ty=T.Ptr(T.float32),
                     ),
                     ty_args=[T.Tensor((16,), T.float32)],
                 )

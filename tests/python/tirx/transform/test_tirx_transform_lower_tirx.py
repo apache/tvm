@@ -907,7 +907,9 @@ def test_lower_opcall_fail(target, error, message):
         def main():
             T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32))
             shared = T.alloc_shared((64,), "float32")
-            local = T.alloc_local((64,), "float32")
+            local = T.alloc_local(
+                (1, 32, 1), "float32", layout=T.TileLayout(T.S[(1, 32, 1) : (32, 1 @ laneid, 1)])
+            )
             T.cuda.tile.apply(T.ptx["ld.shared.b32"], local, shared, scope="cta")
 
     with (
@@ -2045,7 +2047,7 @@ def test_lower_remaps_tensor_memory_address_metadata(offset):
                 tensor = T.decl_tensor(
                     T.reinterpret(
                         expected_address(addr, i),
-                        ty=T.Ptr(T.PrimType("float32"), storage_scope="tmem"),
+                        ty=T.Ptr(T.PrimType("float32"), scope="tmem"),
                     ),
                     ty_args=[T.Tensor((64,), T.float32, scope="tmem")],
                 )
