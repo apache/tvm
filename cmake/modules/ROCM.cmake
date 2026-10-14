@@ -47,7 +47,7 @@ if(USE_ROCM)
   endif()
   add_library(tvm_runtime_rocm SHARED $<TARGET_OBJECTS:tvm_runtime_rocm_objs>)
   list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_rocm)
-  target_link_libraries(tvm_runtime_rocm PUBLIC tvm_runtime ${_rocm_libs})
+  target_link_libraries(tvm_runtime_rocm PUBLIC tvm_runtime PRIVATE ${_rocm_libs})
   tvm_configure_target_library(tvm_runtime_rocm RUNTIME_MODULE)
 endif(USE_ROCM)
 

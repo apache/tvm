@@ -171,6 +171,7 @@ def _attention_prefill_cpu(
                                 S_val[0] *= sm_scale * math.log2(math.exp(1))
 
                                 # update m_val, d_val , O_local
+                                new_m[0] = m_val[0]
                                 if _causal_or_sliding_cross_mask(
                                     causal,
                                     row=q_idx,
@@ -191,7 +192,7 @@ def _attention_prefill_cpu(
                                 m_val[0] = new_m[0]
                                 factor[0] = T.exp2(S_val[0] - m_val[0])
                                 for d_idx in T.serial(d):
-                                    O_local[d_idx] = O_local[d_idx] * scale_O[d_idx]
+                                    O_local[d_idx] = O_local[d_idx] * scale_O[0]
 
                                 for d_idx in T.serial(d):
                                     O_local[d_idx] += V_local[d_idx] * factor[0]
