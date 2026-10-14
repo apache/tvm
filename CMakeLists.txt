@@ -60,11 +60,7 @@ tvm_option(USE_METAL "Build with Metal" OFF)
 tvm_option(USE_ROCM "Build with ROCM" OFF)
 tvm_option(USE_RCCL "Build with RCCL" OFF)
 tvm_option(ROCM_PATH "The path to rocm" /opt/rocm)
-tvm_option(USE_HEXAGON "Build with Hexagon support" OFF)
-tvm_option(USE_HEXAGON_SDK "Path to the Hexagon SDK root (required for Hexagon support)" /path/to/sdk)
-tvm_option(USE_HEXAGON_RPC "Enable Hexagon RPC using minRPC implementation over Android." OFF)
-tvm_option(USE_HEXAGON_GTEST "Path to Hexagon specific gtest version for runtime cpp tests." /path/to/hexagon/gtest)
-tvm_option(USE_HEXAGON_EXTERNAL_LIBS "Path to git repo containing external Hexagon runtime sources or libraries" OFF)
+tvm_option(USE_HEXAGON_QHL "Enable Hexagon QHL compiler lowering (requires external runtime wrappers)" OFF)
 
 tvm_option(USE_RPC "Build with RPC" ON)
 tvm_option(USE_THREADS "Build with thread support" ON)
@@ -239,26 +235,6 @@ else(MSVC)
   endif()
   message(STATUS "Forbidding undefined symbols in shared library, using ${TVM_NO_UNDEFINED_SYMBOLS} on platform ${CMAKE_SYSTEM_NAME}")
 
-  # Detect if we're compiling for Hexagon.
-  set(TEST_FOR_HEXAGON_CXX
-      "#ifndef __hexagon__"
-      "#error"
-      "#endif"
-      "int main() {}"
-      # Define _start_main to avoid linking errors with -fPIC.
-      "extern \"C\" void _start_main() {}")
-  set(TEST_FOR_HEXAGON_DIR
-      "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp")
-  set(TEST_FOR_HEXAGON_FILE "${TEST_FOR_HEXAGON_DIR}/test_for_hexagon.cc")
-  string(REPLACE ";" "\n" TEST_FOR_HEXAGON_CXX_TEXT "${TEST_FOR_HEXAGON_CXX}")
-  file(WRITE "${TEST_FOR_HEXAGON_FILE}" "${TEST_FOR_HEXAGON_CXX_TEXT}")
-  try_compile(BUILD_FOR_HEXAGON "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}"
-              "${TEST_FOR_HEXAGON_FILE}")
-  file(REMOVE "${TEST_FOR_HEXAGON_FILE}")
-  if(BUILD_FOR_HEXAGON)
-    message(STATUS "Building for Hexagon")
-  endif()
-
   # Detect if we're compiling for Android.
   set(TEST_FOR_ANDROID_CXX
       "#ifndef __ANDROID__"
@@ -278,10 +254,7 @@ else(MSVC)
   endif()
 endif(MSVC)
 
-# Hexagon has dlopen built into QuRT (no need for static library).
-if(NOT BUILD_FOR_HEXAGON)
-  list(APPEND TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
-endif()
+list(APPEND TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
 
 # add source group
 tvm_file_glob(GLOB_RECURSE GROUP_SOURCE "src/*.cc")
@@ -381,13 +354,6 @@ if(USE_RPC)
   list(APPEND RUNTIME_SRCS ${RUNTIME_RPC_SRCS})
 endif(USE_RPC)
 
-if(BUILD_FOR_HEXAGON)
-  # Allow undefined symbols in the shared runtime (there will be some from libc).
-  set(TVM_NO_UNDEFINED_SYMBOLS "")
-
-  add_definitions(-D_MACH_I32=int)
-endif()
-
 # Package runtime rules
 if(NOT USE_RTTI)
 endif()
@@ -414,7 +380,6 @@ set(CMAKE_CUDA_STANDARD 20)
 
 # Module rules
 include(cmake/modules/CUDA.cmake)
-include(cmake/modules/Hexagon.cmake) # This must come before logging.cmake
 include(cmake/modules/contrib/CLML.cmake) # Must be before OpenCL.cmake
 include(cmake/modules/OpenCL.cmake)
 include(cmake/modules/OpenMP.cmake)
@@ -440,7 +405,7 @@ include(cmake/modules/RuntimeExtra.cmake)
 add_subdirectory(3rdparty/tvm-ffi)
 include(GNUInstallDirs)
 
-if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
+if(USE_THREADS)
   message(STATUS "Build with thread support...")
   set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
   set(THREADS_PREFER_PTHREAD_FLAG TRUE)
@@ -492,7 +457,7 @@ endif()
 foreach(runtime_target tvm_runtime tvm_runtime_static)
   target_include_directories(${runtime_target} PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
   target_link_libraries(${runtime_target} PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
-  if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
+  if(USE_THREADS)
     target_link_libraries(${runtime_target} PUBLIC Threads::Threads)
   endif()
 endforeach()
@@ -583,7 +548,7 @@ if(MSVC)
   endforeach()
 endif()
 
-if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
+if(USE_THREADS)
   target_link_libraries(tvm_compiler PUBLIC Threads::Threads)
 endif()
 target_link_libraries(tvm_compiler PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
@@ -653,20 +618,6 @@ install(
   FILES
   "${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
-
-if(BUILD_FOR_HEXAGON)
-  # Wrap pthread_create to allow setting custom stack size.
-  set_property(TARGET tvm_runtime APPEND PROPERTY LINK_FLAGS
-                        "-Wl,--wrap=pthread_create")
-  # Link tvm_runtime into the RPC skel library. Make sure it's built
-  # as a part of the "runtime" target.
-  if(USE_HEXAGON_RPC)
-    target_link_libraries(
-      hexagon_rpc_skel -Wl,--whole-archive tvm_ffi_static tvm_runtime_static -Wl,--no-whole-archive)
-    target_link_options(hexagon_rpc_skel PRIVATE "-Wl,--wrap=pthread_create")
-    add_dependencies(runtime hexagon_rpc_skel)
-  endif()
-endif()
 
 find_and_set_linker(${USE_ALTERNATIVE_LINKER})
 

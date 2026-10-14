@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_BACKEND_HEXAGON_MEMORY_SCOPE_H_
-#define TVM_BACKEND_HEXAGON_MEMORY_SCOPE_H_
+#ifndef TVM_BACKEND_HEXAGON_CODEGEN_MEMORY_SCOPE_H_
+#define TVM_BACKEND_HEXAGON_CODEGEN_MEMORY_SCOPE_H_
 
 #include <tvm/ffi/reflection/enum_def.h>
 #include <tvm/runtime/memory_scope.h>
@@ -44,4 +44,4 @@ inline void RegisterMemoryScopes() {
 }  // namespace hexagon
 }  // namespace backend
 }  // namespace tvm
-#endif  // TVM_BACKEND_HEXAGON_MEMORY_SCOPE_H_
+#endif  // TVM_BACKEND_HEXAGON_CODEGEN_MEMORY_SCOPE_H_

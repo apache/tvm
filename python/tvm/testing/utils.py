@@ -139,7 +139,7 @@ def device_enabled(target):
         if kind != target_kind:
             continue
         if kind == "hexagon":
-            return env.build_flag_enabled("USE_HEXAGON") and "ANDROID_SERIAL_NUMBER" in os.environ
+            return env._runtime_enabled("hexagon") and "ANDROID_SERIAL_NUMBER" in os.environ
         if not env._runtime_enabled(kind):
             continue
         if kind == "cuda" and "cudnn" in tvm.target.Target(candidate).attrs.get("libs", []):
