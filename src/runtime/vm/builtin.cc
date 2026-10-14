@@ -774,7 +774,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           return data;
         }
         auto* device_api = DeviceAPI::Get(data.device());
-        if (device_api->SupportsDevicePointerArithmeticsOnHost() &&
+        if (device_api->SupportsDevicePtrArithmeticOnHost() &&
             data.byte_offset() % tvm::runtime::kAllocAlignment == 0) {
           DLManagedTensor* dl_tensor = data.ToDLPack();
           dl_tensor->dl_tensor.data =
