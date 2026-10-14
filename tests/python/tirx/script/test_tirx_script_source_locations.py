@@ -427,21 +427,72 @@ def _loc_position(loc):
     return loc.start_line, loc.start_column, loc.end_line, loc.end_column
 
 
-def test_eager_and_deferred_nodes_keep_nested_locations_and_receipts():
-    from tvm.script.ir_builder.base import at
+def test_native_line_trace_locations_and_cleanup(monkeypatch):
+    import sys
 
+    from tvm.script import ir_builder as builder_api
+    from tvm.script.ir_builder import _ffi_api
+
+    previous = sys.gettrace()
+    frame = sys._getframe()
+    saved = (frame.f_trace, frame.f_trace_lines, frame.f_trace_opcodes)
     caller = ir.SourceLoc(ir.SourceName("caller.py"), 2, 1, 2, 20)
-    callee = ir.SourceLoc(ir.SourceName("definition.py"), 3, 1, 3, 20)
-    explicit = ir.SourceLoc(ir.SourceName("definition.py"), 3, 5, 3, 10)
+    explicit = ir.SourceLoc(ir.SourceName("definition.py"), 3, 1, 3, 20)
+    attached = ir.SourceLoc(ir.SourceName("definition.py"), 3, 5, 3, 10)
+    helper_lines = []
+
+    def helper():
+        helper_lines.append(sys._getframe().f_lineno + 1)
+        return T.evaluate(1)
+
+    update = _ffi_api.IRBuilderUpdateTraceLoc
+    fail = False
+
+    def update_loc(*args):
+        nonlocal fail
+        if fail:
+            fail = False
+            raise RuntimeError("trace callback failed")
+        return update(*args)
+
+    monkeypatch.setattr(_ffi_api, "IRBuilderUpdateTraceLoc", update_loc)
     with I.IRBuilder() as ib:
-        with ib.with_loc(caller), ib.with_loc(callee):
-            loop = T.serial(2)
-        with loop:
-            with ib.with_loc(caller), ib.with_loc(callee):
-                receipt = T.evaluate(1)
-                assert at(explicit, receipt) is receipt
+        with ib.with_loc(caller):
+            with builder_api.line_trace():
+                loop_line = sys._getframe().f_lineno + 1
+                loop = T.serial(2)
+            with loop, builder_api.line_trace():
+                same_line = sys._getframe().f_lineno + 1
+                first, second = helper(), T.evaluate(2)
+                with ib.with_loc(explicit):
+                    attached_line = sys._getframe().f_lineno + 1
+                    third = builder_api.at_(attached, T.evaluate(3))
+                callback = sys.gettrace()
+                with pytest.raises(RuntimeError, match="trace callback failed"):
+                    with builder_api.line_trace():
+                        fail = True
+                        T.evaluate(0)
+                assert sys.gettrace() is callback
+                final_line = sys._getframe().f_lineno + 1
+                last = T.evaluate(4)
+        assert sys.gettrace() is previous
+        assert (frame.f_trace, frame.f_trace_lines, frame.f_trace_opcodes) == saved
     result = ib.get()
-    assert isinstance(result, ir.For)
-    assert_structural_equal(result.loc, ir.CallSiteLoc(callee, caller))
-    assert receipt.value.same_as(result.body[0])
-    assert_structural_equal(receipt.value.loc, ir.CallSiteLoc(explicit, caller))
+    assert result.loc.caller.same_as(caller)
+    assert result.loc.callee.start_line == loop_line
+    for receipt, statement, line in zip(
+        (first, second, third, last),
+        result.body.seq,
+        (helper_lines[0], same_line, attached_line, final_line),
+    ):
+        assert receipt.value.same_as(statement)
+        loc = statement.loc
+        if receipt is third:
+            assert loc.callee.same_as(attached)
+            loc = loc.caller
+        assert loc.caller.same_as(caller)
+        assert loc.callee.source_name.name == __file__
+        assert loc.callee.start_line == line
+    assert len(result.body.seq) == 4
+    with I.IRBuilder():
+        assert isinstance(T.evaluate(0).value.loc, ir.UnknownLoc)

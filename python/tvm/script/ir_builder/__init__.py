@@ -57,6 +57,7 @@ from .ir import (
     module_set_attr,
 )
 from .ir import _get_dialect_builder as __getattr__
+from .line_trace import line_trace
 from .parser_protocol import (
     check_well_formed_,
     decl_function,
@@ -94,6 +95,7 @@ __all__ = [
     "dtype",
     "dynamic",
     "ir_module",
+    "line_trace",
     "make_node",
     "meta_var",
     "module_attrs",
