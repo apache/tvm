@@ -45,8 +45,13 @@ if(USE_OPENCL)
   endif()
   add_library(tvm_runtime_opencl SHARED $<TARGET_OBJECTS:tvm_runtime_opencl_objs>)
   list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_opencl)
-  target_link_libraries(tvm_runtime_opencl PUBLIC tvm_runtime ${_opencl_libs})
+  target_link_libraries(tvm_runtime_opencl PUBLIC tvm_runtime PRIVATE ${_opencl_libs})
   tvm_configure_target_library(tvm_runtime_opencl RUNTIME_MODULE)
+
+  if(USE_CLML OR USE_CLML_GRAPH_EXECUTOR)
+    # CLML calls both OpenCL SDK and TVM OpenCL runtime APIs directly.
+    target_link_libraries(tvm_runtime_extra PRIVATE tvm_runtime_opencl ${_opencl_libs})
+  endif()
 
   if(USE_OPENCL_ENABLE_HOST_PTR)
     add_definitions(-DOPENCL_ENABLE_HOST_PTR)
