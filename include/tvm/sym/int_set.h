@@ -67,19 +67,19 @@ class IntSet : public ffi::ObjectRef {
    * \param max_range The range to be covered.
    * \return The covering range.
    */
-  ffi::Optional<Range> CoverRange(ffi::Optional<Range> max_range) const;
+  TVM_TIRX_DLL ffi::Optional<Range> CoverRange(ffi::Optional<Range> max_range) const;
   /*! \return Lower bound of the set */
-  PrimExpr min() const;
+  TVM_TIRX_DLL PrimExpr min() const;
   /*! \return upper bound of the set */
-  PrimExpr max() const;
+  TVM_TIRX_DLL PrimExpr max() const;
   /*! \return The sign of the elements in the integer set */
-  SignType GetSignType() const;
+  TVM_TIRX_DLL SignType GetSignType() const;
   /*! \return Whether the set represent nothing  */
-  bool IsNothing() const;
+  TVM_TIRX_DLL bool IsNothing() const;
   /*! \return Whether the set represent everything  */
-  bool IsEverything() const;
+  TVM_TIRX_DLL bool IsEverything() const;
   /*! \return Whether the set is a single point */
-  bool IsSinglePoint() const;
+  TVM_TIRX_DLL bool IsSinglePoint() const;
   /*!
    * \brief Check if we can prove it is a single point.
    *
@@ -93,70 +93,70 @@ class IntSet : public ffi::ObjectRef {
    * \param ana Analyzer used in the proof.
    * \return Whether we can prove it is a single point
    */
-  bool CanProveSinglePoint(const Analyzer& ana) const;
+  TVM_TIRX_DLL bool CanProveSinglePoint(const Analyzer& ana) const;
   // TODO(tvm-team): update all CanProve to explicitly take
   // analyzer to encourage more analyzer reuse
   /*! \return Whether the set is proved to be bigger than 0 */
-  bool CanProvePositive() const;
+  TVM_TIRX_DLL bool CanProvePositive() const;
   /*! \return Whether the set is proved to be smaller than 0 */
-  bool CanProveNegative() const;
+  TVM_TIRX_DLL bool CanProveNegative() const;
   /*! \return Whether the set is proved to be smaller than or equal to 0 */
-  bool CanProveNonPositive() const;
+  TVM_TIRX_DLL bool CanProveNonPositive() const;
   /*! \return Whether the set is proved to be larger than or equal to 0 */
-  bool CanProveNonNegative() const;
+  TVM_TIRX_DLL bool CanProveNonNegative() const;
   /*! \return Whether the set has upper bound. */
-  bool HasUpperBound() const;
+  TVM_TIRX_DLL bool HasUpperBound() const;
   /*! \return Whether the set has lower bound. */
-  bool HasLowerBound() const;
+  TVM_TIRX_DLL bool HasLowerBound() const;
 
   /*!
    * \brief The single point value, call only if IsSinglePoint is true
    * \return The point value.
    */
-  PrimExpr PointValue() const;
+  TVM_TIRX_DLL PrimExpr PointValue() const;
   /*!
    * \brief Try to match IntSet with range r.
    *
    * \note It is guanrateed that IntSet::FromRange(r).MatchRange(r) == true
    * \return true if we can prove they are the same.
    */
-  bool MatchRange(const tvm::Range& r) const;
+  TVM_TIRX_DLL bool MatchRange(const tvm::Range& r) const;
   /*! \return The set contains nothing */
-  static IntSet Nothing();
+  TVM_TIRX_DLL static IntSet Nothing();
   /*! \return The set contains everything */
-  static IntSet Everything();
+  TVM_TIRX_DLL static IntSet Everything();
   /*!
    * \brief construct a point set.
    * \param point The point in the set.
    * \return construct a single point set
    */
-  static IntSet SinglePoint(PrimExpr point);
+  TVM_TIRX_DLL static IntSet SinglePoint(PrimExpr point);
   /*!
    * \brief construct a integer set from vector expression.
    * \param vec The vector expression, can also be single point.
    * \return The result set containing the indices in the vector.
    */
-  static IntSet Vector(PrimExpr vec);
+  TVM_TIRX_DLL static IntSet Vector(PrimExpr vec);
   /*!
    * \brief Construct a set representing a range [min, min + extent).
    * \param min The minimum of the range range
    * \param extent The extent of the range.
    * \return The constructed set.
    */
-  static IntSet FromMinExtent(PrimExpr min, PrimExpr extent);
+  TVM_TIRX_DLL static IntSet FromMinExtent(PrimExpr min, PrimExpr extent);
   /*!
    * \brief Construct a set representing a range.
    * \param r The range
    * \return The constructed set.
    */
-  static IntSet FromRange(tvm::Range r);
+  TVM_TIRX_DLL static IntSet FromRange(tvm::Range r);
   /*!
    * \brief Construct a set representing a interval.
    * \param min The minimum value of the interval.
    * \param max The maximum value of the interval.
    * \return The constructed set.
    */
-  static IntSet Interval(PrimExpr min, PrimExpr max);
+  TVM_TIRX_DLL static IntSet Interval(PrimExpr min, PrimExpr max);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IntSet, ffi::ObjectRef, IntSetObj);
 };
@@ -170,7 +170,8 @@ class IntSet : public ffi::ObjectRef {
  * \param dom_map The domain map to convert.
  * \return The converted map.
  */
-ffi::Map<Var, IntSet> ConvertDomMap(const std::unordered_map<const VarNode*, IntSet>& dom_map);
+TVM_TIRX_DLL ffi::Map<Var, IntSet> ConvertDomMap(
+    const std::unordered_map<const VarNode*, IntSet>& dom_map);
 /*!
  * \brief Find an symbolic integer set that contains all possible values of
  *  e given the domain of each variables.
@@ -179,7 +180,7 @@ ffi::Map<Var, IntSet> ConvertDomMap(const std::unordered_map<const VarNode*, Int
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet EvalSet(PrimExpr e, const ffi::Map<Var, IntSet>& dom_map);
+TVM_TIRX_DLL IntSet EvalSet(PrimExpr e, const ffi::Map<Var, IntSet>& dom_map);
 /*!
  * \brief Same as EvalSet, but takes unordered_map
  *
@@ -187,7 +188,7 @@ IntSet EvalSet(PrimExpr e, const ffi::Map<Var, IntSet>& dom_map);
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet EvalSet(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom_map);
+TVM_TIRX_DLL IntSet EvalSet(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom_map);
 
 /*!
  * \brief Find an symbolic integer set that contains is union over
@@ -197,7 +198,7 @@ IntSet EvalSet(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values.
  */
-IntSet EvalSet(IntSet s, const std::unordered_map<const VarNode*, IntSet>& dom_map);
+TVM_TIRX_DLL IntSet EvalSet(IntSet s, const std::unordered_map<const VarNode*, IntSet>& dom_map);
 /*!
  * \brief Same as EvalSet, but takes unordered_map
  *
@@ -205,7 +206,7 @@ IntSet EvalSet(IntSet s, const std::unordered_map<const VarNode*, IntSet>& dom_m
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet EvalSet(Range r, const std::unordered_map<const VarNode*, IntSet>& dom_map);
+TVM_TIRX_DLL IntSet EvalSet(Range r, const std::unordered_map<const VarNode*, IntSet>& dom_map);
 /*!
  * \brief Same as EvalSet, but takes ffi::Array<Range>
  *
@@ -213,7 +214,8 @@ IntSet EvalSet(Range r, const std::unordered_map<const VarNode*, IntSet>& dom_ma
  * \param dom_map The domain of each variable.
  * \return An array of integer sets that can cover all the possible values.
  */
-ffi::Array<IntSet> EvalSet(const ffi::Array<Range>& region, const ffi::Map<Var, IntSet>& dom_map);
+TVM_TIRX_DLL ffi::Array<IntSet> EvalSet(const ffi::Array<Range>& region,
+                                        const ffi::Map<Var, IntSet>& dom_map);
 /*! \brief Map from Expr to IntSet */
 using ExprIntSetMap = std::unordered_map<PrimExpr, IntSet, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 /*!
@@ -224,43 +226,44 @@ using ExprIntSetMap = std::unordered_map<PrimExpr, IntSet, ffi::ObjectPtrHash, f
  * \param dom_map The domain of each variable.
  * \return the map from the expression to its possible value.
  */
-ExprIntSetMap EvalSetForEachSubExpr(PrimExpr e,
-                                    const std::unordered_map<const VarNode*, IntSet>& dom_map);
+TVM_TIRX_DLL ExprIntSetMap
+EvalSetForEachSubExpr(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom_map);
 
 /*!
  * \brief Create a union set of all sets, possibly relaxed
  * \param sets The sets to be combined
  * \return the set after union
  */
-IntSet Union(const ffi::Array<IntSet>& sets);
+TVM_TIRX_DLL IntSet Union(const ffi::Array<IntSet>& sets);
 
 /*!
  * \brief The union of N-dimensional integer sets
  * \param nd_int_sets A list of N-dimensional integer sets
  * \return An N-dimensional integer set as the result of union
  */
-ffi::Array<IntSet> UnionRegion(const ffi::Array<ffi::Array<IntSet>>& nd_int_sets);
+TVM_TIRX_DLL ffi::Array<IntSet> UnionRegion(const ffi::Array<ffi::Array<IntSet>>& nd_int_sets);
 
 /*!
  * \brief Create a lower-bound of union set, where some of the segments may be dropped
  * \param sets The sets to be combined
  * \return the set after union
  */
-IntSet UnionLowerBound(const ffi::Array<IntSet>& sets);
+TVM_TIRX_DLL IntSet UnionLowerBound(const ffi::Array<IntSet>& sets);
 
 /*!
  * \brief The union of N-dimensional integer sets
  * \param nd_int_sets A list of N-dimensional integer sets
  * \return An N-dimensional integer set as the result of union
  */
-ffi::Array<IntSet> UnionRegionLowerBound(const ffi::Array<ffi::Array<IntSet>>& nd_int_sets);
+TVM_TIRX_DLL ffi::Array<IntSet> UnionRegionLowerBound(
+    const ffi::Array<ffi::Array<IntSet>>& nd_int_sets);
 
 /*!
  * \brief Create an intersected set of all sets
  * \param sets The sets to be intersected
  * \return the set after intersected
  */
-IntSet Intersect(const ffi::Array<IntSet>& sets);
+TVM_TIRX_DLL IntSet Intersect(const ffi::Array<IntSet>& sets);
 
 /*!
  * \brief Intersect two integer sets using the analyzer's bindings and constraints.
@@ -276,7 +279,7 @@ TVM_TIRX_DLL IntSet Intersect(const IntSet& lhs, const IntSet& rhs, const Analyz
  * \param var_dom The ranges of variables
  * \return The integer sets of the variables
  */
-ffi::Map<Var, sym::IntSet> AsIntSet(const ffi::Map<Var, Range>& var_dom);
+TVM_TIRX_DLL ffi::Map<Var, sym::IntSet> AsIntSet(const ffi::Map<Var, Range>& var_dom);
 
 /*!
  * \brief Analyze the region with affine map, given the domain of variables and their predicate.

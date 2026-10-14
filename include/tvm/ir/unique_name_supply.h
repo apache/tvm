@@ -59,8 +59,8 @@ class UniqueNameSupplyObj : public ffi::Object {
    * \param add_underscore If set to true, add '_' between prefix and a digit.
    * \return A unique name.
    */
-  ffi::String FreshName(const ffi::String& name, bool add_prefix = true,
-                        bool add_underscore = true);
+  TVM_TIRX_DLL ffi::String FreshName(const ffi::String& name, bool add_prefix = true,
+                                     bool add_underscore = true);
 
   /*!
    * \brief Reserves an existing name with this UniqueNameSupply.
@@ -69,7 +69,7 @@ class UniqueNameSupplyObj : public ffi::Object {
    * the name before reserving it. \return The name that was reserved with the UniqueNameSupply. It
    * can be different if a prefix is added.
    */
-  ffi::String ReserveName(const ffi::String& name, bool add_prefix = true);
+  TVM_TIRX_DLL ffi::String ReserveName(const ffi::String& name, bool add_prefix = true);
 
   /*!
    * \brief Checks if this UniqueNameSupply already generated a name.
@@ -78,7 +78,7 @@ class UniqueNameSupplyObj : public ffi::Object {
    * the name before checking for it. \return True if the name has already been generated. False
    * otherwise.
    */
-  bool ContainsName(const ffi::String& name, bool add_prefix = true);
+  TVM_TIRX_DLL bool ContainsName(const ffi::String& name, bool add_prefix = true);
 
   // Prefix for all GlobalVar names. It can be empty.
   std::string prefix_;

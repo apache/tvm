@@ -272,8 +272,9 @@ class OpenCLWorkspace : public DeviceAPI {
     }
   }
   // Initialize the device.
-  void Init(const std::string& type_key, const std::string& device_type,
-            const std::string& platform_name = "", cl_context_properties properties[] = nullptr);
+  TVM_OPENCL_DLL void Init(const std::string& type_key, const std::string& device_type,
+                           const std::string& platform_name = "",
+                           cl_context_properties properties[] = nullptr);
   virtual void Init() { Init(this->type_key, "gpu"); }
   virtual bool Init(cl_context_properties ctx_props[]) {
     if (!contexts.empty()) return false;
@@ -348,7 +349,7 @@ class OpenCLWorkspace : public DeviceAPI {
   void* AllocDataSpaceView(Device dev, void* data, ffi::Shape shape, DLDataType dtype,
                            ffi::Optional<runtime::MemoryScope> mem_scope = std::nullopt);
   void FreeDataSpaceView(Device dev, void* ptr);
-  cl_device_id GetCLDeviceID(int device_id);
+  TVM_OPENCL_DLL cl_device_id GetCLDeviceID(int device_id);
   // override device API
   void SetDevice(Device dev) final;
   ffi::Any GetAttr(Device dev, const ffi::String& name) final;
@@ -360,7 +361,7 @@ class OpenCLWorkspace : public DeviceAPI {
   void* AllocDataSpace(Device dev, size_t width, size_t height, size_t depth, DLDataType type_hint,
                        ffi::Optional<runtime::MemoryScope> mem_scope = std::nullopt,
                        TensorMemoryPool* pool = nullptr);
-  void* GetNativePtr(const tvm::ffi::Tensor& narr);
+  void* GetMappedHostPtrIfAvailable(void* data) final;
   void SetNativePtr(const tvm::ffi::Tensor& narr, void* host_ptr, size_t buf_size);
   void SetPerfHint(Device dev, cl_uint perf_hint);
   void FreeDataSpace(Device dev, void* ptr);
@@ -381,7 +382,7 @@ class OpenCLWorkspace : public DeviceAPI {
   virtual OpenCLThreadEntry* GetThreadEntry();
 
   // get the global workspace
-  static OpenCLWorkspace* Global();
+  TVM_OPENCL_DLL static OpenCLWorkspace* Global();
 
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
 

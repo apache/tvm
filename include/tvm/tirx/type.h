@@ -128,7 +128,8 @@ class TensorTypeNode : public TypeNode {
    * \param index The index to be accessed.
    * \param inner Ignore the elem_offset, return inner offset only
    */
-  ffi::Array<PrimExpr> ElemOffset(ffi::Array<PrimExpr> index, bool inner = false) const;
+  TVM_TIRX_DLL ffi::Array<PrimExpr> ElemOffset(ffi::Array<PrimExpr> index,
+                                               bool inner = false) const;
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TensorType", TensorTypeNode, TypeNode);
 };

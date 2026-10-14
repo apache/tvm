@@ -28,6 +28,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/sym/pattern.h>
 
 #include <unordered_set>
 
