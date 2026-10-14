@@ -78,10 +78,9 @@ from tvm.ir.prim.expr import (  # noqa: F401
     Shuffle,
     Sub,
 )
-from tvm.runtime import ObjectConvertible
 
 
-class IntImmEnum(ObjectConvertible):
+class IntImmEnum:
     """Lazily evaluate an IntImm in case
     the constructor is not available in runtime.
 
@@ -98,7 +97,7 @@ class IntImmEnum(ObjectConvertible):
         self.value = value
         self.loc = loc
 
-    def asobject(self) -> "IntImm":
+    def __tvm_ffi_object__(self) -> "IntImm":
         """Convert object."""
         return IntImm("int32", self.value, self.loc)  # type: ignore
 
