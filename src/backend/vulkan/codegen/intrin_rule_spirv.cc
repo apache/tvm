@@ -21,13 +21,12 @@
  * \file intrin_rule_spirv.cc
  */
 #include <GLSL.std.450.h>
+#include <tvm/codegen/intrin_rule.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op_attr_types.h>
-
-#include "../../../target/intrin_rule.h"
 
 namespace tvm {
 namespace codegen {
@@ -171,8 +170,8 @@ void RegisterVulkanLegalizeRules() {
       if (arg_ty.bits() == 64) {
         // SPIR-V FindUMsb intrinsic only supports 32 bit input
         auto int32 = PrimType::Int(32);
-        PrimExpr arg_hi32 = tvm::prim::Cast(int32, arg >> 32);
-        PrimExpr arg_lo32 = tvm::prim::Cast(int32, arg);
+        PrimExpr arg_hi32 = tvm::prim::Cast(arg >> 32, int32);
+        PrimExpr arg_lo32 = tvm::prim::Cast(arg, int32);
         PrimExpr msb_hi = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_hi32});
         PrimExpr msb_lo = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_lo32});
         return tvm::if_then_else(arg_hi32 == 0, msb_lo, msb_hi + 32);

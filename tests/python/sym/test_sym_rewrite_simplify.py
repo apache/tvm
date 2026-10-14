@@ -34,9 +34,9 @@ from tvm.tirx import truncmod as tmod
 class TestCase:
     def __init__(self, before, expected, preconditions=None):
         if isinstance(before, tirx.expr.EqualOp):
-            before = before.asobject()
+            before = before.__tvm_ffi_object__()
         if isinstance(expected, tirx.expr.EqualOp):
-            expected = expected.asobject()
+            expected = expected.__tvm_ffi_object__()
 
         self.before = self._convert(before)
         self.expected = self._convert(expected)
@@ -45,7 +45,7 @@ class TestCase:
     @staticmethod
     def _convert(expr):
         if isinstance(expr, tirx.expr.EqualOp):
-            return expr.asobject()
+            return expr.__tvm_ffi_object__()
         elif isinstance(expr, int):
             return T.int32(expr)
         elif isinstance(expr, float):
@@ -68,11 +68,8 @@ class TestCase:
 
 
 class BaseCompare:
-    extensions = tvm.sym.Extension.NoExtensions
-
     def test_simplify(self, test_case):
         analyzer = tvm.sym.Analyzer()
-        analyzer.enabled_extensions = self.extensions
 
         if inspect.isclass(test_case.expected) and issubclass(test_case.expected, Exception):
             with pytest.raises(test_case.expected):
@@ -1172,39 +1169,6 @@ class TestComparisons(BaseCompare):
     )
 
 
-class TestComparisonOfProductAndSum(BaseCompare):
-    extensions = tvm.sym.Extension.ComparisonOfProductAndSum
-
-    x, y, z = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32"), tvm.tirx.Var("z", "int32")
-
-    test_case = tvm.testing.parameter(
-        # Special inequality cases
-        TestCase(
-            x * y < (x + y) * 2048,
-            tvm.tirx.const(1, "bool"),
-            [x > 0, y > 0, x < 2048],
-        ),
-        TestCase(
-            x * y < (x + y) * 2048,
-            tvm.tirx.const(1, "bool"),
-            [x > 0, y > 0, x < 4096, y < 4096],
-        ),
-        TestCase(
-            # Both sides are divisible by 8192
-            x * y * 8192 < (y + x) * 16777216,
-            tvm.tirx.const(1, "bool"),
-            [x > 0, y > 0, x < 4096, y < 4096],
-        ),
-        TestCase(
-            # The two sides have co-prime factors, but the bounds are
-            # still sufficient to prove the inequality.
-            x * y * 59 < (y + x) * 176128,
-            tvm.tirx.const(1, "bool"),
-            [x > 0, y > 0, x < 4096, y < 4096],
-        ),
-    )
-
-
 class TestLogical(BaseCompare):
     x, y, z = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32"), tvm.tirx.Var("z", "int32")
 
@@ -1264,13 +1228,13 @@ class TestCast(BaseCompare):
         x = tvm.tirx.Var("x", "int32")
         dtypes = ["float32", "float16", "int32", "int8", "bool"]
         for dtype1 in dtypes:
-            yield TestCase(tvm.tirx.Cast(dtype1, x - x), tvm.tirx.const(0, dtype1))
-            yield TestCase(tvm.tirx.Cast(dtype1, x == x), tvm.tirx.const(1, dtype1))
+            yield TestCase(tvm.tirx.Cast(x - x, dtype1), tvm.tirx.const(0, dtype1))
+            yield TestCase(tvm.tirx.Cast(x == x, dtype1), tvm.tirx.const(1, dtype1))
             for dtype2 in dtypes:
                 for i in [0, 1, 2, 3]:
                     if i <= 1 or (dtype1 != "bool" and dtype2 != "bool"):
                         yield TestCase(
-                            tvm.tirx.Cast(dtype1, tvm.tirx.const(i, dtype2)),
+                            tvm.tirx.Cast(tvm.tirx.const(i, dtype2), dtype1),
                             tvm.tirx.const(i, dtype1),
                         )
 

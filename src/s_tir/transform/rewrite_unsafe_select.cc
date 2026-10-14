@@ -122,8 +122,8 @@ class UnsafeExprDetector : public tvm::ExprFunctor<bool(const Expr& n)> {
     return Dispatch(op->a) || Dispatch(op->b);
   }
 
-  OpAttrMap<TCallEffectKind> op_call_effect_ =
-      Op::GetAttrMap<TCallEffectKind>(tvm::op_attr::kCallEffectKind);
+  decltype(Op::GetAttrMap(tvm::op_attr::kCallEffectKind)) op_call_effect_ =
+      Op::GetAttrMap(tvm::op_attr::kCallEffectKind);
 };
 
 class UnsafeSelectRewriter : public StmtExprMutator {

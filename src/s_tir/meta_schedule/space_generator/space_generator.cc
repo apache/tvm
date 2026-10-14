@@ -28,7 +28,7 @@ namespace meta_schedule {
 ffi::String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "llvm") {
     static auto target_has_feature_fn_ptr =
-        tvm::ffi::Function::GetGlobalRequired("target.target_has_feature");
+        tvm::ffi::Function::GetGlobalRequired("codegen.target_has_feature");
     bool have_avx512vnni = target_has_feature_fn_ptr("avx512vnni", target).cast<bool>();
     bool have_avxvnni = target_has_feature_fn_ptr("avxvnni", target).cast<bool>();
     if (have_avx512vnni || have_avxvnni) {
@@ -121,7 +121,7 @@ void SpaceGeneratorObj::InitializeWithTuneContext(const TuneContext& context) {
       default_mutator_probs = Mutator::DefaultLLVM();
     } else if (kind == "rvv") {
       static auto llvm_get_vector_width =
-          tvm::ffi::Function::GetGlobalRequired("target.llvm_get_vector_width");
+          tvm::ffi::Function::GetGlobalRequired("codegen.llvm_get_vector_width");
       const int vlen = llvm_get_vector_width(context->target.value()).cast<int>();
       default_sch_rules = ScheduleRule::DefaultRISCV(vlen);
       default_postprocs = Postproc::DefaultRISCV();

@@ -29,7 +29,6 @@ from .analyzer import (
     ConstIntBound,
     Analyzer,
     ProofStrength,
-    Extension,
     CompareResult,
     allow_uint_as_index,
 )

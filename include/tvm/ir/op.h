@@ -43,15 +43,6 @@ namespace tvm {
 template <typename>
 class OpAttrMap;
 
-/*!
- * \brief An operator's result type independent of operands, attributes, and type arguments.
- * When present, this concrete type takes precedence over FInferType.
- */
-using TFixedReturnType = Type;
-
-/*! \brief Infer a Call's result type from its explicit inputs without builder state. */
-using FInferType = ffi::reflection::NativeFunctionView<Type(const CallNode* call)>;
-
 /*! \brief An operator argument's name and documentation. */
 class ArgumentInfoObj : public ffi::Object {
  public:
@@ -134,14 +125,15 @@ class OpNode : public ExprNode {
  * validator that checks their count and classes.
  *
  * \code
+ * constexpr ffi::reflection::AttrKey<bool> kPure{"FPurity"};
  * TVM_FFI_STATIC_INIT_BLOCK() {
  *   OpDef("example.identity", "Return the input expression.")
  *       .signature(sig::arg("value", "The input expression."))
- *       .set_attr<bool>("FPurity", true);
+ *       .set_attr(kPure, true);
  * }
  * // Copies the handle; the canonical node is shared.
  * Op op = Op::Get("example.identity");
- * bool pure = Op::GetAttrMap<bool>("FPurity")[op];
+ * bool pure = Op::GetAttrMap(kPure)[op];
  * \endcode
  */
 class Op : public Expr {
@@ -160,12 +152,22 @@ class Op : public Expr {
    */
   template <typename ValueType>
   static OpAttrMap<ValueType> GetAttrMap(const ffi::String& attr_name);
+  /*! \brief Get a live attribute view with its value type deduced from the key. */
+  template <typename ValueType>
+  static OpAttrMap<ValueType> GetAttrMap(ffi::reflection::AttrKey<ValueType> key);
+
   /*!
    * \brief Check whether an attribute column exists, even if some Ops lack a value.
    * \param attr_name The column name.
    * \return Whether the column has been registered.
    */
   TVM_TIRX_DLL static bool HasAttrMap(const ffi::String& attr_name);
+  /*! \brief Check whether the column named by a typed key exists. */
+  template <typename ValueType>
+  static bool HasAttrMap(ffi::reflection::AttrKey<ValueType> key) {
+    return HasAttrMap(key.name);
+  }
+
   /*!
    * \brief Look up a registered operator by name.
    * \param op_name The canonical name.
@@ -542,6 +544,35 @@ class OpDef {
     return *this;
   }
   /*!
+   * \brief Register a value using the key's declared type.
+   * \param key Attribute column key.
+   * \param value Value convertible to the key's type; erased values require explicit extraction.
+   * \param override Whether to replace an existing value.
+   * \return This builder. Stored callbacks retain their packed function owner.
+   */
+  template <typename ValueType, typename Value,
+            std::enable_if_t<(std::is_convertible_v<Value&&, ValueType> &&
+                              ((!std::is_same_v<std::decay_t<Value>, ffi::Any> &&
+                                !std::is_same_v<std::decay_t<Value>, ffi::AnyView>) ||
+                               std::is_same_v<ValueType, ffi::Any> ||
+                               std::is_same_v<ValueType, ffi::AnyView>)),
+                             int> = 0>
+  OpDef& set_attr(ffi::reflection::AttrKey<ValueType> key, Value&& value, bool override = false) {
+    ValueType typed_value(std::forward<Value>(value));
+    return set_attr(key.name, typed_value, override);
+  }
+  /*!
+   * \brief Register a native callback using the key's declared adapter.
+   * \tparam Fn The native callback.
+   * \param key Attribute column key.
+   * \param override Whether to replace an existing value.
+   * \return This builder.
+   */
+  template <auto Fn, typename ValueType>
+  OpDef& set_native_fn_attr(ffi::reflection::AttrKey<ValueType> key, bool override = false) {
+    return set_attr(key, ValueType::template FromNative<Fn>(), override);
+  }
+  /*!
    * \brief Register a validator that checks a Call with this operator.
    *
    * The callback accepts a `const CallNode*` and reports invalid input by
@@ -574,6 +605,11 @@ class OpDef {
    * \return This builder. Existing cached maps observe the removal.
    */
   TVM_TIRX_DLL OpDef& reset_attr(const ffi::String& attr_name);
+  /*! \brief Remove the value named by a typed key. Cached views observe the removal. */
+  template <typename ValueType>
+  OpDef& reset_attr(ffi::reflection::AttrKey<ValueType> key) {
+    return reset_attr(key.name);
+  }
 
  private:
   template <typename Spec>
@@ -702,10 +738,26 @@ OpAttrMap<ValueType> Op::GetAttrMap(const ffi::String& attr_name) {
   return OpAttrMap<ValueType>(GetAttrColumn(attr_name), attr_name);
 }
 
+template <typename ValueType>
+OpAttrMap<ValueType> Op::GetAttrMap(ffi::reflection::AttrKey<ValueType> key) {
+  return GetAttrMap<ValueType>(key.name);
+}
+
 namespace op_attr {
-inline constexpr const char* kInferType = "FInferType";
-inline constexpr const char* kFixedReturnType = "TFixedReturnType";
+/*! \brief Infer a Call's result type from its explicit inputs without builder state. */
+inline constexpr ffi::reflection::AttrKey<
+    ffi::reflection::NativeFunctionView<Type(const CallNode* call)>>
+    kInferType{"FInferType"};
+/*!
+ * \brief An operator's result type independent of operands, attributes, and type arguments.
+ * When present, this concrete type takes precedence over FInferType.
+ */
+inline constexpr ffi::reflection::AttrKey<Type> kFixedReturnType{"TFixedReturnType"};
 }  // namespace op_attr
+
+// Compatibility names; new callers can deduce the value type from the key.
+using FInferType = decltype(op_attr::kInferType)::ValueType;
+using TFixedReturnType = decltype(op_attr::kFixedReturnType)::ValueType;
 
 }  // namespace tvm
 #endif  // TVM_IR_OP_H_

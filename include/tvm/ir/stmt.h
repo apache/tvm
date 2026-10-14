@@ -234,21 +234,6 @@ class RegionStmt : public Stmt {
 };
 
 /*!
- * \brief Construct fresh typed variables for a region's lexical body parameters.
- *
- * The input carries only the operation, operands and attributes, without a body
- * or builder state. Parameters are ordered, distinct definitions and may have
- * name hints. Every region operation must register this hook, returning an empty
- * array when it has no body parameters. Presence of the attribute identifies
- * region support without invoking the hook or allocating variables.
- */
-using FRegionGetBodyParams =
-    ffi::reflection::NativeFunctionView<ffi::Array<Var>(const CallNode* call)>;
-
-/*! \brief Optional dialect validation of a complete region statement. */
-using FRegionValidate = ffi::reflection::NativeFunctionView<void(const RegionStmtNode*)>;
-
-/*!
  * \brief Assert condition, if an error occurs, return the error message.
  *
  * The error is described by:
@@ -499,7 +484,7 @@ class ForNode : public StmtNode {
   }
 
   /*! \brief Check it is a loop without nontrivial loop step. */
-  bool HasTrivialStep() const;
+  TVM_TIRX_DLL bool HasTrivialStep() const;
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.For", ForNode, StmtNode);
 };
@@ -673,9 +658,27 @@ inline const char* ForKind2String(ForKind t) {
 }
 
 namespace op_attr {
-inline constexpr const char* kRegionGetBodyParams = "FRegionGetBodyParams";
-inline constexpr const char* kRegionValidate = "FRegionValidate";
+/*!
+ * \brief Construct fresh typed variables for a region's lexical body parameters.
+ *
+ * The input carries only the operation, operands and attributes, without a body
+ * or builder state. Parameters are ordered, distinct definitions and may have
+ * name hints. Every region operation must register this hook, returning an empty
+ * array when it has no body parameters. Presence of the attribute identifies
+ * region support without invoking the hook or allocating variables.
+ */
+inline constexpr ffi::reflection::AttrKey<
+    ffi::reflection::NativeFunctionView<ffi::Array<Var>(const CallNode* call)>>
+    kRegionGetBodyParams{"FRegionGetBodyParams"};
+/*! \brief Optional dialect validation of a complete region statement. */
+inline constexpr ffi::reflection::AttrKey<
+    ffi::reflection::NativeFunctionView<void(const RegionStmtNode*)>>
+    kRegionValidate{"FRegionValidate"};
 }  // namespace op_attr
+
+// Compatibility names; new callers can deduce the value type from the key.
+using FRegionGetBodyParams = decltype(op_attr::kRegionGetBodyParams)::ValueType;
+using FRegionValidate = decltype(op_attr::kRegionValidate)::ValueType;
 
 namespace type_attr {
 inline constexpr const char* kEvaluateValidate = "__tvm_evaluate_validate__";

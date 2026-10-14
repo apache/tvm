@@ -246,7 +246,7 @@ class TensorMemoryPool : public ffi::Object {
     auto it = memory_pool_.find(size);
     if (it != memory_pool_.end()) {
       auto& pool = it->second;
-      bool addressable = DeviceAPI::Get(device)->SupportsDevicePointerArithmeticsOnHost();
+      bool addressable = DeviceAPI::Get(device)->SupportsDevicePtrArithmeticOnHost();
       auto candidate = std::find_if(pool.begin(), pool.end(), [&](const ffi::Tensor& tensor) {
         return tensor.device().device_type == device.device_type &&
                tensor.device().device_id == device.device_id &&

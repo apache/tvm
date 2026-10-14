@@ -167,9 +167,9 @@ def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
             for t in T.parallel(tx, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("copy"):
                     Ts.where(b * tx + t < copy_length * num_heads * head_dim)
-                    vh = Ts.axis.spatial(num_heads, T.Cast("int32", (b * tx + t) // (copy_length * head_dim)))
+                    vh = Ts.axis.spatial(num_heads, T.Cast((b * tx + t) // (copy_length * head_dim), "int32"))
                     vp = Ts.axis.spatial(copy_length, (b * tx + t) % (copy_length * head_dim) // head_dim)
-                    vd = Ts.axis.spatial(head_dim, T.Cast("int32", (b * tx + t) % head_dim))
+                    vd = Ts.axis.spatial(head_dim, T.Cast((b * tx + t) % head_dim, "int32"))
                     pages[tgt_page_id, 0, vh, vp, vd] = pages[src_page_id, 0, vh, vp, vd]
                     pages[tgt_page_id, 1, vh, vp, vd] = pages[src_page_id, 1, vh, vp, vd]
 
@@ -189,7 +189,7 @@ def _copy_single_page_mla(page_size, head_dim, dtype, target: Target):
                 with Ts.sblock("copy"):
                     Ts.where(b * tx + t < copy_length * head_dim)
                     vp = Ts.axis.spatial(copy_length, (b * tx + t) // head_dim)
-                    vd = Ts.axis.spatial(head_dim, T.Cast("int32", (b * tx + t) % head_dim))
+                    vd = Ts.axis.spatial(head_dim, T.Cast((b * tx + t) % head_dim, "int32"))
                     pages[tgt_page_id, vp, vd] = pages[src_page_id, vp, vd]
 
     return copy_single_page_mla
@@ -206,9 +206,9 @@ def _copy_single_page_cpu(num_heads, page_size, head_dim, dtype):
             for t in T.serial(tx):
                 with Ts.sblock("copy"):
                     Ts.where(b * tx + t < copy_length * num_heads * head_dim)
-                    vh = Ts.axis.spatial(num_heads, T.Cast("int32", (b * tx + t) // (copy_length * head_dim)))
+                    vh = Ts.axis.spatial(num_heads, T.Cast((b * tx + t) // (copy_length * head_dim), "int32"))
                     vp = Ts.axis.spatial(copy_length, (b * tx + t) % (copy_length * head_dim) // head_dim)
-                    vd = Ts.axis.spatial(head_dim, T.Cast("int32", (b * tx + t) % head_dim))
+                    vd = Ts.axis.spatial(head_dim, T.Cast((b * tx + t) % head_dim, "int32"))
                     pages[tgt_page_id, 0, vh, vp, vd] = pages[src_page_id, 0, vh, vp, vd]
                     pages[tgt_page_id, 1, vh, vp, vd] = pages[src_page_id, 1, vh, vp, vd]
 

@@ -292,10 +292,9 @@ class Module(_Module):
                 path_obj = os.path.join(
                     workspace_dir, f"{pack_lib_prefix}devc.{global_object_format}"
                 )
-                m = _ffi_api.ModulePackImportsToLLVM(
-                    self, is_system_lib, llvm_target, pack_lib_prefix
+                _ffi_api.ModulePackImportsToObjectFile(
+                    self, is_system_lib, llvm_target, path_obj, pack_lib_prefix
                 )
-                m.write_to_file(path_obj)
                 files.append(path_obj)
             else:
                 path_cc = os.path.join(workspace_dir, f"{pack_lib_prefix}devc.c")

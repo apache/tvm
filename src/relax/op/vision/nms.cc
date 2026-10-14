@@ -163,9 +163,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("iou_threshold", "The IoU threshold for box the overlap test."),
           sig::arg("score_threshold", "The score threshold to filter out low score boxes early."),
           sig::call_attrs<AllClassNonMaximumSuppressionAttrs>())
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeAllClassNMS>())
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeAllClassNMS>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.vision.get_valid_counts */
@@ -241,9 +240,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.vision.get_valid_counts")
       .signature(sig::arg("data", "Input data, 3-D tensor [batch_size, num_anchors, elem_length]."),
                  sig::call_attrs<GetValidCountsAttrs>())
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeGetValidCounts>())
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeGetValidCounts>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.vision.non_max_suppression */
@@ -415,8 +413,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("valid_count", "1-D tensor for valid number of boxes."),
                  sig::arg("indices", "2-D tensor with shape [batch_size, num_anchors]."),
                  sig::call_attrs<NonMaximumSuppressionAttrs>())
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeNMS)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeNMS)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

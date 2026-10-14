@@ -68,7 +68,7 @@ bool IsVScaleCall(const PrimExpr& expr) {
 
 bool TargetHasRVV(ffi::Optional<Target> target) {
   if (!target.has_value()) return false;
-  static auto target_has_feature_fn = tvm::ffi::Function::GetGlobal("target.target_has_feature");
+  static auto target_has_feature_fn = tvm::ffi::Function::GetGlobal("codegen.target_has_feature");
   return target_has_feature_fn.has_value() && (*target_has_feature_fn)("v", target).cast<bool>();
 }
 
@@ -718,12 +718,11 @@ class Vectorizer : public StmtExprMutator {
       return ffi::Unchanged();
     } else {
       if (value.ty().IsScalableVector()) {
-        return prim::Cast(PrimType::ScalableVector(op->ty.as_or_throw<PrimType>().code(),
-                                                   op->ty.as_or_throw<PrimType>().bits(),
-                                                   value.ty().VScaleFactor()),
-                          value);
+        return prim::Cast(value, PrimType::ScalableVector(op->ty.as_or_throw<PrimType>().code(),
+                                                          op->ty.as_or_throw<PrimType>().bits(),
+                                                          value.ty().VScaleFactor()));
       } else {
-        return prim::Cast(op->ty.as_or_throw<PrimType>().WithLanes(value.ty().lanes()), value);
+        return prim::Cast(value, op->ty.as_or_throw<PrimType>().WithLanes(value.ty().lanes()));
       }
     }
   }
@@ -1191,8 +1190,8 @@ class Vectorizer : public StmtExprMutator {
   // flag to mark requirment of scalarization.
   bool need_scalarize_{false};
   // vectorizable property
-  OpAttrMap<TVectorizable> op_vectorizable_ =
-      Op::GetAttrMap<TVectorizable>(tvm::tirx::op_attr::kVectorizable);
+  decltype(Op::GetAttrMap(tvm::tirx::op_attr::kVectorizable)) op_vectorizable_ =
+      Op::GetAttrMap(tvm::tirx::op_attr::kVectorizable);
   /*! \brief The current target context. */
   ffi::Optional<Target> target_;
 
@@ -1401,7 +1400,7 @@ class LoopVectorizer : public StmtExprMutator {
     PrimType lane_dtype = scalable_lanes.ty();
     PrimExpr scalable_lanes_index = scalable_lanes;
     if (scalable_lanes_index.ty() != index_dtype) {
-      scalable_lanes_index = prim::Cast(index_dtype, scalable_lanes_index);
+      scalable_lanes_index = prim::Cast(scalable_lanes_index, index_dtype);
     }
     PrimExpr num_chunks = ceildiv(fixed_extent, scalable_lanes_index);
 
@@ -1409,7 +1408,7 @@ class LoopVectorizer : public StmtExprMutator {
     PrimVar inner(op->loop_var->name + ".vla.i", lane_dtype);
     PrimExpr inner_index = inner;
     if (inner_index.ty() != index_dtype) {
-      inner_index = prim::Cast(index_dtype, inner_index);
+      inner_index = prim::Cast(inner_index, index_dtype);
     }
     PrimExpr index = outer * scalable_lanes_index + inner_index;
     auto substituter = ffi::make_object<StmtExprMutator>();

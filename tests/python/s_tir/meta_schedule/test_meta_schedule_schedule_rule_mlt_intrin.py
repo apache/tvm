@@ -107,7 +107,7 @@ def test_x86_conv2d_nchwc(
                             Ts.reads(conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i], placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner_i], placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block_i, ic_s_inner_i])
                             Ts.writes(conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i])
                             Ts.sblock_attr({"meta_schedule.tiling_structure": "SSRSRS"})
-                            conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i] = conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i] + T.Cast("int32", placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner_i]) * T.Cast("int32", placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block_i, ic_s_inner_i])
+                            conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i] = conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i] + T.Cast(placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner_i], "int32") * T.Cast(placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block_i, ic_s_inner_i], "int32")
             for ax0, ax1, ax2, ax3, ax4 in T.grid(1, 1, 2, 1, 16):
                 with Ts.sblock("conv2d_NCHWc_int8_global"):
                     v0 = Ts.axis.spatial(1, ax0)
@@ -153,7 +153,7 @@ def test_x86_conv2d_nchwc(
                             Ts.reads(conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i], placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner_i], placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block_i, ic_s_inner_i])
                             Ts.writes(conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i])
                             Ts.sblock_attr({"meta_schedule.tiling_structure": "SSRSRS"})
-                            conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i] = conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i] + T.Cast("int32", placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner_i]) * T.Cast("int32", placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block_i, ic_s_inner_i])
+                            conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i] = conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i] + T.Cast(placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner_i], "int32") * T.Cast(placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block_i, ic_s_inner_i], "int32")
             for ax0, ax1, ax2, ax3, ax4 in T.grid(1, 2, 2, 1, 16):
                 with Ts.sblock("conv2d_NCHWc_int8_global"):
                     v0 = Ts.axis.spatial(1, ax0)
@@ -197,7 +197,7 @@ def test_x86_conv2d_nchwc(
                         Ts.reads(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i], placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner_i], placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block_i, ic_s_inner_i])
                         Ts.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i])
                         Ts.sblock_attr({"meta_schedule.tiling_structure": "SSRSRS"})
-                        conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i] = conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i] + T.Cast("int32", placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner_i]) * T.Cast("int32", placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block_i, ic_s_inner_i])
+                        conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i] = conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i] + T.Cast(placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner_i], "int32") * T.Cast(placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block_i, ic_s_inner_i], "int32")
     # fmt: on
     decision_0 = [
         ("SamplePerfectTile", [1, 1, 1, 1]),
@@ -366,8 +366,8 @@ def test_dp4a_dense():
                                             {"meta_schedule.tiling_structure": "SSSRRSRS"}
                                         )
                                         compute_local[v_i, v_j] = compute_local[v_i, v_j] + T.Cast(
-                                            "int32", X_shared[v_i, v_k_o * 4 + v_k_i]
-                                        ) * T.Cast("int32", W_shared[v_j, v_k_o * 4 + v_k_i])
+                                            X_shared[v_i, v_k_o * 4 + v_k_i], "int32"
+                                        ) * T.Cast(W_shared[v_j, v_k_o * 4 + v_k_i], "int32")
                     for ax0, ax1 in T.grid(4, 4):
                         with Ts.sblock("compute_local"):
                             v0 = Ts.axis.spatial(

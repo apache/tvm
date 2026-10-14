@@ -800,7 +800,7 @@ def test_call_tir_with_interspersed_primitive_argument():
             B: T.Tensor([T.int64(16)], "float16"),
         ):
             for i in range(T.int64(16)):
-                B[i] = A[i] + T.Cast("float16", scale) * C[i]
+                B[i] = A[i] + T.Cast(scale, "float16") * C[i]
 
     rx.analysis.well_formed(Module)
 
@@ -822,7 +822,7 @@ def test_call_tir_with_incorrect_primitive_argument_dtype():
             B: T.Tensor([T.int64(16)], "float16"),
         ):
             for i in range(T.int64(16)):
-                B[i] = A[i] * T.Cast("float16", scale)
+                B[i] = A[i] * T.Cast(scale, "float16")
 
     assert not rx.analysis.check_well_formed(Module)
     with pytest.raises(ValueError, match="Argument 1 type mismatch"):
@@ -845,7 +845,7 @@ def test_call_tir_shape_expr_is_not_a_primitive_argument():
 
         @Ts.function
         def make_tensor(m: T.int64, n: T.int64, B: T.Tensor([T.int64(1)], "float32")):
-            B[0] = T.Cast("float32", m + n)
+            B[0] = T.Cast(m + n, "float32")
 
     assert not rx.analysis.check_well_formed(Module)
 

@@ -23,7 +23,7 @@ _METAL_HOST_TRIPLE = "arm64-apple-macos"
 
 def _register_metal_tag(name, max_threads, shared_mem, warp_size, mcpu):
     try:
-        from tvm.target.codegen import llvm_is_valid_cpu
+        from tvm.codegen import llvm_is_valid_cpu
 
         if not llvm_is_valid_cpu(mcpu, _METAL_HOST_TRIPLE):
             return

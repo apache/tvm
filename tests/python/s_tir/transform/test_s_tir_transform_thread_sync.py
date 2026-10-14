@@ -158,7 +158,7 @@ def test_sync_shared_aliasing_tensor_views():
             shared_storage.data, ty_args=[T.Tensor((16,), "float32", scope="shared")]
         )
         for i in range(2):
-            shared_half[threadIdx_x] = T.Cast("float16", A[i * 32 + threadIdx_x])
+            shared_half[threadIdx_x] = T.Cast(A[i * 32 + threadIdx_x], "float16")
             T.gpu_storage_sync("shared")
             local[0] = shared_float[threadIdx_x % 16]
             A[i * 32 + threadIdx_x] = local[0]

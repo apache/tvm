@@ -107,8 +107,8 @@ class IndexMapNode : public ffi::Object {
    * \returns The indices in the output space.  Contains one value for
    * each expression in `final_indices`.
    */
-  ffi::Array<PrimExpr> MapIndices(const ffi::Array<PrimExpr>& indices,
-                                  const sym::Analyzer& analyzer) const;
+  TVM_TIRX_DLL ffi::Array<PrimExpr> MapIndices(const ffi::Array<PrimExpr>& indices,
+                                               const sym::Analyzer& analyzer) const;
 
   /*! \brief Map a memory range to the output space using a fresh analyzer.
    *
@@ -154,8 +154,8 @@ class IndexMapNode : public ffi::Object {
    * \returns The tensor shape in the output space.  Contains one
    * value for each expression in `final_indices`.
    */
-  ffi::Array<PrimExpr> MapShape(const ffi::Array<PrimExpr>& shape,
-                                const sym::Analyzer& analyzer) const;
+  TVM_TIRX_DLL ffi::Array<PrimExpr> MapShape(const ffi::Array<PrimExpr>& shape,
+                                             const sym::Analyzer& analyzer) const;
 
   /* \brief Map an Tensor according to this index map
    *
@@ -170,7 +170,7 @@ class IndexMapNode : public ffi::Object {
    * \param f_name_map Optional function to specify the stringified name of the variables.
    * \return The stringified lambda expression in Python.
    */
-  ffi::String ToPythonString(
+  TVM_TIRX_DLL ffi::String ToPythonString(
       const std::function<ffi::Optional<ffi::String>(const Var& var)>& f_name_map = nullptr) const;
 
   static void RegisterReflection() {
@@ -195,8 +195,8 @@ class IndexMap : public ffi::ObjectRef {
    * \param final_indices Expressions defining the indices after remapping.
    * \param inverse_index_map The optional pre-defined inverse index map
    */
-  IndexMap(ffi::Array<PrimVar> initial_indices, ffi::Array<PrimExpr> final_indices,
-           ffi::Optional<IndexMap> inverse_index_map = std::nullopt);
+  TVM_TIRX_DLL IndexMap(ffi::Array<PrimVar> initial_indices, ffi::Array<PrimExpr> final_indices,
+                        ffi::Optional<IndexMap> inverse_index_map = std::nullopt);
 
   /*!
    * \brief Create an index map from a packed function
@@ -205,8 +205,9 @@ class IndexMap : public ffi::ObjectRef {
    * \param inverse_index_map The optional pre-defined inverse index map
    * \return The created index map
    */
-  static IndexMap FromFunc(int ndim, ffi::TypedFunction<ffi::Array<PrimExpr>(ffi::Array<Var>)> func,
-                           ffi::Optional<IndexMap> inverse_index_map = std::nullopt);
+  TVM_TIRX_DLL static IndexMap FromFunc(
+      int ndim, ffi::TypedFunction<ffi::Array<PrimExpr>(ffi::Array<Var>)> func,
+      ffi::Optional<IndexMap> inverse_index_map = std::nullopt);
 
   /*! \brief Generate the inverse mapping using a fresh analyzer.
    *
@@ -229,7 +230,8 @@ class IndexMap : public ffi::ObjectRef {
    * \param analyzer An analyzer to be used while deriving and validating
    * the inverse.
    */
-  IndexMap Inverse(ffi::Array<Range> initial_ranges, const sym::Analyzer& analyzer) const;
+  TVM_TIRX_DLL IndexMap Inverse(ffi::Array<Range> initial_ranges,
+                                const sym::Analyzer& analyzer) const;
 
   /*! \brief Rename the variables in the index map and ensure the names are unique.
    *
@@ -239,7 +241,7 @@ class IndexMap : public ffi::ObjectRef {
    * \param f_name_map The optional name map to rename the variables.
    * \return The renamed index map.
    */
-  IndexMap RenameVariables(
+  TVM_TIRX_DLL IndexMap RenameVariables(
       const std::function<ffi::Optional<ffi::String>(const Var& var)>& f_name_map = nullptr) const;
 
   /*! \brief Generate the inverse mapping using a fresh analyzer.
@@ -265,8 +267,8 @@ class IndexMap : public ffi::ObjectRef {
    * \return The inverted index map, along with the predicate for
    * which the inverse maps to a valid range.
    */
-  std::pair<IndexMap, PrimExpr> NonSurjectiveInverse(ffi::Array<Range> initial_ranges,
-                                                     const sym::Analyzer& analyzer) const;
+  TVM_TIRX_DLL std::pair<IndexMap, PrimExpr> NonSurjectiveInverse(
+      ffi::Array<Range> initial_ranges, const sym::Analyzer& analyzer) const;
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IndexMap, ffi::ObjectRef, IndexMapNode);
 };

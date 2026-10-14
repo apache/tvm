@@ -24,7 +24,7 @@ Function Dispatch(const Call& call, const DispatchContext& context) {
   Op op = call->op.as_or_throw<Op>();
   TVM_FFI_CHECK(Op::HasAttrMap(op_attr::kTileOpDispatch), ValueError)
       << "No FTileOpDispatch registered for " << op->name;
-  static const auto& dispatchers = Op::GetAttrMap<FTileOpDispatch>(op_attr::kTileOpDispatch);
+  static const auto& dispatchers = Op::GetAttrMap(op_attr::kTileOpDispatch);
   TVM_FFI_CHECK(dispatchers.count(op), ValueError)
       << "No FTileOpDispatch registered for " << op->name;
   Function implementation = dispatchers[op](call, context);

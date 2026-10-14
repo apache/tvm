@@ -234,7 +234,7 @@ class SourceMapObj : public ffi::Object {
 
 class SourceMap : public ffi::ObjectRef {
  public:
-  explicit SourceMap(ffi::Map<SourceName, Source> source_map);
+  TVM_TIRX_DLL explicit SourceMap(ffi::Map<SourceName, Source> source_map);
 
   explicit SourceMap(std::initializer_list<std::pair<SourceName, Source>> source_map)
       : SourceMap(ffi::Map<SourceName, Source>(source_map)) {}

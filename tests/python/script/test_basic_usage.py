@@ -409,7 +409,7 @@ def test_comparisons_use_native_promotion_and_broadcast(primitive_language):
     def main():
         x < y
 
-    expected = prim.LT(prim.Broadcast(prim.Cast("int64", x), 4), y)
+    expected = prim.LT(prim.Broadcast(prim.Cast(x, "int64"), 4), y)
     ir.assert_structural_equal(main.body[0][1], expected)
 
 
@@ -471,7 +471,7 @@ def test_host_equality_result_is_not_arbitrarily_converted(primitive_language):
     M = primitive_language.M
 
     class CustomEquality(EqualOp):
-        def asobject(self):
+        def __tvm_ffi_object__(self):
             raise AssertionError("custom equality subclasses are host values")
 
     result = CustomEquality(ir.Var("x", "int32"), 0)

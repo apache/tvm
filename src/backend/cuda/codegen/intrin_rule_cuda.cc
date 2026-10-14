@@ -22,14 +22,13 @@
  * \brief CUDA intrinsic rules.
  */
 #include <tvm/backend/cuda/op_attr_types.h>
+#include <tvm/codegen/intrin_rule.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op_attr_types.h>
-
-#include "../../../target/intrin_rule.h"
 
 namespace tvm {
 namespace codegen {
@@ -288,46 +287,46 @@ void RegisterCudaIntrinRules() {
           sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("lane", "The source thread id."),
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<1>>())
-      .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_sync")
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
-      .set_attr<bool>(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<1>>( tvm::op_attr::kInferType)
+      .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_sync")
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
 
   OpDef("tirx.cuda.__shfl_up_sync")
       .signature(sig::arg<IntExpr>("mask", "The thread mask."),
           sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("delta", "The source lane id offset to be added."),
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<1>>())
-      .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_up_sync")
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
-      .set_attr<bool>(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<1>>( tvm::op_attr::kInferType)
+      .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_up_sync")
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
 
   OpDef("tirx.cuda.__shfl_down_sync")
       .signature(sig::arg<IntExpr>("mask", "The thread mask."),
           sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("delta", "The source lane id offset to be subtracted."),
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<1>>())
-      .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_down_sync")
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
-      .set_attr<bool>(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<1>>( tvm::op_attr::kInferType)
+      .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_down_sync")
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
 
   OpDef("tirx.cuda.__shfl_xor_sync")
       .signature(sig::arg<IntExpr>("mask", "The thread mask."),
           sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("lane_mask", "The lane mask."),
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<1>>())
-      .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_xor_sync")
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
-      .set_attr<bool>(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<1>>( tvm::op_attr::kInferType)
+      .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_xor_sync")
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
 
   OpDef("tirx.cuda.__activemask")
-      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::UInt(32))
-      .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "__activemask")
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
+      .set_attr(tvm::op_attr::kFixedReturnType, PrimType::UInt(32))
+      .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "__activemask")
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
   // clang-format on
 }
 

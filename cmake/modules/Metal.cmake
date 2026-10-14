@@ -29,7 +29,7 @@ if(USE_METAL)
   endif()
   add_library(tvm_runtime_metal SHARED $<TARGET_OBJECTS:tvm_runtime_metal_objs>)
   list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_metal)
-  target_link_libraries(tvm_runtime_metal PUBLIC tvm_runtime ${METAL_LIB} ${FOUNDATION_LIB})
+  target_link_libraries(tvm_runtime_metal PUBLIC tvm_runtime PRIVATE ${METAL_LIB} ${FOUNDATION_LIB})
   tvm_configure_target_library(tvm_runtime_metal RUNTIME_MODULE)
 endif(USE_METAL)
 # When USE_METAL=OFF the codegen-side fallback in

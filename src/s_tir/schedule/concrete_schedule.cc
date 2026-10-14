@@ -512,7 +512,7 @@ ffi::Array<LoopRV> ConcreteScheduleObj::Split(const LoopRV& loop_rv,
                                                         i);
       }
       if (factor.ty().bits() > loop->extent.ty().bits()) {
-        factor = cast(loop->extent.ty(), factor);
+        factor = cast(factor, loop->extent.ty());
       }
       factors.push_back(factor);
       tot_length *= factor;
@@ -580,7 +580,7 @@ ffi::Array<LoopRV> ConcreteScheduleObj::LoopPartition(
                                                         i);
       }
       if (factor.ty().bits() > loop->extent.ty().bits()) {
-        factor = cast(loop->extent.ty(), factor);
+        factor = cast(factor, loop->extent.ty());
       }
       factors.push_back(factor);
       tot_length += factor;

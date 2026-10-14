@@ -25,17 +25,17 @@
 #define TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
 
 #include <tvm/backend/cuda/op_attr_types.h>
+#include <tvm/codegen/codegen.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/memory_scope.h>
-#include <tvm/target/codegen.h>
 
 #include <array>
 #include <optional>
 #include <string>
 #include <unordered_map>
 
-#include "../../../target/source/codegen_c.h"
+#include "../../../codegen/c/codegen_c.h"
 
 namespace tvm {
 namespace codegen {
@@ -130,8 +130,8 @@ class CodeGenCUDA final : public CodeGenC {
   std::unordered_set<std::string> codegen_tags_;
 
   // Op attribute map
-  OpAttrMap<bool> op_need_warp_shuffle_ =
-      Op::GetAttrMap<bool>(tvm::backend::cuda::op_attr::kNeedWarpShuffle);
+  decltype(Op::GetAttrMap(tvm::backend::cuda::op_attr::kNeedWarpShuffle)) op_need_warp_shuffle_ =
+      Op::GetAttrMap(tvm::backend::cuda::op_attr::kNeedWarpShuffle);
 
   // The name of the barrier array in shared memory
   const std::string barrier_name_ = "barrier";

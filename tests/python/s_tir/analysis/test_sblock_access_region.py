@@ -470,7 +470,7 @@ def test_conditional_inequality_access_regions(case):
     tirx = tvm.tirx
     x, y, z = [tirx.Var(name, "int32") for name in ("x", "y", "z")]
     free_var = tirx.Var("free_var", "int32")
-    unbounded_extent = tirx.Cast("int32", 1 + tirx.log(free_var))
+    unbounded_extent = tirx.Cast(1 + tirx.log(free_var), "int32")
     cases = {
         "coupled": (
             [x, y],

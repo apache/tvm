@@ -727,12 +727,13 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
   std::unordered_set<DataflowVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> dataflow_var_set_;
   std::unordered_map<Var, const FunctionNode*> param_var_func_map_;
 
-  tvm::OpAttrMap<FNormalize> op_map_normalize_ =
-      Op::GetAttrMap<FNormalize>(tvm::relax::op_attr::kNormalize);
-  tvm::OpAttrMap<FInferType> op_map_infer_type_ =
-      Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
-  tvm::OpAttrMap<FInferTypeWithBuilder> op_map_infer_type_with_builder_ =
-      Op::GetAttrMap<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder);
+  decltype(Op::GetAttrMap(tvm::relax::op_attr::kNormalize)) op_map_normalize_ =
+      Op::GetAttrMap(tvm::relax::op_attr::kNormalize);
+  decltype(Op::GetAttrMap(tvm::op_attr::kInferType)) op_map_infer_type_ =
+      Op::GetAttrMap(tvm::op_attr::kInferType);
+  decltype(Op::GetAttrMap(
+      tvm::relax::op_attr::kInferTypeWithBuilder)) op_map_infer_type_with_builder_ =
+      Op::GetAttrMap(tvm::relax::op_attr::kInferTypeWithBuilder);
 };
 
 void WellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty) {

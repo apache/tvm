@@ -62,7 +62,7 @@ def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
         ndim: T.let[T.int32] = T.abi_field_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorNDim), ty="int32"
         )
-        assert axis < T.Cast("int64", ndim), (
+        assert axis < T.Cast(ndim, "int64"), (
             "Specified axis may not be larger than the tensor's dimensionality"
         )
         stride_ptr: T.let[T.handle("int64")] = T.abi_field_get(

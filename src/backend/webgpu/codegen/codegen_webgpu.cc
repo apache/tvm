@@ -47,9 +47,9 @@
 #include <utility>
 #include <vector>
 
+#include "../../../codegen/build_common.h"
 #include "../../../runtime/metadata.h"
 #include "../../../sym/pattern_match.h"
-#include "../../../target/build_common.h"
 #include "webgpu_fallback_module.h"
 
 namespace tvm {
@@ -484,7 +484,7 @@ void CodeGenWebGPU::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {
 }
 
 PrimExpr CodeGenWebGPU::EnforceU32(PrimExpr value) {
-  return cast(PrimType::UInt(32, value.ty().lanes()), value);
+  return cast(value, PrimType::UInt(32, value.ty().lanes()));
 }
 
 void CodeGenWebGPU::Dispatch_(const prim::LShiftNode* op, std::ostream& os) {  // NOLINT(*)

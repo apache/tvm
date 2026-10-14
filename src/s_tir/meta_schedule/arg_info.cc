@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/function.h>
@@ -127,7 +128,7 @@ TensorInfo::TensorInfo(DLDataType dtype, ffi::Shape shape) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TensorInfoObj::RegisterReflection();
-  refl::TypeAttrDef<TensorInfoObj>().def(refl::type_attr::kRepr,
+  refl::TypeAttrDef<TensorInfoObj>().def(ffi::type_attr::kRepr.name,
                                          [](TensorInfo ti, ffi::Function fn_repr) -> ffi::String {
                                            std::ostringstream os;
                                            os << "TensorInfo(\"" << ti->dtype << "\", [";

@@ -374,7 +374,7 @@ class LambdaLifter : public ExprMutator {
         Call orig_call = bound_value.value().as_or_throw<Call>();
         bool is_pure = [&]() -> bool {
           if (auto op = orig_call->op.as<Op>()) {
-            static const auto& purity_map = Op::GetAttrMap<bool>(tvm::relax::op_attr::kPurity);
+            static const auto& purity_map = Op::GetAttrMap(tvm::relax::op_attr::kPurity);
             return purity_map.get(op.value(), false);
           } else if (const auto* func_ty = orig_call->op->ty.as<FuncTypeNode>()) {
             return func_ty->purity;

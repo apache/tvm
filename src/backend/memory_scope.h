@@ -35,7 +35,7 @@ inline void RegisterBackendMemoryScope(
     const char* name, runtime::MemoryAllocProperty property,
     std::initializer_list<std::pair<const char*, ffi::Any>> attributes = {}) {
   runtime::MemoryScope::Global();
-  static ffi::reflection::TypeAttrColumn state_column(ffi::reflection::type_attr::kEnumState);
+  static ffi::reflection::TypeAttrColumn state_column(ffi::type_attr::kEnumState);
   ffi::AnyView state_value = state_column[runtime::MemoryScopeObj::_GetOrAllocRuntimeTypeIndex()];
   TVM_FFI_CHECK(state_value.type_index() == ffi::EnumStateObj::_GetOrAllocRuntimeTypeIndex(),
                 TypeError)

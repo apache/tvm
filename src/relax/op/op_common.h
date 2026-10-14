@@ -549,7 +549,7 @@ bool IsIdentityPermutation(const std::vector<int>& permutation);
  */
 inline ffi::Array<IntImm> ConvertIntImmToInt64(const ffi::Array<IntImm>& int_imms) {
   return int_imms.Map(
-      [](const IntImm& i) { return cast(PrimType::Int(64), i).as_or_throw<IntImm>(); });
+      [](const IntImm& i) { return cast(i, PrimType::Int(64)).as_or_throw<IntImm>(); });
 }
 
 /************ Utilities for NN operators ************/

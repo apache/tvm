@@ -30,7 +30,7 @@ from tvm.ir import Range, TensorRegion, Type
 from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.type import _init_type_api, _normalize_type
 from tvm.runtime import MemoryScope
-from tvm.script.ir_builder.base import MISSING
+from tvm.script.ir_builder.base import MISSING, AlreadyEmitted, IRBuilder
 from tvm.script.ir_builder.ir import Lambda, meta_var
 from tvm.script.parser.protocol_registry import (
     register_mutable_decl as _register_mutable_decl,
@@ -411,10 +411,60 @@ def shared_scalar(
 
 @_register_mutable_decl("tirx.local_scalar")
 def local_scalar(
-    dtype: str = "float32", *, annotations: dict[str, Any] | None = None
+    dtype: str = "float32",
+    init: Any = None,
+    *,
+    name: str | None = None,
+    annotations: dict[str, Any] | None = None,
 ) -> _ir.TensorLoad:
-    """Allocate a zero-dimensional tensor in local memory."""
-    return alloc_scalar(dtype=dtype, scope="local", annotations=annotations)
+    """Allocate scalar local storage, optionally naming and initializing it.
+
+    Parameters
+    ----------
+    dtype : str
+        The scalar data type.
+    init : Any
+        Initial value. None leaves the storage uninitialized; otherwise one
+        tensor store is emitted immediately after the allocation.
+    name : str | None
+        Optional name for the allocated tensor variable, set in place.
+    annotations : dict[str, Any] | None
+        Annotations passed through to the allocation.
+
+    Returns
+    -------
+    scalar : TensorLoad
+        A load from index zero of the one-element local tensor, with no layout.
+    """
+    scalar = alloc_scalar(dtype=dtype, scope="local", annotations=annotations)
+    if name is not None:
+        IRBuilder.name(name, scalar.source)
+    if init is not None:
+        assign(scalar, init)
+    return scalar
+
+
+def assign(dst: _ir.TensorLoad | _ir.Var, value: Any) -> AlreadyEmitted[_ir.Stmt]:
+    """Store a value into scalar storage and return its emission receipt.
+
+    Parameters
+    ----------
+    dst : TensorLoad | Var
+        A tensor load identifying the destination tensor and indices, or a
+        tensor variable with constant shape (1,). Immutable scalar variables
+        and whole multi-element tensors are not assignment destinations.
+    value : Any
+        The scalar value to store, converted by the ordinary tensor-store API.
+
+    Returns
+    -------
+    result : AlreadyEmitted[Stmt]
+        Receipt for the exact emitted store. Parser consumption does not emit
+        it again. Active builder source locations are preserved.
+    """
+    from .parser_protocol import set_mutable_cell_  # pylint: disable=import-outside-toplevel
+
+    return set_mutable_cell_(dst, value)
 
 
 def _is_meta_class_instance(value: Any) -> bool:
@@ -1037,6 +1087,7 @@ __all__ = [
     "alloc_scalar",
     "alloc_shared",
     "alloc_tensor",
+    "assign",
     "bf16",
     "bfloat16",
     "boolean",

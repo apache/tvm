@@ -22,6 +22,7 @@
  * \brief Primitive operators and intrinsics.
  */
 #include <tvm/ffi/container/dict.h>
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -316,13 +317,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ArgumentInfoObj::RegisterReflection();
   OpNode::RegisterReflection();
   refl::TypeAttrDef<OpNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&OpVisit>())
-      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&OpMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&OpVisit>())
+      .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&OpMutate>())
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&OpMaybeInplaceMutate>())
-      .def(tvm::ffi::reflection::type_attr::kDataToJson,
-           [](const OpNode* node) { return node->name; })
-      .def(tvm::ffi::reflection::type_attr::kDataFromJson, &Op::Get);
+      .def(tvm::ffi::type_attr::kDataToJson.name, [](const OpNode* node) { return node->name; })
+      .def(tvm::ffi::type_attr::kDataFromJson.name, &Op::Get);
   // clang-format off
   refl::GlobalDef()
       .def("ir.GetOp", &Op::Get)

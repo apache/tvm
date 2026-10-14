@@ -1092,14 +1092,14 @@ class InstrumentOfficialKernel : public StmtExprMutator {
   PrimExpr Event(PrimExpr event_id) const {
     static const Op event_op = Op::Get("tirx.cuda.iket_official_event");
     return Call(PrimType::UInt(32), event_op,
-                {prim::cast(PrimType::UInt(32), event_id), StringImm(device_source_)});
+                {prim::cast(event_id, PrimType::UInt(32)), StringImm(device_source_)});
   }
 
   PrimExpr Event(PrimExpr event_id, PrimExpr payload) const {
     static const Op event_op = Op::Get("tirx.cuda.iket_official_event");
     return Call(
         PrimType::UInt(32), event_op,
-        {prim::cast(PrimType::UInt(32), event_id), StringImm(device_source_), std::move(payload)});
+        {prim::cast(event_id, PrimType::UInt(32)), StringImm(device_source_), std::move(payload)});
   }
 
   PrimExpr NormalizePayload(PrimExpr payload, PayloadType type) const {

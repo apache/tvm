@@ -8359,8 +8359,8 @@ def _build_tflite_rfft2d_function(input_shape, output_pair_shape):
                 imag_sum: T.float32 = T.float32(0)
                 input_base = v_b * height * width
                 for in_y, in_x in T.grid(height, width):
-                    phase_y = T.Cast("float32", v_oy) * T.Cast("float32", in_y) / T.float32(height)
-                    phase_x = T.Cast("float32", v_ox) * T.Cast("float32", in_x) / T.float32(width)
+                    phase_y = T.Cast(v_oy, "float32") * T.Cast(in_y, "float32") / T.float32(height)
+                    phase_x = T.Cast(v_ox, "float32") * T.Cast(in_x, "float32") / T.float32(width)
                     angle = neg_two_pi_const * (phase_y + phase_x)
                     value = data_flat[input_base + in_y * width + in_x]
                     real_sum = real_sum + value * T.cos(angle)
@@ -8608,10 +8608,10 @@ def _build_stablehlo_rng_bit_generator_function(algorithm, state_len, out_dtype,
     weyl_a, weyl_b = _STABLEHLO_RNG_PHILOX_WEYL_A, _STABLEHLO_RNG_PHILOX_WEYL_B
 
     def _u32(value):
-        return T.Cast("uint32", value)
+        return T.Cast(value, "uint32")
 
     def _u64(value):
-        return T.Cast("uint64", value)
+        return T.Cast(value, "uint64")
 
     def _store_value(words, write_index):
         # Pack the generated uint32 words into one output element, reinterpreting

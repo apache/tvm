@@ -54,7 +54,7 @@ using ir::WhileFrameObj;
  *
  * \sa FunctionFrame
  */
-class FunctionFrameObj : public ir::StmtFrameObj {
+class TVM_TIRX_DLL FunctionFrameObj : public ir::StmtFrameObj {
  public:
   /*! \brief The name of the block. */
   ffi::Optional<ffi::String> name;

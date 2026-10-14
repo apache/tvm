@@ -508,12 +508,11 @@ class CollectProducerScopeInfo : public ExprVisitor {
     } else {
       auto* op_ptr = call->op.as<OpNode>();
       Op op = ffi::GetRef<Op>(op_ptr);
-      static auto op_map_context_free = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
+      static auto op_map_context_free = Op::GetAttrMap(tvm::op_attr::kInferType);
       if (op_map_context_free.count(op)) {
         out_ty = Call::ReinferType(call);
       } else {
-        static auto op_map_infer_ty =
-            Op::GetAttrMap<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder);
+        static auto op_map_infer_ty = Op::GetAttrMap(tvm::relax::op_attr::kInferTypeWithBuilder);
         TVM_FFI_ICHECK(op_map_infer_ty.count(op))
             << " Cannot find a type inference attribute registered to op: " << op->name;
         out_ty = op_map_infer_ty[op](ffi::GetRef<Call>(call), builder_);

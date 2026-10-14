@@ -33,7 +33,7 @@
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/memory.h>
 
-#include "../../../texture_utils.h"
+#include "texture_utils.h"
 
 namespace tvm {
 namespace s_tir {

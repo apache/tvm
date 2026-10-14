@@ -26,18 +26,16 @@
 
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/container/shape.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/support/cuda/nvtx.h>
 
 #include <algorithm>
+#include <cstring>
 #include <limits>
 #include <utility>
 #include <vector>
-
-#if defined(OPENCL_ENABLE_HOST_PTR)
-#include "../../backend/opencl/runtime/opencl_common.h"
-#endif
 
 namespace tvm {
 namespace runtime {
@@ -761,22 +759,6 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
       return;
     }
     DLTensor copy_dst = *array.GetDLTensorPtr();
-#if defined(OPENCL_ENABLE_HOST_PTR)
-    tvm::runtime::cl::OpenCLWorkspace* workspace = tvm::runtime::cl::OpenCLWorkspace::Global();
-    if (workspace->IsOpenCLDevice(copy_dst.device)) {
-      void* nptr = workspace->GetNativePtr(array);
-      uint64_t copy_size;
-      if (shape.has_value()) {
-        TVM_FFI_ICHECK_EQ(shape.value().size(), 1);
-        copy_size = shape.value()->data[0] * sizeof(int32_t);
-      } else {
-        copy_size = ffi::GetDataSize(*array.GetDLTensorPtr());
-      }
-      memcpy(static_cast<char*>(nptr) + dst_elem_offset * sizeof(int32_t), vec_data, copy_size);
-      return;
-    }
-#endif
-
     if (shape.has_value()) {
       TVM_FFI_ICHECK_EQ(shape.value().size(), 1);
       copy_dst.ndim = 1;
@@ -784,7 +766,14 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
       // The strides still describe the multi-row view this copies one row of.
       copy_dst.strides = nullptr;
     }
-    copy_dst.byte_offset = dst_elem_offset * sizeof(int32_t);
+    copy_dst.byte_offset += dst_elem_offset * sizeof(int32_t);
+
+    if (void* host_ptr =
+            DeviceAPI::Get(copy_dst.device)->GetMappedHostPtrIfAvailable(copy_dst.data)) {
+      std::memcpy(static_cast<char*>(host_ptr) + copy_dst.byte_offset, vec_data,
+                  ffi::GetDataSize(copy_dst));
+      return;
+    }
 
     DLTensor copy_src;
     copy_src.data = vec_data;

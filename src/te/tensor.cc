@@ -104,8 +104,7 @@ PrimVar var(std::string name_hint, PrimType t) { return PrimVar(name_hint, t); }
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("te.tensor_load")
       .signature(sig::arg("tensor", "The input tensor."), sig::var_args("args"))
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kReadState));
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kReadState));
 }
 
 // Tensor
@@ -178,9 +177,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TensorNode::RegisterReflection();
   refl::TypeAttrDef<TensorNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&TensorVisit>())
-      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&TensorMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&TensorVisit>())
+      .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&TensorMutate>())
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TensorMaybeInplaceMutate>());
 }
 

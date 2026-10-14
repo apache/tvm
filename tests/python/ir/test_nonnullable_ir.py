@@ -45,43 +45,17 @@ def test_optional_statement_fields_and_roundtrip():
     body = tvm.ir.Evaluate(0)
     conditional = tvm.ir.If(True, body, None)
     assert conditional.else_case is None
-    loop = tvm.ir.For(tvm.tirx.Var("i", "int32"), 0, 4, tvm.ir.ForKind.DEFAULT, body, step=None)
+    loop = tvm.ir.For(
+        tvm.ir.Var("i", tvm.ir.PrimType("int32")), 0, 4, tvm.ir.ForKind.DEFAULT, body, step=None
+    )
     assert loop.step is None
-    declaration = tvm.tirx.Function([], None)
-    assert declaration.body is None
-    assert len(declaration.with_body(body).body) == 0
-    for value in [conditional, loop, declaration]:
+    for value in [conditional, loop]:
         restored = tvm.ir.load_json(tvm.ir.save_json(value))
         tvm.ir.assert_structural_equal(value, restored, map_free_vars=True)
-    assert "def" in declaration.script()
 
 
-def test_offset_default_and_missing_type_remain_values():
-    tensor = tvm.tirx.decl_tensor((8,), "float32", elem_offset=None)
-    assert int(tensor.ty.elem_offset) == 0
+def test_missing_type_and_zero_remain_values():
     assert isinstance(tvm.ir.Type.missing(), tvm.ir.MissingType)
     # False and zero are valid primitive expressions, not absence.
     assert int(tvm.ir.Evaluate(False).value) == 0
     assert int(tvm.ir.Evaluate(0).value) == 0
-
-
-def test_failed_iter_map_has_absent_padding_predicate():
-    i = tvm.tirx.Var("i", "int32")
-    result = tvm.sym.detect_iter_map([i], {i: tvm.ir.Range(0, i)})
-    assert result.errors
-    assert result.padding_predicate is None
-    restored = tvm.ir.load_json(tvm.ir.save_json(result))
-    assert restored.padding_predicate is None
-
-
-def test_unmapped_python_mutator_var_is_absent():
-    @tvm.relax.expr_functor.mutator
-    class Mutator(tvm.relax.PyExprMutator):
-        pass
-
-    mutator = Mutator()
-    old = tvm.relax.Var("old", tvm.ir.PrimType("int32"))
-    new = tvm.relax.Var("new", tvm.ir.PrimType("int32"))
-    assert mutator.get_var_remap(old) is None
-    mutator.set_var_remap(old, new)
-    assert mutator.get_var_remap(old).same_as(new)

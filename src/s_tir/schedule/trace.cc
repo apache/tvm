@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -69,7 +70,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   TraceNode::RegisterReflection();
   // Register __ffi_repr__ so str(trace) returns the Python script format
   refl::TypeAttrDef<TraceNode>().def(
-      refl::type_attr::kRepr,
+      ffi::type_attr::kRepr.name,
       [](Trace trace, ffi::Function) -> ffi::String { return TraceAsPythonRepr(trace.get()); });
 
   refl::GlobalDef().def(

@@ -41,7 +41,7 @@ def test_matmul_tensorize_too_small():
                 Ts.writes(compute[v_i, v_j])
                 with Ts.init():
                     compute[v_i, v_j] = T.float32(0)
-                compute[v_i, v_j] = compute[v_i, v_j] + T.Cast("float32", X[v_i, v_k]) * T.Cast("float32", W[v_j, v_k])
+                compute[v_i, v_j] = compute[v_i, v_j] + T.Cast(X[v_i, v_k], "float32") * T.Cast(W[v_j, v_k], "float32")
 
     m = T.dynamic("m", "int32")
 
@@ -102,7 +102,7 @@ def test_matmul_tensorize_too_small():
                                                 v3 = Ts.axis.reduce(256, ax3_0 * 16 + ax3_1)
                                                 Ts.reads(compute_reindex_pad_local[0, v1, v2], X_reindex_pad_shared[0, v1, v3], W_reindex_pad_shared[0, v2, v3])
                                                 Ts.writes(compute_reindex_pad_local[0, v1, v2])
-                                                compute_reindex_pad_local[0, v1, v2] = compute_reindex_pad_local[0, v1, v2] + T.Cast("float32", X_reindex_pad_shared[0, v1, v3]) * T.Cast("float32", W_reindex_pad_shared[0, v2, v3])
+                                                compute_reindex_pad_local[0, v1, v2] = compute_reindex_pad_local[0, v1, v2] + T.Cast(X_reindex_pad_shared[0, v1, v3], "float32") * T.Cast(W_reindex_pad_shared[0, v2, v3], "float32")
                                 for ax0, ax1, ax2_0 in T.grid(1, 4, 2):
                                     for ax2_1_1 in T.vectorized(2):
                                         with Ts.sblock("compute_reindex_pad_local"):
@@ -293,7 +293,7 @@ def test_matmul_metal_int4_quant():
         for i0, i1 in T.grid(28672, 4096):
             with Ts.sblock("compute"):
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
-                compute[v_i0, v_i1] = T.Cast("float16", T.bitwise_and(T.shift_right(B0[v_i0, v_i1 // 8], T.Cast("uint32", v_i1 % 8 * 4)), T.uint32(15)))
+                compute[v_i0, v_i1] = T.Cast(T.bitwise_and(T.shift_right(B0[v_i0, v_i1 // 8], T.Cast(v_i1 % 8 * 4, "uint32")), T.uint32(15)), "float16")
         for i0, i1 in T.grid(28672, 4096):
             with Ts.sblock("dequantize"):
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
@@ -376,7 +376,7 @@ def test_matmul_metal_int4_quant():
                                                         v2 = Ts.axis.spatial(4096, ax3_0 * 32 + (ax1_ax2_fused_0 * 512 + ax1_ax2_fused_1 * 128 + ax1_ax2_fused_2 * 128 + ax1_ax2_fused_3 * 4 + ax1_ax2_fused_4) % 32)
                                                         Ts.reads(B0[v1, v2 // 8], B1[v1, v2 // 32])
                                                         Ts.writes(B_reindex_shared[v0, v1, v2])
-                                                        B_reindex_shared[v0, v1, v2] = (T.Cast("float16", T.bitwise_and(T.shift_right(B0[v1, v2 // 8], T.Cast("uint32", v2 % 8 * 4)), T.uint32(15))) - T.float16(7)) * B1[v1, v2 // 32]
+                                                        B_reindex_shared[v0, v1, v2] = (T.Cast(T.bitwise_and(T.shift_right(B0[v1, v2 // 8], T.Cast(v2 % 8 * 4, "uint32")), T.uint32(15)), "float16") - T.float16(7)) * B1[v1, v2 // 32]
                                 for ax3_1 in range(4):
                                     for ax0_0, ax1_0_1 in T.grid(2, 1):
                                         with Ts.sblock("A_reindex_pad_shared_metal.simdgroup_o"):

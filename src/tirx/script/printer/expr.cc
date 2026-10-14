@@ -93,8 +93,8 @@ ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyVi
   // representations retain their exact operand type through the full Call.
   if (!id || !ffi::StructuralEqual()(id->ty, PrimType::Int(32)))
     return RawCallDocTranslate(d, call);
-  auto lookup = ffi::Function::GetGlobal("target.llvm_get_intrinsic_name");
-  auto reverse = ffi::Function::GetGlobal("target.llvm_lookup_intrinsic_id");
+  auto lookup = ffi::Function::GetGlobal("codegen.llvm_get_intrinsic_name");
+  auto reverse = ffi::Function::GetGlobal("codegen.llvm_lookup_intrinsic_id");
   if (!lookup || !reverse) return RawCallDocTranslate(d, call);
   ffi::String name;
   try {
@@ -119,8 +119,8 @@ ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"tirx.call_llvm_intrin", "tirx.call_llvm_pure_intrin"}) {
-    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
-                                        FDocTranslate::FromNative<&LLVMIntrinsicDocTranslate>());
+    OpDef(name).set_native_fn_attr<&LLVMIntrinsicDocTranslate>(
+        tvm::script::printer::op_attr::kDocTranslateOpCall);
   }
 }
 
@@ -207,8 +207,8 @@ ffi::Optional<ExprDoc> PTXCallDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.tensor_data_ptr")
-      .set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
-                               FDocTranslate::FromNative<&TensorDataPtrDocTranslate>());
+      .set_native_fn_attr<&TensorDataPtrDocTranslate>(
+          tvm::script::printer::op_attr::kDocTranslateOpCall);
   ffi::reflection::GlobalDef().def("script.printer.PTXCallDocTranslate", []() {
     return ffi::Any(FDocTranslate::FromNative<&PTXCallDocTranslate>());
   });

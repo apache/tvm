@@ -153,15 +153,8 @@ struct NLayoutEqual {
 
 using VarLayoutMap = ffi::Map<Var, NLayout>;
 
-/*!
- * \brief SLayout conversion interface.
- * \param call The call node.
- * \param desired_layouts The desired layouts of the operator.
- * \param var_layout_map The layout of the variables.
- */
-using FRelaxInferLayout = ffi::TypedFunction<InferLayoutOutput(
-    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
-    const VarLayoutMap& var_layout_map)>;
+// Compatibility names; new callers can deduce the value type from the key.
+using FRelaxInferLayout = decltype(op_attr::kInferLayout)::ValueType;
 
 /*!
  * \brief Initialize a layout given the number of dimensions.

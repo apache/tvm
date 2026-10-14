@@ -277,7 +277,7 @@ def test_dispatch_argsort_cuda():
     vdevices = [R.vdevice("cuda", 0)]
     x = relax.Var("x", R.Tensor((2, 3), "float32", vdevices[0]))
     y = relax.Var("y", R.Tensor((2, 3), "float32"))
-    bb = relax.BlockBuilder()
+    bb = relax.BlockBuilder(tvm.IRModule(global_infos={"vdevice": vdevices}))
     with target:
         with bb.function("foo", (x,), {"global_symbol": "foo"}):
             with bb.dataflow():

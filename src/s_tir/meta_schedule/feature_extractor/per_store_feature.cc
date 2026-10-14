@@ -334,7 +334,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
                         ValueError)
               << "Incompatible nested thread extents for " << tag;
           auto previous_remap = VarRemapGet(loop->loop_var);
-          VarRemapSet(loop->loop_var, prim::cast(loop->loop_var.ty(), outer->loop_var));
+          VarRemapSet(loop->loop_var, prim::cast(outer->loop_var, loop->loop_var.ty()));
           auto annotations = Mutate(loop->annotations, inplace_mode)
                                  .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>()
                                  .ValueOrUnchanged(loop->annotations);
@@ -686,7 +686,7 @@ Feature::ArithOps::ArithOps(const TensorStoreNode* store, int64_t prod_loop_exte
       if (!result_type) {
         return StmtExprVisitor::Visit_(op);
       }
-      static auto op_call_effect_ = Op::GetAttrMap<TCallEffectKind>(tvm::op_attr::kCallEffectKind);
+      static auto op_call_effect_ = Op::GetAttrMap(tvm::op_attr::kCallEffectKind);
       CallEffectKind effect_kind =
           static_cast<CallEffectKind>(op_call_effect_[op->op.as_or_throw<Op>()]);
       bool is_pure =

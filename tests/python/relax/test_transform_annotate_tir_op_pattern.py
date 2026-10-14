@@ -68,9 +68,9 @@ def test_annotate_opkind_outewisefusable():
 @pytest.mark.parametrize(
     "cast_pattern",
     [
-        lambda a, b: T.Cast("float32", a * b),
-        lambda a, b: T.Cast("float32", a) * T.Cast("float32", b),
-        lambda a, b: T.Cast("float32", T.Cast("float16", a * b)),
+        lambda a, b: T.Cast(a * b, "float32"),
+        lambda a, b: T.Cast(a, "float32") * T.Cast(b, "float32"),
+        lambda a, b: T.Cast(T.Cast(a * b, "float16"), "float32"),
     ],
 )
 def test_annotate_opkind_outewisefusable_with_cast(cast_pattern):

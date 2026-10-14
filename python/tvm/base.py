@@ -20,6 +20,7 @@
 
 import os
 
+from tvm_ffi import libinfo as tvm_ffi_libinfo
 from tvm_ffi.libinfo import load_lib_ctypes
 
 from . import libinfo
@@ -46,14 +47,16 @@ _LOADED_LIBS["tvm_runtime"] = load_lib_ctypes(
 )
 
 if not _RUNTIME_ONLY:
+    _lib_paths = libinfo.package_lib_paths()
     try:
-        _LOADED_LIBS["tvm_compiler"] = load_lib_ctypes(
-            "tvm", "tvm_compiler", "RTLD_LOCAL", extra_lib_paths=libinfo.package_lib_paths()
-        )
-    except (RuntimeError, OSError):
-        # Compiler lib not present, or present but unloadable (missing LLVM
-        # deps / linker issues) — fall back to runtime-only mode.
+        tvm_ffi_libinfo._find_library_by_basename("tvm", "tvm_compiler", extra_lib_paths=_lib_paths)
+    except RuntimeError:
+        # A runtime-only installation need not contain the compiler library.
         _RUNTIME_ONLY = True
+    else:
+        _LOADED_LIBS["tvm_compiler"] = load_lib_ctypes(
+            "tvm", "tvm_compiler", "RTLD_LOCAL", extra_lib_paths=_lib_paths
+        )
 
 if _RUNTIME_ONLY:
     from tvm_ffi import registry as _tvm_ffi_registry
