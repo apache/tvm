@@ -56,24 +56,6 @@ ffi::String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "hexagon") {
     return "hexagon";
   }
-  if (target->kind->name == "cuda") {
-    if (ffi::Optional<ffi::String> opt_sm = target->GetAttr<ffi::String>("arch")) {
-      std::string sm = opt_sm.value();
-      if (sm.starts_with("sm_")) {
-        sm = sm.substr(3);
-        try {
-          if (std::stoi(sm) >= 75) {
-            return "cuda-tensorcore";
-          }
-        } catch (const std::invalid_argument& e) {
-          LOG(WARNING) << "ValueError: Unable to parse `target.arch`: " << sm
-                       << ". Details: " << e.what();
-        }
-      }
-    }
-    return "cuda";
-  }
-
   if (IsGPUTarget(target->kind->name)) {
     return "cuda";
   }
@@ -103,10 +85,6 @@ void SpaceGeneratorObj::InitializeWithTuneContext(const TuneContext& context) {
       default_sch_rules = ScheduleRule::DefaultCUDA();
       default_postprocs = Postproc::DefaultCUDA();
       default_mutator_probs = Mutator::DefaultCUDA();
-    } else if (kind == "cuda-tensorcore") {
-      default_sch_rules = ScheduleRule::DefaultCUDATensorCore();
-      default_postprocs = Postproc::DefaultCUDATensorCore();
-      default_mutator_probs = Mutator::DefaultCUDATensorCore();
     } else if (kind == "hexagon") {
       default_sch_rules = ScheduleRule::DefaultHexagon();
       default_postprocs = Postproc::DefaultHexagon();

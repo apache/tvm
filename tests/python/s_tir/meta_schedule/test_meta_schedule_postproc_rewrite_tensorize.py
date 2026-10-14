@@ -18,7 +18,7 @@
 # ruff: noqa: F401, F841
 import tvm
 from tvm.s_tir import meta_schedule as ms
-from tvm.s_tir.tensor_intrin import cuda, rocm, x86
+from tvm.s_tir.tensor_intrin import dot_product_common, x86
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 

@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
@@ -26,7 +27,6 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/index_map.h>
 
 #include "../memory_scope.h"
 
@@ -40,8 +40,7 @@ using namespace tvm::tirx;
  *        own part of the matrix;
  *     2. Rewrite access of mma.matrixC so it can access the correct part of the matrix.
  *   The reason why access of m16n8k8.matrix[A/B] tensor doesn't need this kind of rewrite is
- *   that their access is through opaque access inside ldmatrix and mma_sync. Please refer to
- *   get_index_[A/B] in python/tvm/tirx/tensor_intrin/cuda.py.
+ *   that their access is through opaque accesses to per-thread fragments.
  *   We cannot use this kind of opaque access in matrixC too since the ptx stmatrix is only
  *   supported for sm90 or higher. Therefore, writeback of matrixC is limited to the
  *   transparent way.
@@ -153,10 +152,7 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
     if (auto replacement = VarRemapGet(original_tensor).as<TensorVar>()) {
       auto* n = store.CopyOnWrite();
       if ((scope_mma_matrixC && original_tensor.scope() == *scope_mma_matrixC)) {
-        const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
-        TVM_FFI_ICHECK(index_map_func.has_value());
-        auto index_map = IndexMap::FromFunc(2, *index_map_func);
-        auto new_indices = index_map->MapIndices(store->indices, analyzer);
+        auto new_indices = MatrixCIndices(store->indices);
         n->dest = replacement.value();
         n->indices = std::move(new_indices);
       } else if ((scope_mma_matrixA && original_tensor.scope() == *scope_mma_matrixA) ||
@@ -184,10 +180,7 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
     if (auto replacement = VarRemapGet(tensor).as<TensorVar>()) {
       ffi::Array<PrimExpr> indices = load->indices;
       if ((scope_mma_matrixC && tensor.scope() == *scope_mma_matrixC)) {
-        const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
-        TVM_FFI_ICHECK(index_map_func.has_value());
-        auto index_map = IndexMap::FromFunc(2, *index_map_func);
-        indices = index_map->MapIndices(load->indices, analyzer);
+        indices = MatrixCIndices(load->indices);
       } else {
         TVM_FFI_ICHECK(false)
             << "TransformMmaTensorLayout requires " << tensor.scope()
@@ -200,6 +193,14 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
   }
 
  private:
+  // Preserve the per-thread accumulator layout independently of tensor-intrinsic registration.
+  ffi::Array<PrimExpr> MatrixCIndices(const ffi::Array<PrimExpr>& indices) {
+    TVM_FFI_ICHECK_EQ(indices.size(), 2U);
+    PrimExpr i = indices[0], j = indices[1];
+    return {analyzer->Simplify(floordiv(i, 16)), analyzer->Simplify(floordiv(j, 8)),
+            analyzer->Simplify(floormod(floordiv(i, 8), 2)), analyzer->Simplify(floormod(j, 2))};
+  }
+
   sym::Analyzer analyzer;
 };
 

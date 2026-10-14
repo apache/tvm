@@ -578,7 +578,7 @@ def ptx_legacy_ldmatrix(
 ):
     """Load a matrix with explicit pointer and element-offset operands.
 
-    The legacy lowering uses the result ``ty`` for its element width, including
+    Downstream legacy emitters use the result ``ty`` for its element width, including
     the transposed int8 gather form. ``dtype`` is the PTX instruction type token.
     """
     return _legacy_ldmatrix(

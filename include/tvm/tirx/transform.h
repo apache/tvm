@@ -210,12 +210,6 @@ TVM_TIRX_DLL Pass LowerTVMBuiltin();
 TVM_TIRX_DLL Pass LowerIntrin();
 
 /*!
- * \brief Lower warp memory access to low-level device related function calls.
- * \return The pass.
- */
-TVM_TIRX_DLL Pass LowerWarpMemory();
-
-/*!
  * \brief Narrow down PrimExpr datatype in stmt to target_bits.
  *
  * \param target_bits The target bits

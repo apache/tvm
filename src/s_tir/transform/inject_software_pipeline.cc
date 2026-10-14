@@ -131,8 +131,6 @@ class PipelineOpaqueAccessRewriter {
     static const Op load_matrix_sync = Op::Get("tirx.gpu_load_matrix_sync");
     static const Op store_matrix_sync = Op::Get("tirx.gpu_store_matrix_sync");
     static const Op mma_sync = Op::Get("tirx.gpu_mma_sync");
-    static const Op ptx_ldmatrix_legacy = Op::Get("tirx.ptx_legacy.ldmatrix");
-    static const Op ptx_mma_legacy = Op::Get("tirx.ptx_legacy.mma");
     if (call->op.same_as(load_matrix_sync) || call->op.same_as(store_matrix_sync)) {
       const TensorVar& tensor = tensor_data_to_tensor_.at(GetBufferDataVar(call->args[0]).value());
       auto it = tensor_remap_.find(tensor);
@@ -159,10 +157,6 @@ class PipelineOpaqueAccessRewriter {
         }
       }
       return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->loc);
-    } else if (call->op.same_as(ptx_mma_legacy)) {
-      return RewriteTensorAccess(call, {6, 8, 10});
-    } else if (call->op.same_as(ptx_ldmatrix_legacy)) {
-      return RewriteTensorAccess(call, {3});
     }
     return call;
   }
@@ -187,40 +181,6 @@ class PipelineOpaqueAccessRewriter {
     new_tensor_offset +=
         floormod(pipeline_loop_->loop_var - pipeline_loop_->min, new_tensor.shape()[0]) * offset;
     return new_tensor_offset;
-  }
-
-  Expr RewriteTensorAccess(const Call& call, const std::vector<int> arg_indices) {
-    const auto scope_mma_matrixA = GetRegisteredMemoryScope("mma.matrixA");
-    const auto scope_mma_matrixB = GetRegisteredMemoryScope("mma.matrixB");
-
-    auto product = [](const ffi::Array<PrimExpr>& input) {
-      return foldl([](PrimExpr a, PrimExpr b, Location loc) { return mul(a, b, loc); },
-                   IntImm::Int32(1), input);
-    };
-    ffi::Array<Expr> new_args = call->args;
-    for (int i : arg_indices) {
-      const TensorVar& tensor = tensor_data_to_tensor_.at(GetBufferDataVar(call->args[i]).value());
-      auto it = tensor_remap_.find(tensor);
-      if (it != tensor_remap_.end()) {
-        const TensorVar& new_tensor = (*it).second;
-        new_args.Set(i, new_tensor.data());
-        PrimExpr old_index = call->args[i + 1].as_or_throw<PrimExpr>();
-        PrimExpr offset =
-            new_tensor.strides().empty() ? product(tensor.shape()) : new_tensor.strides()[0];
-        if ((scope_mma_matrixA && tensor.scope() == *scope_mma_matrixA) ||
-            (scope_mma_matrixB && tensor.scope() == *scope_mma_matrixB)) {
-          // mma scope size will shrink by warp size
-          // @see transform_mma_tensor_layout
-          TVM_FFI_ICHECK_EQ(floormod(offset, 32).as_or_throw<IntImm>()->value, 0)
-              << "mma scope size should be multiple of warp size";
-          offset = floordiv(offset, 32);
-        }
-        PrimExpr new_index =
-            old_index + floormod(pipeline_loop_->loop_var, new_tensor.shape()[0]) * offset;
-        new_args.Set(i + 1, new_index);
-      }
-    }
-    return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->loc);
   }
 
   const ffi::Map<Var, TensorVar>& tensor_data_to_tensor_;

@@ -146,7 +146,6 @@ def finalize_host_passes():  # pylint: disable=unused-argument
 def finalize_device_passes():  # pylint: disable=unused-argument
     """The default finalization passes for TIR backend."""
     device_pass_list = [
-        tirx.transform.LowerWarpMemory(),
         tirx.transform.StmtSimplify(),
         tirx.transform.LowerIntrin(),
     ]

@@ -133,15 +133,9 @@ class SpaceGenerator(Object):
 
 
 ScheduleFnType = SpaceGenerator.ScheduleFnType
-ScheduleRuleType = (
-    list["ScheduleRule"] | Literal["llvm", "cuda", "cuda-tensorcore", "hexagon", "from-target"]
-)
-PostprocType = (
-    list["Postproc"] | Literal["llvm", "cuda", "cuda-tensorcore", "hexagon", "from-target"]
-)
-MutatorProbType = (
-    dict["Mutator", float] | Literal["llvm", "cuda", "cuda-tensorcore", "hexagon", "from-target"]
-)
+ScheduleRuleType = list["ScheduleRule"] | Literal["llvm", "cuda", "hexagon", "from-target"]
+PostprocType = list["Postproc"] | Literal["llvm", "cuda", "hexagon", "from-target"]
+MutatorProbType = dict["Mutator", float] | Literal["llvm", "cuda", "hexagon", "from-target"]
 create = SpaceGenerator.create  # pylint: disable=invalid-name
 
 

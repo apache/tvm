@@ -17,6 +17,7 @@
 # pylint: disable=missing-docstring
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -155,8 +156,7 @@ def run_test(
             return f.time_evaluator(f.entry_name, dev, number=500)(a, b, c)
         f(a, b, c)
         dev.sync()
-        if in_dtype != "float16":
-            tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-2, atol=1e-2)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-2, atol=1e-2)
 
     tvm.testing.run_with_gpu_lock(run_and_check)
     return lambda: tvm.testing.run_with_gpu_lock(run_and_check, True)
@@ -270,15 +270,15 @@ def test_f32f32f32_m16n16k4():
     def index_map_A(i, j):
         return (
             i // 16,
-            j // 16,
-            *shared_16x4_to_local_64x1_layout_A(i % 16, j % 16),
+            j // 4,
+            *shared_16x4_to_local_64x1_layout_A(i % 16, j % 4),
         )
 
     def index_map_B(i, j):
         return (
-            i // 16,
+            i // 4,
             j // 16,
-            *shared_4x16_to_local_64x1_layout_B(i % 16, j % 16),
+            *shared_4x16_to_local_64x1_layout_B(i % 4, j % 16),
         )
 
     def index_map_C(i, j):
@@ -313,6 +313,102 @@ def test_f32f32f32_m16n16k4():
 
     if measure_perf and timer:
         print("test_f32f32f32_m16n16k4: %f GFLOPS" % (gflops / (timer().mean)))
+
+
+@pytest.mark.parametrize(
+    "k_inner,in_dtype,out_dtype,load_a,load_b,mfma,fill,store",
+    [
+        (
+            4,
+            "float32",
+            "float32",
+            ROCM_MFMA_LOAD_16x4_A_SHARED_f32_INTRIN,
+            ROCM_MFMA_LOAD_16x4_B_SHARED_f32_INTRIN,
+            ROCM_MFMA_f32f32f32_INTRIN,
+            ROCM_MFMA_fill_16x16_f32_INTRIN,
+            ROCM_MFMA_STORE_16x16_f32_INTRIN,
+        ),
+        (
+            16,
+            "float16",
+            "float32",
+            ROCM_MFMA_LOAD_16x16_A_SHARED_f16_INTRIN,
+            ROCM_MFMA_LOAD_16x16_B_SHARED_f16_INTRIN,
+            ROCM_MFMA_f16f16f32_INTRIN,
+            ROCM_MFMA_fill_16x16_f32_INTRIN,
+            ROCM_MFMA_STORE_16x16_f32_INTRIN,
+        ),
+        (
+            16,
+            "int8",
+            "int32",
+            ROCM_MFMA_LOAD_16x16_A_SHARED_s8_INTRIN,
+            ROCM_MFMA_LOAD_16x16_B_SHARED_s8_INTRIN,
+            ROCM_MFMA_s8s8s32_INTRIN,
+            ROCM_MFMA_fill_16x16_i32_INTRIN,
+            ROCM_MFMA_STORE_16x16_s32_INTRIN,
+        ),
+    ],
+)
+def test_mfma_per_lane_storage(k_inner, in_dtype, out_dtype, load_a, load_b, mfma, fill, store):
+    """Tensorize and lower multi-tile, multi-wave GEMM without ROCm hardware."""
+    from tvm.s_tir.pipeline import _lower_s_tir
+
+    layout_a = (
+        shared_16x4_to_local_64x1_layout_A if k_inner == 4 else shared_16x16_to_local_64x4_layout_A
+    )
+    layout_b = (
+        shared_4x16_to_local_64x1_layout_B if k_inner == 4 else shared_16x16_to_local_64x4_layout_B
+    )
+
+    def index_map_a(i, j):
+        return i // 16, j // k_inner, *layout_a(i % 16, j % k_inner)
+
+    def index_map_b(i, j):
+        return i // k_inner, j // 16, *layout_b(i % k_inner, j % 16)
+
+    def index_map_c(i, j):
+        return i // 16, j // 16, *shared_16x16_to_local_64x4_layout_C(i % 16, j % 16)
+
+    sch = mfma_schedule(
+        te.create_function(matmul(64, 64, 2 * k_inner, in_dtype, out_dtype, False)),
+        k_inner,
+        in_dtype,
+        False,
+        [2, 1, 1, 2, 1],
+        [1, 1, 2, 1, 2],
+        [1, 2, 1],
+        index_map_a,
+        index_map_b,
+        index_map_c,
+        load_a,
+        load_b,
+        mfma,
+        fill,
+        store,
+    )
+    lowered = _lower_s_tir()(sch.mod)["main"]
+    allocations = []
+    accesses = []
+
+    def check(node):
+        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, tvm.tirx.TensorType):
+            assert str(node.var.ty.scope) != "warp"
+            if str(node.var.ty.scope) == "local":
+                allocations.append(tuple(int(extent) for extent in node.var.ty.shape))
+        if isinstance(node, tvm.ir.TensorLoad | tvm.ir.TensorStore):
+            tensor = node.source if isinstance(node, tvm.ir.TensorLoad) else node.dest
+            if str(tensor.ty.scope) == "local":
+                accesses.append(node)
+                # All load/fill/MFMA/store operations address this lane's fragment.
+                assert int(node.indices[-2]) == 0
+
+    tvm_ffi.structural_walk(lowered.body, check)
+    values_per_lane = k_inner // 4
+    assert sorted(allocations) == sorted(
+        [(2, 1, 1, values_per_lane), (1, 2, 1, values_per_lane), (2, 2, 1, 4)]
+    )
+    assert len(accesses) >= 8
 
 
 if __name__ == "__main__":

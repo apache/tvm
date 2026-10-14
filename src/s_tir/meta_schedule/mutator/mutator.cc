@@ -67,8 +67,6 @@ ffi::Map<Mutator, FloatImm> Mutator::DefaultCUDA() {
       {Mutator::MutateThreadBinding(), FloatImm(PrimType::Float(64), 0.02)}};
 }
 
-ffi::Map<Mutator, FloatImm> Mutator::DefaultCUDATensorCore() { return Mutator::DefaultCUDA(); }
-
 ffi::Map<Mutator, FloatImm> Mutator::DefaultHexagon() {
   return ffi::Map<Mutator, FloatImm>{
       {Mutator::MutateTileSize(), FloatImm(PrimType::Float(64), 0.9)},
@@ -98,7 +96,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("s_tir.meta_schedule.MutatorPyMutator", Mutator::PyMutator)
       .def("s_tir.meta_schedule.MutatorDefaultLLVM", Mutator::DefaultLLVM)
       .def("s_tir.meta_schedule.MutatorDefaultCUDA", Mutator::DefaultCUDA)
-      .def("s_tir.meta_schedule.MutatorDefaultCUDATensorCore", Mutator::DefaultCUDATensorCore)
       .def("s_tir.meta_schedule.MutatorDefaultHexagon", Mutator::DefaultHexagon);
 }
 

@@ -173,47 +173,6 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
   };
 }
 
-ffi::Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
-  ffi::Array<ffi::Map<ffi::String, ffi::String>> mma_intrin_groups = {
-      // Tensor Core MMA
-      {
-          {"init", "mma_init_m16n8k8_f16"},
-          {"load_a", "mma_load_m16n8k8_f16_A_shared_dyn"},
-          {"load_b", "mma_load_m16n8k8_f16_B_shared_dyn"},
-          {"compute", "mma_sync_m16n8k8_f16f16f16"},
-          {"store", "mma_store_m16n8k8_f16_global"},
-      },
-      {
-          {"init", "mma_init_m16n8k8_f32"},
-          {"load_a", "mma_load_m16n8k8_f16_A_shared_dyn"},
-          {"load_b", "mma_load_m16n8k8_f16_B_shared_dyn"},
-          {"compute", "mma_sync_m16n8k8_f16f16f32"},
-          {"store", "mma_store_m16n8k8_f32_global"},
-      },
-  };
-  ffi::Array<ScheduleRule> results{
-      ScheduleRule::ApplyCustomRule(),
-      ScheduleRule::MultiLevelTilingTensorCore(
-          /*intrin_groups=*/mma_intrin_groups,
-          /*structure=*/"SSSRRSRS",
-          /*tile_binds=*/ffi::Array<ffi::String>{"blockIdx.y", "blockIdx.x", "threadIdx.y"},
-          /*max_innermost_factor=*/static_cast<int64_t>(4),
-          /*vector_load_lens=*/ffi::Array<int64_t>{1, 2, 3, 4, 8, 16},
-          /*reuse_read=*/
-          ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("must")},
-                                          {"levels", ffi::Array<int64_t>{4}},  //
-                                          {"scope", ffi::String("shared.dyn")}},
-          /*reuse_write=*/
-          ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("no")},
-                                          {"levels", ffi::Array<int64_t>{2}},  //
-                                          {"scope", ffi::String("shared.dyn")}},
-          /*use_software_pipeline=*/true)  //
-  };
-  ffi::Array<ScheduleRule> append = ScheduleRule::DefaultCUDA();
-  results.insert(results.end(), append.begin() + 1, append.end());
-  return results;
-}
-
 ffi::Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
   return {
       ScheduleRule::ApplyCustomRule(),
@@ -405,8 +364,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("s_tir.meta_schedule.ScheduleRulePyScheduleRule", ScheduleRule::PyScheduleRule)
       .def("s_tir.meta_schedule.ScheduleRuleDefaultLLVM", ScheduleRule::DefaultLLVM)
       .def("s_tir.meta_schedule.ScheduleRuleDefaultCUDA", ScheduleRule::DefaultCUDA)
-      .def("s_tir.meta_schedule.ScheduleRuleDefaultCUDATensorCore",
-           ScheduleRule::DefaultCUDATensorCore)
       .def("s_tir.meta_schedule.ScheduleRuleDefaultHexagon", ScheduleRule::DefaultHexagon)
       .def("s_tir.meta_schedule.ScheduleRuleDefaultARM", ScheduleRule::DefaultARM);
 }
