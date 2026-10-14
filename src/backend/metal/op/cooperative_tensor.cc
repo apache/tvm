@@ -35,13 +35,12 @@ const Op& cooperative_tensor_fill_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.metal.cooperative_tensor_fill")
-      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
+      .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
       .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
                  sig::arg<PrimExpr>("value", "The value to use."),
                  sig::arg<IntExpr>("rows", "The number of rows."),
                  sig::arg<IntExpr>("cols", "The number of columns."))
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
 const Op& cooperative_tensor_load_op() {
@@ -51,7 +50,7 @@ const Op& cooperative_tensor_load_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.metal.cooperative_tensor_load")
-      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
+      .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
       .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
                  sig::arg("ptr", "The pointer."), sig::arg<IntExpr>("stride", "The stride."),
                  sig::arg<IntExpr>("rows", "The number of rows."),
@@ -61,8 +60,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("mma_N", "The N dimension of the matrix operation."),
                  sig::arg<IntExpr>("mma_K", "The K dimension of the matrix operation."),
                  sig::arg<IntExpr>("operand_role", "The matrix operand role."))
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
 const Op& cooperative_tensor_store_op() {
@@ -72,7 +70,7 @@ const Op& cooperative_tensor_store_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.metal.cooperative_tensor_store")
-      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
+      .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
       .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
                  sig::arg("ptr", "The pointer."), sig::arg<IntExpr>("stride", "The stride."),
                  sig::arg<IntExpr>("rows", "The number of rows."),
@@ -82,8 +80,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("mma_N", "The N dimension of the matrix operation."),
                  sig::arg<IntExpr>("mma_K", "The K dimension of the matrix operation."),
                  sig::arg<IntExpr>("operand_role", "The matrix operand role."))
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
 const Op& cooperative_tensor_multiply_accumulate_op() {
@@ -93,7 +90,7 @@ const Op& cooperative_tensor_multiply_accumulate_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.metal.cooperative_tensor_multiply_accumulate")
-      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
+      .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
       .signature(
           sig::arg("d", "The D operand."), sig::arg<IntExpr>("index_d", "The D fragment index."),
           sig::arg("a", "The A operand."), sig::arg<IntExpr>("index_a", "The A fragment index."),
@@ -103,8 +100,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg<IntExpr>("K", "The K dimension."),
           sig::arg<PrimExpr>("transpose_a", "Whether to transpose A."),
           sig::arg<PrimExpr>("transpose_b", "Whether to transpose B."))
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
 }  // namespace metal

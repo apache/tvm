@@ -22,6 +22,7 @@
  * \brief Data SLayout expression.
  */
 #include <tvm/ffi/dtype.h>
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -221,7 +222,7 @@ ffi::Optional<SLayout> SLayout::Create(const std::string& name, PrimType index_t
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   SLayoutNode::RegisterReflection();
-  refl::TypeAttrDef<SLayoutNode>().def(refl::type_attr::kRepr,
+  refl::TypeAttrDef<SLayoutNode>().def(ffi::type_attr::kRepr.name,
                                        [](SLayout l, ffi::Function) -> ffi::String {
                                          return "SLayout(" + std::string(l->name) + ")";
                                        });
@@ -604,7 +605,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   SBijectiveLayoutNode::RegisterReflection();
   refl::TypeAttrDef<SBijectiveLayoutNode>().def(
-      refl::type_attr::kRepr, [](SBijectiveLayout bl, ffi::Function) -> ffi::String {
+      ffi::type_attr::kRepr.name, [](SBijectiveLayout bl, ffi::Function) -> ffi::String {
         return "SBijectiveLayout(" + std::string(bl->src_layout.name()) + "->" +
                std::string(bl->dst_layout.name()) + ")";
       });

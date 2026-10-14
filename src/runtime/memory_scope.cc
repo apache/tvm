@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/reflection/enum_def.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/memory_scope.h>
@@ -50,7 +51,7 @@ void RegisterBuiltinScopes() {
 }  // namespace
 
 MemoryAllocProperty MemoryScope::alloc_property() const {
-  static ffi::reflection::TypeAttrColumn state_column(ffi::reflection::type_attr::kEnumState);
+  static ffi::reflection::TypeAttrColumn state_column(ffi::type_attr::kEnumState);
   auto state = state_column[MemoryScopeObj::RuntimeTypeIndex()].cast<ffi::EnumState>();
   if (auto column = state->attrs.Get(attr::kMemoryAllocProperty)) {
     if (auto value = column->Get(*this)) {
@@ -88,9 +89,9 @@ const MemoryScope& MemoryScope::Global() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterBuiltinScopes();
   refl::TypeAttrDef<MemoryScopeObj>()
-      .def(refl::type_attr::kDataToJson,
+      .def(ffi::type_attr::kDataToJson.name,
            [](const MemoryScopeObj* node) -> ffi::String { return node->_str_index; })
-      .def(refl::type_attr::kDataFromJson,
+      .def(ffi::type_attr::kDataFromJson.name,
            [](const ffi::String& name) { return MemoryScope::Get(name); });
   refl::GlobalDef().def("runtime.MemoryScopeRegister", &MemoryScope::Register);
 }

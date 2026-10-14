@@ -95,7 +95,7 @@ Texture2DShape<T> ApplyTexture2DFlattening(const S& shape, size_t rank, size_t a
 }
 
 inline bool IsTextureStorage(runtime::MemoryScope scope) {
-  static ffi::reflection::TypeAttrColumn state_column(ffi::reflection::type_attr::kEnumState);
+  static ffi::reflection::TypeAttrColumn state_column(ffi::type_attr::kEnumState);
   auto state =
       state_column[runtime::MemoryScopeObj::_GetOrAllocRuntimeTypeIndex()].cast<ffi::EnumState>();
   // This attribute is supplied by the owning OpenCL backend registrations.

@@ -179,6 +179,25 @@ class DictAttrs : public Attrs {
       return default_value;
     }
   }
+  /*!
+   * \brief Get an attribute with its value type deduced only from the key.
+   * \param key The typed attribute key.
+   * \param default_value Value returned only when the key is absent.
+   * \return The attribute or default, with the same conversions as the name-based getter.
+   */
+  template <typename T>
+  ffi::Optional<T> GetAttr(ffi::reflection::AttrKey<T> key,
+                           ffi::Optional<typename ffi::reflection::AttrKey<T>::ValueType>
+                               default_value = std::nullopt) const {
+    return GetAttr<T>(key.name, std::move(default_value));
+  }
+  /*! \brief Accept a default convertible to the key's value type. */
+  template <typename T>
+  ffi::Optional<T> GetAttr(ffi::reflection::AttrKey<T> key,
+                           typename ffi::reflection::AttrKey<T>::ValueType default_value) const {
+    return GetAttr(key, ffi::Optional<T>(std::move(default_value)));
+  }
+
   // variant that uses TObjectRef to enable implicit conversion to default value.
   template <typename TObjectRef>
   ffi::Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
@@ -252,7 +271,7 @@ template <typename TFunc>
 inline TFunc WithAttr(TFunc input, const std::string& attr_key, Any attr_value) {
   using TNode = typename TFunc::ContainerType;
   if (!input.unique()) {
-    static ffi::reflection::TypeAttrColumn shallow_copy(ffi::reflection::type_attr::kShallowCopy);
+    static ffi::reflection::TypeAttrColumn shallow_copy(ffi::type_attr::kShallowCopy);
     ffi::AnyView copy_func = shallow_copy[input->type_index()];
     TVM_FFI_CHECK(copy_func.type_index() == ffi::TypeIndex::kTVMFFIFunction, TypeError)
         << "Type " << input->GetTypeKey()
@@ -272,6 +291,20 @@ inline TFunc WithAttr(TFunc input, const std::string& attr_key, Any attr_value) 
 }
 
 /*!
+ * \brief Attach a typed value using the existing function or module copy-on-write path.
+ */
+template <typename TFunc, typename T, typename Value,
+          std::enable_if_t<(std::is_convertible_v<Value&&, T> &&
+                            ((!std::is_same_v<std::decay_t<Value>, ffi::Any> &&
+                              !std::is_same_v<std::decay_t<Value>, ffi::AnyView>) ||
+                             std::is_same_v<T, ffi::Any> || std::is_same_v<T, ffi::AnyView>)),
+                           int> = 0>
+inline TFunc WithAttr(TFunc input, ffi::reflection::AttrKey<T> key, Value&& value) {
+  T typed_value(std::forward<Value>(value));
+  return WithAttr(std::move(input), key.name, ffi::Any(typed_value));
+}
+
+/*!
  * \brief Copy the function or module, but overrides the attributes with the entries from \p attrs.
  *
  * \param input The thing to annotate (BaseFunc or IRModule)
@@ -287,7 +320,7 @@ inline TFunc WithAttrs(TFunc input, ffi::Map<ffi::String, Any> attrs) {
   using TNode = typename TFunc::ContainerType;
   if (attrs.empty()) return input;
   if (!input.unique()) {
-    static ffi::reflection::TypeAttrColumn shallow_copy(ffi::reflection::type_attr::kShallowCopy);
+    static ffi::reflection::TypeAttrColumn shallow_copy(ffi::type_attr::kShallowCopy);
     ffi::AnyView copy_func = shallow_copy[input->type_index()];
     TVM_FFI_CHECK(copy_func.type_index() == ffi::TypeIndex::kTVMFFIFunction, TypeError)
         << "Type " << input->GetTypeKey()
@@ -340,7 +373,7 @@ template <typename TFunc>
 inline TFunc WithoutAttr(TFunc input, const std::string& attr_key) {
   using TNode = typename TFunc::ContainerType;
   if (!input.unique()) {
-    static ffi::reflection::TypeAttrColumn shallow_copy(ffi::reflection::type_attr::kShallowCopy);
+    static ffi::reflection::TypeAttrColumn shallow_copy(ffi::type_attr::kShallowCopy);
     ffi::AnyView copy_func = shallow_copy[input->type_index()];
     TVM_FFI_CHECK(copy_func.type_index() == ffi::TypeIndex::kTVMFFIFunction, TypeError)
         << "Type " << input->GetTypeKey()
@@ -361,6 +394,12 @@ inline TFunc WithoutAttr(TFunc input, const std::string& attr_key) {
   }
   node->attrs.CopyOnWrite()->dict.erase(attr_key);
   return input;
+}
+
+/*! \brief Remove a typed attribute using the existing copy-on-write path. */
+template <typename TFunc, typename T>
+inline TFunc WithoutAttr(TFunc input, ffi::reflection::AttrKey<T> key) {
+  return WithoutAttr(std::move(input), key.name);
 }
 
 }  // namespace tvm

@@ -1190,8 +1190,8 @@ class Vectorizer : public StmtExprMutator {
   // flag to mark requirment of scalarization.
   bool need_scalarize_{false};
   // vectorizable property
-  OpAttrMap<TVectorizable> op_vectorizable_ =
-      Op::GetAttrMap<TVectorizable>(tvm::tirx::op_attr::kVectorizable);
+  decltype(Op::GetAttrMap(tvm::tirx::op_attr::kVectorizable)) op_vectorizable_ =
+      Op::GetAttrMap(tvm::tirx::op_attr::kVectorizable);
   /*! \brief The current target context. */
   ffi::Optional<Target> target_;
 

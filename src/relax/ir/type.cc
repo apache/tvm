@@ -59,11 +59,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   PackedFuncTypeNode::RegisterReflection();
   refl::TypeAttrDef<PackedFuncTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&PackedFuncTypeVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&PackedFuncTypeMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&PackedFuncTypeMaybeInplaceMutate>());
 
   refl::GlobalDef().def("relax.PackedFuncType", [](Location loc) { return PackedFuncType(loc); });

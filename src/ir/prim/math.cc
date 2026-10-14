@@ -385,295 +385,221 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("prim.pow")
       .signature(sig::arg<PrimExpr>("x", "The input value."),
                  sig::arg<PrimExpr>("y", "The second input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.fabs")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.fmod")
       .signature(sig::arg<PrimExpr>("x", "The input value."),
                  sig::arg<PrimExpr>("y", "The second input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.floor")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.round")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.nearbyint")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.trunc")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.exp")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.exp2")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.exp10")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.erf")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.tanh")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.sigmoid")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.sqrt")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.rsqrt")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.log")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.log1p")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.log10")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.tan")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.cos")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.cosh")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.sin")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.sinh")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.asin")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.acos")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.atan")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.acosh")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.asinh")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.atanh")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.atan2")
       .signature(sig::arg<PrimExpr>("x1", "The first input value."),
                  sig::arg<PrimExpr>("x2", "The second input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.nextafter")
       .signature(sig::arg<PrimExpr>("x1", "The first input value."),
                  sig::arg<PrimExpr>("x2", "The second input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.hypot")
       .signature(sig::arg<PrimExpr>("x1", "The first input value."),
                  sig::arg<PrimExpr>("x2", "The second input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.copysign")
       .signature(sig::arg<PrimExpr>("x1", "The first input value."),
                  sig::arg<PrimExpr>("x2", "The second input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.ldexp")
       .signature(sig::arg<PrimExpr>("x1", "The first input value."),
                  sig::arg<PrimExpr>("x2", "The second input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.isnan")
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeIsNaN>())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_native_fn_attr<&InferTypeIsNaN>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.popcount")
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
       .signature(sig::arg<PrimExpr>("x", "The input value."))
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.fma")
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeReturnArgType<0>>())
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
       .signature(sig::arg<PrimExpr>("x", "The input value."),
                  sig::arg<PrimExpr>("y", "The second input value."),
                  sig::arg<PrimExpr>("z", "The third input value."))
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<bool>(tvm::tirx::op_attr::kVectorizable, true);
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.assume")
-      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Bool())
+      .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Bool())
       .signature(sig::arg<PrimExpr>("cond", "The condition."))
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kEmbedInfo));
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kEmbedInfo));
 
   ffi::reflection::GlobalDef()
       .def("prim.infinity", prim::infinity)

@@ -399,10 +399,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("dtype", "The view's data type."),
                  sig::arg("relative_byte_offset",
                           "The view's byte offset, relative to the input tensor's byte offset."))
-      .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeView)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true)
-      .set_attr<FLowerBuiltin>(tvm::relax::op_attr::kLowerBuiltin, LowerBuiltinView);
+      .set_attr(tvm::relax::op_attr::kRequiresArgumentShapes, false)
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeView)
+      .set_attr(tvm::relax::op_attr::kPurity, true)
+      .set_attr(tvm::relax::op_attr::kLowerBuiltin, LowerBuiltinView);
 }
 
 Expr ensure_zero_offset(const Expr& x) {
@@ -434,11 +434,10 @@ Expr LowerBuiltinEnsureZeroOffset(const BlockBuilder& bb, const Call& call) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.memory.ensure_zero_offset")
       .signature(sig::arg("x", "The input tensor."))
-      .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeEnsureZeroOffset>())
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true)
-      .set_attr<FLowerBuiltin>(tvm::relax::op_attr::kLowerBuiltin, LowerBuiltinEnsureZeroOffset);
+      .set_attr(tvm::relax::op_attr::kRequiresArgumentShapes, false)
+      .set_native_fn_attr<&InferTypeEnsureZeroOffset>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kPurity, true)
+      .set_attr(tvm::relax::op_attr::kLowerBuiltin, LowerBuiltinEnsureZeroOffset);
 }
 
 }  // namespace relax

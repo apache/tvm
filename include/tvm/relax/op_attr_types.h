@@ -26,11 +26,15 @@
 
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/nested_msg.h>
 #include <tvm/relax/type.h>
 #include <tvm/te/tensor.h>
 
 namespace tvm {
 namespace relax {
+
+class LayoutDecision;
+class InferLayoutOutput;
 
 enum OpPatternKind {
   // Elementwise operation
@@ -54,20 +58,14 @@ enum OpPatternKind {
   kOpaque = 8
 };
 
+namespace op_attr {
+inline constexpr ffi::reflection::AttrKey<bool> kPurity{"FPurity"};
+
 /*!
  * \brief Packed function implementation for operators. The relax operator will be lowered to
  * this packed function call during codegen.
  */
-using FCallPacked = ffi::String;
-
-/*!
- * \brief Infer output type given the call
- *
- * \param call The call expression to be derived.
- * \param ctx The builder context.
- */
-using FInferTypeWithBuilder = ffi::TypedFunction<Type(const Call& call, const BlockBuilder& ctx)>;
-
+inline constexpr ffi::reflection::AttrKey<ffi::String> kCallPacked{"FCallPacked"};
 /*!
  * \brief The function type of a normalization function.
  *
@@ -84,8 +82,9 @@ using FInferTypeWithBuilder = ffi::TypedFunction<Type(const Call& call, const Bl
  * \param call The call to be normalized.  It is provided by-value, to
  * avoid copies for the common case where the call is already normalized.
  */
-using FNormalize = ffi::TypedFunction<Expr(const BlockBuilder& bb, Call call)>;
-
+inline constexpr ffi::reflection::AttrKey<
+    ffi::TypedFunction<Expr(const BlockBuilder& bb, Call call)>>
+    kNormalize{"FNormalize"};
 /*! \brief The function type of a legalization function.
  *
  * A legalization function is used to replace a `relax::Call` with
@@ -100,8 +99,9 @@ using FNormalize = ffi::TypedFunction<Expr(const BlockBuilder& bb, Call call)>;
  * \param bb The BlockBuilder context.
  * \param call The call to be legalized.
  */
-using FLegalize = ffi::TypedFunction<Expr(const BlockBuilder& bb, const Call& call)>;
-
+inline constexpr ffi::reflection::AttrKey<
+    ffi::TypedFunction<Expr(const BlockBuilder& bb, const Call& call)>>
+    kLegalize{"FLegalize"};
 /*! \brief The function type of a function to lower the runtime builtin.
  *
  * A builtin function may be lowered to a lowered form in `LowerRuntimeBuiltin`.
@@ -109,8 +109,9 @@ using FLegalize = ffi::TypedFunction<Expr(const BlockBuilder& bb, const Call& ca
  * \param bb The BlockBuilder context.
  * \param call The call to be lowered.
  */
-using FLowerBuiltin = ffi::TypedFunction<Expr(const BlockBuilder& bb, const Call& call)>;
-
+inline constexpr ffi::reflection::AttrKey<
+    ffi::TypedFunction<Expr(const BlockBuilder& bb, const Call& call)>>
+    kLowerBuiltin{"FLowerBuiltin"};
 /*!
  * \brief Gradient for a specific op.
  *
@@ -120,29 +121,50 @@ using FLowerBuiltin = ffi::TypedFunction<Expr(const BlockBuilder& bb, const Call
  * \param ctx the current block builder context.
  * \return the gradient for each parameter.
  */
-using FPrimalGradient = ffi::TypedFunction<tvm::ffi::Array<Expr>(
-    const Var& orig_var, const Call& orig_call, const Var& output_grad, const BlockBuilder& ctx)>;
-
-namespace op_attr {
-inline constexpr const char* kPurity = "FPurity";
-
-inline constexpr const char* kCallPacked = "FCallPacked";
-inline constexpr const char* kNormalize = "FNormalize";
-inline constexpr const char* kLegalize = "FLegalize";
-inline constexpr const char* kLowerBuiltin = "FLowerBuiltin";
-inline constexpr const char* kPrimalGradient = "FPrimalGradient";
-inline constexpr const char* kInferTypeWithBuilder = "relax.FInferTypeWithBuilder";
-inline constexpr const char* kDataDependent = "FDataDependent";
-inline constexpr const char* kRequiresArgumentShapes = "RequiresArgumentShapes";
-inline constexpr const char* kAllocator = "TAllocator";
-inline constexpr const char* kInferMixedPrecision = "FInferMixedPrecision";
-inline constexpr const char* kMixedPrecisionPolicy = "TMixedPrecisionPolicy";
-inline constexpr const char* kInferLayout = "FRelaxInferLayout";
+inline constexpr ffi::reflection::AttrKey<ffi::TypedFunction<tvm::ffi::Array<Expr>(
+    const Var& orig_var, const Call& orig_call, const Var& output_grad, const BlockBuilder& ctx)>>
+    kPrimalGradient{"FPrimalGradient"};
+/*!
+ * \brief Infer output type given the call
+ *
+ * \param call The call expression to be derived.
+ * \param ctx The builder context.
+ */
+inline constexpr ffi::reflection::AttrKey<
+    ffi::TypedFunction<Type(const Call& call, const BlockBuilder& ctx)>>
+    kInferTypeWithBuilder{"relax.FInferTypeWithBuilder"};
+inline constexpr ffi::reflection::AttrKey<bool> kDataDependent{"FDataDependent"};
+inline constexpr ffi::reflection::AttrKey<bool> kRequiresArgumentShapes{"RequiresArgumentShapes"};
+inline constexpr ffi::reflection::AttrKey<bool> kAllocator{"TAllocator"};
+inline constexpr ffi::reflection::AttrKey<
+    ffi::TypedFunction<Call(const Call& call_node, DLDataType out_dtype)>>
+    kInferMixedPrecision{"FInferMixedPrecision"};
+/*! \brief the operator pattern */
+inline constexpr ffi::reflection::AttrKey<int> kMixedPrecisionPolicy{"TMixedPrecisionPolicy"};
+/*!
+ * \brief SLayout conversion interface.
+ * \param call The call node.
+ * \param desired_layouts The desired layouts of the operator.
+ * \param var_layout_map The layout of the variables.
+ */
+inline constexpr ffi::reflection::AttrKey<ffi::TypedFunction<InferLayoutOutput(
+    const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
+    const ffi::Map<Var, NestedMsg<LayoutDecision>>& var_layout_map)>>
+    kInferLayout{"FRelaxInferLayout"};
 }  // namespace op_attr
+
+// Compatibility names; new callers can deduce the value type from the key.
+using FCallPacked = decltype(op_attr::kCallPacked)::ValueType;
+using FInferTypeWithBuilder = decltype(op_attr::kInferTypeWithBuilder)::ValueType;
+using FNormalize = decltype(op_attr::kNormalize)::ValueType;
+using FLegalize = decltype(op_attr::kLegalize)::ValueType;
+using FLowerBuiltin = decltype(op_attr::kLowerBuiltin)::ValueType;
+using FPrimalGradient = decltype(op_attr::kPrimalGradient)::ValueType;
 
 namespace distributed {
 namespace op_attr {
-inline constexpr const char* kInferTypeWithBuilder = "relax.dist.FInferTypeWithBuilder";
+inline constexpr ffi::reflection::AttrKey<FInferTypeWithBuilder> kInferTypeWithBuilder{
+    "relax.dist.FInferTypeWithBuilder"};
 }  // namespace op_attr
 }  // namespace distributed
 

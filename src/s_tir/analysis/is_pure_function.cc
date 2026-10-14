@@ -102,7 +102,7 @@ class PurityChecker : public StmtExprVisitor {
     this->Visit(call->args);
     if (allocation_calls_.count(call)) return std::nullopt;
 
-    static auto op_call_effect = Op::GetAttrMap<TCallEffectKind>(tvm::op_attr::kCallEffectKind);
+    static auto op_call_effect = Op::GetAttrMap(tvm::op_attr::kCallEffectKind);
     CallEffectKind effect = [&]() {
       if (auto opt = call->op.as<Op>()) {
         return static_cast<CallEffectKind>(op_call_effect[opt.value()]);

@@ -26,6 +26,8 @@
 
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/container/variant.h>
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
@@ -62,8 +64,8 @@ class FunctionNode : public BaseFuncNode {
         .def_ro("ret_type", &FunctionNode::ret_type)
         .def_ro("body", &FunctionNode::body);
     refl::TypeAttrDef<FunctionNode>()
-        .def(tvm::ffi::reflection::type_attr::kSEqual, &FunctionNode::SEqual)
-        .def(tvm::ffi::reflection::type_attr::kSHash, &FunctionNode::SHash);
+        .def(tvm::ffi::type_attr::kSEqual.name, &FunctionNode::SEqual)
+        .def(tvm::ffi::type_attr::kSHash.name, &FunctionNode::SHash);
   }
 
   bool SEqual(const FunctionNode* other,
