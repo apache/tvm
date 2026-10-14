@@ -22,6 +22,8 @@
  * \brief Target kind registry
  */
 #include <dlpack/dlpack.h>
+#include <tvm/ffi/extra/dataclass.h>
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
@@ -42,18 +44,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TargetKindObj::RegisterReflection();
   refl::TypeAttrDef<TargetKindObj>()
-      .def(tvm::ffi::reflection::type_attr::kDataToJson,
+      .def(tvm::ffi::type_attr::kDataToJson.name,
            [](const TargetKindObj* node) {
              // simply save as the string
              return node->name;
            })
-      .def(tvm::ffi::reflection::type_attr::kDataFromJson, [](const ffi::String& name) {
+      .def(tvm::ffi::type_attr::kDataFromJson.name, [](const ffi::String& name) {
         auto kind = TargetKind::Get(name);
         TVM_FFI_ICHECK(kind.has_value()) << "Cannot find target kind \'" << name << '\'';
         return kind.value();
       });
   refl::TypeAttrDef<TargetKindObj>().def(
-      refl::type_attr::kRepr,
+      ffi::type_attr::kRepr.name,
       [](TargetKind kind, ffi::Function) -> ffi::String { return kind->name; });
 }
 /**********  Registry-related code  **********/

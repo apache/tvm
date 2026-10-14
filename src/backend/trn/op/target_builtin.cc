@@ -53,8 +53,7 @@ void RegisterTRNTargetBuiltins() {
 
   OpDef("tirx.nki.tensorized_instruction", "Tensorize the NKI instructions in the region body.")
       .signature()
-      .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
-                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>());
+      .set_native_fn_attr<&RegionNoBodyParams>(tvm::op_attr::kRegionGetBodyParams);
 }
 
 namespace {
@@ -69,9 +68,8 @@ TVM_FFI_NO_INLINE std::string MakeNKIIntrinsicName(const char* op_name) {
 }
 
 TVM_FFI_NO_INLINE void RegisterNKIIntrinsicAttrs(OpDef& def) {
-  def.set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kOpaque));
+  def.set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
 template <typename... Specs>

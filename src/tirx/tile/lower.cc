@@ -84,8 +84,7 @@ class NoOpCallVerifier : public StmtExprVisitor {
 
   Result Visit_(const CallNode* call) final {
     if (auto op = call->op.as<Op>(); op && Op::HasAttrMap(tile::op_attr::kTileOpDispatch)) {
-      static const auto& dispatchers =
-          Op::GetAttrMap<tile::FTileOpDispatch>(tile::op_attr::kTileOpDispatch);
+      static const auto& dispatchers = Op::GetAttrMap(tile::op_attr::kTileOpDispatch);
       valid_ &= !dispatchers.count(op.value());
     }
     if (call->op.as<GlobalVar>() || call->op.as<OpaqueExprNode>()) this->Visit(call->op);
@@ -481,8 +480,7 @@ class TileDispatcher : public StmtExprMutator {
     if (!op || !op->op.as<Op>() || !Op::HasAttrMap(tile::op_attr::kTileOpDispatch)) {
       return StmtExprMutator::Mutate_(stmt, inplace_mode);
     }
-    static const auto& dispatchers =
-        Op::GetAttrMap<tile::FTileOpDispatch>(tile::op_attr::kTileOpDispatch);
+    static const auto& dispatchers = Op::GetAttrMap(tile::op_attr::kTileOpDispatch);
     if (!dispatchers.count(op->op.as_or_throw<Op>())) {
       return StmtExprMutator::Mutate_(stmt, inplace_mode);
     }

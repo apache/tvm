@@ -668,9 +668,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   BindNode::RegisterReflection();
   refl::TypeAttrDef<BindNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&BindVisit>())
-      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&BindMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&BindVisit>())
+      .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&BindMutate>())
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BindMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.Bind",
@@ -680,8 +680,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // RegionStmt
 bool IsRegionOp(const Op& op) {
   if (!Op::HasAttrMap(tvm::op_attr::kRegionGetBodyParams)) return false;
-  static auto get_body_params =
-      Op::GetAttrMap<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams);
+  static auto get_body_params = Op::GetAttrMap(tvm::op_attr::kRegionGetBodyParams);
   return get_body_params.count(op);
 }
 
@@ -692,8 +691,7 @@ ffi::Array<Var> GetRegionBodyParams(Op op, ffi::Array<Expr> args, DictAttrs attr
   signature.args = std::move(args);
   signature.attrs = std::move(attrs);
   op.Validate(&signature);
-  static auto get_body_params =
-      Op::GetAttrMap<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams);
+  static auto get_body_params = Op::GetAttrMap(tvm::op_attr::kRegionGetBodyParams);
   ffi::Array<Var> params = get_body_params[op].CallExpected(&signature).value();
   std::unordered_set<const VarNode*> definitions;
   for (const Var& param : params) {
@@ -731,7 +729,7 @@ RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params
   n->result_vars = std::move(result_vars);
   n->loc = loc;
   if (Op::HasAttrMap(tvm::op_attr::kRegionValidate)) {
-    static auto validate = Op::GetAttrMap<FRegionValidate>(tvm::op_attr::kRegionValidate);
+    static auto validate = Op::GetAttrMap(tvm::op_attr::kRegionValidate);
     if (validate.count(n->op)) validate[n->op].CallExpected(n.get()).value();
   }
   data_ = std::move(n);
@@ -741,11 +739,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   RegionStmtNode::RegisterReflection();
   refl::TypeAttrDef<RegionStmtNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            ffi::FStructuralVisit::FromNative<&RegionStmtVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&RegionStmtVisit>())
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&RegionStmtMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&RegionStmtMaybeInplaceMutate>());
   refl::GlobalDef().def(
       "ir.RegionStmt",
@@ -777,11 +774,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   AssertStmtNode::RegisterReflection();
   refl::TypeAttrDef<AssertStmtNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            ffi::FStructuralVisit::FromNative<&AssertStmtVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&AssertStmtVisit>())
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&AssertStmtMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&AssertStmtMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.AssertStmt", [](PrimExpr condition, StringImm error_kind,
@@ -855,9 +851,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   ForNode::RegisterReflection();
   refl::TypeAttrDef<ForNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&ForVisit>())
-      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&ForMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&ForVisit>())
+      .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&ForMutate>())
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&ForMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.For",
@@ -905,9 +901,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   WhileNode::RegisterReflection();
   refl::TypeAttrDef<WhileNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&WhileVisit>())
-      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&WhileMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&WhileVisit>())
+      .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&WhileMutate>())
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&WhileMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.While", [](PrimExpr condition, SeqStmt body, Location loc) {
@@ -928,9 +924,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   ReturnNode::RegisterReflection();
   refl::TypeAttrDef<ReturnNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&ReturnVisit>())
-      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&ReturnMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&ReturnVisit>())
+      .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&ReturnMutate>())
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&ReturnMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.Return", [](Expr value, Location loc) { return Return(value, loc); });
@@ -947,9 +943,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   BreakNode::RegisterReflection();
   refl::TypeAttrDef<BreakNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&BreakVisit>())
-      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&BreakMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&BreakVisit>())
+      .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&BreakMutate>())
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BreakMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.Break", [](Location loc) { return Break(loc); });
@@ -966,10 +962,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   ContinueNode::RegisterReflection();
   refl::TypeAttrDef<ContinueNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&ContinueVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&ContinueVisit>())
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&ContinueMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&ContinueMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.Continue", [](Location loc) { return Continue(loc); });
@@ -1029,10 +1025,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   SeqStmtNode::RegisterReflection();
   refl::TypeAttrDef<SeqStmtNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&SeqStmtVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
-            ffi::FStructuralMutate::FromNative<&SeqStmtMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&SeqStmtVisit>())
+      .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&SeqStmtMutate>())
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&SeqStmtMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.SeqStmt", [](SeqStmt seq, ffi::Optional<Location> loc) {
@@ -1057,9 +1052,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   IfNode::RegisterReflection();
   refl::TypeAttrDef<IfNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&IfVisit>())
-      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&IfMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&IfVisit>())
+      .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&IfMutate>())
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&IfMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.If",
@@ -1084,10 +1079,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   EvaluateNode::RegisterReflection();
   refl::TypeAttrDef<EvaluateNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&EvaluateVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&EvaluateVisit>())
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&EvaluateMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&EvaluateMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.Evaluate",
@@ -1113,11 +1108,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TensorStoreNode::RegisterReflection();
   refl::TypeAttrDef<TensorStoreNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&TensorStoreVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&TensorStoreMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TensorStoreMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.TensorStore",

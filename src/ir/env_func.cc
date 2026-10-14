@@ -20,6 +20,7 @@
 /*!
  * \file env_func.cc
  */
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/env_func.h>
@@ -51,12 +52,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   EnvFuncObj::RegisterReflection();
   // override EnvFuncObj to use name as the repr
   refl::TypeAttrDef<EnvFuncObj>()
-      .def(tvm::ffi::reflection::type_attr::kDataToJson,
+      .def(tvm::ffi::type_attr::kDataToJson.name,
            [](const EnvFuncObj* node) {
              // simply save as the string
              return node->name;
            })
-      .def(tvm::ffi::reflection::type_attr::kDataFromJson, EnvFunc::Get);
+      .def(tvm::ffi::type_attr::kDataFromJson.name, EnvFunc::Get);
 
   refl::GlobalDef().def("ir.EnvFuncGet", EnvFunc::Get);
 }

@@ -36,15 +36,6 @@
 
 namespace tvm {
 namespace tirx {
-/*!
- * \brief Global symbol of the op after lowering.
- */
-using TGlobalSymbol = ffi::String;
-
-/*!
- * \brief Whether the op is overloaded for vector form.
- */
-using TVectorizable = bool;
 
 /*!
  * \brief The intrinsic lowering function for given op.
@@ -57,9 +48,19 @@ using FLowerIntrinsic = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 using FLegalize = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
 namespace op_attr {
-inline constexpr const char* kGlobalSymbol = "TGlobalSymbol";
-inline constexpr const char* kVectorizable = "TVectorizable";
+/*!
+ * \brief Global symbol of the op after lowering.
+ */
+inline constexpr ffi::reflection::AttrKey<ffi::String> kGlobalSymbol{"TGlobalSymbol"};
+/*!
+ * \brief Whether the op is overloaded for vector form.
+ */
+inline constexpr ffi::reflection::AttrKey<bool> kVectorizable{"TVectorizable"};
 }  // namespace op_attr
+
+// Compatibility names; new callers can deduce the value type from the key.
+using TGlobalSymbol = decltype(op_attr::kGlobalSymbol)::ValueType;
+using TVectorizable = decltype(op_attr::kVectorizable)::ValueType;
 
 }  // namespace tirx
 }  // namespace tvm

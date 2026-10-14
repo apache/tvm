@@ -359,8 +359,8 @@ class CodeGenC : public tvm::ExprFunctor<void(const Expr&, std::ostream&)>,
   /*! \brief Handle vars whose address_of(buffer[index]) should print as ptr + index. */
   std::unordered_set<const VarNode*> pointer_offset_vars_;
   /*! \brief Record of ops that have pre-defined global symbol. */
-  OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ =
-      Op::GetAttrMap<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol);
+  decltype(Op::GetAttrMap(tvm::tirx::op_attr::kGlobalSymbol)) op_attr_global_symbol_ =
+      Op::GetAttrMap(tvm::tirx::op_attr::kGlobalSymbol);
   // cache commonly used ops
   const Op& builtin_call_extern_ = tirx::call_extern_op();
   const Op& builtin_call_pure_extern_ = tirx::call_pure_extern_op();

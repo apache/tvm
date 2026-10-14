@@ -28,6 +28,8 @@
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/extra/dataclass.h>
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/reflection/native_function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
@@ -844,8 +846,8 @@ class GlobalVarNode : public ExprNode {
     // A GlobalVar identifies a module-level symbol.  Its type is derived from the
     // corresponding function definition and is not part of the symbol identity.
     refl::TypeAttrDef<GlobalVarNode>()
-        .def(tvm::ffi::reflection::type_attr::kSEqual, &GlobalVarNode::SEqual)
-        .def(tvm::ffi::reflection::type_attr::kSHash, &GlobalVarNode::SHash);
+        .def(tvm::ffi::type_attr::kSEqual.name, &GlobalVarNode::SEqual)
+        .def(tvm::ffi::type_attr::kSHash.name, &GlobalVarNode::SHash);
   }
 
   bool SEqual(const GlobalVarNode* other,
@@ -940,9 +942,6 @@ inline std::ostream& operator<<(std::ostream& os, CallEffectKind side_effect) {
       TVM_FFI_THROW(InternalError) << "Unknown CallEffectKind: " << static_cast<int>(side_effect);
   }
 }
-
-/*! \brief Use integer to record the kind. */
-using TCallEffectKind = int64_t;
 
 /*!
  * \brief Call corresponds to callable invocation.
@@ -1183,8 +1182,12 @@ inline constexpr bool object_ref_contains_v<PrimExpr, TensorLoadNode> = true;
 }  // namespace ffi
 
 namespace op_attr {
-inline constexpr const char* kCallEffectKind = "TCallEffectKind";
+/*! \brief Use integer to record the kind. */
+inline constexpr ffi::reflection::AttrKey<int64_t> kCallEffectKind{"TCallEffectKind"};
 }  // namespace op_attr
+
+// Compatibility names; new callers can deduce the value type from the key.
+using TCallEffectKind = decltype(op_attr::kCallEffectKind)::ValueType;
 
 namespace type_attr {
 inline constexpr const char* kTensorLoadInferType = "__tvm_tensor_load_infer_type__";

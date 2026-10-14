@@ -118,6 +118,25 @@ class BaseFuncNode : public ExprNode {
                                     ffi::Optional<TObjectRef> default_value = std::nullopt) const {
     return attrs.GetAttr(attr_key, default_value);
   }
+  /*!
+   * \brief Get an attribute with its value type deduced only from the key.
+   * \param key The typed attribute key.
+   * \param default_value Value returned only when the key is absent.
+   * \return The attribute or default, with the same conversions as the name-based getter.
+   */
+  template <typename T>
+  ffi::Optional<T> GetAttr(ffi::reflection::AttrKey<T> key,
+                           ffi::Optional<typename ffi::reflection::AttrKey<T>::ValueType>
+                               default_value = std::nullopt) const {
+    return attrs.GetAttr(key, std::move(default_value));
+  }
+  /*! \brief Accept a default convertible to the key's value type. */
+  template <typename T>
+  ffi::Optional<T> GetAttr(ffi::reflection::AttrKey<T> key,
+                           typename ffi::reflection::AttrKey<T>::ValueType default_value) const {
+    return GetAttr(key, ffi::Optional<T>(std::move(default_value)));
+  }
+
   // variant that uses TObjectRef to enable implicit conversion to default value.
   template <typename TObjectRef>
   ffi::Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
