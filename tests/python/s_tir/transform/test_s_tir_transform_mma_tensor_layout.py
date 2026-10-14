@@ -20,6 +20,8 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import s_tir, tirx
+from tvm.script import s_tir as Ts
+from tvm.script import tirx as T
 
 
 @pytest.mark.parametrize("scope,shape", [("mma.matrixA", (32, 8)), ("mma.matrixB", (8, 32))])
@@ -35,6 +37,27 @@ def test_explicit_matrix_ab_access_is_rejected(scope, shape, access_kind):
 
     with pytest.raises(tvm.error.InternalError, match=f"{scope}.*explicit"):
         s_tir.transform.TransformMmaTensorLayout()(tvm.IRModule.from_expr(func))
+
+
+def test_matrix_c_load_store_lower_without_intrinsic_catalogue():
+    @Ts.function
+    def before(A: T.Tensor((32, 16), "float32"), B: T.Tensor((32, 16), "float32")):
+        fragment = Ts.sblock_alloc_tensor((32, 16), "float32", scope="mma.matrixC")
+        for i, j in T.grid(32, 16):
+            fragment[i, j] = A[i, j]
+            B[i, j] = fragment[i, j]
+
+    @Ts.function
+    def expected(A: T.Tensor((32, 16), "float32"), B: T.Tensor((32, 16), "float32")):
+        fragment = Ts.sblock_alloc_tensor((2, 2, 2, 2), "float32", scope="local")
+        for i, j in T.grid(32, 16):
+            fragment[i // 16, j // 8, i % 16 // 8, j % 2] = A[i, j]
+            B[i, j] = fragment[i // 16, j // 8, i % 16 // 8, j % 2]
+
+    result = s_tir.transform.TransformMmaTensorLayout()(tvm.IRModule.from_expr(before))["before"]
+    tvm.ir.assert_structural_equal(
+        result.without_attr("global_symbol"), expected.without_attr("global_symbol")
+    )
 
 
 if __name__ == "__main__":

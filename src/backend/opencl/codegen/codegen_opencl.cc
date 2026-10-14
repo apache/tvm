@@ -426,6 +426,8 @@ void CodeGenOpenCL::PrintStorageQualifier(const VarNode* var, std::ostream& os) 
 void CodeGenOpenCL::PrintStorageScope(const runtime::MemoryScope& scope,
                                       std::ostream& os) {  // NOLINT(*)
   static const auto scope_shared = runtime::MemoryScope::Get("shared");
+  TVM_FFI_ICHECK(scope != runtime::MemoryScope::Get("warp"))
+      << "OpenCL warp storage is unsupported; use explicit per-thread local storage and shuffles";
   if (scope == runtime::MemoryScope::Global()) {
     os << "__global ";
   } else if (scope == scope_shared) {

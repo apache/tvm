@@ -191,6 +191,21 @@ def test_legacy_tensorcore_ops_require_downstream_codegen(op_name):
         tvm.get_global_func("target.build.cuda")(tvm.IRModule.from_expr(func), target)
 
 
+@pytest.mark.parametrize("target_kind", ["cuda", "opencl"])
+def test_warp_storage_requires_explicit_local_layout(target_kind):
+    @T.function
+    def main(data: T.handle("float32")):
+        T.func_attr({"global_symbol": "main", "calling_conv": 2})
+        output = T.decl_tensor(data, ty_args=[T.Tensor((1,), "float32")])
+        fragment = T.alloc_tensor(ty_args=[T.Tensor((32,), "float32", scope="warp")])
+        fragment[0] = 1.0
+        output[0] = fragment[0]
+
+    target = tvm.target.Target(target_kind)
+    with pytest.raises(tvm.error.InternalError, match="warp storage is unsupported"):
+        tvm.get_global_func("target.build." + target_kind)(tvm.IRModule.from_expr(main), target)
+
+
 def test_typed_buffer_bindings(monkeypatch):
     @T.function
     def main(data: T.handle("float32"), output: T.handle):

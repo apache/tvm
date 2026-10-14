@@ -907,6 +907,8 @@ void CodeGenCUDA::PrintStorageScope(const runtime::MemoryScope& scope,
   TVM_FFI_ICHECK(scope != runtime::MemoryScope::Global())
       << "Cannot allocate global memory when targeting CUDA. You must pass "
          "all global arrays as input instead";
+  TVM_FFI_ICHECK(scope != runtime::MemoryScope::Get("warp"))
+      << "CUDA warp storage is unsupported; use explicit per-thread local storage and shuffles";
   if (scope == scope_shared) {
     os << "__shared__ ";
   } else if (scope == scope_shared_dyn) {

@@ -121,7 +121,7 @@ The ``tirx_pipeline`` module pass applies this sequence (a few passes are gated 
 
 - **host**: ``LowerTVMBuiltin`` (lower ``tvm_*`` builtins), ``LowerIntrin``
   (target-specific intrinsics)
-- **device**: ``LowerWarpMemory`` (warp-scoped tensors → shuffles), ``StmtSimplify``,
+- **device**: ``StmtSimplify``,
   ``LowerIntrin``
 
 Inside LowerTIRx

@@ -24,6 +24,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.s_tir.meta_schedule.space_generator import (
+    PostOrderApply,
     PySpaceGenerator,
     ScheduleFn,
     SpaceGeneratorUnion,
@@ -107,6 +108,26 @@ def test_meta_schedule_design_space_generator_NIE():
     ):
         generator = TestPySpaceGenerator()
         generator._initialize_with_tune_context(TuneContext())
+
+
+@pytest.mark.parametrize("arch", ["sm_75", "sm_80", "sm_100"])
+def test_cuda_default_rules_use_generic_scheduling(arch):
+    target = tvm.target.Target(
+        {
+            "kind": "cuda",
+            "arch": arch,
+            "max_threads_per_block": 1024,
+            "max_shared_memory_per_block": 49152,
+            "thread_warp_size": 32,
+        }
+    )
+    generator = PostOrderApply()
+    TuneContext(mod=Matmul, target=target, space_generator=generator, rand_state=0)
+    assert any(
+        isinstance(rule, tvm.s_tir.meta_schedule.schedule_rule.MultiLevelTiling)
+        for rule in generator.sch_rules
+    )
+    assert generator.generate_design_space(Matmul)
 
 
 if __name__ == "__main__":

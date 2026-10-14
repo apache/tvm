@@ -31,7 +31,6 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op/memory.h>
 
 namespace tvm {
 namespace s_tir {
@@ -39,21 +38,6 @@ using namespace tvm::tirx;
 
 using namespace sym;
 using namespace runtime;
-
-namespace {
-
-ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
-  if (auto var = data.as<Var>()) {
-    return var;
-  }
-  if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
-    return call->args[0].as<Var>();
-  }
-  return std::nullopt;
-}
-
-}  // namespace
 
 class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
  public:
@@ -63,7 +47,7 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
   static Function Transform(Function func) {
     Analyzer analyzer;
 
-    auto new_body = ffi::make_object<PermutedLayoutInjector>(func, analyzer)
+    auto new_body = ffi::make_object<PermutedLayoutInjector>(analyzer)
                         ->Mutate(func->body)
                         .ValueOrUnchanged(func->body);
     auto func_node = func.CopyOnWrite();
@@ -71,14 +55,8 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
     return func;
   }
 
-  explicit PermutedLayoutInjector(Function func, const Analyzer& analyzer)
-      : StmtExprMutatorWithAnalyzer(analyzer) {
-    for (const Var& param : func->params) {
-      if (auto tensor = param.as<TensorVar>()) {
-        tensor_map_.insert({tensor.value(), tensor.value()});
-      }
-    }
-  }
+  explicit PermutedLayoutInjector(const Analyzer& analyzer)
+      : StmtExprMutatorWithAnalyzer(analyzer) {}
 
  private:
   ffi::Array<PrimExpr> PermuteIndices(PrimExpr row_idx, PrimExpr col_idx, int row_size) {
@@ -139,14 +117,6 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    // Record the mapping from tensor identity to tensor for later lookup.
-    for (auto tensor : op->alloc_tensors) {
-      tensor_map_.insert({tensor, tensor});
-    }
-    for (auto match_tensor : op->match_tensors) {
-      tensor_map_.insert({match_tensor->tensor, match_tensor->tensor});
-    }
-
     if (op->annotations.count(tvm::s_tir::attr::kPermutedLayout) == 0 ||
         !CheckAnnotation(op->annotations.at(tvm::s_tir::attr::kPermutedLayout))) {
       return StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode);
@@ -254,88 +224,8 @@ class PermutedLayoutInjector : public StmtExprMutatorWithAnalyzer {
         load->loc);
   }
 
-  // Decode physical byte additions around a logical tensor address.  Keep the
-  // logical load untouched here: the intrinsic's explicit offset must be added
-  // before applying the permutation, and visiting the load first would swizzle twice.
-  TensorVar DecodePointer(Expr pointer, PrimExpr* byte_offset) {
-    if (const auto* call = pointer.as<CallNode>()) {
-      if (call->op.same_as(tirx::ptr_byte_offset_op())) {
-        *byte_offset =
-            *byte_offset +
-            Mutate(call->args[1]).ValueOrUnchanged(call->args[1]).as_or_throw<PrimExpr>();
-        return DecodePointer(call->args[0], byte_offset);
-      }
-      if (call->op.same_as(tirx::reinterpret_op())) {
-        return DecodePointer(call->args[0], byte_offset);
-      }
-      if (call->op.same_as(tirx::address_of_op())) {
-        const auto* load = call->args[0].as<TensorLoadNode>();
-        TVM_FFI_ICHECK(load) << "Expected a tensor address for permuted layout";
-        TensorVar tensor = load->source.as_or_throw<TensorVar>();
-        auto indices = Mutate(load->indices)
-                           .ValueOrUnchanged(load->indices)
-                           .as_or_throw<ffi::Array<PrimExpr>>();
-        auto flat_indices = tensor.ty()->ElemOffset(indices);
-        // S-TIR flattening uses ElemOffset, including explicit strides and the
-        // element offset, even when the tensor carries a default layout.
-        TVM_FFI_ICHECK_EQ(flat_indices.size(), 1U);
-        PrimType dtype = tensor.dtype();
-        int bytes = (dtype.bits() * dtype.lanes() + 7) / 8;
-        *byte_offset = *byte_offset + flat_indices[0] * bytes;
-        return tensor;
-      }
-    }
-    auto data_var = GetBufferDataVar(pointer);
-    TVM_FFI_ICHECK(data_var.has_value()) << "Expected a tensor pointer, received " << pointer;
-    auto it = tensor_map_.find(data_var.value());
-    TVM_FFI_ICHECK(it != tensor_map_.end()) << "Unknown tensor pointer: " << pointer;
-    return it->second;
-  }
-
-  Expr PermutePointer(Expr pointer, ffi::Optional<PrimExpr> offset = std::nullopt) {
-    PrimExpr byte_offset = PrimExpr(0);
-    TensorVar tensor = DecodePointer(pointer, &byte_offset);
-    PrimType dtype = tensor.dtype();
-    int bytes = (dtype.bits() * dtype.lanes() + 7) / 8;
-    int row_size = CheckAndGetTensorRowSize(tensor);
-    PrimExpr smem_offset = floordiv(byte_offset, bytes) + offset.value_or(PrimExpr(0));
-    auto indices =
-        PermuteIndices(floordiv(smem_offset, row_size), floormod(smem_offset, row_size), row_size);
-    PrimExpr new_offset = analyzer_->Simplify(indices[0] * row_size + indices[1]);
-    PrimExpr new_bytes = new_offset * bytes;
-    PrimExpr remainder = analyzer_->Simplify(floormod(byte_offset, bytes));
-    if (!prim::IsZero(remainder)) new_bytes = new_bytes + remainder;
-    return Call(pointer->ty, tirx::ptr_byte_offset_op(), {tensor.data(), new_bytes});
-  }
-
-  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    static const Op ptx_ldmatrix_op = Op::Get("tirx.ptx_legacy.ldmatrix");
-    static const Op mma_store_op = Op::Get("tirx.cuda.mma_store");
-    if (!permute_ || (!op->op.same_as(ptx_ldmatrix_op) && !op->op.same_as(mma_store_op))) {
-      return StmtExprMutatorWithAnalyzer::Mutate_(op, inplace_mode);
-    }
-    bool is_ldmatrix = op->op.same_as(ptx_ldmatrix_op);
-    int pointer_index = is_ldmatrix ? 5 : 2;
-    ffi::Array<Expr> args;
-    for (int i = 0; i < static_cast<int>(op->args.size()); ++i) {
-      args.push_back(i == pointer_index ? op->args[i]
-                                        : Mutate(op->args[i]).ValueOrUnchanged(op->args[i]));
-    }
-    if (is_ldmatrix) {
-      PrimExpr offset = args[6].as_or_throw<PrimExpr>();
-      args.Set(pointer_index, PermutePointer(args[pointer_index], offset));
-      args.Set(6, IntImm(offset.ty(), 0));
-    } else {
-      args.Set(pointer_index, PermutePointer(args[pointer_index]));
-    }
-    return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->loc);
-  }
-
   static constexpr size_t VECTORIZE_FACTOR = 8;
-  static constexpr size_t BANK_SIZE_BYTES = 128;
 
-  // Mapping from data Var of a TensorVar to TensorVar, for lookup
-  std::unordered_map<Var, TensorVar> tensor_map_;
   bool permute_ = false;
 };
 

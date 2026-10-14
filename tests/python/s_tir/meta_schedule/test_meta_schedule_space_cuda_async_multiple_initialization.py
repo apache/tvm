@@ -29,7 +29,7 @@ from tvm.target import Target
 
 
 def generate_design_space(
-    kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"],
+    kind: Literal["llvm", "cuda", "hexagon"],
     mod: IRModule,
     target: Target,
     types: type | tuple[type, ...],
