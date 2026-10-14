@@ -36,7 +36,7 @@ def test_instruction_is_a_void_call():
     assert call.ty == tvm.ir.PrimType("void")
     assert call.op.get_attr("TCallEffectKind") == 3
     assert callable(call.op.get_attr("FTileOpDispatch"))
-    assert call.attrs.scope == "warp"
+    assert call.attrs.scope.same_as(T.cuda.ThreadScope("warp"))
     assert call.args[0].value == "ld.global.v4.b32"
     assert not hasattr(call, "config")
     assert not hasattr(call, "workspace")

@@ -68,10 +68,12 @@ ffi::Optional<ffi::String> AxisNode::GetBackend() const {
   return AxisAttr<ffi::String>(this, "backend");
 }
 
-ffi::Optional<ExecScope> AxisNode::GetScope() const { return AxisAttr<ExecScope>(this, "scope"); }
+ffi::Optional<ThreadScope> AxisNode::GetScope() const {
+  return AxisAttr<ThreadScope>(this, "scope");
+}
 
-ffi::Optional<ExecScope> AxisNode::GetSubscope() const {
-  return AxisAttr<ExecScope>(this, "subscope");
+ffi::Optional<ThreadScope> AxisNode::GetSubscope() const {
+  return AxisAttr<ThreadScope>(this, "subscope");
 }
 
 ffi::Optional<FAxisFuser> AxisNode::GetFuser() const { return AxisAttr<FAxisFuser>(this, "fuser"); }

@@ -28,7 +28,7 @@ from tvm.runtime import Object
 from tvm.tirx.expr import Expr
 
 from . import _ffi_api
-from .exec_scope import ExecScope
+from .thread_scope import ThreadScope
 
 
 @tvm_ffi.register_object("tirx.Layout")
@@ -312,11 +312,11 @@ class Axis(Enum, metaclass=_AxisMeta, type_key="tirx.Axis", init=False):
         """Backend owning this axis, or None for a generic axis."""
         return _ffi_api.AxisGetBackend(self)
 
-    def get_scope(self) -> ExecScope | None:
+    def get_scope(self) -> ThreadScope | None:
         """Get the scope of the axis."""
         return _ffi_api.AxisGetScope(self)  # pylint: disable=no-member
 
-    def get_subscope(self) -> ExecScope | None:
+    def get_subscope(self) -> ThreadScope | None:
         """Get the subscope of the axis."""
         return _ffi_api.AxisGetSubscope(self)  # pylint: disable=no-member
 
@@ -597,7 +597,7 @@ class TileLayout(Layout):
         """
         return _ffi_api.TileLayoutGroup(self, shape)  # pylint: disable=no-member
 
-    def get_scope(self) -> tuple[ExecScope, ExecScope] | None:
+    def get_scope(self) -> tuple[ThreadScope, ThreadScope] | None:
         """Get the scope pair of the layout."""
         return _ffi_api.TileLayoutGetScope(self)  # pylint: disable=no-member
 

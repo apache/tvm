@@ -25,7 +25,6 @@ from tvm.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_ca
 from . import layout as layout
 from .axis import Axis as Axis
 from .backend_config import BackendConfig as BackendConfig
-from .exec_scope import ExecScope as ExecScope
 from .launch import AccessPolicyWindow as AccessPolicyWindow
 from .launch import KernelAttributes as KernelAttributes
 from .launch import LaunchCompletionEvent as LaunchCompletionEvent
@@ -34,6 +33,7 @@ from .launch import MemSyncDomainMap as MemSyncDomainMap
 from .launch import ProgrammaticEvent as ProgrammaticEvent
 from .ptx.engine import PTXNamespace as _PTXNamespace
 from .ptx.engine import _InstrChain
+from .thread_scope import ThreadScope as ThreadScope
 from .tile.instructions import make_namespace as _make_tensor_namespace
 
 # pylint: disable=protected-access

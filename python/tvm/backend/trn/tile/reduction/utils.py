@@ -87,7 +87,7 @@ def reduction_trn(
         Optional[Function]: The scheduled function, or None if not applicable.
     """
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
-        fail("requires Trainium target and thread exec_scope")
+        fail("requires Trainium target and thread scope")
 
     op = TensorCall.decode(op)
     dst_tensor_region, src_tensor_region = op.output, op.input

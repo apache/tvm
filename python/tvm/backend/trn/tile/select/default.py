@@ -41,7 +41,7 @@ def _scope_trn_sbuf():
 def select_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     """Generate schedule for select operation on Trainium."""
     if sctx.scope_kind != "thread":
-        fail("requires thread exec_scope for TRN select")
+        fail("requires thread scope for TRN select")
 
     op = TensorCall.decode(op)
     assert isinstance(op, Select), f"{op} is not a Select"

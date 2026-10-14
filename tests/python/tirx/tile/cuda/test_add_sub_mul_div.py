@@ -192,17 +192,17 @@ def test_binary_non_commutative_const_lhs(op_type):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-@pytest.mark.parametrize("exec_scope", ["warp", "warpgroup"])
+@pytest.mark.parametrize("thread_scope", ["warp", "warpgroup"])
 @pytest.mark.parametrize("op_type", ["add", "mul"])
-def test_binary_op_shared_subcta_scope(exec_scope, op_type):
-    n_warps = 4 if exec_scope == "warpgroup" else 1
+def test_binary_op_shared_subcta_scope(thread_scope, op_type):
+    n_warps = 4 if thread_scope == "warpgroup" else 1
     shape = (n_warps * 32, 8)
     size = math.prod(shape)
     # The old test executes warp 5 / warpgroup 1 inside a 256-thread block.
-    group_shape = (n_warps, 32, 8, 1) if exec_scope == "warpgroup" else (32, 8, 1)
+    group_shape = (n_warps, 32, 8, 1) if thread_scope == "warpgroup" else (32, 8, 1)
     reg_layout = (
         TileLayout(S[(n_warps, 32, 8, 1) : (1 @ wid_in_wg, 1 @ laneid, 1, 1)])
-        if exec_scope == "warpgroup"
+        if thread_scope == "warpgroup"
         else TileLayout(S[(32, 8, 1) : (1 @ laneid, 1, 1)])
     )
 
@@ -222,32 +222,32 @@ def test_binary_op_shared_subcta_scope(exec_scope, op_type):
         T.cuda.cta_sync()
         a = T.alloc_local(group_shape, "float16", layout=reg_layout)
         b = T.alloc_local(group_shape, "float16", layout=reg_layout)
-        if T.constexpr(exec_scope == "warpgroup"):
+        if T.constexpr(thread_scope == "warpgroup"):
             if wg == 1:
                 T.cuda.tile.apply(
                     T.ptx["ld.shared.b16"],
                     a.view("uint16"),
                     AS.view(*group_shape).view("uint16"),
-                    scope=exec_scope,
+                    scope=thread_scope,
                 )
                 T.cuda.tile.apply(
                     T.ptx["ld.shared.b16"],
                     b.view("uint16"),
                     BS.view(*group_shape).view("uint16"),
-                    scope=exec_scope,
+                    scope=thread_scope,
                 )
                 T.cuda.tile.apply(
                     T.ptx[f"{op_type}.rn.f16"],
                     a.view("uint16"),
                     a.view("uint16"),
                     b.view("uint16"),
-                    scope=exec_scope,
+                    scope=thread_scope,
                 )
                 T.cuda.tile.apply(
                     T.ptx["st.shared.b16"],
                     AS.view(*group_shape).view("uint16"),
                     a.view("uint16"),
-                    scope=exec_scope,
+                    scope=thread_scope,
                 )
         else:
             if wid == 5:
@@ -255,26 +255,26 @@ def test_binary_op_shared_subcta_scope(exec_scope, op_type):
                     T.ptx["ld.shared.b16"],
                     a.view("uint16"),
                     AS.view(*group_shape).view("uint16"),
-                    scope=exec_scope,
+                    scope=thread_scope,
                 )
                 T.cuda.tile.apply(
                     T.ptx["ld.shared.b16"],
                     b.view("uint16"),
                     BS.view(*group_shape).view("uint16"),
-                    scope=exec_scope,
+                    scope=thread_scope,
                 )
                 T.cuda.tile.apply(
                     T.ptx[f"{op_type}.rn.f16"],
                     a.view("uint16"),
                     a.view("uint16"),
                     b.view("uint16"),
-                    scope=exec_scope,
+                    scope=thread_scope,
                 )
                 T.cuda.tile.apply(
                     T.ptx["st.shared.b16"],
                     AS.view(*group_shape).view("uint16"),
                     a.view("uint16"),
-                    scope=exec_scope,
+                    scope=thread_scope,
                 )
         T.cuda.cta_sync()
         for i in T.serial(T.ceildiv(size, 256)):
@@ -289,15 +289,15 @@ def test_binary_op_shared_subcta_scope(exec_scope, op_type):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-@pytest.mark.parametrize("exec_scope", ["cta", "warpgroup", "warp"])
+@pytest.mark.parametrize("thread_scope", ["cta", "warpgroup", "warp"])
 @pytest.mark.parametrize("rhs_kind", ["region", "broadcast", "const"])
 @pytest.mark.parametrize("op_type", ["add", "sub", "mul", "fdiv"])
-def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
+def test_binary_op_local_subcta_trivial(thread_scope, rhs_kind, op_type):
     dtype = "float16"
     m, n = 4, 8
-    n_threads = 256 if exec_scope == "cta" else (128 if exec_scope == "warpgroup" else 32)
+    n_threads = 256 if thread_scope == "cta" else (128 if thread_scope == "warpgroup" else 32)
     # in this test, use warp3/warpgroup1 to test
-    thr_str = 0 if exec_scope == "cta" else (128 if exec_scope == "warpgroup" else 32 * 3)
+    thr_str = 0 if thread_scope == "cta" else (128 if thread_scope == "warpgroup" else 32 * 3)
     a_shape = (n_threads, m, n)
     b_n = n if rhs_kind == "region" else 1
     b_shape = (n_threads, m, b_n)
@@ -318,7 +318,7 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
         "cta": T.cuda.linear_thread_id,
         "warpgroup": T.cuda.thread_in_warpgroup,
         "warp": T.cuda.lane_id,
-    }[exec_scope]
+    }[thread_scope]
 
     @T.function
     def kernel(
@@ -352,12 +352,12 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
                     for j in T.serial(b_n):
                         B_local[i, j] = B[tid_in_scope, i, j]
 
-        if T.constexpr(exec_scope == "cta"):
+        if T.constexpr(thread_scope == "cta"):
             if T.constexpr(rhs_kind == "const"):
                 tx_op(C_local, A_local, const)
             else:
                 tx_op(C_local, A_local, B_values)
-        elif T.constexpr(exec_scope == "warpgroup"):
+        elif T.constexpr(thread_scope == "warpgroup"):
             if wg_id == 1:
                 if T.constexpr(rhs_kind == "const"):
                     tx_op(C_local, A_local, const)
@@ -428,10 +428,10 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("storage_scope", ["shared", "local"])
-@pytest.mark.parametrize("exec_scope", ["cta", "thread"])
+@pytest.mark.parametrize("thread_scope", ["cta", "thread"])
 @pytest.mark.parametrize("op_type", ["add", "sub", "mul", "fdiv"])
 @pytest.mark.parametrize("dtype", ["float16"])
-def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
+def test_binary_op_vectorized(input, storage_scope, thread_scope, op_type, dtype):
     a_shape, b_shape, res_shape, thread_cnt, device_id = input
     row_a, row_b = a_shape[1:], b_shape[1:]
     n, m = math.prod(row_a), math.prod(row_b)
@@ -473,7 +473,7 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
             for j in range(m):
                 bl[j] = bf[tid, j]
         bv = b.view(*row_a, layout=broadcast)
-        if T.constexpr(exec_scope == "cta"):
+        if T.constexpr(thread_scope == "cta"):
             # Expose the implicit per-thread register arrays as an explicit
             # CTA view. These declarations share their original storage.
             av = a.view(thread_cnt // 32, 32, *row_a, layout=cta_a_layout)

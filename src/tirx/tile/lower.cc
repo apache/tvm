@@ -39,7 +39,7 @@
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/tile/dispatch.h>
-#include <tvm/tirx/tile/exec_scope.h>
+#include <tvm/tirx/tile/thread_scope.h>
 #include <tvm/tirx/transform.h>
 
 #include <limits>
@@ -487,12 +487,12 @@ class TileDispatcher : public StmtExprMutator {
     op->op.as_or_throw<Op>().Validate(op);
     TVM_FFI_CHECK(op->attrs.has_value(), ValueError)
         << "A tile instruction must have scope attributes";
-    auto scope_name =
-        ffi::reflection::FieldGetter(op->attrs->GetTypeKey(), "scope")(op->attrs.value())
-            .cast<ffi::String>();
-    ExecScope scope(target_->kind->name, scope_name);
+    auto scope = ffi::reflection::FieldGetter(op->attrs->GetTypeKey(), "scope")(op->attrs.value())
+                     .cast<ThreadScope>();
+    TVM_FFI_CHECK(scope->backend() == target_->kind->name, ValueError)
+        << "Thread scope " << scope.name() << " does not match target " << target_->kind->name;
     ffi::Map<ffi::String, ffi::Array<PrimExpr>> inter_map, intra_map;
-    ffi::String scope_kind = scope->name();
+    ffi::String scope_kind = scope->local_name();
     if (cuda_analysis_) {
       auto split = cuda_analysis_->Split(scope);
       inter_map = std::move(split.first);

@@ -28,7 +28,7 @@
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/tile/exec_scope.h>
+#include <tvm/tirx/tile/thread_scope.h>
 
 #include <algorithm>
 #include <limits>
@@ -223,7 +223,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   using script::printer::RegisterScriptRepr;
   RegisterScriptRepr<tirx::TensorTypeNode>();
   RegisterScriptRepr<tirx::ComposeLayoutNode>();
-  RegisterScriptRepr<tirx::ExecScopeNode>();
+  RegisterScriptRepr<tirx::ThreadScopeObj>();
   RegisterScriptRepr<tirx::IndexMapNode>();
   RegisterScriptRepr<tirx::IterNode>();
   RegisterScriptRepr<tirx::FunctionNode>();

@@ -31,7 +31,7 @@ from .utils import InstType, binary_map_ops, try_find_inst_nary
 def binary_trn(op: TensorCall, binary_op: MapOpType, sctx: DispatchContext) -> Function | None:
     """Generate a binary operation schedule for Trainium."""
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
-        fail("requires Trainium target and thread exec_scope")
+        fail("requires Trainium target and thread scope")
 
     assert binary_op in binary_map_ops, f"Unsupported binary operation {binary_op}"
 

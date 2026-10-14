@@ -26,7 +26,7 @@
 #include <tvm/script/ir_builder/ir.h>
 #include <tvm/tirx/script/ir_builder/frame.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/tile/exec_scope.h>
+#include <tvm/tirx/tile/thread_scope.h>
 #include <tvm/tirx/type.h>
 
 namespace tvm {
@@ -52,8 +52,8 @@ using tvm::Var;
 using tvm::ffi::Tensor;
 using tvm::ffi::Tuple;
 using tvm::ffi::Variant;
-using tvm::tirx::ExecScope;
 using tvm::tirx::TensorVar;
+using tvm::tirx::ThreadScope;
 
 /*!
  * \brief The primitive function statement.

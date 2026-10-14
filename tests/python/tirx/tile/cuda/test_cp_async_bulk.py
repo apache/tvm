@@ -35,8 +35,8 @@ from tvm.ir import TensorRegion, TensorRegionType
 from tvm.script import tirx as T
 from tvm.testing import env
 from tvm.tirx import IntImm, Var
-from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
+from tvm.tirx.thread_scope import ThreadScope
 from tvm.tirx.tile.dispatch import DispatchContext, run_dispatch
 
 BULK = "cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"
@@ -53,7 +53,7 @@ def _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout, chunks=1):
         T.ptx[BULK], dst, src, chunk_bytes=chunk_bytes, mbar=Var("mbar", "handle"), remote_cta_id=1
     )
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
-    sctx = DispatchContext(target, ExecScope("cuda", "thread"), {}, {})
+    sctx = DispatchContext(target, ThreadScope("cuda.thread"), {}, {})
     return run_dispatch(op_call, sctx)
 
 
@@ -312,7 +312,7 @@ def test_dsmem_dispatch_missing_config():
     buf = tvm.tirx.decl_tensor((64,), "float16", "A", scope="shared.dyn", layout=layout)
     br = TensorRegion(buf, [Range.from_min_extent(0, 64)], ty=TensorRegionType())
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
-    sctx = DispatchContext(target, ExecScope("cuda", "thread"), {}, {})
+    sctx = DispatchContext(target, ThreadScope("cuda.thread"), {}, {})
 
     with pytest.raises(RuntimeError, match="remote_cta_id"):
         run_dispatch(
