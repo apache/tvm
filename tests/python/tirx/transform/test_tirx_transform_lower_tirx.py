@@ -1009,7 +1009,6 @@ def test_lower_uint32_scope_id_casts_at_bind():
 
 
 def test_lower_exec_context_infers_plain_predicate_for_dispatch():
-
     seen = []
     variant = "__probe_exec_context_plain_predicate__"
 
@@ -1180,7 +1179,6 @@ def test_lower_exec_context_respects_preferred_cluster_bounds():
 
 
 def test_lower_exec_context_infers_warpgroup_range_predicate_for_dispatch():
-
     seen = []
     variant = "__probe_exec_context_warpgroup_range_predicate__"
 
@@ -1240,7 +1238,6 @@ def test_lower_exec_context_infers_warpgroup_range_predicate_for_dispatch():
 
 
 def test_lower_exec_context_tracks_cta_thread_range_predicate_for_dispatch():
-
     seen = []
     variant = "__probe_exec_context_cta_thread_range_predicate__"
 
@@ -1286,7 +1283,6 @@ def test_lower_exec_context_tracks_cta_thread_range_predicate_for_dispatch():
 
 
 def test_lower_exec_context_tracks_cta_thread_single_warp_range_predicate():
-
     seen = []
     variant = "__probe_exec_context_cta_thread_single_warp_range_predicate__"
 
@@ -1332,7 +1328,6 @@ def test_lower_exec_context_tracks_cta_thread_single_warp_range_predicate():
 
 
 def test_lower_exec_context_tracks_warpgroup_thread_range_predicate():
-
     seen = []
     variant = "__probe_exec_context_warpgroup_thread_range_predicate__"
 
@@ -1385,7 +1380,6 @@ def test_lower_exec_context_tracks_warpgroup_thread_range_predicate():
 
 
 def test_lower_exec_context_tracks_dependent_conjunctive_predicate():
-
     seen = []
     variant = "__probe_exec_context_dependent_conjunctive_predicate__"
 
@@ -1561,7 +1555,6 @@ def test_simplify_uses_floor_div_scope_predicate_as_context_fact():
 
 
 def test_lower_exec_context_selector_filter_for_elect_sync():
-
     seen = []
     variant = "__probe_exec_context_elect_selector__"
 
@@ -1650,7 +1643,6 @@ def test_lower_cleanup_accepts_bool_elect_sync_else_path():
 
 
 def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
-
     seen = []
     variant = "__probe_exec_context_scope_guard_mixed__"
 
@@ -1703,7 +1695,6 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
 
 
 def test_lower_exec_context_tracks_factorized_cta_predicate():
-
     seen = []
     variant = "__probe_exec_context_cbx_predicate__"
 
@@ -1747,7 +1738,6 @@ def test_lower_exec_context_tracks_factorized_cta_predicate():
 
 
 def test_lower_exec_context_keeps_kernel_cta_predicate_out_of_cluster_active_set():
-
     seen = {}
     kernel_variant = "__probe_exec_context_kernel_cta_in_cluster__"
     cluster_variant = "__probe_exec_context_cluster_cta_in_cluster__"
@@ -1803,7 +1793,6 @@ def test_lower_exec_context_keeps_kernel_cta_predicate_out_of_cluster_active_set
 
 
 def test_lower_exec_context_tracks_cta_axis_modulo_predicate():
-
     seen = []
     variant = "__probe_exec_context_cbx_modulo_predicate__"
 
@@ -1847,7 +1836,6 @@ def test_lower_exec_context_tracks_cta_axis_modulo_predicate():
 
 
 def test_lower_exec_context_tracks_cta_id_in_pair_predicate():
-
     seen = []
     variant = "__probe_exec_context_cta_pair_predicate__"
 
@@ -1901,7 +1889,6 @@ def test_lower_exec_context_tracks_cta_id_in_pair_predicate():
 
 
 def test_lower_exec_context_tracks_two_cta_pair_predicates():
-
     seen = {}
     zero_variant = "__probe_exec_context_cta_pair_two_cta_zero__"
     one_variant = "__probe_exec_context_cta_pair_two_cta_one__"
@@ -1963,7 +1950,6 @@ def test_lower_exec_context_tracks_two_cta_pair_predicates():
 
 
 def test_lower_exec_context_tracks_cta_id_in_pair_after_axis_predicate():
-
     seen = []
     variant = "__probe_exec_context_cta_pair_after_axis_predicate__"
 

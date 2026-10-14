@@ -36,7 +36,6 @@
 #include <map>
 #include <unordered_set>
 
-
 namespace tvm {
 namespace tirx {
 namespace detail {
