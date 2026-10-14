@@ -446,12 +446,12 @@ def test_native_line_trace_locations_and_cleanup(monkeypatch):
         return T.evaluate(1)
 
     update = _ffi_api.IRBuilderUpdateLoc
-    fail = False
+    # Mutate an object: older Python trace callbacks can overwrite closure-cell changes.
+    fail = [False]
 
     def update_loc(*args):
-        nonlocal fail
-        if fail:
-            fail = False
+        if fail[0]:
+            fail[0] = False
             raise RuntimeError("trace callback failed")
         return update(*args)
 
@@ -472,7 +472,7 @@ def test_native_line_trace_locations_and_cleanup(monkeypatch):
                 callback = sys.gettrace()
                 with pytest.raises(RuntimeError, match="trace callback failed"):
                     with builder_api.line_trace():
-                        fail = True
+                        fail[0] = True
                         T.evaluate(0)
                 assert sys.gettrace() is callback
                 final_line = sys._getframe().f_lineno + 1
