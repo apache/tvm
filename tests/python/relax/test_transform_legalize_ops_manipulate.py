@@ -1490,12 +1490,12 @@ def test_scatter_elements():
                                         (fused * T.int64(2) + k) % T.int64(2),
                                     ]
                                     + T.Cast(
-                                        "int64",
                                         rxplaceholder_1[
                                             (fused * T.int64(2) + k) // T.int64(2),
                                             (fused * T.int64(2) + k) % T.int64(2),
                                         ]
                                         < T.int64(0),
+                                        "int64",
                                     )
                                     * T.int64(4)
                                 )
@@ -1509,12 +1509,12 @@ def test_scatter_elements():
                                         (fused * T.int64(2) + k) % T.int64(2),
                                     ]
                                     + T.Cast(
-                                        "int64",
                                         rxplaceholder_1[
                                             (fused * T.int64(2) + k) // T.int64(2),
                                             (fused * T.int64(2) + k) % T.int64(2),
                                         ]
                                         < T.int64(0),
+                                        "int64",
                                     )
                                     * T.int64(4)
                                 )
@@ -1589,11 +1589,11 @@ def test_scatter_elements_symbolic():
                                         (fused * n_scatter_elements + k) // n_scatter_elements, (fused * n_scatter_elements + k) % n_scatter_elements
                                     ]
                                     + T.Cast(
-                                        "int64",
                                         rxplaceholder_1[
                                             (fused * n_scatter_elements + k) // n_scatter_elements, (fused * n_scatter_elements + k) % n_scatter_elements
                                         ]
                                         < T.int64(0),
+                                        "int64",
                                     )
                                     * b_scatter_elements
                                 )
@@ -1606,11 +1606,11 @@ def test_scatter_elements_symbolic():
                                         (fused * n_scatter_elements + k) // n_scatter_elements, (fused * n_scatter_elements + k) % n_scatter_elements
                                     ]
                                     + T.Cast(
-                                        "int64",
                                         rxplaceholder_1[
                                             (fused * n_scatter_elements + k) // n_scatter_elements, (fused * n_scatter_elements + k) % n_scatter_elements
                                         ]
                                         < T.int64(0),
+                                        "int64",
                                     )
                                     * b_scatter_elements
                                 )

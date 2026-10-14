@@ -126,7 +126,7 @@ class PrimType(Type):
             return Var("", self)
         if isinstance(expr, str) and str(self.dtype) not in ("bool", "void", ""):
             expr = float(expr)
-        return prim_ffi_api._cast(self, expr, UNKNOWN_LOC)
+        return prim_ffi_api._cast(expr, self, UNKNOWN_LOC)
 
     def __getitem__(self, shape):
         """Describe local storage with this element type and the given shape."""

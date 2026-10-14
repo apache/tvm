@@ -1123,7 +1123,7 @@ def test_wgmma_ss_nt():
 
             # init C_local
             for i in T.serial(0, C_elems):
-                C_local[i] = T.Cast(out_dtype, get_init_value(out_dtype))
+                C_local[i] = T.Cast(get_init_value(out_dtype), out_dtype)
                 T.cuda.wgmma.noop_barrier(C_local[i])
 
                 # do wgmma
@@ -1302,7 +1302,7 @@ def test_wgmma_rs_nt():
 
             # init C_local
             for i in T.serial(0, C_elems):
-                C_local[i] = T.Cast(out_dtype, get_init_value(out_dtype))
+                C_local[i] = T.Cast(get_init_value(out_dtype), out_dtype)
 
                 # fence A_local and C_local
             for i in T.serial(0, A_elems_b32):

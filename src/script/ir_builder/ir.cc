@@ -205,7 +205,7 @@ PrimExpr ConvertLoopBound(const PrimExpr& e, const PrimType& var_ty) {
   if (const auto* imm = e.as<IntImmNode>()) {
     return tvm::IntImm(var_ty, imm->value);
   }
-  return tvm::prim::Cast(var_ty, e);
+  return tvm::prim::Cast(e, var_ty);
 }
 
 ForFrame For(ForKind kind, PrimExpr start, PrimExpr stop, ffi::Optional<PrimExpr> step,

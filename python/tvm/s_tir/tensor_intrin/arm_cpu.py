@@ -206,10 +206,10 @@ def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
     limit = (
         base - T.int32(horizontal_offset) - T.int32(tensor.elem_offset % stride) + T.int32(stride)
     )
-    limit = T.Min(limit, T.Cast("int32", vertical_limit) * stride)
+    limit = T.Min(limit, T.Cast(vertical_limit, "int32") * stride)
 
     return T.get_active_lane_mask(
-        T.Cast("int32", base), T.Cast("int32", limit), ty="uint1xvscalex4"
+        T.Cast(base, "int32"), T.Cast(limit, "int32"), ty="uint1xvscalex4"
     )
 
 
@@ -622,7 +622,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
             for m, n, k in T.grid(SVF2, SVF2, K):
                 with Ts.sblock("gemm"):
                     v_m, v_n, v_k = Ts.axis.remap("SSR", [m, n, k])
-                    C[v_m, v_n] += T.Cast("float32", A[v_k, v_m]) * T.Cast("float32", B[v_k, v_n])
+                    C[v_m, v_n] += T.Cast(A[v_k, v_m], "float32") * T.Cast(B[v_k, v_n], "float32")
 
     def impl():
         sub_tile_count = 4

@@ -1061,7 +1061,7 @@ def trilu(data, k, upper):
     """
     # Make sure datatype is consistent.
     if k.ty != tvm.ir.PrimType("int32"):
-        k = tvm.tirx.Cast("int32", k)
+        k = tvm.tirx.Cast(k, "int32")
 
     # Check either above or below diagonal depending on upper.
     check_op = tvm.tirx.GE
@@ -1075,9 +1075,9 @@ def trilu(data, k, upper):
         if row_index.ty != col_index.ty:
             target_type = (col_index + row_index).ty
             if row_index.ty != target_type:
-                row_index = tvm.tirx.Cast(target_type, row_index)
+                row_index = tvm.tirx.Cast(row_index, target_type)
             else:
-                col_index = tvm.tirx.Cast(target_type, col_index)
+                col_index = tvm.tirx.Cast(col_index, target_type)
         other_indices = indices[:-2]
         check_position = check_op(row_index, col_index - k)
         value = data(*other_indices, row_index, col_index)

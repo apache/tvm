@@ -93,7 +93,7 @@ def _all_class_non_max_suppression(block_builder: BlockBuilder, call: Call) -> E
         def compute_end(i):
             return tirx.if_then_else(
                 i == 0,
-                tirx.Cast("int64", count_tensor[0]),
+                tirx.Cast(count_tensor[0], "int64"),
                 tirx.const(3, "int64"),
             )
 

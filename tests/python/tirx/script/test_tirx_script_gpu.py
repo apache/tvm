@@ -600,7 +600,7 @@ def test_scope_id_dtype_uint32():
     dtypes = {str(d.var.ty) for d in scope_defs}
     assert dtypes == {"int32", "uint32"}
     code = func.script()
-    assert 'T.Cast("uint32", T.cuda.thread_idx("x"))' in code
+    assert 'T.Cast(T.cuda.thread_idx("x"), "uint32")' in code
     assert 'T.cuda.block_idx("x")' in code
     _assert_roundtrip(func)
 
@@ -624,8 +624,8 @@ def test_scope_id_dtype_uint32_lane_and_warp():
     # fmt: on
 
     code = func.script()
-    assert 'T.Cast("uint32", T.cuda.warp_id())' in code
-    assert 'T.Cast("uint32", T.cuda.lane_id())' in code
+    assert 'T.Cast(T.cuda.warp_id(), "uint32")' in code
+    assert 'T.Cast(T.cuda.lane_id(), "uint32")' in code
     _assert_roundtrip(func)
 
 
@@ -650,7 +650,7 @@ def test_scope_id_dtype_uint32_with_preferred():
     # fmt: on
 
     code = func.script()
-    assert 'T.Cast("uint32"' in code
+    assert "T.Cast(" in code and ', "uint32")' in code
     _assert_roundtrip(func)
 
 

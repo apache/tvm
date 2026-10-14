@@ -766,14 +766,14 @@ def get_dequant_matmul_module(K, N):
                     Ts.reads(lm_head_q_weight1[v_i0 // T.int64(8), v_i1])
                     Ts.writes(compute[v_i0, v_i1])
                     compute[v_i0, v_i1] = T.Cast(
-                        "float16",
                         T.bitwise_and(
                             T.shift_right(
                                 lm_head_q_weight1[v_i0 // T.int64(8), v_i1],
-                                T.Cast("uint32", v_i0 % T.int64(8) * T.int64(4)),
+                                T.Cast(v_i0 % T.int64(8) * T.int64(4), "uint32"),
                             ),
                             T.uint32(15),
                         ),
+                        "float16",
                     )
             for i0, i1 in T.grid(T.int64(K), T.int64(N)):
                 with Ts.sblock("dequantize"):
@@ -830,14 +830,14 @@ def get_dequant_vec_matmul_module(K, N):
                     Ts.reads(lm_head_q_weight1[v_i0 // T.int64(8), v_i1])
                     Ts.writes(compute[v_i0, v_i1])
                     compute[v_i0, v_i1] = T.Cast(
-                        "float16",
                         T.bitwise_and(
                             T.shift_right(
                                 lm_head_q_weight1[v_i0 // T.int64(8), v_i1],
-                                T.Cast("uint32", v_i0 % T.int64(8) * T.int64(4)),
+                                T.Cast(v_i0 % T.int64(8) * T.int64(4), "uint32"),
                             ),
                             T.uint32(15),
                         ),
+                        "float16",
                     )
             for i0, i1 in T.grid(T.int64(K), vocab_size_dequantize):
                 with Ts.sblock("dequantize"):

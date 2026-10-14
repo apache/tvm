@@ -44,7 +44,7 @@ def test_cmp_load_store(target):
                 with T.launch_thread("threadIdx.x", 4) as tx:
                     C = T.alloc_tensor(ty_args=[T.Tensor((1,), "bool", scope="local")])
                     C[0] = B[bx * 4 + tx] < A[bx * 4 + tx]
-                    D[bx * 4 + tx] = T.Cast("float32", C[0] and T.float32(1.0) < A[bx * 4 + tx])
+                    D[bx * 4 + tx] = T.Cast(C[0] and T.float32(1.0) < A[bx * 4 + tx], "float32")
 
     @I.ir_module
     class CPUModule:
@@ -59,7 +59,7 @@ def test_cmp_load_store(target):
             for i0 in range(32):
                 C[i0] = B[i0] < A[i0]
             for i0 in range(32):
-                D[i0] = T.Cast("float32", C[i0] and T.float32(1.0) < A[i0])
+                D[i0] = T.Cast(C[i0] and T.float32(1.0) < A[i0], "float32")
 
     arr_size = 32
     is_gpu = tvm.target.Target(target).kind.name != "llvm"

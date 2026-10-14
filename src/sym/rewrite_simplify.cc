@@ -2491,10 +2491,10 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
   if (op->op.same_as(ceil_op)) {
     PrimExpr ceil_arg = op->args[0].as_or_throw<PrimExpr>();
     if (auto arg_int = op->args[0].as<IntImmNode>()) {
-      return prim::cast(ret_ty, IntImm(arg_int->ty.as_or_throw<PrimType>(), arg_int->value));
+      return prim::cast(IntImm(arg_int->ty.as_or_throw<PrimType>(), arg_int->value), ret_ty);
     } else if (auto arg_float = ceil_arg.as<FloatImmNode>()) {
       return prim::cast(
-          ret_ty, FloatImm(arg_float->ty.as_or_throw<PrimType>(), std::ceil(arg_float->value)));
+          FloatImm(arg_float->ty.as_or_throw<PrimType>(), std::ceil(arg_float->value)), ret_ty);
     } else if (auto arg_call = ceil_arg.as<CallNode>()) {
       // ceil(log2(cast(n,"float64"))) is used as the implementation of
       // topi.math.ceil_log2, and appears in iteration bounds.
@@ -2581,7 +2581,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::CastNode* op,
   PrimExpr ret =
       SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
   op = ret.as<prim::CastNode>();
-  return prim::cast(ret.ty(), op->value);
+  return prim::cast(op->value, ret.ty());
 }
 
 bool RewriteSimplifier::Impl::CanInlineLet(const prim::LetNode* op) {

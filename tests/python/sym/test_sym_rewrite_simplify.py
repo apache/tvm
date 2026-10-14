@@ -1264,13 +1264,13 @@ class TestCast(BaseCompare):
         x = tvm.tirx.Var("x", "int32")
         dtypes = ["float32", "float16", "int32", "int8", "bool"]
         for dtype1 in dtypes:
-            yield TestCase(tvm.tirx.Cast(dtype1, x - x), tvm.tirx.const(0, dtype1))
-            yield TestCase(tvm.tirx.Cast(dtype1, x == x), tvm.tirx.const(1, dtype1))
+            yield TestCase(tvm.tirx.Cast(x - x, dtype1), tvm.tirx.const(0, dtype1))
+            yield TestCase(tvm.tirx.Cast(x == x, dtype1), tvm.tirx.const(1, dtype1))
             for dtype2 in dtypes:
                 for i in [0, 1, 2, 3]:
                     if i <= 1 or (dtype1 != "bool" and dtype2 != "bool"):
                         yield TestCase(
-                            tvm.tirx.Cast(dtype1, tvm.tirx.const(i, dtype2)),
+                            tvm.tirx.Cast(tvm.tirx.const(i, dtype2), dtype1),
                             tvm.tirx.const(i, dtype1),
                         )
 

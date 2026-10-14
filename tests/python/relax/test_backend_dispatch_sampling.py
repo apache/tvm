@@ -97,15 +97,15 @@ def test_dispatch_multinomial_from_uniform_gpu():
             sample_id_local = Ts.sblock_alloc_tensor((), "int64", scope="local")
             step_iter = Ts.sblock_alloc_tensor((), "int32", scope="local")
             for bx in T.parallel(batch_size, annotations={"thread_binding": "blockIdx.x"}):
-                row_idx: T.let[T.int64] = T.Cast("int64", row_indices[bx, 0])
+                row_idx: T.let[T.int64] = T.Cast(row_indices[bx, 0], "int64")
                 for ty in T.parallel(T.int64(4), annotations={"thread_binding": "threadIdx.y"}):
                     for tx in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                         u: T.let[T.float32] = uniform_samples[bx, 0]
-                        aggregate[()] = T.Cast("float32", 0)
+                        aggregate[()] = T.Cast(0, "float32")
                         step_iter[()] = 0
-                        while T.gpu_thread_invariant((step_iter[()] == 0 or aggregate[()] < u - T.float32(9.9999999999999995e-07)) and T.Cast("int64", step_iter[()]) < T.Cast("int64", (vocab_size + T.int64(512) - T.int64(1)) // T.int64(512))):
+                        while T.gpu_thread_invariant((step_iter[()] == 0 or aggregate[()] < u - T.float32(9.9999999999999995e-07)) and T.Cast(step_iter[()], "int64") < T.Cast((vocab_size + T.int64(512) - T.int64(1)) // T.int64(512), "int64")):
                             with Ts.sblock(""):
-                                Ts.reads(step_iter[()], prob[row_idx, T.Cast("int64", step_iter[()]) * T.int64(512) + ty * T.int64(128) + tx * T.int64(4):T.Cast("int64", step_iter[()]) * T.int64(512) + ty * T.int64(128) + tx * T.int64(4) + T.int64(4)], aggregate[()])
+                                Ts.reads(step_iter[()], prob[row_idx, T.Cast(step_iter[()], "int64") * T.int64(512) + ty * T.int64(128) + tx * T.int64(4):T.Cast(step_iter[()], "int64") * T.int64(512) + ty * T.int64(128) + tx * T.int64(4) + T.int64(4)], aggregate[()])
                                 Ts.writes(sample_id_local[()], aggregate[()])
                                 prob_gt_threshold = Ts.sblock_alloc_tensor((T.int64(4),), scope="local")
                                 cumsum = Ts.sblock_alloc_tensor((T.int64(512),), scope="shared")
@@ -115,9 +115,9 @@ def test_dispatch_multinomial_from_uniform_gpu():
                                 indices = Ts.sblock_alloc_tensor((T.int64(4),), "int64", scope="local")
                                 step_aggregate = Ts.sblock_alloc_tensor((), scope="local")
                                 for v in T.unroll(T.int64(4)):
-                                    idx: T.let[T.int64] = T.Cast("int64", step_iter[()]) * T.int64(512) + ty * T.int64(128) + tx * T.int64(4) + v
-                                    prob_local: T.let[T.float32] = T.if_then_else(idx < vocab_size, prob[row_idx, idx], T.Cast("float32", 0))
-                                    prob_gt_threshold[v] = T.if_then_else(prob_local > T.float32(0), prob_local, T.Cast("float32", 0))
+                                    idx: T.let[T.int64] = T.Cast(step_iter[()], "int64") * T.int64(512) + ty * T.int64(128) + tx * T.int64(4) + v
+                                    prob_local: T.let[T.float32] = T.if_then_else(idx < vocab_size, prob[row_idx, idx], T.Cast(0, "float32"))
+                                    prob_gt_threshold[v] = T.if_then_else(prob_local > T.float32(0), prob_local, T.Cast(0, "float32"))
                                     valid[v] = prob_local > T.float32(0) and idx < vocab_size
                                 with Ts.sblock(""):
                                     Ts.reads(prob_gt_threshold[T.int64(0):T.int64(4)])
@@ -125,7 +125,7 @@ def test_dispatch_multinomial_from_uniform_gpu():
                                     local_sum = Ts.sblock_alloc_tensor((), scope="local")
                                     shared_buf = Ts.sblock_alloc_tensor((T.int64(128),), scope="shared")
                                     idx: T.let[T.int64] = ty * T.int64(32) + tx
-                                    local_sum[()] = T.Cast("float32", 0)
+                                    local_sum[()] = T.Cast(0, "float32")
                                     for i in T.unroll(T.int64(4)):
                                         local_sum[()] = local_sum[()] + prob_gt_threshold[i]
                                     shared_buf[idx] = local_sum[()]
@@ -156,19 +156,19 @@ def test_dispatch_multinomial_from_uniform_gpu():
                                         shared_buf = Ts.sblock_alloc_tensor((T.int64(128),), "bool", scope="shared")
                                         tx_idx: T.let[T.int64] = ty * T.int64(32) + tx
                                         shared_buf[tx_idx] = greater_than_u[T.int64(3)]
-                                        mask[0] = T.if_then_else(tx_idx != T.int64(0), T.Cast("int8", greater_than_u[0]) != T.Cast("int8", shared_buf[tx_idx - T.int64(1)]), greater_than_u[0])
+                                        mask[0] = T.if_then_else(tx_idx != T.int64(0), T.Cast(greater_than_u[0], "int8") != T.Cast(shared_buf[tx_idx - T.int64(1)], "int8"), greater_than_u[0])
                                         for i in T.unroll(T.int64(1), T.int64(4)):
-                                            mask[i] = T.Cast("int8", greater_than_u[i]) != T.Cast("int8", greater_than_u[i - T.int64(1)])
+                                            mask[i] = T.Cast(greater_than_u[i], "int8") != T.Cast(greater_than_u[i - T.int64(1)], "int8")
                                     for v in T.unroll(T.int64(4)):
                                         mask[v] = mask[v] and valid[v]
-                                        indices[v] = T.Cast("int64", step_iter[()]) * T.int64(512) + ty * T.int64(128) + tx * T.int64(4) + v
+                                        indices[v] = T.Cast(step_iter[()], "int64") * T.int64(512) + ty * T.int64(128) + tx * T.int64(4) + v
                                     with Ts.sblock(""):
                                         Ts.reads(mask[T.int64(0):T.int64(4)], indices[T.int64(0):T.int64(4)])
                                         Ts.writes(sample_id_local[()])
                                         local_sum = Ts.sblock_alloc_tensor((), "int64", scope="local")
                                         shared_buf = Ts.sblock_alloc_tensor((T.int64(128),), "int64", scope="shared")
                                         idx: T.let[T.int64] = ty * T.int64(32) + tx
-                                        local_sum[()] = T.Cast("int64", vocab_size - T.int64(1))
+                                        local_sum[()] = T.Cast(vocab_size - T.int64(1), "int64")
                                         for i in T.unroll(T.int64(4)):
                                             if mask[i]:
                                                 local_sum[()] = T.min(local_sum[()], indices[i])

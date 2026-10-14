@@ -521,7 +521,7 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
       bind_map.insert_or_assign(orig_axis->var.get(),
                                 orig_axis->var.ty() == orig_shape.ty()
                                     ? orig_shape
-                                    : prim::cast(orig_axis->var.ty(), orig_shape));
+                                    : prim::cast(orig_shape, orig_axis->var.ty()));
     }
   }
   auto f_substitute = [&bind_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {

@@ -896,7 +896,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     }
     for (int i = 0; i < static_cast<int>(old_region.size()); i++) {
       PrimExpr min = indices_base[i + offset];
-      PrimExpr extent = cast(min.ty(), old_region[i]->extent);
+      PrimExpr extent = cast(old_region[i]->extent, min.ty());
       new_region.push_back(Range::FromMinExtent(min, extent));
     }
     match_tensor_regions.push_back(

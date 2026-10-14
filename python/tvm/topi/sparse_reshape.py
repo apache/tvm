@@ -130,7 +130,7 @@ def sparse_reshape(
             T.tensor_store(
                 multipliers,
                 T.tensor_indices(multipliers, prev_shape_size - 1),
-                Cast(new_shape_ptr.dtype, 1),
+                Cast(1, new_shape_ptr.dtype),
             )
             with T.serial(0, prev_shape_size - 1) as i_:
                 i = i_ + 1
@@ -150,7 +150,7 @@ def sparse_reshape(
             T.tensor_store(
                 division_total_ele,
                 T.tensor_indices(division_total_ele, 0),
-                Cast(new_shape_ptr.dtype, 1),
+                Cast(1, new_shape_ptr.dtype),
             )
             with T.serial(0, new_shape_size) as i:
                 with T.if_(new_shape[T.tensor_indices(new_shape, i)] != -1):
@@ -170,11 +170,11 @@ def sparse_reshape(
                             out_new_shape,
                             T.tensor_indices(out_new_shape, i),
                             Cast(
-                                new_shape_ptr.dtype,
                                 div(
                                     total_ele[T.tensor_indices(total_ele, 0)],
                                     division_total_ele[T.tensor_indices(division_total_ele, 0)],
                                 ),
+                                new_shape_ptr.dtype,
                             ),
                         )
                     with T.else_():
@@ -214,7 +214,7 @@ def sparse_reshape(
                     T.tensor_store(
                         dividers,
                         T.tensor_indices(dividers, new_shape_size - 1),
-                        Cast(new_shape_ptr.dtype, 1),
+                        Cast(1, new_shape_ptr.dtype),
                     )
                     with T.serial(0, new_shape_size - 1) as i_:
                         i = i_ + 1
@@ -229,7 +229,7 @@ def sparse_reshape(
                         T.tensor_store(
                             flattened_indices,
                             T.tensor_indices(flattened_indices, i),
-                            Cast(new_shape_ptr.dtype, 0),
+                            Cast(0, new_shape_ptr.dtype),
                         )
                         with T.serial(0, sparse_indices_ptr.shape[1]) as j:
                             T.tensor_store(
@@ -260,11 +260,11 @@ def sparse_reshape(
                                 new_sparse_indices,
                                 (i, j),
                                 Cast(
-                                    sparse_indices_ptr.dtype,
                                     floordiv(
                                         current_element[T.tensor_indices(current_element, 0)],
                                         dividers[T.tensor_indices(dividers, j)],
                                     ),
+                                    sparse_indices_ptr.dtype,
                                 ),
                             )
                             T.tensor_store(

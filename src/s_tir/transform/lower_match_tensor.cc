@@ -286,7 +286,7 @@ class MatchTensorLower : public StmtExprMutator {
       bool same_lanes = arg_ty.lanes() == value_ty.lanes();
       if (arg_ty.MatchesCode(DLDataTypeCode::kDLInt) &&
           value_ty.MatchesCode(DLDataTypeCode::kDLInt) && same_lanes) {
-        value = cast(arg_ty, value_prim.value());
+        value = cast(value_prim.value(), arg_ty);
       } else {
         TVM_FFI_ICHECK_EQ(arg_ty->dtype, value_ty->dtype)
             << "The data type mismatched: " << arg_ty->dtype << " vs. " << value_ty->dtype;

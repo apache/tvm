@@ -65,7 +65,7 @@ class ThreadBindingLowerer : public StmtExprMutator {
         << "Run LoopPartition before LowerThreadBinding";
     PrimVar launch_var(op->loop_var->name, extent.ty());
     auto previous_remap = VarRemapGet(op->loop_var);
-    VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), launch_var));
+    VarRemapSet(op->loop_var, prim::cast(launch_var, op->loop_var.ty()));
     auto annotations = Mutate(op->annotations, inplace_mode)
                            .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>()
                            .ValueOrUnchanged(op->annotations);

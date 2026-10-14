@@ -178,7 +178,7 @@ tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value) {
                                    << ": LHS is `" << lhs_dtype << "`, RHS is `" << rhs_dtype
                                    << "`, indexing lanes: " << index_lanes;
     }
-    value = tvm::prim::cast(lhs_dtype, value);
+    value = tvm::prim::cast(value, lhs_dtype);
   }
   tvm::Stmt store = tvm::TensorStore(dest, indices, value);
   if (lhs_dtype != rhs_dtype) {

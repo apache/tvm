@@ -53,9 +53,9 @@ def test_e2m1_vector_conversions(promoted_dtype):
             with T.launch_thread("blockIdx.x", vector_length // 32) as i_0:
                 with T.launch_thread("threadIdx.x", 32) as i_1:
                     C[i_0 * 32 + i_1] = T.Cast(
+                        T.Cast(A[i_0 * 32 + i_1], promoted_dtype)
+                        + T.Cast(B[i_0 * 32 + i_1], promoted_dtype),
                         native_dtype,
-                        T.Cast(promoted_dtype, A[i_0 * 32 + i_1])
-                        + T.Cast(promoted_dtype, B[i_0 * 32 + i_1]),
                     )
 
     target = "cuda"
@@ -237,7 +237,7 @@ def test_e2m1_scalar_buffer_offset():
         A = T.decl_tensor(A_raw.data, ty_args=[T.Tensor((n,), "float4_e2m1fn", data=A_raw.data)])
         with T.launch_thread("blockIdx.x", n // 32) as bx:
             with T.launch_thread("threadIdx.x", 32) as tx:
-                B[bx * 32 + tx] = T.Cast("float16", A[bx * 32 + tx])
+                B[bx * 32 + tx] = T.Cast(A[bx * 32 + tx], "float16")
 
     target = "cuda"
     fadd = tvm.tirx.compile(func, target=target)

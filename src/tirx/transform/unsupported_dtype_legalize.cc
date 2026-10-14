@@ -183,13 +183,13 @@ class ComputeLegalizer : public StmtExprMutator {
     // all casts to matched data type (fp8/bf16) becomes f32
     PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (MatchType(op_ty)) {
-      return prim::cast(promote_dtype_.WithLanes(op_ty.lanes()), op_val);
+      return prim::cast(op_val, promote_dtype_.WithLanes(op_ty.lanes()));
     }
 
     if (op_val.same_as(op->value)) {
       return ffi::Unchanged();
     } else {
-      return prim::cast(op_ty, op_val);
+      return prim::cast(op_val, op_ty);
     }
   }
 

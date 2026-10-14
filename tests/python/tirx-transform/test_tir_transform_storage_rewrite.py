@@ -260,19 +260,19 @@ def test_alloc_different_dtypes():
             E = T.alloc_tensor(ty_args=[T.Tensor((length,), "int8", scope="local.L0A")])
 
             for j in range(length):
-                A[j] = T.Cast(dtype_list[0], 1)
+                A[j] = T.Cast(1, dtype_list[0])
             for j in range(length):
-                B[j] = T.Cast(dtype_list[1], 1)
+                B[j] = T.Cast(1, dtype_list[1])
             for j in range(length):
-                C[j] = T.Cast(dtype_list[2], 1)
+                C[j] = T.Cast(1, dtype_list[2])
             for j in range(length):
-                D[j] = T.Cast(dtype_list[3], 1)
+                D[j] = T.Cast(1, dtype_list[3])
             for j in range(length):
                 E[j] = (
-                    T.Cast("int8", A[j])
-                    + T.Cast("int8", B[j])
-                    + T.Cast("int8", C[j])
-                    + T.Cast("int8", D[j])
+                    T.Cast(A[j], "int8")
+                    + T.Cast(B[j], "int8")
+                    + T.Cast(C[j], "int8")
+                    + T.Cast(D[j], "int8")
                 )
 
         return tvm.IRModule.from_expr(func)

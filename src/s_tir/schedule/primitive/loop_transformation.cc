@@ -73,7 +73,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
                                               ffi::Map<SBlock, SBlock>* opaque_blocks)
       : opaque_blocks_(opaque_blocks) {
     for (const auto& [var, replacement] : substitutions) {
-      VarRemapSet(var, tvm::prim::cast(var->ty.as_or_throw<PrimType>(), replacement));
+      VarRemapSet(var, tvm::prim::cast(replacement, var->ty.as_or_throw<PrimType>()));
     }
   }
 
@@ -461,7 +461,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
     const PrimExpr& factor = factors[i];
     Var var = loop->loop_var.CopyWithSuffix("_" + std::to_string(i)).CopyWithDType(dtype);
     substitute_value = substitute_value * factor + var.as_or_throw<PrimExpr>();
-    analyzer->Bind(var, Range::FromMinExtent(IntImm(dtype, 0), tvm::prim::cast(dtype, factor)));
+    analyzer->Bind(var, Range::FromMinExtent(IntImm(dtype, 0), tvm::prim::cast(factor, dtype)));
     new_loop_vars.emplace_back(std::move(var));
   }
   ffi::Map<SBlock, SBlock> opaque_block_reuse;
@@ -606,7 +606,7 @@ class BlockMutator : public StmtExprMutator {
           // Change the domain of IterVar corresponding to partitioned loop_var
           if (iter_var_.same_as(iter->var)) {
             new_iter.CopyOnWrite()->dom =
-                Range(tvm::prim::cast(dtype, min_), tvm::prim::cast(dtype, extent_));
+                Range(tvm::prim::cast(min_, dtype), tvm::prim::cast(extent_, dtype));
           }
           return new_iter;
         });
