@@ -27,6 +27,7 @@
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/sym/bound.h>
 
 #include <unordered_map>
 #include <unordered_set>

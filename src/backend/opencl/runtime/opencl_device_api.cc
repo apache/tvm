@@ -528,10 +528,16 @@ void OpenCLWorkspace::FreeDataSpaceView(Device dev, void* ptr) {
   }
 }
 
-void* OpenCLWorkspace::GetNativePtr(const tvm::ffi::Tensor& narr) {
-  TVM_FFI_ICHECK(narr.defined());
-  cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(narr.GetDLTensorPtr()->data);
-  return desc->host_ptr;
+void* OpenCLWorkspace::GetMappedHostPtrIfAvailable(void* data) {
+#if defined(OPENCL_ENABLE_HOST_PTR)
+  if (data != nullptr) {
+    const auto* desc = static_cast<const cl::BufferDescriptor*>(data);
+    if (desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
+      return desc->host_ptr;
+    }
+  }
+#endif
+  return nullptr;
 }
 
 void OpenCLWorkspace::SetNativePtr(const tvm::ffi::Tensor& narr, void* host_ptr, size_t buf_size) {

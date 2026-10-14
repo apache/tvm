@@ -340,10 +340,11 @@ class IterMapResult : public ffi::ObjectRef {
  * \return The detected iteration result.
  * The return object's .indices is empty on failure.
  */
-IterMapResult DetectIterMap(const ffi::Array<PrimExpr>& indices,
-                            const ffi::Map<PrimVar, Range>& input_iters, const PrimExpr& predicate,
-                            IterMapLevel check_level, const sym::Analyzer& analyzer,
-                            bool simplify_trivial_iterators = true);
+TVM_TIRX_DLL IterMapResult DetectIterMap(const ffi::Array<PrimExpr>& indices,
+                                         const ffi::Map<PrimVar, Range>& input_iters,
+                                         const PrimExpr& predicate, IterMapLevel check_level,
+                                         const sym::Analyzer& analyzer,
+                                         bool simplify_trivial_iterators = true);
 
 /*!
  * \brief Use IterVarMap detector to rewrite and simplify the indices
@@ -356,11 +357,12 @@ IterMapResult DetectIterMap(const ffi::Array<PrimExpr>& indices,
  * \param simplify_trivial_iterators If true, iterators with unit extents are simplified
  * \return The indices after rewrite
  */
-ffi::Array<PrimExpr> IterMapSimplify(const ffi::Array<PrimExpr>& indices,
-                                     const ffi::Map<PrimVar, Range>& input_iters,
-                                     const PrimExpr& input_pred, IterMapLevel check_level,
-                                     const sym::Analyzer& analyzer,
-                                     bool simplify_trivial_iterators = true);
+TVM_TIRX_DLL ffi::Array<PrimExpr> IterMapSimplify(const ffi::Array<PrimExpr>& indices,
+                                                  const ffi::Map<PrimVar, Range>& input_iters,
+                                                  const PrimExpr& input_pred,
+                                                  IterMapLevel check_level,
+                                                  const sym::Analyzer& analyzer,
+                                                  bool simplify_trivial_iterators = true);
 
 /*!
  * \brief Apply the inverse of the affine transformation to the outputs.
@@ -382,8 +384,8 @@ ffi::Array<PrimExpr> IterMapSimplify(const ffi::Array<PrimExpr>& indices,
  *
  * \return The map from the input to the transformed result.
  */
-ffi::Map<Var, PrimExpr> InverseAffineIterMap(const ffi::Array<IterSumExpr>& iter_map,
-                                             const ffi::Array<PrimExpr> outputs);
+TVM_TIRX_DLL ffi::Map<Var, PrimExpr> InverseAffineIterMap(const ffi::Array<IterSumExpr>& iter_map,
+                                                          const ffi::Array<PrimExpr> outputs);
 
 /*!
  * \brief Detect if bindings can be written as
@@ -412,19 +414,17 @@ ffi::Map<Var, PrimExpr> InverseAffineIterMap(const ffi::Array<IterSumExpr>& iter
         len(bindings): the predicate of outer space and inner space
         Empty array if no match can be found.
  */
-ffi::Array<ffi::Array<IterMark>> SubspaceDivide(const ffi::Array<PrimExpr>& bindings,
-                                                const ffi::Map<PrimVar, Range>& input_iters,
-                                                const ffi::Array<PrimVar>& sub_iters,
-                                                const PrimExpr& predicate, IterMapLevel check_level,
-                                                const sym::Analyzer& analyzer,
-                                                bool simplify_trivial_iterators = true);
+TVM_TIRX_DLL ffi::Array<ffi::Array<IterMark>> SubspaceDivide(
+    const ffi::Array<PrimExpr>& bindings, const ffi::Map<PrimVar, Range>& input_iters,
+    const ffi::Array<PrimVar>& sub_iters, const PrimExpr& predicate, IterMapLevel check_level,
+    const sym::Analyzer& analyzer, bool simplify_trivial_iterators = true);
 
 /*!
  * \brief Given an expression that may contain IterMapExpr, transform it to normal PrimExpr.
  * \param expr The input expression, which may contain IterMapExpr.
  * \return The corresponding normal PrimExpr.
  */
-PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr);
+TVM_TIRX_DLL PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr);
 
 /*!
  * \brief Rewrite index as IterSumExpr
@@ -442,8 +442,9 @@ PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr);
  * \param analyzer The input analyzer.
  * \note This function is useful to detect iterator stride patterns.
  */
-IterSumExpr NormalizeToIterSum(PrimExpr index, const ffi::Map<PrimVar, Range>& input_iters,
-                               const sym::Analyzer& analyzer);
+TVM_TIRX_DLL IterSumExpr NormalizeToIterSum(PrimExpr index,
+                                            const ffi::Map<PrimVar, Range>& input_iters,
+                                            const sym::Analyzer& analyzer);
 
 }  // namespace sym
 }  // namespace tvm
