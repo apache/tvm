@@ -546,6 +546,11 @@ target_link_libraries(tvm_runtime_extra PUBLIC tvm_runtime)
 # If disco/cuda_ipc is included, link the CUDA DSO.
 if(USE_CUDA)
   target_link_libraries(tvm_runtime_extra PUBLIC tvm_runtime_cuda)
+  target_link_libraries(tvm_runtime_extra PRIVATE ${CUDA_CUDART_LIBRARY} ${CUDA_CUDA_LIBRARY})
+endif()
+
+if(USE_ROCM)
+  target_link_libraries(tvm_runtime_extra PRIVATE ${ROCM_HIPHCC_LIBRARY})
 endif()
 
 # CUTLASS fpA_intB_gemm and flash_attn are separate shared libs.
