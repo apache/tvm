@@ -399,7 +399,7 @@ def has_nvcc_version(major: int, minor: int = 0, release: int = 0) -> bool:
 def _llvm_version_major() -> int:
     """Return the major LLVM version, or 0 if LLVM is unavailable."""
     try:
-        return int(tvm.target.codegen.llvm_version_major())
+        return int(tvm.codegen.llvm_version_major())
     except Exception:  # pylint: disable=broad-except
         return 0
 
@@ -475,7 +475,7 @@ def has_adreno_opencl() -> bool:
 def _has_cpu_feature(features) -> bool:
     """True if the host CPU advertises the given LLVM target ``features``."""
     try:
-        codegen = tvm.target.codegen
+        codegen = tvm.codegen
         cpu = codegen.llvm_get_system_cpu()
         triple = codegen.llvm_get_system_triple()
         target = tvm.target.Target({"kind": "llvm", "mtriple": triple, "mcpu": cpu})

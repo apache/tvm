@@ -21,13 +21,12 @@
  * \file intrin_rule_spirv.cc
  */
 #include <GLSL.std.450.h>
+#include <tvm/codegen/intrin_rule.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op_attr_types.h>
-
-#include "../../../target/intrin_rule.h"
 
 namespace tvm {
 namespace codegen {

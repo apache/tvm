@@ -44,7 +44,7 @@
 #include <unordered_map>
 #include <utility>
 
-#include "../../../target/build_common.h"
+#include "../../../codegen/build_common.h"
 #include "metal_fallback_module.h"
 
 namespace tvm {

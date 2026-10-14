@@ -68,7 +68,7 @@ bool IsVScaleCall(const PrimExpr& expr) {
 
 bool TargetHasRVV(ffi::Optional<Target> target) {
   if (!target.has_value()) return false;
-  static auto target_has_feature_fn = tvm::ffi::Function::GetGlobal("target.target_has_feature");
+  static auto target_has_feature_fn = tvm::ffi::Function::GetGlobal("codegen.target_has_feature");
   return target_has_feature_fn.has_value() && (*target_has_feature_fn)("v", target).cast<bool>();
 }
 

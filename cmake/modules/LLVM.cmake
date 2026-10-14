@@ -53,11 +53,12 @@ if(NOT ${USE_LLVM} MATCHES ${IS_FALSE_PATTERN})
   add_definitions(-DTVM_LLVM_VERSION=${TVM_LLVM_VERSION})
   add_definitions(-DTVM_LLVM_HAS_AARCH64_TARGET=${TVM_LLVM_HAS_AARCH64_TARGET})
   tvm_file_glob(GLOB COMPILER_LLVM_SRCS
-    src/target/llvm/*.cc
+    src/codegen/llvm/*.cc
     src/backend/cuda/codegen/llvm/*.cc
     src/backend/rocm/codegen/llvm/*.cc
     src/backend/hexagon/codegen/llvm/*.cc
   )
+  list(REMOVE_ITEM COMPILER_LLVM_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/llvm/target_kind.cc")
   list(APPEND TVM_LINKER_LIBS ${LLVM_LIBS})
   list(APPEND COMPILER_SRCS ${COMPILER_LLVM_SRCS})
   if(NOT MSVC)
