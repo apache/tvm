@@ -17,7 +17,7 @@
 """Tests for tirx.transform.MakePackedAPI TIR transform.
 
 Tests verify the transform output using TVMScript before/after patterns.
-Runtime error tests are in tests/python/codegen/test_codegen_error_handling.py.
+Runtime error tests are in tests/python/codegen/test_argument_validation.py.
 """
 
 import pytest

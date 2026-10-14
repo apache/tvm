@@ -25,6 +25,9 @@ from tvm import ir
 from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm import tirx as tir
+
+# pylint: disable=unused-import
+from tvm.codegen import llvm_lookup_intrinsic_id
 from tvm.ir import Call, Var
 from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.prim import _ffi_api as _prim_ffi
@@ -33,9 +36,6 @@ from tvm.script.ir_builder import base as _base
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.frame import IRModuleFrame
 from tvm.script.ir_builder.stmt import _as_expr as _as_expr
-
-# pylint: disable=unused-import
-from tvm.target.codegen import llvm_lookup_intrinsic_id
 from tvm.tirx import Expr, is_tensor_var
 from tvm.tirx import op as _tir_op
 

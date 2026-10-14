@@ -21,13 +21,12 @@
  * \file intrin_rule_metal.cc
  * \brief Metal intrinsic rules.
  */
+#include <tvm/codegen/intrin_rule.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op_attr_types.h>
-
-#include "../../../target/intrin_rule.h"
 
 namespace tvm {
 namespace codegen {
@@ -118,7 +117,7 @@ void RegisterMetalIntrinRules() {
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
   OpDef("prim.tanh")
-      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchNumericalStableTanh);
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchNumericallyStableTanh);
 
   OpDef("prim.sqrt")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);

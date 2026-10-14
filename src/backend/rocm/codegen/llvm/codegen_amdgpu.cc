@@ -53,10 +53,10 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 
+#include "../../../../codegen/build_common.h"
+#include "../../../../codegen/llvm/codegen_llvm.h"
+#include "../../../../codegen/llvm/llvm_instance.h"
 #include "../../../../runtime/metadata.h"
-#include "../../../../target/build_common.h"
-#include "../../../../target/llvm/codegen_llvm.h"
-#include "../../../../target/llvm/llvm_instance.h"
 #include "../rocm_fallback_module.h"
 
 namespace tvm {

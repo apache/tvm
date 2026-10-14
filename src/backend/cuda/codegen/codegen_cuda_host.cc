@@ -37,8 +37,8 @@
 #include <utility>
 #include <vector>
 
+#include "../../../codegen/c/codegen_c_host.h"
 #include "../../../runtime/metadata.h"
-#include "../../../target/source/codegen_c_host.h"
 #include "../launch/launch_plan.h"
 #include "../launch/launch_source.h"
 

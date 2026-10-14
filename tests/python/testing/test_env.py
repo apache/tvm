@@ -268,7 +268,7 @@ def test_hexagon_environment_requirements(
             monkeypatch.delenv(variable, raising=False)
     monkeypatch.setattr(tvm.support, "libinfo", lambda: {"USE_HEXAGON": "ON" if built else "OFF"})
     monkeypatch.setattr(tvm.runtime, "enabled", lambda kind: llvm_version is not None)
-    monkeypatch.setattr(tvm.target.codegen, "llvm_version_major", lambda: llvm_version)
+    monkeypatch.setattr(tvm.codegen, "llvm_version_major", lambda: llvm_version)
     assert env.has_hexagon_toolchain() is can_compile
     assert env.has_hexagon() is can_run
 
