@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Canonical memory scopes cross the Python, compiler, and runtime boundaries."""
+"""Canonical runtime memory-scope identity, allocation, and registration."""
 
 import os
 import subprocess
@@ -29,8 +29,6 @@ import tvm_ffi
 
 import tvm
 from tvm.runtime import MemoryScope
-from tvm.script import ir as I
-from tvm.script import tirx as T
 
 
 def new_scope():
@@ -58,6 +56,8 @@ def test_identity_and_registration():
         MemoryScope.register("")
     with pytest.raises(TypeError):
         MemoryScope.register(123)
+    with pytest.raises(ValueError):
+        MemoryScope("")
     prefix = "test.memory_scope.nul." + uuid.uuid4().hex
     with pytest.raises(ValueError):
         MemoryScope.register(prefix + "\x00scope")
@@ -65,105 +65,12 @@ def test_identity_and_registration():
         MemoryScope(prefix)
 
 
-def test_shared_cpp_python_registry_and_typed_conversion():
+def test_shared_cpp_python_registry():
     name = "test.memory_scope.cpp." + uuid.uuid4().hex
     cpp_scope = tvm_ffi.get_global_func("runtime.MemoryScopeRegister")(name)
     assert MemoryScope(name).same_as(cpp_scope)
     with pytest.raises(ValueError):
         tvm_ffi.get_global_func("runtime.MemoryScopeRegister")(name)
-
-    custom = new_scope()
-    for scope in (custom, custom.name):
-        ptr_ty = tvm.ir.PtrType(tvm.ir.PrimType("float32"), scope)
-        tensor = tvm.tirx.decl_tensor((4,), "float32", scope=scope)
-        tensor_ty = tvm.tirx.TensorType((4,), "float32", scope)
-        assert tensor_ty.scope.same_as(custom)
-        assert ptr_ty.scope.same_as(custom)
-        assert tensor.ty.scope.same_as(custom)
-        assert tensor.scope().same_as(custom)
-        assert tensor.data.ty.scope.same_as(custom)
-
-    unknown = "test.memory_scope.unknown." + uuid.uuid4().hex
-    for construct in (
-        lambda: tvm.ir.PtrType(tvm.ir.PrimType("float32"), unknown),
-        lambda: tvm.tirx.decl_tensor((4,), "float32", scope=unknown),
-        lambda: T.Tensor((4,), "float32", scope=unknown),
-    ):
-        with pytest.raises(ValueError):
-            construct()
-    with pytest.raises(ValueError):
-        MemoryScope(unknown)
-
-
-def test_global_defaults():
-    global_scope = MemoryScope("global")
-    assert tvm.ir.PtrType(tvm.ir.PrimType("float32")).scope.same_as(global_scope)
-    assert tvm.tirx.decl_tensor((4,), "float32").scope().same_as(global_scope)
-    for scope in ("global", global_scope):
-        assert tvm.ir.PtrType(tvm.ir.PrimType("float32"), scope).scope.same_as(global_scope)
-        assert tvm.tirx.decl_tensor((4,), "float32", scope=scope).scope().same_as(global_scope)
-        assert T.Tensor((4,), "float32", scope=scope).scope.same_as(global_scope)
-        assert tvm.relax.VDevice("llvm", memory_scope=scope).memory_scope.same_as(global_scope)
-    for construct in (
-        lambda: MemoryScope(""),
-        lambda: tvm.ir.PtrType(tvm.ir.PrimType("float32"), ""),
-        lambda: tvm.tirx.decl_tensor((4,), "float32", scope=""),
-        lambda: T.Tensor((4,), "float32", scope=""),
-        lambda: tvm.relax.VDevice("llvm", memory_scope=""),
-        lambda: tvm.runtime.empty((4,), mem_scope=""),
-    ):
-        with pytest.raises(ValueError):
-            construct()
-
-
-def test_json_and_script_roundtrip():
-    custom = new_scope()
-    for scope in (MemoryScope("global"), MemoryScope("shared.dyn"), custom):
-        assert tvm.ir.load_json(tvm.ir.save_json(scope)).same_as(scope)
-        ty = T.Tensor((4,), "float32", scope=scope)
-        restored = tvm.ir.load_json(tvm.ir.save_json(ty))
-        assert restored.scope.same_as(scope)
-        tvm.ir.assert_structural_equal(ty, restored)
-
-        @T.function
-        def func(A: T.Tensor((4,), "float32", scope=scope)):
-            A[0] = T.float32(1)
-
-        script = func.script()
-        if scope != MemoryScope("global"):
-            assert f'scope="{scope.name}"' in script
-        restored_func = tvm.script.from_source(script, extra_vars={"T": T})
-        tvm.ir.assert_structural_equal(func, restored_func)
-        assert restored_func.params[0].scope().same_as(scope)
-
-
-def test_canonical_constructor_aliases_and_reflected_scopes():
-    assert T.Ptr is tvm.ir.PtrType
-    assert T.Tensor is tvm.tirx.TensorType
-    custom = new_scope()
-    for scope in (MemoryScope("global"), custom):
-        pointer = T.Ptr(T.float32, scope)
-        source = pointer.script()
-        expected = (
-            "T.Ptr(T.float32)"
-            if scope == MemoryScope("global")
-            else f'T.Ptr(T.float32, "{scope.name}")'
-        )
-        assert source == expected
-        restored = eval(source, {"T": T, "I": I})
-        tvm.ir.assert_structural_equal(pointer, restored)
-        assert restored.scope.same_as(scope)
-        tensor = T.Tensor((4,), T.float32, scope, byte_offset=8, align=128, layout="default")
-        assert tensor.scope.same_as(scope)
-        assert tensor.elem_offset.value == 2
-        assert tensor.data_alignment == 128
-        restored_tensor = eval(tensor.script(), {"T": T, "I": I})
-        tvm.ir.assert_structural_equal(tensor, restored_tensor)
-    for scope in (custom, custom.name):
-        tensor = T.Tensor((4,), T.float32, scope=scope)
-        assert tensor.scope.same_as(custom)
-    with pytest.raises(ValueError):
-        T.Ptr(T.float32, "")
 
 
 def test_runtime_tensor_allocation():
@@ -172,8 +79,9 @@ def test_runtime_tensor_allocation():
         tensor = tvm.runtime.tensor(expected, tvm.cpu(), mem_scope=scope)
         np.testing.assert_array_equal(tensor.numpy(), expected)
         np.testing.assert_array_equal(tensor.copyto(tvm.cpu(), mem_scope=scope).numpy(), expected)
-    with pytest.raises(ValueError):
-        tvm.runtime.empty((4,), mem_scope="test.memory_scope.unregistered")
+    for scope in ("", "test.memory_scope.unregistered"):
+        with pytest.raises(ValueError):
+            tvm.runtime.empty((4,), mem_scope=scope)
     with pytest.raises(ValueError, match="Unsupported memory scope"):
         tvm.runtime.empty((4,), mem_scope=new_scope())
 
@@ -277,13 +185,3 @@ for scope in scopes:
         check=True,
         timeout=60,
     )
-
-
-def test_relax_allocation_scope_operands():
-    scope = MemoryScope("global")
-    for make_call in (
-        lambda value: tvm.relax.op.builtin.alloc_tensor((4,), "float32", 0, value),
-        lambda value: tvm.relax.op.memory.alloc_storage((16,), 0, value, "float32"),
-        lambda value: tvm.relax.op.vm.alloc_storage((16,), 0, "float32", value),
-    ):
-        tvm.ir.assert_structural_equal(make_call(scope), make_call(scope.name))

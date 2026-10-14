@@ -95,5 +95,41 @@ def test_llvm_add_pipeline():
     build_arm()
 
 
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
+def test_bigendian_rpc():
+    """Test big endian rpc when there is a PowerPC RPC server available"""
+    host = os.environ.get("TVM_POWERPC_TEST_HOST", None)
+    port = os.environ.get("TVM_POWERPC_TEST_PORT", 9090)
+    if host is None:
+        pytest.skip("PowerPC RPC host is not configured")
+
+    def verify_rpc(remote, target, shape, dtype):
+        @T.function
+        def main(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)):
+            for i in range(shape[0]):
+                B[i] = A[i] + tvm.tirx.const(1, dtype)
+
+        f = tvm.tirx.compile(main, target=target).mod
+
+        dev = remote.cpu(0)
+        a = dev.tensor(np.random.randint(0, 256, size=shape).astype(dtype))
+        b = dev.tensor(np.zeros(shape).astype(dtype))
+        temp = utils.tempdir()
+        path_dso = temp.relpath("dev_lib.o")
+        f.write_to_file(path_dso)
+        remote.upload(path_dso)
+        f = remote.load_module("dev_lib.o")
+        f(a, b)
+        tvm.testing.assert_allclose(a.numpy() + 1, b.numpy())
+
+    print("Test RPC connection to PowerPC...")
+    remote = rpc.connect(host, port)
+    target = {"kind": "llvm", "mtriple": "powerpc-linux-gnu"}
+    for dtype in ["float32", "float64", "int32", "int8"]:
+        verify_rpc(remote, target, (10,), dtype)
+
+
 if __name__ == "__main__":
     test_llvm_add_pipeline()
