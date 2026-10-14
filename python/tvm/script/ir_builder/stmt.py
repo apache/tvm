@@ -104,20 +104,25 @@ def bind(  # pylint: disable=invalid-name
     return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def evaluate(value: Expr) -> AlreadyEmitted[tvm.ir.Stmt]:
-    """Emit an evaluation and return a reference to its stored statement.
+def evaluate(
+    value: Expr | AlreadyEmitted[tvm.ir.Call] | AlreadyEmitted[tvm.ir.Stmt],
+) -> AlreadyEmitted[tvm.ir.Call] | AlreadyEmitted[tvm.ir.Stmt]:
+    """Emit an expression, or pass through a call or statement emission receipt.
 
     Parameters
     ----------
-    value : Expr
-        The input expression to evaluate.
+    value : Expr, AlreadyEmitted[Call] or AlreadyEmitted[Stmt]
+        The input expression, or a receipt returned unchanged without emission.
 
     Returns
     -------
-    result : AlreadyEmitted[Stmt]
-        A receipt containing the emitted statement, so expression-statement
-        handling does not emit it again.
+    result : AlreadyEmitted[Call] or AlreadyEmitted[Stmt]
+        The existing receipt unchanged, or a receipt containing the newly
+        emitted Evaluate statement, so expression-statement handling does not
+        emit it again.
     """
+    if isinstance(value, AlreadyEmitted):
+        return value
     if isinstance(value, str):
         value = _StringImm(value)
     if isinstance(value, bool):

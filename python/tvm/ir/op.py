@@ -83,7 +83,7 @@ def _make_op_api(op, module_name):
     return call
 
 
-def _init_op_api(namespace, target_module_name=None):
+def _init_op_api(namespace, target_module_name=None, *, wrapper=None):
     """Initialize registered Op callables in an already loaded Python module.
 
     Like :func:`tvm_ffi.init_ffi_api`, the registry prefix comes first and the
@@ -104,7 +104,10 @@ def _init_op_api(namespace, target_module_name=None):
     Existing Python callables retain ownership of their names; only missing
     exposures are generated. Existing functions must accept printed calls or
     have an appropriate exceptional printer hook. Non-callable collisions fail
-    before any functions are installed. Returns None.
+    before any functions are installed. An optional ``wrapper`` adapts newly
+    generated Call constructors at export time; existing exposures and region
+    builders are untouched.
+    Returns None.
     """
     if not namespace or any(
         not part.isidentifier() or keyword.iskeyword(part) for part in namespace.split(".")
@@ -134,7 +137,10 @@ def _init_op_api(namespace, target_module_name=None):
             if not callable(current):
                 raise ValueError(f"Op {name!r} conflicts with an existing Python attribute")
         else:
-            pending.append((container, parts[-1], _make_op_api(op, target.__name__)))
+            call = _make_op_api(op, target.__name__)
+            if wrapper is not None and op.get_attr("FRegionGetBodyParams") is None:
+                call = wrapper(call)
+            pending.append((container, parts[-1], call))
     for container, name, call in pending:
         setattr(container, name, call)
 
