@@ -49,18 +49,6 @@ target_include_directories(
 
 target_link_libraries(tvm_rpc PUBLIC tvm_ffi_header)
 
-if (BUILD_FOR_ANDROID AND USE_HEXAGON)
-  get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
-    DSPRPC_LIB DSPRPC_LIB_DIRS
-  )
-  if(DSPRPC_LIB_DIRS)
-    link_directories(${DSPRPC_LIB_DIRS})
-  else()
-    message(WARNING "Could not locate some Hexagon SDK components")
-  endif()
-  list(APPEND TVM_RPC_LINKER_LIBS cdsprpc log)
-endif()
-
 if(NOT MSVC AND NOT APPLE)
   list(APPEND TVM_RPC_LINKER_LIBS tvm_runtime "-Wl,--no-as-needed" ${TVM_RUNTIME_BACKEND_LIBS} "-Wl,--as-needed")
 else()

@@ -17,46 +17,31 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_HTP_H_
-#define TVM_RUNTIME_HEXAGON_HEXAGON_HTP_H_
+#ifndef TVM_BACKEND_HEXAGON_CODEGEN_MEMORY_SCOPE_H_
+#define TVM_BACKEND_HEXAGON_CODEGEN_MEMORY_SCOPE_H_
+
+#include <tvm/ffi/reflection/enum_def.h>
+#include <tvm/runtime/memory_scope.h>
 
 namespace tvm {
-namespace runtime {
+namespace backend {
 namespace hexagon {
 
-class HexagonHtp {
- public:
-  //! \brief Constructor.
-  HexagonHtp();
-
-  //! \brief Destructor.
-  ~HexagonHtp();
-
-  //! \brief Prevent copy construction of HexagonHtp.
-  HexagonHtp(const HexagonHtp&) = delete;
-
-  //! \brief Prevent copy assignment with HexagonHtp.
-  HexagonHtp& operator=(const HexagonHtp&) = delete;
-
-  //! \brief Prevent move construction.
-  HexagonHtp(HexagonHtp&&) = delete;
-
-  //! \brief Prevent move assignment.
-  HexagonHtp& operator=(HexagonHtp&&) = delete;
-
-  void Lock();
-  void Unlock();
-
- private:
-  //! \brief Acquisition context ID
-  unsigned int context_id_;
-
-  void Acquire();
-  void Release();
-};
+inline void RegisterMemoryScopes() {
+  using runtime::MemoryAllocProperty;
+  if (!runtime::MemoryScope::IsDefined("global.ddr")) {
+    ffi::reflection::EnumDef<runtime::MemoryScopeObj>("global.ddr")
+        .set_attr(runtime::attr::kMemoryAllocProperty,
+                  static_cast<int>(MemoryAllocProperty::kSingleAllocation));
+  }
+  if (!runtime::MemoryScope::IsDefined("global.vtcm")) {
+    ffi::reflection::EnumDef<runtime::MemoryScopeObj>("global.vtcm")
+        .set_attr(runtime::attr::kMemoryAllocProperty,
+                  static_cast<int>(MemoryAllocProperty::kNormal));
+  }
+}
 
 }  // namespace hexagon
-}  // namespace runtime
+}  // namespace backend
 }  // namespace tvm
-
-#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_HTP_H_
+#endif  // TVM_BACKEND_HEXAGON_CODEGEN_MEMORY_SCOPE_H_

@@ -22,13 +22,11 @@ add_library(tvm_disco_objs OBJECT ${_disco_core_srcs})
 target_link_libraries(tvm_disco_objs PRIVATE tvm_runtime_extra_defs)
 target_link_libraries(tvm_runtime_extra PRIVATE tvm_disco_objs)
 
-# Distributed disco (disabled for Hexagon cross-compile).
-if(NOT BUILD_FOR_HEXAGON)
-  tvm_file_glob(GLOB _disco_dist_srcs src/runtime/extra/disco/distributed/*.cc)
-  add_library(tvm_disco_distributed_objs OBJECT ${_disco_dist_srcs})
-  target_link_libraries(tvm_disco_distributed_objs PRIVATE tvm_runtime_extra_defs)
-  target_link_libraries(tvm_runtime_extra PRIVATE tvm_disco_distributed_objs)
-endif()
+# Distributed disco.
+tvm_file_glob(GLOB _disco_dist_srcs src/runtime/extra/disco/distributed/*.cc)
+add_library(tvm_disco_distributed_objs OBJECT ${_disco_dist_srcs})
+target_link_libraries(tvm_disco_distributed_objs PRIVATE tvm_runtime_extra_defs)
+target_link_libraries(tvm_runtime_extra PRIVATE tvm_disco_distributed_objs)
 
 # NCCL / cuda_ipc — requires CUDA + NCCL.
 if(USE_CUDA AND USE_NCCL)

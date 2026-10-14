@@ -27,7 +27,7 @@
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
 
-#include "../memory_scope.h"
+#include "memory_scope.h"
 
 namespace tvm {
 
