@@ -726,7 +726,7 @@ def test_print_kwargs_schedule_op_full_code():
 @T.function
 def test():
     A = T.alloc_tensor(ty_args=[T.Tensor((16,), T.float32)])
-    T.cuda.tile.apply("mov.b32", (A[0:16], T.float32(1.25)), (), scope="warp")"""
+    T.cuda.tile.apply("mov.b32", (A[0:16], T.float32(1.25)), (), scope=T.ThreadScope("cuda.warp"))"""
     code = test.script()
     assert code == expected
     assert from_source(code).script() == code
