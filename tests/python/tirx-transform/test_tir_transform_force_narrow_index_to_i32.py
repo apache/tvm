@@ -501,7 +501,7 @@ def test_left_shift_dynamic_and_vector_amounts_remain_valid():
 
 
 def test_let_binding():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:

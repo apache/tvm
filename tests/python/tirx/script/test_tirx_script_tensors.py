@@ -351,7 +351,7 @@ def test_tensor_shape_repeated_var_prints_out_of_line():
     func = tvm.tirx.Function([tensor], tvm.ir.Evaluate(0))
 
     code = func.script()
-    assert "def main[n: T.int32](" in code
+    assert "def main[n](" in code
     assert_structural_equal(func, from_source(code))
 
 
