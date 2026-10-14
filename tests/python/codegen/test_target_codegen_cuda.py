@@ -1020,7 +1020,7 @@ def _nan_preserving_expected(a, b, op):
 @pytest.mark.parametrize("op", ["min", "max"])
 @pytest.mark.parametrize("form", ["scalar", "vec4"])
 @pytest.mark.parametrize("dt", ["float32", "float64", "float16", "bfloat16"])
-def test_min_max_nan_preserving_cuda(op, dt, form):
+def test_min_max_nan_preserving_cuda(op, dt, form, *, backend_config):
     n = 8
     vectorize = form == "vec4"
     if dt == "float32":
@@ -1029,7 +1029,7 @@ def test_min_max_nan_preserving_cuda(op, dt, form):
         a_np = np.array([np.nan, 1.0, np.nan, 0.0, -0.0, 3.0, 2.0, -5.0], dtype=dt)
         b_np = np.array([1.0, np.nan, np.nan, -0.0, 0.0, 2.0, 2.0, -4.0], dtype=dt)
 
-    mod = tvm.compile(_min_max_nan_module(op, dt, n, vectorize=vectorize), target="cuda")
+    mod = tvm.compile(_min_max_nan_module(op, dt, n, vectorize=vectorize), target={"kind": "cuda", "backend_config": backend_config})
     a = tvm.runtime.tensor(a_np, tvm.cuda(0))
     b = tvm.runtime.tensor(b_np, tvm.cuda(0))
     c = tvm.runtime.empty((n,), dt, tvm.cuda(0))
@@ -1050,7 +1050,7 @@ def test_min_max_nan_preserving_cuda(op, dt, form):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_min_max_nan_preserving_composite_cuda():
+def test_min_max_nan_preserving_composite_cuda(*, backend_config):
     # The scalar ternary must survive nesting inside a compound expression:
     # C[i] = max(A[i], B[i]) + 1.0 without being parsed as (x + cond) ? va : vb.
     # NaN lanes cannot be compared bitwise (CUDA float add normalizes the NaN
@@ -1060,7 +1060,7 @@ def test_min_max_nan_preserving_composite_cuda():
     b_np = B_F32
     mod = tvm.compile(
         _min_max_nan_module("max", "float32", n, vectorize=False, composite=True),
-        target="cuda",
+        target={"kind": "cuda", "backend_config": backend_config},
     )
     a = tvm.runtime.tensor(a_np, tvm.cuda(0))
     b = tvm.runtime.tensor(b_np, tvm.cuda(0))
@@ -1079,7 +1079,7 @@ def test_min_max_nan_preserving_composite_cuda():
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_min_max_chained_statements_cuda():
+def test_min_max_chained_statements_cuda(*, backend_config):
     # Two consecutive min/max statements that both read C, with a write in
     # between: C[v] = max(C[v], A[v]); C[v] = max(C[v], B[v]). The scalar SSA
     # binding must not cache the read across statements — SSAGetID caches by
@@ -1107,7 +1107,7 @@ def test_min_max_chained_statements_cuda():
                 C[i] = T.max(C[i], A[i])
                 C[i] = T.max(C[i], B[i])
 
-    mod = tvm.compile(Module, target="cuda")
+    mod = tvm.compile(Module, target={"kind": "cuda", "backend_config": backend_config})
     a = tvm.runtime.tensor(a_np, tvm.cuda(0))
     b = tvm.runtime.tensor(b_np, tvm.cuda(0))
     c = tvm.runtime.tensor(c0_np, tvm.cuda(0))
@@ -1129,7 +1129,7 @@ CONST_OTHER = np.array([np.nan, -0.0, 0.0, -1.0, 1.0, np.inf, -np.inf, 2.0], dty
 @pytest.mark.parametrize("const_side", ["lhs", "rhs"])
 @pytest.mark.parametrize("const_nan", [False, True])
 @pytest.mark.parametrize("form", ["scalar", "vec4"])
-def test_min_max_float_imm_operand_cuda(op, const_side, const_nan, form):
+def test_min_max_float_imm_operand_cuda(op, const_side, const_nan, form, *, backend_config):
     # The constant-operand cases from #20054's test_min_max_float_imm_operand.
     # The constant is written inline as T.float32(const_val) so that it reaches
     # codegen as a FloatImm.
@@ -1180,7 +1180,7 @@ def test_min_max_float_imm_operand_cuda(op, const_side, const_nan, form):
                             else T.max(B[i0 * 4 + i1], T.float32(const_val))
                         )
 
-    mod = tvm.compile(Module, target="cuda")
+    mod = tvm.compile(Module, target={"kind": "cuda", "backend_config": backend_config})
 
     # The CUDA header emitted before the kernel contains "||" in preprocessor
     # lines, so only the text from the kernel declaration on is checked.
@@ -1237,7 +1237,7 @@ def test_min_max_float_imm_operand_cuda(op, const_side, const_nan, form):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_min_max_float_imm_operand_nested_cuda():
+def test_min_max_float_imm_operand_nested_cuda(*, backend_config):
     # A constant non-NaN lhs inside a compound expression:
     # C[i] = max(0.0, B[i]) + 1.0. The constant fast path must wrap the whole
     # ternary in parentheses, otherwise it parses as
@@ -1253,7 +1253,7 @@ def test_min_max_float_imm_operand_nested_cuda():
             with T.launch_thread("threadIdx.x", n) as i:
                 C[i] = T.max(T.float32(0.0), B[i]) + T.float32(1.0)
 
-    mod = tvm.compile(Module, target="cuda")
+    mod = tvm.compile(Module, target={"kind": "cuda", "backend_config": backend_config})
     src = mod.mod.imports[0].inspect_source()
     kernel = src[src.index("__global__") :]
     # the inline 0.0 reaches codegen as a FloatImm: fast path, no NaN clause
@@ -1277,7 +1277,7 @@ def test_min_max_float_imm_operand_nested_cuda():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op", ["min", "max"])
-def test_min_max_int_vector_cuda(op):
+def test_min_max_int_vector_cuda(op, *, backend_config):
     # Integer min/max keeps the base codegen path, including the per-lane
     # vector expansion: lanes=4 must compile and match numpy bitwise.
     n = 8
@@ -1285,7 +1285,7 @@ def test_min_max_int_vector_cuda(op):
     a_np = np.array([3, -5, 7, 0, -1, 9, 2, -8], dtype=dt)
     b_np = np.array([1, 9, -2, 4, -3, 9, 5, -8], dtype=dt)
 
-    mod = tvm.compile(_min_max_nan_module(op, dt, n, vectorize=True), target="cuda")
+    mod = tvm.compile(_min_max_nan_module(op, dt, n, vectorize=True), target={"kind": "cuda", "backend_config": backend_config})
     a = tvm.runtime.tensor(a_np, tvm.cuda(0))
     b = tvm.runtime.tensor(b_np, tvm.cuda(0))
     c = tvm.runtime.empty((n,), dt, tvm.cuda(0))
