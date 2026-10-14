@@ -41,12 +41,12 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+#include <tvm/codegen/codegen.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/support/file_utils.h>
-#include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 
@@ -61,10 +61,10 @@
 #include <utility>
 #include <vector>
 
+#include "../../../../codegen/build_common.h"
+#include "../../../../codegen/llvm/codegen_cpu.h"
+#include "../../../../codegen/llvm/llvm_instance.h"
 #include "../../../../runtime/metadata.h"
-#include "../../../../target/build_common.h"
-#include "../../../../target/llvm/codegen_cpu.h"
-#include "../../../../target/llvm/llvm_instance.h"
 #include "../hexagon_fallback_module.h"
 
 namespace tvm {

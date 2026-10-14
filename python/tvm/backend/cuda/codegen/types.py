@@ -31,7 +31,7 @@ class PTXDataType(enum.Enum):
     Inherits from IntEnum so that members behave both as enum members
     and as integers, mirroring the C++ behavior.
 
-    see also src/target/source/ptx.cc
+    see also src/backend/cuda/codegen/ptx.cc
     """
 
     INT4 = 0

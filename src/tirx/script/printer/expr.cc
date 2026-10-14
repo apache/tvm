@@ -93,8 +93,8 @@ ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyVi
   // representations retain their exact operand type through the full Call.
   if (!id || !ffi::StructuralEqual()(id->ty, PrimType::Int(32)))
     return RawCallDocTranslate(d, call);
-  auto lookup = ffi::Function::GetGlobal("target.llvm_get_intrinsic_name");
-  auto reverse = ffi::Function::GetGlobal("target.llvm_lookup_intrinsic_id");
+  auto lookup = ffi::Function::GetGlobal("codegen.llvm_get_intrinsic_name");
+  auto reverse = ffi::Function::GetGlobal("codegen.llvm_lookup_intrinsic_id");
   if (!lookup || !reverse) return RawCallDocTranslate(d, call);
   ffi::String name;
   try {

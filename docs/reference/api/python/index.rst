@@ -28,6 +28,7 @@ Python API
     instrument
     transform
     target
+    codegen
     driver
     testing
     exec

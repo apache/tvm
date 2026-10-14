@@ -541,7 +541,7 @@ def call_llvm_intrin(dtype, name, *args, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
     # pylint: disable=import-outside-toplevel
-    from tvm.target import codegen
+    from tvm import codegen
 
     if isinstance(name, str):
         llvm_id = codegen.llvm_lookup_intrinsic_id(name)
@@ -585,7 +585,7 @@ def call_llvm_pure_intrin(dtype, name, *args, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
     # pylint: disable=import-outside-toplevel
-    from tvm.target import codegen
+    from tvm import codegen
 
     if isinstance(name, str):
         llvm_id = codegen.llvm_lookup_intrinsic_id(name)

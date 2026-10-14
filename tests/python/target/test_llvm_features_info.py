@@ -17,7 +17,8 @@
 import pytest
 
 import tvm
-from tvm.target import Target, _ffi_api, codegen
+from tvm import codegen
+from tvm.target import Target
 
 LLVM_VERSION = codegen.llvm_version_major()
 
@@ -33,12 +34,17 @@ def test_llvm_targets(capfd):
     assert len(codegen.llvm_get_system_triple())
     assert len(codegen.llvm_get_system_x86_vendor())
     # check ffi vs python
-    assert codegen.llvm_get_system_cpu() == _ffi_api.llvm_get_system_cpu()
-    assert codegen.llvm_get_system_triple() == _ffi_api.llvm_get_system_triple()
-    assert codegen.llvm_get_system_x86_vendor() == _ffi_api.llvm_get_system_x86_vendor()
-    assert str(codegen.llvm_get_targets()) == str(_ffi_api.llvm_get_targets())
+    assert codegen.llvm_get_system_cpu() == tvm.get_global_func("codegen.llvm_get_system_cpu")()
+    assert (
+        codegen.llvm_get_system_triple() == tvm.get_global_func("codegen.llvm_get_system_triple")()
+    )
+    assert (
+        codegen.llvm_get_system_x86_vendor()
+        == tvm.get_global_func("codegen.llvm_get_system_x86_vendor")()
+    )
+    assert str(codegen.llvm_get_targets()) == str(tvm.get_global_func("codegen.llvm_get_targets")())
 
-    tvm.target.codegen.llvm_get_cpu_features(
+    tvm.codegen.llvm_get_cpu_features(
         tvm.target.Target({"kind": "llvm", "mtriple": "x86_64-linux-gnu", "mcpu": "dummy"})
     )
     expected_str = (
@@ -87,7 +93,9 @@ def test_target_features(min_llvm_version, llvm_target, cpu_arch, cpu_features, 
     ### no context but with expicit target
     assert cpu_arch in codegen.llvm_get_cpu_archlist(target)
     # check ffi vs python
-    assert str(codegen.llvm_get_cpu_archlist(target)) == str(_ffi_api.llvm_get_cpu_archlist(target))
+    assert str(codegen.llvm_get_cpu_archlist(target)) == str(
+        tvm.get_global_func("codegen.llvm_get_cpu_archlist")(target)
+    )
 
     ##
     ## check has_features
@@ -101,5 +109,5 @@ def test_target_features(min_llvm_version, llvm_target, cpu_arch, cpu_features, 
     # check ffi vs python
     for feat in cpu_features:
         assert str(codegen.llvm_cpu_has_features(feat, target)) == str(
-            _ffi_api.llvm_cpu_has_feature(feat, target)
+            tvm.get_global_func("codegen.llvm_cpu_has_feature")(feat, target)
         )

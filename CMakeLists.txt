@@ -339,9 +339,11 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
 
 tvm_file_glob(GLOB CODEGEN_SRCS
   src/target/*.cc
-  src/target/source/*.cc
-  src/target/canonicalizer/*.cc
-  src/target/llvm/canonicalizer/*.cc
+  src/codegen/c/*.cc
+  src/codegen/*.cc
+  src/codegen/canonicalizer/*.cc
+  src/codegen/llvm/target_kind.cc
+  src/codegen/llvm/canonicalizer/*.cc
   src/backend/cuda/codegen/*.cc
   src/backend/cuda/op/*.cc
   src/backend/cuda/transforms/*.cc

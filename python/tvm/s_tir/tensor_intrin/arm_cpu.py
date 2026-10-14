@@ -19,11 +19,11 @@
 """Intrinsics for ARM tensorization."""
 
 from tvm import tirx
+from tvm.codegen import llvm_version_major
 from tvm.s_tir.script.ir_builder import function as build_function
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.target.codegen import llvm_version_major
 
 from .. import TensorIntrin
 from .dot_product_common import (
