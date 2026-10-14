@@ -309,16 +309,7 @@ def call_packed(
     elif not isinstance(ty_args, list):
         ty_args = [ty_args]
 
-    ty_args = [
-        (
-            ty()
-            if callable(ty) and not isinstance(ty, _ir.Type)
-            else ty.__tvm_ffi_object__()
-            if hasattr(ty, "__tvm_ffi_object__")
-            else ty
-        )
-        for ty in ty_args
-    ]
+    ty_args = [ty() if callable(ty) and not isinstance(ty, _ir.Type) else ty for ty in ty_args]
 
     is_default = False
     if "attrs_type_key" in kwargs:
