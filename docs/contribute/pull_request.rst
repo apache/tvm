@@ -261,7 +261,7 @@ If you want to run a single test:
   export PYTHONPATH=python
   rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
-  python -m pytest -v tests/python/tirx-transform/test_tir_transform_storage_rewrite.py
+  python -m pytest -v tests/python/tirx/transform/test_tirx_transform_storage_rewrite.py
 
   # Additionally if you want to run a single test, for example test_add_one_2d inside a file.
   python -m pytest -v -k "test_add_one_2d" tests/python/relax/test_frontend_tflite.py

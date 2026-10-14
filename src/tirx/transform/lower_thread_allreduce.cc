@@ -36,7 +36,6 @@
 #include <map>
 #include <unordered_set>
 
-#include "update_pointer_storage_scope.h"
 
 namespace tvm {
 namespace tirx {
