@@ -718,7 +718,8 @@ TensorLoad::TensorLoad(Expr source, ffi::Array<PrimExpr> indices, Location loc)
 
 TensorLoad TensorLoad::Unchecked(PrimType ty, Expr source, ffi::Array<PrimExpr> indices,
                                  Location loc) {
-  TVM_FFI_CHECK(ty.defined() && ty.as<PrimTypeNode>(), TypeError) << "TensorLoad requires a concrete PrimType";
+  TVM_FFI_CHECK(ty.defined() && ty.as<PrimTypeNode>(), TypeError)
+      << "TensorLoad requires a concrete PrimType";
   TVM_FFI_CHECK(source.defined(), TypeError) << "TensorLoad requires a defined source";
   auto node = ffi::make_object<TensorLoadNode>(std::move(source));
   node->ty = std::move(ty);
