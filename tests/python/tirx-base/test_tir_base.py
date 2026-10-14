@@ -48,8 +48,8 @@ def test_scalar_add():
         # Input vars should be float32, we will cast to test for upcasting between them
         lhs_input = tirx.Var("lhs", "float32")
         rhs_input = tirx.Var("rhs", "float32")
-        lhs = tirx.Cast(lhs_type, lhs_input)
-        rhs = tirx.Cast(rhs_type, rhs_input)
+        lhs = tirx.Cast(lhs_input, lhs_type)
+        rhs = tirx.Cast(rhs_input, rhs_type)
         output = lhs + rhs
         output = tvm.ir.Return(output)
         func = tirx.Function([lhs_input, rhs_input], output)

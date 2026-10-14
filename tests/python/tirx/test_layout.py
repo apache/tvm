@@ -1390,8 +1390,8 @@ def test_compose_structured_apply_splits_one_cross_atom_term():
 def test_compose_structured_apply_handles_uint32_casts_per_term():
     x = Var("x", ty="int32")
     y = Var("y", ty="int32")
-    x_u32 = tvm.tirx.Cast("uint32", x)
-    y_u32 = tvm.tirx.Cast("uint32", y)
+    x_u32 = tvm.tirx.Cast(x, "uint32")
+    y_u32 = tvm.tirx.Cast(y, "uint32")
     layout = ComposeLayout(3, 3, 3, TileLayout(S[(8, 8) : (64, 1)] + 72))
 
     actual = layout.apply(x_u32, y_u32, shape=(8, 8))["m"]

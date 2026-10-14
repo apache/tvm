@@ -187,7 +187,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     auto clz =
         Call(call->args[0]->ty.as_or_throw<PrimType>(), tirx::call_llvm_intrin_op(), cargs)
             .as_or_throw<PrimExpr>();
-    return cast(call->ty.as_or_throw<PrimType>(), clz);
+    return cast(clz, call->ty.as_or_throw<PrimType>());
   });
   // clang-format on
 }

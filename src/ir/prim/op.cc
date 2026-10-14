@@ -176,10 +176,10 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Location loc) {  // NOLINT
 
   PrimType promoted_ty = PromoteBinaryOpType(lhs_ty, rhs_ty);
   if (lhs_ty->dtype != promoted_ty->dtype) {
-    lhs = prim::cast(promoted_ty, lhs, loc);
+    lhs = prim::cast(lhs, promoted_ty, loc);
   }
   if (rhs_ty->dtype != promoted_ty->dtype) {
-    rhs = prim::cast(promoted_ty, rhs, loc);
+    rhs = prim::cast(rhs, promoted_ty, loc);
   }
 }
 
@@ -299,7 +299,7 @@ PrimExpr min_value(PrimType value_ty, Location loc) {
   TVM_FFI_THROW(InternalError) << "Cannot decide min_value for type" << dtype;
 }
 
-PrimExpr cast(PrimType t, PrimExpr value, Location loc) {
+PrimExpr cast(PrimExpr value, PrimType t, Location loc) {
   PrimType dtype = t;
   if (value.ty() == dtype) return value;
   TVM_FFI_CHECK(!value.ty().IsVoid(), TypeError)
@@ -311,7 +311,7 @@ PrimExpr cast(PrimType t, PrimExpr value, Location loc) {
     } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
       return MakeConst(dtype, op->value, op->loc);
     }
-    return prim::Cast(std::move(t), value, loc);
+    return prim::Cast(value, std::move(t), loc);
   } else {
     PrimType elem_ty = dtype.WithLanes(1);
     if (!value.ty().IsScalableVector() && !value.ty().IsFixedLengthVector()) {
@@ -322,7 +322,7 @@ PrimExpr cast(PrimType t, PrimExpr value, Location loc) {
         } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
           value = MakeConst(elem_ty, op->value, op->loc);
         } else {
-          value = prim::Cast(elem_ty, value, loc);
+          value = prim::Cast(value, elem_ty, loc);
         }
       }
       if (dtype.IsScalableVector()) {
@@ -345,21 +345,21 @@ PrimExpr cast(PrimType t, PrimExpr value, Location loc) {
       }
       TVM_FFI_ICHECK(lanes_match);
       if (const auto* broadcast = value.as<prim::BroadcastNode>()) {
-        return prim::Broadcast(cast(elem_ty, broadcast->value, loc), broadcast->lanes, loc);
+        return prim::Broadcast(cast(broadcast->value, elem_ty, loc), broadcast->lanes, loc);
       } else if (const auto* ramp = value.as<prim::RampNode>()) {
         if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
           // only cast to index data type can be folded to ramp
-          return prim::Ramp(cast(elem_ty, ramp->base, loc), cast(elem_ty, ramp->stride, loc),
+          return prim::Ramp(cast(ramp->base, elem_ty, loc), cast(ramp->stride, elem_ty, loc),
                             ramp->lanes, loc);
         }
       }
-      return prim::Cast(std::move(t), value, loc);
+      return prim::Cast(value, std::move(t), loc);
     }
   }
 }
 
-PrimExpr cast(DLDataType dtype, PrimExpr value, Location loc) {
-  return cast(PrimType(dtype), std::move(value), std::move(loc));
+PrimExpr cast(PrimExpr value, DLDataType dtype, Location loc) {
+  return cast(std::move(value), PrimType(dtype), std::move(loc));
 }
 
 template <typename ValueType>
@@ -820,10 +820,10 @@ PrimExpr log2(PrimExpr x, Location loc) {
     PrimType f32_ty = x_ty.IsScalableVector() ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat,
                                                                          32, x_ty.VScaleFactor())
                                               : PrimType::Float(32, x_ty.lanes());
-    PrimExpr x_fp32 = prim::Cast(f32_ty, x, loc);
+    PrimExpr x_fp32 = prim::Cast(x, f32_ty, loc);
     PrimExpr result_fp32 =
         Call(f32_ty, prim::log2_op(), {x_fp32}, {}, {}, loc).as_or_throw<PrimExpr>();
-    return prim::Cast(x_ty, result_fp32, loc);
+    return prim::Cast(result_fp32, x_ty, loc);
   }
   return Call(x_ty, prim::log2_op(), {x}, {}, {}, loc).as_or_throw<PrimExpr>();
 }
@@ -849,8 +849,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             }
           })
       .def("prim.max_value", static_cast<PrimExpr (*)(PrimType, Location)>(&prim::max_value))
-      .def("prim._cast", [](PrimType dtype, PrimExpr value,
-                            Location loc) { return prim::cast(dtype, value, loc); })
+      .def("prim._cast", [](PrimExpr value, PrimType dtype,
+                            Location loc) { return prim::cast(value, dtype, loc); })
       .def("prim.min_value", static_cast<PrimExpr (*)(PrimType, Location)>(&prim::min_value))
       .def("prim.likely", tvm::likely)
       .def("prim.ceil", tvm::ceil);

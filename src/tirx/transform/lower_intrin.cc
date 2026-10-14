@@ -313,7 +313,7 @@ class IntrinInjecter : public StmtExprMutatorWithAnalyzer {
 
         if (should_swap()) {
           PrimExpr new_bcast = prim::Broadcast(cast->value, bcast->lanes);
-          return prim::Cast(bcast->ty.as_or_throw<PrimType>(), new_bcast);
+          return prim::Cast(new_bcast, bcast->ty.as_or_throw<PrimType>());
         }
       }
     }

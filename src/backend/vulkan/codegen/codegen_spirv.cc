@@ -813,7 +813,7 @@ void CodeGenSPIRV::Dispatch_(const ForNode* op) {
                ? builder_->IntImm(init_value.stype, 1)
                : builder_->UIntImm(init_value.stype, 1);
   } else {
-    step = MakeValue(tvm::prim::cast(end.ty(), *op->step));
+    step = MakeValue(tvm::prim::cast(*op->step, end.ty()));
   }
 
   // Must get init label after making value(to make sure they are correct)

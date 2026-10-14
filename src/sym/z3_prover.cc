@@ -336,13 +336,13 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
       if (IsFreeNode(lhs) && IsFreeNode(rhs)) {
         return true;
       }
-      // cast('xxx', free_var) == constant
+      // cast(free_var, 'xxx') == constant
       if (auto cast = lhs.as<prim::CastNode>()) {
         if (IsFreeNode(cast->value) && rhs->IsInstance<IntImmNode>()) {
           return true;
         }
       }
-      // constant == cast('xxx', free_var)
+      // constant == cast(free_var, 'xxx')
       if (auto cast = rhs.as<prim::CastNode>()) {
         if (IsFreeNode(cast->value) && lhs->IsInstance<IntImmNode>()) {
           return true;

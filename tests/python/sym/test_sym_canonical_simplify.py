@@ -300,37 +300,37 @@ def test_simplify_cast():
     tcast = tvm.tirx.Cast
     fld = tvm.tirx.floordiv
     flm = tvm.tirx.floormod
-    # cast(i64, i + j + 1) - cast(i64, i)
+    # cast(i + j + 1, i64) - cast(i, i64)
     i = tvm.tirx.Var("i", "int32")
     j = tvm.tirx.Var("j", "int32")
-    res = tcast("int64", i + j + 1) - tcast("int64", i)
-    ck.verify(res, tcast("int64", j) + tvm.tirx.const(1, "int64"))
-    # cast(i32, i + j + 1) - cast(i32, i)
+    res = tcast(i + j + 1, "int64") - tcast(i, "int64")
+    ck.verify(res, tcast(j, "int64") + tvm.tirx.const(1, "int64"))
+    # cast(i + j + 1, i32) - cast(i, i32)
     i = tvm.tirx.Var("i", "int64")
     j = tvm.tirx.Var("j", "int64")
     ck.analyzer.update(i, tvm.sym.ConstIntBound(0, 10))
     ck.analyzer.update(j, tvm.sym.ConstIntBound(0, 10))
-    res = tcast("int32", i + j + 1) - tcast("int32", i)
-    ck.verify(res, tcast("int32", j) + 1)
-    # cast(i32, i + j - 100)
+    res = tcast(i + j + 1, "int32") - tcast(i, "int32")
+    ck.verify(res, tcast(j, "int32") + 1)
+    # cast(i + j - 100, i32)
     i = tvm.tirx.Var("i", "int64")
     j = tvm.tirx.Var("j", "int64")
     ck.analyzer.update(i, tvm.sym.ConstIntBound(0, 2**31 - 1))
     ck.analyzer.update(j, tvm.sym.ConstIntBound(0, 10))
-    res = tcast("int32", i + j - 100)
+    res = tcast(i + j - 100, "int32")
     ck.verify(res, res)
-    # cast(i32, flm(axis, 7i64) * 2i64 + 1i64) + 1i32
-    # - cast(i32, flm(axis, 7i64) * 2i64)
+    # cast(flm(axis, 7i64) * 2i64 + 1i64, i32) + 1i32
+    # - cast(flm(axis, 7i64) * 2i64, i32)
     axis = tvm.tirx.Var("axis", "int64")
     ck.analyzer.update(axis, tvm.sym.ConstIntBound(0, 42))
     res = (
         tcast(
-            "int32",
             flm(axis, tvm.tirx.const(7, "int64")) * tvm.tirx.const(2, "int64")
             + tvm.tirx.const(1, "int64"),
+            "int32",
         )
         + tvm.tirx.const(1, "int32")
-        - tcast("int32", flm(axis, tvm.tirx.const(7, "int64")) * tvm.tirx.const(2, "int64"))
+        - tcast(flm(axis, tvm.tirx.const(7, "int64")) * tvm.tirx.const(2, "int64"), "int32")
     )
     ck.verify(res, 2)
 

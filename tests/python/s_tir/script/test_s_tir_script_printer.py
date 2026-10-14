@@ -1965,7 +1965,7 @@ def tvm_struct_set_generated_in_cpp():
                             T.stack_make_shape(16),
                             T.reinterpret(T.uint64(0), ty="handle"),
                             T.uint32(1),
-                            T.Cast("float32", 0),
+                            T.Cast(0, "float32"),
                             0,
                         ),
                     )

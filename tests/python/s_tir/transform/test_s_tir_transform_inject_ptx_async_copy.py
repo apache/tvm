@@ -889,7 +889,7 @@ def test_multiplication_nodes_are_inlined():
 
             with Ts.async_copy_scope():
                 for i in range(16):
-                    cse_v1: T.int64 = T.Cast("int64", i)
+                    cse_v1: T.int64 = T.Cast(i, "int64")
                     A_shared[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)] = (
                         A_flattened[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)]
                     )
@@ -904,7 +904,7 @@ def test_multiplication_nodes_are_inlined():
             A_flattened = T.decl_tensor(A.data, ty_args=[T.Tensor((4096,), "float16", data=A.data)])
             A_shared = T.alloc_tensor(ty_args=[T.Tensor((4096,), "float16", scope="shared")])
             for i in range(16):
-                cse_v1: T.int64 = T.Cast("int64", i)
+                cse_v1: T.int64 = T.Cast(i, "int64")
                 T.s_tir.cp_async_raw(
                     A_shared.data,
                     tx * T.int64(128) + cse_v1 * T.int64(8),

@@ -76,9 +76,9 @@ PrimExpr DTypeConversion(PrimExpr src_value, PrimType tgt_dtype, RoundingMode ro
     // number of exponent bits exactly matches
     PrimExpr ret = src_uint_value;
     if (mantissa_delta >= 0) {
-      ret = cast(tgt_uint, ret) << mantissa_delta;
+      ret = cast(ret, tgt_uint) << mantissa_delta;
     } else {  // mantissa_delta < 0
-      ret = cast(tgt_uint, ret >> (-mantissa_delta));
+      ret = cast(ret >> (-mantissa_delta), tgt_uint);
     }
     if (bias_delta > 0) {
       ret = ret + (MakeConst(tgt_uint, bias_delta) << tgt_fp.mantissa);
@@ -89,20 +89,20 @@ PrimExpr DTypeConversion(PrimExpr src_value, PrimType tgt_dtype, RoundingMode ro
   } else {
     // number of exponent bits mismatch.
     PrimExpr ret_mantissa =
-        (mantissa_delta >= 0 ? (cast(tgt_uint, src_uint_value) << mantissa_delta)
-                             : (cast(tgt_uint, src_uint_value >> (-mantissa_delta)))) &
+        (mantissa_delta >= 0 ? (cast(src_uint_value, tgt_uint) << mantissa_delta)
+                             : (cast(src_uint_value >> (-mantissa_delta), tgt_uint))) &
         MakeConst(tgt_uint, (int64_t(1) << (tgt_fp.mantissa)) - 1);
     PrimExpr exponent_before_delta = ((src_uint_value << 1) >> (src_fp.mantissa + 1));
-    PrimExpr ret_sign = cast(tgt_uint, (src_uint_value >> (src_fp.mantissa + src_fp.exponent)))
+    PrimExpr ret_sign = cast((src_uint_value >> (src_fp.mantissa + src_fp.exponent)), tgt_uint)
                         << (tgt_fp.mantissa + tgt_fp.exponent);
     if (bias_delta >= 0) {
       PrimExpr ret_exponent =
-          (bias_delta > 0) ? (cast(tgt_uint, exponent_before_delta + bias_delta) << tgt_fp.mantissa)
-                           : (cast(tgt_uint, exponent_before_delta) << tgt_fp.mantissa);
+          (bias_delta > 0) ? (cast(exponent_before_delta + bias_delta, tgt_uint) << tgt_fp.mantissa)
+                           : (cast(exponent_before_delta, tgt_uint) << tgt_fp.mantissa);
       return tirx::reinterpret(tgt_dtype, ret_mantissa | ret_exponent | ret_sign);
     } else {  // bias_delta < 0
       PrimExpr round_to_zero = exponent_before_delta < (-bias_delta);
-      PrimExpr ret_exponent = cast(tgt_uint, exponent_before_delta - (-bias_delta))
+      PrimExpr ret_exponent = cast(exponent_before_delta - (-bias_delta), tgt_uint)
                               << tgt_fp.mantissa;
       // MakeConst can handle both vector and scalar types.
       return tirx::reinterpret(tgt_dtype, if_then_else(round_to_zero, MakeConst(tgt_uint, 0),

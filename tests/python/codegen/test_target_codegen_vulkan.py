@@ -172,7 +172,7 @@ def test_vulkan_bool_load():
         def main(A: T.Tensor((1024,), "bool"), B: T.Tensor((1024,), "int32")):
             with T.launch_thread("blockIdx.x", 8) as i_0:
                 with T.launch_thread("threadIdx.x", 128) as i_1:
-                    B[i_0 * 128 + i_1] = T.Cast("int32", A[i_0 * 128 + i_1])
+                    B[i_0 * 128 + i_1] = T.Cast(A[i_0 * 128 + i_1], "int32")
 
     f = tvm.tirx.compile(Module, target=target)
 

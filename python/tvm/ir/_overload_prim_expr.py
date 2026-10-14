@@ -243,7 +243,7 @@ class ExprOp:
         expr : Expr
             Expression with new type
         """
-        return _prim_ffi_api._cast(dtype, self, loc)  # type: ignore
+        return _prim_ffi_api._cast(self, dtype, loc)  # type: ignore
 
 
 class EqualOp(ObjectConvertible, ExprOp):

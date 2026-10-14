@@ -62,7 +62,7 @@ def test_expr_constructor():
     assert isinstance(x, tvm.ir.StringImm)
     assert x.value == "xyza"
 
-    x = tvm.tirx.Cast("float32", tvm.tirx.IntImm("uint32", 1))
+    x = tvm.tirx.Cast(tvm.tirx.IntImm("uint32", 1), "float32")
     assert isinstance(x, tvm.tirx.Cast)
     assert x.ty == tvm.ir.PrimType("float32")
     assert x.value.value == 1
@@ -280,7 +280,7 @@ def test_operator_base_categories_have_primitive_type():
             None,
             0,
         ),
-        tvm.tirx.Cast("float32", var),
+        tvm.tirx.Cast(var, "float32"),
         tvm.tirx.Select(var < 1, var, 1),
         tvm.tirx.TensorLoad(tensor, [0]),
         tvm.tirx.Ramp(0, 1, 4),

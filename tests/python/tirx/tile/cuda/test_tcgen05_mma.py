@@ -984,11 +984,11 @@ def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
         # of the TMA/remote-mbarrier path exercised by the older Layout B test.
         for i in range(m_per_cta * k // 128):
             A_smem[(tid + i * 128) // k, (tid + i * 128) % k] = T.Cast(
-                a_dtype, A[cbx * m_per_cta + (tid + i * 128) // k, (tid + i * 128) % k]
+                A[cbx * m_per_cta + (tid + i * 128) // k, (tid + i * 128) % k], a_dtype
             )
         for i in range(n_per_cta * k // 128):
             B_smem[(tid + i * 128) // k, (tid + i * 128) % k] = T.Cast(
-                b_dtype, B[cbx * n_per_cta + (tid + i * 128) // k, (tid + i * 128) % k]
+                B[cbx * n_per_cta + (tid + i * 128) // k, (tid + i * 128) % k], b_dtype
             )
         T.cuda.cta_sync()
         T.ptx.fence.proxy.async_.shared__cta()
