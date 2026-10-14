@@ -24,23 +24,25 @@
 
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/tile/op.h>
+#include <tvm/tirx/tile/thread_scope.h>
 
 #include <utility>
 
 namespace tvm::tirx::tile {
 
 struct ScopeAttrs : public AttrsNode {
-  ffi::String scope;
+  ScopeAttrs() : scope(ffi::UnsafeInit{}) {}
+  ThreadScope scope;
   static void RegisterReflection() {
     namespace refl = ffi::reflection;
-    refl::ObjectDef<ScopeAttrs>().def_ro("scope", &ScopeAttrs::scope,
-                                         refl::DefaultValue(ffi::String("thread")));
+    refl::ObjectDef<ScopeAttrs>().def_ro("scope", &ScopeAttrs::scope);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.tensor.ScopeAttrs", ScopeAttrs, AttrsNode);
 };
 
 struct TrnAttrs : public AttrsNode {
-  ffi::String scope;
+  TrnAttrs() : scope(ffi::UnsafeInit{}) {}
+  ThreadScope scope;
   ffi::Optional<int64_t> max_inst_size;
   ffi::String opcode;
   ffi::String reduce_op;
@@ -52,7 +54,7 @@ struct TrnAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = ffi::reflection;
     refl::ObjectDef<TrnAttrs>()
-        .def_ro("scope", &TrnAttrs::scope, refl::DefaultValue(ffi::String("thread")))
+        .def_ro("scope", &TrnAttrs::scope)
         .def_ro("max_inst_size", &TrnAttrs::max_inst_size,
                 refl::DefaultValue(ffi::Optional<int64_t>(std::nullopt)))
         .def_ro("opcode", &TrnAttrs::opcode, refl::DefaultValue(ffi::String("")))

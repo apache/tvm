@@ -14,30 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
+# pylint: disable=no-member, super-init-not-called
 
-from tvm.tirx.exec_scope import ExecScope
+"""CUDA thread-scope lookup."""
 
-
-def test_exec_scope_create():
-    def is_trivial_scope(scope, name):
-        return isinstance(scope, ExecScope) and scope.name == name
-
-    thread = ExecScope("cuda", "thread")
-    warp = ExecScope("cuda", "warp")
-    wg = ExecScope("cuda", "warpgroup")
-    cta = ExecScope("cuda", "cta")
-    cluster = ExecScope("cuda", "cluster")
-
-    assert is_trivial_scope(thread, "thread")
-    assert is_trivial_scope(warp, "warp")
-    assert is_trivial_scope(wg, "warpgroup")
-    assert is_trivial_scope(cta, "cta")
-    assert is_trivial_scope(cluster, "cluster")
-
-    with pytest.raises(Exception, match="Unknown execution scope"):
-        ExecScope("cuda", "aaa")
+from tvm.tirx.thread_scope import ThreadScope as _ThreadScope
 
 
-if __name__ == "__main__":
-    test_exec_scope_create()
+def ThreadScope(name: str) -> _ThreadScope:
+    """Look up a CUDA thread scope by its backend-local name."""
+    return _ThreadScope("cuda." + name)

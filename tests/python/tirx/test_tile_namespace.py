@@ -28,9 +28,9 @@ from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.testing import env
 from tvm.tirx import decl_tensor
-from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import Axis, S, TileLayout
 from tvm.tirx.script import ir_builder as I
+from tvm.tirx.thread_scope import ThreadScope
 
 
 def test_generic_layout_without_backend_autoload():
@@ -67,8 +67,8 @@ def test_backend_axis_and_scope_identity():
     assert Axis.m.backend is None
     assert T.cuda.Axis.laneid.backend == "cuda"
     assert T.trn.Axis.P.backend == "trn"
-    assert T.cuda.Axis.laneid.get_scope().name == "warp"
-    assert T.cuda.Axis.laneid.get_subscope().name == "thread"
+    assert T.cuda.Axis.laneid.get_scope().name == "cuda.warp"
+    assert T.cuda.Axis.laneid.get_subscope().name == "cuda.thread"
     assert not T.trn.Axis.P.is_thread()
     with pytest.raises(AttributeError):
         _ = Axis.laneid
@@ -76,20 +76,20 @@ def test_backend_axis_and_scope_identity():
         _ = T.cuda.Axis.P
     with pytest.raises(AttributeError):
         _ = T.trn.Axis.laneid
-    cuda = T.cuda.ExecScope("thread")
-    trn = T.trn.ExecScope("thread")
+    cuda = T.cuda.ThreadScope("thread")
+    trn = T.trn.ThreadScope("thread")
     assert cuda.backend == "cuda" and trn.backend == "trn"
     assert not tvm_ffi.structural_equal(cuda, trn)
     assert_structural_equal(cuda, load_json(save_json(cuda)))
     assert_structural_equal(trn, load_json(save_json(trn)))
-    for backend, factory in (("cuda", T.cuda.ExecScope), ("trn", T.trn.ExecScope)):
+    for backend, factory in (("cuda", T.cuda.ThreadScope), ("trn", T.trn.ThreadScope)):
         root = factory("kernel")
-        assert_structural_equal(root, ExecScope(backend, "kernel"))
+        assert_structural_equal(root, ThreadScope(f"{backend}.kernel"))
         assert_structural_equal(root, load_json(save_json(root)))
-        assert f'T.{backend}.ExecScope("kernel")' in root.script()
-    assert_structural_equal(T.cuda.Axis.bx.get_scope(), T.cuda.ExecScope("kernel"))
-    with pytest.raises(ValueError, match="Unknown execution scope"):
-        T.trn.ExecScope("warp")
+        assert f'T.ThreadScope("{backend}.kernel")' in root.script()
+    assert_structural_equal(T.cuda.Axis.bx.get_scope(), T.cuda.ThreadScope("kernel"))
+    with pytest.raises(ValueError):
+        T.trn.ThreadScope("warp")
 
 
 @pytest.mark.parametrize(
@@ -212,7 +212,7 @@ def test_tile_call_rejects_cross_backend_scope():
     tensor = decl_tensor((8,), "float32", scope="local", layout="default")
     with pytest.raises(ValueError, match="scope belongs to trn"):
         T.cuda.tile.apply(
-            T.ptx["add.f32"], tensor[:], tensor[:], tensor[:], scope=T.trn.ExecScope("thread")
+            T.ptx["add.f32"], tensor[:], tensor[:], tensor[:], scope=T.trn.ThreadScope("thread")
         )
 
 

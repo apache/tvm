@@ -99,7 +99,7 @@ def test_roundtrip_scopeid_deferred():
     assert_structural_equal(test, from_source(code))
 
 
-def test_exec_scope_filter_guard_roundtrip():
+def test_thread_scope_filter_guard_roundtrip():
     @T.function(private=True)
     def test(A: T.Tensor((1,), "float32", scope="global")) -> None:
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))

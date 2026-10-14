@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "exec_scope.h"
+#include "thread_scope.h"
 
 #include <tvm/runtime/logging.h>
 namespace tvm::backend::cuda {

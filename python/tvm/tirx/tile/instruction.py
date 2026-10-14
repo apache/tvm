@@ -43,8 +43,8 @@ from tvm.ir import (
 )
 from tvm.ir.location import UNKNOWN_LOC
 from tvm.ir.op import register_op_attr
-from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.expr import IntImm
+from tvm.tirx.thread_scope import ThreadScope
 
 _REQUIRED = object()
 SPECS = {}
@@ -142,9 +142,6 @@ class Instruction:
         unknown = set(kw) - set(allowed)
         if unknown:
             raise TypeError(f"{self.name}: unknown qualifier(s) {sorted(unknown)}")
-        scope = kw.get("scope")
-        if isinstance(scope, ExecScope) and scope.backend != self.backend:
-            raise ValueError(f"{self.name}: scope belongs to {scope.backend}")
         attrs_values = {name: _static(value) for name, value in kw.items()}
         if isinstance(attrs_values.get("axes"), int):
             attrs_values["axes"] = [attrs_values["axes"]]
@@ -155,18 +152,34 @@ class Instruction:
                 raise TypeError("attrs cannot be combined with qualifier keywords")
             attrs = explicit_attrs
         else:
+            attrs_values["scope"] = self._thread_scope(attrs_values["scope"])
             attrs = make_node("tirx.tensor." + self.schema, **attrs_values)
         call = Call(self.name, args, attrs=attrs, ty=result_ty, loc=loc)
         call.validate()
         return call
 
+    def _thread_scope(self, value):
+        if isinstance(value, str):
+            local_name = value.split(".", 1)[-1]
+            if local_name not in self.scopes:
+                raise ValueError(
+                    f"{self.name}: unsupported scope {value!r}; expected {self.scopes}"
+                )
+            value = ThreadScope(value if "." in value else f"{self.backend}.{value}")
+        if not isinstance(value, ThreadScope):
+            raise TypeError(f"{self.name}: scope must be a string or ThreadScope")
+        if value.backend != self.backend:
+            raise ValueError(f"{self.name}: scope belongs to {value.backend}")
+        if value.local_name not in self.scopes:
+            raise ValueError(
+                f"{self.name}: unsupported scope {value.local_name!r}; expected {self.scopes}"
+            )
+        return value
+
     def validate(self, call):
         if len(call.args) != len(self.operands):
             raise TypeError(f"{self.name}: invalid operand count")
-        if str(call.attrs.scope) not in self.scopes:
-            raise ValueError(
-                f"{self.name}: unsupported scope {call.attrs.scope!r}; expected {self.scopes}"
-            )
+        self._thread_scope(call.attrs.scope)
         for arg, value in zip(self.operands, call.args):
             if _is_absent(value):
                 if arg.default is not None:
@@ -214,8 +227,8 @@ def _static(value):
         return value.value
     if isinstance(value, IntImm):
         return bool(value) if str(value.dtype) == "bool" else int(value)
-    if isinstance(value, ExecScope):
-        return value.name
+    if isinstance(value, ThreadScope):
+        return value
     if isinstance(value, Expr):
         raise TypeError("Instruction qualifiers must be static; expressions belong in operands")
     return value
@@ -303,7 +316,7 @@ class TensorCall:
         view.options = {k: _expr(v) for k, v in options.items() if v is not None}
         view.options.update({k: v for k, v in extras.items() if v is not None})
         view.workspaces = {k: values[k] for k in spec.workspaces if values[k] is not None}
-        view.scope = ExecScope(spec.backend, str(call.attrs.scope))
+        view.scope = call.attrs.scope
         return view
 
     def get_private_tensors(self, tensor_dict, sctx):
