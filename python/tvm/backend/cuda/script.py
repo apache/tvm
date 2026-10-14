@@ -159,6 +159,8 @@ __activemask = _auto_emit_void_call(_cuda_op.__activemask)
 
 
 tile = _make_tensor_namespace()
+tile.apply = _auto_emit_void_call(tile.apply)
+tile.ewise = _auto_emit_void_call(tile.ewise)
 _ir.op._init_op_api("tirx.cuda", __name__, wrapper=_auto_emit_void_call)
 
 
