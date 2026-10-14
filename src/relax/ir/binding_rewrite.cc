@@ -32,6 +32,8 @@
 
 #include <functional>
 #include <iterator>
+#include <set>
+#include <vector>
 
 #include "../../support/ordered_set.h"
 

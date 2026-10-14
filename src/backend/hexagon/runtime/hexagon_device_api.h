@@ -24,7 +24,6 @@
 #include <tvm/runtime/memory_scope.h>
 
 #include <condition_variable>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
