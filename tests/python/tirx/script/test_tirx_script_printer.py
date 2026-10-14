@@ -452,12 +452,12 @@ def test_string_imm():
 
 
 def test_cast():
-    obj = tirx.Cast("float64", tirx.Var("a", "float32"))
+    obj = tirx.Cast(tirx.Var("a", "float32"), "float64")
     _assert_print(
         obj,
         """
 a = T.dynamic("a", dtype="float32")
-T.Cast("float64", a)
+T.Cast(a, "float64")
 """,
     )
 

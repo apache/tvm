@@ -391,10 +391,10 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
           ffi::Array<s_tir::IterVar> reduce_axes;
           std::tie(indices, reduce_axes) = get_iter_vars(output, false);
 
-          PrimExpr divide_factor = tvm::prim::cast(PrimType(x->dtype), 1);
+          PrimExpr divide_factor = tvm::prim::cast(1, PrimType(x->dtype));
           for (size_t i = 0; i < n_dim; ++i) {
             divide_factor *=
-                tvm::prim::cast(PrimType::Int(32), reduce_axes[i]->dom.value()->extent);
+                tvm::prim::cast(reduce_axes[i]->dom.value()->extent, PrimType::Int(32));
           }
 
           return div(pool_sum(indices), divide_factor);

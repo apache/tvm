@@ -394,7 +394,7 @@ def test_bf16_reduce_will_legalize():
                         (
                             T.reinterpret(
                                 T.shift_left(
-                                    T.Cast("uint32", T.reinterpret(A_flat_1[0], ty="uint16")),
+                                    T.Cast(T.reinterpret(A_flat_1[0], ty="uint16"), "uint32"),
                                     T.uint32(16),
                                 ),
                                 ty="float32",
@@ -427,7 +427,7 @@ def test_bf16_reduce_will_legalize():
                         (
                             T.reinterpret(
                                 T.shift_left(
-                                    T.Cast("uint32", A_flat[0]),
+                                    T.Cast(A_flat[0], "uint32"),
                                     T.uint32(16),
                                 ),
                                 ty="float32",

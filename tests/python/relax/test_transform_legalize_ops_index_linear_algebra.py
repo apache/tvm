@@ -1135,7 +1135,7 @@ def test_matmul_4_5():
                     Ts.writes(matmul[i0_1, i1_1, i2_1, i3_1, i4_1])
                     with Ts.init():
                         matmul[i0_1, i1_1, i2_1, i3_1, i4_1] = T.float32(0)
-                    matmul[i0_1, i1_1, i2_1, i3_1, i4_1] = matmul[i0_1, i1_1, i2_1, i3_1, i4_1] + T.Cast("float32", rxplaceholder[i1_1, i2_1, i3_1, k]) * T.Cast("float32", rxplaceholder_1[i0_1, i1_1, i2_1, k, i4_1])
+                    matmul[i0_1, i1_1, i2_1, i3_1, i4_1] = matmul[i0_1, i1_1, i2_1, i3_1, i4_1] + T.Cast(rxplaceholder[i1_1, i2_1, i3_1, k], "float32") * T.Cast(rxplaceholder_1[i0_1, i1_1, i2_1, k, i4_1], "float32")
     # fmt: on
 
     mod = LegalizeOps()(Matmul)

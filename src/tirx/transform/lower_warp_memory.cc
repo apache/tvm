@@ -147,7 +147,7 @@ PrimExpr NormalizeWarpIndex(const PrimExpr& index, const WarpThreadBindings& act
         auto it = active_bindings.find(var.get());
         if (it != active_bindings.end() && it->second.tag == "threadIdx.x" &&
             !var.same_as(warp_index)) {
-          return prim::cast(var->ty.as_or_throw<PrimType>(), warp_index.as_or_throw<PrimVar>());
+          return prim::cast(warp_index.as_or_throw<PrimVar>(), var->ty.as_or_throw<PrimType>());
         }
         return std::nullopt;
       });

@@ -273,8 +273,8 @@ ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges,
   }();
   output.MutateByApply([&](const Range& range) {
     if (range->min.ty() != output_dtype || range->extent.ty() != output_dtype) {
-      return Range::FromMinExtent(prim::cast(output_dtype, range->min),
-                                  prim::cast(output_dtype, range->extent));
+      return Range::FromMinExtent(prim::cast(range->min, output_dtype),
+                                  prim::cast(range->extent, output_dtype));
     } else {
       return range;
     }

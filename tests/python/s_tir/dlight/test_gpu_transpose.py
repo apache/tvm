@@ -93,7 +93,7 @@ def test_decode_transpose():
                     v_i, v_j = Ts.axis.remap("SS", [i, j])
                     Ts.reads(rxplaceholder[v_i // T.int64(8), v_j], rxplaceholder_1[v_i // T.int64(32), v_j])
                     Ts.writes(decode[v_i, v_j])
-                    decode[v_i, v_j] = T.Cast("float32", T.bitwise_and(T.shift_right(rxplaceholder[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8) * T.int64(4))), T.uint32(15))) * T.reinterpret( T.shift_left(T.bitwise_and(rxplaceholder_1[v_i // T.int64(32), v_j], T.uint32(65535)), T.uint32(16)), ty="float32") + T.reinterpret( T.shift_left(T.bitwise_and(T.shift_right(rxplaceholder_1[v_i // T.int64(32), v_j], T.uint32(16)), T.uint32(65535)), T.uint32(16)), ty="float32")
+                    decode[v_i, v_j] = T.Cast(T.bitwise_and(T.shift_right(rxplaceholder[v_i // T.int64(8), v_j], T.Cast(v_i % T.int64(8) * T.int64(4), "uint32")), T.uint32(15)), "float32") * T.reinterpret( T.shift_left(T.bitwise_and(rxplaceholder_1[v_i // T.int64(32), v_j], T.uint32(65535)), T.uint32(16)), ty="float32") + T.reinterpret( T.shift_left(T.bitwise_and(T.shift_right(rxplaceholder_1[v_i // T.int64(32), v_j], T.uint32(16)), T.uint32(65535)), T.uint32(16)), ty="float32")
             for ax0, ax1 in T.grid(T.int64(4096), T.int64(4096)):
                 with Ts.sblock("T_transpose"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -119,7 +119,7 @@ def test_decode_transpose():
                                         Ts.reads(rxplaceholder[v0 // T.int64(8), v1], rxplaceholder_1[v0 // T.int64(32), v1])
                                         Ts.writes(decode_shared[v0, v1])
                                         Ts.sblock_attr({"tensor_dim_align": [[0, 0, 32, 1]]})
-                                        decode_shared[v0, v1] = T.Cast("float32", T.bitwise_and(T.shift_right(rxplaceholder[v0 // T.int64(8), v1], T.Cast("uint32", v0 % T.int64(8) * T.int64(4))), T.uint32(15))) * T.reinterpret( T.shift_left(T.bitwise_and(rxplaceholder_1[v0 // T.int64(32), v1], T.uint32(65535)), T.uint32(16)), ty="float32") + T.reinterpret( T.shift_left(T.bitwise_and(T.shift_right(rxplaceholder_1[v0 // T.int64(32), v1], T.uint32(16)), T.uint32(65535)), T.uint32(16)), ty="float32")
+                                        decode_shared[v0, v1] = T.Cast(T.bitwise_and(T.shift_right(rxplaceholder[v0 // T.int64(8), v1], T.Cast(v0 % T.int64(8) * T.int64(4), "uint32")), T.uint32(15)), "float32") * T.reinterpret( T.shift_left(T.bitwise_and(rxplaceholder_1[v0 // T.int64(32), v1], T.uint32(65535)), T.uint32(16)), ty="float32") + T.reinterpret( T.shift_left(T.bitwise_and(T.shift_right(rxplaceholder_1[v0 // T.int64(32), v1], T.uint32(16)), T.uint32(65535)), T.uint32(16)), ty="float32")
                     for ax0_0_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.y"}):
                         for ax1_1 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.x"}):
                             for ax0_1_0 in range(T.int64(2)):
@@ -147,7 +147,7 @@ def test_decode_int3_transpose():
                     v_i, v_j = Ts.axis.remap("SS", [i, j])
                     Ts.reads(A[v_i // T.int64(10), v_j], B[v_i // T.int64(40), v_j])
                     Ts.writes(decode_1[v_i, v_j])
-                    decode_1[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(A[v_i // T.int64(10), v_j], T.Cast("uint32", v_i % T.int64(10)) * T.uint32(3)), T.uint32(7))) - T.float16(3)) * B[v_i // T.int64(40), v_j]
+                    decode_1[v_i, v_j] = (T.Cast(T.bitwise_and(T.shift_right(A[v_i // T.int64(10), v_j], T.Cast(v_i % T.int64(10), "uint32") * T.uint32(3)), T.uint32(7)), "float16") - T.float16(3)) * B[v_i // T.int64(40), v_j]
             for ax0, ax1 in T.grid(T.int64(4096), T.int64(4096)):
                 with Ts.sblock("T_transpose"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -175,7 +175,7 @@ def test_decode_int3_transpose():
                                         Ts.reads(A[v0 // T.int64(10), v1], B[v0 // T.int64(40), v1])
                                         Ts.writes(decode_1_shared[v0, v1])
                                         Ts.sblock_attr({"tensor_dim_align": [[0, 0, 32, 1]]})
-                                        decode_1_shared[v0, v1] = (T.Cast("float16", T.bitwise_and(T.shift_right(A[v0 // T.int64(10), v1], T.Cast("uint32", v0 % T.int64(10)) * T.uint32(3)), T.uint32(7))) - T.float16(3)) * B[v0 // T.int64(40), v1]
+                                        decode_1_shared[v0, v1] = (T.Cast(T.bitwise_and(T.shift_right(A[v0 // T.int64(10), v1], T.Cast(v0 % T.int64(10), "uint32") * T.uint32(3)), T.uint32(7)), "float16") - T.float16(3)) * B[v0 // T.int64(40), v1]
                     for ax0_0_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.y"}):
                         for ax1_1 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.x"}):
                             for ax0_1_0 in range(T.int64(3)):

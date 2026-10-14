@@ -26,8 +26,8 @@ def test_thread_axis1():
     def before(A: T.Tensor((T.int64(64),), "float32"), B: T.Tensor((T.int64(64),), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", T.int64(2))
         threadIdx_x = T.launch_thread("threadIdx.x", T.int64(32))
-        B[T.Cast("int64", blockIdx_x) * T.int64(32) + T.Cast("int64", threadIdx_x)] = A[
-            T.Cast("int64", blockIdx_x) * T.int64(32) + T.Cast("int64", threadIdx_x)
+        B[T.Cast(blockIdx_x, "int64") * T.int64(32) + T.Cast(threadIdx_x, "int64")] = A[
+            T.Cast(blockIdx_x, "int64") * T.int64(32) + T.Cast(threadIdx_x, "int64")
         ] + T.float32(1)
 
     @T.function(private=True)
@@ -180,7 +180,6 @@ def test_thread_axis2():
                             % 384,
                         ] = T.Select(
                             T.Cast(
-                                "int32",
                                 placeholder_1[
                                     0,
                                     (
@@ -201,6 +200,7 @@ def test_thread_axis2():
                                     )
                                     % 384,
                                 ],
+                                "int32",
                             )
                             != 0,
                             T.float32(-1000000000),
@@ -309,7 +309,7 @@ def test_pod_params_and_select():
             A: T.Tensor((T.int64(4),), "float32"), B: T.Tensor((T.int64(4),), "float32"), n: T.int64
         ):
             for i in T.serial(T.int64(4)):
-                B[i] = T.Select(T.int64(1) <= i, A[i + n], T.Cast("float32", i))
+                B[i] = T.Select(T.int64(1) <= i, A[i + n], T.Cast(i, "float32"))
 
     @tvm.script.ir_module
     class Expected:
@@ -320,7 +320,7 @@ def test_pod_params_and_select():
             n: T.int32,
         ):
             for i in range(4):
-                B[i] = T.Select(1 <= i, A[i + n], T.Cast("float32", i))
+                B[i] = T.Select(1 <= i, A[i + n], T.Cast(i, "float32"))
 
     after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
     tvm.ir.assert_structural_equal(Expected, after)
@@ -370,10 +370,10 @@ def test_conditional_index_mixed_width_branches():
                 ty_args=[T.Tensor((1,), "int64", scope="local", elem_offset=T.int32(0))]
             )
             opaque_index[0] = T.call_extern("opaque_index", n, ty="int64")
-            B[0] = A[T.if_then_else(n < 0, opaque_index[0], T.Cast("int64", n))]
-            B[1] = A[T.if_then_else(n < 0, T.Cast("int64", n), opaque_index[0])]
-            B[2] = A[T.Select(n < 0, opaque_index[0], T.Cast("int64", n))]
-            B[3] = A[T.Select(n < 0, T.Cast("int64", n), opaque_index[0])]
+            B[0] = A[T.if_then_else(n < 0, opaque_index[0], T.Cast(n, "int64"))]
+            B[1] = A[T.if_then_else(n < 0, T.Cast(n, "int64"), opaque_index[0])]
+            B[2] = A[T.Select(n < 0, opaque_index[0], T.Cast(n, "int64"))]
+            B[3] = A[T.Select(n < 0, T.Cast(n, "int64"), opaque_index[0])]
 
     after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
     tvm.ir.assert_structural_equal(Expected, after)
@@ -507,7 +507,7 @@ def test_let_binding():
     class Before:
         @T.function
         def main(Buf: T.Tensor([n], "int32")):
-            ceil_log2: T.int64 = T.Cast("int64", T.ceil(T.log2(T.Cast("float32", n))))
+            ceil_log2: T.int64 = T.Cast(T.ceil(T.log2(T.Cast(n, "float32"))), "int64")
             for i in T.serial(ceil_log2):
                 T.evaluate(0)
 
@@ -518,13 +518,13 @@ def test_let_binding():
         @T.function
         def main(Buf: T.Tensor([n], "int32", elem_offset=T.int32(0))):
             # The pass narrows indexing variables (n, the For extent) but leaves
-            # an explicitly-typed `T.Cast("int64", ...)` storage alone; a Cast to
+            # an explicitly-typed `T.Cast(..., "int64")` storage alone; a Cast to
             # int32 is inserted at the use site (the For iter) instead.
             ceil_log2 = T.alloc_tensor(
                 ty_args=[T.Tensor((1,), "int64", scope="local", elem_offset=T.int32(0))]
             )
-            ceil_log2[0] = T.Cast("int64", T.ceil(T.log2(T.Cast("float32", n))))
-            for i in range(T.Cast("int32", ceil_log2[0])):
+            ceil_log2[0] = T.Cast(T.ceil(T.log2(T.Cast(n, "float32"))), "int64")
+            for i in range(T.Cast(ceil_log2[0], "int32")):
                 T.evaluate(0)
 
     after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)

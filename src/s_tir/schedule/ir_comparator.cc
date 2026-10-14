@@ -423,7 +423,7 @@ bool TensorizeComparator::DefEqual(const Var& lhs, const Var& rhs) {
   equal_map_.insert_or_assign(lhs, rhs);
   // Cast if necessary. This allows the workload and the tensor intrin to have different dtypes in
   // the indices.
-  analyzer_->Bind(lhs, cast(lhs_prim_type.value(), rhs.as_or_throw<PrimExpr>()));
+  analyzer_->Bind(lhs, cast(rhs.as_or_throw<PrimExpr>(), lhs_prim_type.value()));
   return true;
 }
 

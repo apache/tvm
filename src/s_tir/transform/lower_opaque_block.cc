@@ -120,7 +120,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     auto previous_remap = VarRemapGet(op->loop_var);
     if (!tvm::s_tir::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty()) {
       // handling unit loop
-      VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
+      VarRemapSet(op->loop_var, prim::cast(min, op->loop_var.ty()));
     }
 
     // Keep policy on surviving descendants when this owner is lowered away.

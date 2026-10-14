@@ -198,7 +198,7 @@ def test_zero_arg_function():
             with T.compute_scope("func_without_arg_compute_"):
                 T.abi_field_set(result, 0, 13, 1)
                 T.abi_field_set(result, 0, 14, 0)
-                T.abi_field_set(result, 0, 15, T.Cast("int64", T.int64(42)))
+                T.abi_field_set(result, 0, 15, T.Cast(T.int64(42), "int64"))
                 return 0
             return 0
 
@@ -292,17 +292,17 @@ def test_int_parameter():
                     "int",
                 ],
             )
-            arg: T.let[T.int32] = T.Cast("int32", T.abi_field_get(args, 0, 15, ty="int64"))
+            arg: T.let[T.int32] = T.Cast(T.abi_field_get(args, 0, 15, ty="int64"), "int32")
             with T.compute_scope("main_compute_"):
                 if arg > 0:
                     T.abi_field_set(result, 0, 13, 1)
                     T.abi_field_set(result, 0, 14, 0)
-                    T.abi_field_set(result, 0, 15, T.Cast("int64", 10))
+                    T.abi_field_set(result, 0, 15, T.Cast(10, "int64"))
                     return 0
                 else:
                     T.abi_field_set(result, 0, 13, 1)
                     T.abi_field_set(result, 0, 14, 0)
-                    T.abi_field_set(result, 0, 15, T.Cast("int64", 20))
+                    T.abi_field_set(result, 0, 15, T.Cast(20, "int64"))
                     return 0
             return 0
 
@@ -359,17 +359,17 @@ def test_bool_parameter():
                     "boolean",
                 ],
             )
-            arg: T.let[T.bool] = T.Cast("bool", T.abi_field_get(args, 0, 15, ty="int64"))
+            arg: T.let[T.bool] = T.Cast(T.abi_field_get(args, 0, 15, ty="int64"), "bool")
             with T.compute_scope("main_compute_"):
                 if arg:
                     T.abi_field_set(result, 0, 13, 1)
                     T.abi_field_set(result, 0, 14, 0)
-                    T.abi_field_set(result, 0, 15, T.Cast("int64", 10))
+                    T.abi_field_set(result, 0, 15, T.Cast(10, "int64"))
                     return 0
                 else:
                     T.abi_field_set(result, 0, 13, 1)
                     T.abi_field_set(result, 0, 14, 0)
-                    T.abi_field_set(result, 0, 15, T.Cast("int64", 20))
+                    T.abi_field_set(result, 0, 15, T.Cast(20, "int64"))
                     return 0
             return 0
 
@@ -428,19 +428,19 @@ def test_float_parameter():
             )
             arg: T.let[T.float32] = T.Select(
                 arg_type_index == 3,
-                T.Cast("float32", T.abi_field_get(args, 0, 15, ty="float64")),
-                T.Cast("float32", T.abi_field_get(args, 0, 15, ty="int64")),
+                T.Cast(T.abi_field_get(args, 0, 15, ty="float64"), "float32"),
+                T.Cast(T.abi_field_get(args, 0, 15, ty="int64"), "float32"),
             )
             with T.compute_scope("main_compute_"):
                 if arg > T.float32(0.0):
                     T.abi_field_set(result, 0, 13, 1)
                     T.abi_field_set(result, 0, 14, 0)
-                    T.abi_field_set(result, 0, 15, T.Cast("int64", 10))
+                    T.abi_field_set(result, 0, 15, T.Cast(10, "int64"))
                     return 0
                 else:
                     T.abi_field_set(result, 0, 13, 1)
                     T.abi_field_set(result, 0, 14, 0)
-                    T.abi_field_set(result, 0, 15, T.Cast("int64", 20))
+                    T.abi_field_set(result, 0, 15, T.Cast(20, "int64"))
                     return 0
             return 0
 

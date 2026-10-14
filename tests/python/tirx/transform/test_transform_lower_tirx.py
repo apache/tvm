@@ -168,7 +168,7 @@ def test_lower_view_get():
                 A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
             )
             for i in T.vectorized(2):
-                A_local[i] = T.Cast("float16", in_buf_1[T.cuda.thread_idx("x") * 2 + i])
+                A_local[i] = T.Cast(in_buf_1[T.cuda.thread_idx("x") * 2 + i], "float16")
             B_1 = T.decl_tensor(
                 A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
             )
@@ -176,7 +176,7 @@ def test_lower_view_get():
                 A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
             )
             for i in T.vectorized(2):
-                out_1[T.cuda.thread_idx("x") * 2 + i] = T.Cast("float32", A_local_1[i])
+                out_1[T.cuda.thread_idx("x") * 2 + i] = T.Cast(A_local_1[i], "float32")
 
     compare(before1, after1, LowerTIRx)
 
@@ -449,11 +449,11 @@ def test_lower_view_get():
             A_local = T.decl_tensor(
                 A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
             )
-            A_local[0] = T.Cast("float16", in_buf_1[T.cuda.thread_idx("x") * 2])
+            A_local[0] = T.Cast(in_buf_1[T.cuda.thread_idx("x") * 2], "float16")
             A_local_1 = T.decl_tensor(
                 A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
             )
-            A_local_1[1] = T.Cast("float16", in_buf_1[T.cuda.thread_idx("x") * 2 + 1])
+            A_local_1[1] = T.Cast(in_buf_1[T.cuda.thread_idx("x") * 2 + 1], "float16")
             B_2 = T.decl_tensor(
                 A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
             )
@@ -463,11 +463,11 @@ def test_lower_view_get():
             A_local_2 = T.decl_tensor(
                 A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
             )
-            out_1[T.cuda.thread_idx("x") * 2] = T.Cast("float32", A_local_2[0])
+            out_1[T.cuda.thread_idx("x") * 2] = T.Cast(A_local_2[0], "float32")
             A_local_3 = T.decl_tensor(
                 A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
             )
-            out_1[T.cuda.thread_idx("x") * 2 + 1] = T.Cast("float32", A_local_3[1])
+            out_1[T.cuda.thread_idx("x") * 2 + 1] = T.Cast(A_local_3[1], "float32")
 
     compare(before4_multi_view_get, after4_multi_view_get, LowerTIRx)
 
@@ -1067,7 +1067,7 @@ def test_lower_uint32_scope_id_casts_at_bind():
                 "cuda.kernel_attrs": {},
             },
         ):
-            tx: T.let[T.uint32] = T.Cast("uint32", T.cuda.thread_idx("x"))
+            tx: T.let[T.uint32] = T.Cast(T.cuda.thread_idx("x"), "uint32")
             for k in T.serial(T.uint32(4)):
                 T.evaluate(tx + k)
 

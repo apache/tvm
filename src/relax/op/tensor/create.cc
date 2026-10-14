@@ -400,8 +400,8 @@ Type InferTypeArange(const CallNode* call_node) {
       return tvm::floordiv((end - start + step - 1), step);
     } else {
       return tvm::prim::cast(
-          tvm::PrimType::Int(64),
-          tvm::ceil(tvm::prim::cast(tvm::PrimType::Float(32), end - start) / step));
+          tvm::ceil(tvm::prim::cast(end - start, tvm::PrimType::Float(32)) / step),
+          tvm::PrimType::Int(64));
     }
   }();
   sym::Analyzer analyzer;

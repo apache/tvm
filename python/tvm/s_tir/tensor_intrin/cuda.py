@@ -334,7 +334,7 @@ def get_mma_intrin(
 
     def cast_to_out_dtype(v):
         if out_dtype in ["float32", "int32"]:
-            return Cast(out_dtype, v)
+            return Cast(v, out_dtype)
         return v
 
     def swap_if_flag(i, j, flag):
@@ -1014,7 +1014,7 @@ def get_mma_sync_intrin(
 
     def maybe_cast(v):
         if in_dtype != out_dtype:
-            return Cast(out_dtype, v)
+            return Cast(v, out_dtype)
         return v
 
     def maybe_swap(i, j):

@@ -1183,8 +1183,8 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
       TVM_FFI_ICHECK(parallel_env_.num_task.has_value());
       TVM_FFI_ICHECK(parallel_env_.penv != nullptr);
       PrimType t(op->extent.ty()->dtype);
-      PrimExpr num_task = cast(t, parallel_env_.num_task.value().as_or_throw<PrimExpr>());
-      PrimExpr task_id = cast(t, parallel_env_.task_id.value().as_or_throw<PrimExpr>());
+      PrimExpr num_task = cast(parallel_env_.num_task.value().as_or_throw<PrimExpr>(), t);
+      PrimExpr task_id = cast(parallel_env_.task_id.value().as_or_throw<PrimExpr>(), t);
       TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
           << "Nested parallel loop is not supported by threadpool, try fuse them instead";
       parallel_env_.in_parallel_loop = true;

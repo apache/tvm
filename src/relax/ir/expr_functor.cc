@@ -587,7 +587,7 @@ Expr ExprMutatorBase::VisitExpr_(const prim::CastNode* op) {
   PrimExpr value = this->VisitExpr(op->value).as_or_throw<PrimExpr>();
   return value.same_as(op->value)
              ? ffi::GetRef<Expr>(op)
-             : Expr(prim::Cast(op->ty.as_or_throw<PrimType>(), value, op->loc));
+             : Expr(prim::Cast(value, op->ty.as_or_throw<PrimType>(), op->loc));
 }
 
 Expr ExprMutatorBase::VisitExpr_(const prim::NotNode* op) {

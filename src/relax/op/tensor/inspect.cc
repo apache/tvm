@@ -276,7 +276,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
                              .as_or_throw<PrimExpr>()),
          tvm::AssertStmt(
              axis.as_or_throw<PrimExpr>() <
-                 tvm::prim::cast(axis->ty.as_or_throw<PrimType>(), ndim.as_or_throw<PrimExpr>()),
+                 tvm::prim::cast(ndim.as_or_throw<PrimExpr>(), axis->ty.as_or_throw<PrimType>()),
              StringImm("RuntimeError"),
              {StringImm("Specified axis may not be larger than the tensor's dimensionality")}),
          tvm::Bind(shape_buffer,

@@ -409,7 +409,7 @@ def test_comparisons_use_native_promotion_and_broadcast(primitive_language):
     def main():
         x < y
 
-    expected = prim.LT(prim.Broadcast(prim.Cast("int64", x), 4), y)
+    expected = prim.LT(prim.Broadcast(prim.Cast(x, "int64"), 4), y)
     ir.assert_structural_equal(main.body[0][1], expected)
 
 

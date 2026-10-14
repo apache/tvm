@@ -357,7 +357,7 @@ def test_llvm_bool():
         def main(A: T.Tensor((64,), "int32"), C: T.Tensor((64,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i in range(64):
-                C[i] = T.Cast("float32", A[i] == 1)
+                C[i] = T.Cast(A[i] == 1, "float32")
 
     n = 64
     f = tvm.tirx.compile(Module, target="llvm")
@@ -377,7 +377,7 @@ def test_llvm_cast_float_to_bool():
         def main(A: T.Tensor((4,), "float32"), C: T.Tensor((4,), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i in range(4):
-                C[i] = T.Cast("bool", A[i])
+                C[i] = T.Cast(A[i], "bool")
 
     n = 4
     f = tvm.tirx.compile(Module, target="llvm")

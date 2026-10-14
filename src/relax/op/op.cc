@@ -395,7 +395,7 @@ Type TIRxPackedValueType(const Type& type, bool is_result) {
       TVM_FFI_CHECK(IsGlobalMemoryScope(tensor->scope), TypeError)
           << "A Relax-to-TIRx call cannot implicitly convert tensor storage scope: " << type;
       ShapeExpr shape(
-          tensor->shape.Map([](PrimExpr dim) { return prim::cast(PrimType::Int(64), dim); }));
+          tensor->shape.Map([](PrimExpr dim) { return prim::cast(dim, PrimType::Int(64)); }));
       return TensorType(shape, tensor->dtype);
     }
   }

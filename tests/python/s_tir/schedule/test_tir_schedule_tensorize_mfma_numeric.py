@@ -59,7 +59,7 @@ def matmul(m, n, k, in_dtype, out_dtype, b_transposed):
 
     def maybe_cast(v):
         if in_dtype != out_dtype:
-            return tvm.tirx.Cast(out_dtype, v)
+            return tvm.tirx.Cast(v, out_dtype)
         return v
 
     def maybe_swap(i, j):

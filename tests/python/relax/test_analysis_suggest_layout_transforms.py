@@ -493,11 +493,11 @@ def test_op_upsampling():
                     T.max(
                         T.min(
                             T.Cast(
-                                "int64",
                                 T.floor(
-                                    T.float32(1.1089109182357788) * T.Cast("float32", v_i2)
+                                    T.float32(1.1089109182357788) * T.Cast(v_i2, "float32")
                                     + T.float32(1.0000000000000001e-05)
                                 ),
+                                "int64",
                             ),
                             223,
                         ),
@@ -506,11 +506,11 @@ def test_op_upsampling():
                     T.max(
                         T.min(
                             T.Cast(
-                                "int64",
                                 T.floor(
-                                    T.float32(0.91056913137435913) * T.Cast("float32", v_i3)
+                                    T.float32(0.91056913137435913) * T.Cast(v_i3, "float32")
                                     + T.float32(1.0000000000000001e-05)
                                 ),
+                                "int64",
                             ),
                             223,
                         ),
@@ -535,11 +535,11 @@ def test_op_upsampling():
                     T.max(
                         T.min(
                             T.Cast(
-                                "int64",
                                 T.floor(
-                                    T.float32(1.1089109182357788) * T.Cast("float32", v1)
+                                    T.float32(1.1089109182357788) * T.Cast(v1, "float32")
                                     + T.float32(1.0000000000000001e-05)
                                 ),
+                                "int64",
                             ),
                             T.int64(223),
                         ),
@@ -548,11 +548,11 @@ def test_op_upsampling():
                     T.max(
                         T.min(
                             T.Cast(
-                                "int64",
                                 T.floor(
-                                    T.float32(0.91056913137435913) * T.Cast("float32", v2)
+                                    T.float32(0.91056913137435913) * T.Cast(v2, "float32")
                                     + T.float32(1.0000000000000001e-05)
                                 ),
+                                "int64",
                             ),
                             T.int64(223),
                         ),

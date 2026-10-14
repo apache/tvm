@@ -37,7 +37,7 @@ def test_rocm_inf_nan():
                 with T.launch_thread("blockIdx.x", 1) as i_0:
                     with T.launch_thread("threadIdx.x", 128) as i_1:
                         if i_0 * 128 + i_1 < 1:
-                            C[i_0 * 128 + i_1] = T.Cast(dtype, value)
+                            C[i_0 * 128 + i_1] = T.Cast(value, dtype)
 
         fun = tvm.tirx.compile(Module, "rocm")
 
@@ -92,7 +92,7 @@ def test_rocm_vectorize_add():
                 T.func_attr({"tirx.noalias": True})
                 with T.launch_thread("blockIdx.x", num_blocks) as i_0:
                     with T.launch_thread("threadIdx.x", 4) as i_1:
-                        B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + T.Broadcast(T.Cast(dtype, 1), lanes)
+                        B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + T.Broadcast(T.Cast(1, dtype), lanes)
 
         fun = tvm.tirx.compile(Module, target="rocm")
 

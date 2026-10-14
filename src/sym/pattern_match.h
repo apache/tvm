@@ -579,7 +579,7 @@ inline PSelectExpr<TCond, TA, TB> select(const Pattern<TCond>& condition,
 template <typename DType, typename TA>
 class PCastExpr : public Pattern<PCastExpr<DType, TA>> {
  public:
-  PCastExpr(const DType& dtype, const TA& value) : dtype_(dtype), value_(value) {}
+  PCastExpr(const TA& value, const DType& dtype) : dtype_(dtype), value_(value) {}
 
   void InitMatch_() const {
     dtype_.InitMatch_();
@@ -596,7 +596,7 @@ class PCastExpr : public Pattern<PCastExpr<DType, TA>> {
     }
   }
 
-  PrimExpr Eval() const { return prim::Cast(PrimType(dtype_.Eval()), value_.Eval()); }
+  PrimExpr Eval() const { return prim::Cast(value_.Eval(), PrimType(dtype_.Eval())); }
 
  private:
   typename DType::Nested dtype_;
@@ -606,8 +606,8 @@ class PCastExpr : public Pattern<PCastExpr<DType, TA>> {
 /*!
  * \brief Construct a cast pattern.
  *
+ * \param value The input value.
  * \param dtype The target data type, can be PVar<DLDataType> or PConst<DLDataType>.
- * \param value The input type.
  *
  * \return The result pattern.
  *
@@ -615,8 +615,8 @@ class PCastExpr : public Pattern<PCastExpr<DType, TA>> {
  * \tparam TA The pattern type of value.
  */
 template <typename DType, typename TA>
-inline PCastExpr<DType, TA> cast(const Pattern<DType>& dtype, const Pattern<TA>& value) {
-  return PCastExpr<DType, TA>(dtype.derived(), value.derived());
+inline PCastExpr<DType, TA> cast(const Pattern<TA>& value, const Pattern<DType>& dtype) {
+  return PCastExpr<DType, TA>(value.derived(), dtype.derived());
 }
 
 /*!

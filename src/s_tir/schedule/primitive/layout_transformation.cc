@@ -1515,7 +1515,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     }
     PrimType dtype = new_block_var->ty.as_or_throw<PrimType>();
     new_block_iters.push_back(IterVar(
-        /*dom=*/Range::FromMinExtent(IntImm(dtype, 0), cast(dtype, new_block_iter_range[i])),
+        /*dom=*/Range::FromMinExtent(IntImm(dtype, 0), cast(new_block_iter_range[i], dtype)),
         /*var=*/std::move(new_block_var).as_or_throw<PrimVar>(), /*iter_type=*/iter_type));
   }
 
