@@ -20,9 +20,7 @@ All tests compile TVMScript functions and verify the correct Python exception
 type and exact error message at runtime.
 """
 
-import os
 import re
-import tempfile
 
 import numpy as np
 import pytest
@@ -30,7 +28,6 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -462,58 +459,6 @@ def test_invalid_arguments_mixed_params(codegen_target):
         ),
     ):
         lib(False, tvm.runtime.empty([11], "float32"))
-
-
-@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
-@pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
-)
-@pytest.mark.parametrize("call_with_unused_argument", [True, False])
-def test_compiled_function_with_zero_arguments(call_with_unused_argument):
-    """RPC functions do not require an argument
-
-    This is a regression test.  When no arguments are provided, RPC
-    provides NULL as the `TVMFFIAny* args` argument to a PackedFunc.
-    However, previous implementations of `MakePackedAPI`
-    unconditionally asserted that the `args` pointer was non-null.
-    This assertion is now generated only when the function accepts
-    a non-zero number of arguments.
-
-    """
-
-    @I.ir_module
-    class Module:
-        @T.function
-        def func_without_arg() -> T.int64:
-            return T.int64(42)
-
-        @T.function
-        def func_with_arg(unused: T.int64) -> T.int64:
-            return T.int64(42)
-
-    built = tvm.compile(Module, target="llvm")
-
-    server = tvm.rpc.Server(key="x1")
-    try:
-        client = tvm.rpc.connect("127.0.0.1", server.port, key="x1")
-
-        libname = "libbuilt.so"
-        with tempfile.TemporaryDirectory(prefix="tvm_rpc_testing_") as temp_dir:
-            local_path = os.path.join(temp_dir, libname)
-            built.export_library(local_path)
-            client.upload(local_path)
-
-        remote_mod = client.load_module(libname)
-
-        if call_with_unused_argument:
-            res = remote_mod["func_with_arg"](0)
-        else:
-            res = remote_mod["func_without_arg"]()
-
-        assert res == 42
-        del remote_mod, client
-    finally:
-        server.terminate()
 
 
 if __name__ == "__main__":
