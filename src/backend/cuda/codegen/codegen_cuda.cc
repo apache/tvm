@@ -44,7 +44,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../../target/build_common.h"
+#include "../../../codegen/build_common.h"
 #include "cuda_fallback_module.h"
 #include "literal/cuda_half_t.h"
 #include "literal/cuda_int8_t.h"

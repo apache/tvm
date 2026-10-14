@@ -307,7 +307,7 @@ tvm::Var EmitVarBinding(const tvm::relax::VarBinding& binding) {
 namespace {
 
 tvm::Var RecordBindingLoc(tvm::Var var, const Location& name_loc, const Location& statement_loc) {
-  Location loc = IRBuilder::Current()->GetCurrentLoc(statement_loc);
+  Location loc = IRBuilder::Current()->ResolveLoc(statement_loc);
   if (!loc.as<UnknownLocNode>()) {
     CheckBindingBlockFrameExistAndUnended()->binding_locs.Set(var, loc);
   }

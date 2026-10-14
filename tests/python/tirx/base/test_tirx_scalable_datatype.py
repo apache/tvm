@@ -19,8 +19,8 @@ import pytest
 
 import tvm
 from tvm import tirx
+from tvm.codegen import llvm_version_major
 from tvm.script import tirx as T
-from tvm.target.codegen import llvm_version_major
 
 """
 Tests for scalable data types.

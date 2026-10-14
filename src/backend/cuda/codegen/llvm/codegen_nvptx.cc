@@ -57,9 +57,9 @@
 #include <utility>
 #include <vector>
 
-#include "../../../../target/build_common.h"
-#include "../../../../target/llvm/codegen_llvm.h"
-#include "../../../../target/llvm/llvm_instance.h"
+#include "../../../../codegen/build_common.h"
+#include "../../../../codegen/llvm/codegen_llvm.h"
+#include "../../../../codegen/llvm/llvm_instance.h"
 #include "../cuda_fallback_module.h"
 
 namespace tvm {

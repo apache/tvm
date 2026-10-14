@@ -18,8 +18,9 @@
 import pytest
 
 import tvm
-from tvm.target import Target, _ffi_api, codegen
-from tvm.target.codegen import target_has_features
+from tvm import codegen
+from tvm.codegen import target_has_features
+from tvm.target import Target
 
 LLVM_VERSION = codegen.llvm_version_major()
 
@@ -203,7 +204,9 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
     if isinstance(x86_feature, str):
         # check for feature via the ffi llvm api (no explicit target, no context target)
         try:
-            assert _ffi_api.target_has_feature(x86_feature, None) == is_supported
+            assert (
+                tvm.get_global_func("codegen.target_has_feature")(x86_feature, None) == is_supported
+            )
             assert False
         except tvm.error.InternalError as e:
             msg = str(e)
@@ -224,7 +227,10 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
     assert target_has_features(x86_feature, Target(tvm_target)) == is_supported
     if isinstance(x86_feature, str):
         # check for feature via the ffi llvm api (with explicit target, no context target)
-        assert _ffi_api.target_has_feature(x86_feature, Target(tvm_target)) == is_supported
+        assert (
+            tvm.get_global_func("codegen.target_has_feature")(x86_feature, Target(tvm_target))
+            == is_supported
+        )
 
     ##
     ## with context
@@ -237,7 +243,13 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
         # check for feature via the python api (with explicit target)
         assert target_has_features(x86_feature, Target(tvm_target)) == is_supported
         # check for feature via the ffi llvm api (current context target)
-        (sum(_ffi_api.target_has_feature(feat, None) for feat in x86_feature) > 0) == is_supported
+        (
+            sum(
+                tvm.get_global_func("codegen.target_has_feature")(feat, None)
+                for feat in x86_feature
+            )
+            > 0
+        ) == is_supported
         # check for feature in target's llvm full x86 CPU feature list
         if (not list(Target(tvm_target).attrs.get("mattr", []))) and isinstance(x86_feature, str):
             assert (x86_feature in codegen.llvm_get_cpu_features()) == is_supported

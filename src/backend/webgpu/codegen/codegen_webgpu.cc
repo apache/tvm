@@ -47,9 +47,9 @@
 #include <utility>
 #include <vector>
 
+#include "../../../codegen/build_common.h"
 #include "../../../runtime/metadata.h"
 #include "../../../sym/pattern_match.h"
-#include "../../../target/build_common.h"
 #include "webgpu_fallback_module.h"
 
 namespace tvm {

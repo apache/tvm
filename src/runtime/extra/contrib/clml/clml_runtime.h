@@ -44,12 +44,13 @@
 #include <utility>
 #include <vector>
 
-#include "../../../../backend/opencl/runtime/opencl_common.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 
 #ifdef TVM_GRAPH_EXECUTOR_CLML
 #include <CL/cl_qcom_ml_ops.h>
+
+#include "../../../../backend/opencl/runtime/opencl_common.h"
 
 #define CAT_I(a, b) a##b
 #define CAT(a, b) CAT_I(a, b)

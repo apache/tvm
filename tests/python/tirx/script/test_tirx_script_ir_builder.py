@@ -476,6 +476,67 @@ def test_concrete_mutable_scalar(declare):
         assert scalar.source.elem_offset == 2
 
 
+def test_local_scalar_initialization_and_assign():
+    from tvm.script import tirx as TS
+    from tvm.script.ir_builder.base import AlreadyEmitted
+
+    assert TS.assign is T.assign
+    loc = tvm.ir.SourceLoc(tvm.ir.SourceName("scalar.py"), 3, 1, 3, 20)
+    annotations = {"alignment": 16}
+    with IRBuilder() as ib:
+        with T.function():
+            with ib.with_loc(loc):
+                scalar = T.local_scalar("int32", 2, name="counter", annotations=annotations)
+                uninitialized = T.local_scalar()
+                receipt = T.assign(scalar, 3)
+                assert isinstance(receipt, AlreadyEmitted)
+                T.emit_(receipt)
+                source_receipt = T.assign(scalar.source, 4)
+                global_tensor = T.bind(T.alloc_tensor(ty_args=[T.Tensor((2,), "int32")]))
+                indexed_receipt = T.assign(global_tensor[1], 5)
+                for invalid in (tirx.Var("immutable", "int32"), scalar + 1, global_tensor):
+                    with pytest.raises(TypeError, match="scalar storage"):
+                        T.assign(invalid, 6)
+    statements = list(ib.get().body.seq)
+    stores = [stmt for stmt in statements if isinstance(stmt, tvm.ir.TensorStore)]
+    allocations = [stmt for stmt in statements if _is_tensor_binding(stmt, "tirx.alloc_tensor")]
+    assert len(allocations) == 3
+    assert len(stores) == 4
+    assert statements[0].same_as(allocations[0])
+    assert statements[1].same_as(stores[0])
+    assert allocations[0].var.same_as(scalar.source)
+    assert allocations[0].value.attrs["alignment"] == annotations["alignment"]
+    assert scalar.source.name == "counter"
+    assert scalar.source.ty.dtype == "int32"
+    assert scalar.source.ty.scope == tvm.runtime.MemoryScope("local")
+    assert scalar.source.ty.layout is None
+    assert list(scalar.source.ty.shape) == [1]
+    assert uninitialized.source.ty.dtype == "float32"
+    assert all(store.dest.same_as(scalar.source) for store in stores[:3])
+    assert stores[1].same_as(receipt.value)
+    assert stores[2].same_as(source_receipt.value)
+    assert stores[3].same_as(indexed_receipt.value)
+    assert stores[3].dest.same_as(global_tensor)
+    assert list(stores[3].indices) == [1]
+    assert [store.value.value for store in stores] == [2, 3, 4, 5]
+    assert all(store.loc.same_as(loc) for store in stores)
+
+    @TS.function
+    def parsed():
+        scalar = TS.local_scalar("int32", 1)
+        TS.assign(scalar, 2)
+        scalar = 3
+
+    parsed_stores = [stmt for stmt in parsed.body.seq if isinstance(stmt, tvm.ir.TensorStore)]
+    assert len(parsed.body.seq) == 4
+    assert [store.value.value for store in parsed_stores] == [1, 2, 3]
+    assert all(store.dest.same_as(parsed.body.seq[0].var) for store in parsed_stores)
+    assert all(isinstance(store.loc, tvm.ir.SourceLoc) for store in parsed_stores)
+    assert [store.loc.start_line for store in parsed_stores] == list(
+        range(parsed_stores[0].loc.start_line, parsed_stores[0].loc.start_line + 3)
+    )
+
+
 @pytest.mark.skipif(not tvm.runtime.enabled("llvm"), reason="LLVM is not enabled")
 @pytest.mark.parametrize(
     "kind",

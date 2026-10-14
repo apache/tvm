@@ -41,7 +41,7 @@ def test_tensor():
     assert T.op.output(0).__hash__() == T.__hash__()
     d = {T.op.output(0): 1}
     assert d[T] == 1
-    load = T[0][0][0].asobject()
+    load = T[0][0][0].__tvm_ffi_object__()
     assert isinstance(load, tvm.ir.Call)
     assert load.op.same_as(tvm.ir.Op.get("te.tensor_load"))
     assert load.args[0].same_as(T)

@@ -80,7 +80,7 @@
 #include <set>
 #include <vector>
 
-#include "../../texture_utils.h"
+#include "../../s_tir/backend/adreno/texture_utils.h"
 #include "utils.h"
 
 namespace tvm {

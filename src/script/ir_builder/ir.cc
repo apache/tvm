@@ -368,7 +368,7 @@ bool MaybeEmitVoidCall(Call call) {
   const auto* prim_type = call->ty.as<PrimTypeNode>();
   bool is_void = IsVoidType(call->ty) || (prim_type && ffi::GetRef<PrimType>(prim_type).IsVoid());
   if (!is_void || !IRBuilder::IsInScope()) return false;
-  IRBuilder::Current()->SetCurrentLoc(call);
+  IRBuilder::Current()->AttachLoc(call);
   Evaluate(std::move(call));
   return true;
 }
