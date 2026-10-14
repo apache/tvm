@@ -57,6 +57,63 @@ thread-placement and tensor alias policies remain in the TIRx/S-TIR builders.
    Marker used by ``Tx.let`` and ``Tx.let[dtype]`` annotations to construct an
    explicit ``LetStmt``.
 
+Tracing ordinary Python
+-----------------------
+
+The native builders also support frontends that execute ordinary Python to
+construct IR. ``IRBuilder.line_trace_scope()`` records file-backed Python source
+lines. Script-facing void calls automatically emit into an active IRBuilder,
+with or without line tracing::
+
+   from tvm.script import tirx as Tx
+   from tvm.script.ir_builder import IRBuilder
+   from tvm.tirx.script import ir_builder as I
+
+   with IRBuilder() as builder:
+       with I.function_():
+           I.func_name_("synchronize")
+           with builder.line_trace_scope():
+               with Tx.device_entry(
+                   launch=Tx.cuda.LaunchConfig(grid=1, block=32)
+               ):
+                   Tx.ptx["bar.sync"](0)
+   function = builder.get()
+
+Auto emission applies to script-facing calls through ``Tx``, including PTX
+and backend namespaces. A void call returns an ``AlreadyEmitted`` receipt;
+passing that receipt to ``evaluate`` or ``emit_`` does not emit it again.
+Calls producing values remain expressions. Raw IR constructors such as
+``tvm.ir.Call``, ``tvm.tirx.op`` and raw backend APIs remain pure even inside
+an IRBuilder. Line tracing only supplies source locations; it neither enables
+nor disables emission. The trace scope restores its previous trace and location
+state on exit, including exceptional exits, and applies only to its owning builder.
+Explicit ``with_loc`` and ``at_`` locations compose with the traced lines.
+
+Line tracing excludes TVM and standard-library implementation files. Frontends
+can supply additional directories using ``line_trace_scope(exclude_paths=(... ,))``.
+User helpers retain their own source line and the caller's location through
+``CallSiteLoc``. These locations cover whole lines; the TVMScript parser records
+expression ranges. Python loops and branches execute during construction; use
+the native statement frames to construct runtime control flow.
+
+Tensor parameters and shared dimensions
+---------------------------------------
+
+Traced frontends can bind native types directly with ``I.arg_``. A shared symbolic
+dimension imposes the same size constraint on multiple tensor arguments::
+
+   n = Tx.Var("n", Tx.int64)
+   # Inside an I.function_() frame:
+   x = I.arg_("x", Tx.Tensor((n,), Tx.float32))
+   y = I.arg_("y", Tx.Tensor((n,), Tx.float32))
+
+The compiled host entry accepts tensor arguments, including PyTorch tensors,
+and checks their dtype, rank and shared dimensions. Use independent symbolic
+dimensions for unrelated sizes. If the same dimension is also an explicit scalar
+parameter, ``I.arg_("n", n)`` binds that existing Var. ``x.data`` and
+``x.ptr_to(indices)`` provide pointers inside the function. ``Tx.Ptr`` retains
+its raw-pointer ABI and does not imply tensor argument conversion.
+
 Explicit register fragments
 ---------------------------
 
