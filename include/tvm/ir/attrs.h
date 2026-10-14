@@ -294,7 +294,11 @@ inline TFunc WithAttr(TFunc input, const std::string& attr_key, Any attr_value) 
  * \brief Attach a typed value using the existing function or module copy-on-write path.
  */
 template <typename TFunc, typename T, typename Value,
-          std::enable_if_t<ffi::reflection::details::is_attr_value_v<T, Value>, int> = 0>
+          std::enable_if_t<(std::is_convertible_v<Value&&, T> &&
+                            ((!std::is_same_v<std::decay_t<Value>, ffi::Any> &&
+                              !std::is_same_v<std::decay_t<Value>, ffi::AnyView>) ||
+                             std::is_same_v<T, ffi::Any> || std::is_same_v<T, ffi::AnyView>)),
+                           int> = 0>
 inline TFunc WithAttr(TFunc input, ffi::reflection::AttrKey<T> key, Value&& value) {
   T typed_value(std::forward<Value>(value));
   return WithAttr(std::move(input), key.name, ffi::Any(typed_value));

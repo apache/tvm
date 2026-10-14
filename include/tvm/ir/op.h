@@ -551,7 +551,12 @@ class OpDef {
    * \return This builder. Stored callbacks retain their packed function owner.
    */
   template <typename ValueType, typename Value,
-            std::enable_if_t<ffi::reflection::details::is_attr_value_v<ValueType, Value>, int> = 0>
+            std::enable_if_t<(std::is_convertible_v<Value&&, ValueType> &&
+                              ((!std::is_same_v<std::decay_t<Value>, ffi::Any> &&
+                                !std::is_same_v<std::decay_t<Value>, ffi::AnyView>) ||
+                               std::is_same_v<ValueType, ffi::Any> ||
+                               std::is_same_v<ValueType, ffi::AnyView>)),
+                             int> = 0>
   OpDef& set_attr(ffi::reflection::AttrKey<ValueType> key, Value&& value, bool override = false) {
     ValueType typed_value(std::forward<Value>(value));
     return set_attr(key.name, typed_value, override);
