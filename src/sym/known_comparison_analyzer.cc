@@ -17,14 +17,13 @@
  * under the License.
  */
 /*!
- * \file tvm/sym/transitive_comparison_analyzer.cc
+ * \file tvm/sym/known_comparison_analyzer.cc
  */
 
 #include <tvm/ir/prim/expr.h>
 #include <tvm/sym/analyzer.h>
 
 #include <optional>
-#include <unordered_set>
 #include <vector>
 
 #include "constraint_extract.h"
@@ -36,7 +35,7 @@ using namespace tvm::prim;
 
 using prim::IsConstInt;
 
-class TransitiveComparisonAnalyzer::Impl {
+class KnownComparisonAnalyzer::Impl {
  public:
   /* \brief Using previously specified knowns, compare the expressions provided
    *
@@ -44,19 +43,12 @@ class TransitiveComparisonAnalyzer::Impl {
    *
    * \param rhs The right-hand side of the comparison
    *
-   * \param propagate_inequalities If true, attempt to find a sequence
-   * of transitive inequalities that allow the lhs and rhs to be
-   * compared.  If false, only use the known comparison that have been
-   * directly provided.  Using `propagate_inequalities = false` is
-   * roughly equivalent to comparing against all known values with
-   * `prim::ExprDeepEqual`, but also allowing for constant offsets on either
-   * side of the inequality.
+   * Directly known comparisons also allow constant offsets on either side.
    *
    * \return The most specific result that can be proven about the
    * comparison.  If nothing can be proven, returns kUnknown.
    */
-  CompareResult TryCompare(const PrimExpr& lhs, const PrimExpr& rhs,
-                           bool propagate_inequalities = true) const;
+  CompareResult TryCompare(const PrimExpr& lhs, const PrimExpr& rhs) const;
 
   /*! \brief Bind a variable as being equal to a known expression
    *
@@ -156,11 +148,6 @@ class TransitiveComparisonAnalyzer::Impl {
      */
     Comparison(Key lhs, Key rhs, int64_t offset, CompareResult result);
 
-    /*! \brief Utility function to validate that all GT and LT results
-     *  have been normalized out
-     */
-    bool IsNormalized() const;
-
     /*! \brief Move the specified expression to the LHS.
      *
      * \param new_lhs The argument that should be moved to the LHS of the
@@ -171,17 +158,6 @@ class TransitiveComparisonAnalyzer::Impl {
      * possible, returns nullopt.
      */
     std::optional<Comparison> WithLHS(Key new_lhs) const;
-
-    /*! \brief Create the negation of the current comparison */
-    Comparison Negated() const;
-
-    /*! \brief Check the this comparison implies
-     *
-     * Returns true if this comparison being true implies that the
-     * other comparison must also be true.  Returns false if the other
-     * comparison cannot be shown to be true.
-     */
-    bool Implies(const Comparison& other) const;
 
     // The LHS of the comparison
     Key lhs_;
@@ -224,51 +200,11 @@ class TransitiveComparisonAnalyzer::Impl {
    */
   std::vector<Comparison> CollectDirectComparisons(Key lhs_key, Key rhs_key) const;
 
-  /*! Collect known comparisons between LHS and RHS, with propagation
-   *
-   * \param lhs_key The left-hand side of the comparison
-   *
-   * \param rhs_key The right-hand side of the comparison
-   *
-   * \returns All comparisons between `lhs_key` and `rhs_key`,
-   * including the explicitly-provided comparisons in `knowns_` and
-   * `scoped_knowns_`, and comparisons provable through a series of
-   * comparisons through other values.  All comparisons returned are
-   * between `lhs_key` and `rhs_key`, and are normalized such that
-   * `lhs_key` is on the left-hand side.
-   */
-  std::vector<Comparison> CollectIndirectComparisons(Key lhs_key, Key rhs_key) const;
-
-  /*! \brief Internal function used by CollectIndirectComparisons
-   *
-   * Perform a depth-first search through the space of known
-   * expressions, starting at the LHS of a comparison.  In this
-   * search, each expression is a node of a graph, and each known
-   * comparison is an edge of the graph.
-   *
-   * For example, suppose we have previous knowns of (A<=B), (B<=C+1)
-   * and (C<=D-5).  The expressions [A,B,C,D] are the nodes of the
-   * search space.  Each comparison is an edge connecting two
-   * expressions, such as (B<=C+1) connecting the expressions B and D.
-   * If we are attempting to compare expressions A and D, a search
-   * starting at expression A could follow each edge until reaching
-   * expression D, then combine the comparisons that compose the path
-   * into the expression A<=D-4.
-   *
-   * \param lhs_key The left-hand side of the comparison
-   *
-   * \param rhs_key The right-hand side of the comparison
-   *
-   * \returns A vector of comparisons between the two expressions.
-   */
-  std::vector<Comparison> DFSFromLHS(Key lhs_key, Key rhs_key) const;
-
   /*! \brief Combine a set of comparisons that share a LHS and RHS
    *
    * \param lhs_to_rhs The comparisons to merge.  These should all
    * have the same LHS and RHS.  This parameter will typically be the
-   * result from `CollectDirectComparisons` or
-   * `CollectIndirectComparisons`.
+   * result from `CollectDirectComparisons`.
    *
    * \param offset The constant offset in the comparison being proven.
    * This is extracted from any additive/subtractive constants in the
@@ -332,19 +268,6 @@ CompareResult Reverse(CompareResult res) {
   }
 }
 
-// Internal utility, return the CompareResult resulting from negating
-// the comparison.
-CompareResult Negate(CompareResult res) {
-  switch (res) {
-    case CompareResult::kInconsistent:
-      return CompareResult::kInconsistent;
-    case CompareResult::kUnknown:
-      return CompareResult::kUnknown;
-    default:
-      return CompareResult(~static_cast<int>(res) & static_cast<int>(CompareResult::kUnknown));
-  }
-}
-
 // Internal utility, extract constant offsets out of the two sides of
 // a comparison.  Given lhs and rhs, return a tuple of three elements
 // (lhs_inner, rhs_inner, offset), such that (lhs OP rhs) and
@@ -374,8 +297,8 @@ std::tuple<PrimExpr, PrimExpr, int64_t> ExtractOffsets(const PrimExpr& lhs, cons
 
 }  // namespace
 
-std::optional<TransitiveComparisonAnalyzer::Impl::Comparison>
-TransitiveComparisonAnalyzer::Impl::FromExpr(const PrimExpr& expr) {
+std::optional<KnownComparisonAnalyzer::Impl::Comparison> KnownComparisonAnalyzer::Impl::FromExpr(
+    const PrimExpr& expr) {
   CompareResult res;
   PVar<PrimExpr> x, y;
   if ((x <= y).Match(expr)) {
@@ -412,32 +335,10 @@ TransitiveComparisonAnalyzer::Impl::FromExpr(const PrimExpr& expr) {
   return Comparison(lhs_key, rhs_key, offset, res);
 }
 
-TransitiveComparisonAnalyzer::Impl::Comparison::Comparison(Key lhs, Key rhs, int64_t offset,
-                                                           CompareResult result)
+KnownComparisonAnalyzer::Impl::Comparison::Comparison(Key lhs, Key rhs, int64_t offset,
+                                                      CompareResult result)
     : lhs_(lhs), rhs_(rhs), offset_(offset), result_(result) {
-  // Normalize the comparison to remove LT and GT expressions,
-  // reducing the number of operators that must be handled later.  By
-  // eliminating LT and GT, instead of eliminating LE or GE, a
-  // potential off-by-one error is avoided.
-  //
-  // For floating-point numbers, (x < y + c1) and (y < z + c2) implies
-  // that (x < z + (c1 + c2)).  For integer types, which the
-  // TransitiveComparisonAnalyzer is intended for use with integers,
-  // LT or GT can give a tighter constraint, though with a less
-  // convenient symmetry.
-  //
-  // i < j + c1, j < k + c2
-  // i <= j + c1 - 1, j <= k + c2 - 1
-  // i + 1 - c1 <= j, j <= k + c2 - 1
-  // i + 1 - c1 <= k + c2 - 1
-  // i <= k + c1 + c2 - 2
-  // i < k + (c1 + c2 - 1)
-  //
-  // By always working with LE and GE comparisons, we avoid needing to
-  // handle the offset of one that would be introduced by LT and GT at
-  // all points of use.  The only point of use for LT and GT is when
-  // normalizing comparisons (i.e. this constructor).
-
+  // Integer strict comparisons become non-strict comparisons with a unit offset.
   if (result_ == CompareResult::kLT) {
     result_ = CompareResult::kLE;
     offset_ -= 1;
@@ -448,8 +349,8 @@ TransitiveComparisonAnalyzer::Impl::Comparison::Comparison(Key lhs, Key rhs, int
   }
 }
 
-std::optional<TransitiveComparisonAnalyzer::Impl::Key>
-TransitiveComparisonAnalyzer::Impl::ExprToPreviousKey(const PrimExpr& expr) const {
+std::optional<KnownComparisonAnalyzer::Impl::Key> KnownComparisonAnalyzer::Impl::ExprToPreviousKey(
+    const PrimExpr& expr) const {
   auto it = expr_to_key.find(expr);
   if (it != expr_to_key.end()) {
     return it->second;
@@ -458,8 +359,7 @@ TransitiveComparisonAnalyzer::Impl::ExprToPreviousKey(const PrimExpr& expr) cons
   }
 }
 
-TransitiveComparisonAnalyzer::Impl::Key TransitiveComparisonAnalyzer::Impl::ExprToKey(
-    const PrimExpr& expr) {
+KnownComparisonAnalyzer::Impl::Key KnownComparisonAnalyzer::Impl::ExprToKey(const PrimExpr& expr) {
   if (auto prev = ExprToPreviousKey(expr)) {
     return prev.value();
   } else {
@@ -469,14 +369,8 @@ TransitiveComparisonAnalyzer::Impl::Key TransitiveComparisonAnalyzer::Impl::Expr
   }
 }
 
-bool TransitiveComparisonAnalyzer::Impl::Comparison::IsNormalized() const {
-  // These < and > should be removed during normalization.  See the
-  // `Comparison::Comparison` constructor for further details.
-  return result_ != CompareResult::kLT && result_ != CompareResult::kGT;
-}
-
-std::optional<TransitiveComparisonAnalyzer::Impl::Comparison>
-TransitiveComparisonAnalyzer::Impl::Comparison::WithLHS(Key new_lhs) const {
+std::optional<KnownComparisonAnalyzer::Impl::Comparison>
+KnownComparisonAnalyzer::Impl::Comparison::WithLHS(Key new_lhs) const {
   if (new_lhs == lhs_) {
     return *this;
   } else if (new_lhs == rhs_) {
@@ -488,85 +382,29 @@ TransitiveComparisonAnalyzer::Impl::Comparison::WithLHS(Key new_lhs) const {
   }
 }
 
-TransitiveComparisonAnalyzer::Impl::Comparison
-TransitiveComparisonAnalyzer::Impl::Comparison::Negated() const {
-  return Comparison(lhs_, rhs_, offset_, Negate(result_));
-}
+KnownComparisonAnalyzer::KnownComparisonAnalyzer() : impl_(std::make_unique<Impl>()) {}
+KnownComparisonAnalyzer::~KnownComparisonAnalyzer() {}
 
-bool TransitiveComparisonAnalyzer::Impl::Comparison::Implies(
-    const TransitiveComparisonAnalyzer::Impl::Comparison& other) const {
-  TVM_FFI_ICHECK(lhs_ == other.lhs_);
-  TVM_FFI_ICHECK(rhs_ == other.rhs_);
-  TVM_FFI_ICHECK(IsNormalized());
-  TVM_FFI_ICHECK(other.IsNormalized());
-
-  if (result_ == other.result_ && offset_ == other.offset_) {
-    // if c1 == c2, x != y + c1 => x != y + c2
-    // if c1 == c2, x == y + c1 => x == y + c2
-    return true;
-  }
-
-  if (other.result_ == CompareResult::kLE && offset_ <= other.offset_) {
-    if (result_ == CompareResult::kEQ || result_ == CompareResult::kLE) {
-      // if c1 <= c2, x <= y + c1 => x <= y + c2
-      // if c1 <= c2, x == y + c1 => x <= y + c2
-      return true;
-    }
-  }
-
-  if (other.result_ == CompareResult::kGE && offset_ >= other.offset_) {
-    if (result_ == CompareResult::kEQ || result_ == CompareResult::kGE) {
-      // if c1 >= c2, x == y + c1 => x >= y + c2
-      // if c1 >= c2, x >= y + c1 => x >= y + c2
-      return true;
-    }
-  }
-
-  if (other.result_ == CompareResult::kNE) {
-    if (result_ == CompareResult::kEQ && offset_ != other.offset_) {
-      // if c1 != c2, x == y + c1 => x != y + c2
-      return true;
-    }
-
-    if (result_ == CompareResult::kLE && offset_ < other.offset_) {
-      // if c1 < c2, x <= y + c1 => x < y + c2 => x != y + c2
-      return true;
-    }
-
-    if (result_ == CompareResult::kGE && offset_ > other.offset_) {
-      // if c1 != c2, x >= y + c1 => x > y + c2 => x != y + c2
-      return true;
-    }
-  }
-
-  return false;
-}
-
-TransitiveComparisonAnalyzer::TransitiveComparisonAnalyzer() : impl_(std::make_unique<Impl>()) {}
-TransitiveComparisonAnalyzer::~TransitiveComparisonAnalyzer() {}
-
-void TransitiveComparisonAnalyzer::CopyFrom(const TransitiveComparisonAnalyzer& other) {
+void KnownComparisonAnalyzer::CopyFrom(const KnownComparisonAnalyzer& other) {
   impl_->CopyFrom(*other.impl_);
 }
 
-CompareResult TransitiveComparisonAnalyzer::TryCompare(const PrimExpr& lhs, const PrimExpr& rhs,
-                                                       bool propagate_inequalities) {
-  return impl_->TryCompare(lhs, rhs, propagate_inequalities);
+CompareResult KnownComparisonAnalyzer::TryCompare(const PrimExpr& lhs, const PrimExpr& rhs) {
+  return impl_->TryCompare(lhs, rhs);
 }
 
-void TransitiveComparisonAnalyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
+void KnownComparisonAnalyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
   impl_->Bind(var, expr, allow_override);
 }
-void TransitiveComparisonAnalyzer::Bind(const Var& var, const Range& range, bool allow_override) {
+void KnownComparisonAnalyzer::Bind(const Var& var, const Range& range, bool allow_override) {
   impl_->Bind(var, range, allow_override);
 }
 
-std::function<void()> TransitiveComparisonAnalyzer::EnterConstraint(const PrimExpr& constraint) {
+std::function<void()> KnownComparisonAnalyzer::EnterConstraint(const PrimExpr& constraint) {
   return impl_->EnterConstraint(constraint);
 }
 
-void TransitiveComparisonAnalyzer::Impl::AddKnown(const PrimExpr& expr,
-                                                  std::vector<Comparison>* vec) {
+void KnownComparisonAnalyzer::Impl::AddKnown(const PrimExpr& expr, std::vector<Comparison>* vec) {
   for (const auto& subexpr : ExtractConstraints(expr, false)) {
     if (SideEffect(expr) <= CallEffectKind::kPure) {
       if (auto cmp = FromExpr(subexpr)) {
@@ -576,8 +414,7 @@ void TransitiveComparisonAnalyzer::Impl::AddKnown(const PrimExpr& expr,
   }
 }
 
-void TransitiveComparisonAnalyzer::Impl::Bind(const Var& var, const Range& range,
-                                              bool allow_override) {
+void KnownComparisonAnalyzer::Impl::Bind(const Var& var, const Range& range, bool allow_override) {
   auto it = prev_bindings_.find(var);
   if (it != prev_bindings_.end()) {
     prim::ExprDeepEqual expr_equal;
@@ -605,12 +442,12 @@ void TransitiveComparisonAnalyzer::Impl::Bind(const Var& var, const Range& range
   }
 }
 
-void TransitiveComparisonAnalyzer::Impl::Bind(const Var& var, const PrimExpr& expr,
-                                              bool allow_override) {
+void KnownComparisonAnalyzer::Impl::Bind(const Var& var, const PrimExpr& expr,
+                                         bool allow_override) {
   Bind(var, Range::FromMinExtent(expr, 1), allow_override);
 }
 
-std::function<void()> TransitiveComparisonAnalyzer::Impl::EnterConstraint(const PrimExpr& expr) {
+std::function<void()> KnownComparisonAnalyzer::Impl::EnterConstraint(const PrimExpr& expr) {
   size_t old_literal_size = scoped_knowns_.size();
   AddKnown(expr, &scoped_knowns_);
   size_t new_literal_size = scoped_knowns_.size();
@@ -622,9 +459,8 @@ std::function<void()> TransitiveComparisonAnalyzer::Impl::EnterConstraint(const 
   return frecover;
 }
 
-CompareResult TransitiveComparisonAnalyzer::Impl::TryCompare(const PrimExpr& lhs_expr,
-                                                             const PrimExpr& rhs_expr,
-                                                             bool propagate_inequalities) const {
+CompareResult KnownComparisonAnalyzer::Impl::TryCompare(const PrimExpr& lhs_expr,
+                                                        const PrimExpr& rhs_expr) const {
   // Currently only supports integer checks
   if (!lhs_expr.ty().MatchesCode(DLDataTypeCode::kDLInt) ||
       !rhs_expr.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
@@ -653,18 +489,12 @@ CompareResult TransitiveComparisonAnalyzer::Impl::TryCompare(const PrimExpr& lhs
     return CompareResult::kUnknown;
   }
 
-  auto lhs_to_rhs = [&]() {
-    if (propagate_inequalities) {
-      return CollectIndirectComparisons(lhs_key.value(), rhs_key.value());
-    } else {
-      return CollectDirectComparisons(lhs_key.value(), rhs_key.value());
-    }
-  }();
+  auto lhs_to_rhs = CollectDirectComparisons(lhs_key.value(), rhs_key.value());
   return MergeComparisons(lhs_to_rhs, offset);
 }
 
-std::vector<TransitiveComparisonAnalyzer::Impl::Comparison>
-TransitiveComparisonAnalyzer::Impl::CollectDirectComparisons(Key lhs_key, Key rhs_key) const {
+std::vector<KnownComparisonAnalyzer::Impl::Comparison>
+KnownComparisonAnalyzer::Impl::CollectDirectComparisons(Key lhs_key, Key rhs_key) const {
   std::vector<Comparison> output;
 
   auto append_known = [&](Comparison cmp) {
@@ -685,161 +515,7 @@ TransitiveComparisonAnalyzer::Impl::CollectDirectComparisons(Key lhs_key, Key rh
   return output;
 }
 
-std::vector<TransitiveComparisonAnalyzer::Impl::Comparison>
-TransitiveComparisonAnalyzer::Impl::CollectIndirectComparisons(Key lhs_key, Key rhs_key) const {
-  auto output = DFSFromLHS(lhs_key, rhs_key);
-  for (Comparison cmp : DFSFromLHS(rhs_key, lhs_key)) {
-    auto opt_normalized = cmp.WithLHS(lhs_key);
-    TVM_FFI_ICHECK(opt_normalized.has_value());
-    output.push_back(opt_normalized.value());
-  }
-  return output;
-}
-
-std::vector<TransitiveComparisonAnalyzer::Impl::Comparison>
-TransitiveComparisonAnalyzer::Impl::DFSFromLHS(Key lhs_key, Key rhs_key) const {
-  // Everything in `to_visit` has lhs as its lhs.
-  std::unordered_set<Key> seen;
-  std::unordered_set<Key> to_visit;
-  std::unordered_map<Key, std::vector<Comparison>> compared_to_lhs;
-
-  // Utility function to add a new known statement
-  auto declare_known = [&](Comparison cmp) {
-    std::vector<Comparison>& knowns = compared_to_lhs[cmp.rhs_];
-
-    // The comparison adds no new information, no modification
-    // required.
-    for (auto& prev_known : knowns) {
-      if (prev_known.Implies(cmp)) {
-        return;
-      }
-    }
-
-    // New information may require visiting a new expression.
-    if (cmp.rhs_ != rhs_key && !seen.count(cmp.rhs_)) {
-      to_visit.insert(cmp.rhs_);
-      seen.insert(cmp.rhs_);
-    }
-
-    // This comparison is a stronger version of a previous constraint.
-    // Therefore, replace the old version entirely.
-    for (auto& prev_known : knowns) {
-      if (cmp.Implies(prev_known)) {
-        prev_known = cmp;
-        return;
-      }
-    }
-
-    // Neither a superset nor a subset of previously known
-    // constraints, must be tracked separately.
-    knowns.push_back(cmp);
-  };
-
-  // Initialize the search based on any known (in)equalities that use
-  // the LHS of the comparison.
-  for (const auto& known : knowns_) {
-    if (auto normalized = known.WithLHS(lhs_key)) {
-      declare_known(normalized.value());
-    }
-  }
-  for (const auto& known : scoped_knowns_) {
-    if (auto normalized = known.WithLHS(lhs_key)) {
-      declare_known(normalized.value());
-    }
-  }
-
-  // Walk through the space of all comparisons that can be made with
-  // LHS.
-  while (to_visit.size()) {
-    Key middle_key = *to_visit.begin();
-    to_visit.erase(to_visit.begin());
-
-    std::vector<Comparison>& prev_knowns_using_middle = compared_to_lhs.at(middle_key);
-    TVM_FFI_ICHECK(compared_to_lhs.count(middle_key));
-
-    std::vector<Comparison> new_knowns_using_lhs;
-
-    auto attempt_transitive = [&](Comparison cmp) {
-      TVM_FFI_ICHECK(cmp.IsNormalized());
-
-      Key right_key = cmp.rhs_;
-
-      if (right_key == lhs_key) {
-        return;
-      }
-
-      for (const auto& prev : prev_knowns_using_middle) {
-        CompareResult new_result = CompareResult::kUnknown;
-        auto new_offset = (ffi::BigInt(prev.offset_) + cmp.offset_).as<int64_t>();
-        if (!new_offset.has_value()) continue;
-
-        if (prev.result_ == CompareResult::kEQ) {
-          // x == y + c1 && y OP z + c2, x OP z + (c1 + c2)
-          new_result = cmp.result_;
-        } else if (cmp.result_ == CompareResult::kEQ) {
-          // x OP y + c1 && y == z + c2, x OP z + (c1 + c2)
-          new_result = prev.result_;
-        } else if (prev.result_ == cmp.result_ &&
-                   (prev.result_ == CompareResult::kLE || prev.result_ == CompareResult::kGE)) {
-          // x <= y + c1 && y <= z + c2, x <= z + (c1 + c2)
-          // x >= y + c1 && y >= z + c2, x >= z + (c1 + c2)
-          //
-          // This condition is much simpler to write than the
-          // equivalent handling of < or of >, which is why the
-          // inequalities are normalized to <= and to >=.  See
-          // `TransitiveComparisonAnalyzer::Impl::Comparison::Comparison`
-          // for further details.
-          new_result = prev.result_;
-        }
-
-        if (new_result != CompareResult::kUnknown) {
-          Comparison new_known(lhs_key, right_key, *new_offset, new_result);
-          new_knowns_using_lhs.push_back(new_known);
-        }
-      }
-    };
-
-    // Attempt to prove a new comparison using one of the original
-    // known comparisons.  We want to find a known such that
-    // `(LHS OP1 middle) && (middle OP2 right)` can be simplified
-    // into `(LHS OP3 right)`.
-    //
-    // Note: The right side is this step is not necessarily the RHS of
-    // the comparison we're trying to prove, as we may need to find
-    // intermediate comparisons first.  For example, if we know that
-    // `a<=b`, `b<=c`, and `c<=d`, and we wish to prove that `a<=d`,
-    // we must first combine `a<=b` and `b<=c` into `a<=c`.  During
-    // this first step, `b` is the "middle" and `c` is the "right".
-    // The next step can then combind `a<=c` and `c<=d` into `a<=d`.
-    for (const auto& known : knowns_) {
-      if (auto cmp = known.WithLHS(middle_key)) {
-        attempt_transitive(cmp.value());
-      }
-    }
-
-    for (const auto& known : scoped_knowns_) {
-      if (auto cmp = known.WithLHS(middle_key)) {
-        attempt_transitive(cmp.value());
-      }
-    }
-
-    // Collect together all new knowns, marking new nodes for visiting
-    // as needed.
-    for (const auto& new_known : new_knowns_using_lhs) {
-      declare_known(new_known);
-    }
-  }
-
-  if (auto it = compared_to_lhs.find(rhs_key); it != compared_to_lhs.end()) {
-    return it->second;
-  } else {
-    // There are known comparisons involving the LHS and the RHS, but
-    // no path that connects the two expressions.
-    return {};
-  }
-}
-
-CompareResult TransitiveComparisonAnalyzer::Impl::MergeComparisons(
+CompareResult KnownComparisonAnalyzer::Impl::MergeComparisons(
     const std::vector<Comparison>& lhs_to_rhs, int64_t offset) const {
   // Just because we found a comparison involving LHS and RHS doesn't
   // mean that it's useful.  e.g. Knowing that `x < y` doesn't let us

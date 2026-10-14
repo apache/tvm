@@ -124,16 +124,6 @@ class RewriteSimplifier::Impl : public SimplifierBase {
 
   std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume);
 
-  /*! \brief Enable an optional extension or extensions
-   *
-   * \param flags A bitwise OR of all optional extensions that should
-   * be enabled.
-   */
-  void SetEnabledExtensions(Extension flags);
-
-  /*! \brief Return the currently enabled extensions */
-  Extension GetEnabledExtensions() const;
-
   RewriteSimplifierStats GetStatsCounters() const { return RewriteSimplifierStats(stats_); }
 
   void ResetStatsCounters() { stats_ = {}; }
@@ -143,7 +133,6 @@ class RewriteSimplifier::Impl : public SimplifierBase {
   void CopyFrom(const Impl& other) {
     var_map_ = other.var_map_;
     literal_constraints_ = other.literal_constraints_;
-    enabled_extensions_ = other.enabled_extensions_;
     maximum_rewrite_steps_ = other.maximum_rewrite_steps_;
   }
 
@@ -167,13 +156,6 @@ class RewriteSimplifier::Impl : public SimplifierBase {
   std::unordered_map<Var, PrimExpr> var_map_;
 
   std::vector<PrimExpr> literal_constraints_;
-
-  // Optionally enabled extensions
-  Extension enabled_extensions_{kNone};
-
-  /*! Whether the simplifier is current
-   */
-  bool recursively_visiting_boolean_{false};
 
   // maximum number of recursion allowed during a single pass.
   static const constexpr int64_t kMaxRecurDepth = 5;
@@ -233,7 +215,6 @@ class RewriteSimplifier::Impl : public SimplifierBase {
  private:
   CompareResult TryCompareUsingKnownInequalities(const PrimExpr& x, const PrimExpr& y);
   CompareResult TryCompareUsingConstIntBounds(const PrimExpr& x, const PrimExpr y);
-  CompareResult TryComparisonOfProductAndSum(const PrimExpr& x, const PrimExpr& y);
 
   // Whether x >= val
   bool CanProveGreaterEqual(const PrimExpr& x, int64_t val) {

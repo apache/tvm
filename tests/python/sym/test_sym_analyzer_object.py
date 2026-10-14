@@ -21,7 +21,7 @@ import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.runtime import Object
-from tvm.sym.analyzer import CompareResult, Extension
+from tvm.sym.analyzer import CompareResult
 
 
 def test_analyzer_is_ffi_object_with_persistent_state():
@@ -146,7 +146,7 @@ def test_analyzer_object_set_maximum_rewrite_steps():
     relaxed.rewrite_simplify(expr)
 
 
-def test_analyzer_object_try_compare_transitive():
+def test_analyzer_object_try_compare_direct():
     analyzer = tvm.sym.Analyzer()
     x = tirx.Var("x", "int32")
     y = tirx.Var("y", "int32")
@@ -158,21 +158,8 @@ def test_analyzer_object_try_compare_transitive():
         with analyzer.constraint_scope(y < z):
             # Direct known comparison.
             assert analyzer.try_compare(x, y) == CompareResult.LT
-            # Transitive chain x < y < z is found only when propagation is enabled.
-            assert analyzer.try_compare(x, z) == CompareResult.LT
-            assert analyzer.try_compare(x, z, propagate_inequalities=False) == CompareResult.UNKNOWN
-
-
-def test_analyzer_object_enabled_extensions_round_trip():
-    analyzer = tvm.sym.Analyzer()
-
-    assert analyzer.enabled_extensions == Extension.NoExtensions
-
-    analyzer.enabled_extensions = Extension.ComparisonOfProductAndSum
-    assert analyzer.enabled_extensions == Extension.ComparisonOfProductAndSum
-
-    analyzer.enabled_extensions = Extension.NoExtensions
-    assert analyzer.enabled_extensions == Extension.NoExtensions
+            # No direct comparison connects x and z.
+            assert analyzer.try_compare(x, z) == CompareResult.UNKNOWN
 
 
 def test_analyzer_object_rewrite_simplify_stats():
@@ -238,7 +225,6 @@ def test_analyzer_object_clone_copies_every_sub_analyzer():
     analyzer.update(x, tvm.sym.ModularSet(4, 0))
     analyzer.bind(w, tirx.const(4, "int64"))
     analyzer.update(v, tvm.sym.IntervalSet(2, 9))
-    analyzer.enabled_extensions = Extension.ComparisonOfProductAndSum
 
     clone = analyzer.clone()
 
@@ -246,7 +232,6 @@ def test_analyzer_object_clone_copies_every_sub_analyzer():
     assert clone.modular_set(x).coeff == 4
     tvm.ir.assert_structural_equal(clone.simplify(w + 1), tirx.const(5, "int64"))
     assert clone.int_set(v).max_value.value == 9
-    assert clone.enabled_extensions == Extension.ComparisonOfProductAndSum
     assert clone.try_compare(x, tirx.const(0, "int64")) == CompareResult.GE
 
     t = tirx.Var("t", "int64")
@@ -254,7 +239,6 @@ def test_analyzer_object_clone_copies_every_sub_analyzer():
     clone.update(v, tvm.sym.IntervalSet(0, 3), override=True)
     clone.bind(w, tirx.const(8, "int64"), allow_override=True)
     clone.bind(t, tvm.ir.Range(0, 4))
-    clone.enabled_extensions = Extension.NoExtensions
 
     assert analyzer.modular_set(x).coeff == 4
     assert clone.modular_set(x).coeff == 8
@@ -262,8 +246,6 @@ def test_analyzer_object_clone_copies_every_sub_analyzer():
     assert clone.int_set(v).max_value.value == 3
     tvm.ir.assert_structural_equal(analyzer.simplify(w + 1), tirx.const(5, "int64"))
     tvm.ir.assert_structural_equal(clone.simplify(w + 1), tirx.const(9, "int64"))
-    assert analyzer.enabled_extensions == Extension.ComparisonOfProductAndSum
-    assert clone.enabled_extensions == Extension.NoExtensions
     assert clone.try_compare(t, tirx.const(0, "int64")) == CompareResult.GE
     assert analyzer.try_compare(t, tirx.const(0, "int64")) == CompareResult.UNKNOWN
 

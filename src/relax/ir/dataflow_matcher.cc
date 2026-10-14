@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ir/analysis.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
@@ -36,6 +37,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <limits>
@@ -428,6 +430,67 @@ bool DFPatternMatcher::VisitDFPattern_(const UnorderedTuplePatternNode* op, cons
   return false;
 }
 
+// Check accumulated shape equalities without changing the constraints retained for backtracking.
+// Bindings live only in this check, and use variable identity rather than printed names.
+static bool ShapeConstraintsConsistent(const PrimExpr& condition) {
+  std::vector<PrimExpr> constraints{condition};
+  for (size_t i = 0; i < constraints.size();) {
+    if (const auto* conjunction = constraints[i].as<prim::AndNode>()) {
+      PrimExpr lhs = conjunction->a;
+      PrimExpr rhs = conjunction->b;
+      constraints[i] = std::move(lhs);
+      constraints.push_back(std::move(rhs));
+    } else {
+      ++i;
+    }
+  }
+
+  Analyzer analyzer;
+  // Follow every possible local alias before binding, including chains longer than
+  // the analyzer's default two simplification passes.
+  int simplify_steps = 2 * static_cast<int>(constraints.size());
+  // Each successful binding eliminates a variable from an equality. Revisit earlier
+  // equalities that may become directly bindable after a later constraint is processed.
+  for (size_t iteration = 0; iteration < constraints.size(); ++iteration) {
+    bool changed = false;
+    for (const PrimExpr& constraint : constraints) {
+      PrimExpr simplified = analyzer->Simplify(constraint, simplify_steps);
+      if (prim::IsZero(simplified)) return false;
+      if (const auto* equality = simplified.as<prim::EQNode>()) {
+        PrimExpr lhs = equality->a;
+        PrimExpr rhs = equality->b;
+        if (!lhs.as<tvm::VarNode>()) std::swap(lhs, rhs);
+        if (const auto* var = lhs.as<tvm::VarNode>();
+            var && SideEffect(rhs) <= CallEffectKind::kPure) {
+          auto variables = tvm::UndefinedVars(rhs);
+          if (std::none_of(variables.begin(), variables.end(),
+                           [var](const tvm::Var& used) { return used.get() == var; })) {
+            analyzer->Bind(ffi::GetRef<tvm::Var>(var), rhs);
+            changed = true;
+          }
+        }
+      }
+    }
+    if (!changed) break;
+  }
+  // Composite dimensions may not admit a variable binding. Check each remaining
+  // equality against its peers, so repeated expressions also detect contradictions.
+  for (PrimExpr& constraint : constraints) {
+    constraint = analyzer->Simplify(constraint, simplify_steps);
+    if (prim::IsZero(constraint)) return false;
+  }
+  for (size_t i = 0; i < constraints.size(); ++i) {
+    if (prim::IsOne(constraints[i])) continue;
+    PrimExpr others = IntImm::Bool(true);
+    for (size_t j = 0; j < constraints.size(); ++j) {
+      if (i != j) others = others && constraints[j];
+    }
+    With<sym::ConstraintContext> scope(analyzer, others);
+    if (prim::IsZero(analyzer->Simplify(constraints[i], simplify_steps))) return false;
+  }
+  return true;
+}
+
 bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& expr0) {
   if (!VisitDFPattern(op->pattern, expr0)) {
     return false;
@@ -446,7 +509,7 @@ bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& ex
   if (auto* as_int = symbolic_expr_condition_.as<IntImmNode>()) {
     return static_cast<bool>(as_int->value);
   } else {
-    return true;
+    return ShapeConstraintsConsistent(symbolic_expr_condition_);
   }
 }
 
