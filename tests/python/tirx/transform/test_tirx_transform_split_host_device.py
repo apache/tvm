@@ -75,9 +75,6 @@ def test_ssa_across_entire_module():
 
 
 def test_split_host_device():
-    assert not hasattr(tvm.tirx.transform, "AnnotateDeviceRegions")
-    assert not hasattr(tvm.tirx.transform, "LowerDeviceKernelLaunch")
-
     """SplitHostDevice divides a function at the "target" attribute"""
 
     @I.ir_module

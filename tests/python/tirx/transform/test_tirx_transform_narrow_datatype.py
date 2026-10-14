@@ -258,11 +258,6 @@ def test_avg_pool2d():
         main = before.with_attr("global_symbol", "main")
 
     after = tvm.tirx.transform.NarrowDataType(32)(Before)
-
-    @I.ir_module
-    class Before:
-        main = before.with_attr("global_symbol", "main")
-
     after = tvm.tirx.transform.StmtSimplify()(after)
     tvm.ir.assert_structural_equal(after["main"], expected_after.with_attr("global_symbol", "main"))
 
