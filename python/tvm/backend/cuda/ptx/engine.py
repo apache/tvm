@@ -41,8 +41,9 @@ from tvm_ffi import get_global_func, register_global_func, structural_equal
 
 from tvm.backend.cuda.codegen.registry import register_codegen
 from tvm.backend.cuda.codegen.utils import parse_str
-from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
+from tvm.backend.cuda.op import _make_cuda_func_call, cuda_cvta_generic_to_shared
 from tvm.ir import Call, Op, StringImm, TensorLoad, const
+from tvm.ir.builder_base import builder_emit_if_void
 from tvm.ir.op import register_op_attr
 from tvm.ir.type import PrimType, PtrType
 from tvm.runtime import MemoryScope
@@ -298,7 +299,7 @@ def _make_codegen(entry: InstructionEntry):
         # is forwarded as-is.
         forwarded = [rest[at[i]] for i in range(n_operands) if i not in imm_at and i not in sunk]
         forwarded += list(rest[n_present:])
-        return cuda_func_call(helper, *forwarded, source)
+        return _make_cuda_func_call(helper, *forwarded, source)
 
     return codegen
 
@@ -841,6 +842,10 @@ class _InstrChain:
         return _InstrChain(_narrow(self._cands, unescape_token(name)))
 
     def __call__(self, *args, pred=None, preserve_dst=False):
+        return builder_emit_if_void(self._make_call(*args, pred=pred, preserve_dst=preserve_dst))
+
+    def _make_call(self, *args, pred=None, preserve_dst=False):
+        """Select and construct a call without emitting it into a builder."""
         # Also accepts the printed round-trip form: trailing modifier-token
         # strings in slot order ("" = omitted slot) followed by the pred
         # marker, and, when the marker says "pred", the predicate as the last
@@ -1044,7 +1049,7 @@ def _ptx_call_surface_name(call):
             elif isinstance(arg, Call) and arg.op.same_as(Op.get(_ADDR_OP_NAME)):
                 arg = AddrArg(*arg.args)
             args.append(arg)
-        if structural_equal(call, getattr(PTXNamespace(), name)(*args)):
+        if structural_equal(call, getattr(PTXNamespace(), name)._make_call(*args)):
             return f"tirx.ptx.{name}"
     except (ValueError, TypeError, IndexError, AttributeError):
         pass

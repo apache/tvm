@@ -107,4 +107,4 @@ def lower(opcode, entry, modifiers, args, params, sctx):
         *(b.value(b_coord(lane, r)) for r in range(k // 8)),
         *cs,
     ]
-    return ctx.finish([PTXNamespace()[opcode](*native)])
+    return ctx.finish([PTXNamespace()[opcode]._make_call(*native)])

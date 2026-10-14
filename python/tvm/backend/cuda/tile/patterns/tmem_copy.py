@@ -96,4 +96,4 @@ def lower(opcode, entry, modifiers, args, params, sctx):
             )
     desc = matrix_descriptor(ctx, src, (rows, words), copy=True)
     address = T.cuda.get_tmem_addr(_tmem_address(dst.tensor), row_base, col_base)
-    return ctx.finish([PTXNamespace()[opcode](address, desc, pred=pred)])
+    return ctx.finish([PTXNamespace()[opcode]._make_call(address, desc, pred=pred)])

@@ -60,4 +60,4 @@ def lower(opcode, entry, modifiers, args, params, sctx):
     words = [regs.value((matrix, lane // 4, lane % 4)) for matrix in range(count)]
     ptr = smem.pointer(((lane // 8) % count, lane % 8, 0))
     native_args = [*words, ptr] if load else [ptr, *words]
-    return ctx.finish([PTXNamespace()[opcode](*native_args)])
+    return ctx.finish([PTXNamespace()[opcode]._make_call(*native_args)])

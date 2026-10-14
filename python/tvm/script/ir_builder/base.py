@@ -20,12 +20,13 @@ from collections.abc import Callable
 from contextlib import contextmanager, nullcontext
 from functools import wraps
 from inspect import signature
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 from tvm_ffi import register_object as _register_object
 from tvm_ffi.dataclasses import MISSING as MISSING
 
 from tvm import ir
+from tvm.ir.builder_base import AlreadyEmitted as AlreadyEmitted
 from tvm.ir.location import UnknownLoc
 from tvm.runtime import Object as _Object
 
@@ -273,29 +274,6 @@ class IRBuilder(_Object):
 
 
 _T = TypeVar("_T")
-
-
-class AlreadyEmitted(Generic[_T]):
-    """Hold the exact emitted value; location handling preserves this receipt.
-
-    Parameters
-    ----------
-    value : Any
-        Object already emitted by a language variant's builder. The receipt
-        retains this object without copying it. Binding or emitting the receipt
-        must not emit the object again.
-
-    Attributes
-    ----------
-    value : Any
-        The same emitted object, available for identity checks and source-location
-        attachment.
-    """
-
-    __slots__ = ("value",)
-
-    def __init__(self, value: _T) -> None:
-        self.value = value
 
 
 class LocationEntry:

@@ -232,4 +232,4 @@ def lower(opcode, entry, modifiers, args, params, sctx):
         raise ValueError("explicit MMA kind disagrees with operand formats")
     if params:
         raise ValueError(f"{opcode}: unknown operands {tuple(params)}")
-    return ctx.finish([PTXNamespace()[opcode](*native, pred=pred)])
+    return ctx.finish([PTXNamespace()[opcode]._make_call(*native, pred=pred)])

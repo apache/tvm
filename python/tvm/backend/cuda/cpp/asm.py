@@ -28,7 +28,7 @@ the PTX text, or the offset-scaling ``cp.async`` form the legacy
 import re
 
 from tvm import ir
-from tvm.backend.cuda.op import cuda_func_call
+from tvm.backend.cuda.op import _make_cuda_func_call
 from tvm.runtime import MemoryScope
 
 from ..codegen.registry import CODEGEN_REGISTRY, register_codegen
@@ -152,7 +152,7 @@ def _wait_until_forward(spelling, *args):
     """Emit one instruction-table PTX operation and return its codegen result."""
     from ..ptx import PTXNamespace  # pylint: disable=import-outside-toplevel
 
-    call = PTXNamespace()[spelling](*args)
+    call = PTXNamespace()[spelling]._make_call(*args)
     return CODEGEN_REGISTRY[call.op.name](call.args)
 
 
@@ -258,7 +258,7 @@ def cuda_wait_until(dst, ptr, condition, scope, space, ptx_type, backoff_ns):
             f"{closing} }} while (0)\n"
         )
         operands = (condition, backoff_ns)
-    return cuda_func_call(name, *load_call.args[1:-1], *operands, source), tags
+    return _make_cuda_func_call(name, *load_call.args[1:-1], *operands, source), tags
 
 
 # =============================================================================
@@ -516,7 +516,7 @@ def codegen_s_tir_cp_async_raw(*args):
                 f"{body}\n"
                 "}\n"
             )
-            return cuda_func_call(
+            return _make_cuda_func_call(
                 func_name,
                 dst_ptr_in,
                 dst_offset,
@@ -541,7 +541,7 @@ def codegen_s_tir_cp_async_raw(*args):
             f"{body}\n"
             "}\n"
         )
-        return cuda_func_call(
+        return _make_cuda_func_call(
             func_name,
             dst_ptr_in,
             dst_offset,

@@ -358,4 +358,4 @@ def lower(opcode, entry, modifiers, args, params, sctx):
     pred = params.pop("pred", None)
     if params:
         raise ValueError(f"{opcode}: unknown fields {tuple(params)}")
-    return ctx.finish([PTXNamespace()[opcode](*native, pred=pred)])
+    return ctx.finish([PTXNamespace()[opcode]._make_call(*native, pred=pred)])

@@ -63,4 +63,6 @@ def lower(opcode, entry, modifiers, args, params, sctx):
     preserve_dst = bool(params.pop("preserve_dst", False))
     if params:
         raise ValueError(f"{opcode}: unknown operands {tuple(params)}")
-    return ctx.finish([PTXNamespace()[opcode](*native_args, pred=pred, preserve_dst=preserve_dst)])
+    return ctx.finish(
+        [PTXNamespace()[opcode]._make_call(*native_args, pred=pred, preserve_dst=preserve_dst)]
+    )
