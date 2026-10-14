@@ -178,7 +178,8 @@ TVM_TIRX_DLL Function RenewDef(Function func);
  *              B[vi, vj] = A[vi, vj]
  * \endcode
  */
-Function Specialize(Function func, const ffi::Map<Var, ffi::Variant<TensorVar, Expr>>& param_map);
+TVM_TIRX_DLL Function Specialize(Function func,
+                                 const ffi::Map<Var, ffi::Variant<TensorVar, Expr>>& param_map);
 
 /*!
  * \brief Function specific attribute names.
