@@ -243,20 +243,19 @@ def test_device_enabled_cudnn_runtime_probe(monkeypatch, clear_env_cache, cudnn_
 
 
 @pytest.mark.parametrize(
-    ("built", "toolchain", "llvm_version", "serial", "can_compile", "can_run"),
+    ("runtime", "toolchain", "llvm_target", "serial", "can_compile", "can_run"),
     [
-        (False, True, 7, True, False, False),
-        (True, False, 7, True, False, False),
-        (True, True, 6, True, False, False),
-        (True, True, 7, False, True, False),
-        (True, True, 7, True, True, True),
-        (True, True, None, True, True, True),
+        (False, True, True, True, True, False),
+        (True, False, True, True, False, False),
+        (True, True, False, True, False, False),
+        (True, True, True, False, True, False),
+        (True, True, True, True, True, True),
+        (True, True, None, True, False, False),
     ],
 )
 def test_hexagon_environment_requirements(
-    monkeypatch, clear_env_cache, built, toolchain, llvm_version, serial, can_compile, can_run
+    monkeypatch, clear_env_cache, runtime, toolchain, llvm_target, serial, can_compile, can_run
 ):
-    # LLVM selection for tests is independent of whether its codegen can support Hexagon.
     monkeypatch.setenv("TVM_TEST_TARGETS", "hexagon")
     for variable, present in (
         ("HEXAGON_TOOLCHAIN", toolchain),
@@ -266,9 +265,12 @@ def test_hexagon_environment_requirements(
             monkeypatch.setenv(variable, "test-value")
         else:
             monkeypatch.delenv(variable, raising=False)
-    monkeypatch.setattr(tvm.support, "libinfo", lambda: {"USE_HEXAGON": "ON" if built else "OFF"})
-    monkeypatch.setattr(tvm.runtime, "enabled", lambda kind: llvm_version is not None)
-    monkeypatch.setattr(tvm.codegen, "llvm_version_major", lambda: llvm_version)
+    monkeypatch.setattr(
+        tvm.runtime,
+        "enabled",
+        lambda kind: runtime if kind == "hexagon" else llvm_target is not None,
+    )
+    monkeypatch.setattr(tvm.codegen, "llvm_get_targets", lambda: ["hexagon"] if llvm_target else [])
     assert env.has_hexagon_toolchain() is can_compile
     assert env.has_hexagon() is can_run
 
@@ -300,8 +302,8 @@ def test_core_testing_imports_without_domain_modules():
         from tvm.testing import env
 
         tvm.testing.assert_allclose([1], [1])
-        tvm.support.libinfo = lambda: {"USE_HEXAGON": "ON"}
-        tvm.runtime.enabled = lambda kind: False
+        tvm.runtime.enabled = lambda kind: True
+        tvm.codegen.llvm_get_targets = lambda: ["hexagon"]
         os.environ["HEXAGON_TOOLCHAIN"] = "test-toolchain"
         os.environ["ANDROID_SERIAL_NUMBER"] = "test-device"
         assert env.has_hexagon_toolchain()

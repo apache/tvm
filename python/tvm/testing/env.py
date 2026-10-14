@@ -445,8 +445,8 @@ def has_hexagon_toolchain() -> bool:
     """True if the Hexagon toolchain is available for compilation."""
     try:
         return (
-            build_flag_enabled("USE_HEXAGON")
-            and (not _runtime_enabled("llvm") or _llvm_version_major() >= 7)
+            _runtime_enabled("llvm")
+            and "hexagon" in tvm.codegen.llvm_get_targets()
             and "HEXAGON_TOOLCHAIN" in os.environ
         )
     except Exception:  # pylint: disable=broad-except
@@ -457,7 +457,11 @@ def has_hexagon_toolchain() -> bool:
 def has_hexagon() -> bool:
     """True if Hexagon can both compile and run (toolchain + attached device)."""
     try:
-        return has_hexagon_toolchain() and "ANDROID_SERIAL_NUMBER" in os.environ
+        return (
+            _runtime_enabled("hexagon")
+            and has_hexagon_toolchain()
+            and "ANDROID_SERIAL_NUMBER" in os.environ
+        )
     except Exception:  # pylint: disable=broad-except
         return False
 
