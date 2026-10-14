@@ -327,57 +327,50 @@ bool TileLayoutNode::HasThreadAxis() const {
                      [](const Iter& iter) { return iter->axis->IsThreadAxis(); });
 }
 
-ffi::Optional<ffi::Tuple<ExecScope, ExecScope>> TileLayoutNode::GetScope() const {
+ffi::Optional<ffi::Tuple<ThreadScope, ThreadScope>> TileLayoutNode::GetScope() const {
   if (!HasThreadAxis()) return std::nullopt;
 
-  std::unordered_map<ffi::String, ffi::String> scope_map;
-  ffi::Optional<ffi::String> inner_most;
+  std::unordered_map<ThreadScope, ThreadScope, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> scope_map;
+  ffi::Optional<ThreadScope> inner_most;
   ffi::Optional<ffi::String> backend;
 
   auto check_axis = [&](const Axis& axis) {
     if (!axis->IsThreadAxis()) return;
-
     auto subscope_opt = axis->GetSubscope();
     auto scope_opt = axis->GetScope();
     TVM_FFI_ICHECK(subscope_opt.has_value() && scope_opt.has_value())
         << "Thread axis " << axis.name() << " has no subscope or scope";
-
+    ThreadScope subscope = subscope_opt.value();
+    ThreadScope scope = scope_opt.value();
+    TVM_FFI_CHECK(scope->backend() == subscope->backend(), ValueError)
+        << "Thread axis contains scopes from different backends";
     if (backend.has_value()) {
-      TVM_FFI_CHECK(backend.value() == subscope_opt.value()->backend, ValueError)
+      TVM_FFI_CHECK(backend.value() == subscope->backend(), ValueError)
           << "Layout contains thread axes from different backends";
     } else {
-      backend = subscope_opt.value()->backend;
+      backend = subscope->backend();
     }
-    ffi::String subscope = subscope_opt.value()->name();
-    ffi::String scope = scope_opt.value()->name();
-
-    if (!inner_most.has_value() ||
-        ScopeHigher(ExecScope(backend.value(), inner_most.value()), subscope_opt.value()))
+    if (!inner_most.has_value() || ScopeHigher(inner_most.value(), subscope)) {
       inner_most = subscope;
-
-    auto it = scope_map.find(subscope);
-    if (it == scope_map.end())
-      scope_map[subscope] = scope;
-    else
-      TVM_FFI_ICHECK_EQ(it->second, scope)
-          << "Ill-formed tile layout: conflicting scopes for " << subscope;
+    }
+    auto [it, inserted] = scope_map.emplace(subscope, scope);
+    TVM_FFI_ICHECK(inserted || it->second.same_as(scope))
+        << "Ill-formed tile layout: conflicting scopes for " << subscope;
   };
-
   for (const auto& iter : shard) check_axis(iter->axis);
   for (const auto& iter : replica) check_axis(iter->axis);
   for (const auto& [axis, off] : offset) check_axis(axis);
 
-  ffi::String outer_most = inner_most.value();
+  ThreadScope outer_most = inner_most.value();
   size_t count = 0;
   for (auto it = scope_map.find(outer_most); it != scope_map.end();
        it = scope_map.find(outer_most)) {
-    count++;
+    TVM_FFI_ICHECK_LT(count, scope_map.size()) << "Ill-formed tile layout: cyclic scope chain";
+    ++count;
     outer_most = it->second;
   }
-
   TVM_FFI_ICHECK_EQ(count, scope_map.size()) << "Ill-formed tile layout: disconnected scope chain";
-  return Tuple<ExecScope, ExecScope>{ExecScope(backend.value(), inner_most.value()),
-                                     ExecScope(backend.value(), outer_most)};
+  return Tuple<ThreadScope, ThreadScope>{inner_most.value(), outer_most};
 }
 
 TileLayout TileLayoutNode::DefaultLayout(ffi::Array<PrimExpr> shape) {
@@ -393,7 +386,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tirx.TileLayoutGetScope",
-      [](const TileLayout& layout) -> ffi::Optional<ffi::Tuple<ExecScope, ExecScope>> {
+      [](const TileLayout& layout) -> ffi::Optional<ffi::Tuple<ThreadScope, ThreadScope>> {
         return layout->GetScope();
       });
 }

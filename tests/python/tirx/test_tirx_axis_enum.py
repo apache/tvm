@@ -39,8 +39,8 @@ def test_axis_enum_identity_and_attributes():
     assert hash(axis) == hash(Axis.get("laneid"))
     assert Axis.def_attr("thread")[axis] is True
     assert Axis.m.is_memory()
-    assert CUDAAxis.bx.get_scope().name == "kernel"
-    assert CUDAAxis.bx.get_subscope().name == "cta"
+    assert CUDAAxis.bx.get_scope().name == "cuda.kernel"
+    assert CUDAAxis.bx.get_subscope().name == "cuda.cta"
     assert TileLayout(S[4 : 1 @ axis]).shard[0].axis.same_as(axis)
 
 

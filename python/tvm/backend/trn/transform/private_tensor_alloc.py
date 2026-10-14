@@ -61,11 +61,11 @@ def _collect_private_allocations(stmt: Stmt, target: Target):
             return
         call = op
         op = TensorCall.decode(call)
-        exec_scope = op.scope
-        scope_kind = op.scope.name
+        thread_scope = op.scope
+        scope_kind = op.scope.local_name
         sctx = DispatchContext(
             target=target,
-            exec_scope=exec_scope,
+            thread_scope=thread_scope,
             launch_params=launch_params,
             var_range_map=var_range_map,
             alloc_only=True,

@@ -86,8 +86,8 @@ TileLayout FuseAxesByScope(TileLayout layout) {
   if (!scope_pair_opt.has_value() || !target.has_value()) {
     return layout;
   }
-  auto subscope = scope_pair_opt.value().get<0>()->name();
-  auto scope = scope_pair_opt.value().get<1>()->name();
+  auto subscope = scope_pair_opt.value().get<0>();
+  auto scope = scope_pair_opt.value().get<1>();
 
   // Step 2: Create vectors for the new layout components
   std::vector<Iter> shard;

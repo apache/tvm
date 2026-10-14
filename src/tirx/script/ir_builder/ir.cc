@@ -29,7 +29,7 @@
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/script/ir_builder/ir.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/tile/exec_scope.h>
+#include <tvm/tirx/tile/thread_scope.h>
 
 #include "./utils.h"
 

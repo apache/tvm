@@ -20,7 +20,7 @@
 #ifndef TVM_BACKEND_CUDA_TILE_EXEC_ANALYSIS_H_
 #define TVM_BACKEND_CUDA_TILE_EXEC_ANALYSIS_H_
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/tile/exec_scope.h>
+#include <tvm/tirx/tile/thread_scope.h>
 
 #include <memory>
 #include <string>
@@ -38,7 +38,7 @@ class ExecAnalysis {
   int PushPredicate(const PrimExpr& condition);
   void Pop(int count);
   PrimExpr RewritePredicate(const PrimExpr& condition) const;
-  std::pair<SplitMap, SplitMap> Split(const tirx::ExecScope& scope) const;
+  std::pair<SplitMap, SplitMap> Split(const tirx::ThreadScope& scope) const;
 
  private:
   struct Impl;

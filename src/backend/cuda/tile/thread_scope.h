@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_BACKEND_CUDA_TILE_EXEC_SCOPE_H_
-#define TVM_BACKEND_CUDA_TILE_EXEC_SCOPE_H_
-#include <tvm/tirx/tile/exec_scope.h>
+#ifndef TVM_BACKEND_CUDA_TILE_THREAD_SCOPE_H_
+#define TVM_BACKEND_CUDA_TILE_THREAD_SCOPE_H_
+#include <tvm/tirx/tile/thread_scope.h>
 
 #include <string>
 #include <utility>

@@ -16,19 +16,11 @@
 # under the License.
 # pylint: disable=no-member, super-init-not-called
 
-"""TRN execution hierarchy."""
+"""TRN thread-scope lookup."""
 
-from tvm.tirx.exec_scope import ExecScope as _ExecScope
-from tvm.tirx.exec_scope import register_exec_scope
-
-SCOPES = ("kernel", "thread")
+from tvm.tirx.thread_scope import ThreadScope as _ThreadScope
 
 
-def register():
-    for rank, name in enumerate(SCOPES, start=-1):
-        register_exec_scope("trn", name, rank)
-
-
-def ExecScope(name: str) -> _ExecScope:
-    """Construct a TRN execution scope."""
-    return _ExecScope("trn", name)
+def ThreadScope(name: str) -> _ThreadScope:
+    """Look up a TRN thread scope by its backend-local name."""
+    return _ThreadScope("trn." + name)

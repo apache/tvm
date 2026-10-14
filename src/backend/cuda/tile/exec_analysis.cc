@@ -36,7 +36,7 @@
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/tile/context.h>
-#include <tvm/tirx/tile/exec_scope.h>
+#include <tvm/tirx/tile/thread_scope.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -1039,14 +1039,16 @@ void ExecAnalysis::Pop(int count) {
 PrimExpr ExecAnalysis::RewritePredicate(const PrimExpr& condition) const {
   return impl_->RewriteFilterCalls(condition);
 }
-std::pair<SplitMap, SplitMap> ExecAnalysis::Split(const tirx::ExecScope& scope) const {
-  TVM_FFI_CHECK(!impl_->variable_cluster_ || scope->name() != "cluster", ValueError)
+std::pair<SplitMap, SplitMap> ExecAnalysis::Split(const tirx::ThreadScope& scope) const {
+  TVM_FFI_CHECK(scope->backend() == "cuda", ValueError) << "Expected a CUDA thread scope";
+  TVM_FFI_CHECK(!impl_->variable_cluster_ || scope->local_name() != "cluster", ValueError)
       << "Cluster tensor instructions require one static cluster shape; "
          "use explicit CUDA/PTX instructions for variable or preferred cluster shapes";
   if (impl_->ctx_stack_.empty()) return {};
   ExecSplit split;
   std::string err;
-  if (ScopeSwitch(impl_->ctx_stack_.back().A, StringToScopeKind(scope->name()), &split, &err)) {
+  if (ScopeSwitch(impl_->ctx_stack_.back().A, StringToScopeKind(scope->local_name()), &split,
+                  &err)) {
     return {EncodeSplitSide(split.inter), EncodeSplitSide(split.intra)};
   }
   LOG(WARNING) << "ExecContext scope_switch failed: " << err;
