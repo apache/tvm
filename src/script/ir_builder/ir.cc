@@ -364,7 +364,7 @@ tvm::Stmt Evaluate(Expr value) {
 
 // Keep operator construction independent of builder state. Python API exposure
 // invokes this optional hook only after constructing and selecting its call.
-ffi::Optional<tvm::Stmt> BuilderEmitIfVoid(Call call) {
+ffi::Optional<tvm::Stmt> BuilderMaybeEmitVoidCall(Call call) {
   const auto* prim_type = call->ty.as<PrimTypeNode>();
   bool is_void = IsVoidType(call->ty) || (prim_type && ffi::GetRef<PrimType>(prim_type).IsVoid());
   if (!is_void || !IRBuilder::IsInScope()) return std::nullopt;
@@ -373,7 +373,7 @@ ffi::Optional<tvm::Stmt> BuilderEmitIfVoid(Call call) {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::GlobalDef().def("ir.builder_emit_if_void", BuilderEmitIfVoid);
+  ffi::reflection::GlobalDef().def("ir.builder_maybe_emit_void_call", BuilderMaybeEmitVoidCall);
 }
 
 // Preserve the historical FFI entry points with one shared implementation.

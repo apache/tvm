@@ -43,7 +43,7 @@ from tvm.backend.cuda.codegen.registry import register_codegen
 from tvm.backend.cuda.codegen.utils import parse_str
 from tvm.backend.cuda.op import _make_cuda_func_call, cuda_cvta_generic_to_shared
 from tvm.ir import Call, Op, StringImm, TensorLoad, const
-from tvm.ir.builder_base import builder_emit_if_void
+from tvm.ir.builder_base import builder_maybe_emit_void_call
 from tvm.ir.op import register_op_attr
 from tvm.ir.type import PrimType, PtrType
 from tvm.runtime import MemoryScope
@@ -842,7 +842,9 @@ class _InstrChain:
         return _InstrChain(_narrow(self._cands, unescape_token(name)))
 
     def __call__(self, *args, pred=None, preserve_dst=False):
-        return builder_emit_if_void(self._make_call(*args, pred=pred, preserve_dst=preserve_dst))
+        return builder_maybe_emit_void_call(
+            self._make_call(*args, pred=pred, preserve_dst=preserve_dst)
+        )
 
     def _make_call(self, *args, pred=None, preserve_dst=False):
         """Select and construct a call without emitting it into a builder."""

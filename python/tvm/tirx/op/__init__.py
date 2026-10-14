@@ -44,7 +44,7 @@ from tvm.ir import (
     Var,
     const,
 )
-from tvm.ir.builder_base import builder_emit_if_void
+from tvm.ir.builder_base import builder_maybe_emit_void_call
 from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.prim import clz as clz
 from tvm.ir.prim import max_value as max_value
@@ -708,7 +708,7 @@ def assume_aligned(tensor, alignment_bytes, *, ty=None, loc: Location = UNKNOWN_
     be a tensor variable and alignment a scalar integer constant, a power of
     two between 1 and 2**27 bytes (inclusive).
     """
-    return builder_emit_if_void(
+    return builder_maybe_emit_void_call(
         call_intrin(ty, "tirx.assume_aligned", tensor, alignment_bytes, loc=loc)
     )
 
@@ -869,7 +869,7 @@ def gpu_thread_allreduce(
     def as_operand(value):
         return tvm.ir.Tuple(value) if isinstance(value, list | tuple | Array) else value
 
-    return builder_emit_if_void(
+    return builder_maybe_emit_void_call(
         call_intrin(
             ty,
             "tirx.gpu_thread_allreduce",
@@ -913,7 +913,9 @@ def gpu_storage_sync(storage_scope, *, ty=None, loc: Location = UNKNOWN_LOC):
     loc : tvm.ir.Location, optional
         The source location.
     """
-    return builder_emit_if_void(call_intrin(ty, "tirx.gpu_storage_sync", storage_scope, loc=loc))
+    return builder_maybe_emit_void_call(
+        call_intrin(ty, "tirx.gpu_storage_sync", storage_scope, loc=loc)
+    )
 
 
 def cpu_parallel_barrier(*, ty=None, loc: Location = UNKNOWN_LOC):
@@ -927,12 +929,12 @@ def cpu_parallel_barrier(*, ty=None, loc: Location = UNKNOWN_LOC):
     To replace ``pragma_parallel_barrier_when_finish``, place this operation
     after the former attribute body.
     """
-    return builder_emit_if_void(call_intrin(ty, "tirx.cpu_parallel_barrier", loc=loc))
+    return builder_maybe_emit_void_call(call_intrin(ty, "tirx.cpu_parallel_barrier", loc=loc))
 
 
 def kernel_replace_point(*, ty=None, loc: Location = UNKNOWN_LOC):
     """Mark where a transform should replace generated kernel initialization."""
-    return builder_emit_if_void(call_intrin(ty, "tirx.kernel_replace_point", loc=loc))
+    return builder_maybe_emit_void_call(call_intrin(ty, "tirx.kernel_replace_point", loc=loc))
 
 
 def gpu_warp_shuffle(
@@ -1105,7 +1107,7 @@ def throw_last_error(*, ty=None, loc: Location = UNKNOWN_LOC):
     ret : Expr
         The return expression
     """
-    return builder_emit_if_void(call_intrin(ty, "tirx.throw_last_error", loc=loc))
+    return builder_maybe_emit_void_call(call_intrin(ty, "tirx.throw_last_error", loc=loc))
 
 
 def vector_low(dtype, vec):
@@ -1420,7 +1422,7 @@ def masked_store(tensor, value, *indices_and_mask, ty=None, loc: Location = UNKN
     call : Expr
         A void-typed ``tirx.masked_store`` call.
     """
-    return builder_emit_if_void(
+    return builder_maybe_emit_void_call(
         call_intrin(
             ty,
             "tirx.masked_store",
@@ -1506,7 +1508,7 @@ def gpu_load_matrix_sync(
     call : Expr
         The call expression.
     """
-    return builder_emit_if_void(
+    return builder_maybe_emit_void_call(
         call_intrin(
             ty,
             "tirx.gpu_load_matrix_sync",
@@ -1569,7 +1571,7 @@ def gpu_mma_sync(
     call : Expr
         The call expression.
     """
-    return builder_emit_if_void(
+    return builder_maybe_emit_void_call(
         call_intrin(
             ty,
             "tirx.gpu_mma_sync",
@@ -1614,7 +1616,7 @@ def gpu_fill_fragment(fragment, m, n, k, index, value, *, ty=None, loc: Location
     call : Expr
         The call expression.
     """
-    return builder_emit_if_void(
+    return builder_maybe_emit_void_call(
         call_intrin(
             ty,
             "tirx.gpu_fill_fragment",
@@ -1675,7 +1677,7 @@ def gpu_store_matrix_sync(
     call : Expr
         The call expression.
     """
-    return builder_emit_if_void(
+    return builder_maybe_emit_void_call(
         call_intrin(
             ty,
             "tirx.gpu_store_matrix_sync",
@@ -1694,4 +1696,4 @@ def gpu_store_matrix_sync(
 
 def gpu_thread_return(*, ty=None, loc: Location = UNKNOWN_LOC):
     """Return from the current GPU thread without a function value."""
-    return builder_emit_if_void(call_intrin(ty, "tirx.gpu_thread_return", loc=loc))
+    return builder_maybe_emit_void_call(call_intrin(ty, "tirx.gpu_thread_return", loc=loc))

@@ -67,10 +67,12 @@ class AlreadyEmitted(Generic[_T]):
         return self.value
 
 
-_builder_emit_if_void = tvm_ffi.get_global_func("ir.builder_emit_if_void", allow_missing=True)
+_builder_maybe_emit_void_call = tvm_ffi.get_global_func(
+    "ir.builder_maybe_emit_void_call", allow_missing=True
+)
 
 
-def builder_emit_if_void(call: "Call") -> "Call | AlreadyEmitted[Stmt]":
+def builder_maybe_emit_void_call(call: "Call") -> "Call | AlreadyEmitted[Stmt]":
     """Emit a void operator call once when an IRBuilder is active.
 
     Parameters
@@ -95,7 +97,7 @@ def builder_emit_if_void(call: "Call") -> "Call | AlreadyEmitted[Stmt]":
     must register the optional hook before this module is imported; lookup
     is performed once, including when the hook is absent.
     """
-    if _builder_emit_if_void is None:
+    if _builder_maybe_emit_void_call is None:
         return call
-    statement = _builder_emit_if_void(call)
+    statement = _builder_maybe_emit_void_call(call)
     return call if statement is None else AlreadyEmitted(statement)

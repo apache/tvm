@@ -24,7 +24,7 @@ and call_intrin construction do not emit statements.
 from __future__ import annotations
 
 from tvm.ir import Call, Expr, Op, Var
-from tvm.ir.builder_base import builder_emit_if_void
+from tvm.ir.builder_base import builder_maybe_emit_void_call
 from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.op import _make_op_api
 from tvm.tirx import is_tensor_var
@@ -36,7 +36,7 @@ def make_filled_simdgroup_matrix(
 ):
     """Create a filled SIMDGroup matrix."""
 
-    return builder_emit_if_void(
+    return builder_maybe_emit_void_call(
         Call(
             "tirx.metal.make_filled_simdgroup_matrix",
             [d, index, value, col, row],
@@ -60,7 +60,7 @@ def simdgroup_load(
 ):
     """Load data from device or threadgroup memory to simdgroup."""
 
-    return builder_emit_if_void(
+    return builder_maybe_emit_void_call(
         Call(
             "tirx.metal.simdgroup_load",
             [d, index, ptr, stride, col, row, transpose_matrix],
@@ -84,7 +84,7 @@ def simdgroup_store(
 ):
     """Store data from simdgroup to device or threadgroup memory."""
 
-    return builder_emit_if_void(
+    return builder_maybe_emit_void_call(
         Call(
             "tirx.metal.simdgroup_store",
             [d, index, ptr, stride, col, row, transpose_matrix],
@@ -99,7 +99,7 @@ def simdgroup_multiply_accumulate(
 ):
     """Multiply and accumulate two matrices in simdgroup."""
 
-    return builder_emit_if_void(
+    return builder_maybe_emit_void_call(
         Call(
             "tirx.metal.simdgroup_multiply_accumulate",
             [d, index_d, a, index_a, b, index_b, c, index_c],
@@ -160,7 +160,7 @@ def cooperative_tensor_fill(
     ty=None,
     loc: Location = UNKNOWN_LOC,
 ):
-    return builder_emit_if_void(
+    return builder_maybe_emit_void_call(
         call_intrin(
             ty,
             "tirx.metal.cooperative_tensor_fill",
@@ -190,7 +190,7 @@ def cooperative_tensor_load(
     ty=None,
     loc: Location = UNKNOWN_LOC,
 ):
-    return builder_emit_if_void(
+    return builder_maybe_emit_void_call(
         call_intrin(
             ty,
             "tirx.metal.cooperative_tensor_load",
@@ -226,7 +226,7 @@ def cooperative_tensor_store(
     ty=None,
     loc: Location = UNKNOWN_LOC,
 ):
-    return builder_emit_if_void(
+    return builder_maybe_emit_void_call(
         call_intrin(
             ty,
             "tirx.metal.cooperative_tensor_store",
@@ -264,7 +264,7 @@ def cooperative_tensor_multiply_accumulate(
     ty=None,
     loc: Location = UNKNOWN_LOC,
 ):
-    return builder_emit_if_void(
+    return builder_maybe_emit_void_call(
         call_intrin(
             ty,
             "tirx.metal.cooperative_tensor_multiply_accumulate",

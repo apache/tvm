@@ -228,7 +228,9 @@ def register_op_attr(op_name, attr_key, value=None, override=False):
 def _make_op_api(op, module_name):
     """Build a callable whose operands and result are governed by its Op."""
     from .attrs import make_node  # pylint: disable=import-outside-toplevel
-    from .builder_base import builder_emit_if_void  # pylint: disable=import-outside-toplevel
+    from .builder_base import (
+        builder_maybe_emit_void_call,  # pylint: disable=import-outside-toplevel
+    )
     from .expr import Call  # pylint: disable=import-outside-toplevel
 
     def call(
@@ -271,7 +273,7 @@ def _make_op_api(op, module_name):
                     f"{op.name}: region builders do not accept ty, ty_args or an explicit loc"
                 )
             return region(op, operands, body_params=body_params, attrs=attrs)
-        return builder_emit_if_void(
+        return builder_maybe_emit_void_call(
             Call(op, operands, attrs=attrs, ty_args=ty_args, loc=loc, ty=ty)
         )
 
