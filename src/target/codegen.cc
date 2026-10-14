@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/extra/base64.h>
 #include <tvm/ffi/extra/module.h>
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
@@ -350,13 +351,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::TypeAttrDef<ffi::ModuleObj>()
-      .def(tvm::ffi::reflection::type_attr::kDataToJson,
+      .def(tvm::ffi::type_attr::kDataToJson.name,
            [](const ffi::ModuleObj* node) {
              std::string bytes = codegen::SerializeModuleToBytes(ffi::GetRef<ffi::Module>(node),
                                                                  /*export_dso*/ false);
              return ffi::Base64Encode(ffi::Bytes(bytes));
            })
-      .def(tvm::ffi::reflection::type_attr::kDataFromJson, [](const ffi::String& base64_bytes) {
+      .def(tvm::ffi::type_attr::kDataFromJson.name, [](const ffi::String& base64_bytes) {
         ffi::Bytes bytes = ffi::Base64Decode(base64_bytes);
         ffi::Module rtmod = codegen::DeserializeModuleFromBytes(bytes.operator std::string());
         return rtmod;

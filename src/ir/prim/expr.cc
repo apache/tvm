@@ -451,9 +451,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   CastNode::RegisterReflection();
   refl::TypeAttrDef<CastNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&CastVisit>())
-      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&CastMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&CastVisit>())
+      .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&CastMutate>())
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&CastMaybeInplaceMutate>());
 
   refl::GlobalDef().def("prim.Cast", [](PrimType dtype, PrimExpr value, Location loc) {
@@ -470,11 +470,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.Add",
                         [](PrimExpr a, PrimExpr b, Location loc) { return Add(a, b, loc); });
   refl::TypeAttrDef<AddNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<AddNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<AddNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<AddNode>>());
 }
 
@@ -487,11 +487,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.LShift",
                         [](PrimExpr a, PrimExpr b, Location loc) { return LShift(a, b, loc); });
   refl::TypeAttrDef<LShiftNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<LShiftNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<LShiftNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<LShiftNode>>());
 }
 
@@ -504,11 +504,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.RShift",
                         [](PrimExpr a, PrimExpr b, Location loc) { return RShift(a, b, loc); });
   refl::TypeAttrDef<RShiftNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<RShiftNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<RShiftNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<RShiftNode>>());
 }
 
@@ -521,11 +521,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.BitwiseAnd",
                         [](PrimExpr a, PrimExpr b, Location loc) { return BitwiseAnd(a, b, loc); });
   refl::TypeAttrDef<BitwiseAndNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<BitwiseAndNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<BitwiseAndNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<BitwiseAndNode>>());
 }
 
@@ -538,11 +538,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.BitwiseOr",
                         [](PrimExpr a, PrimExpr b, Location loc) { return BitwiseOr(a, b, loc); });
   refl::TypeAttrDef<BitwiseOrNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<BitwiseOrNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<BitwiseOrNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<BitwiseOrNode>>());
 }
 
@@ -555,11 +555,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.BitwiseXor",
                         [](PrimExpr a, PrimExpr b, Location loc) { return BitwiseXor(a, b, loc); });
   refl::TypeAttrDef<BitwiseXorNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<BitwiseXorNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<BitwiseXorNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<BitwiseXorNode>>());
 }
 
@@ -572,11 +572,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.Sub",
                         [](PrimExpr a, PrimExpr b, Location loc) { return Sub(a, b, loc); });
   refl::TypeAttrDef<SubNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<SubNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<SubNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<SubNode>>());
 }
 
@@ -589,11 +589,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.Mul",
                         [](PrimExpr a, PrimExpr b, Location loc) { return Mul(a, b, loc); });
   refl::TypeAttrDef<MulNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<MulNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<MulNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<MulNode>>());
 }
 
@@ -606,11 +606,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.Div",
                         [](PrimExpr a, PrimExpr b, Location loc) { return Div(a, b, loc); });
   refl::TypeAttrDef<DivNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<DivNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<DivNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<DivNode>>());
 }
 
@@ -623,11 +623,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.Mod",
                         [](PrimExpr a, PrimExpr b, Location loc) { return Mod(a, b, loc); });
   refl::TypeAttrDef<ModNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<ModNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<ModNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<ModNode>>());
 }
 
@@ -640,11 +640,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.FloorDiv",
                         [](PrimExpr a, PrimExpr b, Location loc) { return FloorDiv(a, b, loc); });
   refl::TypeAttrDef<FloorDivNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<FloorDivNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<FloorDivNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<FloorDivNode>>());
 }
 
@@ -657,11 +657,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.FloorMod",
                         [](PrimExpr a, PrimExpr b, Location loc) { return FloorMod(a, b, loc); });
   refl::TypeAttrDef<FloorModNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<FloorModNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<FloorModNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<FloorModNode>>());
 }
 
@@ -674,11 +674,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.Min",
                         [](PrimExpr a, PrimExpr b, Location loc) { return Min(a, b, loc); });
   refl::TypeAttrDef<MinNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<MinNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<MinNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<MinNode>>());
 }
 
@@ -691,11 +691,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.Max",
                         [](PrimExpr a, PrimExpr b, Location loc) { return Max(a, b, loc); });
   refl::TypeAttrDef<MaxNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<MaxNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<MaxNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<MaxNode>>());
 }
 
@@ -708,11 +708,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.EQ",
                         [](PrimExpr a, PrimExpr b, Location loc) { return EQ(a, b, loc); });
   refl::TypeAttrDef<EQNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<EQNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<EQNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<EQNode>>());
 }
 
@@ -725,11 +725,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.NE",
                         [](PrimExpr a, PrimExpr b, Location loc) { return NE(a, b, loc); });
   refl::TypeAttrDef<NENode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<NENode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<NENode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<NENode>>());
 }
 
@@ -742,11 +742,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.LT",
                         [](PrimExpr a, PrimExpr b, Location loc) { return LT(a, b, loc); });
   refl::TypeAttrDef<LTNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<LTNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<LTNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<LTNode>>());
 }
 
@@ -759,11 +759,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.LE",
                         [](PrimExpr a, PrimExpr b, Location loc) { return LE(a, b, loc); });
   refl::TypeAttrDef<LENode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<LENode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<LENode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<LENode>>());
 }
 
@@ -776,11 +776,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.GT",
                         [](PrimExpr a, PrimExpr b, Location loc) { return GT(a, b, loc); });
   refl::TypeAttrDef<GTNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<GTNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<GTNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<GTNode>>());
 }
 
@@ -793,11 +793,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.GE",
                         [](PrimExpr a, PrimExpr b, Location loc) { return GE(a, b, loc); });
   refl::TypeAttrDef<GENode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<GENode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<GENode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<GENode>>());
 }
 
@@ -823,11 +823,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.And",
                         [](PrimExpr a, PrimExpr b, Location loc) { return And(a, b, loc); });
   refl::TypeAttrDef<AndNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<AndNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<AndNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<AndNode>>());
 }
 
@@ -853,11 +853,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("prim.Or",
                         [](PrimExpr a, PrimExpr b, Location loc) { return Or(a, b, loc); });
   refl::TypeAttrDef<OrNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<OrNode>>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMutate<OrNode>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BinaryMaybeInplaceMutate<OrNode>>());
 }
 
@@ -877,9 +877,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   NotNode::RegisterReflection();
   refl::TypeAttrDef<NotNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&NotVisit>())
-      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&NotMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&NotVisit>())
+      .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&NotMutate>())
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&NotMaybeInplaceMutate>());
 
   refl::GlobalDef().def("prim.Not", [](PrimExpr a, Location loc) { return Not(a, loc); });
@@ -904,11 +904,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   BitwiseNotNode::RegisterReflection();
   refl::TypeAttrDef<BitwiseNotNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            ffi::FStructuralVisit::FromNative<&BitwiseNotVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&BitwiseNotVisit>())
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&BitwiseNotMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BitwiseNotMaybeInplaceMutate>());
 
   refl::GlobalDef().def("prim.BitwiseNot",
@@ -942,9 +941,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   SelectNode::RegisterReflection();
   refl::TypeAttrDef<SelectNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&SelectVisit>())
-      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&SelectMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&SelectVisit>())
+      .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&SelectMutate>())
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&SelectMaybeInplaceMutate>());
 
   refl::GlobalDef().def(
@@ -968,9 +967,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   LetNode::RegisterReflection();
   refl::TypeAttrDef<LetNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&LetVisit>())
-      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&LetMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&LetVisit>())
+      .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&LetMutate>())
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&LetMaybeInplaceMutate>());
 
   refl::GlobalDef().def("prim.Let", [](Var var, PrimExpr value, PrimExpr body, Location loc) {

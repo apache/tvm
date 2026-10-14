@@ -26,6 +26,8 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/cow.h>
@@ -96,6 +98,25 @@ class IRModuleNode : public ffi::Object {
       ffi::Optional<TObjectRef> default_value = ffi::Optional<TObjectRef>(std::nullopt)) const {
     return attrs.GetAttr(attr_key, default_value);
   }
+  /*!
+   * \brief Get an attribute with its value type deduced only from the key.
+   * \param key The typed attribute key.
+   * \param default_value Value returned only when the key is absent.
+   * \return The attribute or default, with the same conversions as the name-based getter.
+   */
+  template <typename T>
+  ffi::Optional<T> GetAttr(ffi::reflection::AttrKey<T> key,
+                           ffi::Optional<typename ffi::reflection::AttrKey<T>::ValueType>
+                               default_value = std::nullopt) const {
+    return attrs.GetAttr(key, std::move(default_value));
+  }
+  /*! \brief Accept a default convertible to the key's value type. */
+  template <typename T>
+  ffi::Optional<T> GetAttr(ffi::reflection::AttrKey<T> key,
+                           typename ffi::reflection::AttrKey<T>::ValueType default_value) const {
+    return GetAttr(key, ffi::Optional<T>(std::move(default_value)));
+  }
+
   // variant that uses TObjectRef to enable implicit conversion to default value.
   template <typename TObjectRef>
   ffi::Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
@@ -141,8 +162,8 @@ class IRModuleNode : public ffi::Object {
         .def_ro("global_infos", &IRModuleNode::global_infos);
     // register custom structural equal and hash.
     refl::TypeAttrDef<IRModuleNode>()
-        .def(tvm::ffi::reflection::type_attr::kSEqual, &IRModuleNode::SEqual)
-        .def(tvm::ffi::reflection::type_attr::kSHash, &IRModuleNode::SHash);
+        .def(tvm::ffi::type_attr::kSEqual.name, &IRModuleNode::SEqual)
+        .def(tvm::ffi::type_attr::kSHash.name, &IRModuleNode::SHash);
   }
 
   TVM_TIRX_DLL bool SEqual(const IRModuleNode* other,

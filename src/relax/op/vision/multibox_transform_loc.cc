@@ -219,9 +219,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh."),
                  sig::arg("anchor", "[1,N,4] priors as ltrb (left,top,right,bottom)."),
                  sig::call_attrs<MultiboxTransformLocAttrs>())
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeMultiboxTransformLoc>())
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeMultiboxTransformLoc>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

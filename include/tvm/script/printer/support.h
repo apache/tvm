@@ -23,6 +23,7 @@
 #ifndef TVM_SCRIPT_PRINTER_SUPPORT_H_
 #define TVM_SCRIPT_PRINTER_SUPPORT_H_
 
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/script/printer/config.h>
@@ -36,7 +37,7 @@ namespace printer {
 template <typename ObjectType>
 void RegisterScriptRepr() {
   namespace refl = ffi::reflection;
-  refl::TypeAttrDef<ObjectType>().def(refl::type_attr::kRepr,
+  refl::TypeAttrDef<ObjectType>().def(ffi::type_attr::kRepr.name,
                                       [](ffi::ObjectRef obj, ffi::Function) -> ffi::String {
                                         return RedirectedReprPrinterMethod(obj);
                                       });

@@ -124,8 +124,8 @@ class CodeGenCUDA final : public CodeGenC {
   std::unordered_set<std::string> codegen_tags_;
 
   // Op attribute map
-  OpAttrMap<bool> op_need_warp_shuffle_ =
-      Op::GetAttrMap<bool>(tvm::backend::cuda::op_attr::kNeedWarpShuffle);
+  decltype(Op::GetAttrMap(tvm::backend::cuda::op_attr::kNeedWarpShuffle)) op_need_warp_shuffle_ =
+      Op::GetAttrMap(tvm::backend::cuda::op_attr::kNeedWarpShuffle);
 
   // The name of the barrier array in shared memory
   const std::string barrier_name_ = "barrier";

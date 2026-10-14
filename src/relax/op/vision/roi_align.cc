@@ -157,10 +157,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("rois",
                    "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format."),
           sig::call_attrs<ROIAlignAttrs>())
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeROIAlign>())
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeROIAlign>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

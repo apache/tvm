@@ -66,8 +66,8 @@ ffi::Optional<ExprDoc> InlineTupleCallDocTranslate(DocTranslatorObj* d, ffi::Any
 TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"relax.call_builtin_with_ctx", "relax.make_closure",
                            "relax.invoke_closure", "relax.invoke_pure_closure"}) {
-    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
-                                        FDocTranslate::FromNative<&InlineTupleCallDocTranslate>());
+    OpDef(name).set_native_fn_attr<&InlineTupleCallDocTranslate>(
+        tvm::script::printer::op_attr::kDocTranslateOpCall);
   }
 }
 
@@ -107,12 +107,12 @@ ffi::Optional<ExprDoc> VMAllocCallDocTranslate(DocTranslatorObj* d, ffi::AnyView
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"relax.logical_and", "relax.logical_or", "relax.logical_not"}) {
-    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
-                                        FDocTranslate::FromNative<&LogicalCallDocTranslate>());
+    OpDef(name).set_native_fn_attr<&LogicalCallDocTranslate>(
+        tvm::script::printer::op_attr::kDocTranslateOpCall);
   }
   for (const char* name : {"relax.vm.alloc_storage", "relax.vm.alloc_tensor"}) {
-    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
-                                        FDocTranslate::FromNative<&VMAllocCallDocTranslate>());
+    OpDef(name).set_native_fn_attr<&VMAllocCallDocTranslate>(
+        tvm::script::printer::op_attr::kDocTranslateOpCall);
   }
 }
 
@@ -144,8 +144,8 @@ ffi::Optional<ExprDoc> CallDPSPackedDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.call_dps_packed")
-      .set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
-                               FDocTranslate::FromNative<&CallDPSPackedDocTranslate>());
+      .set_native_fn_attr<&CallDPSPackedDocTranslate>(
+          tvm::script::printer::op_attr::kDocTranslateOpCall);
 }
 
 }  // namespace

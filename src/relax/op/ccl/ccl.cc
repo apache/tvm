@@ -101,9 +101,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ccl.allreduce")
       .signature(sig::arg("x", "Input to which allreduce will be applied."),
                  sig::call_attrs<AllReduceAttrs>())
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeAllReduce>())
-      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutUnaryEwise)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeAllReduce>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutUnaryEwise)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.ccl.allgather */
@@ -143,9 +143,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ccl.allgather")
       .signature(sig::arg("x", "Input to which allgather will be applied."),
                  sig::call_attrs<AllGatherAttrs>())
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeAllGather>())
-      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutUnaryEwise)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeAllGather>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutUnaryEwise)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.ccl.broadcast_from_worker0 */
@@ -168,10 +168,9 @@ Type InferTypeBroadcastFromZero(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ccl.broadcast_from_worker0")
       .signature(sig::arg("x", "Input to be broadcast."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeBroadcastFromZero>())
-      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutUnaryEwise)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeBroadcastFromZero>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutUnaryEwise)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.ccl.scatter_from_worker0 */
@@ -221,8 +220,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               "x",
               "The buffer to be divided into equal parts and sent to each worker accordingly."),
           sig::call_attrs<ScatterCollectiveAttrs>())
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeScatter)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeScatter)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

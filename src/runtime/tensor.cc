@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/extra/base64.h>
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
@@ -201,7 +202,7 @@ using namespace tvm::runtime;
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::TypeAttrDef<tvm::ffi::TensorObj>()
-      .def(tvm::ffi::reflection::type_attr::kDataToJson,
+      .def(tvm::ffi::type_attr::kDataToJson.name,
            [](const tvm::ffi::TensorObj* node) {
              std::string result;
              tvm::support::BytesOutStream mstrm(&result);
@@ -210,7 +211,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              b64strm.Finish();
              return tvm::ffi::String(std::move(result));
            })
-      .def(tvm::ffi::reflection::type_attr::kDataFromJson, [](const std::string& blob) {
+      .def(tvm::ffi::type_attr::kDataFromJson.name, [](const std::string& blob) {
         tvm::support::BytesInStream mstrm(blob);
         tvm::support::Base64InStream b64strm(&mstrm);
         b64strm.InitPosition();

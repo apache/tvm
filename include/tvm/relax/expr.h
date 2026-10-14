@@ -21,6 +21,8 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
@@ -189,8 +191,8 @@ class VarBindingNode : public BindingNode {
     refl::ObjectDef<VarBindingNode>().def_ro("value", &VarBindingNode::value);
     // customize the SEqual and SHash methods for better error messages
     refl::TypeAttrDef<VarBindingNode>()
-        .def(tvm::ffi::reflection::type_attr::kSEqual, &VarBindingNode::SEqual)
-        .def(tvm::ffi::reflection::type_attr::kSHash, &VarBindingNode::SHash);
+        .def(tvm::ffi::type_attr::kSEqual.name, &VarBindingNode::SEqual)
+        .def(tvm::ffi::type_attr::kSHash.name, &VarBindingNode::SHash);
   }
 
   bool SEqual(const VarBindingNode* other,
@@ -274,8 +276,8 @@ class SeqExprNode : public ExprNode {
         .def_ro("blocks", &SeqExprNode::blocks)
         .def_ro("body", &SeqExprNode::body);
     refl::TypeAttrDef<SeqExprNode>()
-        .def(tvm::ffi::reflection::type_attr::kSEqual, &SeqExprNode::SEqual)
-        .def(tvm::ffi::reflection::type_attr::kSHash, &SeqExprNode::SHash);
+        .def(tvm::ffi::type_attr::kSEqual.name, &SeqExprNode::SEqual)
+        .def(tvm::ffi::type_attr::kSHash.name, &SeqExprNode::SHash);
   }
 
   bool SEqual(const SeqExprNode* other,

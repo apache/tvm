@@ -866,7 +866,7 @@ class ModuleInplaceTransformer : public ExprMutator {
   // replace the call with a call to an in-place tirx::Function.
   // (Made public for testing.)
   Call CreateInplaceCall(const Call& call, const ffi::Array<int64_t>& inplace_indices) {
-    static const auto& legalize_map = Op::GetAttrMap<FLegalize>(tvm::relax::op_attr::kLegalize);
+    static const auto& legalize_map = Op::GetAttrMap(tvm::relax::op_attr::kLegalize);
     static const auto call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
 
     auto op = call->op.as_or_throw<Op>();

@@ -437,7 +437,8 @@ namespace op_attr {
 /*!
  * \brief Op-specific Call translation hook with the FDocTranslate contract.
  */
-inline constexpr const char* kDocTranslateOpCall = "__tvm_doc_translate_op_call__";
+inline constexpr ffi::reflection::AttrKey<FDocTranslate> kDocTranslateOpCall{
+    "__tvm_doc_translate_op_call__"};
 }  // namespace op_attr
 
 inline ffi::Optional<ExprDoc> DocTranslatorObj::DefaultTranslate(ffi::AnyView value,

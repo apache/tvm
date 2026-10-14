@@ -44,7 +44,7 @@ ffi::Optional<ExprDoc> CallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   if (auto op = call->op.as<Op>();
       op && Op::HasAttrMap(tvm::script::printer::op_attr::kDocTranslateOpCall)) {
     static const auto& overrides =
-        Op::GetAttrMap<ffi::Any>(tvm::script::printer::op_attr::kDocTranslateOpCall);
+        Op::GetAttrMap<ffi::Any>(tvm::script::printer::op_attr::kDocTranslateOpCall.name);
     if (overrides.count(op.value())) {
       ffi::Any hook = overrides[op.value()];
       if (hook.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {
@@ -130,9 +130,9 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
   // Builder-only inference is deliberately excluded: named construction cannot run it.
   bool omit_result = call->ty.as<MissingType>().has_value() ||
                      (Op::HasAttrMap(tvm::op_attr::kInferType) &&
-                      Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType).count(op)) ||
+                      Op::GetAttrMap(tvm::op_attr::kInferType).count(op)) ||
                      (Op::HasAttrMap(tvm::op_attr::kFixedReturnType) &&
-                      Op::GetAttrMap<TFixedReturnType>(tvm::op_attr::kFixedReturnType).count(op));
+                      Op::GetAttrMap(tvm::op_attr::kFixedReturnType).count(op));
   if (!omit_result) {
     if (default_attrs) return RawCallDocTranslate(d, call);
     keys.push_back("ty");

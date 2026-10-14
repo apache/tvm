@@ -65,10 +65,8 @@ void ValidateDeviceScopeRegion(const RegionStmtNode* region) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.device_scope", "Internal host/device splitting boundary.")
       .signature(sig::var_args<Expr>("launch_values"), sig::call_attrs<DictAttrsNode>())
-      .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
-                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
-      .set_attr<FRegionValidate>(tvm::op_attr::kRegionValidate,
-                                 FRegionValidate::FromNative<&ValidateDeviceScopeRegion>());
+      .set_native_fn_attr<&RegionNoBodyParams>(tvm::op_attr::kRegionGetBodyParams)
+      .set_native_fn_attr<&ValidateDeviceScopeRegion>(tvm::op_attr::kRegionValidate);
 }
 
 // Device-region annotation

@@ -27,17 +27,20 @@
 
 namespace tvm::tirx::tile {
 
+namespace op_attr {
 /*!
  * \brief Lower a tile instruction Call using its execution context.
  *
  * Registering this attribute identifies an Op as a tile instruction. The
  * dispatcher can be implemented in C++ or registered from Python.
  */
-using FTileOpDispatch = ffi::TypedFunction<Function(const Call&, const DispatchContext&)>;
-
-namespace op_attr {
-inline constexpr const char* kTileOpDispatch = "FTileOpDispatch";
+inline constexpr ffi::reflection::AttrKey<
+    ffi::TypedFunction<Function(const Call&, const DispatchContext&)>>
+    kTileOpDispatch{"FTileOpDispatch"};
 }  // namespace op_attr
+
+// Compatibility names; new callers can deduce the value type from the key.
+using FTileOpDispatch = decltype(op_attr::kTileOpDispatch)::ValueType;
 
 /*!
  * \brief Invoke the Call's FTileOpDispatch attribute.

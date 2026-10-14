@@ -161,9 +161,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("uniform_sample", "The uniform sample tensor."),
                  sig::arg("sample_indices", "The sample indices tensor."),
                  sig::call_attrs<MultinomialFromUniformAttrs>())
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeMultinomialFromUniform>())
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeMultinomialFromUniform>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax
