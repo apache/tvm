@@ -354,11 +354,7 @@ def call_builtin_with_ctx(
 
     if ty_args is not None:
         ty_args = [
-            value()
-            if callable(value) and not isinstance(value, Type)
-            else value.__tvm_ffi_object__()
-            if hasattr(value, "__tvm_ffi_object__")
-            else value
+            value() if callable(value) and not isinstance(value, Type) else value
             for value in ty_args
         ]
     return Call(
@@ -775,16 +771,7 @@ def call_pure_packed(
     elif not isinstance(ty_args, list):
         ty_args = [ty_args]
 
-    ty_args = [
-        (
-            ty()
-            if callable(ty) and not isinstance(ty, Type)
-            else ty.__tvm_ffi_object__()
-            if hasattr(ty, "__tvm_ffi_object__")
-            else ty
-        )
-        for ty in ty_args
-    ]
+    ty_args = [ty() if callable(ty) and not isinstance(ty, Type) else ty for ty in ty_args]
 
     # note: if we need attributes, we can also take them here
 
