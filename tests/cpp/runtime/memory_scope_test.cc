@@ -63,11 +63,11 @@ TEST(MemoryScope, MembershipQueryPreservesRegistry) {
   auto num_attrs = state->attrs.size();
   auto global = MemoryScope::Global();
   auto property = global.alloc_property();
-  EXPECT_TRUE(MemoryScope::IsRegistered("global"));
-  EXPECT_TRUE(MemoryScope::IsRegistered(scope.name()));
-  EXPECT_FALSE(MemoryScope::IsRegistered("memory_scope_test.unknown"));
-  EXPECT_FALSE(MemoryScope::IsRegistered(""));
-  EXPECT_FALSE(MemoryScope::IsRegistered(ffi::String("global\0suffix", 13)));
+  EXPECT_TRUE(MemoryScope::IsDefined("global"));
+  EXPECT_TRUE(MemoryScope::IsDefined(scope.name()));
+  EXPECT_FALSE(MemoryScope::IsDefined("memory_scope_test.unknown"));
+  EXPECT_FALSE(MemoryScope::IsDefined(""));
+  EXPECT_FALSE(MemoryScope::IsDefined(ffi::String("global\0suffix", 13)));
   EXPECT_EQ(state->entries.size(), num_entries);
   EXPECT_EQ(state->indexes.size(), num_indexes);
   EXPECT_EQ(state->attrs.size(), num_attrs);

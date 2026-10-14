@@ -66,7 +66,7 @@ MemoryAllocProperty MemoryScope::alloc_property() const {
   return MemoryAllocProperty::kNormal;
 }
 
-bool MemoryScope::IsRegistered(const ffi::String& name) {
+bool MemoryScope::IsDefined(const ffi::String& name) {
   constexpr auto key = refl::AsByteArray(ffi::type_attr::kEnumState.name);
   if (TVMFFIGetTypeAttrColumn(&key) == nullptr) return false;
   auto value = refl::TypeAttrColumn(

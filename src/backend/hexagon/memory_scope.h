@@ -29,12 +29,12 @@ namespace hexagon {
 
 inline void RegisterMemoryScopes() {
   using runtime::MemoryAllocProperty;
-  if (!runtime::MemoryScope::IsRegistered("global.ddr")) {
+  if (!runtime::MemoryScope::IsDefined("global.ddr")) {
     ffi::reflection::EnumDef<runtime::MemoryScopeObj>("global.ddr")
         .set_attr(runtime::attr::kMemoryAllocProperty,
                   static_cast<int>(MemoryAllocProperty::kSingleAllocation));
   }
-  if (!runtime::MemoryScope::IsRegistered("global.vtcm")) {
+  if (!runtime::MemoryScope::IsDefined("global.vtcm")) {
     ffi::reflection::EnumDef<runtime::MemoryScopeObj>("global.vtcm")
         .set_attr(runtime::attr::kMemoryAllocProperty,
                   static_cast<int>(MemoryAllocProperty::kNormal));

@@ -31,7 +31,7 @@ inline constexpr const char* kTextureStorage = "opencl.texture_storage";
 
 inline void RegisterMemoryScopes() {
   using runtime::MemoryAllocProperty;
-  if (!runtime::MemoryScope::IsRegistered("texture")) {
+  if (!runtime::MemoryScope::IsDefined("texture")) {
     ffi::reflection::EnumDef<runtime::MemoryScopeObj>("texture")
         .set_attr(runtime::attr::kMemoryAllocProperty,
                   static_cast<int>(MemoryAllocProperty::kSeparateAllocations))
@@ -39,7 +39,7 @@ inline void RegisterMemoryScopes() {
   }
   for (const char* name : {"global.texture", "global.texture-1d", "global.texture-nchw",
                            "global.texture-nhwc", "global.texture-weight"}) {
-    if (runtime::MemoryScope::IsRegistered(name)) continue;
+    if (runtime::MemoryScope::IsDefined(name)) continue;
     ffi::reflection::EnumDef<runtime::MemoryScopeObj>(name)
         .set_attr(runtime::attr::kMemoryAllocProperty,
                   static_cast<int>(MemoryAllocProperty::kSingleAllocation))
