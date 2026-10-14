@@ -134,14 +134,14 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
     ffi::Array<Expr> args = call->args;
 
-    return Bind(replacement.var(),
-                Call(replacement.type(), tirx::alloc_tensor_op(), args, annotations,
-                     {replacement.type()}, call->loc),
+    return Bind(replacement,
+                Call(replacement.ty(), tirx::alloc_tensor_op(), args, annotations,
+                     {replacement.ty()}, call->loc),
                 node->loc);
   }
 
   ffi::Optional<TensorVar> GetRemappedTensor(const TensorVar& buf) {
-    Var root = tensor_aliases_.Get(buf.var()).value_or(buf.var());
+    Var root = tensor_aliases_.Get(buf).value_or(buf);
     if (auto it = allreduce_var_remap_.find(root.get()); it != allreduce_var_remap_.end()) {
       return it->second.as_or_throw<TensorVar>();
     }
@@ -174,7 +174,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     op = load.get();
 
     if (auto opt = GetRemappedTensor(load->source.as_or_throw<tvm::tirx::TensorVar>())) {
-      return MakeTensorLoad(opt.value(), load->indices, load->loc);
+      return TensorLoad(opt.value(), load->indices, load->loc);
     }
     return load;
   }
@@ -396,7 +396,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
           TensorVar buf = reduce_results[i]
                               .as_or_throw<TensorLoad>()
                               ->source.as_or_throw<tvm::tirx::TensorVar>();
-          PrimExpr val = MakeTensorLoad(buf, {zero_index});
+          PrimExpr val = TensorLoad(buf, {zero_index});
           TVM_FFI_ICHECK_EQ(val.ty(), dtypes[i]);
           PrimExpr splat = WarpShuffle(tirx::gpu_warp_shuffle_op(), new_alloc_bufs.back(), val,
                                        reduce_extent * group_index);
@@ -410,10 +410,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         std::vector<TensorVar> staging_shared_bufs;
         staging_shared_bufs.reserve(size);
         for (size_t i = 0; i < size; ++i) {
-          TensorVar staging_shared_buf = decl_tensor(
-              /*shape=*/{IntImm(reduce_index.ty(), n_warps * group_extent)},
-              /*dtype=*/tensors[i]->dtype, /*name=*/"red_buf_staging",
-              /*storage_scope=*/shared_scope);
+          TensorVar staging_shared_buf =
+              TensorVar(/*name=*/"red_buf_staging",
+                        TensorType(/*shape=*/{IntImm(reduce_index.ty(), n_warps * group_extent)},
+                                   /*dtype=*/tensors[i].dtype(), /*storage_scope=*/shared_scope));
           staging_shared_bufs.push_back(staging_shared_buf);
           new_alloc_bufs.push_back(staging_shared_buf);
         }
@@ -443,8 +443,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         // 4. Load staging tensor.
         //    Second round of allreduce.
         for (size_t i = 0; i < size; ++i) {
-          values[i] = MakeTensorLoad(/*tensor=*/staging_shared_bufs[i],
-                                     /*indices=*/{group_index * n_warps + reduce_index});
+          values[i] = TensorLoad(/*tensor=*/staging_shared_bufs[i],
+                                 /*indices=*/{group_index * n_warps + reduce_index});
         }
         std::tie(reduce_results, local_bufs) = MakeWarpAllreduce(
             values, dtypes, combiner, reduce_index, n_warps, group_index, mask,
@@ -459,13 +459,14 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
           new_alloc_bufs.push_back(reduce_results[i]
                                        .as_or_throw<TensorLoad>()
                                        ->source.as_or_throw<tvm::tirx::TensorVar>());
-          TensorVar broadcast_shared_buf = decl_tensor(
-              /*shape=*/{IntImm(reduce_index.ty(), group_extent)},
-              /*dtype=*/tensors[i]->dtype, /*name=*/"red_result", /*storage_scope=*/shared_scope);
+          TensorVar broadcast_shared_buf =
+              TensorVar(/*name=*/"red_result",
+                        TensorType(/*shape=*/{IntImm(reduce_index.ty(), group_extent)},
+                                   /*dtype=*/tensors[i].dtype(), /*storage_scope=*/shared_scope));
           write_result.push_back(
               TensorStore(broadcast_shared_buf, {group_index}, reduce_results[i]));
           // Update `reduce_results`, pointing to the value loaded from the shared memory tensor.
-          reduce_results[i] = MakeTensorLoad(broadcast_shared_buf, {group_index});
+          reduce_results[i] = TensorLoad(broadcast_shared_buf, {group_index});
         }
         seq.push_back(If(reduce_index == zero_index, SeqStmt(write_result)));
         seq.push_back(SyncThread("shared"));
@@ -483,8 +484,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         // The AllocTensor doesn't need to be emitted here since alloc_remap_
         // will cause the existing allocation to be rewritten in MutateAllocTensor.
         alloc_remap_.insert_or_assign(alloc_key, buf);
-        allreduce_var_remap_.insert_or_assign(alloc_key, buf.var());
-        allreduce_var_remap_.insert_or_assign(tensors[i].get(), buf.var());
+        allreduce_var_remap_.insert_or_assign(alloc_key, buf);
+        allreduce_var_remap_.insert_or_assign(tensors[i].get(), buf);
       }
     } else {
       std::vector<TensorVar> shared_bufs;
@@ -501,9 +502,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       // previous iteration on the same tensor.
       seq.emplace_back(SyncThread("shared"));
       for (size_t idx = 0; idx < size; ++idx) {
-        shared_bufs.push_back(decl_tensor({IntImm(group_index.ty(), group_extent * reduce_extent)},
-                                          dtypes[idx], "red_buf" + std::to_string(idx),
-                                          shared_scope));
+        shared_bufs.push_back(
+            TensorVar("red_buf" + std::to_string(idx),
+                      TensorType({IntImm(group_index.ty(), group_extent * reduce_extent)},
+                                 dtypes[idx], shared_scope)));
         seq.emplace_back(TensorStore(
             shared_bufs[idx], {BufIndex(reduce_index, group_index, reduce_extent)}, values[idx]));
       }
@@ -515,21 +517,21 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         TVM_FFI_ICHECK(!load_remap_.count(alloc_key));
         PrimExpr pred =
             prim::MakeConst(PrimType::Bool(static_cast<int16_t>(dtypes[idx].lanes())), true);
-        TensorLoad load = MakeTensorLoad(
+        TensorLoad load = TensorLoad(
             shared_bufs[idx], {BufIndex(IntImm(reduce_index.ty(), 0), group_index, reduce_extent)});
         TVM_FFI_ICHECK_EQ(load.ty(), dtypes[idx]);
         load_remap_.insert_or_assign(alloc_key, load);
         alloc_remap_.insert_or_assign(alloc_key, shared_bufs[idx]);
-        allreduce_var_remap_.insert_or_assign(alloc_key, shared_bufs[idx].var());
-        allreduce_var_remap_.insert_or_assign(tensors[idx].get(), shared_bufs[idx].var());
+        allreduce_var_remap_.insert_or_assign(alloc_key, shared_bufs[idx]);
+        allreduce_var_remap_.insert_or_assign(tensors[idx].get(), shared_bufs[idx]);
       }
     }
 
     // Fix all local allocations as all statements are built.
     ffi::Array<Stmt> alloc_stmts;
     for (TensorVar buf : new_alloc_bufs) {
-      alloc_stmts.push_back(Bind(
-          buf.var(), Call(buf.type(), tirx::alloc_tensor_op(), {}, DictAttrs(), {buf.type()})));
+      alloc_stmts.push_back(
+          Bind(buf, Call(buf.ty(), tirx::alloc_tensor_op(), {}, DictAttrs(), {buf.ty()})));
     }
     // Prepend allocations before the sequence
     for (const auto& s : seq) {
@@ -565,12 +567,13 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     load_values.reserve(n_tensors);
     for (int idx = 0; idx < n_tensors; ++idx) {
       shared_bufs.push_back(
-          decl_tensor(shape, dtypes[idx], "red_buf" + std::to_string(idx), local_scope));
+          TensorVar("red_buf" + std::to_string(idx), TensorType(shape, dtypes[idx], local_scope)));
       load_values.push_back(TensorStore(shared_bufs[idx], zero_indices, src_values[idx]));
 
       // Uses a local variable to store the shuffled data.  Later
       // on, an allocation will be built for this local variable.
-      local_bufs.push_back(decl_tensor(shape, dtypes[idx], "t" + std::to_string(idx), local_scope));
+      local_bufs.push_back(
+          TensorVar("t" + std::to_string(idx), TensorType(shape, dtypes[idx], local_scope)));
     }
 
     if (predicate.has_value()) {
@@ -584,7 +587,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // active channels.
     ffi::Optional<TensorVar> mask_tensor;
     if (need_warp_shuffle_mask_) {
-      mask_tensor = decl_tensor(shape, mask.ty(), "mask", local_scope);
+      mask_tensor = TensorVar("mask", TensorType(shape, mask.ty(), local_scope));
       seq->emplace_back(TensorStore(mask_tensor.value(), zero_indices, mask));
       // Push the tensor description.  Later this will have an
       // allocation built for it.
@@ -601,7 +604,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       ffi::Array<PrimExpr> a, b;
       for (int i = 0; i < n_tensors; ++i) {
         TensorVar shared_buf = shared_bufs[i];
-        TensorLoad val = MakeTensorLoad(shared_buf, zero_indices);
+        TensorLoad val = TensorLoad(shared_buf, zero_indices);
         TVM_FFI_ICHECK_EQ(val.ty(), dtypes[i]);
         a.push_back(val);
 
@@ -622,7 +625,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         Stmt s = TensorStore(local_buf, zero_indices, other);
         seq->push_back(s);
 
-        TensorLoad load = MakeTensorLoad(local_buf, zero_indices);
+        TensorLoad load = TensorLoad(local_buf, zero_indices);
         TVM_FFI_ICHECK_EQ(load.ty(), dtypes[i]);
         b.push_back(load);
       }
@@ -655,7 +658,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     std::vector<PrimExpr> reduce_results;
     reduce_results.reserve(n_tensors);
     for (int i = 0; i < n_tensors; ++i) {
-      reduce_results.push_back(MakeTensorLoad(shared_bufs[i], zero_indices));
+      reduce_results.push_back(TensorLoad(shared_bufs[i], zero_indices));
     }
 
     return {reduce_results, local_bufs};
@@ -680,12 +683,12 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     auto fload = [&](int offset) {
       ffi::Array<PrimExpr> a, b;
       for (size_t i = 0; i < size; ++i) {
-        TensorLoad b_load = MakeTensorLoad(
+        TensorLoad b_load = TensorLoad(
             shared_bufs[i], {BufIndex(reduce_index + offset, group_index, reduce_extent)});
         TVM_FFI_ICHECK_EQ(b_load.ty(), dtypes[i]);
         b.push_back(b_load);
 
-        TensorLoad a_load = MakeTensorLoad(shared_bufs[i], {buf_index});
+        TensorLoad a_load = TensorLoad(shared_bufs[i], {buf_index});
         TVM_FFI_ICHECK_EQ(a_load.ty(), dtypes[i]);
         a.push_back(a_load);
       }
@@ -814,7 +817,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     ffi::Array<PrimExpr> indices = {0};
     PrimExpr mask{ffi::UnsafeInit{}};
     if (need_warp_shuffle_mask_ && mask_tensor.has_value()) {
-      mask = MakeTensorLoad(mask_tensor.value(), indices);
+      mask = TensorLoad(mask_tensor.value(), indices);
     } else {
       mask = IntImm::Int32(0);
     }
@@ -887,7 +890,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
 
   void RegisterTensorAlias(TensorVar tensor, const Expr& data) {
-    Var root = tensor.var();
+    Var root = tensor;
     if (auto source = GetBufferDataVar(data);
         source.has_value() && source.value()->ty.as<TensorTypeNode>()) {
       auto source_root = tensor_aliases_.Get(source.value());
@@ -895,7 +898,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
                                               << " must be registered before its DeclTensor alias";
       root = source_root.value();
     }
-    tensor_aliases_.Set(tensor.var(), root);
+    tensor_aliases_.Set(tensor, root);
   }
 
   // The target.
@@ -991,9 +994,9 @@ class DeferredRemapper : public StmtExprMutator {
         }
         ffi::Array<Expr> args = call->args;
 
-        return Bind(replacement.var(),
-                    Call(replacement.type(), tirx::alloc_tensor_op(), args, annotations,
-                         {replacement.type()}, call->loc),
+        return Bind(replacement,
+                    Call(replacement.ty(), tirx::alloc_tensor_op(), args, annotations,
+                         {replacement.ty()}, call->loc),
                     node->loc);
       }
     }
@@ -1011,8 +1014,8 @@ class DeferredRemapper : public StmtExprMutator {
     if (auto new_buf = GetRemappedTensor(node->var.as_or_throw<TensorVar>())) {
       const CallNode* call = node->value.as<CallNode>();
       return Bind(new_buf.value(),
-                  Call(new_buf.value().type(), tirx::decl_tensor_op(), {call->args[0]}, call->attrs,
-                       {new_buf.value().type()}, call->loc),
+                  Call(new_buf.value().ty(), tirx::decl_tensor_op(), {call->args[0]}, call->attrs,
+                       {new_buf.value().ty()}, call->loc),
                   node->loc);
     }
     return node;
@@ -1020,7 +1023,7 @@ class DeferredRemapper : public StmtExprMutator {
 
  private:
   ffi::Optional<TensorVar> GetRemappedTensor(const TensorVar& buf) {
-    Var root = tensor_aliases_.Get(buf.var()).value_or(buf.var());
+    Var root = tensor_aliases_.Get(buf).value_or(buf);
     if (auto it = allreduce_var_remap_.find(root.get()); it != allreduce_var_remap_.end()) {
       return it->second.as_or_throw<TensorVar>();
     }

@@ -237,7 +237,7 @@ void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* bu
   runtime::MemoryScope scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   TVM_FFI_ICHECK(buffer.defined());
-  std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
+  std::string vid = AllocVarID(buffer.get(), buffer->name + "_ptr");
 
   this->PrintIndent();
   std::ostringstream dtype_os;
@@ -639,8 +639,8 @@ void CodeGenTrainium::DispatchDeclTensor(const BindNode* op, const CallNode* buf
   static const auto scope_trn_sbuf = runtime::MemoryScope::Get("trn.sbuf");
   Expr data = buffer_call->args[0];
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
-  tvm::Tuple shape(buffer->shape);
-  DLDataType dtype = buffer->dtype->dtype;
+  tvm::Tuple shape(buffer.shape());
+  DLDataType dtype = buffer.dtype()->dtype;
   runtime::MemoryScope scope = buffer.scope();
   if (scope == scope_trn_psum || scope == scope_trn_sbuf) {
     return;
@@ -666,8 +666,8 @@ void CodeGenTrainium::DispatchDeclTensor(const BindNode* op, const CallNode* buf
   auto it = data_buffer_idmap_.find(data_var);
   if (it != data_buffer_idmap_.end()) {
     const TensorVar& prev_buffer = data_decl_buffer_map_.at(data_var);
-    if (ffi::StructuralEqual()(prev_buffer->shape, shape->fields) &&
-        prev_buffer->dtype == PrimType(dtype)) {
+    if (ffi::StructuralEqual()(prev_buffer.shape(), shape->fields) &&
+        prev_buffer.dtype() == PrimType(dtype)) {
       buffer_idmap_[buffer] = it->second;
       return;
     }

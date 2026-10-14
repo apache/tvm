@@ -80,8 +80,6 @@ from tvm.ir.prim.expr import (  # noqa: F401
 )
 from tvm.runtime import ObjectConvertible
 
-from . import _ffi_api
-
 
 class IntImmEnum(ObjectConvertible):
     """Lazily evaluate an IntImm in case
@@ -124,7 +122,7 @@ def TensorLoad(tensor: Var, indices: list[Expr], loc: Location = UNKNOWN_LOC) ->
 
     """
 
-    return _ffi_api.TensorLoad(tensor, indices, loc)
+    return ir.TensorLoad(tensor, indices, loc)
 
 
 class CallEffectKind:

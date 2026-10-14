@@ -282,7 +282,7 @@ std::string CodeGenC::GetBufferRef(const PrimType& t, const VarNode* buffer, Pri
     return ptr_os.str();
   };
 
-  const PrimType& buffer_element_dtype = GetTensorVar(buffer)->dtype;
+  const PrimType& buffer_element_dtype = ffi::GetRef<Var>(buffer).as_or_throw<TensorVar>().dtype();
 
   std::string buffer_str = vid;
   if (!HandleTypeMatch(buffer_var, buffer_element_dtype) || is_vol) {
@@ -800,7 +800,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
         }
         const VarNode* data = load->source.as_or_throw<tvm::tirx::TensorVar>().get();
         if (pointer_offset_vars_.count(data) &&
-            HandleTypeMatch(data, load->source.as_or_throw<tvm::tirx::TensorVar>()->dtype) &&
+            HandleTypeMatch(data, load->source.as_or_throw<tvm::tirx::TensorVar>().dtype()) &&
             !IsVolatile(data)) {
           os << "(" << GetVarID(data) << " + ";
           this->PrintExpr(index, os);
@@ -995,8 +995,8 @@ void CodeGenC::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // NOLIN
 
   PrimType value_ty = op->ty.as_or_throw<PrimType>();
   PrimExpr index = op->indices[0];
-  Var buffer_var = op->source.as_or_throw<tvm::tirx::TensorVar>().var();
-  const PrimType& element_ty = op->source.as_or_throw<tvm::tirx::TensorVar>()->dtype;
+  Var buffer_var = op->source.as_or_throw<tvm::tirx::TensorVar>();
+  const PrimType& element_ty = op->source.as_or_throw<tvm::tirx::TensorVar>().dtype();
 
   int lanes = value_ty.lanes();
   // delcare type.
@@ -1071,9 +1071,9 @@ void CodeGenC::Dispatch_(const TensorStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
 
   PrimType value_ty = op->value.ty();
-  const PrimType& element_ty = op->dest.as_or_throw<TensorVar>()->dtype;
+  const PrimType& element_ty = op->dest.as_or_throw<TensorVar>().dtype();
   PrimExpr index_expr = op->indices[0];
-  Var buffer_var = op->dest.as_or_throw<TensorVar>().var();
+  Var buffer_var = op->dest.as_or_throw<TensorVar>();
 
   if (value_ty.lanes() == element_ty.lanes()) {
     std::string value = this->PrintExpr(op->value);
@@ -1289,7 +1289,7 @@ void CodeGenC::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_ca
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());
-  std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
+  std::string vid = AllocVarID(buffer.get(), buffer->name + "_ptr");
 
   this->PrintIndent();
   size_t constant_size = 1;

@@ -343,10 +343,48 @@ def test_tensor_load_store():
     assert x.ty.dtype == "float32"
     assert x.source == b
     assert not hasattr(x, "tensor")
-    with pytest.raises(TypeError, match="cannot be constructed directly"):
-        tvm.ir.TensorLoad(b, [0])
+    loc = tvm.ir.SourceLoc(tvm.ir.SourceName("tensor_load"), 1, 2, 1, 3)
+    core_load = tvm.ir.TensorLoad(b, [0], loc)
+    dialect_load = tvm.tirx.TensorLoad(b, [0], loc)
+    tvm.ir.assert_structural_equal(core_load, dialect_load)
+    assert core_load.loc.same_as(loc)
+    restored = tvm.ir.load_json(tvm.ir.save_json(core_load))
+    assert isinstance(restored.ty, tvm.ir.PrimType)
+    tvm.ir.assert_structural_equal(core_load, restored, map_free_vars=True)
     s = tvm.ir.TensorStore(b, [0], 0.1)
     assert isinstance(s, tvm.ir.TensorStore)
+
+
+@pytest.mark.parametrize("constructor", [tvm.ir.TensorLoad, tvm.tirx.TensorLoad])
+def test_tensor_load_validation(constructor):
+    tensor = tvm.tirx.decl_tensor((8, 8), "float32")
+    with pytest.raises(RuntimeError, match="dimensional"):
+        constructor(tensor, [0])
+    with pytest.raises(RuntimeError, match="Only the last index"):
+        constructor(tensor, [tvm.tirx.Ramp(0, 1, 4), 0])
+    with pytest.raises(TypeError, match="does not support TensorLoad"):
+        constructor(tvm.tirx.Var("scalar", "float32"), [0])
+
+
+@pytest.mark.parametrize(
+    "element_dtype,index_lanes,result_dtype",
+    [
+        ("float32x2", 4, "float32x8"),
+        ("float32x2", "scalable", "float32xvscalex8"),
+        ("float32xvscalex2", 4, "float32xvscalex8"),
+    ],
+)
+def test_tensor_load_vector_elements(element_dtype, index_lanes, result_dtype):
+    tensor = tvm.tirx.decl_tensor((32,), element_dtype)
+    lanes = 4 * tvm.tirx.vscale() if index_lanes == "scalable" else index_lanes
+    load = tvm.ir.TensorLoad(tensor, [tvm.tirx.Ramp(0, 1, lanes)])
+    assert load.ty.dtype == result_dtype
+
+
+def test_tensor_load_rejects_two_scalable_types():
+    tensor = tvm.tirx.decl_tensor((32,), "float32xvscalex2")
+    with pytest.raises(RuntimeError, match="can't both be scalable"):
+        tvm.ir.TensorLoad(tensor, [tvm.tirx.Ramp(0, 1, 4 * tvm.tirx.vscale())])
 
 
 def test_intimm_cond():

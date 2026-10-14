@@ -87,7 +87,7 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     optional("scope", LiteralDoc::Str(tensor->scope.name(), std::nullopt));
   }
   if (!tensor->strides.empty()) optional("strides", d->Translate(tensor->strides).value());
-  if (!ffi::StructuralEqual()(tensor->elem_offset, IntImm(tirx::DefaultIndexPrimType(), 0))) {
+  if (!ffi::StructuralEqual()(tensor->elem_offset, IntImm(tirx::DefaultIndexType(), 0))) {
     optional("elem_offset", d->WithExtraStateScope<bool>("ir.explicit_value_type", true, [&] {
       return d->Translate(tensor->elem_offset).value();
     }));
