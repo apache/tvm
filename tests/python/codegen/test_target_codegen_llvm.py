@@ -1227,5 +1227,27 @@ def test_bool_return_value():
     assert not built(15)
 
 
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_llvm_module_properties_and_formats(tmp_path):
+    @T.function
+    def main(A: T.Tensor((10,), "int64")):
+        for i in range(9):
+            A[i + 1] = A[i] + T.int64(1)
+
+    module = tvm.tirx.compile(main, target="llvm").mod
+    assert not module.is_binary_serializable()
+    assert module.is_runnable()
+    assert module.is_compilation_exportable()
+    for extension in ("o", "ll", "bc"):
+        path = tmp_path / ("module." + extension)
+        module.write_to_file(str(path))
+        assert path.is_file()
+        if extension == "ll":
+            loaded = tvm.runtime.load_module(str(path))
+            data = tvm.runtime.tensor(np.zeros(10, dtype="int64"))
+            loaded(data)
+            np.testing.assert_equal(data.numpy(), np.arange(10))
+
+
 if __name__ == "__main__":
     tvm.testing.main()
