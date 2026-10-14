@@ -54,36 +54,32 @@ and the standalone skip commands retain their command-line interfaces.
 
 ### Trust and rollout
 
-Each entry point first uses `readTrusted` to read the helper at Jenkins' pinned
-SCM revision. When an untrusted PR modifies that file, Jenkins refuses the read.
-The entry point then checks out a fresh bootstrap workspace and reads the helper
-from the fetched **PR target branch** in the canonical Apache repository. It pins
-that exact target commit for all subsequent source merges, including release
-branch targets. It never evaluates workspace helper code or substitutes `main`.
-The bootstrap runs only built-in checkout/Git commands, without repository scripts
-or credentials. Missing target files and evaluation errors fail the build.
+Each entry point evaluates the shared helper returned by `readTrusted` at
+Jenkins' selected SCM revision. Untrusted PRs that modify or delete the helper
+fail immediately, before node allocation, checkout, or credentials. Missing
+helpers, interrupted reads, and evaluation errors also propagate directly.
+No alternative helper is fetched or evaluated.
 
-This fallback adds a bootstrap node allocation for a refused helper read; it has
-the same spot-to-on-demand Exception fallback as preparation. Cancellation still
-runs once before preparation. Trusted helper changes use Jenkins' selected
-revision directly. Host scripts and artifact metadata follow the pinned target
-revision for PR authors outside `CONTRIBUTORS.md`.
+Trusted helper changes use Jenkins' selected revision directly. Cancellation
+runs once before preparation. During preparation, the normal source merge pins
+the PR target revision for subsequent stages, including release targets.
+Host scripts and artifact metadata follow that pinned target revision for PR
+authors outside `CONTRIBUTORS.md`.
 
-Migrate each trusted target branch as a unit before testing untrusted PRs against
-it. A target predating the shared helper cannot supply the fallback. An older
-helper or monolithic entry point may also call a renamed host script before the
-merge and trusted-file restoration, so a PR deleting that old path can fail
-preparation. This includes the node-information command moved into `scripts/`.
-A trusted branch build exercises the complete new layout; it does not establish
-compatibility with an unmigrated target. Do not bypass these failures by loading
-PR-owned helpers or a different target revision.
+Migrate each trusted target branch as a unit. An older monolithic entry point
+can call a renamed host script before the merge and trusted-file restoration,
+so a PR deleting that old path can fail preparation. This includes the
+node-information command moved into `scripts/`. Use a trusted branch build to
+exercise helper changes and the complete new layout; do not bypass a refused
+read by evaluating PR-owned code or a different target revision.
 
 Before enabling the migration on production jobs, validate it with the existing
 Jenkins plugin versions and sandbox settings on a trusted branch: run all five
 entry points, suspend/resume across a node step, and exercise spot loss, a normal
 build-command failure, superseded builds, and a failed on-demand retry. Check
-trusted and untrusted PRs both with and without a common-helper change, and a
-release-target PR. Verify image overrides and disabled deployment gates before
+trusted helper changes, untrusted PRs without helper changes, and refusal of
+untrusted modified/deleted helpers, including a release-target PR. Verify image
+overrides and disabled deployment gates before
 checking enabled docs/Docker deployment in the normal trusted deployment context.
 Local mocked execution checks pipeline control flow but cannot certify Jenkins
 CPS serialization, sandbox approvals, SCM trust configuration, or real agent loss.
