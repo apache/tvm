@@ -62,9 +62,9 @@ ffi::Module HexagonFallbackModuleCreate(ffi::Bytes code, ffi::String fmt,
  *        "ffi.Module.create.hexagon"; on miss or when forced via env var,
  *        falls back to `HexagonFallbackModuleCreate`.
  *
- *   - Registry hit (USE_HEXAGON=ON build) → real `HexagonModuleObj`
+ *   - Registry hit (external Hexagon runtime) → runtime module
  *     returned.
- *   - Registry miss (USE_HEXAGON=OFF build) → `HexagonFallbackModuleObj`
+ *   - Registry miss → `HexagonFallbackModuleObj`
  *     returned.
  *   - `TVM_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless of
  *     registry state (used by per-backend fallback tests on a USE_X=ON CI

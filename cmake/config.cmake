@@ -224,21 +224,8 @@ set(USE_THRUST OFF)
 # Whether use cuRAND
 set(USE_CURAND OFF)
 
-# Whether to enable Hexagon support
-set(USE_HEXAGON OFF)
-set(USE_HEXAGON_SDK /path/to/sdk)
-
-# Whether to build the minimal support android rpc server for Hexagon
-set(USE_HEXAGON_RPC OFF)
-
-# Hexagon architecture to target when compiling TVM itself (not the target for
-# compiling _by_ TVM). This applies to components like the TVM runtime, but is
-# also used to select correct include/library paths from the Hexagon SDK when
-# building runtime for Android.
-# Valid values are v65, v66, v68, v69, v73, v75.
-set(USE_HEXAGON_ARCH "v68")
-
-# Whether to use QHL library
+# Whether to lower Hexagon math intrinsics to QHL calls.
+# The generated code requires QHL runtime wrappers supplied externally.
 set(USE_HEXAGON_QHL OFF)
 
 # Whether to build static libtvm_runtime.a, the default is to build the dynamic

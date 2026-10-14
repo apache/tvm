@@ -59,6 +59,10 @@ if(NOT ${USE_LLVM} MATCHES ${IS_FALSE_PATTERN})
     src/backend/hexagon/codegen/llvm/*.cc
   )
   list(REMOVE_ITEM COMPILER_LLVM_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/llvm/target_kind.cc")
+  if(USE_HEXAGON_QHL)
+    set_property(SOURCE src/backend/hexagon/codegen/llvm/intrin_rule_hexagon.cc
+      APPEND PROPERTY COMPILE_DEFINITIONS ENABLE_QHL=1)
+  endif()
   list(APPEND TVM_LINKER_LIBS ${LLVM_LIBS})
   list(APPEND COMPILER_SRCS ${COMPILER_LLVM_SRCS})
   if(NOT MSVC)

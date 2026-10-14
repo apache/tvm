@@ -20,10 +20,8 @@
 /*!
  * \file hexagon_fallback_module.cc
  * \brief HexagonFallbackModuleObj — codegen-time placeholder used when the
- *        Hexagon runtime is not linked.  Mirrors `HexagonModuleObj`'s
- *        save/load format byte-for-byte; see one-way comment in
- *        `SaveToBytes` below.  Always compiled (independent of USE_HEXAGON);
- *        never registered as an FFI factory or loader.
+ *        Hexagon runtime is not linked.  Preserves the serialized module
+ *        format for external runtimes; never registers an FFI factory or loader.
  */
 #include "hexagon_fallback_module.h"
 
@@ -55,21 +53,16 @@ class HexagonFallbackModuleObj : public ffi::ModuleObj {
   int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; }
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
-    TVM_FFI_THROW(RuntimeError) << "Hexagon runtime is not linked into this build; cannot launch "
-                                << "kernels.  Re-link with USE_HEXAGON=ON or load this module in a "
-                                << "Hexagon-equipped environment via tvm.runtime.load_module.";
+    TVM_FFI_THROW(RuntimeError)
+        << "Hexagon runtime is not linked into this build; cannot launch "
+        << "kernels.  Load this module with an external Hexagon runtime in a "
+        << "Hexagon-equipped environment via tvm.runtime.load_module.";
     TVM_FFI_UNREACHABLE();
   }
 
   ffi::Bytes SaveToBytes() const final {
-    // NOTE: serialization format MUST remain byte-identical to
-    // HexagonModuleObj::SaveToBytes in src/backend/hexagon/runtime/hexagon_module.cc
-    // (the source of truth).  Both produce a kind="hexagon" artifact that
-    // the loader (ffi.Module.load_from_bytes.hexagon, registered only when
-    // USE_HEXAGON=ON) deserializes.  If the real impl's format changes,
-    // mirror the change here.  The dependency is one-way: this file
-    // follows; hexagon_module.cc does not reference this file.
-    //
+    // Preserve the Hexagon module wire format for external runtime loaders:
+    // format, function metadata, then shared-library bytes.
     // 3 fields only — the source map is in-memory inspection material and
     // is NEVER serialized (matches upstream behavior for all backends).
     std::string buffer;

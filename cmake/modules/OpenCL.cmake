@@ -21,9 +21,10 @@ if(USE_OPENCL)
   set(_opencl_libs "")
   if(${USE_OPENCL} MATCHES ${IS_TRUE_PATTERN})
     message(STATUS "Enabled runtime search for OpenCL library location")
-    file_glob_append(RUNTIME_OPENCL_SRCS
+    tvm_file_glob(GLOB OPENCL_WRAPPER_SRCS
       "src/backend/opencl/runtime/opencl_wrapper/opencl_wrapper.cc"
     )
+    list(APPEND RUNTIME_OPENCL_SRCS ${OPENCL_WRAPPER_SRCS})
     set(_opencl_include_dirs "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/OpenCL-Headers")
   else()
     find_opencl(${USE_OPENCL})

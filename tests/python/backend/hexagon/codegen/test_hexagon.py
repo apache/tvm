@@ -16,28 +16,40 @@
 # under the License.
 
 import re
+from pathlib import Path
 
 import pytest
+from tvm_ffi import register_global_func
 
 import tvm
 import tvm.testing
-from tvm.backend.hexagon import linker as hexagon
 from tvm.script import ir as I
 from tvm.script import tirx as T
-from tvm.testing import env
+
+pytestmark = pytest.mark.skipif(
+    not tvm.runtime.enabled("llvm") or "hexagon" not in tvm.codegen.llvm_get_targets(),
+    reason="LLVM Hexagon target is required",
+)
 
 
 @pytest.fixture(autouse=True)
 def register_linker():
-    original_linker = tvm.get_global_func("tvm.contrib.hexagon.hexagon_link")
-    # Register a phony linker, so that we can test codegen without a Hexagon toolchain.
-    hexagon.register_linker(lambda: "/bin/true")
-    yield None
-    # Restore registration.
-    hexagon.register_linker(original_linker)
+    name = "tvm.contrib.hexagon.link_shared"
+    original_linker = tvm.get_global_func(name)
+
+    def link_shared(so_name, _objs, _extra_args=None):
+        # Codegen retains the output bytes, but these tests only inspect the
+        # LLVM-generated assembly/IR and never execute the linked module.
+        Path(so_name).write_bytes(b"")
+        return 0
+
+    register_global_func(name, link_shared, override=True)
+    try:
+        yield
+    finally:
+        register_global_func(name, original_linker, override=True)
 
 
-@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_basic():
     target = tvm.target.Target("qcom/hexagon-v66")
 
@@ -54,12 +66,11 @@ def test_basic():
                 C[i] = A[i] + A_1[i]
 
     hexm = tvm.tirx.compile(Module, target=tvm.target.Target(target, target))
-    asm = hexm.inspect_source("s")
+    asm = hexm.mod.imports[0].inspect_source("s")
     vadds = re.findall(r"v[0-9]+.b = vadd\(v[0-9]+.b,v[0-9]+.b\)", asm)
-    assert vadds  # Check that it's non-empty
+    assert vadds, asm
 
 
-@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_llvm_target_features():
     target = tvm.target.Target("qcom/hexagon-v66")
 
@@ -72,13 +83,12 @@ def test_llvm_target_features():
                 C[i] = T.Cast(A[i], "int32") + 1
 
     m = tvm.tirx.compile(Module, target=tvm.target.Target(target, target))
-    llvm_ir = m.inspect_source("ll")
+    llvm_ir = m.mod.imports[0].inspect_source("ll")
     # Make sure we find +hvx-length128b in "attributes".
     fs = re.findall(r"attributes.*\+hvx-length128b", llvm_ir)
     assert fs  # Check that it's non-empty
 
 
-@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_llvm_options():
     target = tvm.target.Target(
         {

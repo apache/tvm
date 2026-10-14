@@ -17,13 +17,25 @@
  * under the License.
  */
 
-#include "remote.idl"
-#include "AEEStdDef.idl"
+#ifndef TVM_BACKEND_HEXAGON_CODEGEN_MEMORY_SCOPE_H_
+#define TVM_BACKEND_HEXAGON_CODEGEN_MEMORY_SCOPE_H_
 
-typedef sequence<octet> buffer;
+#include "../../memory_scope.h"
 
-interface hexagon_rpc : remote_handle64 {
-  AEEResult send(in buffer data);
-  AEEResult receive(rout buffer buf, rout int64_t buf_written_size);
-  AEEResult init(in uint32_t buff_size_bytes);
-};
+namespace tvm {
+namespace backend {
+namespace hexagon {
+
+inline void RegisterMemoryScopes() {
+  static const bool initialized = [] {
+    RegisterBackendMemoryScope("global.ddr", runtime::MemoryAllocProperty::kSingleAllocation);
+    RegisterBackendMemoryScope("global.vtcm", runtime::MemoryAllocProperty::kNormal);
+    return true;
+  }();
+  (void)initialized;
+}
+
+}  // namespace hexagon
+}  // namespace backend
+}  // namespace tvm
+#endif  // TVM_BACKEND_HEXAGON_CODEGEN_MEMORY_SCOPE_H_
