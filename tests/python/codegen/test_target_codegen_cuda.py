@@ -974,10 +974,10 @@ def test_vectorized_intrin1(*, backend_config):
 def _min_max_nan_module(op, dt, n=8, vectorize=False, composite=False):
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((n,), dt), B: T.Tensor((n,), dt), C: T.Tensor((n,), dt)):
             T.func_attr({"tirx.noalias": True})
-            for i0 in T.thread_binding(2, thread="blockIdx.x"):
+            with T.launch_thread("blockIdx.x", 2) as i0:
                 if T.constexpr(composite):
                     C[i0 * 4 + 0] = T.max(A[i0 * 4 + 0], B[i0 * 4 + 0]) + T.float32(1.0)
                     C[i0 * 4 + 1] = T.max(A[i0 * 4 + 1], B[i0 * 4 + 1]) + T.float32(1.0)
@@ -991,7 +991,7 @@ def _min_max_nan_module(op, dt, n=8, vectorize=False, composite=False):
                             else T.min(A[i0 * 4 + i1], B[i0 * 4 + i1])
                         )
                 else:
-                    for i1 in T.thread_binding(4, thread="threadIdx.x"):
+                    with T.launch_thread("threadIdx.x", 4) as i1:
                         C[i0 * 4 + i1] = (
                             T.max(A[i0 * 4 + i1], B[i0 * 4 + i1])
                             if T.constexpr(op == "max")
@@ -1096,14 +1096,14 @@ def test_min_max_chained_statements_cuda():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((n,), "float32"),
             B: T.Tensor((n,), "float32"),
             C: T.Tensor((n,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            for i in T.thread_binding(n, thread="threadIdx.x"):
+            with T.launch_thread("threadIdx.x", n) as i:
                 C[i] = T.max(C[i], A[i])
                 C[i] = T.max(C[i], B[i])
 
@@ -1146,25 +1146,25 @@ def test_min_max_float_imm_operand_cuda(op, const_side, const_nan, form):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(B: T.Tensor((n,), "float32"), C: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             if T.constexpr(form == "scalar" and const_side == "lhs"):
-                for i in T.thread_binding(n, thread="threadIdx.x"):
+                with T.launch_thread("threadIdx.x", n) as i:
                     C[i] = (
                         T.min(T.float32(const_val), B[i])
                         if T.constexpr(op == "min")
                         else T.max(T.float32(const_val), B[i])
                     )
             elif T.constexpr(form == "scalar"):
-                for i in T.thread_binding(n, thread="threadIdx.x"):
+                with T.launch_thread("threadIdx.x", n) as i:
                     C[i] = (
                         T.min(B[i], T.float32(const_val))
                         if T.constexpr(op == "min")
                         else T.max(B[i], T.float32(const_val))
                     )
             elif T.constexpr(const_side == "lhs"):
-                for i0 in T.thread_binding(2, thread="blockIdx.x"):
+                with T.launch_thread("blockIdx.x", 2) as i0:
                     for i1 in T.vectorized(4):
                         C[i0 * 4 + i1] = (
                             T.min(T.float32(const_val), B[i0 * 4 + i1])
@@ -1172,7 +1172,7 @@ def test_min_max_float_imm_operand_cuda(op, const_side, const_nan, form):
                             else T.max(T.float32(const_val), B[i0 * 4 + i1])
                         )
             else:
-                for i0 in T.thread_binding(2, thread="blockIdx.x"):
+                with T.launch_thread("blockIdx.x", 2) as i0:
                     for i1 in T.vectorized(4):
                         C[i0 * 4 + i1] = (
                             T.min(B[i0 * 4 + i1], T.float32(const_val))
@@ -1247,10 +1247,10 @@ def test_min_max_float_imm_operand_nested_cuda():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(B: T.Tensor((n,), "float32"), C: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
-            for i in T.thread_binding(n, thread="threadIdx.x"):
+            with T.launch_thread("threadIdx.x", n) as i:
                 C[i] = T.max(T.float32(0.0), B[i]) + T.float32(1.0)
 
     mod = tvm.compile(Module, target="cuda")
