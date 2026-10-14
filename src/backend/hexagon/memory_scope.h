@@ -20,19 +20,31 @@
 #ifndef TVM_BACKEND_HEXAGON_MEMORY_SCOPE_H_
 #define TVM_BACKEND_HEXAGON_MEMORY_SCOPE_H_
 
-#include "../memory_scope.h"
+#include <tvm/ffi/reflection/enum_def.h>
+#include <tvm/runtime/memory_scope.h>
 
 namespace tvm {
 namespace backend {
 namespace hexagon {
 
 inline void RegisterMemoryScopes() {
-  static const bool initialized = [] {
-    RegisterBackendMemoryScope("global.ddr", runtime::MemoryAllocProperty::kSingleAllocation);
-    RegisterBackendMemoryScope("global.vtcm", runtime::MemoryAllocProperty::kNormal);
-    return true;
-  }();
-  (void)initialized;
+  // The compiler and runtime sidecar can load independently, with hidden symbols.
+  // Keep the once guard in their shared FFI registry rather than a DSO-local static.
+  constexpr auto registered = ffi::reflection::AsByteArray("hexagon.memory_scopes_registered");
+  if (TVMFFIGetTypeAttrColumn(&registered) != nullptr &&
+      ffi::reflection::TypeAttrColumn("hexagon.memory_scopes_registered")
+              [runtime::MemoryScopeObj::_GetOrAllocRuntimeTypeIndex()] != nullptr) {
+    return;
+  }
+  using runtime::MemoryAllocProperty;
+  ffi::reflection::EnumDef<runtime::MemoryScopeObj>("global.ddr")
+      .set_attr(runtime::attr::kMemoryAllocProperty,
+                static_cast<int>(MemoryAllocProperty::kSingleAllocation));
+  ffi::reflection::EnumDef<runtime::MemoryScopeObj>("global.vtcm")
+      .set_attr(runtime::attr::kMemoryAllocProperty,
+                static_cast<int>(MemoryAllocProperty::kNormal));
+  ffi::reflection::TypeAttrDef<runtime::MemoryScopeObj>().def("hexagon.memory_scopes_registered",
+                                                              true);
 }
 
 }  // namespace hexagon
