@@ -117,79 +117,64 @@ def scatter_nd(data, indices, updates, mode):
             fused_shape *= i
 
         with IRBuilder() as ib:
-            with T.seq_scope():
-                with T.serial(0, fused_shape) as i:
-                    T.buffer_store(out, data[T.buffer_indices(data, i)], T.buffer_indices(out, i))
+            with T.serial(0, fused_shape) as i:
+                T.tensor_store(out, T.tensor_indices(out, i), data[T.tensor_indices(data, i)])
 
-                with T.serial(0, fused_indices_dimension) as i:
-                    with T.parallel(0, fused_updates_dimension) as j:
-                        offset = fused_updates_dimension
-                        index = j  # This is x_M, .. x_{N-1} part of the index into out.
-                        # Build up the indices[0, y_0, ..], .. indices[M-1, y_0, ..] part
-                        # of the index into out.
-                        for l in reversed(range(indices_ptr.shape[0].value)):
-                            # indices[l, y_0, ... y_{k-1}]
-                            index += (
-                                offset
-                                * indices[
-                                    T.buffer_indices(indices, i + l * fused_indices_dimension)
-                                ]
-                            )
-                            offset *= data_ptr.shape[l]
-                        if mode == "update":
-                            T.buffer_store(
-                                out,
-                                updates[T.buffer_indices(updates, i * fused_updates_dimension + j)],
-                                T.buffer_indices(out, index),
-                            )
-                        elif mode == "add":
-                            T.buffer_store(
-                                out,
-                                out[T.buffer_indices(out, index)]
-                                + (
-                                    updates[
-                                        T.buffer_indices(updates, i * fused_updates_dimension + j)
-                                    ]
-                                ),
-                                T.buffer_indices(out, index),
-                            )
-                        elif mode == "mul":
-                            T.buffer_store(
-                                out,
-                                out[T.buffer_indices(out, index)]
-                                * (
-                                    updates[
-                                        T.buffer_indices(updates, i * fused_updates_dimension + j)
-                                    ]
-                                ),
-                                T.buffer_indices(out, index),
-                            )
-                        elif mode == "min":
-                            T.buffer_store(
-                                out,
-                                tirx.min(
-                                    out[T.buffer_indices(out, index)],
-                                    updates[
-                                        T.buffer_indices(updates, i * fused_updates_dimension + j)
-                                    ],
-                                ),
-                                T.buffer_indices(out, index),
-                            )
-                        elif mode == "max":
-                            T.buffer_store(
-                                out,
-                                tirx.max(
-                                    out[T.buffer_indices(out, index)],
-                                    updates[
-                                        T.buffer_indices(updates, i * fused_updates_dimension + j)
-                                    ],
-                                ),
-                                T.buffer_indices(out, index),
-                            )
-                        else:
-                            raise NotImplementedError(
-                                "scatter_nd mode not in [update, add, mul, min, max]:", mode
-                            )
+            with T.serial(0, fused_indices_dimension) as i:
+                with T.parallel(0, fused_updates_dimension) as j:
+                    offset = fused_updates_dimension
+                    index = j  # This is x_M, .. x_{N-1} part of the index into out.
+                    # Build up the indices[0, y_0, ..], .. indices[M-1, y_0, ..] part
+                    # of the index into out.
+                    for l in reversed(range(indices_ptr.shape[0].value)):
+                        # indices[l, y_0, ... y_{k-1}]
+                        index += (
+                            offset
+                            * indices[T.tensor_indices(indices, i + l * fused_indices_dimension)]
+                        )
+                        offset *= data_ptr.shape[l]
+                    if mode == "update":
+                        T.tensor_store(
+                            out,
+                            T.tensor_indices(out, index),
+                            updates[T.tensor_indices(updates, i * fused_updates_dimension + j)],
+                        )
+                    elif mode == "add":
+                        T.tensor_store(
+                            out,
+                            T.tensor_indices(out, index),
+                            out[T.tensor_indices(out, index)]
+                            + (updates[T.tensor_indices(updates, i * fused_updates_dimension + j)]),
+                        )
+                    elif mode == "mul":
+                        T.tensor_store(
+                            out,
+                            T.tensor_indices(out, index),
+                            out[T.tensor_indices(out, index)]
+                            * (updates[T.tensor_indices(updates, i * fused_updates_dimension + j)]),
+                        )
+                    elif mode == "min":
+                        T.tensor_store(
+                            out,
+                            T.tensor_indices(out, index),
+                            tirx.min(
+                                out[T.tensor_indices(out, index)],
+                                updates[T.tensor_indices(updates, i * fused_updates_dimension + j)],
+                            ),
+                        )
+                    elif mode == "max":
+                        T.tensor_store(
+                            out,
+                            T.tensor_indices(out, index),
+                            tirx.max(
+                                out[T.tensor_indices(out, index)],
+                                updates[T.tensor_indices(updates, i * fused_updates_dimension + j)],
+                            ),
+                        )
+                    else:
+                        raise NotImplementedError(
+                            "scatter_nd mode not in [update, add, mul, min, max]:", mode
+                        )
 
             return ib.get()
 
@@ -199,7 +184,7 @@ def scatter_nd(data, indices, updates, mode):
         [data, indices, updates],
         lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0]),
         dtype=data.dtype,
-        out_buffers=[out_buf],
+        out_tensors=[out_buf],
         name="scatter_nd.generic",
         tag="scatter_nd.generic",
     )

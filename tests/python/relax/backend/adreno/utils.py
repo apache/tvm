@@ -180,8 +180,12 @@ def build_and_run(mod, inputs, tgt):
                 device_arr = [dev for _ in range(len(mod.global_infos["vdevice"]))]
             else:
                 device_arr = [dev]
-            vm = relax.VirtualMachine(rexec, device_arr)
-            device_inputs = [tvm.runtime.tensor(ip, dev) for ip in inputs]
+            if SessionManager.is_target_rpc():
+                vm = tvm.rpc.virtual_machine(rexec, device_arr)
+                device_inputs = [dev.tensor(ip) for ip in inputs]
+            else:
+                vm = relax.VirtualMachine(rexec, device_arr)
+                device_inputs = [tvm.runtime.tensor(ip, dev) for ip in inputs]
             vm.set_input("main", *device_inputs)
             vm.invoke_stateful("main")
             tvm_output = vm.get_outputs("main")

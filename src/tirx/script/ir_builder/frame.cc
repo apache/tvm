@@ -17,15 +17,14 @@
  * under the License.
  */
 #include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/script/ir_builder/ir.h>
-#include <tvm/tirx/builtin.h>
-#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/script/ir_builder/frame.h>
+#include <tvm/tirx/tile/exec_scope.h>
 
 #include <map>
 
@@ -37,49 +36,33 @@ namespace script {
 namespace ir_builder {
 namespace tirx {
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  TIRFrameNode::RegisterReflection();
-  PrimFuncFrameNode::RegisterReflection();
-  ForFrameNode::RegisterReflection();
-  AssertFrameNode::RegisterReflection();
-  LaunchThreadFrameNode::RegisterReflection();
-  AttrFrameNode::RegisterReflection();
-  WhileFrameNode::RegisterReflection();
-  IfFrameNode::RegisterReflection();
-  ThenFrameNode::RegisterReflection();
-  ElseFrameNode::RegisterReflection();
-  DeclTensorFrameNode::RegisterReflection();
-}
+TVM_FFI_STATIC_INIT_BLOCK() { FunctionFrameObj::RegisterReflection(); }
 
 namespace {
-std::map<ffi::String, PrimFuncFrameNode::AttrValidator>& AttrValidators() {
-  static std::map<ffi::String, PrimFuncFrameNode::AttrValidator> validators;
+std::map<ffi::String, FunctionFrameObj::AttrValidator>& AttrValidators() {
+  static std::map<ffi::String, FunctionFrameObj::AttrValidator> validators;
   return validators;
 }
 }  // namespace
 
-void PrimFuncFrameNode::RegisterAttrValidator(ffi::String key, AttrValidator validator) {
+void FunctionFrameObj::RegisterAttrValidator(ffi::String key, AttrValidator validator) {
   TVM_FFI_ICHECK(AttrValidators().emplace(std::move(key), std::move(validator)).second)
       << "Duplicate function attribute validator";
 }
 
-void PrimFuncFrameNode::ValidateAttrs() const {
+void FunctionFrameObj::ValidateAttrs() const {
   for (const auto& [key, value] : attrs) {
     auto it = AttrValidators().find(key);
     if (it != AttrValidators().end()) it->second(this, value);
   }
 }
 
-void TIRFrameNode::BindBufferRegion(tvm::tirx::BufferVar buffer, tvm::TensorRegion region) {
-  TVM_FFI_THROW(ValueError) << "match_buffer requires a frame that supports region aliases";
-}
+tvm::tirx::Function FunctionFrameObj::FinalizeFunction(tvm::tirx::Function func) { return func; }
 
-tvm::tirx::PrimFunc PrimFuncFrameNode::FinalizeFunction(tvm::tirx::PrimFunc func) { return func; }
-
-void PrimFuncFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
+void FunctionFrameObj::ExitWithScope() {
+  ir::StmtFrameObj::ExitWithScope();
   ValidateAttrs();
-  // if the prim func is not private and there isn't already a global symbol,
+  // if the function is not private and there isn't already a global symbol,
   // add a global symbol
   auto insert_attr = [&](ffi::String key, ffi::Any value) {
     if (!attrs.defined()) {
@@ -105,13 +88,14 @@ void PrimFuncFrameNode::ExitWithScope() {
   }
   TVM_FFI_CHECK(!is_declaration || stmts.empty(), ValueError)
       << "A function declaration cannot contain body statements";
-  tvm::tirx::Stmt body = is_declaration ? tvm::tirx::Stmt() : AsStmt(stmts);
-  tvm::tirx::PrimFunc func(
+  ffi::Optional<tvm::SeqStmt> body = std::nullopt;
+  if (!is_declaration) body = AsStmt(stmts);
+  tvm::tirx::Function func(
       /*params=*/args,
       /*body=*/body,
       /*ret_type=*/ret_type.value_or(TupleType::Empty()),
       /*attrs=*/attrs.defined() ? DictAttrs(attrs) : DictAttrs(),
-      /*span=*/source_span);
+      /*loc=*/loc);
   func = FinalizeFunction(std::move(func));
   function = func;
   IRBuilder builder = IRBuilder::Current();
@@ -140,168 +124,9 @@ void PrimFuncFrameNode::ExitWithScope() {
       ir::DefFunction(func_name, func);
     }
   } else {
-    TVM_FFI_THROW(ValueError) << "Cannot find where to insert PrimFunc";
+    TVM_FFI_THROW(ValueError) << "Cannot find where to insert Function";
   }
   is_declaration = false;
-}
-
-void ForFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  AddToParent(this->f_make_for_loop(vars, doms, steps, AsStmt(stmts), source_span), source_span);
-}
-
-void ForFrameNode::SetNames(
-    ffi::Optional<ffi::Variant<ffi::String, ffi::Array<ffi::String>>> names) {
-  if (!names.has_value()) return;
-  if (IRBuilder::IsInScope()) {
-    for (const IRBuilderFrame& frame : IRBuilder::Current()->frames) {
-      TVM_FFI_CHECK(frame.get() != this, ValueError)
-          << "Loop names must be configured before entering the frame";
-    }
-  }
-  std::vector<ffi::String> targets;
-  if (auto name = names.value().as<ffi::String>()) {
-    for (size_t i = 0; i < vars.size(); ++i) {
-      targets.push_back(vars.size() == 1 ? name.value() : name.value() + "_" + std::to_string(i));
-    }
-  } else {
-    auto source_names = names.value().as<ffi::Array<ffi::String>>().value();
-    bool expanded = false;
-    for (const ffi::String& name : source_names) {
-      if (!name.empty() && name.data()[0] == '*') {
-        TVM_FFI_CHECK(!expanded && name.size() > 1, ValueError)
-            << "A loop target may contain only one named starred target";
-        expanded = true;
-        int count = static_cast<int>(vars.size()) - static_cast<int>(source_names.size()) + 1;
-        TVM_FFI_CHECK(count >= 0, ValueError)
-            << "Loop target count differs from iteration dimensions";
-        for (int i = 0; i < count; ++i) {
-          targets.push_back(std::string(name).substr(1) + "_" + std::to_string(i));
-        }
-      } else {
-        targets.push_back(name);
-      }
-    }
-  }
-  TVM_FFI_CHECK(targets.size() == vars.size(), ValueError)
-      << "Loop target count differs from iteration dimensions";
-  for (size_t i = 0; i < targets.size(); ++i) {
-    TVM_FFI_CHECK(!targets[i].empty(), ValueError) << "Loop variable names must be nonempty";
-  }
-  for (size_t i = 0; i < targets.size(); ++i) {
-    const_cast<tvm::VarNode*>(vars[i].get())->name = targets[i];
-  }
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  tvm::ffi::reflection::GlobalDef().def_method("script.ir_builder.tirx.ForFrameSetNames",
-                                               &ForFrameNode::SetNames);
-}
-
-void AssertFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  if (stmts.empty()) {
-    AddToParent(tvm::tirx::AssertStmt(condition, error_kind, message_parts, source_span),
-                source_span);
-  } else {
-    ffi::Array<tvm::tirx::Stmt> seq;
-    seq.push_back(tvm::tirx::AssertStmt(condition, error_kind, message_parts, source_span));
-    for (const auto& stmt : stmts) {
-      seq.push_back(stmt);
-    }
-    AddToParent(tvm::tirx::SeqStmt(seq, source_span), source_span);
-  }
-}
-
-void LaunchThreadFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tirx::AttrStmt(iter_var, attr_key, extent, AsStmt(stmts), source_span),
-              source_span);
-}
-
-void AttrFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tirx::AttrStmt(node, attr_key, value, AsStmt(stmts), source_span), source_span);
-}
-
-void WhileFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tirx::While(condition, AsStmt(stmts), source_span), source_span);
-}
-
-void IfFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  if (!stmts.empty()) {
-    TVM_FFI_THROW(InternalError)
-        << "stmt within IfThenElse frame should be either in ThenFrame or ElseFrame";
-  }
-  if (!then_stmts.has_value()) {
-    TVM_FFI_THROW(InternalError) << "IfThenElse frame should have at least one then branch";
-  }
-  AddToParent(tvm::tirx::IfThenElse(
-                  condition, AsStmt(then_stmts.value()),
-                  else_stmts.has_value() ? AsStmt(else_stmts.value()) : tvm::tirx::Stmt(nullptr),
-                  source_span),
-              source_span);
-}
-
-void ThenFrameNode::EnterWithScope() {
-  IfFrame frame = FindIfFrame("T.then_");
-  if (frame->then_stmts.has_value()) {
-    TVM_FFI_THROW(ValueError) << "Duplicate then branch declaration, previous one is "
-                              << frame->then_stmts.value();
-  }
-  TIRFrameNode::EnterWithScope();
-}
-
-void ThenFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  FindIfFrame("T.then_")->then_stmts = stmts;
-}
-
-void ElseFrameNode::EnterWithScope() {
-  IfFrame frame = FindIfFrame("T.else_");
-  if (!frame->then_stmts.has_value()) {
-    TVM_FFI_THROW(InternalError) << "The else branch should follow then branch";
-  }
-  if (frame->else_stmts.has_value()) {
-    TVM_FFI_THROW(ValueError) << "Duplicate else branch declaration, previous one is "
-                              << frame->else_stmts.value();
-  }
-  TIRFrameNode::EnterWithScope();
-}
-
-void ElseFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  FindIfFrame("T.else_")->else_stmts = stmts;
-}
-
-void DeclTensorFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  if (allocated) {
-    AddToParent(tvm::tirx::SeqStmt::Flatten(
-                    tvm::tirx::Bind(buffer,
-                                    tvm::Call(buffer.type(), tvm::tirx::builtin::decl_tensor(),
-                                              {data, tvm::Tuple(buffer->shape),
-                                               tvm::DataTypeImm(buffer->dtype->dtype),
-                                               tvm::StringImm(buffer.scope())},
-                                              {}, {}, source_span),
-                                    source_span),
-                    AsStmt(stmts)),
-                source_span);
-  } else {
-    // data is undefined in `decl_tensor(...)`, lower to `alloc_tensor(...)`.
-    AddToParent(
-        tvm::tirx::SeqStmt::Flatten(
-            tvm::tirx::Bind(buffer.var(),
-                            Call(buffer.type(), tvm::tirx::builtin::alloc_tensor(),
-                                 {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                                  StringImm(buffer.scope())},
-                                 DictAttrs(), {}, source_span),
-                            source_span),
-            AsStmt(stmts)),
-        source_span);
-  }
 }
 
 }  // namespace tirx

@@ -38,19 +38,6 @@ namespace printer {
 class DocTranslatorObj;
 
 /*!
- * \brief Type attribute containing a native or packed translation hook.
- */
-inline constexpr const char* kDocTranslate = "__tvm_doc_translate__";
-/*!
- * \brief Op-specific Call translation hook with the FDocTranslate contract.
- */
-inline constexpr const char* kOpCallDocTranslate = "__tvm_doc_translate_op_call__";
-/*!
- * \brief Source-Type hook receiving the original TensorLoad and optional binder.
- */
-inline constexpr const char* kTensorLoadDocTranslate = "__tvm_doc_translate_tensor_load__";
-
-/*!
  * \brief Engine callbacks borrowed for the translator's lifetime.
  */
 struct DocTranslatorVTable {
@@ -248,6 +235,51 @@ class DocTranslatorObj : public ffi::Object {
     ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(vtable_->end_var_scope(this)).value();
   }
   /*!
+   * \brief Run a callback in a balanced lexical variable scope without collecting Docs.
+   * \tparam Callback The callable type.
+   * \param callback The callback run inside the scope.
+   * \return The callback result, preserving void, value and reference results.
+   * \note Automatic cleanup on return or exception discards scope-close errors.
+   *       Explicit EndVarScope calls remain checked.
+   */
+  template <typename Callback>
+  decltype(auto) WithVarScope(Callback&& callback) {
+    struct Scope {
+      DocTranslatorObj* translator;
+      ~Scope() {
+        ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(
+            translator->vtable_->end_var_scope(translator));
+      }
+    };
+    BeginVarScope();
+    Scope scope{this};
+    return std::forward<Callback>(callback)();
+  }
+
+  /*!
+   * \brief Run a callback with temporarily replaced typed extension state.
+   * \tparam T The state type, default constructed when absent.
+   * \tparam Callback The callable type.
+   * \param name The state name, checked for an existing incompatible type.
+   * \param value The temporary state value.
+   * \param callback The callback run with the temporary state.
+   * \return The callback result, preserving void, value and reference results.
+   * \note Restore the saved value on return or exception. This does not collect Docs.
+   */
+  template <typename T, typename Callback>
+  decltype(auto) WithExtraStateScope(const ffi::String& name, T value, Callback&& callback) {
+    struct Scope {
+      DocTranslatorObj* translator;
+      ffi::String key;
+      T saved;
+      ~Scope() { translator->SetExtraState(key, std::move(saved)); }
+    };
+    Scope scope{this, name, GetOrCreateExtraState<T>(name)};
+    SetExtraState(scope.key, std::move(value));
+    return std::forward<Callback>(callback)();
+  }
+
+  /*!
    * \brief Push an empty Doc collection.
    */
   void BeginDocScope() { doc_scopes_.push_back(ffi::List<Doc>()); }
@@ -302,33 +334,16 @@ class DocTranslatorObj : public ffi::Object {
    */
   void RecordOrigin(const Doc& doc, const ffi::ObjectRef& origin) { doc_origins_.Set(doc, origin); }
   /*!
-   * \brief Dispatch directly to the registered native or packed hook.
+   * \brief Dispatch to a registered hook, or reflect an unhandled Type constructor.
    * \param value The input value.
    * \param destination A borrowed Var, or nullptr when no binding is requested.
    * \return An expression for the caller, or None after completed emission.
    */
   ffi::Optional<ExprDoc> DefaultTranslate(ffi::AnyView value,
-                                          const ffi::Object* destination = nullptr) {
-    static ffi::reflection::TypeAttrColumn column(kDocTranslate);
-    ffi::AnyView attr = column[value.type_index()];
-    if (attr.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {
-      return ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<ffi::Optional<ExprDoc>>(
-                 reinterpret_cast<decltype(DocTranslatorVTable::translate)>(attr.cast<void*>())(
-                     this, value, destination))
-          .value();
-    }
-    if (attr.type_index() == ffi::TypeIndex::kTVMFFIFunction) {
-      ffi::Any destination_arg = nullptr;
-      if (destination) destination_arg = ffi::GetRef<ffi::ObjectRef>(destination);
-      return attr.cast<ffi::Function>()
-          .CallExpected<ffi::Optional<ExprDoc>>(this, value, destination_arg)
-          .value();
-    }
-    TVM_FFI_THROW(TypeError) << (attr.type_index() == ffi::TypeIndex::kTVMFFINone
-                                     ? std::string("printer has no Doc hook for ") +
-                                           value.GetTypeKey()
-                                     : "printer Doc hook must be a native pointer or ffi.Function");
-  }
+                                          const ffi::Object* destination = nullptr);
+
+  /*! \brief Translate a Type constructor from its reflected fields and fixed defaults. */
+  TVM_TIRX_DLL ExprDoc DefaultTypeTranslate(const Type& type);
 
   static constexpr bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO("script.printer.DocTranslator", DocTranslatorObj, ffi::Object);
@@ -397,7 +412,6 @@ class DocTranslator : public ffi::ObjectRef {
    * \brief Retain a translation context.
    * \param n The context object.
    */
-  explicit DocTranslator(ffi::ObjectPtr<DocTranslatorObj> n) : ObjectRef(std::move(n)) {}
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DocTranslator, ffi::ObjectRef, DocTranslatorObj);
 };
 
@@ -408,8 +422,57 @@ class DocTranslator : public ffi::ObjectRef {
  * \param extra_config The translation configuration snapshot.
  * \return The translated Doc, with text headers and diagnostic recovery left to the text adapter.
  */
-TVM_DLL Doc DocTranslate(ffi::AnyView ir, ffi::Dict<Doc, ffi::ObjectRef>* doc_origins = nullptr,
-                         ffi::Map<ffi::String, ffi::Any> extra_config = {});
+TVM_TIRX_DLL Doc DocTranslate(ffi::AnyView ir,
+                              ffi::Dict<Doc, ffi::ObjectRef>* doc_origins = nullptr,
+                              ffi::Map<ffi::String, ffi::Any> extra_config = {});
+
+namespace type_attr {
+/*!
+ * \brief Type attribute containing a native or packed translation hook.
+ */
+inline constexpr const char* kDocTranslate = "__tvm_doc_translate__";
+}  // namespace type_attr
+
+namespace op_attr {
+/*!
+ * \brief Op-specific Call translation hook with the FDocTranslate contract.
+ */
+inline constexpr const char* kDocTranslateOpCall = "__tvm_doc_translate_op_call__";
+}  // namespace op_attr
+
+inline ffi::Optional<ExprDoc> DocTranslatorObj::DefaultTranslate(ffi::AnyView value,
+                                                                 const ffi::Object* destination) {
+  static ffi::reflection::TypeAttrColumn column(tvm::script::printer::type_attr::kDocTranslate);
+  ffi::AnyView attr = column[value.type_index()];
+  if (attr.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {
+    return ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<ffi::Optional<ExprDoc>>(
+               reinterpret_cast<decltype(DocTranslatorVTable::translate)>(attr.cast<void*>())(
+                   this, value, destination))
+        .value();
+  }
+  if (attr.type_index() == ffi::TypeIndex::kTVMFFIFunction) {
+    ffi::Any destination_arg = nullptr;
+    if (destination) destination_arg = ffi::GetRef<ffi::ObjectRef>(destination);
+    return attr.cast<ffi::Function>()
+        .CallExpected<ffi::Optional<ExprDoc>>(this, value, destination_arg)
+        .value();
+  }
+  if (attr.type_index() == ffi::TypeIndex::kTVMFFINone) {
+    if (value == nullptr) return LiteralDoc::None(std::nullopt);
+    if (auto string = value.as<ffi::String>()) return LiteralDoc::Str(string.value(), std::nullopt);
+    if (auto boolean = value.as<bool>()) return LiteralDoc::Boolean(boolean.value(), std::nullopt);
+    if (auto integer = value.as<int64_t>()) return LiteralDoc::Int(integer.value(), std::nullopt);
+    if (auto floating = value.as<double>())
+      return LiteralDoc::Float(floating.value(), std::nullopt);
+    if (auto dtype = value.as<DLDataType>())
+      return LiteralDoc::DataType(dtype.value(), std::nullopt);
+    if (auto type = value.as<Type>()) return DefaultTypeTranslate(type.value());
+  }
+  TVM_FFI_THROW(TypeError) << (attr.type_index() == ffi::TypeIndex::kTVMFFINone
+                                   ? std::string("printer has no Doc hook for ") +
+                                         value.GetTypeKey()
+                                   : "printer Doc hook must be a native pointer or ffi.Function");
+}
 
 }  // namespace printer
 }  // namespace script

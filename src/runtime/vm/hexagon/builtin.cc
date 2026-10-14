@@ -22,12 +22,14 @@
  * \brief The hexagon graph related builtin functions for Relax virtual machine.
  */
 
+#include <qurt_memory.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/vm/vm.h>
 
-#include "../../../backend/hexagon/runtime/hexagon_device_api.h"
+#include <cstdint>
+
 namespace tvm {
 namespace runtime {
 namespace vm {
@@ -37,13 +39,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("vm.builtin.hexagon.dma_copy",
-           [](ffi::AnyView vm_ptr, Tensor src_arr, Tensor dst_arr, int queue_id,
+           [](ffi::AnyView vm_ptr, ffi::Tensor src_arr, ffi::Tensor dst_arr, int queue_id,
               bool bypass_cache) {
-             const DLTensor* dptr = dst_arr.operator->();
-             const DLTensor* sptr = src_arr.operator->();
+  TVM_FFI_ICHECK(src_arr.defined());
+  TVM_FFI_ICHECK(dst_arr.defined());
+             const DLTensor* dptr = dst_arr.GetDLTensorPtr();
+             const DLTensor* sptr = src_arr.GetDLTensorPtr();
              void* dst = dptr->data;
              void* src = sptr->data;
-             int ret = DMA_RETRY;
 
              TVM_FFI_ICHECK_EQ(ffi::GetDataSize(*dptr), ffi::GetDataSize(*sptr));
              auto size = ffi::GetDataSize(*dptr);
@@ -51,19 +54,27 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              if (bypass_cache)
                qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(src), size,
                                     QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
-             do {
-               ret = tvm::runtime::hexagon::HexagonDeviceAPI::Global()->UserDMA()->Copy(
-                   queue_id, dst, src, size, bypass_cache);
-             } while (ret == DMA_RETRY);
-             TVM_FFI_ICHECK(ret == DMA_SUCCESS);
+             // Registry: device_api.hexagon.dma_copy(queue, dst, src, size, bypass).
+             // The device function owns DMA retry and success checking.
+             // Grep hint: grep -rn 'device_api.hexagon.dma_copy' src/
+             static const auto dma_copy =
+                 ffi::Function::GetGlobalRequired("device_api.hexagon.dma_copy");
+             dma_copy(static_cast<uint32_t>(queue_id), dst, src, static_cast<uint32_t>(size),
+                      bypass_cache);
            })
       .def("vm.builtin.hexagon.dma_wait", [](ffi::AnyView vm_ptr, int queue_id, int inflight_dma,
-                                             bool bypass_cache, [[maybe_unused]] Tensor src_arr,
-                                             [[maybe_unused]] Tensor dst_arr) {
+                                             bool bypass_cache, [[maybe_unused]] ffi::Tensor src_arr,
+                                             [[maybe_unused]] ffi::Tensor dst_arr) {
+  TVM_FFI_ICHECK(src_arr.defined());
+  TVM_FFI_ICHECK(dst_arr.defined());
         TVM_FFI_ICHECK(inflight_dma >= 0);
-        tvm::runtime::hexagon::HexagonDeviceAPI::Global()->UserDMA()->Wait(queue_id, inflight_dma);
+        // Registry: device_api.hexagon.dma_wait(queue, inflight) waits for queued copies.
+        // Grep hint: grep -rn 'device_api.hexagon.dma_wait' src/
+        static const auto dma_wait =
+            ffi::Function::GetGlobalRequired("device_api.hexagon.dma_wait");
+        dma_wait(static_cast<uint32_t>(queue_id), inflight_dma);
         if (bypass_cache) {
-          const DLTensor* dptr = dst_arr.operator->();
+          const DLTensor* dptr = dst_arr.GetDLTensorPtr();
           void* dst = dptr->data;
           auto size = ffi::GetDataSize(*dptr);
           qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(dst), size, QURT_MEM_CACHE_FLUSH,

@@ -22,6 +22,7 @@ from typing import Literal
 
 import tvm_ffi
 
+import tvm
 from tvm import s_tir, sym, tirx
 from tvm.target import Target
 
@@ -31,26 +32,29 @@ from ..analysis import (
     collect_vars_used_in_prim_expr,
     get_max_shared_memory_per_block,
     is_broadcast_epilogue,
-    normalize_prim_func,
+    normalize_function,
 )
+from ..analysis.common_analysis import _tensor_region_offset
 from ..base import auto_vectorize, get_bytes, get_extent, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
 
 def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     # Detect and return `Y` in `X[...] = X[...] + Y`
-    buffer_store = block.body
-    if not isinstance(buffer_store, tirx.BufferStore):
+    if len(block.body) != 1:
         return None
-    if not isinstance(buffer_store.value, tirx.Add):
+    tensor_store = block.body[0]
+    if not isinstance(tensor_store, tvm.ir.TensorStore):
+        return None
+    if not isinstance(tensor_store.value, tirx.Add):
         return None
     if not tvm_ffi.structural_equal(
-        buffer_store.value.a,
-        tirx.BufferLoad(buffer_store.buffer, block.body.indices),
+        tensor_store.value.a,
+        tirx.TensorLoad(tensor_store.dest, tensor_store.indices),
         map_free_vars=True,
     ):
         return None
-    return buffer_store.value.b
+    return tensor_store.value.b
 
 
 def _has_pad_einsum_compatible_access(block: s_tir.SBlock) -> bool:
@@ -64,7 +68,7 @@ def _has_pad_einsum_compatible_access(block: s_tir.SBlock) -> bool:
     )
 
 
-def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | None:
+def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Var] | None:
     """Check if the block is a low batch GEMM.
 
     Parameters
@@ -79,8 +83,8 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
 
     Returns
     -------
-    ret : Optional[List[tirx.Buffer]]
-        The vector-like buffers used in the low batch GEMM if it is a low batch GEMM,
+    ret : Optional[List[tirx.Var]]
+        The vector-like tensors used in the low batch GEMM if it is a low batch GEMM,
         otherwise None.
     """
     block = block_info.block_rv
@@ -109,7 +113,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
         for iter_var in block_stmt.iter_vars
         if not isinstance(iter_var.dom.extent, tirx.IntImm)
     )
-    if symbolic_iter_var.iter_type != tirx.stmt.IterVar.DataPar:
+    if symbolic_iter_var.iter_type != s_tir.IterVar.DataPar:
         return None
     ret = [
         read.source
@@ -130,17 +134,16 @@ def detect_dominant_read(block: s_tir.SBlock, const_iter_vars: set[tirx.Var]) ->
     """Detect the dominant read indices in the block."""
     dominant_read = None
     num_read_iters = -1
-    for buffer_region in block.reads:
+    for tensor_region in block.reads:
         tir_vars = (
-            collect_block_iter_vars_used_in_access_region(block, buffer_region.region)
+            collect_block_iter_vars_used_in_access_region(block, tensor_region.region)
             & const_iter_vars
         )
         if num_read_iters < len(tir_vars):
             num_read_iters = len(tir_vars)
-            dominant_read = buffer_region
+            dominant_read = tensor_region
     assert dominant_read is not None
-    (result,) = dominant_read.source.offset_of([e.min for e in dominant_read.region])
-    return result
+    return _tensor_region_offset(dominant_read)
 
 
 def normalize(
@@ -161,14 +164,14 @@ def normalize(
         detect_dominant_read(block_stmt, const_iter_vars),
         input_iters={i.var: i.dom for i in block_stmt.iter_vars},
     )
-    buffers_use_vars = [
-        collect_block_iter_vars_used_in_access_region(block_stmt, buf.region)
-        for buf in block_stmt.writes
+    tensors_use_vars = [
+        collect_block_iter_vars_used_in_access_region(block_stmt, tensor.region)
+        for tensor in block_stmt.writes
     ]
-    buffers_use_vars.extend(
+    tensors_use_vars.extend(
         [
-            collect_block_iter_vars_used_in_access_region(block_stmt, buf.region)
-            for buf in block_stmt.reads
+            collect_block_iter_vars_used_in_access_region(block_stmt, tensor.region)
+            for tensor in block_stmt.reads
         ]
     )
     if collect_vars_used_in_prim_expr(access.base) & set(
@@ -188,7 +191,7 @@ def normalize(
         # No C loops as we do not compute_inline weights into main block
         if is_reduction:
             r_loops.append(loop)
-        elif all([var in buf_vars for buf_vars in buffers_use_vars]):
+        elif all([var in tensor_vars for tensor_vars in tensors_use_vars]):
             batch_loops.append(loop)
         else:
             s_loops.append(loop)
@@ -211,14 +214,14 @@ class LowBatchGEMV(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
         if block_infos is None:
             return None
         reduction_block_infos = [
@@ -227,8 +230,8 @@ class LowBatchGEMV(GPUScheduleRule):
         if len(reduction_block_infos) != 1:
             return None
         reduction_block_info = reduction_block_infos[0]
-        vector_input_buffers = is_gemv(sch, reduction_block_info)
-        if vector_input_buffers is None:
+        vector_input_tensors = is_gemv(sch, reduction_block_info)
+        if vector_input_tensors is None:
             return None
         batch_pad = self.bucket
         pad_value = [
@@ -236,7 +239,7 @@ class LowBatchGEMV(GPUScheduleRule):
             for iter in reduction_block_info.iters
         ]
         sch.pad_einsum(reduction_block_info.block_rv, pad_value)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
         dequantize_block = None
         pad_input_block = None
         for block_info in block_infos:
@@ -265,8 +268,8 @@ class LowBatchGEMV(GPUScheduleRule):
             # or [S, R] = [S, R] * [R]
             return None
         block = block_info.block_rv
-        vector_input_buffers = is_gemv(sch, block_info)
-        if vector_input_buffers is None:
+        vector_input_tensors = is_gemv(sch, block_info)
+        if vector_input_tensors is None:
             return None
 
         # Step 1. Normalize the block, merge spatial and reduction iters
@@ -281,7 +284,7 @@ class LowBatchGEMV(GPUScheduleRule):
                 block,
                 dequantize_block,
                 pad_input_block,
-                vector_input_buffers,
+                vector_input_tensors,
                 epilogue,
                 batch_pad,
             )
@@ -293,7 +296,7 @@ class LowBatchGEMV(GPUScheduleRule):
                 block,
                 dequantize_block,
                 pad_input_block,
-                vector_input_buffers,
+                vector_input_tensors,
                 epilogue,
                 batch_pad,
             )
@@ -308,7 +311,7 @@ class LowBatchGEMV(GPUScheduleRule):
         block: s_tir.schedule.SBlockRV,
         dequantize_block: s_tir.schedule.SBlockRV | None,
         pad_input_block: s_tir.schedule.SBlockRV | None,
-        vector_input_buffers: list[tirx.Buffer],
+        vector_input_tensors: list[tirx.Var],
         epilogue_info: SBlockInfo | None,
         batch_pad: int,
     ):
@@ -364,11 +367,11 @@ class LowBatchGEMV(GPUScheduleRule):
             sch.reorder(bx, ts, tr, r, batch)
 
             shared_mem_usage = 0
-            for buf in vector_input_buffers:
-                buf_size = reduce(
-                    lambda x, y: x * y, buf.shape, tirx.IntImm(buf.shape[0].ty, 1)
-                ) * get_bytes(buf.dtype)
-                shared_mem_usage += buf_size
+            for tensor in vector_input_tensors:
+                tensor_size = reduce(
+                    lambda x, y: x * y, tensor.shape, tirx.IntImm(tensor.shape[0].ty, 1)
+                ) * get_bytes(tensor.dtype)
+                shared_mem_usage += tensor_size
             max_smem = get_max_shared_memory_per_block(target)
             LOAD_V_SHARED = (
                 LOAD_V_SHARED
@@ -392,11 +395,11 @@ class LowBatchGEMV(GPUScheduleRule):
 
             # load vector into shared memory, shape should be the whole vector
             if LOAD_V_SHARED:
-                assert len(vector_input_buffers) == 1
-                V_shared = sch.cache_read(rf, read_buffer_index=0, storage_scope="shared")
+                assert len(vector_input_tensors) == 1
+                V_shared = sch.cache_read(rf, read_tensor_index=0, storage_scope="shared")
                 sch.compute_at(V_shared, tr, preserve_unit_loops=True)
                 l = sch.get_loops(block=V_shared)[-1]
-                loop: tirx.For = sch.get(l)
+                loop: tvm.ir.For = sch.get(l)
                 if isinstance(loop.extent, tirx.IntImm):
                     # avoid introducing predicates when vector length is too large
                     vec_length = max(
@@ -463,37 +466,30 @@ class LowBatchGEMV(GPUScheduleRule):
             sch.decompose_reduction(rf, loop=sch.get_loops(block=rf)[4])
             sch.decompose_reduction(rf2, loop=sch.get_loops(block=rf2)[-1])
 
-            sch.set_scope(rf, buffer_index=0, storage_scope="local")
-            sch.set_scope(rf2, buffer_index=0, storage_scope="local")
+            sch.set_scope(rf, tensor_index=0, storage_scope="local")
+            sch.set_scope(rf2, tensor_index=0, storage_scope="local")
 
             unroll_factor = UNROLL
 
             sch.annotate(
                 block_or_loop=sch.get_loops(rf)[4],
-                ann_key="pragma_auto_unroll_max_step",
+                ann_key="auto_unroll_max_step",
                 ann_val=unroll_factor,
             )
-            sch.annotate(
-                block_or_loop=sch.get_loops(rf)[4], ann_key="pragma_unroll_explicit", ann_val=1
-            )
+            sch.annotate(block_or_loop=sch.get_loops(rf)[4], ann_key="unroll_explicit", ann_val=1)
 
             sch.annotate(
                 block_or_loop=sch.get_loops(rf2)[4],
-                ann_key="pragma_auto_unroll_max_step",
+                ann_key="auto_unroll_max_step",
                 ann_val=unroll_factor,
             )
-            sch.annotate(
-                block_or_loop=sch.get_loops(rf2)[4], ann_key="pragma_unroll_explicit", ann_val=1
-            )
+            sch.annotate(block_or_loop=sch.get_loops(rf2)[4], ann_key="unroll_explicit", ann_val=1)
 
             if LOAD_V_SHARED:
                 sch.annotate(
                     block_or_loop=sch.get_loops(V_shared)[-4],
-                    ann_key="pragma_unroll_explicit",
+                    ann_key="unroll_explicit",
                     ann_val=unroll_factor,
-                )
-                sch.annotate(
-                    block_or_loop=sch.get_loops(V_shared)[-4], ann_key="pragma_vectorize", ann_val=1
                 )
 
             epilogue = sch.get_consumers(gemv)
@@ -621,7 +617,7 @@ class LowBatchGEMV(GPUScheduleRule):
         block: s_tir.schedule.SBlockRV,
         dequantize_block: s_tir.schedule.SBlockRV | None,
         pad_input_block: s_tir.schedule.SBlockRV | None,
-        vector_input_buffers: list[tirx.Buffer],
+        vector_input_tensors: list[tirx.Var],
         epilogue_info: SBlockInfo | None,
         batch_pad: int,
     ):
@@ -713,8 +709,8 @@ class LowBatchGEMV(GPUScheduleRule):
             sch.decompose_reduction(rf, loop=sch.get_loops(block=rf)[4])
             sch.decompose_reduction(rf2, loop=sch.get_loops(block=rf2)[4])
 
-            sch.set_scope(rf, buffer_index=0, storage_scope="local")
-            sch.set_scope(rf2, buffer_index=0, storage_scope="local")
+            sch.set_scope(rf, tensor_index=0, storage_scope="local")
+            sch.set_scope(rf2, tensor_index=0, storage_scope="local")
 
             epilogue = sch.get_consumers(main_block)
             # Schedule epilogue

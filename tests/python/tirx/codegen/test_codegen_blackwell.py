@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring
+import math
+
 import numpy as np
 import pytest
 import tvm_ffi
@@ -22,42 +24,42 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.backend.cuda.cpp.descriptors import _get_tcgen05_mma_kind
+from tvm.backend.cuda.lang import SMEMPool
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
-        isinstance(node, tvm.tirx.Bind)
+        isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
         and isinstance(node.value.op, tvm.ir.Op)
         and node.value.op.name in op_names
     )
 
 
-def _get_source(func: tvm.tirx.PrimFunc) -> str:
+def _get_source(func: tvm.tirx.Function) -> str:
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": func})
-    mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     return src, mod
 
 
 def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
     bindings = []
-    buffers = []
+    tensors = []
     mapa_calls = []
     arrive_calls = []
 
     def visit(node):
-        if isinstance(node, tvm.tirx.Bind) and node.var.name == "remote_mbar_ptr":
+        if isinstance(node, tvm.ir.Bind) and node.var.name == "remote_mbar_ptr":
             bindings.append(node)
         if (
-            _is_buffer_binding(node, "tirx.decl_tensor")
+            _is_tensor_binding(node, "tirx.decl_tensor")
             and getattr(node.value.args[0], "name", None) == "remote_mbar_ptr"
         ):
-            buffers.append(node)
+            tensors.append(node)
         if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.ptx.mapa":
             mapa_calls.append(node)
         if isinstance(node, tvm.ir.Call) and node.op.name == arrive_op_name:
@@ -65,15 +67,15 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
 
     tvm_ffi.structural_walk(func.body, visit)
     assert len(bindings) == 1
-    assert len(buffers) == 1
+    assert len(tensors) == 1
     assert len(mapa_calls) == 1
     assert arrive_calls
-    assert isinstance(bindings[0].var.ty, tvm.ir.PointerType)
-    assert bindings[0].var.ty.storage_scope == "shared"
-    assert bindings[0].value.ty.storage_scope == "shared"
-    assert buffers[0].value.args[0].same_as(bindings[0].var)
-    assert buffers[0].value.args[0].ty.storage_scope == "shared"
-    assert buffers[0].var.scope() == "shared"
+    assert isinstance(bindings[0].var.ty, tvm.ir.PtrType)
+    assert bindings[0].var.ty.scope == tvm.runtime.MemoryScope("shared")
+    assert bindings[0].value.ty.scope == tvm.runtime.MemoryScope("shared")
+    assert tensors[0].value.args[0].same_as(bindings[0].var)
+    assert tensors[0].value.args[0].ty.scope == tvm.runtime.MemoryScope("shared")
+    assert tensors[0].var.scope() == tvm.runtime.MemoryScope("shared")
     # ptx operand order is the PTX operand order: mapa writes its result into
     # a destination the caller declared, so args are (d, a, b) and the arrive
     # reads the mapped address back out of that destination rather than
@@ -93,14 +95,14 @@ def test_tmem_alloc_dealloc_relinquish():
     cta_group = 1
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_tmem(A: T.Tensor((16, 16), "float16")):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([4])
-        lane_id = T.lane_id([32])
-        tid = T.thread_id([128])
-        # tmem_addr = T.alloc_tensor((1,), "uint32", scope="shared", align=8)
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane_id = T.cuda.lane_id()
+        tid = T.cuda.thread_idx('x')
+        # tmem_addr = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="shared", align=8)])
         tmem_addr = T.shared_scalar("uint32")
 
         # alloc TMEM
@@ -130,11 +132,9 @@ def test_tmem_alloc_dealloc_relinquish():
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_mbarrier_try_wait_once_codegen():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_try_wait_once(A: T.Tensor((16, 16), "float16")):
-        T.device_entry()
-        T.cta_id([1])
-        T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         bar = T.shared_scalar("uint64")
         ok = T.local_scalar("uint32")
         ok_no_hint = T.local_scalar("uint32")
@@ -157,16 +157,13 @@ def test_mbarrier_try_wait_once_codegen():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_mbarrier_remote_view_codegen():
-    from tvm.tirx.lang.pipeline import MBarrier
+    from tvm.backend.cuda.lang.pipeline import MBarrier
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_remote_view():
-        T.device_entry()
-        T.cluster_id([1])
-        T.cta_id_in_cluster([2])
-        T.thread_id([128])
-        pool = T.SMEMPool()
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1 * 2, block=(128,), cluster=(2,)))
+        pool = SMEMPool()
         bar = MBarrier(pool, 1)
         pool.commit()
         remote_bar = bar.remote_view(0)
@@ -192,14 +189,14 @@ def test_mbarrier_remote_view_codegen():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_mbarrier_local_arrive_forwards_predicate_and_count():
-    from tvm.tirx.lang.pipeline import MBarrier
+    from tvm.backend.cuda.lang.pipeline import MBarrier
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_local_arrive():
-        T.device_entry()
-        thread = T.thread_id([32])
-        pool = T.SMEMPool()
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
+        thread = T.cuda.thread_idx('x')
+        pool = SMEMPool()
         bar = MBarrier(pool, 1)
         pool.commit()
         bar.arrive(0, pred=(thread == 0), count=2)
@@ -225,16 +222,13 @@ def test_mbarrier_local_arrive_forwards_predicate_and_count():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_tma_mbarrier_remote_view_codegen():
-    from tvm.tirx.lang.pipeline import TMABar
+    from tvm.backend.cuda.lang.pipeline import TMABar
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_remote_view():
-        T.device_entry()
-        T.cluster_id([1])
-        T.cta_id_in_cluster([2])
-        T.thread_id([128])
-        pool = T.SMEMPool()
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1 * 2, block=(128,), cluster=(2,)))
+        pool = SMEMPool()
         bar = TMABar(pool, 1)
         pool.commit()
         remote_bar = bar.remote_view(0)
@@ -252,52 +246,44 @@ def test_tma_mbarrier_remote_view_codegen():
 
 
 def test_mbarrier_remote_view_rejects_invalid_operations():
-    from tvm.tirx.lang.pipeline import MBarrier, TMABar
+    from tvm.backend.cuda.lang.pipeline import MBarrier, TMABar
 
     with pytest.raises(ValueError, match=r"remote_view\(\) cannot be initialized"):
         # fmt: off
-        @T.prim_func
+        @T.function
         def invalid_init():
-            T.device_entry()
-            T.cta_id([2])
-            T.thread_id([128])
-            pool = T.SMEMPool()
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+            pool = SMEMPool()
             bar = MBarrier(pool, 1)
             bar.remote_view(0).init(1)
         # fmt: on
 
     with pytest.raises(ValueError, match=r"remote_view\(\) cannot be waited on"):
         # fmt: off
-        @T.prim_func
+        @T.function
         def invalid_wait():
-            T.device_entry()
-            T.cta_id([2])
-            T.thread_id([128])
-            pool = T.SMEMPool()
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+            pool = SMEMPool()
             bar = MBarrier(pool, 1)
             bar.remote_view(0).wait(0, 0)
         # fmt: on
 
     with pytest.raises(ValueError, match="cannot also specify remote"):
         # fmt: off
-        @T.prim_func
+        @T.function
         def ambiguous_mbarrier_arrive():
-            T.device_entry()
-            T.cta_id([2])
-            T.thread_id([128])
-            pool = T.SMEMPool()
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+            pool = SMEMPool()
             bar = MBarrier(pool, 1)
             bar.remote_view(0).arrive(0, remote=1)
         # fmt: on
 
     with pytest.raises(ValueError, match="cannot also specify remote"):
         # fmt: off
-        @T.prim_func
+        @T.function
         def ambiguous_tma_arrive():
-            T.device_entry()
-            T.cta_id([2])
-            T.thread_id([128])
-            pool = T.SMEMPool()
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+            pool = SMEMPool()
             bar = TMABar(pool, 1)
             bar.remote_view(0).arrive(0, tx_count=128, remote=1)
         # fmt: on
@@ -307,12 +293,10 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
         match=r"remote_view\(\) cannot be applied to a remote view",
     ):
         # fmt: off
-        @T.prim_func
+        @T.function
         def nested_remote_view():
-            T.device_entry()
-            T.cta_id([2])
-            T.thread_id([128])
-            pool = T.SMEMPool()
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+            pool = SMEMPool()
             bar = MBarrier(pool, 1)
             bar.remote_view(0).remote_view(1)
         # fmt: on
@@ -322,13 +306,13 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_fence_before_after_thread_sync():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_fence(A: T.Tensor((16, 16), "float16")):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([4])
-        lane_id = T.lane_id([32])
-        tid = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane_id = T.cuda.lane_id()
+        tid = T.cuda.thread_idx('x')
         T.ptx.tcgen05.fence__before_thread_sync()
         T.ptx.bar.sync(0, 32)
         T.ptx.tcgen05.fence__after_thread_sync()
@@ -351,15 +335,15 @@ def test_tcgen05_ld_st_roundtrip():
     cta_group = 1
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_ld_st(A: T.Tensor((HEIGHT, WIDTH), "float32"), B: T.Tensor((HEIGHT, WIDTH), "float32")):  # noqa: E501
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([4])
-        lane_id = T.lane_id([32])
-        tx = T.thread_id([128])
-        reg = T.alloc_tensor((WIDTH,), "float32", scope="local")
-        # tmem_addr = T.alloc_tensor((1,), "uint32", scope="shared", align=8)
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane_id = T.cuda.lane_id()
+        tx = T.cuda.thread_idx('x')
+        reg = T.alloc_tensor(ty_args=[T.Tensor((WIDTH,), "float32", scope="local")])
+        # tmem_addr = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="shared", align=8)])
         tmem_addr = T.shared_scalar("uint32")
 
         # alloc TMEM
@@ -430,21 +414,23 @@ def test_tcgen05_cp_ld_roundtrip():
     cta_group = 1
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_cp_ld(A: T.Tensor((HEIGHT, WIDTH), dtype, layout=T.TileLayout(T.S[(HEIGHT, WIDTH // 4, 4) : (4, HEIGHT * 4, 1)])),  # noqa: E501
                    B: T.Tensor((HEIGHT, WIDTH), dtype, layout=T.TileLayout(T.S[(HEIGHT, WIDTH // 4, 4) : (4, HEIGHT * 4, 1)]))):  # noqa: E501
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([4])
-        lane_id = T.lane_id([32])
-        tx = T.thread_id([128])
-        A_smem = T.alloc_tensor((HEIGHT, WIDTH), dtype, scope="shared", layout=A_layout)
-        reg = T.alloc_tensor((WIDTH,), dtype, scope="local")
-        # tmem_addr = T.alloc_tensor((1,), "uint32", scope="shared", align=8)
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane_id = T.cuda.lane_id()
+        tx = T.cuda.thread_idx('x')
+        A_smem = T.alloc_tensor(
+            ty_args=[T.Tensor((HEIGHT, WIDTH), dtype, scope="shared", layout=A_layout)]
+        )
+        reg = T.alloc_tensor(ty_args=[T.Tensor((WIDTH,), dtype, scope="local")])
+        # tmem_addr = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="shared", align=8)])
         tmem_addr = T.shared_scalar("uint32")
-        descA = T.alloc_tensor((1,), "uint64", scope="local")
-        bar = T.alloc_tensor((1,), "uint64", scope="shared", align=8)
-        phase = T.alloc_tensor((1,), "int32", scope="local")
+        descA = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local")])
+        bar = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="shared", align=8)])
+        phase = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
 
         # alloc TMEM
         if warp_id == 0:
@@ -452,7 +438,38 @@ def test_tcgen05_cp_ld_roundtrip():
                 T.address_of(tmem_addr), T.uint32(N_COLS)
             )
         T.cuda.cta_sync()
-        Tx.cta.copy(A_smem[:, :], A[:, :])
+        copy_src_1 = T.meta_var(A[:, :])
+        copy_src_tensor_1 = T.meta_var(copy_src_1.source)
+        copy_dst_1 = T.meta_var(A_smem[:, :])
+        copy_dst_tensor_1 = T.meta_var(copy_dst_1.source)
+        for copy_step_1 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_1.region]), 128)
+        ):
+            copy_index_1 = copy_step_1 * (128) + (tx)
+            if copy_index_1 < math.prod([int(r.extent) for r in copy_src_1.region]):
+                copy_value_1 = copy_src_tensor_1[
+                    tuple(
+                        [
+                            copy_src_1.region[k].min
+                            + copy_index_1
+                            // math.prod([int(s.extent) for s in copy_src_1.region[k + 1 :]])
+                            % copy_src_1.region[k].extent
+                            for k in range(len(copy_src_1.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_1 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_1.region[k].min
+                            + copy_index_1
+                            // math.prod([int(s.extent) for s in copy_dst_1.region[k + 1 :]])
+                            % copy_dst_1.region[k].extent
+                            for k in range(len(copy_dst_1.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_1[copy_dst_index_1] = copy_value_1
         T.ptx.fence.proxy.async_.shared__cta()
         T.cuda.cta_sync()
         # reset RF
@@ -463,7 +480,7 @@ def test_tcgen05_cp_ld_roundtrip():
         if tx == 0:
             T.ptx.mbarrier.init.shared.b64(bar.data, T.uint32(1))
             for k in range(dtype_bits * WIDTH // 256):
-                T.cuda.tcgen05.encode_matrix_descriptor(descA.data, A_smem.access_ptr("r", offset=A_smem.elem_offset_of([0, k * 8])), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
+                T.cuda.tcgen05.encode_matrix_descriptor(descA.data, A_smem.ptr_to([0, k * 8]), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
                 T.ptx[f"tcgen05.cp.cta_group::{cta_group}.128x256b"](T.cuda.get_tmem_addr(tmem_addr, 0, k * 256 // 32), descA[0])  # noqa: E501
             T.ptx[f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"](bar.data)
         T.cuda.mbarrier_wait(bar.data, phase[0])
@@ -542,26 +559,36 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
     mma_masks = [0] * (4 if cta_group == 1 else 8)
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_mma_ss_no_tma(A: T.Tensor((M, K), a_type, layout=T.TileLayout(T.S[M, K])),
                            B: T.Tensor((N, K), b_type, layout=T.TileLayout(T.S[N, K])),
                            C: T.Tensor((M, N), d_type)):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([4])
-        lane_id = T.lane_id([32])
-        tx = T.thread_id([128])
-        dyn = T.alloc_tensor((dyn_smem_bytes,), "uint8", scope="shared")
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane_id = T.cuda.lane_id()
+        tx = T.cuda.thread_idx('x')
+        dyn = T.alloc_tensor(ty_args=[T.Tensor((dyn_smem_bytes,), "uint8", scope="shared")])
         tmem_addr = T.decl_scalar("uint32", dyn.data, scope="shared", elem_offset=0)
-        A_smem = T.decl_tensor((M, K), a_type, dyn.data, elem_offset=256, layout=A_layout)
-        B_smem = T.decl_tensor((N, K), b_type, dyn.data, elem_offset=256 + M*K, layout=B_layout)
-        bar = T.decl_tensor((1,), "uint64", dyn.data, scope="shared", elem_offset=8)
+        A_smem = T.decl_tensor(
+            dyn.data,
+            ty_args=[T.Tensor((M, K), a_type, elem_offset=256, layout=A_layout, data=dyn.data)],
+        )
+        B_smem = T.decl_tensor(
+            dyn.data,
+            ty_args=[
+                T.Tensor((N, K), b_type, elem_offset=256 + M * K, layout=B_layout, data=dyn.data)
+            ],
+        )
+        bar = T.decl_tensor(
+            dyn.data, ty_args=[T.Tensor((1,), "uint64", scope="shared", elem_offset=8)]
+        )
 
-        reg = T.alloc_tensor((N,), d_type, scope="local")
-        descA = T.alloc_tensor((1,), "uint64", scope="local")
-        descB = T.alloc_tensor((1,), "uint64", scope="local")
-        descI = T.alloc_tensor((1,), "uint32", scope="local")
-        phase = T.alloc_tensor((1,), "int32", scope="local")
+        reg = T.alloc_tensor(ty_args=[T.Tensor((N,), d_type, scope="local")])
+        descA = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local")])
+        descB = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local")])
+        descI = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="local")])
+        phase = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
 
         # alloc TMEM
         if warp_id == 0:
@@ -571,8 +598,70 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
         T.cuda.cta_sync()
         for i in range(N):
             reg[i] = 0.0
-        Tx.cta.copy(A_smem[:, :], A[:, :])
-        Tx.cta.copy(B_smem[:, :], B[:, :])
+        copy_src_2 = T.meta_var(A[:, :])
+        copy_src_tensor_2 = T.meta_var(copy_src_2.source)
+        copy_dst_2 = T.meta_var(A_smem[:, :])
+        copy_dst_tensor_2 = T.meta_var(copy_dst_2.source)
+        for copy_step_2 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_2.region]), 128)
+        ):
+            copy_index_2 = copy_step_2 * (128) + (tx)
+            if copy_index_2 < math.prod([int(r.extent) for r in copy_src_2.region]):
+                copy_value_2 = copy_src_tensor_2[
+                    tuple(
+                        [
+                            copy_src_2.region[k].min
+                            + copy_index_2
+                            // math.prod([int(s.extent) for s in copy_src_2.region[k + 1 :]])
+                            % copy_src_2.region[k].extent
+                            for k in range(len(copy_src_2.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_2 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_2.region[k].min
+                            + copy_index_2
+                            // math.prod([int(s.extent) for s in copy_dst_2.region[k + 1 :]])
+                            % copy_dst_2.region[k].extent
+                            for k in range(len(copy_dst_2.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_2[copy_dst_index_2] = copy_value_2
+        copy_src_3 = T.meta_var(B[:, :])
+        copy_src_tensor_3 = T.meta_var(copy_src_3.source)
+        copy_dst_3 = T.meta_var(B_smem[:, :])
+        copy_dst_tensor_3 = T.meta_var(copy_dst_3.source)
+        for copy_step_3 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_3.region]), 128)
+        ):
+            copy_index_3 = copy_step_3 * (128) + (tx)
+            if copy_index_3 < math.prod([int(r.extent) for r in copy_src_3.region]):
+                copy_value_3 = copy_src_tensor_3[
+                    tuple(
+                        [
+                            copy_src_3.region[k].min
+                            + copy_index_3
+                            // math.prod([int(s.extent) for s in copy_src_3.region[k + 1 :]])
+                            % copy_src_3.region[k].extent
+                            for k in range(len(copy_src_3.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_3 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_3.region[k].min
+                            + copy_index_3
+                            // math.prod([int(s.extent) for s in copy_dst_3.region[k + 1 :]])
+                            % copy_dst_3.region[k].extent
+                            for k in range(len(copy_dst_3.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_3[copy_dst_index_3] = copy_value_3
         T.ptx.fence.proxy.async_.shared__cta()
         T.cuda.cta_sync()
         # MMA
@@ -640,15 +729,14 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_tcgen05_mma_pred_codegen():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_mma_pred():
-        T.device_entry()
-        T.thread_id([1])
-        tmem_addr = T.alloc_tensor((1,), "uint32", scope="local")
-        desc_a = T.alloc_tensor((1,), "uint64", scope="local")
-        desc_b = T.alloc_tensor((1,), "uint64", scope="local")
-        desc_i = T.alloc_tensor((1,), "uint32", scope="local")
-        pred = T.alloc_tensor((1,), "uint32", scope="local")
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(1,)))
+        tmem_addr = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="local")])
+        desc_a = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local")])
+        desc_b = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint64", scope="local")])
+        desc_i = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="local")])
+        pred = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="local")])
 
         tmem_addr[0] = T.uint32(0)
         desc_a[0] = T.uint64(0)

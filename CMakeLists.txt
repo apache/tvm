@@ -69,7 +69,6 @@ tvm_option(USE_HEXAGON_EXTERNAL_LIBS "Path to git repo containing external Hexag
 tvm_option(USE_RPC "Build with RPC" ON)
 tvm_option(USE_THREADS "Build with thread support" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
-tvm_option(USE_MLIR "Build with MLIR support" OFF)
 tvm_option(USE_OPENMP "Build with OpenMP thread pool implementation" OFF)
 tvm_option(TVM_DEBUG_WITH_ABI_CHANGE "Enable debug code that may cause ABI changes" OFF)
 tvm_option(TVM_LOG_BEFORE_THROW "Whether log before throw, for debugging purposes" OFF)
@@ -312,11 +311,13 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/script/printer/config.cc
     src/script/printer/doc.cc
     src/script/printer/doc_translator.cc
+    src/script/printer/ir/call.cc
     src/script/printer/ir/utils.cc
     src/script/printer/ir/ir.cc
     src/script/printer/ir/misc.cc
     src/script/printer/ir/prim_type.cc
     src/script/printer/ir/prim_expr.cc
+    src/script/printer/ir/stmt.cc
     src/script/printer/printer.cc
     src/script/printer/doc_printer.cc
     src/script/printer/script_printer.cc
@@ -340,18 +341,22 @@ tvm_file_glob(GLOB CODEGEN_SRCS
   src/target/*.cc
   src/target/source/*.cc
   src/target/canonicalizer/*.cc
-  src/target/canonicalizer/llvm/*.cc
+  src/target/llvm/canonicalizer/*.cc
   src/backend/cuda/codegen/*.cc
   src/backend/cuda/op/*.cc
   src/backend/cuda/transforms/*.cc
+  src/backend/cuda/tile/*.cc
+  src/backend/cuda/layout/*.cc
   src/backend/hexagon/codegen/*.cc
   src/backend/metal/codegen/*.cc
   src/backend/metal/op/*.cc
   src/backend/opencl/codegen/*.cc
+  src/backend/opencl/op/*.cc
   src/backend/rocm/codegen/*.cc
   src/backend/trn/codegen/*.cc
   src/backend/trn/op/*.cc
   src/backend/trn/transform/*.cc
+  src/backend/trn/layout/*.cc
   src/backend/vulkan/codegen/target_kind.cc
   src/backend/vulkan/codegen/vulkan_fallback_module.cc
   src/backend/webgpu/codegen/*.cc
@@ -361,10 +366,11 @@ list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
 
 tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
-  src/runtime/vm/*.cc
-  src/runtime/memory/*.cc
   src/runtime/rpc/minrpc/*.cc
 )
+# VM-owned runtime implementations, including external-module constant loading.
+tvm_file_glob(GLOB RUNTIME_VM_SRCS src/runtime/vm/*.cc)
+list(APPEND RUNTIME_SRCS ${RUNTIME_VM_SRCS})
 # Note: src/runtime/extra/disco/** moves to libtvm_runtime_extra.
 # Note: src/backend/*/runtime sources move to per-backend DSOs.
 set(TVM_RUNTIME_EXT_OBJS "")
@@ -772,7 +778,7 @@ if (INSTALL_DEV)
   )
 else(INSTALL_DEV)
   install(
-    DIRECTORY "include/tvm/runtime/" DESTINATION "include/tvm/runtime"
+    DIRECTORY "include/tvm/runtime" "include/tvm/support" DESTINATION "include/tvm"
     FILES_MATCHING
     PATTERN "*.h"
     )

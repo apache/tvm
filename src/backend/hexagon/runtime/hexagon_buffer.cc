@@ -19,6 +19,7 @@
 #include "hexagon_buffer.h"
 
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 
 #include <algorithm>
 #include <string>
@@ -56,7 +57,7 @@ struct DDRAllocation : public Allocation {
     // to the heap manager may allocate memory that resides in part or in full in the cache. Hence,
     // we must invalidate the allocation from the cache to ensure that DMA with cache bypass enabled
     // will function properly. DMA with cache bypass enabled assumes that HexagonBuffer objects are
-    // not cached unless explicitly modified by the primfunc. We must invalidate after malloc to
+    // not cached unless explicitly modified by the function. We must invalidate after malloc to
     // uphold this assumption.
     qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(data_), nbytes, QURT_MEM_CACHE_INVALIDATE,
                          QURT_MEM_DCACHE);
@@ -65,7 +66,8 @@ struct DDRAllocation : public Allocation {
 };
 
 struct VTCMAllocation : public Allocation {
-  VTCMAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
+  VTCMAllocation(size_t nbytes, size_t alignment)
+      : Allocation(nbytes, alignment), pool_(HexagonDeviceAPI::Global()->VtcmPoolOwner()) {
     // For simplicity, the current VTCM dynamic pool supports the following alignments: less than
     // or equal to 128 (0x80), and 2k (0x800)
     TVM_FFI_ICHECK((alignment <= 0x80) || (alignment == 0x800))
@@ -84,14 +86,16 @@ struct VTCMAllocation : public Allocation {
                  << nbytes;
       allocation_nbytes_ = nbytes;
     }
-    data_ = HexagonDeviceAPI::Global()->VtcmPool()->Allocate(allocation_nbytes_);
+    data_ = pool_->Allocate(allocation_nbytes_);
     DLOG(INFO) << "VTCMAllocation " << data_ << " " << allocation_nbytes_ << " " << alignment;
   }
   ~VTCMAllocation() {
     DLOG(INFO) << "~VTCMAllocation " << data_ << " " << allocation_nbytes_;
-    HexagonDeviceAPI::Global()->VtcmPool()->Free(data_, allocation_nbytes_);
+    pool_->Free(data_, allocation_nbytes_);
     data_ = nullptr;
   }
+
+  std::shared_ptr<HexagonVtcmPool> pool_;
 };
 
 template <HexagonBuffer::StorageScope S>
@@ -109,7 +113,8 @@ std::unique_ptr<Allocation> Allocator<HexagonBuffer::StorageScope::kVTCM>(size_t
   return std::make_unique<VTCMAllocation>(nbytes, alignment);
 }
 
-HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, ffi::Optional<ffi::String> scope)
+HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment,
+                             ffi::Optional<runtime::MemoryScope> scope)
     : ndim_(1), nbytes_per_allocation_(nbytes) {
   SetStorageScope(scope);
 
@@ -125,7 +130,7 @@ HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, ffi::Optional<ffi:
 }
 
 HexagonBuffer::HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
-                             ffi::Optional<ffi::String> scope)
+                             ffi::Optional<runtime::MemoryScope> scope)
     : ndim_(2), nbytes_per_allocation_(nbytes) {
   SetStorageScope(scope);
 
@@ -167,17 +172,19 @@ void* HexagonBuffer::GetPointer() {
 
 HexagonBuffer::StorageScope HexagonBuffer::GetStorageScope() const { return storage_scope_; }
 
-void HexagonBuffer::SetStorageScope(ffi::Optional<ffi::String> scope) {
-  const std::string s = scope.value_or("global");
+void HexagonBuffer::SetStorageScope(ffi::Optional<runtime::MemoryScope> scope) {
+  static const auto scope_global_ddr = runtime::MemoryScope::Get("global.ddr");
+  static const auto scope_global_vtcm = runtime::MemoryScope::Get("global.vtcm");
+  const auto s = scope.value_or(runtime::MemoryScope::Global());
 
-  if (s == "global") {
+  if (s == runtime::MemoryScope::Global()) {
     storage_scope_ = StorageScope::kDDR;
-  } else if (s == "global.ddr") {
+  } else if (s == scope_global_ddr) {
     storage_scope_ = StorageScope::kDDR;
-  } else if (s == "global.vtcm") {
+  } else if (s == scope_global_vtcm) {
     storage_scope_ = StorageScope::kVTCM;
   } else {
-    TVM_FFI_ICHECK(false) << "Encountered unknown HexagonBuffer storage scope: " << std::string(s);
+    TVM_FFI_ICHECK(false) << "Encountered unknown HexagonBuffer storage scope: " << s.name();
   }
 }
 

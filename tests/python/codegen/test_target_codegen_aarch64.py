@@ -43,7 +43,7 @@ def test_mul(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -55,7 +55,7 @@ def test_mul(dtype):
                 C[i] = A[i] * B[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -81,7 +81,7 @@ def test_add(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -93,7 +93,7 @@ def test_add(dtype):
                 C[i] = A[i] + B[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -119,7 +119,7 @@ def test_sub(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -131,7 +131,7 @@ def test_sub(dtype):
                 C[i] = A[i] - B[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -157,7 +157,7 @@ def test_muladd(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -170,7 +170,7 @@ def test_muladd(dtype):
                 D[i] = A[i] * B[i] + C[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -206,7 +206,7 @@ def test_max(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -218,7 +218,7 @@ def test_max(dtype):
                 C[i] = T.max(A[i], B[i])
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -248,7 +248,7 @@ def test_min(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -260,7 +260,7 @@ def test_min(dtype):
                 C[i] = T.min(A[i], B[i])
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -290,7 +290,7 @@ def test_div(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -302,7 +302,7 @@ def test_div(dtype):
                 C[i] = tvm.tirx.div(A[i], B[i])
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -327,7 +327,7 @@ def test_mod(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -339,7 +339,7 @@ def test_mod(dtype):
                 C[i] = T.floormod(A[i], B[i])
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -365,7 +365,7 @@ def test_eq(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -377,7 +377,7 @@ def test_eq(dtype):
                 C[i] = A[i] == B[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -406,7 +406,7 @@ def test_neq(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -418,7 +418,7 @@ def test_neq(dtype):
                 C[i] = A[i] != B[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -446,7 +446,7 @@ def test_or(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -458,7 +458,7 @@ def test_or(dtype):
                 C[i] = A[i] | B[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -483,7 +483,7 @@ def test_and(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -495,7 +495,7 @@ def test_and(dtype):
                 C[i] = A[i] & B[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -520,7 +520,7 @@ def test_not(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((m,), dtype=dtype), C: T.Tensor((m,), dtype=dtype)):
             T.func_attr({"tirx.noalias": True})
 
@@ -528,7 +528,7 @@ def test_not(dtype):
                 C[i] = ~A[i]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -557,7 +557,7 @@ def test_memcpy(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), "int32"),
@@ -569,7 +569,7 @@ def test_memcpy(dtype):
                 C[i] = A[B[i]]
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -600,15 +600,15 @@ def test_vscale_range_function_attribute(mattr, expect_attr):
 
     @I.ir_module
     class Module:
-        @T.prim_func
-        def main(A: T.Tensor((m,)), C: T.Tensor((m,))):
+        @T.function
+        def main(A: T.Tensor((m,), "float32"), C: T.Tensor((m,), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             for i in range(m):
                 C[i] = A[i] + T.float32(1)
 
     with tvm.target.Target(target):
-        f = tvm.tirx.build(Module)
+        f = tvm.tirx.compile(Module).mod
 
     # Check if the vscale_range() attribute exists
     ll = f.inspect_source("ll")

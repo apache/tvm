@@ -391,10 +391,10 @@ def llama_rope(  # pylint: disable=too-many-arguments
             expr = tirx.Let(var, value, expr)
         return expr
 
-    batch_size = T.dynamic("batch_size")
-    seq_len = T.dynamic("seq_len")
+    batch_size = T.dynamic("batch_size", "int64")
+    seq_len = T.dynamic("seq_len", "int64")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
         qkv: T.Tensor((batch_size, seq_len, fused_heads, head_dim), dtype),
         q: T.Tensor((batch_size, seq_len, num_q_heads, head_dim), dtype),
@@ -524,7 +524,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
     seq_len = T.dynamic("seq_len", "int32")
     position_map_elem_offset = T.dynamic("position_map_elem_offset", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def fused_rope(  # pylint: disable=too-many-locals
         qkv: T.Tensor((seq_len, fused_heads, head_dim), dtype),
         position_map: T.Tensor((seq_len,), "int32", elem_offset=position_map_elem_offset),
@@ -558,10 +558,10 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                 else:
                     v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
 
-    seq_len = T.dynamic("seq_len")
-    position_map_elem_offset = T.dynamic("position_map_elem_offset")
+    seq_len = T.dynamic("seq_len", "int64")
+    position_map_elem_offset = T.dynamic("position_map_elem_offset", "int64")
 
-    @Ts.prim_func
+    @Ts.function
     def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
         qkv: T.Tensor((seq_len, fused_heads, head_dim), dtype),
         position_map: T.Tensor((seq_len,), "int32", elem_offset=position_map_elem_offset),
@@ -578,12 +578,20 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         )
 
         # long factors is the first half, short factors is the second half
-        long_factors = T.decl_tensor((rotary_dim // 2,), "float32", data=ext_factors.data)
+        long_factors = T.decl_tensor(
+            ext_factors.data,
+            ty_args=[T.Tensor((rotary_dim // 2,), "float32", data=ext_factors.data)],
+        )
         short_factors = T.decl_tensor(
-            (rotary_dim // 2,),
-            "float32",
-            data=ext_factors.data,
-            elem_offset=(rotary_dim // 2),
+            ext_factors.data,
+            ty_args=[
+                T.Tensor(
+                    (rotary_dim // 2,),
+                    "float32",
+                    elem_offset=rotary_dim // 2,
+                    data=ext_factors.data,
+                )
+            ],
         )
 
         if seq_len > original_max_position_embeddings:
@@ -741,7 +749,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
     seq_len = T.dynamic("seq_len", "int32")
     position_map_elem_offset = T.dynamic("position_map_elem_offset", "int32")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
         qkv: T.Tensor((seq_len, fused_heads, head_dim), dtype),
         position_map: T.Tensor((seq_len,), "int32", elem_offset=position_map_elem_offset),
@@ -775,10 +783,10 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
                 else:
                     v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
 
-    seq_len = T.dynamic("seq_len")
-    position_map_elem_offset = T.dynamic("position_map_elem_offset")
+    seq_len = T.dynamic("seq_len", "int64")
+    position_map_elem_offset = T.dynamic("position_map_elem_offset", "int64")
 
-    @Ts.prim_func
+    @Ts.function
     def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
         qkv: T.Tensor((seq_len, fused_heads, head_dim), dtype),
         position_map: T.Tensor((seq_len,), "int32", elem_offset=position_map_elem_offset),
@@ -795,12 +803,20 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
         )
 
         # long factors is the first half, short factors is the second half
-        long_factors = T.decl_tensor((rotary_dim // 2,), "float32", data=ext_factors.data)
+        long_factors = T.decl_tensor(
+            ext_factors.data,
+            ty_args=[T.Tensor((rotary_dim // 2,), "float32", data=ext_factors.data)],
+        )
         short_factors = T.decl_tensor(
-            (rotary_dim // 2,),
-            "float32",
-            data=ext_factors.data,
-            elem_offset=(rotary_dim // 2),
+            ext_factors.data,
+            ty_args=[
+                T.Tensor(
+                    (rotary_dim // 2,),
+                    "float32",
+                    elem_offset=rotary_dim // 2,
+                    data=ext_factors.data,
+                )
+            ],
         )
 
         if seq_len > original_max_position_embeddings:

@@ -146,11 +146,11 @@ def test_tir_special_floatimms(dtype, literal):
 def test_tir_too_large_literal_f64():
     # Behavior check: if literal f64 value is out of dtype range, the
     # object is still constructed, and eval to infinity.
-    @T.prim_func
+    @T.function
     def imm_overflow_fp64() -> T.float64:
         return T.float64(1.7976e309)
 
-    f = tvm.compile(imm_overflow_fp64, target="llvm")
+    f = tvm.tirx.compile(imm_overflow_fp64, target="llvm")
     assert math.isinf(f())
 
 
@@ -256,24 +256,24 @@ def check_tir_const_fold(
 def test_tir_floatimm_const_fold():
     """Behavior check: folding fp32 match platform f32 arithmetic"""
 
-    @T.prim_func
+    @T.function
     def float_imm_multiply(x: T.float32, y: T.float32, z: T.Tensor((), "float32")):
         z[()] = x * y
 
-    @T.prim_func
+    @T.function
     def float_imm_add(x: T.float32, y: T.float32, z: T.Tensor((), "float32")):
         z[()] = x + y
 
-    @T.prim_func
+    @T.function
     def float_imm_sub(x: T.float32, y: T.float32, z: T.Tensor((), "float32")):
         z[()] = x - y
 
-    @T.prim_func
+    @T.function
     def float_imm_div(x: T.float32, y: T.float32, z: T.Tensor((), "float32")):
         z[()] = x / y
 
     def __wrap_build(f):
-        lib = tvm.compile(f, target="llvm")
+        lib = tvm.tirx.compile(f, target="llvm")
         z = tvm.runtime.tensor(np.zeros([]).astype("float32"))
 
         def _func(x, y):
@@ -314,31 +314,31 @@ def test_tir_floatimm_const_fold():
 def test_tir_int8_const_fold():
     """Behavior check: folding i8 operation match platform i8 arithmetic"""
 
-    @T.prim_func
+    @T.function
     def imm_multiply(x: T.int8, y: T.int8) -> T.int8:
         return x * y
 
-    @T.prim_func
+    @T.function
     def imm_add(x: T.int8, y: T.int8) -> T.int8:
         return x + y
 
-    @T.prim_func
+    @T.function
     def imm_sub(x: T.int8, y: T.int8) -> T.int8:
         return x - y
 
-    @T.prim_func
+    @T.function
     def imm_truncdiv(x: T.int8, y: T.int8) -> T.int8:
         return T.truncdiv(x, y)
 
-    @T.prim_func
+    @T.function
     def imm_floordiv(x: T.int8, y: T.int8) -> T.int8:
         return T.floordiv(x, y)
 
-    fmul = tvm.compile(imm_multiply, target="llvm")
-    fadd = tvm.compile(imm_add, target="llvm")
-    fsub = tvm.compile(imm_sub, target="llvm")
-    ffloordiv = tvm.compile(imm_floordiv, target="llvm")
-    ftruncdiv = tvm.compile(imm_truncdiv, target="llvm")
+    fmul = tvm.tirx.compile(imm_multiply, target="llvm")
+    fadd = tvm.tirx.compile(imm_add, target="llvm")
+    fsub = tvm.tirx.compile(imm_sub, target="llvm")
+    ffloordiv = tvm.tirx.compile(imm_floordiv, target="llvm")
+    ftruncdiv = tvm.tirx.compile(imm_truncdiv, target="llvm")
 
     # overflow
     check_tir_const_fold("int8", lambda x, y: x + y, fadd, 127, 1, -128)
@@ -370,31 +370,31 @@ def test_tir_int8_const_fold():
 def test_tir_uint8_const_fold():
     """Behavior check: folding u8 operation match platform u8 arithmetic"""
 
-    @T.prim_func
+    @T.function
     def imm_multiply(x: T.uint8, y: T.uint8) -> T.uint8:
         return x * y
 
-    @T.prim_func
+    @T.function
     def imm_add(x: T.uint8, y: T.uint8) -> T.uint8:
         return x + y
 
-    @T.prim_func
+    @T.function
     def imm_sub(x: T.uint8, y: T.uint8) -> T.uint8:
         return x - y
 
-    @T.prim_func
+    @T.function
     def imm_truncdiv(x: T.uint8, y: T.uint8) -> T.uint8:
         return T.truncdiv(x, y)
 
-    @T.prim_func
+    @T.function
     def imm_floordiv(x: T.uint8, y: T.uint8) -> T.uint8:
         return T.floordiv(x, y)
 
-    fmul = tvm.compile(imm_multiply, target="llvm")
-    fadd = tvm.compile(imm_add, target="llvm")
-    fsub = tvm.compile(imm_sub, target="llvm")
-    ffloordiv = tvm.compile(imm_floordiv, target="llvm")
-    ftruncdiv = tvm.compile(imm_truncdiv, target="llvm")
+    fmul = tvm.tirx.compile(imm_multiply, target="llvm")
+    fadd = tvm.tirx.compile(imm_add, target="llvm")
+    fsub = tvm.tirx.compile(imm_sub, target="llvm")
+    ffloordiv = tvm.tirx.compile(imm_floordiv, target="llvm")
+    ftruncdiv = tvm.tirx.compile(imm_truncdiv, target="llvm")
 
     # overflow
     check_tir_const_fold("uint8", lambda x, y: x + y, fadd, 255, 1, 0)
@@ -435,41 +435,41 @@ def test_tir_uint8_const_fold():
 def test_tir_int32_const_fold():
     """Behavior check: folding i32 operation match platform i32 arithmetic"""
 
-    @T.prim_func
+    @T.function
     def imm_multiply(x: T.int32, y: T.int32) -> T.int32:
         return x * y
 
-    @T.prim_func
+    @T.function
     def imm_add(x: T.int32, y: T.int32) -> T.int32:
         return x + y
 
-    @T.prim_func
+    @T.function
     def imm_sub(x: T.int32, y: T.int32) -> T.int32:
         return x - y
 
-    @T.prim_func
+    @T.function
     def imm_truncdiv(x: T.int32, y: T.int32) -> T.int32:
         return T.truncdiv(x, y)
 
-    @T.prim_func
+    @T.function
     def imm_truncmod(x: T.int32, y: T.int32) -> T.int32:
         return T.truncmod(x, y)
 
-    @T.prim_func
+    @T.function
     def imm_floordiv(x: T.int32, y: T.int32) -> T.int32:
         return T.floordiv(x, y)
 
-    @T.prim_func
+    @T.function
     def imm_floormod(x: T.int32, y: T.int32) -> T.int32:
         return T.floormod(x, y)
 
-    fmul = tvm.compile(imm_multiply, target="llvm")
-    fadd = tvm.compile(imm_add, target="llvm")
-    fsub = tvm.compile(imm_sub, target="llvm")
-    ffloordiv = tvm.compile(imm_floordiv, target="llvm")
-    ffloormod = tvm.compile(imm_floormod, target="llvm")
-    ftruncdiv = tvm.compile(imm_truncdiv, target="llvm")
-    ftruncmod = tvm.compile(imm_truncmod, target="llvm")
+    fmul = tvm.tirx.compile(imm_multiply, target="llvm")
+    fadd = tvm.tirx.compile(imm_add, target="llvm")
+    fsub = tvm.tirx.compile(imm_sub, target="llvm")
+    ffloordiv = tvm.tirx.compile(imm_floordiv, target="llvm")
+    ffloormod = tvm.tirx.compile(imm_floormod, target="llvm")
+    ftruncdiv = tvm.tirx.compile(imm_truncdiv, target="llvm")
+    ftruncmod = tvm.tirx.compile(imm_truncmod, target="llvm")
 
     # i32 overflow is not specified, only check for range
     assert -(2**31) <= int(tirx.const(2**31 - 1, "int32") + tirx.const(1, "int32")) < 2**31
@@ -523,31 +523,31 @@ def test_tir_int32_const_fold():
 def test_tir_uint32_const_fold():
     """Behavior check: folding u32 operation match platform u32 arithmetic"""
 
-    @T.prim_func
+    @T.function
     def imm_multiply(x: T.uint32, y: T.uint32) -> T.uint32:
         return x * y
 
-    @T.prim_func
+    @T.function
     def imm_add(x: T.uint32, y: T.uint32) -> T.uint32:
         return x + y
 
-    @T.prim_func
+    @T.function
     def imm_sub(x: T.uint32, y: T.uint32) -> T.uint32:
         return x - y
 
-    @T.prim_func
+    @T.function
     def imm_truncdiv(x: T.uint32, y: T.uint32) -> T.uint32:
         return T.truncdiv(x, y)
 
-    @T.prim_func
+    @T.function
     def imm_floordiv(x: T.uint32, y: T.uint32) -> T.uint32:
         return T.floordiv(x, y)
 
-    fmul = tvm.compile(imm_multiply, target="llvm")
-    fadd = tvm.compile(imm_add, target="llvm")
-    fsub = tvm.compile(imm_sub, target="llvm")
-    ffloordiv = tvm.compile(imm_floordiv, target="llvm")
-    ftruncdiv = tvm.compile(imm_truncdiv, target="llvm")
+    fmul = tvm.tirx.compile(imm_multiply, target="llvm")
+    fadd = tvm.tirx.compile(imm_add, target="llvm")
+    fsub = tvm.tirx.compile(imm_sub, target="llvm")
+    ffloordiv = tvm.tirx.compile(imm_floordiv, target="llvm")
+    ftruncdiv = tvm.tirx.compile(imm_truncdiv, target="llvm")
 
     # u32 overflow is not specified, only check for range
     assert 0 <= int(tirx.const(2**32 - 1, "uint32") + tirx.const(1, "uint32")) < 2**32

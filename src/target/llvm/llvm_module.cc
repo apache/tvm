@@ -37,7 +37,9 @@
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/FileSystem.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/support/io.h>
+#include <tvm/tirx/function.h>
 #if TVM_LLVM_VERSION >= 180
 #include <llvm/TargetParser/Host.h>
 #else
@@ -56,6 +58,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/support/file_utils.h>
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
 
@@ -64,7 +67,6 @@
 #include <system_error>
 #include <utility>
 
-#include "../../runtime/file_utils.h"
 #include "codegen_blob.h"
 #include "codegen_cpu.h"
 #include "codegen_llvm.h"
@@ -77,7 +79,7 @@ using ffi::Any;
 using ffi::Function;
 using ffi::PackedArgs;
 
-class LLVMModuleNode final : public ffi::ModuleObj {
+class LLVMModuleObj final : public ffi::ModuleObj {
  public:
   const char* kind() const final { return "llvm"; }
 
@@ -115,7 +117,7 @@ class LLVMModuleNode final : public ffi::ModuleObj {
   ffi::Array<ffi::String> function_names_;
 };
 
-ffi::Optional<ffi::Function> LLVMModuleNode::GetFunction(const ffi::String& name) {
+ffi::Optional<ffi::Function> LLVMModuleObj::GetFunction(const ffi::String& name) {
   ffi::ObjectPtr<ffi::Object> sptr_to_self = ffi::GetObjectPtr<ffi::Object>(this);
   if (name == "__tvm_is_system_module") {
     bool flag = (module_->getFunction("__tvm_module_startup") != nullptr);
@@ -145,7 +147,7 @@ ffi::Optional<ffi::Function> LLVMModuleNode::GetFunction(const ffi::String& name
   return tvm_ffi_orcjit_module_.value()->GetFunction(name);
 }
 
-void LLVMModuleNode::ImportModule(const ffi::Module& other) {
+void LLVMModuleObj::ImportModule(const ffi::Module& other) {
   ffi::ModuleObj::ImportModule(other);
   if (tvm_ffi_orcjit_module_.has_value()) {
     tvm_ffi_orcjit_module_.value()->ImportModule(other);
@@ -175,11 +177,10 @@ bool LLVMAddPassesToEmitFile(llvm::TargetMachine* tm, llvm::legacy::PassManager*
 
 }  // namespace
 
-void LLVMModuleNode::WriteToFile(const ffi::String& file_name_str,
-                                 const ffi::String& format) const {
+void LLVMModuleObj::WriteToFile(const ffi::String& file_name_str, const ffi::String& format) const {
   // TVM_FFI_ICHECK(imports_.empty()) << "SaveToFile does not handle imported modules";
   std::string file_name = file_name_str;
-  std::string fmt = runtime::GetFileFormat(file_name, format);
+  std::string fmt = support::GetFileFormat(file_name, format);
   std::error_code ecode;
   llvm::raw_fd_ostream dest(file_name, ecode, llvm_open_output_flag);
   TVM_FFI_ICHECK_EQ(ecode.value(), 0)
@@ -208,12 +209,12 @@ void LLVMModuleNode::WriteToFile(const ffi::String& file_name_str,
   dest.close();
 }
 
-ffi::Bytes LLVMModuleNode::SaveToBytes() const {
+ffi::Bytes LLVMModuleObj::SaveToBytes() const {
   TVM_FFI_THROW(InternalError) << "LLVMModule: SaveToBytes not supported";
 }
 
-ffi::String LLVMModuleNode::InspectSource(const ffi::String& format) const {
-  std::string fmt = runtime::GetFileFormat("", format);
+ffi::String LLVMModuleObj::InspectSource(const ffi::String& format) const {
+  std::string fmt = support::GetFileFormat("", format);
   std::string type_str;
   llvm::SmallString<256> str;
   llvm::raw_svector_ostream rso(str);
@@ -246,7 +247,7 @@ ffi::String LLVMModuleNode::InspectSource(const ffi::String& format) const {
   return "";
 }
 
-void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
+void LLVMModuleObj::Init(const IRModule& mod, const Target& target) {
   llvm_instance_ = std::make_unique<LLVMInstance>();
   With<LLVMTarget> llvm_target(*llvm_instance_, target);
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
@@ -258,13 +259,13 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
       mod->GetAttr<ffi::String>(tvm::attr::kSystemLibPrefix);
 
   for (auto kv : mod->functions) {
-    if (!kv.second->IsInstance<PrimFuncNode>()) {
-      DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
+    if (!kv.second->IsInstance<tirx::FunctionNode>()) {
+      DLOG(INFO) << "Can only lower IR Module with Functions, but got " << kv.second->GetTypeKey();
       continue;
     }
-    auto f = kv.second.as_or_throw<PrimFunc>();
+    auto f = kv.second.as_or_throw<tirx::Function>();
     auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-    bool is_entry_func = f->HasNonzeroAttr(tirx::attr::kIsEntryFunc);
+    bool is_entry_func = f->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc);
 
     TVM_FFI_ICHECK(global_symbol || !is_entry_func) << "The entry func must be exposed externally.";
 
@@ -301,19 +302,19 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
                          tm->getTargetTriple().isOSDarwin() ? 2 : 4);
 }
 
-void LLVMModuleNode::Init(std::unique_ptr<llvm::Module> module,
-                          std::unique_ptr<LLVMInstance> llvm_instance) {
+void LLVMModuleObj::Init(std::unique_ptr<llvm::Module> module,
+                         std::unique_ptr<LLVMInstance> llvm_instance) {
   module_ = std::move(module);
   llvm_instance_ = std::move(llvm_instance);
 }
 
-void LLVMModuleNode::LoadIR(const std::string& file_name) {
+void LLVMModuleObj::LoadIR(const std::string& file_name) {
   auto llvm_instance = std::make_unique<LLVMInstance>();
   std::unique_ptr<llvm::Module> module = llvm_instance->LoadIR(file_name);
   Init(std::move(module), std::move(llvm_instance));
 }
 
-void LLVMModuleNode::EnsureOrcJITModule() {
+void LLVMModuleObj::EnsureOrcJITModule() {
   if (tvm_ffi_orcjit_module_.has_value()) {
     return;
   }
@@ -367,7 +368,7 @@ static void LLVMReflectionRegister() {
   refl::GlobalDef()
       .def("target.build.llvm",
            [](IRModule mod, Target target) -> ffi::Module {
-             auto n = ffi::make_object<LLVMModuleNode>();
+             auto n = ffi::make_object<LLVMModuleObj>();
              n->Init(mod, target);
              return ffi::Module(n);
            })
@@ -375,7 +376,7 @@ static void LLVMReflectionRegister() {
            [](std::string target_str, std::string module_name) -> ffi::Module {
              auto llvm_instance = std::make_unique<LLVMInstance>();
              With<LLVMTarget> llvm_target(*llvm_instance, target_str);
-             auto n = ffi::make_object<LLVMModuleNode>();
+             auto n = ffi::make_object<LLVMModuleObj>();
              // Generate a LLVM module from an input target string
              auto module = std::make_unique<llvm::Module>(module_name, *llvm_target->GetContext());
              llvm_target->SetTargetMetadata(module.get());
@@ -417,11 +418,11 @@ static void LLVMReflectionRegister() {
              return "unimplemented";
            })
       .def("target.llvm_get_vector_width",
-           [](const Target& target) -> int {
-             auto use_target = target.defined() ? target : Target::Current(false);
+           [](const ffi::Optional<Target>& target) -> int {
+             auto use_target = target.has_value() ? target.value() : Target::Current(false).value();
              // ignore non "llvm" target
-             if (target.defined()) {
-               if (target->kind->name != "llvm") {
+             if (target.has_value()) {
+               if (target.value()->kind->name != "llvm") {
                  return -1;
                }
              }
@@ -440,11 +441,11 @@ static void LLVMReflectionRegister() {
              return llvm_backend.GetAllLLVMTargets();
            })
       .def("target.llvm_get_cpu_archlist",
-           [](const Target& target) -> ffi::Array<ffi::String> {
-             auto use_target = target.defined() ? target : Target::Current(false);
+           [](const ffi::Optional<Target>& target) -> ffi::Array<ffi::String> {
+             auto use_target = target.has_value() ? target.value() : Target::Current(false).value();
              // ignore non "llvm" target
-             if (target.defined()) {
-               if (target->kind->name != "llvm") {
+             if (target.has_value()) {
+               if (target.value()->kind->name != "llvm") {
                  return ffi::Array<ffi::String>{};
                }
              }
@@ -453,11 +454,11 @@ static void LLVMReflectionRegister() {
              return llvm_backend.GetAllLLVMTargetArches();
            })
       .def("target.llvm_get_cpu_features",
-           [](const Target& target) -> ffi::Map<ffi::String, ffi::String> {
-             auto use_target = target.defined() ? target : Target::Current(false);
+           [](const ffi::Optional<Target>& target) -> ffi::Map<ffi::String, ffi::String> {
+             auto use_target = target.has_value() ? target.value() : Target::Current(false).value();
              // ignore non "llvm" target
-             if (target.defined()) {
-               if (target->kind->name != "llvm") {
+             if (target.has_value()) {
+               if (target.value()->kind->name != "llvm") {
                  return {};
                }
              }
@@ -466,11 +467,11 @@ static void LLVMReflectionRegister() {
              return llvm_backend.GetAllLLVMCpuFeatures();
            })
       .def("target.llvm_cpu_has_feature",
-           [](const ffi::String feature, const Target& target) -> bool {
-             auto use_target = target.defined() ? target : Target::Current(false);
+           [](const ffi::String feature, const ffi::Optional<Target>& target) -> bool {
+             auto use_target = target.has_value() ? target.value() : Target::Current(false).value();
              // ignore non "llvm" target
-             if (target.defined()) {
-               if (target->kind->name != "llvm") {
+             if (target.has_value()) {
+               if (target.value()->kind->name != "llvm") {
                  return false;
                }
              }
@@ -481,11 +482,11 @@ static void LLVMReflectionRegister() {
              return has_feature;
            })
       .def("target.target_has_feature",
-           [](const ffi::String feature, const Target& target) -> bool {
-             auto use_target = target.defined() ? target : Target::Current(false);
+           [](const ffi::String feature, const ffi::Optional<Target>& target) -> bool {
+             auto use_target = target.has_value() ? target.value() : Target::Current(false).value();
              // ignore non "llvm" target
-             if (target.defined()) {
-               if (target->kind->name != "llvm") {
+             if (target.has_value()) {
+               if (target.value()->kind->name != "llvm") {
                  return false;
                }
              }
@@ -505,7 +506,7 @@ static void LLVMReflectionRegister() {
       .def("target.llvm_version_major", []() -> int { return TVM_LLVM_VERSION / 10; })
       .def("ffi.Module.load_from_file.ll",
            [](std::string filename, std::string fmt) -> ffi::Module {
-             auto n = ffi::make_object<LLVMModuleNode>();
+             auto n = ffi::make_object<LLVMModuleObj>();
              n->LoadIR(filename);
              return ffi::Module(n);
            })
@@ -519,7 +520,7 @@ static void LLVMReflectionRegister() {
       .def("codegen.codegen_blob",
            [](std::string data, bool system_lib, std::string llvm_target_string,
               std::string c_symbol_prefix) -> ffi::Module {
-             auto n = ffi::make_object<LLVMModuleNode>();
+             auto n = ffi::make_object<LLVMModuleObj>();
              auto llvm_instance = std::make_unique<LLVMInstance>();
              With<LLVMTarget> llvm_target(*llvm_instance, llvm_target_string);
              std::unique_ptr<llvm::Module> blob =

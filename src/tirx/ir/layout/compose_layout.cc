@@ -47,7 +47,7 @@ PrimExpr ApplyFullSwizzle(const ComposeLayoutNode* layout, const PrimExpr& m) {
 }
 
 void AddExpr(std::optional<PrimExpr>* sum, const PrimExpr& term, const sym::Analyzer& analyzer) {
-  if (is_zero(term)) return;
+  if (IsZero(term)) return;
   if (sum->has_value()) {
     *sum = analyzer->Simplify(sum->value() + term);
   } else {
@@ -301,13 +301,13 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
 
 /**************** ComposeLayout ****************/
 ComposeLayout::ComposeLayout(int per_element, int swizzle_len, int atom_len, TileLayout tile_layout,
-                             bool swizzle_inner) {
-  auto n = ffi::make_object<ComposeLayoutNode>();
+                             bool swizzle_inner)
+    : Layout(ffi::UnsafeInit{}) {
+  auto n = ffi::make_object<ComposeLayoutNode>(std::move(tile_layout));
   n->per_element = per_element;
   n->swizzle_len = swizzle_len;
   n->atom_len = atom_len;
   n->swizzle_inner = swizzle_inner;
-  n->tile_layout = std::move(tile_layout);
   TVM_FFI_ICHECK(n->VerifyWellFormed()) << "ValueError: The compose layout is not well-formed";
   int swizzle_mask = (1 << swizzle_len) - 1;
   n->inner_mask = swizzle_mask;
@@ -322,8 +322,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     return ComposeLayout(per_element, swizzle_len, atom_len, tile_layout, swizzle_inner);
   });
 }
-
-bool ComposeLayoutNode::CompatibleWithShape(const Array<PrimExpr>& shape) const { return true; }
 
 bool ComposeLayoutNode::VerifyWellFormed() const {
   if (!(per_element >= 0 && swizzle_len >= 0 && atom_len >= swizzle_len)) {
@@ -415,54 +413,6 @@ Layout ComposeLayoutNode::Tile(const TileLayout& outer, const ffi::Array<PrimExp
   }
   auto tiled_B = base->Tile(outer, outer_shape, inner_shape).as<TileLayout>().value();
   return ComposeLayout(per_element, swizzle_len, atom_len, tiled_B, swizzle_inner);
-}
-
-ffi::Optional<TileLayout> ComposeLayoutNode::IsTileInner(
-    const Layout& tile_layout, const ffi::Array<PrimExpr>& tiled_shape,
-    const ffi::Array<PrimExpr>& inner_shape) const {
-  if (auto comp = tile_layout.as<ComposeLayout>()) {
-    if (comp.value()->per_element == this->per_element &&
-        comp.value()->swizzle_len == this->swizzle_len &&
-        comp.value()->atom_len == this->atom_len &&
-        comp.value()->swizzle_inner == this->swizzle_inner) {
-      // A bare swizzle (ComposeLayout with a trivial tile) has no real tile to
-      // compare; its "tile" is the identity over the inner product, and a bare
-      // `tile_layout` argument contributes the identity over the tiled product.
-      // Substitute those identities so TileLayoutNode::IsTileInner sees the same
-      // inputs the former SwizzleLayoutNode::IsTileInner produced.
-      TileLayout this_tile = this->tile_layout;
-      if (this->tile_layout->IsTrivial()) {
-        this_tile = IdentityTileLayout(inner_shape);
-      }
-      TileLayout arg_tile = comp.value()->tile_layout;
-      if (comp.value()->tile_layout->IsTrivial()) {
-        arg_tile = IdentityTileLayout(tiled_shape);
-      }
-      return this_tile->IsTileInner(arg_tile, tiled_shape, inner_shape);
-    }
-  }
-  return std::nullopt;
-}
-
-ffi::Optional<Layout> ComposeLayoutNode::IsTileOuter(
-    const Layout& tile_layout, const ffi::Array<PrimExpr>& tiled_shape,
-    const ffi::Array<PrimExpr>& outer_shape) const {
-  return std::nullopt;
-}
-
-ffi::Optional<Layout> ComposeLayoutNode::Slice(const ffi::Array<PrimExpr>& shape,
-                                               const Region& region) const {
-  // A bare swizzle (ComposeLayout with a trivial tile) carries only the swizzle
-  // period, not a tile matching `shape`; substitute an identity tile over the
-  // buffer shape first, matching the former SwizzleLayoutNode::Slice.
-  TileLayout base = this->tile_layout;
-  if (base->IsTrivial()) {
-    base = IdentityTileLayout(shape);
-  }
-  auto sliced_opt = base->Slice(shape, region);
-  if (!sliced_opt.has_value()) return std::nullopt;
-  auto sliced = sliced_opt.value().as<TileLayout>().value();
-  return ComposeLayout(per_element, swizzle_len, atom_len, sliced, swizzle_inner);
 }
 
 }  // namespace tirx

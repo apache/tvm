@@ -37,13 +37,15 @@ per-instruction generated or hand-written code:
   ``T.ptx.ld.acquire.gpu.global_.b32(val, ptr)``.
 """
 
+from tvm_ffi import get_global_func, register_global_func, structural_equal
+
 from tvm.backend.cuda.codegen.registry import register_codegen
 from tvm.backend.cuda.codegen.utils import parse_str
 from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
-from tvm.ir import Call, Op, TensorLoad
+from tvm.ir import Call, Op, StringImm, TensorLoad, const
 from tvm.ir.op import register_op_attr
-from tvm.ir.type import PointerType, PrimType
-from tvm.runtime import const
+from tvm.ir.type import PrimType, PtrType
+from tvm.runtime import MemoryScope
 from tvm.tirx.expr import CallEffectKind, IntImm
 from tvm.tirx.op import call_intrin, reinterpret
 
@@ -58,6 +60,9 @@ from .table import (
     operand_type,
     unescape_token,
 )
+
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
 
 # Every ptx call is a void statement, and RemoveNoOp deletes any Evaluate()
 # whose value is <= kReadState, so kOpaque is what keeps the instruction alive.
@@ -95,20 +100,13 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
         # Encoded variants have no shared named operand prefix; codegen checks
         # each variant's operands, predicate, modifier tokens, and marker.
         Op.get(entry.op_name).set_signature(var_args="operands")
-        # The printer name is the *surface* path a user can type, which is the
-        # mnemonic (several `mov_*` entries all answer to `T.ptx.mov`), not the
-        # table key. Reparsing re-dispatches on the operand shape.
-        #
-        # Escaped, because "a user can type it" is the whole requirement and
-        # three PTX mnemonics are Python keywords: `and`, `or` and `not` (ISA
-        # 9.7.9) print as `T.ptx.and_` and are read back by `unescape_token` in
-        # `PTXNamespace.__getattr__`. The escape is the identity for every
-        # other family, and `gen_stubs` already spells the attribute this way.
-        family = escape_token(entry.family)
-        register_op_attr(entry.op_name, "TScriptPrinterName", f"tirx.ptx.{family}")
-        register_op_attr(entry.op_name, "TIRxOpCategory", "device_intrin")
-        register_op_attr(entry.op_name, "TDeviceIntrinsicNamespace", "ptx")
         register_op_attr(entry.op_name, "TFixedReturnType", PrimType("void"))
+        if Op.get(entry.op_name).get_attr("__tvm_doc_translate_op_call__") is None:
+            register_op_attr(
+                entry.op_name,
+                "__tvm_doc_translate_op_call__",
+                get_global_func("script.printer.PTXCallDocTranslate")(),
+            )
         register_codegen(f"ptx.{entry.name}")(_make_codegen(entry))
 
 
@@ -118,10 +116,13 @@ def register_addr() -> None:
     op = Op.get(_ADDR_OP_NAME)
     op.add_arg("base", "The base pointer.")
     op.add_arg("byte_offset", "The offset in bytes.")
-    register_op_attr(_ADDR_OP_NAME, "TScriptPrinterName", "tirx.ptx.addr")
-    register_op_attr(_ADDR_OP_NAME, "TIRxOpCategory", "device_intrin")
-    register_op_attr(_ADDR_OP_NAME, "TDeviceIntrinsicNamespace", "ptx")
     register_op_attr(_ADDR_OP_NAME, "FInferType", _infer_addr_type)
+    if op.get_attr("__tvm_doc_translate_op_call__") is None:
+        register_op_attr(
+            _ADDR_OP_NAME,
+            "__tvm_doc_translate_op_call__",
+            get_global_func("script.printer.PTXCallDocTranslate")(),
+        )
     register_codegen("ptx.addr")(_unconsumed_addr_codegen)
 
 
@@ -297,7 +298,7 @@ def _make_codegen(entry: InstructionEntry):
         # is forwarded as-is.
         forwarded = [rest[at[i]] for i in range(n_operands) if i not in imm_at and i not in sunk]
         forwarded += list(rest[n_present:])
-        return cuda_func_call(helper, *forwarded, source_code=source)
+        return cuda_func_call(helper, *forwarded, source)
 
     return codegen
 
@@ -414,7 +415,7 @@ def _coerce_operand(entry, slot, values, mod_map):
     re-check afterwards -- and a bare literal lane can take its dtype from the
     group instead of being typed on its own.
     """
-    # T.local_scalar / `x: T.float32` hand back a wrapper around the BufferLoad;
+    # T.local_scalar / `x: T.float32` hand back a wrapper around the TensorLoad;
     # unwrap once here so every kind sees the node itself. A PredArg is NOT
     # unwrapped here: whether the tag is present is the discriminator, so each
     # branch below has to be able to see it.
@@ -558,7 +559,7 @@ def _coerce_address(entry, slot, value, mod_map):
     """Coerce an address-like operand (``role`` addr or ptr)."""
     ty = getattr(value, "ty", None)
     if slot.kind == "ptr":
-        if isinstance(ty, PointerType):
+        if isinstance(ty, PtrType):
             return value
         raise ValueError(f"{entry.name}: operand '{slot.name}' must be a pointer")
     space = operand_space(slot, mod_map)
@@ -573,7 +574,7 @@ def _coerce_address(entry, slot, value, mod_map):
             f"(compose it with T.cuda.get_tmem_addr)"
         )
     if space.startswith("shared"):
-        if isinstance(ty, PointerType):
+        if isinstance(ty, PtrType):
             # Any pointer is accepted and converted, which is what the legacy
             # helpers did. The pointer's storage_scope is not a reliable
             # discriminator here: a shared buffer's ptr_to() reports 'global',
@@ -585,8 +586,8 @@ def _coerce_address(entry, slot, value, mod_map):
             f"{entry.name}: operand '{slot.name}' must be a shared-scope pointer "
             f"or a uint32 shared address"
         )
-    if isinstance(ty, PointerType):
-        if ty.storage_scope.startswith("shared"):
+    if isinstance(ty, PtrType):
+        if ty.scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN):
             raise ValueError(
                 f"{entry.name}: operand '{slot.name}' is a {space or 'generic'} address "
                 f"but got a shared-scope pointer"
@@ -665,7 +666,7 @@ def _coerce_pred(entry, pred):
     raise ValueError(f"{entry.name}: pred must be a bool/uint32/int32 expression")
 
 
-def _emit(entry, filled, operands, pred=None, preserve_dst=False):
+def _resolve_modifiers(entry, filled):
     # Modifiers resolve before the operands are looked at: the attribute chain
     # is parsed before the call happens, and a register group's length may be a
     # function of the modifiers, so the expected arity needs the modifier map.
@@ -679,6 +680,49 @@ def _emit(entry, filled, operands, pred=None, preserve_dst=False):
         error = entry.check(mod_map)
         if error:
             raise ValueError(f"{entry.name}: {error}")
+    return mod_map
+
+
+def instruction_forms(instruction):
+    """Return table entries and resolved modifiers for a fully spelled opcode.
+
+    Operand overloads remain separate entries. Consumers select an operand form,
+    never inspect frontend candidate chains or infer missing opcode qualifiers.
+    """
+    if isinstance(instruction, str):
+        instruction = PTXNamespace()[instruction]
+    if not isinstance(instruction, _InstrChain):
+        raise TypeError("Expected a T.ptx instruction or PTX instruction string")
+    forms, errors = [], []
+    for entry, filled in instruction._cands:
+        try:
+            modifiers = _resolve_modifiers(entry, filled)
+        except ValueError as error:
+            errors.append(str(error))
+        else:
+            forms.append((entry, modifiers))
+    names = {
+        ".".join([entry.ptx_name, *(v for v in modifiers.values() if v)])
+        for entry, modifiers in forms
+    }
+    if len(names) != 1:
+        raise ValueError("PTX instruction is not fully specified: " + "; ".join(errors))
+    return tuple(forms)
+
+
+def instruction_name(instruction):
+    """Return validated PTX text in table slot order, without binding operands.
+
+    Accept a ``T.ptx`` chain or its string spelling. Operand overloads remain
+    unresolved: this identifies the opcode and modifiers, not an operand form.
+    Tile patterns can use it without inspecting the frontend's candidates.
+    """
+    entry, modifiers = instruction_forms(instruction)[0]
+    return ".".join([entry.ptx_name, *(v for v in modifiers.values() if v)])
+
+
+def _emit(entry, filled, operands, pred=None, preserve_dst=False):
+    mod_map = _resolve_modifiers(entry, filled)
     layout = operand_layout(entry, mod_map)
     n_args = sum(n for _, _, n in layout)
     if len(operands) != n_args:
@@ -981,3 +1025,27 @@ class PTXNamespace:
 
     def __repr__(self):
         return f"<T.ptx: {len(self._family_names())} instruction families>"
+
+
+@register_global_func("script.printer.PTXCallSurfaceName")
+def _ptx_call_surface_name(call):
+    """Resolve a mnemonic only when its operands reconstruct the same instruction."""
+    from .table import TABLE  # pylint: disable=import-outside-toplevel
+
+    entry = TABLE.get(call.op.name.removeprefix("tirx.ptx."))
+    if entry is None:
+        return None
+    name = escape_token(entry.family)
+    args = []
+    try:
+        for arg in call.args:
+            if isinstance(arg, StringImm):
+                arg = arg.value
+            elif isinstance(arg, Call) and arg.op.same_as(Op.get(_ADDR_OP_NAME)):
+                arg = AddrArg(*arg.args)
+            args.append(arg)
+        if structural_equal(call, getattr(PTXNamespace(), name)(*args)):
+            return f"tirx.ptx.{name}"
+    except (ValueError, TypeError, IndexError, AttributeError):
+        pass
+    return None

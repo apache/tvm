@@ -25,6 +25,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/transform.h>
 
 namespace tvm {
@@ -32,37 +33,42 @@ namespace tirx {
 namespace transform {
 
 // Register build pipeline related options
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.noalias", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.instrument_bound_checkers", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.disable_assert", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.disable_vectorize", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.enable_buffer_level_predication", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.disable_cse_tir", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.enable_debug", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.disable_storage_rewrite", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.is_entry_func", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.add_lower_pass", ffi::Array<ffi::Array<ffi::ObjectRef>>);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.debug_keep_trivial_loop", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.use_async_copy", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.merge_static_smem", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.vtcm_capacity", int64_t);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.enable_fast_math", bool);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>(tvm::tirx::attr::kNoAlias);
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_assert");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_vectorize");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.enable_tensor_level_predication");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_cse_tir");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.enable_debug");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_storage_rewrite");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>(tvm::tirx::attr::kIsEntryFunc);
+  ::tvm::transform::PassContext::RegisterConfigOption<ffi::Array<ffi::Array<ffi::ObjectRef>>>(
+      "tirx.add_lower_pass");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.debug_keep_trivial_loop");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.use_async_copy");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.merge_static_smem");
+  ::tvm::transform::PassContext::RegisterConfigOption<int64_t>("tirx.vtcm_capacity");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.enable_fast_math");
+}
 
 /*!
  * \brief Function level pass that applies transformations to all
  *        TIR functions within the module.
  */
-class PrimFuncPassNode : public PassNode {
+class FunctionPassObj : public PassObj {
  public:
+  explicit FunctionPassObj(PassInfo pass_info) : pass_info(std::move(pass_info)) {}
+  explicit FunctionPassObj(ffi::UnsafeInit) : pass_info(ffi::UnsafeInit{}) {}
+
   /* \brief The pass meta data.*/
   PassInfo pass_info;
 
   /*! \brief The pass function called on each. */
-  std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func;
+  std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PrimFuncPassNode>().def_ro("pass_info", &PrimFuncPassNode::pass_info);
+    refl::ObjectDef<FunctionPassObj>().def_ro("pass_info", &FunctionPassObj::pass_info);
   }
 
   /*!
@@ -79,32 +85,34 @@ class PrimFuncPassNode : public PassNode {
    * \brief Get the pass information/meta data.
    */
   PassInfo Info() const override { return pass_info; }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.PrimFuncPass", PrimFuncPassNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.FunctionPass", FunctionPassObj, PassObj);
 };
 
-class PrimFuncPass : public Pass {
+class FunctionPass : public Pass {
  public:
   /*!
    * \brief The constructor
    * \param pass_func The packed function which implements a pass.
    * \param pass_info The pass info.
    */
-  TVM_DLL PrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
-                       PassInfo pass_info);
+  TVM_TIRX_DLL FunctionPass(
+      std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
+      PassInfo pass_info);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimFuncPass, Pass, PrimFuncPassNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionPass, Pass, FunctionPassObj);
 };
 
-PrimFuncPass::PrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
-                           PassInfo pass_info) {
-  auto n = ffi::make_object<PrimFuncPassNode>();
+FunctionPass::FunctionPass(
+    std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
+    PassInfo pass_info)
+    : Pass(ffi::UnsafeInit{}) {
+  auto n = ffi::make_object<FunctionPassObj>(std::move(pass_info));
   n->pass_func = std::move(pass_func);
-  n->pass_info = std::move(pass_info);
   data_ = std::move(n);
 }
 
-// Perform Module -> Module optimizations at the PrimFunc level.
-IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
+// Perform Module -> Module optimizations at the Function level.
+IRModule FunctionPassObj::operator()(IRModule mod, const PassContext& pass_ctx) const {
   TVM_FFI_ICHECK(mod.defined());
   std::vector<GlobalVar> deleted_list;
 
@@ -112,14 +120,14 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   auto* func_dict = mod_ptr->functions.CopyOnWrite();
   // directly loop over the underlying dict
   for (auto& kv : *func_dict) {
-    // only picks up tirx::PrimFunc
-    if (auto opt_func = kv.second.as<PrimFunc>()) {
+    // only picks up tirx::Function
+    if (auto opt_func = kv.second.as<Function>()) {
       // reset the original Any state so the value contains only copy
       // use move semantics as follows to avoid only copy.
       kv.second.reset();
-      PrimFunc func = *std::move(opt_func);
-      func = pass_func(std::move(func), mod, pass_ctx);
-      kv.second = Any(std::move(func));
+      Function func = *std::move(opt_func);
+      auto updated = pass_func(std::move(func), mod, pass_ctx);
+      kv.second = Any(std::move(updated));
       if (kv.second == nullptr) {
         deleted_list.push_back(kv.first.as_or_throw<GlobalVar>());
       }
@@ -135,25 +143,26 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   return mod;
 }
 
-Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
-                        int opt_level, ffi::String name, tvm::ffi::Array<ffi::String> required,
-                        bool traceable) {
-  PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
-  return PrimFuncPass(std::move(pass_func), pass_info);
+Pass CreateFunctionPass(
+    std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
+    int opt_level, ffi::String name) {
+  PassInfo pass_info = PassInfo(opt_level, name);
+  return FunctionPass(std::move(pass_func), pass_info);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { PrimFuncPassNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { FunctionPassObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tirx.transform.CreatePrimFuncPass",
-      [](ffi::TypedFunction<PrimFunc(ffi::RValueRef<PrimFunc>, IRModule, PassContext)> pass_func,
-         PassInfo pass_info) {
-        auto wrapped_pass_func = [pass_func](PrimFunc func, IRModule mod, PassContext ctx) {
-          return pass_func(ffi::RValueRef<PrimFunc>(std::move(func)), mod, ctx);
+      "tirx.transform.CreateFunctionPass", [](ffi::TypedFunction<ffi::Optional<Function>(
+                                                  ffi::RValueRef<Function>, IRModule, PassContext)>
+                                                  pass_func,
+                                              PassInfo pass_info) {
+        auto wrapped_pass_func = [pass_func](Function func, IRModule mod, PassContext ctx) {
+          return pass_func(ffi::RValueRef<Function>(std::move(func)), mod, ctx);
         };
-        return PrimFuncPass(wrapped_pass_func, pass_info);
+        return FunctionPass(wrapped_pass_func, pass_info);
       });
 }
 

@@ -16,13 +16,14 @@
 # under the License.
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 
+import tvm
 from tvm import s_tir, sym, tirx
 from tvm.ir import TensorLoad
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
 from tvm.target import Target
 
-from ..analysis import detect_dominant_read, normalize_prim_func
+from ..analysis import detect_dominant_read, normalize_function
 from ..base import try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
@@ -32,10 +33,11 @@ class Transpose(GPUScheduleRule):
 
     def is_transpose(self, sch: Schedule, block_rv: SBlockRV):
         block = sch.get(block_rv)
-        if isinstance(block.body, tirx.BufferStore):
-            rhs = block.body.value
+        if len(block.body) == 1 and isinstance(block.body[0], tvm.ir.TensorStore):
+            store = block.body[0]
+            rhs = store.value
             if isinstance(rhs, TensorLoad):
-                lhs_indices = block.body.indices
+                lhs_indices = store.indices
                 rhs_indices = rhs.indices
                 if list(lhs_indices) != list(rhs_indices) and set(lhs_indices) == set(rhs_indices):
                     return True
@@ -43,12 +45,12 @@ class Transpose(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         # pylint: disable=invalid-name
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         if target.kind.name == "cuda":
             len_tx = 16
@@ -65,7 +67,7 @@ class Transpose(GPUScheduleRule):
         len_vec = 4
 
         sch = s_tir.Schedule(func)
-        blocks = normalize_prim_func(sch)
+        blocks = normalize_function(sch)
         transpose_block_idx = -1
         for idx, block in reversed(list(enumerate(blocks))):
             if self.is_transpose(sch, block.block_rv):
@@ -112,7 +114,7 @@ class Transpose(GPUScheduleRule):
         if len_vec > 1:
             sch.vectorize(vi)
 
-        cache_read = sch.cache_read(transpose_block, read_buffer_index=0, storage_scope="shared")
+        cache_read = sch.cache_read(transpose_block, read_tensor_index=0, storage_scope="shared")
         sch.compute_at(cache_read, bj)
         loops = sch.get_loops(cache_read)[2:]
         fused = sch.fuse(*loops)
@@ -120,10 +122,10 @@ class Transpose(GPUScheduleRule):
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
         sch.unroll(v)
-        sch.storage_align(block=cache_read, buffer_index=0, axis=0, factor=32, offset=1)
+        sch.storage_align(block=cache_read, tensor_index=0, axis=0, factor=32, offset=1)
 
-        sch.annotate(bi, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
-        sch.annotate(bi, ann_key="pragma_unroll_explicit", ann_val=1)
+        sch.annotate(bi, ann_key="auto_unroll_max_step", ann_val=unroll_depth)
+        sch.annotate(bi, ann_key="unroll_explicit", ann_val=1)
 
         if prologue is not None:
             sch.compute_inline(prologue)

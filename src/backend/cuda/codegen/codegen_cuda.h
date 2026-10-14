@@ -24,10 +24,14 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
 #define TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
 
+#include <tvm/backend/cuda/op_attr_types.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/target/codegen.h>
-#include <tvm/tirx/op.h>
 
+#include <array>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -48,13 +52,16 @@ class CodeGenCUDA final : public CodeGenC {
     });
   }
   // override behavior
-  void PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
+  void DeclareFunction(const GlobalVar& gvar, const Function& func) final;
+  void AddFunction(const GlobalVar& gvar, const Function& func) final;
+  void InitFuncState(const Function& func) final;
+  void PrintFunctionSignature(const ffi::String& function_name, const Function& func,
                               std::ostream& os) final;
-  void PrintExtraAttrs(const PrimFunc& f, std::ostream& os) final;  // NOLINT(*)
+  void PrintExtraAttrs(const Function& f, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const ForNode* op) final;
   void Dispatch_(const WhileNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
-  void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
+  void PrintStorageScope(const runtime::MemoryScope& scope, std::ostream& os) final;  // NOLINT(*)
   using CodeGenC::PrintType;
   void PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimExpr lhs, PrimExpr rhs,
                         std::ostream& os) final;              // NOLINT(*)
@@ -64,7 +71,7 @@ class CodeGenCUDA final : public CodeGenC {
                         std::ostream& os) final;  // NOLINT(*)
   void PrintVecElemStore(const std::string& vec, const PrimType& t, int i,
                          const std::string& value) final;
-  void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
+  void BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final;  // NOLINT(*)
   void PrintVecElemLoadExpr(const PrimType& t, int i, const std::string& value,
                             std::ostream& os) final;
   std::string CastFromTo(std::string value, const PrimType& from, const PrimType& target) final;
@@ -86,7 +93,6 @@ class CodeGenCUDA final : public CodeGenC {
   void Dispatch_(const ReturnNode* op) final;
   void Dispatch_(const BindNode* op) final;
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
-  void Dispatch_(const AttrStmtNode* op) final;
 
   // Target
   Target target;
@@ -96,6 +102,14 @@ class CodeGenCUDA final : public CodeGenC {
                        bool skip_first_arg, std::ostream& os) final;  // NOLINT(*)
 
  private:
+  void PrintFunctionPrefix(const Function& func, std::ostream& os);
+  std::array<PrimExpr, 6> launch_dimensions_{IntImm::Int32(1), IntImm::Int32(1), IntImm::Int32(1),
+                                             IntImm::Int32(1), IntImm::Int32(1), IntImm::Int32(1)};
+  std::optional<int64_t> min_blocks_per_sm_;
+  std::optional<int64_t> max_blocks_per_cluster_;
+  std::optional<int64_t> max_registers_per_thread_;
+  std::optional<std::array<int64_t, 6>> required_block_size_;
+
   // Handle volatile loads
   void HandleVolatileLoads(const std::string& value, const TensorLoadNode* op,
                            std::ostream& os) final;
@@ -116,7 +130,8 @@ class CodeGenCUDA final : public CodeGenC {
   std::unordered_set<std::string> codegen_tags_;
 
   // Op attribute map
-  OpAttrMap<bool> op_need_warp_shuffle_ = Op::GetAttrMap<bool>("cuda.need_warp_shuffle");
+  OpAttrMap<bool> op_need_warp_shuffle_ =
+      Op::GetAttrMap<bool>(tvm::backend::cuda::op_attr::kNeedWarpShuffle);
 
   // The name of the barrier array in shared memory
   const std::string barrier_name_ = "barrier";
@@ -131,9 +146,6 @@ class CodeGenCUDA final : public CodeGenC {
   const std::string cuda_barrier_arrival_token_name_ = "cubar_tok";
 
   friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p);
-  void PrintWmmaScope(const std::string& scope, const PrimType& t, const std::string& shape,
-                      const std::string& layout, std::ostream& os);
-  int32_t GetWmmaFragmentSize(const std::string& scope, const std::string& shape, int32_t size);
 };
 
 }  // namespace codegen

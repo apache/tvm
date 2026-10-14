@@ -29,9 +29,8 @@
 
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/expr_functor.h>
-#include <tvm/ir/op_attr_types.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
@@ -220,13 +219,13 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
       for (const Scope& entry : scope_stack_[scope_index]) {
         switch (entry.kind) {
           case Scope::BindValue:
-            ApplyBindValue(entry.var, entry.value);
+            ApplyBindValue(entry.var.value(), entry.value.value());
             break;
           case Scope::BindRange:
-            ApplyBindRange(entry.var, entry.min, entry.extent);
+            ApplyBindRange(entry.var.value(), entry.min.value(), entry.extent.value());
             break;
           case Scope::Constraint:
-            ApplyConstraint(entry.constraint, entry.is_assume, scope_index);
+            ApplyConstraint(entry.constraint.value(), entry.is_assume, scope_index);
             break;
         }
       }
@@ -263,11 +262,11 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
       BindRange,
       Constraint,
     } kind;
-    Var var;
-    PrimExpr value;
-    PrimExpr min;
-    PrimExpr extent;
-    PrimExpr constraint;
+    ffi::Optional<Var> var;
+    ffi::Optional<PrimExpr> value;
+    ffi::Optional<PrimExpr> min;
+    ffi::Optional<PrimExpr> extent;
+    ffi::Optional<PrimExpr> constraint;
     /// Assume-mode constraints keep side-effectful expressions memoized for
     /// the lifetime of their scope. This flag preserves that behavior during
     /// deferred replay.
@@ -284,8 +283,8 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
   /// @brief Enter a constraint scope
   std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume) {
     scope_stack_.push_back({});
-    scope_stack_.back().push_back(
-        Scope{Scope::Constraint, Var(), PrimExpr(), PrimExpr(), PrimExpr(), constraint, is_assume});
+    scope_stack_.back().push_back(Scope{Scope::Constraint, std::nullopt, std::nullopt, std::nullopt,
+                                        std::nullopt, constraint, is_assume});
     scope_side_effects_.push_back({});
     if (solver) {
       ApplyConstraint(constraint, is_assume, scope_side_effects_.size() - 1);
@@ -408,7 +407,7 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
   void Bind(const Var& var, const Range& range, bool allow_override = false) {
     if (!IsZ3SupportedExpr(var.get())) return;
     scope_stack_.back().push_back(
-        Scope{Scope::BindRange, var, PrimExpr(), range->min, range->extent});
+        Scope{Scope::BindRange, var, std::nullopt, range->min, range->extent});
     if (!solver) return;  // journaled; translated when the solver materializes
     ApplyBindRange(var, range->min, range->extent);
   }
@@ -426,7 +425,7 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
     //    free var
     //
     //    NOTE: min + extent builds a fresh AddNode that is not folded, so we must
-    //    test is_const_int on min and extent individually and add the two constants
+    //    test IsConstInt on min and extent individually and add the two constants
     //    in C++. Otherwise this fast path is never taken and we always emit the more expensive
     //    symbolic constraint below.
     if (auto min_imm = min.as<IntImm>(), extent_imm = extent.as<IntImm>();
@@ -524,14 +523,14 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
       for (const auto& s : scope) {
         switch (s.kind) {
           case Scope::Constraint:
-            ss << "; constraint: " << s.constraint << "\n";
+            ss << "; constraint: " << s.constraint.value() << "\n";
             break;
           case Scope::BindValue:
-            ss << "; bind value: " << s.var << " = " << s.value << "\n";
+            ss << "; bind value: " << s.var.value() << " = " << s.value.value() << "\n";
             break;
           case Scope::BindRange:
-            ss << "; bind range: " << s.var << " in [" << s.min << ", " << s.min + s.extent
-               << ")\n";
+            ss << "; bind range: " << s.var.value() << " in [" << s.min.value() << ", "
+               << s.min.value() + s.extent.value() << ")\n";
             break;
         }
       }
@@ -743,7 +742,7 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
   /// @brief Check if the expression type is supported by z3 integer operations.
   static bool IsZ3SupportedExpr(const ExprNode* expr) {
     TVM_FFI_DCHECK(expr != nullptr);
-    TVM_FFI_DCHECK(!expr->ExprNode::ty.IsMissing());
+    TVM_FFI_DCHECK(!expr->ExprNode::ty.as<MissingType>().has_value());
     PrimType prim_ty = expr->ExprNode::ty.as_or_throw<PrimType>();
     return (prim_ty->dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLInt) ||
             prim_ty->dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLUInt) ||
@@ -895,7 +894,7 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
   }
 
   z3::expr Dispatch_(const CallNode* op) override {
-    if (op->op.same_as(prim::builtin::if_then_else()) && op->args.size() == 3 &&
+    if (op->op.same_as(prim::if_then_else_op()) && op->args.size() == 3 &&
         IsZ3SupportedExpr(op->args[1].get()) && IsZ3SupportedExpr(op->args[2].get())) {
       // tir.if_then_else(cond, a, b) is a select-like ternary.
       return z3::ite(VisitBool(op->args[0].as_or_throw<PrimExpr>()),
@@ -969,12 +968,12 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
   }
 };
 
-TVM_DLL bool Z3Prover::IsEnabled() const { return true; }
-TVM_DLL bool Z3Prover::CanProve(const PrimExpr& expr) { return impl_->CanProve(expr); }
-TVM_DLL void Z3Prover::Bind(const Var& var, const Range& new_range, bool allow_override) {
+TVM_TIRX_DLL bool Z3Prover::IsEnabled() const { return true; }
+TVM_TIRX_DLL bool Z3Prover::CanProve(const PrimExpr& expr) { return impl_->CanProve(expr); }
+TVM_TIRX_DLL void Z3Prover::Bind(const Var& var, const Range& new_range, bool allow_override) {
   return impl_->Bind(var, new_range, allow_override);
 }
-TVM_DLL void Z3Prover::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
+TVM_TIRX_DLL void Z3Prover::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
   return impl_->Bind(var, expr, allow_override);
 }
 std::function<void()> Z3Prover::EnterConstraint(const PrimExpr& constraint, bool is_assume) {
@@ -992,19 +991,18 @@ void Z3Prover::SetRLimit(unsigned max_step) { impl_->SetRLimit(max_step); }
 void Z3Prover::CopyFrom(const Z3Prover& other) { impl_->CopyFrom(*other.impl_); }
 ffi::String Z3Prover::GetStats() { return impl_->GetStats(); }
 ffi::String Z3Prover::GetModel(const PrimExpr& expr) { return impl_->GetModel(expr); }
-TVM_DLL int64_t Z3Prover::CountSatisfyingValues(const Var& var, int64_t max_count,
-                                                int64_t min_consecutive) {
+TVM_TIRX_DLL int64_t Z3Prover::CountSatisfyingValues(const Var& var, int64_t max_count,
+                                                     int64_t min_consecutive) {
   return impl_->CountSatisfyingValues(var, max_count, min_consecutive);
 }
 Z3Prover::Z3Prover(AnalyzerObj* parent) : impl_(std::make_unique<Impl>(parent)) {}
-TVM_DLL Z3Prover::~Z3Prover() = default;
+TVM_TIRX_DLL Z3Prover::~Z3Prover() = default;
 
 }  // namespace tvm::sym
 
 #else  // TVM_USE_Z3
 
 #include <tvm/ir/prim/expr.h>
-#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 
 #include "tvm/ffi/string.h"
@@ -1018,10 +1016,10 @@ using namespace ffi;
 // conservatively report "cannot prove" while keeping the public API available.
 class Z3Prover::Impl {};
 
-TVM_DLL bool Z3Prover::IsEnabled() const { return false; }
-TVM_DLL bool Z3Prover::CanProve(const PrimExpr& expr) { return false; }
-TVM_DLL void Z3Prover::Bind(const Var& var, const Range& new_range, bool allow_override) {}
-TVM_DLL void Z3Prover::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {}
+TVM_TIRX_DLL bool Z3Prover::IsEnabled() const { return false; }
+TVM_TIRX_DLL bool Z3Prover::CanProve(const PrimExpr& expr) { return false; }
+TVM_TIRX_DLL void Z3Prover::Bind(const Var& var, const Range& new_range, bool allow_override) {}
+TVM_TIRX_DLL void Z3Prover::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {}
 std::function<void()> Z3Prover::EnterConstraint(const PrimExpr& constraint, bool is_assume) {
   return []() {};
 }
@@ -1031,15 +1029,15 @@ ffi::String Z3Prover::GetSMTLIB2(const ffi::Optional<PrimExpr> expr) {
 void Z3Prover::SetTimeoutMs(unsigned timeout_ms) {}
 void Z3Prover::SetRLimit(unsigned rlimit) {}
 ffi::String Z3Prover::GetModel(const PrimExpr& expr) { return "; Z3 Prover is disabled."; }
-TVM_DLL int64_t Z3Prover::CountSatisfyingValues(const Var& var, int64_t max_count,
-                                                int64_t min_consecutive) {
+TVM_TIRX_DLL int64_t Z3Prover::CountSatisfyingValues(const Var& var, int64_t max_count,
+                                                     int64_t min_consecutive) {
   return -1;  // Z3 disabled, return error
 }
 
 void Z3Prover::CopyFrom(const Z3Prover& other) {}
 ffi::String Z3Prover::GetStats() { return "; Z3 Prover is disabled."; }
 Z3Prover::Z3Prover(AnalyzerObj*) : impl_(nullptr) {}
-TVM_DLL Z3Prover::~Z3Prover() = default;
+TVM_TIRX_DLL Z3Prover::~Z3Prover() = default;
 
 }  // namespace tvm::sym
 

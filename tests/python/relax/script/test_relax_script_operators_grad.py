@@ -28,7 +28,7 @@ def _check(
 ):
     test = parsed.script(show_meta=True)
     roundtrip_mod = tvm.script.from_source(
-        test, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax}
+        test, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax, "T": tvm.script.tirx}
     )
     tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
     if expect:

@@ -57,7 +57,7 @@ def test_coreml_runtime():
         )
         return coremltools.models.MLModel(builder.spec)
 
-    def verify(coreml_model, model_path, dev):
+    def verify(coreml_model, model_path, dev, session=None):
         coreml_model = create_coreml_model()
 
         out_spec = coreml_model.output_description._fd_spec
@@ -73,9 +73,11 @@ def test_coreml_runtime():
         coreml_outputs = [coreml_model.predict(inputs)[name] for name in out_names]
 
         # inference via tvm coreml runtime
-        runtime = coreml_runtime.create("main", model_path, dev)
+        runtime = coreml_runtime.create("main", model_path, dev, session=session)
         for name in inputs:
-            runtime.set_input(name, tvm.runtime.tensor(inputs[name], dev))
+            runtime.set_input(
+                name, dev.tensor(inputs[name]) if session else tvm.runtime.tensor(inputs[name], dev)
+            )
         runtime.invoke()
         tvm_outputs = [runtime.get_output(i).numpy() for i in range(runtime.get_num_outputs())]
 
@@ -91,7 +93,7 @@ def test_coreml_runtime():
         compiled_model = os.path.basename(compiled_model)
         remote = rpc.connect(proxy_host, proxy_port, key=key)
         dev = remote.cpu(0)
-        verify(coreml_model, compiled_model, dev)
+        verify(coreml_model, compiled_model, dev, remote)
 
     def check_local(coreml_model):
         temp = utils.tempdir()

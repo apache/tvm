@@ -23,11 +23,12 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
@@ -36,15 +37,15 @@ using namespace tvm::tirx;
 
 // For now, rewrite unsafe select expression to if_then_else
 // TODO(tqchen) pattern matching to support masked load
-class UnsafeExprDetector : public tirx::ExprFunctor<bool(const Expr& n)> {
+class UnsafeExprDetector : public tvm::ExprFunctor<bool(const Expr& n)> {
  public:
   // select itself is always considered safe if condition is safe
   // Because we will issue guard to make sure it is.
   bool Dispatch_(const prim::SelectNode* op) { return Dispatch(op->condition); }
   bool Dispatch_(const CallNode* op) {
-    if (op->op.same_as(prim::builtin::if_then_else())) {
+    if (op->op.same_as(prim::if_then_else_op())) {
       return Dispatch(op->args[0].as_or_throw<PrimExpr>());
-    } else if (op->op.same_as(tirx::builtin::address_of())) {
+    } else if (op->op.same_as(tirx::address_of_op())) {
       if (const auto* load = op->args[0].as<TensorLoadNode>()) {
         for (const auto& index : load->indices) {
           if (Dispatch(index)) {
@@ -121,7 +122,8 @@ class UnsafeExprDetector : public tirx::ExprFunctor<bool(const Expr& n)> {
     return Dispatch(op->a) || Dispatch(op->b);
   }
 
-  OpAttrMap<TCallEffectKind> op_call_effect_ = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
+  OpAttrMap<TCallEffectKind> op_call_effect_ =
+      Op::GetAttrMap<TCallEffectKind>(tvm::op_attr::kCallEffectKind);
 };
 
 class UnsafeSelectRewriter : public StmtExprMutator {
@@ -138,7 +140,7 @@ class UnsafeSelectRewriter : public StmtExprMutator {
     bool cond_is_scalar_bool = cond_ty.MatchesCode(DLDataTypeCode::kDLBool) && cond_ty.IsScalar();
     if ((unsafe.Dispatch(op->true_value) || unsafe.Dispatch(op->false_value)) &&
         cond_is_scalar_bool) {
-      return Call(op->ty.as_or_throw<PrimType>(), prim::builtin::if_then_else(),
+      return Call(op->ty.as_or_throw<PrimType>(), prim::if_then_else_op(),
                   {op->condition, op->true_value, op->false_value})
           .as_or_throw<PrimExpr>();
     } else {
@@ -156,14 +158,14 @@ Stmt RewriteUnsafeSelect(Stmt stmt) {
 namespace transform {
 
 Pass RewriteUnsafeSelect() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = ffi::make_object<UnsafeSelectRewriter>()
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.RewriteUnsafeSelect", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.RewriteUnsafeSelect");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

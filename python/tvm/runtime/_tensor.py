@@ -32,7 +32,6 @@ except ImportError:
 import tvm_ffi
 from tvm_ffi import DLDeviceType, device
 
-import tvm
 from tvm.runtime import Device
 
 from . import _ffi_api
@@ -47,19 +46,8 @@ def from_dlpack(ext_tensor):
     ext_tensor : object
         The external tensor to convert.
 
-    require_alignment : int
-        The minimum required alignment to check for the tensor.
-
-    require_contiguous : bool
-        Whether to check for contiguous memory.
     """
-    # TODO(tvm-team): change to require_alignment=0 and require_contiguous=False
-    # once we update the compiler generated code to guard against misaligned access.
-    return tvm_ffi.from_dlpack(
-        ext_tensor,
-        require_alignment=64,
-        require_contiguous=True,
-    )
+    return tvm_ffi.from_dlpack(ext_tensor)
 
 
 @tvm_ffi.register_object("ffi.Tensor")
@@ -240,7 +228,7 @@ class Tensor(tvm_ffi.core.Tensor):
         target : Tensor
             The target array to be copied, must have same shape as this array.
 
-        mem_scope : Optional[str]
+        mem_scope : Optional[str or tvm.runtime.MemoryScope]
             The memory scope of the array.
         """
         if isinstance(target, Tensor):
@@ -317,7 +305,7 @@ def empty(shape, dtype="float32", device=None, mem_scope=None):
     device : Device
         The device of the array.
 
-    mem_scope : Optional[str]
+    mem_scope : Optional[str or tvm.runtime.MemoryScope]
         The memory scope of the array.
 
     Returns
@@ -344,7 +332,7 @@ def tensor(arr, device=None, mem_scope=None):
     device : Device, optional
         The device to create the array
 
-    mem_scope : Optional[str]
+    mem_scope : Optional[str or tvm.runtime.MemoryScope]
         The memory scope of the array
 
     Returns
@@ -357,29 +345,6 @@ def tensor(arr, device=None, mem_scope=None):
     if not isinstance(arr, np.ndarray | Tensor):
         arr = np.asarray(arr)
     return empty(arr.shape, arr.dtype, device, mem_scope).copyfrom(arr)
-
-
-def device_from_target(target, index=None):
-    """Construct a runtime device from a compilation target.
-
-    Parameters
-    ----------
-    target : str or dict or tvm.target.Target
-        The compilation target whose device type should be used.
-
-    index : int, optional
-        The integer device index.
-
-    Returns
-    -------
-    dev : Device
-        The created device.
-    """
-    from tvm.target import Target  # pylint: disable=import-outside-toplevel
-
-    if not isinstance(target, Target):
-        target = Target(target)
-    return device(target.get_target_device_type(), index)
 
 
 def cpu(dev_id=0):

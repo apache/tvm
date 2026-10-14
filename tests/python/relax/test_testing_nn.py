@@ -81,9 +81,9 @@ def test_define_subroutine():
             state = relax.op.matmul(input, self.weights)
             return self.activation(state)
 
-    batch_size_main = T.dynamic("batch_size")
-    batch_size_layer = T.dynamic("batch_size")
-    batch_size_activation = T.dynamic("batch_size")
+    batch_size_main = T.dynamic("batch_size", "int64")
+    batch_size_layer = T.dynamic("batch_size", "int64")
+    batch_size_activation = T.dynamic("batch_size", "int64")
 
     @I.ir_module
     class Expected:

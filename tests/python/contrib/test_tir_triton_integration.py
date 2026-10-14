@@ -64,12 +64,12 @@ def test_tir_triton_integration():
 
     BLOCK_SIZE = 64
 
-    add_m = T.dynamic("m")
-    main_m = T.dynamic("m")
+    add_m = T.dynamic("m", "int64")
+    main_m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def add(
             x: T.Tensor((add_m,), "float32"),
             y: T.Tensor((add_m,), "float32"),
@@ -94,7 +94,9 @@ def test_tir_triton_integration():
         @R.function
         def main(x: R.Tensor((main_m,), "float32"), y: R.Tensor((main_m,), "float32")):
             with R.dataflow():
-                output = R.call_tir(Module.add, [x, y], relax.TensorType((main_m,), "float32"))
+                output = R.call_tir(
+                    Module.add, [x, y], ty_args=[relax.TensorType((main_m,), "float32")]
+                )
                 R.output(output)
             return output
 
@@ -105,12 +107,16 @@ def test_tir_triton_integration():
         scratch_args.append(tvm.tirx.reinterpret("handle", tvm.tirx.IntImm("uint64", 0)))
 
     # The thread extent is 256 because the kernel is compiled with num_warps=8.
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Parsed:
-        @Ts.prim_func
-        def add(x: T.Tensor((m,)), y: T.Tensor((m,)), output: T.Tensor((m,))):
+        @Ts.function
+        def add(
+            x: T.Tensor((m,), "float32"),
+            y: T.Tensor((m,), "float32"),
+            output: T.Tensor((m,), "float32"),
+        ):
             with Ts.sblock("root"):
                 Ts.reads(x[0:m], y[0:m])
                 Ts.writes(output[0:m])

@@ -35,30 +35,33 @@ bool PositionLessEqual(int lhs_line, int lhs_column, int rhs_line, int rhs_colum
   return lhs_line < rhs_line || (lhs_line == rhs_line && lhs_column <= rhs_column);
 }
 
-bool Contains(const Span& outer, const Span& inner) {
-  if (!outer.defined() || !inner.defined() || outer.as<SequentialSpanNode>() ||
-      inner.as<SequentialSpanNode>() || !outer->source_name.same_as(inner->source_name)) {
+bool Contains(const Location& outer, const Location& inner) {
+  const auto* outer_source = outer.as<SourceLocNode>();
+  const auto* inner_source = inner.as<SourceLocNode>();
+  if (!outer_source || !inner_source ||
+      !outer_source->source_name.same_as(inner_source->source_name)) {
     return false;
   }
-  return PositionLessEqual(outer->line, outer->column, inner->line, inner->column) &&
-         PositionLessEqual(inner->end_line, inner->end_column, outer->end_line, outer->end_column);
+  return PositionLessEqual(outer_source->start_line, outer_source->start_column,
+                           inner_source->start_line, inner_source->start_column) &&
+         PositionLessEqual(inner_source->end_line, inner_source->end_column, outer_source->end_line,
+                           outer_source->end_column);
 }
 
-bool SameLocation(const Span& lhs, const Span& rhs) {
+bool SameLocation(const Location& lhs, const Location& rhs) {
   return Contains(lhs, rhs) && Contains(rhs, lhs);
 }
 
-void AppendNormalizedSpan(const Span& span, std::vector<Span>* normalized) {
-  if (!span.defined()) {
+void AppendNormalizedLoc(const Location& loc, std::vector<Location>* normalized) {
+  if (loc.as<UnknownLocNode>()) {
     return;
   }
-  if (const auto* sequential = span.as<SequentialSpanNode>()) {
+  if (const auto* call_site = loc.as<CallSiteLocNode>()) {
     // Stored node/frame context can repeat the active caller prefix.  Merge
     // overlapping chains before appending their distinct definition locations.
-    std::vector<Span> nested;
-    for (const Span& item : sequential->spans) {
-      AppendNormalizedSpan(item, &nested);
-    }
+    std::vector<Location> nested;
+    AppendNormalizedLoc(call_site->caller, &nested);
+    AppendNormalizedLoc(call_site->callee, &nested);
     size_t common_prefix = 0;
     while (common_prefix < normalized->size() && common_prefix < nested.size() &&
            SameLocation((*normalized)[common_prefix], nested[common_prefix])) {
@@ -78,56 +81,57 @@ void AppendNormalizedSpan(const Span& span, std::vector<Span>* normalized) {
       }
     }
     for (size_t i = std::max(overlap, common_prefix); i < nested.size(); ++i) {
-      AppendNormalizedSpan(nested[i], normalized);
+      AppendNormalizedLoc(nested[i], normalized);
     }
     return;
   }
-  if (!normalized->empty() && Contains(normalized->back(), span)) {
-    normalized->back() = span;
-  } else if (normalized->empty() || !Contains(span, normalized->back())) {
-    normalized->push_back(span);
+  if (!normalized->empty() && Contains(normalized->back(), loc)) {
+    normalized->back() = loc;
+  } else if (normalized->empty() || !Contains(loc, normalized->back())) {
+    normalized->push_back(loc);
   }
 }
 
-Span NormalizedSpan(const std::vector<Span>& normalized) {
+Location NormalizedLoc(const std::vector<Location>& normalized) {
   if (normalized.empty()) {
-    return Span();
+    return UnknownLoc();
   }
-  if (normalized.size() == 1) {
-    return normalized[0];
+  Location loc = normalized[0];
+  for (size_t i = 1; i < normalized.size(); ++i) {
+    loc = CallSiteLoc(normalized[i], loc);
   }
-  return SequentialSpan(ffi::Array<Span>(normalized.begin(), normalized.end()));
+  return loc;
 }
 
-Span ComposeSpan(const Span& active, const Span& existing) {
-  std::vector<Span> normalized;
-  AppendNormalizedSpan(active, &normalized);
+Location ComposeLoc(const Location& active, const Location& existing) {
+  std::vector<Location> normalized;
+  AppendNormalizedLoc(active, &normalized);
   // A node constructed under a single caller can acquire its explicit local
   // location later. Treat that existing caller as a shared prefix, just as
-  // AppendNormalizedSpan does for an existing SequentialSpan.
+  // AppendNormalizedLoc does for an existing CallSiteLoc.
   if (!normalized.empty() && SameLocation(normalized.front(), existing)) {
-    return NormalizedSpan(normalized);
+    return NormalizedLoc(normalized);
   }
-  AppendNormalizedSpan(existing, &normalized);
-  return NormalizedSpan(normalized);
+  AppendNormalizedLoc(existing, &normalized);
+  return NormalizedLoc(normalized);
 }
 
 }  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRBuilderFrameNode::RegisterReflection();
-  IRBuilderNode::RegisterReflection();
+  IRBuilderFrameObj::RegisterReflection();
+  IRBuilderObj::RegisterReflection();
 }
 
-IRBuilderFrameNode::IRBuilderFrameNode() {
-  if (IRBuilder::IsInScope()) source_span = IRBuilder::Current()->GetCurrentSourceSpan();
+IRBuilderFrameObj::IRBuilderFrameObj() {
+  if (IRBuilder::IsInScope()) loc = IRBuilder::Current()->GetCurrentLoc();
 }
 
-void IRBuilderFrameNode::EnterWithScope() {
+void IRBuilderFrameObj::EnterWithScope() {
   IRBuilder::Current()->frames.push_back(ffi::GetRef<IRBuilderFrame>(this));
 }
 
-void IRBuilderFrameNode::ExitWithScope() {
+void IRBuilderFrameObj::ExitWithScope() {
   for (auto it = callbacks.rbegin(); it != callbacks.rend(); ++it) {
     (*it)();
   }
@@ -135,7 +139,7 @@ void IRBuilderFrameNode::ExitWithScope() {
   IRBuilder::Current()->frames.pop_back();
 }
 
-void IRBuilderFrameNode::AddCallback(ffi::TypedFunction<void()> callback) {
+void IRBuilderFrameObj::AddCallback(ffi::TypedFunction<void()> callback) {
   if (IRBuilder::Current()->frames.empty()) {
     TVM_FFI_THROW(InternalError) << "ValueError: No frames in Builder to add callback";
   }
@@ -143,43 +147,40 @@ void IRBuilderFrameNode::AddCallback(ffi::TypedFunction<void()> callback) {
 }
 
 IRBuilder::IRBuilder() {
-  ffi::ObjectPtr<IRBuilderNode> n = ffi::make_object<IRBuilderNode>();
+  ffi::ObjectPtr<IRBuilderObj> n = ffi::make_object<IRBuilderObj>();
   n->frames.clear();
   n->result = std::nullopt;
-  n->source_spans.clear();
+  n->locs.clear();
   data_ = n;
 }
 
-void IRBuilderNode::PushSourceSpan(Span span) {
-  TVM_FFI_CHECK(span.defined(), ValueError) << "ValueError: Cannot push an undefined source span";
-  source_spans.push_back(std::move(span));
+void IRBuilderObj::PushLoc(Location loc) { locs.push_back(std::move(loc)); }
+
+void IRBuilderObj::PopLoc() {
+  TVM_FFI_CHECK(!locs.empty(), ValueError)
+      << "ValueError: No source location exists in the builder scope";
+  locs.pop_back();
 }
 
-void IRBuilderNode::PopSourceSpan() {
-  TVM_FFI_CHECK(!source_spans.empty(), ValueError)
-      << "ValueError: No source span exists in the builder scope";
-  source_spans.pop_back();
-}
-
-Span IRBuilderNode::GetCurrentSourceSpan(Span location) const {
-  std::vector<Span> normalized;
-  normalized.reserve(source_spans.size());
-  for (const Span& span : source_spans) {
-    AppendNormalizedSpan(span, &normalized);
+Location IRBuilderObj::GetCurrentLoc(Location location) const {
+  std::vector<Location> normalized;
+  normalized.reserve(locs.size());
+  for (const Location& loc : locs) {
+    AppendNormalizedLoc(loc, &normalized);
   }
-  AppendNormalizedSpan(location, &normalized);
-  return NormalizedSpan(normalized);
+  AppendNormalizedLoc(location, &normalized);
+  return NormalizedLoc(normalized);
 }
 
-ffi::ObjectRef IRBuilderNode::SetCurrentSourceSpan(ffi::ObjectRef obj) const {
-  return SetSourceSpan(std::move(obj), Span());
+ffi::ObjectRef IRBuilderObj::SetCurrentLoc(ffi::ObjectRef obj) const {
+  return SetLoc(std::move(obj), UnknownLoc());
 }
 
-ffi::ObjectRef IRBuilderNode::SetSourceSpan(ffi::ObjectRef obj, Span span) const {
-  span = ComposeSpan(GetCurrentSourceSpan(), span);
-  if (span.defined() && obj.defined()) {
-    if (Span* target = details::SourceSpanAccessor::vtable()(obj)) {
-      *target = ComposeSpan(span, *target);
+ffi::ObjectRef IRBuilderObj::SetLoc(ffi::ObjectRef obj, Location loc) const {
+  loc = ComposeLoc(GetCurrentLoc(), loc);
+  if (!loc.as<UnknownLocNode>() && obj.defined()) {
+    if (Location* target = details::LocationAccessor::vtable()(obj)) {
+      *target = ComposeLoc(loc, *target);
     }
   }
   return obj;
@@ -191,12 +192,12 @@ std::vector<IRBuilder>* ThreadLocalBuilderStack() {
 }
 
 void IRBuilder::EnterWithScope() {
-  IRBuilderNode* n = this->get();
+  IRBuilderObj* n = this->get();
   TVM_FFI_CHECK(n->frames.empty(), ValueError)
       << "ValueError: There are frame(s) left in the builder: " << n->frames.size()
       << ". Please use a fresh new builder every time building IRs";
-  TVM_FFI_CHECK(n->source_spans.empty(), ValueError)
-      << "ValueError: There are source span(s) left in the builder: " << n->source_spans.size()
+  TVM_FFI_CHECK(n->locs.empty(), ValueError)
+      << "ValueError: There are source loc(s) left in the builder: " << n->locs.size()
       << ". Please use a fresh new builder every time building IRs";
   n->result = std::nullopt;
   std::vector<IRBuilder>* stack = ThreadLocalBuilderStack();
@@ -222,19 +223,18 @@ bool IRBuilder::IsInScope() {
 
 namespace details {
 
-SourceSpanAccessor::FType& SourceSpanAccessor::vtable() {
+LocationAccessor::FType& LocationAccessor::vtable() {
   static FType inst;
   return inst;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  SourceSpanAccessor::vtable()
-      .SetDispatch<ffi::Object>([](const ffi::ObjectRef&) -> Span* { return nullptr; })
+  LocationAccessor::vtable()
+      .SetDispatch<ffi::Object>([](const ffi::ObjectRef&) -> Location* { return nullptr; })
       .SetDispatch<ExprNode>(
-          [](const ffi::ObjectRef& obj) -> Span* { return &obj.as<ExprNode>()->span; })
-      .SetDispatch<IRBuilderFrameNode>([](const ffi::ObjectRef& obj) -> Span* {
-        return &obj.as<IRBuilderFrameNode>()->source_span;
-      });
+          [](const ffi::ObjectRef& obj) -> Location* { return &obj.as<ExprNode>()->loc; })
+      .SetDispatch<IRBuilderFrameObj>(
+          [](const ffi::ObjectRef& obj) -> Location* { return &obj.as<IRBuilderFrameObj>()->loc; });
 }
 
 Namer::FType& Namer::vtable() {
@@ -255,20 +255,19 @@ void Namer::Name(ffi::ObjectRef node, ffi::String name) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_method("script.ir_builder.IRBuilderFrameEnter", &IRBuilderFrameNode::EnterWithScope)
-      .def_method("script.ir_builder.IRBuilderFrameExit", &IRBuilderFrameNode::ExitWithScope)
-      .def_method("script.ir_builder.IRBuilderFrameAddCallback", &IRBuilderFrameNode::AddCallback)
+      .def_method("script.ir_builder.IRBuilderFrameEnter", &IRBuilderFrameObj::EnterWithScope)
+      .def_method("script.ir_builder.IRBuilderFrameExit", &IRBuilderFrameObj::ExitWithScope)
+      .def_method("script.ir_builder.IRBuilderFrameAddCallback", &IRBuilderFrameObj::AddCallback)
       .def("script.ir_builder.IRBuilder", []() { return IRBuilder(); })
       .def_method("script.ir_builder.IRBuilderEnter", &IRBuilder::EnterWithScope)
       .def_method("script.ir_builder.IRBuilderExit", &IRBuilder::ExitWithScope)
       .def("script.ir_builder.IRBuilderCurrent", IRBuilder::Current)
       .def("script.ir_builder.IRBuilderIsInScope", IRBuilder::IsInScope)
-      .def_method("script.ir_builder.IRBuilderGet", &IRBuilderNode::Get<ffi::ObjectRef>)
-      .def_method("script.ir_builder.IRBuilderPushSourceSpan", &IRBuilderNode::PushSourceSpan)
-      .def_method("script.ir_builder.IRBuilderPopSourceSpan", &IRBuilderNode::PopSourceSpan)
-      .def_method("script.ir_builder.IRBuilderSetCurrentSourceSpan",
-                  &IRBuilderNode::SetCurrentSourceSpan)
-      .def_method("script.ir_builder.IRBuilderSetSourceSpan", &IRBuilderNode::SetSourceSpan)
+      .def_method("script.ir_builder.IRBuilderGet", &IRBuilderObj::Get<ffi::ObjectRef>)
+      .def_method("script.ir_builder.IRBuilderPushLoc", &IRBuilderObj::PushLoc)
+      .def_method("script.ir_builder.IRBuilderPopLoc", &IRBuilderObj::PopLoc)
+      .def_method("script.ir_builder.IRBuilderSetCurrentLoc", &IRBuilderObj::SetCurrentLoc)
+      .def_method("script.ir_builder.IRBuilderSetLoc", &IRBuilderObj::SetLoc)
       .def("script.ir_builder.IRBuilderName", IRBuilder::Name<ffi::ObjectRef>);
 }
 

@@ -23,6 +23,7 @@ from __future__ import annotations
 import tvm
 import tvm.testing
 from tvm import relax
+from tvm.ir import TupleType as _TupleType
 from tvm.ir import assert_structural_equal
 from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
@@ -90,7 +91,7 @@ def test_mlp_with_tuple():
             }
         )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def split1(
             A: T.Tensor((128, 128), "float32"),
             T_split: T.Tensor((64, 128), "float32"),
@@ -122,7 +123,9 @@ def test_mlp_with_tuple():
             lv_tuple = R.call_tir(
                 cls.split1,
                 [lv1],
-                out_ty=[R.Tensor((64, 128), "float32"), R.Tensor((64, 128), "float32")],
+                ty_args=[
+                    _TupleType([R.Tensor((64, 128), "float32"), R.Tensor((64, 128), "float32")])
+                ],
             )
             lv2 = lv_tuple[0]
             lv3 = R.dist.annotate_sharding(lv2, device_mesh="mesh[0]", placement="S[1]")
@@ -137,7 +140,7 @@ def test_mlp_with_tuple():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def split1(
             A: T.Tensor((128, 128), "float32"),
             T_split: T.Tensor((64, 128), "float32"),
@@ -173,9 +176,13 @@ def test_mlp_with_tuple():
             gv = R.dist.call_tir(
                 cls.split1,
                 (lv1,),
-                out_ty=[
-                    R.DTensor((64, 128), "float32", "mesh[0]", "S[1]"),
-                    R.DTensor((64, 128), "float32", "mesh[0]", "S[1]"),
+                ty_args=[
+                    _TupleType(
+                        [
+                            R.DTensor((64, 128), "float32", "mesh[0]", "S[1]"),
+                            R.DTensor((64, 128), "float32", "mesh[0]", "S[1]"),
+                        ]
+                    )
                 ],
             )
             lv2: R.DTensor((64, 128), "float32", "mesh[0]", "S[1]") = gv[0]
@@ -239,10 +246,10 @@ def test_mlp_const():
 
 
 def test_mlp_dynamic_shape():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
-    k0 = T.dynamic("k0")
-    k1 = T.dynamic("k1")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    k0 = T.dynamic("k0", "int64")
+    k1 = T.dynamic("k1", "int64")
 
     @I.ir_module
     class MLPDynamicShape:
@@ -268,10 +275,10 @@ def test_mlp_dynamic_shape():
             lv3 = R.matmul(lv2, weight2)
             return lv3
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
-    k0 = T.dynamic("k0")
-    k1 = T.dynamic("k1")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    k0 = T.dynamic("k0", "int64")
+    k1 = T.dynamic("k1", "int64")
 
     @I.ir_module
     class ShardedMLPDynamicShape:
@@ -373,7 +380,7 @@ def test_decoder_layer():
             }
         )
 
-        @Ts.prim_func
+        @Ts.function
         def rms_norm(
             A: T.Tensor((T.int64(1), 256, T.int64(4096)), "float16"),
             B: T.Tensor((T.int64(4096),), "float16"),
@@ -382,7 +389,7 @@ def test_decoder_layer():
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), 256))
+            Ared_temp = Ts.sblock_alloc_tensor((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with Ts.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSR", [bsz, i, k])
@@ -410,7 +417,7 @@ def test_decoder_layer():
                         ),
                     )
 
-        @Ts.prim_func
+        @Ts.function
         def rotary_embedding(
             A: T.Tensor((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
             B: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
@@ -456,7 +463,7 @@ def test_decoder_layer():
             lv6 = R.call_tir(
                 cls.rms_norm,
                 (input_tokens, rms_norm_weight),
-                out_ty=R.Tensor((1, 256, 4096), dtype="float16"),
+                ty_args=[R.Tensor((1, 256, 4096), dtype="float16")],
             )
             lv7: R.Tensor((4096, 4096), dtype="float16") = R.permute_dims(linear_weight, axes=None)
             lv7_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
@@ -489,12 +496,12 @@ def test_decoder_layer():
             lv16 = R.call_tir(
                 cls.rotary_embedding,
                 (lv9, cos_cached, sin_cached),
-                out_ty=R.Tensor((1, 256, 32, 128), dtype="float16"),
+                ty_args=[R.Tensor((1, 256, 32, 128), dtype="float16")],
             )
             lv17 = R.call_tir(
                 cls.rotary_embedding,
                 (lv12, cos_cached, sin_cached),
-                out_ty=R.Tensor((1, 256, 32, 128), dtype="float16"),
+                ty_args=[R.Tensor((1, 256, 32, 128), dtype="float16")],
             )
             lv18: R.Tensor((256, 32, 128), dtype="float16") = R.reshape(
                 lv17, R.shape([256, 32, 128])
@@ -570,7 +577,7 @@ def test_decoder_layer():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @Ts.prim_func
+        @Ts.function
         def rms_norm(
             A: T.Tensor((T.int64(1), 256, T.int64(4096)), "float16"),
             B: T.Tensor((T.int64(4096),), "float16"),
@@ -578,7 +585,7 @@ def test_decoder_layer():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), 256))
+            Ared_temp = Ts.sblock_alloc_tensor((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with Ts.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSR", [bsz, i, k])
@@ -606,7 +613,7 @@ def test_decoder_layer():
                         ),
                     )
 
-        @Ts.prim_func
+        @Ts.function
         def rotary_embedding(
             A: T.Tensor((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
             B: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
@@ -651,7 +658,7 @@ def test_decoder_layer():
             lv6 = R.dist.call_tir(
                 cls.rms_norm,
                 (input_tokens, rms_norm_weight),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")],
             )
             lv7: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]") = R.permute_dims(
                 linear_weight, axes=None
@@ -677,12 +684,12 @@ def test_decoder_layer():
             lv16 = R.dist.call_tir(
                 cls.rotary_embedding,
                 (lv9, cos_cached, sin_cached),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv17 = R.dist.call_tir(
                 cls.rotary_embedding,
                 (lv12, cos_cached, sin_cached),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv18: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.reshape(
                 lv17, R.shape([256, 32, 128])
@@ -774,7 +781,7 @@ def test_decoder_layer_tir():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add(
             A: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             B: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
@@ -792,7 +799,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_ax1, v_ax2] + B[T.int64(0), v_ax1, v_ax2]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def divide(
             A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
@@ -810,7 +817,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_ax1, v_ax2, v_ax3] / B[T.int64(0), v_ax1, v_ax2, v_ax3]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul(
             A: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             B: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
@@ -830,7 +837,7 @@ def test_decoder_layer_tir():
                         matmul[T.int64(0), v_i1, v_i2] + A[T.int64(0), v_i1, v_k] * B[v_k, v_i2]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul1(
             A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
             B: T.Tensor((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
@@ -853,7 +860,7 @@ def test_decoder_layer_tir():
                         + A[T.int64(0), v_i1, v_i2, v_k] * B[T.int64(0), v_i1, v_k, v_i3]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul2(
             A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
@@ -876,7 +883,7 @@ def test_decoder_layer_tir():
                         + A[T.int64(0), v_i1, v_i2, v_k] * B[T.int64(0), v_i1, v_k, v_i3]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def maximum(
             A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
@@ -894,7 +901,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_ax1, v_ax2, v_ax3], B[T.int64(0), v_ax1, v_ax2, v_ax3]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def minimum(
             A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             B: T.Tensor((T.int64(1), T.int64(1), T.int64(256), T.int64(256)), "float16"),
@@ -914,7 +921,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_ax1, v_ax2, v_ax3], B[T.int64(0), T.int64(0), v_ax2, v_ax3]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape(
             A: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
             T_reshape: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -931,7 +938,7 @@ def test_decoder_layer_tir():
                         T.int64(0), v_ax1, v_ax2 * T.int64(128) + v_ax3
                     ]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape1(
             A: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_reshape: T.Tensor((T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -945,7 +952,7 @@ def test_decoder_layer_tir():
                     Ts.writes(T_reshape[v_ax0, v_ax1, v_ax2])
                     T_reshape[v_ax0, v_ax1, v_ax2] = A[T.int64(0), v_ax0, v_ax1, v_ax2]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape2(
             A: T.Tensor((T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_reshape: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -960,7 +967,7 @@ def test_decoder_layer_tir():
                     Ts.writes(T_reshape[T.int64(0), v_ax1, v_ax2, v_ax3])
                     T_reshape[T.int64(0), v_ax1, v_ax2, v_ax3] = A[v_ax1, v_ax2, v_ax3]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape3(
             A: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_reshape: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
@@ -977,7 +984,7 @@ def test_decoder_layer_tir():
                         T.int64(0), v_ax1, v_ax2 // T.int64(128), v_ax2 % T.int64(128)
                     ]
 
-        @Ts.prim_func
+        @Ts.function
         def rms_norm(
             A: T.Tensor((T.int64(1), 256, T.int64(4096)), "float16"),
             B: T.Tensor((T.int64(4096),), "float16"),
@@ -985,7 +992,7 @@ def test_decoder_layer_tir():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), 256))
+            Ared_temp = Ts.sblock_alloc_tensor((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with Ts.sblock("Ared_temp"):
                     v_bsz = Ts.axis.spatial(T.int64(1), T.int64(0))
@@ -1015,7 +1022,7 @@ def test_decoder_layer_tir():
                         ),
                     )
 
-        @Ts.prim_func
+        @Ts.function
         def rotary_embedding(
             A: T.Tensor((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
             B: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
@@ -1047,7 +1054,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_i1, v_i2, v_i3 + T.int64(64)] * T.float16(-1),
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def softmax(
             A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
             T_softmax_norm: T.Tensor(
@@ -1056,13 +1063,13 @@ def test_decoder_layer_tir():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            T_softmax_maxelem = Ts.sblock_alloc_buffer(
+            T_softmax_maxelem = Ts.sblock_alloc_tensor(
                 (T.int64(1), T.int64(32), T.int64(256)), "float16"
             )
-            T_softmax_exp = Ts.sblock_alloc_buffer(
+            T_softmax_exp = Ts.sblock_alloc_tensor(
                 (T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"
             )
-            T_softmax_expsum = Ts.sblock_alloc_buffer(
+            T_softmax_expsum = Ts.sblock_alloc_tensor(
                 (T.int64(1), T.int64(32), T.int64(256)), "float16"
             )
             for i0, i1, i2, k in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(256)):
@@ -1114,7 +1121,7 @@ def test_decoder_layer_tir():
                         / T_softmax_expsum[T.int64(0), v_i1, v_i2]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def transpose(
             A: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
             T_transpose: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
@@ -1128,7 +1135,7 @@ def test_decoder_layer_tir():
                     Ts.writes(T_transpose[v_ax0, v_ax1])
                     T_transpose[v_ax0, v_ax1] = A[v_ax1, v_ax0]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def transpose1(
             A: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
             T_transpose: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
@@ -1145,7 +1152,7 @@ def test_decoder_layer_tir():
                         T.int64(0), v_ax2, v_ax1, v_ax3
                     ]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def transpose2(
             A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
             T_transpose: T.Tensor((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
@@ -1162,7 +1169,7 @@ def test_decoder_layer_tir():
                         T.int64(0), v_ax1, v_ax3, v_ax2
                     ]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def transpose3(
             A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
             T_transpose: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
@@ -1198,59 +1205,59 @@ def test_decoder_layer_tir():
             lv6 = R.call_tir(
                 cls.rms_norm,
                 (input_tokens, rms_norm_weight),
-                out_ty=R.Tensor((1, 256, 4096), dtype="float16"),
+                ty_args=[R.Tensor((1, 256, 4096), dtype="float16")],
             )
             lv7 = R.call_tir(
-                cls.transpose, (linear_weight,), out_ty=R.Tensor((4096, 4096), dtype="float16")
+                cls.transpose, (linear_weight,), ty_args=[R.Tensor((4096, 4096), dtype="float16")]
             )
             lv7_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
                 lv7, device_mesh="mesh[0]", placement="S[1]"
             )
             lv8 = R.call_tir(
-                cls.matmul, (lv6, lv7_copy), out_ty=R.Tensor((1, 256, 4096), dtype="float16")
+                cls.matmul, (lv6, lv7_copy), ty_args=[R.Tensor((1, 256, 4096), dtype="float16")]
             )
             lv9 = R.call_tir(
-                cls.reshape, (lv8,), out_ty=R.Tensor((1, 256, 32, 128), dtype="float16")
+                cls.reshape, (lv8,), ty_args=[R.Tensor((1, 256, 32, 128), dtype="float16")]
             )
             lv10 = R.call_tir(
-                cls.transpose, (linear_weight1,), out_ty=R.Tensor((4096, 4096), dtype="float16")
+                cls.transpose, (linear_weight1,), ty_args=[R.Tensor((4096, 4096), dtype="float16")]
             )
             lv10_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
                 lv10, device_mesh="mesh[0]", placement="S[1]"
             )
             lv11 = R.call_tir(
-                cls.matmul, (lv6, lv10_copy), out_ty=R.Tensor((1, 256, 4096), dtype="float16")
+                cls.matmul, (lv6, lv10_copy), ty_args=[R.Tensor((1, 256, 4096), dtype="float16")]
             )
             lv12 = R.call_tir(
-                cls.reshape, (lv11,), out_ty=R.Tensor((1, 256, 32, 128), dtype="float16")
+                cls.reshape, (lv11,), ty_args=[R.Tensor((1, 256, 32, 128), dtype="float16")]
             )
             lv13 = R.call_tir(
-                cls.transpose, (linear_weight2,), out_ty=R.Tensor((4096, 4096), dtype="float16")
+                cls.transpose, (linear_weight2,), ty_args=[R.Tensor((4096, 4096), dtype="float16")]
             )
             lv13_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
                 lv13, device_mesh="mesh[0]", placement="S[1]"
             )
             lv14 = R.call_tir(
-                cls.matmul, (lv6, lv13_copy), out_ty=R.Tensor((1, 256, 4096), dtype="float16")
+                cls.matmul, (lv6, lv13_copy), ty_args=[R.Tensor((1, 256, 4096), dtype="float16")]
             )
             lv15 = R.call_tir(
-                cls.reshape, (lv14,), out_ty=R.Tensor((1, 256, 32, 128), dtype="float16")
+                cls.reshape, (lv14,), ty_args=[R.Tensor((1, 256, 32, 128), dtype="float16")]
             )
             lv16 = R.call_tir(
                 cls.rotary_embedding,
                 (lv9, cos_cached, sin_cached),
-                out_ty=R.Tensor((1, 256, 32, 128), dtype="float16"),
+                ty_args=[R.Tensor((1, 256, 32, 128), dtype="float16")],
             )
             lv17 = R.call_tir(
                 cls.rotary_embedding,
                 (lv12, cos_cached, sin_cached),
-                out_ty=R.Tensor((1, 256, 32, 128), dtype="float16"),
+                ty_args=[R.Tensor((1, 256, 32, 128), dtype="float16")],
             )
             lv18 = R.call_tir(
-                cls.reshape1, (lv17,), out_ty=R.Tensor((256, 32, 128), dtype="float16")
+                cls.reshape1, (lv17,), ty_args=[R.Tensor((256, 32, 128), dtype="float16")]
             )
             lv19 = R.call_tir(
-                cls.reshape1, (lv15,), out_ty=R.Tensor((256, 32, 128), dtype="float16")
+                cls.reshape1, (lv15,), ty_args=[R.Tensor((256, 32, 128), dtype="float16")]
             )
             lv20: R.Any = kv_cache[0]
             lv21: R.Any = R.call_packed(
@@ -1273,59 +1280,59 @@ def test_decoder_layer_tir():
                 ty_args=(R.Tensor((256, 32, 128), dtype="float16"),),
             )
             lv26 = R.call_tir(
-                cls.reshape2, (lv24,), out_ty=R.Tensor((1, 256, 32, 128), dtype="float16")
+                cls.reshape2, (lv24,), ty_args=[R.Tensor((1, 256, 32, 128), dtype="float16")]
             )
             lv27 = R.call_tir(
-                cls.reshape2, (lv25,), out_ty=R.Tensor((1, 256, 32, 128), dtype="float16")
+                cls.reshape2, (lv25,), ty_args=[R.Tensor((1, 256, 32, 128), dtype="float16")]
             )
             lv28 = R.call_tir(
-                cls.transpose1, (lv16,), out_ty=R.Tensor((1, 32, 256, 128), dtype="float16")
+                cls.transpose1, (lv16,), ty_args=[R.Tensor((1, 32, 256, 128), dtype="float16")]
             )
             lv29 = R.call_tir(
-                cls.transpose1, (lv26,), out_ty=R.Tensor((1, 32, 256, 128), dtype="float16")
+                cls.transpose1, (lv26,), ty_args=[R.Tensor((1, 32, 256, 128), dtype="float16")]
             )
             lv30 = R.call_tir(
-                cls.transpose1, (lv27,), out_ty=R.Tensor((1, 32, 256, 128), dtype="float16")
+                cls.transpose1, (lv27,), ty_args=[R.Tensor((1, 32, 256, 128), dtype="float16")]
             )
             lv31 = R.call_tir(
-                cls.transpose2, (lv29,), out_ty=R.Tensor((1, 32, 128, 256), dtype="float16")
+                cls.transpose2, (lv29,), ty_args=[R.Tensor((1, 32, 128, 256), dtype="float16")]
             )
             lv32 = R.call_tir(
-                cls.matmul1, (lv28, lv31), out_ty=R.Tensor((1, 32, 256, 256), dtype="float16")
+                cls.matmul1, (lv28, lv31), ty_args=[R.Tensor((1, 32, 256, 256), dtype="float16")]
             )
             lv33 = R.call_tir(
                 cls.divide,
                 (lv32, div_const),
-                out_ty=R.Tensor((1, 32, 256, 256), dtype="float16"),
+                ty_args=[R.Tensor((1, 32, 256, 256), dtype="float16")],
             )
             lv34 = R.call_tir(
                 cls.maximum,
                 (lv33, maximum_const),
-                out_ty=R.Tensor((1, 32, 256, 256), dtype="float16"),
+                ty_args=[R.Tensor((1, 32, 256, 256), dtype="float16")],
             )
             lv35 = R.call_tir(
-                cls.minimum, (lv34, mask), out_ty=R.Tensor((1, 32, 256, 256), dtype="float16")
+                cls.minimum, (lv34, mask), ty_args=[R.Tensor((1, 32, 256, 256), dtype="float16")]
             )
             lv37 = R.call_tir(
-                cls.softmax, (lv35,), out_ty=R.Tensor((1, 32, 256, 256), dtype="float16")
+                cls.softmax, (lv35,), ty_args=[R.Tensor((1, 32, 256, 256), dtype="float16")]
             )
             lv39 = R.call_tir(
-                cls.matmul2, (lv37, lv30), out_ty=R.Tensor((1, 32, 256, 128), dtype="float16")
+                cls.matmul2, (lv37, lv30), ty_args=[R.Tensor((1, 32, 256, 128), dtype="float16")]
             )
             lv40 = R.call_tir(
-                cls.transpose3, (lv39,), out_ty=R.Tensor((1, 256, 32, 128), dtype="float16")
+                cls.transpose3, (lv39,), ty_args=[R.Tensor((1, 256, 32, 128), dtype="float16")]
             )
             lv41 = R.call_tir(
-                cls.reshape3, (lv40,), out_ty=R.Tensor((1, 256, 4096), dtype="float16")
+                cls.reshape3, (lv40,), ty_args=[R.Tensor((1, 256, 4096), dtype="float16")]
             )
             lv42 = R.call_tir(
-                cls.transpose, (linear_weight3,), out_ty=R.Tensor((4096, 4096), dtype="float16")
+                cls.transpose, (linear_weight3,), ty_args=[R.Tensor((4096, 4096), dtype="float16")]
             )
             lv43 = R.call_tir(
-                cls.matmul, (lv41, lv42), out_ty=R.Tensor((1, 256, 4096), dtype="float16")
+                cls.matmul, (lv41, lv42), ty_args=[R.Tensor((1, 256, 4096), dtype="float16")]
             )
             lv44 = R.call_tir(
-                cls.add, (input_tokens, lv43), out_ty=R.Tensor((1, 256, 4096), dtype="float16")
+                cls.add, (input_tokens, lv43), ty_args=[R.Tensor((1, 256, 4096), dtype="float16")]
             )
             gv: R.Tensor((1, 256, 4096), dtype="float16") = lv44
             return gv
@@ -1358,72 +1365,72 @@ def test_decoder_layer_tir():
             lv6 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("rms_norm"),
                 (input_tokens, rms_norm_weight),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")],
             )
             lv7 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("transpose"),
                 (linear_weight,),
-                out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]")],
             )
             lv8 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("matmul"),
                 (lv6, lv7),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]")],
             )
             lv9 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("reshape"),
                 (lv8,),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv10 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("transpose"),
                 (linear_weight1,),
-                out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]")],
             )
             lv11 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("matmul"),
                 (lv6, lv10),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]")],
             )
             lv12 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("reshape"),
                 (lv11,),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv13 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("transpose"),
                 (linear_weight2,),
-                out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]")],
             )
             lv14 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("matmul"),
                 (lv6, lv13),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]")],
             )
             lv15 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("reshape"),
                 (lv14,),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv16 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("rotary_embedding"),
                 (lv9, cos_cached, sin_cached),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv17 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("rotary_embedding"),
                 (lv12, cos_cached, sin_cached),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv18 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("reshape1"),
                 (lv17,),
-                out_ty=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]")],
             )
             lv19 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("reshape1"),
                 (lv15,),
-                out_ty=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]")],
             )
             lv20: R.Any = kv_cache[0]
             lv21: R.Any = R.call_packed(
@@ -1454,87 +1461,87 @@ def test_decoder_layer_tir():
             lv26 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("reshape2"),
                 (lv24,),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv27 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("reshape2"),
                 (lv25,),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv28 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("transpose1"),
                 (lv16,),
-                out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]")],
             )
             lv29 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("transpose1"),
                 (lv26,),
-                out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]")],
             )
             lv30 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("transpose1"),
                 (lv27,),
-                out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]")],
             )
             lv31 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("transpose2"),
                 (lv29,),
-                out_ty=R.DTensor((1, 32, 128, 256), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 128, 256), "float16", "mesh[0]", "S[1]")],
             )
             lv32 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("matmul1"),
                 (lv28, lv31),
-                out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")],
             )
             lv33 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("divide"),
                 (lv32, div_const),
-                out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")],
             )
             lv34 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("maximum"),
                 (lv33, maximum_const),
-                out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")],
             )
             lv35 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("minimum"),
                 (lv34, mask),
-                out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")],
             )
             lv37 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("softmax"),
                 (lv35,),
-                out_ty=R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]")],
             )
             lv39 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("matmul2"),
                 (lv37, lv30),
-                out_ty=R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]")],
             )
             lv40 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("transpose3"),
                 (lv39,),
-                out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv41 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("reshape3"),
                 (lv40,),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]")],
             )
             lv42 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("transpose"),
                 (linear_weight3,),
-                out_ty=R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
+                ty_args=[R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]")],
             )
             lv43 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("matmul"),
                 (lv41, lv42),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")],
             )
             lv44 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("add"),
                 (input_tokens, lv43),
-                out_ty=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
+                ty_args=[R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R")],
             )
             gv: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = lv44
             return gv
@@ -1548,10 +1555,10 @@ def test_decoder_layer_tir():
 
 
 def test_decoder_layer_dynamic_shape():
-    rms_norm_n = T.dynamic("n")
-    rotary_embedding_n = T.dynamic("n")
-    foo_n = T.dynamic("n")
-    m = T.dynamic("m")
+    rms_norm_n = T.dynamic("n", "int64")
+    rotary_embedding_n = T.dynamic("n", "int64")
+    foo_n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class LlamaAttentionLayerDynamicShape:
@@ -1565,7 +1572,7 @@ def test_decoder_layer_dynamic_shape():
             }
         )
 
-        @Ts.prim_func
+        @Ts.function
         def rms_norm(
             A: T.Tensor((T.int64(1), rms_norm_n, T.int64(4096)), "float16"),
             B: T.Tensor((T.int64(4096),), "float16"),
@@ -1574,7 +1581,7 @@ def test_decoder_layer_dynamic_shape():
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), rms_norm_n))
+            Ared_temp = Ts.sblock_alloc_tensor((T.int64(1), rms_norm_n))
             for bsz, i, k in T.grid(T.int64(1), rms_norm_n, T.int64(4096)):
                 with Ts.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSR", [bsz, i, k])
@@ -1602,7 +1609,7 @@ def test_decoder_layer_dynamic_shape():
                         ),
                     )
 
-        @Ts.prim_func
+        @Ts.function
         def rotary_embedding(
             A: T.Tensor((T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"),
             B: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
@@ -1649,7 +1656,7 @@ def test_decoder_layer_dynamic_shape():
             lv6 = R.call_tir(
                 cls.rms_norm,
                 (input_tokens, rms_norm_weight),
-                out_ty=R.Tensor((1, foo_n, 4096), dtype="float16"),
+                ty_args=[R.Tensor((1, foo_n, 4096), dtype="float16")],
             )
             lv7: R.Tensor((4096, 4096), dtype="float16") = R.permute_dims(linear_weight, axes=None)
             lv7_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
@@ -1682,12 +1689,12 @@ def test_decoder_layer_dynamic_shape():
             lv16 = R.call_tir(
                 cls.rotary_embedding,
                 (lv9, cos_cached, sin_cached, m),
-                out_ty=R.Tensor((1, foo_n, 32, 128), dtype="float16"),
+                ty_args=[R.Tensor((1, foo_n, 32, 128), dtype="float16")],
             )
             lv17 = R.call_tir(
                 cls.rotary_embedding,
                 (lv12, cos_cached, sin_cached, m),
-                out_ty=R.Tensor((1, foo_n, 32, 128), dtype="float16"),
+                ty_args=[R.Tensor((1, foo_n, 32, 128), dtype="float16")],
             )
             lv18: R.Tensor((foo_n, 32, 128), dtype="float16") = R.reshape(
                 lv17, R.shape([foo_n, 32, 128])
@@ -1760,10 +1767,10 @@ def test_decoder_layer_dynamic_shape():
 
             return gv
 
-    rms_norm_n = T.dynamic("n")
-    rotary_embedding_n = T.dynamic("n")
-    foo_n = T.dynamic("n")
-    m = T.dynamic("m")
+    rms_norm_n = T.dynamic("n", "int64")
+    rotary_embedding_n = T.dynamic("n", "int64")
+    foo_n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class ShardedLlamaAttentionLayerDynamicShape:
@@ -1772,7 +1779,7 @@ def test_decoder_layer_dynamic_shape():
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @Ts.prim_func
+        @Ts.function
         def rms_norm(
             A: T.Tensor((T.int64(1), rms_norm_n, T.int64(4096)), "float16"),
             B: T.Tensor((T.int64(4096),), "float16"),
@@ -1781,7 +1788,7 @@ def test_decoder_layer_dynamic_shape():
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
-            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), rms_norm_n))
+            Ared_temp = Ts.sblock_alloc_tensor((T.int64(1), rms_norm_n))
             for bsz, i, k in T.grid(T.int64(1), rms_norm_n, T.int64(4096)):
                 with Ts.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSR", [bsz, i, k])
@@ -1809,7 +1816,7 @@ def test_decoder_layer_dynamic_shape():
                         ),
                     )
 
-        @Ts.prim_func
+        @Ts.function
         def rotary_embedding(
             A: T.Tensor((T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"),
             B: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
@@ -1856,7 +1863,7 @@ def test_decoder_layer_dynamic_shape():
             lv6 = R.dist.call_tir(
                 cls.rms_norm,
                 (input_tokens, rms_norm_weight),
-                out_ty=R.DTensor((1, foo_n, 4096), "float16", "mesh[0]", "R"),
+                ty_args=[R.DTensor((1, foo_n, 4096), "float16", "mesh[0]", "R")],
             )
             lv7: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]") = R.permute_dims(
                 linear_weight, axes=None
@@ -1882,12 +1889,12 @@ def test_decoder_layer_dynamic_shape():
             lv16 = R.dist.call_tir(
                 cls.rotary_embedding,
                 (lv9, cos_cached, sin_cached, m),
-                out_ty=R.DTensor((1, foo_n, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, foo_n, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv17 = R.dist.call_tir(
                 cls.rotary_embedding,
                 (lv12, cos_cached, sin_cached, m),
-                out_ty=R.DTensor((1, foo_n, 32, 128), "float16", "mesh[0]", "S[2]"),
+                ty_args=[R.DTensor((1, foo_n, 32, 128), "float16", "mesh[0]", "S[2]")],
             )
             lv18: R.DTensor((foo_n, 32, 128), "float16", "mesh[0]", "S[1]") = R.reshape(
                 lv17, R.shape([foo_n, 32, 128])

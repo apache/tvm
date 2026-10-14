@@ -44,7 +44,7 @@ from tvm.script import tirx as T
 
 @I.ir_module
 class MyModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((128, 128), "float32"),
         B: T.Tensor((128, 128), "float32"),
@@ -54,7 +54,7 @@ class MyModule:
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes()
-            Y = Ts.sblock_alloc_buffer((128, 128))
+            Y = Ts.sblock_alloc_tensor((128, 128))
             for i, j, k in T.grid(128, 128, 128):
                 with Ts.sblock("Y"):
                     vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -83,7 +83,7 @@ c_nd = tvm.runtime.tensor(np.zeros((128, 128), dtype="float32"))
 
 
 def evaluate(mod: tvm.IRModule):
-    lib = tvm.tirx.build(mod, target="llvm")
+    lib = tvm.tirx.compile(mod, target="llvm").mod
     # check correctness
     lib(a_nd, b_nd, c_nd)
     np.testing.assert_allclose(c_nd.numpy(), c_np, rtol=1e-5)

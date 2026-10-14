@@ -29,14 +29,14 @@ from tvm.script import tirx as T
 @pytest.mark.skipif(not tvm.runtime.enabled("llvm"), reason="LLVM is not enabled")
 @pytest.mark.parametrize("mixed", [False, True])
 def test_default_pipeline_selects_dialect(mixed):
-    @Ts.prim_func
+    @Ts.function
     def scheduled(A: Ts.Tensor((16,), "float32"), B: Ts.Tensor((16,), "float32")):
         for i in range(16):
             with Ts.sblock("copy"):
                 vi = Ts.axis.spatial(16, i)
                 B[vi] = A[vi] + Ts.float32(1)
 
-    @T.prim_func
+    @T.function
     def native(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
         for i in range(16):
             B[i] = A[i] + T.float32(2)
@@ -46,14 +46,14 @@ def test_default_pipeline_selects_dialect(mixed):
         functions["native"] = native
     finalized_modules = []
 
-    @tvm.instrument.pass_instrument
+    @tvm.ir.transform.pass_instrument
     class RecordFinalization:
         def run_before_pass(self, mod, info):
             if info.name == "tirx.MakePackedAPI":
                 finalized_modules.append({gv.name_hint for gv in mod.functions})
 
-    with tvm.transform.PassContext(instruments=[RecordFinalization()]):
-        module = tvm.tirx.build(tvm.IRModule(functions), target="llvm")
+    with tvm.ir.transform.PassContext(instruments=[RecordFinalization()]):
+        module = tvm.tirx.compile(tvm.IRModule(functions), target="llvm").mod
     assert finalized_modules == [set(functions)]
     source = np.arange(16, dtype="float32")
     a = tvm.runtime.tensor(source)

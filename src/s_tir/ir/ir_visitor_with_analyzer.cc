@@ -17,15 +17,15 @@
  * under the License.
  */
 
-#include "ir_visitor_with_analyzer.h"
+#include <tvm/s_tir/stmt_functor_with_analyzer.h>
 
 namespace tvm {
 namespace s_tir {
 using namespace tirx;
-ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const SBlockNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitorWithAnalyzer::Visit_(const SBlockNode* op) {
   return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
     for (const auto& iter_var : op->iter_vars) {
-      analyzer_->Bind(iter_var->var, iter_var->dom);
+      analyzer_->Bind(iter_var->var, iter_var->dom.value());
     }
     return s_tir::StmtExprVisitor::VisitBlock(this, op);
   });

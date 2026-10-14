@@ -43,8 +43,8 @@ from tvm.script import tirx as T
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
-@Ts.prim_func
-def mma_desc(A: T.Tensor((16, 16), align=64, offset_factor=1), B: T.Tensor((16, 16), align=64, offset_factor=1), C: T.Tensor((16, 16), align=64, offset_factor=1)) -> None:
+@Ts.function
+def mma_desc(A: T.Tensor((16, 16), "float32", align=64, offset_factor=1, elem_offset=T.int32()), B: T.Tensor((16, 16), "float32", align=64, offset_factor=1, elem_offset=T.int32()), C: T.Tensor((16, 16), "float32", align=64, offset_factor=1, elem_offset=T.int32())) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
@@ -54,14 +54,14 @@ def mma_desc(A: T.Tensor((16, 16), align=64, offset_factor=1), B: T.Tensor((16, 
                 vii, vjj, vkk = Ts.axis.remap("SSR", [i, j, k])
                 C[vii, vjj] = C[vii, vjj] + A[vii, vkk] * B[vjj, vkk]
 
-@Ts.prim_func
-def mma_intrin(A: T.Tensor((16, 16), align=64, offset_factor=1), B: T.Tensor((16, 16), align=64, offset_factor=1), C: T.Tensor((16, 16), align=64, offset_factor=1)) -> None:
+@Ts.function
+def mma_intrin(A: T.Tensor((16, 16), "float32", align=64, offset_factor=1, elem_offset=T.int32()), B: T.Tensor((16, 16), "float32", align=64, offset_factor=1, elem_offset=T.int32()), C: T.Tensor((16, 16), "float32", align=64, offset_factor=1, elem_offset=T.int32())) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
         Ts.writes(C[0 : 16, 0 : 16])
         T.evaluate(
-            T.tvm_mma_sync(
+            T.gpu_mma_sync(
                 C.data,
                 C.elem_offset // 256,
                 A.data,
@@ -74,8 +74,8 @@ def mma_intrin(A: T.Tensor((16, 16), align=64, offset_factor=1), B: T.Tensor((16
             )
         )
 
-@Ts.prim_func
-def dot_product_desc(A: T.Tensor((4,)), B: T.Tensor((4,)), C: T.Tensor(())) -> None:
+@Ts.function
+def dot_product_desc(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32"), C: T.Tensor((), "float32")) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(C[()], A[0 : 4], B[0 : 4])
@@ -85,8 +85,8 @@ def dot_product_desc(A: T.Tensor((4,)), B: T.Tensor((4,)), C: T.Tensor(())) -> N
                 vi = Ts.axis.remap("R", [i])
                 C[()] = C[()] + A[vi] * B[vi]
 
-@Ts.prim_func
-def dot_product_intrin(A: T.Tensor((4,), offset_factor=1), B: T.Tensor((4,), offset_factor=1), C: T.Tensor((), offset_factor=1)) -> None:
+@Ts.function
+def dot_product_intrin(A: T.Tensor((4,), "float32", offset_factor=1, elem_offset=T.int32()), B: T.Tensor((4,), "float32", offset_factor=1, elem_offset=T.int32()), C: T.Tensor((), "float32", offset_factor=1, elem_offset=T.int32())) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(C[()], A[0 : 4], B[0 : 4])
@@ -100,12 +100,12 @@ def dot_product_intrin(A: T.Tensor((4,), offset_factor=1), B: T.Tensor((4,), off
                 A.elem_offset,
                 B.data,
                 B.elem_offset,
-                dtype="int32",
+                ty="int32",
             )
         )
 
-@Ts.prim_func
-def dot_product_intrin_annotated(A: T.Tensor((4,), offset_factor=1), B: T.Tensor((4,), offset_factor=1), C: T.Tensor((), offset_factor=1)) -> None:
+@Ts.function
+def dot_product_intrin_annotated(A: T.Tensor((4,), "float32", offset_factor=1, elem_offset=T.int32()), B: T.Tensor((4,), "float32", offset_factor=1, elem_offset=T.int32()), C: T.Tensor((), "float32", offset_factor=1, elem_offset=T.int32())) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(C[()], A[0 : 4], B[0 : 4])
@@ -120,12 +120,12 @@ def dot_product_intrin_annotated(A: T.Tensor((4,), offset_factor=1), B: T.Tensor
                 A.elem_offset,
                 B.data,
                 B.elem_offset,
-                dtype="int32",
+                ty="int32",
             )
         )
 
-@Ts.prim_func
-def outer_product_desc(A: T.Tensor((16, 1), offset_factor=1), B: T.Tensor((16, 1), offset_factor=1), C: T.Tensor((16, 16), offset_factor=1)) -> None:
+@Ts.function
+def outer_product_desc(A: T.Tensor((16, 1), "float32", offset_factor=1, elem_offset=T.int32()), B: T.Tensor((16, 1), "float32", offset_factor=1, elem_offset=T.int32()), C: T.Tensor((16, 16), "float32", offset_factor=1, elem_offset=T.int32())) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(
@@ -139,8 +139,8 @@ def outer_product_desc(A: T.Tensor((16, 1), offset_factor=1), B: T.Tensor((16, 1
                 vii, vjj = Ts.axis.remap("SS", [i, j])
                 C[vii, vjj] = C[vii, vjj] + A[vii, 0] * B[vjj, 0]
 
-@Ts.prim_func
-def outer_product_intrin(A: T.Tensor((16, 1), offset_factor=1), B: T.Tensor((16, 1), offset_factor=1), C: T.Tensor((16, 16), offset_factor=1)) -> None:
+@Ts.function
+def outer_product_intrin(A: T.Tensor((16, 1), "float32", offset_factor=1, elem_offset=T.int32()), B: T.Tensor((16, 1), "float32", offset_factor=1, elem_offset=T.int32()), C: T.Tensor((16, 16), "float32", offset_factor=1, elem_offset=T.int32())) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(
@@ -158,11 +158,11 @@ def outer_product_intrin(A: T.Tensor((16, 1), offset_factor=1), B: T.Tensor((16,
                 A.elem_offset,
                 B.data,
                 B.elem_offset,
-                dtype="int32",
+                ty="int32",
             )
         )
 
-@Ts.prim_func
+@Ts.function
 def matmul(
     A: T.Tensor((128, 128), "float32"),
     B: T.Tensor((128, 128), "float32"),
@@ -179,8 +179,8 @@ A_elem_offset = T.dynamic("A_elem_offset", "int32")
 B_elem_offset = T.dynamic("B_elem_offset", "int32")
 C_elem_offset = T.dynamic("C_elem_offset", "int32")
 
-@Ts.prim_func
-def tensorized_matmul(A: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1), B: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1), C: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1)) -> None:
+@Ts.function
+def tensorized_matmul(A: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1), B: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1), C: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1)) -> None:
 
     for i_outer, j_outer in T.grid(8, 8):
         for i_inner_init, j_inner_init in T.grid(16, 16):
@@ -199,23 +199,23 @@ def tensorized_matmul(A: T.Tensor([128, 128], elem_offset=0, align=64, offset_fa
                     ]
                 )
                 Ts.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                A_sub = Ts.match_buffer(
+                A_sub = Ts.match_tensor(
                     A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
                     elem_offset=A_elem_offset,
                 )
-                B_sub = Ts.match_buffer(
+                B_sub = Ts.match_tensor(
                     B[vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
                     elem_offset=B_elem_offset,
                 )
-                C_sub = Ts.match_buffer(
+                C_sub = Ts.match_tensor(
                     C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                     [16, 16],
                     elem_offset=C_elem_offset,
                 )
                 T.evaluate(
-                    T.tvm_mma_sync(
+                    T.gpu_mma_sync(
                         C_sub.data,
                         T.floordiv(C_sub.elem_offset, 256),
                         A_sub.data,
@@ -228,7 +228,7 @@ def tensorized_matmul(A: T.Tensor([128, 128], elem_offset=0, align=64, offset_fa
                     )
                 )
 
-@Ts.prim_func
+@Ts.function
 def batch_matmul(
     A: T.Tensor((16, 128, 128), "float32"),
     B: T.Tensor((16, 128, 128), "float32"),
@@ -248,7 +248,7 @@ A_elem_offset = T.dynamic("A_elem_offset", "int32")
 B_elem_offset = T.dynamic("B_elem_offset", "int32")
 C_elem_offset = T.dynamic("C_elem_offset", "int32")
 
-@Ts.prim_func
+@Ts.function
 def tensorized_batch_matmul_mma(
     A: T.Tensor((16, 128, 128), "float32"),
     B: T.Tensor((16, 128, 128), "float32"),
@@ -270,23 +270,23 @@ def tensorized_batch_matmul_mma(
                     B[vn : vn + 1, vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                 )
                 Ts.writes(C[vn : vn + 1, vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                A_sub = Ts.match_buffer(
+                A_sub = Ts.match_tensor(
                     A[vn : vn + 1, vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     (16, 16),
                     elem_offset=A_elem_offset,
                 )
-                B_sub = Ts.match_buffer(
+                B_sub = Ts.match_tensor(
                     B[vn : vn + 1, vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     (16, 16),
                     elem_offset=B_elem_offset,
                 )
-                C_sub = Ts.match_buffer(
+                C_sub = Ts.match_tensor(
                     C[vn : vn + 1, vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                     (16, 16),
                     elem_offset=C_elem_offset,
                 )
                 T.evaluate(
-                    T.tvm_mma_sync(
+                    T.gpu_mma_sync(
                         C_sub.data,
                         T.floordiv(C_sub.elem_offset, 256),
                         A_sub.data,
@@ -299,7 +299,7 @@ def tensorized_batch_matmul_mma(
                     )
                 )
 
-@Ts.prim_func
+@Ts.function
 def tensorized_batch_matmul_dot_product(
     A: T.Tensor((16, 128, 128), "float32"),
     B: T.Tensor((16, 128, 128), "float32"),
@@ -318,13 +318,13 @@ def tensorized_batch_matmul_dot_product(
                 C[vn, vi, vj], A[vn, vi, vko * 4 : vko * 4 + 4], B[vn, vj, vko * 4 : vko * 4 + 4]
             )
             Ts.writes(C[vn, vi, vj])
-            A_1 = Ts.match_buffer(
+            A_1 = Ts.match_tensor(
                 A[vn, vi, vko * 4 : vko * 4 + 4], [4], dtype="float32", offset_factor=1
             )
-            B_1 = Ts.match_buffer(
+            B_1 = Ts.match_tensor(
                 B[vn, vj, vko * 4 : vko * 4 + 4], [4], dtype="float32", offset_factor=1
             )
-            C_1 = Ts.match_buffer(C[vn, vi, vj], [], dtype="float32", offset_factor=1)
+            C_1 = Ts.match_tensor(C[vn, vi, vj], [], dtype="float32", offset_factor=1)
             T.evaluate(
                 T.call_extern(
                     "vec4add",
@@ -334,11 +334,11 @@ def tensorized_batch_matmul_dot_product(
                     A_1.elem_offset,
                     B_1.data,
                     B_1.elem_offset,
-                    dtype="int32",
+                    ty="int32",
                 )
             )
 
-@Ts.prim_func
+@Ts.function
 def tensorized_batch_matmul_outer_product(
     A: T.Tensor((16, 128, 128), "float32"),
     B: T.Tensor((16, 128, 128), "float32"),
@@ -359,20 +359,20 @@ def tensorized_batch_matmul_outer_product(
                 B[vn, vjo * 16 : vjo * 16 + 16, vk],
             )
             Ts.writes(C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
-            A_1 = Ts.match_buffer(A[vn, vio * 16 : vio * 16 + 16, vk], [16, 1], dtype="float32", offset_factor=1)
-            B_1 = Ts.match_buffer(B[vn, vjo * 16 : vjo * 16 + 16, vk], [16, 1], dtype="float32", offset_factor=1
+            A_1 = Ts.match_tensor(A[vn, vio * 16 : vio * 16 + 16, vk], [16, 1], dtype="float32", offset_factor=1)
+            B_1 = Ts.match_tensor(B[vn, vjo * 16 : vjo * 16 + 16, vk], [16, 1], dtype="float32", offset_factor=1
             )
-            C_1 = Ts.match_buffer(
+            C_1 = Ts.match_tensor(
                 C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16], [16, 16], dtype="float32", offset_factor=1
             )
             T.evaluate(
                 T.call_extern("outer_product", C_1.data, C_1.elem_offset, A_1.data, A_1.elem_offset,
-                              B_1.data, B_1.elem_offset, dtype="int32"
+                              B_1.data, B_1.elem_offset, ty="int32"
                 )
             )
 
-@Ts.prim_func
-def annotated_mma_desc(A: T.Tensor((16, 16), align=64, offset_factor=1), B: T.Tensor((16, 16), align=64, offset_factor=1), C: T.Tensor((16, 16), align=64, offset_factor=1)) -> None:
+@Ts.function
+def annotated_mma_desc(A: T.Tensor((16, 16), "float32", align=64, offset_factor=1, elem_offset=T.int32()), B: T.Tensor((16, 16), "float32", align=64, offset_factor=1, elem_offset=T.int32()), C: T.Tensor((16, 16), "float32", align=64, offset_factor=1, elem_offset=T.int32())) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
@@ -383,7 +383,7 @@ def annotated_mma_desc(A: T.Tensor((16, 16), align=64, offset_factor=1), B: T.Te
                 vii, vjj, vkk = Ts.axis.remap("SSR", [i, j, k])
                 C[vii, vjj] = C[vii, vjj] + A[vii, vkk] * B[vjj, vkk]
 
-@Ts.prim_func
+@Ts.function
 def annotated_matmul(
     A: T.Tensor((128, 128), "float32"),
     B: T.Tensor((128, 128), "float32"),
@@ -401,8 +401,8 @@ A_elem_offset = T.dynamic("A_elem_offset", "int32")
 B_elem_offset = T.dynamic("B_elem_offset", "int32")
 C_elem_offset = T.dynamic("C_elem_offset", "int32")
 
-@Ts.prim_func
-def annotated_tensorized_matmul(A: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1), B: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1), C: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1)) -> None:
+@Ts.function
+def annotated_tensorized_matmul(A: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1), B: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1), C: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1)) -> None:
 
     for i_outer, j_outer in T.grid(8, 8):
         for i_inner_init, j_inner_init in T.grid(16, 16):
@@ -422,23 +422,23 @@ def annotated_tensorized_matmul(A: T.Tensor([128, 128], elem_offset=0, align=64,
                     ]
                 )
                 Ts.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                A_sub = Ts.match_buffer(
+                A_sub = Ts.match_tensor(
                     A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
                     elem_offset=A_elem_offset,
                 )
-                B_sub = Ts.match_buffer(
+                B_sub = Ts.match_tensor(
                     B[vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
                     elem_offset=B_elem_offset,
                 )
-                C_sub = Ts.match_buffer(
+                C_sub = Ts.match_tensor(
                     C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                     [16, 16],
                     elem_offset=C_elem_offset,
                 )
                 T.evaluate(
-                    T.tvm_mma_sync(
+                    T.gpu_mma_sync(
                         C_sub.data,
                         T.floordiv(C_sub.elem_offset, 256),
                         A_sub.data,
@@ -551,7 +551,7 @@ def get_matmul_packed(m, n, k, lhs_type, rhs_dtype="int8"):
         name="compute",
     )
 
-    return te.create_prim_func([X, W, matmul])
+    return te.create_function([X, W, matmul])
 
 def tensorize_16x4_test(intrin=VNNI_DOT_16x4_INTRIN):
     m, n, k = 128, 128, 128
@@ -653,7 +653,7 @@ def test_tensorize_dp4a():
             name="compute",
         )
 
-        func = te.create_prim_func([X, W, matmul])
+        func = te.create_function([X, W, matmul])
 
         sch = tvm.s_tir.Schedule(func, debug_mask="all")
         block = sch.get_sblock("compute")
@@ -698,7 +698,7 @@ def test_tensor_intrin_look_up():
 
 def test_tensorize_matmul_mixed_dtype():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def matmul_int64_shape(
         A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         B: T.Tensor((T.int64(128), T.int64(128)), "float32"),
@@ -717,11 +717,11 @@ def test_tensorize_matmul_mixed_dtype():
                     vk = Ts.axis.reduce(T.int64(128), k_0 * T.int64(16) + k_1)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
-    A_elem_offset = T.dynamic("A_elem_offset")
-    B_elem_offset = T.dynamic("B_elem_offset")
-    C_elem_offset = T.dynamic("C_elem_offset")
+    A_elem_offset = T.dynamic("A_elem_offset", "int64")
+    B_elem_offset = T.dynamic("B_elem_offset", "int64")
+    C_elem_offset = T.dynamic("C_elem_offset", "int64")
 
-    @Ts.prim_func
+    @Ts.function
     def tensorized_matmul_int64_shape(
         A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         B: T.Tensor((T.int64(128), T.int64(128)), "float32"),
@@ -744,23 +744,23 @@ def test_tensorize_matmul_mixed_dtype():
                         ]
                     )
                     Ts.writes(C[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vj * T.int64(16) : vj * T.int64(16) + T.int64(16)])
-                    A_sub = Ts.match_buffer(
+                    A_sub = Ts.match_tensor(
                         A[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vk * T.int64(16) : vk * T.int64(16) + T.int64(16)],
                         [T.int64(16), T.int64(16)],
                         elem_offset=A_elem_offset,
                     )
-                    B_sub = Ts.match_buffer(
+                    B_sub = Ts.match_tensor(
                         B[vj * T.int64(16) : vj * T.int64(16) + T.int64(16), vk * T.int64(16) : vk * T.int64(16) + T.int64(16)],
                         [T.int64(16), T.int64(16)],
                         elem_offset=B_elem_offset,
                     )
-                    C_sub = Ts.match_buffer(
+                    C_sub = Ts.match_tensor(
                         C[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vj * T.int64(16) : vj * T.int64(16) + T.int64(16)],
                         [T.int64(16), T.int64(16)],
                         elem_offset=C_elem_offset,
                     )
                     T.evaluate(
-                        T.tvm_mma_sync(
+                        T.gpu_mma_sync(
                             C_sub.data,
                             T.floordiv(C_sub.elem_offset, T.int64(256)),
                             A_sub.data,
@@ -792,7 +792,7 @@ def _tir_packed_int_to_int_to_float(storage_nbit: int):
 
     return f_convert
 
-@Ts.prim_func
+@Ts.function
 def decode_i4s_to_f16_desc(Compressed: T.Tensor([1], dtype='int32', scope='local'), Decompressed: T.Tensor([8], dtype='float16', scope='local')) -> None:
 
     with Ts.sblock("root"):
@@ -808,32 +808,32 @@ def decode_i4s_to_f16_desc(Compressed: T.Tensor([1], dtype='int32', scope='local
                     dtype="float16",
                 )
 
-@Ts.prim_func
+@Ts.function
 def decode_i4s_to_f16_impl(Compressed: T.Tensor([1], dtype='int32', scope='local'), Decompressed: T.Tensor([8], dtype='float16', scope='local')) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(Compressed[0:1])
         Ts.writes(Decompressed[0:8])
         T.call_extern(
-            "handle",
+
             "test_decode_i4s_to_f16",
             Compressed.data,
             Decompressed.data,
             8,
-        )
+         ty="handle")
 
 s_tir.TensorIntrin.register("test_decode_i4s_to_f16_intrin", decode_i4s_to_f16_desc, decode_i4s_to_f16_impl)
 
 def test_tensorize_arith_simplification():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def decode_i4s_to_int32_to_f16():
-        B_decode_local = Ts.sblock_alloc_buffer((16384, 16384), "float16", scope="local")
-        B_local = Ts.sblock_alloc_buffer((16384, 2048), "int32", scope="local")
-        for ax0_0 in T.thread_binding(8192, thread="blockIdx.x"):
-            for ax0_1 in T.thread_binding(2, thread="threadIdx.y"):
+        B_decode_local = Ts.sblock_alloc_tensor((16384, 16384), "float16", scope="local")
+        B_local = Ts.sblock_alloc_tensor((16384, 2048), "int32", scope="local")
+        for ax0_0 in T.parallel(8192, annotations={"thread_binding": "blockIdx.x"}):
+            for ax0_1 in T.parallel(2, annotations={"thread_binding": "threadIdx.y"}):
                 for ax1_0 in range(32):
-                    for ax1_1 in T.thread_binding(64, thread="threadIdx.x"):
+                    for ax1_1 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                         for ax0, ax1 in T.grid(1, 8):
                             with Ts.sblock("B_decode_local"):
                                 v0 = Ts.axis.spatial(16384, ax0_0 * 2 + ax0_1 + ax0)
@@ -842,23 +842,23 @@ def test_tensorize_arith_simplification():
                                 Ts.writes(B_decode_local[v0, v1])
                                 B_decode_local[v0, v1] = T.Cast("float16", T.shift_right(T.shift_left(T.bitwise_and(T.shift_right(B_local[v0, v1 // 8], v1 % 8 * 4), 15), 28), 28))
 
-    @Ts.prim_func
+    @Ts.function
     def tensorized_decode_i4s_to_int32_to_f16():
-        B_decode_local = Ts.sblock_alloc_buffer((16384, 16384), "float16", scope="local")
-        B_local = Ts.sblock_alloc_buffer((16384, 2048), "int32", scope="local")
-        for ax0_0 in T.thread_binding(8192, thread="blockIdx.x"):
-            for ax0_1 in T.thread_binding(2, thread="threadIdx.y"):
+        B_decode_local = Ts.sblock_alloc_tensor((16384, 16384), "float16", scope="local")
+        B_local = Ts.sblock_alloc_tensor((16384, 2048), "int32", scope="local")
+        for ax0_0 in T.parallel(8192, annotations={"thread_binding": "blockIdx.x"}):
+            for ax0_1 in T.parallel(2, annotations={"thread_binding": "threadIdx.y"}):
                 for ax1_0 in range(32):
-                    for ax1_1 in T.thread_binding(64, thread="threadIdx.x"):
+                    for ax1_1 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                         for ax0 in range(1):
                             with Ts.sblock("B_decode_local_o"):
                                 v0_o = Ts.axis.spatial(16384, ax0_0 * 2 + ax0_1 + ax0)
                                 v1_o = Ts.axis.spatial(2048, ax1_0 * 64 + ax1_1)
                                 Ts.reads(B_local[v0_o, v1_o])
                                 Ts.writes(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8])
-                                Compressed = Ts.match_buffer(B_local[v0_o, v1_o], (1,), "int32", scope="local")
-                                Decompressed = Ts.match_buffer(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8], (8,), "float16", scope="local")
-                                T.call_extern("handle", "test_decode_i4s_to_f16", Compressed.data, Decompressed.data, 8)
+                                Compressed = Ts.match_tensor(B_local[v0_o, v1_o], (1,), "int32", scope="local", elem_offset=T.int32(0))
+                                Decompressed = Ts.match_tensor(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8], (8,), "float16", scope="local", elem_offset=T.int32(0))
+                                T.call_extern( "test_decode_i4s_to_f16", Compressed.data, Decompressed.data, 8, ty="handle")
 
     s = tvm.s_tir.Schedule(decode_i4s_to_int32_to_f16, debug_mask="all")
     update = s.get_sblock("B_decode_local")

@@ -38,8 +38,8 @@
 #include "src/runtime/cpu_device_api.cc"
 #include "src/runtime/device_api.cc"
 #include "src/runtime/extra/contrib/sort/sort.cc"
-#include "src/runtime/file_utils.cc"
 #include "src/runtime/logging.cc"
+#include "src/runtime/metadata.cc"
 #include "src/runtime/rpc/rpc_channel.cc"
 #include "src/runtime/rpc/rpc_endpoint.cc"
 #include "src/runtime/rpc/rpc_event_impl.cc"
@@ -48,6 +48,7 @@
 #include "src/runtime/rpc/rpc_session.cc"
 #include "src/runtime/tensor.cc"
 #include "src/runtime/timer.cc"
+#include "src/runtime/vm/params.cc"
 #include "src/runtime/workspace_pool.cc"
 // relax setup
 #include "3rdparty/tvm-ffi/src/ffi/backtrace.cc"
@@ -67,7 +68,8 @@
 #include "3rdparty/tvm-ffi/src/ffi/object.cc"
 #include "3rdparty/tvm-ffi/src/ffi/tensor.cc"
 #include "3rdparty/tvm-ffi/src/ffi/testing/testing.cc"
-#include "src/runtime/memory/memory_manager.cc"
+// Enum registration requires the FFI type-attribute registry above.
+#include "src/runtime/memory_scope.cc"
 #include "src/runtime/vm/attn_backend.cc"
 #include "src/runtime/vm/builtin.cc"
 #include "src/runtime/vm/bytecode.cc"
@@ -158,11 +160,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-size_t GetCheckedTensorElementCount(const Tensor& tensor) {
+size_t GetCheckedTensorElementCount(ffi::TensorView tensor) {
   size_t size = 1;
-  for (int i = 0; i < tensor->ndim; ++i) {
-    TVM_FFI_ICHECK_GE(tensor->shape[i], 0);
-    const uint64_t dim_u64 = static_cast<uint64_t>(tensor->shape[i]);
+  for (int i = 0; i < tensor.ndim(); ++i) {
+    TVM_FFI_ICHECK_GE(tensor.shape()[i], 0);
+    const uint64_t dim_u64 = static_cast<uint64_t>(tensor.shape()[i]);
     TVM_FFI_ICHECK_LE(dim_u64, std::numeric_limits<size_t>::max());
     const size_t dim = static_cast<size_t>(dim_u64);
     if (size != 0) {
@@ -173,16 +175,17 @@ size_t GetCheckedTensorElementCount(const Tensor& tensor) {
   return size;
 }
 
-void CheckF32CPUTensor(const Tensor& tensor) {
-  TVM_FFI_ICHECK_EQ(tensor->device.device_type, kDLCPU);
+void CheckF32CPUTensor(ffi::TensorView tensor) {
+  TVM_FFI_ICHECK_EQ(tensor.device().device_type, kDLCPU);
   TVM_FFI_ICHECK(tensor.IsContiguous());
-  TVM_FFI_ICHECK_EQ(tensor->dtype.code, kDLFloat);
-  TVM_FFI_ICHECK_EQ(tensor->dtype.bits, 32);
-  TVM_FFI_ICHECK_EQ(tensor->dtype.lanes, 1);
+  TVM_FFI_ICHECK_EQ(tensor.dtype().code, kDLFloat);
+  TVM_FFI_ICHECK_EQ(tensor.dtype().bits, 32);
+  TVM_FFI_ICHECK_EQ(tensor.dtype().lanes, 1);
 }
 
-void ArrayDecodeStorage(Tensor cpu_arr, TVMFFIByteArray* bytes, const std::string& format,
+void ArrayDecodeStorage(ffi::Tensor cpu_arr, TVMFFIByteArray* bytes, const std::string& format,
                         const std::string& dtype) {
+  TVM_FFI_ICHECK(cpu_arr.defined());
   TVM_FFI_ICHECK_NE(bytes, nullptr);
   const char* byte_data = bytes->data;
   const size_t byte_size = bytes->size;
@@ -194,10 +197,10 @@ void ArrayDecodeStorage(Tensor cpu_arr, TVMFFIByteArray* bytes, const std::strin
     if (size == 0) {
       return;
     }
-    TVM_FFI_ICHECK_NE(cpu_arr->data, nullptr);
+    TVM_FFI_ICHECK_NE(cpu_arr.data_ptr(), nullptr);
     TVM_FFI_ICHECK_NE(byte_data, nullptr);
     const uint8_t* bf16 = reinterpret_cast<const uint8_t*>(byte_data);
-    uint8_t* data = static_cast<uint8_t*>(cpu_arr->data) + cpu_arr->byte_offset;
+    uint8_t* data = static_cast<uint8_t*>(cpu_arr.data_ptr()) + cpu_arr.byte_offset();
     for (size_t i = 0; i < size; ++i) {
       uint16_t bf16_bits;
       std::memcpy(&bf16_bits, bf16 + 2 * i, sizeof(bf16_bits));
@@ -205,11 +208,11 @@ void ArrayDecodeStorage(Tensor cpu_arr, TVMFFIByteArray* bytes, const std::strin
       std::memcpy(data + 4 * i, &f32_bits, sizeof(f32_bits));
     }
   } else {
-    cpu_arr.CopyFromBytes(byte_data, byte_size);
+    CopyFromBytes(cpu_arr, byte_data, byte_size);
   }
 }
 
-void ArrayDecodeBF16ToF32Inplace(Tensor cpu_arr, int64_t encoded_nbytes) {
+void ArrayDecodeBF16ToF32Inplace(ffi::Tensor cpu_arr, int64_t encoded_nbytes) {
   CheckF32CPUTensor(cpu_arr);
   TVM_FFI_ICHECK_GE(encoded_nbytes, 0);
 
@@ -219,9 +222,9 @@ void ArrayDecodeBF16ToF32Inplace(Tensor cpu_arr, int64_t encoded_nbytes) {
   if (size == 0) {
     return;
   }
-  TVM_FFI_ICHECK_NE(cpu_arr->data, nullptr);
+  TVM_FFI_ICHECK_NE(cpu_arr.data_ptr(), nullptr);
 
-  uint8_t* data = static_cast<uint8_t*>(cpu_arr->data) + cpu_arr->byte_offset;
+  uint8_t* data = static_cast<uint8_t*>(cpu_arr.data_ptr()) + cpu_arr.byte_offset();
   for (size_t i = size; i != 0; --i) {
     const size_t j = i - 1;
     uint16_t bf16_bits;
@@ -236,7 +239,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def_packed("tvmjs.array.decode_storage",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
-                    Tensor cpu_arr = args[0].cast<Tensor>();
+                    ffi::Tensor cpu_arr = args[0].cast<ffi::Tensor>();
                     TVMFFIByteArray* bytes = args[1].cast<TVMFFIByteArray*>();
                     std::string format = args[2].cast<ffi::String>().operator std::string();
                     std::string dtype = args[3].cast<ffi::String>().operator std::string();
@@ -264,35 +267,40 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                });
 }
 
-Tensor ConcatEmbeddings(const std::vector<Tensor>& embeddings) {
+ffi::Tensor ConcatEmbeddings(const std::vector<ffi::Tensor>& embeddings) {
+  TVM_FFI_ICHECK(!embeddings.empty());
+  for (const auto& embedding : embeddings) {
+    TVM_FFI_ICHECK(embedding.defined());
+    TVM_FFI_ICHECK_EQ(embedding.ndim(), 2);
+  }
   // Get output shape
-  int64_t hidden_size = embeddings[0]->shape[1];
-  DLDataType dtype = embeddings[0]->dtype;
-  DLDevice device = embeddings[0]->device;
+  int64_t hidden_size = embeddings[0].shape()[1];
+  DLDataType dtype = embeddings[0].dtype();
+  DLDevice device = embeddings[0].device();
   int seqLen = 0;
   for (int i = 0; i < embeddings.size(); ++i) {
-    TVM_FFI_ICHECK_EQ(embeddings[i]->ndim, 2);
-    TVM_FFI_ICHECK_EQ(embeddings[i]->shape[1], hidden_size);
-    seqLen += embeddings[i]->shape[0];
+    TVM_FFI_ICHECK_EQ(embeddings[i].ndim(), 2);
+    TVM_FFI_ICHECK_EQ(embeddings[i].shape()[1], hidden_size);
+    seqLen += embeddings[i].shape()[0];
   }
 
   // Create output
   std::vector<int64_t> shape;
   shape.push_back(seqLen);
   shape.push_back(hidden_size);
-  Tensor result = Tensor::Empty(shape, dtype, device);
+  ffi::Tensor result = Empty(shape, dtype, device);
 
   // Copy
   int offset = 0;
   for (int i = 0; i < embeddings.size(); i++) {
-    const DLTensor& copy_src = *(embeddings[i].operator->());
-    const DLTensor* p_copy_dst = result.operator->();
+    const DLTensor& copy_src = *(embeddings[i].GetDLTensorPtr());
+    const DLTensor* p_copy_dst = result.GetDLTensorPtr();
     DLTensor copy_dst = *p_copy_dst;
-    copy_dst.shape = embeddings[i]->shape;
+    copy_dst.shape = embeddings[i].GetDLTensorPtr()->shape;
     copy_dst.byte_offset =
-        offset * hidden_size * ((embeddings[i]->dtype.bits * embeddings[i]->dtype.lanes + 7) / 8);
-    Tensor::CopyFromTo(&copy_src, &copy_dst);
-    offset += embeddings[i]->shape[0];
+        offset * hidden_size * ((embeddings[i].dtype().bits * embeddings[i].dtype().lanes + 7) / 8);
+    CopyFromTo(&copy_src, &copy_dst);
+    offset += embeddings[i].shape()[0];
   }
 
   return result;
@@ -304,20 +312,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def_packed("tvmjs.runtime.ConcatEmbeddings",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
-                    std::vector<Tensor> embeddings;
+                    std::vector<ffi::Tensor> embeddings;
                     for (int i = 0; i < args.size(); ++i) {
-                      embeddings.push_back(args[i].cast<Tensor>());
+                      embeddings.push_back(args[i].cast<ffi::Tensor>());
                     }
-                    Tensor result = ConcatEmbeddings(std::move(embeddings));
+                    ffi::Tensor result = ConcatEmbeddings(std::move(embeddings));
                     *ret = result;
                   })
       .def("tvmjs.runtime.TensorCopyFromBytes",
-           [](Tensor nd, TVMFFIByteArray* bytes) { nd.CopyFromBytes(bytes->data, bytes->size); })
-      .def("tvmjs.runtime.TensorCopyToBytes", [](Tensor nd) -> ffi::Bytes {
-        size_t size = ffi::GetDataSize(*(nd.operator->()));
+           [](ffi::TensorView nd, TVMFFIByteArray* bytes) {
+             TVM_FFI_ICHECK_NE(bytes, nullptr);
+             CopyFromBytes(nd, bytes->data, bytes->size);
+           })
+      .def("tvmjs.runtime.TensorCopyToBytes", [](ffi::TensorView nd) -> ffi::Bytes {
+        size_t size = ffi::GetDataSize(nd);
         std::string bytes;
         bytes.resize(size);
-        nd.CopyToBytes(bytes.data(), size);
+        CopyToBytes(nd, bytes.data(), size);
         return ffi::Bytes(bytes);
       });
 }

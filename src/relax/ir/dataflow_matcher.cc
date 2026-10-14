@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
@@ -34,7 +35,6 @@
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/op.h>
 
 #include <array>
 #include <cstddef>
@@ -48,7 +48,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../sym/constraint_extract.h"
 #include "../transform/utils.h"
 
 namespace tvm {
@@ -124,7 +123,7 @@ Expr DFPatternMatcher::UnwrapBindings(Expr expr, const ffi::Map<Var, Expr>& var2
     }
 
     // Unwrap SeqExpr with no bindings.  These can occur due to Relax
-    // IR constraints for the bodies of Function and If nodes.
+    // IR constraints for the bodies of Function and IfExpr nodes.
     if (auto seq = expr.as<SeqExprNode>()) {
       if (seq->blocks.empty()) {
         return seq->body;
@@ -153,13 +152,13 @@ bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr
 
   auto expr = UnwrapBindings(expr0, var2val_);
   if (memoize_ && memo_.count(pattern)) {
-    return expr.same_as(memo_[pattern]);
+    return expr.same_as(memo_.at(pattern));
   } else {
     PrimExpr cached_condition = symbolic_expr_condition_;
     size_t watermark = matched_nodes_.size();
     bool out = DFPatternFunctor::VisitDFPattern(pattern, expr);
     if (out) {
-      memo_[pattern] = expr;
+      memo_.insert_or_assign(pattern, expr);
       matched_nodes_.push_back(pattern);
     } else {
       ClearMap(watermark);
@@ -442,7 +441,7 @@ bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& ex
     return static_cast<bool>(as_int->value);
   }
 
-  symbolic_expr_condition_ = SimplifyCondition(symbolic_expr_condition_ && new_constraint);
+  symbolic_expr_condition_ = analyzer_->Simplify(symbolic_expr_condition_ && new_constraint);
 
   if (auto* as_int = symbolic_expr_condition_.as<IntImmNode>()) {
     return static_cast<bool>(as_int->value);
@@ -451,41 +450,11 @@ bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& ex
   }
 }
 
-PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
-  if (condition->IsInstance<IntImmNode>()) {
-    return condition;
-  }
-
-  std::vector<PrimExpr> constraints = sym::ExtractConstraints(condition, false);
-  if (constraints.size() == 1) {
-    return condition;
-  }
-
-  auto sort_key = [](PrimExpr expr) -> ffi::String {
-    if (const auto* equal = expr.as<prim::EQNode>()) {
-      if (auto var = equal->a.as<PrimVar>()) {
-        return var.value()->name;
-      }
-    }
-    return "";
-  };
-  std::stable_sort(
-      constraints.begin(), constraints.end(),
-      [&sort_key](const PrimExpr& a, const PrimExpr& b) { return sort_key(a) < sort_key(b); });
-
-  PrimExpr sorted_condition = IntImm::Bool(true);
-  for (const PrimExpr& constraint : constraints) {
-    sorted_condition = sorted_condition && constraint;
-  }
-
-  return analyzer_->Simplify(sorted_condition);
-}
-
 static bool ShapeEqual(AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& lhs,
                        const ffi::Array<PrimExpr>& rhs) {
   if (lhs.size() != rhs.size()) return false;
   for (size_t i = 0; i < lhs.size(); ++i)
-    if (!tvm::prim::is_one(analyzer->Simplify(lhs[i] == rhs[i]))) return false;
+    if (!tvm::prim::IsOne(analyzer->Simplify(lhs[i] == rhs[i]))) return false;
   return true;
 }
 
@@ -600,7 +569,7 @@ bool DFPatternMatcher::VisitDFPattern_(const ConstantPatternNode* op, const Expr
   // constants can be binded to relax.Var as well.
   auto expr = UnwrapBindings(expr0, var2val_);
   auto* constant = expr.as<GenericConstNode>();
-  return constant && constant->value.as<runtime::Tensor>().has_value();
+  return constant && constant->value.as<ffi::TensorObj>();
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const DataflowVarPatternNode* op, const Expr& expr) {

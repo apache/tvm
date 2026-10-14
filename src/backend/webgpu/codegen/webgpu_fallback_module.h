@@ -24,7 +24,7 @@
  *   `WebGPUModuleCreateWithFallback` is the ONLY entry point codegen uses
  *   to construct a WebGPU `ffi::Module`.  It tries the runtime-registered
  *   factory "ffi.Module.create.webgpu" via the FFI registry; on miss it
- *   constructs a `WebGPUFallbackModuleNode` directly.  The fallback exists
+ *   constructs a `WebGPUFallbackModuleObj` directly.  The fallback exists
  *   so that codegen can succeed on a build where the WebGPU runtime is
  *   not linked.  This setup is helpful for cross compilation where we
  *   compile on one env and run on another.
@@ -35,17 +35,17 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/support/env.h>
 
 #include <utility>
 
 #include "../../../runtime/metadata.h"
-#include "../../../support/env.h"
 
 namespace tvm {
 namespace target {
 
 /*!
- * \brief Construct a `WebGPUFallbackModuleNode` directly (no FFI registry
+ * \brief Construct a `WebGPUFallbackModuleObj` directly (no FFI registry
  *        round-trip).  Used by `WebGPUModuleCreateWithFallback` and by
  *        tests that explicitly want a fallback instance.
  */
@@ -61,7 +61,7 @@ ffi::Module WebGPUFallbackModuleCreate(ffi::Map<ffi::String, ffi::Bytes> smap, f
  *
  *   - Registry hit → real WebGPU module (currently never registered C++-
  *     side; wasm runtime registers only the load-from-bytes loader).
- *   - Registry miss → `WebGPUFallbackModuleNode` returned (the canonical
+ *   - Registry miss → `WebGPUFallbackModuleObj` returned (the canonical
  *     C++ side for WebGPU).
  *   - `TVM_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless
  *     (test hook, no behavioral change here since fallback is always

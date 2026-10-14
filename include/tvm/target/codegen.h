@@ -89,6 +89,13 @@ ffi::Module PackImportsToLLVM(const ffi::Module& m, bool system_lib,
                               const std::string& target_triple,
                               const std::string& c_symbol_prefix = "");
 
+namespace attr {
+constexpr const char* kParallelStridePattern = "parallel_stride_pattern";
+
+constexpr const char* kRunnerFunction = "runner_function";
+
+}  // namespace attr
+
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_TARGET_CODEGEN_H_

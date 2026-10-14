@@ -21,7 +21,10 @@
  * \file intrin_rule_webgpu.cc
  * \brief WebGPU intrinsic rules.
  */
+#include <tvm/ir/expr.h>
+#include <tvm/ir/op.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op_attr_types.h>
 
 #include "../../../target/intrin_rule.h"
@@ -42,14 +45,14 @@ static Type InferTypeReturnArgType(const CallNode* call) {
 // warp-level primitives. Follows implementation in intrin_rule_metal.cc
 struct WebGPUWarpIntrinsic {
   const Op operator()(PrimType t, const Op& orig_op) const {
-    if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
+    if (orig_op.same_as(tirx::gpu_warp_shuffle_op())) {
       static const Op webgpu_subgroup_shuffle_op = Op::Get("tirx.webgpu.subgroup_shuffle");
       return webgpu_subgroup_shuffle_op;
-    } else if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
+    } else if (orig_op.same_as(tirx::gpu_warp_shuffle_up_op())) {
       static const Op webgpu_subgroup_shuffle_up_op = Op::Get("tirx.webgpu.subgroup_shuffle_up");
       return webgpu_subgroup_shuffle_up_op;
     } else {
-      TVM_FFI_ICHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
+      TVM_FFI_ICHECK(orig_op.same_as(tirx::gpu_warp_shuffle_down_op()));
       static const Op webgpu_subgroup_shuffle_down_op =
           Op::Get("tirx.webgpu.subgroup_shuffle_down");
       return webgpu_subgroup_shuffle_down_op;
@@ -80,55 +83,55 @@ void RegisterWebGPUIntrinRules() {
   };
 
   // clang-format off
-  OpDef("tirx.fabs")
+  OpDef("prim.fabs")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<ReturnAbs>);
 
-  OpDef("tirx.acos")
+  OpDef("prim.acos")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.acosh")
+  OpDef("prim.acosh")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.asin")
+  OpDef("prim.asin")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.asinh")
+  OpDef("prim.asinh")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.atan")
+  OpDef("prim.atan")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.atan2")
+  OpDef("prim.atan2")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
   OpDef("prim.ceil")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.cos")
+  OpDef("prim.cos")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.cosh")
+  OpDef("prim.cosh")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.exp")
+  OpDef("prim.exp")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.exp2")
+  OpDef("prim.exp2")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.floor")
+  OpDef("prim.floor")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.fma")
+  OpDef("prim.fma")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.log")
+  OpDef("prim.log")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
   OpDef("prim.log2")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.pow")
+  OpDef("prim.pow")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
   // clang-format on
 
@@ -138,44 +141,44 @@ void RegisterWebGPUIntrinRules() {
 
   // WGSL round() uses ties-to-even (banker's rounding), matching IEEE 754 and ONNX Round spec.
   // clang-format off
-  OpDef("tirx.nearbyint")
+  OpDef("prim.nearbyint")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<ReturnRound>);
 
-  OpDef("tirx.round")
+  OpDef("prim.round")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.sin")
+  OpDef("prim.sin")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.sinh")
+  OpDef("prim.sinh")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.sqrt")
+  OpDef("prim.sqrt")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.tan")
+  OpDef("prim.tan")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.tanh")
+  OpDef("prim.tanh")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchNumericalStableTanh);
 
-  OpDef("tirx.trunc")
+  OpDef("prim.trunc")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
   // extra dispatch
-  OpDef("tirx.erf")
+  OpDef("prim.erf")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchFastErf);
 
   // warp-level primitives. Follows implementation in intrin_rule_metal.cc
-  OpDef("tirx.tvm_warp_shuffle")
+  OpDef("tirx.gpu_warp_shuffle")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
                                  DispatchWebGPUShuffle<WebGPUWarpIntrinsic>);
 
-  OpDef("tirx.tvm_warp_shuffle_up")
+  OpDef("tirx.gpu_warp_shuffle_up")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
                                  DispatchWebGPUShuffle<WebGPUWarpIntrinsic>);
 
-  OpDef("tirx.tvm_warp_shuffle_down")
+  OpDef("tirx.gpu_warp_shuffle_down")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
                                  DispatchWebGPUShuffle<WebGPUWarpIntrinsic>);
 
@@ -183,35 +186,23 @@ void RegisterWebGPUIntrinRules() {
   OpDef("tirx.webgpu.subgroup_shuffle")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("lane", "The source thread id."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
-      .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
-                                          ffi::String("tirx.webgpu.subgroup_shuffle"))
-      .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffle")
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<0>>())
+      .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "subgroupShuffle")
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.webgpu.subgroup_shuffle_up")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("delta", "The source lane id offset to be added."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
-      .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
-                                          ffi::String("tirx.webgpu.subgroup_shuffle_up"))
-      .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffleUp")
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<0>>())
+      .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "subgroupShuffleUp")
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.webgpu.subgroup_shuffle_down")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("delta", "The source lane id offset to be subtracted."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
-      .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
-                                          ffi::String("tirx.webgpu.subgroup_shuffle_down"))
-      .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffleDown")
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<0>>())
+      .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "subgroupShuffleDown")
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
   // clang-format on
 }
 

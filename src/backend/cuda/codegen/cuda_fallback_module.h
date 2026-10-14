@@ -24,7 +24,7 @@
  *   `CUDAModuleCreateWithFallback` is the ONLY entry point codegen uses to
  *   construct a CUDA `ffi::Module`.  It tries the runtime-registered factory
  *   "ffi.Module.create.cuda" via the FFI registry; on miss it constructs a
- *   `CUDAFallbackModuleNode` directly.  The fallback exists so that codegen
+ *   `CUDAFallbackModuleObj` directly.  The fallback exists so that codegen
  *   can succeed on a build where the CUDA runtime is not linked.  This
  *   setup is helpful for cross compilation where we compile on one env
  *   and run on another.
@@ -35,17 +35,17 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/support/env.h>
 
 #include <utility>
 
 #include "../../../runtime/metadata.h"
-#include "../../../support/env.h"
 
 namespace tvm {
 namespace target {
 
 /*!
- * \brief Construct a `CUDAFallbackModuleNode` directly (no FFI registry
+ * \brief Construct a `CUDAFallbackModuleObj` directly (no FFI registry
  *        round-trip).  Used by `CUDAModuleCreateWithFallback` and by tests
  *        that explicitly want a fallback instance.
  */
@@ -58,8 +58,8 @@ ffi::Module CUDAFallbackModuleCreate(ffi::Bytes code, ffi::String fmt,
  *        "ffi.Module.create.cuda"; on miss or when forced via env var,
  *        falls back to `CUDAFallbackModuleCreate`.
  *
- *   - Registry hit (USE_CUDA=ON build) → real `CUDAModuleNode` returned.
- *   - Registry miss (USE_CUDA=OFF build) → `CUDAFallbackModuleNode` returned.
+ *   - Registry hit (USE_CUDA=ON build) → real `CUDAModuleObj` returned.
+ *   - Registry miss (USE_CUDA=OFF build) → `CUDAFallbackModuleObj` returned.
  *   - `TVM_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless of
  *     registry state (used by per-backend fallback tests on a USE_X=ON CI
  *     box).

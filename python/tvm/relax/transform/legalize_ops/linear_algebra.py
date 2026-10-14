@@ -119,7 +119,7 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
         f"However, the LHS {lhs} has type {lhs_ty} (dtype='{lhs_ty.dtype}') "
         f"and the RHS {rhs} has type {rhs_ty} (dtype='{rhs_ty.dtype}')."
     )
-    return bb.call_te(te_matmul, call.args[0], call.args[1], primfunc_name_hint="matmul")
+    return bb.call_te(te_matmul, call.args[0], call.args[1], function_name_hint="matmul")
 
 
 @register_legalize("relax.einsum")
@@ -155,4 +155,4 @@ def _outer(bb: BlockBuilder, call: Call) -> Expr:
         return te.compute((n, m), compute_fn, name="outer")
 
     lhs, rhs = call.args
-    return bb.call_te(te_outer, lhs, rhs, primfunc_name_hint="outer")
+    return bb.call_te(te_outer, lhs, rhs, function_name_hint="outer")

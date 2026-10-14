@@ -22,6 +22,7 @@ import pytest
 
 import tvm
 import tvm.s_tir.tensor_intrin.cuda
+import tvm.s_tir.testing
 import tvm.testing
 from tvm import te, tirx
 from tvm.s_tir.meta_schedule.testing import te_workload
@@ -33,10 +34,10 @@ from tvm.s_tir.tensor_intrin.cuda import (
     MMA_store_16x16_f32_global_INTRIN,
     shared_16x16_to_ldmatrix_32x8_layout,
 )
+from tvm.s_tir.testing.tir import mma_schedule
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
-from tvm.testing.tir import mma_schedule
 
 
 def _check(original, transformed):
@@ -55,16 +56,16 @@ def _check_error(func):
         tvm.s_tir.transform.InjectSoftwarePipeline()(mod)
 
 
-@Ts.prim_func
+@Ts.function
 def trivial_pipeline(A: T.Tensor((16, 1), "float32"), C: T.Tensor((16, 1), "float32")):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0, 1, annotations={"software_pipeline_stage": [0, 1], "software_pipeline_order": [0, 1]}
         ):
             with Ts.sblock():
                 Ts.reads(A[tx, i])
                 Ts.writes(C[tx, i])
-                B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(B[tx, 0])
@@ -75,15 +76,15 @@ def trivial_pipeline(A: T.Tensor((16, 1), "float32"), C: T.Tensor((16, 1), "floa
                     C[tx, i] = B[tx, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_trivial_pipeline(
     A: T.Tensor((16, 1), "float32"), C: T.Tensor((16, 1), "float32")
 ) -> None:
-    for tx in T.thread_binding(16, thread="threadIdx.x"):
+    for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads(A[tx, 0])
             Ts.writes(C[tx, 0])
-            B = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            B = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads(A[tx, 0])
                 Ts.writes(B[0, tx, 0])
@@ -99,9 +100,9 @@ def transformed_trivial_pipeline(
 
 
 def gen_simple_compute(num_stages):
-    @Ts.prim_func
+    @Ts.function
     def simple_compute(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
-        for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+        for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
             for i in T.serial(
                 0,
                 16,
@@ -113,7 +114,7 @@ def gen_simple_compute(num_stages):
                 with Ts.sblock("compute"):
                     Ts.reads(A[tx, i])
                     Ts.writes(C[tx, i])
-                    B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                    B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                     with Ts.sblock():
                         Ts.reads(A[tx, i])
                         Ts.writes(B[tx, 0])
@@ -126,15 +127,15 @@ def gen_simple_compute(num_stages):
     return simple_compute
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_simple_compute(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16]])
             Ts.writes([C[tx, 0:16]])
-            B = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            B = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads([A[tx, 0]])
                 Ts.writes([B[0, tx, 0]])
@@ -160,9 +161,9 @@ def transformed_simple_compute(
 k = T.dynamic("k", "int32")
 
 
-@Ts.prim_func
+@Ts.function
 def dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16, k), "float32")):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             k,
@@ -174,7 +175,7 @@ def dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16, k), "float
             with Ts.sblock("compute"):
                 Ts.reads(A[tx, i])
                 Ts.writes(C[tx, i])
-                B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(B[tx, 0])
@@ -188,13 +189,13 @@ def dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16, k), "float
 k = T.dynamic("k", "int32")
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16, k), "float32")):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads(A[tx, 0 : T.max(1, k)])
             Ts.writes(C[tx, T.min(0, k - 1) : T.min(0, k - 1) + T.max(k, 1)])
-            B = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            B = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
             with Ts.sblock(""):
                 Ts.reads(A[tx, 0])
                 Ts.writes(B[0, tx, 0])
@@ -225,24 +226,24 @@ def transformed_dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16
                     C[tx, k - 1] = B[(k + 1) % 2, tx, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def simple_compute_with_other_annotation(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
             annotations={
                 "software_pipeline_stage": [0, 1],
                 "software_pipeline_order": [0, 1],
-                "pragma_loop_partition_hint": True,
+                "loop_partition_hint": True,
             },
         ):
             with Ts.sblock("compute"):
                 Ts.reads(A[tx, i])
                 Ts.writes(C[tx, i])
-                B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(B[tx, 0])
@@ -253,15 +254,15 @@ def simple_compute_with_other_annotation(
                     C[tx, i] = B[tx, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_simple_compute_with_other_annotation(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16]])
             Ts.writes([C[tx, 0:16]])
-            B = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            B = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads([A[tx, 0]])
                 Ts.writes([B[0, tx, 0]])
@@ -272,7 +273,7 @@ def transformed_simple_compute_with_other_annotation(
                 for i in T.serial(
                     0,
                     15,
-                    annotations={"pragma_loop_partition_hint": True},
+                    annotations={"loop_partition_hint": True},
                 ):
                     with Ts.sblock():
                         Ts.reads([A[tx, i + 1]])
@@ -288,9 +289,9 @@ def transformed_simple_compute_with_other_annotation(
                 C[tx, 15] = B[1, tx, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def three_stage_compute(A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -302,8 +303,8 @@ def three_stage_compute(A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), 
             with Ts.sblock("compute"):
                 Ts.reads(A[tx, i])
                 Ts.writes(D[tx, i])
-                B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                C = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
+                C = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(B[tx, 0])
@@ -318,16 +319,16 @@ def three_stage_compute(A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), 
                     D[tx, i] = C[tx, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_three_stage_compute(
     A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(16, thread="threadIdx.x"):
+    for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads(A[tx, 0:16])
             Ts.writes(D[tx, 0:16])
-            B = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
-            C = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            B = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
+            C = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads(A[tx, 0:2], B[0:2, tx, 0])
                 Ts.writes(B[0:2, tx, 0], C[0:2, tx, 0])
@@ -372,13 +373,13 @@ def transformed_three_stage_compute(
                         D[tx, i + 14] = C[i, tx, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def dag_interleaving(
     A: T.Tensor((16, 16), "float32"),
     B: T.Tensor((16, 16), "float32"),
     C: T.Tensor((16, 16), "float32"),
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -390,10 +391,10 @@ def dag_interleaving(
             with Ts.sblock():
                 Ts.reads(A[tx, i])
                 Ts.writes(C[tx, i])
-                AS = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                BS = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                AL = Ts.sblock_alloc_buffer((1, 1), dtype="float32", scope="local")
-                BL = Ts.sblock_alloc_buffer((1, 1), dtype="float32", scope="local")
+                AS = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
+                BS = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
+                AL = Ts.sblock_alloc_tensor((1, 1), dtype="float32", scope="local")
+                BL = Ts.sblock_alloc_tensor((1, 1), dtype="float32", scope="local")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(AS[tx, 0])
@@ -416,20 +417,20 @@ def dag_interleaving(
                     C[tx, i] = AL[0, 0] * BL[0, 0]
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_dag_interleaving(
     A: T.Tensor((16, 16), "float32"),
     B: T.Tensor((16, 16), "float32"),
     C: T.Tensor((16, 16), "float32"),
 ) -> None:
-    for tx in T.thread_binding(16, thread="threadIdx.x"):
+    for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads(A[tx, 0:16], B[tx, 0:16])
             Ts.writes(C[tx, 0:16])
-            AS = Ts.sblock_alloc_buffer([16, 1], dtype="float32", scope="shared")
-            BS = Ts.sblock_alloc_buffer([16, 1], dtype="float32", scope="shared")
-            AL = Ts.sblock_alloc_buffer([2, 1, 1], dtype="float32", scope="local")
-            BL = Ts.sblock_alloc_buffer([2, 1, 1], dtype="float32", scope="local")
+            AS = Ts.sblock_alloc_tensor([16, 1], dtype="float32", scope="shared")
+            BS = Ts.sblock_alloc_tensor([16, 1], dtype="float32", scope="shared")
+            AL = Ts.sblock_alloc_tensor([2, 1, 1], dtype="float32", scope="local")
+            BL = Ts.sblock_alloc_tensor([2, 1, 1], dtype="float32", scope="local")
             with Ts.sblock():
                 Ts.reads(A[tx, 0], B[tx, 0], AS[tx, 0], BS[tx, 0])
                 Ts.writes(AS[tx, 0], BS[tx, 0], AL[0, 0, 0], BL[0, 0, 0])
@@ -481,11 +482,11 @@ def transformed_dag_interleaving(
                 C[tx, 15] = AL[1, 0, 0] * BL[1, 0, 0]
 
 
-@Ts.prim_func
+@Ts.function
 def nested_pipeline_simple(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -497,7 +498,7 @@ def nested_pipeline_simple(
             with Ts.sblock():
                 Ts.reads(A[tx, i, 0:16])
                 Ts.writes(C[tx, i, 0:16])
-                A_shared = Ts.sblock_alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
+                A_shared = Ts.sblock_alloc_tensor((16, 1, 16), dtype="float32", scope="shared")
                 for j in T.serial(0, 16):
                     with Ts.sblock():
                         Ts.reads(A[tx, i, j])
@@ -514,7 +515,7 @@ def nested_pipeline_simple(
                     with Ts.sblock():
                         Ts.reads(A_shared[tx, 0, j])
                         Ts.writes(C[tx, i, j])
-                        B = Ts.sblock_alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
+                        B = Ts.sblock_alloc_tensor((16, 1, 1), dtype="float32", scope="shared")
                         with Ts.sblock():
                             Ts.reads(A_shared[tx, i, j])
                             Ts.writes(B[tx, i, 0])
@@ -525,16 +526,16 @@ def nested_pipeline_simple(
                             C[tx, i, j] = B[tx, i, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_nested_pipeline_simple(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16, 0:16]])
             Ts.writes([C[tx, 0:16, 0:16]])
-            A_shared = Ts.sblock_alloc_buffer([2, 16, 1, 16], dtype="float32", scope="shared")
-            B = Ts.sblock_alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
+            A_shared = Ts.sblock_alloc_tensor([2, 16, 1, 16], dtype="float32", scope="shared")
+            B = Ts.sblock_alloc_tensor([2, 16, 1, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads([A[tx, 0, 0:16]])
                 Ts.writes([A_shared[0, tx, 0, 0:16]])
@@ -602,11 +603,11 @@ def transformed_nested_pipeline_simple(
                     C[tx, 15, 15] = B[1, tx, 15, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def nested_pipeline_prefetch_inner(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -618,7 +619,7 @@ def nested_pipeline_prefetch_inner(
             with Ts.sblock():
                 Ts.reads(A[tx, i, 0:16])
                 Ts.writes(C[tx, i, 0:16])
-                A_shared = Ts.sblock_alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
+                A_shared = Ts.sblock_alloc_tensor((16, 1, 16), dtype="float32", scope="shared")
                 for j in T.serial(0, 16):
                     with Ts.sblock():
                         Ts.reads(A[tx, i, j])
@@ -635,7 +636,7 @@ def nested_pipeline_prefetch_inner(
                     with Ts.sblock():
                         Ts.reads(A_shared[tx, 0, j])
                         Ts.writes(C[tx, i, j])
-                        B = Ts.sblock_alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
+                        B = Ts.sblock_alloc_tensor((16, 1, 1), dtype="float32", scope="shared")
                         with Ts.sblock():
                             Ts.reads(A_shared[tx, i, j])
                             Ts.writes(B[tx, i, 0])
@@ -646,16 +647,16 @@ def nested_pipeline_prefetch_inner(
                             C[tx, i, j] = B[tx, i, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_nested_pipeline_prefetch_inner(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16, 0:16]])
             Ts.writes([C[tx, 0:16, 0:16]])
-            A_shared = Ts.sblock_alloc_buffer([2, 16, 1, 16], dtype="float32", scope="shared")
-            B = Ts.sblock_alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
+            A_shared = Ts.sblock_alloc_tensor([2, 16, 1, 16], dtype="float32", scope="shared")
+            B = Ts.sblock_alloc_tensor([2, 16, 1, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads([A[tx, 0, 0:16], A_shared[0, tx, 0, 0]])
                 Ts.writes([A_shared[0, tx, 0, 0:16], B[0, tx, 0, 0]])
@@ -726,11 +727,11 @@ def transformed_nested_pipeline_prefetch_inner(
                     C[tx, 15, 15] = B[1, tx, 15, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def nested_pipeline_interleaving(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -742,8 +743,8 @@ def nested_pipeline_interleaving(
             with Ts.sblock():
                 Ts.reads(A[tx, i, 0:16])
                 Ts.writes(C[tx, i, 0:16])
-                A_shared = Ts.sblock_alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
-                A_local = Ts.sblock_alloc_buffer((1, 1, 16), dtype="float32", scope="local")
+                A_shared = Ts.sblock_alloc_tensor((16, 1, 16), dtype="float32", scope="shared")
+                A_local = Ts.sblock_alloc_tensor((1, 1, 16), dtype="float32", scope="local")
                 for j in T.serial(0, 16):
                     with Ts.sblock():
                         Ts.reads(A[tx, i, j])
@@ -765,7 +766,7 @@ def nested_pipeline_interleaving(
                     with Ts.sblock():
                         Ts.reads(A_local[0, 0, j])
                         Ts.writes(C[tx, i, j])
-                        B = Ts.sblock_alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
+                        B = Ts.sblock_alloc_tensor((16, 1, 1), dtype="float32", scope="shared")
                         with Ts.sblock():
                             Ts.reads(A_local[tx, i, j])
                             Ts.writes(B[tx, i, 0])
@@ -776,17 +777,17 @@ def nested_pipeline_interleaving(
                             C[tx, i, j] = B[tx, i, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_nested_pipeline_interleaving(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16, 0:16]])
             Ts.writes([C[tx, 0:16, 0:16]])
-            A_shared = Ts.sblock_alloc_buffer([16, 1, 16], dtype="float32", scope="shared")
-            A_local = Ts.sblock_alloc_buffer([1, 1, 16], dtype="float32", scope="local")
-            B = Ts.sblock_alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
+            A_shared = Ts.sblock_alloc_tensor([16, 1, 16], dtype="float32", scope="shared")
+            A_local = Ts.sblock_alloc_tensor([1, 1, 16], dtype="float32", scope="local")
+            B = Ts.sblock_alloc_tensor([2, 16, 1, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads([A[tx, 0, 0:16], A_shared[tx, 0, 0:16], A_local[tx, 0, 0]])
                 Ts.writes([A_shared[tx, 0, 0:16], A_local[0, 0, 0:16], B[0, tx, 0, 0]])
@@ -885,11 +886,11 @@ def transformed_nested_pipeline_interleaving(
                     C[tx, 15, 15] = B[1, tx, 15, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def nested_pipeline_double_buffer(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -901,8 +902,8 @@ def nested_pipeline_double_buffer(
             with Ts.sblock():
                 Ts.reads(A[tx, i, 0:16])
                 Ts.writes(C[tx, i, 0:16])
-                A_shared = Ts.sblock_alloc_buffer((16, 1, 16), dtype="float32", scope="shared")
-                A_local = Ts.sblock_alloc_buffer((1, 1, 16), dtype="float32", scope="local")
+                A_shared = Ts.sblock_alloc_tensor((16, 1, 16), dtype="float32", scope="shared")
+                A_local = Ts.sblock_alloc_tensor((1, 1, 16), dtype="float32", scope="local")
                 for j in T.serial(0, 16):
                     with Ts.sblock():
                         Ts.reads(A[tx, i, j])
@@ -925,7 +926,7 @@ def nested_pipeline_double_buffer(
                     with Ts.sblock():
                         Ts.reads(A_local[0, 0, j])
                         Ts.writes(C[tx, i, j])
-                        B = Ts.sblock_alloc_buffer((16, 1, 1), dtype="float32", scope="shared")
+                        B = Ts.sblock_alloc_tensor((16, 1, 1), dtype="float32", scope="shared")
                         with Ts.sblock():
                             Ts.reads(A_local[tx, i, j])
                             Ts.writes(B[tx, i, 0])
@@ -936,17 +937,17 @@ def nested_pipeline_double_buffer(
                             C[tx, i, j] = B[tx, i, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_nested_pipeline_double_buffer(
     A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock():
             Ts.reads([A[tx, 0:16, 0:16]])
             Ts.writes([C[tx, 0:16, 0:16]])
-            A_shared = Ts.sblock_alloc_buffer([16, 1, 16], dtype="float32", scope="shared")
-            A_local = Ts.sblock_alloc_buffer([2, 1, 1, 16], dtype="float32", scope="local")
-            B = Ts.sblock_alloc_buffer([2, 16, 1, 1], dtype="float32", scope="shared")
+            A_shared = Ts.sblock_alloc_tensor([16, 1, 16], dtype="float32", scope="shared")
+            A_local = Ts.sblock_alloc_tensor([2, 1, 1, 16], dtype="float32", scope="local")
+            B = Ts.sblock_alloc_tensor([2, 16, 1, 1], dtype="float32", scope="shared")
             with Ts.sblock():
                 Ts.reads([A[tx, 0, 0:16], A_shared[tx, 0, 0:16], A_local[0, tx, 0, 0]])
                 Ts.writes([A_shared[tx, 0, 0:16], A_local[0, 0, 0, 0:16], B[0, tx, 0, 0]])
@@ -1049,11 +1050,11 @@ def transformed_nested_pipeline_double_buffer(
                     C[tx, 15, 15] = B[1, tx, 15, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def simple_compute_incorrect_reorder(
     A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -1065,8 +1066,8 @@ def simple_compute_incorrect_reorder(
             with Ts.sblock():
                 Ts.reads(A[tx, i])
                 Ts.writes(D[tx, i])
-                B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                C = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
+                C = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(B[tx, 0])
@@ -1081,11 +1082,11 @@ def simple_compute_incorrect_reorder(
                     D[tx, i] = C[tx, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def simple_compute_conflicting_order(
     A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(
             0,
             16,
@@ -1097,8 +1098,8 @@ def simple_compute_conflicting_order(
             with Ts.sblock():
                 Ts.reads(A[tx, i])
                 Ts.writes(D[tx, i])
-                B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                C = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
+                C = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(B[tx, 0])
@@ -1113,16 +1114,16 @@ def simple_compute_conflicting_order(
                     D[tx, i] = C[tx, 0] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def simple_compute_missing_annotation(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ):
-    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+    for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
         for i in T.serial(0, 16, annotations={"software_pipeline_stage": [0, 1]}):
             with Ts.sblock():
                 Ts.reads(A[tx, i])
                 Ts.writes(C[tx, i])
-                B = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, i])
                     Ts.writes(B[tx, 0])
@@ -1193,19 +1194,19 @@ def test_simple_compute_async():
     sch.annotate(loop, ann_key="software_pipeline_async_stages", ann_val=[0])
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(sch.mod)
 
-    @Ts.prim_func
+    @Ts.function
     def ref(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
-        for tx in T.thread_binding(16, thread="threadIdx.x"):
+        for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock():
                 Ts.reads(A[tx, 0:16])
                 Ts.writes(C[tx, 0:16])
-                B = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, 0])
                     Ts.writes(B[T.FloorMod(0, 2), tx, 0])
-                    with T.attr(0, "async_commit_queue_scope", 0):
-                        with T.attr(0, "async_scope", 1):
-                            B[T.FloorMod(0, 2), tx, 0] = A[tx, 0] * T.float32(2)
+                    with Ts.async_copy_scope():
+                        B[T.FloorMod(0, 2), tx, 0] = A[tx, 0] * T.float32(2)
+                    Ts.async_commit(0)
                 with Ts.sblock():
                     Ts.reads(A[tx, 1:16], B[0:2, tx, 0])
                     Ts.writes(B[0:2, tx, 0], C[tx, 0:15])
@@ -1214,22 +1215,20 @@ def test_simple_compute_async():
                             Ts.where(i + 1 < 16)
                             Ts.reads(A[tx, i + 1])
                             Ts.writes(B[(i + 1) % 2, tx, 0])
-                            with T.attr(0, "async_commit_queue_scope", 0):
-                                with T.attr(0, "async_scope", 1):
-                                    B[(i + 1) % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
+                            with Ts.async_copy_scope():
+                                B[(i + 1) % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
+                            Ts.async_commit(0)
                         with Ts.sblock():
                             Ts.where(i + 1 - 1 < 16)
                             Ts.reads(B[(i - 1 + 1) % 2, tx, 0])
                             Ts.writes(C[tx, i - 1 + 1])
-                            with T.attr(0, "async_wait_queue_scope", 0):
-                                with T.attr(0, "async_wait_inflight_count", 1):
-                                    C[tx, i - 1 + 1] = B[(i - 1 + 1) % 2, tx, 0] + T.float32(1)
+                            Ts.async_wait(0, 1)
+                            C[tx, i - 1 + 1] = B[(i - 1 + 1) % 2, tx, 0] + T.float32(1)
                 with Ts.sblock():
                     Ts.reads(B[T.FloorMod(15, 2), tx, 0])
                     Ts.writes(C[tx, 15])
-                    with T.attr(0, "async_wait_queue_scope", 0):
-                        with T.attr(0, "async_wait_inflight_count", 0):
-                            C[tx, 15] = B[T.FloorMod(15, 2), tx, 0] + T.float32(1)
+                    Ts.async_wait(0, 0)
+                    C[tx, 15] = B[T.FloorMod(15, 2), tx, 0] + T.float32(1)
 
     tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
@@ -1240,13 +1239,13 @@ def test_simple_compute_async():
     sch.annotate(loop, ann_key="software_pipeline_async_stages", ann_val=[0])
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(sch.mod)
 
-    @Ts.prim_func
+    @Ts.function
     def ref(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
-        for tx in T.thread_binding(16, thread="threadIdx.x"):
+        for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock():
                 Ts.reads(A[tx, 0:16])
                 Ts.writes(C[tx, 0:16])
-                B = Ts.sblock_alloc_buffer([4, 16, 1], dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor([4, 16, 1], dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, 0:3])
                     Ts.writes(B[0:3, tx, 0])
@@ -1255,9 +1254,9 @@ def test_simple_compute_async():
                             Ts.where(i < 16)
                             Ts.reads(A[tx, i])
                             Ts.writes(B[i % 4, tx, 0])
-                            T.attr(0, "async_commit_queue_scope", 0)
-                            T.attr(0, "async_scope", 1)
-                            B[i % 4, tx, 0] = A[tx, i] * T.float32(2)
+                            with Ts.async_copy_scope():
+                                B[i % 4, tx, 0] = A[tx, i] * T.float32(2)
+                            Ts.async_commit(0)
                 with Ts.sblock():
                     Ts.reads(A[tx, 3:16], B[0:4, tx, 0])
                     Ts.writes(B[0:4, tx, 0], C[tx, 0:13])
@@ -1266,16 +1265,15 @@ def test_simple_compute_async():
                             Ts.where(i + 3 < 16)
                             Ts.reads(A[tx, i + 3])
                             Ts.writes(B[(i + 3) % 4, tx, 0])
-                            T.attr(0, "async_commit_queue_scope", 0)
-                            T.attr(0, "async_scope", 1)
-                            B[(i + 3) % 4, tx, 0] = A[tx, i + 3] * T.float32(2)
+                            with Ts.async_copy_scope():
+                                B[(i + 3) % 4, tx, 0] = A[tx, i + 3] * T.float32(2)
+                            Ts.async_commit(0)
                         with Ts.sblock():
                             Ts.where(i + 3 - 3 < 16)
                             Ts.reads(B[0:4, tx, 0])
                             Ts.writes(C[tx, i - 3 + 3])
-                            with T.attr(0, "async_wait_queue_scope", 0):
-                                with T.attr(0, "async_wait_inflight_count", 3):
-                                    C[tx, i - 3 + 3] = B[(i - 3 + 3) % 4, tx, 0] + T.float32(1)
+                            Ts.async_wait(0, 3)
+                            C[tx, i - 3 + 3] = B[(i - 3 + 3) % 4, tx, 0] + T.float32(1)
                 with Ts.sblock():
                     Ts.reads(B[0:4, tx, 0])
                     Ts.writes(C[tx, 13:16])
@@ -1284,27 +1282,26 @@ def test_simple_compute_async():
                             Ts.where(i + 16 - 3 < 16)
                             Ts.reads(B[0:4, tx, 0])
                             Ts.writes(C[tx, i - 3 + 16])
-                            with T.attr(0, "async_wait_queue_scope", 0):
-                                with T.attr(0, "async_wait_inflight_count", 2 - i):
-                                    C[tx, i - 3 + 16] = B[(i - 3 + 16) % 4, tx, 0] + T.float32(1)
+                            Ts.async_wait(0, 2 - i)
+                            C[tx, i - 3 + 16] = B[(i - 3 + 16) % 4, tx, 0] + T.float32(1)
 
     tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
 
 def test_async_producer_interleaving():
-    @Ts.prim_func
+    @Ts.function
     def simple_compute(
         A: T.Tensor((16, 16), "float32"),
         B: T.Tensor((16, 16), "float32"),
         C: T.Tensor((16, 16), "float32"),
     ):
-        for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+        for tx in T.parallel(0, 16, annotations={"thread_binding": "threadIdx.x"}):
             for i in range(16):
                 with Ts.sblock("compute"):
                     Ts.reads(A[tx, i])
                     Ts.writes(C[tx, i])
-                    A_shared = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                    B_shared = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                    A_shared = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
+                    B_shared = Ts.sblock_alloc_tensor((16, 1), dtype="float32", scope="shared")
                     with Ts.sblock():
                         Ts.reads(A[tx, i])
                         Ts.writes(A_shared[tx, 0])
@@ -1327,18 +1324,18 @@ def test_async_producer_interleaving():
     sch.annotate(loop, ann_key="software_pipeline_async_stages", ann_val=[0])
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(sch.mod)
 
-    @Ts.prim_func
+    @Ts.function
     def ref(
         A: T.Tensor((16, 16), "float32"),
         B: T.Tensor((16, 16), "float32"),
         C: T.Tensor((16, 16), "float32"),
     ) -> None:
-        for tx in T.thread_binding(16, thread="threadIdx.x"):
+        for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock():
                 Ts.reads(A[tx, 0:16], B[tx, 0:16])
                 Ts.writes(C[tx, 0:16])
-                A_shared = Ts.sblock_alloc_buffer([4, 16, 1], dtype="float32", scope="shared")
-                B_shared = Ts.sblock_alloc_buffer([4, 16, 1], dtype="float32", scope="shared")
+                A_shared = Ts.sblock_alloc_tensor([4, 16, 1], dtype="float32", scope="shared")
+                B_shared = Ts.sblock_alloc_tensor([4, 16, 1], dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, 0:3], B[tx, 0:3])
                     Ts.writes(A_shared[0:3, tx, 0], B_shared[0:3, tx, 0])
@@ -1347,11 +1344,11 @@ def test_async_producer_interleaving():
                             Ts.where(i < 16)
                             Ts.reads(A[tx, i], B[tx, i])
                             Ts.writes(A_shared[i % 4, tx, 0], B_shared[i % 4, tx, 0])
-                            with T.attr(0, "async_commit_queue_scope", 0):
-                                with T.attr(0, "async_scope", 1):
-                                    A_shared[i % 4, tx, 0] = A[tx, i]
-                                with T.attr(0, "async_scope", 1):
-                                    B_shared[i % 4, tx, 0] = B[tx, i]
+                            with Ts.async_copy_scope():
+                                A_shared[i % 4, tx, 0] = A[tx, i]
+                            with Ts.async_copy_scope():
+                                B_shared[i % 4, tx, 0] = B[tx, i]
+                            Ts.async_commit(0)
                 with Ts.sblock():
                     Ts.reads(A[tx, 3:16], A_shared[0:4, tx, 0], B_shared[0:4, tx, 0], B[tx, 3:16])
                     Ts.writes(A_shared[0:4, tx, 0], C[tx, 0:13], B_shared[0:4, tx, 0])
@@ -1360,26 +1357,24 @@ def test_async_producer_interleaving():
                             Ts.where(i + 3 < 16)
                             Ts.reads(A[tx, i + 3])
                             Ts.writes(A_shared[(i + 3) % 4, tx, 0])
-                            with T.attr(0, "async_commit_queue_scope", 0):
-                                with T.attr(0, "async_scope", 1):
-                                    A_shared[(i + 3) % 4, tx, 0] = A[tx, i + 3]
+                            with Ts.async_copy_scope():
+                                A_shared[(i + 3) % 4, tx, 0] = A[tx, i + 3]
+                            Ts.async_commit(0)
                         with Ts.sblock():
                             Ts.where(i + 3 - 3 < 16)
                             Ts.reads(A_shared[0:4, tx, 0], B_shared[0:4, tx, 0])
                             Ts.writes(C[tx, i - 3 + 3])
-                            with T.attr(0, "async_wait_queue_scope", 0):
-                                with T.attr(0, "async_wait_inflight_count", 5):
-                                    C[tx, i - 3 + 3] = (
-                                        A_shared[(i - 3 + 3) % 4, tx, 0]
-                                        + B_shared[(i - 3 + 3) % 4, tx, 0]
-                                    )
+                            Ts.async_wait(0, 5)
+                            C[tx, i - 3 + 3] = (
+                                A_shared[(i - 3 + 3) % 4, tx, 0] + B_shared[(i - 3 + 3) % 4, tx, 0]
+                            )
                         with Ts.sblock():
                             Ts.where(i + 3 < 16)
                             Ts.reads(B[tx, i + 3])
                             Ts.writes(B_shared[(i + 3) % 4, tx, 0])
-                            with T.attr(0, "async_commit_queue_scope", 0):
-                                with T.attr(0, "async_scope", 1):
-                                    B_shared[(i + 3) % 4, tx, 0] = B[tx, i + 3]
+                            with Ts.async_copy_scope():
+                                B_shared[(i + 3) % 4, tx, 0] = B[tx, i + 3]
+                            Ts.async_commit(0)
                 with Ts.sblock():
                     Ts.reads(A_shared[0:4, tx, 0], B_shared[0:4, tx, 0])
                     Ts.writes(C[tx, 13:16])
@@ -1388,12 +1383,11 @@ def test_async_producer_interleaving():
                             Ts.where(i + 16 - 3 < 16)
                             Ts.reads(A_shared[0:4, tx, 0], B_shared[0:4, tx, 0])
                             Ts.writes(C[tx, i - 3 + 16])
-                            with T.attr(0, "async_wait_queue_scope", 0):
-                                with T.attr(0, "async_wait_inflight_count", 2 - i):
-                                    C[tx, i - 3 + 16] = (
-                                        A_shared[(i - 3 + 16) % 4, tx, 0]
-                                        + B_shared[(i - 3 + 16) % 4, tx, 0]
-                                    )
+                            Ts.async_wait(0, 2 - i)
+                            C[tx, i - 3 + 16] = (
+                                A_shared[(i - 3 + 16) % 4, tx, 0]
+                                + B_shared[(i - 3 + 16) % 4, tx, 0]
+                            )
 
     tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
@@ -1407,14 +1401,14 @@ def test_three_stage_compute_two_stage_async():
 
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(sch.mod)
 
-    @Ts.prim_func
+    @Ts.function
     def ref(A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")) -> None:
-        for tx in T.thread_binding(16, thread="threadIdx.x"):
+        for tx in T.parallel(16, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock():
                 Ts.reads(A[tx, 0:16])
                 Ts.writes(D[tx, 0:16])
-                B = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
-                C = Ts.sblock_alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
+                C = Ts.sblock_alloc_tensor([2, 16, 1], dtype="float32", scope="shared")
                 with Ts.sblock():
                     Ts.reads(A[tx, 0:2], B[0:2, tx, 0])
                     Ts.writes(B[0:2, tx, 0], C[0:2, tx, 0])
@@ -1423,20 +1417,17 @@ def test_three_stage_compute_two_stage_async():
                             Ts.where(i < 16)
                             Ts.reads(A[tx, i])
                             Ts.writes(B[i % 2, tx, 0])
-                            with T.attr(0, "async_commit_queue_scope", 0):
-                                with T.attr(0, "async_scope", 1):
-                                    B[i % 2, tx, 0] = A[tx, i] * T.float32(2)
+                            with Ts.async_copy_scope():
+                                B[i % 2, tx, 0] = A[tx, i] * T.float32(2)
+                            Ts.async_commit(0)
                         with Ts.sblock():
                             Ts.where(i == 1 and i - 1 < 16)
                             Ts.reads(B[(i - 1) % 2, tx, 0])
                             Ts.writes(C[(i - 1) % 2, tx, 0])
-                            with T.attr(0, "async_commit_queue_scope", 1):
-                                with T.attr(0, "async_wait_queue_scope", 0):
-                                    with T.attr(0, "async_wait_inflight_count", 1):
-                                        with T.attr(0, "async_scope", 1):
-                                            C[(i - 1) % 2, tx, 0] = B[
-                                                (i - 1) % 2, tx, 0
-                                            ] + T.float32(2)
+                            Ts.async_wait(0, 1)
+                            with Ts.async_copy_scope():
+                                C[(i - 1) % 2, tx, 0] = B[(i - 1) % 2, tx, 0] + T.float32(2)
+                            Ts.async_commit(1)
                 with Ts.sblock():
                     Ts.reads(A[tx, 2:16], B[0:2, tx, 0], C[0:2, tx, 0])
                     Ts.writes(B[0:2, tx, 0], C[0:2, tx, 0], D[tx, 0:14])
@@ -1445,27 +1436,23 @@ def test_three_stage_compute_two_stage_async():
                             Ts.where(i + 2 < 16)
                             Ts.reads(A[tx, i + 2])
                             Ts.writes(B[(i + 2) % 2, tx, 0])
-                            with T.attr(0, "async_commit_queue_scope", 0):
-                                with T.attr(0, "async_scope", 1):
-                                    B[(i + 2) % 2, tx, 0] = A[tx, i + 2] * T.float32(2)
+                            with Ts.async_copy_scope():
+                                B[(i + 2) % 2, tx, 0] = A[tx, i + 2] * T.float32(2)
+                            Ts.async_commit(0)
                         with Ts.sblock():
                             Ts.where(i + 2 - 1 < 16)
                             Ts.reads(B[(i - 1 + 2) % 2, tx, 0])
                             Ts.writes(C[(i - 1 + 2) % 2, tx, 0])
-                            with T.attr(0, "async_commit_queue_scope", 1):
-                                with T.attr(0, "async_wait_queue_scope", 0):
-                                    with T.attr(0, "async_wait_inflight_count", 1):
-                                        with T.attr(0, "async_scope", 1):
-                                            C[(i - 1 + 2) % 2, tx, 0] = B[
-                                                (i - 1 + 2) % 2, tx, 0
-                                            ] + T.float32(2)
+                            Ts.async_wait(0, 1)
+                            with Ts.async_copy_scope():
+                                C[(i - 1 + 2) % 2, tx, 0] = B[(i - 1 + 2) % 2, tx, 0] + T.float32(2)
+                            Ts.async_commit(1)
                         with Ts.sblock():
                             Ts.where(i + 2 - 2 < 16)
                             Ts.reads(C[0:2, tx, 0])
                             Ts.writes(D[tx, i - 2 + 2])
-                            with T.attr(0, "async_wait_queue_scope", 1):
-                                with T.attr(0, "async_wait_inflight_count", 1):
-                                    D[tx, i - 2 + 2] = C[(i - 2 + 2) % 2, tx, 0] + T.float32(1)
+                            Ts.async_wait(1, 1)
+                            D[tx, i - 2 + 2] = C[(i - 2 + 2) % 2, tx, 0] + T.float32(1)
                 with Ts.sblock():
                     Ts.reads(B[0:2, tx, 0], C[0:2, tx, 0])
                     Ts.writes(C[0:2, tx, 0], D[tx, 14:16])
@@ -1474,24 +1461,18 @@ def test_three_stage_compute_two_stage_async():
                             Ts.where(i + 16 - 1 < 16)
                             Ts.reads(B[(i - 1 + 16) % 2, tx, 0])
                             Ts.writes(C[(i - 1 + 16) % 2, tx, 0])
-                            with T.attr(0, "async_commit_queue_scope", 1):
-                                with T.attr(0, "async_wait_queue_scope", 0):
-                                    with T.attr(0, "async_wait_inflight_count", 0 - i):
-                                        with T.attr(0, "async_scope", 1):
-                                            C[(i - 1 + 16) % 2, tx, 0] = B[
-                                                (i - 1 + 16) % 2, tx, 0
-                                            ] + T.float32(2)
+                            Ts.async_wait(0, 0 - i)
+                            with Ts.async_copy_scope():
+                                C[(i - 1 + 16) % 2, tx, 0] = B[(i - 1 + 16) % 2, tx, 0] + T.float32(
+                                    2
+                                )
+                            Ts.async_commit(1)
                         with Ts.sblock():
                             Ts.where(i + 16 - 2 < 16)
                             Ts.reads(C[0:2, tx, 0])
                             Ts.writes(D[tx, i - 2 + 16])
-                            with T.attr(0, "async_wait_queue_scope", 1):
-                                with T.attr(
-                                    0,
-                                    "async_wait_inflight_count",
-                                    T.if_then_else(i + 16 - 1 < 16, 1, 0),
-                                ):
-                                    D[tx, i - 2 + 16] = C[(i - 2 + 16) % 2, tx, 0] + T.float32(1)
+                            Ts.async_wait(1, T.if_then_else(i + 16 - 1 < 16, 1, 0))
+                            D[tx, i - 2 + 16] = C[(i - 2 + 16) % 2, tx, 0] + T.float32(1)
 
     tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
@@ -1509,7 +1490,7 @@ def get_mma_schedule():
             *shared_16x16_to_ldmatrix_32x8_layout(i % 16, j % 16),
         )
 
-    workload = te.create_prim_func(
+    workload = te.create_function(
         te_workload.matmul(N, M, K, in_dtype="float16", out_dtype="float32")
     )
 
@@ -1534,8 +1515,8 @@ def get_mma_schedule():
 
 
 def build_and_run(sch):
-    if tvm.testing.is_ampere_or_newer():
-        with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
+    if tvm.s_tir.testing.is_ampere_or_newer():
+        with tvm.ir.transform.PassContext(config={"tirx.use_async_copy": 1}):
             f = tvm.compile(sch.mod["main"], target="cuda")
 
         a_np = np.random.uniform(size=(N, K)).astype("float16")
@@ -1564,33 +1545,39 @@ def test_async_pipelined_mma_gemm_simple():
     sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
     sch.annotate(k0, ann_key="software_pipeline_async_stages", ann_val=[0])
 
-    seq = tvm.transform.Sequential(
+    seq = tvm.ir.transform.Sequential(
         [
-            tvm.s_tir.transform.PlanAndUpdateBufferAllocationLocation(),
+            tvm.s_tir.transform.PlanAndUpdateTensorAllocationLocation(),
             tvm.s_tir.transform.ConvertBlocksToOpaque(),
-            tvm.s_tir.transform.UnifyThreadBinding(),
-            tvm.s_tir.transform.LowerMatchBuffer(),
+            tvm.s_tir.transform.LowerMatchTensor(),
             tvm.s_tir.transform.InjectSoftwarePipeline(),
         ]
     )
     mod = seq(sch.mod)
 
-    pipeline = mod["main"].body.block.body.body.body.body.body.block.body[1].block.body
+    pipeline = mod["main"].body[0].block.body[0].body[0].body[0].body[0].block.body[1].block.body
     prologue, body, epilogue = pipeline
 
-    commit_queue_scope = prologue.block.body.body.block.body
-    assert len(commit_queue_scope.body) == 2
-    assert commit_queue_scope.value == 0
+    commit_group = prologue.block.body[0].body[0].block.body
+    assert len(commit_group) == 3
+    assert commit_group[-1].value.args[0] == 0
 
-    commit_queue_scope = body.block.body.body[0].block.body
-    assert len(commit_queue_scope.body) == 2
-    assert commit_queue_scope.value == 0
+    commit_group = body.block.body[0].body[0].block.body
+    assert len(commit_group) == 3
+    assert commit_group[-1].value.args[0] == 0
 
-    assert body.block.body.body[1].block.body.body.attr_key == "async_wait_inflight_count"
-    assert body.block.body.body[1].block.body.body.value == 3
+    assert (
+        body.block.body[0].body[1].block.body[0].value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
+    )
+    assert body.block.body[0].body[1].block.body[0].value.args[1] == 3
 
-    assert epilogue.block.body.body.block.body.body.attr_key == "async_wait_inflight_count"
-    assert str(epilogue.block.body.body.block.body.body.value) == "2 - k_0_0"
+    assert (
+        epilogue.block.body[0]
+        .body[0]
+        .block.body[0]
+        .value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
+    )
+    assert str(epilogue.block.body[0].body[0].block.body[0].value.args[1]) == "2 - k_0_0"
 
     build_and_run(sch)
 
@@ -1610,41 +1597,47 @@ def test_async_nested_pipeline_mma_gemm_ideal_annotation():
     sch.annotate(k1, ann_key="software_pipeline_stage", ann_val=[0, 0, 1])
     sch.annotate(k1, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
 
-    seq = tvm.transform.Sequential(
+    seq = tvm.ir.transform.Sequential(
         [
-            tvm.s_tir.transform.PlanAndUpdateBufferAllocationLocation(),
+            tvm.s_tir.transform.PlanAndUpdateTensorAllocationLocation(),
             tvm.s_tir.transform.ConvertBlocksToOpaque(),
-            tvm.s_tir.transform.UnifyThreadBinding(),
-            tvm.s_tir.transform.LowerMatchBuffer(),
+            tvm.s_tir.transform.LowerMatchTensor(),
             tvm.s_tir.transform.InjectSoftwarePipeline(),
         ]
     )
     mod = seq(sch.mod)
 
-    pipeline = mod["main"].body.block.body.body.body.body.body.block.body[1].block.body
+    pipeline = mod["main"].body[0].block.body[0].body[0].body[0].body[0].block.body[1].block.body
     prologue, body, epilogue = pipeline
 
-    commit_queue_scope = prologue.block.body.body[0].block.body
-    assert len(commit_queue_scope.body) == 2
-    assert commit_queue_scope.value == 0
+    commit_group = prologue.block.body[0].body[0].block.body
+    assert len(commit_group) == 3
+    assert commit_group[-1].value.args[0] == 0
 
-    assert prologue.block.body.body[1].block.body.body.attr_key == "async_wait_inflight_count"
-    assert prologue.block.body.body[1].block.body.body.value == 2
+    assert (
+        prologue.block.body[0]
+        .body[1]
+        .block.body[0]
+        .value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
+    )
+    assert prologue.block.body[0].body[1].block.body[0].value.args[1] == 2
 
-    commit_queue_scope = body.block.body.body[0].block.body
-    assert len(commit_queue_scope.body) == 2
-    assert commit_queue_scope.value == 0
+    commit_group = body.block.body[0].body[0].block.body
+    assert len(commit_group) == 3
+    assert commit_group[-1].value.args[0] == 0
 
-    assert body.block.body.body[1].block.body.body.attr_key == "async_wait_inflight_count"
-    assert body.block.body.body[1].block.body.body.value == 2
+    assert (
+        body.block.body[0].body[1].block.body[0].value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
+    )
+    assert body.block.body[0].body[1].block.body[0].value.args[1] == 2
 
-    assert str(epilogue.block.body.body[0].block.body.body.value) == "1 - k_0_0"
+    assert str(epilogue.block.body[0].body[0].block.body[0].value.args[1]) == "1 - k_0_0"
 
     build_and_run(sch)
 
 
 def test_less_loop_than_num_stage():
-    @Ts.prim_func
+    @Ts.function
     def before(A: T.Tensor((2,), "float32"), E: T.Tensor((2,), "float32")):
         for i in T.serial(
             0,
@@ -1655,9 +1648,9 @@ def test_less_loop_than_num_stage():
             },
         ):
             with Ts.sblock("compute"):
-                B = Ts.sblock_alloc_buffer((1), dtype="float32", scope="shared")
-                C = Ts.sblock_alloc_buffer((1), dtype="float32", scope="shared")
-                D = Ts.sblock_alloc_buffer((1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((1), dtype="float32", scope="shared")
+                C = Ts.sblock_alloc_tensor((1), dtype="float32", scope="shared")
+                D = Ts.sblock_alloc_tensor((1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     B[0] = A[i] * T.float32(2)
                 with Ts.sblock():
@@ -1667,7 +1660,7 @@ def test_less_loop_than_num_stage():
                 with Ts.sblock():
                     E[i] = D[0] + T.float32(5)
 
-    @Ts.prim_func
+    @Ts.function
     def after(A: T.Tensor((2,), "float32"), E: T.Tensor((2,), "float32")):
         with Ts.sblock("root"):
             Ts.reads()
@@ -1675,9 +1668,9 @@ def test_less_loop_than_num_stage():
             with Ts.sblock(""):
                 Ts.reads(A[0:3])
                 Ts.writes(E[0:2])
-                B = Ts.sblock_alloc_buffer((2, 1), scope="shared")
-                C = Ts.sblock_alloc_buffer((2, 1), scope="shared")
-                D = Ts.sblock_alloc_buffer((2, 1), scope="shared")
+                B = Ts.sblock_alloc_tensor((2, 1), scope="shared")
+                C = Ts.sblock_alloc_tensor((2, 1), scope="shared")
+                D = Ts.sblock_alloc_tensor((2, 1), scope="shared")
                 with Ts.sblock(""):
                     Ts.reads(A[0:3], B[0:2, 0], C[0:2, 0])
                     Ts.writes(B[0:2, 0], C[0:2, 0], D[0:2, 0])
@@ -1721,7 +1714,7 @@ def test_less_loop_than_num_stage():
 def test_less_loop_than_num_stage_dynamic():
     K = T.dynamic("K", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def before(A: T.Tensor([K], "float32"), E: T.Tensor([K], "float32")):
         for i in T.serial(
             0,
@@ -1732,9 +1725,9 @@ def test_less_loop_than_num_stage_dynamic():
             },
         ):
             with Ts.sblock("compute"):
-                B = Ts.sblock_alloc_buffer((1), dtype="float32", scope="shared")
-                C = Ts.sblock_alloc_buffer((1), dtype="float32", scope="shared")
-                D = Ts.sblock_alloc_buffer((1), dtype="float32", scope="shared")
+                B = Ts.sblock_alloc_tensor((1), dtype="float32", scope="shared")
+                C = Ts.sblock_alloc_tensor((1), dtype="float32", scope="shared")
+                D = Ts.sblock_alloc_tensor((1), dtype="float32", scope="shared")
                 with Ts.sblock():
                     B[0] = A[i] * T.float32(2)
                 with Ts.sblock():
@@ -1746,7 +1739,7 @@ def test_less_loop_than_num_stage_dynamic():
 
     K = T.dynamic("K", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def after(A: T.Tensor([K], "float32"), E: T.Tensor([K], "float32")):
         with Ts.sblock("root"):
             Ts.reads()
@@ -1754,9 +1747,9 @@ def test_less_loop_than_num_stage_dynamic():
             with Ts.sblock(""):
                 Ts.reads(A[0 : T.max(3, K)])
                 Ts.writes(E[T.min(0, K - 3) : T.min(0, K - 3) + T.max(K, 3)])
-                B = Ts.sblock_alloc_buffer((2, 1), scope="shared")
-                C = Ts.sblock_alloc_buffer((2, 1), scope="shared")
-                D = Ts.sblock_alloc_buffer((2, 1), scope="shared")
+                B = Ts.sblock_alloc_tensor((2, 1), scope="shared")
+                C = Ts.sblock_alloc_tensor((2, 1), scope="shared")
+                D = Ts.sblock_alloc_tensor((2, 1), scope="shared")
                 with Ts.sblock(""):
                     Ts.reads(A[0:3], B[0:2, 0], C[0:2, 0])
                     Ts.writes(B[0:2, 0], C[0:2, 0], D[0:2, 0])

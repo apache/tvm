@@ -18,52 +18,36 @@
 
 import tvm_ffi
 
-from tvm.ir import Call, Op, is_prim_expr
-from tvm.tirx import Evaluate, Expr, Stmt, TilePrimitiveCall, Var, decl_tensor
-from tvm.tirx.buffer import Buffer, is_buffer_var
+from tvm.ir import Call, Evaluate, Op, Stmt, Var
+from tvm.tirx import Expr, decl_tensor, is_tensor_var
 from tvm.tirx.layout import Iter, TileLayout
 
 
-class BufferReplacer:
+class TensorReplacer:
     """
-    Replace buffer with another buffer.
-    Buffer values are ordinary Vars, so the same mapping also rewrites
-    ``buffer_data`` projections.
+    Replace tensor variables with other tensor variables.
+    Tensor variables are ordinary Vars, so the same mapping also rewrites
+    ``tensor_data_ptr`` projections.
     """
 
     def __init__(
-        self, buffer_map: dict[Buffer, Buffer] | None = None, var_map: dict[Var, Var] | None = None
+        self, tensor_map: dict[Var, Var] | None = None, var_map: dict[Var, Var] | None = None
     ):
         super().__init__()
-        self.buffer_map = buffer_map if buffer_map is not None else {}
+        self.tensor_map = tensor_map if tensor_map is not None else {}
         self.var_map = var_map if var_map is not None else {}
-        for old_buffer, new_buffer in self.buffer_map.items():
-            self.var_map[old_buffer] = new_buffer
+        for old_tensor, new_tensor in self.tensor_map.items():
+            self.var_map[old_tensor] = new_tensor
 
     def __call__(self, node):
         def replace_var(op: Var):
-            if is_buffer_var(op):
-                return self._mutate_buffer(op)
+            if is_tensor_var(op):
+                return self._mutate_tensor(op)
             return self.var_map.get(op, op)
-
-        def replace_op_call(op: TilePrimitiveCall):
-            new_workspace = {key: self._mutate_buffer(value) for key, value in op.workspace.items()}
-            new_config = {
-                key: self._replace_expr(value) if is_prim_expr(value) else value
-                for key, value in op.config.items()
-            }
-            return TilePrimitiveCall(
-                *op.args,
-                op=op.op,
-                workspace=new_workspace,
-                config=new_config,
-                dispatch=op.dispatch,
-                scope=op.scope,
-            )
 
         return tvm_ffi.structural_map(
             node,
-            [(TilePrimitiveCall, replace_op_call), (Var, replace_var)],
+            (Var, replace_var),
             order="post",
         )
 
@@ -74,60 +58,56 @@ class BufferReplacer:
             order="post",
         )
 
-    def _mutate_buffer(self, buffer: Buffer):
-        if buffer in self.buffer_map:
-            return self.buffer_map[buffer]
+    def _mutate_tensor(self, tensor: Var):
+        if tensor in self.tensor_map:
+            return self.tensor_map[tensor]
 
-        new_shape = [self._replace_expr(expr) for expr in buffer.ty.shape]
-        new_strides = [self._replace_expr(expr) for expr in buffer.ty.strides]
+        new_shape = [self._replace_expr(expr) for expr in tensor.ty.shape]
+        new_strides = [self._replace_expr(expr) for expr in tensor.ty.strides]
         new_elem_offset = (
-            self._replace_expr(buffer.ty.elem_offset) if buffer.ty.elem_offset is not None else None
+            self._replace_expr(tensor.ty.elem_offset) if tensor.ty.elem_offset is not None else None
         )
-        if isinstance(buffer.ty.layout, TileLayout):
+        if isinstance(tensor.ty.layout, TileLayout):
             new_shard = [
                 Iter(self._replace_expr(it.extent), self._replace_expr(it.stride), it.axis)
-                for it in buffer.ty.layout.shard
+                for it in tensor.ty.layout.shard
             ]
             new_replicate = [
                 Iter(self._replace_expr(it.extent), self._replace_expr(it.stride), it.axis)
-                for it in buffer.ty.layout.replica
+                for it in tensor.ty.layout.replica
             ]
             new_layout = TileLayout.from_iters(
                 new_shard,
                 new_replicate,
-                offset=buffer.ty.layout.offset,
+                offset=tensor.ty.layout.offset,
             )
         else:
-            new_layout = buffer.ty.layout
-        new_allocated_addr = [self._replace_expr(expr) for expr in buffer.ty.allocated_addr]
+            new_layout = tensor.ty.layout
 
         unchanged = (
-            all(old is new for old, new in zip(buffer.ty.shape, new_shape))
-            and all(old is new for old, new in zip(buffer.ty.strides, new_strides))
-            and buffer.ty.elem_offset is new_elem_offset
-            and buffer.ty.layout is new_layout
-            and all(old is new for old, new in zip(buffer.ty.allocated_addr, new_allocated_addr))
+            all(old is new for old, new in zip(tensor.ty.shape, new_shape))
+            and all(old is new for old, new in zip(tensor.ty.strides, new_strides))
+            and tensor.ty.elem_offset is new_elem_offset
+            and tensor.ty.layout is new_layout
         )
         if unchanged:
-            return buffer
+            return tensor
 
-        new_buffer = decl_tensor(
+        new_tensor = decl_tensor(
             new_shape,
-            buffer.ty.dtype,
-            buffer.name,
+            tensor.ty.dtype,
+            tensor.name,
             None,
             new_strides,
             new_elem_offset,
-            buffer.scope(),
-            buffer.ty.data_alignment,
-            buffer.ty.offset_factor,
+            tensor.scope(),
+            tensor.ty.data_alignment,
+            tensor.ty.offset_factor,
             layout=new_layout,
         )
-        if new_allocated_addr:
-            new_buffer = new_buffer.with_allocated_addr(new_allocated_addr)
-        self.buffer_map[buffer] = new_buffer
-        self.var_map[buffer] = new_buffer
-        return new_buffer
+        self.tensor_map[tensor] = new_tensor
+        self.var_map[tensor] = new_tensor
+        return new_tensor
 
 
 def seek_kernel_replace_point(stmt: Stmt, body: Stmt) -> Stmt:
@@ -135,7 +115,7 @@ def seek_kernel_replace_point(stmt: Stmt, body: Stmt) -> Stmt:
 
     def replace_evaluate(op: Evaluate):
         value = op.value
-        if isinstance(value, Call) and value.op.same_as(Op.get("tirx.tvm_kernel_replace_point")):
+        if isinstance(value, Call) and value.op.same_as(Op.get("tirx.kernel_replace_point")):
             return body
         return op
 

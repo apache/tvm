@@ -25,16 +25,19 @@ import tvm_ffi
 
 import tvm
 from tvm.ir import Op, assert_structural_equal
+from tvm.script import ir as I
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
-from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 
 def _tile_calls(func):
     calls = []
 
     def visit(stmt):
-        if isinstance(stmt, TilePrimitiveCall):
+        if (
+            isinstance(stmt, tvm.ir.Call)
+            and isinstance(stmt.op, Op)
+            and stmt.op.get_attr("FTileOpDispatch") is not None
+        ):
             calls.append(stmt)
 
     tvm_ffi.structural_walk(func.body, visit)
@@ -65,32 +68,7 @@ def _has_path(root, path):
     return True
 
 
-def test_tx_is_tile_shorthand_only():
-    assert T.tile is Tx
-    assert T.tile.copy is Tx.copy
-    assert not hasattr(T, "copy")
-    assert not hasattr(Tx, "SMEMPool")
-    assert not hasattr(Tx, "ScopedOp")
-    assert not hasattr(Tx, "meta_class")
-    assert T.cast is not Tx.cast
-    assert T.sqrt is not Tx.sqrt
-
-
-def test_tx_rejects_expression_overloads():
-    x = tvm.tirx.Var("x", "float32")
-    y = tvm.tirx.Var("y", "int32")
-
-    with pytest.raises(TypeError, match="tile-only"):
-        Tx.sqrt(x)
-    with pytest.raises(TypeError, match="tile-only"):
-        T.tile.sqrt(x)
-    with pytest.raises(TypeError, match="tile-only"):
-        Tx.cast(y, "float32")
-    with pytest.raises(TypeError, match="tile-only"):
-        T.tile.cast(y, "float32")
-
-
-def test_builtin_expression_ops_are_not_tile_primitives():
+def test_builtin_expression_ops_are_not_tile_ops():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "float32")
 
@@ -99,57 +77,67 @@ def test_builtin_expression_ops_are_not_tile_primitives():
     assert cast.ty.dtype == "float32"
 
     sqrt = T.sqrt(y)
-    assert sqrt.op.name == "tirx.sqrt"
+    assert sqrt.op.name == "prim.sqrt"
 
     fma = T.fma(y, y, y)
-    assert fma.op.name == "tirx.fma"
+    assert fma.op.name == "prim.fma"
 
 
-def test_kernel_replace_point_is_builtin_marker_not_tile_primitive():
-    assert _op_attr("tirx.tvm_kernel_replace_point", "TIRxOpCategory") == "builtin"
-    assert "tirx.tile.tvm_kernel_replace_point" not in Op.list_op_names()
-    assert hasattr(T, "tvm_kernel_replace_point")
-    assert not hasattr(Tx, "tvm_kernel_replace_point")
+def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
+    @T.function
+    def encode(descriptor: T.Ptr(T.TensorMap), data: T.handle):
+        T.cuda.tensormap_encode_tiled(
+            descriptor,
+            data,
+            64,
+            32,
+            128,
+            64,
+            32,
+            1,
+            1,
+            descriptor_dtype="bfloat16",
+            rank=2,
+            swizzle=3,
+        )
 
-    @T.prim_func(check_well_formed=False)
+    (call,) = [c for c in _expr_calls(encode) if c.op.name == "tirx.cuda.tensormap_encode_tiled"]
+    assert call.op.attrs_type_key == "tirx.cuda.TensorMapEncodeTiledAttr"
+    assert str(call.attrs.descriptor_dtype) == "bfloat16"
+    assert call.attrs.rank == 2
+    assert call.attrs.swizzle == 3
+    assert call.attrs.interleave == call.attrs.l2_promotion == call.attrs.oob_fill == 0
+    assert call.attrs.force_cu_dtype == -1
+    call.validate()
+    reparsed = tvm.script.from_source(encode.script(), extra_vars={"I": I, "T": T})
+    assert_structural_equal(encode, reparsed)
+
+
+def test_kernel_replace_point_is_builtin_marker_not_tile_op():
+    assert _op_attr("tirx.kernel_replace_point", "FTileOpDispatch") is None
+    assert "tirx.tile.kernel_replace_point" not in Op.list_op_names()
+    assert hasattr(T, "kernel_replace_point")
+    assert not hasattr(T.cuda.tile, "kernel_replace_point")
+
+    @T.function(check_well_formed=False)
     def marker():
-        T.tvm_kernel_replace_point()
+        T.kernel_replace_point()
 
     calls = _expr_calls(marker)
-    assert [call.op.name for call in calls] == ["tirx.tvm_kernel_replace_point"]
+    assert [call.op.name for call in calls] == ["tirx.kernel_replace_point"]
     assert _tile_calls(marker) == []
 
     code = marker.script()
-    assert "T.tvm_kernel_replace_point()" in code
-    assert "tvm_kernel_replace_point" in code
-    assert "T.tile.tvm_kernel_replace_point" not in code
-    assert "Tx.tvm_kernel_replace_point" not in code
+    assert "T.kernel_replace_point()" in code
+    assert "kernel_replace_point" in code
+    assert "T.tile.kernel_replace_point" not in code
+    assert "Tx.kernel_replace_point" not in code
     reparsed = tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
     assert_structural_equal(marker, reparsed)
 
 
-def test_tile_shorthand_and_scoped_aliases_use_tile_ops():
-    @T.prim_func(check_well_formed=False)
-    def tile_aliases(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
-        T.tile.copy(A[0:16], B[0:16])
-        Tx.cast(A[0:16], B[0:16])
-        T.cta.cast(A[0:16], B[0:16])
-        Tx.cta.sqrt(A[0:16], B[0:16])
-
-    calls = _tile_calls(tile_aliases)
-    assert [call.op.name for call in calls] == [
-        "tirx.tile.copy",
-        "tirx.tile.cast",
-        "tirx.tile.cast",
-        "tirx.tile.sqrt",
-    ]
-    assert [call.scope.name for call in calls] == ["thread", "thread", "cta", "cta"]
-
-
 def test_device_intrinsic_namespaces_are_canonical_and_classified():
-    from tvm.backend.cuda.script import (
-        CUDANamespace as BackendCUDANamespace,
-    )
+    cuda_script = importlib.import_module("tvm.backend.cuda.script")
     from tvm.backend.cuda.script import (
         NVSHMEMNamespace as BackendNVSHMEMNamespace,
     )
@@ -160,7 +148,7 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
     from tvm.backend.trn.script import NKINamespace as BackendNKINamespace
     from tvm.tirx.script.ir_builder import op as builder_op
 
-    assert isinstance(builder_op.cuda, BackendCUDANamespace)
+    assert builder_op.cuda is cuda_script
     assert isinstance(builder_op.s_tir, BackendSTIRNamespace)
     assert isinstance(builder_op.nvshmem, BackendNVSHMEMNamespace)
     assert isinstance(builder_op.metal, BackendMetalNamespace)
@@ -171,12 +159,12 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
     assert T.metal is builder_op.metal
     assert T.nki is builder_op.nki
 
-    buffer = tvm.tirx.decl_tensor((1,), "float32")
+    tensor = tvm.tirx.decl_tensor((1,), "float32")
     calls = [
         T.cuda.elect_sync(),
         T.cuda.thread_fence(),
         T.nvshmem.fence(),
-        T.nki.identity(buffer[0], 1),
+        T.nki.identity(tensor[0], 1),
     ]
 
     expected = [
@@ -185,12 +173,9 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
         ("tirx.nvshmem.fence", "nvshmem"),
         ("tirx.nki.identity", "nki"),
     ]
-    assert [
-        (call.op.name, _op_attr(call.op.name, "TDeviceIntrinsicNamespace")) for call in calls
-    ] == expected
-    for op_name, namespace in expected:
-        assert _op_attr(op_name, "TIRxOpCategory") == "device_intrin"
-        assert _op_attr(op_name, "TDeviceIntrinsicNamespace") == namespace
+    assert [(call.op.name, call.op.name.split(".")[1]) for call in calls] == expected
+    for op_name, _ in expected:
+        assert _op_attr(op_name, "FTileOpDispatch") is None
 
 
 def test_backend_specific_wrappers_are_not_root_exports():
@@ -288,7 +273,7 @@ def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
 
 
 def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
-    @T.prim_func
+    @T.function
     def device_namespaces(dst: T.handle, A: T.Tensor((1,), "float32")):
         T.cuda.cta_sync()
         T.metal.simd_shuffle(A[0], 0)
@@ -308,8 +293,8 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
         ("tirx.metal.simd_shuffle_up", "metal"),
         ("tirx.metal.simd_shuffle_down", "metal"),
     ]:
-        assert _op_attr(op_name, "TIRxOpCategory") == "device_intrin"
-        assert _op_attr(op_name, "TDeviceIntrinsicNamespace") == namespace
+        assert _op_attr(op_name, "FTileOpDispatch") is None
+        assert op_name.split(".")[1] == namespace
         assert _op_attr(op_name, "TCallEffectKind") in (1, 3)
 
     code = device_namespaces.script()
@@ -323,11 +308,10 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
     assert_structural_equal(device_namespaces, reparsed)
 
 
-def test_registered_tirx_ops_have_exactly_one_category():
-    if _op_attr("tirx.sqrt", "TIRxOpCategory") is None:
-        pytest.skip("TIRx op categories require a rebuilt C++ runtime")
+def test_registered_tirx_ops_use_dispatch_attributes():
+    from tvm.backend.cuda.ptx.table import TABLE, escape_token
 
-    categories = {"builtin", "tile_primitive", "device_intrin"}
+    assert not Op.get("prim.sqrt").has_attr("TIRxOpCategory")
     device_namespaces = {
         "cuda",
         "ptx",
@@ -363,36 +347,48 @@ def test_registered_tirx_ops_have_exactly_one_category():
         "tirx.zero",
     }
 
-    missing = []
-    invalid = []
     lingering_flat_tile = []
     for op_name in sorted(name for name in Op.list_op_names() if name.startswith("tirx.")):
-        category = _op_attr(op_name, "TIRxOpCategory")
-        device_namespace = _op_attr(op_name, "TDeviceIntrinsicNamespace")
+        dispatcher = _op_attr(op_name, "FTileOpDispatch")
 
-        if category is None:
-            missing.append(op_name)
-            continue
-        if category not in categories:
-            invalid.append((op_name, category))
-            continue
         if op_name in flat_tile_only_names:
             lingering_flat_tile.append(op_name)
 
-        if category == "tile_primitive":
-            if not op_name.startswith("tirx.tile."):
+        if dispatcher is not None:
+            assert callable(dispatcher), op_name
+            if not op_name.startswith(("tirx.cuda.tile.", "tirx.trn.tile.")):
                 lingering_flat_tile.append(op_name)
-            assert device_namespace is None, op_name
-        elif category == "device_intrin":
-            assert device_namespace in device_namespaces, op_name
-            printer_name = _op_attr(op_name, "TScriptPrinterName")
-            assert printer_name is not None, op_name
-            assert printer_name.startswith("tirx." + device_namespace + "."), op_name
-            assert _has_path(T, printer_name.removeprefix("tirx.")), op_name
         else:
-            assert category == "builtin"
-            assert device_namespace is None, op_name
+            assert not op_name.startswith(("tirx.cuda.tile.", "tirx.trn.tile.")), op_name
+            if op_name.split(".")[1] in device_namespaces:
+                surface_name = op_name.removeprefix("tirx.")
+                if op_name.startswith("tirx.ptx."):
+                    entry = TABLE.get(op_name.removeprefix("tirx.ptx."))
+                    if entry is not None:
+                        surface_name = "ptx." + escape_token(entry.family)
+                assert _has_path(T, surface_name), op_name
 
-    assert not missing
-    assert not invalid
     assert not lingering_flat_tile
+
+
+def test_tile_helpers_are_separate_from_backend_instructions():
+    assert T.tile.DispatchContext
+    assert T.tile.Instruction
+    assert not hasattr(T.tile, "copy")
+    assert not hasattr(tvm.tirx, "TilePrimitiveCall")
+    assert not hasattr(tvm.tirx, "TileOpCall")
+    assert not any(name.startswith("tirx.tile.") for name in Op.list_op_names())
+    for name in (
+        "copy",
+        "copy_async",
+        "sum",
+        "min",
+        "permute_layout",
+        "ld",
+        "st",
+        "compose",
+        "tcgen05",
+    ):
+        assert not hasattr(T.cuda.tile, name)
+    assert T.cuda.tile.apply
+    assert T.cuda.tile.ewise

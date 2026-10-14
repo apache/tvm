@@ -23,14 +23,14 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/linear_algebra.h>
-#include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op/linear_algebra.h>
+#include <tvm/relax/op/manipulate.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tirx/op.h>
 
 #include <optional>
 #include <unordered_set>
@@ -128,11 +128,13 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
              pat_permuted_matmul_on_rhs;
 
   PrimExpr symbolic_var_constraints = IntImm::Bool(true);
-  auto upper_bounds = func->GetAttr<ffi::Map<ffi::String, Any>>("tir_var_upper_bound");
-  auto lower_bounds = func->GetAttr<ffi::Map<ffi::String, Any>>("tir_var_lower_bound");
+  auto upper_bounds =
+      func->GetAttr<ffi::Map<ffi::String, Any>>(tvm::relax::attr::kTirVarUpperBound);
+  auto lower_bounds =
+      func->GetAttr<ffi::Map<ffi::String, Any>>(tvm::relax::attr::kTirVarLowerBound);
 
   if (upper_bounds || lower_bounds) {
-    ffi::Map<ffi::String, tirx::Var> name_lookup;
+    ffi::Map<ffi::String, tvm::Var> name_lookup;
     for (const auto& tir_var : TIRVarsInType(GetType(func))) {
       name_lookup.Set(tir_var->name, tir_var);
       symbolic_var_constraints = symbolic_var_constraints && (0 <= tir_var.as_or_throw<PrimExpr>());
@@ -341,7 +343,7 @@ Pass AdjustMatmulOrder() {
     auto [pattern, rewriter] = CreatePatterns(func);
     return RewriteCall(pattern, rewriter, func);
   };
-  return CreateFunctionPass(pass_func, 1, "AdjustMatmulOrder", {});
+  return CreateFunctionPass(pass_func, 1, "AdjustMatmulOrder");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

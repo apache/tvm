@@ -42,12 +42,12 @@ def test_wrong_argument_count_error(codegen_target):
 
     n0 = T.dynamic("n0")
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((n0,), "float32"), B: T.Tensor((n0,), "float32")):
         for i in range(n0):
             B[i] = A[i] + T.float32(1)
 
-    lib = tvm.compile(func, target=codegen_target)
+    lib = tvm.tirx.compile(func, target=codegen_target)
     a = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
     b = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
     lib(a, b)  # correct input should pass
@@ -70,12 +70,12 @@ def test_type_mismatch_non_tensor(codegen_target):
 
     n0 = T.dynamic("n0")
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((n0,), "float32"), B: T.Tensor((n0,), "float32")):
         for i in range(n0):
             B[i] = A[i] + T.float32(1)
 
-    lib = tvm.compile(func, target=codegen_target)
+    lib = tvm.tirx.compile(func, target=codegen_target)
     a = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
     b = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
     lib(a, b)  # correct input should pass
@@ -99,12 +99,12 @@ def test_shape_mismatch_shared_variable(codegen_target):
 
     n0 = T.dynamic("n0")
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((n0,), "float32"), B: T.Tensor((n0,), "float32")):
         for i in range(n0):
             B[i] = A[i] + T.float32(1)
 
-    lib = tvm.compile(func, target=codegen_target)
+    lib = tvm.tirx.compile(func, target=codegen_target)
     a = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
     b = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
     lib(a, b)  # correct input should pass
@@ -124,12 +124,12 @@ def test_shape_mismatch_shared_variable(codegen_target):
 def test_invalid_shape_fixed(codegen_target):
     """Passing wrong shape for a fixed buffer dimension raises ValueError."""
 
-    @T.prim_func
+    @T.function
     def func(a: T.Tensor((128,), "float32"), b: T.Tensor((128,), "float32")):
         for i in range(128):
             b[i] = a[i] + T.float32(1)
 
-    lib = tvm.compile(func, target=codegen_target)
+    lib = tvm.tirx.compile(func, target=codegen_target)
     a = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
     b = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
     lib(a, b)  # correct input should pass
@@ -153,12 +153,12 @@ def test_invalid_shape_fixed(codegen_target):
 def test_ndim_mismatch_error(codegen_target):
     """ndim mismatch produces ValueError with function signature."""
 
-    @T.prim_func
+    @T.function
     def func(a: T.Tensor((4, 8), "float32"), b: T.Tensor((4, 8), "float32")):
         for i, j in T.grid(4, 8):
             b[i, j] = a[i, j]
 
-    lib = tvm.compile(func, target=codegen_target)
+    lib = tvm.tirx.compile(func, target=codegen_target)
     a_ok = tvm.runtime.tensor(np.zeros((4, 8), dtype="float32"))
     b_ok = tvm.runtime.tensor(np.zeros((4, 8), dtype="float32"))
     lib(a_ok, b_ok)  # correct input should pass
@@ -182,12 +182,12 @@ def test_ndim_mismatch_error(codegen_target):
 def test_dtype_mismatch_error(codegen_target):
     """dtype mismatch produces TypeError with function signature."""
 
-    @T.prim_func
+    @T.function
     def func(a: T.Tensor((8,), "float32"), b: T.Tensor((8,), "float32")):
         for i in range(8):
             b[i] = a[i]
 
-    lib = tvm.compile(func, target=codegen_target)
+    lib = tvm.tirx.compile(func, target=codegen_target)
     a_ok = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
     b_ok = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
     lib(a_ok, b_ok)  # correct input should pass
@@ -208,16 +208,15 @@ def test_dtype_mismatch_error(codegen_target):
 # ── Data alignment errors ──────────────────────────────────
 
 
-@pytest.mark.skip(reason="alignment check disabled for now, revisit after merge")
 def test_data_alignment_error(codegen_target):
     """Misaligned buffer data pointer raises ValueError."""
 
-    @T.prim_func
+    @T.function
     def func(a: T.Tensor((128,), "float32"), b: T.Tensor((128,), "float32")):
         for i in range(128):
             b[i] = a[i] + T.float32(1)
 
-    lib = tvm.compile(func, target=codegen_target)
+    lib = tvm.tirx.compile(func, target=codegen_target)
     a_ok = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
     b_ok = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
     lib(a_ok, b_ok)  # correct input should pass
@@ -244,12 +243,12 @@ def test_data_alignment_error(codegen_target):
 def test_strides_mismatch_transposed(codegen_target):
     """Transposed (non-compact) strides raise ValueError."""
 
-    @T.prim_func
+    @T.function
     def func(a: T.Tensor((128, 128), "float32"), b: T.Tensor((128, 128), "float32")):
         for i, j in T.grid(128, 128):
             b[i, j] = a[i, j] + T.float32(1)
 
-    lib = tvm.compile(func, target=codegen_target)
+    lib = tvm.tirx.compile(func, target=codegen_target)
     a_ok = tvm.runtime.tensor(np.zeros((128, 128), dtype="float32"))
     b_ok = tvm.runtime.tensor(np.zeros((128, 128), dtype="float32"))
     lib(a_ok, b_ok)  # correct input should pass
@@ -278,12 +277,12 @@ def test_strides_mismatch_transposed(codegen_target):
 def test_device_mismatch_error():
     """Passing GPU tensor to CPU function raises ValueError."""
 
-    @T.prim_func
+    @T.function
     def func(a: T.Tensor((128,), "float32"), b: T.Tensor((128,), "float32")):
         for i in range(128):
             b[i] = a[i] + T.float32(1)
 
-    lib = tvm.compile(func, target="llvm")
+    lib = tvm.tirx.compile(func, target="llvm")
     a_ok = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
     b_ok = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
     lib(a_ok, b_ok)  # correct input should pass
@@ -311,14 +310,14 @@ def test_device_mismatch_error():
 def test_type_mismatch_int_parameter(codegen_target):
     """Passing a tensor where an int is expected raises TypeError."""
 
-    @T.prim_func
+    @T.function
     def func(x: T.int32) -> T.int32:
         if x > 0:
             return 10
         else:
             return 20
 
-    lib = tvm.compile(func, target=codegen_target)
+    lib = tvm.tirx.compile(func, target=codegen_target)
     assert lib(5) == 10  # correct input should pass
 
     a = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
@@ -334,14 +333,14 @@ def test_type_mismatch_int_parameter(codegen_target):
 def test_type_mismatch_float_parameter(codegen_target):
     """Passing a tensor where a float is expected raises TypeError."""
 
-    @T.prim_func
+    @T.function
     def func(x: T.float32) -> T.int32:
         if x > T.float32(0):
             return 1
         else:
             return 0
 
-    lib = tvm.compile(func, target=codegen_target)
+    lib = tvm.tirx.compile(func, target=codegen_target)
     assert lib(1.0) == 1  # correct input should pass
 
     a = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
@@ -357,14 +356,14 @@ def test_type_mismatch_float_parameter(codegen_target):
 def test_type_mismatch_bool_parameter(codegen_target):
     """Passing a tensor where a bool is expected raises TypeError."""
 
-    @T.prim_func
+    @T.function
     def func(x: T.bool) -> T.int32:
         if x:
             return 1
         else:
             return 0
 
-    lib = tvm.compile(func, target=codegen_target)
+    lib = tvm.tirx.compile(func, target=codegen_target)
     assert lib(True) == 1  # correct input should pass
 
     a = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
@@ -389,14 +388,14 @@ def test_forward_reference_symbolic_shape(codegen_target):
     message uses rendered access paths (e.g. "B.shape[0] + 1") for shape checks.
     """
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((batch_size + 1,), "int32"), B: T.Tensor((batch_size,), "int32")):
         for i in range(batch_size):
             B[i] = A[i] + A[i + 1]
 
-    lib = tvm.compile(func, target=codegen_target)
+    lib = tvm.tirx.compile(func, target=codegen_target)
     # Correct inputs: A has shape (5,), B has shape (4,)
     a = tvm.runtime.tensor(np.array([1, 2, 3, 4, 5], dtype="int32"))
     b = tvm.runtime.tensor(np.zeros(4, dtype="int32"))
@@ -424,11 +423,11 @@ def test_forward_reference_symbolic_shape(codegen_target):
 def test_invalid_arguments_mixed_params(codegen_target):
     """Mixed bool + tensor function: type, dtype, and shape errors."""
 
-    @T.prim_func
+    @T.function
     def func(a0: T.bool, a1: T.Tensor([10], "float32")) -> T.int32:
         return 0
 
-    lib = tvm.compile(func, target=codegen_target)
+    lib = tvm.tirx.compile(func, target=codegen_target)
     lib(True, tvm.runtime.tensor(np.zeros(10, dtype="float32")))  # correct input should pass
 
     with pytest.raises(

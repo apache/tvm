@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Test Naive allocator with memory scope for Relax VM"""
+"""Test tensor allocation with memory scope for Relax VM"""
 
 import numpy as np
 
@@ -29,7 +29,7 @@ from tvm.script import tirx as T
 
 @I.ir_module
 class Module:
-    @Ts.prim_func
+    @Ts.function
     def add(
         arg0: T.Tensor((2, 2), "float32"),
         arg1: T.Tensor((2, 2), "float32"),
@@ -52,7 +52,7 @@ class Module:
             R.shape([2 * 2]), runtime_device_index=0, dtype="float32", storage_scope="global"
         )
         alloc = R.vm.alloc_tensor(storage, offset=0, shape=R.shape([2, 2]), dtype="float32")
-        _: R.Tuple = cls.add(x, x, alloc)
+        _: R.Tuple = R.call_tir_packed(cls.add, (x, x, alloc))
         out: R.Tensor((2, 2), dtype="float32") = alloc
         return out
 
@@ -62,12 +62,11 @@ def test_alloc_storage_with_scope_global():
     output_ref = arg0 + arg0
     mod = Module
     target = "llvm"
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.ir.transform.PassContext(opt_level=3):
         lib = tvm.relax.build(mod, target=target)
 
     dev = tvm.cpu()
-    # This is the important line which tests nd allocator
-    vm_rt = relax.VirtualMachine(lib, dev, memory_cfg="naive")
+    vm_rt = relax.VirtualMachine(lib, dev)
     x = tvm.runtime.tensor(arg0, dev)
     vm_rt.set_input("main", x)
     vm_rt.invoke_stateful("main")

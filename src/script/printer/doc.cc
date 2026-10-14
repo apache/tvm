@@ -189,10 +189,8 @@ AssignDoc::AssignDoc(ExprDoc lhs, ffi::Optional<ExprDoc> rhs, ffi::Optional<Expr
   this->data_ = std::move(n);
 }
 
-IfDoc::IfDoc(ExprDoc predicate, ffi::Array<StmtDoc> then_branch, ffi::Array<StmtDoc> else_branch) {
-  TVM_FFI_CHECK(!then_branch.empty() || !else_branch.empty(), ValueError)
-      << "At least one of the then branch or else branch needs to be non-empty.";
-
+IfDoc::IfDoc(ExprDoc predicate, ffi::Array<StmtDoc> then_branch,
+             ffi::Optional<ffi::Array<StmtDoc>> else_branch) {
   ffi::ObjectPtr<IfDocNode> n = ffi::make_object<IfDocNode>();
   n->predicate = predicate;
   n->then_branch = then_branch;
@@ -292,17 +290,6 @@ CommentDoc::CommentDoc(ffi::String comment) {
 DocStringDoc::DocStringDoc(ffi::String docs) {
   ffi::ObjectPtr<DocStringDocNode> n = ffi::make_object<DocStringDocNode>();
   n->comment = docs;
-  this->data_ = std::move(n);
-}
-
-OpCallDoc::OpCallDoc(ExprDoc callee, ffi::Array<Doc> args, ffi::Optional<DictDoc> workspace,
-                     ffi::Optional<DictDoc> config, ffi::Optional<ExprDoc> dispatch) {
-  ffi::ObjectPtr<OpCallDocNode> n = ffi::make_object<OpCallDocNode>();
-  n->callee = callee;
-  n->args = args;
-  n->workspace = workspace;
-  n->config = config;
-  n->dispatch = dispatch;
   this->data_ = std::move(n);
 }
 
@@ -427,11 +414,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "script.printer.IfDoc",
-      [](ExprDoc predicate, ffi::Array<StmtDoc> then_branch, ffi::Array<StmtDoc> else_branch) {
-        return IfDoc(predicate, then_branch, else_branch);
-      });
+  refl::GlobalDef().def("script.printer.IfDoc",
+                        [](ExprDoc predicate, ffi::Array<StmtDoc> then_branch,
+                           ffi::Optional<ffi::Array<StmtDoc>> else_branch) {
+                          return IfDoc(predicate, then_branch, else_branch);
+                        });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -515,18 +502,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](ffi::String docs) { return DocStringDoc(docs); });
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.printer.OpCallDoc",
-                        [](ExprDoc callee, ffi::Array<Doc> args, DictDoc workspace, DictDoc config,
-                           ffi::Optional<ExprDoc> dispatch) {
-                          return OpCallDoc(callee, args, workspace, config, dispatch);
-                        });
-}
-
 NamespaceDoc::NamespaceDoc(ffi::String canonical_name) {
   auto node = ffi::make_object<NamespaceDocNode>();
-  node->canonical_name = std::move(canonical_name);
+  node->canonical_name = (canonical_name == "ir" || canonical_name == "prim")
+                             ? ffi::String("tirx")
+                             : std::move(canonical_name);
   data_ = std::move(node);
 }
 

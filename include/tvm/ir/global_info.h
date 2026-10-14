@@ -46,7 +46,7 @@ class GlobalInfoNode : public ffi::Object {
  */
 class GlobalInfo : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GlobalInfo, ffi::ObjectRef, GlobalInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(GlobalInfo, ffi::ObjectRef, GlobalInfoNode);
 };
 
 }  // namespace tvm

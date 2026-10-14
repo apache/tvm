@@ -833,11 +833,6 @@ export class TVMArray extends TVMObject {
   }
 }
 
-export enum VMAllocatorKind {
-  NAIVE_ALLOCATOR = 1,
-  POOLED_ALLOCATOR = 2,
-}
-
 /**
  *  VirtualMachine Executor.
  *
@@ -857,11 +852,9 @@ export class VirtualMachine implements Disposable {
     this.mod.getFunction("vm_initialization")(
       new Scalar(device.deviceType, "int"),
       new Scalar(device.deviceId, "int"),
-      new Scalar(VMAllocatorKind.POOLED_ALLOCATOR, "int"),
       // explicitly specify host device type
       new Scalar(DeviceStrToEnum.cpu, "int"),
       new Scalar(0, "int"),
-      new Scalar(VMAllocatorKind.POOLED_ALLOCATOR, "int"),
     );
   }
 

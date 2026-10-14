@@ -45,9 +45,9 @@
 #include "../3rdparty/tvm-ffi/src/ffi/tensor.cc"
 #include "../src/runtime/cpu_device_api.cc"
 #include "../src/runtime/device_api.cc"
-#include "../src/runtime/file_utils.cc"
 #include "../src/runtime/logging.cc"
-#include "../src/runtime/memory/memory_manager.cc"
+#include "../src/runtime/memory_scope.cc"
+#include "../src/runtime/metadata.cc"
 #include "../src/runtime/registry.cc"
 #include "../src/runtime/rpc/rpc_channel.cc"
 #include "../src/runtime/rpc/rpc_endpoint.cc"
@@ -61,6 +61,7 @@
 #include "../src/runtime/thread_pool.cc"
 #include "../src/runtime/threading_backend.cc"
 #include "../src/runtime/timer.cc"
+#include "../src/runtime/vm/params.cc"
 #include "../src/runtime/workspace_pool.cc"
 
 #ifdef TVM_OPENCL_RUNTIME

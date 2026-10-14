@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""SMEM and TMEM bump-allocator pools for TIRX kernels."""
+"""Shared-memory bump allocator for CUDA TIRx kernels."""
 
 from __future__ import annotations
 
@@ -22,7 +22,6 @@ import functools
 import operator
 
 from tvm import DataType
-from tvm.tirx.layout import S, TCol, TileLayout, TLane
 
 # ---------------------------------------------------------------------------
 # ir_builder helpers — imported lazily to avoid circular deps at module level
@@ -47,30 +46,13 @@ def _get_ir():
 _POOL_UNSET = object()
 
 
-def _default_tmem_layout(rows, cols):
-    # Keep the default M=128 layout structurally identical to Layout D. The
-    # tcgen05 copy dispatch recognizes default-allocated accumulators by that
-    # structure, so single-source the named datapath instead of duplicating it.
-    if rows == 128:
-        from tvm.tirx.layout import tmem_datapath_layout
-
-        return tmem_datapath_layout("D", rows, cols)
-    return TileLayout(S[(rows, cols) : (1 @ TLane, 1 @ TCol)])
-
-
-def _emit_stmt(expr):
-    from tvm.tirx.script.ir_builder.parser_protocol import evaluate
-
-    evaluate(expr)
-
-
 def _shape_product(shape):
     return functools.reduce(operator.mul, shape, 1)
 
 
 def _auto_swizzle_mode(dtype):
     """Select the default MMA swizzle mode for a shared-memory allocation."""
-    from tvm.backend.cuda.tile_primitive.tma_utils import SwizzleMode
+    from tvm.backend.cuda.layout import SwizzleMode
 
     del dtype
     return SwizzleMode.SWIZZLE_128B_ATOM
@@ -78,7 +60,7 @@ def _auto_swizzle_mode(dtype):
 
 def _swizzle_atom_bytes(swizzle_mode):
     """Return the row width (in bytes) of one swizzle atom for *swizzle_mode*."""
-    from tvm.backend.cuda.tile_primitive.tma_utils import SwizzleMode
+    from tvm.backend.cuda.layout import SwizzleMode
 
     return {
         SwizzleMode.SWIZZLE_NONE: 0,
@@ -113,7 +95,7 @@ def _validate_mma_alloc_shape(shape, dtype, swizzle_mode):
 
     Validation skipped when *swizzle_mode* is ``SWIZZLE_NONE`` (no atom).
     """
-    from tvm.backend.cuda.tile_primitive.tma_utils import SwizzleMode
+    from tvm.backend.cuda.layout import SwizzleMode
 
     if swizzle_mode == SwizzleMode.SWIZZLE_NONE:
         return
@@ -164,7 +146,7 @@ def _validate_mma_alloc_shape(shape, dtype, swizzle_mode):
                 f"to a multiple of {min_cols} elements (>= {atom_bytes}B at {dtype})."
             )
 
-    # Atom rows is always 8 (see ``mma_atom_shape`` in tma_utils.py).
+    # Atom rows is always 8 (see ``mma_atom_shape`` in backend/cuda/layout.py).
     atom_rows = 8
     if rows < atom_rows or rows % atom_rows != 0:
         raise ValueError(
@@ -181,214 +163,6 @@ def _meta_class(cls):
 
 
 # ---------------------------------------------------------------------------
-# TMEMPool
-# ---------------------------------------------------------------------------
-
-
-@_meta_class
-class TMEMPool:
-    """Bump allocator over TMEM columns."""
-
-    def __init__(
-        self,
-        pool,
-        total_cols=512,
-        *,
-        cta_group=1,
-        alloc_warp=0,
-        dealloc_warp=None,
-        tmem_addr=None,
-        sync_after_alloc=True,
-    ):
-        # tcgen05 alloc/dealloc are warp-uniform PTX instructions: every lane
-        # in the chosen warp must participate, and exactly one warp in the
-        # CTA must execute them. The pool emits its own
-        # ``if warp_id() == target_warp: tcgen05.alloc(...)``
-        # guard, using the cta->warp scope id ``T.warp_id()``.
-        # NOTE: synccheck currently false-deadlocks on kernels that declare a
-        # second warp-scope id (cpusim binds only one warp var); the generated
-        # CUDA is equivalent to ``thread_rank() // 32 == target_warp``.
-        self.pool = pool
-        self.total_cols = total_cols
-        self.cta_group = cta_group
-        self.alloc_warp = alloc_warp
-        self.dealloc_warp = alloc_warp if dealloc_warp is None else dealloc_warp
-        self.sync_after_alloc = sync_after_alloc
-        self.offset = 0
-        self.max_offset = 0
-        self._committed = False
-        self._deallocated = False
-        self._addr_buf = pool.alloc([1], "uint32", align=4) if tmem_addr is None else tmem_addr
-
-    def _addr_slot(self):
-        try:
-            return self._addr_buf[0]
-        except TypeError:
-            return self._addr_buf
-
-    @property
-    def addr(self):
-        return self._addr_slot()
-
-    def _emit_warp_guard(self, target_warp, emit):
-        from tvm.script import tirx as T
-
-        warp_id = T.warp_id()
-        with T.if_(warp_id == target_warp):
-            with T.then_():
-                emit()
-
-    def _resolve_cols(self, shape, dtype, cols, layout=None):
-        if cols is not None:
-            return cols
-        bits = DataType(dtype).bits
-        if layout is not None:
-            # span("TCol") is in *element* (buffer dtype) units; one TMEM cell
-            # holds 32 bits regardless of the element type.
-            tcol_elems = int(layout.span("TCol"))
-            tcol_bits = tcol_elems * bits
-            assert tcol_bits % 32 == 0, (
-                f"layout TCol span={tcol_elems} elems x {bits}b is not 32-bit aligned"
-            )
-            return tcol_bits // 32
-        assert len(shape) == 2, "TMEMPool.alloc() requires cols= for non-2D TMEM buffers"
-        total_bits = _shape_product(shape) * bits
-        rows = shape[0]
-        assert total_bits % (32 * rows) == 0, (
-            f"Cannot infer TMEM columns from shape={shape}, dtype={dtype!r}; "
-            "please pass cols= explicitly"
-        )
-        return total_bits // (32 * rows)
-
-    def alloc(self, shape, dtype="float32", *, layout=None, cols=None):
-        """Allocate a TMEM buffer.
-
-        Parameters
-        ----------
-        shape, dtype, cols
-            Standard buffer shape / dtype / column count.
-        layout
-            Explicit ``TileLayout``. Mutually exclusive with ``datapath``.
-        datapath : str | None
-            Optional tcgen05 datapath letter (``"D"`` for M=128 full datapath,
-            ``"F"`` for M=64 non-``.ws`` scattered, or ``"B"`` for per-CTA
-            M=64 ``.cta_group::2`` "2x2"). When provided, the buffer's
-            layout is derived from ``tmem_datapath_layout(datapath, *shape)``
-            so the row index reflects the *physical* TMEM lane occupation
-            (PTX ISA §9.7.16.10.5). The downstream ``.16x*b`` / ``.32x32b``
-            dispatches structurally check this layout to catch mismatched
-            atoms (e.g. a ``.16x*b`` M=128 read against a Layout F buffer).
-            Defaults to ``None``, which means Layout D's identity row→lane
-            mapping — keep this for shape ``(128, X)`` buffers that hold
-            an M=128 MMA accumulator.
-        """
-        ir = _get_ir()
-        cols = self._resolve_cols(shape, dtype, cols, layout)
-        col_start = self.offset
-        col_end = col_start + cols
-        assert col_end <= self.total_cols, f"TMEM overflow: {col_end} > {self.total_cols}"
-        if layout is None:
-            assert len(shape) == 2, "TMEMPool.alloc() requires layout= for non-2D TMEM buffers"
-            layout = _default_tmem_layout(shape[0], shape[1])
-        res = ir.decl_tensor(shape, dtype, scope="tmem", allocated_addr=col_start, layout=layout)
-        self.offset = col_end
-        self.max_offset = max(self.max_offset, self.offset)
-        return res
-
-    def alloc_sf(self, shape, dtype, *, sf_per_mma, sf_reuse=1):
-        """Allocate a tcgen05 block-scaled SF TMEM buffer with an inferred layout.
-
-        ``shape`` last two dims are ``(rows, SF_K * sf_reuse)`` (the last dim is
-        what gemm dispatch iterates over). When ``shape`` has 3 dims, the first
-        is treated as a pipe-depth outer.
-        """
-        from tvm.backend.cuda.tile_primitive.gemm_async.tcgen05 import sf_tmem_layout
-
-        if len(shape) == 2:
-            pipe_depth, rows, last = None, shape[0], shape[1]
-        elif len(shape) == 3:
-            pipe_depth, rows, last = shape[0], shape[1], shape[2]
-        else:
-            raise ValueError(
-                f"alloc_sf expects 2D (rows, SF_K*sf_reuse) or 3D "
-                f"(pipe_depth, rows, SF_K*sf_reuse); got shape={shape}"
-            )
-        assert last % sf_reuse == 0, (
-            f"alloc_sf: shape last dim {last} must be divisible by sf_reuse={sf_reuse}"
-        )
-        SF_K = last // sf_reuse
-        layout = sf_tmem_layout(
-            rows=rows, SF_K=SF_K, sf_per_mma=sf_per_mma, sf_reuse=sf_reuse, pipe_depth=pipe_depth
-        )
-        return self.alloc(shape, dtype, layout=layout)
-
-    def alloc_tcgen05_mma_A(
-        self, shape, dtype="bfloat16", *, M, cta_group, ws=False, sparse=False, cols=None
-    ):
-        """Allocate a TMEM A operand (A-in-TMEM); layout resolved from MMA
-        instruction params. ``M`` is the PTX tcgen05.mma instruction M (256/128/
-        64), NOT per-CTA rows. See ``localdoc/claude_plan.txt`` S3a."""
-        from tvm.tirx.layout import tmem_mma_operand_layout
-
-        layout = tmem_mma_operand_layout(
-            "A", shape, dtype, M=M, cta_group=cta_group, ws=ws, sparse=sparse
-        )
-        return self.alloc(shape, dtype, layout=layout, cols=cols)
-
-    def alloc_tcgen05_mma_D(
-        self, shape, dtype="float32", *, M, cta_group, ws=False, sparse=False, group=None, cols=None
-    ):
-        """Allocate a TMEM D/C accumulator operand. ``M`` = PTX instruction M.
-        ``group=(s,2,n)`` gives a flat (m,N) buffer a grouped column layout."""
-        from tvm.tirx.layout import tmem_mma_operand_layout
-
-        layout = tmem_mma_operand_layout(
-            "D", shape, dtype, M=M, cta_group=cta_group, ws=ws, sparse=sparse, group=group
-        )
-        return self.alloc(shape, dtype, layout=layout, cols=cols)
-
-    alloc_tcgen05_mma_C = alloc_tcgen05_mma_D
-
-    def move_base_to(self, col):
-        self.offset = col
-        self.max_offset = max(self.max_offset, self.offset)
-
-    def commit(self):
-        assert not self._committed, "TMEMPool.commit() can only be called once"
-        from tvm.script import tirx as T
-
-        def emit_alloc():
-            _emit_stmt(
-                T.ptx[f"tcgen05.alloc.cta_group::{self.cta_group}.sync.aligned.shared::cta.b32"](
-                    T.address_of(self.addr), T.uint32(self.total_cols)
-                )
-            )
-            if self.sync_after_alloc:
-                _emit_stmt(T.cuda.warp_sync())
-
-        self._emit_warp_guard(self.alloc_warp, emit_alloc)
-        self._committed = True
-
-    def dealloc(self):
-        assert self._committed, "TMEMPool.dealloc() called before commit()"
-        assert not self._deallocated, "TMEMPool.dealloc() can only be called once"
-        self._deallocated = True
-        from tvm.script import tirx as T
-
-        def emit_dealloc():
-            _emit_stmt(
-                T.ptx[f"tcgen05.relinquish_alloc_permit.cta_group::{self.cta_group}.sync.aligned"]()
-            )
-            _emit_stmt(
-                T.ptx[f"tcgen05.dealloc.cta_group::{self.cta_group}.sync.aligned.b32"](
-                    self.addr, T.uint32(self.total_cols)
-                )
-            )
-
-        self._emit_warp_guard(self.dealloc_warp, emit_dealloc)
-
-
-# ---------------------------------------------------------------------------
 # SMEMPool
 # ---------------------------------------------------------------------------
 
@@ -400,7 +174,7 @@ class SMEMPool:
     Parameters
     ----------
     ptr : Var or None, optional
-        If omitted, an ``alloc_tensor([0], "uint8", scope="shared.dyn")`` is
+        If omitted, an ``alloc_tensor(ty_args=[Tensor([0], "uint8", scope="shared.dyn")])`` is
         created automatically and ``commit()`` must be called after all
         allocations to emit the size annotation.
         If a ``Var`` is provided, the caller manages the backing buffer and
@@ -410,7 +184,9 @@ class SMEMPool:
     def __init__(self, ptr=_POOL_UNSET):
         ir = _get_ir()
         if ptr is _POOL_UNSET:
-            self.buf = ir.alloc_tensor([0], "uint8", scope="shared.dyn")
+            self.buf = ir._bind_tensor(
+                ir.alloc_tensor(ty_args=[ir.Tensor([0], "uint8", scope="shared.dyn")])
+            )
             self.ptr = self.buf.data
             self._owns_buffer = True
         else:
@@ -432,15 +208,21 @@ class SMEMPool:
         ir = _get_ir()
         if align > 0:
             self.offset = (self.offset + align - 1) // align * align
-        res = ir.decl_tensor(
-            shape,
-            dtype,
-            data=self.ptr,
-            strides=strides,
-            byte_offset=self.offset,
-            scope=scope,
-            align=align,
-            layout=layout,
+        res = ir._bind_tensor(
+            ir.decl_tensor(
+                self.ptr,
+                ty_args=[
+                    ir.Tensor(
+                        shape,
+                        dtype,
+                        strides=strides,
+                        byte_offset=self.offset,
+                        scope=scope,
+                        align=align,
+                        layout=layout,
+                    )
+                ],
+            )
         )
         # Advance in bits then round up to bytes so sub-byte dtypes (e.g.
         # float4_e2m1fn = 4 bits) still bump the cursor instead of leaving it
@@ -452,7 +234,7 @@ class SMEMPool:
 
     def alloc_tcgen05_mma_AB(self, shape, dtype="float16", swizzle_mode="auto", align=1024):
         """Allocate MMA-compatible shared memory with an inferred swizzle layout."""
-        from tvm.backend.cuda.tile_primitive.tma_utils import (
+        from tvm.backend.cuda.layout import (
             SwizzleMode,
             mma_shared_layout,
         )
@@ -477,7 +259,7 @@ class SMEMPool:
             self.max_offset = max(self.max_offset, self.offset)
 
     def commit(self, size=None):
-        """Emit pool size annotation into the IR.
+        """Record the pool resource requirement on the enclosing kernel entry.
 
         Must be called after all ``alloc()`` / ``move_base_to()`` calls.
 
@@ -494,11 +276,6 @@ class SMEMPool:
             f"Specified smem size ({resolved}) is smaller than "
             f"the pool high-water mark ({self.max_offset})"
         )
-        import tvm.tirx
-        from tvm.tirx.script.ir_builder.parser_protocol import add_to_parent
+        from tvm.tirx.script.ir_builder import _ffi_api
 
-        add_to_parent(
-            tvm.tirx.AttrStmt(
-                0, "tirx.dyn_smem_bytes", tvm.tirx.IntImm("int64", resolved), tvm.tirx.Evaluate(0)
-            )
-        )
+        _ffi_api.CudaSharedMemoryRequirement(resolved)

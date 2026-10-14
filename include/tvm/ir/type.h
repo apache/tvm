@@ -28,7 +28,8 @@
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/base_expr.h>
-#include <tvm/ir/source_map.h>
+#include <tvm/ir/location.h>
+#include <tvm/runtime/memory_scope.h>
 
 #include <string>
 
@@ -52,9 +53,28 @@ class AnyTypeNode : public TypeNode {
  */
 class AnyType : public Type {
  public:
-  TVM_DLL AnyType(Span span = Span());
+  TVM_TIRX_DLL AnyType(Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AnyType, Type, AnyTypeNode);
+};
+
+/*! \brief The type of a multi-dimensional tensor region expression. */
+class TensorRegionTypeNode : public TypeNode {
+ public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TensorRegionTypeNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TensorRegionType", TensorRegionTypeNode, TypeNode);
+};
+
+/*! \brief Managed reference to TensorRegionTypeNode. */
+class TensorRegionType : public Type {
+ public:
+  TVM_TIRX_DLL TensorRegionType();
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRegionType, Type, TensorRegionTypeNode);
 };
 
 /*! \brief Semantic string type; its physical representation is context dependent. */
@@ -67,21 +87,21 @@ class StringTypeNode : public TypeNode {
 /*! \brief Managed reference to StringTypeNode. */
 class StringType : public Type {
  public:
-  TVM_DLL StringType();
+  TVM_TIRX_DLL StringType();
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StringType, Type, StringTypeNode);
 };
 
 /*!
  * \brief Low-level raw pointer type.
  *
- *  PointerType represents type hints in the TIR to be
+ *  PtrType represents type hints in the TIR to be
  *  passed to the final code generator.
  *
- *  PointerType should not occur in the high-level analysis.
+ *  PtrType should not occur in the high-level analysis.
  *
- * \sa PointerType
+ * \sa PtrType
  */
-class PointerTypeNode : public TypeNode {
+class PtrTypeNode : public TypeNode {
  public:
   /*!
    * \brief The type of the element which the pointer points to.
@@ -90,34 +110,34 @@ class PointerTypeNode : public TypeNode {
   /*!
    * \brief The storage scope of the pointer
    */
-  ffi::String storage_scope;
+  runtime::MemoryScope scope;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PointerTypeNode>()
-        .def_ro("element_type", &PointerTypeNode::element_type)
-        .def_ro("storage_scope", &PointerTypeNode::storage_scope);
+    refl::ObjectDef<PtrTypeNode>()
+        .def_ro("element_type", &PtrTypeNode::element_type)
+        .def_ro("scope", &PtrTypeNode::scope, refl::DefaultValue(runtime::MemoryScope::Global()));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.PointerType", PointerTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.PtrType", PtrTypeNode, TypeNode);
 };
 
 /*
- * \brief Managed reference to PointerTypeNode.
- * \sa PointerTypeNode
+ * \brief Managed reference to PtrTypeNode.
+ * \sa PtrTypeNode
  */
-class PointerType : public Type {
+class PtrType : public Type {
  public:
   /*!
    * \brief Constructor
    * \param element_type The type of the element which the pointer points to.
-   * \param storage_scope The storage scope into which the pointer addresses
+   * \param scope The storage scope into which the pointer addresses
    */
-  TVM_DLL explicit PointerType(Type element_type, ffi::String storage_scope = "");
+  TVM_TIRX_DLL explicit PtrType(Type element_type, runtime::MemoryScope scope = {});
 
   /*! \brief Construct an opaque pointer with void element type. */
-  TVM_DLL static PointerType VoidPointerTy(ffi::String storage_scope = "");
+  TVM_TIRX_DLL static PtrType VoidPtrType(runtime::MemoryScope scope = {});
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PointerType, Type, PointerTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PtrType, Type, PtrTypeNode);
 };
 
 /*!
@@ -147,15 +167,15 @@ class TupleType : public Type {
   /*!
    * \brief Constructor
    * \param fields Fields in the tuple.
-   * \param span The span of the type.
+   * \param loc The loc of the type.
    */
-  TVM_DLL explicit TupleType(ffi::Array<Type> fields, Span span = Span());
+  TVM_TIRX_DLL explicit TupleType(ffi::Array<Type> fields, Location loc = UnknownLoc());
 
   /*!
    * \brief Create an empty tuple type that constains nothing.
    * \return A empty tuple type.
    */
-  TVM_DLL TupleType static Empty();
+  TVM_TIRX_DLL TupleType static Empty();
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TupleType, Type, TupleTypeNode);
 };
@@ -180,7 +200,7 @@ inline bool IsVoidType(const Type& type) {
  * We support polymorphic function type.
  * This can be roughly viewed as template function in C++.
  *
- * \sa FuncType, TypeConstraint
+ * \sa FuncType
  */
 class FuncTypeNode : public TypeNode {
  public:
@@ -208,10 +228,10 @@ class FuncType : public Type {
    * \brief Constructor
    * \param arg_types The types of the arguments.
    * \param ret_type The type of the return value.
-   * \param span The span information.
+   * \param loc The loc information.
    * \sa FuncTypeNode for more docs about these fields.
    */
-  TVM_DLL FuncType(ffi::Array<Type> arg_types, Type ret_type, Span span = Span());
+  TVM_TIRX_DLL FuncType(ffi::Array<Type> arg_types, Type ret_type, Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FuncType, Type, FuncTypeNode);
 };

@@ -176,7 +176,7 @@ def test_extern():
     A = te.placeholder((m,), name="A")
 
     def extern_func(ins, outs):
-        assert tvm.tirx.is_buffer_var(ins[0])
+        assert tvm.tirx.is_tensor_var(ins[0])
         return tvm.tirx.call_packed("myadd", ins[0].data, outs[0].data, m)
 
     B = te.extern((m,), [A], extern_func)
@@ -189,7 +189,7 @@ def test_extern_multi_out():
     B = te.compute((m,), lambda i: A[i] * 10)
 
     def extern_func(ins, outs):
-        assert tvm.tirx.is_buffer_var(ins[0])
+        assert tvm.tirx.is_tensor_var(ins[0])
         return tvm.tirx.call_packed("myadd", ins[0].data, outs[0].data, outs[1].data, m)
 
     res = te.extern([A.shape, A.shape], [A, B], extern_func)
@@ -203,7 +203,7 @@ def test_tuple_inputs():
     A0 = te.placeholder((m, n), name="A0")
     A1 = te.placeholder((m, n), name="A1")
     T0, T1 = te.compute((m, n), lambda i, j: (A0[i, j] * 2, A1[i, j] * 3), name="T")
-    s = te.create_prim_func([A0, A1, T0])
+    s = te.create_function([A0, A1, T0])
 
 
 def test_tuple_with_different_deps():
@@ -214,7 +214,7 @@ def test_tuple_with_different_deps():
     B0, B1 = te.compute((m, n), lambda i, j: (A0[i, j] * 2, A1[i, j] * 3), name="B")
     C = te.compute((m, n), lambda i, j: B0[i, j] + 4, name="C")
 
-    te.create_prim_func([A0, A1, C])
+    te.create_function([A0, A1, C])
 
 
 def test_tensor_inputs():

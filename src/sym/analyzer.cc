@@ -34,6 +34,17 @@
 namespace tvm {
 namespace sym {
 
+thread_local int AllowUIntAsIndex::depth_ = 0;
+
+bool AllowUIntAsIndex::Enabled() { return depth_ > 0; }
+
+void AllowUIntAsIndex::EnterWithScope() { ++depth_; }
+
+void AllowUIntAsIndex::ExitWithScope() {
+  TVM_FFI_ICHECK(depth_ > 0) << "AllowUIntAsIndex exit without a matching enter";
+  --depth_;
+}
+
 AnalyzerObj::AnalyzerObj()
     : const_int_bound(this),
       modular_set(this),
@@ -58,7 +69,7 @@ void AnalyzerObj::Bind(const Var& var, const PrimExpr& expr, bool allow_override
 
 void AnalyzerObj::Bind(const Var& var, const Range& range, bool allow_override) {
   TVM_FFI_ICHECK(range.defined());
-  if (prim::is_one(range->extent)) {
+  if (prim::IsOne(range->extent)) {
     this->Bind(var, range->min, allow_override);
   } else {
     this->const_int_bound.Bind(var, range, allow_override);
@@ -182,7 +193,7 @@ bool AnalyzerObj::CanProveLessEqualThanSymbolicShapeValue(const PrimExpr& lhs,
                                                           const PrimExpr& shape) {
   if (this->CanProve(lhs <= shape, ProofStrength::kSymbolicBound)) return true;
   // no need to do further attempt if shape is already a constant.
-  if (prim::is_const_int(shape)) return false;
+  if (prim::IsConstInt(shape)) return false;
   // collect constant scale and ignore symbolic part
   // so 32 * n => cscale = 32
   ffi::BigInt cscale = 1;
@@ -258,7 +269,7 @@ PrimExpr AnalyzerObj::Simplify(const PrimExpr& expr, int steps) {
   res = this->canonical_simplify(res);
 
   for (int i = 0; i < steps; ++i) {
-    if (prim::is_const_int(res)) {
+    if (prim::IsConstInt(res)) {
       return res;
     }
     if (i % 2 == 0) {
@@ -343,14 +354,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](Analyzer analyzer, const PrimExpr& expr, int strength) {
              return analyzer->CanProve(expr, static_cast<ProofStrength>(strength));
            })
-      .def("sym.EnterAllowUintAsIndex", []() { ++sym::uint_as_index::g_depth; })
-      .def("sym.ExitAllowUintAsIndex",
+      .def("sym.EnterAllowUintAsIndex",
            []() {
-             TVM_FFI_ICHECK(sym::uint_as_index::g_depth > 0)
-                 << "ExitAllowUintAsIndex without a matching Enter";
-             --sym::uint_as_index::g_depth;
+             // With has a noexcept(false) destructor, so it cannot use make_shared.
+             auto ctx = std::shared_ptr<With<AllowUIntAsIndex>>(new With<AllowUIntAsIndex>());
+             return ffi::Function::FromPacked(
+                 [ctx](ffi::PackedArgs, ffi::Any*) mutable { ctx.reset(); });
            })
-      .def("sym.GetAllowUintAsIndex", []() { return sym::uint_as_index::Enabled(); })
+      .def("sym.GetAllowUintAsIndex", &AllowUIntAsIndex::Enabled)
       .def("sym.AnalyzerSetMaximumRewriteSteps",
            [](Analyzer analyzer, int64_t maximum) {
              analyzer->rewrite_simplify.SetMaximumRewriteSteps(maximum);

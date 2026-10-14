@@ -37,8 +37,8 @@ def get_texture_storage(block_info: SBlockInfo):
     # individually, but until we have access to remote device during compilation, we have to
     # define it uniformly for all target devices
     # spatial_limit = 16384, depth_limit = 2048
-    # TODO: Check Write Bufs.
-    shape = block_info.write_bufs[0].buf_region.source.shape
+    # TODO: Check Write Tensors.
+    shape = block_info.write_tensors[0].tensor_region.source.shape
 
     spatial_limit = Target.current().attrs["texture_spatial_limit"]
     depth_limit = Target.current().attrs["texture_depth_limit"]

@@ -32,20 +32,20 @@ from tvm.script import tirx as T
 ########## Function before schedule ##########
 
 
-@Ts.prim_func
-def resize(A: T.Tensor((1, 3, 40, 40)), B: T.Tensor((1, 3, 80, 80))) -> None:
+@Ts.function
+def resize(A: T.Tensor((1, 3, 40, 40), "float32"), B: T.Tensor((1, 3, 80, 80), "float32")) -> None:
     for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
         with Ts.sblock("A"):
             n, c, vi, vj = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
             B[n, c, vi, vj] = A[n, c, vi // 4 + vj // 4, vj // 2]
 
 
-@Ts.prim_func
+@Ts.function
 def resize_cache_index(
     A: T.Tensor((1, 3, 40, 40), "float32"), B: T.Tensor((1, 3, 80, 80), "float32")
 ) -> None:
-    index_var_0 = Ts.sblock_alloc_buffer([80, 80], dtype="int32", strides=[1])
-    index_var_1 = Ts.sblock_alloc_buffer([80], dtype="int32", strides=[1])
+    index_var_0 = Ts.sblock_alloc_tensor([80, 80], dtype="int32", strides=[1])
+    index_var_1 = Ts.sblock_alloc_tensor([80], dtype="int32", strides=[1])
     for ax0, ax1 in T.grid(80, 80):
         with Ts.sblock("index_0"):
             v0, v1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -66,7 +66,7 @@ def resize_cache_index(
             B[n, c, vi, vj] = A[n, c, index_var_0[vi, vj], index_var_1[vj]]
 
 
-@Ts.prim_func
+@Ts.function
 def bilinear_resize(
     x: T.Tensor((1, 3, 40, 40), "float16"), resize: T.Tensor((1, 3, 80, 80), "float16")
 ):
@@ -321,13 +321,13 @@ def bilinear_resize(
             )
 
 
-@Ts.prim_func
+@Ts.function
 def cached_bilinear_resize(
     x: T.Tensor((1, 3, 40, 40), "float16"), resize: T.Tensor((1, 3, 80, 80), "float16")
 ):
-    index_var_0 = Ts.sblock_alloc_buffer([80], dtype="float32", strides=[1])
-    index_var_1 = Ts.sblock_alloc_buffer([80], dtype="int32", strides=[1])
-    index_var_2 = Ts.sblock_alloc_buffer([80], dtype="int32", strides=[1])
+    index_var_0 = Ts.sblock_alloc_tensor([80], dtype="float32", strides=[1])
+    index_var_1 = Ts.sblock_alloc_tensor([80], dtype="int32", strides=[1])
+    index_var_2 = Ts.sblock_alloc_tensor([80], dtype="int32", strides=[1])
     for ax0 in T.serial(80):
         with Ts.sblock("index_0"):
             v0 = Ts.axis.spatial(80, ax0)

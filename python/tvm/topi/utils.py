@@ -25,6 +25,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm.s_tir import sbijective_layout, slayout
+from tvm.sym.utils import get_const_int
 
 from . import cpp, tag
 
@@ -101,29 +102,6 @@ def prod(x):
     for i in range(1, len(x)):
         res = res * x[i]
     return res
-
-
-def get_const_int(expr):
-    """Verifies expr is integer and get the constant value.
-
-    Parameters
-    ----------
-    expr : tvm.Expr or int
-        The input expression.
-
-    Returns
-    -------
-    out_value : int
-        The output.
-    """
-    if isinstance(expr, Integral):
-        return expr
-    if not isinstance(expr, tvm.tirx.IntImm):
-        ana = tvm.sym.Analyzer()
-        expr = ana.simplify(expr)
-    if not isinstance(expr, tvm.tirx.IntImm):
-        raise ValueError("Expect value to be constant int")
-    return int(expr.value)
 
 
 def get_const_float(expr):

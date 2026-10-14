@@ -29,6 +29,8 @@ import numpy as np
 
 import tvm
 from tvm import relax, tirx
+from tvm.ir import TupleType as _TupleType
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax import op as _op
 from tvm.script import s_tir as Ts
 
@@ -2650,19 +2652,23 @@ class OperatorConverter:
             raise tvm.error.OpNotImplemented(f"{op_name} output dtype {out_dtype} is not supported")
         out_shape = tuple(self._get_static_tensor_shape(out_tensor, op_name))
 
-        prim_func = _build_stablehlo_rng_bit_generator_primfunc(
+        function = _build_stablehlo_rng_bit_generator_function(
             algorithm, state_len, out_dtype, out_shape
         )
         module_builder = self.conversion_state["module_builder"]
         func_name = f"tflite_stablehlo_rng_{algorithm}_{out_state_tensor.tensor_idx}"
-        gv = module_builder.add_func(prim_func, func_name)
+        gv = module_builder.add_func(function, func_name)
         state_expr = self.get_tensor_expr(state_tensor)
         call = relax.call_tir(
             gv,
             [state_expr],
-            [
-                relax.TensorType(tuple(state_shape), "uint64"),
-                relax.TensorType(out_shape, out_dtype),
+            ty_args=[
+                _TupleType(
+                    [
+                        relax.TensorType(tuple(state_shape), "uint64"),
+                        relax.TensorType(out_shape, out_dtype),
+                    ]
+                )
             ],
         )
         return self.bb.normalize(call)
@@ -2897,7 +2903,7 @@ class OperatorConverter:
 
         if_bb = relax.BlockBuilder()
         with if_bb.function(if_name, params=params, private=True):
-            result = relax.If(
+            result = relax.IfExpr(
                 cond,
                 relax.Call(then_func, branch_args),
                 relax.Call(else_func, branch_args),
@@ -2939,7 +2945,7 @@ class OperatorConverter:
             next_args = self._bind_call_outputs(next_state, loop_var_count)
             true_branch = relax.Call(loop_gv, next_args)
             false_branch = self._make_tuple_or_single(params)
-            result = relax.If(cond, true_branch, false_branch)
+            result = relax.IfExpr(cond, true_branch, false_branch)
             loop_bb.emit_func_output(result)
         loop_func = loop_bb.get()[loop_name]
         module_builder.update_func(loop_gv, loop_func)
@@ -4236,9 +4242,9 @@ class OperatorConverter:
         out_shape, _ = self._get_shape_expr_from_tensor(input_tensors[0], "random_uniform_dim")
         seed, seed2 = self._get_random_options(op)
         return relax.op.call_dps_packed(
-            "tvm.contrib.random.uniform",
+            _ExternFunc("tvm.contrib.random.uniform"),
             (seed, seed2, 0.0, 1.0),
-            out_ty=relax.TensorType(out_shape, output_dtype),
+            ty_args=[relax.TensorType(out_shape, output_dtype)],
         )
 
     def convert_random_standard_normal(self, op):
@@ -4257,9 +4263,9 @@ class OperatorConverter:
         )
         seed, seed2 = self._get_random_options(op)
         return relax.op.call_dps_packed(
-            "tvm.contrib.random.normal",
+            _ExternFunc("tvm.contrib.random.normal"),
             (seed, seed2, 0.0, 1.0),
-            out_ty=relax.TensorType(out_shape, output_dtype),
+            ty_args=[relax.TensorType(out_shape, output_dtype)],
         )
 
     def convert_multinomial(self, op):
@@ -4296,9 +4302,9 @@ class OperatorConverter:
 
         seed, seed2 = self._get_random_options(op)
         uniform_sample = relax.op.call_dps_packed(
-            "tvm.contrib.random.uniform",
+            _ExternFunc("tvm.contrib.random.uniform"),
             (seed, seed2, 0.0, 1.0),
-            out_ty=relax.TensorType([output_batch, 1], "float32"),
+            ty_args=[relax.TensorType([output_batch, 1], "float32")],
         )
         sample_indices = relax.op.reshape(
             relax.op.broadcast_to(
@@ -5584,17 +5590,17 @@ class OperatorConverter:
         # reference. Both kernels share the same call_tir contract, so the
         # downstream code is kernel-agnostic.
         if _is_power_of_2(height) and _is_power_of_2(width):
-            prim_func = _build_tflite_rfft2d_fft_primfunc(input_shape, relax_output_shape)
+            function = _build_tflite_rfft2d_fft_function(input_shape, relax_output_shape)
         else:
-            prim_func = _build_tflite_rfft2d_primfunc(input_shape, relax_output_shape)
+            function = _build_tflite_rfft2d_function(input_shape, relax_output_shape)
         module_builder = self.conversion_state["module_builder"]
         func_name = f"tflite_rfft2d_{output_tensor.tensor_idx}"
-        gv = module_builder.add_func(prim_func, func_name)
+        gv = module_builder.add_func(function, func_name)
         data_expr = self.get_tensor_expr(data_tensor)
         call = relax.call_tir(
             gv,
             [data_expr],
-            relax.TensorType(relax_output_shape, "float32"),
+            ty_args=[relax.TensorType(relax_output_shape, "float32")],
         )
         return self.bb.normalize(call)
 
@@ -6874,14 +6880,14 @@ class OperatorConverter:
         output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
 
         out = relax.op.call_dps_packed(
-            "topi.nn.batch_to_space_nd",
+            _ExternFunc("topi.nn.batch_to_space_nd"),
             (
                 in_expr,
                 relax.ShapeExpr(block_shape),
                 relax.ShapeExpr(crop_begin),
                 relax.ShapeExpr(crop_end),
             ),
-            out_ty=relax.TensorType(output_shape, output_dtype),
+            ty_args=[relax.TensorType(output_shape, output_dtype)],
         )
 
         return out
@@ -7117,7 +7123,7 @@ class OperatorConverter:
         output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
 
         out = relax.op.call_dps_packed(
-            "topi.nn.space_to_batch_nd",
+            _ExternFunc("topi.nn.space_to_batch_nd"),
             (
                 in_expr,
                 relax.ShapeExpr(block_shape),
@@ -7125,7 +7131,7 @@ class OperatorConverter:
                 relax.ShapeExpr(pad_after),
                 0.0,
             ),
-            out_ty=relax.TensorType(output_shape, output_dtype),
+            ty_args=[relax.TensorType(output_shape, output_dtype)],
         )
 
         return out
@@ -7218,9 +7224,9 @@ class OperatorConverter:
         output_shape_expr = relax.const(list(self.get_tensor_value(output_shape)), "int32")
 
         out = relax.op.call_dps_packed(
-            "topi.sparse_to_dense",
+            _ExternFunc("topi.sparse_to_dense"),
             (indices_expr, output_shape_expr, values_expr, default_value_expr),
-            out_ty=relax.TensorType(output_shape_val, output_dtype),
+            ty_args=[relax.TensorType(output_shape_val, output_dtype)],
         )
 
         return out
@@ -8039,7 +8045,7 @@ class OperatorConverter:
         # )
         # TFLite MATRIX_SET_DIAG only sets the main diagonal, so k1=0, k2=0
         out = relax.op.call_dps_packed(
-            "topi.matrix_set_diag",
+            _ExternFunc("topi.matrix_set_diag"),
             (
                 input_expr,
                 diagonal_expr,
@@ -8048,7 +8054,7 @@ class OperatorConverter:
                 relax.const(False),
                 relax.const(False),
             ),
-            out_ty=relax.TensorType(output_shape, output_dtype),
+            ty_args=[relax.TensorType(output_shape, output_dtype)],
         )
         return out
 
@@ -8080,7 +8086,7 @@ class OperatorConverter:
         # )
         # TFLite MATRIX_DIAG only sets the main diagonal, so k1=0, k2=0
         out = relax.op.call_dps_packed(
-            "topi.matrix_set_diag",
+            _ExternFunc("topi.matrix_set_diag"),
             (
                 zeros_expr,
                 diagonal_expr,
@@ -8089,7 +8095,7 @@ class OperatorConverter:
                 relax.const(False),
                 relax.const(False),
             ),
-            out_ty=relax.TensorType(output_shape, output_dtype),
+            ty_args=[relax.TensorType(output_shape, output_dtype)],
         )
         return out
 
@@ -8295,7 +8301,7 @@ def _bit_reversal_swap_pairs(n):
     return swaps
 
 
-def _build_tflite_rfft2d_primfunc(input_shape, output_pair_shape):
+def _build_tflite_rfft2d_function(input_shape, output_pair_shape):
     """Build a reference TIR kernel for TFLite RFFT2D.
 
     The TFLite frontend represents complex tensors as float32 real/imag pairs
@@ -8330,15 +8336,20 @@ def _build_tflite_rfft2d_primfunc(input_shape, output_pair_shape):
     output_complex_total = batch * height * out_width
     neg_two_pi = np.float32(-2.0 * math.pi)
 
-    @Ts.prim_func(private=True, check_well_formed=False)
+    @Ts.function(private=True, check_well_formed=False)
     def kernel(
         data: T.Tensor(input_shape, "float32"), output: T.Tensor(output_pair_shape, "float32")
     ):
         # Flat 1D aliases of the multi-dim buffers. The kernel is rank-agnostic
         # over the leading batch dimensions, so collapsing the index space
         # avoids special-casing 2D / 3D / 4D input shapes.
-        data_flat = T.decl_tensor((input_total,), "float32", data=data.data)
-        output_flat = T.decl_tensor((output_complex_total * 2,), "float32", data=output.data)
+        data_flat = T.decl_tensor(
+            data.data, ty_args=[T.Tensor((input_total,), "float32", data=data.data)]
+        )
+        output_flat = T.decl_tensor(
+            output.data,
+            ty_args=[T.Tensor((output_complex_total * 2,), "float32", data=output.data)],
+        )
         neg_two_pi_const = T.float32(neg_two_pi)
 
         for b_idx, out_y, out_x in T.grid(batch, height, out_width):
@@ -8361,7 +8372,7 @@ def _build_tflite_rfft2d_primfunc(input_shape, output_pair_shape):
     return kernel
 
 
-def _build_tflite_rfft2d_fft_primfunc(input_shape, output_pair_shape):
+def _build_tflite_rfft2d_fft_function(input_shape, output_pair_shape):
     """Build a 2D Cooley-Tukey FFT TIR kernel for TFLite RFFT2D.
 
     Precondition: both ``input_shape[-2]`` (height) and ``input_shape[-1]``
@@ -8405,7 +8416,7 @@ def _build_tflite_rfft2d_fft_primfunc(input_shape, output_pair_shape):
 
     if not (_is_power_of_2(height) and _is_power_of_2(width)):
         raise ValueError(
-            f"_build_tflite_rfft2d_fft_primfunc requires power-of-2 height and width, "
+            f"_build_tflite_rfft2d_fft_function requires power-of-2 height and width, "
             f"got H={height}, W={width}"
         )
 
@@ -8413,7 +8424,7 @@ def _build_tflite_rfft2d_fft_primfunc(input_shape, output_pair_shape):
     # constant for a given FFT length and will be inlined in the TIR source.
     # Each emitted line is indented 16 spaces (4 levels: top → b_idx loop →
     # sblock → row/col loop body) so it lands inside the for loop when
-    # concatenated into the primfunc source.
+    # concatenated into the function source.
     row_swap_stmts = []
     for i, j in _bit_reversal_swap_pairs(width):
         row_swap_stmts.append(
@@ -8443,7 +8454,7 @@ def _build_tflite_rfft2d_fft_primfunc(input_shape, output_pair_shape):
     col_swaps_code = "".join(col_swap_stmts) if col_swap_stmts else "                pass\n"
 
     # Build the per-stage butterfly code with the stage loop fully unrolled
-    # at primfunc-construction time. After unrolling, all loop bounds
+    # at function-construction time. After unrolling, all loop bounds
     # (block_start, k) are compile-time integers, so the TIR parser doesn't
     # need to reason about runtime loop extents and the scheduler can
     # see static twiddle factors instead of runtime trig calls.
@@ -8494,25 +8505,25 @@ def _build_tflite_rfft2d_fft_primfunc(input_shape, output_pair_shape):
         log2_h, height, "                ", stride=width, base_expr="col_base"
     )
 
-    # Build the primfunc source. The bit-reversal swaps are inlined (one
+    # Build the function source. The bit-reversal swaps are inlined (one
     # unconditional block per (i, j) pair) and the butterfly stages are
     # fully unrolled, so the TIR parser sees ordinary statements rather than
     # runtime table lookups or runtime-magnitude loops. The body is wrapped
     # in a single S-TIR block over the batch dimension so the Relax
-    # pipeline (which expects an SBlockRealize at the primfunc body) accepts
+    # pipeline (which expects an SBlockRealize at the function body) accepts
     # this kernel.
-    primfunc_source = (
+    function_source = (
         "from tvm.script.parser import tirx as T\n"
         "from tvm.script import s_tir as Ts\n"
-        "@Ts.prim_func(private=True, check_well_formed=False)\n"
+        "@Ts.function(private=True, check_well_formed=False)\n"
         "def kernel(\n"
         f"    data: T.Tensor({tuple(int(x) for x in input_shape)}, 'float32'),\n"
         f"    output: T.Tensor({tuple(int(x) for x in output_pair_shape)}, 'float32'),\n"
         "):\n"
-        f"    data_flat = T.decl_tensor(({input_total},), 'float32', data=data.data)\n"
-        f"    output_flat = T.decl_tensor(({output_complex_total * 2},), 'float32', data=output.data)\n"
-        f"    scratch_real = T.decl_tensor(({input_total},), 'float32')\n"
-        f"    scratch_imag = T.decl_tensor(({input_total},), 'float32')\n"
+        f"    data_flat = T.decl_tensor(data.data, ty_args=[T.Tensor(({input_total},), 'float32')])\n"
+        f"    output_flat = T.decl_tensor(output.data, ty_args=[T.Tensor(({output_complex_total * 2},), 'float32')])\n"
+        f"    scratch_real = T.alloc_tensor(ty_args=[T.Tensor(({input_total},), 'float32')])\n"
+        f"    scratch_imag = T.alloc_tensor(ty_args=[T.Tensor(({input_total},), 'float32')])\n"
         f"    for b_idx in T.serial({batch}):\n"
         f"        with Ts.sblock('rfft2d_fft'):\n"
         f"            v_b = Ts.axis.remap('S', [b_idx])\n"
@@ -8551,14 +8562,14 @@ def _build_tflite_rfft2d_fft_primfunc(input_shape, output_pair_shape):
     # for any callers who want to introspect the generated source.
     import linecache as _linecache
 
-    fake_file = f"<tflite_rfft2d_fft_primfunc H={height} W={width} outW={out_width}>"
+    fake_file = f"<tflite_rfft2d_fft_function H={height} W={width} outW={out_width}>"
     _linecache.cache[fake_file] = (
-        len(primfunc_source.splitlines()),
+        len(function_source.splitlines()),
         None,
-        [line + "\n" for line in primfunc_source.splitlines()],
+        [line + "\n" for line in function_source.splitlines()],
         fake_file,
     )
-    code = compile(primfunc_source, fake_file, "exec")
+    code = compile(function_source, fake_file, "exec")
     exec(code, namespace)
     return namespace["kernel"]
 
@@ -8572,7 +8583,7 @@ _STABLEHLO_RNG_PHILOX_WEYL_A = 0x9E3779B9
 _STABLEHLO_RNG_PHILOX_WEYL_B = 0xBB67AE85
 
 
-def _build_stablehlo_rng_bit_generator_primfunc(algorithm, state_len, out_dtype, out_shape):
+def _build_stablehlo_rng_bit_generator_function(algorithm, state_len, out_dtype, out_shape):
     """Build a bit-exact TIR kernel for STABLEHLO_RNG_BIT_GENERATOR.
 
     Mirrors the TFLite runtime kernel (tensorflow/lite/kernels/rng_bit_generator.cc),
@@ -8608,19 +8619,19 @@ def _build_stablehlo_rng_bit_generator_primfunc(algorithm, state_len, out_dtype,
         if is_64bit:
             low = _u64(words[2 * write_index])
             high = _u64(words[2 * write_index + 1])
-            return T.reinterpret(out_dtype, low | (high << T.uint64(32)))
-        return T.reinterpret(out_dtype, words[write_index])
+            return T.reinterpret(low | (high << T.uint64(32)), ty=out_dtype)
+        return T.reinterpret(words[write_index], ty=out_dtype)
 
     if algorithm == "threefry":
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def kernel(
             initial_state: T.Tensor((state_len,), "uint64"),
             output_state: T.Tensor((state_len,), "uint64"),
             output: T.Tensor(out_shape, out_dtype),
         ):
             # A single opaque structured block keeps the imperative kernel as a
-            # well-formed block-structured PrimFunc, as required by the Relax
+            # well-formed block-structured Function, as required by the Relax
             # pipeline (e.g. HasReshapePattern).
             with Ts.sblock("rng_bit_generator"):
                 state_key = initial_state[0]
@@ -8629,10 +8640,12 @@ def _build_stablehlo_rng_bit_generator_primfunc(algorithm, state_len, out_dtype,
                 key_1 = _u32(state_key >> T.uint64(32))
                 output_state[0] = state_key
                 output_state[1] = state_counter + T.uint64(num_blocks)
-                out_flat = T.decl_tensor((total,), out_dtype, data=output.data)
-                keys = T.decl_tensor((3,), "uint32", scope="local")
-                rotations = T.decl_tensor((8,), "uint32", scope="local")
-                ctr = T.decl_tensor((2,), "uint32", scope="local")
+                out_flat = T.decl_tensor(
+                    output.data, ty_args=[T.Tensor((total,), out_dtype, data=output.data)]
+                )
+                keys = T.alloc_tensor(ty_args=[T.Tensor((3,), "uint32", scope="local")])
+                rotations = T.alloc_tensor(ty_args=[T.Tensor((8,), "uint32", scope="local")])
+                ctr = T.alloc_tensor(ty_args=[T.Tensor((2,), "uint32", scope="local")])
                 keys[0] = key_0
                 keys[1] = key_1
                 keys[2] = key_0 ^ key_1 ^ T.uint32(parity)
@@ -8663,7 +8676,7 @@ def _build_stablehlo_rng_bit_generator_primfunc(algorithm, state_len, out_dtype,
 
         return kernel
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def kernel(
         initial_state: T.Tensor((state_len,), "uint64"),
         output_state: T.Tensor((state_len,), "uint64"),
@@ -8676,10 +8689,12 @@ def _build_stablehlo_rng_bit_generator_primfunc(algorithm, state_len, out_dtype,
             key_1 = _u32(state_key >> T.uint64(32))
             output_state[0] = state_key
             output_state[1] = state_counter + T.uint64(num_blocks)
-            out_flat = T.decl_tensor((total,), out_dtype, data=output.data)
-            ctr = T.decl_tensor((4,), "uint32", scope="local")
-            keys = T.decl_tensor((2,), "uint32", scope="local")
-            high_ctr = T.decl_tensor((2,), "uint32", scope="local")
+            out_flat = T.decl_tensor(
+                output.data, ty_args=[T.Tensor((total,), out_dtype, data=output.data)]
+            )
+            ctr = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="local")])
+            keys = T.alloc_tensor(ty_args=[T.Tensor((2,), "uint32", scope="local")])
+            high_ctr = T.alloc_tensor(ty_args=[T.Tensor((2,), "uint32", scope="local")])
             if state_len == 3:
                 # PHILOX u64[3]: the third state word feeds the high counter and
                 # is passed through to the output state unchanged.

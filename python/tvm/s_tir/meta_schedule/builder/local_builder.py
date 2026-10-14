@@ -25,8 +25,9 @@ from typing import Optional, Union
 from tvm_ffi import register_global_func
 
 from tvm.ir import IRModule
-from tvm.ir.utils import derived_object
-from tvm.runtime import Module, Tensor, load_param_dict, save_param_dict
+from tvm.runtime import Module, Tensor
+from tvm.runtime.vm import load_param_dict, save_param_dict
+from tvm.s_tir.utils import derived_object
 from tvm.support.popen_pool import MapResult, PopenPoolExecutor, StatusKind
 from tvm.target import Target
 
@@ -260,11 +261,11 @@ def default_build(mod: IRModule, target: Target, _params: dict[str, Tensor] | No
     # pylint: disable=import-outside-toplevel
     import tvm.s_tir.tensor_intrin  # pylint: disable=unused-import
     from tvm.s_tir.transform import RemoveWeightLayoutRewriteBlock
-    from tvm.tirx import build as tirx_build
+    from tvm.tirx import compile as tirx_compile
 
     # pylint: enable=import-outside-toplevel
     mod = RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite=True)(mod)
-    return tirx_build(mod, target=target)
+    return tirx_compile(mod, target=target).mod
 
 
 @register_global_func("s_tir.meta_schedule.builder.default_export")

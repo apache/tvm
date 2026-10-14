@@ -24,13 +24,15 @@
 #ifndef TVM_TARGET_BUILD_COMMON_H_
 #define TVM_TARGET_BUILD_COMMON_H_
 
+#include <tvm/backend/cuda/attr.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/type.h>
 
@@ -45,9 +47,9 @@ inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModu
   ffi::Map<ffi::String, runtime::FunctionInfo> fmap;
 
   for (auto kv : mod->functions) {
-    TVM_FFI_ICHECK(kv.second->IsInstance<tirx::PrimFuncNode>())
-        << "Can only lower IR Module with PrimFuncs";
-    auto f = kv.second.as_or_throw<tirx::PrimFunc>();
+    TVM_FFI_ICHECK(kv.second->IsInstance<tirx::FunctionNode>())
+        << "Can only lower IR Module with Functions";
+    auto f = kv.second.as_or_throw<tirx::Function>();
 
     ffi::Array<DLDataType> arg_types;
     ffi::Array<runtime::ArgExtraTags> arg_extra_tags;
@@ -55,13 +57,13 @@ inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModu
       Type param_type = f->params[i]->ty;
       if (auto prim_type = param_type.as<PrimType>()) {
         arg_types.push_back(prim_type.value()->dtype);
-      } else if (param_type.as<PointerTypeNode>()) {
+      } else if (param_type.as<PtrTypeNode>()) {
         arg_types.push_back(DLDataType{kDLOpaqueHandle, 64, 1});
       } else {
-        TVM_FFI_THROW(InternalError) << "Unsupported PrimFunc parameter type " << param_type;
+        TVM_FFI_THROW(InternalError) << "Unsupported Function parameter type " << param_type;
       }
-      auto is_tensormap = [](const tirx::Var& var) -> bool {
-        const auto* type = var->ty.as<PointerTypeNode>();
+      auto is_tensormap = [](const tvm::Var& var) -> bool {
+        const auto* type = var->ty.as<PtrTypeNode>();
         if (type == nullptr) {
           return false;
         }
@@ -71,16 +73,22 @@ inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModu
                                                           : runtime::ArgExtraTags::kNone);
     }
     ffi::Array<ffi::String> launch_param_tags;
-    if (auto opt = f->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams)) {
+    if (auto opt = f->GetAttr<ffi::Array<ffi::String>>(tvm::tirx::attr::kKernelLaunchParams)) {
       for (const auto& tag : opt.value()) {
         launch_param_tags.push_back(tag);
       }
     }
     auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     if (global_symbol) {
-      fmap.Set(global_symbol.value(),
-               runtime::FunctionInfo(global_symbol.value(), std::move(arg_types),
-                                     std::move(launch_param_tags), std::move(arg_extra_tags)));
+      fmap.Set(
+          global_symbol.value(),
+          runtime::FunctionInfo(
+              global_symbol.value(), std::move(arg_types), std::move(launch_param_tags),
+              std::move(arg_extra_tags),
+              f->GetAttr<ffi::Array<ffi::String>>(tvm::backend::cuda::attr::kLaunchFields)
+                  .value_or(ffi::Array<ffi::String>()),
+              f->GetAttr<ffi::Map<ffi::String, int64_t>>(tvm::backend::cuda::attr::kKernelAttrs)
+                  .value_or(ffi::Map<ffi::String, int64_t>())));
     }
   }
   return fmap;

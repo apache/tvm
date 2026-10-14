@@ -24,9 +24,9 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
-        isinstance(node, tvm.tirx.Bind)
+        isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
         and isinstance(node.value.op, tvm.ir.Op)
         and node.value.op.name in op_names
@@ -38,9 +38,9 @@ def test_rewrite_to_shuffle_0():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32"), B: T.Tensor((4,), "float32")):
-            A_local = T.alloc_tensor((16,), scope="local")
+            A_local = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32", scope="local")])
             for i in range(4):
                 A_local[T.ramp(i * 4, 1, 4)] = A[T.ramp(i * 4, 1, 4)]
             for i in range(4):
@@ -48,9 +48,11 @@ def test_rewrite_to_shuffle_0():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((4,), "float32x4", layout=None), B: T.Tensor((4,), "float32")):
-            A_local = T.alloc_tensor((4,), "float32x4", scope="local", layout=None)
+            A_local = T.alloc_tensor(
+                ty_args=[T.Tensor((4,), "float32x4", scope="local", layout=None)]
+            )
             for i in range(4):
                 A_local[T.Div(i * 4, 4)] = A[T.Div(i * 4, 4)]
             for i in range(4):
@@ -70,9 +72,9 @@ def test_rewrite_to_shuffle_1():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((8,), "float32"), B: T.Tensor((1,), "float32")):
-            A_local = T.alloc_tensor((8,), scope="local")
+            A_local = T.alloc_tensor(ty_args=[T.Tensor((8,), "float32", scope="local")])
             A_local[T.ramp(0, 1, 4)] = A[T.ramp(0, 1, 4)]
             A_local[T.ramp(4, 1, 4)] = A[T.ramp(4, 1, 4)]
             B[0] = (
@@ -88,9 +90,11 @@ def test_rewrite_to_shuffle_1():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((2,), "float32x4", layout=None), B: T.Tensor((1,), "float32")):
-            A_local = T.alloc_tensor((2,), "float32x4", scope="local", layout=None)
+            A_local = T.alloc_tensor(
+                ty_args=[T.Tensor((2,), "float32x4", scope="local", layout=None)]
+            )
             A_local[0] = A[0]
             A_local[1] = A[1]
             B[0] = (
@@ -113,7 +117,7 @@ def test_address_of():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
             for i in range(4):
                 T.evaluate(T.address_of(A[i * 4]))
@@ -121,7 +125,7 @@ def test_address_of():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32"), B: T.Tensor((4,), "float32x4", layout=None)):
             for i in range(4):
                 T.evaluate(T.address_of(A[i * 4]))
@@ -136,7 +140,7 @@ def test_scalar_read_without_write():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32")):
             for i in range(4):
                 T.evaluate(A[i * 4])
@@ -144,7 +148,7 @@ def test_scalar_read_without_write():
     # Expected is the same as Before - no transformation
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32")):
             for i in range(4):
                 T.evaluate(A[i * 4])
@@ -153,15 +157,17 @@ def test_scalar_read_without_write():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-def test_decl_buffer_alias_chain_uses_flat_root_map():
+def test_decl_tensor_alias_chain_uses_flat_root_map():
     transform = tvm.tirx.transform.PointerValueTypeRewrite()
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32")):
-            A_view = T.decl_tensor((16,), "float32", data=A.data)
-            A_view_2 = T.decl_tensor((16,), "float32", data=A_view.data)
+            A_view = T.decl_tensor(A.data, ty_args=[T.Tensor((16,), "float32", data=A.data)])
+            A_view_2 = T.decl_tensor(
+                A_view.data, ty_args=[T.Tensor((16,), "float32", data=A_view.data)]
+            )
             for i in range(4):
                 A_view_2[T.ramp(i * 4, 1, 4)] = T.broadcast(T.float32(1), 4)
 
@@ -170,22 +176,22 @@ def test_decl_buffer_alias_chain_uses_flat_root_map():
     func = After["main"]
     assert func.params[0].ty.dtype == tvm.ir.PrimType("float32x4")
 
-    decl_buffers = []
-    buffer_stores = []
+    decl_tensors = []
+    tensor_stores = []
     tvm_ffi.structural_walk(
         func.body,
         lambda node: (
-            decl_buffers.append(node)
-            if _is_buffer_binding(node, "tirx.decl_tensor")
-            else buffer_stores.append(node)
-            if isinstance(node, tvm.tirx.BufferStore)
+            decl_tensors.append(node)
+            if _is_tensor_binding(node, "tirx.decl_tensor")
+            else tensor_stores.append(node)
+            if isinstance(node, tvm.ir.TensorStore)
             else None
         ),
     )
-    assert len(decl_buffers) == 2
-    assert all(decl.var.ty.dtype == tvm.ir.PrimType("float32x4") for decl in decl_buffers)
-    assert len(buffer_stores) == 1
-    assert buffer_stores[0].buffer.ty.dtype == tvm.ir.PrimType("float32x4")
+    assert len(decl_tensors) == 2
+    assert all(decl.var.ty.dtype == tvm.ir.PrimType("float32x4") for decl in decl_tensors)
+    assert len(tensor_stores) == 1
+    assert tensor_stores[0].dest.ty.dtype == tvm.ir.PrimType("float32x4")
 
 
 if __name__ == "__main__":

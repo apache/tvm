@@ -16,13 +16,22 @@
 # under the License.
 """Common expressions data structures in the IR."""
 
+from collections.abc import Callable
+from functools import partial
+from inspect import getattr_static
+from numbers import Number
+
 import tvm_ffi
 
 import tvm
+from tvm.ir.location import UNKNOWN_LOC, Location
 
-from ..runtime import Object, Scriptable, const
+from ..runtime import Object
 from . import _ffi_api, _tensor_expr_overload
-from .base import Node, Span
+from ._constant import const
+from .base import Node, Scriptable
+
+_ATTRIBUTE_MISSING = object()
 
 
 def _convert_subscript_index(index):
@@ -44,19 +53,73 @@ def _convert_subscript_index(index):
 class Expr(Node):
     """Base class of all the expressions."""
 
-    span: Span | None
+    loc: Location
     ty: "tvm.ir.Type"
 
+    def __getattr__(self, name):
+        # Reflected fields are ordinary Python properties and have already had
+        # their chance to resolve before this type-directed fallback.
+        try:
+            ty = object.__getattribute__(self, "ty")
+        except AttributeError:
+            ty = None
+        if ty is not None and not name.startswith("_"):
+            if name in ty.__expr_properties__:
+                getter = ty.__expr_properties__[name]
+                if not callable(getter):
+                    raise TypeError(
+                        f"Declared expression property {name!r} must have a callable getter"
+                    )
+                return getter(ty, self)
+            if name in ty.__expr_methods__:
+                method = getattr(ty, name)
+                if not callable(method):
+                    raise TypeError(f"Declared expression method {name!r} must be callable")
+                bound = partial(method, self)
+                bound.__doc__ = method.__doc__
+                return bound
+        raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+
+    def __setattr__(self, name, value):
+        # Do not invoke getters to distinguish real attributes from the fallback.
+        # Existing descriptors and instance attributes keep their usual behavior.
+        if (
+            not name.startswith("_")
+            and getattr_static(self, name, _ATTRIBUTE_MISSING) is _ATTRIBUTE_MISSING
+        ):
+            try:
+                ty = object.__getattribute__(self, "ty")
+            except AttributeError:
+                ty = None
+            if ty is not None and name in ty.__expr_properties__:
+                raise AttributeError(f"Expression property {name!r} is read-only")
+        super().__setattr__(name, value)
+
+    def __dir__(self):
+        names = set(super().__dir__())
+        try:
+            ty = object.__getattribute__(self, "ty")
+        except AttributeError:
+            return sorted(names)
+        names.update(name for name in ty.__expr_methods__ if not name.startswith("_"))
+        names.update(name for name in ty.__expr_properties__ if not name.startswith("_"))
+        return sorted(names)
+
     def __getitem__(self, index):
-        if self.ty.is_missing():
+        if isinstance(self.ty, tvm.ir.MissingType):
             # Preserve Relax's pre-normalization tuple access: operator calls
             # have a missing result type until the block builder infers it.
             return TupleGetItem(self, index)
 
         indices = tuple(index) if isinstance(index, tuple | list) else (index,)
         return _ffi_api.SubscriptExprRealize(
-            self, [_convert_subscript_index(item) for item in indices], None
+            self, [_convert_subscript_index(item) for item in indices], UNKNOWN_LOC
         )
+
+
+@tvm_ffi.register_object("ir.StagingExpr")
+class StagingExpr(Expr):
+    """A traversable expression eliminated before executable IR."""
 
 
 @tvm_ffi.register_object("ir.OpaqueExpr")
@@ -321,28 +384,28 @@ class ExprOperand:
 
     def __nonzero__(self):
         raise ValueError(
-            "Cannot use and / or / not operator to Expr, hint: use tvm.tirx.all / "
-            "tvm.tirx.any, if it is None checking, use node is not None"
+            "Cannot use and / or / not operator to Expr, hint: use tvm.ir.prim.all / "
+            "tvm.ir.prim.any, if it is None checking, use node is not None"
         )
 
     def __bool__(self):
         return self.__nonzero__()
 
-    def equal(self, other, span=None):
+    def equal(self, other, loc: Location = UNKNOWN_LOC):
         if not is_prim_expr(self):
             raise TypeError(f"Operator overloading is not supported for expression type {self.ty}")
-        result = _overload_prim_expr.equal(self, other, span)
+        result = _overload_prim_expr.equal(self, other, loc)
         if result is NotImplemented:
             raise TypeError("Primitive expression overload equal is not registered")
         return result
 
-    def astype(self, dtype, span=None):
+    def astype(self, dtype, loc: Location = UNKNOWN_LOC):
         if is_prim_expr(self):
-            result = _overload_prim_expr.astype(self, dtype, span)
+            result = _overload_prim_expr.astype(self, dtype, loc)
             if result is NotImplemented:
                 raise TypeError("Primitive expression overload astype is not registered")
             return result
-        result = _tensor_expr_overload.astype(self, dtype, span)
+        result = _tensor_expr_overload.astype(self, dtype, loc)
         if result is NotImplemented:
             raise TypeError(f"Operator overloading is not supported for expression type {self.ty}")
         return result
@@ -381,20 +444,20 @@ class Tuple(_CallableExprWithOp):
     fields : list[Expr] | tuple[Expr, ...]
         The fields in the tuple.
 
-    span : Span | None
-        Span that points to the original source code.
+    loc : Location, optional
+        Location that points to the original source code.
     """
 
     fields: list[Expr]
-    span: Span | None
+    loc: Location
 
-    def __init__(self, fields: list[Expr] | tuple[Expr, ...], span: Span | None = None):
+    def __init__(self, fields: list[Expr] | tuple[Expr, ...], loc: Location = UNKNOWN_LOC):
         if isinstance(fields, Tuple):
             fields = fields.fields
         elif isinstance(getattr(fields, "ty", None), tvm.ir.TupleType):
             fields = [*fields]
 
-        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)
+        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, loc)
 
     def __getitem__(self, index: int) -> Expr:
         if index >= len(self) or index < -len(self):
@@ -417,34 +480,32 @@ class TupleGetItem(_CallableExprWithOp):
     index : int
         The field index.
 
-    span : Span | None
-        Span that points to the original source code.
+    loc : Location, optional
+        Location that points to the original source code.
     """
 
     tuple_value: Expr
     index: int
-    span: Span | None
+    loc: Location
 
-    def __init__(self, tuple_value: Expr, index: int, span: Span | None = None):
-        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index, span)
+    def __init__(self, tuple_value: Expr, index: int, loc: Location = UNKNOWN_LOC):
+        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index, loc)
 
 
 @tvm_ffi.register_object("ir.TensorLoad")
 class TensorLoad(_CallableExprWithOp):
     """An indexed load from an expression source.
 
-    TensorLoad objects are constructed by a dialect-specific helper that
-    validates the source and derives the result type.
+    The source type's registered inference hook validates the inputs and
+    derives the primitive result type.
     """
 
     source: Expr
     indices: list[Expr]
-    span: Span | None
+    loc: Location
 
-    def __init__(self, *args, **kwargs):
-        raise TypeError(
-            "TensorLoad cannot be constructed directly; use a dialect-specific load helper"
-        )
+    def __init__(self, source: Expr, indices: list[Expr], loc: Location = UNKNOWN_LOC):
+        self.__init_handle_by_constructor__(_ffi_api.TensorLoad, source, indices, loc)
 
 
 @tvm_ffi.register_object("ir.Constant")
@@ -456,8 +517,8 @@ class Constant(ExprWithOp):
 class GenericConst(_ExprCallable, Constant):
     """A literal payload with an explicit expression type."""
 
-    def __init__(self, value, ty: "tvm.ir.Type", span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.GenericConst, value, ty, span)
+    def __init__(self, value, ty: "tvm.ir.Type", loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.GenericConst, value, ty, loc)
 
     def __bool__(self) -> bool:
         return True
@@ -471,14 +532,14 @@ class DataTypeImm(Constant):
     ----------
     value : str or tvm.DataType
         The represented data type.
-    span : Span, optional
-        The source span of the literal.
+    loc : Location, optional
+        The source location of the literal.
     """
 
     value: tvm.DataType
 
-    def __init__(self, value: str | tvm.DataType, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.DataTypeImm, value, span)
+    def __init__(self, value: str | tvm.DataType, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.DataTypeImm, value, loc)
 
 
 @tvm_ffi.register_object("ir.StringImm")
@@ -487,8 +548,8 @@ class StringImm(Constant):
 
     value: str
 
-    def __init__(self, value: str, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.StringImm, value, span)
+    def __init__(self, value: str, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.StringImm, value, loc)
 
     def __eq__(self, other) -> bool:
         return self.value == (other.value if isinstance(other, StringImm) else other)
@@ -503,17 +564,18 @@ class StringImm(Constant):
 class Call(_CallableExprWithOp):
     """Core function call node.
 
-    When ``ty`` is omitted, use a missing type for subsequent normalization.
-    Builders may supply a known result type explicitly.
-    Operator validation runs during construction. Use :meth:`unchecked` for a
-    provisional call that will be checked after normalization.
+    Omitted or ``None`` ``ty`` uses available result inference, or a missing
+    type when no deduction is available. Explicit types, including
+    ``Type.missing()``, are preserved exactly. Inference errors propagate.
+    Construction permits provisional IR; :meth:`validate` checks the operator
+    contract explicitly after inputs are ready.
     """
 
     op: Expr
     args: list[Expr]
     attrs: "tvm.ir.Attrs | None"
     ty_args: list["tvm.ir.Type"]
-    span: Span | None
+    loc: Location
 
     def __init__(
         self,
@@ -521,76 +583,35 @@ class Call(_CallableExprWithOp):
         args: list[Expr] | tuple[Expr, ...],
         attrs: "tvm.ir.Attrs | dict | None" = None,
         ty_args: list["tvm.ir.Type"] | tuple["tvm.ir.Type", ...] | None = None,
-        span: Span | None = None,
+        loc: Location = UNKNOWN_LOC,
         ty: "tvm.ir.Type | str | None" = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Call, *self._normalize_constructor_args(op, args, attrs, ty_args, span, ty)
+            _ffi_api.Call, *self._normalize_constructor_args(op, args, attrs, ty_args, loc, ty)
         )
 
     @staticmethod
-    def _normalize_constructor_args(op, args, attrs, ty_args, span, ty):
+    def _normalize_constructor_args(op, args, attrs, ty_args, loc, ty):
         # pylint: disable=import-outside-toplevel
         from .attrs import DictAttrs
         from .op import Op
-        from .type import PointerType, PrimType, Type
+        from .type import PrimType, PtrType, Type
 
         if isinstance(op, str):
             op = Op.get(op)
         if attrs is not None and isinstance(attrs, dict):
             attrs = DictAttrs(attrs)
-        if ty is None:
-            ty = Type.missing()
         if isinstance(ty, str) and ty == "handle":
-            ty = PointerType(PrimType("void"))
+            ty = PtrType(PrimType("void"))
         elif ty is not None and not isinstance(ty, Type):
             ty = PrimType(ty)
         if ty_args is None:
             ty_args = []
-        return ty, op, args, attrs, ty_args, span
+        return ty, op, args, attrs, ty_args, loc
 
-    @staticmethod
-    def unchecked(
-        op: Expr | str,
-        args: list[Expr] | tuple[Expr, ...],
-        attrs: "tvm.ir.Attrs | dict | None" = None,
-        ty_args: list["tvm.ir.Type"] | tuple["tvm.ir.Type", ...] | None = None,
-        span: Span | None = None,
-        ty: "tvm.ir.Type | str | None" = None,
-    ) -> "Call":
-        """Construct a provisional Call without invoking its Op validator.
-
-        Use this for inputs that cannot be checked until type deduction or
-        normalization. Op validation is skipped at construction, so callers
-        must arrange a later check before relying on the Call. For Relax Calls,
-        operator-specific normalization and :func:`tvm.relax.analysis.well_formed`
-        provide validation paths. Ordinary ``Call(...)`` validates immediately.
-
-        Parameters
-        ----------
-        op : Expr or str
-            Callee expression or the name of a registered Op.
-        args : list[Expr] or tuple[Expr, ...]
-            Positional value arguments.
-        attrs : tvm.ir.Attrs, dict, or None
-            Call attributes. A dict is converted to ``DictAttrs``.
-        ty_args : list[tvm.ir.Type], tuple[tvm.ir.Type, ...], or None
-            Explicit type arguments; ``None`` gives an empty list.
-        span : Span or None
-            Source location of the Call.
-        ty : tvm.ir.Type, str, or None
-            Result type. ``None`` uses ``Type.missing()`` for later inference;
-            ``"handle"`` becomes a void pointer type and other strings become
-            primitive types.
-
-        Returns
-        -------
-        Call
-            The provisional, unvalidated Call.
-        """
-        return _ffi_api.CallUnchecked(
-            *Call._normalize_constructor_args(op, args, attrs, ty_args, span, ty)
-        )
+    def validate(self) -> None:
+        """Check the registered operator contract without changing this Call."""
+        _ffi_api.CallValidate(self)
 
 
 def reinfer_type(call: Call) -> "tvm.ir.Type":
@@ -617,7 +638,7 @@ class TensorRegion(Expr, Scriptable):
     ty : tvm.ir.Type
         The result type, including any dialect-specific subscript semantics.
 
-    span : Span | None
+    loc : Location, optional
         The location of the expression in the source code.
     """
 
@@ -629,9 +650,9 @@ class TensorRegion(Expr, Scriptable):
         source: Expr,
         region: list["Range"],
         ty: "tvm.ir.Type",
-        span: Span | None = None,
+        loc: Location = UNKNOWN_LOC,
     ) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.TensorRegion, source, region, ty, span)
+        self.__init_handle_by_constructor__(_ffi_api.TensorRegion, source, region, ty, loc)
 
 
 @tvm_ffi.register_object("ir.Var")
@@ -646,19 +667,19 @@ class Var(_CallableExprWithOp):
     ty : Optional[Type or str]
         The exact type of the variable.  A string denotes a primitive dtype.
 
-    span : Optional[Span]
-        Span that points to the original source code.
+    loc : Location, optional
+        Location that points to the original source code.
 
     """
 
     name: str
-    span: Span | None
+    loc: Location
 
     def __init__(
         self,
         name: str | None = None,
         ty: "tvm.ir.Type | str | None" = None,
-        span: Span | None = None,
+        loc: Location = UNKNOWN_LOC,
         *,
         name_hint: str | None = None,
     ) -> None:
@@ -670,15 +691,89 @@ class Var(_CallableExprWithOp):
             raise TypeError("name must be a str")
 
         # pylint: disable=import-outside-toplevel
-        from .type import PointerType, PrimType, Type
+        from .type import PrimType, PtrType, Type
 
         if isinstance(ty, str):
-            ty = PointerType(PrimType("void")) if ty == "handle" else PrimType(ty)
+            ty = PtrType(PrimType("void")) if ty == "handle" else PrimType(ty)
         elif ty is not None:
             ty = tvm.runtime.convert(ty)
             if not isinstance(ty, Type):
                 raise TypeError("ty must be a Type or primitive dtype string")
-        self.__init_handle_by_constructor__(_ffi_api.Var, name, ty, span)
+        self.__init_handle_by_constructor__(_ffi_api.Var, name, ty, loc)
+
+
+def _lambda_type(annotation):
+    """Normalize explicit types and the script scalar constructor forms."""
+    if isinstance(annotation, tvm.ir.Type):
+        return annotation
+    if isinstance(annotation, str):
+        return Var("", annotation).ty
+    if isinstance(annotation, tvm.DataType):
+        return tvm.ir.PrimType(annotation)
+    if callable(annotation):
+        value = annotation()
+        if isinstance(value, Expr):
+            return value.ty
+        if isinstance(value, tvm.ir.Type):
+            return value
+    raise TypeError("Lambda parameter and return annotations must be explicit IR types")
+
+
+def _lambda_result(value):
+    if isinstance(value, tuple | list):
+        return Tuple([_lambda_result(field) for field in value])
+    if isinstance(value, Number):
+        value = const(value)
+    elif isinstance(value, str):
+        value = StringImm(value)
+    else:
+        value = tvm.runtime.convert(value)
+    if not isinstance(value, Expr):
+        raise TypeError("Lambda body must be an Expr or a tuple/list of expressions")
+    return value
+
+
+@tvm_ffi.register_object("ir.LambdaExpr")
+class LambdaExpr(StagingExpr, Scriptable):
+    """A typed staging expression representing a lambda computation.
+
+    LambdaExpr records computations such as reduction combiners and predication
+    rules. Its body may describe computations on runtime values.
+
+    Parameters are bound within the expression body, which may produce a scalar
+    or tuple result. The lambda has a FuncType describing its parameter and
+    return types.
+
+    As a StagingExpr, LambdaExpr is eliminated during compilation and does not
+    remain in executable IR.
+
+    Parameters
+    ----------
+    parameter_types : list[Type]
+        Explicit parameter types, in callable argument order. Primitive dtype
+        strings and script scalar constructors are also accepted.
+    function : Callable
+        A callable evaluated once with one fresh typed Var per supplied type.
+        Tuple/list results become shared IR Tuple expressions.
+    ret_type : Type, optional
+        An exact return-type check. No implicit conversion or cast is inserted.
+    """
+
+    vars: list[Var]
+    body: Expr
+
+    def __init__(self, parameter_types, function: Callable, *, ret_type=None):
+        variables = [Var(f"arg{i}", _lambda_type(ty)) for i, ty in enumerate(parameter_types)]
+        body = _lambda_result(function(*variables))
+        if ret_type is not None:
+            expected = _lambda_type(ret_type)
+            if not tvm_ffi.structural_equal(expected, body.ty):
+                raise TypeError("LambdaExpr return annotation does not match the body type")
+        self.__init_handle_by_constructor__(_ffi_api.LambdaExpr, variables, body)
+
+    def apply(self, arguments: list[Expr]) -> Expr:
+        """Substitute arguments simultaneously for the lambda's bound variables."""
+        return _ffi_api.LambdaExprApply(self, [_lambda_result(arg) for arg in arguments])
 
 
 @tvm_ffi.register_object("ir.Range")
@@ -697,7 +792,7 @@ class Range(Node, Scriptable):
     end : Optional[Expr]
         The end value of the range.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this node in the source code.
 
     Note
@@ -708,13 +803,13 @@ class Range(Node, Scriptable):
 
     min: Expr
     extent: Expr
-    span: Span | None
+    loc: Location
 
-    def __init__(self, begin: Expr, end: Expr | None = None, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, span)
+    def __init__(self, begin: Expr, end: Expr | None = None, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, loc)
 
     @staticmethod
-    def from_min_extent(min_value: Expr, extent: Expr, span: Span | None = None) -> "Range":
+    def from_min_extent(min_value: Expr, extent: Expr, loc: Location = UNKNOWN_LOC) -> "Range":
         """Construct a Range by min and extent.
 
         This constructs a range in [min_value, min_value + extent)
@@ -727,7 +822,7 @@ class Range(Node, Scriptable):
         extent : Expr
             The extent of the range.
 
-        span : Optional[Span]
+        loc : Location, optional
             The location of this node in the source code.
 
         Returns
@@ -735,7 +830,7 @@ class Range(Node, Scriptable):
         rng : Range
             The constructed range.
         """
-        return _ffi_api.Range_from_min_extent(min_value, extent, span)
+        return _ffi_api.Range_from_min_extent(min_value, extent, loc)
 
     def __eq__(self, other: Object) -> bool:
         return tvm_ffi.structural_equal(self, other)

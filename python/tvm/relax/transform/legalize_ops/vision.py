@@ -192,5 +192,5 @@ def _multibox_transform_loc(bb: BlockBuilder, call: Call) -> Expr:
         call.args[0],
         call.args[1],
         call.args[2],
-        primfunc_name_hint="multibox_transform_loc",
+        function_name_hint="multibox_transform_loc",
     )

@@ -43,8 +43,8 @@ def zero_pipeline(*, enable_warning: bool = False):
         the database. By default we don't print warning.
     """
 
-    @tvm.transform.module_pass(opt_level=0)
-    def f_zero_pipeline(mod: tvm.ir.IRModule, ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
+    @tvm.ir.transform.module_pass(opt_level=0)
+    def f_zero_pipeline(mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext) -> tvm.ir.IRModule:
         """Pipeline that applies pre-tuned logs.
 
         Parameters
@@ -52,7 +52,7 @@ def zero_pipeline(*, enable_warning: bool = False):
         mod : tvm.ir.IRModule
             Input IRModule.
 
-        ctx : tvm.transform.PassContext
+        ctx : tvm.ir.transform.PassContext
             The pass context
 
         Returns
@@ -60,7 +60,7 @@ def zero_pipeline(*, enable_warning: bool = False):
         mod: tvm.ir.IRModule
             The result transformed module.
         """
-        seq = tvm.transform.Sequential(
+        seq = tvm.ir.transform.Sequential(
             [
                 transform.LegalizeOps(enable_warning=enable_warning),
                 transform.AnnotateTIROpPattern(),
@@ -80,9 +80,9 @@ def zero_pipeline(*, enable_warning: bool = False):
 def default_build_pipeline():
     """The default compilation pipeline used in tvm.compile"""
 
-    @tvm.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
-        seq = tvm.transform.Sequential(
+    @tvm.ir.transform.module_pass(opt_level=0)
+    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.ir.transform.PassContext) -> tvm.ir.IRModule:
+        seq = tvm.ir.transform.Sequential(
             [
                 backend.DispatchSampling(),
                 backend.DispatchSortScan(),
@@ -168,10 +168,10 @@ def static_shape_tuning_pipeline(
         out = vm["main"](input_data, *params).numpy()
     """
 
-    @tvm.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
+    @tvm.ir.transform.module_pass(opt_level=0)
+    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.ir.transform.PassContext) -> tvm.ir.IRModule:
         if cpu_weight_prepack:
-            pre_tuning_layout_rewrite = [transform.AttachAttrLayoutFreeBuffers()]
+            pre_tuning_layout_rewrite = [transform.AttachAttrLayoutFreeTensors()]
             post_tuning_layout_rewrite = [
                 transform.SplitLayoutRewritePreproc(),
                 transform.LiftTransformParams(),
@@ -182,7 +182,7 @@ def static_shape_tuning_pipeline(
             post_tuning_layout_rewrite = []
 
         with tvm.target.Target(target):
-            mod = tvm.transform.Sequential(
+            mod = tvm.ir.transform.Sequential(
                 [
                     transform.DecomposeOpsForInference(),
                     transform.CanonicalizeBindings(),
@@ -197,7 +197,7 @@ def static_shape_tuning_pipeline(
                             max_trials_per_task=max_trials_per_task,
                         )
                         if total_trials > 0
-                        else tvm.transform.Sequential([])
+                        else tvm.ir.transform.Sequential([])
                     ),
                     transform.MetaScheduleApplyDatabase(work_dir),
                     *post_tuning_layout_rewrite,
@@ -218,7 +218,7 @@ PIPELINE_MAP = {
 }
 
 
-def get_pipeline(name: str = "zero", **kwargs) -> tvm.transform.Pass:
+def get_pipeline(name: str = "zero", **kwargs) -> tvm.ir.transform.Pass:
     """Get pre-build pipeline by name
 
     Parameters
@@ -230,7 +230,7 @@ def get_pipeline(name: str = "zero", **kwargs) -> tvm.transform.Pass:
 
     Returns
     -------
-    pipeline: tvm.transform.Pass
+    pipeline: tvm.ir.transform.Pass
        The transformation pipeline.
     """
 

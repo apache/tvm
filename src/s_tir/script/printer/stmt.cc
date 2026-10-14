@@ -17,10 +17,10 @@
  * under the License.
  */
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
-
-#include "../../../script/printer/utils.h"
-#include "../../../tirx/script/printer/utils.h"
+#include <tvm/script/printer/doc_translator.h>
+#include <tvm/script/printer/support.h>
 
 namespace tvm {
 namespace script {
@@ -28,39 +28,81 @@ namespace printer {
 namespace details {
 namespace {
 
+CallDoc TensorHelperCall(DocTranslatorObj* d, const Type& type, const ffi::String& helper) {
+  CallDoc rhs = d->Translate(type).value().as_or_throw<CallDoc>();
+  TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Tensor", TypeError)
+      << "Ts." << helper << " cannot reconstruct this nonrepresentable TensorType";
+  // S-TIR's allocation and matching helpers retain their public scope/align names.
+  // Translate the canonical Type fields at this sugar boundary only.
+  bool has_offset = false;
+  bool has_factor = false;
+  for (size_t i = 0; i < rhs->kwargs_keys.size(); ++i) {
+    has_offset |= rhs->kwargs_keys[i] == "elem_offset";
+    has_factor |= rhs->kwargs_keys[i] == "offset_factor";
+    if (rhs->kwargs_keys[i] == "data_alignment") rhs->kwargs_keys.Set(i, "align");
+  }
+  // An explicit factor makes these helpers synthesize a symbolic offset.
+  // Supply the fixed zero explicitly when the type printer omitted it.
+  if (has_factor && !has_offset) {
+    rhs->kwargs_keys.push_back("elem_offset");
+    rhs->kwargs_values.push_back(d->WithExtraStateScope<bool>("ir.explicit_value_type", true, [&] {
+      return d->Translate(type.as_or_throw<tirx::TensorType>()->elem_offset).value();
+    }));
+  }
+  rhs->callee = NamespaceDoc("s_tir")->Attr(helper);
+  return rhs;
+}
+
+void PrintMatchTensor(DocTranslatorObj* d, const s_tir::MatchTensorRegionNode* match,
+                      const ffi::Array<PrimExpr>& allocated_addr = {}) {
+  ExprDoc source = d->Translate(match->source).value();
+  CallDoc rhs = TensorHelperCall(d, match->tensor->ty, "match_tensor");
+  rhs->args.insert(rhs->args.begin(), source);
+  if (!allocated_addr.empty()) {
+    rhs->kwargs_keys.push_back("allocated_addr");
+    rhs->kwargs_values.push_back(d->Translate(allocated_addr).value());
+  }
+  IdDoc lhs = VarDoc(d, match->tensor);
+  d->Emit(AssignDoc(lhs, rhs, std::nullopt), ffi::GetRef<ffi::ObjectRef>(match));
+}
+
 ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* block,
                                const s_tir::SBlockRealizeNode* realize) {
   auto docs = d->WithDocScope([&]() {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+    static const auto scope_local = runtime::MemoryScope::Get("local");
+
     TVM_FFI_CHECK(!realize || realize->iter_values.size() == block->iter_vars.size(), TypeError)
         << "SBlockRealize binding count must match its iter vars";
     ffi::Array<AssignDoc> axes;
     for (size_t i = 0; i < block->iter_vars.size(); ++i) {
-      const tirx::IterVar& iter = block->iter_vars[i];
+      const s_tir::IterVar& iter = block->iter_vars[i];
       ffi::String kind;
       switch (iter->iter_type) {
-        case tirx::IterVarType::kDataPar:
+        case s_tir::IterVarType::kDataPar:
           kind = "spatial";
           break;
-        case tirx::IterVarType::kCommReduce:
+        case s_tir::IterVarType::kCommReduce:
           kind = "reduce";
           break;
-        case tirx::IterVarType::kOrdered:
+        case s_tir::IterVarType::kOrdered:
           kind = "scan";
           break;
-        case tirx::IterVarType::kOpaque:
+        case s_tir::IterVarType::kOpaque:
           kind = "opaque";
           break;
         default:
           TVM_FFI_THROW(TypeError) << "printer unsupported SBlock iter var kind";
       }
-      ExprDoc domain =
-          prim::is_zero(iter->dom->min) && iter->dom->min.ty() == iter->dom->extent.ty()
-              ? d->Translate(iter->dom->extent).value()
-              : NamespaceDoc("ir")
-                    ->Attr("Range")
-                    ->Attr("from_min_extent")
-                    ->Call({d->Translate(iter->dom->min).value(),
-                            d->Translate(iter->dom->extent).value()});
+      ExprDoc domain = prim::IsZero(iter->dom.value()->min) &&
+                               iter->dom.value()->min.ty() == iter->dom.value()->extent.ty()
+                           ? d->Translate(iter->dom.value()->extent).value()
+                           : NamespaceDoc("ir")
+                                 ->Attr("Range")
+                                 ->Attr("from_min_extent")
+                                 ->Call({d->Translate(iter->dom.value()->min).value(),
+                                         d->Translate(iter->dom.value()->extent).value()});
       ffi::Array<ExprDoc> args = {domain};
       if (realize) args.push_back(d->Translate(realize->iter_values[i]).value());
       IdDoc lhs = VarDoc(d, iter->var);
@@ -76,7 +118,7 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
                     std::nullopt));
     }
     for (size_t i = 0; i < axes.size(); ++i) d->Emit(axes[i], block->iter_vars[i]);
-    if (realize && !tvm::prim::is_one(realize->predicate)) {
+    if (realize && !tvm::prim::IsOne(realize->predicate)) {
       d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")->Attr("where")->Call(
                   {d->Translate(realize->predicate).value()})),
               realize->predicate);
@@ -87,35 +129,47 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
     ffi::Array<ExprDoc> writes;
     for (const TensorRegion& region : block->writes) writes.push_back(d->Translate(region).value());
     d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")->Attr("writes")->Call(writes)), block->writes);
-    if (!block->annotations.empty()) {
-      d->Emit(
-          ExprStmtDoc(
-              NamespaceDoc("s_tir")->Attr("sblock_attr")->Call({AnyValue(d, block->annotations)})),
-          block->annotations);
+    auto annotations = block->annotations;
+    ffi::Map<Var, ffi::Array<PrimExpr>> addresses;
+    if (auto value = annotations.Get(s_tir::attr::kTensorAllocatedAddr)) {
+      for (const auto& entry : value.value().cast<s_tir::TensorAllocatedAddresses>()) {
+        addresses.Set(entry.get<0>(), entry.get<1>());
+      }
+      annotations.erase(s_tir::attr::kTensorAllocatedAddr);
     }
-    for (const tirx::BufferVar& buffer : block->alloc_buffers) {
-      CallDoc rhs = d->Translate(buffer.var()->ty).value().as_or_throw<CallDoc>();
-      TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Tensor", TypeError)
-          << "Ts.sblock_alloc_buffer cannot reconstruct this nonrepresentable TensorType";
-      const auto* buffer_type = buffer.var()->ty.as<tirx::TensorTypeNode>();
+    if (!annotations.empty()) {
+      d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")
+                              ->Attr("sblock_attr")
+                              ->Call({d->Translate(annotations).value()})),
+              block->annotations);
+    }
+    for (const tirx::TensorVar& tensor : block->alloc_tensors) {
+      CallDoc rhs = TensorHelperCall(d, tensor->ty, "sblock_alloc_tensor");
+      const auto* tensor_type = tensor->ty.as<tirx::TensorTypeNode>();
+      auto allocated_addr = addresses.Get(tensor).value_or(ffi::Array<PrimExpr>{});
       TVM_FFI_CHECK(
-          buffer_type->allocated_addr.empty() ||
-              (buffer_type->storage_scope != "global" && buffer_type->storage_scope != "shared" &&
-               buffer_type->storage_scope != "shared.dyn" && buffer_type->storage_scope != "local"),
+          allocated_addr.empty() ||
+              (tensor_type->scope != runtime::MemoryScope::Global() &&
+               tensor_type->scope != scope_shared && tensor_type->scope != scope_shared_dyn &&
+               tensor_type->scope != scope_local),
           TypeError)
-          << "Ts.sblock_alloc_buffer does not accept allocated_addr in "
-          << buffer_type->storage_scope;
-      rhs->callee = NamespaceDoc("s_tir")->Attr("sblock_alloc_buffer");
-      IdDoc lhs = VarDoc(d, buffer);
-      d->Emit(AssignDoc(lhs, rhs, std::nullopt), ffi::GetRef<ffi::ObjectRef>(buffer.get()));
+          << "Ts.sblock_alloc_tensor does not accept allocated_addr in " << tensor_type->scope;
+      if (!allocated_addr.empty()) {
+        rhs->kwargs_keys.push_back("allocated_addr");
+        rhs->kwargs_values.push_back(d->Translate(allocated_addr).value());
+      }
+      IdDoc lhs = VarDoc(d, tensor);
+      d->Emit(AssignDoc(lhs, rhs, std::nullopt), ffi::GetRef<ffi::ObjectRef>(tensor.get()));
     }
-    for (const s_tir::MatchBufferRegion& match : block->match_buffers) {
-      d->Translate(match);
+    for (const s_tir::MatchTensorRegion& match : block->match_tensors) {
+      PrintMatchTensor(d, match.get(),
+                       addresses.Get(match->tensor).value_or(ffi::Array<PrimExpr>{}));
     }
     if (block->init.has_value()) {
-      d->Emit(ScopeDoc(std::nullopt, NamespaceDoc("s_tir")->Attr("init")->Call({}),
-                       Body(block->init.value(), d)),
-              block->init.value());
+      d->Emit(
+          ScopeDoc(std::nullopt, NamespaceDoc("s_tir")->Attr("init")->Call({}),
+                   ToStmtDocArray(d->WithDocScope([&]() { d->Translate(block->init.value()); }))),
+          block->init.value());
     }
     d->Translate(block->body);
   });
@@ -140,7 +194,8 @@ ffi::Optional<ExprDoc> SBlockRealizeDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::SBlockRealizeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&SBlockRealizeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&SBlockRealizeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> SBlockDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -160,33 +215,28 @@ ffi::Optional<ExprDoc> SBlockDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::SBlockNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&SBlockDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&SBlockDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> MatchBufferRegionDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+ffi::Optional<ExprDoc> MatchTensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                                      const ffi::Object* destination) {
   const auto* match = ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<
-      const s_tir::MatchBufferRegionNode>(input);
+      const s_tir::MatchTensorRegionNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
-  ExprDoc source = d->Translate(match->source).value();
-  CallDoc rhs = d->Translate(match->buffer.var()->ty).value().as_or_throw<CallDoc>();
-  TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Tensor", TypeError)
-      << "Ts.match_buffer cannot reconstruct this nonrepresentable TensorType";
-  rhs->callee = NamespaceDoc("s_tir")->Attr("match_buffer");
-  rhs->args.insert(rhs->args.begin(), source);
-  IdDoc lhs = VarDoc(d, match->buffer);
-  d->Emit(AssignDoc(lhs, rhs, std::nullopt), ffi::GetRef<ffi::ObjectRef>(match));
+  PrintMatchTensor(d, match);
   return std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<s_tir::MatchBufferRegionNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&MatchBufferRegionDocTranslate>());
+  ffi::reflection::TypeAttrDef<s_tir::MatchTensorRegionNode>().attr(
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&MatchTensorRegionDocTranslate>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  RegisterScriptRepr<s_tir::MatchBufferRegionNode>();
+  RegisterScriptRepr<s_tir::MatchTensorRegionNode>();
   RegisterScriptRepr<s_tir::SBlockNode>();
   RegisterScriptRepr<s_tir::SBlockRealizeNode>();
 }

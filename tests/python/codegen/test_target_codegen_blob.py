@@ -43,28 +43,28 @@ def test_cuda_multi_lib():
     class ModA:
         I.module_attrs({"system_lib_prefix": "modA_"})
 
-        @T.prim_func
+        @T.function
         def my_inplace_update(x: T.Tensor((12), "float32")) -> None:
             T.func_attr({"global_symbol": "modA_my_inplace_update"})
-            for bx in T.thread_binding(T.int64(1), thread="blockIdx.x"):
-                for tx in T.thread_binding(T.int64(12), thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", T.int64(1)) as bx:  # noqa: F841
+                with T.launch_thread("threadIdx.x", T.int64(12)) as tx:
                     x[tx] = x[tx] + 1
 
     @tvm.script.ir_module
     class ModB:
         I.module_attrs({"system_lib_prefix": "modB_"})
 
-        @T.prim_func
+        @T.function
         def my_inplace_update(x: T.Tensor((12), "float32")) -> None:
             T.func_attr({"global_symbol": "modB_my_inplace_update"})
-            for bx in T.thread_binding(T.int64(1), thread="blockIdx.x"):
-                for tx in T.thread_binding(T.int64(12), thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", T.int64(1)) as bx:  # noqa: F841
+                with T.launch_thread("threadIdx.x", T.int64(12)) as tx:
                     x[tx] = x[tx] + 2
 
     temp = utils.tempdir()
     target = tvm.target.Target("cuda", host="llvm")
-    libA = tvm.compile(ModA, target=target)
-    libB = tvm.compile(ModB, target=target)
+    libA = tvm.tirx.compile(ModA, target=target)
+    libB = tvm.tirx.compile(ModB, target=target)
 
     pathA = temp.relpath("libA.tar")
     pathB = temp.relpath("libB.tar")

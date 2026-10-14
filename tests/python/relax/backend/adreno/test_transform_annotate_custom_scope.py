@@ -22,6 +22,7 @@ from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
+from tvm.runtime import MemoryScope
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -30,7 +31,10 @@ from tvm.script.parser import tirx as T
 @visitor
 class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
     def __init__(self, scope_info: dict) -> None:
-        self.scope_info = scope_info
+        self.scope_info = {
+            name: [[MemoryScope(scope) for scope in scopes] for scopes in signature]
+            for name, signature in scope_info.items()
+        }
         self.matched = True
 
     def visit(self, mod: IRModule) -> None:
@@ -48,13 +52,15 @@ class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
                 assert isinstance(arg_ty, relax.TensorType), (
                     f"Expected TensorType but git {type(arg_ty)}"
                 )
-                call_mem_scope = "global" if not arg_ty.vdevice else arg_ty.vdevice.memory_scope
+                call_mem_scope = (
+                    MemoryScope("global") if not arg_ty.vdevice else arg_ty.vdevice.memory_scope
+                )
                 assert call_mem_scope == self.scope_info[call.args[0].name_hint][0][idx], (
                     f"Scope mismatched for argument {idx} in {call.args[0].name_hint}"
                 )
             if isinstance(call.ty_args[0], relax.TensorType):
                 call_mem_scope = (
-                    "global"
+                    MemoryScope("global")
                     if not call.ty_args[0].vdevice
                     else call.ty_args[0].vdevice.memory_scope
                 )
@@ -66,7 +72,9 @@ class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
                     f"Expected TupleType but git {type(call.ty_args[0])}"
                 )
                 for idx, ty in enumerate(call.ty_args[0].fields):
-                    call_mem_scope = "global" if not ty.vdevice else ty.vdevice.memory_scope
+                    call_mem_scope = (
+                        MemoryScope("global") if not ty.vdevice else ty.vdevice.memory_scope
+                    )
                     assert call_mem_scope == self.scope_info[call.args[0].name_hint][1][idx], (
                         f"Scope mismatched for return scope for {idx} in {call.args[0].name_hint}"
                     )
@@ -104,7 +112,7 @@ def verify(mod, expected):
         mod = tvm.relax.transform.DeadCodeElimination()(mod)
         mod = tvm.relax.backend.adreno.transform.FoldVDeviceScopeChange()(mod)
         mod = tvm.relax.transform.DeadCodeElimination()(mod)
-        mod = tvm.relax.transform.SpecializePrimFuncBasedOnCallSite()(mod)
+        mod = tvm.relax.transform.SpecializeFunctionBasedOnCallSite()(mod)
         mod = tvm.relax.transform.Normalize()(mod)
 
     ValidateScope(expected).visit(mod)
@@ -195,14 +203,14 @@ def test_conv2d_NHWC_sub_indexed():
 
 
 def _test_conv2d_symbolic_sub_indexed():
-    N, H, W = T.dynamic("N"), T.dynamic("H"), T.dynamic("W")
-    Hw, Ww = T.dynamic("Hw"), T.dynamic("Ww")
+    N, H, W = T.dynamic("N", "int64"), T.dynamic("H", "int64"), T.dynamic("W", "int64")
+    Hw, Ww = T.dynamic("Hw", "int64"), T.dynamic("Ww", "int64")
 
-    N = T.dynamic("N")
-    H = T.dynamic("H")
-    W = T.dynamic("W")
-    Hw = T.dynamic("Hw")
-    Ww = T.dynamic("Ww")
+    N = T.dynamic("N", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
+    Hw = T.dynamic("Hw", "int64")
+    Ww = T.dynamic("Ww", "int64")
 
     @I.ir_module
     class Input:

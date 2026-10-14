@@ -27,11 +27,12 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/expected.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 
 #include <algorithm>
+#include <numeric>
 #include <tuple>
 #include <utility>
 
@@ -50,7 +51,7 @@ TVM_FFI_INLINE bool IsVectorExpr(const ExprNode* expr) {
 }
 }  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK() { RewriteSimplifierStatsNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { RewriteSimplifierStatsObj::RegisterReflection(); }
 
 // Note: When using matches_one_of or PMatchesOneOf alongside these
 // macros, be careful which patterns are used in the ResExpr.  While
@@ -390,7 +391,7 @@ void RewriteSimplifier::Impl::Update(const Var& var, const PrimExpr& info, bool 
           << "original=" << it->second << ", new=" << info;
     }
   }
-  var_map_[var] = info;
+  var_map_.insert_or_assign(var, info);
 }
 
 UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::AddNode* op,
@@ -518,7 +519,7 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
   for (const PrimExpr& subconstraint : ExtractConstraints(new_constraint, false)) {
     if (is_assume || SideEffect(subconstraint) <= CallEffectKind::kPure) {
       literal_constraints_.push_back(subconstraint);
-      PrimExpr negation;
+      PrimExpr negation{ffi::UnsafeInit{}};
       if (subconstraint.ty().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
         // We could apply NormalizeBooleanOperators during
         // TryMatchLiteralConstraint, but that would require
@@ -536,7 +537,8 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
   size_t new_literal_size = literal_constraints_.size();
   auto frecover = [old_literal_size, new_literal_size, this]() {
     TVM_FFI_ICHECK_EQ(literal_constraints_.size(), new_literal_size);
-    literal_constraints_.resize(old_literal_size);
+    literal_constraints_.erase(literal_constraints_.begin() + old_literal_size,
+                               literal_constraints_.end());
   };
   return frecover;
 }
@@ -1190,12 +1192,12 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode*
       }
     }
 
-    // Enabled only under the caller's no-overflow assertion (uint_as_index):
+    // Enabled only under the caller's no-overflow assertion (AllowUIntAsIndex):
     // these floordiv identities are unsound in general for unsigned
     // wraparound (the quotient's high bits are lost when x*c1 overflows), but
     // are exact in the asserted no-overflow domain. Each application is
     // logged for audit.
-    if (uint_as_index::Enabled()) {
+    if (AllowUIntAsIndex::Enabled()) {
       if (floordiv(x * c1, c2).Match(ret) && c2.Eval()->value > 0 &&
           c1.Eval()->value % c2.Eval()->value == 0) {
         LOG(WARNING) << "sym: no-overflow floordiv rule on unsigned expr: " << ret;
@@ -1372,11 +1374,11 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
       }
     }
 
-    // Under the caller's no-overflow assertion (uint_as_index) the pow2
+    // Under the caller's no-overflow assertion (AllowUIntAsIndex) the pow2
     // restriction above disappears: without wraparound the residues are the
     // plain integer ones, so these hold for any c2 != 0. Each application is
     // logged for audit.
-    if (uint_as_index::Enabled()) {
+    if (AllowUIntAsIndex::Enabled()) {
       if (floormod(x * c1, c2).Match(ret) && c2.Eval()->value != 0 &&
           c1.Eval()->value % c2.Eval()->value == 0) {
         LOG(WARNING) << "sym: no-overflow floormod rule on unsigned expr: " << ret;
@@ -2103,9 +2105,9 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(prim::LT ret, InplaceMode in
     auto common_factor = [&]() -> int64_t {
       auto modular_a = analyzer_->modular_set(ret->a);
       auto modular_b = analyzer_->modular_set(ret->b);
-      auto gcd_lhs = ZeroAwareGCD(modular_a->base, modular_a->coeff);
-      auto gcd_rhs = ZeroAwareGCD(modular_b->base, modular_b->coeff);
-      return ZeroAwareGCD(gcd_lhs, gcd_rhs);
+      auto gcd_lhs = std::gcd(modular_a->base, modular_a->coeff);
+      auto gcd_rhs = std::gcd(modular_b->base, modular_b->coeff);
+      return std::gcd(gcd_lhs, gcd_rhs);
     }();
     if (common_factor > 1) {
       return RecursiveRewrite(floordiv(ret->a, common_factor) < floordiv(ret->b, common_factor),
@@ -2150,7 +2152,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(prim::Not ret, InplaceMode i
 
 UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::AndNode* op,
                                                        InplaceMode inplace_mode) {
-  PrimExpr ret;
+  PrimExpr ret{ffi::UnsafeInit{}};
   // If this extension isn't enabled, just delegate out.
   if (!(enabled_extensions_ & kApplyConstraintsToBooleanBranches)) {
     ret = SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
@@ -2301,7 +2303,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::OrNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr orig = ffi::GetRef<PrimExpr>(op);
 
-  PrimExpr ret;
+  PrimExpr ret{ffi::UnsafeInit{}};
   // If this extension isn't enabled, just delegate out.
   if (!(enabled_extensions_ & kApplyConstraintsToBooleanBranches)) {
     ret = SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
@@ -2411,6 +2413,39 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::SelectNode* o
   return ret;
 }
 
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::BitwiseAndNode* op,
+                                                       InplaceMode inplace_mode) {
+  PrimExpr ret =
+      SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
+  op = ret.as<prim::BitwiseAndNode>();
+  if (op && op->a.as<IntImmNode>() && op->b.as<IntImmNode>()) {
+    return op->a & op->b;
+  }
+  return ret;
+}
+
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::BitwiseOrNode* op,
+                                                       InplaceMode inplace_mode) {
+  PrimExpr ret =
+      SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
+  op = ret.as<prim::BitwiseOrNode>();
+  if (op && op->a.as<IntImmNode>() && op->b.as<IntImmNode>()) {
+    return op->a | op->b;
+  }
+  return ret;
+}
+
+UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::BitwiseXorNode* op,
+                                                       InplaceMode inplace_mode) {
+  PrimExpr ret =
+      SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
+  op = ret.as<prim::BitwiseXorNode>();
+  if (op && op->a.as<IntImmNode>() && op->b.as<IntImmNode>()) {
+    return op->a ^ op->b;
+  }
+  return ret;
+}
+
 UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::LShiftNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr ret =
@@ -2446,13 +2481,12 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
   op = ret.as<CallNode>();
   if (op == nullptr) return ret;
 
-  if (op->op.same_as(prim::builtin::likely()) &&
-      prim::is_const_int(op->args[0].as_or_throw<PrimExpr>())) {
+  if (op->op.same_as(prim::likely_op()) && prim::IsConstInt(op->args[0].as_or_throw<PrimExpr>())) {
     return op->args[0].as_or_throw<PrimExpr>();
   }
-  static const Op& ceil_op = prim::builtin::ceil();
-  static const Op& log2_op = prim::builtin::log2();
-  static const Op& clz_op = prim::builtin::clz();
+  static const Op& ceil_op = prim::ceil_op();
+  static const Op& log2_op = prim::log2_op();
+  static const Op& clz_op = prim::clz_op();
   PrimType ret_ty = op->ty.as_or_throw<PrimType>();
   if (op->op.same_as(ceil_op)) {
     PrimExpr ceil_arg = op->args[0].as_or_throw<PrimExpr>();
@@ -2487,14 +2521,14 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
     }
   }
 
-  if (op->op.same_as(prim::builtin::likely())) {
+  if (op->op.same_as(prim::likely_op())) {
     // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
     if (auto match = TryMatchLiteralConstraint(op->args[0].as_or_throw<PrimExpr>())) {
       return match.value();
     }
   }
 
-  if (op->op.same_as(prim::builtin::if_then_else())) {
+  if (op->op.same_as(prim::if_then_else_op())) {
     // Simplify nested if_then_else
     // if (cond) { if (inner_cond) { inner_then_expr } else { inner_else_expr } } else { else_expr }
     // => if (cond && inner_cond) { inner_then_expr } else { else_expr }
@@ -2502,15 +2536,15 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
     PrimExpr then_expr = op->args[1].as_or_throw<PrimExpr>();
     PrimExpr else_expr = op->args[2].as_or_throw<PrimExpr>();
     const CallNode* inner_call = then_expr.as<CallNode>();
-    if (inner_call != nullptr && inner_call->op.same_as(prim::builtin::if_then_else())) {
+    if (inner_call != nullptr && inner_call->op.same_as(prim::if_then_else_op())) {
       PrimExpr inner_cond = inner_call->args[0].as_or_throw<PrimExpr>();
       PrimExpr inner_then_expr = inner_call->args[1].as_or_throw<PrimExpr>();
       PrimExpr inner_else_expr = inner_call->args[2].as_or_throw<PrimExpr>();
       // Only check constant cases to avoid recursion
-      if (prim::is_const_number(inner_else_expr) && prim::is_const_number(else_expr) &&
+      if (prim::IsConstNumber(inner_else_expr) && prim::IsConstNumber(else_expr) &&
           analyzer_->CanProve(inner_else_expr == else_expr)) {
         return Call(ret_ty, op->op, {cond && inner_cond, inner_then_expr, else_expr}, op->attrs,
-                    op->ty_args, op->span)
+                    op->ty_args, op->loc)
             .as_or_throw<PrimExpr>();
       }
     }
@@ -2553,7 +2587,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::CastNode* op,
 bool RewriteSimplifier::Impl::CanInlineLet(const prim::LetNode* op) {
   // Only inline trivial bindings to avoid deep expression explosion
   // when we need let to construct complicated expressions.
-  if (prim::is_const_number(op->value)) return true;
+  if (prim::IsConstNumber(op->value)) return true;
   if (op->value.as<PrimVar>()) return true;
   return false;
 }

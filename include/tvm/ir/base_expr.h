@@ -30,7 +30,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/ir/source_map.h>
+#include <tvm/ir/location.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -54,16 +54,16 @@ namespace tvm {
 class TypeNode : public ffi::Object {
  public:
   /*!
-   * \brief Span that points to the original source code.
+   * \brief Location that points to the original source code.
    *        Reserved debug information.
    */
-  mutable Span span;
+  mutable Location loc = UnknownLoc();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    // span do not participate in structural equal and hash.
-    refl::ObjectDef<TypeNode>().def_ro("span", &TypeNode::span, refl::DefaultValue(Span()),
-                                       refl::AttachFieldFlag::SEqHashIgnore());
+    // loc do not participate in structural equal and hash.
+    refl::ObjectDef<TypeNode>().def_ro("loc", &TypeNode::loc, refl::DefaultValue(UnknownLoc()),
+                                       refl::init(false), refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
@@ -79,13 +79,34 @@ class TypeNode : public ffi::Object {
  */
 class Type : public ffi::ObjectRef {
  public:
-  /*! \brief Sentinel for a type that has not been populated yet. */
-  TVM_DLL static Type Missing();
-
-  /*! \return whether this is the missing-type sentinel. */
-  TVM_DLL bool IsMissing() const;
+  /*! \brief Construct a MissingType for type information not yet populated. */
+  TVM_TIRX_DLL static Type Missing();
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Type, ffi::ObjectRef, TypeNode);
+};
+
+/*!
+ * \brief Type information that has not been supplied or computed.
+ *
+ * MissingType is not a concrete type, wildcard, or inference variable. Unlike
+ * AnyType and Void, it must be resolved before a fully typed IR boundary.
+ */
+class MissingTypeNode final : public TypeNode {
+ public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MissingTypeNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.MissingType", MissingTypeNode, TypeNode);
+};
+
+/*! \brief Managed reference to the MissingTypeNode singleton. */
+class MissingType final : public Type {
+ public:
+  TVM_TIRX_DLL MissingType();
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MissingType, Type, MissingTypeNode);
 };
 
 /*!
@@ -107,7 +128,7 @@ class OpaqueTypeNode final : public TypeNode {
 /*! \brief Managed reference to OpaqueTypeNode. */
 class OpaqueType final : public Type {
  public:
-  TVM_DLL OpaqueType();
+  TVM_TIRX_DLL OpaqueType();
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OpaqueType, Type, OpaqueTypeNode);
 };
@@ -143,7 +164,7 @@ class PrimType final : public Type {
    * \brief Construct from a raw DLPack dtype.
    * \param dtype The corresponding DLPack dtype.
    */
-  TVM_DLL explicit PrimType(DLDataType dtype);
+  TVM_TIRX_DLL explicit PrimType(DLDataType dtype);
 
   /*!
    * \brief Construct from DLPack dtype fields.
@@ -151,27 +172,27 @@ class PrimType final : public Type {
    * \param bits The scalar bit width.
    * \param lanes The fixed lane count.
    */
-  TVM_DLL PrimType(DLDataTypeCode code, int bits, int lanes = 1);
+  TVM_TIRX_DLL PrimType(DLDataTypeCode code, int bits, int lanes = 1);
 
   /*! \brief Construct a signed integer type with fixed lanes. */
-  TVM_DLL static PrimType Int(int bits, int lanes = 1);
+  TVM_TIRX_DLL static PrimType Int(int bits, int lanes = 1);
   /*! \brief Construct an unsigned integer type with fixed lanes. */
-  TVM_DLL static PrimType UInt(int bits, int lanes = 1);
+  TVM_TIRX_DLL static PrimType UInt(int bits, int lanes = 1);
   /*! \brief Construct a floating-point type with fixed lanes. */
-  TVM_DLL static PrimType Float(int bits, int lanes = 1);
+  TVM_TIRX_DLL static PrimType Float(int bits, int lanes = 1);
   /*! \brief Construct a bfloat type with fixed lanes. */
-  TVM_DLL static PrimType BFloat(int bits, int lanes = 1);
+  TVM_TIRX_DLL static PrimType BFloat(int bits, int lanes = 1);
   /*! \brief Construct a boolean type with fixed lanes. */
-  TVM_DLL static PrimType Bool(int lanes = 1);
+  TVM_TIRX_DLL static PrimType Bool(int lanes = 1);
   /*! \brief Construct the void sentinel type, encoded as handle(0, 0). */
-  TVM_DLL static PrimType Void();
+  TVM_TIRX_DLL static PrimType Void();
   /*!
    * \brief Construct a scalable vector type.
    * \param code The DLPack dtype code.
    * \param bits The scalar bit width.
    * \param lanes The positive vscale factor to encode in the DLPack lane field.
    */
-  TVM_DLL static PrimType ScalableVector(DLDataTypeCode code, int bits, int lanes);
+  TVM_TIRX_DLL static PrimType ScalableVector(DLDataTypeCode code, int bits, int lanes);
 
   /*! \return The DLPack dtype code. */
   TVM_FFI_INLINE DLDataTypeCode code() const {
@@ -303,26 +324,26 @@ inline bool operator!=(const PrimType& lhs, const PrimType& rhs) { return !(lhs 
 class ExprNode : public ffi::Object {
  public:
   /*!
-   * \brief Span that points to the original source code.
+   * \brief Location that points to the original source code.
    *        Reserved debug information.
    */
-  mutable Span span;
+  mutable Location loc = UnknownLoc();
 
   /*!
    * \brief The deduced or annotated type of the expression.
    *
-   * Type::Missing() denotes type information that will be populated by
+   * MissingType() denotes type information that will be populated by
    * later analysis passes instead of expression constructors.
    */
-  mutable Type ty = Type::Missing();
+  mutable Type ty = MissingType();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    // span does not participate in structural equal and hash.
+    // loc does not participate in structural equal and hash.
     refl::ObjectDef<ExprNode>()
-        .def_ro("span", &ExprNode::span, refl::DefaultValue(Span()),
+        .def_ro("loc", &ExprNode::loc, refl::DefaultValue(UnknownLoc()),
                 refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("ty", &ExprNode::ty, refl::DefaultValue(Type::Missing()));
+        .def_ro("ty", &ExprNode::ty, refl::DefaultValue(MissingType()));
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
@@ -343,7 +364,25 @@ class Expr : public ffi::ObjectRef {
   bool operator!=(const Expr& other) const = delete;
   bool operator<(const Expr& other) const = delete;
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Expr, ffi::ObjectRef, ExprNode);
+  explicit Expr(ffi::ObjectPtr<ExprNode> node) : ffi::ObjectRef(std::move(node)) {
+    TVM_FFI_CHECK(defined(), ValueError) << "Expr expects a defined node";
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Expr, ffi::ObjectRef, ExprNode);
+};
+
+/*! \brief Base node for traversable expressions eliminated during compilation. */
+class StagingExprNode : public ExprNode {
+ public:
+  static void RegisterReflection() { ffi::reflection::ObjectDef<StagingExprNode>(); }
+  static constexpr const uint32_t _type_child_slots = 4;
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.StagingExpr", StagingExprNode, ExprNode);
+};
+
+/*! \brief Managed reference to a staging expression. */
+class StagingExpr : public Expr {
+ public:
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StagingExpr, Expr, StagingExprNode);
 };
 
 /*!
@@ -366,7 +405,9 @@ class OpaqueExprNode : public ExprNode {
 /*! \brief Managed reference to OpaqueExprNode. */
 class OpaqueExpr : public Expr {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(OpaqueExpr, Expr, OpaqueExprNode);
+  explicit OpaqueExpr(ffi::ObjectPtr<OpaqueExprNode> node) : Expr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OpaqueExpr, Expr, OpaqueExprNode);
 };
 
 class Call;
@@ -388,7 +429,9 @@ class TypedExpr : public Expr {
     return ffi::GetRef<ExpectedType>(ty_node);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TypedExpr, Expr, ExprNode);
+  explicit TypedExpr(ffi::ObjectPtr<ExprNode> node) : Expr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TypedExpr, Expr, ExprNode);
   static constexpr bool _type_container_is_exact = false;
 };
 
@@ -410,20 +453,22 @@ class PrimExpr : public TypedExpr<PrimType> {
    * PrimType.
    * \param call The call to view as a primitive expression.
    */
-  TVM_DLL PrimExpr(Call call);  // NOLINT(*)
+  TVM_TIRX_DLL PrimExpr(Call call);  // NOLINT(*)
 
   /*!
    * \brief construct from integer.
    * \param value The value to be constructed.
    */
-  TVM_DLL PrimExpr(int32_t value);  // NOLINT(*)
+  TVM_TIRX_DLL PrimExpr(int32_t value);  // NOLINT(*)
   /*!
    * \brief construct from float.
    * \param value The value to be constructed.
    */
-  TVM_DLL PrimExpr(float value);  // NOLINT(*)
+  TVM_TIRX_DLL PrimExpr(float value);  // NOLINT(*)
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExpr, TypedExpr<PrimType>, ExprNode);
+  explicit PrimExpr(ffi::ObjectPtr<ExprNode> node) : TypedExpr<PrimType>(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimExpr, TypedExpr<PrimType>, ExprNode);
   static constexpr bool _type_container_is_exact = false;
 };
 
@@ -435,30 +480,8 @@ class PrimExpr : public TypedExpr<PrimType> {
  */
 class IntExpr : public PrimExpr {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntExpr, PrimExpr, ExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IntExpr, PrimExpr, ExprNode);
   static constexpr bool _type_container_is_exact = false;
-};
-
-/*!
- * \brief Base class for other IR constructs that can be converted to PrimExpr.
- * This is useful for the FFI to convert the expressions to PrimExpr.
- * \sa PrimExpr
- */
-class PrimExprConvertibleNode : public ffi::Object {
- public:
-  virtual ~PrimExprConvertibleNode() {}
-  virtual PrimExpr ToPrimExpr() const = 0;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExprConvertible", PrimExprConvertibleNode, ffi::Object);
-};
-
-/*!
- * \brief Managed reference to PrimExprConvertibleNode.
- * \sa PrimExprConvertibleNode
- */
-class PrimExprConvertible : public ffi::ObjectRef {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExprConvertible, ffi::ObjectRef,
-                                             PrimExprConvertibleNode);
 };
 
 namespace ffi {
@@ -505,70 +528,6 @@ struct TypeTraits<TypedExpr<ExpectedType>>
   }
 };
 
-template <>
-inline constexpr bool use_default_type_traits_v<PrimExpr> = false;
-
-// define automatic conversion from bool, int64_t, double to PrimExpr
-// These functions are declared early to avoid circular dependency
-template <>
-struct TypeTraits<PrimExpr> : public ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t,
-                                                                     double, PrimExprConvertible> {
-  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFINone) return PrimExpr::_type_is_nullable;
-    return TypeTraits<TypedExpr<PrimType>>::CheckAnyStrict(src);
-  }
-
-  TVM_FFI_INLINE static std::string TypeStr() { return "ir.PrimExpr"; }
-
-  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
-    return TypeTraits<TypedExpr<PrimType>>::GetMismatchTypeInfo(src);
-  }
-
-  TVM_DLL static PrimExpr ConvertFallbackValue(StrictBool value);
-  TVM_DLL static PrimExpr ConvertFallbackValue(int64_t value);
-  TVM_DLL static PrimExpr ConvertFallbackValue(double value);
-  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(PrimExprConvertible value) {
-    return value->ToPrimExpr();
-  }
-};
-
-template <>
-inline constexpr bool use_default_type_traits_v<IntExpr> = false;
-
-template <>
-struct TypeTraits<IntExpr> : public ObjectRefWithFallbackTraitsBase<IntExpr, int64_t> {
-  using Base = ObjectRefWithFallbackTraitsBase<IntExpr, int64_t>;
-
-  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
-    if (!Base::CheckAnyStrict(src)) return false;
-    if (src->type_index == TypeIndex::kTVMFFINone) return true;
-    const auto* expr = details::ObjectUnsafe::RawObjectPtrFromUnowned<ExprNode>(src->v_obj);
-    const auto* ty = expr->ty.as<PrimTypeNode>();
-    return ty != nullptr && ty->dtype.lanes == 1 &&
-           (ty->dtype.code == kDLInt || ty->dtype.code == kDLUInt);
-  }
-
-  TVM_FFI_INLINE static IntExpr ConvertFallbackValue(int64_t value) {
-    return TypeTraits<PrimExpr>::ConvertFallbackValue(value).as_or_throw<IntExpr>();
-  }
-
-  TVM_FFI_INLINE static std::string TypeStr() { return "ir.IntExpr"; }
-
-  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
-    return TypeTraits<TypedExpr<PrimType>>::GetMismatchTypeInfo(src);
-  }
-};
-
-template <>
-inline constexpr bool use_default_type_traits_v<Expr> = false;
-
-// Allow generic Expr arguments to use the primitive-literal conversions
-// already defined by PrimExpr.
-template <>
-struct TypeTraits<Expr> : public ObjectRefWithFallbackTraitsBase<Expr, PrimExpr, ffi::String> {
-  TVM_FFI_INLINE static Expr ConvertFallbackValue(PrimExpr value) { return value; }
-  TVM_DLL static Expr ConvertFallbackValue(ffi::String value);
-};
 }  // namespace ffi
 
 }  // namespace tvm

@@ -50,16 +50,16 @@ def test_int_intrin(target, dtype):
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor((n,), dtype),
                 B: T.Tensor((n,), dtype),
             ):
                 T.func_attr({"tirx.noalias": True})
-                for i0 in T.thread_binding(n, thread="threadIdx.x"):
+                with T.launch_thread("threadIdx.x", n) as i0:
                     B[i0] = tvm_intrin(A[i0])
 
-        f = tvm.compile(Module, target=target)
+        f = tvm.tirx.compile(Module, target=target)
 
         def run_and_check():
             dev = tvm.device_from_target(target)

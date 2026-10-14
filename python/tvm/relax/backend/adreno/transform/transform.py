@@ -26,7 +26,7 @@ from . import _ffi_api
 def AnnotateCustomMemoryScope(target: Target | None = None) -> tvm.ir.transform.Pass:
     """Allocate the memory scope information. This is Adreno specific pass to annotate
     The memory scope information and realize the same with RealizeVDevice pass followed by
-    updating the Prim Function var_buffer mapping using SpecializePrimFuncBasedOnCallSite.
+    updating the Functiontion var_buffer mapping using SpecializeFunctionBasedOnCallSite.
 
     Returns
     -------

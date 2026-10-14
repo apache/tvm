@@ -32,10 +32,25 @@ def LowerIket():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass.
     """
     return get_global_func("tirx.backend.cuda.transforms.LowerIket")()
 
 
-__all__ = ["LowerIket"]
+def BindBackendConfig():
+    """Resolve per-entry compilation settings and targets before tile dispatch."""
+    return get_global_func("tirx.backend.cuda.transforms.BindBackendConfig")("")
+
+
+def SpecializeDeviceHelpers():
+    """Clone private device helpers into each independently compiled CUDA group."""
+    return get_global_func("tirx.backend.cuda.transforms.SpecializeDeviceHelpers")()
+
+
+def SpecializeEntryHelpers():
+    """Specialize shared helper calls before target-sensitive tile dispatch."""
+    return get_global_func("tirx.backend.cuda.transforms.SpecializeEntryHelpers")()
+
+
+__all__ = ["BindBackendConfig", "LowerIket", "SpecializeDeviceHelpers", "SpecializeEntryHelpers"]

@@ -61,7 +61,7 @@ namespace sym {
  *
  *  An IterMapExpr is a special expression to store
  *  the result of IterMapDetection.
- *  It should not appear in a legal TIR PrimFunc.
+ *  It should not appear in a legal TIR Function.
  */
 class IterMapExprNode : public ExprNode {
  public:
@@ -75,7 +75,9 @@ class IterMapExprNode : public ExprNode {
  */
 class IterMapExpr : public PrimExpr {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterMapExpr, PrimExpr, IterMapExprNode);
+  explicit IterMapExpr(ffi::ObjectPtr<IterMapExprNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IterMapExpr, PrimExpr, IterMapExprNode);
   static constexpr bool _type_container_is_exact = true;
 };
 
@@ -87,6 +89,10 @@ class IterMapExpr : public PrimExpr {
  */
 class IterMarkNode : public ffi::Object {
  public:
+  explicit IterMarkNode(PrimExpr source, PrimExpr extent)
+      : source(std::move(source)), extent(std::move(extent)) {}
+  explicit IterMarkNode(ffi::UnsafeInit) : source(ffi::UnsafeInit{}), extent(ffi::UnsafeInit{}) {}
+
   /*!
    * \brief The source expression, can either be
    *  a IterSumExpr or a Var.
@@ -119,9 +125,9 @@ class IterMark : public ffi::ObjectRef {
    * \param source The source expression.
    * \param extent The extent of the iterator.
    */
-  TVM_DLL IterMark(PrimExpr source, PrimExpr extent);
+  TVM_TIRX_DLL IterMark(PrimExpr source, PrimExpr extent);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterMark, ffi::ObjectRef, IterMarkNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IterMark, ffi::ObjectRef, IterMarkNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterMarkNode);
 };
 
@@ -132,6 +138,18 @@ class IterMark : public ffi::ObjectRef {
  */
 class IterSplitExprNode : public IterMapExprNode {
  public:
+  explicit IterSplitExprNode(IterMark source, PrimExpr lower_factor, PrimExpr extent,
+                             PrimExpr scale)
+      : source(std::move(source)),
+        lower_factor(std::move(lower_factor)),
+        extent(std::move(extent)),
+        scale(std::move(scale)) {}
+  explicit IterSplitExprNode(ffi::UnsafeInit)
+      : source(ffi::UnsafeInit{}),
+        lower_factor(ffi::UnsafeInit{}),
+        extent(ffi::UnsafeInit{}),
+        scale(ffi::UnsafeInit{}) {}
+
   /*! \brief The source marked iterator. */
   IterMark source;
   /*! \brief The lower factor to split the source. */
@@ -164,13 +182,13 @@ class IterSplitExpr : public IterMapExpr {
    * \brief constructor from just source.
    * \param source The source expression.
    */
-  TVM_DLL explicit IterSplitExpr(IterMark source);
+  TVM_TIRX_DLL explicit IterSplitExpr(IterMark source);
   /*!
    * \brief constructor from just source.
    * \param source The source expression.
    * \param scale The additional scaling factor.
    */
-  TVM_DLL explicit IterSplitExpr(IterMark source, PrimExpr scale);
+  TVM_TIRX_DLL explicit IterSplitExpr(IterMark source, PrimExpr scale);
   /*!
    * \brief constructor
    * \param source The source expression.
@@ -178,10 +196,12 @@ class IterSplitExpr : public IterMapExpr {
    * \param extent The extent of the split.
    * \param scale The additional scaling factor.
    */
-  TVM_DLL explicit IterSplitExpr(IterMark source, PrimExpr lower_factor, PrimExpr extent,
-                                 PrimExpr scale);
+  TVM_TIRX_DLL explicit IterSplitExpr(IterMark source, PrimExpr lower_factor, PrimExpr extent,
+                                      PrimExpr scale);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterSplitExpr, IterMapExpr, IterSplitExprNode);
+  explicit IterSplitExpr(ffi::ObjectPtr<IterSplitExprNode> node) : IterMapExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IterSplitExpr, IterMapExpr, IterSplitExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterSplitExprNode);
 };
 
@@ -192,6 +212,9 @@ class IterSplitExpr : public IterMapExpr {
  */
 class IterSumExprNode : public IterMapExprNode {
  public:
+  explicit IterSumExprNode(PrimExpr base) : base(std::move(base)) {}
+  explicit IterSumExprNode(ffi::UnsafeInit) : base(ffi::UnsafeInit{}) {}
+
   /*! \brief The args to the sum. */
   ffi::Array<IterSplitExpr> args;
   /*! \brief The base offset. */
@@ -219,9 +242,11 @@ class IterSumExpr : public IterMapExpr {
    * \param args The args to the sum.
    * \param base The base offset.
    */
-  TVM_DLL IterSumExpr(ffi::Array<IterSplitExpr> args, PrimExpr base);
+  TVM_TIRX_DLL IterSumExpr(ffi::Array<IterSplitExpr> args, PrimExpr base);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterSumExpr, IterMapExpr, IterSumExprNode);
+  explicit IterSumExpr(ffi::ObjectPtr<IterSumExprNode> node) : IterMapExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IterSumExpr, IterMapExpr, IterSumExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterSumExprNode);
 };
 
@@ -249,7 +274,7 @@ enum IterMapLevel {
 /*!
  * \brief Result of DetectIterMap.
  */
-class IterMapResultNode : public ffi::Object {
+class IterMapResultObj : public ffi::Object {
  public:
   // The detected pattern if a match exists.
   ffi::Array<IterSumExpr> indices;
@@ -264,31 +289,32 @@ class IterMapResultNode : public ffi::Object {
    * are outside the bounds of the provided index iterators, but
    * inside the bounds of the returned index iterators.  This
    * expression is in terms of the variables provided in
-   * `input_iters`.
+   * `input_iters`. It is absent if detection fails before a predicate is computed.
    */
-  PrimExpr padding_predicate;
+  ffi::Optional<PrimExpr> padding_predicate;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<IterMapResultNode>()
-        .def_ro("indices", &IterMapResultNode::indices)
-        .def_ro("errors", &IterMapResultNode::errors)
-        .def_ro("padding_predicate", &IterMapResultNode::padding_predicate);
+    refl::ObjectDef<IterMapResultObj>()
+        .def_ro("indices", &IterMapResultObj::indices)
+        .def_ro("errors", &IterMapResultObj::errors)
+        .def_ro("padding_predicate", &IterMapResultObj::padding_predicate);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.IterMapResult", IterMapResultNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.IterMapResult", IterMapResultObj, ffi::Object);
 };
 
 /*!
- * \brief Managed reference to IterMapResultNode.
- * \sa IterMapResultNode
+ * \brief Managed reference to IterMapResultObj.
+ * \sa IterMapResultObj
  */
 class IterMapResult : public ffi::ObjectRef {
  public:
+  static constexpr bool _type_is_nullable = false;
   // constructor
-  IterMapResult() { data_ = ffi::make_object<IterMapResultNode>(); }
+  IterMapResult() { data_ = ffi::make_object<IterMapResultObj>(); }
 
   /*! \return mutable pointers to the node. */
-  IterMapResultNode* operator->() const { return static_cast<IterMapResultNode*>(get_mutable()); }
+  IterMapResultObj* operator->() const { return static_cast<IterMapResultObj*>(get_mutable()); }
 };
 
 /*!

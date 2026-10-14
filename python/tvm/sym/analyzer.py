@@ -545,8 +545,8 @@ def allow_uint_as_index():
     provably stay small), NOT for runtime codegen semantics where unsigned
     wraparound is real behavior.
     """
-    _ffi_api.EnterAllowUintAsIndex()
+    exit_scope = _ffi_api.EnterAllowUintAsIndex()
     try:
         yield
     finally:
-        _ffi_api.ExitAllowUintAsIndex()
+        exit_scope()

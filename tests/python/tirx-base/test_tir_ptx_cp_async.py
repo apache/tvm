@@ -24,18 +24,22 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func
+@T.function
 def ptx_cp_async(A: T.Tensor((32, 128), "float16"), B: T.Tensor((32, 128), "float16")) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    bx = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(bx, 1)
-    T.launch_thread(tx, 32)
-    A_shared = T.alloc_tensor([32, 128], "float16", scope="shared")
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
+    A_shared = T.alloc_tensor(ty_args=[T.Tensor([32, 128], "float16", scope="shared")])
     for i in range(16):
         T.evaluate(
             T.s_tir.cp_async_raw.legacy(
-                A_shared.data, tx * 128 + 8 * i, A.data, tx * 128 + 8 * i, 16, dtype="float16"
+                A_shared.data,
+                tx * 128 + 8 * i,
+                A.data,
+                tx * 128 + 8 * i,
+                16,
+                elem_dtype="float16",
+                ty="float16",
             )
         )
     T.evaluate(T.ptx.cp.async_.commit_group())
@@ -49,7 +53,7 @@ def ptx_cp_async(A: T.Tensor((32, 128), "float16"), B: T.Tensor((32, 128), "floa
 def test_ptx_cp_async():
     f = ptx_cp_async
 
-    mod = tvm.compile(f, target="cuda")
+    mod = tvm.tirx.compile(f, target="cuda")
     A_np = np.random.rand(32, 128).astype("float16")
     B_np = np.zeros((32, 128)).astype("float16")
 

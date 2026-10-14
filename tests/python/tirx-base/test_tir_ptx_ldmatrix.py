@@ -24,17 +24,15 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func
+@T.function
 def ptx_ldmatrix(
     A: T.Tensor((16, 16), "float16"), B: T.Tensor((16, 16), "float16"), num: T.int32, trans: T.uint8
 ) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    bx = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(bx, 1)
-    T.launch_thread(tx, 32)
-    A_shared = T.alloc_tensor([16, 16], "float16", scope="shared")
-    A_local = T.alloc_tensor([8], "float16", scope="local")
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
+    A_shared = T.alloc_tensor(ty_args=[T.Tensor([16, 16], "float16", scope="shared")])
+    A_local = T.alloc_tensor(ty_args=[T.Tensor([8], "float16", scope="local")])
     for i in range(8):
         A_shared[i * 2 + tx // 16, tx % 16] = A[i * 2 + tx // 16, tx % 16]
     T.evaluate(
@@ -46,7 +44,7 @@ def ptx_ldmatrix(
             0,
             A_shared.data,
             16 * (tx % 16) + 8 * (tx // 16),
-            dtype="float16",
+            ty="float16",
         )
     )
     for k in range(2):
@@ -63,7 +61,9 @@ def test_ptx_ldmatrix():
 
     for num in [1, 2, 4]:
         for trans in [False, True]:
-            mod = tvm.compile(f.specialize({param_num: num, param_trans: trans}), target="cuda")
+            mod = tvm.tirx.compile(
+                f.specialize({param_num: num, param_trans: trans}), target="cuda"
+            )
             A_np = np.random.rand(16, 16).astype("float16")
             A_mask_np = np.zeros_like(A_np)
             if num == 1:

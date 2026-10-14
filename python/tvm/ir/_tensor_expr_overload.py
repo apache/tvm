@@ -105,5 +105,42 @@ def __call__(_value, *_args, **_kwargs):
     return NotImplemented
 
 
-def astype(_value, _dtype, _span=None):
+def astype(_value, _dtype, _loc=None):
     return NotImplemented
+
+
+def register_tensor_expr_operators(operators):
+    """Install a dialect's implementations of the shared tensor operator hooks.
+
+    Native scalar operations remain owned by their types. Tensor hooks return
+    NotImplemented for types outside the registering dialect.
+    """
+    supported = (
+        "__add__",
+        "__radd__",
+        "__sub__",
+        "__rsub__",
+        "__mul__",
+        "__rmul__",
+        "__div__",
+        "__rdiv__",
+        "__truediv__",
+        "__rtruediv__",
+        "__floordiv__",
+        "__rfloordiv__",
+        "__mod__",
+        "__rmod__",
+        "__pow__",
+        "__rpow__",
+        "__neg__",
+        "__lt__",
+        "__le__",
+        "__gt__",
+        "__ge__",
+        "__call__",
+        "astype",
+    )
+    for name, operator in operators.items():
+        if name not in supported or not callable(operator):
+            raise ValueError(f"Invalid tensor expression operator: {name}")
+    globals().update(operators)

@@ -43,7 +43,7 @@ def test_randint():
             print("skip because extern function is not available")
             return
         dev = tvm.cpu(0)
-        f = tvm.compile(te.create_prim_func([A]), target=target)
+        f = tvm.compile(te.create_function([A]), target=target)
         a = tvm.runtime.tensor(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
         na = a.numpy()
@@ -68,7 +68,7 @@ def test_uniform():
             print("skip because extern function is not available")
             return
         dev = tvm.cpu(0)
-        f = tvm.compile(te.create_prim_func([A]), target=target)
+        f = tvm.compile(te.create_function([A]), target=target)
         a = tvm.runtime.tensor(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
         na = a.numpy()
@@ -93,7 +93,7 @@ def test_normal():
             print("skip because extern function is not available")
             return
         dev = tvm.cpu(0)
-        f = tvm.compile(te.create_prim_func([A]), target=target)
+        f = tvm.compile(te.create_function([A]), target=target)
         a = tvm.runtime.tensor(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
         na = a.numpy()
@@ -104,8 +104,28 @@ def test_normal():
 
 
 @pytest.mark.gpu
-def test_random_fill():
+@pytest.mark.parametrize(
+    "target",
+    [
+        "llvm",
+        "cuda",
+        "nvptx",
+        {"kind": "vulkan", "from_device": 0},
+        "opencl",
+        {"kind": "opencl", "device": "mali"},
+        {"kind": "opencl", "device": "intel_graphics"},
+        "metal",
+        "rocm",
+        "hexagon",
+    ],
+)
+def test_random_fill(target):
     """Tests random_fill function"""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip("target is unavailable or excluded by TVM_TEST_TARGETS")
+    if not tvm.get_global_func("tvm.contrib.random.random_fill", True):
+        pytest.skip("random_fill is not built")
+    dev = tvm.device_from_target(target)
 
     def test_local(dev, dtype):
         if not tvm.get_global_func("tvm.contrib.random.random_fill", True):
@@ -130,7 +150,7 @@ def test_random_fill():
 
         def check_remote(server):
             remote = rpc.connect(server.host, server.port)
-            value = tvm.runtime.empty((512, 512), dtype, remote.cpu())
+            value = remote.cpu().empty((512, 512), dtype)
             random_fill = remote.get_function("tvm.contrib.random.random_fill")
             random_fill(value)
 
@@ -158,11 +178,10 @@ def test_random_fill():
         "float32",
         "float64",
     ]:
-        for target, dev in tvm.testing.enabled_targets():
-            if tvm.target.Target(target).kind.name == "llvm":
-                test_local(dev, dtype)
-            else:
-                tvm.testing.run_with_gpu_lock(test_local, dev, dtype)
+        if tvm.target.Target(target).kind.name == "llvm":
+            test_local(dev, dtype)
+        else:
+            tvm.testing.run_with_gpu_lock(test_local, dev, dtype)
         test_rpc(dtype)
 
 
@@ -193,8 +212,4 @@ def test_random_fill_mt():
 
 
 if __name__ == "__main__":
-    test_randint()
-    test_uniform()
-    test_normal()
-    test_random_fill()
-    test_random_fill_mt()
+    tvm.testing.main()

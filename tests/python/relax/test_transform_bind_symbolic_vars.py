@@ -21,6 +21,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -29,10 +30,10 @@ from tvm.script import tirx as T
 def test_bind_tensors():
     """Symbolic variables may occur in Tensor shapes"""
 
-    batch = T.dynamic("batch")
-    n = T.dynamic("n")
-    k = T.dynamic("k")
-    m = T.dynamic("m")
+    batch = T.dynamic("batch", "int64")
+    n = T.dynamic("n", "int64")
+    k = T.dynamic("k", "int64")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -44,10 +45,10 @@ def test_bind_tensors():
         ) -> R.Tensor((batch, k), dtype="float32"):
             with R.dataflow():
                 lv0 = R.call_dps_packed(
-                    "test0", (x, w0), out_ty=R.Tensor((batch, n), dtype="float32")
+                    _ExternFunc("test0"), (x, w0), ty_args=[R.Tensor((batch, n), dtype="float32")]
                 )
                 out = R.call_dps_packed(
-                    "test1", (lv0, w1), out_ty=R.Tensor((batch, k), dtype="float32")
+                    _ExternFunc("test1"), (lv0, w1), ty_args=[R.Tensor((batch, k), dtype="float32")]
                 )
                 R.output(out)
             return out
@@ -56,8 +57,8 @@ def test_bind_tensors():
     target_func_name = "main"
     After = relax.transform.BindSymbolicVars(symvar_map, target_func_name)(Before)
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -68,9 +69,11 @@ def test_bind_tensors():
             w1: R.Tensor((3, 10), dtype="float32"),
         ) -> R.Tensor((1, 3), dtype="float32"):
             with R.dataflow():
-                lv0 = R.call_dps_packed("test0", (x, w0), out_ty=R.Tensor((1, n), dtype="float32"))
+                lv0 = R.call_dps_packed(
+                    _ExternFunc("test0"), (x, w0), ty_args=[R.Tensor((1, n), dtype="float32")]
+                )
                 out = R.call_dps_packed(
-                    "test1", (lv0, w1), out_ty=R.Tensor((1, 3), dtype="float32")
+                    _ExternFunc("test1"), (lv0, w1), ty_args=[R.Tensor((1, 3), dtype="float32")]
                 )
                 R.output(out)
             return out
@@ -81,10 +84,10 @@ def test_bind_tensors():
 def test_bind_shape():
     """Symbolic variables may occur in ShapeExpr"""
 
-    batch = T.dynamic("batch")
-    n = T.dynamic("n")
-    k = T.dynamic("k")
-    m = T.dynamic("m")
+    batch = T.dynamic("batch", "int64")
+    n = T.dynamic("n", "int64")
+    k = T.dynamic("k", "int64")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -95,8 +98,12 @@ def test_bind_shape():
             w1: R.Shape((k, 10)),
         ) -> R.Shape((batch, k)):
             with R.dataflow():
-                lv0 = R.call_dps_packed("test0", (x, w0), out_ty=R.Tensor((batch, n)))
-                out = R.call_dps_packed("test1", (lv0, w1), out_ty=R.Tensor((batch, k)))
+                lv0 = R.call_dps_packed(
+                    _ExternFunc("test0"), (x, w0), ty_args=[R.Tensor((batch, n))]
+                )
+                out = R.call_dps_packed(
+                    _ExternFunc("test1"), (lv0, w1), ty_args=[R.Tensor((batch, k))]
+                )
                 R.output(out)
             return out
 
@@ -104,16 +111,16 @@ def test_bind_shape():
     target_func_name = "main"
     After = relax.transform.BindSymbolicVars(symvar_map, target_func_name)(Before)
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
         @R.function
         def main(x: R.Shape([1, m]), w0: R.Shape([m, n]), w1: R.Shape([3, 10])) -> R.Shape([1, 3]):
             with R.dataflow():
-                lv0 = R.call_dps_packed("test0", (x, w0), out_ty=R.Tensor((1, n)))
-                out = R.call_dps_packed("test1", (lv0, w1), out_ty=R.Tensor((1, 3)))
+                lv0 = R.call_dps_packed(_ExternFunc("test0"), (x, w0), ty_args=[R.Tensor((1, n))])
+                out = R.call_dps_packed(_ExternFunc("test1"), (lv0, w1), ty_args=[R.Tensor((1, 3))])
                 R.output(out)
             return out
 
@@ -123,10 +130,10 @@ def test_bind_shape():
 def test_arith():
     """Symbolic shapes may use TIR arithmetic expressions"""
 
-    batch = T.dynamic("batch")
-    m = T.dynamic("m")
-    n = T.dynamic("n")
-    k = T.dynamic("k")
+    batch = T.dynamic("batch", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    k = T.dynamic("k", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -138,14 +145,14 @@ def test_arith():
         ) -> R.Tensor((batch, k * m), dtype="float32"):
             with R.dataflow():
                 lv0 = R.call_dps_packed(
-                    "test0",
+                    _ExternFunc("test0"),
                     (x, w0),
-                    out_ty=R.Tensor((batch, m + n), dtype="float32"),
+                    ty_args=[R.Tensor((batch, m + n), dtype="float32")],
                 )
                 out = R.call_dps_packed(
-                    "test1",
+                    _ExternFunc("test1"),
                     (lv0, w1),
-                    out_ty=R.Tensor((batch, k + n), dtype="float32"),
+                    ty_args=[R.Tensor((batch, k + n), dtype="float32")],
                 )
                 R.output(out)
             return out
@@ -154,7 +161,7 @@ def test_arith():
     target_func_name = "main"
     After = relax.transform.BindSymbolicVars(symvar_map, target_func_name)(Before)
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -166,10 +173,10 @@ def test_arith():
         ) -> R.Tensor((1, 6), dtype="float32"):
             with R.dataflow():
                 lv0 = R.call_dps_packed(
-                    "test0", (x, w0), out_ty=R.Tensor((1, n + 3), dtype="float32")
+                    _ExternFunc("test0"), (x, w0), ty_args=[R.Tensor((1, n + 3), dtype="float32")]
                 )
                 out = R.call_dps_packed(
-                    "test1", (lv0, w1), out_ty=R.Tensor((1, n + 2), dtype="float32")
+                    _ExternFunc("test1"), (lv0, w1), ty_args=[R.Tensor((1, n + 2), dtype="float32")]
                 )
                 R.output(out)
             return out
@@ -180,10 +187,10 @@ def test_arith():
 def test_bind_multiple_variables_by_name():
     """String names may be used to replace across multiple functions"""
 
-    m_main_1 = T.dynamic("m")
-    n_main_1 = T.dynamic("n")
-    m_main_2 = T.dynamic("m")
-    n_main_2 = T.dynamic("n")
+    m_main_1 = T.dynamic("m", "int64")
+    n_main_1 = T.dynamic("n", "int64")
+    m_main_2 = T.dynamic("m", "int64")
+    n_main_2 = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -195,8 +202,8 @@ def test_bind_multiple_variables_by_name():
         def main_2(x: R.Tensor((m_main_2, n_main_2), dtype="float32")):
             return x
 
-    m_main_1 = T.dynamic("m")
-    m_main_2 = T.dynamic("m")
+    m_main_1 = T.dynamic("m", "int64")
+    m_main_2 = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -215,10 +222,10 @@ def test_bind_multiple_variables_by_name():
 def test_bind_single_variable_by_identity():
     """TIR variables may be used to replace a specific var"""
 
-    m_main_1 = T.dynamic("m")
-    n_main_1 = T.dynamic("n")
-    m_main_2 = T.dynamic("m")
-    n_main_2 = T.dynamic("n")
+    m_main_1 = T.dynamic("m", "int64")
+    n_main_1 = T.dynamic("n", "int64")
+    m_main_2 = T.dynamic("m", "int64")
+    n_main_2 = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -230,9 +237,9 @@ def test_bind_single_variable_by_identity():
         def main_2(x: R.Tensor((m_main_2, n_main_2), dtype="float32")):
             return x
 
-    m_main_1 = T.dynamic("m")
-    m_main_2 = T.dynamic("m")
-    n = T.dynamic("n")
+    m_main_1 = T.dynamic("m", "int64")
+    m_main_2 = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -252,10 +259,10 @@ def test_bind_single_variable_by_identity():
 def test_bind_single_variable_by_function_name():
     """Variable name and function name may be used to replace a specific var"""
 
-    m_main_1 = T.dynamic("m")
-    n_main_1 = T.dynamic("n")
-    m_main_2 = T.dynamic("m")
-    n_main_2 = T.dynamic("n")
+    m_main_1 = T.dynamic("m", "int64")
+    n_main_1 = T.dynamic("n", "int64")
+    m_main_2 = T.dynamic("m", "int64")
+    n_main_2 = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -267,9 +274,9 @@ def test_bind_single_variable_by_function_name():
         def main_2(x: R.Tensor((m_main_2, n_main_2), dtype="float32")):
             return x
 
-    m_main_1 = T.dynamic("m")
-    m_main_2 = T.dynamic("m")
-    n = T.dynamic("n")
+    m_main_1 = T.dynamic("m", "int64")
+    m_main_2 = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -288,8 +295,8 @@ def test_bind_single_variable_by_function_name():
 def test_error_for_unused_replacement():
     """Each replacement must be used"""
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:

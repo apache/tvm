@@ -16,7 +16,7 @@
     under the License.
 
 tvm.ir.transform
------------------
+================
 .. automodule:: tvm.ir.transform
    :members:
    :imported-members:

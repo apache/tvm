@@ -27,6 +27,7 @@
 #include <tvm/runtime/device_api.h>
 
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 namespace tvm {
@@ -48,8 +49,10 @@ class TVM_RUNTIME_DLL WorkspacePool {
    * \brief Create pool with specific device type and device.
    * \param device_type The device type.
    * \param device_api The device API.
+   * \param alloc Optional backend allocation for unpooled owning workspace tensors.
    */
-  WorkspacePool(DLDeviceType device_type, DeviceAPI* device_api);
+  using Allocator = ffi::Tensor (*)(DeviceAPI*, Device, size_t);
+  WorkspacePool(DLDeviceType device_type, DeviceAPI* device_api, Allocator alloc = nullptr);
   /*! \brief destructor */
   ~WorkspacePool();
   /*!
@@ -65,15 +68,18 @@ class TVM_RUNTIME_DLL WorkspacePool {
    * \param ptr The pointer to be freed.
    */
   void FreeWorkspace(Device dev, void* ptr);
+  /*! \brief Release cached allocations; outstanding allocations remain valid until freed. */
+  void Clear();
 
  private:
   class Pool;
   /*! \brief pool of device local array */
-  std::vector<Pool*> array_;
+  std::vector<std::unordered_map<TVMStreamHandle, Pool*>> array_;
   /*! \brief device type this pool support */
   DLDeviceType device_type_;
   /*! \brief The device API */
   DeviceAPI* device_;
+  Allocator alloc_;
 };
 
 }  // namespace runtime

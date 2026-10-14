@@ -211,9 +211,9 @@ def test_shape_check_builtin():
     # 0: n, 1: m
     sindex = {"n": 0, "m": 1}
 
-    n = T.dynamic("n")
-    k = T.dynamic("k")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    k = T.dynamic("k", "int64")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class TestVMShapeCheck:
@@ -354,7 +354,7 @@ def test_vm_builtin_reshape():
 def test_vm_kill_object():
     @I.ir_module
     class TestKillObject:
-        @Ts.prim_func
+        @Ts.function
         def full(T_full: T.Tensor((T.int64(4),), "float32")):
             T.func_attr({"global_symbol": "full", "tirx.noalias": True})
             for ax0 in range(T.int64(4)):
@@ -364,7 +364,7 @@ def test_vm_kill_object():
                     Ts.writes(T_full[v_ax0])
                     T_full[v_ax0] = T.float32(0)
 
-        @Ts.prim_func
+        @Ts.function
         def full1(T_full: T.Tensor((T.int64(4),), "float32")):
             T.func_attr({"global_symbol": "full1", "tirx.noalias": True})
             for ax0 in range(T.int64(4)):
@@ -374,7 +374,7 @@ def test_vm_kill_object():
                     Ts.writes(T_full[v_ax0])
                     T_full[v_ax0] = T.float32(1)
 
-        # PrimFuncs called directly are treated as impure
+        # Functions called directly are treated as impure
         @R.function(pure=False)
         def main() -> R.Tensor((4,), dtype="float32"):
             R.func_attr({"global_symbol": "main"})
@@ -383,20 +383,20 @@ def test_vm_kill_object():
             alloc: R.Tensor((4,), dtype="float32") = R.vm.alloc_tensor(
                 storage, R.prim_value(0), R.shape([4]), R.dtype("float32")
             )
-            _: R.Tuple = cls.full(alloc)
+            _: R.Tuple = R.call_tir_packed(cls.full, (alloc,))
             __1: R.Tuple = R.vm.kill_object(alloc)
             x: R.Tensor((4,), dtype="float32") = alloc
             alloc1: R.Tensor((4,), dtype="float32") = R.vm.alloc_tensor(
                 storage, R.prim_value(0), R.shape([4]), R.dtype("float32")
             )
-            _1: R.Tuple = cls.full(alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.full, (alloc1,))
             _1_1: R.Tuple = R.vm.kill_object(alloc1)
             y: R.Tensor((4,), dtype="float32") = alloc1
             storage_1: R.Any = R.vm.alloc_storage(R.shape([16]), R.prim_value(0), R.dtype("uint8"))
             alloc2: R.Tensor((4,), dtype="float32") = R.vm.alloc_tensor(
                 storage_1, R.prim_value(0), R.shape([4]), R.dtype("float32")
             )
-            _2: R.Tuple = cls.full1(alloc2)
+            _2: R.Tuple = R.call_tir_packed(cls.full1, (alloc2,))
             z: R.Tensor((4,), dtype="float32") = alloc2
             _2_1: R.Tuple = R.vm.kill_object(storage)
             return z

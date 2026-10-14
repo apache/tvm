@@ -47,7 +47,7 @@ pytestmark = [
 
 
 def build_and_run(mod, inputs_np, target, legalize=False):
-    with tvm.transform.PassContext(config={"relax.transform.apply_legalize_ops": legalize}):
+    with tvm.ir.transform.PassContext(config={"relax.transform.apply_legalize_ops": legalize}):
         ex = tvm.compile(mod, target)
 
     def run_and_check():

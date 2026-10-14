@@ -22,3 +22,25 @@ tvm_ffi.init_ffi_api("script.ir_builder", __name__)  # pylint: disable=protected
 
 # Shared module construction retains its native registry namespace.
 tvm_ffi.init_ffi_api("script.ir_builder.ir", __name__)  # pylint: disable=protected-access
+
+# These core-statement builders retain their historical registry identities.
+# Resolve only the shared functions; importing an entire dialect API here would
+# collide with module construction and couple shared script to dialect loading.
+for _name in (
+    "AddToParent",
+    "Assert",
+    "Bind",
+    "Break",
+    "Continue",
+    "Else",
+    "Evaluate",
+    "ForFrameSetNames",
+    "Grid",
+    "If",
+    "Region",
+    "Return",
+    "Then",
+    "While",
+):
+    globals()[_name] = tvm_ffi.get_global_func("script.ir_builder.tirx." + _name)
+del _name

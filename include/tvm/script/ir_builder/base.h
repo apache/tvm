@@ -40,27 +40,27 @@ namespace ir_builder {
  * Frames capture construction context and nested scopes. Language variant builders define
  * concrete frame subclasses and decide how their contents contribute to the result.
  */
-class IRBuilderFrameNode : public ffi::Object {
+class IRBuilderFrameObj : public ffi::Object {
  public:
   /*! \brief Capture the source-call context when this frame is constructed. */
-  IRBuilderFrameNode();
+  IRBuilderFrameObj();
   /*! \brief A list of callbacks used when exiting the frame. */
   std::vector<ffi::TypedFunction<void()>> callbacks;
   /*! \brief Source context retained until this frame constructs its result. */
-  mutable Span source_span;
+  mutable Location loc = UnknownLoc();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<IRBuilderFrameNode>().def_ro("source_span", &IRBuilderFrameNode::source_span);
+    refl::ObjectDef<IRBuilderFrameObj>().def_ro("loc", &IRBuilderFrameObj::loc);
     // `callbacks` is not registered as it's not visited.
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.IRBuilderFrame", IRBuilderFrameNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.IRBuilderFrame", IRBuilderFrameObj, ffi::Object);
 
  public:
   /*! \brief Default destructor. */
-  virtual ~IRBuilderFrameNode() = default;
+  virtual ~IRBuilderFrameObj() = default;
   /*!
    * \brief The method called when entering RAII scope.
    * \sa tvm::support::With
@@ -79,34 +79,34 @@ class IRBuilderFrameNode : public ffi::Object {
 };
 
 /*!
- * \brief Managed reference to an IRBuilderFrameNode.
- * \sa IRBuilderFrameNode
+ * \brief Managed reference to an IRBuilderFrameObj.
+ * \sa IRBuilderFrameObj
  */
 class IRBuilderFrame : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRBuilderFrame, ffi::ObjectRef, IRBuilderFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRBuilderFrame, ffi::ObjectRef, IRBuilderFrameObj);
 
  protected:
   /*! \brief Disallow direct construction of this object. */
   IRBuilderFrame() = default;
-  explicit IRBuilderFrame(ffi::ObjectPtr<IRBuilderFrameNode> data) : ffi::ObjectRef(data) {}
+  explicit IRBuilderFrame(ffi::ObjectPtr<IRBuilderFrameObj> data) : ffi::ObjectRef(data) {}
 
  public:
   /*!
-   * \brief Redirected to `IRBuilderFrameNode::EnterWithScope`.
-   * \sa IRBuilderFrameNode::EnterWithScope
+   * \brief Redirected to `IRBuilderFrameObj::EnterWithScope`.
+   * \sa IRBuilderFrameObj::EnterWithScope
    */
   inline void EnterWithScope() {
     TVM_FFI_ICHECK(data_ != nullptr);
-    static_cast<IRBuilderFrameNode*>(data_.get())->EnterWithScope();
+    static_cast<IRBuilderFrameObj*>(data_.get())->EnterWithScope();
   }
   /*!
-   * \brief Redirected to `IRBuilderFrameNode::ExitWithScope`.
-   * \sa IRBuilderFrameNode::ExitWithScope
+   * \brief Redirected to `IRBuilderFrameObj::ExitWithScope`.
+   * \sa IRBuilderFrameObj::ExitWithScope
    */
   inline void ExitWithScope() {
     TVM_FFI_ICHECK(data_ != nullptr);
-    static_cast<IRBuilderFrameNode*>(data_.get())->ExitWithScope();
+    static_cast<IRBuilderFrameObj*>(data_.get())->ExitWithScope();
     data_.reset();
   }
 };
@@ -133,24 +133,24 @@ class IRBuilderFrame : public ffi::ObjectRef {
  *
  * \endcode
  */
-class IRBuilderNode : public ffi::Object {
+class IRBuilderObj : public ffi::Object {
  public:
   /*! \brief A stack of context frames in the IRBuilder */
   ffi::Array<IRBuilderFrame> frames;
   /*! \brief The outcome of IR construction */
   ffi::Optional<ffi::ObjectRef> result;
-  /*! \brief Active frontend source spans, from outermost to innermost. */
-  std::vector<Span> source_spans;
+  /*! \brief Active frontend source locations, from outermost to innermost. */
+  std::vector<Location> locs;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<IRBuilderNode>()
-        .def_ro("frames", &IRBuilderNode::frames)
-        .def_ro("result", &IRBuilderNode::result);
+    refl::ObjectDef<IRBuilderObj>()
+        .def_ro("frames", &IRBuilderObj::frames)
+        .def_ro("result", &IRBuilderObj::result);
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.IRBuilder", IRBuilderNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.IRBuilder", IRBuilderObj, ffi::Object);
 
  public:
   /*!
@@ -175,27 +175,27 @@ class IRBuilderNode : public ffi::Object {
    */
   template <typename TObjectRef>
   inline TObjectRef Get() const;
-  /*! \brief Push a frontend source span for IR constructed in the nested scope. */
-  void PushSourceSpan(Span span);
-  /*! \brief Pop the innermost frontend source span. */
-  void PopSourceSpan();
-  /*! \brief Return the normalized active source span, including expansion history. */
-  Span GetCurrentSourceSpan(Span location = Span()) const;
+  /*! \brief Push a frontend source location for IR constructed in the nested scope. */
+  void PushLoc(Location loc);
+  /*! \brief Pop the innermost frontend source location. */
+  void PopLoc();
+  /*! \brief Return the normalized active source loc, including expansion history. */
+  Location GetCurrentLoc(Location location = UnknownLoc()) const;
   /*! \brief Compose active source context onto a supported node or construction frame. */
-  ffi::ObjectRef SetCurrentSourceSpan(ffi::ObjectRef obj) const;
+  ffi::ObjectRef SetCurrentLoc(ffi::ObjectRef obj) const;
   /*! \brief Attach an explicit location composed with the active source-call context. */
-  ffi::ObjectRef SetSourceSpan(ffi::ObjectRef obj, Span span) const;
+  ffi::ObjectRef SetLoc(ffi::ObjectRef obj, Location loc) const;
 };
 
 /*!
- * \brief Managed reference to an IRBuilderNode.
- * \sa IRBuilderNode
+ * \brief Managed reference to an IRBuilderObj.
+ * \sa IRBuilderObj
  */
 class IRBuilder : public ffi::ObjectRef {
  public:
   /*! \brief Creates an IRBuilder. */
   IRBuilder();
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRBuilder, ffi::ObjectRef, IRBuilderNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IRBuilder, ffi::ObjectRef, IRBuilderObj);
 
  public:
   /*!
@@ -247,10 +247,10 @@ class IRBuilder : public ffi::ObjectRef {
 
 namespace details {
 
-/*! \brief Language variant extensible access to an object's mutable source span. */
-class SourceSpanAccessor {
+/*! \brief Language variant extensible access to an object's mutable source location. */
+class LocationAccessor {
  public:
-  using FType = ObjectFunctor<Span*(const ffi::ObjectRef&)>;
+  using FType = ObjectFunctor<Location*(const ffi::ObjectRef&)>;
   static FType& vtable();
 };
 
@@ -270,7 +270,7 @@ inline TObjectRef IRBuilder::Name(ffi::String name, TObjectRef obj) {
 }
 
 template <typename TFrame>
-inline ffi::Optional<TFrame> IRBuilderNode::FindFrame() const {
+inline ffi::Optional<TFrame> IRBuilderObj::FindFrame() const {
   using TFrameNode = typename TFrame::ContainerType;
   for (auto it = frames.rbegin(); it != frames.rend(); ++it) {
     if (const TFrameNode* p = (*it).template as<TFrameNode>()) {
@@ -281,7 +281,7 @@ inline ffi::Optional<TFrame> IRBuilderNode::FindFrame() const {
 }
 
 template <typename TFrame>
-inline ffi::Optional<TFrame> IRBuilderNode::GetLastFrame() const {
+inline ffi::Optional<TFrame> IRBuilderObj::GetLastFrame() const {
   using TFrameNode = typename TFrame::ContainerType;
   if (!frames.empty() && frames.back()->IsInstance<TFrameNode>()) {
     return frames.back().template as_or_throw<TFrame>();
@@ -290,7 +290,7 @@ inline ffi::Optional<TFrame> IRBuilderNode::GetLastFrame() const {
 }
 
 template <typename TObjectRef>
-inline TObjectRef IRBuilderNode::Get() const {
+inline TObjectRef IRBuilderObj::Get() const {
   using TObject = typename TObjectRef::ContainerType;
   TVM_FFI_CHECK(result.has_value(), IndexError) << "No result exists in IRBuilder yet";
   const auto* n = result.as<TObject>();

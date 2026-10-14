@@ -23,9 +23,9 @@ from tvm.target import Target
 from tvm.tirx.transform.transform import BindTarget
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
-        isinstance(node, tvm.tirx.Bind)
+        isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
         and isinstance(node.value.op, tvm.ir.Op)
         and node.value.op.name in op_names
@@ -35,15 +35,15 @@ def _is_buffer_binding(node, *op_names):
 def u16tof32(v):
     uint32_v = v.astype("uint32")
     uint32_v = uint32_v << tvm.tirx.const(16, "uint32")
-    return T.reinterpret("float32", uint32_v)
+    return T.reinterpret(uint32_v, ty="float32")
 
 
 def bf16tof32(v):
-    return u16tof32(T.reinterpret("uint16", v))
+    return u16tof32(T.reinterpret(v, ty="uint16"))
 
 
 def f32tou16(v):
-    uint32_v = T.reinterpret("uint32", v)
+    uint32_v = T.reinterpret(v, ty="uint32")
     rounding_bias = (uint32_v >> tvm.tirx.const(16, "uint32")) & tvm.tirx.const(1, "uint32")
     rounding_bias += tvm.tirx.const(0x7FFF, "uint32")
     uint32_v = uint32_v + rounding_bias
@@ -51,22 +51,22 @@ def f32tou16(v):
 
 
 def f32tobf16(v):
-    return T.reinterpret("bfloat16", f32tou16(v))
+    return T.reinterpret(f32tou16(v), ty="bfloat16")
 
 
 def test_bf16_simple_store_will_legalize():
     def get_before():
         @tvm.script.ir_module
         class Before:
-            @T.prim_func
+            @T.function
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Cptr: T.handle("bfloat16"),
             ):
                 T.func_attr({"global_symbol": "main"})
-                A = T.decl_tensor((100,), "bfloat16", data=Aptr)
-                B = T.decl_tensor((100,), "bfloat16")
-                C = T.decl_tensor((100,), "bfloat16", data=Cptr)
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "bfloat16", data=Aptr)])
+                B = T.alloc_tensor(ty_args=[T.Tensor((100,), "bfloat16")])
+                C = T.decl_tensor(Cptr, ty_args=[T.Tensor((100,), "bfloat16", data=Cptr)])
                 for i in T.grid(100):
                     B[i] = A[i]
                     C[i] = T.exp(B[i])
@@ -76,15 +76,15 @@ def test_bf16_simple_store_will_legalize():
     def after_compute_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func
+            @T.function
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Cptr: T.handle("bfloat16"),
             ):
                 T.func_attr({"global_symbol": "main"})
-                A = T.decl_tensor((100,), "bfloat16", data=Aptr)
-                B = T.decl_tensor((100,), "float32")
-                C = T.decl_tensor((100,), "bfloat16", data=Cptr)
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "bfloat16", data=Aptr)])
+                B = T.alloc_tensor(ty_args=[T.Tensor((100,), "float32")])
+                C = T.decl_tensor(Cptr, ty_args=[T.Tensor((100,), "bfloat16", data=Cptr)])
                 for i in T.grid(100):
                     B[i] = bf16tof32(A[i])
                     C[i] = f32tobf16(T.exp(B[i]))
@@ -94,15 +94,15 @@ def test_bf16_simple_store_will_legalize():
     def after_storage_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func
+            @T.function
             def main(
                 Aptr: T.handle("uint16", storage_scope="shared"),
                 Cptr: T.handle("uint16"),
             ):
                 T.func_attr({"global_symbol": "main"})
-                A = T.decl_tensor((100,), "uint16", data=Aptr)
-                B = T.decl_tensor((100,), "float32")
-                C = T.decl_tensor((100,), "uint16", data=Cptr)
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "uint16", data=Aptr)])
+                B = T.alloc_tensor(ty_args=[T.Tensor((100,), "float32")])
+                C = T.decl_tensor(Cptr, ty_args=[T.Tensor((100,), "uint16", data=Cptr)])
                 for i in T.grid(100):
                     B[i] = u16tof32(A[i])
                     C[i] = f32tou16(T.exp(B[i]))
@@ -121,32 +121,36 @@ def test_bf16_masked_load_store_will_legalize():
     def get_before():
         @tvm.script.ir_module
         class Before:
-            @T.prim_func
+            @T.function
             def main(Aptr: T.handle("bfloat16"), Cptr: T.handle("bfloat16")):
                 T.func_attr({"global_symbol": "main"})
-                A = T.decl_tensor((16,), "bfloat16", data=Aptr)
-                B = T.decl_tensor((16,), "bfloat16")
-                C = T.decl_tensor((16,), "bfloat16", data=Cptr)
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((16,), "bfloat16", data=Aptr)])
+                B = T.alloc_tensor(ty_args=[T.Tensor((16,), "bfloat16")])
+                C = T.decl_tensor(Cptr, ty_args=[T.Tensor((16,), "bfloat16", data=Cptr)])
                 mask = T.local_scalar("boolx4")
                 mask = T.Broadcast(T.bool(True), 4)
                 T.evaluate(
                     T.call_intrin(
-                        "void",
                         "tirx.masked_store",
                         B,
-                        T.call_intrin("bfloat16x4", "tirx.masked_load", A, T.Ramp(0, 1, 4), mask),
+                        T.call_intrin(
+                            "tirx.masked_load", A, T.Ramp(0, 1, 4), mask, ty="bfloat16x4"
+                        ),
                         T.Ramp(0, 1, 4),
                         mask,
+                        ty="void",
                     )
                 )
                 T.evaluate(
                     T.call_intrin(
-                        "void",
                         "tirx.masked_store",
                         C,
-                        T.call_intrin("bfloat16x4", "tirx.masked_load", B, T.Ramp(0, 1, 4), mask),
+                        T.call_intrin(
+                            "tirx.masked_load", B, T.Ramp(0, 1, 4), mask, ty="bfloat16x4"
+                        ),
                         T.Ramp(0, 1, 4),
                         mask,
+                        ty="void",
                     )
                 )
 
@@ -166,12 +170,12 @@ def test_bf16_masked_load_store_will_legalize():
 
         tvm_ffi.structural_walk(
             mod["main"].body,
-            ((tvm.tirx.Bind, tvm.ir.Call), collect_once),
+            ((tvm.ir.Bind, tvm.ir.Call), collect_once),
         )
-        buffers = {
+        tensors = {
             node.var.name: str(node.var.dtype)
             for node in nodes
-            if _is_buffer_binding(node, "tirx.alloc_tensor", "tirx.decl_tensor")
+            if _is_tensor_binding(node, "tirx.alloc_tensor", "tirx.decl_tensor")
         }
         masked_loads = [
             node
@@ -183,18 +187,18 @@ def test_bf16_masked_load_store_will_legalize():
             for node in nodes
             if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.masked_store"
         ]
-        return buffers, masked_loads, masked_stores
+        return tensors, masked_loads, masked_stores
 
-    compute_buffers, compute_loads, compute_stores = collect(after_compute)
-    assert compute_buffers == {"A": "bfloat16", "B": "float32", "C": "bfloat16", "mask": "boolx4"}
+    compute_tensors, compute_loads, compute_stores = collect(after_compute)
+    assert compute_tensors == {"A": "bfloat16", "B": "float32", "C": "bfloat16", "mask": "boolx4"}
     assert sorted(str(load.ty) for load in compute_loads) == ["bfloat16x4", "float32x4"]
     assert sorted(str(store.args[1].ty) for store in compute_stores) == [
         "bfloat16x4",
         "float32x4",
     ]
 
-    storage_buffers, storage_loads, storage_stores = collect(after_storage)
-    assert storage_buffers == {"A": "uint16", "B": "float32", "C": "uint16", "mask": "boolx4"}
+    storage_tensors, storage_loads, storage_stores = collect(after_storage)
+    assert storage_tensors == {"A": "uint16", "B": "float32", "C": "uint16", "mask": "boolx4"}
     assert sorted(str(load.ty) for load in storage_loads) == [
         "float32x4",
         "float32x4",
@@ -210,17 +214,17 @@ def test_bf16_storage_compute_scope_will_legalize():
     def get_before():
         @tvm.script.ir_module
         class Before:
-            @T.prim_func
+            @T.function
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Bptr: T.handle("bfloat16", storage_scope="local"),
                 Dptr: T.handle("bfloat16"),
             ):
                 T.func_attr({"global_symbol": "main"})
-                A = T.decl_tensor((100,), "bfloat16", data=Aptr)
-                B = T.decl_tensor((100,), "bfloat16", data=Bptr)
-                D = T.decl_tensor((100,), "bfloat16", data=Dptr)
-                C = T.decl_tensor((100,), "bfloat16")
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "bfloat16", data=Aptr)])
+                B = T.decl_tensor(Bptr, ty_args=[T.Tensor((100,), "bfloat16", data=Bptr)])
+                D = T.decl_tensor(Dptr, ty_args=[T.Tensor((100,), "bfloat16", data=Dptr)])
+                C = T.alloc_tensor(ty_args=[T.Tensor((100,), "bfloat16")])
                 for i in T.grid(100):
                     C[i] = A[i] + B[i]
                     D[i] = T.exp(C[i])
@@ -230,17 +234,17 @@ def test_bf16_storage_compute_scope_will_legalize():
     def after_compute_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func
+            @T.function
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Bptr: T.handle("bfloat16", storage_scope="local"),
                 Dptr: T.handle("bfloat16"),
             ):
                 T.func_attr({"global_symbol": "main"})
-                A = T.decl_tensor((100,), "bfloat16", data=Aptr)
-                B = T.decl_tensor((100,), "bfloat16", data=Bptr)
-                D = T.decl_tensor((100,), "bfloat16", data=Dptr)
-                C = T.decl_tensor((100,), "float32")
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "bfloat16", data=Aptr)])
+                B = T.decl_tensor(Bptr, ty_args=[T.Tensor((100,), "bfloat16", data=Bptr)])
+                D = T.decl_tensor(Dptr, ty_args=[T.Tensor((100,), "bfloat16", data=Dptr)])
+                C = T.alloc_tensor(ty_args=[T.Tensor((100,), "float32")])
                 for i in T.grid(100):
                     C[i] = bf16tof32(A[i]) + bf16tof32(B[i])
                     D[i] = f32tobf16(T.exp(C[i]))
@@ -250,17 +254,17 @@ def test_bf16_storage_compute_scope_will_legalize():
     def after_storage_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func
+            @T.function
             def main(
                 Aptr: T.handle("uint16", storage_scope="shared"),
                 Bptr: T.handle("uint16", storage_scope="local"),
                 Dptr: T.handle("uint16"),
             ):
                 T.func_attr({"global_symbol": "main"})
-                A = T.decl_tensor((100,), "uint16", data=Aptr)
-                B = T.decl_tensor((100,), "uint16", data=Bptr)
-                D = T.decl_tensor((100,), "uint16", data=Dptr)
-                C = T.decl_tensor((100,), "float32")
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "uint16", data=Aptr)])
+                B = T.decl_tensor(Bptr, ty_args=[T.Tensor((100,), "uint16", data=Bptr)])
+                D = T.decl_tensor(Dptr, ty_args=[T.Tensor((100,), "uint16", data=Dptr)])
+                C = T.alloc_tensor(ty_args=[T.Tensor((100,), "float32")])
                 for i in T.grid(100):
                     C[i] = u16tof32(A[i]) + u16tof32(B[i])
                     D[i] = f32tou16(T.exp(C[i]))
@@ -279,17 +283,17 @@ def test_bf16_storage_compute_scope_wont_legalize():
     def get_before():
         @tvm.script.ir_module
         class Before:
-            @T.prim_func
+            @T.function
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Bptr: T.handle("bfloat16", storage_scope="local"),
                 Dptr: T.handle("bfloat16"),
             ):
                 T.func_attr({"global_symbol": "main"})
-                A = T.decl_tensor((100,), "bfloat16", data=Aptr)
-                B = T.decl_tensor((100,), "bfloat16", data=Bptr)
-                D = T.decl_tensor((100,), "bfloat16", data=Dptr)
-                C = T.decl_tensor((100,), "bfloat16")
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "bfloat16", data=Aptr)])
+                B = T.decl_tensor(Bptr, ty_args=[T.Tensor((100,), "bfloat16", data=Bptr)])
+                D = T.decl_tensor(Dptr, ty_args=[T.Tensor((100,), "bfloat16", data=Dptr)])
+                C = T.alloc_tensor(ty_args=[T.Tensor((100,), "bfloat16")])
                 for i in T.grid(100):
                     C[i] = A[i] + B[i]
                     D[i] = T.exp(C[i])
@@ -299,17 +303,17 @@ def test_bf16_storage_compute_scope_wont_legalize():
     def after_compute_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func
+            @T.function
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Bptr: T.handle("bfloat16", storage_scope="local"),
                 Dptr: T.handle("bfloat16"),
             ):
                 T.func_attr({"global_symbol": "main"})
-                A = T.decl_tensor((100,), "bfloat16", data=Aptr)
-                B = T.decl_tensor((100,), "bfloat16", data=Bptr)
-                D = T.decl_tensor((100,), "bfloat16", data=Dptr)
-                C = T.decl_tensor((100,), "bfloat16")
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "bfloat16", data=Aptr)])
+                B = T.decl_tensor(Bptr, ty_args=[T.Tensor((100,), "bfloat16", data=Bptr)])
+                D = T.decl_tensor(Dptr, ty_args=[T.Tensor((100,), "bfloat16", data=Dptr)])
+                C = T.alloc_tensor(ty_args=[T.Tensor((100,), "bfloat16")])
                 for i in T.grid(100):
                     C[i] = A[i] + B[i]
                     D[i] = T.exp(C[i])
@@ -319,17 +323,17 @@ def test_bf16_storage_compute_scope_wont_legalize():
     def after_storage_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func
+            @T.function
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Bptr: T.handle("bfloat16", storage_scope="local"),
                 Dptr: T.handle("bfloat16"),
             ):
                 T.func_attr({"global_symbol": "main"})
-                A = T.decl_tensor((100,), "bfloat16", data=Aptr)
-                B = T.decl_tensor((100,), "bfloat16", data=Bptr)
-                D = T.decl_tensor((100,), "bfloat16", data=Dptr)
-                C = T.decl_tensor((100,), "bfloat16")
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "bfloat16", data=Aptr)])
+                B = T.decl_tensor(Bptr, ty_args=[T.Tensor((100,), "bfloat16", data=Bptr)])
+                D = T.decl_tensor(Dptr, ty_args=[T.Tensor((100,), "bfloat16", data=Dptr)])
+                C = T.alloc_tensor(ty_args=[T.Tensor((100,), "bfloat16")])
                 for i in T.grid(100):
                     C[i] = A[i] + B[i]
                     D[i] = T.exp(C[i])
@@ -348,99 +352,91 @@ def test_bf16_reduce_will_legalize():
     def get_before():
         @tvm.script.ir_module
         class Before:
-            @T.prim_func(private=True)
+            @T.function(private=True)
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
             ):
-                A_flat = T.decl_tensor(4096, "bfloat16", data=Aptr)
+                A_flat = T.decl_tensor(Aptr, ty_args=[T.Tensor(4096, "bfloat16", data=Aptr)])
 
                 for i in range(128):
                     threadIdx_x = T.launch_thread("threadIdx.x", 32)
 
-                    reduce = T.decl_tensor(1, dtype="bfloat16", scope="local")
+                    reduce = T.alloc_tensor(ty_args=[T.Tensor(1, "bfloat16", scope="local")])
 
-                    with T.attr(
-                        T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
-                        "reduce_scope",
-                        T.int32(0),
-                    ):
-                        T.tvm_thread_allreduce(
-                            T.uint32(1),
-                            A_flat[0],
-                            T.bool(True),
-                            reduce[0],
-                            threadIdx_x,
-                        )
+                    T.gpu_thread_allreduce(
+                        T.Lambda([T.bfloat16, T.bfloat16], lambda x, y: (x + y,)),
+                        (T.bfloat16(0),),
+                        (A_flat[0],),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
 
         return Before
 
     def after_compute_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func(private=True)
+            @T.function(private=True)
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
             ):
-                A_flat_1 = T.decl_tensor(4096, "bfloat16", data=Aptr)
+                A_flat_1 = T.decl_tensor(Aptr, ty_args=[T.Tensor(4096, "bfloat16", data=Aptr)])
 
                 for i in range(128):
                     threadIdx_x = T.launch_thread("threadIdx.x", 32)
 
-                    reduce = T.decl_tensor(1, dtype="float32", scope="local")
+                    reduce = T.alloc_tensor(ty_args=[T.Tensor(1, "float32", scope="local")])
 
-                    with T.attr(
-                        T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
-                        "reduce_scope",
-                        T.int32(0),
-                    ):
-                        T.tvm_thread_allreduce(
-                            T.uint32(1),
+                    T.gpu_thread_allreduce(
+                        T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                        (T.float32(0),),
+                        (
                             T.reinterpret(
-                                "float32",
                                 T.shift_left(
-                                    T.Cast("uint32", T.reinterpret("uint16", A_flat_1[0])),
+                                    T.Cast("uint32", T.reinterpret(A_flat_1[0], ty="uint16")),
                                     T.uint32(16),
                                 ),
+                                ty="float32",
                             ),
-                            T.bool(True),
-                            reduce[0],
-                            threadIdx_x,
-                        )
+                        ),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
 
         return After
 
     def after_storage_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func(private=True)
+            @T.function(private=True)
             def main(
                 Aptr: T.handle("uint16", storage_scope="shared"),
             ):
-                A_flat = T.decl_tensor(4096, "uint16", data=Aptr)
+                A_flat = T.decl_tensor(Aptr, ty_args=[T.Tensor(4096, "uint16", data=Aptr)])
 
                 for i in range(128):
                     threadIdx_x = T.launch_thread("threadIdx.x", 32)
 
-                    reduce = T.decl_tensor(1, dtype="float32", scope="local")
+                    reduce = T.alloc_tensor(ty_args=[T.Tensor(1, "float32", scope="local")])
 
-                    with T.attr(
-                        T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
-                        "reduce_scope",
-                        T.int32(0),
-                    ):
-                        T.tvm_thread_allreduce(
-                            T.uint32(1),
+                    T.gpu_thread_allreduce(
+                        T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                        (T.float32(0),),
+                        (
                             T.reinterpret(
-                                "float32",
                                 T.shift_left(
-                                    T.Cast("uint32", T.reinterpret("uint16", A_flat[0])),
+                                    T.Cast("uint32", A_flat[0]),
                                     T.uint32(16),
                                 ),
+                                ty="float32",
                             ),
-                            T.bool(True),
-                            reduce[0],
-                            threadIdx_x,
-                        )
+                        ),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
 
         return After
 
@@ -456,87 +452,75 @@ def test_bf16_reduce_wont_legalize():
     def get_before():
         @tvm.script.ir_module
         class Before:
-            @T.prim_func(private=True)
+            @T.function(private=True)
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
             ):
-                A_flat = T.decl_tensor(4096, "bfloat16", data=Aptr)
+                A_flat = T.decl_tensor(Aptr, ty_args=[T.Tensor(4096, "bfloat16", data=Aptr)])
 
                 for i in range(128):
                     threadIdx_x = T.launch_thread("threadIdx.x", 32)
 
-                    reduce = T.decl_tensor(1, dtype="bfloat16", scope="local")
+                    reduce = T.alloc_tensor(ty_args=[T.Tensor(1, "bfloat16", scope="local")])
 
-                    with T.attr(
-                        T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
-                        "reduce_scope",
-                        T.int32(0),
-                    ):
-                        T.tvm_thread_allreduce(
-                            T.uint32(1),
-                            A_flat[0],
-                            T.bool(True),
-                            reduce[0],
-                            threadIdx_x,
-                        )
+                    T.gpu_thread_allreduce(
+                        T.Lambda([T.bfloat16, T.bfloat16], lambda x, y: (x + y,)),
+                        (T.bfloat16(0),),
+                        (A_flat[0],),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
 
         return Before
 
     def after_compute_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func(private=True)
+            @T.function(private=True)
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
             ):
-                A_flat = T.decl_tensor(4096, "bfloat16", data=Aptr)
+                A_flat = T.decl_tensor(Aptr, ty_args=[T.Tensor(4096, "bfloat16", data=Aptr)])
 
                 for i in range(128):
                     threadIdx_x = T.launch_thread("threadIdx.x", 32)
 
-                    reduce = T.decl_tensor(1, dtype="bfloat16", scope="local")
+                    reduce = T.alloc_tensor(ty_args=[T.Tensor(1, "bfloat16", scope="local")])
 
-                    with T.attr(
-                        T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
-                        "reduce_scope",
-                        T.int32(0),
-                    ):
-                        T.tvm_thread_allreduce(
-                            T.uint32(1),
-                            A_flat[0],
-                            T.bool(True),
-                            reduce[0],
-                            threadIdx_x,
-                        )
+                    T.gpu_thread_allreduce(
+                        T.Lambda([T.bfloat16, T.bfloat16], lambda x, y: (x + y,)),
+                        (T.bfloat16(0),),
+                        (A_flat[0],),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
 
         return After
 
     def after_storage_legalize():
         @tvm.script.ir_module
         class After:
-            @T.prim_func(private=True)
+            @T.function(private=True)
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
             ):
-                A_flat = T.decl_tensor(4096, "bfloat16", data=Aptr)
+                A_flat = T.decl_tensor(Aptr, ty_args=[T.Tensor(4096, "bfloat16", data=Aptr)])
 
                 for i in range(128):
                     threadIdx_x = T.launch_thread("threadIdx.x", 32)
 
-                    reduce = T.decl_tensor(1, dtype="bfloat16", scope="local")
+                    reduce = T.alloc_tensor(ty_args=[T.Tensor(1, "bfloat16", scope="local")])
 
-                    with T.attr(
-                        T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
-                        "reduce_scope",
-                        T.int32(0),
-                    ):
-                        T.tvm_thread_allreduce(
-                            T.uint32(1),
-                            A_flat[0],
-                            T.bool(True),
-                            reduce[0],
-                            threadIdx_x,
-                        )
+                    T.gpu_thread_allreduce(
+                        T.Lambda([T.bfloat16, T.bfloat16], lambda x, y: (x + y,)),
+                        (T.bfloat16(0),),
+                        (A_flat[0],),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
 
         return After
 

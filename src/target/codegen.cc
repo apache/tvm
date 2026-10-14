@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/base.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 #include <tvm/target/codegen.h>
@@ -41,13 +42,11 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../support/bytes_io.h"
-
 namespace tvm {
 namespace codegen {
 
 ffi::Module Build(IRModule mod, Target target) {
-  if (transform::PassContext::Current()->GetConfig<bool>("tirx.disable_assert", false).value()) {
+  if (transform::PassContext::Current()->GetConfig<bool>("tirx.disable_assert").value_or(false)) {
     mod = tirx::transform::SkipAssert()(mod);
   }
 
@@ -351,13 +350,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::TypeAttrDef<ffi::ModuleObj>()
-      .def("__data_to_json__",
+      .def(tvm::ffi::reflection::type_attr::kDataToJson,
            [](const ffi::ModuleObj* node) {
              std::string bytes = codegen::SerializeModuleToBytes(ffi::GetRef<ffi::Module>(node),
                                                                  /*export_dso*/ false);
              return ffi::Base64Encode(ffi::Bytes(bytes));
            })
-      .def("__data_from_json__", [](const ffi::String& base64_bytes) {
+      .def(tvm::ffi::reflection::type_attr::kDataFromJson, [](const ffi::String& base64_bytes) {
         ffi::Bytes bytes = ffi::Base64Decode(base64_bytes);
         ffi::Module rtmod = codegen::DeserializeModuleFromBytes(bytes.operator std::string());
         return rtmod;
@@ -381,8 +380,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              DLDevice dev;
              dev.device_type = kDLCPU;
              dev.device_id = 0;
-             auto array = runtime::Tensor::Empty({size}, uchar, dev);
-             array.CopyFromBytes(buffer.data(), size);
+             auto array = runtime::Empty({size}, uchar, dev);
+             tvm::runtime::CopyFromBytes(array, buffer.data(), size);
              return array;
            })
       .def("runtime.ModulePackImportsToC", PackImportsToC)

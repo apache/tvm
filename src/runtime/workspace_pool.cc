@@ -23,6 +23,7 @@
  */
 #include "workspace_pool.h"
 
+#include <algorithm>
 #include <memory>
 
 namespace tvm {
@@ -43,26 +44,32 @@ class WorkspacePool::Pool {
     allocated_.push_back(e);
   }
   // allocate from pool
-  void* Alloc(Device dev, DeviceAPI* device, size_t nbytes) {
+  void* Alloc(Device dev, DeviceAPI* device, Allocator alloc, size_t nbytes) {
     // Allocate align to page.
     nbytes = (nbytes + (kWorkspacePageSize - 1)) / kWorkspacePageSize * kWorkspacePageSize;
     if (nbytes == 0) nbytes = kWorkspacePageSize;
     Entry e;
-    DLDataType type;
-    type.code = kDLUInt;
-    type.bits = 8;
-    type.lanes = 1;
+    auto allocate = [&]() {
+      if (alloc) return alloc(device, dev, nbytes);
+      // Preserve the workspace alignment when adapting raw allocations to Empty.
+      int64_t size = static_cast<int64_t>(nbytes / kTempAllocaAlignment +
+                                          (nbytes % kTempAllocaAlignment != 0));
+      return device->Empty(ffi::ShapeView(&size, 1), DLDataType{kDLUInt, 8, kTempAllocaAlignment},
+                           dev);
+    };
     if (free_list_.size() == 2) {
       e = free_list_.back();
       free_list_.pop_back();
       if (e.size < nbytes) {
         // resize the page
-        device->FreeDataSpace(dev, e.data);
-        e.data = device->AllocDataSpace(dev, nbytes, kTempAllocaAlignment, type);
+        e.owner = ffi::Tensor();
+        e.owner = allocate();
+        e.data = e.owner.data_ptr();
         e.size = nbytes;
       }
     } else if (free_list_.size() == 1) {
-      e.data = device->AllocDataSpace(dev, nbytes, kTempAllocaAlignment, type);
+      e.owner = allocate();
+      e.data = e.owner.data_ptr();
       e.size = nbytes;
     } else {
       if (free_list_.back().size >= nbytes) {
@@ -76,8 +83,9 @@ class WorkspacePool::Pool {
         // resize the page
         e = free_list_.back();
         free_list_.pop_back();
-        device->FreeDataSpace(dev, e.data);
-        e.data = device->AllocDataSpace(dev, nbytes, kTempAllocaAlignment, type);
+        e.owner = ffi::Tensor();
+        e.owner = allocate();
+        e.data = e.owner.data_ptr();
         e.size = nbytes;
       }
     }
@@ -99,6 +107,8 @@ class WorkspacePool::Pool {
       e = allocated_[index];
       allocated_.erase(allocated_.begin() + index);
     }
+    // Clear marks outstanding allocations so they cannot enter a replacement session's cache.
+    if (e.size == 0) return;
     if (free_list_.back().size < e.size) {
       free_list_.push_back(e);
     } else if (free_list_.size() == 2) {
@@ -113,17 +123,20 @@ class WorkspacePool::Pool {
       free_list_[i + 1] = e;
     }
   }
-  // Release all resources
-  void Release(Device dev, DeviceAPI* device) {
-    for (size_t i = 1; i < free_list_.size(); ++i) {
-      device->FreeDataSpace(dev, free_list_[i].data);
-    }
-    free_list_.clear();
+  void Clear() {
+    free_list_.resize(1);
+    for (auto& entry : allocated_) entry.size = 0;
+  }
+
+  bool Contains(void* data) const {
+    return std::any_of(allocated_.begin() + 1, allocated_.end(),
+                       [data](const Entry& entry) { return entry.data == data; });
   }
 
  private:
   /*! \brief a single entry in the pool */
   struct Entry {
+    ffi::Tensor owner;
     void* data;
     size_t size;
   };
@@ -133,35 +146,41 @@ class WorkspacePool::Pool {
   std::vector<Entry> allocated_;
 };
 
-WorkspacePool::WorkspacePool(DLDeviceType device_type, DeviceAPI* device)
-    : device_type_(device_type), device_(device) {}
+WorkspacePool::WorkspacePool(DLDeviceType device_type, DeviceAPI* device, Allocator alloc)
+    : device_type_(device_type), device_(device), alloc_(alloc) {}
 
 WorkspacePool::~WorkspacePool() {
-  for (size_t i = 0; i < array_.size(); ++i) {
-    if (array_[i] != nullptr) {
-      Device dev;
-      dev.device_type = device_type_;
-      dev.device_id = static_cast<int>(i);
-      array_[i]->Release(dev, device_);
-      delete array_[i];
-    }
+  for (auto& streams : array_) {
+    for (auto& [stream, pool] : streams) delete pool;
+  }
+}
+
+void WorkspacePool::Clear() {
+  for (auto& streams : array_) {
+    for (auto& [stream, pool] : streams) pool->Clear();
   }
 }
 
 void* WorkspacePool::AllocWorkspace(Device dev, size_t size) {
   if (static_cast<size_t>(dev.device_id) >= array_.size()) {
-    array_.resize(dev.device_id + 1, nullptr);
+    array_.resize(dev.device_id + 1);
   }
-  if (array_[dev.device_id] == nullptr) {
-    array_[dev.device_id] = new Pool();
-  }
-  return array_[dev.device_id]->Alloc(dev, device_, size);
+  // Keep the historical size-sorted cache separate for each execution stream.
+  auto& pool = array_[dev.device_id][device_->GetCurrentStream(dev)];
+  if (pool == nullptr) pool = new Pool();
+  return pool->Alloc(dev, device_, alloc_, size);
 }
 
 void WorkspacePool::FreeWorkspace(Device dev, void* ptr) {
-  TVM_FFI_ICHECK(static_cast<size_t>(dev.device_id) < array_.size() &&
-                 array_[dev.device_id] != nullptr);
-  array_[dev.device_id]->Free(ptr);
+  TVM_FFI_ICHECK(static_cast<size_t>(dev.device_id) < array_.size());
+  // A caller may change streams between allocation and release.
+  for (auto& [stream, pool] : array_[dev.device_id]) {
+    if (pool->Contains(ptr)) {
+      pool->Free(ptr);
+      return;
+    }
+  }
+  TVM_FFI_THROW(InternalError) << "trying to free things that has not been allocated";
 }
 
 }  // namespace runtime

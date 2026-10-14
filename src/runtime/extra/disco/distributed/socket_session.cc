@@ -176,7 +176,8 @@ class SocketSessionObj : public BcastSessionObj {
     return remote_channels_[node_id - 1]->Recv();
   }
 
-  void AppendHostTensor(const Tensor& host_array) final {
+  void AppendHostTensor(const ffi::Tensor& host_array) final {
+    TVM_FFI_ICHECK(host_array.defined());
     local_session_->AppendHostTensor(host_array);
   }
 
@@ -206,7 +207,7 @@ class SocketSessionObj : public BcastSessionObj {
   TCPSocket socket_;
   std::vector<TCPSocket> remote_sockets_;
   std::vector<std::unique_ptr<DiscoSocketChannel>> remote_channels_;
-  BcastSession local_session_{nullptr};
+  BcastSession local_session_{ffi::UnsafeInit{}};
 };
 
 class RemoteSocketSession {
@@ -282,7 +283,7 @@ class RemoteSocketSession {
   }
 
   TCPSocket socket_;
-  BcastSession local_session_{nullptr};
+  BcastSession local_session_{ffi::UnsafeInit{}};
   std::unique_ptr<DiscoSocketChannel> channel_;
   int num_nodes_{-1};
   int node_id_{-1};
@@ -305,7 +306,7 @@ Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups,
                       const ffi::String& host, int port) {
   auto n =
       ffi::make_object<SocketSessionObj>(num_nodes, num_workers_per_node, num_groups, host, port);
-  return Session(n);
+  return Session(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

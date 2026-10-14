@@ -27,7 +27,7 @@ from tvm.script import relax as R
 
 def prepare_relax_lib(base_path):
     pipeline = relax.get_pipeline()
-    n = I.dynamic("n")
+    n = I.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Mod:
@@ -52,8 +52,8 @@ def prepare_cpu_lib(base_path):
     A = te.placeholder((n,), name="A")
     B = te.placeholder((n,), name="B")
     C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
-    mod = tvm.IRModule.from_expr(te.create_prim_func([A, B, C]).with_attr("global_symbol", "myadd"))
-    fadd = tvm.tirx.build(mod, target)
+    mod = tvm.IRModule.from_expr(te.create_function([A, B, C]).with_attr("global_symbol", "myadd"))
+    fadd = tvm.tirx.compile(mod, target).mod
     lib_path = os.path.join(base_path, "add_cpu.so")
     fadd.export_library(lib_path)
 
@@ -66,14 +66,14 @@ def prepare_gpu_lib(base_path):
     A = te.placeholder((n,), name="A")
     B = te.placeholder((n,), name="B")
     C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
-    mod = tvm.IRModule.from_expr(te.create_prim_func([A, B, C]).with_attr("global_symbol", "myadd"))
+    mod = tvm.IRModule.from_expr(te.create_function([A, B, C]).with_attr("global_symbol", "myadd"))
     sch = tvm.s_tir.Schedule(mod)
     sch.work_on("myadd")
     (i,) = sch.get_loops(block=sch.get_sblock("C"))
     i0, i1 = sch.split(i, [None, 32])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")
-    fadd = tvm.tirx.build(sch.mod, "cuda")
+    fadd = tvm.tirx.compile(sch.mod, "cuda").mod
     lib_path = os.path.join(base_path, "add_cuda.so")
     fadd.export_library(lib_path)
 

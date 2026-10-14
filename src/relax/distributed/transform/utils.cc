@@ -48,7 +48,7 @@ bool TypeCompatibleWithRelax(ffi::Array<Type> tys) {
 bool IsDistIRFunc(Function func) {
   ffi::Array<Type> param_tys;
   for (const auto& param : func->params) {
-    TVM_FFI_ICHECK(!param->ty.IsMissing());
+    TVM_FFI_ICHECK(!param->ty.as<MissingType>().has_value());
     param_tys.push_back(param->ty.as_or_throw<Type>());
   }
   bool compatible_with_dist_ir = TypeCompatibleWithDistIR(param_tys);

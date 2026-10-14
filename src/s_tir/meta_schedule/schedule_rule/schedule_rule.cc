@@ -26,32 +26,32 @@ namespace tvm {
 namespace s_tir {
 namespace meta_schedule {
 
-void PyScheduleRuleNode::InitializeWithTuneContext(const TuneContext& context) {
+void PyScheduleRuleObj::InitializeWithTuneContext(const TuneContext& context) {
   TVM_FFI_ICHECK(f_initialize_with_tune_context != nullptr)
       << "PyScheduleRule's InitializeWithTuneContext method not implemented!";
   f_initialize_with_tune_context(context);
 }
 
-ffi::Array<s_tir::Schedule> PyScheduleRuleNode::Apply(const s_tir::Schedule& sch,
-                                                      const s_tir::SBlockRV& block) {
+ffi::Array<s_tir::Schedule> PyScheduleRuleObj::Apply(const s_tir::Schedule& sch,
+                                                     const s_tir::SBlockRV& block) {
   TVM_FFI_ICHECK(f_apply != nullptr) << "PyScheduleRule's Apply method not implemented!";
   return f_apply(sch, block);
 }
 
-ScheduleRule PyScheduleRuleNode::Clone() const {
+ScheduleRule PyScheduleRuleObj::Clone() const {
   TVM_FFI_ICHECK(f_clone != nullptr) << "PyScheduleRule's Clone method not implemented!";
   return f_clone();
 }
 
 ScheduleRule ScheduleRule::PyScheduleRule(
-    PyScheduleRuleNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
-    PyScheduleRuleNode::FApply f_apply,                                             //
-    PyScheduleRuleNode::FClone f_clone) {
-  ffi::ObjectPtr<PyScheduleRuleNode> n = ffi::make_object<PyScheduleRuleNode>();
+    PyScheduleRuleObj::FInitializeWithTuneContext f_initialize_with_tune_context,  //
+    PyScheduleRuleObj::FApply f_apply,                                             //
+    PyScheduleRuleObj::FClone f_clone) {
+  ffi::ObjectPtr<PyScheduleRuleObj> n = ffi::make_object<PyScheduleRuleObj>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
   n->f_clone = std::move(f_clone);
-  return ScheduleRule(n);
+  return ScheduleRule(ffi::UnsafeInit{}, n);
 }
 
 ffi::Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
@@ -65,7 +65,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
           /*disallow_if_then_else=*/true,
           /*require_injective=*/true,
           /*require_ordered=*/true,
-          /*disallow_op=*/ffi::Array<ffi::String>{"tirx.exp"}),
+          /*disallow_op=*/ffi::Array<ffi::String>{"prim.exp"}),
       ScheduleRule::AddRFactor(
           /*max_jobs_per_core=*/16,
           /*max_innermost_factor=*/static_cast<int64_t>(64)),
@@ -101,7 +101,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultX86(const ffi::String& type) {
           /*disallow_if_then_else=*/true,
           /*require_injective=*/true,
           /*require_ordered=*/true,
-          /*disallow_op=*/ffi::Array<ffi::String>{"tirx.exp"}),
+          /*disallow_op=*/ffi::Array<ffi::String>{"prim.exp"}),
       ScheduleRule::AddRFactor(
           /*max_jobs_per_core=*/16,
           /*max_innermost_factor=*/static_cast<int64_t>(64)),
@@ -174,53 +174,6 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
 }
 
 ffi::Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
-  ffi::Array<ffi::Map<ffi::String, ffi::String>> wmma_intrin_groups = {
-      // Tensor Cores f32 += f16 * f16
-      {
-          {"init", "wmma_fill_16x16x16_f32"},
-          {"load_a", "wmma_load_16x16x16_f16_a_shared_dyn"},
-          {"load_b", "wmma_load_16x16x16_f16_b_shared_dyn"},
-          {"compute", "wmma_sync_16x16x16_f16f16f32"},
-          {"store", "wmma_store_16x16x16_f32_shared_dyn"},
-      },
-      {
-          {"init", "wmma_fill_16x16x16_f32"},
-          {"load_a", "wmma_load_16x16x16_f16_a_shared_dyn"},
-          {"load_b", "wmma_load_16x16x16_f16_b_trans_shared_dyn"},
-          {"compute", "wmma_sync_16x16x16_f16f16f32_trans"},
-          {"store", "wmma_store_16x16x16_f32_shared_dyn"},
-      },
-      // Tensor Cores f16 += f16 * f16
-      {
-          {"init", "wmma_fill_16x16x16_f16"},
-          {"load_a", "wmma_load_16x16x16_f16_a_shared_dyn"},
-          {"load_b", "wmma_load_16x16x16_f16_b_shared_dyn"},
-          {"compute", "wmma_sync_16x16x16_f16f16f16"},
-          {"store", "wmma_store_16x16x16_f16_shared_dyn"},
-      },
-      {
-          {"init", "wmma_fill_16x16x16_f16"},
-          {"load_a", "wmma_load_16x16x16_f16_a_shared_dyn"},
-          {"load_b", "wmma_load_16x16x16_f16_b_trans_shared_dyn"},
-          {"compute", "wmma_sync_16x16x16_f16f16f16_trans"},
-          {"store", "wmma_store_16x16x16_f16_shared_dyn"},
-      },
-      // Tensor Cores s32 += s8 * s8
-      {
-          {"init", "wmma_fill_16x16x16_s32"},
-          {"load_a", "wmma_load_16x16x16_s8_a_shared_dyn"},
-          {"load_b", "wmma_load_16x16x16_s8_b_shared_dyn"},
-          {"compute", "wmma_sync_16x16x16_s8s8s32"},
-          {"store", "wmma_store_16x16x16_s32_shared_dyn"},
-      },
-      {
-          {"init", "wmma_fill_16x16x16_s32"},
-          {"load_a", "wmma_load_16x16x16_s8_a_shared_dyn"},
-          {"load_b", "wmma_load_16x16x16_s8_b_trans_shared_dyn"},
-          {"compute", "wmma_sync_16x16x16_s8s8s32_trans"},
-          {"store", "wmma_store_16x16x16_s32_shared_dyn"},
-      },
-  };
   ffi::Array<ffi::Map<ffi::String, ffi::String>> mma_intrin_groups = {
       // Tensor Core MMA
       {
@@ -240,21 +193,6 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
   };
   ffi::Array<ScheduleRule> results{
       ScheduleRule::ApplyCustomRule(),
-      ScheduleRule::MultiLevelTilingTensorCore(
-          /*intrin_groups=*/wmma_intrin_groups,
-          /*structure=*/"SSSRRSRS",
-          /*tile_binds=*/ffi::Array<ffi::String>{"blockIdx.y", "blockIdx.x", "threadIdx.y"},
-          /*max_innermost_factor=*/static_cast<int64_t>(4),
-          /*vector_load_lens=*/ffi::Array<int64_t>{1, 2, 3, 4, 8, 16},
-          /*reuse_read=*/
-          ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("must")},
-                                          {"levels", ffi::Array<int64_t>{4}},  //
-                                          {"scope", ffi::String("shared.dyn")}},
-          /*reuse_write=*/
-          ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("must")},
-                                          {"levels", ffi::Array<int64_t>{2}},  //
-                                          {"scope", ffi::String("shared.dyn")}},
-          /*use_software_pipeline=*/false),  //
       ScheduleRule::MultiLevelTilingTensorCore(
           /*intrin_groups=*/mma_intrin_groups,
           /*structure=*/"SSSRRSRS",
@@ -287,7 +225,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
           /*disallow_if_then_else=*/true,
           /*require_injective=*/true,
           /*require_ordered=*/true,
-          /*disallow_op=*/ffi::Array<ffi::String>{"tirx.exp"}),
+          /*disallow_op=*/ffi::Array<ffi::String>{"prim.exp"}),
       ScheduleRule::MultiLevelTilingWideVector(
           /*structure=*/"SRSRS",
           /*vector_length_in_bits=*/1024,
@@ -316,7 +254,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultRISCV(const int vlen) {
       /*disallow_if_then_else=*/true,
       /*require_injective=*/true,
       /*require_ordered=*/true,
-      /*disallow_op=*/ffi::Array<ffi::String>{"tirx.exp"}));
+      /*disallow_op=*/ffi::Array<ffi::String>{"prim.exp"}));
   rules.push_back(ScheduleRule::AddRFactor(
       /*max_jobs_per_core=*/16,
       /*max_innermost_factor=*/static_cast<int64_t>(64)));
@@ -426,7 +364,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultARM(const ffi::String& type) {
           /*disallow_if_then_else=*/true,
           /*require_injective=*/true,
           /*require_ordered=*/true,
-          /*disallow_op=*/ffi::Array<ffi::String>{"tirx.exp"}),
+          /*disallow_op=*/ffi::Array<ffi::String>{"prim.exp"}),
       ScheduleRule::AddRFactor(
           /*max_jobs_per_core=*/8,
           /*max_innermost_factor=*/static_cast<int64_t>(32)),
@@ -453,17 +391,17 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultARM(const ffi::String& type) {
 // Pattern A (RM): auto-default repr from reflection.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ScheduleRuleNode::RegisterReflection();
-  PyScheduleRuleNode::RegisterReflection();
+  ScheduleRuleObj::RegisterReflection();
+  PyScheduleRuleObj::RegisterReflection();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("s_tir.meta_schedule.ScheduleRuleInitializeWithTuneContext",
-                  &ScheduleRuleNode::InitializeWithTuneContext)
-      .def_method("s_tir.meta_schedule.ScheduleRuleApply", &ScheduleRuleNode::Apply)
-      .def_method("s_tir.meta_schedule.ScheduleRuleClone", &ScheduleRuleNode::Clone)
+                  &ScheduleRuleObj::InitializeWithTuneContext)
+      .def_method("s_tir.meta_schedule.ScheduleRuleApply", &ScheduleRuleObj::Apply)
+      .def_method("s_tir.meta_schedule.ScheduleRuleClone", &ScheduleRuleObj::Clone)
       .def("s_tir.meta_schedule.ScheduleRulePyScheduleRule", ScheduleRule::PyScheduleRule)
       .def("s_tir.meta_schedule.ScheduleRuleDefaultLLVM", ScheduleRule::DefaultLLVM)
       .def("s_tir.meta_schedule.ScheduleRuleDefaultCUDA", ScheduleRule::DefaultCUDA)

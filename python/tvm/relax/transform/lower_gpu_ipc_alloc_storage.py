@@ -25,11 +25,11 @@ from tvm.relax.expr import Expr
 from tvm.relax.expr_functor import PyExprMutator, mutator
 
 
-@tvm.transform.module_pass(opt_level=0, name="LowerGPUIPCAllocStorage")
+@tvm.ir.transform.module_pass(opt_level=0, name="LowerGPUIPCAllocStorage")
 class LowerGPUIPCAllocStorage:
     """Lower the storage/tensor allocation on IPC memory."""
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm.ir.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
         return _Rewriter(mod).transform()
 

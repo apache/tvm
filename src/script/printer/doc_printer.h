@@ -19,6 +19,7 @@
 #ifndef SRC_SCRIPT_PRINTER_DOC_PRINTER_H_
 #define SRC_SCRIPT_PRINTER_DOC_PRINTER_H_
 
+#include <tvm/script/printer/config.h>
 #include <tvm/script/printer/doc.h>
 
 namespace tvm {

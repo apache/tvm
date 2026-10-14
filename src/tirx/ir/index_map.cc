@@ -25,12 +25,12 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/int_set.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/index_map.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <sstream>
@@ -125,8 +125,8 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
   ffi::Array<PrimExpr> inverse_exprs;
   for (int i = 0, n = self->initial_indices.size(); i < n; ++i) {
     PrimVar index = self->initial_indices[i];
-    PrimExpr expr;
-    if (is_one(initial_ranges[i]->extent) && !inverse_exprs_map.count(index)) {
+    PrimExpr expr{ffi::UnsafeInit{}};
+    if (IsOne(initial_ranges[i]->extent) && !inverse_exprs_map.count(index)) {
       expr = initial_ranges[i]->min;
     } else {
       expr = inverse_exprs_map.at(index);
@@ -134,7 +134,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
     inverse_exprs.push_back(analyzer->Simplify(expr));
   }
 
-  PrimExpr padding_predicate = padded_iter_map->padding_predicate;
+  PrimExpr padding_predicate = padded_iter_map->padding_predicate.value();
   padding_predicate = sym::NormalizeIterMapToExpr(padding_predicate);
   auto f_substitute =
       [&inverse_exprs_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -254,7 +254,7 @@ ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges,
     // results in a shape [1, N].
     std::unordered_map<const VarNode*, sym::IntSet> dom_map;
     for (size_t i = 0; i < initial_indices.size(); i++) {
-      dom_map[initial_indices[i].get()] = sym::IntSet::FromRange(ranges[i]);
+      dom_map.insert_or_assign(initial_indices[i].get(), sym::IntSet::FromRange(ranges[i]));
     }
 
     for (const auto& final_index : final_indices) {
@@ -299,16 +299,17 @@ ffi::Array<PrimExpr> IndexMapNode::MapShape(const ffi::Array<PrimExpr>& shape,
 
   ffi::Array<PrimExpr> output;
   for (auto& range : mapped) {
-    TVM_FFI_ICHECK(is_zero(range->min));
+    TVM_FFI_ICHECK(IsZero(range->min));
     output.push_back(range->extent);
   }
 
   return output;
 }
 
-runtime::Tensor IndexMapNode::MapTensor(runtime::Tensor arr_src) const {
+ffi::Tensor IndexMapNode::MapTensor(ffi::Tensor arr_src) const {
+  TVM_FFI_ICHECK(arr_src.defined());
   sym::Analyzer analyzer;
-  auto shape = arr_src.Shape();
+  auto shape = arr_src.shape();
   TVM_FFI_ICHECK(shape.size() == initial_indices.size())
       << "The rank of the input array should be " << initial_indices.size() << " but got "
       << shape.size();
@@ -325,9 +326,9 @@ runtime::Tensor IndexMapNode::MapTensor(runtime::Tensor arr_src) const {
     dst_shape_int.push_back(static_cast<int64_t>(dst_shape[i].as<IntImmNode>()->value));
   }
 
-  auto elem_bytes = (arr_src->dtype.bits / 8) * arr_src->dtype.lanes;
+  auto elem_bytes = (arr_src.dtype().bits / 8) * arr_src.dtype().lanes;
   std::vector<uint8_t> bytes_src(size_1d * elem_bytes);
-  arr_src.CopyToBytes(bytes_src.data(), bytes_src.size());
+  tvm::runtime::CopyToBytes(arr_src, bytes_src.data(), bytes_src.size());
 
   std::vector<uint8_t> bytes_dst(bytes_src.size());
 
@@ -356,8 +357,8 @@ runtime::Tensor IndexMapNode::MapTensor(runtime::Tensor arr_src) const {
               bytes_dst.begin() + static_cast<int64_t>(dst_linear_index) * elem_bytes);
   }
 
-  auto arr_dst = runtime::Tensor::Empty(dst_shape_int, arr_src->dtype, arr_src->device);
-  arr_dst.CopyFromBytes(bytes_dst.data(), bytes_dst.size());
+  auto arr_dst = runtime::Empty(dst_shape_int, arr_src.dtype(), arr_src.device());
+  tvm::runtime::CopyFromBytes(arr_dst, bytes_dst.data(), bytes_dst.size());
   return arr_dst;
 }
 
@@ -506,7 +507,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return map.Inverse(initial_ranges, analyzer);
            })
       .def("tirx.IndexMapMapTensor",
-           [](IndexMap map, runtime::Tensor arr) { return map->MapTensor(arr); })
+           [](IndexMap map, ffi::Tensor arr) {
+             TVM_FFI_ICHECK(arr.defined());
+             return map->MapTensor(arr);
+           })
       .def("tirx.IndexMapNonSurjectiveInverse", [](IndexMap forward,
                                                    ffi::Array<Range> initial_ranges,
                                                    ffi::Optional<sym::Analyzer> opt_analyzer) {

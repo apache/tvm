@@ -153,7 +153,7 @@ def partition_for_cudnn(mod):
     """
 
     patterns = get_patterns_with_prefix("cudnn")
-    return tvm.transform.Sequential(
+    return tvm.ir.transform.Sequential(
         [
             transform.FuseOpsByPattern(patterns, bind_constants=False, annotate_codegen=True),
             annotate_workspace,
@@ -176,7 +176,7 @@ class WorkspaceAnnotator(PyExprMutator):
     def visit_function_(self, f):
         if "Composite" not in f.attrs:
             body = super().visit_expr(f.body)
-            new_f = relax.Function(f.params, body, f.ret_ty, f.is_pure, f.attrs, f.span)
+            new_f = relax.Function(f.params, body, f.ret_ty, f.is_pure, f.attrs, f.loc)
 
             if "global_symbol" in f.attrs and "cudnn" in f.attrs["global_symbol"]:
                 composite_func = body.blocks[0].bindings[0].value
@@ -200,7 +200,7 @@ class WorkspaceAnnotator(PyExprMutator):
         return f
 
 
-@tvm.transform.module_pass(opt_level=0)
+@tvm.ir.transform.module_pass(opt_level=0)
 def annotate_workspace(mod, _):
     """Pass to annotate a workspace requirement for each cuDNN-offloaded function."""
     annotator = WorkspaceAnnotator(mod)

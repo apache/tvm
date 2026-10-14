@@ -42,8 +42,10 @@ class Target;
  * \brief Compilation target.
  * \sa Target
  */
-class TargetNode : public ffi::Object {
+class TargetObj : public ffi::Object {
  public:
+  explicit TargetObj(TargetKind kind) : kind(std::move(kind)) {}
+  explicit TargetObj(ffi::UnsafeInit tag) : kind(tag) {}
   /*! \brief The kind of the target device */
   TargetKind kind;
   /*! \brief Target host information, must be Target type */
@@ -59,32 +61,32 @@ class TargetNode : public ffi::Object {
    * \brief The JSON string representation of the target
    * \return JSON string of the target configuration (e.g. {"kind": "llvm", "mcpu": "cortex-a53"})
    */
-  TVM_DLL const std::string& str() const;
+  TVM_TIRX_DLL const std::string& str() const;
   /*! \return Export target to JSON-like configuration */
-  TVM_DLL ffi::Map<ffi::String, ffi::Any> ToConfig() const;
-  /*! \return The ffi::Optional<Target> typed target host of the TargetNode */
-  TVM_DLL ffi::Optional<Target> GetHost() const;
+  TVM_TIRX_DLL ffi::Map<ffi::String, ffi::Any> ToConfig() const;
+  /*! \return The ffi::Optional<Target> typed target host of the TargetObj */
+  TVM_TIRX_DLL ffi::Optional<Target> GetHost() const;
   /*! \return The device type for this target */
-  TVM_DLL int GetTargetDeviceType() const;
+  TVM_TIRX_DLL int GetTargetDeviceType() const;
 
   /*!
    * \brief Check if the target contains a key
    *
    * \param query_key The string name of the key to be checked
    *
-   * \return True if the target's `TargetNode::keys` contains the
+   * \return True if the target's `TargetObj::keys` contains the
    * specified key, False otherwise.
    */
-  TVM_DLL bool HasKey(const std::string& query_key) const;
+  TVM_TIRX_DLL bool HasKey(const std::string& query_key) const;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TargetNode>()
-        .def_ro("kind", &TargetNode::kind)
-        .def_ro("tag", &TargetNode::tag)
-        .def_ro("keys", &TargetNode::keys)
-        .def_ro("attrs", &TargetNode::attrs)
-        .def_ro("host", &TargetNode::host);
+    refl::ObjectDef<TargetObj>()
+        .def_ro("kind", &TargetObj::kind)
+        .def_ro("tag", &TargetObj::tag)
+        .def_ro("keys", &TargetObj::keys)
+        .def_ro("attrs", &TargetObj::attrs)
+        .def_ro("host", &TargetObj::host);
   }
 
   /*!
@@ -118,7 +120,7 @@ class TargetNode : public ffi::Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.Target", TargetNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.Target", TargetObj, ffi::Object);
 
  private:
   /*! \brief Internal string repr. */
@@ -128,41 +130,43 @@ class TargetNode : public ffi::Object {
 };
 
 /*!
- * \brief Managed reference class to TargetNode.
- * \sa TargetNode
+ * \brief Managed reference class to TargetObj.
+ * \sa TargetObj
  */
 class Target : public ffi::ObjectRef {
  public:
-  /*! \brief Construct a null Target */
-  TVM_DLL explicit Target(std::nullptr_t) { data_ = nullptr; }
   /*!
    * \brief Construct a Target given a string
    * \param tag_or_config_or_target_str the string to parse for target
    */
-  TVM_DLL explicit Target(const ffi::String& tag_or_config_or_target_str);
+  TVM_TIRX_DLL explicit Target(const ffi::String& tag_or_config_or_target_str);
   /*!
    * \brief Construct a Target using a JSON-like configuration
    * \param config The JSON-like configuration for target
    */
-  TVM_DLL explicit Target(const ffi::Map<ffi::String, ffi::Any>& config);
+  TVM_TIRX_DLL explicit Target(const ffi::Map<ffi::String, ffi::Any>& config);
   /*!
    * \brief Get the current target context from thread local storage.
-   * \param allow_not_defined If the context stack is empty and this is set to true, an
-   *   undefined Target will be returned. Otherwise, an empty context stack will cause a
+   * \param allow_not_defined If the context stack is empty and this is set to true, std::nullopt
+   *   will be returned. Otherwise, an empty context stack will cause a
    *   runtime error.
-   * \return The target that is the current context. The target may not be defined if
+   * \return The target that is the current context. The result may be absent if
    * allow_not_defined is true.
    */
-  TVM_DLL static tvm::Target Current(bool allow_not_defined = true);
+  TVM_TIRX_DLL static ffi::Optional<Target> Current(bool allow_not_defined = true);
   /*!
    * \brief Construct a Target given target and host
    * \param target The Target typed object with host field undefined for target
    * \param host The Target typed object for target host
    */
-  TVM_DLL explicit Target(Target target, Target host);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Target, ffi::ObjectRef, TargetNode);
+  TVM_TIRX_DLL explicit Target(Target target, ffi::Optional<Target> host);
+  explicit Target(ffi::UnsafeInit tag, ffi::ObjectPtr<TargetObj> n) : ffi::ObjectRef(tag) {
+    data_ = std::move(n);
+  }
 
-  static Target WithHost(const Target& target, const Target& host);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Target, ffi::ObjectRef, TargetObj);
+
+  static Target WithHost(const Target& target, const ffi::Optional<Target>& host);
 
   /*! \return The target with the host stripped out */
   Target WithoutHost() const;
@@ -179,12 +183,12 @@ class Target : public ffi::ObjectRef {
    *  The Target on top of the stack is used to determine which
    *  specialization to use when invoking a GenericFunc.
    */
-  TVM_DLL void EnterWithScope();
+  TVM_TIRX_DLL void EnterWithScope();
   /*!
    * \brief Pop a target off the thread local context stack,
    *  restoring the previous target as the current context.
    */
-  TVM_DLL void ExitWithScope();
+  TVM_TIRX_DLL void ExitWithScope();
 };
 
 }  // namespace tvm

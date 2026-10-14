@@ -32,7 +32,7 @@ import tvm.ir
 from tvm.relax import Expr, Type, Var
 from tvm.relax.dpl import DFPattern
 from tvm.runtime import Object, Tensor
-from tvm.tirx import IndexMap, PrimFunc
+from tvm.tirx import Function, IndexMap
 
 from ..expr import Var
 from ..global_info import VDevice
@@ -286,7 +286,7 @@ def DataflowUseInplaceCalls() -> tvm.ir.transform.Pass:
     Pass that changes calls to operators that can be done in-place
     (generally, these are elementwise operations) into in-place implementations.
     Supported operators will be replaced by calls to `call_tir_inplace` that invoke
-    in-place PrimFunc implementations of those operators (which are based on the legalizations of
+    in-place Function implementations of those operators (which are based on the legalizations of
     those operators).
 
     Note: ConvertToDataflow may need to be called first to provide dataflow blocks.
@@ -412,6 +412,10 @@ def ConvertToDataflow(min_size: int = 2) -> tvm.ir.transform.Pass:
 def CallTIRRewrite() -> tvm.ir.transform.Pass:
     """Perform explicit tensor allocation for call_tir and call_dps_packed.
 
+    Run ToNonDataflow and RemovePurityChecking first when lowering checked
+    pure or dataflow functions. Native destination writes become effectful
+    call_tir_packed calls.
+
     Returns
     -------
     ret: tvm.ir.transform.Pass
@@ -477,7 +481,7 @@ def EliminateCommonSubexpr(call_only=False) -> FunctionPass:
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass that eliminates common subexpressions.
     """
     return _ffi_api.EliminateCommonSubexpr(call_only)  # type: ignore
@@ -572,15 +576,15 @@ def KillAfterLastUse() -> tvm.ir.transform.Pass:
 
 
 def ComputePrimValue() -> tvm.ir.transform.Pass:
-    """Compute all R.prim_value instances
+    """Compute symbolic primitive expressions
 
     While high-level relax can include expressions in terms of its
     symbolic variables, these expressions cannot natively be computed
     within relax.  In order to provide values for symbolic expressions
-    (e.g. `R.prim_value(N*N)`, where `N` is a symbolic variable), this
-    pass generates a PrimFunc in which the expression can be computed.
+    (e.g. `N * N`, where `N` is a symbolic variable), this
+    pass generates a Function in which the expression can be computed.
     The relax graph is then updated to include a call to that
-    PrimFunc, in place of the original `R.prim_value(expr)`.
+    Function, in place of the original primitive expression.
 
     Returns
     -------
@@ -616,7 +620,7 @@ def VMShapeLower(*, emit_err_ctx: bool = True) -> tvm.ir.transform.Pass:
 
 
 def AttachGlobalSymbol() -> tvm.ir.transform.Pass:
-    """Attach global_symbol to Relax functions and TIR Primfuncs for codegen.
+    """Attach global_symbol to Relax functions and TIR Functions for codegen.
 
     Returns
     -------
@@ -699,7 +703,7 @@ def RunCodegen(
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass to remove unused functions.
     """
     if entry_functions is None:
@@ -780,7 +784,7 @@ def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
     implementation. By grouping bindings into new Relax functions, we substitute the bindings in
     the function being manipulated into function calls to the new grouped function.
 
-    A follow-up pass named "FuseTIR" will generate a TIR PrimFunc for each grouped function.
+    A follow-up pass named "FuseTIR" will generate a TIR Function for each grouped function.
 
     Note: ConvertToDataflow may need to be called first to provide dataflow blocks.
 
@@ -792,7 +796,7 @@ def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass for operator fusion.
     """
     return _ffi_api.FuseOps(fuse_opt_level)  # type: ignore
@@ -803,7 +807,7 @@ def FuseTIR() -> tvm.ir.transform.Pass:
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass for tirx fusion.
     """
     return _ffi_api.FuseTIR()  # type: ignore
@@ -926,7 +930,7 @@ def FuseOpsByPattern(
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass for pattern-based fusion.
 
     """
@@ -954,27 +958,27 @@ def MergeCompositeFunctions() -> tvm.ir.transform.Pass:
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass for merging composite functions.
     """
     return _ffi_api.MergeCompositeFunctions()  # type: ignore
 
 
-def AttachAttrLayoutFreeBuffers() -> tvm.ir.transform.Pass:
-    """Attach layout free buffers to the tirx::PrimFunc.
+def AttachAttrLayoutFreeTensors() -> tvm.ir.transform.Pass:
+    """Attach layout free tensors to the tirx::Function.
 
-    This pass is used to attach layout free buffers to the tirx::PrimFunc according to
-    the function usage in the relax function. Currently, the layout free buffers are the model
+    This pass is used to attach layout free tensors to the tirx::Function according to
+    the function usage in the relax function. Currently, the layout free tensors are the model
     weights and relax constants.
 
     Note that we recommend applying CanonicalizeBindings before this pass.
 
     Returns
     -------
-    ret : tvm.transform.Pass
-        The registered pass for attaching layout free buffers.
+    ret : tvm.ir.transform.Pass
+        The registered pass for attaching layout free tensors.
     """
-    return _ffi_api.AttachAttrLayoutFreeBuffers()  # type: ignore
+    return _ffi_api.AttachAttrLayoutFreeTensors()  # type: ignore
 
 
 def SplitLayoutRewritePreproc() -> tvm.ir.transform.Pass:
@@ -983,7 +987,7 @@ def SplitLayoutRewritePreproc() -> tvm.ir.transform.Pass:
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass for splitting TIR layout rewrite.
     """
     return _ffi_api.SplitLayoutRewritePreproc()  # type: ignore
@@ -1021,7 +1025,7 @@ def LiftTransformParams(shared_transform: bool | list[str] = False) -> tvm.ir.tr
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass for lifting transformation of parameters.
     """
     return _ffi_api.LiftTransformParams(shared_transform)  # type: ignore
@@ -1044,7 +1048,7 @@ def BundleModelParams(param_tuple_name: str | None = None) -> tvm.ir.transform.P
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass for bundling model parameters.
     """
     return _ffi_api.BundleModelParams(param_tuple_name)  # type: ignore
@@ -1056,12 +1060,12 @@ def LegalizeOps(
     enable_warning: bool = False,
 ):
     """Legalize high-level operator calls in Relax functions to call_tir
-    with corresponding low-level TIR PrimFuncs.
+    with corresponding low-level TIR Functions.
 
     For each high-level operator, we register the way of legalizing it as a
     function, which takes a context BlockBuilder and the Call being legalized
     as input, and returns the legalized call. Here the input BlockBuilder is
-    mainly used for adding the PrimFunc created by call_te into the context
+    mainly used for adding the Function created by call_te into the context
     IRModule.
 
     The legalization function for each operator is registered as an attribute (with
@@ -1089,7 +1093,7 @@ def LegalizeOps(
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass
 
     Examples
@@ -1132,7 +1136,7 @@ def LegalizeOps(
                 r = R.call_tir(multiply, (y, z), (2, 3), dtype="float32")
                 return r
 
-            @Ts.prim_func
+            @Ts.function
             def add(
                 A: T.Tensor((2, 3), "float32"),
                 B: T.Tensor((2, 3), "float32"),
@@ -1146,7 +1150,7 @@ def LegalizeOps(
                         Ts.writes(T_add[v_ax0, v_ax1])
                         T_add[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
-            @Ts.prim_func
+            @Ts.function
             def multiply(
                 A: T.Tensor((2, 3), "float32"),
                 B: T.Tensor((2, 3), "float32"),
@@ -1169,7 +1173,7 @@ def RealizeVDevice() -> tvm.ir.transform.Pass:
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass
     """
 
@@ -1192,7 +1196,7 @@ def MetaScheduleApplyDatabase(
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass
     """
     return _ffi_api.MetaScheduleApplyDatabase(work_dir, enable_warning)  # type: ignore
@@ -1262,7 +1266,7 @@ def DecomposeOpsForInference(func_name: str | None = None) -> tvm.ir.transform.P
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass
     """
     return _ffi_api.DecomposeOpsForInference(func_name)  # type: ignore
@@ -1281,33 +1285,33 @@ def DecomposeOpsForTraining(func_name: str | None = None) -> tvm.ir.transform.Pa
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass
     """
     return _ffi_api.DecomposeOpsForTraining(func_name)  # type: ignore
 
 
 def AlterOpImpl(
-    op_impl_map: dict[str, PrimFunc],
-    op_buffer_transforms: dict[str, list[IndexMap | Callable]],
+    op_impl_map: dict[str, Function],
+    op_tensor_transforms: dict[str, list[IndexMap | Callable]],
 ):
-    """Replace all PrimFunc's which have matching 'operator_name' attribute, with replacement
-    PrimFunc that could possibly have different layouts on i/o buffers. The layout
-    transformations on i/o buffers is present in the op_buffer_transforms map. Inserts the layout
-    transformations in the call sites of PrimFuncs being replaced to transform i/o
-    tensors into expected layout by new PrimFunc.
+    """Replace all Function's which have matching 'operator_name' attribute, with replacement
+    Function that could possibly have different layouts on i/o tensors. The layout
+    transformations on i/o tensors is present in the op_tensor_transforms map. Inserts the layout
+    transformations in the call sites of Functions being replaced to transform i/o
+    tensors into expected layout by new Function.
 
     Parameters
     ----------
-    op_impl_map: Dict[str, PrimFunc]
-        op_kind to PrimFunc map
-    op_buffer_transforms: Dict[str, List[Union[IndexMap, Callable]]
-        op_kind to layout transformation map for each of the buffers
+    op_impl_map: Dict[str, Function]
+        op_kind to Function map
+    op_tensor_transforms: Dict[str, List[Union[IndexMap, Callable]]
+        op_kind to layout transformation map for each of the tensors
     Returns
     -------
     ret: tvm.ir.transform.Pass
     """
-    for operator_name, transform_list in op_buffer_transforms.items():
+    for operator_name, transform_list in op_tensor_transforms.items():
         l = []
         for transform in transform_list:
             # Extract the index_map
@@ -1316,9 +1320,9 @@ def AlterOpImpl(
             elif isinstance(transform, Array | tuple) and isinstance(transform[0], IndexMap):
                 transform = transform[0]
             l.append(transform)
-        op_buffer_transforms[operator_name] = l
+        op_tensor_transforms[operator_name] = l
 
-    return _ffi_api.AlterOpImpl(op_impl_map, op_buffer_transforms)  # type: ignore
+    return _ffi_api.AlterOpImpl(op_impl_map, op_tensor_transforms)  # type: ignore
 
 
 def ConvertLayout(
@@ -1340,7 +1344,7 @@ def ConvertLayout(
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass for layout conversion.
     """
     return _ffi_api.ConvertLayout(desired_layouts, layout_cb)  # type: ignore
@@ -1368,7 +1372,7 @@ def DeadCodeElimination(entry_functions: list[str] | None = None) -> tvm.ir.tran
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass.
     """
     if entry_functions is None:
@@ -1394,21 +1398,21 @@ def ToMixedPrecision(
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass for mixed precision.
     """
     return _ffi_api.ToMixedPrecision(out_dtype, fp16_input_names)  # type: ignore
 
 
-def SplitCallTIRByPattern(patterns: list[PrimFunc], fcodegen: Callable) -> tvm.ir.transform.Pass:
-    """Split a PrimFunc into 2 parts: the first part is a TIR PrimFunc which is
+def SplitCallTIRByPattern(patterns: list[Function], fcodegen: Callable) -> tvm.ir.transform.Pass:
+    """Split a Function into 2 parts: the first part is a TIR Function which is
        matched with some pattern, and the second part is the rest of the original
-       PrimFunc. It will call fcodegen to generate the code for the matched pattern
+       Function. It will call fcodegen to generate the code for the matched pattern
        to replace it with a ExternFunc call.
 
     Parameters
     ----------
-    patterns : List[PrimFunc]
+    patterns : List[Function]
         The list of patterns to match.
 
     fcodegen: Callable[[List[MatchResult]], List[Object]]
@@ -1416,7 +1420,7 @@ def SplitCallTIRByPattern(patterns: list[PrimFunc], fcodegen: Callable) -> tvm.i
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass for splitting call_tir.
     """
     return _ffi_api.SplitCallTIRByPattern(patterns, fcodegen)  # type: ignore
@@ -1439,7 +1443,7 @@ def UpdateParamType(ty_func: Callable[[Var], Type | None]):
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The corresponding pass.
 
     """
@@ -1456,7 +1460,7 @@ def AdjustMatmulOrder():
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The corresponding pass.
     """
 
@@ -1476,7 +1480,7 @@ def ExpandMatmulOfSum():
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The corresponding pass.
     """
 
@@ -1496,7 +1500,7 @@ def ReorderPermuteDimsAfterConcat():
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The corresponding pass.
     """
 
@@ -1511,7 +1515,7 @@ def ReorderTakeAfterMatmul():
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The corresponding pass.
     """
 
@@ -1534,7 +1538,7 @@ def CombineParallelMatmul(check=None):
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The corresponding pass.
     """
     if check is None:
@@ -1569,17 +1573,17 @@ def AllocateWorkspace() -> tvm.ir.transform.Pass:
     return _ffi_api.AllocateWorkspace()  # type: ignore
 
 
-def SpecializePrimFuncBasedOnCallSite() -> tvm.ir.transform.Pass:
-    """This pass updates the var_buffer mapping of PrimFunctions from the call_tir info.
+def SpecializeFunctionBasedOnCallSite() -> tvm.ir.transform.Pass:
+    """This pass updates the var_tensor mapping of Functiontions from the call_tir info.
     Primarily used to update the VDevice information if any changes occurred from the caller.
-    This pass recreates the buffers and updates the map.
+    This pass recreates the tensors and updates the map.
 
     Returns
     -------
     ret: tvm.ir.transform.Pass
-        The registered pass for specializing PrimFuncs based on call site.
+        The registered pass for specializing Functions based on call site.
     """
-    return _ffi_api.SpecializePrimFuncBasedOnCallSite()  # type: ignore
+    return _ffi_api.SpecializeFunctionBasedOnCallSite()  # type: ignore
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):
@@ -1618,8 +1622,6 @@ def function_pass(
     pass_func=None,
     opt_level=None,
     name=None,
-    required=None,
-    traceable=False,
 ) -> Callable | FunctionPass:
     """Decorate a function pass.
 
@@ -1638,12 +1640,6 @@ def function_pass(
     name : Optional[str]
         The name of the function pass. The name could be empty. In this case, the
         name of the optimization function will be used as the pass name.
-
-    required : Optional[List[str]]
-        The list of passes that the function pass is dependent on.
-
-    traceable: Boolean
-        Boolean variable whether the function pass is traceable
 
     Returns
     -------
@@ -1711,14 +1707,10 @@ def function_pass(
     if opt_level is None:
         raise ValueError("Please provide opt_level for the function pass.")
 
-    required = required if required else []
-    if not isinstance(required, list | tuple):
-        raise TypeError("Required is expected to be the type of " + "list/tuple.")
-
     def create_function_pass(pass_arg):
         """Internal function that creates a function pass"""
         fname = name if name else pass_arg.__name__
-        info = tvm.transform.PassInfo(opt_level, fname, required, traceable)
+        info = tvm.ir.transform.PassInfo(opt_level, fname)
         if inspect.isclass(pass_arg):
             return _wrap_class_function_pass(pass_arg, info)
         if not isinstance(pass_arg, types.FunctionType | types.LambdaType):
@@ -1762,9 +1754,7 @@ def _wrap_class_dataflowblock_pass(pass_cls, pass_info):
     return PyDataflowBlockPass
 
 
-def dataflowblock_pass(
-    pass_func=None, opt_level=None, name=None, required=None, traceable=False
-) -> Callable | DataflowBlockPass:
+def dataflowblock_pass(pass_func=None, opt_level=None, name=None) -> Callable | DataflowBlockPass:
     """Decorate a dataflowblock pass.
 
     This function returns a callback when pass_func
@@ -1782,12 +1772,6 @@ def dataflowblock_pass(
     name : Optional[str]
         The name of the dataflowblock pass. The name could be empty. In this case, the
         name of the optimization function will be used as the pass name.
-
-    required : Optional[List[str]]
-        The list of passes that the dataflowblock pass is dependent on.
-
-    traceable: Boolean
-        Boolean variable whether the dataflowblock pass is traceable
 
     Returns
     -------
@@ -1820,7 +1804,7 @@ def dataflowblock_pass(
                 # just for demo purposes
                 # Replace the first binding in the DataflowBlock
                 new_bindings = [self.new_binding, block.bindings[1]]
-                new_block = relax.expr.DataflowBlock(new_bindings, block.span)
+                new_block = relax.expr.DataflowBlock(new_bindings, block.loc)
                 return new_block
 
         @tvm.script.ir_module
@@ -1863,14 +1847,10 @@ def dataflowblock_pass(
     if opt_level is None:
         raise ValueError("Please provide opt_level for the dataflowblock pass.")
 
-    required = required if required else []
-    if not isinstance(required, list | tuple):
-        raise TypeError("Required is expected to be the type of " + "list/tuple.")
-
     def create_dataflowblock_pass(pass_arg):
         """Internal function that creates a dataflowblock pass"""
         fname = name if name else pass_arg.__name__
-        info = tvm.transform.PassInfo(opt_level, fname, required, traceable)
+        info = tvm.ir.transform.PassInfo(opt_level, fname)
         if inspect.isclass(pass_arg):
             return _wrap_class_dataflowblock_pass(pass_arg, info)
         if not isinstance(pass_arg, types.FunctionType | types.LambdaType):

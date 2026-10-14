@@ -107,7 +107,7 @@ def _relu_partition(shape=(2, 4)):
         with builder.dataflow():
             output = builder.emit_output(relax.op.nn.relu(data))
         builder.emit_func_output(output)
-    return tvm.transform.Sequential(
+    return tvm.ir.transform.Sequential(
         [
             relax.transform.FuseOpsByPattern(
                 [("tensorrt.nn.relu", is_op("relax.nn.relu")(wildcard()))]
@@ -121,7 +121,7 @@ def _codegen(partitioned, eager=None):
     config = {}
     if eager is not None:
         config["relax.ext.tensorrt.options"] = {"build_at_compile_time": eager}
-    with tvm.transform.PassContext(config=config):
+    with tvm.ir.transform.PassContext(config=config):
         return relax.transform.RunCodegen()(partitioned)
 
 
@@ -212,7 +212,7 @@ def _two_partitions(dtype):
         ("tensorrt.add", is_op("relax.add")(wildcard(), wildcard())),
         ("tensorrt.multiply", is_op("relax.multiply")(wildcard(), wildcard())),
     ]
-    partitioned = tvm.transform.Sequential(
+    partitioned = tvm.ir.transform.Sequential(
         [
             relax.transform.BindParams("main", parameters),
             # Leave sin on the TVM side to force two TensorRT partitions.

@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Optional
 
 import numpy as np  # type: ignore
 
-from tvm.ir.utils import derived_object
+from tvm.s_tir.utils import derived_object
 from tvm.support.tar import tar, untar
 
 from ....runtime import Tensor

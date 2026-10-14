@@ -35,35 +35,35 @@ from tvm.testing import env
 VECTOR_N_INPUTS = 8
 
 
-def make_prim_func(
+def make_function(
     name: str,
     dtype: str,
     num_inputs: int,
     op: Callable[[tirx.Expr, ...], tirx.Expr],
-) -> tirx.PrimFunc:
+) -> tirx.Function:
     """Make a primitive function that applies the given operation to the input buffer."""
     if num_inputs == 1:
 
-        @T.prim_func
+        @T.function
         def kernel(
             A: T.Tensor((VECTOR_N_INPUTS,), dtype),
             B: T.Tensor((VECTOR_N_INPUTS,), dtype),
         ):
             T.func_attr({"global_symbol": name + "_kernel", "tirx.noalias": True})
-            for i in T.thread_binding(VECTOR_N_INPUTS, thread="threadIdx.x"):
+            with T.launch_thread("threadIdx.x", VECTOR_N_INPUTS) as i:
                 B[i] = op(A[i])
 
         return kernel
     elif num_inputs == 2:
 
-        @T.prim_func
+        @T.function
         def kernel(
             A: T.Tensor((VECTOR_N_INPUTS,), dtype),
             E: T.Tensor((VECTOR_N_INPUTS,), dtype),
             B: T.Tensor((VECTOR_N_INPUTS,), dtype),
         ):
             T.func_attr({"global_symbol": name + "_kernel", "tirx.noalias": True})
-            for i in T.thread_binding(VECTOR_N_INPUTS, thread="threadIdx.x"):
+            with T.launch_thread("threadIdx.x", VECTOR_N_INPUTS) as i:
                 B[i] = op(A[i], E[i])
 
         return kernel
@@ -205,8 +205,8 @@ def make_mod(
 ) -> tuple[tvm.target.Target, tvm.IRModule]:
     """Make a module for the given dtype and case."""
     target = tvm.target.Target("cuda")
-    prim_func = make_prim_func(case.name, dtype, case.num_inputs, case.op)
-    return target, tvm.IRModule.from_expr(prim_func.with_attr("target", target))
+    function = make_function(case.name, dtype, case.num_inputs, case.op)
+    return target, tvm.IRModule.from_expr(function.with_attr("target", target))
 
 
 def expected_intrinsic(dtype: str, case: MathCase, enable_fast_math: bool) -> str:
@@ -228,7 +228,7 @@ def check_lowered_ir(
 ) -> tuple[tvm.target.Target, IRModule]:
     """Check the lowered IR for the given dtype and case."""
     target, mod = make_mod(dtype, case, enable_fast_math)
-    with tvm.transform.PassContext(config={"tirx.enable_fast_math": enable_fast_math}):
+    with tvm.ir.transform.PassContext(config={"tirx.enable_fast_math": enable_fast_math}):
         lowered_mod = tvm.tirx.transform.LowerIntrin()(mod)
     script = lowered_mod.script(show_meta=False)
     expected = expected_intrinsic(dtype, case, enable_fast_math)
@@ -244,8 +244,8 @@ def check_cuda_source(
     enable_fast_math: bool,
 ) -> Executable:
     """Check the CUDA source for the given dtype and case."""
-    with tvm.transform.PassContext(config={"tirx.enable_fast_math": enable_fast_math}):
-        executable = tvm.compile(mod, target=target)
+    with tvm.ir.transform.PassContext(config={"tirx.enable_fast_math": enable_fast_math}):
+        executable = tvm.tirx.compile(mod, target=target)
     source = executable.mod.imports[0].inspect_source()
     expected = expected_intrinsic(dtype, case, enable_fast_math)
     assert re.search(rf"(?<!_)\b{re.escape(expected)}\s*\(", source)

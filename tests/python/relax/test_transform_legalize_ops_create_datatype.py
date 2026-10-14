@@ -39,10 +39,10 @@ def test_full():
     class Expected:
         @R.function
         def main(v: R.Tensor((), "int32")) -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(Expected.full, (v,), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.full, (v,), ty_args=[R.Tensor((2, 3), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(rxplaceholder: T.Tensor((), "int32"), T_full: T.Tensor((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -70,10 +70,10 @@ def test_full_constant_scalar_fill_value():
     class Expected:
         @R.function
         def main() -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(Expected.full, R.tuple(), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.full, R.tuple(), ty_args=[R.Tensor((2, 3), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(T_full: T.Tensor((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -101,10 +101,10 @@ def test_full_different_dtype():
     class Expected:
         @R.function
         def main(v: R.Tensor((), "int32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.full, (v,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.full, (v,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(rxplaceholder: T.Tensor((), "int32"), T_full: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -121,8 +121,8 @@ def test_full_different_dtype():
 
 def test_full_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Full:
@@ -131,19 +131,19 @@ def test_full_symbolic():
             gv: R.Tensor((m, n), "int32") = R.full((m, n), v, dtype="int32")
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_full = T.dynamic("m")
-    n_full = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_full = T.dynamic("m", "int64")
+    n_full = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor((m_main, n_main)), v: R.Tensor((), "int32")) -> R.Tensor((m_main, n_main), "int32"):
-            gv = R.call_tir(Expected.full, (v,), R.Tensor((m_main, n_main), dtype="int32"))
+            gv = R.call_tir(Expected.full, (v,), ty_args=[R.Tensor((m_main, n_main), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(rxplaceholder: T.Tensor((), "int32"), T_full: T.Tensor([m_full, n_full], dtype='int32')):
             T.func_attr({"tirx.noalias": True})
 
@@ -172,10 +172,10 @@ def test_full_like():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "int32"), v: R.Tensor((), "float32")) -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(Expected.full, (v,), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.full, (v,), ty_args=[R.Tensor((2, 3), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(rxplaceholder: T.Tensor((), "float32"), T_full: T.Tensor((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -203,10 +203,10 @@ def test_full_like_constant_scalar_fill_value():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(Expected.full, R.tuple(), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.full, R.tuple(), ty_args=[R.Tensor((2, 3), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(T_full: T.Tensor((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -234,10 +234,10 @@ def test_full_like_different_dtype():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "int32"), v: R.Tensor((), "float32")) -> R.Tensor((2, 3), "float64"):
-            gv = R.call_tir(Expected.full, (v,), R.Tensor((2, 3), dtype="float64"))
+            gv = R.call_tir(Expected.full, (v,), ty_args=[R.Tensor((2, 3), dtype="float64")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(rxplaceholder: T.Tensor((), "float32"), T_full: T.Tensor((T.int64(2), T.int64(3)), "float64")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -254,8 +254,8 @@ def test_full_like_different_dtype():
 
 def test_full_like_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class FullLike:
@@ -264,19 +264,19 @@ def test_full_like_symbolic():
             gv: R.Tensor((m, n), "int32") = R.full_like(x, v)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_full = T.dynamic("m")
-    n_full = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_full = T.dynamic("m", "int64")
+    n_full = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "int32"), v: R.Tensor((), "float32")) -> R.Tensor((m_main, n_main), "int32"):
-            gv = R.call_tir(Expected.full, (v,), R.Tensor((m_main, n_main), dtype="int32"))
+            gv = R.call_tir(Expected.full, (v,), ty_args=[R.Tensor((m_main, n_main), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(rxplaceholder: T.Tensor((), "float32"), T_full: T.Tensor([m_full, n_full], dtype='int32')):
             T.func_attr({"tirx.noalias": True})
 
@@ -305,10 +305,10 @@ def test_ones():
     class Expected:
         @R.function
         def main() -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.ones, R.tuple(), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.ones, R.tuple(), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def ones(T_full: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -325,8 +325,8 @@ def test_ones():
 
 def test_ones_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Ones:
@@ -335,19 +335,19 @@ def test_ones_symbolic():
             gv: R.Tensor((m, n), "float32") = R.ones((m, n), "float32")
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_ones = T.dynamic("m")
-    n_ones = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_ones = T.dynamic("m", "int64")
+    n_ones = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor((m_main, n_main))) -> R.Tensor((m_main, n_main), "float32"):
-            gv = R.call_tir(Expected.ones, R.tuple(), R.Tensor((m_main, n_main), dtype="float32"))
+            gv = R.call_tir(Expected.ones, R.tuple(), ty_args=[R.Tensor((m_main, n_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def ones(T_full: T.Tensor([m_ones, n_ones], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
@@ -376,10 +376,10 @@ def test_ones_like():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(Expected.ones, R.tuple(), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.ones, R.tuple(), ty_args=[R.Tensor((2, 3), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def ones(T_full: T.Tensor((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -396,8 +396,8 @@ def test_ones_like():
 
 def test_ones_like_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class OnesLike:
@@ -406,19 +406,19 @@ def test_ones_like_symbolic():
             gv: R.Tensor((m, n), "float32") = R.ones_like(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_ones = T.dynamic("m")
-    n_ones = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_ones = T.dynamic("m", "int64")
+    n_ones = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "float32")) -> R.Tensor((m_main, n_main), "float32"):
-            gv = R.call_tir(Expected.ones, R.tuple(), R.Tensor((m_main, n_main), dtype="float32"))
+            gv = R.call_tir(Expected.ones, R.tuple(), ty_args=[R.Tensor((m_main, n_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def ones(T_full: T.Tensor([m_ones, n_ones], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
@@ -447,10 +447,10 @@ def test_zeros():
     class Expected:
         @R.function
         def main() -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.zeros, R.tuple(), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.zeros, R.tuple(), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def zeros(T_full: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -467,8 +467,8 @@ def test_zeros():
 
 def test_zeros_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Zeros:
@@ -477,19 +477,19 @@ def test_zeros_symbolic():
             gv: R.Tensor((m, n), "float32") = R.zeros((m, n), "float32")
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_zeros = T.dynamic("m")
-    n_zeros = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_zeros = T.dynamic("m", "int64")
+    n_zeros = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor((m_main, n_main))) -> R.Tensor((m_main, n_main), "float32"):
-            gv = R.call_tir(Expected.zeros, R.tuple(), R.Tensor((m_main, n_main), dtype="float32"))
+            gv = R.call_tir(Expected.zeros, R.tuple(), ty_args=[R.Tensor((m_main, n_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def zeros(T_full: T.Tensor([m_zeros, n_zeros], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
@@ -518,10 +518,10 @@ def test_zeros_like():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(Expected.zeros, R.tuple(), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.zeros, R.tuple(), ty_args=[R.Tensor((2, 3), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def zeros(T_full: T.Tensor((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -538,8 +538,8 @@ def test_zeros_like():
 
 def test_zeros_like_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class ZerosLike:
@@ -548,19 +548,19 @@ def test_zeros_like_symbolic():
             gv: R.Tensor((m, n), "float32") = R.zeros_like(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_zeros = T.dynamic("m")
-    n_zeros = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_zeros = T.dynamic("m", "int64")
+    n_zeros = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "float32")) -> R.Tensor((m_main, n_main), "float32"):
-            gv = R.call_tir(Expected.zeros, R.tuple(), R.Tensor((m_main, n_main), dtype="float32"))
+            gv = R.call_tir(Expected.zeros, R.tuple(), ty_args=[R.Tensor((m_main, n_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def zeros(T_full: T.Tensor([m_zeros, n_zeros], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
@@ -599,7 +599,7 @@ def test_arange_const():
 
 def test_arange_symbolic():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Arange:
@@ -608,19 +608,19 @@ def test_arange_symbolic():
             gv = R.arange(1, R.prim_value(n), 2)
             return gv
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor([n], "float32")):
             cls = Expected
-            gv = R.call_tir(cls.arange, (n,), out_ty=R.Tensor((n // 2,), dtype="int64"))
+            gv = R.call_tir(cls.arange, (n,), ty_args=[R.Tensor((n // 2,), dtype="int64")])
             return gv
 
         arange_n = T.int64()
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def arange(n: arange_n, T_arange: T.Tensor((arange_n // T.int64(2),), 'int64')):
             T.func_attr({"tirx.noalias": True})
 
@@ -649,10 +649,10 @@ def test_shape_to_tensor():
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((3,), "int64"):
             cls = Expected
             gv: R.Shape([2, 3, 4]) = R.shape_of(x)
-            gv_1 = R.call_tir(cls.shape_to_tensor, R.tuple(), out_ty=R.Tensor((3,), dtype="int64"))
+            gv_1 = R.call_tir(cls.shape_to_tensor, R.tuple(), ty_args=[R.Tensor((3,), dtype="int64")])
             return gv_1
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def shape_to_tensor(shape_to_tensor: T.Tensor((T.int64(3),), "int64")):
             T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(3)):
@@ -667,8 +667,8 @@ def test_shape_to_tensor():
 
 def test_shape_to_tensor_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class ShapeToTensor:
@@ -677,8 +677,8 @@ def test_shape_to_tensor_symbolic():
             gv = R.shape_to_tensor(R.shape_of(x))
             return gv
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -686,10 +686,10 @@ def test_shape_to_tensor_symbolic():
         def main(x: R.Tensor((m, n), "float32")) -> R.Tensor((2,), "int64"):
             cls = Expected
             gv: R.Shape([m, n]) = R.shape_of(x)
-            gv_1 = R.call_tir(cls.shape_to_tensor, (m, n), out_ty=R.Tensor((2,), dtype="int64"))
+            gv_1 = R.call_tir(cls.shape_to_tensor, (m, n), ty_args=[R.Tensor((2,), dtype="int64")])
             return gv_1
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def shape_to_tensor(m: T.int64, n: T.int64, shape_to_tensor: T.Tensor((T.int64(2),), "int64")):
             T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(2)):
@@ -704,7 +704,7 @@ def test_shape_to_tensor_symbolic():
 
 def test_shape_to_tensor_mixed():
     # fmt: off
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class ShapeToTensor:
@@ -713,7 +713,7 @@ def test_shape_to_tensor_mixed():
             gv = R.shape_to_tensor(R.shape_of(x))
             return gv
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -721,10 +721,10 @@ def test_shape_to_tensor_mixed():
         def main(x: R.Tensor((m, 3), "float32")) -> R.Tensor((2,), "int64"):
             cls = Expected
             gv: R.Shape([m, 3]) = R.shape_of(x)
-            gv_1 = R.call_tir(cls.shape_to_tensor, (m,), out_ty=R.Tensor((2,), dtype="int64"))
+            gv_1 = R.call_tir(cls.shape_to_tensor, (m,), ty_args=[R.Tensor((2,), dtype="int64")])
             return gv_1
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def shape_to_tensor(m: T.int64, shape_to_tensor: T.Tensor((T.int64(2),), "int64")):
             T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(2)):
@@ -771,10 +771,10 @@ def test_tril():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 3, 4), "float32"):
-            gv = R.call_tir(Expected.tril, (x,), R.Tensor((2, 3, 4), dtype="float32"))
+            gv = R.call_tir(Expected.tril, (x,), ty_args=[R.Tensor((2, 3, 4), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tril(rxplaceholder: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "float32"), trilu: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(3), T.int64(4)):
@@ -791,9 +791,9 @@ def test_tril():
 
 def test_tril_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
-    k = T.dynamic("k")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    k = T.dynamic("k", "int64")
 
     @tvm.script.ir_module
     class Tril:
@@ -802,21 +802,21 @@ def test_tril_symbolic():
             gv: R.Tensor((m, n, k), "int8") = R.tril(x, k=-2)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    k_main = T.dynamic("k")
-    k_tril = T.dynamic("k")
-    m_tril = T.dynamic("m")
-    n_tril = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    k_main = T.dynamic("k", "int64")
+    k_tril = T.dynamic("k", "int64")
+    m_tril = T.dynamic("m", "int64")
+    n_tril = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main, k_main), "int8")) -> R.Tensor((m_main, n_main, k_main), "int8"):
-            gv = R.call_tir(Expected.tril, (x,), R.Tensor((m_main, n_main, k_main), dtype="int8"))
+            gv = R.call_tir(Expected.tril, (x,), ty_args=[R.Tensor((m_main, n_main, k_main), dtype="int8")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tril(rxplaceholder: T.Tensor([m_tril, n_tril, k_tril], dtype='int8'), trilu: T.Tensor([m_tril, n_tril, k_tril], dtype='int8')):
             T.func_attr({"tirx.noalias": True})
 
@@ -845,10 +845,10 @@ def test_triu():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 3, 4), "float32"):
-            gv = R.call_tir(Expected.triu, (x,), R.Tensor((2, 3, 4), dtype="float32"))
+            gv = R.call_tir(Expected.triu, (x,), ty_args=[R.Tensor((2, 3, 4), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def triu(rxplaceholder: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "float32"), trilu: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(3), T.int64(4)):
@@ -865,9 +865,9 @@ def test_triu():
 
 def test_triu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
-    k = T.dynamic("k")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    k = T.dynamic("k", "int64")
 
     @tvm.script.ir_module
     class Triu:
@@ -876,21 +876,21 @@ def test_triu_symbolic():
             gv: R.Tensor((m, n, k), "int8") = R.triu(x, k=-2)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    k_main = T.dynamic("k")
-    k_triu = T.dynamic("k")
-    m_triu = T.dynamic("m")
-    n_triu = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    k_main = T.dynamic("k", "int64")
+    k_triu = T.dynamic("k", "int64")
+    m_triu = T.dynamic("m", "int64")
+    n_triu = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main, k_main), "int8")) -> R.Tensor((m_main, n_main, k_main), "int8"):
-            gv = R.call_tir(Expected.triu, (x,), R.Tensor((m_main, n_main, k_main), dtype="int8"))
+            gv = R.call_tir(Expected.triu, (x,), ty_args=[R.Tensor((m_main, n_main, k_main), dtype="int8")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def triu(rxplaceholder: T.Tensor([m_triu, n_triu, k_triu], dtype='int8'), trilu: T.Tensor([m_triu, n_triu, k_triu], dtype='int8')):
             T.func_attr({"tirx.noalias": True})
 
@@ -922,10 +922,10 @@ def test_astype():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 3, 4), "int32"):
-            gv = R.call_tir(Expected.cast, (x,), R.Tensor((2, 3, 4), dtype="int32"))
+            gv = R.call_tir(Expected.cast, (x,), ty_args=[R.Tensor((2, 3, 4), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def cast(rxplaceholder: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(3), T.int64(4)):
@@ -963,8 +963,8 @@ def test_astype_input_constant_scalar():
 
 def test_astype_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Astype:
@@ -973,19 +973,19 @@ def test_astype_symbolic():
             gv: R.Tensor((m, n), "int32") = R.astype(x, "int32")
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_cast = T.dynamic("m")
-    n_cast = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_cast = T.dynamic("m", "int64")
+    n_cast = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "float32")) -> R.Tensor((m_main, n_main), "int32"):
-            gv = R.call_tir(Expected.cast, (x,), R.Tensor((m_main, n_main), dtype="int32"))
+            gv = R.call_tir(Expected.cast, (x,), ty_args=[R.Tensor((m_main, n_main), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def cast(rxplaceholder: T.Tensor([m_cast, n_cast], dtype='float32'), compute: T.Tensor([m_cast, n_cast], dtype='int32')):
             T.func_attr({"tirx.noalias": True})
 

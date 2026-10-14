@@ -79,8 +79,8 @@ ffi::Map<Var, Expr> NormalizeBindings(const Function& func,
   auto normalize_value = [&](ffi::Any obj) -> relax::Expr {
     if (auto opt = obj.as<relax::Expr>()) {
       return opt.value();
-    } else if (auto opt = obj.as<runtime::Tensor>()) {
-      return MakeTensorConst(opt.value());
+    } else if (auto tensor = obj.as<ffi::Tensor>(); tensor && tensor->defined()) {
+      return MakeTensorConst(tensor.value());
     } else {
       TVM_FFI_THROW(InternalError)
           << "Cannot coerce object of type " << obj.GetTypeKey() << " into relax expression";
@@ -150,7 +150,7 @@ Pass BindParams(ffi::String func_name, ffi::Map<Any, ffi::ObjectRef> params) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     return BindParam(std::move(mod), func_name, params);
   };
-  return CreateModulePass(pass_func, 0, "BindParams", {});
+  return CreateModulePass(pass_func, 0, "BindParams");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

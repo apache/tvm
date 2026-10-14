@@ -20,8 +20,12 @@
 /*! \file codegen_cuda_host.cc
  *  \brief C host wrappers with direct CUDA kernel launches.
  */
+#include <tvm/backend/cuda/op/tensormap.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/attrs.h>
+#include <tvm/ir/function.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/type.h>
 
 #include <algorithm>
@@ -35,6 +39,8 @@
 
 #include "../../../runtime/metadata.h"
 #include "../../../target/source/codegen_c_host.h"
+#include "../launch/launch_plan.h"
+#include "../launch/launch_source.h"
 
 namespace tvm {
 namespace codegen {
@@ -50,7 +56,8 @@ class CodeGenCUDAHost : public CodeGenCHost {
                 << "#include <tvm/ffi/extra/c_env_api.h>\n"
                 << "#include <tvm/ffi/extra/cuda/device_guard.h>\n"
                 << "#include <tvm/ffi/function.h>\n"
-                << "#include <cuda.h>\n#include <cuda_runtime.h>\n#include <math.h>\n"
+                << "#include <cuda.h>\n#include <cuda_runtime.h>\n#include <cuda_fp16.h>\n#include "
+                   "<cuda_bf16.h>\n#include <math.h>\n"
                 << "#define TVM_DLL TVM_FFI_DLL_EXPORT\n";
     InitGlobalContext();
     check_error_ = name_supply_->FreshName("tvm_cuda_host_check");
@@ -62,36 +69,84 @@ class CodeGenCUDAHost : public CodeGenCHost {
                 << "  TVMFFIErrorSetRaisedFromCStrParts(\"CUDAError\", parts, 2);\n"
                 << "  cudaGetLastError();\n"
                 << "  return -1;\n}\n";
-    // Host C types spell some device types differently (bfloat16 is uint16_t on
-    // the host), so convert each argument to the kernel's own parameter type.
+    decl_stream << tvm_cuda_launch::kSupportSource;
+    decl_stream << "\n#include <map>\n#include <memory>\n";
+    decl_stream << "static CUkernel tvm_cuda_host_get_kernel(const char* name);\n";
     launch_ = name_supply_->FreshName("tvm_cuda_host_launch");
-    decl_stream << "template <typename... Params, typename... Args>\n"
-                << "static cudaError_t " << launch_
-                << "(void (*kernel)(Params...), const cudaLaunchConfig_t* config, "
-                << "Args... args) {\n"
-                << "  static_assert(sizeof...(Params) == sizeof...(Args), "
-                << "\"kernel argument count mismatch\");\n"
-                << "  return cudaLaunchKernelEx(config, kernel, ((Params)args)...);\n}\n";
+    decl_stream << "template <typename... Args>\n"
+                << "static void " << launch_ << R"CUDA((
+    const char* name, tvm_cuda_launch::LaunchValues values,
+    const tvm_cuda_launch::KernelRequirements& requirements, Args... args) {
+  using namespace tvm_cuda_launch;
+  int device;
+  Check(cudaGetDevice(&device));
+  CUkernel kernel = tvm_cuda_host_get_kernel(name);
+  CUfunction function;
+  Check(cuKernelGetFunction(&function, kernel));
+  CUcontext context;
+  unsigned long long context_id;
+  Check(cuCtxGetCurrent(&context));
+  Check(cuCtxGetId(context, &context_id));
+  static std::mutex resource_mutex;
+  static std::map<std::pair<CUkernel, unsigned long long>, std::unique_ptr<ResourceState>> states;
+  ResourceState* state;
+  {
+    std::lock_guard<std::mutex> lock(resource_mutex);
+    auto& slot = states[{kernel, context_id}];
+    if (!slot) slot = std::make_unique<ResourceState>();
+    state = slot.get();
+  }
+  values = Normalize(values, requirements);
+  PrepareResources<DriverAPI>(function, device, &values, state);
+  CUlaunchConfig config{};
+  std::array<CUlaunchAttribute, kMaxAttributes> attributes{};
+  auto stream = static_cast<CUstream>(TVMFFIEnvGetStream(kDLCUDA, device));
+  EncodeDriver(values, requirements, stream, &config, &attributes);
+  // Host locals have the device ABI types. In particular FP16/BF16 values
+  // retain their 16 bits, pointers remain pointers, and tensor maps are copied
+  // into aligned by-value objects before their addresses are packed.
+  std::array<void*, sizeof...(Args)> parameters{{static_cast<void*>(&args)...}};
+  Check(cuLaunchKernelEx(&config, function, parameters.data(), nullptr));
+}
+)CUDA";
   }
 
   using CodeGenCHost::PrintType;
 
-  void PrintType(const Type& type, std::ostream& os) override {
-    if (type.as<tirx::TensorMapTypeNode>()) {
-      os << "CUtensorMap";
+  void PrintType(const PrimType& type, std::ostream& os) override {
+    if (type.IsScalar() && type.MatchesElementType(kDLBfloat, 16)) {
+      os << "__nv_bfloat16";
     } else {
       CodeGenCHost::PrintType(type, os);
     }
   }
 
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& func) override {
+  void PrintType(const Type& type, std::ostream& os) override {
+    if (type.as<tirx::TensorMapTypeNode>()) {
+      os << "CUtensorMap";
+    } else if (auto prim = type.as<PrimType>();
+               prim && prim->IsScalar() && prim->MatchesElementType(kDLBfloat, 16)) {
+      os << "__nv_bfloat16";
+    } else if (auto prim = type.as<PrimType>();
+               prim && prim->IsScalar() && prim->MatchesElementType(kDLFloat, 16)) {
+      os << "half";
+    } else {
+      CodeGenCHost::PrintType(type, os);
+    }
+  }
+
+  void AddFunction(const GlobalVar& gvar, const Function& func) override {
+    if (!func->body.has_value()) {
+      DeclareFunction(gvar, func);
+      return;
+    }
     // A guard destructor may report a CUDA error on any return path. Keep it
     // inside the FFI exception boundary along with device selection and setup.
     InitFuncState(func);
     PrintFunctionSignature(GetFunctionName(gvar), func, stream);
     stream << " {\n  TVM_FFI_SAFE_CALL_BEGIN();\n  try {\n";
     int scope = BeginScope();
-    PrintStmt(func->body);
+    PrintStmt(func->body.value());
     EndScope(scope);
     // CUDADeviceGuard reports errors by throwing. Clear the reported CUDA
     // last-error state so a subsequent successful launch is not blamed for it.
@@ -99,7 +154,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
            << "  TVM_FFI_SAFE_CALL_END();\n}\n\n";
     if (auto symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
       function_names_.push_back(symbol.value());
-      if (func->HasNonzeroAttr(tirx::attr::kIsEntryFunc) && !has_tvm_ffi_main_func_) {
+      if (func->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc) && !has_tvm_ffi_main_func_) {
         function_names_.push_back(ffi::symbol::tvm_ffi_main);
         PrintFuncPrefix(stream);
         PrintType(func->ret_type, stream);
@@ -115,7 +170,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
   void Dispatch_(const BindNode* op) override {
     // C accepts the implicit void* conversion emitted for descriptor handles;
     // the CUDA translation unit is C++, which requires an explicit cast.
-    auto* ptr = op->var->ty.as<PointerTypeNode>();
+    auto* ptr = op->var->ty.as<PtrTypeNode>();
     if (print_ssa_form_ || !ptr || !ptr->element_type.as<tirx::TensorMapTypeNode>()) {
       CodeGenC::Dispatch_(op);
       return;
@@ -127,7 +182,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
   }
 
   void Dispatch_(const CallNode* op, std::ostream& os) override {
-    if (op->op.same_as(tirx::builtin::tvm_stack_alloca()) &&
+    if (op->op.same_as(tirx::stack_alloca_op()) &&
         op->args[0].as_or_throw<StringImm>()->value == "tensormap") {
       auto count = op->args[1].as_or_throw<IntImm>()->value.as<int64_t>();
       TVM_FFI_CHECK(count.has_value() && *count > 0, ValueError)
@@ -138,24 +193,11 @@ class CodeGenCUDAHost : public CodeGenCHost {
       os << name;
       return;
     }
-    if (op->op.same_as(tirx::builtin::tvm_call_packed_lowered())) {
+    if (op->op.same_as(tirx::call_packed_lowered_op())) {
       const auto& name = op->args[0].as_or_throw<StringImm>()->value;
       if (name == "runtime.cuTensorMapEncodeTiled" || name == "runtime.cuTensorMapInit") {
         TVM_FFI_THROW(ValueError)
             << "cuda_host requires tensormap_encode_tiled instead of a packed tensor-map encoder";
-      }
-      if (name == "__tvm_set_device") {
-        std::string args =
-            "((TVMFFIAny*)" + PrintExpr(op->args[1]) + " + " + PrintExpr(op->args[2]) + ")";
-        std::string guard = name_supply_->FreshName("cuda_device_guard");
-        PrintIndent();
-        stream << "if (" << args << "[0].v_int64 != kDLCUDA) {\n"
-               << "  TVMFFIErrorSetRaisedFromCStr(\"ValueError\", "
-               << "\"cuda_host requires a CUDA device\");\n  return -1;\n}\n";
-        PrintIndent();
-        stream << "tvm::ffi::CUDADeviceGuard " << guard << "(" << args << "[1].v_int64);\n";
-        os << "0";
-        return;
       }
       std::string function_name = name;
       TVM_FFI_CHECK(function_name.rfind("runtime.", 0) != 0 &&
@@ -171,201 +213,136 @@ class CodeGenCUDAHost : public CodeGenCHost {
             << "cuda_host does not provide TVM runtime operation: " << symbol;
       }
     }
-    if (op->op.same_as(tirx::builtin::call_extern()) ||
-        op->op.same_as(tirx::builtin::call_pure_extern())) {
+    if (op->op.same_as(tirx::call_extern_op()) || op->op.same_as(tirx::call_pure_extern_op())) {
       const auto& symbol = op->args[0].as_or_throw<StringImm>()->value;
+      if (op->op.same_as(tirx::call_extern_op()) && symbol == "TVMBackendSetDevice") {
+        TVM_FFI_CHECK_EQ(op->args.size(), 3, ValueError);
+        std::string device_type = PrintExpr(op->args[1]);
+        std::string device_index = PrintExpr(op->args[2]);
+        std::string guard = name_supply_->FreshName("cuda_device_guard");
+        PrintIndent();
+        stream << "if (" << device_type << " != kDLCUDA) {\n"
+               << "  TVMFFIErrorSetRaisedFromCStr(\"ValueError\", "
+               << "\"cuda_host requires a CUDA device\");\n  return -1;\n}\n";
+        PrintIndent();
+        stream << "tvm::ffi::CUDADeviceGuard " << guard << "(" << device_index << ");\n";
+        os << "0";
+        return;
+      }
       TVM_FFI_CHECK(std::string(symbol).rfind("TVMBackend", 0) != 0, ValueError)
           << "cuda_host does not provide TVM runtime operation: " << symbol;
     }
-    if (op->op.same_as(tirx::builtin::tensormap_encode_tiled())) {
+    if (op->op.same_as(backend::cuda::tensormap_encode_tiled_op())) {
       PrintTensorMapEncode(op);
       os << "0";
       return;
     }
-    if (!op->op.same_as(tirx::builtin::call_ffi_kernel())) {
+    if (!op->op.same_as(tirx::call_ffi_kernel_op())) {
       CodeGenCHost::Dispatch_(op, os);
       return;
     }
-    const auto* attr = op->attrs.as<tirx::CallFFIKernelAttr>();
+    const auto* attr =
+        (op->attrs.has_value() ? op->attrs.value().as<tirx::CallFFIKernelAttr>() : nullptr);
     TVM_FFI_CHECK(attr, ValueError) << "cuda_host kernel calls require CallFFIKernelAttr";
     TVM_FFI_CHECK(!op->args.empty() && op->args[0].as<StringImmNode>(), ValueError)
         << "cuda_host kernel calls require a string kernel symbol";
     const auto& symbol = op->args[0].as<StringImmNode>()->value;
 
-    // Match LaunchParamConfig's layout: grid, block, cluster and preferred cluster.
-    std::array<int, 12> axes;
-    axes.fill(-1);
-    int shared_memory = -1;
-    size_t num_launch_values = 0;
-    bool use_programmatic_dependent_launch = false;
-    bool use_cooperative_launch = false;
-    std::unordered_set<std::string> seen;
-    for (size_t i = 0; i < attr->launch_params.size(); ++i) {
-      std::string tag = attr->launch_params[i];
-      TVM_FFI_CHECK(seen.insert(tag).second, ValueError)
-          << "cuda_host duplicate launch parameter: " << tag;
-      // These are flags, not values in the argument suffix.  Reject unsupported
-      // launch semantics before decoding any operands, rather than dropping them.
-      if (tag == runtime::launch_param::kUseProgramaticDependentLaunch) {
-        use_programmatic_dependent_launch = true;
-      } else if (tag == runtime::launch_param::kUseCooperativeLaunch) {
-        use_cooperative_launch = true;
-      } else if (tag == runtime::launch_param::kUseRequiredBlockDimension) {
-        TVM_FFI_THROW(ValueError) << "cuda_host does not support launch flag: " << tag;
-      } else if (tag == runtime::launch_param::kUseDynamicSharedMemoryTag) {
-        TVM_FFI_CHECK_EQ(i + 1, attr->launch_params.size(), ValueError)
-            << "cuda_host dynamic shared memory must be the last launch parameter";
-        shared_memory = static_cast<int>(num_launch_values++);
-      } else {
-        static const char* kScopes[] = {"blockIdx.", "threadIdx.", "clusterCtaIdx.",
-                                        "preferredClusterCtaIdx."};
-        int axis = -1;
-        for (int rank = 0; rank < 4; ++rank) {
-          for (int j = 0; j < 3; ++j) {
-            if (tag == std::string(kScopes[rank]) + "xyz"[j]) axis = rank * 3 + j;
-          }
-        }
-        TVM_FFI_CHECK_GE(axis, 0, ValueError)
-            << "cuda_host does not support launch parameter: " << tag;
-        axes[axis] = static_cast<int>(num_launch_values++);
-      }
-    }
-    TVM_FFI_CHECK_GE(op->args.size(), num_launch_values + 1, ValueError)
+    tvm_cuda_launch::PackedLaunchPlan plan(attr->launch_fields, attr->launch_params,
+                                           attr->kernel_attrs);
+    TVM_FFI_CHECK_GE(op->args.size(), plan.num_values + 1, ValueError)
         << "cuda_host kernel call is missing launch arguments";
-    size_t launch_begin = op->args.size() - num_launch_values;
-    for (size_t i = launch_begin; i < op->args.size(); ++i) {
-      auto type = op->args[i]->ty.as<PrimType>();
-      TVM_FFI_CHECK(
-          type.has_value() && type.value().IsScalar() && type.value().MatchesCode(kDLInt, kDLUInt),
-          ValueError)
-          << "cuda_host launch arguments must be scalar integers";
+    size_t launch_begin = op->args.size() - plan.num_values;
+    if (attr->num_kernel_args >= 0) {
+      TVM_FFI_CHECK_EQ(static_cast<size_t>(attr->num_kernel_args), launch_begin - 1, ValueError)
+          << "cuda_host device argument count disagrees with launch configuration";
     }
-
-    // Evaluate arguments once in their original order, including launch values.
-    // Buffer expressions retain their pointer type for the direct kernel call.
+    // Every operand, including pointer and floating-point configuration values,
+    // is evaluated exactly once in its original order.
     std::vector<std::string> arguments;
     for (size_t i = 1; i < op->args.size(); ++i) {
       std::string value = PrintExpr(op->args[i]);
       if (i < launch_begin) {
-        if (auto* ptr = op->args[i]->ty.as<PointerTypeNode>()) {
-          if (ptr->element_type.as<tirx::TensorMapTypeNode>()) {
-            // The device ABI takes a grid-constant descriptor by value, while
-            // the host IR carries a pointer to its aligned stack storage.
-            value = "*(" + value + ")";
-          }
+        if (auto* ptr = op->args[i]->ty.as<PtrTypeNode>()) {
+          if (ptr->element_type.as<tirx::TensorMapTypeNode>()) value = "*(" + value + ")";
         }
       }
       std::string name = name_supply_->FreshName("cuda_arg");
       PrintIndent();
-      stream << "auto " << name << " = " << value << ";\n";
+      Type type = op->args[i]->ty;
+      if (i < launch_begin) {
+        if (auto* ptr = type.as<PtrTypeNode>()) {
+          if (ptr->element_type.as<tirx::TensorMapTypeNode>()) type = ptr->element_type;
+        }
+      }
+      PrintType(type, stream);
+      stream << " " << name << " = " << value << ";\n";
       arguments.push_back(name);
     }
-    auto launch_arg = [&](int index) { return arguments[launch_begin - 1 + index]; };
-    std::array<std::string, 12> dimensions;
-    for (size_t i = 0; i < axes.size(); ++i) {
-      if (axes[i] < 0) {
-        dimensions[i] = "1";
+    std::string values = name_supply_->FreshName("cuda_launch_values");
+    PrintIndent();
+    stream << "tvm_cuda_launch::LaunchValues " << values << ";\n";
+    for (const auto& operand : plan.operands) {
+      const auto& info = tvm_cuda_launch::kFields[static_cast<size_t>(operand.field)];
+      std::string value;
+      std::string setter;
+      if (operand.index < 0) {
+        value = std::to_string(operand.constant);
+        setter = "SetInt";
       } else {
-        dimensions[i] = name_supply_->FreshName("cuda_dim");
-        PrintIndent();
-        stream << "size_t " << dimensions[i] << " = static_cast<size_t>(" << launch_arg(axes[i])
-               << ");\n";
-        // Match LaunchParamConfig's handling of empty dynamic dimensions.
-        PrintIndent();
-        stream << "if (" << dimensions[i] << " == 0) " << dimensions[i] << " = 1;\n";
-      }
-    }
-    std::string device = name_supply_->FreshName("cuda_device");
-    std::string cuda_stream = name_supply_->FreshName("cuda_stream");
-    PrintIndent();
-    stream << "int " << device << ";\n";
-    CheckError("cudaGetDevice(&" + device + ")");
-    PrintIndent();
-    stream << "cudaStream_t " << cuda_stream
-           << " = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, " << device << "));\n";
-    std::string bytes = shared_memory < 0 ? "0" : launch_arg(shared_memory);
-    if (shared_memory >= 0) {
-      PrintIndent();
-      stream << "if (" << bytes << " >= 49152) {\n";
-      int scope = BeginScope();
-      CheckError("cudaFuncSetAttribute(::" + std::string(symbol) +
-                 ", cudaFuncAttributeMaxDynamicSharedMemorySize, " + bytes + ")");
-      EndScope(scope);
-      PrintIndent();
-      stream << "}\n";
-    }
-    auto has_axis = [&](int rank) {
-      return axes[rank * 3] >= 0 || axes[rank * 3 + 1] >= 0 || axes[rank * 3 + 2] >= 0;
-    };
-    bool use_cluster = has_axis(2);
-    bool use_preferred_cluster = has_axis(3);
-    if (use_cluster) {
-      CheckError("cudaFuncSetAttribute(::" + std::string(symbol) +
-                 ", cudaFuncAttributeNonPortableClusterSizeAllowed, 1)");
-    }
-    std::string config = name_supply_->FreshName("cuda_config");
-    PrintIndent();
-    stream << "cudaLaunchConfig_t " << config << " = {};\n";
-    PrintIndent();
-    stream << config << ".gridDim = dim3(" << dimensions[0] << ", " << dimensions[1] << ", "
-           << dimensions[2] << ");\n";
-    PrintIndent();
-    stream << config << ".blockDim = dim3(" << dimensions[3] << ", " << dimensions[4] << ", "
-           << dimensions[5] << ");\n";
-    PrintIndent();
-    stream << config << ".dynamicSmemBytes = " << bytes << ";\n";
-    PrintIndent();
-    stream << config << ".stream = " << cuda_stream << ";\n";
-    int max_attrs = use_cluster + use_preferred_cluster + use_programmatic_dependent_launch +
-                    use_cooperative_launch;
-    if (max_attrs > 0) {
-      std::string attrs = name_supply_->FreshName("cuda_attrs");
-      PrintIndent();
-      stream << "cudaLaunchAttribute " << attrs << "[" << max_attrs << "] = {};\n";
-      PrintIndent();
-      stream << config << ".attrs = " << attrs << ";\n";
-      auto set_dimension = [&](const std::string& id, const std::string& field, int rank) {
-        PrintIndent();
-        stream << attrs << "[" << config << ".numAttrs].id = " << id << ";\n";
-        for (int j = 0; j < 3; ++j) {
-          PrintIndent();
-          stream << attrs << "[" << config << ".numAttrs].val." << field << "." << "xyz"[j] << " = "
-                 << dimensions[rank * 3 + j] << ";\n";
+        size_t index = launch_begin + operand.index;
+        const Type& type = op->args[index]->ty;
+        auto prim_type = type.as<PrimType>();
+        value = arguments[index - 1];
+        switch (info.kind) {
+          case tvm_cuda_launch::ValueKind::kInteger:
+            TVM_FFI_CHECK(
+                prim_type && prim_type->IsScalar() && prim_type->MatchesCode(kDLInt, kDLUInt),
+                ValueError)
+                << "CUDA launch field " << info.name << " requires a scalar integer";
+            setter = "SetInt";
+            break;
+          case tvm_cuda_launch::ValueKind::kFloat:
+            TVM_FFI_CHECK(prim_type && prim_type->IsScalar() && prim_type->MatchesCode(kDLFloat),
+                          ValueError)
+                << "CUDA launch field " << info.name << " requires a scalar float";
+            setter = "SetFloat";
+            break;
+          case tvm_cuda_launch::ValueKind::kHandle:
+            TVM_FFI_CHECK(type.as<PtrTypeNode>(), ValueError)
+                << "CUDA launch field " << info.name << " requires a host pointer/handle";
+            setter = "SetHandle";
+            value = "const_cast<void*>(static_cast<const void*>(" + value + "))";
+            break;
         }
-        PrintIndent();
-        stream << "++" << config << ".numAttrs;\n";
-      };
-      if (use_cluster) {
-        set_dimension("cudaLaunchAttributeClusterDimension", "clusterDim", 2);
       }
-      if (use_preferred_cluster) {
-        // Match the CUDA runtime module: a unit preferred cluster adds no attribute.
-        PrintIndent();
-        stream << "if (" << dimensions[9] << " != 1 || " << dimensions[10] << " != 1 || "
-               << dimensions[11] << " != 1) {\n";
-        int scope = BeginScope();
-        set_dimension("cudaLaunchAttributePreferredClusterDimension", "preferredClusterDim", 3);
-        EndScope(scope);
-        PrintIndent();
-        stream << "}\n";
-      }
-      auto set_flag = [&](const std::string& id, const std::string& field) {
-        PrintIndent();
-        stream << attrs << "[" << config << ".numAttrs].id = " << id << ";\n";
-        PrintIndent();
-        stream << attrs << "[" << config << ".numAttrs++].val." << field << " = 1;\n";
-      };
-      if (use_programmatic_dependent_launch) {
-        set_flag("cudaLaunchAttributeProgrammaticStreamSerialization",
-                 "programmaticStreamSerializationAllowed");
-      }
-      if (use_cooperative_launch) {
-        set_flag("cudaLaunchAttributeCooperative", "cooperative");
-      }
+      PrintIndent();
+      stream << values << "." << setter << "(static_cast<tvm_cuda_launch::Field>("
+             << static_cast<int>(operand.field) << "), " << value << ");\n";
     }
-    std::string launch = launch_ + "(::" + std::string(symbol) + ", &" + config;
+    if (plan.legacy) {
+      PrintIndent();
+      stream << "tvm_cuda_launch::NormalizeLegacyPresence(&" << values << ");\n";
+    }
+    std::string requirements = name_supply_->FreshName("cuda_kernel_requirements");
+    PrintIndent();
+    stream << "tvm_cuda_launch::KernelRequirements " << requirements << "{"
+           << (plan.requirements.required_block_size ? "true" : "false") << ", {";
+    for (int i = 0; i < 3; ++i) {
+      if (i) stream << ", ";
+      stream << plan.requirements.block[i];
+    }
+    stream << "}, {";
+    for (int i = 0; i < 3; ++i) {
+      if (i) stream << ", ";
+      stream << plan.requirements.cluster[i];
+    }
+    stream << "}};\n";
+    std::string launch =
+        launch_ + "(\"" + std::string(symbol) + "\", " + values + ", " + requirements;
     for (size_t i = 0; i + 1 < launch_begin; ++i) launch += ", " + arguments[i];
-    CheckError(launch + ")", true);
+    PrintIndent();
+    stream << launch << ");\n";
     os << "0";
   }
 
@@ -377,7 +354,9 @@ class CodeGenCUDAHost : public CodeGenCHost {
     stream << ") != 0) return -1;\n";
   }
   void PrintTensorMapEncode(const CallNode* op) {
-    const auto* attr = op->attrs.as<tirx::TensorMapEncodeTiledAttr>();
+    const auto* attr =
+        (op->attrs.has_value() ? op->attrs.value().as<backend::cuda::TensorMapEncodeTiledAttr>()
+                               : nullptr);
     TVM_FFI_CHECK(attr && attr->rank >= 1 && attr->rank <= 5 &&
                       op->args.size() == static_cast<size_t>(4 * attr->rank + 1),
                   ValueError)
@@ -476,9 +455,9 @@ class CodeGenCUDAHost : public CodeGenCHost {
 ffi::Module BuildCUDAHost(IRModule mod, Target target) {
   CodeGenCUDAHost cg;
   cg.Init(target);
-  std::vector<std::pair<GlobalVar, PrimFunc>> functions;
+  std::vector<std::pair<GlobalVar, Function>> functions;
   for (auto [gvar, base_func] : mod->functions) {
-    functions.emplace_back(gvar, base_func.as_or_throw<PrimFunc>());
+    functions.emplace_back(gvar, base_func.as_or_throw<Function>());
   }
   std::sort(functions.begin(), functions.end(), [](const auto& lhs, const auto& rhs) {
     return lhs.first->name_hint < rhs.first->name_hint;

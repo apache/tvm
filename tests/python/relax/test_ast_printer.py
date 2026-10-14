@@ -24,6 +24,7 @@ import tvm
 import tvm.testing
 from tvm import relax as rx
 from tvm import tirx
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.testing import dump_ast
 from tvm.relax.testing.ast_printer import ASTPrinter
 from tvm.script import relax as R
@@ -350,7 +351,7 @@ def test_ty():
 
 def test_call_packed():
     # test case from test_parser
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @R.function(pure=False)
     def f(
@@ -439,14 +440,14 @@ def test_op_attrs():
 
 def test_call_tir():
     # also from test_parser
-    m_addone = T.dynamic("m")
-    n_addone = T.dynamic("n")
-    m_foo = T.dynamic("m")
-    n_foo = T.dynamic("n")
+    m_addone = T.dynamic("m", "int64")
+    n_addone = T.dynamic("n", "int64")
+    m_foo = T.dynamic("m", "int64")
+    n_foo = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class TestCallTIR:
-        @Ts.prim_func
+        @Ts.function
         def addone(
             A: T.Tensor((m_addone, n_addone), "float32"),
             B: T.Tensor((m_addone, n_addone), "float32"),
@@ -459,7 +460,9 @@ def test_call_tir():
 
         @R.function
         def foo(x: R.Tensor((m_foo, n_foo), "float32")):
-            gv0 = R.call_tir(TestCallTIR.addone, (x,), R.Tensor((m_foo, n_foo), dtype="float32"))
+            gv0 = R.call_tir(
+                TestCallTIR.addone, (x,), ty_args=[R.Tensor((m_foo, n_foo), dtype="float32")]
+            )
             return gv0
 
     mod = TestCallTIR
@@ -508,12 +511,14 @@ def test_call_tir():
 
 
 def test_call_dps_packed():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @R.function
     def foo(x: R.Tensor((m, n), "float32")):
-        gv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
+        gv0 = R.call_dps_packed(
+            _ExternFunc("test.op.identity"), (x,), ty_args=[R.Tensor((m, n), dtype="float32")]
+        )
         return gv0
 
     foo_str = strip_whitespace(
@@ -577,7 +582,7 @@ def test_operators():
 
     @R.function(pure=False)
     def bar(x: R.Tensor):
-        return R.print(x, format="{}")
+        return R.print("{}", x)
 
     bar_str = strip_whitespace(
         dump_ast(
@@ -638,7 +643,7 @@ def test_if():
     assert isinstance(body, rx.SeqExpr)
     body_str = strip_whitespace(dump_ast(body))
     # we expect both branches to be seq exprs
-    assert "If" in body_str
+    assert "IfExpr" in body_str
     assert "true_branch=SeqExpr(" in body_str
     assert "false_branch=SeqExpr(" in body_str
 

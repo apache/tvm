@@ -27,7 +27,7 @@ def test_dltensor_compatible():
 
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def arange(Ab: T.Tensor((n,), "int64")):
             for i in T.serial(n - 1):
                 Ab[i + 1] = Ab[i] + T.int64(1)

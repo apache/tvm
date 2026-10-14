@@ -50,7 +50,7 @@ def _rvv_target():
 def _build_softmax(batch, features, fast=False):
     A = te.placeholder((batch, features), dtype="float32", name="A")
     B = topi.nn.fast_softmax(A, axis=1) if fast else topi.nn.softmax(A, axis=1)
-    func = te.create_prim_func([A, B])
+    func = te.create_function([A, B])
     return tvm.IRModule({"main": func})
 
 
@@ -141,9 +141,9 @@ def _codegen_llvm_ir(mod, target):
     bound = tirx.transform.BindTarget(target.with_host(target))(mod)
     pipeline, finalize_host, _ = tirx.get_tir_pipeline("s_tir")
     lowered = pipeline(bound)
-    from tvm.tirx.build import split_host_device_mods
+    from tvm.tirx._compile import _split_host_device_modules
 
-    host_mod, _ = split_host_device_mods(lowered)
+    host_mod, _ = _split_host_device_modules(lowered)
     host_mod = finalize_host()(host_mod)
     built = tvm.target.codegen.build_module(host_mod, target)
     return built.inspect_source("ll")
@@ -154,9 +154,9 @@ def _codegen_asm(mod, target):
     bound = tirx.transform.BindTarget(target.with_host(target))(mod)
     pipeline, finalize_host, _ = tirx.get_tir_pipeline("s_tir")
     lowered = pipeline(bound)
-    from tvm.tirx.build import split_host_device_mods
+    from tvm.tirx._compile import _split_host_device_modules
 
-    host_mod, _ = split_host_device_mods(lowered)
+    host_mod, _ = _split_host_device_modules(lowered)
     host_mod = finalize_host()(host_mod)
     built = tvm.target.codegen.build_module(host_mod, target)
     return built.inspect_source("s")

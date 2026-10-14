@@ -353,7 +353,7 @@ if RUN_EXAMPLE:
 #
 #    # Step 4: Load and run on remote device
 #    lib = remote.load_module("mlp_arm.so")
-#    vm = relax.VirtualMachine(lib, remote.cpu())
+#    vm = rpc.virtual_machine(lib, remote.cpu())
 #    # ... prepare input and params, then run inference
 #
 # The key difference is using an ARM target triple during compilation and

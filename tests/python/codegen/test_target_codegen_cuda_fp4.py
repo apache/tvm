@@ -43,15 +43,15 @@ def test_e2m1_vector_conversions(promoted_dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((vector_length,), native_dtype),
             B: T.Tensor((vector_length,), native_dtype),
             C: T.Tensor((vector_length,), native_dtype),
         ):
             T.func_attr({"tirx.noalias": True})
-            for i_0 in T.thread_binding(vector_length // 32, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", vector_length // 32) as i_0:
+                with T.launch_thread("threadIdx.x", 32) as i_1:
                     C[i_0 * 32 + i_1] = T.Cast(
                         native_dtype,
                         T.Cast(promoted_dtype, A[i_0 * 32 + i_1])
@@ -59,7 +59,7 @@ def test_e2m1_vector_conversions(promoted_dtype):
                     )
 
     target = "cuda"
-    fadd = tvm.compile(Module, target=target)
+    fadd = tvm.tirx.compile(Module, target=target)
 
     if "x" in native_dtype:
         lanes = int(native_dtype.split("x")[-1])
@@ -112,19 +112,18 @@ def test_e2m1_vector_conversions(promoted_dtype):
 def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storage):
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((n // num_elem_per_storage,), "uint32"),
             B: T.Tensor((n,), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", num_blocks) as i_0:
+                with T.launch_thread("threadIdx.x", 32) as i_1:
                     for i_2 in T.vectorized(vector_length):
                         B[i_0 * 32 * vector_length + i_1 * vector_length + i_2] = T.Shuffle(
                             [
                                 T.reinterpret(
-                                    "float4_e2m1fnx2",
                                     T.bitwise_and(
                                         T.shift_right(
                                             A[
@@ -149,6 +148,7 @@ def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_stora
                                         ),
                                         T.uint32((1 << 4 * 2) - 1),
                                     ).astype("uint8"),
+                                    ty="float4_e2m1fnx2",
                                 ).astype("float16x2")
                             ],
                             indices=[(i_0 * 32 * vector_length + i_1 * vector_length + i_2) % 2],
@@ -160,17 +160,16 @@ def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_stora
 def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storage):
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((n // num_elem_per_storage,), "uint32"),
             B: T.Tensor((n,), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", num_blocks) as i_0:
+                with T.launch_thread("threadIdx.x", 32) as i_1:
                     for i_2 in T.vectorized(vector_length):
                         B[i_0 * 32 * vector_length + i_1 * vector_length + i_2] = T.reinterpret(
-                            "float4_e2m1fn",
                             T.bitwise_and(
                                 T.shift_right(
                                     A[
@@ -185,6 +184,7 @@ def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storag
                                 ),
                                 T.uint32((1 << 4) - 1),
                             ).astype("uint8"),
+                            ty="float4_e2m1fn",
                         ).astype("float16")
 
     return Module
@@ -212,7 +212,7 @@ def test_e2m1_dequantize():
         else:
             mod = _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storage)
 
-        tvm.compile(mod, target=target)
+        tvm.tirx.compile(mod, target=target)
 
 
 @pytest.mark.gpu
@@ -231,16 +231,16 @@ def test_e2m1_scalar_buffer_offset():
     """
     n = 128
 
-    @T.prim_func
+    @T.function
     def func(A_raw: T.Tensor((n // 2,), "uint8"), B: T.Tensor((n,), "float16")):
         T.func_attr({"tir.noalias": True})
-        A = T.decl_tensor((n,), "float4_e2m1fn", data=A_raw.data)
-        for bx in T.thread_binding(n // 32, thread="blockIdx.x"):
-            for tx in T.thread_binding(32, thread="threadIdx.x"):
+        A = T.decl_tensor(A_raw.data, ty_args=[T.Tensor((n,), "float4_e2m1fn", data=A_raw.data)])
+        with T.launch_thread("blockIdx.x", n // 32) as bx:
+            with T.launch_thread("threadIdx.x", 32) as tx:
                 B[bx * 32 + tx] = T.Cast("float16", A[bx * 32 + tx])
 
     target = "cuda"
-    fadd = tvm.compile(func, target=target)
+    fadd = tvm.tirx.compile(func, target=target)
 
     # float4_e2m1fn: 4-bit values 0..15, two packed per byte.
     # Encoding (sign | exp1 | man1 man0):

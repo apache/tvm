@@ -38,7 +38,7 @@ from tvm.script import tirx as T
 def test_basic(consume_params):
     @tvm.script.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ) -> None:
@@ -57,7 +57,9 @@ def test_basic(consume_params):
             cls = Before
             with R.dataflow():
                 w1_transformed = R.call_tir(
-                    cls.transform_layout_IOHW_to_OIHW, w1, R.Tensor((16, 3, 3, 3), "float32")
+                    cls.transform_layout_IOHW_to_OIHW,
+                    w1,
+                    ty_args=[R.Tensor((16, 3, 3, 3), "float32")],
                 )
                 conv1 = R.nn.conv2d(
                     x, w1_transformed, padding=(1, 1), data_layout="NCHW", kernel_layout="OIHW"
@@ -103,7 +105,7 @@ def test_basic(consume_params):
                 R.output(conv2)
             return conv2
 
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -129,7 +131,7 @@ def test_basic(consume_params):
                 lv2 = R.call_tir(
                     cls.transform_layout_IOHW_to_OIHW,
                     (lv1,),
-                    out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                    ty_args=[R.Tensor((16, 3, 3, 3), dtype="float32")],
                 )
                 lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
                 gv: R.Tuple(
@@ -174,7 +176,7 @@ def test_basic(consume_params):
                 R.output(conv2)
             return conv2
 
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -206,7 +208,7 @@ def test_basic(consume_params):
                 lv2 = R.call_tir(
                     cls.transform_layout_IOHW_to_OIHW,
                     (lv1,),
-                    out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                    ty_args=[R.Tensor((16, 3, 3, 3), dtype="float32")],
                 )
                 lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
                 _2: R.Tuple = R.call_pure_packed(
@@ -224,7 +226,7 @@ def test_basic(consume_params):
 
     mod = Before
     expected = Expected if not consume_params else ExpectedConsumeParams
-    with tvm.transform.PassContext(
+    with tvm.ir.transform.PassContext(
         config={"relax.lift_transform_params.consume_params": consume_params}
     ):
         after = relax.transform.LiftTransformParams()(mod)
@@ -1400,7 +1402,7 @@ def test_stop_lifting():
 
 
 def test_symbolic_var_1():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -1411,7 +1413,7 @@ def test_symbolic_var_1():
                 zeros = R.zeros((n, n), "float32")
             return shape
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1420,7 +1422,7 @@ def test_symbolic_var_1():
             R.func_attr({"num_input": 0})
             # All instance of the empty tuple are normalized to be
             # in-line.
-            return R.tuple()
+            return ()
 
         @R.function
         def main(shape: R.Shape([n])) -> R.Shape([n]):
@@ -1436,13 +1438,13 @@ def test_symbolic_var_1():
 
 
 def test_symbolic_var_2():
-    n_zeros = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_zeros = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
-        def zeros(T_full: T.Tensor((n_zeros, n_zeros))):
+        @Ts.function
+        def zeros(T_full: T.Tensor((n_zeros, n_zeros), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             for ax0, ax1 in T.grid(n_zeros, n_zeros):
@@ -1458,18 +1460,18 @@ def test_symbolic_var_2():
             cls = Before
             with R.dataflow():
                 zeros = R.call_tir(
-                    cls.zeros, R.tuple(), out_ty=R.Tensor((n_main, n_main), dtype="float32")
+                    cls.zeros, R.tuple(), ty_args=[R.Tensor((n_main, n_main), dtype="float32")]
                 )
                 R.output()
             return shape
 
-    n_zeros = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_zeros = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
-        def zeros(T_full: T.Tensor((n_zeros, n_zeros))):
+        @Ts.function
+        def zeros(T_full: T.Tensor((n_zeros, n_zeros), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1483,7 +1485,7 @@ def test_symbolic_var_2():
         @R.function
         def main_transform_params(params: R.Tuple) -> R.Tuple:
             R.func_attr({"num_input": 0})
-            return R.tuple()
+            return ()
 
         @R.function
         def main(shape: R.Shape([n_main])) -> R.Shape([n_main]):
@@ -1491,7 +1493,7 @@ def test_symbolic_var_2():
             cls = Expected
             with R.dataflow():
                 zeros = R.call_tir(
-                    cls.zeros, R.tuple(), out_ty=R.Tensor((n_main, n_main), dtype="float32")
+                    cls.zeros, R.tuple(), ty_args=[R.Tensor((n_main, n_main), dtype="float32")]
                 )
                 R.output()
             return shape
@@ -1502,7 +1504,7 @@ def test_symbolic_var_2():
 
 
 def test_symbolic_var_from_shape():
-    slice_index = T.dynamic("slice_index")
+    slice_index = T.dynamic("slice_index", "int64")
 
     @I.ir_module
     class Before:
@@ -1518,18 +1520,18 @@ def test_symbolic_var_from_shape():
                 B_slice = R.call_tir(
                     cls.slice,
                     [B, slice_index],
-                    out_ty=R.Tensor([16], dtype="int32"),
+                    ty_args=[R.Tensor([16], dtype="int32")],
                 )
                 A_slice = R.call_tir(
                     cls.slice,
                     [A, slice_index],
-                    out_ty=R.Tensor([16], dtype="int32"),
+                    ty_args=[R.Tensor([16], dtype="int32")],
                 )
                 A_scale = R.multiply(A_slice, B_slice)
                 R.output(A_scale)
             return A_scale
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice(
             Input_2d: T.Tensor(shape=[16, 16], dtype="int32"),
             slice_index: T.int64,
@@ -1541,8 +1543,8 @@ def test_symbolic_var_from_shape():
                     vj = Ts.axis.remap("S", [j])
                     Output_Slice[vj] = Input_2d[slice_index, vj]
 
-    slice_index_main = T.dynamic("slice_index")
-    slice_index_main_transform_params = T.dynamic("slice_index")
+    slice_index_main = T.dynamic("slice_index", "int64")
+    slice_index_main_transform_params = T.dynamic("slice_index", "int64")
 
     @I.ir_module
     class Expected:
@@ -1558,7 +1560,7 @@ def test_symbolic_var_from_shape():
                 A_slice = R.call_tir(
                     cls.slice,
                     [A, slice_index_main],
-                    out_ty=R.Tensor([16], dtype="int32"),
+                    ty_args=[R.Tensor([16], dtype="int32")],
                 )
                 A_scale = R.multiply(A_slice, B_slice)
                 R.output(A_scale)
@@ -1578,13 +1580,13 @@ def test_symbolic_var_from_shape():
                 B_slice = R.call_tir(
                     cls.slice,
                     [B, slice_index_main_transform_params],
-                    out_ty=R.Tensor([16], dtype="int32"),
+                    ty_args=[R.Tensor([16], dtype="int32")],
                 )
                 output = (R.ShapeExpr([slice_index_main_transform_params]), B_slice)
                 R.output(output)
             return output
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice(
             Input_2d: T.Tensor(shape=[16, 16], dtype="int32"),
             slice_index: T.int64,
@@ -1602,8 +1604,8 @@ def test_symbolic_var_from_shape():
 
 
 def test_symbolic_var_in_param_shape():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -1624,9 +1626,9 @@ def test_symbolic_var_in_param_shape():
                 R.output(conv2)
             return conv2
 
-    m_main_transform_params = T.dynamic("m")
-    n = T.dynamic("n")
-    m_main = T.dynamic("m")
+    m_main_transform_params = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -1706,8 +1708,8 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
     not variable definitions.
     """
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -1724,9 +1726,9 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
                 R.output(output)
             return output
 
-    k = T.dynamic("k")
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    k = T.dynamic("k", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1817,8 +1819,8 @@ def test_only_lift_when_variable_uses_constants():
 def test_lift_transform_is_idempotent(shared_transform):
     """Multiple applicates of LiftTransformParams are allowed"""
 
-    batch_size = T.dynamic("batch_size")
-    lora_rank = T.dynamic("lora_rank")
+    batch_size = T.dynamic("batch_size", "int64")
+    lora_rank = T.dynamic("lora_rank", "int64")
 
     @I.ir_module
     class Module:
@@ -1849,9 +1851,9 @@ def test_lift_transform_when_one_already_exists():
     """If the module already contains `transform_params`, the
     functions are composed together"""
 
-    batch_size = T.dynamic("batch_size")
-    lora_rank_main = T.dynamic("lora_rank")
-    lora_rank_main_transform_params = T.dynamic("lora_rank")
+    batch_size = T.dynamic("batch_size", "int64")
+    lora_rank_main = T.dynamic("lora_rank", "int64")
+    lora_rank_main_transform_params = T.dynamic("lora_rank", "int64")
 
     @I.ir_module
     class Module:

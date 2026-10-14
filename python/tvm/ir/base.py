@@ -17,7 +17,7 @@
 """Common base structures."""
 
 import tvm_ffi
-from tvm_ffi import get_global_func, register_object
+from tvm_ffi import register_object
 from tvm_ffi.serialization import from_json_graph_str, to_json_graph_str
 
 from tvm.runtime import Object
@@ -26,83 +26,26 @@ from ..libinfo import __version__
 from . import _ffi_api, json_compact
 
 
+class Scriptable:
+    """Marker for display methods installed by the TVMScript owner."""
+
+
+def register_script_printer(*, script, show, node_repr):
+    """Attach shared printer behavior without replacing native IR wrappers."""
+    Scriptable.script = script
+    Scriptable.show = show
+    Node.__repr__ = node_repr
+
+
+def register_dialect_script_method(name, method):
+    """Register a dialect-owned private printing convenience method."""
+    if not name.startswith("_") or not name.endswith("_script") or not callable(method):
+        raise ValueError(f"Invalid dialect script method: {name}")
+    setattr(Scriptable, name, method)
+
+
 class Node(Object):
     """Base class of all IR Nodes."""
-
-    def __repr__(self) -> str:
-        from tvm.runtime.script_printer import PrinterConfig, _script
-
-        try:
-            return _script(
-                self,
-                PrinterConfig(extra_config={"ir.comment_imports": True}),
-            )
-        except Exception:
-            return super().__repr__()
-
-
-@register_object("ir.SourceMap")
-class SourceMap(Object):
-    def add(self, name, content):
-        return get_global_func("SourceMapAdd")(self, name, content)
-
-
-@register_object("ir.SourceName")
-class SourceName(Object):
-    """A identifier for a source location.
-
-    Parameters
-    ----------
-    name : str
-        The name of the source.
-    """
-
-    def __init__(self, name):
-        self.__init_handle_by_constructor__(_ffi_api.SourceName, name)  # type: ignore # pylint: disable=no-member
-
-
-@register_object("ir.Span")
-class Span(Object):
-    """Specifies a location in a source program.
-
-    Parameters
-    ----------
-    source : SourceName
-        The source name.
-
-    lineno : int
-        The line number.
-
-    col_offset : int
-        The column offset of the location.
-    """
-
-    def __init__(self, source_name, line, end_line, column, end_column):
-        self.__init_handle_by_constructor__(
-            _ffi_api.Span,
-            source_name,
-            line,
-            end_line,
-            column,
-            end_column,  # type: ignore # pylint: disable=no-member
-        )
-
-
-@register_object("ir.SequentialSpan")
-class SequentialSpan(Object):
-    """A sequence of source spans
-
-    This span is specific for an expression, which is from multiple expressions
-    after an IR transform.
-
-    Parameters
-    ----------
-    spans : Array
-        The array of spans.
-    """
-
-    def __init__(self, spans):
-        self.__init_handle_by_constructor__(_ffi_api.SequentialSpan, spans)
 
 
 @register_object("ir.EnvFunc")
@@ -190,16 +133,13 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
     """
     first_mismatch = tvm_ffi.get_first_structural_mismatch(lhs, rhs, map_free_vars)
     if first_mismatch is not None:
-        from tvm.runtime.script_printer import (  # pylint: disable=import-outside-toplevel
-            Scriptable,
-        )
-
         lhs_path, rhs_path = first_mismatch
         # Diagnostics use the same display policy as Object.script(), including
         # dialect selection and commented imports. The unbound method also
         # accepts IR objects that do not inherit the convenience mixin.
-        lhs_script = Scriptable.script(lhs, path_to_underline=[lhs_path])
-        rhs_script = Scriptable.script(rhs, path_to_underline=[rhs_path])
+        script = getattr(Scriptable, "script", None)
+        lhs_script = script(lhs, path_to_underline=[lhs_path]) if script else repr(lhs)
+        rhs_script = script(rhs, path_to_underline=[rhs_path]) if script else repr(rhs)
         raise ValueError(
             f"StructuralEqual check failed, caused by lhs at {lhs_path}:\n"
             f"{lhs_script}\n"

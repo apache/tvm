@@ -83,7 +83,7 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
             [
                 relax.backend.adreno.transform.FoldVDeviceScopeChange(),
                 relax.transform.DeadCodeElimination(),
-                relax.transform.SpecializePrimFuncBasedOnCallSite(),
+                relax.transform.SpecializeFunctionBasedOnCallSite(),
             ]
         )
     from tvm.s_tir import dlight as dl  # pylint: disable=import-outside-toplevel
@@ -123,10 +123,10 @@ def finalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
 def get_default_pipeline(target: tvm.target.Target):
     """Return the default compilation pipeline for Adreno GPU."""
 
-    @tvm.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext):
+    @tvm.ir.transform.module_pass(opt_level=0)
+    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.ir.transform.PassContext):
         with target:
-            seq = tvm.transform.Sequential(
+            seq = tvm.ir.transform.Sequential(
                 library_dispatch_passes(target)
                 + legalize_passes(target)
                 + dataflow_lower_passes(target)

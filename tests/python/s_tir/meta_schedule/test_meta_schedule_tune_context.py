@@ -34,7 +34,7 @@ from tvm.target import Target
 
 @tvm.script.ir_module
 class Matmul:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((1024, 1024), "float32"),
         B: T.Tensor((1024, 1024), "float32"),

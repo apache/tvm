@@ -242,7 +242,7 @@ def test_no_cse_across_dataflow():
                 gv1 = R.multiply(lv0, lv1)
                 R.output(gv1)
 
-            _ = R.print(format="Prevent dataflow block merging")
+            _ = R.print("Prevent dataflow block merging")
 
             with R.dataflow():
                 lv2 = R.add(x, y)
@@ -268,7 +268,7 @@ def test_no_cse_across_dataflow():
                 gv1 = R.multiply(lv0, lv0)
                 R.output(gv1)
 
-            _ = R.print(format="Prevent dataflow block merging")
+            _ = R.print("Prevent dataflow block merging")
 
             with R.dataflow():
                 # However, the later dataflow block may not be
@@ -336,26 +336,26 @@ def test_do_not_eliminate_impure():
         @R.function(pure=False)
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
             # it's a repeated subexpression but it would be wrong to deduplicate it
-            p1 = R.print(format="Message")
-            p2 = R.print(format="Message")
-            a1 = R.assert_op(R.const(False), format="Always fails")
+            p1 = R.print("Message")
+            p2 = R.print("Message")
+            a1 = R.assert_op(R.const(False), "Always fails")
             lv0 = R.add(x, y)
             lv1 = R.add(x, y)
             gv = R.multiply(lv0, lv1)
-            a2 = R.assert_op(R.const(False), format="Always fails")
+            a2 = R.assert_op(R.const(False), "Always fails")
             return gv
 
     @I.ir_module
     class Expected:
         @R.function(pure=False)
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
-            p1 = R.print(format="Message")
-            p2 = R.print(format="Message")
-            a1 = R.assert_op(R.const(False), format="Always fails")
+            p1 = R.print("Message")
+            p2 = R.print("Message")
+            a1 = R.assert_op(R.const(False), "Always fails")
             lv0 = R.add(x, y)
             lv1 = lv0
             gv = R.multiply(lv0, lv0)
-            a2 = R.assert_op(R.const(False), format="Always fails")
+            a2 = R.assert_op(R.const(False), "Always fails")
             return gv
 
     verify(Before, Expected)
@@ -396,11 +396,11 @@ def test_call_tir_tuple_arg():
         @R.function
         def main(A: R.Tensor([16, 16], "int32"), B: R.Tensor([16, 16], "int32")):
             cls = Before
-            Prod = R.call_tir(cls.product, [A, B], out_ty=R.Tensor([16, 16], "int32"))
-            Sum = R.call_tir(cls.sum, [A, B], out_ty=R.Tensor([16, 16], "int32"))
+            Prod = R.call_tir(cls.product, [A, B], ty_args=[R.Tensor([16, 16], "int32")])
+            Sum = R.call_tir(cls.sum, [A, B], ty_args=[R.Tensor([16, 16], "int32")])
             return (Prod, Sum)
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def product(
             A: T.Tensor([16, 16], "int32"),
             B: T.Tensor([16, 16], "int32"),
@@ -411,7 +411,7 @@ def test_call_tir_tuple_arg():
                     i, j = Ts.axis.remap("SS", iters)
                     C[i, j] = A[i, j] * B[i, j]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def sum(
             A: T.Tensor([16, 16], "int32"),
             B: T.Tensor([16, 16], "int32"),
@@ -493,10 +493,10 @@ def test_match_cast():
 
 
 def test_match_cast_with_symbolic_vars():
-    n = T.dynamic("n")
-    m = T.dynamic("m")
-    p = T.dynamic("p")
-    q = T.dynamic("q")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+    p = T.dynamic("p", "int64")
+    q = T.dynamic("q", "int64")
 
     @I.ir_module
     class Before:
@@ -514,10 +514,10 @@ def test_match_cast_with_symbolic_vars():
                 R.output(gv)
             return gv
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
-    p = T.dynamic("p")
-    q = T.dynamic("q")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+    p = T.dynamic("p", "int64")
+    q = T.dynamic("q", "int64")
 
     @I.ir_module
     class Expected:

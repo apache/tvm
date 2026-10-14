@@ -22,6 +22,8 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax
+from tvm.ir import TupleType as _TupleType
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
@@ -77,8 +79,8 @@ def test_dataflowblock_pass_rejects_rewriting_match_cast_role_of_binding_var():
 
 
 def test_to_non_dataflow():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class TestToNonDataflow:
@@ -86,20 +88,24 @@ def test_to_non_dataflow():
         def foo(x: R.Tensor((m, n), "float32")):
             with R.dataflow():
                 lv0 = R.call_dps_packed(
-                    "test.op.identity",
+                    _ExternFunc("test.op.identity"),
                     (x,),
-                    R.Tensor(
-                        (m, n),
-                        dtype="float32",
-                    ),
+                    ty_args=[
+                        R.Tensor(
+                            (m, n),
+                            dtype="float32",
+                        )
+                    ],
                 )
                 gv0 = R.call_dps_packed(
-                    "test.op.identity",
+                    _ExternFunc("test.op.identity"),
                     (lv0,),
-                    R.Tensor(
-                        (m, n),
-                        dtype="float32",
-                    ),
+                    ty_args=[
+                        R.Tensor(
+                            (m, n),
+                            dtype="float32",
+                        )
+                    ],
                 )
                 R.output(gv0)
             return gv0
@@ -138,14 +144,14 @@ def test_to_non_dataflow():
 
 
 def test_call_tir_rewrite():
-    m_exp = T.dynamic("m")
-    n_exp = T.dynamic("n")
-    m_foo = T.dynamic("m")
-    n_foo = T.dynamic("n")
+    m_exp = T.dynamic("m", "int64")
+    n_exp = T.dynamic("n", "int64")
+    m_foo = T.dynamic("m", "int64")
+    n_foo = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class TestCallTIRRewrite:
-        @Ts.prim_func
+        @Ts.function
         def exp(A: T.Tensor((m_exp, n_exp), "float32"), B: T.Tensor((m_exp, n_exp), "float32")):
             T.evaluate(0)
 
@@ -154,7 +160,7 @@ def test_call_tir_rewrite():
             # we expect RemovePurityChecking to have been used before this point
             R.func_attr({"relax.force_pure": True})
             gv0 = R.call_tir(
-                TestCallTIRRewrite.exp, (x,), R.Tensor((m_foo, n_foo), dtype="float32")
+                TestCallTIRRewrite.exp, (x,), ty_args=[R.Tensor((m_foo, n_foo), dtype="float32")]
             )
             return gv0
 
@@ -179,14 +185,15 @@ def test_call_tir_rewrite():
     assert isinstance(s1.args[0], relax.ShapeExpr)
     tvm.ir.assert_structural_equal(s1.args[0], s0.ty_args[0].shape)
     s2 = block.bindings[1].value
-    tvm.ir.expr.GlobalVar
-    assert s2.op.name_hint == "exp"
+    assert s2.op.name == "relax.call_tir_packed"
+    assert s2.args[0].name_hint == "exp"
+    assert not s2.op.get_attr("FPurity")
 
 
 def test_call_tir_rewrite_with_interspersed_primitive_argument():
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def scale_add(
             A: T.Tensor((16,), "float32"),
             scale: T.float32,
@@ -203,7 +210,7 @@ def test_call_tir_rewrite_with_interspersed_primitive_argument():
             C: R.Tensor((16,), "float32"),
         ) -> R.Tensor((16,), "float32"):
             R.func_attr({"relax.force_pure": True})
-            B = R.call_tir(Module.scale_add, (A, scale, C), R.Tensor((16,), "float32"))
+            B = R.call_tir(Module.scale_add, (A, scale, C), ty_args=[R.Tensor((16,), "float32")])
             return B
 
     after = relax.transform.CallTIRRewrite()(Module)
@@ -212,9 +219,11 @@ def test_call_tir_rewrite_with_interspersed_primitive_argument():
     output_buffer = bindings[0].var
     call = bindings[1].value
 
-    assert call.op.name_hint == "scale_add"
+    assert call.op.name == "relax.call_tir_packed"
+    assert call.args[0].name_hint == "scale_add"
+    assert not call.op.get_attr("FPurity")
     tvm.ir.assert_structural_equal(
-        call.args,
+        call.args[1].fields,
         [func.params[0], func.params[1], func.params[2], output_buffer],
     )
 
@@ -242,7 +251,7 @@ def test_transform_remove_purity_checking():
 
         @R.function(pure=False)
         def impure_func() -> R.Any:
-            y = R.print(format="I am impure!")
+            y = R.print("I am impure!")
             return y
 
         @R.function
@@ -261,7 +270,7 @@ def test_transform_remove_purity_checking():
         def nested_impure_func() -> R.Tensor((), "int32"):
             @R.function(pure=False)
             def nested() -> R.Any:
-                x = R.print(format="Oops!")
+                x = R.print("Oops!")
                 return x
 
             y = R.const(1, dtype="int32")
@@ -293,7 +302,7 @@ def test_transform_remove_purity_checking():
 
         @R.function(pure=False)
         def impure_func() -> R.Any:
-            y = R.print(format="I am impure!")
+            y = R.print("I am impure!")
             return y
 
         @R.function
@@ -315,7 +324,7 @@ def test_transform_remove_purity_checking():
         def nested_impure_func() -> R.Tensor((), "int32"):
             @R.function(pure=False)
             def nested() -> R.Any:
-                x = R.print(format="Oops!")
+                x = R.print("Oops!")
                 return x
 
             y = R.const(1, dtype="int32")
@@ -327,8 +336,8 @@ def test_transform_remove_purity_checking():
 
 
 def test_call_dps_packed_rewrite():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class TestCallDPSPackedRewrite:
@@ -336,7 +345,9 @@ def test_call_dps_packed_rewrite():
         def foo(x: R.Tensor((m, n), "float32")):
             # we expect RemovePurityChecking to have been used before this point
             R.func_attr({"relax.force_pure": True})
-            gv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
+            gv0 = R.call_dps_packed(
+                _ExternFunc("test.op.identity"), (x,), ty_args=[R.Tensor((m, n), dtype="float32")]
+            )
             return gv0
 
     mod = TestCallDPSPackedRewrite
@@ -411,7 +422,7 @@ def test_call_tir_inplace_simple():
     # simple case: one inplace argument
     @tvm.script.ir_module
     class Input:
-        @Ts.prim_func
+        @Ts.function
         def zeros(A: T.Tensor((2, 3), "int32")):
             # just overwrites A with 0s
             T.func_attr({"tirx.noalias": True})
@@ -425,12 +436,14 @@ def test_call_tir_inplace_simple():
         def foo(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "int32"):
             # we expect RemovePurityChecking to have been used before this point
             R.func_attr({"relax.force_pure": True})
-            gv0 = R.call_tir_inplace(Input.zeros, x, 0, R.Tensor((2, 3), dtype="int32"))
+            gv0 = R.call_tir_inplace(
+                Input.zeros, x, inplace_indices=0, ty_args=[R.Tensor((2, 3), dtype="int32")]
+            )
             return gv0
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def zeros(A: T.Tensor((2, 3), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -442,7 +455,7 @@ def test_call_tir_inplace_simple():
         @R.function
         def foo(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "int32"):
             R.func_attr({"relax.force_pure": True})
-            _ = Expected.zeros(x)
+            _ = R.call_tir_packed(Expected.zeros, (x,))
             gv0 = x
             return gv0
 
@@ -453,7 +466,7 @@ def test_call_tir_inplace_simple():
 def test_call_tir_inplace_multiple_args():
     @tvm.script.ir_module
     class Input:
-        @Ts.prim_func
+        @Ts.function
         def copy(
             A: T.Tensor((2, 3), "int32"), B: T.Tensor((2, 3), "int32"), C: T.Tensor((2, 3), "int32")
         ):
@@ -475,14 +488,16 @@ def test_call_tir_inplace_multiple_args():
             gv0 = R.call_tir_inplace(
                 Input.copy,
                 (x, y, z),
-                [0, 1],
-                [R.Tensor((2, 3), dtype="int32"), R.Tensor((2, 3), dtype="int32")],
+                inplace_indices=[0, 1],
+                ty_args=[
+                    _TupleType([R.Tensor((2, 3), dtype="int32"), R.Tensor((2, 3), dtype="int32")])
+                ],
             )
             return gv0
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def copy(
             A: T.Tensor((2, 3), "int32"), B: T.Tensor((2, 3), "int32"), C: T.Tensor((2, 3), "int32")
         ):
@@ -501,7 +516,7 @@ def test_call_tir_inplace_multiple_args():
             x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32"), z: R.Tensor((2, 3), "int32")
         ) -> R.Tuple(R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")):
             R.func_attr({"relax.force_pure": True})
-            _ = Expected.copy(x, y, z)
+            _ = R.call_tir_packed(Expected.copy, (x, y, z))
             gv0 = (x, y)
             return gv0
 
@@ -512,7 +527,7 @@ def test_call_tir_inplace_multiple_args():
 def test_call_tir_inplace_some_new():
     @tvm.script.ir_module
     class Input:
-        @Ts.prim_func
+        @Ts.function
         def copy(
             A: T.Tensor((2, 3), "int32"),
             B: T.Tensor((2, 3), "int32"),
@@ -541,18 +556,22 @@ def test_call_tir_inplace_some_new():
             gv0 = R.call_tir_inplace(
                 Input.copy,
                 (x, y, z),
-                [0, -1, -1],
-                [
-                    R.Tensor((2, 3), dtype="int32"),
-                    R.Tensor((2, 3), dtype="int32"),
-                    R.Tensor((2, 3), dtype="int32"),
+                inplace_indices=[0, -1, -1],
+                ty_args=[
+                    _TupleType(
+                        [
+                            R.Tensor((2, 3), dtype="int32"),
+                            R.Tensor((2, 3), dtype="int32"),
+                            R.Tensor((2, 3), dtype="int32"),
+                        ]
+                    )
                 ],
             )
             return gv0
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def copy(
             A: T.Tensor((2, 3), "int32"),
             B: T.Tensor((2, 3), "int32"),
@@ -587,7 +606,7 @@ def test_call_tir_inplace_some_new():
                 (R.shape([2, 3]), R.dtype("int32"), R.prim_value(0), R.str("global")),
                 (R.Tensor((2, 3), dtype="int32"),),
             )
-            _ = Expected.copy(x, y, z, gv0, gv1)
+            _ = R.call_tir_packed(Expected.copy, (x, y, z, gv0, gv1))
             gv2 = (x, gv0, gv1)
             return gv2
 
@@ -600,7 +619,7 @@ def test_call_tir_inplace_repeated_input():
 
         @tvm.script.ir_module
         class Input:
-            @Ts.prim_func
+            @Ts.function
             def func(
                 A: T.Tensor((2, 3), "int32"),
                 B: T.Tensor((2, 3), "int32"),
@@ -619,8 +638,12 @@ def test_call_tir_inplace_repeated_input():
                     Input.func,
                     (x, y, z),
                     # repeated 0 -> that's an error
-                    [0, 0],
-                    [R.Tensor((2, 3), dtype="int32"), R.Tensor((2, 3), dtype="int32")],
+                    inplace_indices=[0, 0],
+                    ty_args=[
+                        _TupleType(
+                            [R.Tensor((2, 3), dtype="int32"), R.Tensor((2, 3), dtype="int32")]
+                        )
+                    ],
                 )
                 return gv0
 
@@ -630,7 +653,7 @@ def test_call_tir_inplace_all_new():
 
         @tvm.script.ir_module
         class Input:
-            @Ts.prim_func
+            @Ts.function
             def func(A: T.Tensor((2, 3), "int32")):
                 T.evaluate(0)
 
@@ -638,17 +661,19 @@ def test_call_tir_inplace_all_new():
             def foo(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "int32"):
                 R.func_attr({"relax.force_pure": True})
                 # cannot make the only output a fresh one
-                gv0 = R.call_tir_inplace(Input.func, x, -1, R.Tensor((2, 3), dtype="int32"))
+                gv0 = R.call_tir_inplace(
+                    Input.func, x, inplace_indices=-1, ty_args=[R.Tensor((2, 3), dtype="int32")]
+                )
                 return gv0
 
 
 def test_inplace_mutation_with_tuple_argument_raises_error():
-    """TIR PrimFuncs do not support Tuple arguments
+    """TIR Functions do not support Tuple arguments
 
     The `R.call_tir_inplace` operator must receive an in-line tuple of
     arguments, where each argument in the tuple may be expressed in
     TIR.  Here, `[[A]]` specifies a tuple of arguments, where the
-    first argument is itself a tuple.  Since PrimFuncs do not support
+    first argument is itself a tuple.  Since Functions do not support
     Tuple arguments, this is invalid.
 
     This is a regression test.  In previous implementations, this
@@ -665,12 +690,12 @@ def test_inplace_mutation_with_tuple_argument_raises_error():
                 gv1 = R.call_tir_inplace(
                     cls.multiply_by_two,
                     [[A]],
-                    out_ty=R.Tensor((16,), dtype="float32"),
+                    ty_args=[R.Tensor((16,), dtype="float32")],
                     inplace_indices=[0],
                 )
                 return gv1
 
-            @Ts.prim_func(private=True)
+            @Ts.function(private=True)
             def multiply_by_two(A: T.Tensor((16,), "float32")):
                 for i in range(16):
                     A[i] = A[i] * T.float32(2)
@@ -696,12 +721,12 @@ def test_inplace_mutation_with_non_tensor_argument_raises_error():
                 gv1 = R.call_tir_inplace(
                     Module.multiply_by_two,
                     [A],
-                    out_ty=R.Tensor((16,), dtype="float32"),
+                    ty_args=[R.Tensor((16,), dtype="float32")],
                     inplace_indices=[0],
                 )
                 return gv1
 
-            @Ts.prim_func(private=True)
+            @Ts.function(private=True)
             def multiply_by_two(A: T.Tensor((16,), "float32")):
                 for i in range(16):
                     A[i] = A[i] * T.float32(2)
@@ -725,12 +750,12 @@ def test_inplace_mutation_with_incompatible_tensor_shape_raises_error():
                 gv1 = R.call_tir_inplace(
                     Module.multiply_by_two,
                     [A],
-                    out_ty=R.Tensor((16,), dtype="float32"),
+                    ty_args=[R.Tensor((16,), dtype="float32")],
                     inplace_indices=[0],
                 )
                 return gv1
 
-            @Ts.prim_func(private=True)
+            @Ts.function(private=True)
             def multiply_by_two(A: T.Tensor((16,), "float32")):
                 for i in range(16):
                     A[i] = A[i] * T.float32(2)
@@ -754,12 +779,12 @@ def test_inplace_mutation_with_incompatible_tensor_dtype_raises_error():
                 gv1 = R.call_tir_inplace(
                     Module.multiply_by_two,
                     [A],
-                    out_ty=R.Tensor((16,), dtype="float32"),
+                    ty_args=[R.Tensor((16,), dtype="float32")],
                     inplace_indices=[0],
                 )
                 return gv1
 
-            @Ts.prim_func(private=True)
+            @Ts.function(private=True)
             def multiply_by_two(A: T.Tensor((16,), "float32")):
                 for i in range(16):
                     A[i] = A[i] * T.float32(2)

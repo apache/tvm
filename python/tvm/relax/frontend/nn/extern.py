@@ -69,7 +69,12 @@ class ExternModule:
 
             rx_inputs = _convert(input_args, "input")
             rx_outputs_ty = _convert(_inference_function(*input_args), "dummy").ty
-            return wrap_nested(call_dps_packed(func_name, rx_inputs, rx_outputs_ty), func_name)
+            return wrap_nested(
+                call_dps_packed(
+                    tvm.relax.ExternFunc(func_name), rx_inputs, ty_args=[rx_outputs_ty]
+                ),
+                func_name,
+            )
 
         return _call
 

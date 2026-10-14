@@ -26,7 +26,7 @@ target = tvm.target.Target("aws/trn1/trn1.2xlarge")
 def lower_and_get_source(func):
     with target:
         mod = tvm.IRModule({"main": func})
-        mod = tvm.compile(mod, tir_pipeline="trn")
+        mod = tvm.tirx.compile(mod, pipeline="trn")
         src = mod.mod.imports[0].inspect_source()
         return src
 
@@ -38,21 +38,21 @@ def compare_strings_ignore_whitespace(s1, s2):
 
 def test_nki_add_1():
     # fmt: off
-    @T.prim_func
-    def func(A: T.Tensor((128, 512)), B: T.Tensor((128, 512))):
+    @T.function
+    def func(A: T.Tensor((128, 512), "float32"), B: T.Tensor((128, 512), "float32")):
         T.func_attr({"num_inputs": 1})
         T.device_entry()
-        A_sbuf = T.alloc_tensor((128, 512), "float32", scope="trn.sbuf",)
-        B_sbuf = T.alloc_tensor((128, 512), "float32", scope="trn.sbuf",)
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        with T.nki.tensorized_instruction():
             for i in range(0, 128):
                 for j in range(0, 512):
                     T.nki.load(A_sbuf[i, j], A[i, j])
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        with T.nki.tensorized_instruction():
             for i in range(0, 128):
                 for j in range(0, 512):
                     T.nki.tensorscalar(B_sbuf[i, j], A_sbuf[i, j], T.float32(1.0), "add")
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        with T.nki.tensorized_instruction():
             for i in range(0, 128):
                 for j in range(0, 512):
                     T.nki.store(B[i, j], B_sbuf[i, j])
@@ -92,22 +92,22 @@ def func_kernel(A_ptr, B_ptr: nt.mutable_tensor, ):
 
 def test_nki_add_2():
     # fmt: off
-    @T.prim_func
-    def func(A: T.Tensor((128, 2048)), B: T.Tensor((128, 2048))):
+    @T.function
+    def func(A: T.Tensor((128, 2048), "float32"), B: T.Tensor((128, 2048), "float32")):
         T.func_attr({"num_inputs": 1})
         T.device_entry()
-        A_sbuf = T.alloc_tensor((128, 512), "float32", scope="trn.sbuf",)
-        B_sbuf = T.alloc_tensor((128, 512), "float32", scope="trn.sbuf",)
+        A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
         for k in range(0, 4):
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for i in range(0, 128):
                     for j in range(0, 512):
                         T.nki.load(A_sbuf[i, j], A[i, 512*k+j])
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for i in range(0, 128):
                     for j in range(0, 512):
                         T.nki.tensorscalar(B_sbuf[i, j], A_sbuf[i, j], T.float32(1.0), "add")
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for i in range(0, 128):
                     for j in range(0, 512):
                         T.nki.store(B[i, 512*k+j], B_sbuf[i, j])
@@ -168,26 +168,36 @@ def test_nki_matmul_1():
     NUM_BLOCK_N = N // BLOCK_N
     NUM_BLOCK_K = K // BLOCK_K
 
-    @T.prim_func
+    @T.function
     def func(
         lhsT: T.Tensor((K, M), "float16"),
         rhs: T.Tensor((K, N), "float16"),
-        result: T.buffer((M, N), "float16"),
+        result: T.Tensor((M, N), "float16"),
     ):
         T.func_attr({"num_inputs": 2})
         result_tiles = T.alloc_tensor(
-            (TILE_M, NUM_BLOCK_M, TILES_IN_BLOCK_M, TILES_IN_BLOCK_N, TILE_N),
-            "float32",
-            scope="trn.sbuf",
+            ty_args=[
+                T.Tensor(
+                    (TILE_M, NUM_BLOCK_M, TILES_IN_BLOCK_M, TILES_IN_BLOCK_N, TILE_N),
+                    "float32",
+                    scope="trn.sbuf",
+                )
+            ]
         )
-        rhs_tiles = T.alloc_tensor((TILE_K, TILES_IN_BLOCK_K, BLOCK_N), "float16", scope="trn.sbuf")
+        rhs_tiles = T.alloc_tensor(
+            ty_args=[T.Tensor((TILE_K, TILES_IN_BLOCK_K, BLOCK_N), "float16", scope="trn.sbuf")]
+        )
         lhsT_tiles = T.alloc_tensor(
-            (TILE_K, TILES_IN_BLOCK_K, BLOCK_M), "float16", scope="trn.sbuf"
+            ty_args=[T.Tensor((TILE_K, TILES_IN_BLOCK_K, BLOCK_M), "float16", scope="trn.sbuf")]
         )
-        res_tile = T.alloc_tensor((1, TILE_M, TILE_N), "float32", scope="trn.psum")
-        result_packed = T.alloc_tensor((TILE_K, BLOCK_N), "float32", scope="trn.sbuf")
+        res_tile = T.alloc_tensor(
+            ty_args=[T.Tensor((1, TILE_M, TILE_N), "float32", scope="trn.psum")]
+        )
+        result_packed = T.alloc_tensor(
+            ty_args=[T.Tensor((TILE_K, BLOCK_N), "float32", scope="trn.sbuf")]
+        )
         for n in range(NUM_BLOCK_N):
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for i0 in range(TILE_M):
                     for i1 in range(NUM_BLOCK_M):
                         for i2 in range(TILES_IN_BLOCK_M):
@@ -196,7 +206,7 @@ def test_nki_matmul_1():
                                     T.nki.memset(result_tiles[i0, i1, i2, i3, i4], T.float32(0.0))
             for k in range(NUM_BLOCK_K):
                 for bk_r in range(TILES_IN_BLOCK_K):
-                    with T.attr(0, "tensorized_nki_instruction", 1):
+                    with T.nki.tensorized_instruction():
                         for i in range(TILE_K):
                             for j in range(BLOCK_N):
                                 T.nki.load(
@@ -208,7 +218,7 @@ def test_nki_matmul_1():
                                 )
                 for m in range(NUM_BLOCK_M):
                     for bk_l in range(TILES_IN_BLOCK_K):
-                        with T.attr(0, "tensorized_nki_instruction", 1):
+                        with T.nki.tensorized_instruction():
                             for i in range(TILE_K):
                                 for j in range(BLOCK_M):
                                     T.nki.load(
@@ -220,12 +230,12 @@ def test_nki_matmul_1():
                                     )
                     for bn in range(TILES_IN_BLOCK_N):
                         for bm in range(TILES_IN_BLOCK_M):
-                            with T.attr(0, "tensorized_nki_instruction", 1):
+                            with T.nki.tensorized_instruction():
                                 for i in range(TILE_M):
                                     for j in range(TILE_N):
                                         T.nki.memset(res_tile[0, i, j], T.float32(0.0))
                             for bk in range(TILES_IN_BLOCK_K):
-                                with T.attr(0, "tensorized_nki_instruction", 1):
+                                with T.nki.tensorized_instruction():
                                     for i in range(TILE_M):
                                         for j in range(TILE_N):
                                             for k in range(TILE_K):
@@ -235,7 +245,7 @@ def test_nki_matmul_1():
                                                     rhs_tiles[k, bk, bn * TILE_N + j],
                                                     1,
                                                 )
-                            with T.attr(0, "tensorized_nki_instruction", 1):
+                            with T.nki.tensorized_instruction():
                                 for i in range(TILE_M):
                                     for j in range(TILE_N):
                                         T.nki.tensortensor(
@@ -247,14 +257,14 @@ def test_nki_matmul_1():
             for m in range(NUM_BLOCK_M):
                 for bm in range(TILES_IN_BLOCK_M):
                     for bn in range(TILES_IN_BLOCK_N):
-                        with T.attr(0, "tensorized_nki_instruction", 1):
+                        with T.nki.tensorized_instruction():
                             for i in range(TILE_K):
                                 for j in range(TILE_N):
                                     T.nki.tensor_copy(
                                         result_packed[i, bn * TILE_N + j],
                                         result_tiles[i, m, bm, bn, j],
                                     )
-                    with T.attr(0, "tensorized_nki_instruction", 1):
+                    with T.nki.tensorized_instruction():
                         for i in range(TILE_K):
                             for j in range(BLOCK_N):
                                 T.nki.store(
@@ -291,34 +301,38 @@ def func_kernel(lhsT_ptr, rhs_ptr, result_ptr: nt.mutable_tensor, ):
     i0 = nl.arange(128)
     i1 = nl.arange(2)
     i2 = nl.arange(16)
+    i3 = nl.arange(1)
     i4 = nl.arange(512)
     result_tiles_ptr[i0[:, None, None, None, ], i1[None, :, None, None, ], i2[None, None, :, None, ], 0, i4[None, None, None, :, ]] = 0.000000e+00
-    for bk_r in nl.sequential_range(8):
-      i = nl.arange(128)
-      j = nl.arange(512)
-      rhs_tiles_ptr[i[:, None, ], bk_r, j[None, :, ]] = nl.load(rhs_ptr_buffer[((((bk_r * 262144) + (i[:, None, ] * 2048)) + (n * 512)) + j[None, :, ])])
-    for m in nl.sequential_range(2):
-      for bk_l in nl.sequential_range(8):
-        i_1 = nl.arange(128)
-        j_1 = nl.arange(2048)
-        lhsT_tiles_ptr[i_1[:, None, ], bk_l, j_1[None, :, ]] = nl.load(lhsT_ptr_buffer[((((bk_l * 524288) + (i_1[:, None, ] * 4096)) + (m * 2048)) + j_1[None, :, ])])
-      for bm in nl.sequential_range(16):
-        i_2 = nl.arange(128)
-        j_2 = nl.arange(512)
-        res_tile_ptr[0, i_2[:, None, ], j_2[None, :, ]] = 0.000000e+00
-        for bk in nl.sequential_range(8):
-          i_3 = nl.arange(128)
-          j_3 = nl.arange(512)
-          k = nl.arange(128)
-          res_tile_ptr[0, i_3[:, None, ], j_3[None, :, ]] += nisa.nc_matmul(lhsT_tiles_ptr[k[:, None, ], bk, ((bm * 128) + i_3[None, :, ])],rhs_tiles_ptr[k[:, None, ], bk, j_3[None, :, ]])
-        i_4 = nl.arange(128)
-        j_4 = nl.arange(512)
-        result_tiles_ptr[i_4[:, None, ], m, bm, 0, j_4[None, :, ]] = nisa.tensor_tensor(result_tiles_ptr[i_4[:, None, ], m, bm, 0, j_4[None, :, ]], res_tile_ptr[0, i_4[:, None, ], j_4[None, :, ]], op=nki.language.add)
+    for k in nl.sequential_range(1):
+      for bk_r in nl.sequential_range(8):
+        i = nl.arange(128)
+        j = nl.arange(512)
+        rhs_tiles_ptr[i[:, None, ], bk_r, j[None, :, ]] = nl.load(rhs_ptr_buffer[((((bk_r * 262144) + (i[:, None, ] * 2048)) + (n * 512)) + j[None, :, ])])
+      for m in nl.sequential_range(2):
+        for bk_l in nl.sequential_range(8):
+          i_1 = nl.arange(128)
+          j_1 = nl.arange(2048)
+          lhsT_tiles_ptr[i_1[:, None, ], bk_l, j_1[None, :, ]] = nl.load(lhsT_ptr_buffer[((((bk_l * 524288) + (i_1[:, None, ] * 4096)) + (m * 2048)) + j_1[None, :, ])])
+        for bn in nl.sequential_range(1):
+          for bm in nl.sequential_range(16):
+            i_2 = nl.arange(128)
+            j_2 = nl.arange(512)
+            res_tile_ptr[0, i_2[:, None, ], j_2[None, :, ]] = 0.000000e+00
+            for bk in nl.sequential_range(8):
+              i_3 = nl.arange(128)
+              j_3 = nl.arange(512)
+              k_1 = nl.arange(128)
+              res_tile_ptr[0, i_3[:, None, ], j_3[None, :, ]] += nisa.nc_matmul(lhsT_tiles_ptr[k_1[:, None, ], bk, ((bm * 128) + i_3[None, :, ])],rhs_tiles_ptr[k_1[:, None, ], bk, j_3[None, :, ]])
+            i_4 = nl.arange(128)
+            j_4 = nl.arange(512)
+            result_tiles_ptr[i_4[:, None, ], m, bm, 0, j_4[None, :, ]] = nisa.tensor_tensor(result_tiles_ptr[i_4[:, None, ], m, bm, 0, j_4[None, :, ]], res_tile_ptr[0, i_4[:, None, ], j_4[None, :, ]], op=nki.language.add)
     for m_1 in nl.sequential_range(2):
       for bm_1 in nl.sequential_range(16):
-        i_5 = nl.arange(128)
-        j_5 = nl.arange(512)
-        result_packed_ptr[i_5[:, None, ], j_5[None, :, ]] = nisa.tensor_copy(result_tiles_ptr[i_5[:, None, ], m_1, bm_1, 0, j_5[None, :, ]])
+        for bn_1 in nl.sequential_range(1):
+          i_5 = nl.arange(128)
+          j_5 = nl.arange(512)
+          result_packed_ptr[i_5[:, None, ], j_5[None, :, ]] = nisa.tensor_copy(result_tiles_ptr[i_5[:, None, ], m_1, bm_1, 0, j_5[None, :, ]])
         i_6 = nl.arange(128)
         j_6 = nl.arange(512)
         nl.store(result_ptr_buffer[(((((m_1 * 4194304) + (bm_1 * 262144)) + (i_6[:, None, ] * 2048)) + (n * 512)) + j_6[None, :, ])], result_packed_ptr[i_6[:, None, ], j_6[None, :, ]])

@@ -24,7 +24,7 @@ import numpy as np
 
 import tvm
 from tvm import rpc, te
-from tvm.contrib import tvmjs
+from tvm.contrib import emcc
 from tvm.support import utils
 
 proxy_host = "127.0.0.1"
@@ -42,18 +42,18 @@ def test_rpc():
     n = te.var("n")
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: te.log(te.abs(A(*i) + 1)), name="B")
-    mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
+    mod = tvm.IRModule.from_expr(te.create_function([A, B]))
     sch = tvm.s_tir.Schedule(mod)
     (i,) = sch.get_loops(block=sch.get_sblock("B"))
     i0, i1 = sch.split(i, [None, 32])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")
 
-    fadd = tvm.tirx.build(sch.mod.with_attr("system_lib_prefix", ""), target=target)
+    fadd = tvm.tirx.compile(sch.mod.with_attr("system_lib_prefix", ""), target=target).mod
     temp = utils.tempdir()
 
     wasm_path = temp.relpath("addone_gpu.wasm")
-    fadd.export_library(wasm_path, fcompile=tvmjs.create_tvmjs_wasm)
+    fadd.export_library(wasm_path, fcompile=emcc.create_wasm)
 
     wasm_binary = open(wasm_path, "rb").read()
     remote = rpc.connect(
@@ -67,8 +67,8 @@ def test_rpc():
         # basic function checks.
         dev = remote.webgpu(0)
         adata = np.random.uniform(size=size).astype(A.dtype)
-        a = tvm.runtime.tensor(adata, dev)
-        b = tvm.runtime.tensor(np.zeros(size, dtype=A.dtype), dev)
+        a = dev.tensor(adata)
+        b = dev.tensor(np.zeros(size, dtype=A.dtype))
 
         np.testing.assert_equal(a.numpy(), adata)
         f1 = remote.system_lib()

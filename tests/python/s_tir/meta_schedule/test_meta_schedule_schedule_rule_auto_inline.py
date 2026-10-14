@@ -33,14 +33,14 @@ from tvm.target import Target
 
 @tvm.script.ir_module
 class Conv2DBiasBnReLU:
-    @Ts.prim_func
+    @Ts.function
     def main(X: T.Tensor([1, 512, 56, 56], dtype='float32'), W: T.Tensor([512, 512, 3, 3], dtype='float32'), B: T.Tensor([512, 1, 1], dtype='float32'), bn_scale: T.Tensor([512, 1, 1], dtype='float32'), bn_offset: T.Tensor([512, 1, 1], dtype='float32'), compute: T.Tensor([1, 512, 56, 56], dtype='float32')) -> None:
 
-        pad_temp = Ts.sblock_alloc_buffer([1, 512, 58, 58], dtype="float32")
-        compute_1 = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
-        bias_add = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
-        bn_mul = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
-        bn_add = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
+        pad_temp = Ts.sblock_alloc_tensor([1, 512, 58, 58], dtype="float32")
+        compute_1 = Ts.sblock_alloc_tensor([1, 512, 56, 56], dtype="float32")
+        bias_add = Ts.sblock_alloc_tensor([1, 512, 56, 56], dtype="float32")
+        bn_mul = Ts.sblock_alloc_tensor([1, 512, 56, 56], dtype="float32")
+        bn_add = Ts.sblock_alloc_tensor([1, 512, 56, 56], dtype="float32")
         for i0, i1, i2, i3 in T.grid(1, 512, 58, 58):
             with Ts.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -70,11 +70,11 @@ class Conv2DBiasBnReLU:
 
 @tvm.script.ir_module
 class Conv2DBiasBnReLUInlined:
-    @Ts.prim_func
+    @Ts.function
     def main(X: T.Tensor([1, 512, 56, 56], dtype='float32'), W: T.Tensor([512, 512, 3, 3], dtype='float32'), B: T.Tensor([512, 1, 1], dtype='float32'), bn_scale: T.Tensor([512, 1, 1], dtype='float32'), bn_offset: T.Tensor([512, 1, 1], dtype='float32'), compute: T.Tensor([1, 512, 56, 56], dtype='float32')) -> None:
 
-        pad_temp = Ts.sblock_alloc_buffer([1, 512, 58, 58], dtype="float32")
-        compute_1 = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
+        pad_temp = Ts.sblock_alloc_tensor([1, 512, 58, 58], dtype="float32")
+        compute_1 = Ts.sblock_alloc_tensor([1, 512, 56, 56], dtype="float32")
         for i0, i1, i2, i3 in T.grid(1, 512, 58, 58):
             with Ts.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -92,21 +92,21 @@ class Conv2DBiasBnReLUInlined:
 
 @tvm.script.ir_module
 class MultiLevelTiledConv2D:
-    @Ts.prim_func
+    @Ts.function
     def main(X: T.Tensor([1, 512, 56, 56], dtype='float32'), W: T.Tensor([512, 512, 3, 3], dtype='float32'), B: T.Tensor([512, 1, 1], dtype='float32'), bn_scale: T.Tensor([512, 1, 1], dtype='float32'), bn_offset: T.Tensor([512, 1, 1], dtype='float32'), compute: T.Tensor([1, 512, 56, 56], dtype='float32')) -> None:
 
-        pad_temp = Ts.sblock_alloc_buffer([1, 512, 58, 58], dtype="float32")
-        compute_1 = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
-        compute_local = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32", scope="local")
-        pad_temp_shared = Ts.sblock_alloc_buffer([1, 512, 58, 58], dtype="float32", scope="shared")
-        W_shared = Ts.sblock_alloc_buffer([512, 512, 3, 3], dtype="float32", scope="shared")
+        pad_temp = Ts.sblock_alloc_tensor([1, 512, 58, 58], dtype="float32")
+        compute_1 = Ts.sblock_alloc_tensor([1, 512, 56, 56], dtype="float32")
+        compute_local = Ts.sblock_alloc_tensor([1, 512, 56, 56], dtype="float32", scope="local")
+        pad_temp_shared = Ts.sblock_alloc_tensor([1, 512, 58, 58], dtype="float32", scope="shared")
+        W_shared = Ts.sblock_alloc_tensor([512, 512, 3, 3], dtype="float32", scope="shared")
         for i0, i1, i2, i3 in T.grid(1, 512, 58, 58):
             with Ts.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 pad_temp[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(i2_1 >= 1 and i2_1 < 57 and i3_1 >= 1 and i3_1 < 57, X[i0_1, i1_1, i2_1 - 1, i3_1 - 1], T.float32(0))
-        for i0_0_i1_0_i2_0_i3_0_fused in T.thread_binding(0, 224, thread="blockIdx.x"):
-            for i0_1_i1_1_i2_1_i3_1_fused in T.thread_binding(0, 2, thread="vthread.x"):
-                for i0_2_i1_2_i2_2_i3_2_fused in T.thread_binding(0, 8, thread="threadIdx.x"):
+        for i0_0_i1_0_i2_0_i3_0_fused in T.parallel(0, 224, annotations={"thread_binding": "blockIdx.x"}):
+            for i0_1_i1_1_i2_1_i3_1_fused in T.parallel(0, 2, annotations={"thread_binding": "vthread.x"}):
+                for i0_2_i1_2_i2_2_i3_2_fused in T.parallel(0, 8, annotations={"thread_binding": "threadIdx.x"}):
                     for i4_0, i5_0, i6_0 in T.grid(1, 3, 1):
                         for ax0_ax1_ax2_ax3_fused_0 in T.serial(0, 40960, annotations={"meta_schedule.cooperative_fetch":1}):
                             for ax0_ax1_ax2_ax3_fused_1 in T.vectorized(0, 3):
@@ -149,12 +149,12 @@ class MultiLevelTiledConv2D:
 
 @tvm.script.ir_module
 class MultiLevelTiledConv2DAfterInline:
-    @Ts.prim_func
+    @Ts.function
     def main(X: T.Tensor((1, 512, 56, 56), "float32"), W: T.Tensor((512, 512, 3, 3), "float32"), B: T.Tensor((512, 1, 1), "float32"), bn_scale: T.Tensor((512, 1, 1), "float32"), bn_offset: T.Tensor((512, 1, 1), "float32"), compute: T.Tensor((1, 512, 56, 56), "float32")) -> None:
-        compute_local = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32", scope="local")
-        for i0_0_i1_0_i2_0_i3_0_fused in T.thread_binding(224, thread="blockIdx.x"):
-            for i0_1_i1_1_i2_1_i3_1_fused in T.thread_binding(2, thread="vthread.x"):
-                for i0_2_i1_2_i2_2_i3_2_fused in T.thread_binding(8, thread="threadIdx.x"):
+        compute_local = Ts.sblock_alloc_tensor([1, 512, 56, 56], dtype="float32", scope="local")
+        for i0_0_i1_0_i2_0_i3_0_fused in T.parallel(224, annotations={"thread_binding": "blockIdx.x"}):
+            for i0_1_i1_1_i2_1_i3_1_fused in T.parallel(2, annotations={"thread_binding": "vthread.x"}):
+                for i0_2_i1_2_i2_2_i3_2_fused in T.parallel(8, annotations={"thread_binding": "threadIdx.x"}):
                     for i4_0, i5_0, i6_0, i4_1, i5_1, i6_1, i0_3, i1_3, i2_3, i3_3, i4_2, i5_2, i6_2, i0_4, i1_4, i2_4, i3_4 in T.grid(1, 3, 1, 32, 1, 1, 1, 1, 1, 1, 16, 1, 3, 1, 8, 2, 28):
                         with Ts.sblock("compute"):
                             nn = Ts.axis.spatial(1, 0)
@@ -176,11 +176,11 @@ class MultiLevelTiledConv2DAfterInline:
 
 @tvm.script.ir_module
 class SoftmaxBeforeInline:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
-        T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
-        T_softmax_exp = Ts.sblock_alloc_buffer([256, 256], dtype="float32")
-        T_softmax_expsum = Ts.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_maxelem = Ts.sblock_alloc_tensor([256], dtype="float32")
+        T_softmax_exp = Ts.sblock_alloc_tensor([256, 256], dtype="float32")
+        T_softmax_expsum = Ts.sblock_alloc_tensor([256], dtype="float32")
         for i0, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_maxelem"):
                 i0_1, k = Ts.axis.remap("SR", [i0, i1])
@@ -204,10 +204,10 @@ class SoftmaxBeforeInline:
 
 @tvm.script.ir_module
 class SoftmaxAfterInline:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
-        T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
-        T_softmax_expsum = Ts.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_maxelem = Ts.sblock_alloc_tensor([256], dtype="float32")
+        T_softmax_expsum = Ts.sblock_alloc_tensor([256], dtype="float32")
         for i0, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_maxelem"):
                 i0_1, k = Ts.axis.remap("SR", [i0, i1])
@@ -227,7 +227,7 @@ class SoftmaxAfterInline:
 
 @tvm.script.ir_module
 class BeforePureSpatial:
-    @Ts.prim_func
+    @Ts.function
     def main(
         placeholder: T.Tensor((1, 384), "int64"),
         placeholder_1: T.Tensor((30522, 768), "float32"),
@@ -235,12 +235,12 @@ class BeforePureSpatial:
         T_add: T.Tensor((1, 384, 768), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        compile_engine_const = Ts.sblock_alloc_buffer([], dtype="int64")
-        T_less = Ts.sblock_alloc_buffer([1, 384], dtype="bool")
-        compile_engine_const_1 = Ts.sblock_alloc_buffer([], dtype="int64")
-        T_add_1 = Ts.sblock_alloc_buffer([1, 384], dtype="int64")
-        T_where = Ts.sblock_alloc_buffer([1, 384], dtype="int64")
-        T_take = Ts.sblock_alloc_buffer([1, 384, 768], dtype="float32")
+        compile_engine_const = Ts.sblock_alloc_tensor([], dtype="int64")
+        T_less = Ts.sblock_alloc_tensor([1, 384], dtype="bool")
+        compile_engine_const_1 = Ts.sblock_alloc_tensor([], dtype="int64")
+        T_add_1 = Ts.sblock_alloc_tensor([1, 384], dtype="int64")
+        T_where = Ts.sblock_alloc_tensor([1, 384], dtype="int64")
+        T_take = Ts.sblock_alloc_tensor([1, 384, 768], dtype="float32")
         with Ts.sblock("compile_engine_const"):
             vi = Ts.axis.spatial(1, 0)
             Ts.reads()
@@ -291,7 +291,7 @@ class BeforePureSpatial:
 
 @tvm.script.ir_module
 class AfterPureSpatial:
-    @Ts.prim_func
+    @Ts.function
     def main(placeholder: T.Tensor((1, 384), "int64"), placeholder_1: T.Tensor((30522, 768), "float32"), placeholder_2: T.Tensor((1, 384, 768), "float32"), T_add: T.Tensor((1, 384, 768), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -306,7 +306,7 @@ class AfterPureSpatial:
 
 @tvm.script.ir_module
 class ConstConsumer:
-    @Ts.prim_func
+    @Ts.function
     def main(T_full: T.Tensor((1, 12, 4096), "int64")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -321,23 +321,23 @@ class ConstConsumer:
 
 @tvm.script.ir_module
 class Conv2dInt8:
-    @Ts.prim_func
+    @Ts.function
     def main(p0: T.Tensor((16, 14, 14, 256), "int8"), p1: T.Tensor((1024, 1, 1, 256), "int8"), p2: T.Tensor((1, 1, 1, 1024), "int32"), p3: T.Tensor((1, 1, 1, 1024), "int32"), p4: T.Tensor(1024, "int32"), p5: T.Tensor(1024, "int32"), p6: T.Tensor(1024, "int32"), p7: T.Tensor(1, "int32"), p8: T.Tensor((16, 14, 14, 1024), "int32"), compute: T.Tensor((16, 14, 14, 1024), "int32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        compile_engine_const = Ts.sblock_alloc_buffer([], dtype="int32")
-        pad_temp = Ts.sblock_alloc_buffer([16, 14, 14, 256], dtype="int8")
-        conv2d_nhwc = Ts.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        T_subtract = Ts.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        T_add = Ts.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        compute_1 = Ts.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        T_add_1 = Ts.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        compute_2 = Ts.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        T_subtract_1 = Ts.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        compute_3 = Ts.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
-        T_add_2 = Ts.sblock_alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        compile_engine_const = Ts.sblock_alloc_tensor([], dtype="int32")
+        pad_temp = Ts.sblock_alloc_tensor([16, 14, 14, 256], dtype="int8")
+        conv2d_nhwc = Ts.sblock_alloc_tensor([16, 14, 14, 1024], dtype="int32")
+        T_subtract = Ts.sblock_alloc_tensor([16, 14, 14, 1024], dtype="int32")
+        T_add = Ts.sblock_alloc_tensor([16, 14, 14, 1024], dtype="int32")
+        compute_1 = Ts.sblock_alloc_tensor([16, 14, 14, 1024], dtype="int32")
+        T_add_1 = Ts.sblock_alloc_tensor([16, 14, 14, 1024], dtype="int32")
+        compute_2 = Ts.sblock_alloc_tensor([16, 14, 14, 1024], dtype="int32")
+        T_subtract_1 = Ts.sblock_alloc_tensor([16, 14, 14, 1024], dtype="int32")
+        compute_3 = Ts.sblock_alloc_tensor([16, 14, 14, 1024], dtype="int32")
+        T_add_2 = Ts.sblock_alloc_tensor([16, 14, 14, 1024], dtype="int32")
         with Ts.sblock("compile_engine_const"):
             vi = Ts.axis.spatial(1, 0)
             Ts.reads()
@@ -374,7 +374,7 @@ class Conv2dInt8:
                 i0_2, i1_2, i2_2, i3_2 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2])
                 Ts.writes(compute_1[i0_2, i1_2, i2_2, i3_2])
-                compute_1[i0_2, i1_2, i2_2, i3_2] = T.q_multiply_shift_per_axis(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2], 31, False, True)
+                compute_1[i0_2, i1_2, i2_2, i3_2] = T.Cast("int32", T.shift_right(T.shift_left(T.Cast("int64", T_add[i0_2, i1_2, i2_2, i3_2]) * T.Cast("int64", p4[i3_2]), p5[i3_2]), (31) + (p6[i3_2])))
         for i0_3, i1_3, i2_3, i3_3 in T.grid(16, 14, 14, 1024):
             with Ts.sblock("T_add_1"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
@@ -398,7 +398,7 @@ class Conv2dInt8:
                 i0_8, i1_8, i2_8, i3_8 = Ts.axis.remap("SSSS", [i0_7, i1_7, i2_7, i3_7])
                 Ts.reads(T_subtract_1[i0_8, i1_8, i2_8, i3_8])
                 Ts.writes(compute_3[i0_8, i1_8, i2_8, i3_8])
-                compute_3[i0_8, i1_8, i2_8, i3_8] = T.q_multiply_shift(T_subtract_1[i0_8, i1_8, i2_8, i3_8], 1408572815, 31, 1)
+                compute_3[i0_8, i1_8, i2_8, i3_8] = T.Cast("int32", T.shift_right(T.Cast("int64", T_subtract_1[i0_8, i1_8, i2_8, i3_8]) * T.Cast("int64", 1408572815), (31) - (1)))
         for i0_9, i1_9, i2_9, i3_9 in T.grid(16, 14, 14, 1024):
             with Ts.sblock("T_add_2"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_9, i1_9, i2_9, i3_9])
@@ -485,7 +485,7 @@ def test_conv2d_int8_inline_constant_scalars():
     with pytest.raises(tvm.s_tir.ScheduleError) as e:
         sch.reverse_compute_inline(sch.get_sblock("T_add_1"))
 
-    err_msg = "The block is only allowed to read a single buffer region, but it reads 2 region(s)"
+    err_msg = "The block is only allowed to read a single tensor region, but it reads 2 region(s)"
     assert err_msg in str(e)
 
     ms.schedule_rule.InlineConstantScalars().apply(sch, sch.get_sblock("compile_engine_const"))
@@ -497,7 +497,7 @@ def test_inline_constant_scalars_skip_output_block():
 
     @tvm.script.ir_module
     class Full:
-        @Ts.prim_func
+        @Ts.function
         def main(T_full: T.Tensor((), "float32")):
             with Ts.sblock("T_full"):
                 vi = Ts.axis.spatial(1, 0)
@@ -513,7 +513,7 @@ def test_inline_constant_scalars_skip_output_block():
 def test_no_inline_root_block():
     @tvm.script.ir_module
     class MaxReduction:
-        @Ts.prim_func
+        @Ts.function
         def main(
             data: T.Tensor((8, 8), "float32"),
             data_red: T.Tensor((), "float32"),

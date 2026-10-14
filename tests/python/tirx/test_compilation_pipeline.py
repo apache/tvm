@@ -28,40 +28,20 @@ from tvm.script import tirx as T
 @pytest.mark.skipif(not tvm.runtime.enabled("llvm"), reason="LLVM is not enabled")
 @pytest.mark.parametrize("pipeline", [None, "default", "tirx"])
 def test_default_pipeline_allocations(pipeline):
-    @T.prim_func
+    @T.function
     def add_one(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
-        temp = T.alloc_tensor((16,), "float32")
+        temp = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32")])
         for i in range(16):
             temp[i] = A[i] + T.float32(1)
         for i in range(16):
             B[i] = temp[i]
 
-    module = tvm.tirx.build(add_one, target="llvm", pipeline=pipeline)
+    module = tvm.tirx.compile(add_one, target="llvm", pipeline=pipeline)
     source = np.arange(16, dtype="float32")
     a = tvm.runtime.tensor(source)
     b = tvm.runtime.tensor(np.zeros(16, dtype="float32"))
     module(a, b)
     np.testing.assert_equal(b.numpy(), source + 1)
-
-
-def test_unify_thread_binding():
-    @T.prim_func
-    def before(A: T.Tensor((32,), "int32")):
-        for bx in T.thread_binding(1, thread="blockIdx.x"):
-            for tx in T.thread_binding(32, thread="threadIdx.x"):
-                A[tx] = tx
-            for tx in T.thread_binding(32, thread="threadIdx.x"):
-                A[tx] = A[tx] + 1
-
-    @T.prim_func
-    def expected(A: T.Tensor((32,), "int32")):
-        for bx in T.thread_binding(1, thread="blockIdx.x"):
-            for tx in T.thread_binding(32, thread="threadIdx.x"):
-                A[tx] = tx
-                A[tx] = A[tx] + 1
-
-    actual = tvm.tirx.transform.UnifyThreadBinding()(tvm.IRModule({"main": before}))
-    tvm.ir.assert_structural_equal(actual["main"], expected.with_attr("global_symbol", "before"))
 
 
 if __name__ == "__main__":

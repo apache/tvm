@@ -21,7 +21,7 @@ Code Generation
 ===============
 
 Code generation is the final stage of the TVM compilation pipeline — it translates TIR
-``PrimFunc``\ s into executable code for a target device. This document explains how TIR
+``Function``\ s into executable code for a target device. This document explains how TIR
 functions become native CPU instructions, GPU kernels, or source code strings, covering the
 target dispatch mechanism, the two codegen families (LLVM and Source), and the runtime module
 system that wraps the generated code.
@@ -34,23 +34,23 @@ When a user calls ``tvm.compile()``, the compilation proceeds in two phases:
 
 1. **Relax phase**: the Relax pipeline optimizes and fuses the computational graph, then
    ``VMCodeGen`` translates Relax functions into VM bytecode (see :ref:`relax-vm-arch`).
-2. **TIR phase**: TIR ``PrimFunc``\ s (the actual compute kernels) are compiled to native code.
+2. **TIR phase**: TIR ``Function``\ s (the actual compute kernels) are compiled to native code.
 
-The TIR phase is handled internally by ``tirx.build()`` (called from ``relax.build()``).
+The TIR phase is handled internally by ``tirx.compile()`` (called from ``relax.build()``).
 It performs these steps:
 
 .. code-block:: text
 
-   TIR PrimFuncs (in IRModule)
+   TIR Functions (in IRModule)
         │
         ▼  TIR pipeline                   ← lowering passes (flatten buffers, lower intrinsics, etc.)
-   TIR PrimFuncs (lowered)
+   TIR Functions (lowered)
         │
-        ▼  split_host_device_mods()        ← separate host and device functions
+        ▼  _split_host_device_modules()        ← separate host and device functions
    Host IRModule + Device IRModule(s)
         │                    │
         ▼                    ▼
-   codegen_build()      codegen_build()    ← target-specific code generation
+   _build_for_target()      _build_for_target()    ← target-specific code generation
         │                    │
         ▼                    ▼
    Host Module          Device Module(s)
@@ -65,7 +65,7 @@ Target Dispatch
 ---------------
 
 The core dispatch logic lives in ``codegen::Build()`` (``src/target/codegen.cc``), which is
-called from the Python-side ``codegen_build()`` in ``tirx/build.py``. It selects the correct
+called from the Python-side ``_build_for_target()`` in ``tirx/_compile.py``. It selects the correct
 backend based on the ``Target`` object:
 
 .. code-block:: cpp
@@ -148,18 +148,18 @@ backend (x86, ARM, NVPTX, AMDGPU, etc.).
 ``StmtFunctor<void(const Stmt&)>``. Each TIR node type has a corresponding visitor:
 
 - **Expressions** (``Dispatch_``) convert TIR expressions to LLVM ``Value``\ s:
-  arithmetic ops → LLVM binary instructions, ``BufferLoad`` → load with pointer arithmetic,
+  arithmetic ops → LLVM binary instructions, ``TensorLoad`` → load with pointer arithmetic,
   ``Cast`` → LLVM type conversions, ``Call`` → intrinsic or extern function calls.
 - **Statements** (``VisitStmt_``) emit LLVM IR side effects:
-  ``BufferStore`` → store instructions, ``For`` → loop basic blocks with branches,
-  ``IfThenElse`` → conditional branches, ``tirx.alloc_tensor`` calls → stack or heap allocation.
+  ``TensorStore`` → store instructions, ``For`` → loop basic blocks with branches,
+  ``If`` → conditional branches, ``tirx.alloc_tensor`` calls → stack or heap allocation.
 
 The key methods on ``CodeGenLLVM`` are:
 
 - ``Create(LLVMTarget*)`` — factory that returns a target-specific subclass.
 - ``Init(...)`` — set up the LLVM context, module, and builder.
 - ``DeclareFunction(gvar, f)`` / ``AddFunction(gvar, f)`` — forward-declare then compile a
-  ``PrimFunc`` to LLVM IR.
+  ``Function`` to LLVM IR.
 - ``Finish()`` — return the completed ``llvm::Module``.
 
 Source family
@@ -221,7 +221,7 @@ When compiling for GPU targets, TIR functions are split into two categories:
 - **Device functions** — the actual compute kernels that run on the GPU. Compiled with the
   target-specific codegen (``target.build.cuda``, etc.).
 
-``split_host_device_mods()`` (``python/tvm/tirx/build.py``) separates functions by their
+``_split_host_device_modules()`` (``python/tvm/tirx/_compile.py``) separates functions by their
 ``target`` attribute: functions whose target kind is ``"llvm"`` or ``"c"`` go to the host
 module; all others go to device modules grouped by target.
 
@@ -279,8 +279,8 @@ Source Code Map
 
    * - Path
      - Contents
-   * - ``python/tvm/tirx/build.py``
-     - ``tirx.build()``: TIR compilation entry, host/device split, module linking
+   * - ``python/tvm/tirx/_compile.py``
+     - ``tirx.compile()``: TIR compilation entry, host/device split, module linking
    * - ``src/target/codegen.cc``
      - ``codegen::Build()``: target dispatch via ``"target.build.<kind>"``
    * - ``src/target/llvm/codegen_llvm.h``
@@ -292,7 +292,7 @@ Source Code Map
    * - ``src/target/llvm/codegen_amdgpu.cc``
      - ``CodeGenAMDGPU``: AMD GPU via LLVM
    * - ``src/target/llvm/llvm_module.cc``
-     - ``LLVMModuleNode``: runtime module with JIT compilation
+     - ``LLVMModuleObj``: runtime module with JIT compilation
    * - ``src/target/source/codegen_c.h``
      - ``CodeGenC``: TIR → C-like source base class
    * - ``src/target/source/codegen_cuda.h``

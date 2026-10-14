@@ -76,7 +76,7 @@ def test_ambiguous_function_name():
 
     @R.function
     def func():
-        return R.tuple()
+        return ()
 
     gvar = tvm.ir.GlobalVar("name")
 
@@ -174,8 +174,8 @@ def test_subroutine_with_symbolic_vars():
     caller's `tirx::Var` symbolic variables should remain.
     """
 
-    n_main = T.dynamic("n")
-    n_subroutine = T.dynamic("n")
+    n_main = T.dynamic("n", "int64")
+    n_subroutine = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -193,7 +193,7 @@ def test_subroutine_with_symbolic_vars():
             C = R.concat([B, B], axis=1)
             return C
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @R.function(private=True)
     def expected(A: R.Tensor([n, 16], "int32")) -> R.Tensor([n, 32], "int32"):
@@ -214,7 +214,7 @@ def test_subroutine_with_symbolic_vars_and_static_argument():
     should remain.
     """
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -282,8 +282,8 @@ def test_inline_multiple_instances_with_distinct_static_shapes():
     different value for the symbolic variables it uses.
     """
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:

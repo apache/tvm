@@ -16,12 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/relax/expr.h>
-#include <tvm/relax/type.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/script/printer/printer.h>
-#include <tvm/tirx/function.h>
 
 #include <algorithm>
 #include <optional>
@@ -45,107 +44,87 @@ ffi::Optional<ExprDoc> IRModuleDocTranslate(DocTranslatorObj* d, ffi::AnyView in
       << "printer statement-only node cannot fulfill a destination";
   ffi::String module_name = d->GetExtraConfig<ffi::String>("ir.module_name", "Module");
   IdDoc module_id = d->AllocId(module_name);
-  d->SetExtraState("ir.module_id", module_id);
-  d->SetExtraState("ir.module", ffi::GetRef<IRModule>(mod));
-  std::vector<std::pair<GlobalVar, BaseFunc>> functions(mod->functions.begin(),
-                                                        mod->functions.end());
-  auto rank = [](const BaseFunc& func) {
-    if (func.as<relax::ExternFuncNode>()) return 0;
-    if (func.as<tirx::PrimFuncNode>()) return 1;
-    return 2;
-  };
-  std::sort(functions.begin(), functions.end(), [&](const auto& a, const auto& b) {
-    int left = rank(a.second);
-    int right = rank(b.second);
-    return left == right ? a.first->name_hint < b.first->name_hint : left < right;
-  });
-  auto body = d->WithDocScope([&]() {
-    if (!mod->attrs->dict.empty()) {
-      ffi::Array<ExprDoc> keys;
-      ffi::Array<ExprDoc> values;
-      std::vector<std::pair<ffi::String, ffi::Any>> attrs(mod->attrs->dict.begin(),
-                                                          mod->attrs->dict.end());
-      std::sort(attrs.begin(), attrs.end(),
-                [](const auto& a, const auto& b) { return a.first < b.first; });
-      for (const auto& [key, value] : attrs) {
-        keys.push_back(LiteralDoc::Str(key, std::nullopt));
-        values.push_back(AnyValue(d, value));
-      }
-      d->Emit(ExprStmtDoc(NamespaceDoc("ir")->Attr("module_attrs")->Call({DictDoc(keys, values)})),
-              ffi::GetRef<ffi::ObjectRef>(mod));
-    }
-    if (!mod->global_infos.empty()) {
-      ffi::Array<ExprDoc> keys;
-      ffi::Array<ExprDoc> values;
-      std::vector<std::pair<ffi::String, ffi::Array<GlobalInfo>>> infos(mod->global_infos.begin(),
-                                                                        mod->global_infos.end());
-      std::sort(infos.begin(), infos.end(),
-                [](const auto& a, const auto& b) { return a.first < b.first; });
-      for (const auto& [key, entries] : infos) {
-        ffi::Array<ExprDoc> items;
-        for (const GlobalInfo& entry : entries) {
-          ExprDoc item = AnyValue(d, entry);
-          if (key == "mesh") {
-            if (auto mesh = item.as<CallDoc>(); mesh && mesh.value()->args.size() == 2) {
-              if (auto range = mesh.value()->args[1].as<CallDoc>()) {
-                range.value()->callee = NamespaceDoc("ir")->Attr("Range");
-              }
-            }
-          }
-          items.push_back(item);
-        }
-        keys.push_back(LiteralDoc::Str(key, std::nullopt));
-        values.push_back(ListDoc(items));
-      }
-      d->Emit(ExprStmtDoc(
-                  NamespaceDoc("ir")->Attr("module_global_infos")->Call({DictDoc(keys, values)})),
-              ffi::GetRef<ffi::ObjectRef>(mod));
-    }
-    for (const auto& [gv, func] : functions) {
-      if (func.as<relax::ExternFuncNode>()) {
-        d->Emit(AssignDoc(IdDoc(gv->name_hint), d->Translate(func).value(), std::nullopt),
-                ffi::GetRef<ffi::ObjectRef>(func.get()));
-        continue;
-      }
-      TVM_FFI_CHECK(func.as<tirx::PrimFuncNode>() || func.as<relax::FunctionNode>(), TypeError)
-          << "printer IRModule needs a registered TIRx, Relax, or extern function hook";
-      d->Translate(func);
-      FunctionDoc doc = d->CurrentScopeDocs().back().as_or_throw<FunctionDoc>();
-      doc->name = IdDoc(gv->name_hint);
-      if (auto symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-          symbol && symbol.value() != gv->name_hint) {
-        ExprDoc attr = func.as<tirx::PrimFuncNode>() ? NamespaceDoc("tirx")->Attr("func_attr")
-                                                     : NamespaceDoc("relax")->Attr("func_attr");
-        doc->body.insert(doc->body.begin(),
-                         ExprStmtDoc(attr->Call(
-                             {DictDoc({LiteralDoc::Str(tvm::attr::kGlobalSymbol, std::nullopt)},
-                                      {LiteralDoc::Str(symbol.value(), std::nullopt)})})));
-      }
-    }
-  });
-  d->SetExtraState("ir.module", std::nullopt);
-  d->SetExtraState("ir.module_id", std::nullopt);
-  d->Emit(ClassDoc(module_id, {NamespaceDoc("ir")->Attr("ir_module")}, ToStmtDocArray(body)),
-          ffi::GetRef<ffi::ObjectRef>(mod));
-  return std::nullopt;
+  return d->WithExtraStateScope<ffi::Optional<IdDoc>>(
+      "ir.module_id", module_id, [&]() -> ffi::Optional<ExprDoc> {
+        return d->WithExtraStateScope<ffi::Optional<IRModule>>(
+            "ir.module", ffi::GetRef<IRModule>(mod), [&]() -> ffi::Optional<ExprDoc> {
+              auto body = d->WithDocScope([&]() {
+                if (!mod->attrs->dict.empty()) {
+                  ffi::Array<ExprDoc> keys;
+                  ffi::Array<ExprDoc> values;
+                  std::vector<std::pair<ffi::String, ffi::Any>> attrs(mod->attrs->dict.begin(),
+                                                                      mod->attrs->dict.end());
+                  std::sort(attrs.begin(), attrs.end(),
+                            [](const auto& a, const auto& b) { return a.first < b.first; });
+                  for (const auto& [key, value] : attrs) {
+                    keys.push_back(LiteralDoc::Str(key, std::nullopt));
+                    values.push_back(
+                        d->WithExtraStateScope<bool>("ir.explicit_value_type", true,
+                                                     [&] { return d->Translate(value).value(); }));
+                  }
+                  d->Emit(
+                      ExprStmtDoc(
+                          NamespaceDoc("ir")->Attr("module_attrs")->Call({DictDoc(keys, values)})),
+                      ffi::GetRef<ffi::ObjectRef>(mod));
+                }
+                if (!mod->global_infos.empty()) {
+                  ffi::Array<ExprDoc> keys;
+                  ffi::Array<ExprDoc> values;
+                  std::vector<std::pair<ffi::String, ffi::Array<GlobalInfo>>> infos(
+                      mod->global_infos.begin(), mod->global_infos.end());
+                  std::sort(infos.begin(), infos.end(),
+                            [](const auto& a, const auto& b) { return a.first < b.first; });
+                  for (const auto& [key, entries] : infos) {
+                    ffi::Array<ExprDoc> items;
+                    for (const GlobalInfo& entry : entries) {
+                      items.push_back(d->WithExtraStateScope<bool>(
+                          "ir.explicit_value_type", true,
+                          [&] { return d->Translate(entry).value(); }));
+                    }
+                    keys.push_back(LiteralDoc::Str(key, std::nullopt));
+                    values.push_back(ListDoc(items));
+                  }
+                  d->Emit(ExprStmtDoc(NamespaceDoc("ir")
+                                          ->Attr("module_global_infos")
+                                          ->Call({DictDoc(keys, values)})),
+                          ffi::GetRef<ffi::ObjectRef>(mod));
+                }
+                for (const auto& [gv, func] : mod->functions) {
+                  d->WithExtraStateScope<ffi::Optional<ffi::String>>(
+                      "ir.function_name", gv->name_hint, [&]() {
+                        if (auto value = d->Translate(func)) {
+                          d->Emit(AssignDoc(IdDoc(gv->name_hint), value.value(), std::nullopt),
+                                  func);
+                        }
+                      });
+                }
+              });
+              d->Emit(ClassDoc(module_id, {NamespaceDoc("ir")->Attr("ir_module")},
+                               ToStmtDocArray(body)),
+                      ffi::GetRef<ffi::ObjectRef>(mod));
+              return std::nullopt;
+            });
+      });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterNamespaceAlias("ir.prefix", "I");
   ffi::reflection::TypeAttrDef<IRModuleNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&IRModuleDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&IRModuleDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> DictAttrsDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                              const ffi::Object*) {
   const auto* attrs =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DictAttrsNode>(input);
-  return AnyValue(d, attrs->dict);
+  return d->Translate(attrs->dict).value();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<DictAttrsNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&DictAttrsDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&DictAttrsDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> GlobalVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -157,19 +136,19 @@ ffi::Optional<ExprDoc> GlobalVarDocTranslate(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<GlobalVarNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&GlobalVarDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&GlobalVarDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> FuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                            const ffi::Object*) {
-  const auto* ty =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(input);
-  return TypeValue(d, ffi::GetRef<FuncType>(ty), false);
+ffi::Optional<ExprDoc> OpDocTranslate(DocTranslatorObj*, ffi::AnyView input, const ffi::Object*) {
+  const auto* op = ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const OpNode>(input);
+  return NamespaceDoc("ir")->Attr("Op")->Attr("get")->Call(
+      {LiteralDoc::Str(op->name, std::nullopt)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<FuncTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&FuncTypeDocTranslate>());
+  ffi::reflection::TypeAttrDef<OpNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
+                                              FDocTranslate::FromNative<&OpDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> RangeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -182,7 +161,7 @@ ffi::Optional<ExprDoc> RangeDocTranslate(DocTranslatorObj* d, ffi::AnyView input
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<RangeNode>().attr(kDocTranslate,
+  ffi::reflection::TypeAttrDef<RangeNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
                                                  FDocTranslate::FromNative<&RangeDocTranslate>());
 }
 

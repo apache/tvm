@@ -27,7 +27,7 @@ def PropagateSharding() -> tvm.ir.transform.Pass:
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass
     """
     return _ffi_api.PropagateSharding()  # type: ignore
@@ -38,7 +38,7 @@ def LowerGlobalViewToLocalView() -> tvm.ir.transform.Pass:
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass
     """
     return _ffi_api.LowerGlobalViewToLocalView()  # type: ignore
@@ -51,7 +51,7 @@ def LegalizeRedistribute() -> tvm.ir.transform.Pass:
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass
     """
     return _ffi_api.LegalizeRedistribute()  # type: ignore
@@ -62,7 +62,7 @@ def LowerDistIR() -> tvm.ir.transform.Pass:
 
     Returns
     -------
-    ret : tvm.transform.Pass
+    ret : tvm.ir.transform.Pass
         The registered pass
     """
     return _ffi_api.LowerDistIR()  # type: ignore

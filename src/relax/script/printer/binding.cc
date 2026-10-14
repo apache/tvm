@@ -19,11 +19,11 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/op.h>
 #include <tvm/relax/op_attr_types.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/type.h>
 
 #include <optional>
 
-#include "../../../script/printer/ir/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -45,7 +45,8 @@ ffi::Optional<ExprDoc> MatchCastDocTranslate(DocTranslatorObj* d, ffi::AnyView i
           ->Call({d->Translate(binding->value).value(), d->Translate(binding->ty).value()});
   IdDoc lhs = VarDoc(d, binding->var);
   ffi::Optional<ExprDoc> annotation = std::nullopt;
-  if (!binding->var->ty.IsMissing()) annotation = d->Translate(binding->var->ty).value();
+  if (!binding->var->ty.as<MissingType>().has_value())
+    annotation = d->Translate(binding->var->ty).value();
   if (!d->GetExtraConfig<bool>("relax.show_all_ty", true)) annotation = std::nullopt;
   d->Emit(AssignDoc(lhs, rhs, annotation), ffi::GetRef<ffi::ObjectRef>(binding));
   return std::nullopt;
@@ -53,7 +54,8 @@ ffi::Optional<ExprDoc> MatchCastDocTranslate(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::MatchCastNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&MatchCastDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&MatchCastDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> VarBindingDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -64,8 +66,6 @@ ffi::Optional<ExprDoc> VarBindingDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
   if (auto func = binding->value.as<relax::FunctionNode>()) {
-    d->Emit(CommentDoc("from tvm.script import relax as R"), ffi::GetRef<ffi::ObjectRef>(binding));
-    d->Emit(CommentDoc(""), ffi::GetRef<ffi::ObjectRef>(binding));
     IdDoc lhs = VarDoc(d, binding->var);
     d->Translate(binding->value);
     FunctionDoc function = d->CurrentScopeDocs().back().as_or_throw<FunctionDoc>();
@@ -103,25 +103,21 @@ ffi::Optional<ExprDoc> VarBindingDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     if (!call) {
       inferred = binding->value->ty;
     } else if (auto op = call->op.as<Op>()) {
-      static const auto fixed = Op::GetAttrMap<TFixedReturnType>("TFixedReturnType");
-      static const auto context_free = Op::GetAttrMap<FInferType>("FInferType");
+      static const auto fixed = Op::GetAttrMap<TFixedReturnType>(tvm::op_attr::kFixedReturnType);
+      static const auto context_free = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
       if (fixed.count(op.value()) || context_free.count(op.value())) {
-        try {
-          inferred = Call::ReinferType(call);
-        } catch (const ffi::Error&) {
-          // Contextual inference remains the parser's responsibility.
-        }
+        inferred = call->ty;
       }
     }
   }
-  bool inferable = inferred.has_value() && !inferred.value().IsMissing() &&
+  bool inferable = inferred.has_value() && !inferred.value().as<MissingType>().has_value() &&
                    ffi::StructuralEqual()(binding->var->ty, inferred.value());
   bool explicit_output_type = output_type_argument && inferable;
   // Primitive aliases need their annotation. Without context-free inference,
   // keep the binding type and let the parser's deferred inference use it.
   bool elide_annotation = infer_vdevice || explicit_output_type ||
                           (!show_all_ty && !binding->var->ty.as<PrimTypeNode>() && inferable);
-  if (!binding->var->ty.IsMissing() && !elide_annotation) {
+  if (!binding->var->ty.as<MissingType>().has_value() && !elide_annotation) {
     annotation = d->Translate(binding->var->ty).value();
   }
   d->Emit(AssignDoc(lhs, rhs.value(), annotation), ffi::GetRef<ffi::ObjectRef>(binding));
@@ -130,13 +126,14 @@ ffi::Optional<ExprDoc> VarBindingDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::VarBindingNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&VarBindingDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&VarBindingDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> IfDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                       const ffi::Object* destination) {
   const auto* branch =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::IfNode>(input);
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::IfExprNode>(input);
   // A value context needs a usable expression after the conditional.  A
   // destination supplied by a binding is completed directly on both arms.
   ffi::Optional<Var> temporary = std::nullopt;
@@ -146,11 +143,11 @@ ffi::Optional<ExprDoc> IfDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
     destination = temporary.value().get();
   }
   TVM_FFI_CHECK(destination->IsInstance<VarNode>(), TypeError)
-      << "printer Relax If destination must be a Var";
+      << "printer Relax IfExpr destination must be a Var";
   Var var = ffi::GetRef<Var>(static_cast<const VarNode*>(destination));
   ffi::Optional<IdDoc> lhs = VarDoc(d, var);
   ffi::Optional<ExprDoc> annotation = std::nullopt;
-  if (!var->ty.IsMissing()) annotation = d->Translate(var->ty).value();
+  if (!var->ty.as<MissingType>().has_value()) annotation = d->Translate(var->ty).value();
   ExprDoc condition = d->Translate(branch->cond).value();
   d->Emit(IfDoc(condition, RelaxSeqBody(d, branch->true_branch.get(), lhs, annotation, destination),
                 RelaxSeqBody(d, branch->false_branch.get(), lhs, annotation, destination)),
@@ -159,8 +156,8 @@ ffi::Optional<ExprDoc> IfDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<relax::IfNode>().attr(kDocTranslate,
-                                                     FDocTranslate::FromNative<&IfDocTranslate>());
+  ffi::reflection::TypeAttrDef<relax::IfExprNode>().attr(
+      tvm::script::printer::type_attr::kDocTranslate, FDocTranslate::FromNative<&IfDocTranslate>());
 }
 
 }  // namespace

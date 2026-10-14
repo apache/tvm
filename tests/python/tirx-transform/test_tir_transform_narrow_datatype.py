@@ -21,9 +21,9 @@ from tvm.tirx import const
 
 
 def lower_stmt(params, stmt, target_bits):
-    func = tvm.tirx.PrimFunc(params, stmt)
+    func = tvm.tirx.Function(params, stmt)
     func = tvm.tirx.transform.NarrowDataType(target_bits)(tvm.IRModule.from_expr(func))["main"]
-    stmt = func.body
+    stmt = func.body[0]
     return stmt
 
 
@@ -33,13 +33,13 @@ def lower_func_body(func, target_bits):
     gvar = next(iter(mod.functions.keys()))
     func = tvm.tirx.transform.NarrowDataType(target_bits)(mod)[gvar]
     body = func.body
-    # With flat buffer semantics, navigate to the first For node
-    if isinstance(body, tvm.tirx.SeqStmt):
+    # With flat tensor semantics, navigate to the first For node
+    if isinstance(body, tvm.ir.SeqStmt):
         for stmt in body:
-            if isinstance(stmt, tvm.tirx.For):
+            if isinstance(stmt, tvm.ir.For):
                 return stmt
-    while hasattr(body, "body") and not isinstance(body, tvm.tirx.For):
-        body = body.body
+    while hasattr(body, "body") and not isinstance(body, tvm.ir.For):
+        body = body.body[0]
     return body
 
 
@@ -47,7 +47,7 @@ def test_basic():
     def check_const(m, n, target_bits, target_dtype):
         """Check with constant values using TVMScript closure."""
 
-        @T.prim_func
+        @T.function
         def func(A: T.Tensor((m * n,), "float32"), B: T.Tensor((m * n,), "float32")):
             for i in T.serial(m):
                 for j in T.serial(n):
@@ -55,33 +55,33 @@ def test_basic():
 
         stmt = lower_func_body(func, target_bits)
         assert stmt.loop_var.ty.dtype == target_dtype
-        assert stmt.body.loop_var.ty.dtype == target_dtype
+        assert stmt.body[0].loop_var.ty.dtype == target_dtype
 
     def check_symbolic(m_dtype, n_dtype, target_bits, target_dtype):
         """Check with symbolic shapes as function parameters."""
         if m_dtype == "int32":
 
-            @T.prim_func
+            @T.function
             def func(A: T.handle("float32"), B: T.handle("float32"), m: T.int32, n: T.int32):
-                A_buf = T.decl_tensor((m * n,), "float32", data=A)
-                B_buf = T.decl_tensor((m * n,), "float32", data=B)
+                A_buf = T.decl_tensor(A, ty_args=[T.Tensor((m * n,), "float32", data=A)])
+                B_buf = T.decl_tensor(B, ty_args=[T.Tensor((m * n,), "float32", data=B)])
                 for i in T.serial(m):
                     for j in T.serial(n):
                         B_buf[i * n + j] = A_buf[i * n + j] + T.float32(1)
 
         else:
 
-            @T.prim_func
+            @T.function
             def func(A: T.handle("float32"), B: T.handle("float32"), m: T.int64, n: T.int64):
-                A_buf = T.decl_tensor((m * n,), "float32", data=A)
-                B_buf = T.decl_tensor((m * n,), "float32", data=B)
+                A_buf = T.decl_tensor(A, ty_args=[T.Tensor((m * n,), "float32", data=A)])
+                B_buf = T.decl_tensor(B, ty_args=[T.Tensor((m * n,), "float32", data=B)])
                 for i in T.serial(m):
                     for j in T.serial(n):
                         B_buf[i * n + j] = A_buf[i * n + j] + T.float32(1)
 
         stmt = lower_func_body(func, target_bits)
         assert stmt.loop_var.ty.dtype == target_dtype
-        assert stmt.body.loop_var.ty.dtype == target_dtype
+        assert stmt.body[0].loop_var.ty.dtype == target_dtype
 
     # const shape
     # i32 -> i32
@@ -99,10 +99,10 @@ def test_basic():
 
 
 def test_thread_axis():
-    # This test uses launch_thread to create AttrStmt nodes with "thread_extent"
+    # This test uses launch_thread to create RegionStmt nodes
     # and checks the dtype of thread axis variables after narrowing.
     def check_const(m, n, target_bits, target_dtype):
-        @T.prim_func
+        @T.function
         def func(A: T.Tensor((m * n,), "float32"), B: T.Tensor((m * n,), "float32")):
             bx = T.launch_thread("blockIdx.x", m)
             tx = T.launch_thread("threadIdx.x", n)
@@ -111,9 +111,9 @@ def test_thread_axis():
         mod = tvm.IRModule.from_expr(func)
         gvar = next(iter(mod.functions.keys()))
         func_narrowed = tvm.tirx.transform.NarrowDataType(target_bits)(mod)[gvar]
-        stmt = func_narrowed.body
-        assert stmt.node.var.ty.dtype == target_dtype
-        assert stmt.body.node.var.ty.dtype == target_dtype
+        stmt = func_narrowed.body[0]
+        assert stmt.body_params[0].ty.dtype == target_dtype
+        assert stmt.body[0].body_params[0].ty.dtype == target_dtype
 
     # i32 -> i32
     check_const(2, 32, target_bits=32, target_dtype="int32")
@@ -137,7 +137,7 @@ def test_multilanes():
     def check(m, lanes, target_bits, target_dtype):
         vec_dtype = f"float32x{lanes}"
 
-        @T.prim_func
+        @T.function
         def func(
             A: T.Tensor((m,), vec_dtype),
             B: T.Tensor((m,), vec_dtype),
@@ -163,10 +163,10 @@ def test_multilanes():
 
 
 def test_slice():
-    # Test narrowing with slice indexing where buffer B has different index ranges.
+    # Test narrowing with slice indexing where tensor B has different index ranges.
     def check(m, n, target_bits, target_dtype):
         # The index may overflow in B, while not in A
-        @T.prim_func
+        @T.function
         def func(
             A: T.Tensor((m * n,), "float32"),
             B: T.Tensor((m * n * 2,), "float32"),
@@ -177,7 +177,7 @@ def test_slice():
 
         stmt = lower_func_body(func, target_bits)
         assert stmt.loop_var.ty.dtype == target_dtype
-        assert stmt.body.loop_var.ty.dtype == target_dtype
+        assert stmt.body[0].loop_var.ty.dtype == target_dtype
 
     # The maximum index is (2**15 * 2**15 - 1) * 2 <= 2**31 - 1
     check(const(2**15, "int64"), const(2**15, "int64"), target_bits=32, target_dtype="int32")
@@ -186,7 +186,7 @@ def test_slice():
 
 
 def test_condition():
-    @T.prim_func
+    @T.function
     def before(A: T.Tensor((128,), "float32"), B: T.Tensor((130,), "float32")):
         for i, j in T.grid(T.int64(2), T.int64(65)):
             if i * T.int64(65) + j >= T.int64(0) and i * T.int64(65) + j < T.int64(128):
@@ -198,7 +198,7 @@ def test_condition():
                 0.0,
             )
 
-    @T.prim_func
+    @T.function
     def expected_after(A: T.Tensor(128, "float32"), B: T.Tensor(130, "float32")):
         for i, j in T.grid(2, 65):
             if i * 65 + j >= 0 and i * 65 + j < 128:
@@ -215,13 +215,13 @@ def test_condition():
 
 
 def test_block():
-    @T.prim_func
+    @T.function
     def before(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(8)):
                 B[i * T.int64(8) + j] = A[i * T.int64(8) + j] + T.float32(1)
 
-    @T.prim_func
+    @T.function
     def expected_after(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
         for i in T.serial(0, T.int32(16)):
             for j in T.serial(0, T.int32(8)):
@@ -234,7 +234,7 @@ def test_block():
 
 
 def test_avg_pool2d():
-    @T.prim_func
+    @T.function
     def before(PSUM: T.Tensor((313600,), "int32"), PAVG: T.Tensor((313600,), "int32")):
         for j in T.parallel(T.int64(0), T.int64(280)):
             for i in T.serial(T.int64(0), T.int64(35)):
@@ -267,7 +267,7 @@ def test_avg_pool2d():
                         "int32",
                     )
 
-    @T.prim_func
+    @T.function
     def expected_after(PSUM: T.Tensor((313600,), "int32"), PAVG: T.Tensor((313600,), "int32")):
         for j in T.parallel(T.int32(0), T.int32(280)):
             for i in T.serial(T.int32(0), T.int32(35)):
@@ -296,13 +296,13 @@ def test_avg_pool2d():
     tvm.ir.assert_structural_equal(after["main"], expected_after.with_attr("global_symbol", "main"))
 
 
-def test_narrow_i64_valued_bufferload_index_to_i32():
-    @T.prim_func
+def test_narrow_i64_valued_tensorload_index_to_i32():
+    @T.function
     def before(A: T.Tensor((16,), "int64")):
         for i in range(T.int64(15)):
             A[i + T.int64(1)] = A[i] + T.int64(1)
 
-    @T.prim_func
+    @T.function
     def expect(A: T.Tensor((16,), "int64")):
         for i in range(15):
             A[i + 1] = A[i] + T.int64(1)

@@ -24,13 +24,15 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_C_H_
 #define TVM_TARGET_SOURCE_CODEGEN_C_H_
 
+#include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -57,11 +59,11 @@ using namespace tirx;
  * and OpenCL-C. You might find some odd variant features, e.g., type `int3` for
  * a vector of 3 `int`s. For native C code generator, see `CodeGenLLVM`.
  */
-class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
+class CodeGenC : public tvm::ExprFunctor<void(const Expr&, std::ostream&)>,
                  public StmtFunctor<void(const Stmt&)>,
                  public CodeGenSourceBase {
  public:
-  using tirx::ExprFunctor<void(const Expr&, std::ostream&)>::Dispatch;
+  using tvm::ExprFunctor<void(const Expr&, std::ostream&)>::Dispatch;
   using StmtFunctor::Dispatch;
 
   /*!
@@ -78,7 +80,7 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
    * \param func The function to be compiled.
    * \param whether to append return 0 in the end.
    */
-  virtual void DeclareFunction(const GlobalVar& gvar, const PrimFunc& func);
+  virtual void DeclareFunction(const GlobalVar& gvar, const Function& func);
 
   /*!
    * \brief Add the function to the generated module, including its
@@ -87,7 +89,7 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
    * \param gvar The GlobalVar representing the function.
    * \param func The function to be compiled.
    */
-  virtual void AddFunction(const GlobalVar& gvar, const PrimFunc& func);
+  virtual void AddFunction(const GlobalVar& gvar, const Function& func);
 
   /*!
    * \brief Get the name of a declared function
@@ -141,7 +143,7 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
    *
    * \param os The output stream
    */
-  virtual void PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
+  virtual void PrintFunctionSignature(const ffi::String& function_name, const Function& func,
                                       std::ostream& os);
 
   /*!
@@ -156,17 +158,23 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
    *
    *  Example: __launch_bounds__(256) for CUDA functions
    */
-  virtual void PrintExtraAttrs(const PrimFunc& f, std::ostream& os);  // NOLINT(*)
+  virtual void PrintExtraAttrs(const Function& f, std::ostream& os);  // NOLINT(*)
   /*!
    * \brief Insert statement before function body.
    * \param f The function to be compiled.
    */
-  virtual void PreFunctionBody(const PrimFunc& f) {}
+  virtual void PreFunctionBody(const Function& f) {}
   /*!
    * \brief Initialize codegen state for generating f.
    * \param f The function to be compiled.
    */
-  virtual void InitFuncState(const PrimFunc& f);
+  virtual void InitFuncState(const Function& f);
+
+  // Register names independently of emitting declarations for body-derived qualifiers.
+  bool RegisterFunctionName(const GlobalVar& gvar, const Function& func);
+  // Prints parameters and initializes their variable IDs and handle types once.
+  void PrintFunctionParameters(const Function& func, std::ostream& os);
+
   // expression
   void Dispatch_(const VarNode* op, std::ostream& os) override;               // NOLINT(*)
   void Dispatch_(const TensorLoadNode* op, std::ostream& os) override;        // NOLINT(*)
@@ -204,15 +212,15 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
   void Dispatch_(const StringImmNode* op, std::ostream& os) override;         // NOLINT(*)
   // statment
   void Dispatch_(const BindNode* op) override;
-  void Dispatch_(const BufferStoreNode* op) override;
+  void Dispatch_(const TensorStoreNode* op) override;
   void Dispatch_(const ForNode* op) override;
   void Dispatch_(const WhileNode* op) override;
   void Dispatch_(const ReturnNode* op) override;
   void Dispatch_(const BreakNode* op) override;
   void Dispatch_(const ContinueNode* op) override;
-  void Dispatch_(const IfThenElseNode* op) override;
+  void Dispatch_(const IfNode* op) override;
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
-  void Dispatch_(const AttrStmtNode* op) override;
+  void Dispatch_(const RegionStmtNode* op) override;
   void Dispatch_(const AssertStmtNode* op) override;
   void Dispatch_(const EvaluateNode* op) override;
   void Dispatch_(const SeqStmtNode* op) override;
@@ -220,11 +228,13 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
 
   /*!
    * \brief Print expr representing the thread tag
-   * \param IterVar iv The thread index to be binded;
+   * \param var The lexical thread index variable.
+   * \param thread_tag The hardware thread axis.
    */
-  virtual void BindThreadIndex(const IterVar& iv);                             // NOLINT(*)
-  virtual void PrintStorageScope(const std::string& scope, std::ostream& os);  // NOLINT(*)
-  virtual void PrintStorageSync(const CallNode* op);                           // NOLINT(*)
+  virtual void BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag);  // NOLINT(*)
+  virtual void PrintStorageQualifier(const VarNode* var, std::ostream& os);
+  virtual void PrintStorageScope(const runtime::MemoryScope& scope, std::ostream& os);  // NOLINT(*)
+  virtual void PrintStorageSync(const CallNode* op);                                    // NOLINT(*)
   // Binary vector op.
   virtual void PrintVecBinaryOp(const std::string& op, const PrimType& op_type, PrimExpr lhs,
                                 PrimExpr rhs,
@@ -327,7 +337,7 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
    * code shape.  Only explicit pointer-offset values opt into typed pointer
    * arithmetic.
    */
-  void RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* value);
+  void RegisterHandleTypeFromPointer(const tvm::Var& var, const Expr* value);
   // override
   void PrintSSAAssign(const std::string& target, const std::string& src, const Type& t) override;
   /*! \brief reserves common C keywords */
@@ -340,17 +350,20 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
 
   /*! \brief restrict keyword */
   std::string restrict_keyword_{""};
+  /*! \brief Extents of physical thread axes in the current function. */
+  std::unordered_map<std::string, PrimExpr> thread_extents_;
   /*! \brief the storage scope of allocation */
-  std::unordered_map<const VarNode*, std::string> alloc_storage_scope_;
+  std::unordered_map<const VarNode*, runtime::MemoryScope> alloc_storage_scope_;
   /*! \brief the data type of allocated buffers */
   std::unordered_map<const VarNode*, PrimType> handle_data_type_;
   /*! \brief Handle vars whose address_of(buffer[index]) should print as ptr + index. */
   std::unordered_set<const VarNode*> pointer_offset_vars_;
   /*! \brief Record of ops that have pre-defined global symbol. */
-  OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ = Op::GetAttrMap<TGlobalSymbol>("TGlobalSymbol");
+  OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ =
+      Op::GetAttrMap<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol);
   // cache commonly used ops
-  const Op& builtin_call_extern_ = builtin::call_extern();
-  const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
+  const Op& builtin_call_extern_ = tirx::call_extern_op();
+  const Op& builtin_call_pure_extern_ = tirx::call_pure_extern_op();
   int64_t constants_byte_alignment_ = 16;
   /*! \brief whether to print in SSA form */
   bool print_ssa_form_{false};
@@ -370,7 +383,7 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
   /* \brief Map of GlobalVar to their symbol.
    *
    * For externally-exposed functions, this is given by the
-   * tvm::attr::kTarget attribute of the PrimFunc.  For internal
+   * tvm::attr::kTarget attribute of the Function.  For internal
    * functions, this is the name of the function's GlobalVar, possibly
    * altered to prevent duplicate names.
    */

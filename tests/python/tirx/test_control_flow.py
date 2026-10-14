@@ -26,7 +26,7 @@ def run_test_break_continue(func, shape, expected):
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": func})
     with target:
-        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
     arr_np = np.zeros(shape, dtype="int32")
 
     def run_and_check():
@@ -42,12 +42,12 @@ def run_test_break_continue(func, shape, expected):
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_break_continue1():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((10,), 'int32')):
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tid = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        cta_id = T.cuda.block_idx('x')
+        tid = T.cuda.thread_idx('x')
         for i in T.serial(10):
             if i == 2:
                 continue
@@ -64,13 +64,13 @@ def test_break_continue1():
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_break_continue2():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((9,), 'int32')):
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tid = T.thread_id([32])
-        idx = T.alloc_tensor((1,), "int32", scope="local")
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        cta_id = T.cuda.block_idx('x')
+        tid = T.cuda.thread_idx('x')
+        idx = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         idx[0] = 0
         for i in T.serial(3):
             if i == 0:
@@ -91,13 +91,13 @@ def test_break_continue2():
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_break_continue3():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((10,), 'int32')):
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tid = T.thread_id([32])
-        i = T.alloc_tensor((1,), "int32", scope="local")
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        cta_id = T.cuda.block_idx('x')
+        tid = T.cuda.thread_idx('x')
+        i = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         i[0] = 0
         while i[0] < 10:
             if (i[0] % 2) == 1:

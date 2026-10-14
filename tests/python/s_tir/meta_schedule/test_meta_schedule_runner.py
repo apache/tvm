@@ -18,6 +18,7 @@
 """Test Meta Schedule Runner"""
 
 import itertools
+import platform
 import sys
 import time
 from typing import Any
@@ -30,7 +31,6 @@ pytest.importorskip("tornado")  # tvm.rpc.tracker (LocalRPC) requires tornado
 
 import tvm
 import tvm.testing
-from tvm.ir.utils import derived_object
 from tvm.rpc import RPCSession
 from tvm.runtime import Device, Module
 from tvm.s_tir.meta_schedule.arg_info import TensorInfo
@@ -58,6 +58,7 @@ from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
 from tvm.s_tir.meta_schedule.utils import (
     get_global_func_with_default_on_worker,
 )
+from tvm.s_tir.utils import derived_object
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
@@ -71,7 +72,7 @@ MATMUL_M = 32
 
 @tvm.script.ir_module
 class MatmulModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((16, 16), "float32"),
         B: T.Tensor((16, 16), "float32"),
@@ -89,7 +90,7 @@ class MatmulModule:
 
 @tvm.script.ir_module
 class MatmulReluModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((16, 16), "float32"),
         B: T.Tensor((16, 16), "float32"),
@@ -97,7 +98,7 @@ class MatmulReluModule:
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
-        C = Ts.sblock_alloc_buffer((16, 16), "float32")
+        C = Ts.sblock_alloc_tensor((16, 16), "float32")
         for i, j, k in T.grid(16, 16, 16):
             with Ts.sblock("matmul"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -112,9 +113,11 @@ class MatmulReluModule:
 
 @tvm.script.ir_module
 class BatchMatmulModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        A: T.Tensor([16, 32, 32]), B: T.Tensor([16, 32, 32]), C: T.Tensor([16, 32, 32])
+        A: T.Tensor([16, 32, 32], "float32"),
+        B: T.Tensor([16, 32, 32], "float32"),
+        C: T.Tensor([16, 32, 32], "float32"),
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -128,7 +131,7 @@ class BatchMatmulModule:
 
 @tvm.script.ir_module
 class AddModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor([32], "float32"), B: T.Tensor([32], "float32"), C: T.Tensor([32], "float32")
     ) -> None:  # pylint: disable=no-self-argument
@@ -143,7 +146,7 @@ class AddModule:
 # A huge matmul that must cause timeout in the timeout test below.
 @tvm.script.ir_module
 class MatmulHugeModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((4096, 4096), "float32"),
         B: T.Tensor((4096, 4096), "float32"),
@@ -407,7 +410,7 @@ def test_meta_schedule_py_runner():
 
 
 @pytest.mark.skip("Tuning test - launches runner")
-@tvm.testing.skip_if_32bit(reason="skipping test for i386.")
+@pytest.mark.skipif("32bit" in platform.architecture()[0], reason="skipping test for i386.")
 def test_meta_schedule_rpc_runner_time_out():
     """Test meta schedule RPC Runner time out by using a super large workload"""
 

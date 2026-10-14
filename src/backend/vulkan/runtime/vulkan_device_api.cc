@@ -20,6 +20,7 @@
 #include "vulkan_device_api.h"
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/memory_scope.h>
 
 #include <algorithm>
 #include <memory>
@@ -94,192 +95,174 @@ int VulkanDeviceAPI::GetActiveDeviceID() { return active_device_id_per_thread.Ge
 
 VulkanDevice& VulkanDeviceAPI::GetActiveDevice() { return device(GetActiveDeviceID()); }
 
-void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) {
+ffi::Any VulkanDeviceAPI::GetAttr(Device dev, const ffi::String& name) {
+  ffi::Any rv;
   size_t index = static_cast<size_t>(dev.device_id);
-  if (kind == kExist) {
-    *rv = static_cast<int>(index < devices_.size());
-    return;
+  if (name == "exist") {
+    rv = index < devices_.size();
+    return rv;
   }
 
   const auto& prop = device(index).device_properties;
 
-  switch (kind) {
-    case kMaxThreadsPerBlock: {
-      *rv = int64_t(prop.max_num_threads);
-      break;
-    }
-    case kMaxSharedMemoryPerBlock: {
-      *rv = int64_t(prop.max_shared_memory_per_block);
-      break;
-    }
-    case kWarpSize: {
-      *rv = int64_t(prop.thread_warp_size);
-      break;
-    }
-    case kComputeVersion: {
-      int64_t value = prop.vulkan_api_version;
-      std::ostringstream os;
-      os << VK_VERSION_MAJOR(value) << "." << VK_VERSION_MINOR(value) << "."
-         << VK_VERSION_PATCH(value);
-      *rv = os.str();
-      break;
-    }
-    case kDeviceName:
-      *rv = std::string(prop.device_name);
-      break;
-
-    case kMaxClockRate:
-      break;
-
-    case kMultiProcessorCount:
-      break;
-
-    case kExist:
-      break;
-
-    case kMaxThreadDimensions: {
-      std::stringstream ss;  // use json string to return multiple int values;
-      ss << "[" << prop.max_block_size_x << ", " << prop.max_block_size_y << ", "
-         << prop.max_block_size_z << "]";
-      *rv = ss.str();
-      break;
-    }
-
-    case kMaxRegistersPerBlock:
-      break;
-
-    case kGcnArch:
-      break;
-
-    case kApiVersion:
-      *rv = VK_HEADER_VERSION;
-      break;
-
-    case kDriverVersion: {
-      int64_t value = prop.driver_version;
-      std::ostringstream os;
-      os << VK_VERSION_MAJOR(value) << "." << VK_VERSION_MINOR(value) << "."
-         << VK_VERSION_PATCH(value);
-      *rv = os.str();
-      break;
-    }
-
-    case kL2CacheSizeBytes:
-      break;
-
-    case kTotalGlobalMemory: {
-      *rv = device(index).compute_memory_size;
-      return;
-    }
-    case kAvailableGlobalMemory:
-      // Not currently implemented.  Will only be implementable for
-      // devices that support the VK_EXT_memory_budget extension.
-      break;
-    case kImagePitchAlignment:
-      return;
+  if (name == "max_threads_per_block") {
+    rv = int64_t(prop.max_num_threads);
+    return rv;
   }
+  if (name == "max_shared_memory_per_block") {
+    rv = int64_t(prop.max_shared_memory_per_block);
+    return rv;
+  }
+  if (name == "warp_size") {
+    rv = int64_t(prop.thread_warp_size);
+    return rv;
+  }
+  if (name == "compute_version") {
+    int64_t value = prop.vulkan_api_version;
+    std::ostringstream os;
+    os << VK_VERSION_MAJOR(value) << "." << VK_VERSION_MINOR(value) << "."
+       << VK_VERSION_PATCH(value);
+    rv = os.str();
+    return rv;
+  }
+  if (name == "device_name") {
+    rv = std::string(prop.device_name);
+    return rv;
+  }
+  if (name == "max_thread_dimensions") {
+    std::stringstream ss;  // use json string to return multiple int values;
+    ss << "[" << prop.max_block_size_x << ", " << prop.max_block_size_y << ", "
+       << prop.max_block_size_z << "]";
+    rv = ss.str();
+    return rv;
+  }
+  if (name == "api_version") {
+    rv = VK_HEADER_VERSION;
+    return rv;
+  }
+  if (name == "driver_version") {
+    int64_t value = prop.driver_version;
+    std::ostringstream os;
+    os << VK_VERSION_MAJOR(value) << "." << VK_VERSION_MINOR(value) << "."
+       << VK_VERSION_PATCH(value);
+    rv = os.str();
+    return rv;
+  }
+  if (name == "total_global_memory") {
+    rv = device(index).compute_memory_size;
+    return rv;
+  }
+  if (name == "available_global_memory") {
+    // Not currently implemented.  Will only be implementable for
+    // devices that support the VK_EXT_memory_budget extension.
+    return rv;
+  }
+
+  if (name == "supports_float16") {
+    return prop.supports_float16;
+  }
+  if (name == "supports_float32") {
+    return prop.supports_float32;
+  }
+  if (name == "supports_float64") {
+    return prop.supports_float64;
+  }
+  if (name == "supports_int8") {
+    return prop.supports_int8;
+  }
+  if (name == "supports_int16") {
+    return prop.supports_int16;
+  }
+  if (name == "supports_int32") {
+    return prop.supports_int32;
+  }
+  if (name == "supports_int64") {
+    return prop.supports_int64;
+  }
+  if (name == "supports_8bit_buffer") {
+    return prop.supports_8bit_buffer;
+  }
+  if (name == "supports_16bit_buffer") {
+    return prop.supports_16bit_buffer;
+  }
+  if (name == "supports_storage_buffer_storage_class") {
+    return prop.supports_storage_buffer_storage_class;
+  }
+  if (name == "supports_push_descriptor") {
+    return prop.supports_push_descriptor;
+  }
+  if (name == "supports_dedicated_allocation") {
+    return prop.supports_dedicated_allocation;
+  }
+  if (name == "supported_subgroup_operations") {
+    return int64_t(prop.supported_subgroup_operations);
+  }
+  if (name == "max_block_size_x") {
+    return int64_t(prop.max_block_size_x);
+  }
+  if (name == "max_block_size_y") {
+    return int64_t(prop.max_block_size_y);
+  }
+  if (name == "max_block_size_z") {
+    return int64_t(prop.max_block_size_z);
+  }
+  if (name == "max_push_constants_size") {
+    return int64_t(prop.max_push_constants_size);
+  }
+  if (name == "max_uniform_buffer_range") {
+    return int64_t(prop.max_uniform_buffer_range);
+  }
+  if (name == "max_storage_buffer_range") {
+    return int64_t(prop.max_storage_buffer_range);
+  }
+  if (name == "max_per_stage_descriptor_storage_buffer") {
+    return int64_t(prop.max_per_stage_descriptor_storage_buffer);
+  }
+
+  if (name == "supports_integer_dot_product") {
+    return prop.supports_integer_dot_product;
+  }
+
+  if (name == "supports_cooperative_matrix") {
+    return prop.supports_cooperative_matrix;
+  }
+
+  if (name == "device_type") {
+    return prop.device_type;
+  }
+  if (name == "driver_name") {
+    return prop.driver_name;
+  }
+  if (name == "vulkan_driver_version") {
+    return int64_t(prop.driver_version);
+  }
+  if (name == "vulkan_api_version") {
+    return int64_t(prop.vulkan_api_version);
+  }
+  if (name == "max_spirv_version") {
+    return int64_t(prop.max_spirv_version);
+  }
+
+  return rv;
 }
 
-void VulkanDeviceAPI::GetTargetProperty(Device dev, const std::string& property, ffi::Any* rv) {
-  size_t index = static_cast<size_t>(dev.device_id);
-  const auto& prop = device(index).device_properties;
-
-  if (property == "supports_float16") {
-    *rv = prop.supports_float16;
-  }
-  if (property == "supports_float32") {
-    *rv = prop.supports_float32;
-  }
-  if (property == "supports_float64") {
-    *rv = prop.supports_float64;
-  }
-  if (property == "supports_int8") {
-    *rv = prop.supports_int8;
-  }
-  if (property == "supports_int16") {
-    *rv = prop.supports_int16;
-  }
-  if (property == "supports_int32") {
-    *rv = prop.supports_int32;
-  }
-  if (property == "supports_int64") {
-    *rv = prop.supports_int64;
-  }
-  if (property == "supports_8bit_buffer") {
-    *rv = prop.supports_8bit_buffer;
-  }
-  if (property == "supports_16bit_buffer") {
-    *rv = prop.supports_16bit_buffer;
-  }
-  if (property == "supports_storage_buffer_storage_class") {
-    *rv = prop.supports_storage_buffer_storage_class;
-  }
-  if (property == "supports_push_descriptor") {
-    *rv = prop.supports_push_descriptor;
-  }
-  if (property == "supports_dedicated_allocation") {
-    *rv = prop.supports_dedicated_allocation;
-  }
-  if (property == "supported_subgroup_operations") {
-    *rv = int64_t(prop.supported_subgroup_operations);
-  }
-  if (property == "max_num_threads") {
-    *rv = int64_t(prop.max_num_threads);
-  }
-  if (property == "thread_warp_size") {
-    *rv = int64_t(prop.thread_warp_size);
-  }
-  if (property == "max_block_size_x") {
-    *rv = int64_t(prop.max_block_size_x);
-  }
-  if (property == "max_block_size_y") {
-    *rv = int64_t(prop.max_block_size_y);
-  }
-  if (property == "max_block_size_z") {
-    *rv = int64_t(prop.max_block_size_z);
-  }
-  if (property == "max_push_constants_size") {
-    *rv = int64_t(prop.max_push_constants_size);
-  }
-  if (property == "max_uniform_buffer_range") {
-    *rv = int64_t(prop.max_uniform_buffer_range);
-  }
-  if (property == "max_storage_buffer_range") {
-    *rv = int64_t(prop.max_storage_buffer_range);
-  }
-  if (property == "max_per_stage_descriptor_storage_buffer") {
-    *rv = int64_t(prop.max_per_stage_descriptor_storage_buffer);
-  }
-  if (property == "max_shared_memory_per_block") {
-    *rv = int64_t(prop.max_shared_memory_per_block);
-  }
-
-  if (property == "supports_integer_dot_product") {
-    *rv = prop.supports_integer_dot_product;
-  }
-
-  if (property == "supports_cooperative_matrix") {
-    *rv = prop.supports_cooperative_matrix;
-  }
-
-  if (property == "device_name") {
-    *rv = prop.device_name;
-  }
-  if (property == "device_type") {
-    *rv = prop.device_type;
-  }
-  if (property == "driver_name") {
-    *rv = prop.driver_name;
-  }
-  if (property == "driver_version") {
-    *rv = int64_t(prop.driver_version);
-  }
-  if (property == "vulkan_api_version") {
-    *rv = int64_t(prop.vulkan_api_version);
-  }
-  if (property == "max_spirv_version") {
-    *rv = int64_t(prop.max_spirv_version);
-  }
+ffi::Tensor VulkanDeviceAPI::Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
+                                   ffi::Optional<runtime::MemoryScope> mem_scope) {
+  TVM_FFI_CHECK(!mem_scope.has_value() || mem_scope.value() == runtime::MemoryScope::Global(),
+                ValueError)
+      << "Unsupported memory scope: " << mem_scope.value_or(runtime::MemoryScope::Global()).name();
+  struct Allocator {
+    VulkanDeviceAPI* api;
+    void AllocData(DLTensor* tensor) {
+      size_t alignment =
+          std::max(static_cast<size_t>(kAllocAlignment),
+                   static_cast<size_t>((tensor->dtype.bits / 8) * tensor->dtype.lanes));
+      tensor->data =
+          api->AllocDataSpace(tensor->device, ffi::GetDataSize(*tensor), alignment, tensor->dtype);
+    }
+    void FreeData(DLTensor* tensor) { api->FreeDataSpace(tensor->device, tensor->data); }
+  };
+  return ffi::Tensor::FromNDAlloc(Allocator{this}, shape, dtype, device);
 }
 
 void* VulkanDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
@@ -455,29 +438,24 @@ VulkanDevice& VulkanDeviceAPI::device(size_t device_id) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("profiling.timer.vulkan",
-                        [](Device dev) { return Timer(ffi::make_object<VulkanTimerNode>(dev)); });
+  refl::GlobalDef().def("profiling.timer.vulkan", [](Device dev) {
+    return Timer(ffi::UnsafeInit{}, ffi::make_object<VulkanTimerObj>(dev));
+  });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.timer.vulkan",
-                        [](Device dev) { return Timer(ffi::make_object<VulkanTimerNode>(dev)); });
+  refl::GlobalDef().def("runtime.timer.vulkan", [](Device dev) {
+    return Timer(ffi::UnsafeInit{}, ffi::make_object<VulkanTimerObj>(dev));
+  });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def_packed("device_api.vulkan",
-                  [](ffi::PackedArgs args, ffi::Any* rv) {
-                    DeviceAPI* ptr = VulkanDeviceAPI::Global();
-                    *rv = static_cast<void*>(ptr);
-                  })
-      .def("device_api.vulkan.get_target_property", [](Device dev, const std::string& property) {
-        ffi::Any rv;
-        VulkanDeviceAPI::Global()->GetTargetProperty(dev, property, &rv);
-        return rv;
-      });
+  refl::GlobalDef().def_packed("device_api.vulkan", [](ffi::PackedArgs args, ffi::Any* rv) {
+    DeviceAPI* ptr = VulkanDeviceAPI::Global();
+    *rv = static_cast<void*>(ptr);
+  });
 }
 
 }  // namespace vulkan

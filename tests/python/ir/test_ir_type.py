@@ -33,14 +33,14 @@ def test_missing_type():
     missing = tvm.ir.Type.missing()
 
     assert isinstance(missing, tvm.ir.Type)
-    assert missing.is_missing()
+    assert isinstance(missing, tvm.ir.MissingType)
 
 
 def test_prim_type():
     x = tvm.ir.PrimType("int32")
     assert isinstance(x, tvm.ir.PrimType)
     assert x.dtype == "int32"
-    with pytest.raises(TypeError, match="PointerType::VoidPointerTy"):
+    with pytest.raises(TypeError, match="PtrType::VoidPtrType"):
         tvm.ir.PrimType("handle")
 
 
@@ -50,8 +50,9 @@ def test_func_type():
     tf = tvm.ir.FuncType(arg_types, ret_type)
     assert tf.arg_types == arg_types
     assert tf.ret_type == ret_type
-    assert tf.span is None
-    # TODO make sure we can set span
+    assert isinstance(tf.loc, tvm.ir.UnknownLoc)
+    assert tf.loc.same_as(tvm.ir.UnknownLoc())
+    # TODO make sure we can set loc
     str(tf)
     check_json_roundtrip(tf)
 
@@ -62,6 +63,7 @@ def test_tuple_type():
     fields = tvm.runtime.convert([tf, tt])
 
     tup_ty = tvm.ir.TupleType(fields)
+    assert tup_ty.loc.same_as(tvm.ir.UnknownLoc())
     assert tup_ty.fields == fields
     str(tup_ty)
     check_json_roundtrip(tup_ty)

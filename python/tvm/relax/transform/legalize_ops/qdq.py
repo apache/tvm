@@ -92,7 +92,7 @@ def _quantize(bb: BlockBuilder, call: Call) -> Expr:
         call.args[0],
         _try_convert_to_scalar_const(call.args[1]),
         _try_convert_to_scalar_const(call.args[2]),
-        primfunc_name_hint="quantize",
+        function_name_hint="quantize",
     )
 
 
@@ -161,5 +161,5 @@ def _dequantize(bb: BlockBuilder, call: Call) -> Expr:
         call.args[0],
         _try_convert_to_scalar_const(call.args[1]),
         _try_convert_to_scalar_const(call.args[2]),
-        primfunc_name_hint="dequantize",
+        function_name_hint="dequantize",
     )

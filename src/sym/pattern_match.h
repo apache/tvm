@@ -66,7 +66,6 @@
 #define TVM_SYM_PATTERN_MATCH_H_
 
 #include <tvm/ffi/cast.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 
@@ -199,15 +198,14 @@ class PVar : public Pattern<PVar<T>> {
   // Store PVars by reference in the expression.
   using Nested = const PVar<T>&;
 
-  void InitMatch_() const { filled_ = false; }
+  void InitMatch_() const { value_.reset(); }
 
   bool Match_(const T& value) const {
-    if (!filled_) {
+    if (!value_) {
       value_ = value;
-      filled_ = true;
       return true;
     } else {
-      return PEqualChecker<T>()(value_, value);
+      return PEqualChecker<T>()(*value_, value);
     }
   }
 
@@ -224,17 +222,15 @@ class PVar : public Pattern<PVar<T>> {
   }
 
   T Eval() const {
-    TVM_FFI_ICHECK(filled_);
-    return value_;
+    TVM_FFI_ICHECK(value_.has_value());
+    return *value_;
   }
 
-  T EvalOr(const T& default_value) const { return filled_ ? value_ : default_value; }
+  T EvalOr(const T& default_value) const { return value_.value_or(default_value); }
 
  protected:
   /*! \brief The matched value */
-  mutable T value_;
-  /*! \brief whether the variable has been filled */
-  mutable bool filled_{false};
+  mutable std::optional<T> value_;
 };
 
 /*!
@@ -833,7 +829,7 @@ struct PIfThenElseOp {
   static PrimExpr Eval(ffi::Array<PrimExpr> args) {
     return Call(args[1].ty(), GetOp(), args).as_or_throw<PrimExpr>();
   }
-  static const Op& GetOp() { return prim::builtin::if_then_else(); }
+  static const Op& GetOp() { return prim::if_then_else_op(); }
 };
 
 /*!

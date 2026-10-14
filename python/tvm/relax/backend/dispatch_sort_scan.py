@@ -204,7 +204,7 @@ class SortScanDispatcher(BackendDispatcher):
                 cumsum = relax.call_tir(
                     gv,
                     reshape,
-                    out_ty=relax.TensorType(kernel_shape, out_dtype, vdevice=call.ty.vdevice),
+                    ty_args=[relax.TensorType(kernel_shape, out_dtype, vdevice=call.ty.vdevice)],
                 )
                 return relax.call_pure_packed(
                     "vm.builtin.reshape",

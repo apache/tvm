@@ -29,12 +29,12 @@ from tvm.script import tirx as T
 
 
 def test_pass_simple():
-    @T.prim_func
+    @T.function
     def element_wise(
         A: T.Tensor((128, 128), "float32"),
         C: T.Tensor((128, 128), "float32"),
     ):
-        B = T.alloc_tensor((128, 128), "float32")
+        B = T.alloc_tensor(ty_args=[T.Tensor((128, 128), "float32")])
         for i, j in T.grid(128, 128):
             B[i, j] = A[i, j] * 2.0
         for i, j in T.grid(128, 128):
@@ -54,16 +54,16 @@ def test_error_for_out_of_scope_usage():
     """
     i = tvm.tirx.Var("i", "int32")
     # Bind i inside a For loop body
-    for_stmt = tvm.tirx.For(
+    for_stmt = tvm.ir.For(
         tvm.tirx.Var("j", "int32"),
         0,
         1,
-        tvm.tirx.ForKind.SERIAL,
-        tvm.tirx.SeqStmt([tvm.tirx.Bind(i, 42), tvm.tirx.Evaluate(i)]),
+        tvm.ir.ForKind.DEFAULT,
+        tvm.ir.SeqStmt([tvm.ir.Bind(i, 42), tvm.ir.Evaluate(i)]),
     )
     # Use i outside the For loop — this is out of scope
-    body = tvm.tirx.SeqStmt([for_stmt, tvm.tirx.Evaluate(i)])
-    func = tvm.tirx.PrimFunc([], body)
+    body = tvm.ir.SeqStmt([for_stmt, tvm.ir.Evaluate(i)])
+    func = tvm.tirx.Function([], body)
 
     with pytest.raises(
         (ValueError, tvm.error.InternalError),
@@ -77,7 +77,7 @@ def test_error_for_nested_rebind_usage():
 
     i = T.dynamic("i", "int32")
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func():
         T.bind(42, var=i)
         T.bind(42, var=i)
@@ -100,7 +100,7 @@ def test_error_for_repeated_binding():
 
     i = T.dynamic("i", "int32")
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func():
         T.bind(42, var=i)
         T.evaluate(i)
@@ -120,12 +120,12 @@ def test_error_for_cross_function_reuse():
 
     @I.ir_module(check_well_formed=False)
     class mod:
-        @T.prim_func
+        @T.function
         def func1():
             T.bind(42, var=i)
             T.evaluate(i)
 
-        @T.prim_func
+        @T.function
         def func2():
             T.bind(42, var=i)
             T.evaluate(i)
@@ -136,36 +136,10 @@ def test_error_for_cross_function_reuse():
         tvm.tirx.analysis.verify_well_formed(mod)
 
 
-def test_reuse_of_env_thread_in_function_is_well_formed():
-    """An env thread may be reused within a PrimFunc
+def test_sibling_launch_bindings_are_well_formed():
+    """Sibling launch regions each introduce a fresh lexical binding."""
 
-    The `T.env_thread` has unique semantics, and may be defined at
-    multiple locations without the TIR being considered ill-formed.
-    """
-
-    @T.prim_func
-    def func(A: T.Tensor([256], "float32")):
-        threadIdx_x = T.env_thread("threadIdx.x")
-        with T.launch_thread(threadIdx_x, 256):
-            A[threadIdx_x] = A[threadIdx_x] + 1.0
-
-        with T.launch_thread(threadIdx_x, 256):
-            A[threadIdx_x] = A[threadIdx_x] + 2.0
-
-    tvm.tirx.analysis.verify_well_formed(func)
-
-
-def test_reuse_of_env_thread_in_function_is_mandatory():
-    """An env thread may be reused within a PrimFunc
-
-    Not only are environment threads allowed to have multiple
-    definition sites, it is mandatory for them to have multiple
-    definition sites.  If a PrimFunc contains more than one
-    `"thread_extent"` with the same name, but with different `tirx.Var`
-    instances, it is ill-formed.
-    """
-
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor([256], "float32")):
         with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
             A[threadIdx_x] = A[threadIdx_x] + 1.0
@@ -176,33 +150,28 @@ def test_reuse_of_env_thread_in_function_is_mandatory():
     tvm.tirx.analysis.verify_well_formed(func)
 
 
-def test_reuse_of_env_thread_across_functions_is_ill_formed():
-    """An env thread may not be reused across PrimFunc
-
-    However, each function must have its own `tirx.Var` representing
-    the environment thread, and may not share these variables across
-    PrimFuncs.
-    """
+def test_reuse_of_region_parameter_across_functions_is_ill_formed():
+    """An explicit region parameter may not be defined across multiple functions."""
 
     threadIdx_x = T.dynamic("threadIdx_x", "int32")
 
     @I.ir_module(check_well_formed=False)
     class mod:
-        @T.prim_func
+        @T.function
         def kernel_1(A: T.Tensor([256], "float32")):
-            T.attr(
-                T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
-                "thread_extent",
-                256,
+            T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=[threadIdx_x],
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
-        @T.prim_func
+        @T.function
         def kernel_2(A: T.Tensor([256], "float32")):
-            T.attr(
-                T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
-                "thread_extent",
-                256,
+            T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=[threadIdx_x],
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
@@ -212,17 +181,17 @@ def test_reuse_of_env_thread_across_functions_is_ill_formed():
         tvm.tirx.analysis.verify_well_formed(mod)
 
 
-def test_multiple_buffer_arguments_may_share_allocation():
-    """Buffer signatures may re-use a data argument
+def test_multiple_tensor_arguments_may_share_allocation():
+    """Tensor signatures may re-use a data argument
 
-    Like the shape/strides/elem_offset fields in a buffer, the first
-    occurrence of a `buffer->data` field defines it, and the
+    Like the shape/strides/elem_offset fields in a tensor, the first
+    occurrence of a `tensor->data` field defines it, and the
     occurrences are usages of that definition.
     """
 
     @I.ir_module
     class mod:
-        @T.prim_func
+        @T.function
         def func(A: T.Tensor([256], "float32"), B: T.Tensor([256], "float32", data=A.data)):  # noqa: F821
             pass
 
@@ -243,7 +212,7 @@ def test_error_message_without_previous_definition_location():
 
     x = T.dynamic("x", "int32")
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func():
         T.bind(42, var=x)
         T.evaluate(x)
@@ -270,7 +239,7 @@ def test_error_message_with_previous_definition_location():
 
     x = T.dynamic("x", "int32")
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func():
         T.bind(42, var=x)
         T.bind(99, var=x)  # This should trigger the error
@@ -299,7 +268,7 @@ def test_sequential_redefinition_with_location():
 
     x = T.dynamic("x", "int32")
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func():
         T.bind(1, var=x)
         T.evaluate(x)
@@ -318,10 +287,10 @@ def test_sequential_redefinition_with_location():
     assert "was re-defined at" in error_msg
 
 
-def test_buffer_param_is_well_formed():
+def test_tensor_param_is_well_formed():
     """TensorType-annotated parameters are in scope for the body."""
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
         for i in T.grid(128):
             B[i] = A[i] * 2.0
@@ -329,26 +298,26 @@ def test_buffer_param_is_well_formed():
     tvm.tirx.analysis.verify_well_formed(func)
 
 
-def test_decl_buffer_is_well_formed():
-    """A DeclTensor statement introduces a buffer into scope for its body."""
+def test_decl_tensor_is_well_formed():
+    """A DeclTensor statement introduces a tensor into scope for its body."""
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((128,), "float32")):
-        B = T.alloc_tensor((128,), "float32")
+        B = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32")])
         for i in T.grid(128):
             B[i] = A[i] * 2.0
 
     tvm.tirx.analysis.verify_well_formed(func)
 
 
-def test_alloc_buffer_is_well_formed():
-    """Allocation introduces a buffer into the function scope."""
+def test_alloc_tensor_is_well_formed():
+    """Allocation introduces a tensor into the function scope."""
 
     @I.ir_module
     class mod:
-        @T.prim_func
+        @T.function
         def func(A: T.Tensor((128,), "float32")):
-            B = T.alloc_tensor([128], "float32")
+            B = T.alloc_tensor(ty_args=[T.Tensor([128], "float32")])
             for i in T.grid(128):
                 B[i] = A[i] * 2.0
 
@@ -356,10 +325,10 @@ def test_alloc_buffer_is_well_formed():
 
 
 def test_tensor_load_asserted_type_matches_source_and_indices():
-    @T.prim_func
+    @T.function
     def func():
-        buffer = T.alloc_tensor((4,), "float32")
-        T.evaluate(buffer[0])
+        tensor = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32")])
+        T.evaluate(tensor[0])
 
     serialized = tvm.ir.save_json(func)
     round_tripped = tvm.ir.load_json(serialized)
@@ -383,10 +352,10 @@ def test_tensor_load_asserted_type_matches_source_and_indices():
 
 
 def test_tensor_load_malformed_indices_return_false_without_asserting():
-    buffer = tvm.tirx.decl_tensor((4, 4), "float32")
+    tensor = tvm.tirx.decl_tensor((4, 4), "float32")
     vector_index = tvm.tirx.Ramp(0, 1, 4)
-    load = tvm.tirx.BufferLoad(buffer, [0, vector_index])
-    func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(load))
+    load = tvm.tirx.TensorLoad(tensor, [0, vector_index])
+    func = tvm.tirx.Function([tensor], tvm.ir.Evaluate(load))
 
     graph = json.loads(tvm.ir.save_json(func))
     load_node = next(node for node in graph["nodes"] if node["type"] == "ir.TensorLoad")
@@ -397,7 +366,7 @@ def test_tensor_load_malformed_indices_return_false_without_asserting():
     rank_mismatch_indices.pop()
     rank_mismatch = tvm.ir.load_json(json.dumps(rank_mismatch_graph))
     assert not tvm.tirx.analysis.verify_well_formed(rank_mismatch, assert_mode=False)
-    with pytest.raises(tvm.error.InternalError, match="indexes 2-dimensional buffer"):
+    with pytest.raises(tvm.error.InternalError, match="indexes 2-dimensional tensor"):
         tvm.tirx.analysis.verify_well_formed(rank_mismatch)
 
     indices[0], indices[1] = indices[1], indices[0]
@@ -405,6 +374,32 @@ def test_tensor_load_malformed_indices_return_false_without_asserting():
     assert not tvm.tirx.analysis.verify_well_formed(non_final_vector, assert_mode=False)
     with pytest.raises(tvm.error.InternalError, match="only the final index"):
         tvm.tirx.analysis.verify_well_formed(non_final_vector)
+
+
+def test_verify_unique_definitions():
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Var("tindex", "int32")
+    z = tvm.ir.Evaluate(x + y)
+    assert tvm.tirx.analysis.verify_well_formed(tvm.tirx.Function([x, y], z))
+
+    assert not tvm.tirx.analysis.verify_well_formed(
+        tvm.tirx.Function([x, y], tvm.ir.SeqStmt([tvm.ir.Bind(x, 1), z])),
+        assert_mode=False,
+    )
+
+
+def test_verify_repeated_let_definitions():
+    x = tvm.tirx.Var("x", "int32")
+    z1 = tvm.tirx.Let(x, 1, x + 1)
+    z2 = tvm.tirx.Let(x, 2, x + 2)
+
+    # Each occurrence must define a distinct variable, even for a shared Let.
+    assert not tvm.tirx.analysis.verify_well_formed(
+        tvm.tirx.Function([], tvm.ir.Evaluate(z1 + z1)), assert_mode=False
+    )
+    assert not tvm.tirx.analysis.verify_well_formed(
+        tvm.tirx.Function([], tvm.ir.Evaluate(z1 * z2)), assert_mode=False
+    )
 
 
 if __name__ == "__main__":

@@ -62,7 +62,7 @@ def get_rpc():
 
 def preprocess_pipeline(mod: IRModule) -> IRModule:
     desired_layouts = {"relax.nn.conv2d": ["NCHW16c", "OIHW16o", "NCHW16c"]}
-    seq = tvm.transform.Sequential(
+    seq = tvm.ir.transform.Sequential(
         [
             tvm.tirx.transform.BindTarget(Target.current(allow_none=False)),
             tvm.relax.transform.FoldConstant(),
@@ -89,7 +89,7 @@ def preprocess_pipeline(mod: IRModule) -> IRModule:
 
 
 def postprocess_pipeline(mod: IRModule) -> IRModule:
-    seq = tvm.transform.Sequential(
+    seq = tvm.ir.transform.Sequential(
         [
             tvm.relax.transform.ToNonDataflow(),
             tvm.relax.transform.RemovePurityChecking(),
@@ -123,7 +123,7 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
 
     @I.ir_module
     class TextureCopy:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((M, N), dtype), B: T.Tensor((M, N), dtype)):
             T.func_attr({"global_symbol": "main"})
             for li, lj in T.grid(M, N):
@@ -184,8 +184,12 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
             device_arr = [dev for _ in range(len(mod.global_infos["vdevice"]))]
         else:
             device_arr = [dev]
-        vm = relax.VirtualMachine(rexec, device_arr)
-        inps = [tvm.runtime.tensor(inp, dev) for inp in inputs]
+        if remote_session is not None:
+            vm = tvm.rpc.virtual_machine(rexec, device_arr)
+            inps = [dev.tensor(inp) for inp in inputs]
+        else:
+            vm = relax.VirtualMachine(rexec, device_arr)
+            inps = [tvm.runtime.tensor(inp, dev) for inp in inputs]
         vm["main"](*inps)
         np.testing.assert_equal(inps[-1].numpy(), inps[0].numpy())
 

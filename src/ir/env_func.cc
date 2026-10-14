@@ -36,25 +36,27 @@ using ffi::PackedArgs;
 ffi::ObjectPtr<ffi::Object> CreateEnvNode(const std::string& name) {
   auto f = tvm::ffi::Function::GetGlobal(name);
   TVM_FFI_ICHECK(f.has_value()) << "Cannot find global function \'" << name << '\'';
-  ffi::ObjectPtr<EnvFuncNode> n = ffi::make_object<EnvFuncNode>();
+  ffi::ObjectPtr<EnvFuncObj> n = ffi::make_object<EnvFuncObj>();
   n->func = *f;
   n->name = name;
   return n;
 }
 
-EnvFunc EnvFunc::Get(const ffi::String& name) { return EnvFunc(CreateEnvNode(name)); }
+EnvFunc EnvFunc::Get(const ffi::String& name) {
+  return EnvFunc(ffi::UnsafeInit{}, CreateEnvNode(name));
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  EnvFuncNode::RegisterReflection();
-  // override EnvFuncNode to use name as the repr
-  refl::TypeAttrDef<EnvFuncNode>()
-      .def("__data_to_json__",
-           [](const EnvFuncNode* node) {
+  EnvFuncObj::RegisterReflection();
+  // override EnvFuncObj to use name as the repr
+  refl::TypeAttrDef<EnvFuncObj>()
+      .def(tvm::ffi::reflection::type_attr::kDataToJson,
+           [](const EnvFuncObj* node) {
              // simply save as the string
              return node->name;
            })
-      .def("__data_from_json__", EnvFunc::Get);
+      .def(tvm::ffi::reflection::type_attr::kDataFromJson, EnvFunc::Get);
 
   refl::GlobalDef().def("ir.EnvFuncGet", EnvFunc::Get);
 }

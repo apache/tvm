@@ -25,11 +25,12 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 
 #include <algorithm>
+#include <numeric>
 #include <optional>
 
 #include "constraint_extract.h"
@@ -39,10 +40,10 @@
 namespace tvm {
 namespace sym {
 
-TVM_FFI_STATIC_INIT_BLOCK() { ConstIntBoundNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { ConstIntBoundObj::RegisterReflection(); }
 
 ConstIntBound::ConstIntBound(int64_t min_value, int64_t max_value) {
-  auto node = ffi::make_object<ConstIntBoundNode>();
+  auto node = ffi::make_object<ConstIntBoundObj>();
   node->min_value = min_value;
   node->max_value = max_value;
   data_ = std::move(node);
@@ -102,7 +103,6 @@ class ConstIntBoundAnalyzer::Impl
     /*! \brief The additional bound */
     Entry bound;
 
-    BoundInfo() {}
     BoundInfo(PrimExpr expr, Entry bound) : expr(expr), bound(bound) {}
   };
 
@@ -174,7 +174,7 @@ class ConstIntBoundAnalyzer::Impl
              val->second->max_value == everything.max_value))
             << "Detected bound for " << expr << "conflicts with memorization";
       }
-      (*bound_)[prim_expr] = ConstIntBound(res.min_value, res.max_value);
+      bound_->insert_or_assign(prim_expr, ConstIntBound(res.min_value, res.max_value));
     }
     return res;
   }
@@ -309,7 +309,7 @@ class ConstIntBoundAnalyzer::Impl
       if (parent_ && b.min_value == b.max_value) {
         ModularSet mod_a = parent_->modular_set(op->a);
         int64_t modulus = b.min_value;
-        int64_t gcd_coeff_mod = ZeroAwareGCD(mod_a->coeff, modulus);
+        int64_t gcd_coeff_mod = std::gcd(mod_a->coeff, modulus);
 
         // If gcd_coeff_mod > 1, we can get tighter bounds.
         // Since gcd_coeff_mod divides both mod_a->coeff and modulus, we know
@@ -410,7 +410,7 @@ class ConstIntBoundAnalyzer::Impl
       if (parent_ && b.min_value == b.max_value) {
         ModularSet mod_a = parent_->modular_set(op->a);
         int64_t modulus = b.min_value;
-        int64_t gcd_coeff_mod = ZeroAwareGCD(mod_a->coeff, modulus);
+        int64_t gcd_coeff_mod = std::gcd(mod_a->coeff, modulus);
 
         // If gcd_coeff_mod > 1, we can get tighter bounds.
         // Since gcd_coeff_mod divides both mod_a->coeff and modulus, we know
@@ -527,7 +527,7 @@ class ConstIntBoundAnalyzer::Impl
     additional_info_.insert(additional_info_.end(), info.begin(), info.end());
     auto frecover = [old_size, this]() {
       if (additional_info_.size() > old_size) {
-        additional_info_.resize(old_size);
+        additional_info_.erase(additional_info_.begin() + old_size, additional_info_.end());
       }
     };
     return frecover;
@@ -836,8 +836,8 @@ class ConstIntBoundAnalyzer::Impl
    * topi.math.ceil_log2, and can appear in iteration bounds.
    */
   static ffi::Optional<PrimExpr> FindCeilLog2Arg(const prim::CastNode* op) {
-    static const Op& ceil_op = prim::builtin::ceil();
-    static const Op& log2_op = prim::builtin::log2();
+    static const Op& ceil_op = prim::ceil_op();
+    static const Op& log2_op = prim::log2_op();
     if (op->ty.as_or_throw<PrimType>().code() == DLDataTypeCode::kDLInt) {
       if (auto as_call = op->value.as<CallNode>()) {
         if (as_call->op.same_as(ceil_op)) {

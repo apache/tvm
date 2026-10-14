@@ -33,12 +33,12 @@ from tvm.testing import env
 NUM_WORKERS = 4
 
 
-def run_prim_func(sess, prim_func, *args):
-    """Compile, export, load, and run a PrimFunc in the shared disco session."""
+def run_function(sess, function, *args):
+    """Compile, export, load, and run a Function in the shared disco session."""
     target = tvm.target.Target("cuda")
     with tempfile.TemporaryDirectory() as tmpdir:
         path = f"{tmpdir}/test.so"
-        mod = tvm.compile(prim_func, target=target, tir_pipeline="tirx")
+        mod = tvm.tirx.compile(function, target=target, pipeline="tirx")
         print(mod.mod.imports[0].inspect_source())
         mod.export_library(path)
         rt_mod = sess.load_vm_module(path)
@@ -76,16 +76,16 @@ def test_codegen_nvshmem():
         sess.sync_worker_0()
 
         def test_thread_info(sess):
-            @T.prim_func
+            @T.function
             def main(res: T.Tensor((2,), "int32")):
-                T.device_entry()
-                cta_id = T.cta_id([1])
-                tid = T.thread_id([nwarps * 32])
+                T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(nwarps * 32,)))
+                cta_id = T.cuda.block_idx("x")
+                tid = T.cuda.thread_idx("x")
                 res[0] = T.nvshmem.my_pe()
                 res[1] = T.nvshmem.n_pes()
 
             res_array = sess.empty((2,), "int32")
-            run_prim_func(sess, main, res_array)
+            run_function(sess, main, res_array)
 
         def test_transfer(sess, scope, shape, nwarps, nelems, op_name):
             """Tests data transfer operations (get/put) at thread, warp, and block scopes."""
@@ -96,13 +96,13 @@ def test_codegen_nvshmem():
                 op_func = getattr(op_func, scope)
 
             # fmt: off
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)):
-                T.device_entry()
-                cta_id = T.cta_id([1])
-                warp_id = T.warp_id([nwarps])
-                lane_id = T.lane_id([32])
-                tid = T.thread_id([nwarps * 32])
+                T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(nwarps * 32,)))
+                cta_id = T.cuda.block_idx('x')
+                warp_id = T.cuda.warp_id()
+                lane_id = T.cuda.lane_id()
+                tid = T.cuda.thread_idx('x')
 
                 my_pe = T.nvshmem.my_pe()
                 n_pes = T.nvshmem.n_pes()
@@ -119,7 +119,7 @@ def test_codegen_nvshmem():
             A_array = create_nvshmem_array(sess, shape, dtype, init_fn)
             B_array = create_nvshmem_array(sess, shape, dtype)
             sess.sync_worker_0()
-            run_prim_func(sess, main, A_array, B_array)
+            run_function(sess, main, A_array, B_array)
 
             for i in range(NUM_WORKERS):
                 if is_get:
@@ -135,15 +135,15 @@ def test_codegen_nvshmem():
             cmp_value = 1 if sig_op == "set" else 2
 
             # fmt: off
-            @T.prim_func
+            @T.function
             def main(res: T.Tensor((1,), "uint64")):
-                T.device_entry()
-                cta_id = T.cta_id([1])
-                tid = T.thread_id([nwarps * 32])
+                T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(nwarps * 32,)))
+                cta_id = T.cuda.block_idx('x')
+                tid = T.cuda.thread_idx('x')
                 my_pe = T.nvshmem.my_pe()
                 n_pes = T.nvshmem.n_pes()
                 dst_pe = (my_pe + 1) % n_pes
-                if sig_op == "add":
+                if T.constexpr(sig_op == "add"):
                     res[0] = 1
                 T.nvshmem.barrier_all()
                 T.nvshmem.signal_op(sig_addr=res.ptr_to([0]), signal=1, sig_op=sig_op, pe=dst_pe)
@@ -152,7 +152,7 @@ def test_codegen_nvshmem():
 
             res_array = create_nvshmem_array(sess, (1,), "uint64")
             sess.sync_worker_0()
-            run_prim_func(sess, main, res_array)
+            run_function(sess, main, res_array)
 
             for i in range(NUM_WORKERS):
                 res = res_array.debug_get_from_remote(i).numpy()
@@ -168,17 +168,17 @@ def test_codegen_nvshmem():
             if scope != "thread":
                 op_func = getattr(op_func, scope)
 
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor(shape, dtype),
                 B: T.Tensor(shape, dtype),
                 signal_array: T.Tensor((1,), "uint64"),
             ):
-                T.device_entry()
-                cta_id = T.cta_id([1])
-                warp_id = T.warp_id([nwarps])
-                lane_id = T.lane_id([32])
-                tid = T.thread_id([nwarps * 32])
+                T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(nwarps * 32,)))
+                cta_id = T.cuda.block_idx("x")
+                warp_id = T.cuda.warp_id()
+                lane_id = T.cuda.lane_id()
+                tid = T.cuda.thread_idx("x")
                 my_pe = T.nvshmem.my_pe()
                 n_pes = T.nvshmem.n_pes()
                 dst_pe = (my_pe + 1) % n_pes
@@ -188,16 +188,16 @@ def test_codegen_nvshmem():
                     T.if_then_else(scope == "thread", tid, warp_id * 32),
                 )
                 op_func(
-                    dst=B.access_ptr("w", offset=offset),
-                    src=A.access_ptr("r", offset=offset),
+                    dst=B.ptr_to([offset]),
+                    src=A.ptr_to([offset]),
                     nelems=nelems,
-                    sig_addr=signal_array.access_ptr("w", offset=0),
+                    sig_addr=signal_array.ptr_to([0] * len(signal_array.shape)),
                     signal=1,
                     sig_op="set",
                     pe=dst_pe,
                 )
                 T.nvshmem.wait_until(
-                    ivar=signal_array.access_ptr("r", offset=0),
+                    ivar=signal_array.ptr_to([0] * len(signal_array.shape)),
                     cmp="eq",
                     cmp_value=cmp_value,
                 )
@@ -210,7 +210,7 @@ def test_codegen_nvshmem():
             signal_array = create_nvshmem_array(sess, (1,), "uint64")
 
             sess.sync_worker_0()
-            run_prim_func(sess, main, A_array, B_array, signal_array)
+            run_function(sess, main, A_array, B_array, signal_array)
 
             for i in range(NUM_WORKERS):
                 expected = A_array.debug_get_from_remote(i).numpy()
@@ -224,13 +224,13 @@ def test_codegen_nvshmem():
             dtype = "float32"
 
             # fmt: off
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype), res: T.Tensor((1,), "uint64")):  # noqa: E501
-                T.device_entry()
-                cta_id = T.cta_id([1])
-                warp_id = T.warp_id([nwarps])
-                lane_id = T.lane_id([32])
-                tid = T.thread_id([2 * 32])
+                T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(2 * 32,)))
+                cta_id = T.cuda.block_idx('x')
+                warp_id = T.cuda.warp_id()
+                lane_id = T.cuda.lane_id()
+                tid = T.cuda.thread_idx('x')
                 my_pe = T.nvshmem.my_pe()
                 n_pes = T.nvshmem.n_pes()
                 dst_pe = (my_pe + 1) % n_pes
@@ -247,7 +247,7 @@ def test_codegen_nvshmem():
             A_array = create_nvshmem_array(sess, shape, dtype, init_fn)
             B_array = create_nvshmem_array(sess, shape, dtype)
             res_array = create_nvshmem_array(sess, (1,), "uint64")
-            run_prim_func(sess, main, A_array, B_array, res_array)
+            run_function(sess, main, A_array, B_array, res_array)
 
             for i in range(NUM_WORKERS):
                 expected_B = A_array.debug_get_from_remote(i).numpy()

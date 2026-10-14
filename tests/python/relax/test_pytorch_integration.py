@@ -62,7 +62,7 @@ class PyTorchIntegrationModule(BasePyModule):
 
         return lv3
 
-    @Ts.prim_func
+    @Ts.function
     def matmul(
         A: T.Tensor((n_matmul, 16), "float32"),
         B: T.Tensor((16, 20), "float32"),

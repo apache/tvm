@@ -30,12 +30,12 @@ def test_codegen_buffer_access_modes():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((8,), "float32"), B: T.Tensor((8,), "float32")):
-            for tx in T.thread_binding(8, thread="threadIdx.x"):
+            with T.launch_thread("threadIdx.x", 8) as tx:
                 B[tx] = A[tx]
 
-    executable = tvm.compile(Module, target="webgpu")
+    executable = tvm.tirx.compile(Module, target="webgpu")
     source = executable.mod.imports[0].inspect_source("wgsl")
 
     assert "var<storage, read> A_ptr" in source
@@ -50,7 +50,7 @@ def _build_webgpu(mod, target="webgpu"):
 def test_bounded_symbolic_stack_allocation():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr(
                 {
@@ -60,7 +60,9 @@ def test_bounded_symbolic_stack_allocation():
                     "tirx.is_global_func": True,
                 }
             )
-            scratch = T.alloc_tensor((T.min(n, 64), 2), "float32", scope="local")
+            scratch = T.alloc_tensor(
+                ty_args=[T.Tensor((T.min(n, 64), 2), "float32", scope="local")]
+            )
             T.evaluate(scratch.data)
 
     source = _build_webgpu(Module).inspect_source()
@@ -74,7 +76,7 @@ def test_bound_symbolic_allocation(scope, bounded):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr(
                 {
@@ -86,9 +88,9 @@ def test_bound_symbolic_allocation(scope, bounded):
             )
             # Common subexpression elimination can hoist the bounded extent.
             extent: T.let[T.int32] = T.min(n, limit)
-            first = T.alloc_tensor((extent * 2,), "float32", scope=scope)
+            first = T.alloc_tensor(ty_args=[T.Tensor((extent * 2,), "float32", scope=scope)])
             elements: T.let[T.int32] = extent * 2
-            second = T.alloc_tensor((elements,), "float32", scope=scope)
+            second = T.alloc_tensor(ty_args=[T.Tensor((elements,), "float32", scope=scope)])
             first[0] = 1.0
             second[0] = first[0]
 
@@ -109,7 +111,7 @@ def test_bound_symbolic_allocation(scope, bounded):
 def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr(
                 {
@@ -119,7 +121,7 @@ def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
                     "tirx.is_global_func": True,
                 }
             )
-            state = T.alloc_tensor((1,), "int32", scope="local")
+            state = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
             state[0] = 0
             snapshot: T.let[T.int32] = state[0]
             state[0] = 32
@@ -127,9 +129,13 @@ def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
             # The snapshot is immutable, but the buffer it read has changed.
             # Substituting the load would incorrectly reduce this extent to 1.
             scratch = T.alloc_tensor(
-                (T.min(T.max(difference, 1), 32 if bounded else 2147483647),),
-                "float32",
-                scope=scope,
+                ty_args=[
+                    T.Tensor(
+                        (T.min(T.max(difference, 1), 32 if bounded else 2147483647),),
+                        "float32",
+                        scope=scope,
+                    )
+                ]
             )
             scratch[31] = 1.0
 
@@ -150,7 +156,7 @@ def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
 def test_bound_symbolic_workgroup_allocation_respects_target_limit(target_limit):
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr(
                 {
@@ -162,7 +168,7 @@ def test_bound_symbolic_workgroup_allocation_respects_target_limit(target_limit)
             )
             extent: T.let[T.int32] = T.min(n, 64)
             elements: T.let[T.int32] = extent * 2
-            scratch = T.alloc_tensor((elements,), "float32", scope="shared")
+            scratch = T.alloc_tensor(ty_args=[T.Tensor((elements,), "float32", scope="shared")])
             scratch[0] = 1.0
 
     target = {"kind": "webgpu", "max_shared_memory_per_block": target_limit}
@@ -180,7 +186,7 @@ def test_bound_symbolic_workgroup_allocation_respects_target_limit(target_limit)
 def test_unbounded_symbolic_stack_allocation_rejected():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr(
                 {
@@ -190,7 +196,7 @@ def test_unbounded_symbolic_stack_allocation_rejected():
                     "tirx.is_global_func": True,
                 }
             )
-            scratch = T.alloc_tensor((n,), "float32", scope="local")
+            scratch = T.alloc_tensor(ty_args=[T.Tensor((n,), "float32", scope="local")])
             scratch[0] = 1.0
             T.evaluate(scratch[0])
 
@@ -205,7 +211,7 @@ def test_unbounded_symbolic_stack_allocation_rejected():
 def test_nonpositive_stack_allocation_rejected(extent):
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr(
                 {
@@ -215,7 +221,7 @@ def test_nonpositive_stack_allocation_rejected(extent):
                     "tirx.is_global_func": True,
                 }
             )
-            scratch = T.alloc_tensor((extent,), "float32", scope="local")
+            scratch = T.alloc_tensor(ty_args=[T.Tensor((extent,), "float32", scope="local")])
             T.evaluate(scratch.data)
 
     with pytest.raises(
@@ -228,7 +234,7 @@ def test_nonpositive_stack_allocation_rejected(extent):
 def test_stack_allocation_element_count_overflow_rejected():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32, m: T.int32, k: T.int32):
             T.func_attr(
                 {
@@ -239,9 +245,13 @@ def test_stack_allocation_element_count_overflow_rejected():
                 }
             )
             scratch = T.alloc_tensor(
-                (T.min(n, 1 << 30), T.min(m, 1 << 30), T.min(k, 1 << 30)),
-                "uint8",
-                scope="local",
+                ty_args=[
+                    T.Tensor(
+                        (T.min(n, 1 << 30), T.min(m, 1 << 30), T.min(k, 1 << 30)),
+                        "uint8",
+                        scope="local",
+                    )
+                ]
             )
             T.evaluate(scratch.data)
 
@@ -254,7 +264,7 @@ def test_stack_allocation_element_count_overflow_rejected():
 def test_stack_allocation_byte_size_overflow_rejected():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32, m: T.int32):
             T.func_attr(
                 {
@@ -265,7 +275,9 @@ def test_stack_allocation_byte_size_overflow_rejected():
                 }
             )
             scratch = T.alloc_tensor(
-                (T.min(n, 1 << 30), T.min(m, 1 << 30), 4), "float32", scope="local"
+                ty_args=[
+                    T.Tensor((T.min(n, 1 << 30), T.min(m, 1 << 30), 4), "float32", scope="local")
+                ]
             )
             T.evaluate(scratch.data)
 
@@ -278,7 +290,7 @@ def test_stack_allocation_byte_size_overflow_rejected():
 def test_workgroup_allocation_at_target_limit():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr(
                 {
@@ -288,7 +300,7 @@ def test_workgroup_allocation_at_target_limit():
                     "tirx.is_global_func": True,
                 }
             )
-            scratch = T.alloc_tensor((8192,), "float32", scope="shared")
+            scratch = T.alloc_tensor(ty_args=[T.Tensor((8192,), "float32", scope="shared")])
             scratch[0] = 1.0
 
     source = _build_webgpu(Module).inspect_source()
@@ -298,7 +310,7 @@ def test_workgroup_allocation_at_target_limit():
 def test_total_workgroup_allocation_above_target_limit_rejected():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr(
                 {
@@ -308,8 +320,8 @@ def test_total_workgroup_allocation_above_target_limit_rejected():
                     "tirx.is_global_func": True,
                 }
             )
-            first = T.alloc_tensor((4096,), "float32", scope="shared")
-            second = T.alloc_tensor((4097,), "float32", scope="shared")
+            first = T.alloc_tensor(ty_args=[T.Tensor((4096,), "float32", scope="shared")])
+            second = T.alloc_tensor(ty_args=[T.Tensor((4097,), "float32", scope="shared")])
             first[0] = 1.0
             second[0] = 2.0
 
@@ -323,7 +335,7 @@ def test_total_workgroup_allocation_above_target_limit_rejected():
 def test_workgroup_allocation_accounts_for_declaration_alignment():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr(
                 {
@@ -333,8 +345,8 @@ def test_workgroup_allocation_accounts_for_declaration_alignment():
                     "tirx.is_global_func": True,
                 }
             )
-            first = T.alloc_tensor((1,), "float32", scope="shared")
-            second = T.alloc_tensor((1,), "float32", scope="shared")
+            first = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="shared")])
+            second = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="shared")])
             first[0] = 1.0
             second[0] = 2.0
 
@@ -348,7 +360,7 @@ def test_workgroup_allocation_accounts_for_declaration_alignment():
 def test_workgroup_allocation_uses_target_limit():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr(
                 {
@@ -358,7 +370,7 @@ def test_workgroup_allocation_uses_target_limit():
                     "tirx.is_global_func": True,
                 }
             )
-            scratch = T.alloc_tensor((16384,), "float32", scope="shared")
+            scratch = T.alloc_tensor(ty_args=[T.Tensor((16384,), "float32", scope="shared")])
             scratch[0] = 1.0
 
     _build_webgpu(Module, {"kind": "webgpu", "max_shared_memory_per_block": 65536})
@@ -367,15 +379,15 @@ def test_workgroup_allocation_uses_target_limit():
 def test_grid_pack_guard_rejects_id_equal_to_workgroup_count():
     """The runtime pads the launch when it folds x into z, so id == packGridDimX must return."""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((8,), "int32")):
-            for i in T.thread_binding(8, thread="blockIdx.x"):
-                for j in T.thread_binding(1, thread="threadIdx.x"):
+        @T.function
+        def main(B: T.Tensor((8,), "int32")):
+            with T.launch_thread("blockIdx.x", 8) as i:
+                with T.launch_thread("threadIdx.x", 1) as j:  # noqa: F841
                     B[i] = i
 
-    executable = tvm.compile(Module, target="webgpu")
+    executable = tvm.tirx.compile(Module, target="webgpu")
     source = executable.mod.imports[0].inspect_source("wgsl")
     assert re.search(r"blockIdx\.x >= \w+\.packGridDimX\) \{ return; \}", source)
 

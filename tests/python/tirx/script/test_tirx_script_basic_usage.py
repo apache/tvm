@@ -26,22 +26,20 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import ir, tirx
-from tvm.ir import PointerType, PrimType, assert_structural_equal
+from tvm.ir import PrimType, PtrType, assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 
 
 def test_native_concise_scopes_unwind_with_their_parent():
     # Nested concise thread scopes must preserve the original variables in the constructed IR.
-    from tvm import tirx
 
     variables = []
 
     def observe(*items):
         variables.extend(items)
 
-    @T.prim_func
+    @T.function
     def main():
         bx = T.launch_thread("blockIdx.x", 2)
         tx = T.launch_thread("threadIdx.x", 32)
@@ -49,25 +47,25 @@ def test_native_concise_scopes_unwind_with_their_parent():
         T.evaluate(bx + tx)
 
     bx, tx = variables
-    body = main.body
-    assert isinstance(body, tirx.AttrStmt) and isinstance(body.body, tirx.AttrStmt)
-    assert body.node.var.same_as(bx) and body.body.node.var.same_as(tx)
-    assert body.body.body.value.a.same_as(bx) and body.body.body.value.b.same_as(tx)
+    body = main.body[0]
+    assert isinstance(body, tvm.ir.RegionStmt) and isinstance(body.body[0], tvm.ir.RegionStmt)
+    assert body.body_params[0].same_as(bx) and body.body[0].body_params[0].same_as(tx)
+    assert body.body[0].body[0].value.a.same_as(bx) and body.body[0].body[0].value.b.same_as(tx)
 
 
-def test_tir_buffer_annotation():
-    buffer_0 = T.Tensor((128, 128), "float32")
+def test_tir_tensor_annotation():
+    tensor_0 = T.Tensor((128, 128), "float32")
     assert (
-        isinstance(buffer_0, tirx.TensorType)
-        and list(buffer_0.shape) == [128, 128]
-        and buffer_0.dtype == ir.PrimType("float32")
+        isinstance(tensor_0, tirx.TensorType)
+        and list(tensor_0.shape) == [128, 128]
+        and tensor_0.dtype == ir.PrimType("float32")
     )
 
-    buffer_1 = T.Tensor((64, 64, 64), "int32")
+    tensor_1 = T.Tensor((64, 64, 64), "int32")
     assert (
-        isinstance(buffer_1, tirx.TensorType)
-        and list(buffer_1.shape) == [64, 64, 64]
-        and buffer_1.dtype == ir.PrimType("int32")
+        isinstance(tensor_1, tirx.TensorType)
+        and list(tensor_1.shape) == [64, 64, 64]
+        and tensor_1.dtype == ir.PrimType("int32")
     )
 
 
@@ -75,23 +73,23 @@ def test_tir_ptr_proxy():
     ptr_0 = T.handle("int32", "global")
     assert (
         isinstance(ptr_0, tirx.Var)
-        and isinstance(ptr_0.ty, ir.PointerType)
+        and isinstance(ptr_0.ty, ir.PtrType)
         and ptr_0.ty.element_type == ir.PrimType("int32")
-        and ptr_0.ty.storage_scope == "global"
+        and ptr_0.ty.scope == tvm.runtime.MemoryScope("global")
     )
 
     ptr_1 = T.handle("float32", "shared")
     assert (
         isinstance(ptr_1, tirx.Var)
-        and isinstance(ptr_1.ty, ir.PointerType)
+        and isinstance(ptr_1.ty, ir.PtrType)
         and ptr_1.ty.element_type == ir.PrimType("float32")
-        and ptr_1.ty.storage_scope == "shared"
+        and ptr_1.ty.scope == tvm.runtime.MemoryScope("shared")
     )
 
 
 def test_grid():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test():
         T.device_entry()
         for (*lvs,) in T.grid(10, (2, 12)):
@@ -108,12 +106,12 @@ def from_source(code):
 
 def test_range():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def test():
         l = T.meta_var([i for i in range(10)])  # noqa: E741
         T.evaluate(l[3])
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected():
         T.evaluate(3)
     # fmt: on
@@ -129,7 +127,7 @@ def test_scalar_annotation_syntax():
     """Test the scalar annotation syntax: x: T.int32 = init, x: T.int32, and T.let."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test():
         T.device_entry()
                 # Scalar with init value
@@ -155,7 +153,7 @@ def test_let_annotation_syntax():
     """Test explicit LetStmt syntax: T.let[T.int32] and T.let."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test():
         blockIdx_x = T.launch_thread("blockIdx.x", 4)
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
@@ -175,12 +173,12 @@ def test_let_annotation_syntax():
 
 
 def test_tuple_let_binding_and_traversal():
-    @T.prim_func
+    @T.function
     def from_list(x: T.int32, y: T.float32) -> T.int32:
         pair: T.let = [x, (y,)]
         return pair[0]
 
-    @T.prim_func
+    @T.function
     def from_tuple(x: T.int32, y: T.float32) -> T.int32:
         pair: T.let = (x, (y,))
         return pair[0]
@@ -188,7 +186,7 @@ def test_tuple_let_binding_and_traversal():
     def tuple_value(func):
         visited = []
         tvm_ffi.structural_walk(func.body, visited.append)
-        bind = next(node for node in visited if isinstance(node, tvm.tirx.Bind))
+        bind = next(node for node in visited if isinstance(node, tvm.ir.Bind))
         return bind.value
 
     list_value = tuple_value(from_list)
@@ -206,15 +204,15 @@ def test_tuple_let_binding_and_traversal():
 def test_annotation_syntax_comprehensive():
     """Comprehensive test for scalar annotation, T.let, banned annotations, and bare assignment."""
 
-    # 1. T.let with T.Var(PointerType) — round-trip
+    # 1. T.let with T.Var(PtrType) — round-trip
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_let_var():
         T.device_entry()
         smem = T.alloc_shared([128], "float16")
-        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("void")))] = T.reinterpret(
-            "handle", smem.access_ptr("rw")
-        )
+        ptr: T.let[T.Var(name="ptr", ty=PtrType(PrimType("void")))] = T.reinterpret(
+             smem.ptr_to([0] * len(smem.shape))
+        , ty="handle")
         T.evaluate(ptr)
         # fmt: on
     code = test_let_var.script()
@@ -223,7 +221,7 @@ def test_annotation_syntax_comprehensive():
     # 2. Banned: handle as scalar annotation
     src_handle = """
 from tvm.script import tirx as T
-@T.prim_func
+@T.function
 def func():
     x: T.handle = T.int64(0)
 """
@@ -233,17 +231,17 @@ def func():
     # 3. Banned: non-PrimType annotation without T.let
     src_ptr = """
 from tvm.script import tirx as T
-from tvm.ir import PointerType, PrimType
-@T.prim_func
+from tvm.ir import PtrType, PrimType
+@T.function
 def func():
-    x: T.Var(name="x", ty=PointerType(PrimType("float16"))) = T.int64(0)
+    x: T.Var(name="x", ty=PtrType(PrimType("float16"))) = T.int64(0)
 """
     with pytest.raises(tvm.error.InternalError):
         from_source(src_ptr)
 
     # 4. An explicit mutable scalar declaration retains updates — round-trip
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_bare_assign():
         T.device_entry()
         tid = T.launch_thread("threadIdx.x", 128)
@@ -257,23 +255,23 @@ def func():
 
 def test_pointer_expression_assignment_uses_bind():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func() -> None:
         T.device_entry()
-        buf = T.alloc_tensor((4,), "uint32", scope="shared")
+        buf = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         ptr = buf.ptr_to([1])
-        T.evaluate(T.reinterpret("uint64", ptr))
+        T.evaluate(T.reinterpret( ptr, ty="uint64"))
     # fmt: on
 
     binds = []
 
     def collect_pointer_bind(node):
-        if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType):
+        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PtrType):
             binds.append(node)
 
     tvm_ffi.structural_walk(func.body, collect_pointer_bind)
     assert len(binds) == 1
-    assert isinstance(binds[0].var.ty, PointerType)
+    assert isinstance(binds[0].var.ty, PtrType)
     assert_structural_equal(binds[0].var.ty, binds[0].value.ty)
 
     code = func.script()
@@ -287,26 +285,26 @@ def test_pointer_expression_rebinding_creates_distinct_native_bindings():
     # ptr = X.bind_(buf.ptr_to([1]), name="ptr"); X.emit_(X.evaluate(ptr))
     # Pointer expressions are ordinary immutable bindings.
     # fmt: off
-    @T.prim_func
+    @T.function
     def func() -> None:
         T.device_entry()
-        buf = T.alloc_tensor((4,), "uint32", scope="shared")
+        buf = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint32", scope="shared")])
         ptr = buf.ptr_to([0])
         ptr = buf.ptr_to([1])
-        T.evaluate(T.reinterpret("uint64", ptr))
+        T.evaluate(T.reinterpret( ptr, ty="uint64"))
     # fmt: on
 
     bindings, uses = [], []
 
     def collect(node):
-        if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType):
+        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PtrType):
             bindings.append(node)
-        elif isinstance(node, tvm.tirx.Evaluate):
+        elif isinstance(node, tvm.ir.Evaluate):
             uses.append(node)
 
     tvm_ffi.structural_walk(func.body, collect)
     assert len(bindings) == 2
-    assert all(isinstance(binding.var.ty, PointerType) for binding in bindings)
+    assert all(isinstance(binding.var.ty, PtrType) for binding in bindings)
     assert not bindings[0].var.same_as(bindings[1].var)
     assert len(uses) == 1
     assert uses[0].value.args[0].same_as(bindings[1].var)
@@ -315,12 +313,12 @@ def test_pointer_expression_rebinding_creates_distinct_native_bindings():
 
 def test_pointer_expression_assignment_can_shadow_extra_var():
     source = """
-@T.prim_func
+@T.function
 def func() -> None:
     T.device_entry()
-    buf = T.alloc_tensor((4,), "uint32", scope="shared")
+    buf = T.alloc_tensor(ty_args=[T.Tensor((4,), T.uint32, scope="shared")])
     ptr = buf.ptr_to([1])
-    view = T.decl_tensor((3,), "uint32", data=ptr, scope="shared")
+    view = T.decl_tensor(ptr, ty_args=[T.Tensor((3,), T.uint32, scope="shared")])
     view[0] = T.uint32(0)
 """
     func = tvm.script.from_source(source, extra_vars={"T": T, "ptr": object()})
@@ -328,7 +326,7 @@ def func() -> None:
     binds = []
 
     def collect_pointer_bind(node):
-        if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType):
+        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PtrType):
             binds.append(node)
 
     tvm_ffi.structural_walk(func.body, collect_pointer_bind)
@@ -336,27 +334,44 @@ def func() -> None:
     assert_structural_equal(func, from_source(func.script()))
 
 
+def test_tensor_region_roundtrip():
+    @T.function
+    def func(A: T.Tensor((4, 4), "float32")):
+        T.cuda.tile.apply(T.ptx["sqrt.rn.f32"], A[0, 1:2], A[1, 2:3])
+
+    assert_structural_equal(func, from_source(func.script()))
+
+
 def test_roundtrip_unary_inplace():
-    """Single-arg unary ops (in-place) should round-trip."""
+    """Explicit unary input/output aliases should round-trip."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((128,), "float32", scope="global")) -> None:
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([1])
-        lane_id = T.lane_id([32])
-        Tx.warp.exp2(A[0:32])
-        Tx.warp.sqrt(A[32:64])
-        Tx.warp.reciprocal(A[64:96])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane_id = T.cuda.lane_id()
+        T.cuda.tile.apply(T.ptx['ex2.approx.ftz.f32'], A[0:32], A[0:32], scope='warp')
+        T.cuda.tile.apply(T.ptx['sqrt.rn.f32'], A[32:64], A[32:64], scope='warp')
+        T.cuda.tile.apply(T.ptx['div.rn.f32'], A[64:96], T.cast(1, A.dtype), A[64:96], scope='warp')
         # fmt: on
 
     code = test.script()
-    # Each op should appear with a single arg (no duplicate src, no trailing Nones)
-    assert 'T.warp.exp2(A[0:32])' in code, f"expected single-arg exp2, got:\n{code}"
-    assert 'T.warp.sqrt(A[32:64])' in code, f"expected single-arg sqrt, got:\n{code}"
-    assert 'T.warp.reciprocal(A[64:96])' in code, (
-        f"expected single-arg reciprocal, got:\n{code}"
+    # Opcode and explicit operand aliases survive printing.
+    expected = 'T.cuda.tile.apply("ex2.approx.ftz.f32", (A[0:32], A[0:32]), (), scope="warp")'
+    assert expected in code, (
+        f"expected explicit exp2, got:\n{code}"
+    )
+    assert 'T.cuda.tile.apply("sqrt.rn.f32", (A[32:64], A[32:64]), (), scope="warp")' in code, (
+        f"expected explicit sqrt, got:\n{code}"
+    )
+    expected = (
+        'T.cuda.tile.apply("div.rn.f32", (A[64:96], T.float32(1.0), A[64:96]), '
+        '(), scope="warp")'
+    )
+    assert expected in code, (
+        f"expected explicit reciprocal, got:\n{code}"
     )
     assert "None" not in code, f"trailing None args should be trimmed:\n{code}"
     assert from_source(code).script() == code
@@ -367,20 +382,21 @@ def test_roundtrip_unary_different_dst_src():
     """Unary ops with different dst and src should keep both args."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(
         A: T.Tensor((128,), "float32", scope="global"),
         B: T.Tensor((128,), "float32", scope="global"),
     ) -> None:
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([1])
-        lane_id = T.lane_id([32])
-        Tx.warp.exp2(A[0:32], B[0:32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane_id = T.cuda.lane_id()
+        T.cuda.tile.apply(T.ptx['ex2.approx.ftz.f32'], A[0:32], B[0:32], scope='warp')
         # fmt: on
 
     code = test.script()
-    assert 'T.warp.exp2(A[0:32], B[0:32])' in code, (
+    expected = 'T.cuda.tile.apply("ex2.approx.ftz.f32", (A[0:32], B[0:32]), (), scope="warp")'
+    assert expected in code, (
         f"different dst/src should keep both:\n{code}"
     )
     assert from_source(code).script() == code
@@ -391,13 +407,13 @@ def test_vector_annotation_syntax_1d():
     """Test x: T.f32[N] produces the same IR as T.alloc_local([N], 'float32')."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func():
         T.device_entry()
         v: T.float32[8]
         T.evaluate(v[0])  # noqa: F821
 
-    @T.prim_func
+    @T.function
     def func():  # noqa: F811
         T.device_entry()
         v = T.alloc_local([8], "float32")
@@ -408,7 +424,7 @@ def test_vector_annotation_syntax_1d():
         # Re-create the annotation version for comparison:
 
         # fmt: off
-    @T.prim_func
+    @T.function
     def annotation_func():
         T.device_entry()
         v: T.float32[8]
@@ -428,7 +444,7 @@ def test_vector_annotation_syntax_multidim():
     """Test x: T.f32[M, N] produces the same IR as T.alloc_local([M, N], 'float32')."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func():
         T.device_entry()
         m: T.float32[4, 8]
@@ -436,7 +452,7 @@ def test_vector_annotation_syntax_multidim():
         # fmt: on
 
     code = func.script()
-    assert "alloc_local((4, 8)" in code or "float32[4, 8]" in code
+    assert ('alloc_tensor(ty_args=[T.Tensor((4, 8), T.float32, scope="local"') in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
 
@@ -445,7 +461,7 @@ def test_vector_annotation_shorthand_aliases():
     """Test shorthand aliases: T.f32, T.i32, T.f16, etc."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func():
         T.device_entry()
         a: T.f32[4]
@@ -463,7 +479,7 @@ def test_scalar_annotation_shorthand():
     """Test x: T.f32 (scalar) shorthand produces same IR as x: T.float32."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func():
         T.device_entry()
         x: T.f32 = 0
@@ -483,7 +499,7 @@ def test_vector_annotation_with_python_variable_size():
     vec_size = 16
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func():
         T.device_entry()
         v: T.f16[vec_size]
@@ -522,40 +538,40 @@ def test_module_string_constants_keep_common_constructor_values():
 
 
 def test_thread_return_is_distinct_from_function_return():
-    @T.prim_func
+    @T.function
     def thread_exit():
-        T.thread_return()
+        T.gpu_thread_return()
 
-    @T.prim_func
+    @T.function
     def function_exit():
         return 0
 
-    assert isinstance(thread_exit.body, tirx.Evaluate)
-    assert thread_exit.body.value.op.name == "tirx.thread_return"
-    assert isinstance(function_exit.body, tirx.Return)
-    assert isinstance(function_exit.body.value, tirx.IntImm)
-    assert function_exit.body.value.value == 0
+    assert isinstance(thread_exit.body[0], tvm.ir.Evaluate)
+    assert thread_exit.body[0].value.op.name == "tirx.gpu_thread_return"
+    assert isinstance(function_exit.body[0], tvm.ir.Return)
+    assert isinstance(function_exit.body[0].value, tirx.IntImm)
+    assert function_exit.body[0].value.value == 0
 
 
 def test_loop_control_validation_preserves_valid_and_unchecked_ir():
     # Invalid loop placement must be rejected, while disabled checks preserve the original IR.
     from tvm import error, ir, tirx
 
-    invalid = tirx.PrimFunc(params=[], body=tirx.Break())
+    invalid = tirx.Function(params=[], body=tvm.ir.Break())
 
     # Direct construction retains the native statement for an explicit verifier pass.
-    ir.assert_structural_equal(invalid.body, tirx.Break())
+    ir.assert_structural_equal(invalid.body, tvm.ir.SeqStmt([tvm.ir.Break()]))
     assert not tirx.analysis.verify_well_formed(invalid, assert_mode=False)
     with pytest.raises(error.InternalError, match="requires an enclosing loop"):
         tirx.analysis.verify_well_formed(invalid)
 
-    @T.prim_func
+    @T.function
     def valid():
         for i in range(2):
             break
 
-    assert isinstance(valid.body, tirx.For)
-    ir.assert_structural_equal(valid.body.body, invalid.body)
+    assert isinstance(valid.body[0], tvm.ir.For)
+    ir.assert_structural_equal(valid.body[0].body, invalid.body)
 
     @I.ir_module(check_well_formed=False, extra_vars={"invalid": invalid})
     class Unchecked:
@@ -571,7 +587,7 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
 
 def test_roundtrip_break_for():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
@@ -587,11 +603,11 @@ def test_roundtrip_break_for():
 
 def test_roundtrip_break_while():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
-        i = T.alloc_tensor((1,), "int32", scope="local")
+        i = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         i[0] = 0
         while i[0] < 10:
             A[i[0]] = i[0] * 2
@@ -606,11 +622,11 @@ def test_roundtrip_break_while():
 
 def test_roundtrip_break_nested():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((9,), 'int32')):
 
         T.device_entry()
-        idx = T.alloc_tensor((1,), "int32", scope="local")
+        idx = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         idx[0] = 0
         for i in T.serial(3):
             for j in T.serial(3):
@@ -626,7 +642,7 @@ def test_roundtrip_break_nested():
 
 def test_roundtrip_continue_for():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
@@ -642,11 +658,11 @@ def test_roundtrip_continue_for():
 
 def test_roundtrip_continue_while():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
-        i = T.alloc_tensor((1,), "int32", scope="local")
+        i = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         i[0] = 0
         while i[0] < 10:
             if (i[0] % 2) == 1:
@@ -662,11 +678,11 @@ def test_roundtrip_continue_while():
 
 def test_roundtrip_continue_nested():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((9,), 'int32')):
 
         T.device_entry()
-        idx = T.alloc_tensor((1,), dtype="int32", scope="local")
+        idx = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         idx[0] = 0
         for i in T.serial(3):
             for j in T.serial(3):
@@ -682,7 +698,7 @@ def test_roundtrip_continue_nested():
 
 def test_roundtrip_break_and_continue():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
@@ -700,7 +716,7 @@ def test_roundtrip_break_and_continue():
 
 def test_roundtrip_unreachable_after_break():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((5,), 'int32')):
 
         T.device_entry()
@@ -719,15 +735,15 @@ def test_roundtrip_serial_unroll_false():
     """T.serial(N, unroll=False) should round-trip."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([1])
-        lane_id = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane_id = T.cuda.lane_id()
         for _ in T.serial(10, unroll=False):
-            Tx.cta.fill(A[0:32], T.float32(0))
+            T.cuda.tile.apply(T.ptx['mov.b32'], A[0:32], T.float32(0), scope='cta')
         # fmt: on
 
     code = test.script()
@@ -741,15 +757,15 @@ def test_roundtrip_serial_unroll_true():
     """T.serial(N, unroll=True) should round-trip as a pragma-unroll request."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([1])
-        lane_id = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane_id = T.cuda.lane_id()
         for _ in T.serial(10, unroll=True):
-            Tx.cta.fill(A[0:32], T.float32(0))
+            T.cuda.tile.apply(T.ptx['mov.b32'], A[0:32], T.float32(0), scope='cta')
         # fmt: on
 
     code = test.script()
@@ -763,15 +779,15 @@ def test_roundtrip_serial_unroll_count():
     """T.serial(N, unroll=2) should preserve the requested unroll count."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([1])
-        lane_id = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane_id = T.cuda.lane_id()
         for _ in T.serial(10, unroll=2):
-            Tx.cta.fill(A[0:32], T.float32(0))
+            T.cuda.tile.apply(T.ptx['mov.b32'], A[0:32], T.float32(0), scope='cta')
         # fmt: on
 
     code = test.script()
@@ -785,15 +801,15 @@ def test_roundtrip_serial_unroll_false_with_other_annotations():
     """When other annotations exist alongside disable_unroll, fall back to full dict."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([1])
-        lane_id = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane_id = T.cuda.lane_id()
         for _ in T.serial(10, annotations={"disable_unroll": True, "custom": 42}):
-            Tx.cta.fill(A[0:32], T.float32(0))
+            T.cuda.tile.apply(T.ptx['mov.b32'], A[0:32], T.float32(0), scope='cta')
         # fmt: on
 
     code = test.script()
@@ -804,14 +820,14 @@ def test_roundtrip_serial_unroll_false_with_other_annotations():
 
 def test_loop_var_dtype_uint32():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((128,), 'float32')):
 
         for i in T.serial(128, dtype="uint32"):
             A[i] = T.float32(1)
     # fmt: on
 
-    loop = func.body
+    loop = func.body[0]
     assert loop.loop_var.ty == PrimType("uint32")
     assert loop.min.ty == PrimType("uint32")
     assert loop.extent.ty == PrimType("uint32")
@@ -826,14 +842,14 @@ def _assert_roundtrip(func):
 
 def test_loop_var_dtype_uint32_with_step():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((128,), 'float32')):
 
         for i in T.serial(4, 128, step=2, dtype="uint32"):
             A[i] = T.float32(1)
     # fmt: on
 
-    loop = func.body
+    loop = func.body[0]
     assert loop.loop_var.ty == PrimType("uint32")
     assert loop.min.ty == PrimType("uint32")
     assert loop.extent.ty == PrimType("uint32")
@@ -844,42 +860,42 @@ def test_loop_var_dtype_uint32_with_step():
 @pytest.mark.parametrize("for_kind", ["serial", "parallel", "vectorized", "unroll"])
 def test_loop_var_dtype_uint32_all_for_kinds(for_kind):
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((4,), 'float32')):
 
         for i in getattr(T, for_kind)(4, dtype="uint32"):
             A[i] = T.float32(1)
     # fmt: on
 
-    assert func.body.loop_var.ty == PrimType("uint32")
+    assert func.body[0].loop_var.ty == PrimType("uint32")
     _assert_roundtrip(func)
 
 
 def test_grid_loop_var_dtype_uint32():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((8, 16), 'float32')):
 
         for i, j in T.grid(8, 16, dtype="uint32"):
             A[i, j] = T.float32(1)
     # fmt: on
 
-    outer = func.body
+    outer = func.body[0]
     assert outer.loop_var.ty == PrimType("uint32")
-    assert outer.body.loop_var.ty == PrimType("uint32")
+    assert outer.body[0].loop_var.ty == PrimType("uint32")
     _assert_roundtrip(func)
 
 
 def test_loop_var_dtype_defaults_to_int32():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((128,), 'float32')):
 
         for i in range(128):
             A[i] = T.float32(1)
     # fmt: on
 
-    assert func.body.loop_var.ty == PrimType("int32")
+    assert func.body[0].loop_var.ty == PrimType("int32")
     _assert_roundtrip(func)
 
 
@@ -887,14 +903,14 @@ def test_loop_var_dtype_inferred_from_unsigned_extent():
     """A uint32 extent makes the loop var uint32 without an explicit dtype."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((128,), 'float32'), n: T.uint32):
 
         for i in range(n):
             A[i] = T.float32(1)
     # fmt: on
 
-    assert func.body.loop_var.ty == PrimType("uint32")
+    assert func.body[0].loop_var.ty == PrimType("uint32")
     _assert_roundtrip(func)
 
 
@@ -902,14 +918,14 @@ def test_loop_var_dtype_casts_mismatched_bound():
     """A non-literal bound of another dtype is cast to the requested loop dtype."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((128,), 'float32'), n: T.int32):
 
         for i in T.serial(n, dtype="uint32"):
             A[i] = T.float32(1)
     # fmt: on
 
-    loop = func.body
+    loop = func.body[0]
     assert loop.loop_var.ty == PrimType("uint32")
     assert loop.extent.ty == PrimType("uint32")
     _assert_roundtrip(func)
@@ -921,15 +937,10 @@ def test_loop_var_dtype_rejects_unsupported(dtype):
         T.serial(4, dtype=dtype)
 
 
-def test_thread_binding_has_no_dtype_parameter():
-    with pytest.raises(TypeError):
-        T.thread_binding(0, 128, "threadIdx.x", dtype="uint32")
-
-
 def test_hand_built_for_promotes_int_literal_bounds_to_uint32():
     """The For constructor retypes literal bounds to the loop var's dtype."""
     loop_var = tvm.tirx.Var("i", "uint32")
-    loop = tvm.tirx.For(loop_var, 0, 128, tvm.tirx.ForKind.SERIAL, tvm.tirx.Evaluate(0))
+    loop = tvm.ir.For(loop_var, 0, 128, tvm.ir.ForKind.DEFAULT, tvm.ir.Evaluate(0))
     assert loop.min.ty == PrimType("uint32")
     assert loop.extent.ty == PrimType("uint32")
 
@@ -937,4 +948,4 @@ def test_hand_built_for_promotes_int_literal_bounds_to_uint32():
 def test_hand_built_for_rejects_negative_literal_for_uint32():
     loop_var = tvm.tirx.Var("i", "uint32")
     with pytest.raises(Exception, match="not representable"):
-        tvm.tirx.For(loop_var, -1, 128, tvm.tirx.ForKind.SERIAL, tvm.tirx.Evaluate(0))
+        tvm.ir.For(loop_var, -1, 128, tvm.ir.ForKind.DEFAULT, tvm.ir.Evaluate(0))

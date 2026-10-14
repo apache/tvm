@@ -20,9 +20,9 @@ import tempfile
 import pytest
 
 import tvm
-from tvm.ir.utils import derived_object
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.schedule import Schedule
+from tvm.s_tir.utils import derived_object
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
@@ -31,7 +31,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class Matmul:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((1024, 1024), "float32"),
         B: T.Tensor((1024, 1024), "float32"),

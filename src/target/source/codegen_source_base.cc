@@ -35,7 +35,7 @@ void CodeGenSourceBase::ClearFuncState() {
 }
 
 std::string CodeGenSourceBase::SSAGetID(std::string src, const Type& t) {
-  TVM_FFI_ICHECK(t.as<PrimTypeNode>() || t.as<PointerTypeNode>())
+  TVM_FFI_ICHECK(t.as<PrimTypeNode>() || t.as<PtrTypeNode>())
       << "Cannot assign an SSA value of type " << t;
   if (name_supply_->ContainsName(src)) return src;
   auto it = ssa_assign_map_.find(src);
@@ -54,9 +54,9 @@ std::string CodeGenSourceBase::SSAGetID(std::string src, const Type& t) {
   return e.vid;
 }
 
-std::string CodeGenSourceBase::AllocVarID(const tirx::VarNode* v) { return AllocVarID(v, v->name); }
+std::string CodeGenSourceBase::AllocVarID(const tvm::VarNode* v) { return AllocVarID(v, v->name); }
 
-std::string CodeGenSourceBase::AllocVarID(const tirx::VarNode* v, std::string name_hint) {
+std::string CodeGenSourceBase::AllocVarID(const tvm::VarNode* v, std::string name_hint) {
   TVM_FFI_ICHECK(!var_idmap_.count(v)) << "Need input to be in SSA form dup " << v->name;
   std::string vid = name_supply_->FreshName(name_hint);
   std::replace(vid.begin(), vid.end(), ':', '_');
@@ -66,7 +66,7 @@ std::string CodeGenSourceBase::AllocVarID(const tirx::VarNode* v, std::string na
   return vid;
 }
 
-std::string CodeGenSourceBase::GetVarID(const tirx::VarNode* v) const {
+std::string CodeGenSourceBase::GetVarID(const tvm::VarNode* v) const {
   auto it = var_idmap_.find(v);
   TVM_FFI_ICHECK(it != var_idmap_.end()) << "Find undefined Variable " << v->name;
   return it->second;
@@ -153,7 +153,7 @@ void CodeGenSourceBase::PrintType(const PrimType& type, std::ostream& os) {  // 
 void CodeGenSourceBase::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*)
   if (auto* ptr = type.as<PrimTypeNode>()) {
     return PrintType(ffi::GetRef<PrimType>(ptr), os);
-  } else if (auto* ptr = type.as<PointerTypeNode>()) {
+  } else if (auto* ptr = type.as<PtrTypeNode>()) {
     PrintType(ptr->element_type, os);
     os << '*';
   } else if (IsVoidType(type)) {

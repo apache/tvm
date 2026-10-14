@@ -51,14 +51,14 @@ enum SignType { kPositive, kNegative, kZero, kUnknown };
  *        represent a set of integers in one dimension.
  * \sa IntSet
  */
-class IntSetNode : public ffi::Object {
+class IntSetObj : public ffi::Object {
  public:
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.IntSet", IntSetNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.IntSet", IntSetObj, ffi::Object);
 };
 
 /*!
- * \brief Managed reference to IntSetNode.
- * \sa IntSetNode
+ * \brief Managed reference to IntSetObj.
+ * \sa IntSetObj
  */
 class IntSet : public ffi::ObjectRef {
  public:
@@ -67,7 +67,7 @@ class IntSet : public ffi::ObjectRef {
    * \param max_range The range to be covered.
    * \return The covering range.
    */
-  Range CoverRange(Range max_range) const;
+  ffi::Optional<Range> CoverRange(ffi::Optional<Range> max_range) const;
   /*! \return Lower bound of the set */
   PrimExpr min() const;
   /*! \return upper bound of the set */
@@ -158,7 +158,7 @@ class IntSet : public ffi::ObjectRef {
    */
   static IntSet Interval(PrimExpr min, PrimExpr max);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntSet, ffi::ObjectRef, IntSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IntSet, ffi::ObjectRef, IntSetObj);
 };
 
 //-----------------------------------------------
@@ -263,6 +263,15 @@ ffi::Array<IntSet> UnionRegionLowerBound(const ffi::Array<ffi::Array<IntSet>>& n
 IntSet Intersect(const ffi::Array<IntSet>& sets);
 
 /*!
+ * \brief Intersect two integer sets using the analyzer's bindings and constraints.
+ * \param lhs The first set.
+ * \param rhs The second set.
+ * \param analyzer The analyzer used to prove whether the intersection is empty.
+ * \return Nothing if emptiness is proved, or the intersected bounds otherwise.
+ */
+TVM_TIRX_DLL IntSet Intersect(const IntSet& lhs, const IntSet& rhs, const Analyzer& analyzer);
+
+/*!
  * \brief Converts the Ranges to IntSets
  * \param var_dom The ranges of variables
  * \return The integer sets of the variables
@@ -279,7 +288,7 @@ ffi::Map<Var, sym::IntSet> AsIntSet(const ffi::Map<Var, Range>& var_dom);
  * \return std::nullopt if the detection fails, or an array of sym::IntSet as the result of
  * analysis
  */
-TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(
+TVM_TIRX_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(
     const ffi::Array<Range>& region, const ffi::Map<Var, Range>& var_dom, const PrimExpr& predicate,
     const sym::Analyzer& analyzer);
 
@@ -293,7 +302,7 @@ TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(
  * \return std::nullopt if the detection fails, or an array of sym::IntSet as the result of
  * analysis
  */
-TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionLowerBound(
+TVM_TIRX_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionLowerBound(
     const ffi::Array<Range>& region, const ffi::Map<Var, Range>& var_dom, const PrimExpr& predicate,
     const sym::Analyzer& analyzer);
 
@@ -307,10 +316,10 @@ TVM_DLL ffi::Optional<ffi::Array<IntSet>> EstimateRegionLowerBound(
  * \param analyzer The analyzer used
  * \return an array of sym::IntSet as the result of analysis
  */
-TVM_DLL ffi::Array<IntSet> EstimateRegionUpperBound(const ffi::Array<Range>& region,
-                                                    const ffi::Map<Var, Range>& var_dom,
-                                                    const PrimExpr& predicate,
-                                                    const sym::Analyzer& analyzer);
+TVM_TIRX_DLL ffi::Array<IntSet> EstimateRegionUpperBound(const ffi::Array<Range>& region,
+                                                         const ffi::Map<Var, Range>& var_dom,
+                                                         const PrimExpr& predicate,
+                                                         const sym::Analyzer& analyzer);
 
 }  // namespace sym
 }  // namespace tvm

@@ -39,56 +39,6 @@ namespace tvm {
 namespace tirx {
 
 /*!
- * \brief Visit the PrimFuncs in the IRModule
- * \tparam FLambda The type of the PrimFunc visitor
- * \param mod The IRModule to be visited
- * \param fvisit The visitor to the PrimFuncs in the IRModule
- */
-template <class FLambda>
-inline void VisitPrimFuncs(const IRModule& mod, FLambda fvisit) {
-  for (const auto& kv : mod->functions) {
-    const BaseFunc& base_func = kv.second;
-    if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
-      fvisit(prim_func);
-    }
-  }
-}
-
-/*!
- * \brief Find undefined vars in the statement.
- * \param stmt The statement to be checked.
- * \param defs The vars that is defined.
- * \return Array of undefined vars.
- */
-TVM_DLL ffi::Array<Var> UndefinedVars(const Stmt& stmt, const ffi::Array<Var>& defs);
-
-/*!
- * \brief Find undefined vars in the expression.
- * \param expr The expression to be checked.
- * \return Array of undefined vars.
- */
-TVM_DLL ffi::Array<Var> UndefinedVars(const PrimExpr& expr);
-
-/*!
- * \brief Find undefined vars in the expression.
- * \param expr The expression to be checked.
- * \param defs The vars that is defined.
- * \return Array of undefined vars.
- */
-TVM_DLL ffi::Array<Var> UndefinedVars(const PrimExpr& expr, const ffi::Array<Var>& defs);
-
-/*!
- * \brief Verifies whether the IR stmt or Expr is in SSA form.
- *  That is: each Var is defined and assigned once(in Let/For)
- *
- * \param func The function to be verified.
- * \return Whether IR is in SSA form.
- *
- * \note All passes in TIR consume and produce SSA form.
- */
-TVM_DLL bool VerifySSA(const PrimFunc& func);
-
-/*!
  * \brief Verify if memory accesses are legal for a specific target device type.
  *
  *  In the case that tgt is cuda, if not all workload is bound with
@@ -98,28 +48,28 @@ TVM_DLL bool VerifySSA(const PrimFunc& func);
  * \param func The function to be verified.
  * \return Success of memory verification.
  */
-TVM_DLL bool VerifyMemory(const PrimFunc& func);
+TVM_TIRX_DLL bool VerifyMemory(const Function& func);
 
 /*!
  * \brief Calculate the expression complexity based on number of symbols it contains.
  * \param expr The expr to be calculated.
  */
-TVM_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
+TVM_TIRX_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
 
 /*!
- * \brief Calculate the constants size in bytes needed by the TIR allocates inside the TIR PrimFunc
- * \param func The TIR PrimFunc for which the constants size to be calculated
+ * \brief Calculate the constants size in bytes needed by the TIR allocates inside the TIR Function
+ * \param func The TIR Function for which the constants size to be calculated
  * \param constant_byte_alignment The byte alignment required for each constant allocated
  */
-TVM_DLL size_t CalculateConstantBytes(const PrimFunc& func, int64_t constant_byte_alignment);
+TVM_TIRX_DLL size_t CalculateConstantBytes(const Function& func, int64_t constant_byte_alignment);
 
 /*!
- * \brief Calculate the workspace size in bytes needed by the TIR allocates inside the TIR PrimFunc
- * \param func The TIR PrimFunc for which the workspace size to be calculated
+ * \brief Calculate the workspace size in bytes needed by the TIR allocates inside the TIR Function
+ * \param func The TIR Function for which the workspace size to be calculated
  * \param workspace_byte_alignment The byte alignment required for each tensor allocated in this
  * workspace
  */
-TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func, int64_t workspace_byte_alignment);
+TVM_TIRX_DLL size_t CalculateWorkspaceBytes(const Function& func, int64_t workspace_byte_alignment);
 
 /*!
  * \brief Verify if the given TIR is well-formed. The verification includes:
@@ -130,18 +80,22 @@ TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func, int64_t workspace_b
  *
  * - Each variable has a single point of definition.
  *
+ * - Tensor loads have consistent source, indices, and result types.
+ *
+ * - Loop control, tile-operation categories, and scope IDs are valid.
+ *
  * Dialect statements require their dialect-specific verifier.
  *
- * \param func The PrimFunc to be verified.
+ * \param func The Function to be verified.
  * \param assert_mode The indicator if it raises an error when the function is not well-formed.
  * \return Whether it is a well-formed TIR function.
  */
-TVM_DLL bool VerifyWellFormed(const PrimFunc& func, bool assert_mode = true);
+TVM_TIRX_DLL bool VerifyWellFormed(const Function& func, bool assert_mode = true);
 
 /*!
  * \brief Verify if the TIR in the given IRMOdule is well-formed.
  *
- * In addition to the checks performed for each PrimFunc (see above),
+ * In addition to the checks performed for each Function (see above),
  * the following checks are performed:
  *
  * - The same TIR variable may not be defined in more than one function
@@ -150,16 +104,16 @@ TVM_DLL bool VerifyWellFormed(const PrimFunc& func, bool assert_mode = true);
  * \param assert_mode The indicator if it raises an error when the function is not well-formed.
  * \return Whether it is a well-formed TIR module.
  */
-TVM_DLL bool VerifyWellFormed(const IRModule& mod, bool assert_mode = true);
+TVM_TIRX_DLL bool VerifyWellFormed(const IRModule& mod, bool assert_mode = true);
 
 /*!
  * \brief Find the entry function of the given IRModule, i.e, functions marked by
- * `tirx::attr::kIsEntryFunc`, whose name is `main` or being the only PrimeFunc.
+ * `tirx::attr::kIsEntryFunc`, whose name is `main` or being the only Function.
  * \param mod The IRModule to find the entry function.
  * \param result_g_var The result GlobalVar of the entry function.
  * \return The entry function.
  */
-const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var);
+const FunctionNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var);
 
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.
@@ -169,50 +123,12 @@ using tvm::transform::Pass;
 using tvm::transform::PassContext;
 
 /*!
- * \brief Pass variant of VerifySSA.
- *
- * \returns The pass.
- * \sa tvm::tirx::VerifySSA
- */
-TVM_DLL Pass VerifySSA();
-
-/*!
  * \brief Pass variant of VerifyMemory.
  *
  * \returns The pass.
  * \sa tvm::tirx::VerifyMemory
  */
-TVM_DLL Pass VerifyMemory();
-
-/*!
- * \brief Pass variant of VerifyGPUCode.
- *
- * \param constraints The dict to specify constraints to check.
- *
- * \returns The pass.
- * \sa tvm::tir::VerifyGPUCode
- */
-/******** TIRx analysis helpers ********/
-
-/*!
- * \brief Verify if the given TIRX is well-formed.
- * \param func The PrimFunc to be verified.
- * \param assert_mode The indicator if it raises an error when the function is not well-formed.
- * \param device_func The indicator if it is a device function.
- * \return Whether it is a well-formed TIRX function.
- */
-TVM_DLL bool VerifyTIRxWellFormed(const PrimFunc& func, bool assert_mode = true,
-                                  bool device_func = false);
-
-/*!
- * \brief Verify if the TIRX in the given IRMOdule is well-formed.
- * \param mod The IRModule to be verified.
- * \param assert_mode The indicator if it raises an error when the function is not well-formed.
- * \param device_func The indicator if it is a device function.
- * \return Whether it is a well-formed TIRX module.
- */
-TVM_DLL bool VerifyTIRxWellFormed(const IRModule& mod, bool assert_mode = true,
-                                  bool device_func = false);
+TVM_TIRX_DLL Pass VerifyMemory();
 
 }  // namespace transform
 }  // namespace tirx

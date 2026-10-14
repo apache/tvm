@@ -31,7 +31,7 @@ from tvm.relax.expr import (
     ExternFunc,
     Function,
     GlobalVar,
-    If,
+    IfExpr,
     MatchCast,
     SeqExpr,
     ShapeExpr,
@@ -119,8 +119,8 @@ class ASTPrinter(PyExprVisitor):
             self.visit_expr(arg)
         self.log.pop_scope()
 
-    def visit_if_(self, op: If) -> None:
-        self.log.add("If")
+    def visit_if_expr_(self, op: IfExpr) -> None:
+        self.log.add("IfExpr")
         self.log.push_scope()
         self.visit_expr(op.cond)
         self.visit_expr(op.true_branch)
@@ -239,9 +239,9 @@ class ASTPostPrinterMutator(PyExprMutator):
         self.log.add("Call")
         return op
 
-    def visit_if_(self, op: If) -> Expr:
+    def visit_if_expr_(self, op: IfExpr) -> Expr:
         op = self.visit_expr_post_order(op)
-        self.log.add("If")
+        self.log.add("IfExpr")
         return op
 
     def visit_op_(self, op: Op) -> Expr:
@@ -448,11 +448,11 @@ def test_call():
 
 
 def test_if():
-    if_node = relax.If(x, x, x)
+    if_node = relax.IfExpr(x, x, x)
     basic_check(
         if_node,
-        "\n".join(["If", "\tVar", "\tSeqExpr", "\t\tVar", "\tSeqExpr", "\t\tVar"]),
-        "\n".join(["Var", "Var", "SeqExpr", "Var", "SeqExpr", "If"]),
+        "\n".join(["IfExpr", "\tVar", "\tSeqExpr", "\t\tVar", "\tSeqExpr", "\t\tVar"]),
+        "\n".join(["Var", "Var", "SeqExpr", "Var", "SeqExpr", "IfExpr"]),
     )
 
 

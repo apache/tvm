@@ -727,7 +727,7 @@ def get_global_maxpool_expected_codegen(input_shape, pool_size, stride, padding,
 
 
 def get_dequant_matmul_module(K, N):
-    seq_len = T.dynamic("seq_len")
+    seq_len = T.dynamic("seq_len", "int64")
 
     @I.ir_module
     class DequantMatmul:
@@ -742,7 +742,7 @@ def get_dequant_matmul_module(K, N):
                 lv2 = relax.call_tir(
                     cls.dequantize,
                     (weight, scale),
-                    out_ty=R.Tensor((K, N), dtype="float16"),
+                    ty_args=[R.Tensor((K, N), dtype="float16")],
                 )
                 gv: R.Tensor((1, seq_len, N), dtype="float16") = relax.op.matmul(
                     input, lv2, out_dtype="float16"
@@ -750,7 +750,7 @@ def get_dequant_matmul_module(K, N):
                 R.output(gv)
             return gv
 
-        @Ts.prim_func
+        @Ts.function
         def dequantize(
             lm_head_q_weight1: T.Tensor((T.int64(K // 8), T.int64(N)), "uint32"),
             lm_head_q_scale1: T.Tensor((T.int64(K // 32), T.int64(N)), "float16"),
@@ -759,7 +759,7 @@ def get_dequant_matmul_module(K, N):
             T.func_attr({"tirx.noalias": T.bool(True)})
 
             # with Ts.sblock("root"):
-            compute = T.alloc_tensor((T.int64(K), T.int64(N)), "float16")
+            compute = T.alloc_tensor(ty_args=[T.Tensor((T.int64(K), T.int64(N)), "float16")])
             for i0, i1 in T.grid(T.int64(K), T.int64(N)):
                 with Ts.sblock("compute"):
                     v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
@@ -788,8 +788,8 @@ def get_dequant_matmul_module(K, N):
 
 
 def get_dequant_vec_matmul_module(K, N):
-    vocab_size_main = T.dynamic("vocab_size")
-    vocab_size_dequantize = T.dynamic("vocab_size")
+    vocab_size_main = T.dynamic("vocab_size", "int64")
+    vocab_size_dequantize = T.dynamic("vocab_size", "int64")
 
     @I.ir_module
     class DequantVecMatmul:
@@ -804,7 +804,7 @@ def get_dequant_vec_matmul_module(K, N):
                 lv2 = relax.call_tir(
                     cls.dequantize,
                     (weight, scale),
-                    out_ty=R.Tensor((K, vocab_size_main), dtype="float16"),
+                    ty_args=[R.Tensor((K, vocab_size_main), dtype="float16")],
                 )
                 gv: R.Tensor((1, 1, vocab_size_main), dtype="float16") = relax.op.matmul(
                     input, lv2, out_dtype="float16"
@@ -812,7 +812,7 @@ def get_dequant_vec_matmul_module(K, N):
                 R.output(gv)
             return gv
 
-        @Ts.prim_func
+        @Ts.function
         def dequantize(
             lm_head_q_weight1: T.Tensor((T.int64(K // 8), vocab_size_dequantize), "uint32"),
             lm_head_q_scale1: T.Tensor((T.int64(K // 32), vocab_size_dequantize), "float16"),
@@ -821,7 +821,9 @@ def get_dequant_vec_matmul_module(K, N):
             T.func_attr({"tirx.noalias": T.bool(True)})
 
             # with Ts.sblock("root"):
-            compute = T.alloc_tensor((T.int64(K), vocab_size_dequantize), "float16")
+            compute = T.alloc_tensor(
+                ty_args=[T.Tensor((T.int64(K), vocab_size_dequantize), "float16")]
+            )
             for i0, i1 in T.grid(T.int64(K), vocab_size_dequantize):
                 with Ts.sblock("compute"):
                     v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])

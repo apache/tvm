@@ -23,12 +23,12 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
 
 #include <utility>
 
@@ -47,7 +47,7 @@ class LoopCanonicalizer : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    if (is_zero(op->min) && op->HasTrivialStep()) {
+    if (IsZero(op->min) && op->HasTrivialStep()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     const auto* loop_var = op->loop_var.get();
@@ -88,14 +88,14 @@ class LoopCanonicalizer : public StmtExprMutator {
 namespace transform {
 
 Pass CanonicalizeLoop() {
-  auto pass_func = [=](PrimFunc func, IRModule m, PassContext ctx) {
-    PrimFuncNode* fptr = func.CopyOnWrite();
+  auto pass_func = [=](Function func, IRModule m, PassContext ctx) {
+    FunctionNode* fptr = func.CopyOnWrite();
     fptr->body = ffi::make_object<LoopCanonicalizer>()
                      ->Mutate(fptr->body, InplaceMode::kAllow)
                      .ValueOrUnchanged(std::move(fptr->body));
     return func;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.CanonicalizeLoop", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.CanonicalizeLoop");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -84,7 +84,7 @@ def test_jit_with_effect(debug):
     }
     mod = Layer()
 
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.ir.transform.PassContext(opt_level=3):
         model = mod.jit(spec=forward_spec, debug=debug)
 
     x0 = torch.rand((1, 10, 5), dtype=torch.float32)

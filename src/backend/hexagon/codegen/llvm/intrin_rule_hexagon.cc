@@ -20,7 +20,8 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <llvm/IR/Intrinsics.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op_attr_types.h>
 
 #include "../../../../target/llvm/intrin_rule_llvm.h"
@@ -45,7 +46,7 @@ inline PrimExpr TVMExternCall(const CallNode* call, const std::string& fname) {
   for (PrimExpr arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
     new_args.push_back(arg);
   }
-  return Call(call->ty.as_or_throw<PrimType>(), tirx::builtin::call_pure_extern(), new_args)
+  return Call(call->ty.as_or_throw<PrimType>(), tirx::call_pure_extern_op(), new_args)
       .as_or_throw<PrimExpr>();
 }
 
@@ -78,7 +79,7 @@ inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
   new_args.push_back(IntImm(PrimType::UInt(32), num_sign));
   ffi::Array<PrimExpr> call_args = call->args.as_or_throw<ffi::Array<PrimExpr>>();
   new_args.insert(new_args.end(), call_args.begin(), call_args.end());
-  return Call(call->ty.as_or_throw<PrimType>(), tirx::builtin::call_llvm_pure_intrin(), new_args)
+  return Call(call->ty.as_or_throw<PrimType>(), tirx::call_llvm_pure_intrin_op(), new_args)
       .as_or_throw<PrimExpr>();
 }
 
@@ -88,33 +89,31 @@ void RegisterHexagonIntrinRules() {
   registered = true;
 
   // clang-format off
-  OpDef("tirx.fma")
+  OpDef("prim.fma")
       .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
 
-  OpDef("tirx.log")
+  OpDef("prim.log")
       .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
 
-  OpDef("tirx.trunc")
+  OpDef("prim.trunc")
       .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::trunc, 1>);
 
-  OpDef("tirx.fabs")
+  OpDef("prim.fabs")
       .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::fabs, 1>);
 
-  OpDef("tirx.round")
+  OpDef("prim.round")
       .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
-  OpDef("tirx.ctpop")
-      .signature(sig::arg("x", "The input value."))
-      .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+  OpDef("prim.popcount")
       .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>);
 
-  OpDef("tirx.tanh")
+  OpDef("prim.tanh")
       .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic", [](const PrimExpr& e) {
     const CallNode* call = e.as<CallNode>();
     TVM_FFI_ICHECK(call != nullptr);
@@ -153,7 +152,7 @@ void RegisterHexagonIntrinRules() {
     return tanh_x;
   });
 
-  OpDef("tirx.tan")
+  OpDef("prim.tan")
       .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic", [](const PrimExpr& e) {
     const CallNode* call = e.as<CallNode>();
     TVM_FFI_ICHECK(call != nullptr);
@@ -181,11 +180,11 @@ void RegisterHexagonIntrinRules() {
     return tan_x;
   });
 
-  OpDef("tirx.nearbyint")
+  OpDef("prim.nearbyint")
       .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
-  OpDef("tirx.sigmoid")
+  OpDef("prim.sigmoid")
       .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic", [](const PrimExpr& e) {
     const CallNode* call = e.as<CallNode>();
     TVM_FFI_ICHECK(call != nullptr);
@@ -226,32 +225,32 @@ void RegisterHexagonIntrinRules() {
           "hexagon.FLowerIntrinsic",
           DispatchTVMQHLWrapperFp16<tvm_qhl_ahf_ceil, ::llvm::Intrinsic::ceil, 1>);
 
-  OpDef("tirx.cos")
+  OpDef("prim.cos")
       .set_attr<FLowerIntrinsic>(
           "hexagon.FLowerIntrinsic",
           DispatchTVMQHLWrapperFp16<tvm_qhl_ahf_cos, ::llvm::Intrinsic::cos, 1>);
 
-  OpDef("tirx.exp")
+  OpDef("prim.exp")
       .set_attr<FLowerIntrinsic>(
           "hexagon.FLowerIntrinsic",
           DispatchTVMQHLWrapperFp16<tvm_qhl_ahf_exp, ::llvm::Intrinsic::exp, 1>);
 
-  OpDef("tirx.floor")
+  OpDef("prim.floor")
       .set_attr<FLowerIntrinsic>(
           "hexagon.FLowerIntrinsic",
           DispatchTVMQHLWrapperFp16<tvm_qhl_ahf_floor, ::llvm::Intrinsic::floor, 1>);
 
-  OpDef("tirx.sin")
+  OpDef("prim.sin")
       .set_attr<FLowerIntrinsic>(
           "hexagon.FLowerIntrinsic",
           DispatchTVMQHLWrapperFp16<tvm_qhl_ahf_sin, ::llvm::Intrinsic::sin, 1>);
 
-  OpDef("tirx.pow")
+  OpDef("prim.pow")
       .set_attr<FLowerIntrinsic>(
           "hexagon.FLowerIntrinsic",
           DispatchTVMQHLWrapperFp16<tvm_qhl_ahf_pow, ::llvm::Intrinsic::pow, 2>);
 
-  OpDef("tirx.sqrt")
+  OpDef("prim.sqrt")
       .set_attr<FLowerIntrinsic>(
           "hexagon.FLowerIntrinsic",
           DispatchTVMQHLWrapperFp16<tvm_qhl_ahf_sqrt, ::llvm::Intrinsic::sqrt, 1>);

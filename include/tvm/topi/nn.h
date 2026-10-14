@@ -25,9 +25,9 @@
 #define TVM_TOPI_NN_H_
 
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/op.h>
 #include <tvm/topi/detail/constant_utils.h>
 #include <tvm/topi/reduction.h>
 #include <tvm/topi/tags.h>
@@ -155,8 +155,9 @@ inline tvm::te::Tensor prelu(const tvm::te::Tensor& x, const tvm::te::Tensor& sl
 inline tvm::te::Tensor pad(
     const tvm::te::Tensor& t, const tvm::ffi::Array<tvm::PrimExpr>& pad_before,
     tvm::ffi::Array<tvm::PrimExpr> pad_after = tvm::ffi::Array<tvm::PrimExpr>(),
-    PrimExpr pad_value = PrimExpr(), std::string name = "T_pad", std::string tag = kElementWise,
-    std::string pad_mode = "constant", const ffi::Array<PrimExpr>* dyn_output_shape = nullptr) {
+    ffi::Optional<PrimExpr> pad_value = std::nullopt, std::string name = "T_pad",
+    std::string tag = kElementWise, std::string pad_mode = "constant",
+    const ffi::Array<PrimExpr>* dyn_output_shape = nullptr) {
   using namespace tvm::prim;
   if (pad_after.size() < pad_before.size()) {
     for (size_t i = pad_after.size(); i < pad_before.size(); ++i) {
@@ -193,7 +194,7 @@ inline tvm::te::Tensor pad(
     }
   }
 
-  if (!pad_value.defined()) {
+  if (!pad_value.has_value()) {
     pad_value = tvm::prim::MakeConst(tvm::PrimType(t->dtype), 0);
   }
 
@@ -232,12 +233,12 @@ inline tvm::te::Tensor pad(
     if (sel.size() != 0) {
       if (pad_mode == "constant") {
         return tvm::if_then_else(
-            foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); },
+            foldl([](PrimExpr a, PrimExpr b, Location loc) { return tvm::logical_and(a, b, loc); },
                   IntImm::Bool(true), sel),
-            t(indices), pad_value);
+            t(indices), pad_value.value());
       } else if (pad_mode == "edge" || pad_mode == "reflect") {
         return tvm::if_then_else(
-            foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); },
+            foldl([](PrimExpr a, PrimExpr b, Location loc) { return tvm::logical_and(a, b, loc); },
                   IntImm::Bool(true), sel),
             t(indices), t(pad_idx));
       }
@@ -487,10 +488,9 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
                                          const tvm::ffi::Array<int64_t>& block_shape,
                                          const tvm::ffi::Array<tvm::PrimExpr>& pad_before,
                                          const tvm::ffi::Array<tvm::PrimExpr>& pad_after,
-                                         PrimExpr pad_value = PrimExpr(),
+                                         ffi::Optional<PrimExpr> pad_value = std::nullopt,
                                          std::string name = "space_to_batch_nd",
                                          std::string tag = kInjective) {
-  tvm::te::Tensor padded_t;
   TVM_FFI_ICHECK_EQ(pad_before.size(), pad_after.size());
   TVM_FFI_ICHECK_EQ(block_shape.size(), pad_before.size())
       << "Paddings must be provided for each spatial dimension";
@@ -509,10 +509,10 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
   }
 
   // pad the input with paddings provided
-  if (!pad_value.defined()) {
+  if (!pad_value.has_value()) {
     pad_value = tvm::prim::MakeConst(tvm::PrimType(data->dtype), 0);
   }
-  padded_t = pad(data, pad_before_int32, pad_after_int32, pad_value);
+  tvm::te::Tensor padded_t = pad(data, pad_before_int32, pad_after_int32, pad_value);
 
   auto input_shape = data->shape;
   auto padded_shape = padded_t->shape;
@@ -624,8 +624,7 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
     r_p_shape.push_back(in_shape[i]);
   }
 
-  tvm::te::Tensor out;
-  out = reshape(data, r_shape);
+  tvm::te::Tensor out = reshape(data, r_shape);
   out = transpose(out, axis);
   out = reshape(out, r_p_shape);
 
@@ -725,10 +724,9 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
                                    tvm::prim::MakeConst(tvm::PrimType(predictions->dtype), 0));
         },
         name, tag);
-    return topi::divide(topi::sum(T, tvm::ffi::Array<int64_t>(nullptr)),
-                        topi::sum(W, tvm::ffi::Array<int64_t>(nullptr)));
+    return topi::divide(topi::sum(T, std::nullopt), topi::sum(W, std::nullopt));
   } else if (reduction == "sum") {
-    return topi::sum(T, tvm::ffi::Array<int64_t>(nullptr));
+    return topi::sum(T, std::nullopt);
   } else {  // reduction == "none"
     return T;
   }

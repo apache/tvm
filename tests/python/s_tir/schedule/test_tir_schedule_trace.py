@@ -32,9 +32,9 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@Ts.prim_func
-def elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
-    B = Ts.sblock_alloc_buffer((128, 128))
+@Ts.function
+def elementwise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
+    B = Ts.sblock_alloc_tensor((128, 128))
 
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -46,8 +46,10 @@ def elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@Ts.prim_func
-def elementwise_inlined(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+@Ts.function
+def elementwise_inlined(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -88,7 +90,7 @@ def _make_split(inputs, outputs):  # pylint: disable=redefined-builtin
     return Instruction(
         kind=InstructionKind.get("Split"),
         inputs=inputs,
-        attrs=[T.bool(True), T.bool(False)],
+        attrs=[True, False],
         outputs=outputs,
     )
 
@@ -361,9 +363,11 @@ def _test_apply_annotation_trace_from_json(annotation: str):
     sch = tvm.s_tir.Schedule(elementwise, debug_mask="all")
     Trace.apply_json_to_schedule(json_obj, sch)
 
-    @Ts.prim_func
-    def elementwise_expected(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
-        B = Ts.sblock_alloc_buffer((128, 128))
+    @Ts.function
+    def elementwise_expected(
+        A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+    ) -> None:
+        B = Ts.sblock_alloc_tensor((128, 128))
 
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):

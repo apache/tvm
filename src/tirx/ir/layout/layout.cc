@@ -32,8 +32,6 @@ ffi::Map<ffi::String, PrimExpr> LayoutNode::Apply(const ffi::Array<PrimExpr>& co
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   auto def = refl::GlobalDef();
-  def.def("tirx.LayoutCompatibleWithShape",
-          [](Layout layout, Array<PrimExpr> shape) { return layout->CompatibleWithShape(shape); });
   def.def("tirx.LayoutVerifyWellFormed", [](Layout layout) { return layout->VerifyWellFormed(); });
   def.def("tirx.LayoutGetSize", [](Layout layout, ffi::Optional<ffi::String> axis_name) {
     return layout->GetSize(axis_name);
@@ -54,35 +52,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                 ffi::Array<PrimExpr> inner_shape) {
     return layout->Tile(outer, outer_shape, inner_shape);
   });
-  def.def("tirx.LayoutDirectSum",
-          [](Layout layout, TileLayout left, ffi::Array<PrimExpr> left_shape,
-             ffi::Array<PrimExpr> right_shape) {
-            return layout->DirectSum(left, left_shape, right_shape);
-          });
-  def.def("tirx.LayoutIsTileInner",
-          [](Layout layout, Layout tile_layout, ffi::Array<PrimExpr> tiled_shape,
-             ffi::Array<PrimExpr> inner_shape) {
-            return layout->IsTileInner(tile_layout, tiled_shape, inner_shape);
-          });
-  def.def("tirx.LayoutIsTileOuter",
-          [](Layout layout, Layout tile_layout, ffi::Array<PrimExpr> tiled_shape,
-             ffi::Array<PrimExpr> outer_shape) {
-            return layout->IsTileOuter(tile_layout, tiled_shape, outer_shape);
-          });
-  def.def("tirx.LayoutIsDirectSumRight",
-          [](Layout layout, Layout sum_layout, ffi::Array<PrimExpr> interleaved_shape,
-             ffi::Array<PrimExpr> right_shape) {
-            return layout->IsDirectSumRight(sum_layout, interleaved_shape, right_shape);
-          });
-  def.def("tirx.LayoutIsDirectSumLeft",
-          [](Layout layout, Layout sum_layout, ffi::Array<PrimExpr> interleaved_shape,
-             ffi::Array<PrimExpr> left_shape) {
-            return layout->IsDirectSumLeft(sum_layout, interleaved_shape, left_shape);
-          });
-  def.def("tirx.LayoutSlice",
-          [](Layout layout, ffi::Array<PrimExpr> shape, Region region) -> ffi::Optional<Layout> {
-            return layout->Slice(shape, region);
-          });
 }
 
 }  // namespace tirx

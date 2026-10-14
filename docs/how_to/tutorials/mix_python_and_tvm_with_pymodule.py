@@ -74,7 +74,7 @@ RUN_EXAMPLE = HAS_TORCH and not IS_IN_CI
 # The core idea: decorate a class with ``@R.py_module``, inherit from ``BasePyModule``, and use
 # three decorators for three kinds of functions:
 #
-# - ``@T.prim_func`` — low-level TIR kernel (JIT-compiled on instantiation)
+# - ``@T.function`` — low-level TIR kernel (JIT-compiled on instantiation)
 # - ``@R.function`` — high-level Relax graph (JIT-compiled on instantiation)
 # - ``@I.pyfunc`` — plain Python (runs as-is, can use any Python library)
 #
@@ -85,7 +85,7 @@ if RUN_EXAMPLE:
 
     @R.py_module
     class MyFirstModule(BasePyModule):
-        @Ts.prim_func
+        @Ts.function
         def add_tir(
             A: T.Tensor((4,), "float32"),
             B: T.Tensor((4,), "float32"),
@@ -131,7 +131,7 @@ if RUN_EXAMPLE:
 
     @R.py_module
     class DebugModule(BasePyModule):
-        @Ts.prim_func
+        @Ts.function
         def matmul_tir(
             A: T.Tensor((n, 4), "float32"),
             B: T.Tensor((4, 3), "float32"),
@@ -208,7 +208,7 @@ if RUN_EXAMPLE:
 
     @R.py_module
     class PipelineModule(BasePyModule):
-        @Ts.prim_func
+        @Ts.function
         def matmul_tir(
             A: T.Tensor((2, 4), "float32"),
             B: T.Tensor((4, 3), "float32"),
@@ -272,7 +272,7 @@ if RUN_EXAMPLE:
     # A simple Relax module: matmul + bias + relu (a dense layer)
     @I.ir_module
     class DenseLayer:
-        @Ts.prim_func
+        @Ts.function
         def bias_add_tir(
             x: T.Tensor((2, 4), "float32"),
             b: T.Tensor((4,), "float32"),
@@ -292,7 +292,7 @@ if RUN_EXAMPLE:
             h_bias = R.call_tir(
                 cls.bias_add_tir,
                 (h, b),
-                out_ty=R.Tensor((2, 4), "float32"),
+                ty_args=[R.Tensor((2, 4), "float32")],
             )
             return R.nn.relu(h_bias)
 
@@ -361,8 +361,8 @@ if RUN_EXAMPLE:
             x: R.Tensor((4, 8), "float32"),
         ) -> R.Tensor((4, 8), "float32"):
             # The VM calls back into Python for these two ops
-            h = R.call_py_func("layer_norm", (x,), out_ty=R.Tensor((4, 8), "float32"))
-            out = R.call_py_func("silu", (h,), out_ty=R.Tensor((4, 8), "float32"))
+            h = R.call_py_func("layer_norm", (x,), ty_args=[R.Tensor((4, 8), "float32")])
+            out = R.call_py_func("silu", (h,), ty_args=[R.Tensor((4, 8), "float32")])
             return out
 
     mod = HybridVMModule(device=tvm.cpu(0))
@@ -400,7 +400,7 @@ if RUN_EXAMPLE:
 
     @R.py_module
     class DynamicModule(BasePyModule):
-        @Ts.prim_func
+        @Ts.function
         def scale_tir(x: T.Tensor((n,), "float32"), out: T.Tensor((n,), "float32")):
             for i in T.serial(n):
                 out[i] = x[i] * T.float32(2.0)

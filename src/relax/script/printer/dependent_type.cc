@@ -17,11 +17,12 @@
  * under the License.
  */
 
+#include <tvm/script/printer/doc_translator.h>
+#include <tvm/script/printer/support.h>
 #include <tvm/tirx/type.h>
 
 #include <optional>
 
-#include "../../../script/printer/ir/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -30,15 +31,6 @@ namespace printer {
 namespace details {
 
 namespace {
-
-ffi::Optional<ExprDoc> AnyTypeDocTranslate(DocTranslatorObj*, ffi::AnyView, const ffi::Object*) {
-  return NamespaceDoc("relax")->Attr("Any");
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<AnyTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&AnyTypeDocTranslate>());
-}
 
 ffi::Optional<ExprDoc> ShapeTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                              const ffi::Object*) {
@@ -55,13 +47,15 @@ ffi::Optional<ExprDoc> ShapeTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::ShapeTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&ShapeTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&ShapeTypeDocTranslate>());
 }
 
-}  // namespace
-
-ExprDoc RelaxTensorTypeDoc(DocTranslatorObj* d, const relax::TensorTypeNode* ty,
-                           bool include_vdevice) {
+ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
+  const auto* ty =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::TensorTypeNode>(
+          input);
   ffi::Array<ExprDoc> args;
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
@@ -82,31 +76,21 @@ ExprDoc RelaxTensorTypeDoc(DocTranslatorObj* d, const relax::TensorTypeNode* ty,
     keys.push_back("ndim");
     values.push_back(LiteralDoc::Int(ty->ndim, std::nullopt));
   }
-  if (include_vdevice && ty->vdevice.has_value()) {
+  if (ty->vdevice.has_value()) {
     keys.push_back("vdevice");
     if (auto selector = GlobalInfoSelector(d, ty->vdevice.value())) {
       values.push_back(LiteralDoc::Str(selector.value(), std::nullopt));
     } else {
-      values.push_back(AnyValue(d, ty->vdevice.value()));
+      values.push_back(d->Translate(ty->vdevice.value()).value());
     }
   }
-  if (args.empty() && keys.empty()) return NamespaceDoc("relax")->Attr("Tensor");
   return NamespaceDoc("relax")->Attr("Tensor")->Call(args, keys, values);
-}
-
-namespace {
-
-ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object*) {
-  const auto* ty =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::TensorTypeNode>(
-          input);
-  return RelaxTensorTypeDoc(d, ty, true);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::TensorTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TensorTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&TensorTypeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> RelaxFuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -128,8 +112,8 @@ ffi::Optional<ExprDoc> RelaxFuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyVi
       keys.push_back("derive_func");
       values.push_back(LiteralDoc::Str(ty->derive_func.value()->name, std::nullopt));
     }
-    return keys.empty() ? NamespaceDoc("relax")->Attr("Callable")
-                        : NamespaceDoc("relax")->Attr("Callable")->Call({}, keys, values);
+    ExprDoc doc = NamespaceDoc("relax")->Attr("Callable");
+    return doc->Call({}, keys, values);
   }
   ffi::Array<ExprDoc> params;
   for (const Type& param : ty->params.value()) params.push_back(d->Translate(param).value());
@@ -141,7 +125,8 @@ ffi::Optional<ExprDoc> RelaxFuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::FuncTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&RelaxFuncTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&RelaxFuncTypeDocTranslate>());
 }
 
 }  // namespace

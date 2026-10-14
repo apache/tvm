@@ -26,9 +26,9 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
-        isinstance(node, tvm.tirx.Bind)
+        isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
         and isinstance(node.value.op, tvm.ir.Op)
         and node.value.op.name in op_names
@@ -50,16 +50,16 @@ def test_ssa_across_entire_module():
 
     @I.ir_module
     class before:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr({"global_symbol": "main", "target": T.target("cuda", host="llvm")})
             for i in range(16):
-                T.attr(0, "device_scope", 0)
+                T.region("tirx.device_scope", [])
                 for j in range(16):
                     T.evaluate(i)
 
     after = tvm.tirx.transform.SplitHostDevice()(before)
-    loop_var = after["main"].body.loop_var
+    loop_var = after["main"].body[0].loop_var
     param_var = after["main_kernel"].params[0]
 
     assert not loop_var.same_as(param_var)
@@ -70,20 +70,20 @@ def test_split_host_device():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
-            T.attr(T.target("cuda"), "target", 0)
+            T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")})
             T.evaluate(n)
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             T.call_ffi_kernel("main_kernel", n, launch_params=[])
 
-        @T.prim_func
+        @T.function
         def main_kernel(n: T.int32):
             T.func_attr(
                 {
@@ -106,21 +106,21 @@ def test_split_host_device_on_cpu():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
-            T.attr(T.target("llvm"), "target", 0)
+            T.region("tirx.device_scope", [], attrs={"target": T.target("llvm")})
             T.evaluate(n)
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
-            kernel_error_code: T.let[T.int32] = T.call_extern("int32", "main_kernel", n)
+            kernel_error_code: T.let[T.int32] = T.call_extern("main_kernel", n, ty="int32")
             assert kernel_error_code == 0, "Error executing compute kernel"
 
-        @T.prim_func
+        @T.function
         def main_kernel(n: T.int32) -> T.int32:
             T.func_attr(
                 {
@@ -141,13 +141,14 @@ def test_device_kernel_nonzero_return_is_rejected():
 
     device_target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     target = tvm.target.Target(device_target, host="llvm")
-    body = tvm.tirx.AttrStmt(
-        device_target,
-        "target",
-        0,
-        tvm.tirx.Return(tvm.tirx.IntImm("int32", 1)),
+    body = tvm.ir.RegionStmt(
+        tvm.ir.Op.get("tirx.device_scope"),
+        [],
+        [],
+        tvm.ir.DictAttrs({"target": device_target}),
+        tvm.ir.Return(tvm.tirx.IntImm("int32", 1)),
     )
-    func = tvm.tirx.PrimFunc([], body)
+    func = tvm.tirx.Function([], body)
     func = func.with_attr("global_symbol", "main")
     func = func.with_attr("target", target)
 
@@ -158,26 +159,26 @@ def test_device_kernel_nonzero_return_is_rejected():
 def test_split_host_device_without_func_host_attribute():
     """Like test_split_host_device, but no host specified in the host's target
 
-    The `T.attr` specifying the device still requires splitting out
+    The device scope region still requires splitting out
     the kernel.
     """
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr({"target": T.target("llvm")})
-            T.attr(T.target("cuda"), "target", 0)
+            T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")})
             T.evaluate(n)
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr({"target": T.target("llvm")})
             T.call_ffi_kernel("main_kernel", n, launch_params=[])
 
-        @T.prim_func
+        @T.function
         def main_kernel(n: T.int32):
             T.func_attr(
                 {
@@ -203,7 +204,7 @@ def test_split_host_device_without_device_region():
     attribute.
     """
 
-    @T.prim_func
+    @T.function
     def Before():
         T.func_attr({"target": T.target("ext_dev", host="llvm")})
         T.evaluate(0)
@@ -224,25 +225,25 @@ def test_split_host_device_name_collision():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
-            T.attr(T.target("cuda"), "target", 0)
+            T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")})
             T.evaluate(n)
 
-        @T.prim_func
+        @T.function
         def main_kernel():
             T.func_attr({"target": T.target("llvm")})
             T.evaluate(0)
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             T.call_ffi_kernel("main_kernel_1", n, launch_params=[])
 
-        @T.prim_func
+        @T.function
         def main_kernel_1(n: T.int32):
             T.func_attr(
                 {
@@ -256,7 +257,7 @@ def test_split_host_device_name_collision():
             )
             T.evaluate(n)
 
-        @T.prim_func
+        @T.function
         def main_kernel():
             T.func_attr({"target": T.target("llvm")})
             T.evaluate(0)
@@ -286,7 +287,7 @@ def test_dynamic_launch_thread():
 
     @I.ir_module
     class before:
-        @T.prim_func
+        @T.function
         def default_function(
             A: T.Tensor([seq_len], "int32"),  # noqa: F821
             B: T.Tensor([seq_len], "int32"),  # noqa: F821
@@ -295,7 +296,7 @@ def test_dynamic_launch_thread():
             T.func_attr({"target": T.target("cuda")})
 
             num_blocks: T.let[T.int32] = (seq_len + 127) // 128
-            with T.attr(T.target("cuda"), "target", 0):
+            with T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")}):
                 blockIdx_x = T.launch_thread("blockIdx.x", num_blocks)
                 threadIdx_x = T.launch_thread("threadIdx.x", 128)
                 if blockIdx_x * 128 + threadIdx_x < seq_len:
@@ -303,7 +304,7 @@ def test_dynamic_launch_thread():
 
     @I.ir_module
     class expected:
-        @T.prim_func
+        @T.function
         def default_function(
             A: T.Tensor((seq_len,), "int32"),  # noqa: F821
             B: T.Tensor((seq_len,), "int32"),  # noqa: F821
@@ -314,7 +315,7 @@ def test_dynamic_launch_thread():
             num_blocks: T.let[T.int32] = (seq_len + 127) // 128
             expected.default_function_kernel(A.data, B.data, num_blocks, seq_len)
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def default_function_kernel(
             A_data: T.handle("int32"),
             B_data: T.handle("int32"),
@@ -328,8 +329,8 @@ def test_dynamic_launch_thread():
                     "tirx.noalias": True,
                 }
             )
-            A = T.decl_tensor(seq_len, "int32", data=A_data)
-            B = T.decl_tensor(seq_len, "int32", data=B_data)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(seq_len, "int32", data=A_data)])
+            B = T.decl_tensor(B_data, ty_args=[T.Tensor(seq_len, "int32", data=B_data)])
             blockIdx_x = T.launch_thread("blockIdx.x", num_blocks)
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             if blockIdx_x * 128 + threadIdx_x < seq_len:
@@ -346,14 +347,14 @@ def test_symbolic_var_parameter():
 
     @I.ir_module
     class Module:
-        @T.prim_func
-        def main(A: T.Tensor((m,)), B: T.Tensor((m,))):
+        @T.function
+        def main(A: T.Tensor((m,), "float32"), B: T.Tensor((m,), "float32")):
             T.func_attr({"target": T.target("cuda")})
 
-            T.attr(T.target("cuda"), "target", 0)
+            T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")})
             blockIdx_x = T.launch_thread("blockIdx.x", m)
-            B_1 = T.decl_tensor((m,), data=B.data)
-            A_1 = T.decl_tensor((m,), data=A.data)
+            B_1 = T.decl_tensor(B.data, ty_args=[T.Tensor((m,), "float32", data=B.data)])
+            A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((m,), "float32", data=A.data)])
             B_1[blockIdx_x] = A_1[blockIdx_x]
 
     after = tvm.tirx.transform.SplitHostDevice()(Module)
@@ -361,34 +362,34 @@ def test_symbolic_var_parameter():
     assert isinstance(after["main_kernel"].params[2], tvm.tirx.Var)
 
 
-def test_buffer_used_only_through_data_projection():
+def test_tensor_used_only_through_data_projection():
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            with T.attr(T.target("cuda"), "target", 0):
-                T.evaluate(T.call_extern("consume", A.data, dtype="int32"))
+            with T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")}):
+                T.evaluate(T.call_extern("consume", A.data, ty="int32"))
 
     after = tvm.tirx.transform.SplitHostDevice()(Before)
     kernel = after["main_kernel"]
-    declared_buffers = []
+    declared_tensors = []
 
     def collect(node):
-        if _is_buffer_binding(node, "tirx.decl_tensor"):
-            declared_buffers.append(node.var)
+        if _is_tensor_binding(node, "tirx.decl_tensor"):
+            declared_tensors.append(node.var)
 
     tvm_ffi.structural_walk(kernel.body, collect)
-    assert len(declared_buffers) == 1
+    assert len(declared_tensors) == 1
     assert not tvm.tirx.analysis.undefined_vars(kernel.body, kernel.params)
 
 
 def test_thread_extent_region_extracted_as_device_kernel():
-    """A bare thread_extent is annotated and extracted as a device kernel."""
+    """A bare launch_thread is annotated and extracted as a device kernel."""
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(16, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             i = T.launch_thread("threadIdx.x", 16)
@@ -396,12 +397,12 @@ def test_thread_extent_region_extracted_as_device_kernel():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(16, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.call_ffi_kernel("main_kernel", A.data, 16, launch_params=["threadIdx.x"])
 
-        @T.prim_func
+        @T.function
         def main_kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -413,7 +414,7 @@ def test_thread_extent_region_extracted_as_device_kernel():
                     "tirx.is_global_func": True,
                 }
             )
-            A = T.decl_tensor(16, dtype="float32", data=A_data)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(16, "float32", data=A_data)])
             i = T.launch_thread("threadIdx.x", 16)
             A[i] = 0.0
 
@@ -424,7 +425,7 @@ def test_thread_extent_region_extracted_as_device_kernel():
 def test_cuda_launch_preserves_flag_metadata():
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(16, "float32")):
             T.func_attr(
                 {
@@ -435,7 +436,7 @@ def test_cuda_launch_preserves_flag_metadata():
                     ],
                 }
             )
-            T.attr(T.target("cuda"), "target", 0)
+            T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")})
             tx = T.launch_thread("threadIdx.x", 16)
             A[tx] = 0.0
 
@@ -446,7 +447,7 @@ def test_cuda_launch_preserves_flag_metadata():
         "tirx.use_programtic_dependent_launch",
     ]
 
-    launch = after["main"].body.value
+    launch = after["main"].body[0].value
     assert isinstance(launch, tvm.ir.Call)
     assert launch.op == tvm.ir.Op.get("tirx.call_ffi_kernel")
     assert isinstance(launch.attrs, tvm.tirx.CallFFIKernelAttr)
@@ -466,42 +467,57 @@ def test_cuda_launch_preserves_flag_metadata():
 def test_cuda_required_block_size_coexists_with_launch_bounds():
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(4, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            T.attr(T.target("cuda"), "target", 0)
-            T.attr(0, "tirx.required_block_size", 1)
-            with T.attr(0, "tirx.launch_bounds_min_blocks_per_sm", 1):
-                bx = T.launch_thread("blockIdx.x", 4)
-                tx = T.launch_thread("threadIdx.x", 128)
-                if tx == 0:
-                    A[bx] = 0.0
+            T.device_entry(
+                launch=T.cuda.LaunchConfig(grid=4, block=128),
+                kernel_attrs=T.cuda.KernelAttributes(required_block_size=True, min_blocks_per_sm=1),
+            )
+            bx = T.cuda.block_idx("x")
+            tx = T.cuda.thread_idx("x")
+            if tx == 0:
+                A[bx] = 0.0
 
-    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    with tvm.target.Target("cuda"):
+        after = tvm.tirx.transform.LowerTIRx()(Before)
+        after = tvm.tirx.transform.SplitHostDevice()(after)
     kernel = after["main_kernel"]
-    assert int(kernel.attrs["tirx.required_block_size"]) == 1
-    assert int(kernel.attrs["tirx.launch_bounds_min_blocks_per_sm"]) == 1
-    assert list(kernel.attrs["tirx.kernel_launch_params"]) == [
-        "blockIdx.x",
-        "threadIdx.x",
-        "tirx.use_required_block_dimension",
+    kernel_attrs = kernel.attrs["cuda.kernel_attrs"]
+    assert kernel_attrs["required_block_size"] == 1
+    assert kernel_attrs["required_block_x"] == 128
+    assert kernel_attrs["min_blocks_per_sm"] == 1
+    assert list(kernel.attrs["cuda.launch_fields"]) == [
+        "grid.x",
+        "grid.y",
+        "grid.z",
+        "block.x",
+        "block.y",
+        "block.z",
     ]
 
-    launch = after["main"].body.value
-    assert isinstance(launch, tvm.ir.Call)
-    # The required-block flag reaches FunctionInfo metadata but adds no packed operand.
-    assert len(launch.args) == 4
-    assert int(launch.args[-2]) == 4
-    assert int(launch.args[-1]) == 128
+    launches = []
+
+    def collect_launch(node):
+        if isinstance(node, tvm.ir.Call) and getattr(node.op, "name", "") == "tirx.call_ffi_kernel":
+            launches.append(node)
+
+    tvm_ffi.structural_walk(after["main"], collect_launch)
+    assert len(launches) == 1
+    launch = launches[0]
+    # Compile-time kernel attributes reach metadata without becoming packed operands.
+    assert launch.attrs.num_kernel_args == 1
+    assert len(launch.args) == 8
+    assert [int(arg) for arg in launch.args[-6:]] == [4, 1, 1, 128, 1, 1]
 
 
 def test_cuda_launch_preserves_singleton_cluster_dimensions():
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            with T.attr(T.target("cuda"), "target", 0):
+            with T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")}):
                 T.launch_thread("blockIdx.x", 4)
                 T.launch_thread("clusterCtaIdx.x", 1)
                 T.launch_thread("clusterCtaIdx.y", 1)
@@ -519,7 +535,7 @@ def test_cuda_launch_preserves_singleton_cluster_dimensions():
         "threadIdx.x",
     ]
 
-    launch = after["main"].body.value
+    launch = after["main"].body[0].value
     assert isinstance(launch, tvm.ir.Call)
     assert [int(arg) for arg in launch.args[-5:]] == [4, 1, 1, 1, 32]
 
@@ -529,20 +545,20 @@ def test_device_scope_region_extracted_as_device_kernel():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            T.attr(0, "device_scope", 0)
+            T.region("tirx.device_scope", [])
             A[0] = 0.0
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.call_ffi_kernel("main_kernel", A.data, launch_params=[])
 
-        @T.prim_func
+        @T.function
         def main_kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -554,8 +570,7 @@ def test_device_scope_region_extracted_as_device_kernel():
                     "tirx.is_global_func": True,
                 }
             )
-            A = T.decl_tensor(1, dtype="float32", data=A_data)
-            T.attr(0, "device_scope", 0)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(1, "float32", data=A_data)])
             A[0] = 0.0
 
     After = tvm.tirx.transform.SplitHostDevice()(Before)
@@ -567,25 +582,25 @@ def test_lower_device_kernel_launch():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
-        @T.prim_func
+        @T.function
         def kernel(A_data: T.handle("float32")):
             T.func_attr({"target": T.target("cuda")})
-            A = T.decl_tensor(1, dtype="float32", data=A_data)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(1, "float32", data=A_data)])
             A[0] = 0.0
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             T.call_ffi_kernel("kernel", A.data, launch_params=[])
 
-        @T.prim_func
+        @T.function
         def kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -596,7 +611,7 @@ def test_lower_device_kernel_launch():
                     "tirx.is_global_func": True,
                 }
             )
-            A = T.decl_tensor(1, dtype="float32", data=A_data)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(1, "float32", data=A_data)])
             A[0] = 0.0
 
     After = tvm.tirx.transform.SplitHostDevice()(Before)
@@ -608,25 +623,25 @@ def test_externally_visible_kernel_launch():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
-        @T.prim_func
+        @T.function
         def kernel(A_data: T.handle("float32")):
             T.func_attr({"target": T.target("cuda"), "global_symbol": "kernel_by_another_name"})
-            A = T.decl_tensor(1, dtype="float32", data=A_data)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(1, "float32", data=A_data)])
             A[0] = 0.0
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             T.call_ffi_kernel("kernel_by_another_name", A.data, launch_params=[])
 
-        @T.prim_func
+        @T.function
         def kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -637,7 +652,7 @@ def test_externally_visible_kernel_launch():
                     "tirx.is_global_func": True,
                 }
             )
-            A = T.decl_tensor(1, dtype="float32", data=A_data)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(1, "float32", data=A_data)])
             A[0] = 0.0
 
     After = tvm.tirx.transform.SplitHostDevice()(Before)
@@ -649,12 +664,12 @@ def test_collect_launch_parameter():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(16, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
-        @T.prim_func
+        @T.function
         def kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -662,18 +677,18 @@ def test_collect_launch_parameter():
                     "global_symbol": "kernel",
                 }
             )
-            A = T.decl_tensor(16, dtype="float32", data=A_data)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(16, "float32", data=A_data)])
             i = T.launch_thread("threadIdx.x", 16)
             A[i] = 0.0
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(16, "float32")):
             T.func_attr({"target": T.target("llvm")})
             T.call_ffi_kernel("kernel", A.data, 16, launch_params=["threadIdx.x"])
 
-        @T.prim_func
+        @T.function
         def kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -684,7 +699,7 @@ def test_collect_launch_parameter():
                     "tirx.is_global_func": True,
                 }
             )
-            A = T.decl_tensor(16, dtype="float32", data=A_data)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(16, "float32", data=A_data)])
             i = T.launch_thread("threadIdx.x", 16)
             A[i] = 0.0
 
@@ -697,25 +712,25 @@ def test_same_device_different_target():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
-        @T.prim_func
+        @T.function
         def kernel(A_data: T.handle("float32")):
             T.func_attr({"target": T.target("c")})
-            A = T.decl_tensor(16, dtype="float32", data=A_data)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(16, "float32", data=A_data)])
             A[0] = 0.0
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
-            T.call_extern("kernel", A.data, dtype="void")
+            T.call_extern("kernel", A.data, ty="void")
 
-        @T.prim_func
+        @T.function
         def kernel(A_data: T.handle("float32")):
             T.func_attr(
                 {
@@ -724,7 +739,7 @@ def test_same_device_different_target():
                     "tirx.is_global_func": True,
                 }
             )
-            A = T.decl_tensor(16, dtype="float32", data=A_data)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(16, "float32", data=A_data)])
             A[0] = 0.0
 
     After = tvm.tirx.transform.SplitHostDevice()(Before)
@@ -736,27 +751,27 @@ def test_bind_before_thread_extent():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(16, "float32"), n: T.int32):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data, n)
 
-        @T.prim_func
+        @T.function
         def kernel(A_data: T.handle("float32"), n: T.int32):
             T.func_attr({"target": T.target("cuda"), "global_symbol": "kernel"})
-            A = T.decl_tensor(16, dtype="float32", data=A_data)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(16, "float32", data=A_data)])
             v: T.let[T.int32] = n + 1
             i = T.launch_thread("threadIdx.x", v)
             A[i] = 0.0
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(16, "float32"), n: T.int32):
             T.func_attr({"target": T.target("llvm")})
             T.call_ffi_kernel("kernel", A.data, n, n + 1, launch_params=["threadIdx.x"])
 
-        @T.prim_func
+        @T.function
         def kernel(A_data: T.handle("float32"), n: T.int32):
             T.func_attr(
                 {
@@ -767,7 +782,7 @@ def test_bind_before_thread_extent():
                     "tirx.is_global_func": True,
                 }
             )
-            A = T.decl_tensor(16, dtype="float32", data=A_data)
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(16, "float32", data=A_data)])
             v: T.let[T.int32] = n + 1
             i = T.launch_thread("threadIdx.x", v)
             A[i] = 0.0

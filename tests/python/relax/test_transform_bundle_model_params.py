@@ -321,7 +321,7 @@ def test_primitive_model_param_is_materialized_outside_if_branches():
         binding.value
         for block in func.body.blocks
         for binding in block.bindings
-        if isinstance(binding, relax.VarBinding) and isinstance(binding.value, relax.If)
+        if isinstance(binding, relax.VarBinding) and isinstance(binding.value, relax.IfExpr)
     )
     for branch in [if_expr.true_branch, if_expr.false_branch]:
         match_cast = next(

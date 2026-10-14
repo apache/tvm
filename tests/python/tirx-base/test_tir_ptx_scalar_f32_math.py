@@ -24,7 +24,7 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func
+@T.function
 def ptx_scalar_f32_math(
     A: T.Tensor((32,), "float32"),
     B: T.Tensor((32,), "float32"),
@@ -33,10 +33,8 @@ def ptx_scalar_f32_math(
     C_max: T.Tensor((32,), "float32"),
 ) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    bx = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(bx, 1)
-    T.launch_thread(tx, 32)
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
     T.ptx.add.rn.f32(C_add[tx], A[tx], B[tx])
     T.ptx.mul.rn.f32(C_mul[tx], A[tx], B[tx])
     T.ptx.max.f32(C_max[tx], A[tx], B[tx])
@@ -46,7 +44,7 @@ def ptx_scalar_f32_math(
 @pytest.mark.skipif(not env.has_cuda_compute(7), reason="need cuda compute >= 7.0")
 def test_ptx_scalar_f32_math():
     f = ptx_scalar_f32_math
-    mod = tvm.compile(f, target="cuda")
+    mod = tvm.tirx.compile(f, target="cuda")
     rng = np.random.default_rng(0)
     A_np = rng.standard_normal(32).astype("float32")
     B_np = rng.standard_normal(32).astype("float32")

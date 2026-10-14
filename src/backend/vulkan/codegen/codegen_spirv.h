@@ -25,6 +25,7 @@
 #define TVM_TARGET_VULKAN_CODEGEN_SPIRV_H_
 
 #include <tvm/ir/prim/expr.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
@@ -37,7 +38,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../../runtime/thread_storage_scope.h"
 #include "../runtime/spirv_shader.h"
 #include "ir_builder.h"
 #include "spirv_support.h"
@@ -50,10 +50,10 @@ using namespace tirx;
 /*!
  * \brief Code generator into SPIRV
  */
-class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
+class CodeGenSPIRV : public tvm::ExprFunctor<spirv::Value(const Expr&)>,
                      public StmtFunctor<void(const Stmt&)> {
  public:
-  using tirx::ExprFunctor<spirv::Value(const Expr&)>::Dispatch;
+  using tvm::ExprFunctor<spirv::Value(const Expr&)>::Dispatch;
   using StmtFunctor::Dispatch;
 
   /*!
@@ -70,7 +70,7 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
    * \param name The name of the target function.
    * \return The final spirv module.
    */
-  virtual runtime::SPIRVShader BuildFunction(const PrimFunc& f, const std::string& name);
+  virtual runtime::SPIRVShader BuildFunction(const Function& f, const std::string& name);
   /*!
    * \brief Create Value for expression e
    * \param e The expression to be created value for.
@@ -114,13 +114,13 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   spirv::Value Dispatch_(const TensorLoadNode* op) override;
   spirv::Value Dispatch_(const prim::ShuffleNode* op) override;
   // stmt
-  void Dispatch_(const BufferStoreNode* op) override;
+  void Dispatch_(const TensorStoreNode* op) override;
   void Dispatch_(const ForNode* op) override;
   void Dispatch_(const WhileNode* op) override;
-  void Dispatch_(const IfThenElseNode* op) override;
+  void Dispatch_(const IfNode* op) override;
   void DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call);
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
-  void Dispatch_(const AttrStmtNode* op) override;
+  void Dispatch_(const RegionStmtNode* op) override;
   void Dispatch_(const AssertStmtNode* op) override;
   void Dispatch_(const BindNode* op) override;
   void Dispatch_(const SeqStmtNode* op) override;
@@ -129,7 +129,7 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
  protected:
   /*! \brief Storage information for a buffer */
   struct StorageInfo {
-    /*! \brief The name of the tirx::Var for the buffer
+    /*! \brief The name of the tvm::Var for the buffer
      *
      * Used for error messages.
      */
@@ -188,7 +188,7 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
 
   struct FragmentInfo {
     std::string shape;
-    std::string scope;
+    runtime::MemoryScope scope;
     spirv::SType stype;
     spv::StorageClass sclass;
   };
@@ -196,7 +196,8 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   // Reset the state so it works for a new function.
   void InitFuncState();
   // Get the thread index
-  spirv::Value GetThreadIndex(const IterVar& iv, const PrimExpr& extent);
+  spirv::Value GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag,
+                              const PrimExpr& extent);
 
   spirv::Value CreateStorageSync(const CallNode* op);
   void Scalarize(const PrimExpr& e, std::function<void(int i, spirv::Value v)> f);
@@ -229,6 +230,8 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   std::unordered_map<const VarNode*, StorageInfo> storage_info_;
 
   // The definition of local variable.
+  /*! \brief Extents of physical thread axes in the current function. */
+  std::unordered_map<std::string, PrimExpr> thread_extents_;
   std::unordered_map<const VarNode*, spirv::Value> var_map_;
 
   // The analyzer.

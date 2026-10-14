@@ -47,19 +47,18 @@ std::string ExtractStringWithPrefix(const std::string& str, const std::string& p
   return str.substr(prefix.length(), pos - prefix.length());
 }
 
-bool DetectDeviceFlag(Device device, runtime::DeviceAttrKind flag, ffi::Any* val) {
+bool DetectDeviceFlag(Device device, const ffi::String& name, ffi::Any* val) {
   using runtime::DeviceAPI;
   DeviceAPI* api = DeviceAPI::Get(device, true);
   if (api == nullptr) {
     return false;
   }
-  api->GetAttr(device, runtime::kExist, val);
-  int exists = val->cast<int>();
+  bool exists = api->GetAttr(device, "exist").cast<bool>();
   if (!exists) {
     return false;
   }
-  DeviceAPI::Get(device)->GetAttr(device, flag, val);
-  return true;
+  *val = api->GetAttr(device, name);
+  return val->type_index() != kTVMFFINone;
 }
 
 void CheckOrSetAttr(ffi::Map<ffi::String, ffi::Any>* attrs, const ffi::String& name,
@@ -92,7 +91,7 @@ ffi::Map<ffi::String, ffi::Any> UpdateROCmAttrs(ffi::Map<ffi::String, ffi::Any> 
 
   ffi::Any val;
   int version;
-  if (!DetectDeviceFlag({kDLROCM, 0}, runtime::kApiVersion, &val)) {
+  if (!DetectDeviceFlag({kDLROCM, 0}, "api_version", &val)) {
     LOG(WARNING) << "Unable to detect ROCm version, assuming >= 3.5";
     version = 305;
   } else {

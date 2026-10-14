@@ -495,20 +495,19 @@ struct SamplePerfectTileTraits : public UnpackedInstTraits<SamplePerfectTileTrai
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 1;
 
-  static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, IntImm n,
-                                                    IntImm max_innermost_factor,
-                                                    ffi::Optional<ffi::Array<int64_t>> decision) {
-    return sch->SamplePerfectTile(loop_rv, n->value.as<int>().value(),
-                                  max_innermost_factor->value.as<int>().value(), decision);
+  static ffi::Array<ffi::Optional<ExprRV>> UnpackedApplyToSchedule(
+      Schedule sch, LoopRV loop_rv, int n, int max_innermost_factor,
+      ffi::Optional<ffi::Array<int64_t>> decision) {
+    return sch->SamplePerfectTile(loop_rv, n, max_innermost_factor, decision);
   }
 
-  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
-                                      IntImm n, IntImm max_innermost_factor,
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv, int n,
+                                      int max_innermost_factor,
                                       ffi::Optional<ffi::Array<int64_t>> decision) {
     PythonAPICall py("sample_perfect_tile");
     py.Input("loop", loop_rv);
-    py.Input("n", n->value.as<int>().value());
-    py.Input("max_innermost_factor", max_innermost_factor->value.as<int>().value());
+    py.Input("n", n);
+    py.Input("max_innermost_factor", max_innermost_factor);
     py.Decision(decision);
     py.OutputList(outputs);
     return py.Str();
@@ -527,22 +526,20 @@ struct SamplePartitionedTileTraits : public UnpackedInstTraits<SamplePartitioned
   static constexpr size_t kNumAttrs = 3;
   static constexpr size_t kNumDecisions = 1;
 
-  static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, IntImm n,
-                                                    IntImm partition_pos, IntImm innerpart_factor,
+  static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, int n,
+                                                    int partition_pos, int innerpart_factor,
                                                     ffi::Optional<ffi::Array<int64_t>> decision) {
-    return sch->SamplePartitionedTile(loop_rv, n->value.as<int>().value(),
-                                      partition_pos->value.as<int>().value(),
-                                      innerpart_factor->value.as<int>().value(), decision);
+    return sch->SamplePartitionedTile(loop_rv, n, partition_pos, innerpart_factor, decision);
   }
 
-  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
-                                      IntImm n, IntImm partition_pos, IntImm innerpart_factor,
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv, int n,
+                                      int partition_pos, int innerpart_factor,
                                       ffi::Optional<ffi::Array<int64_t>> decision) {
     PythonAPICall py("sample_partitioned_tile");
     py.Input("loop", loop_rv);
-    py.Input("n", n->value.as<int>().value());
-    py.Input("partition_pos", partition_pos->value.as<int>().value());
-    py.Input("innerpart_factor", innerpart_factor->value.as<int>().value());
+    py.Input("n", n);
+    py.Input("partition_pos", partition_pos);
+    py.Input("innerpart_factor", innerpart_factor);
     py.Decision(decision);
     py.OutputList(outputs);
     return py.Str();

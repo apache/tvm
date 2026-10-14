@@ -1,0 +1,607 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Private implementation of derived :class:`Var` views."""
+
+from __future__ import annotations
+
+import functools
+import re
+from numbers import Integral
+from typing import TYPE_CHECKING
+
+import tvm
+from tvm.runtime import MemoryScope
+
+
+@functools.cache
+def _tmem_scope():
+    return MemoryScope("tmem")
+
+
+def _is_tmem_scope(scope):
+    try:
+        return scope == _tmem_scope()
+    except ValueError:
+        # Do not cache absence: an owning backend may register its scopes later.
+        return False
+
+
+if TYPE_CHECKING:
+    from tvm.ir import Var
+
+
+def _redecl(
+    buf: Var, shape, layout, *, dtype=None, elem_offset=None, addr_offset=None, strides=None
+):
+    """Re-declare a derived view over ``buf`` storage.
+
+    Routes the tensor identity by storage kind: a ``tmem`` tensor aliases by
+    column address, while every other scope carries
+    ``data``/``strides``/``elem_offset`` through.
+    """
+    if _is_tmem_scope(buf.scope()):
+        from tvm.backend.cuda.op import _tmem_address  # pylint: disable=import-outside-toplevel
+        from tvm.tirx.script.ir_builder.parser_protocol import (
+            bind_,  # pylint: disable=import-outside-toplevel
+        )
+
+        addr = _tmem_address(buf)
+        if addr_offset is not None:
+            addr = addr + addr_offset
+        ty = tvm.tirx.script.ir_builder.Tensor(
+            shape,
+            buf.dtype if dtype is None else dtype,
+            scope="tmem",
+            align=buf.data_alignment,
+            layout=layout,
+        )
+        return bind_(tvm.ir.Call("tirx.cuda.decl_tmem", [addr], ty_args=[ty]))
+    from tvm.tirx.script.ir_builder.parser_protocol import (  # pylint: disable=import-outside-toplevel
+        bind_,
+    )
+
+    tensor_type = tvm.tirx.script.ir_builder.Tensor(
+        shape,
+        buf.dtype if dtype is None else dtype,
+        strides=buf.strides if strides is None else strides,
+        elem_offset=buf.elem_offset if elem_offset is None else elem_offset,
+        scope=buf.scope(),
+        align=buf.data_alignment,
+        offset_factor=buf.offset_factor,
+        layout=layout,
+    )
+    return bind_(tvm.tirx.script.ir_builder.decl_tensor(buf.data, ty_args=[tensor_type]))
+
+
+def _strides(buf):
+    if buf.strides:
+        return list(buf.strides)
+    return tvm.tirx.layout.Layout._get_default_strides(list(buf.shape), 1)
+
+
+def _reshape_strides(buf, shape):
+    """Reshape contiguous stride groups without changing their storage addresses."""
+    analyzer = tvm.sym.Analyzer()
+    old_shape, old_strides = list(buf.shape), _strides(buf)
+    if not analyzer.can_prove_equal(
+        functools.reduce(lambda a, b: a * b, old_shape, 1),
+        functools.reduce(lambda a, b: a * b, shape, 1),
+    ):
+        raise ValueError("view: source and result must have equal element counts")
+    if not buf.strides:
+        return []
+    chunks = []
+    for extent, stride in reversed(list(zip(old_shape, old_strides))):
+        if analyzer.can_prove_equal(extent, 1):
+            continue
+        if chunks and analyzer.can_prove_equal(stride, chunks[-1][0] * chunks[-1][1]):
+            chunks[-1] = (analyzer.simplify(chunks[-1][0] * extent), chunks[-1][1])
+        else:
+            chunks.append((extent, stride))
+    result = [None] * len(shape)
+    i = len(shape) - 1
+    for extent, stride in chunks:
+        product = 1
+        while i >= 0:
+            result[i] = analyzer.simplify(product * stride)
+            product = analyzer.simplify(product * shape[i])
+            i -= 1
+            if analyzer.can_prove_equal(product, extent):
+                break
+        if not analyzer.can_prove_equal(product, extent):
+            raise ValueError("view: reshape crosses non-contiguous stride groups")
+    while i >= 0 and analyzer.can_prove_equal(shape[i], 1):
+        result[i] = analyzer.simplify(result[i + 1] * shape[i + 1]) if i + 1 < len(shape) else 1
+        i -= 1
+    if i >= 0:
+        raise ValueError("view: reshape crosses non-contiguous stride groups")
+    return result
+
+
+def view(buf: Var, *args, **kwargs) -> Var:
+    """Implement :meth:`TensorType.view`."""
+
+    def _infer_shape(shape):
+        shape = list(shape)
+        inferred = [i for i, dim in enumerate(shape) if _concrete_int(dim) == -1]
+        if len(inferred) > 1:
+            raise ValueError("view: at most one inferred dimension is allowed")
+        if inferred:
+            size = functools.reduce(lambda x, y: x * y, buf.shape)
+            n_size = functools.reduce(
+                lambda x, y: x * y, [s for i, s in enumerate(shape) if i != inferred[0]], 1
+            )
+            shape[inferred[0]] = size // n_size
+        else:
+            # A PrimExpr comparison returns an EQ node, not a Python bool.
+            if all(isinstance(s, int) for s in shape) and all(
+                isinstance(s, int) for s in buf.shape
+            ):
+                assert functools.reduce(lambda x, y: x * y, shape) == functools.reduce(
+                    lambda x, y: x * y, buf.shape
+                ), (
+                    "The shape of the tensor "
+                    + str(buf.shape)
+                    + " and the new shape "
+                    + str(shape)
+                    + " are not compatible"
+                )
+        return shape
+
+    if len(args) == 1 and isinstance(args[0], str | tvm.DataType) and not kwargs:
+        cast_dtype = tvm.DataType(args[0])
+        cur_dtype = tvm.DataType(buf.dtype)
+        storage_axis = "TCol" if _is_tmem_scope(buf.scope()) else "m"
+        if cast_dtype.bits > cur_dtype.bits:
+            assert cast_dtype.bits % cur_dtype.bits == 0
+            ratio = cast_dtype.bits // cur_dtype.bits
+            layout = None if buf.layout is None else buf.layout.pack(ratio, storage_axis)
+            shape = [s for s in buf.shape[:-1]] + [buf.shape[-1] // ratio]
+            new_elem_offset = buf.elem_offset // ratio
+        else:
+            assert cur_dtype.bits % cast_dtype.bits == 0
+            ratio = cur_dtype.bits // cast_dtype.bits
+            layout = None if buf.layout is None else buf.layout.unpack(ratio, storage_axis)
+            shape = [s for s in buf.shape[:-1]] + [buf.shape[-1] * ratio]
+            new_elem_offset = buf.elem_offset * ratio
+        strides = None
+        if buf.layout is None:
+            analyzer = tvm.sym.Analyzer()
+            source_strides = _strides(buf)
+            if not analyzer.can_prove_equal(source_strides[-1], 1):
+                raise ValueError("view(dtype): the last dimension must have unit stride")
+            if cast_dtype.bits > cur_dtype.bits:
+                if any(
+                    analyzer.can_prove(value % ratio != 0)
+                    for value in [buf.shape[-1], buf.elem_offset, *source_strides[:-1]]
+                ):
+                    raise ValueError(
+                        "view(dtype): shape, offset and strides must align to the new dtype"
+                    )
+                strides = [analyzer.simplify(value // ratio) for value in source_strides[:-1]] + [1]
+            else:
+                strides = [analyzer.simplify(value * ratio) for value in source_strides[:-1]] + [1]
+            if not buf.strides:
+                strides = []
+        return _redecl(
+            buf, shape, layout, dtype=cast_dtype, elem_offset=new_elem_offset, strides=strides
+        )
+
+    shape = args
+    assert all(
+        isinstance(arg, int) or (tvm.ir.is_prim_expr(arg) and arg.ty.dtype in ["int32", "int64"])
+        for arg in shape
+    ), "shape must be a list of integers or Exprs with dtype int32 or int64"
+    layout = kwargs.get("layout", None)
+    assert set(kwargs.keys()).issubset({"layout"}), (
+        f"Unsupported kwargs for view: {set(kwargs.keys()) - {'layout'}}"
+    )
+    if layout is None:
+        shape = _infer_shape(shape)
+    strides = (
+        [] if layout is not None else _reshape_strides(buf, shape) if buf.layout is None else None
+    )
+    return _redecl(buf, shape, buf.layout if layout is None else layout, strides=strides)
+
+
+def permute(buf: Var, *dims) -> Var:
+    """Implement :meth:`TensorType.permute`."""
+    if sorted(dims) != list(range(len(buf.shape))):
+        raise ValueError(f"permute: invalid dimensions {dims}")
+    new_shape = [buf.shape[d] for d in dims]
+    if buf.layout is None:
+        strides = _strides(buf)
+        return _redecl(buf, new_shape, None, strides=[strides[d] for d in dims])
+    layout, swizzle = _surgery_parts(buf)
+    grouped, seps = layout.group(list(buf.shape))
+    new_layout = grouped.permute_by_groups(seps, list(dims))
+    if swizzle is not None:
+        new_layout = _rewrap_swizzle(new_layout, swizzle)
+    return _redecl(buf, new_shape, new_layout)
+
+
+def rearrange(buf: Var, pattern: str, /, **sizes) -> Var:
+    """Implement :meth:`TensorType.rearrange`."""
+
+    def _groups(side):
+        out = []
+        for group, bare in re.findall(r"\(([^)]*)\)|(\S+)", side.strip()):
+            out.append(group.split() if group else [bare])
+        return out
+
+    if "->" not in pattern:
+        raise ValueError(f"rearrange: pattern must contain '->', got {pattern!r}")
+    lhs_s, rhs_s = pattern.split("->")
+    lhs_groups, rhs_groups = _groups(lhs_s), _groups(rhs_s)
+    if len(lhs_groups) != len(buf.shape):
+        raise ValueError(
+            f"rearrange: lhs has {len(lhs_groups)} groups but tensor has "
+            f"{len(buf.shape)} dims (pattern {pattern!r}, shape {list(buf.shape)})"
+        )
+    axis_size: dict = {}
+    analyzer = tvm.sym.Analyzer()
+    for group, dim in zip(lhs_groups, buf.shape):
+        dim_c = int(analyzer.simplify(dim))
+        known = {axis: int(sizes[axis]) for axis in group if axis in sizes}
+        unknown = [axis for axis in group if axis not in sizes]
+        product = 1
+        for value in known.values():
+            product *= value
+        if len(unknown) == 0:
+            if product != dim_c:
+                raise ValueError(f"rearrange: group {group} product {product} != dim {dim_c}")
+        elif len(unknown) == 1:
+            if dim_c % product != 0:
+                raise ValueError(
+                    f"rearrange: dim {dim_c} not divisible by known product {product} "
+                    f"in group {group}"
+                )
+            known[unknown[0]] = dim_c // product
+        else:
+            raise ValueError(
+                f"rearrange: group {group} has >1 unknown axis; give sizes= for all but one"
+            )
+        axis_size.update(known)
+    flat_lhs = [axis for group in lhs_groups for axis in group]
+    flat_rhs = [axis for group in rhs_groups for axis in group]
+    if sorted(flat_lhs) != sorted(flat_rhs):
+        raise ValueError(
+            f"rearrange: lhs axes {flat_lhs} != rhs axes {flat_rhs} (pattern {pattern!r})"
+        )
+    out = buf.view(*[axis_size[axis] for axis in flat_lhs])
+    out = out.permute(*[flat_lhs.index(axis) for axis in flat_rhs])
+    merged_shape = []
+    for group in rhs_groups:
+        size = 1
+        for axis in group:
+            size *= axis_size[axis]
+        merged_shape.append(size)
+    return out.view(*merged_shape)
+
+
+def sub(buf: Var) -> SubIndexer:
+    """Return the indexer used by ``expr.sub``."""
+    return SubIndexer(buf)
+
+
+def _normalized_dim(buf: Var, dim, name):
+    ndim = len(buf.shape)
+    if dim < 0:
+        dim += ndim
+    if not 0 <= dim < ndim:
+        raise ValueError(f"{name}: dim {dim} out of range for tensor of rank {ndim}")
+    return dim
+
+
+def _concrete_int(value):
+    """Return ``value`` as a Python int when it is statically known."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, Integral):
+        return int(value)
+    if isinstance(value, tvm.tirx.IntImm):
+        return int(value)
+    return None
+
+
+def _surgery_parts(buf: Var):
+    """Split a layout into its inner tile layout and optional swizzle params."""
+    layout = buf.layout
+    swizzle = None
+    if isinstance(layout, tvm.tirx.layout.ComposeLayout):
+        swizzle = (
+            layout.per_element,
+            layout.swizzle_len,
+            layout.atom_len,
+            layout.swizzle_inner,
+        )
+        layout = layout.tile_layout
+        # A bare swizzle describes its period, rather than the tensor extent.
+        # Expand the swizzle period to the tensor domain before permuting axes.
+        if layout.is_trivial():
+            layout = tvm.tirx.layout.TileLayout(tvm.tirx.layout.S[tuple(buf.shape)])
+    return layout, swizzle
+
+
+def _rewrap_swizzle(layout, swizzle):
+    if swizzle is not None:
+        per_element, swizzle_len, atom_len, swizzle_inner = swizzle
+        return tvm.tirx.layout.ComposeLayout(
+            per_element, swizzle_len, atom_len, layout, swizzle_inner
+        )
+    return layout
+
+
+def _dim_group_offset(group, index):
+    """Return the offset of ``index`` along a grouped logical dimension."""
+    if len(group) == 1:
+        return index * group[0].stride
+    extents = []
+    for iterator in group[1:]:
+        extent = iterator.extent
+        if not isinstance(extent, tvm.tirx.IntImm):
+            raise ValueError(
+                "select/narrow: dim with multiple layout iters requires concrete iter extents"
+            )
+        extents.append(int(extent))
+    offset = None
+    remaining = index
+    for pos, iterator in enumerate(group):
+        inner = functools.reduce(lambda a, b: a * b, extents[pos:], 1)
+        if inner == 1:
+            coord = remaining
+        elif isinstance(remaining, Integral):
+            coord = remaining // inner
+            remaining = remaining % inner
+        else:
+            coord = tvm.tirx.floordiv(remaining, inner)
+            remaining = tvm.tirx.floormod(remaining, inner)
+        term = coord * iterator.stride
+        offset = term if offset is None else offset + term
+    return offset
+
+
+def _swizzle_offset_commutes(swizzle, extra_offset):
+    """Return whether an offset may be folded outside a swizzle permutation."""
+    if swizzle is None or extra_offset is None:
+        return True
+    per_element, swizzle_len, atom_len, _ = swizzle
+    if swizzle_len == 0:
+        return True
+    period = 1 << (int(per_element) + int(atom_len) + swizzle_len)
+    offset_c = _concrete_int(extra_offset)
+    if offset_c is not None:
+        return offset_c % period == 0
+    from ..sym import Analyzer  # pylint: disable=import-outside-toplevel
+
+    return Analyzer().can_prove_equal(tvm.tirx.floormod(extra_offset, period), 0)
+
+
+def _rebuild_view(buf: Var, new_shape, new_shard, grouped, swizzle, extra_offset):
+    """Rebuild a derived view while preserving its physical addresses."""
+    offset_map = dict(grouped.offset.items())
+    is_tmem = _is_tmem_scope(buf.scope())
+    if (
+        not is_tmem
+        and extra_offset is not None
+        and not _swizzle_offset_commutes(swizzle, extra_offset)
+    ):
+        m_axis = tvm.tirx.layout.Axis.get("m")
+        previous = offset_map.get(m_axis)
+        offset_map[m_axis] = extra_offset if previous is None else previous + extra_offset
+        extra_offset = None
+    new_layout = tvm.tirx.layout.TileLayout.from_iters(new_shard, list(grouped.replica), offset_map)
+    new_layout = _rewrap_swizzle(new_layout, swizzle)
+    if is_tmem:
+        addr_offset = _tmem_element_offset_to_column_offset(buf, extra_offset)
+        return _redecl(buf, new_shape, new_layout, addr_offset=addr_offset)
+    elem_offset = buf.elem_offset
+    if extra_offset is not None:
+        elem_offset = elem_offset + extra_offset
+    return _redecl(buf, new_shape, new_layout, elem_offset=elem_offset)
+
+
+def _tmem_element_offset_to_column_offset(buf: Var, element_offset):
+    """Convert a TCol element offset to a physical 32-bit column offset."""
+    if element_offset is None:
+        return None
+
+    bits = tvm.DataType(buf.dtype).bits
+    bit_offset = element_offset * bits
+    bit_offset_c = _concrete_int(bit_offset)
+    if bit_offset_c is not None:
+        if bit_offset_c % 32 != 0:
+            raise ValueError(
+                "sub: tmem TCol offset must be aligned to a physical "
+                f"32-bit column; got {element_offset} elements of {buf.dtype}"
+            )
+        return bit_offset_c // 32
+
+    from ..sym import Analyzer  # pylint: disable=import-outside-toplevel
+
+    analyzer = Analyzer()
+    if not analyzer.can_prove_equal(tvm.tirx.floormod(bit_offset, 32), 0):
+        raise ValueError(
+            "sub: tmem TCol offset must be provably aligned to a physical "
+            f"32-bit column; got {element_offset} elements of {buf.dtype}"
+        )
+    return analyzer.simplify(tvm.tirx.floordiv(bit_offset, 32))
+
+
+def _tmem_offset_axis_check(buf: Var, group_iters, start_c, what):
+    """Check that a tmem view offset can move into the declaration address."""
+    if not _is_tmem_scope(buf.scope()):
+        return
+    if start_c == 0:
+        return
+    for iterator in group_iters:
+        axis_name = getattr(iterator.axis, "name", None) if iterator.axis is not None else None
+        if axis_name != "TCol":
+            raise ValueError(
+                f"sub: tmem {what} with nonzero offset requires TCol-stride "
+                f"layout iters; dim iter has axis {axis_name!r} (a lane-axis "
+                f"offset cannot fold into the column address)"
+            )
+
+
+def _view_drop(buf: Var, dim, index):
+    """Drop one logical dimension while preserving the selected storage offset."""
+    dim = _normalized_dim(buf, dim, "index")
+    index_c = _concrete_int(index)
+    extent_c = _concrete_int(buf.shape[dim])
+    if index_c is not None and (index_c < 0 or (extent_c is not None and index_c >= extent_c)):
+        raise ValueError(
+            f"index {index_c} out of range for dim {dim} "
+            f"of extent {extent_c if extent_c is not None else buf.shape[dim]}"
+        )
+    if buf.layout is None:
+        strides = _strides(buf)
+        return _redecl(
+            buf,
+            list(buf.shape[:dim]) + list(buf.shape[dim + 1 :]),
+            None,
+            elem_offset=buf.elem_offset + index * strides[dim],
+            strides=strides[:dim] + strides[dim + 1 :],
+        )
+    layout, swizzle = _surgery_parts(buf)
+    grouped, seps = layout.group(list(buf.shape))
+    iters = list(grouped.shard)
+    lo, hi = seps[dim], seps[dim + 1]
+    _tmem_offset_axis_check(buf, iters[lo:hi], index_c, "index")
+    offset = _dim_group_offset(iters[lo:hi], index)
+    new_shape = list(buf.shape[:dim]) + list(buf.shape[dim + 1 :])
+    new_shard = iters[:lo] + iters[hi:]
+    return _rebuild_view(buf, new_shape, new_shard, grouped, swizzle, offset)
+
+
+def _view_narrow(buf: Var, dim, start, length):
+    """Narrow one logical dimension while preserving its storage offset."""
+    dim = _normalized_dim(buf, dim, "index")
+    analyzer = tvm.sym.Analyzer()
+    start, length = analyzer.simplify(start), analyzer.simplify(length)
+    start_c = _concrete_int(start)
+    length_c = _concrete_int(length)
+    start = start if start_c is None else start_c
+    length = length if length_c is None else length_c
+    extent_c = _concrete_int(buf.shape[dim])
+    if start_c is not None and start_c < 0:
+        raise ValueError(f"sub: start {start_c} must be non-negative")
+    if length_c is not None and length_c < 1:
+        raise ValueError(f"sub: length {length_c} must be positive")
+    if (
+        start_c is not None
+        and length_c is not None
+        and extent_c is not None
+        and start_c + length_c > extent_c
+    ):
+        raise ValueError(
+            f"sub: range [{start_c}, {start_c + length_c}) exceeds dim {dim} extent {extent_c}"
+        )
+    if buf.layout is None:
+        strides = _strides(buf)
+        shape = list(buf.shape)
+        shape[dim] = length
+        return _redecl(
+            buf, shape, None, elem_offset=buf.elem_offset + start * strides[dim], strides=strides
+        )
+    layout, swizzle = _surgery_parts(buf)
+    grouped, seps = layout.group(list(buf.shape))
+    iters = list(grouped.shard)
+    lo, hi = seps[dim], seps[dim + 1]
+    group = iters[lo:hi]
+    iter_type = tvm.tirx.layout.Iter
+    if len(group) == 1:
+        iterator = group[0]
+        _tmem_offset_axis_check(buf, [iterator], start_c, "narrow")
+        offset = start * iterator.stride
+        new_group = [iter_type(length, iterator.stride, iterator.axis)]
+    else:
+        inner = 1
+        for iterator in group[1:]:
+            extent = iterator.extent
+            if not isinstance(extent, tvm.tirx.IntImm):
+                raise ValueError(
+                    "sub: dim with multiple layout iters requires concrete iter extents"
+                )
+            inner *= int(extent)
+        if not (
+            analyzer.can_prove_equal(start % inner, 0)
+            and analyzer.can_prove_equal(length % inner, 0)
+        ):
+            raise ValueError(
+                f"sub: dim {dim} start/length must be multiples of the "
+                f"inner iter block {inner}; got start={start} length={length}"
+            )
+        outer = group[0]
+        _tmem_offset_axis_check(buf, [outer], start // inner, "narrow")
+        offset = (start // inner) * outer.stride
+        new_group = [iter_type(length // inner, outer.stride, outer.axis), *group[1:]]
+    new_shape = list(buf.shape)
+    new_shape[dim] = length
+    new_shard = iters[:lo] + new_group + iters[hi:]
+    return _rebuild_view(buf, new_shape, new_shard, grouped, swizzle, offset)
+
+
+class SubIndexer:
+    """Indexer returned by ``expr.sub``."""
+
+    def __init__(self, tensor: Var):
+        self._tensor = tensor
+
+    def __getitem__(self, indices) -> Var:
+        if not isinstance(indices, tuple):
+            indices = (indices,)
+        buf = self._tensor
+        if len(indices) > len(buf.shape):
+            raise ValueError(f"sub: {len(indices)} indices for tensor of rank {len(buf.shape)}")
+        dim = 0
+        for item in indices:
+            if isinstance(item, slice):
+                step = item.step
+                if step is None or (isinstance(step, Integral) and step == 1):
+                    if item.start is None and item.stop is None:
+                        dim += 1
+                        continue
+                    start = 0 if item.start is None else item.start
+                    stop = buf.shape[dim] if item.stop is None else item.stop
+                    buf = _view_narrow(buf, dim, start, stop - start)
+                    dim += 1
+                else:
+                    if not isinstance(step, Integral) or step <= 0:
+                        raise ValueError(f"sub: step must be a positive int, got {step!r}")
+                    if item.stop is not None:
+                        raise ValueError("sub: a stop bound with a step is not supported")
+                    extent = buf.shape[dim]
+                    if not isinstance(extent, tvm.tirx.IntImm):
+                        raise ValueError("sub: a stepped slice requires a concrete dim extent")
+                    extent = int(extent)
+                    if extent % step != 0:
+                        raise ValueError(
+                            f"sub: dim extent {extent} is not divisible by step {step}"
+                        )
+                    start = 0 if item.start is None else item.start
+                    start_c = _concrete_int(start)
+                    if start_c is not None and not 0 <= start_c < step:
+                        raise ValueError(
+                            f"sub: stepped-slice start {start_c} must be in [0, {step})"
+                        )
+                    split = buf.view(*buf.shape[:dim], extent // step, step, *buf.shape[dim + 1 :])
+                    buf = _view_drop(split, dim + 1, start)
+                    dim += 1
+            else:
+                buf = _view_drop(buf, dim, item)
+        return buf

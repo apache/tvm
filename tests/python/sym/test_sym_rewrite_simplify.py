@@ -1284,6 +1284,21 @@ class TestShiftLeft(BaseCompare):
     )
 
 
+class TestBitwiseConstants(BaseCompare):
+    def _generate_tests():
+        for op, expected in (
+            (tvm.tirx.BitwiseAnd, 8),
+            (tvm.tirx.BitwiseOr, 14),
+            (tvm.tirx.BitwiseXor, 6),
+        ):
+            yield TestCase(op(tvm.tirx.const(10), tvm.tirx.const(12)), tvm.tirx.const(expected))
+        x = tvm.tirx.Var("x", "int32")
+        # Children must simplify before folding the enclosing bitwise node.
+        yield TestCase(tvm.tirx.BitwiseXor(x - x + 5, tvm.tirx.const(7)), tvm.tirx.const(2))
+
+    test_case = tvm.testing.parameter(*_generate_tests())
+
+
 class TestDivZero(BaseCompare):
     ramp = tvm.tirx.Ramp(1, 1, 2)
     broadcast = tvm.tirx.Broadcast(0, 2)
@@ -1298,7 +1313,7 @@ class TestDivZero(BaseCompare):
 
 class TestSubBufferload(BaseCompare):
     buf = tvm.tirx.decl_tensor([1], dtype="float32")
-    load = tvm.tirx.BufferLoad(buf, [0])
+    load = tvm.tirx.TensorLoad(buf, [0])
 
     test_case = tvm.testing.parameter(
         TestCase(load - load, 0.0),

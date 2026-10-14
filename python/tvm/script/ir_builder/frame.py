@@ -16,7 +16,12 @@
 # under the License.
 """Package tvm.script.ir_builder.frame"""
 
+from collections.abc import Sequence
+
+from tvm_ffi import Array
 from tvm_ffi import register_object as _register_object
+
+from tvm.ir import Var
 
 from . import _ffi_api
 from .base import IRBuilderFrame
@@ -41,3 +46,54 @@ class IRModuleFrame(IRBuilderFrame):
             return self.global_vars[name]
         except KeyError:
             raise AttributeError(f"IRModuleFrame has no attribute {name!r}") from None
+
+
+@_register_object("script.ir_builder.StmtFrame")
+class StmtFrame(IRBuilderFrame):
+    """A frame containing a sequence of core IR statements."""
+
+
+@_register_object("script.ir_builder.tirx.ForFrame")
+class ForFrame(StmtFrame):
+    def set_names(self, names: str | Sequence[str] | None) -> None:
+        """Configure final variable names before entry, preserving native identities.
+
+        A starred target expands to the remaining dimensions. Omitted names
+        preserve defaults supplied by native construction; no names are replayed
+        during entry.
+        """
+        _ffi_api.ForFrameSetNames(self, names)
+
+    def __enter__(self) -> Var | Array[Var]:  # type: ignore[override]
+        """Enter with one variable directly, or the native sequence for multiple loops."""
+        super().__enter__()
+        return self.vars[0] if len(self.vars) == 1 else self.vars
+
+
+@_register_object("script.ir_builder.tirx.AssertFrame")
+class AssertFrame(StmtFrame): ...
+
+
+@_register_object("script.ir_builder.tirx.WhileFrame")
+class WhileFrame(StmtFrame): ...
+
+
+@_register_object("script.ir_builder.tirx.IfFrame")
+class IfFrame(StmtFrame): ...
+
+
+@_register_object("script.ir_builder.tirx.ThenFrame")
+class ThenFrame(StmtFrame): ...
+
+
+@_register_object("script.ir_builder.tirx.ElseFrame")
+class ElseFrame(StmtFrame): ...
+
+
+@_register_object("script.ir_builder.tirx.RegionFrame")
+class RegionFrame(StmtFrame):
+    """A result-free region whose body parameters are lexical bindings."""
+
+    def __enter__(self) -> Var | Array[Var]:  # type: ignore[override]
+        super().__enter__()
+        return self.body_params[0] if len(self.body_params) == 1 else self.body_params

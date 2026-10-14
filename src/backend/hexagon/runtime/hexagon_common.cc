@@ -40,14 +40,13 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-class HexagonTimerNode : public TimerNode {
+class HexagonTimerObj : public TimerObj {
  public:
   virtual void Start() { start = HAP_perf_get_time_us(); }
   virtual void Stop() { end = HAP_perf_get_time_us(); }
   virtual int64_t SyncAndGetElapsedNanos() { return (end - start) * 1e3; }
-  virtual ~HexagonTimerNode() {}
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.hexagon.HexagonTimerNode", HexagonTimerNode,
-                                    TimerNode);
+  virtual ~HexagonTimerObj() {}
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.hexagon.HexagonTimerNode", HexagonTimerObj, TimerObj);
 
  private:
   uint64_t start, end;
@@ -55,8 +54,9 @@ class HexagonTimerNode : public TimerNode {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.timer.hexagon",
-                        [](Device dev) { return Timer(ffi::make_object<HexagonTimerNode>()); });
+  refl::GlobalDef().def("runtime.timer.hexagon", [](Device dev) {
+    return Timer(ffi::UnsafeInit{}, ffi::make_object<HexagonTimerObj>());
+  });
 }
 }  // namespace hexagon
 

@@ -245,7 +245,7 @@ def test_example_npu_runtime_execution():
 
     # Build the module
     target = tvm.target.Target("llvm")
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.ir.transform.PassContext(opt_level=3):
         built = relax.build(mod, target)
 
     # Create VM and run

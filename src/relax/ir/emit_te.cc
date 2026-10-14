@@ -34,28 +34,28 @@ namespace relax {
 
 TVM_FFI_STATIC_INIT_BLOCK() { RXPlaceholderOpNode::RegisterReflection(); }
 
-te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::string name) {
-  auto n = ffi::make_object<RXPlaceholderOpNode>();
+te::Tensor TETensor(Expr value, ffi::Map<tvm::Var, PrimExpr> tir_var_map, std::string name) {
+  auto n = ffi::make_object<RXPlaceholderOpNode>(value);
   n->name = name;
-  n->value = value;
 
   // If the value is a constant, it might come as an argument of EmitTE and thus its shape and
   // checked-type might not be properly set. In this case we set the shape and dtype of the returned
   // TE tensor.
   if (const auto* constant = value.as<GenericConstNode>()) {
-    n->dtype = PrimType(constant->value.cast<runtime::Tensor>()->dtype);
+    n->dtype = PrimType(constant->value.cast<ffi::Tensor>().dtype());
 
-    int ndim = constant->value.cast<runtime::Tensor>()->ndim;
-    ffi::Shape shape_tuple = constant->value.cast<runtime::Tensor>().Shape();
+    int ndim = constant->value.cast<ffi::Tensor>().ndim();
+    ffi::Shape shape_tuple = constant->value.cast<ffi::Tensor>().shape();
     ffi::Array<PrimExpr> shape;
     shape.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
       shape.push_back(IntImm::Int64(shape_tuple[i]));
     }
     n->shape = std::move(shape);
-    return te::PlaceholderOp(n).output(0);
+    return te::PlaceholderOp(ffi::UnsafeInit{}, std::move(n)).output(0);
   }
-  TVM_FFI_ICHECK(!value->ty.IsMissing()) << "value must be normalized and contain Type";
+  TVM_FFI_ICHECK(!value->ty.as<MissingType>().has_value())
+      << "value must be normalized and contain Type";
   auto* tensor_ty = GetTypeAs<TensorTypeNode>(value);
   TVM_FFI_ICHECK(tensor_ty) << "Value must be a tensor";
   auto* shape_expr = tensor_ty->shape.as<ShapeExprNode>();
@@ -64,7 +64,7 @@ te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::
          "match_cast "
       << "to constrain the shape before passing into te_tensor";
   auto f_substitute =
-      [&tir_var_map](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      [&tir_var_map](const tvm::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto repl = tir_var_map.Get(var)) return ffi::Any(*std::move(repl));
     return ffi::Unchanged();
   };
@@ -73,7 +73,7 @@ te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::
         .as_or_throw<PrimExpr>();
   });
   n->dtype = tensor_ty->dtype.value();
-  return te::PlaceholderOp(n).output(0);
+  return te::PlaceholderOp(ffi::UnsafeInit{}, std::move(n)).output(0);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

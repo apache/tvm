@@ -21,8 +21,9 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/stmt.h>
 #include <tvm/ir/type.h>
-#include <tvm/script/printer/doc_translator.h>
+#include <tvm/script/printer/support.h>
 
 #include <optional>
 #include <utility>
@@ -33,39 +34,16 @@ namespace printer {
 
 namespace details {
 
-ExprDoc AddMetadata(DocTranslatorObj* d, ffi::Any value);
-IdDoc VarDoc(DocTranslatorObj* d, const Var& var, bool explicit_def = true);
+ffi::Array<StmtDoc> Body(const Stmt& stmt, DocTranslatorObj* d);
+ffi::Array<Doc> TensorIndices(DocTranslatorObj* d, const ffi::Array<PrimExpr>& indices,
+                              bool store = false);
+
+ffi::Optional<ExprDoc> InvokeDocHook(ffi::AnyView hook, DocTranslatorObj* d, ffi::AnyView input,
+                                     const ffi::Object* destination);
+void EmitVarDefinition(DocTranslatorObj* d, const Var& var, ExprDoc rhs);
+
 ExprDoc GlobalReference(DocTranslatorObj* d, const ffi::String& name);
 ExprDoc NamedCallCallee(const ffi::String& canonical_name);
-
-ExprDoc TypeValue(DocTranslatorObj* d, const Type& type, bool dtype_literal = true);
-ExprDoc MaterializeCallArgument(DocTranslatorObj* d, const Expr& arg, ExprDoc doc);
-ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call,
-                ffi::Optional<ffi::Array<ExprDoc>> translated_args = std::nullopt);
-ExprDoc AnyValue(DocTranslatorObj* d, ffi::AnyView value);
-ffi::Dict<Var, IdDoc> CopyImplicitDefs(DocTranslatorObj* d);
-void FinalizeFunctionDefinitions(DocTranslatorObj* d, const ffi::Dict<Var, IdDoc>& signature,
-                                 const FunctionDoc& function);
-
-class VarScope {
- public:
-  explicit VarScope(DocTranslatorObj* d) : d_(d) { d_->BeginVarScope(); }
-  ~VarScope() noexcept {
-    if (d_) {
-      try {
-        d_->EndVarScope();
-      } catch (...) { /* Preserve translation failure. */
-      }
-    }
-  }
-  void Close() {
-    DocTranslatorObj* d = std::exchange(d_, nullptr);
-    d->EndVarScope();
-  }
-
- private:
-  DocTranslatorObj* d_;
-};
 
 }  // namespace details
 }  // namespace printer

@@ -32,6 +32,7 @@
 #include <tvm/ir/with_context.h>
 #include <tvm/sym/int_set.h>
 
+#include <functional>
 #include <limits>
 #include <memory>
 #include <unordered_map>
@@ -86,16 +87,16 @@ enum class ProofStrength : int {
  *
  *  set = [min_value, max_value]
  */
-class ConstIntBoundNode : public ffi::Object {
+class ConstIntBoundObj : public ffi::Object {
  public:
   int64_t min_value;
   int64_t max_value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ConstIntBoundNode>()
-        .def_ro("min_value", &ConstIntBoundNode::min_value)
-        .def_ro("max_value", &ConstIntBoundNode::max_value);
+    refl::ObjectDef<ConstIntBoundObj>()
+        .def_ro("min_value", &ConstIntBoundObj::min_value)
+        .def_ro("max_value", &ConstIntBoundObj::max_value);
   }
 
   /*! \brief Number to represent +inf */
@@ -107,12 +108,12 @@ class ConstIntBoundNode : public ffi::Object {
   static const constexpr int64_t kNegInf = -kPosInf;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.ConstIntBound", ConstIntBoundNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.ConstIntBound", ConstIntBoundObj, ffi::Object);
 };
 
 /*!
- * \brief reference class to ConstIntBoundNode
- * \sa ConstIntBoundNode
+ * \brief reference class to ConstIntBoundObj
+ * \sa ConstIntBoundObj
  */
 class ConstIntBound : public ffi::ObjectRef {
  public:
@@ -121,11 +122,11 @@ class ConstIntBound : public ffi::ObjectRef {
    * \param min_value The mininum value.
    * \param max_value The maximum value.
    */
-  TVM_DLL ConstIntBound(int64_t min_value, int64_t max_value);
+  TVM_TIRX_DLL ConstIntBound(int64_t min_value, int64_t max_value);
 
-  static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
-  static const constexpr int64_t kNegInf = ConstIntBoundNode::kNegInf;
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ConstIntBound, ffi::ObjectRef, ConstIntBoundNode);
+  static const constexpr int64_t kPosInf = ConstIntBoundObj::kPosInf;
+  static const constexpr int64_t kNegInf = ConstIntBoundObj::kNegInf;
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ConstIntBound, ffi::ObjectRef, ConstIntBoundObj);
 };
 
 /*!
@@ -140,7 +141,7 @@ class ConstIntBoundAnalyzer {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  TVM_DLL ConstIntBound operator()(const PrimExpr& expr) const;
+  TVM_TIRX_DLL ConstIntBound operator()(const PrimExpr& expr) const;
 
   /*!
    * \brief analyze the expr with the intermediate memorized to avoid redundant computation
@@ -148,7 +149,7 @@ class ConstIntBoundAnalyzer {
    * \param bound The lookup table to store the intermediate results
    * \return the result of the analysis.
    */
-  TVM_DLL ConstIntBound operator()(const PrimExpr& expr, BoundMapType* bound);
+  TVM_TIRX_DLL ConstIntBound operator()(const PrimExpr& expr, BoundMapType* bound);
 
   /*!
    * \brief Update constant int bound information of var.
@@ -157,7 +158,7 @@ class ConstIntBoundAnalyzer {
    * \param info The bound information.
    * \param allow_override whether we allow override of existing information.
    */
-  TVM_DLL void Update(const Var& var, const ConstIntBound& info, bool allow_override = false);
+  TVM_TIRX_DLL void Update(const Var& var, const ConstIntBound& info, bool allow_override = false);
 
   /*!
    * \brief Bind variable to a range.
@@ -166,20 +167,20 @@ class ConstIntBoundAnalyzer {
    * \param range The range we bind to.
    * \param allow_override Whether we allow overriding an existing var's range.
    */
-  TVM_DLL void Bind(const Var& var, const Range& range, bool allow_override = false);
+  TVM_TIRX_DLL void Bind(const Var& var, const Range& range, bool allow_override = false);
 
   /*!
    * \brief Check if a variable is bound to a range.
    * \param var The variable.
    * \return Whether the variable is bound to a range.
    */
-  TVM_DLL bool IsBound(const Var& var) const;
+  TVM_TIRX_DLL bool IsBound(const Var& var) const;
 
  private:
   friend class AnalyzerObj;
   friend class ConstraintContext;
   explicit ConstIntBoundAnalyzer(AnalyzerObj* parent);
-  TVM_DLL ~ConstIntBoundAnalyzer();
+  TVM_TIRX_DLL ~ConstIntBoundAnalyzer();
   void CopyFrom(const ConstIntBoundAnalyzer& other);
   /*!
    * \brief Update the internal state to enter constraint.
@@ -206,7 +207,7 @@ class ConstIntBoundAnalyzer {
  *  This is useful to decide if the index is dividable by certain value.
  *  For example, if index = 0 + 4 x, then we know it can be divided by 4.
  */
-class ModularSetNode : public ffi::Object {
+class ModularSetObj : public ffi::Object {
  public:
   /*! \brief linear co-efficient */
   int64_t coeff;
@@ -215,24 +216,24 @@ class ModularSetNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ModularSetNode>()
-        .def_ro("coeff", &ModularSetNode::coeff)
-        .def_ro("base", &ModularSetNode::base);
+    refl::ObjectDef<ModularSetObj>()
+        .def_ro("coeff", &ModularSetObj::coeff)
+        .def_ro("base", &ModularSetObj::base);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.ModularSet", ModularSetNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("sym.ModularSet", ModularSetObj, ffi::Object);
 };
 
 /*!
- * \brief reference of ModularSetNode
- * \sa ModularSetNode
+ * \brief reference of ModularSetObj
+ * \sa ModularSetObj
  */
 class ModularSet : public ffi::ObjectRef {
  public:
-  TVM_DLL ModularSet(int64_t coeff, int64_t base);
+  TVM_TIRX_DLL ModularSet(int64_t coeff, int64_t base);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ModularSet, ffi::ObjectRef, ModularSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ModularSet, ffi::ObjectRef, ModularSetObj);
 };
 
 /*!
@@ -245,7 +246,7 @@ class ModularSetAnalyzer {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  TVM_DLL ModularSet operator()(const PrimExpr& expr);
+  TVM_TIRX_DLL ModularSet operator()(const PrimExpr& expr);
   /*!
    * \brief Update constant int bound information of var.
    *
@@ -253,13 +254,13 @@ class ModularSetAnalyzer {
    * \param info The bound information.
    * \param allow_override whether we allow override of existing information.
    */
-  TVM_DLL void Update(const Var& var, const ModularSet& info, bool allow_override = false);
+  TVM_TIRX_DLL void Update(const Var& var, const ModularSet& info, bool allow_override = false);
 
  private:
   friend class AnalyzerObj;
   friend class ConstraintContext;
   explicit ModularSetAnalyzer(AnalyzerObj* parent);
-  TVM_DLL ~ModularSetAnalyzer();
+  TVM_TIRX_DLL ~ModularSetAnalyzer();
   void CopyFrom(const ModularSetAnalyzer& other);
   /*!
    * \brief Update the internal state to enter constraint.
@@ -284,7 +285,7 @@ class RewriteSimplifier {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  TVM_DLL PrimExpr operator()(const PrimExpr& expr);
+  TVM_TIRX_DLL PrimExpr operator()(const PrimExpr& expr);
 
   /*!
    * \brief Update binding of var to a new expression.
@@ -293,7 +294,7 @@ class RewriteSimplifier {
    * \param new_expr
    * \param allow_override Whether we allow override of existing information.
    */
-  TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool allow_override = false);
+  TVM_TIRX_DLL void Update(const Var& var, const PrimExpr& new_expr, bool allow_override = false);
 
   /*!
    * \brief Update the internal state to enter constraint.
@@ -302,7 +303,8 @@ class RewriteSimplifier {
    *
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint, bool is_assume = false);
+  TVM_TIRX_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint,
+                                                     bool is_assume = false);
 
   /*! \brief Flags to enable more computationally-intensive simplifications
    *
@@ -383,16 +385,16 @@ class RewriteSimplifier {
    * \param flags A bitwise OR of all optional extensions that should
    * be enabled.
    */
-  TVM_DLL void SetEnabledExtensions(Extension flags);
+  TVM_TIRX_DLL void SetEnabledExtensions(Extension flags);
 
   /*! \brief Return the currently enabled extensions */
-  TVM_DLL Extension GetEnabledExtensions() const;
+  TVM_TIRX_DLL Extension GetEnabledExtensions() const;
 
   /*! \brief Return the statistics counters */
-  TVM_DLL ffi::ObjectRef GetStatsCounters() const;
+  TVM_TIRX_DLL ffi::ObjectRef GetStatsCounters() const;
 
   /*! \brief Reset the statistics counters */
-  TVM_DLL void ResetStatsCounters();
+  TVM_TIRX_DLL void ResetStatsCounters();
 
   /*! \brief Set the maximum allowed number of rewrite steps
    *
@@ -408,14 +410,14 @@ class RewriteSimplifier {
    * the analyzer temporarily may receive the underlying `AnalyzerObj*`
    * from their calling scope.
    */
-  TVM_DLL void SetMaximumRewriteSteps(int64_t maximum);
+  TVM_TIRX_DLL void SetMaximumRewriteSteps(int64_t maximum);
 
  private:
   friend class AnalyzerObj;
   friend class ConstraintContext;
   friend class CanonicalSimplifier;
   explicit RewriteSimplifier(AnalyzerObj* parent);
-  TVM_DLL ~RewriteSimplifier();
+  TVM_TIRX_DLL ~RewriteSimplifier();
   void CopyFrom(const RewriteSimplifier& other);
   class Impl;
   /*! \brief Internal impl */
@@ -432,7 +434,7 @@ class CanonicalSimplifier {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  TVM_DLL PrimExpr operator()(const PrimExpr& expr);
+  TVM_TIRX_DLL PrimExpr operator()(const PrimExpr& expr);
 
   /*!
    * \brief Update binding of var to a new expression.
@@ -441,13 +443,13 @@ class CanonicalSimplifier {
    * \param new_expr
    * \param allow_override whether we allow override of existing information.
    */
-  TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool allow_override = false);
+  TVM_TIRX_DLL void Update(const Var& var, const PrimExpr& new_expr, bool allow_override = false);
 
  private:
   friend class AnalyzerObj;
   friend class ConstraintContext;
   explicit CanonicalSimplifier(AnalyzerObj* parent);
-  TVM_DLL ~CanonicalSimplifier();
+  TVM_TIRX_DLL ~CanonicalSimplifier();
   void CopyFrom(const CanonicalSimplifier& other);
   class Impl;
   /*! \brief Internal impl */
@@ -502,8 +504,8 @@ class TransitiveComparisonAnalyzer {
    * \return The most specific result that can be proven about the
    * comparison.  If nothing can be proven, returns kUnknown.
    */
-  TVM_DLL CompareResult TryCompare(const PrimExpr& lhs, const PrimExpr& rhs,
-                                   bool propagate_inequalities = true);
+  TVM_TIRX_DLL CompareResult TryCompare(const PrimExpr& lhs, const PrimExpr& rhs,
+                                        bool propagate_inequalities = true);
 
   /*! \brief Bind a variable as being equal to a known expression
    *
@@ -511,7 +513,7 @@ class TransitiveComparisonAnalyzer {
    * \param expr The bound expression
    * \param allow_override Whether to allow override of existing information.
    */
-  TVM_DLL void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
+  TVM_TIRX_DLL void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
 
   /*! \brief Bind a variable as being within a specified range
    *
@@ -519,7 +521,7 @@ class TransitiveComparisonAnalyzer {
    * \param range The known range
    * \param allow_override Whether to allow override of existing information.
    */
-  TVM_DLL void Bind(const Var& var, const Range& range, bool allow_override = false);
+  TVM_TIRX_DLL void Bind(const Var& var, const Range& range, bool allow_override = false);
 
   /*!
    * \brief Update the internal state to enter constraint.
@@ -527,13 +529,13 @@ class TransitiveComparisonAnalyzer {
    *
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  TVM_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint);
+  TVM_TIRX_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  private:
   friend class AnalyzerObj;
   friend class ConstraintContext;
   TransitiveComparisonAnalyzer();
-  TVM_DLL ~TransitiveComparisonAnalyzer();
+  TVM_TIRX_DLL ~TransitiveComparisonAnalyzer();
   void CopyFrom(const TransitiveComparisonAnalyzer& other);
   class Impl;
   /*! \brief Internal impl */
@@ -553,7 +555,7 @@ class IntSetAnalyzer {
    * \param dom_map The domain map to indicate which variable to relax.
    * \return the result of the analysis.
    */
-  TVM_DLL IntSet operator()(const PrimExpr& expr, const ffi::Map<Var, IntSet>& dom_map);
+  TVM_TIRX_DLL IntSet operator()(const PrimExpr& expr, const ffi::Map<Var, IntSet>& dom_map);
 
   /*!
    * \brief Find a symbolic integer set that contains all possible
@@ -563,7 +565,7 @@ class IntSetAnalyzer {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  TVM_DLL IntSet operator()(const PrimExpr& expr);
+  TVM_TIRX_DLL IntSet operator()(const PrimExpr& expr);
 
   /*!
    * \brief Update binding of var to a new expression.
@@ -572,7 +574,8 @@ class IntSetAnalyzer {
    * \param new_interval_set The set of allowed values for this var.
    * \param allow_override whether we allow override of existing information.
    */
-  TVM_DLL void Update(const Var& var, const IntSet& new_interval_set, bool allow_override = false);
+  TVM_TIRX_DLL void Update(const Var& var, const IntSet& new_interval_set,
+                           bool allow_override = false);
 
   /*!
    * \brief Update binding of var to a new expression.
@@ -581,14 +584,14 @@ class IntSetAnalyzer {
    * \param new_range The range of allowed values for this var.
    * \param allow_override whether we allow override of existing information.
    */
-  TVM_DLL void Bind(const Var& var, const Range& new_range, bool allow_override = false);
+  TVM_TIRX_DLL void Bind(const Var& var, const Range& new_range, bool allow_override = false);
 
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  private:
   friend class AnalyzerObj;
   explicit IntSetAnalyzer(AnalyzerObj* parent);
-  TVM_DLL ~IntSetAnalyzer();
+  TVM_TIRX_DLL ~IntSetAnalyzer();
   void CopyFrom(const IntSetAnalyzer& other);
   class Impl;
   /*! \brief Internal impl */
@@ -604,7 +607,7 @@ class Z3Prover {
    * \param new_range The range of allowed values for this var.
    * \param allow_override whether we allow override of existing information.
    */
-  TVM_DLL void Bind(const Var& var, const Range& new_range, bool allow_override = false);
+  TVM_TIRX_DLL void Bind(const Var& var, const Range& new_range, bool allow_override = false);
 
   /*!
    * \brief Update binding of var to a new expression.
@@ -613,14 +616,14 @@ class Z3Prover {
    * \param expr The bound expression.
    * \param allow_override whether we allow override of existing information.
    */
-  TVM_DLL void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
+  TVM_TIRX_DLL void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
 
   /*!
    * \brief Whether the Z3 backend is compiled into this build (USE_Z3=ON).
    *
    * \return true if the real Z3 prover is available, false for the stub.
    */
-  TVM_DLL bool IsEnabled() const;
+  TVM_TIRX_DLL bool IsEnabled() const;
 
   /*!
    * \brief Whether can we prove expr is always true.
@@ -628,7 +631,7 @@ class Z3Prover {
    * \param expr The expression.
    * \return Whether we can prove it.
    */
-  TVM_DLL bool CanProve(const PrimExpr& expr);
+  TVM_TIRX_DLL bool CanProve(const PrimExpr& expr);
 
   /*!
    * \brief Update the internal state to enter constraint.
@@ -687,14 +690,14 @@ class Z3Prover {
    * \param min_consecutive Minimum consecutive count requirement.
    * \return The number of distinct values that satisfy the constraints, or a negative error code.
    */
-  TVM_DLL int64_t CountSatisfyingValues(const Var& var, int64_t max_count = 2048,
-                                        int64_t min_consecutive = 1);
+  TVM_TIRX_DLL int64_t CountSatisfyingValues(const Var& var, int64_t max_count = 2048,
+                                             int64_t min_consecutive = 1);
 
  private:
   friend class AnalyzerObj;
   friend class Analyzer;
   explicit Z3Prover(AnalyzerObj* parent);
-  TVM_DLL ~Z3Prover();
+  TVM_TIRX_DLL ~Z3Prover();
   void CopyFrom(const Z3Prover& other);
   class Impl;
   std::unique_ptr<Impl> impl_;
@@ -710,7 +713,7 @@ class Z3Prover {
  * If the analyzer uses memoization, we need to clear the internal
  * cache when information about a Var has been overridden.
  */
-class TVM_DLL AnalyzerObj : public ffi::Object {
+class TVM_TIRX_DLL AnalyzerObj : public ffi::Object {
  public:
   /*! \brief sub-analyzer: const integer bound */
   ConstIntBoundAnalyzer const_int_bound;
@@ -922,6 +925,27 @@ class Analyzer : public ffi::ObjectRef {
 };
 
 /*!
+ * \brief Scoped no-overflow assumption for unsigned index arithmetic.
+ *
+ * Unsigned arithmetic normally wraps modulo 2^bits. Use
+ * With<AllowUIntAsIndex> only when unsigned values are guaranteed not to
+ * overflow, enabling the analyzer's index rewrites within that scope.
+ * The assumption is off by default, thread-local, and supports nested scopes.
+ * Constructing this context alone does not enable the assumption.
+ */
+class AllowUIntAsIndex {
+ public:
+  /*! \brief Whether unsigned index analysis is enabled in the current thread. */
+  TVM_TIRX_DLL static bool Enabled();
+
+ private:
+  friend class With<AllowUIntAsIndex>;
+  TVM_TIRX_DLL void EnterWithScope();
+  TVM_TIRX_DLL void ExitWithScope();
+  static thread_local int depth_;
+};
+
+/*!
  * \brief Constraint context.
  *
  * \code
@@ -976,9 +1000,9 @@ class ConstraintContext {
   ConstraintContext(AnalyzerObj* analyzer, PrimExpr constraint, bool is_assume)
       : ConstraintContext(ffi::GetRef<Analyzer>(analyzer), std::move(constraint), is_assume) {}
   // enter the scope.
-  TVM_DLL void EnterWithScope();
+  TVM_TIRX_DLL void EnterWithScope();
   // exit the scope.
-  TVM_DLL void ExitWithScope();
+  TVM_TIRX_DLL void ExitWithScope();
   /*! \brief Analyzer kept alive while the context is active. */
   Analyzer analyzer_;
   /*! \brief The constraint */

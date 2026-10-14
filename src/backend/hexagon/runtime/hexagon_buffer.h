@@ -24,6 +24,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/runtime/tensor.h>
 
 #include <memory>
@@ -49,7 +50,7 @@ class HexagonBuffer {
    * space in which to allocate. Defaults to global system
    * memory (DDR).
    */
-  HexagonBuffer(size_t nbytes, size_t alignment, ffi::Optional<ffi::String> scope);
+  HexagonBuffer(size_t nbytes, size_t alignment, ffi::Optional<runtime::MemoryScope> scope);
 
   /* \brief Allocate 2d (discontiguous) memory within Hexagon accessible
    * memory scopes.
@@ -65,7 +66,8 @@ class HexagonBuffer {
    * space in which to allocate. Defaults to global system
    * memory (DDR).
    */
-  HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment, ffi::Optional<ffi::String> scope);
+  HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
+                ffi::Optional<runtime::MemoryScope> scope);
 
   //! \brief Destruction deallocates the underlying allocations.
   ~HexagonBuffer();
@@ -85,7 +87,7 @@ class HexagonBuffer {
   /*! \brief Return data pointer into the buffer
    *
    * The returned pointer is intended for use as the runtime value
-   * corresponding to the runtime value of `buffer_data(BufferVar)`.  The
+   * corresponding to the runtime value of `tensor_data_ptr(TensorVar)`.  The
    * return type depends on the dimensionality of the buffer being
    * accessed, and must be compatible with the usage defined in
    * `CodeGenHexagon::CreateBufferPtr`.
@@ -140,7 +142,7 @@ class HexagonBuffer {
   size_t TotalBytes() const { return nbytes_per_allocation_ * allocations_.size(); }
 
   //! \brief Assign a storage scope to the buffer.
-  void SetStorageScope(ffi::Optional<ffi::String> scope);
+  void SetStorageScope(ffi::Optional<runtime::MemoryScope> scope);
   /*! \brief Array of raw pointer allocations required by the buffer.
    *
    *  For 1d (contiguous) storage a single allocation will result.

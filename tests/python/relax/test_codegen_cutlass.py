@@ -20,6 +20,8 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.ir import TupleType as _TupleType
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.testing import env
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
@@ -91,7 +93,7 @@ pytestmark = [
 
 
 def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
-    with tvm.transform.PassContext(
+    with tvm.ir.transform.PassContext(
         config={
             "relax.backend.use_cuda_graph": cuda_graph,
             "relax.transform.apply_legalize_ops": legalize,
@@ -1255,7 +1257,7 @@ def split_transform_deploy_mod(mod):
         if "transform_params" in gv.name_hint:
             transform_func_name = gv.name_hint
             mod_transform[gv] = func
-        elif isinstance(func, tvm.tirx.PrimFunc):
+        elif isinstance(func, tvm.tirx.Function):
             mod_transform[gv] = func
         else:
             mod_deploy[gv] = func
@@ -1267,7 +1269,7 @@ def split_transform_deploy_mod(mod):
 def test_fp16A_int4B_gemm():
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def decode(
             A: T.Tensor((T.int64(64), T.int64(64)), "int8"),
             B: T.Tensor((T.int64(128),), "float16"),
@@ -1300,7 +1302,7 @@ def test_fp16A_int4B_gemm():
                         * B[v_j]
                     )
 
-        @Ts.prim_func
+        @Ts.function
         def encode(
             A: T.Tensor((T.int64(128), T.int64(64)), "float16"),
             w_gathered: T.Tensor((T.int64(64), T.int64(64)), "int8"),
@@ -1308,8 +1310,8 @@ def test_fp16A_int4B_gemm():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            max_abs_value = Ts.sblock_alloc_buffer((T.int64(128),), "float16")
-            scale = Ts.sblock_alloc_buffer((T.int64(128),))
+            max_abs_value = Ts.sblock_alloc_tensor((T.int64(128),), "float16")
+            scale = Ts.sblock_alloc_tensor((T.int64(128),))
             for i, k in T.grid(T.int64(128), T.int64(64)):
                 with Ts.sblock("max_abs_value"):
                     v_i, v_k = Ts.axis.remap("SR", [i, k])
@@ -1380,7 +1382,11 @@ def test_fp16A_int4B_gemm():
                 lv = R.call_tir(
                     cls.encode,
                     (y,),
-                    out_ty=[R.Tensor((64, 64), dtype="int8"), R.Tensor((128,), dtype="float16")],
+                    ty_args=[
+                        _TupleType(
+                            [R.Tensor((64, 64), dtype="int8"), R.Tensor((128,), dtype="float16")]
+                        )
+                    ],
                 )
                 lv1 = lv[0]
                 lv2 = R.call_pure_packed(
@@ -1392,7 +1398,7 @@ def test_fp16A_int4B_gemm():
                 )
                 lv3: R.Tensor((128,), dtype="float16") = lv[1]
                 lv6 = R.call_tir(
-                    cls.decode, (lv2, lv3), out_ty=R.Tensor((64, 128), dtype="float16")
+                    cls.decode, (lv2, lv3), ty_args=[R.Tensor((64, 128), dtype="float16")]
                 )
                 lv1_1: R.Tensor((64, 128), dtype="float16") = R.matmul(x, lv6, out_dtype="float16")
                 lv2_1: R.Tensor((64, 128), dtype="float16") = R.add(lv1_1, bias)
@@ -1411,7 +1417,11 @@ def test_fp16A_int4B_gemm():
                 lv = R.call_tir(
                     cls.encode,
                     (y,),
-                    out_ty=[R.Tensor((64, 64), dtype="int8"), R.Tensor((128,), dtype="float16")],
+                    ty_args=[
+                        _TupleType(
+                            [R.Tensor((64, 64), dtype="int8"), R.Tensor((128,), dtype="float16")]
+                        )
+                    ],
                 )
                 lv1 = lv[0]
                 lv2 = R.call_pure_packed(
@@ -1423,7 +1433,7 @@ def test_fp16A_int4B_gemm():
                 )
                 lv3: R.Tensor((128,), dtype="float16") = lv[1]
                 lv6 = R.call_tir(
-                    cls.decode, (lv2, lv3), out_ty=R.Tensor((64, 128), dtype="float16")
+                    cls.decode, (lv2, lv3), ty_args=[R.Tensor((64, 128), dtype="float16")]
                 )
                 lv1_1: R.Tensor((64, 128), dtype="float32") = R.matmul(x, lv6, out_dtype="float32")
                 cast: R.Tensor((64, 128), dtype="float16") = R.astype(lv1_1, dtype="float16")
@@ -1444,7 +1454,11 @@ def test_fp16A_int4B_gemm():
                 lv = R.call_tir(
                     cls.encode,
                     (y,),
-                    out_ty=[R.Tensor((64, 64), dtype="int8"), R.Tensor((128,), dtype="float16")],
+                    ty_args=[
+                        _TupleType(
+                            [R.Tensor((64, 64), dtype="int8"), R.Tensor((128,), dtype="float16")]
+                        )
+                    ],
                 )
                 lv1 = lv[0]
                 lv2 = R.call_pure_packed(
@@ -1456,7 +1470,7 @@ def test_fp16A_int4B_gemm():
                 )
                 lv3: R.Tensor((128,), dtype="float16") = lv[1]
                 lv6 = R.call_tir(
-                    cls.decode, (lv2, lv3), out_ty=R.Tensor((64, 128), dtype="float16")
+                    cls.decode, (lv2, lv3), ty_args=[R.Tensor((64, 128), dtype="float16")]
                 )
                 lv1_1: R.Tensor((64, 128), dtype="float16") = R.matmul(x, lv6, out_dtype="float16")
                 lv2_1: R.Tensor((64, 128), dtype="float16") = R.add(lv1_1, bias)
@@ -1524,7 +1538,7 @@ def test_fp16A_int4B_gemm():
 def test_fp16A_int8B_gemm():
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def decode(
             A: T.Tensor((T.int64(64), T.int64(64)), "int8"),
             B: T.Tensor((T.int64(64),), "float16"),
@@ -1539,7 +1553,7 @@ def test_fp16A_int8B_gemm():
                     Ts.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_j]
 
-        @Ts.prim_func
+        @Ts.function
         def encode(
             A: T.Tensor((T.int64(64), T.int64(64)), "float16"),
             w_gathered: T.Tensor((T.int64(64), T.int64(64)), "int8"),
@@ -1547,8 +1561,8 @@ def test_fp16A_int8B_gemm():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            max_abs_value = Ts.sblock_alloc_buffer((T.int64(64),), "float16")
-            scale = Ts.sblock_alloc_buffer((T.int64(64),))
+            max_abs_value = Ts.sblock_alloc_tensor((T.int64(64),), "float16")
+            scale = Ts.sblock_alloc_tensor((T.int64(64),))
             for i, k in T.grid(T.int64(64), T.int64(64)):
                 with Ts.sblock("max_abs_value"):
                     v_i, v_k = Ts.axis.remap("SR", [i, k])
@@ -1599,7 +1613,11 @@ def test_fp16A_int8B_gemm():
                 lv = R.call_tir(
                     cls.encode,
                     (y,),
-                    out_ty=[R.Tensor((64, 64), dtype="int8"), R.Tensor((64,), dtype="float16")],
+                    ty_args=[
+                        _TupleType(
+                            [R.Tensor((64, 64), dtype="int8"), R.Tensor((64,), dtype="float16")]
+                        )
+                    ],
                 )
                 lv1: R.Tensor((64, 64), dtype="int8") = lv[0]
                 lv2: R.Tensor((64, 64), dtype="int8") = R.call_pure_packed(
@@ -1612,7 +1630,9 @@ def test_fp16A_int8B_gemm():
                 lv3: R.Tensor((64,), dtype="float16") = lv[1]
                 lv4: R.Tensor((64, 64), dtype="int8") = R.builtin.stop_lift_params(lv2)
                 lv5: R.Tensor((64,), dtype="float16") = R.builtin.stop_lift_params(lv3)
-                lv6 = R.call_tir(cls.decode, (lv4, lv5), out_ty=R.Tensor((64, 64), dtype="float16"))
+                lv6 = R.call_tir(
+                    cls.decode, (lv4, lv5), ty_args=[R.Tensor((64, 64), dtype="float16")]
+                )
                 lv1_1: R.Tensor((64, 64), dtype="float16") = R.matmul(x, lv6, out_dtype="float16")
                 lv2_1: R.Tensor((64, 128), dtype="float16") = R.add(lv1_1, bias)
                 lv2_2: R.Tensor((64, 128), dtype="float16") = R.nn.gelu(lv2_1)
@@ -1670,7 +1690,7 @@ def test_fp16A_int8B_gemm():
 def test_rms_norm():
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def rms_norm(
             A: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
             B: T.Tensor((T.int64(4096),), "float16"),
@@ -1678,7 +1698,7 @@ def test_rms_norm():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            Ared_temp = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1)))
+            Ared_temp = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1)))
             for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
                 with Ts.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSR", [bsz, i, k])
@@ -1714,7 +1734,7 @@ def test_rms_norm():
             cls = Module
             with R.dataflow():
                 lv = R.call_tir(
-                    cls.rms_norm, (input, weight), out_ty=R.Tensor((1, 1, 4096), dtype="float16")
+                    cls.rms_norm, (input, weight), ty_args=[R.Tensor((1, 1, 4096), dtype="float16")]
                 )
                 R.output(lv)
             return lv
@@ -1724,8 +1744,8 @@ def test_rms_norm():
     mod = partition_for_cutlass(Module)
 
     # TODO(@tvm-team): This is temporary patch.Currently, the remaining packed function triggers error since it is not scheduled.
-    # This is because RunCodegen does not support PrimFunc well yet.
-    # i.e., it does remove the global symbol of PrimFunc, which would be no longer used,
+    # This is because RunCodegen does not support Function well yet.
+    # i.e., it does remove the global symbol of Function, which would be no longer used,
     # and thus, the following DCE cannot remove this. Revisit when resolved.
     with tvm.target.Target("cuda"):
         mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
@@ -1801,11 +1821,11 @@ def test_conv2d_cuda_graph():
 
 
 def test_fp16A_int8B_gemm_batched():
-    b = T.dynamic("b")
+    b = T.dynamic("b", "int64")
 
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def decode(
             A: T.Tensor((T.int64(64), T.int64(64)), "int8"),
             B: T.Tensor((T.int64(64),), "float16"),
@@ -1820,7 +1840,7 @@ def test_fp16A_int8B_gemm_batched():
                     Ts.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_j]
 
-        @Ts.prim_func
+        @Ts.function
         def encode(
             A: T.Tensor((T.int64(64), T.int64(64)), "float16"),
             w_gathered: T.Tensor((T.int64(64), T.int64(64)), "int8"),
@@ -1828,8 +1848,8 @@ def test_fp16A_int8B_gemm_batched():
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            max_abs_value = Ts.sblock_alloc_buffer((T.int64(64),), "float16")
-            scale = Ts.sblock_alloc_buffer((T.int64(64),))
+            max_abs_value = Ts.sblock_alloc_tensor((T.int64(64),), "float16")
+            scale = Ts.sblock_alloc_tensor((T.int64(64),))
             for i, k in T.grid(T.int64(64), T.int64(64)):
                 with Ts.sblock("max_abs_value"):
                     v_i, v_k = Ts.axis.remap("SR", [i, k])
@@ -1879,7 +1899,11 @@ def test_fp16A_int8B_gemm_batched():
                 lv = R.call_tir(
                     cls.encode,
                     (y,),
-                    out_ty=[R.Tensor((64, 64), dtype="int8"), R.Tensor((64,), dtype="float16")],
+                    ty_args=[
+                        _TupleType(
+                            [R.Tensor((64, 64), dtype="int8"), R.Tensor((64,), dtype="float16")]
+                        )
+                    ],
                 )
                 lv1: R.Tensor((64, 64), dtype="int8") = lv[0]
                 lv2: R.Tensor((64, 64), dtype="int8") = R.call_pure_packed(
@@ -1892,7 +1916,9 @@ def test_fp16A_int8B_gemm_batched():
                 lv3: R.Tensor((64,), dtype="float16") = lv[1]
                 lv4: R.Tensor((64, 64), dtype="int8") = R.builtin.stop_lift_params(lv2)
                 lv5: R.Tensor((64,), dtype="float16") = R.builtin.stop_lift_params(lv3)
-                lv6 = R.call_tir(cls.decode, (lv4, lv5), out_ty=R.Tensor((64, 64), dtype="float16"))
+                lv6 = R.call_tir(
+                    cls.decode, (lv4, lv5), ty_args=[R.Tensor((64, 64), dtype="float16")]
+                )
                 lv1_1: R.Tensor((b, 64, 64), dtype="float16") = R.matmul(
                     x, lv6, out_dtype="float16"
                 )
@@ -1936,11 +1962,11 @@ def test_fp16A_int8B_gemm_batched():
 
 
 def test_fp16A_int8B_gemm_batched_finegrained():
-    b = T.dynamic("b")
+    b = T.dynamic("b", "int64")
 
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def decode(
             A: T.Tensor((T.int64(128), T.int64(128)), "int8"),
             B: T.Tensor((T.int64(2), T.int64(128)), "float16"),
@@ -1954,7 +1980,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                     Ts.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_i // T.int64(64), v_j]
 
-        @Ts.prim_func
+        @Ts.function
         def encode(
             A: T.Tensor((T.int64(128), T.int64(128)), "float16"),
             w_gathered: T.Tensor((T.int64(128), T.int64(128)), "int8"),
@@ -1967,14 +1993,14 @@ def test_fp16A_int8B_gemm_batched_finegrained():
             ),
         ):
             T.func_attr({"tirx.noalias": True})
-            max_abs_value = Ts.sblock_alloc_buffer(
+            max_abs_value = Ts.sblock_alloc_tensor(
                 (
                     T.int64(2),
                     T.int64(128),
                 ),
                 "float16",
             )
-            scale = Ts.sblock_alloc_buffer(
+            scale = Ts.sblock_alloc_tensor(
                 (
                     T.int64(2),
                     T.int64(128),
@@ -2033,9 +2059,13 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                 lv = R.call_tir(
                     cls.encode,
                     (y,),
-                    out_ty=[
-                        R.Tensor((128, 128), dtype="int8"),
-                        R.Tensor((2, 128), dtype="float16"),
+                    ty_args=[
+                        _TupleType(
+                            [
+                                R.Tensor((128, 128), dtype="int8"),
+                                R.Tensor((2, 128), dtype="float16"),
+                            ]
+                        )
                     ],
                 )
                 lv1: R.Tensor((128, 128), dtype="int8") = lv[0]
@@ -2050,7 +2080,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                 lv4: R.Tensor((128, 128), dtype="int8") = R.builtin.stop_lift_params(lv2)
                 lv5: R.Tensor((2, 128), dtype="float16") = R.builtin.stop_lift_params(lv3)
                 lv6 = R.call_tir(
-                    cls.decode, (lv4, lv5), out_ty=R.Tensor((128, 128), dtype="float16")
+                    cls.decode, (lv4, lv5), ty_args=[R.Tensor((128, 128), dtype="float16")]
                 )
                 lv1_1: R.Tensor((b, 128, 128), dtype="float16") = R.matmul(
                     x, lv6, out_dtype="float16"
@@ -2215,8 +2245,8 @@ def _test_batched_var_len_attention(
 
 
 def test_batched_var_len_attention():
-    num_tokens = T.dynamic("num_tokens")
-    num_seq = T.dynamic("num_seq")
+    num_tokens = T.dynamic("num_tokens", "int64")
+    num_seq = T.dynamic("num_seq", "int64")
 
     @I.ir_module
     class Module:
@@ -2242,7 +2272,7 @@ def test_batched_var_len_attention():
                 # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.
                 # https://github.com/apache/tvm/issues/15851
                 cumsum = R.call_dps_packed(
-                    "tvm.contrib.thrust.sum_scan", seq_lens, out_ty=seq_lens.ty
+                    _ExternFunc("tvm.contrib.thrust.sum_scan"), seq_lens, ty_args=[seq_lens.ty]
                 )
                 max_seqlen_q = R.to_vdevice(R.max(seq_lens), "llvm:0")
                 seqstart_q = R.concat([R.zeros((1,), "int32"), cumsum])
@@ -2269,8 +2299,8 @@ def test_batched_var_len_attention():
 
 
 def test_batched_var_len_multi_query_attention():
-    num_tokens = T.dynamic("num_tokens")
-    num_seq = T.dynamic("num_seq")
+    num_tokens = T.dynamic("num_tokens", "int64")
+    num_seq = T.dynamic("num_seq", "int64")
 
     @I.ir_module
     class Module:
@@ -2296,7 +2326,7 @@ def test_batched_var_len_multi_query_attention():
                 # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.
                 # https://github.com/apache/tvm/issues/15851
                 cumsum = R.call_dps_packed(
-                    "tvm.contrib.thrust.sum_scan", seq_lens, out_ty=seq_lens.ty
+                    _ExternFunc("tvm.contrib.thrust.sum_scan"), seq_lens, ty_args=[seq_lens.ty]
                 )
                 max_seqlen_q = R.to_vdevice(R.max(seq_lens), "llvm:0")
                 seqstart_q = R.concat([R.zeros((1,), "int32"), cumsum])
@@ -2365,8 +2395,8 @@ def test_sliding_window():
 
 
 def test_batched_var_len_sliding_window():
-    num_tokens = T.dynamic("num_tokens")
-    num_seq = T.dynamic("num_seq")
+    num_tokens = T.dynamic("num_tokens", "int64")
+    num_seq = T.dynamic("num_seq", "int64")
 
     @I.ir_module
     class Module:
@@ -2392,7 +2422,7 @@ def test_batched_var_len_sliding_window():
                 # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.
                 # https://github.com/apache/tvm/issues/15851
                 cumsum = R.call_dps_packed(
-                    "tvm.contrib.thrust.sum_scan", seq_lens, out_ty=seq_lens.ty
+                    _ExternFunc("tvm.contrib.thrust.sum_scan"), seq_lens, ty_args=[seq_lens.ty]
                 )
                 max_seqlen_q = R.to_vdevice(R.max(seq_lens), "llvm:0")
                 seqstart_q = R.concat([R.zeros((1,), "int32"), cumsum])

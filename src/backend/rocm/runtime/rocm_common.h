@@ -55,8 +55,9 @@ class ROCMThreadEntry {
  public:
   /*! \brief The hip stream */
   hipStream_t stream{nullptr};
-  /*! \brief thread local pool*/
+  /*! \brief thread local pool */
   WorkspacePool pool;
+  WorkspacePool host_pool;
   /*! \brief constructor */
   ROCMThreadEntry();
   // get the threadlocal workspace

@@ -41,36 +41,36 @@ namespace tirx {
 /*!
  * \brief Primitive functions that contains TIR statements.
  *
- * The PrimFunc provides low-level code representation does not
+ * The Function provides low-level code representation does not
  * automatically manage
  *
- * \sa PrimFunc
+ * \sa Function
  */
-class PrimFuncNode : public BaseFuncNode {
+class FunctionNode : public BaseFuncNode {
  public:
   /*! \brief Function parameters */
-  ffi::Array<tirx::Var> params;
+  ffi::Array<tvm::Var> params;
   /*! \brief The return type of the function. */
   Type ret_type = Type::Missing();
-  /*! \brief The body of the function */
-  tirx::Stmt body;
+  /*! \brief The body of the function, absent for a declaration. */
+  ffi::Optional<SeqStmt> body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PrimFuncNode>()
-        .def_ro("params", &PrimFuncNode::params, refl::AttachFieldFlag::SEqHashDefPattern())
-        .def_ro("ret_type", &PrimFuncNode::ret_type)
-        .def_ro("body", &PrimFuncNode::body);
-    refl::TypeAttrDef<PrimFuncNode>()
-        .def("__s_equal__", &PrimFuncNode::SEqual)
-        .def("__s_hash__", &PrimFuncNode::SHash);
+    refl::ObjectDef<FunctionNode>()
+        .def_ro("params", &FunctionNode::params, refl::AttachFieldFlag::SEqHashDefPattern())
+        .def_ro("ret_type", &FunctionNode::ret_type)
+        .def_ro("body", &FunctionNode::body);
+    refl::TypeAttrDef<FunctionNode>()
+        .def(tvm::ffi::reflection::type_attr::kSEqual, &FunctionNode::SEqual)
+        .def(tvm::ffi::reflection::type_attr::kSHash, &FunctionNode::SHash);
   }
 
-  bool SEqual(const PrimFuncNode* other,
+  bool SEqual(const FunctionNode* other,
               ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
-    // `ty` is derived from the fields below.  PrimFunc transformations update
+    // `ty` is derived from the fields below.  Function transformations update
     // those source fields without maintaining this redundant cache eagerly.
-    // Remove this exception once all PrimFunc mutation paths recompute `ty`.
+    // Remove this exception once all Function mutation paths recompute `ty`.
     return equal(attrs, other->attrs, false, "attrs") &&
            equal(params, other->params, true, "params") &&
            equal(ret_type, other->ret_type, false, "ret_type") &&
@@ -93,40 +93,54 @@ class PrimFuncNode : public BaseFuncNode {
    * \note The function type annotation of PrimExpr is
    *       directly derived from the Vars without the need of type inference.
    */
-  TVM_DLL FuncType func_type_annotation() const;
+  TVM_TIRX_DLL FuncType func_type_annotation() const;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.PrimFunc", PrimFuncNode, BaseFuncNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Function", FunctionNode, BaseFuncNode);
 };
 
 /*!
- * \brief Managed reference to PrimFuncNode.
- * \sa PrimFuncNode
+ * \brief Managed reference to FunctionNode.
+ * \sa FunctionNode
  */
-class PrimFunc : public BaseFunc {
+class Function : public BaseFunc {
  public:
   /*!
    * \brief Constructor
    *
    * \param params The parameters of the function.
    *
-   * \param body The body of the function.
+   * \param body The body of the function, or std::nullopt for a declaration.
    *
    * \param ret_type The return type of the function.
    *
    * \param attrs Additional function attributes.
    *
-   * \param span The location of this object in the source code.
+   * \param loc The location of this object in the source code.
    */
-  TVM_DLL PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type = VoidType(),
-                   DictAttrs attrs = DictAttrs(), Span span = Span());
+  TVM_TIRX_DLL Function(ffi::Array<tvm::Var> params, ffi::Optional<SeqStmt> body,
+                        Type ret_type = VoidType(), DictAttrs attrs = DictAttrs(),
+                        Location loc = UnknownLoc());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimFunc, BaseFunc, PrimFuncNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimFuncNode);
+  explicit Function(ffi::ObjectPtr<FunctionNode> node) : BaseFunc(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Function, BaseFunc, FunctionNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
 };
 
 /*!
- * \brief Specialize parameters of PrimFunc.
- * \param func The PrimFunc to be specialized.
+ * \brief Renew variable definitions and remap their uses in a function.
+ *
+ * Definition regions follow the registered structural hooks. Free variables
+ * and function attributes are preserved, and the function signature is rebuilt.
+ *
+ * \param func The function to renew.
+ * \return The function with fresh variable definitions.
+ */
+TVM_TIRX_DLL Function RenewDef(Function func);
+
+/*!
+ * \brief Specialize parameters of Function.
+ * \param func The Function to be specialized.
  * \param param_map The mapping from function params to the instance.
  * \return The new function with parameter specialized.
  * \note We can define a Meta TIR function with symbolic shape:
@@ -134,7 +148,7 @@ class PrimFunc : public BaseFunc {
  * \code{.py}
  *  from __future__ import annotations
  *
- *  @Ts.prim_func
+ *  @Ts.function
  *  def mem_copy(A: T.Tensor((m, n), "float32"), B: T.Tensor((m, n), "float32"),
  *               m: T.int32, n: T.int32) -> None:
  *      for i, j in T.grid(m, n):
@@ -143,7 +157,7 @@ class PrimFunc : public BaseFunc {
  *              B[vi, vj] = A[vi, vj]
  * \endcode
  *
- * Then we can make it specialized with given shapes or buffers.
+ * Then we can make it specialized with given shapes or tensors.
  *
  * \code{.py}
  *  a, _, m, n = mem_copy.params
@@ -153,7 +167,7 @@ class PrimFunc : public BaseFunc {
  * \endcode
  *
  * \code{.py}
- *  @Ts.prim_func
+ *  @Ts.function
  *  def mem_copy_16_16(A: T.Tensor((16, 16), "float32"),
  *                     B: T.Tensor((16, 16), "float32")) -> None:
  *      for i, j in T.grid(16, 16):
@@ -162,17 +176,17 @@ class PrimFunc : public BaseFunc {
  *              B[vi, vj] = A[vi, vj]
  * \endcode
  */
-PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<BufferVar, Expr>>& param_map);
+Function Specialize(Function func, const ffi::Map<Var, ffi::Variant<TensorVar, Expr>>& param_map);
 
 /*!
- * \brief PrimFunc specific attribute names.
+ * \brief Function specific attribute names.
  *
  * \sa tvm::attr
  */
 namespace attr {
 
 /*!
- * \brief List of thread IterVar that a DeviceLaunch function corresponds to.
+ * \brief Ordered launch-parameter tags for a device kernel.
  *
  * Type: ffi::Array<ffi::String>
  *
@@ -224,43 +238,6 @@ namespace attr {
 constexpr const char* kKernelLaunchParams = "tirx.kernel_launch_params";
 
 /*!
- * \brief CUDA launch bound minimum CTAs per SM.
- *
- * Type: IntImm
- */
-constexpr const char* kLaunchBoundsMinBlocksPerSM = "tirx.launch_bounds_min_blocks_per_sm";
-
-/*!
- * \brief CUDA launch bound maximum CTAs per cluster.
- *
- * Type: IntImm
- */
-constexpr const char* kLaunchBoundsMaxBlocksPerCluster =
-    "tirx.launch_bounds_max_blocks_per_cluster";
-
-/*!
- * \brief CUDA maximum registers per thread.
- *
- * Emits the CUDA 13 ``__maxnreg__`` kernel qualifier.  This attribute is
- * mutually exclusive with the launch-bounds attributes.
- *
- * Type: IntImm
- */
-constexpr const char* kMaxRegisters = "tirx.max_registers";
-
-/*!
- * \brief Require CUDA to use the statically-declared block and cluster dimensions.
- *
- * Emits the CUDA 13 ``__block_size__`` kernel qualifier.  Unlike
- * ``__launch_bounds__``, this is an exact launch contract: CUDA derives the
- * PTX ``.reqntid`` directive from the thread extents, and interprets the
- * launch grid in clusters using the cluster-CTA extents.
- *
- * Type: IntImm (must be 1)
- */
-constexpr const char* kRequiredBlockSize = "tirx.required_block_size";
-
-/*!
  * \brief Whether to set noalias rule on the function arguments.
  *
  * Type: IntImm
@@ -292,11 +269,9 @@ constexpr const char* kIsGlobalFunc = "tirx.is_global_func";
 constexpr const char* kIsHostFunc = "tirx.is_host_func";
 
 /*!
- * \brief Mark the function as scheduled, so the default schedule will pass will skip it.
- *
- * Type: IntImm
+ * \brief Mark the kernel as persistent.
  */
-constexpr const char* kIsScheduled = "tirx.is_scheduled";
+constexpr const char* kPersistentKernel = "tirx.persistent_kernel";
 
 }  // namespace attr
 }  // namespace tirx

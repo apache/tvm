@@ -31,9 +31,9 @@ namespace relax {
 /*!
  * \brief The abstract interface of ExprVisitor.
  */
-class PyExprVisitorNode : public ffi::Object, public ExprVisitor {
+class PyExprVisitorObj : public ffi::Object, public ExprVisitor {
  private:
-  using TSelf = PyExprVisitorNode;
+  using TSelf = PyExprVisitorObj;
   using FType = tvm::ObjectFunctor<void(const ffi::ObjectRef& n, TSelf* self)>;
 
  public:
@@ -59,8 +59,8 @@ class PyExprVisitorNode : public ffi::Object, public ExprVisitor {
   ffi::Function f_visit_call_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const SeqExprNode* op)` function. */
   ffi::Function f_visit_seq_expr_{nullptr};
-  /*! \brief The packed function to the `VisitExpr_(const IfNode* op)` function. */
-  ffi::Function f_visit_if_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const IfExprNode* op)` function. */
+  ffi::Function f_visit_if_expr_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const OpNode* op)` function. */
   ffi::Function f_visit_op_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const TupleGetItemNode* op)` function. */
@@ -94,8 +94,8 @@ class PyExprVisitorNode : public ffi::Object, public ExprVisitor {
   ffi::Function f_visit_var_def_{nullptr};
   /*! \brief The packed function to the `VisitVarDef_(const DataflowVarNode* var)` function. */
   ffi::Function f_visit_dataflow_var_def_{nullptr};
-  /*! \brief The packed function to the `VisitSpan(const Span& span)` function. */
-  ffi::Function f_visit_span{nullptr};
+  /*! \brief The packed function to the `VisitLoc(const Location& loc)` function. */
+  ffi::Function f_visit_loc{nullptr};
 
   void VisitExpr(const Expr& expr) override {
     if (f_visit_expr != nullptr) {
@@ -144,15 +144,15 @@ class PyExprVisitorNode : public ffi::Object, public ExprVisitor {
       PY_EXPR_VISITOR_DEFAULT(ffi::GetRef<DataflowVar>(var), f_visit_dataflow_var_def_,
                               ExprVisitor::VisitVarDef_(var));
 
-  void VisitSpan(const Span& span) override
-      PY_EXPR_VISITOR_DEFAULT(span, f_visit_span, ExprVisitor::VisitSpan(span));
+  void VisitLoc(const Location& loc) override
+      PY_EXPR_VISITOR_DEFAULT(loc, f_visit_loc, ExprVisitor::VisitLoc(loc));
 
   static void RegisterReflection() {
-    // PyExprVisitorNode has no fields to register
+    // PyExprVisitorObj has no fields to register
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("expr_functor.PyExprVisitor", PyExprVisitorNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("expr_functor.PyExprVisitor", PyExprVisitorObj, ffi::Object);
 
  private:
   // initialize the vtable.
@@ -169,7 +169,7 @@ class PyExprVisitorNode : public ffi::Object, public ExprVisitor {
     PY_EXPR_VISITOR_DISPATCH(FunctionNode, f_visit_function_);
     PY_EXPR_VISITOR_DISPATCH(CallNode, f_visit_call_);
     PY_EXPR_VISITOR_DISPATCH(SeqExprNode, f_visit_seq_expr_);
-    PY_EXPR_VISITOR_DISPATCH(IfNode, f_visit_if_);
+    PY_EXPR_VISITOR_DISPATCH(IfExprNode, f_visit_if_expr_);
     PY_EXPR_VISITOR_DISPATCH(OpNode, f_visit_op_);
     PY_EXPR_VISITOR_DISPATCH(TupleGetItemNode, f_visit_tuple_getitem_);
     PY_EXPR_VISITOR_DISPATCH(StringImmNode, f_visit_string_imm_);
@@ -180,12 +180,12 @@ class PyExprVisitorNode : public ffi::Object, public ExprVisitor {
 };
 
 /*!
- * \brief Managed reference to PyExprVisitorNode.
- * \sa PyExprVisitorNode
+ * \brief Managed reference to PyExprVisitorObj.
+ * \sa PyExprVisitorObj
  */
 class PyExprVisitor : public ffi::ObjectRef {
  public:
-  explicit PyExprVisitor(ffi::ObjectPtr<PyExprVisitorNode> data) : ffi::ObjectRef(data) {
+  explicit PyExprVisitor(ffi::ObjectPtr<PyExprVisitorObj> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   /*!
@@ -201,7 +201,7 @@ class PyExprVisitor : public ffi::ObjectRef {
    * \param f_visit_function_ The packed function of `VisitExpr_(const FunctionNode* op)`.
    * \param f_visit_call_ The packed function of `VisitExpr_(const CallNode* op)`.
    * \param f_visit_seq_expr_ The packed function of `VisitExpr_(const SeqExprNode* op)`.
-   * \param f_visit_if_ The packed function of `VisitExpr_(const IfNode* op)`.
+   * \param f_visit_if_expr_ The packed function of `VisitExpr_(const IfExprNode* op)`.
    * \param f_visit_op_ The packed function of `VisitExpr_(const OpNode* op)`.
    * \param f_visit_tuple_getitem_ The packed function of `VisitExpr_(const TupleGetItemNode* op)`.
    * \param f_visit_expr_fallback_ The packed function of the generic expression fallback.
@@ -222,7 +222,7 @@ class PyExprVisitor : public ffi::ObjectRef {
    * \param f_visit_var_def_ The packed function of `VisitVarDef_(const VarNode* var)`.
    * \param f_visit_dataflow_var_def_ The packed function of `VisitVarDef_(const DataflowVarNode*
    * var)`.
-   * \param f_visit_span The packed function of `VisitSpan(const Span& span)`.
+   * \param f_visit_loc The packed function of `VisitLoc(const Location& loc)`.
    * \return The PyVisitor created.
    */
   TVM_DLL static PyExprVisitor MakePyExprVisitor(
@@ -230,7 +230,7 @@ class PyExprVisitor : public ffi::ObjectRef {
       ffi::Function f_visit_tuple_, ffi::Function f_visit_var_, ffi::Function f_visit_dataflow_var_,
       ffi::Function f_visit_shape_expr_, ffi::Function f_visit_extern_func_,
       ffi::Function f_visit_global_var_, ffi::Function f_visit_function_,
-      ffi::Function f_visit_call_, ffi::Function f_visit_seq_expr_, ffi::Function f_visit_if_,
+      ffi::Function f_visit_call_, ffi::Function f_visit_seq_expr_, ffi::Function f_visit_if_expr_,
       ffi::Function f_visit_op_, ffi::Function f_visit_tuple_getitem_,
       ffi::Function f_visit_expr_fallback_, ffi::Function f_visit_string_imm_,
       ffi::Function f_visit_data_type_imm_, ffi::Function f_visit_binding,
@@ -238,13 +238,13 @@ class PyExprVisitor : public ffi::ObjectRef {
       ffi::Function f_visit_binding_block, ffi::Function f_visit_binding_block_,
       ffi::Function f_visit_dataflow_block_, ffi::Function f_visit_var_def,
       ffi::Function f_visit_var_def_, ffi::Function f_visit_dataflow_var_def_,
-      ffi::Function f_visit_span) {
-    ffi::ObjectPtr<PyExprVisitorNode> n = ffi::make_object<PyExprVisitorNode>();
+      ffi::Function f_visit_loc) {
+    ffi::ObjectPtr<PyExprVisitorObj> n = ffi::make_object<PyExprVisitorObj>();
     n->f_visit_expr = f_visit_expr;
     n->f_visit_binding = f_visit_binding;
     n->f_visit_binding_block = f_visit_binding_block;
     n->f_visit_var_def = f_visit_var_def;
-    n->f_visit_span = f_visit_span;
+    n->f_visit_loc = f_visit_loc;
     n->f_visit_generic_const_ = f_visit_generic_const_;
     n->f_visit_tuple_ = f_visit_tuple_;
     n->f_visit_var_ = f_visit_var_;
@@ -255,7 +255,7 @@ class PyExprVisitor : public ffi::ObjectRef {
     n->f_visit_function_ = f_visit_function_;
     n->f_visit_call_ = f_visit_call_;
     n->f_visit_seq_expr_ = f_visit_seq_expr_;
-    n->f_visit_if_ = f_visit_if_;
+    n->f_visit_if_expr_ = f_visit_if_expr_;
     n->f_visit_op_ = f_visit_op_;
     n->f_visit_tuple_getitem_ = f_visit_tuple_getitem_;
     n->f_visit_expr_fallback_ = f_visit_expr_fallback_;
@@ -270,15 +270,15 @@ class PyExprVisitor : public ffi::ObjectRef {
     return PyExprVisitor(n);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PyExprVisitor, ffi::ObjectRef, PyExprVisitorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PyExprVisitor, ffi::ObjectRef, PyExprVisitorObj);
 };
 
 /*!
  * \brief The abstract interface of ExprMutator.
  */
-class PyExprMutatorNode : public ffi::Object, public ExprMutator {
+class PyExprMutatorObj : public ffi::Object, public ExprMutator {
  private:
-  using TSelf = PyExprMutatorNode;
+  using TSelf = PyExprMutatorObj;
   using FType = tvm::ObjectFunctor<Expr(const ffi::ObjectRef& n, TSelf* self)>;
 
  public:
@@ -304,8 +304,8 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
   ffi::Function f_visit_call_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const SeqExprNode* op)` function. */
   ffi::Function f_visit_seq_expr_{nullptr};
-  /*! \brief The packed function to the `VisitExpr_(const IfNode* op)` function. */
-  ffi::Function f_visit_if_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const IfExprNode* op)` function. */
+  ffi::Function f_visit_if_expr_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const OpNode* op)` function. */
   ffi::Function f_visit_op_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const TupleGetItemNode* op)` function. */
@@ -339,8 +339,8 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
   ffi::Function f_visit_var_def_{nullptr};
   /*! \brief The packed function to the `VisitVarDef_(const DataflowVarNode* var)` function. */
   ffi::Function f_visit_dataflow_var_def_{nullptr};
-  /*! \brief The packed function to the `VisitSpan(const Span& span)` function. */
-  ffi::Function f_visit_span{nullptr};
+  /*! \brief The packed function to the `VisitLoc(const Location& loc)` function. */
+  ffi::Function f_visit_loc{nullptr};
 
   Expr VisitExpr(const Expr& expr) override {
     if (f_visit_expr != nullptr) {
@@ -420,11 +420,11 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PyExprMutatorNode>().def_ro("builder_", &PyExprMutatorNode::builder_);
+    refl::ObjectDef<PyExprMutatorObj>().def_ro("builder_", &PyExprMutatorObj::builder_);
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("expr_functor.PyExprMutator", PyExprMutatorNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("expr_functor.PyExprMutator", PyExprMutatorObj, ffi::Object);
 
  private:
   // initialize the vtable.
@@ -441,7 +441,7 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
     PY_EXPR_MUTATOR_DISPATCH(FunctionNode, f_visit_function_);
     PY_EXPR_MUTATOR_DISPATCH(CallNode, f_visit_call_);
     PY_EXPR_MUTATOR_DISPATCH(SeqExprNode, f_visit_seq_expr_);
-    PY_EXPR_MUTATOR_DISPATCH(IfNode, f_visit_if_);
+    PY_EXPR_MUTATOR_DISPATCH(IfExprNode, f_visit_if_expr_);
     PY_EXPR_MUTATOR_DISPATCH(OpNode, f_visit_op_);
     PY_EXPR_MUTATOR_DISPATCH(TupleGetItemNode, f_visit_tuple_getitem_);
     PY_EXPR_MUTATOR_DISPATCH(StringImmNode, f_visit_string_imm_);
@@ -464,7 +464,7 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(FunctionNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(CallNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(SeqExprNode);
-    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(IfNode);
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(IfExprNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(OpNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(TupleGetItemNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(StringImmNode);
@@ -475,12 +475,12 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
 };
 
 /*!
- * \brief Managed reference to PyExprMutatorNode.
- * \sa PyExprMutatorNode
+ * \brief Managed reference to PyExprMutatorObj.
+ * \sa PyExprMutatorObj
  */
 class PyExprMutator : public ffi::ObjectRef {
  public:
-  explicit PyExprMutator(ffi::ObjectPtr<PyExprMutatorNode> data) : ffi::ObjectRef(data) {
+  explicit PyExprMutator(ffi::ObjectPtr<PyExprMutatorObj> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   /*!
@@ -496,7 +496,7 @@ class PyExprMutator : public ffi::ObjectRef {
    * \param f_visit_function_ The packed function of `VisitExpr_(const FunctionNode* op)`.
    * \param f_visit_call_ The packed function of `VisitExpr_(const CallNode* op)`.
    * \param f_visit_seq_expr_ The packed function of `VisitExpr_(const SeqExprNode* op)`.
-   * \param f_visit_if_ The packed function of `VisitExpr_(const IfNode* op)`.
+   * \param f_visit_if_expr_ The packed function of `VisitExpr_(const IfExprNode* op)`.
    * \param f_visit_op_ The packed function of `VisitExpr_(const OpNode* op)`.
    * \param f_visit_tuple_getitem_ The packed function of `VisitExpr_(const TupleGetItemNode* op)`.
    * \param f_visit_expr_fallback_ The packed function of the generic expression fallback.
@@ -517,7 +517,7 @@ class PyExprMutator : public ffi::ObjectRef {
    * \param f_visit_var_def_ The packed function of `VisitVarDef_(const VarNode* var)`.
    * \param f_visit_dataflow_var_def_ The packed function of `VisitVarDef_(const DataflowVarNode*
    * var)`.
-   * \param f_visit_span The packed function of `VisitSpan(const Span& span)`.
+   * \param f_visit_loc The packed function of `VisitLoc(const Location& loc)`.
    * \return The PyExprMutator created.
    */
   TVM_DLL static PyExprMutator MakePyExprMutator(
@@ -525,7 +525,7 @@ class PyExprMutator : public ffi::ObjectRef {
       ffi::Function f_visit_tuple_, ffi::Function f_visit_var_, ffi::Function f_visit_dataflow_var_,
       ffi::Function f_visit_shape_expr_, ffi::Function f_visit_extern_func_,
       ffi::Function f_visit_global_var_, ffi::Function f_visit_function_,
-      ffi::Function f_visit_call_, ffi::Function f_visit_seq_expr_, ffi::Function f_visit_if_,
+      ffi::Function f_visit_call_, ffi::Function f_visit_seq_expr_, ffi::Function f_visit_if_expr_,
       ffi::Function f_visit_op_, ffi::Function f_visit_tuple_getitem_,
       ffi::Function f_visit_expr_fallback_, ffi::Function f_visit_string_imm_,
       ffi::Function f_visit_data_type_imm_, ffi::Function f_visit_binding,
@@ -533,8 +533,8 @@ class PyExprMutator : public ffi::ObjectRef {
       ffi::Function f_visit_binding_block, ffi::Function f_visit_binding_block_,
       ffi::Function f_visit_dataflow_block_, ffi::Function f_visit_var_def,
       ffi::Function f_visit_var_def_, ffi::Function f_visit_dataflow_var_def_,
-      ffi::Function f_visit_span) {
-    ffi::ObjectPtr<PyExprMutatorNode> n = ffi::make_object<PyExprMutatorNode>();
+      ffi::Function f_visit_loc) {
+    ffi::ObjectPtr<PyExprMutatorObj> n = ffi::make_object<PyExprMutatorObj>();
     n->builder_ = builder_;
     n->f_visit_expr = f_visit_expr;
     n->f_visit_generic_const_ = f_visit_generic_const_;
@@ -547,7 +547,7 @@ class PyExprMutator : public ffi::ObjectRef {
     n->f_visit_function_ = f_visit_function_;
     n->f_visit_call_ = f_visit_call_;
     n->f_visit_seq_expr_ = f_visit_seq_expr_;
-    n->f_visit_if_ = f_visit_if_;
+    n->f_visit_if_expr_ = f_visit_if_expr_;
     n->f_visit_op_ = f_visit_op_;
     n->f_visit_tuple_getitem_ = f_visit_tuple_getitem_;
     n->f_visit_expr_fallback_ = f_visit_expr_fallback_;
@@ -562,15 +562,15 @@ class PyExprMutator : public ffi::ObjectRef {
     n->f_visit_var_def = f_visit_var_def;
     n->f_visit_var_def_ = f_visit_var_def_;
     n->f_visit_dataflow_var_def_ = f_visit_dataflow_var_def_;
-    n->f_visit_span = f_visit_span;
+    n->f_visit_loc = f_visit_loc;
     return PyExprMutator(n);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PyExprMutator, ffi::ObjectRef, PyExprMutatorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PyExprMutator, ffi::ObjectRef, PyExprMutatorObj);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<PyExprVisitorNode>();
+  refl::ObjectDef<PyExprVisitorObj>();
   refl::GlobalDef()
       .def("relax.MakePyExprVisitor", PyExprVisitor::MakePyExprVisitor)
       .def("relax.PyExprVisitorVisitExpr",
@@ -615,8 +615,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                TVM_FFI_THROW(TypeError) << "Invalid type: " << var->GetTypeKey();
              }
            })
-      .def("relax.ExprVisitorVisitSpan",
-           [](PyExprVisitor visitor, const Span& span) { visitor->ExprVisitor::VisitSpan(span); })
+      .def("relax.ExprVisitorVisitLoc",
+           [](PyExprVisitor visitor, const Location& loc) { visitor->ExprVisitor::VisitLoc(loc); })
       .def("relax.ExprVisitorVisitExprFallback",
            [](PyExprVisitor visitor, const Expr& expr) {
              visitor->ExprVisitor::VisitExprFallback_(expr.get());
@@ -681,15 +681,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](PyExprMutator mutator, Var var, Type ty) { return mutator->WithType(var, ty); })
       .def("relax.PyExprMutatorSetVarRemap",
            [](PyExprMutator mutator, Var old_var, Var new_var) {
-             return mutator->var_remap_[old_var] = new_var;
+             mutator->var_remap_.insert_or_assign(old_var, new_var);
+             return new_var;
            })
       .def("relax.PyExprMutatorGetVarRemap",
-           [](PyExprMutator mutator, Var var) { return mutator->var_remap_[var]; });
+           [](PyExprMutator mutator, Var var) -> ffi::Optional<Var> {
+             auto it = mutator->var_remap_.find(var);
+             if (it != mutator->var_remap_.end()) return it->second;
+             return std::nullopt;
+           });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  PyExprVisitorNode::RegisterReflection();
-  PyExprMutatorNode::RegisterReflection();
+  PyExprVisitorObj::RegisterReflection();
+  PyExprMutatorObj::RegisterReflection();
 }
 
 }  // namespace relax

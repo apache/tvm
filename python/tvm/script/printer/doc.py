@@ -259,7 +259,7 @@ class OperationKind(IntEnum):
     _BinaryEnd = 27
 
     _SpecialStart = 28
-    IfThenElse = 29
+    If = 29
     _SpecialEnd = 30
 
     # pylint: enable=invalid-name
@@ -365,13 +365,15 @@ class AssignDoc(StmtDoc):
 
 @register_object("script.printer.IfDoc")
 class IfDoc(StmtDoc):
-    """Doc that represent if-then-else statement."""
+    """If-then-else statement, with None for an absent else branch."""
 
     predicate: ExprDoc
     then_branch: Sequence[StmtDoc]
-    else_branch: Sequence[StmtDoc]
+    else_branch: Sequence[StmtDoc] | None
 
-    def __init__(self, predicate: ExprDoc, then_branch: list[StmtDoc], else_branch: list[StmtDoc]):
+    def __init__(
+        self, predicate: ExprDoc, then_branch: list[StmtDoc], else_branch: list[StmtDoc] | None
+    ):
         self.__init_handle_by_constructor__(
             _ffi_api.IfDoc,  # type: ignore # pylint: disable=no-member
             predicate,

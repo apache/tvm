@@ -18,7 +18,6 @@
 
 # pylint: disable=missing-docstring
 import multiprocessing
-import os
 import shutil
 import socket
 import subprocess
@@ -32,6 +31,7 @@ from tvm_ffi import Shape
 
 import tvm
 import tvm.testing
+from tvm.ir import TupleType as _TupleType
 from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -231,10 +231,10 @@ def _compile():
     init_dfunc(uid, num_workers, 0)
     sess.sync_worker_0()
 
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((8, 16), "float32"), B: T.Tensor((16, 8), "float32")):
-        for i in T.thread_binding(T.int64(8), thread="threadIdx.y"):
-            for j in T.thread_binding(T.int64(16), thread="threadIdx.x"):
+        for i in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.y"}):
+            for j in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("T_transpose"):
                     v0 = Ts.axis.spatial(T.int64(8), i)
                     v1 = Ts.axis.spatial(T.int64(16), j)
@@ -287,11 +287,9 @@ extern "C" __global__ void nvshmem_query_kernel(int* my_pe_out, int* n_pes_out) 
 
 
 def _kernel_compile(compile_mode):
-    """Compile and run a kernel that calls NVSHMEM functions.
+    """Compile and run a kernel with an explicit NVSHMEM compiler configuration."""
 
-    Runs in a fresh process, so setting the env var is safe.
-    """
-    os.environ["TVM_CUDA_COMPILE_MODE"] = compile_mode
+    backend_config = {"cuda": {"compiler": compile_mode}}
 
     num_workers = 2
     sess = di.ProcessSession(num_workers=num_workers)
@@ -306,7 +304,7 @@ def _kernel_compile(compile_mode):
 
         @I.ir_module
         class NvshmemQueryModule:
-            @Ts.prim_func
+            @Ts.function
             def query_pe(
                 my_pe_out: T.Tensor((1,), "int32"),
                 n_pes_out: T.Tensor((1,), "int32"),
@@ -320,6 +318,7 @@ def _kernel_compile(compile_mode):
                         my_pe_out.data,
                         n_pes_out.data,
                         kernel_name="nvshmem_query_kernel",
+                        backend_config=backend_config,
                     )
 
             @R.function
@@ -329,10 +328,7 @@ def _kernel_compile(compile_mode):
                     my_pe = R.call_tir(
                         cls.query_pe,
                         (),
-                        out_ty=[
-                            R.Tensor((1,), "int32"),
-                            R.Tensor((1,), "int32"),
-                        ],
+                        ty_args=[_TupleType([R.Tensor((1,), "int32"), R.Tensor((1,), "int32")])],
                     )
                     R.output(my_pe)
                 return my_pe
@@ -342,7 +338,10 @@ def _kernel_compile(compile_mode):
             path = tmpdir + "/test_nvshmem_kernel.so"
 
             target = tvm.target.Target("cuda")
-            tvm.compile(NvshmemQueryModule, target=target).export_library(path)
+            tvm.compile(
+                NvshmemQueryModule,
+                target={**tvm.target.Target(target).export(), "backend_config": backend_config},
+            ).export_library(path)
             mod = sess.load_vm_module(path)
             result = mod["main"]()
 

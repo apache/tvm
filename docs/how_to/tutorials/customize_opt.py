@@ -119,9 +119,9 @@ except ImportError as e:
 
 
 # Define a new pass for CUBLAS dispatch
-@tvm.transform.module_pass(opt_level=0, name="CublasDispatch")
+@tvm.ir.transform.module_pass(opt_level=0, name="CublasDispatch")
 class CublasDispatch:
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm.ir.transform.PassContext) -> IRModule:
         # Check if CUBLAS is enabled
         if not tvm.get_global_func("relax.ext.cublas", True):
             raise Exception("CUBLAS is not enabled.")

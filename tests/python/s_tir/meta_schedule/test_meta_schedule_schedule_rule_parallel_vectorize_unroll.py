@@ -31,7 +31,7 @@ from tvm.target import Target
 
 @tvm.script.ir_module
 class Matmul:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((1024, 1024), 'float32'), B: T.Tensor((1024, 1024), 'float32'), C: T.Tensor((1024, 1024), 'float32')) -> None:
         T.func_attr({"global_symbol": "main"})
 
@@ -44,7 +44,7 @@ class Matmul:
 
 @tvm.script.ir_module
 class ParallelizeVectorizeUnroll:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((1024, 1024), 'float32'), B: T.Tensor((1024, 1024), 'float32'), C: T.Tensor((1024, 1024), 'float32')) -> None:
         T.func_attr({"global_symbol": "main"})
 
@@ -62,29 +62,29 @@ class ParallelizeVectorizeUnroll:
 # from tvm.script import tirx as T
 @tvm.script.ir_module
 class PureSpatial:
-    @Ts.prim_func
+    @Ts.function
     def main(placeholder: T.Tensor((1, 13, 13, 3, 85), "float32"), placeholder_1: T.Tensor((1, 26, 26, 3, 85), "float32"), placeholder_2: T.Tensor((1, 52, 52, 3, 85), "float32"), T_expand_dims: T.Tensor((1, 80, 10647), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        T_strided_slice_with_axes = Ts.sblock_alloc_buffer([1, 52, 52, 3, 1], dtype="float32")
-        T_sigmoid = Ts.sblock_alloc_buffer([1, 52, 52, 3, 1], dtype="float32")
-        T_strided_slice_with_axes_1 = Ts.sblock_alloc_buffer([1, 52, 52, 3, 80], dtype="float32")
-        T_sigmoid_1 = Ts.sblock_alloc_buffer([1, 52, 52, 3, 80], dtype="float32")
-        T_multiply = Ts.sblock_alloc_buffer([1, 52, 52, 3, 80], dtype="float32")
-        T_reshape = Ts.sblock_alloc_buffer([8112, 80], dtype="float32")
-        T_strided_slice_with_axes_2 = Ts.sblock_alloc_buffer([1, 26, 26, 3, 1], dtype="float32")
-        T_sigmoid_2 = Ts.sblock_alloc_buffer([1, 26, 26, 3, 1], dtype="float32")
-        T_strided_slice_with_axes_3 = Ts.sblock_alloc_buffer([1, 26, 26, 3, 80], dtype="float32")
-        T_sigmoid_3 = Ts.sblock_alloc_buffer([1, 26, 26, 3, 80], dtype="float32")
-        T_multiply_1 = Ts.sblock_alloc_buffer([1, 26, 26, 3, 80], dtype="float32")
-        T_reshape_1 = Ts.sblock_alloc_buffer([2028, 80], dtype="float32")
-        T_strided_slice_with_axes_4 = Ts.sblock_alloc_buffer([1, 13, 13, 3, 1], dtype="float32")
-        T_sigmoid_4 = Ts.sblock_alloc_buffer([1, 13, 13, 3, 1], dtype="float32")
-        T_strided_slice_with_axes_5 = Ts.sblock_alloc_buffer([1, 13, 13, 3, 80], dtype="float32")
-        T_sigmoid_5 = Ts.sblock_alloc_buffer([1, 13, 13, 3, 80], dtype="float32")
-        T_multiply_2 = Ts.sblock_alloc_buffer([1, 13, 13, 3, 80], dtype="float32")
-        T_reshape_2 = Ts.sblock_alloc_buffer([507, 80], dtype="float32")
-        T_concat = Ts.sblock_alloc_buffer([10647, 80], dtype="float32")
-        T_transpose = Ts.sblock_alloc_buffer([80, 10647], dtype="float32")
+        T_strided_slice_with_axes = Ts.sblock_alloc_tensor([1, 52, 52, 3, 1], dtype="float32")
+        T_sigmoid = Ts.sblock_alloc_tensor([1, 52, 52, 3, 1], dtype="float32")
+        T_strided_slice_with_axes_1 = Ts.sblock_alloc_tensor([1, 52, 52, 3, 80], dtype="float32")
+        T_sigmoid_1 = Ts.sblock_alloc_tensor([1, 52, 52, 3, 80], dtype="float32")
+        T_multiply = Ts.sblock_alloc_tensor([1, 52, 52, 3, 80], dtype="float32")
+        T_reshape = Ts.sblock_alloc_tensor([8112, 80], dtype="float32")
+        T_strided_slice_with_axes_2 = Ts.sblock_alloc_tensor([1, 26, 26, 3, 1], dtype="float32")
+        T_sigmoid_2 = Ts.sblock_alloc_tensor([1, 26, 26, 3, 1], dtype="float32")
+        T_strided_slice_with_axes_3 = Ts.sblock_alloc_tensor([1, 26, 26, 3, 80], dtype="float32")
+        T_sigmoid_3 = Ts.sblock_alloc_tensor([1, 26, 26, 3, 80], dtype="float32")
+        T_multiply_1 = Ts.sblock_alloc_tensor([1, 26, 26, 3, 80], dtype="float32")
+        T_reshape_1 = Ts.sblock_alloc_tensor([2028, 80], dtype="float32")
+        T_strided_slice_with_axes_4 = Ts.sblock_alloc_tensor([1, 13, 13, 3, 1], dtype="float32")
+        T_sigmoid_4 = Ts.sblock_alloc_tensor([1, 13, 13, 3, 1], dtype="float32")
+        T_strided_slice_with_axes_5 = Ts.sblock_alloc_tensor([1, 13, 13, 3, 80], dtype="float32")
+        T_sigmoid_5 = Ts.sblock_alloc_tensor([1, 13, 13, 3, 80], dtype="float32")
+        T_multiply_2 = Ts.sblock_alloc_tensor([1, 13, 13, 3, 80], dtype="float32")
+        T_reshape_2 = Ts.sblock_alloc_tensor([507, 80], dtype="float32")
+        T_concat = Ts.sblock_alloc_tensor([10647, 80], dtype="float32")
+        T_transpose = Ts.sblock_alloc_tensor([80, 10647], dtype="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 52, 52, 3, 1):
             with Ts.sblock("T_strided_slice_with_axes"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -217,7 +217,7 @@ class PureSpatial:
 
 
 def test_parallel_vectorize_unroll():
-    @Ts.prim_func
+    @Ts.function
     def Matmul_0(
         A: T.Tensor((1024, 1024), "float32"),
         B: T.Tensor((1024, 1024), "float32"),

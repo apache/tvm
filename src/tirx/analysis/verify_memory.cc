@@ -23,13 +23,16 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -50,7 +53,7 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
  public:
   /// Special member functions
   //@{
-  explicit MemoryAccessVerifier(PrimFunc f, int device_type) : func_(f), dev_type_(device_type) {}
+  explicit MemoryAccessVerifier(Function f, int device_type) : func_(f), dev_type_(device_type) {}
   virtual ~MemoryAccessVerifier() = default;
   MemoryAccessVerifier(const MemoryAccessVerifier&) = delete;
   MemoryAccessVerifier(MemoryAccessVerifier&&) = delete;
@@ -73,15 +76,23 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     // Book keep definitions
-    defs_[op->var.get()] = op->value;
+    defs_.insert_or_assign(op->var.get(), op->value);
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    if (!InThreadEnv() && op->attr_key == attr::thread_extent) {
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    bool is_device_region = op->op.same_as(Op::Get("tirx.device_scope"));
+    bool is_thread_region =
+        op->op.same_as(tirx::launch_thread_op()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0;
+    if (!InThreadEnv() && (is_device_region || is_thread_region)) {
+      // Launch operands execute in the enclosing environment.
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->args));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->attrs));
       EnterThreadEnv();
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+      auto result = Visit(op->body);
       ExitThreadEnv();
+      return result;
     } else {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
@@ -89,17 +100,17 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    HandleLoadStoreToVariable(op->source.as_or_throw<tvm::tirx::BufferVar>().var());
+    HandleLoadStoreToVariable(op->source.as_or_throw<tvm::tirx::TensorVar>());
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
-    HandleLoadStoreToVariable(op->buffer.var());
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
+    HandleLoadStoreToVariable(op->dest.as_or_throw<TensorVar>());
     return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if ((op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) &&
+    if ((op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) &&
         !op->args.empty()) {
       HandleLoadStoreToVariable(op->args[0].as_or_throw<Var>());
     }
@@ -116,14 +127,14 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
 
     while (true) {
       // Variable is from function args. Return true.
-      if (V == func_->params[0].get()) return true;
+      if (!func_->params.empty() && V == func_->params[0].get()) return true;
 
-      // The value is expected to come from a tvm_struct_get Call.
-      // Get the first argument of tvm_struct_get, and continue.
+      // The value is expected to come from a abi_field_get Call.
+      // Get the first argument of abi_field_get, and continue.
       const auto& iter = defs_.find(V);
       if (iter == defs_.end()) return false;
       const CallNode* C = iter->second.as<const CallNode>();
-      if (!C || !C->op.same_as(builtin::tvm_struct_get())) return false;
+      if (!C || !C->op.same_as(tirx::abi_field_get_op())) return false;
       V = C->args[0].as<VarNode>();
     }
     return false;
@@ -167,14 +178,14 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
   bool in_thread_env_{false};
   std::vector<ffi::String> errs_;
   //@}
-  tirx::PrimFunc func_{nullptr};                   ///< Function to be verified.
+  tirx::Function func_;                            ///< Function to be verified.
   int dev_type_{kDLCPU};                           ///< Device type
   std::unordered_map<const VarNode*, Expr> defs_;  ///< Variable definitions
 };
 }  // namespace
 
 /// Interface of VerifyMemory pass
-std::vector<ffi::String> VerifyMemory_(const PrimFunc& func) {
+std::vector<ffi::String> VerifyMemory_(const Function& func) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   // Skip verification for functions without a target attribute, as they are
   // typically host-only helper functions that do not have device-memory constraints.
@@ -194,7 +205,7 @@ std::vector<ffi::String> VerifyMemory_(const PrimFunc& func) {
   }
 }
 
-bool VerifyMemory(const PrimFunc& func) { return VerifyMemory_(func).size() == 0; }
+bool VerifyMemory(const Function& func) { return VerifyMemory_(func).size() == 0; }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -206,7 +217,7 @@ namespace transform {
 Pass VerifyMemory() {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto func = kv.second.as<PrimFunc>()) {
+      if (auto func = kv.second.as<Function>()) {
         auto errs = VerifyMemory_(func.value());
         if (errs.size() > 0) {
           std::stringstream s;
@@ -221,7 +232,7 @@ Pass VerifyMemory() {
     }
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.VerifyMemory", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.VerifyMemory");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

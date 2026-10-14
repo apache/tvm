@@ -44,7 +44,7 @@ def _test_static_shape(name: str, relax_op: Callable, te_func: Callable, dtype: 
         @R.function
         def main(x: R.Tensor((2, 3), dtype)):
             nonlocal dtype
-            gv = R.emit_te(te_func, x, primfunc_name_hint=f"tir_{name}")
+            gv = R.emit_te(te_func, x, function_name_hint=f"tir_{name}")
             return gv
 
     mod = LegalizeOps()(Before)
@@ -52,8 +52,8 @@ def _test_static_shape(name: str, relax_op: Callable, te_func: Callable, dtype: 
 
 
 def _test_symbolic_shape(name: str, relax_op: Callable, te_func: Callable, dtype: str):
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -63,15 +63,15 @@ def _test_symbolic_shape(name: str, relax_op: Callable, te_func: Callable, dtype
             gv = relax_op(x)
             return gv
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m, n), dtype)):
             nonlocal dtype
-            gv = R.emit_te(te_func, x, primfunc_name_hint=f"tir_{name}")
+            gv = R.emit_te(te_func, x, function_name_hint=f"tir_{name}")
             return gv
 
     mod = LegalizeOps()(Before)

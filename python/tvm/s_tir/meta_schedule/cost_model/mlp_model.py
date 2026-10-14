@@ -31,7 +31,7 @@ from typing import NamedTuple
 import numpy as np  # type: ignore
 import torch  # type: ignore
 
-from tvm.ir.utils import derived_object
+from tvm.s_tir.utils import derived_object
 from tvm.support.tar import tar, untar
 
 from ....runtime import Tensor

@@ -20,14 +20,14 @@ import os
 
 import tvm
 from tvm import relax, te
-from tvm.contrib import tvmjs
+from tvm.contrib import emcc
 from tvm.script import ir as I
 from tvm.script import relax as R
 
 
 def prepare_relax_lib(base_path):
     pipeline = relax.get_pipeline()
-    n = I.dynamic("n")
+    n = I.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Mod:
@@ -41,7 +41,7 @@ def prepare_relax_lib(base_path):
     mod = pipeline(Mod)
     ex = relax.build(mod, target)
     wasm_path = os.path.join(base_path, "test_relax.wasm")
-    ex.export_library(wasm_path, fcompile=tvmjs.create_tvmjs_wasm)
+    ex.export_library(wasm_path, fcompile=emcc.create_wasm)
 
 
 def prepare_tir_lib(base_path):
@@ -52,12 +52,12 @@ def prepare_tir_lib(base_path):
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     mod = tvm.IRModule.from_expr(
-        te.create_prim_func([A, B]).with_attr("global_symbol", "add_one")
+        te.create_function([A, B]).with_attr("global_symbol", "add_one")
     ).with_attr("system_lib_prefix", "")
 
-    fadd = tvm.tirx.build(mod, target)
+    fadd = tvm.tirx.compile(mod, target).mod
     wasm_path = os.path.join(base_path, "test_addone.wasm")
-    fadd.export_library(wasm_path, fcompile=tvmjs.create_tvmjs_wasm)
+    fadd.export_library(wasm_path, fcompile=emcc.create_wasm)
 
 
 if __name__ == "__main__":

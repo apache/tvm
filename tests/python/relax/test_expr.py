@@ -44,7 +44,7 @@ def _check_json_roundtrip(x):
 
 def _check_type_missing(ty):
     assert isinstance(ty, tvm.ir.Type)
-    assert ty.is_missing()
+    assert isinstance(ty, tvm.ir.MissingType)
 
 
 def test_var() -> None:
@@ -375,7 +375,7 @@ def test_call_accepts_core_expr_operator():
 
 def test_call_raises_error_for_missing_operator():
     """relax::Call requires a defined operator."""
-    with pytest.raises(ValueError, match="defined operator"):
+    with pytest.raises(TypeError, match=r"Expected `ir.Expr` but got `None`"):
         rx.Call(None, [])
 
 
@@ -388,7 +388,7 @@ def test_call_reinfer_type_from_current_inputs():
     initial = rx.Call("relax.abs", [x])
     _check_equal(tvm.ir.reinfer_type(initial), original_ty)
     assert tvm.ir.reinfer_type(initial).same_as(original_ty)
-    _check_type_missing(initial.ty)
+    _check_equal(initial.ty, original_ty)
 
     unchanged = rx.Call("relax.abs", [x], ty=original_ty)
     assert tvm.ir.reinfer_type(unchanged).same_as(unchanged.ty)
@@ -402,18 +402,19 @@ def test_call_reinfer_type_from_current_inputs():
     assert tvm.ir.reinfer_type(stale).same_as(changed_ty)
     _check_equal(stale.ty, original_ty)
 
-    with pytest.raises(tvm.error.InternalError, match="type is not populated"):
-        tvm.ir.reinfer_type(rx.Call("relax.abs", [rx.Var("untyped")]))
-    with pytest.raises(tvm.error.InternalError, match="type is not populated"):
-        tvm.ir.reinfer_type(rx.Call("relax.abs", [rx.Var("untyped")], ty=original_ty))
-    with pytest.raises(ValueError, match="No context-free"):
-        tvm.ir.reinfer_type(rx.Call.unchecked("relax.matmul", [x, x]))
+    untyped = rx.Call("relax.abs", [rx.Var("untyped")])
+    _check_type_missing(tvm.ir.reinfer_type(untyped))
+    _check_type_missing(untyped.ty)
+    untyped_explicit = rx.Call("relax.abs", [rx.Var("untyped")], ty=original_ty)
+    _check_type_missing(tvm.ir.reinfer_type(untyped_explicit))
+    assert untyped_explicit.ty.same_as(original_ty)
+    _check_type_missing(tvm.ir.reinfer_type(rx.Call("relax.matmul", [x, x])))
     func = rx.Var("func", rx.FuncType([original_ty], original_ty))
-    with pytest.raises(ValueError, match="Op callee"):
-        tvm.ir.reinfer_type(rx.Call(func, [x]))
+    _check_type_missing(tvm.ir.reinfer_type(rx.Call(func, [x])))
 
+    invalid = rx.Call("relax.abs", [rx.Var("scalar", tvm.ir.PrimType("int32"))], ty=original_ty)
     with pytest.raises(TypeError):
-        tvm.ir.reinfer_type(rx.Call("relax.abs", [rx.Var("scalar", tvm.ir.PrimType("int32"))]))
+        tvm.ir.reinfer_type(invalid)
 
     out_ty = rx.TensorType([8], "float32")
     closure = rx.Var("closure", rx.AnyType())

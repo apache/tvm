@@ -36,6 +36,7 @@ def alloc_argument_common(
     device: Device,
     args_info: T_ARG_INFO_JSON_OBJ_LIST,
     alloc_repeat: int,
+    f_alloc: Callable | None = None,
 ) -> list[T_ARGUMENT_LIST]:
     """Common function to allocate the arguments
 
@@ -57,7 +58,11 @@ def alloc_argument_common(
     """
 
     def alloc_tensor(_, dtype, shape) -> tvm.runtime.Tensor:
-        arg = tvm.runtime.empty(shape=shape, dtype=dtype, device=device)
+        arg = (
+            f_alloc(shape, dtype)
+            if f_alloc is not None
+            else tvm.runtime.empty(shape=shape, dtype=dtype, device=device)
+        )
         f_random_fill(arg)
         return arg
 

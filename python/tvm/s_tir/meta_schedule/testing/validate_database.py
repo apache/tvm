@@ -37,9 +37,9 @@ from tvm.s_tir.meta_schedule.testing.tune_utils import generate_input_data
 from tvm.s_tir.meta_schedule.utils import remove_build_dir
 from tvm.s_tir.schedule import Trace
 from tvm.s_tir.tensor_intrin import *  # type: ignore # pylint: disable=wildcard-import,unused-wildcard-import
+from tvm.s_tir.testing import strtobool
 from tvm.support import describe
 from tvm.target import Target
-from tvm.testing.utils import strtobool
 
 DELIMITOR = "\n" + "-" * 30 + "\n"
 
@@ -250,7 +250,7 @@ def default_input_generator(  # pylint: disable=unused-variable
         The generated input data.
     """
 
-    args_info = ms.arg_info.TensorInfo.from_prim_func(mod["main"])
+    args_info = ms.arg_info.TensorInfo.from_function(mod["main"])
     inputs = [
         tvm.runtime.tensor(
             generate_input_data(input_shape=arg_info.shape, input_dtype=arg_info.dtype)
@@ -519,7 +519,7 @@ def make_alloc_arg_and_check(
         args_info: ms.runner.rpc_runner.T_ARG_INFO_JSON_OBJ_LIST,
         alloc_repeat: int,
     ) -> list[ms.runner.rpc_runner.T_ARGUMENT_LIST]:
-        return f_with_args_alloc_argument_common(device, args_info, alloc_repeat)
+        return [[device.tensor(arg) for arg in inputs] for _ in range(alloc_repeat)]
 
     def f_with_args_run_evaluator_rpc(
         rpc_session: ms.runner.rpc_runner.RPCSession,  # pylint: disable=unused-argument

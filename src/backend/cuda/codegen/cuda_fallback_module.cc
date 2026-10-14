@@ -19,43 +19,53 @@
 
 /*!
  * \file cuda_fallback_module.cc
- * \brief CUDAFallbackModuleNode — codegen-time placeholder used when the CUDA
- *        runtime is not linked.  Mirrors `CUDAModuleNode`'s save/load format
- *        byte-for-byte; see one-way comment in `SaveToBytes` below.
+ * \brief CUDAFallbackModuleObj — codegen-time placeholder used when the CUDA
+ *        runtime is not linked.  Mirrors `CUDAModuleObj`'s save/load format
+ *        byte-for-byte, including the backend configuration string.
  *        Always compiled (independent of USE_CUDA); never registered as an
  *        FFI factory or loader.
  */
 #include "cuda_fallback_module.h"
 
+#include <tvm/ffi/cast.h>
+#include <tvm/ffi/container/array.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/support/bytes_io.h>
 
 #include <string>
 #include <utility>
 
-#include "../../../support/bytes_io.h"
-
 namespace tvm {
 namespace target {
 
-class CUDAFallbackModuleNode : public ffi::ModuleObj {
+class CUDAFallbackModuleObj : public ffi::ModuleObj {
  public:
-  CUDAFallbackModuleNode(ffi::Bytes code, ffi::String fmt,
-                         ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
-                         ffi::Map<ffi::String, ffi::String> source)
+  CUDAFallbackModuleObj(ffi::Bytes code, ffi::String fmt,
+                        ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
+                        ffi::Map<ffi::String, ffi::String> source)
       : code_(std::move(code)),
         fmt_(std::move(fmt)),
         fmap_(std::move(fmap)),
-        source_(std::move(source)) {}
+        source_(std::move(source)),
+        backend_config_(source_.Get("backend_config").value_or("{}")) {}
 
   // Mirror the real module's kind so consumers cannot distinguish at the
-  // kind/api layer.  Saved bytes load back as a real CUDAModuleNode on a
+  // kind/api layer.  Saved bytes load back as a real CUDAModuleObj on a
   // CUDA-equipped receiver.
   const char* kind() const final { return "cuda"; }
 
   int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; }
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
+    if (name == "__tvm_cuda_binary") {
+      auto self = ffi::GetRef<ffi::Module>(this);
+      return ffi::Function::FromTyped([self, this]() {
+        ffi::Array<ffi::String> names;
+        for (auto [name, info] : fmap_) names.push_back(name);
+        return ffi::Array<ffi::Any>{code_, fmt_, names};
+      });
+    }
     TVM_FFI_THROW(RuntimeError)
         << "CUDA runtime is not linked into this build; cannot launch kernels. "
         << "Re-link with USE_CUDA=ON or load this module in a CUDA-equipped "
@@ -64,22 +74,18 @@ class CUDAFallbackModuleNode : public ffi::ModuleObj {
   }
 
   ffi::Bytes SaveToBytes() const final {
-    // NOTE: serialization format MUST remain byte-identical to
-    // CUDAModuleNode::SaveToBytes in src/runtime/cuda/cuda_module.cc (the
-    // source of truth).  Both produce a kind="cuda" artifact that the loader
-    // (ffi.Module.load_from_bytes.cuda, registered only when USE_CUDA=ON)
-    // deserializes.  If the real impl's format changes, mirror the change
-    // here.  The dependency is one-way: this file follows; cuda_module.cc
-    // does not reference this file.
+    // Keep the existing prefix; only compilation settings are appended.
     std::string buffer;
     support::BytesOutStream stream(&buffer);
     stream.Write(fmt_);
     stream.Write(fmap_);
     stream.Write(code_);
+    stream.Write(backend_config_);
     return ffi::Bytes(std::move(buffer));
   }
 
   ffi::String InspectSource(const ffi::String& format) const final {
+    if (format == "backend_config") return backend_config_;
     if (format == fmt_) {
       return ffi::String(code_.data(), code_.size());
     }
@@ -104,15 +110,16 @@ class CUDAFallbackModuleNode : public ffi::ModuleObj {
   ffi::String fmt_;
   // function information table.
   ffi::Map<ffi::String, runtime::FunctionInfo> fmap_;
-  // In-memory source map for InspectSource — never serialized.
+  // In-memory source for inspection; not serialized.
   ffi::Map<ffi::String, ffi::String> source_;
+  ffi::String backend_config_;  // Serialized JSON; interpreted only by the compilation backend.
 };
 
 ffi::Module CUDAFallbackModuleCreate(ffi::Bytes code, ffi::String fmt,
                                      ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
                                      ffi::Map<ffi::String, ffi::String> source) {
-  auto n = ffi::make_object<CUDAFallbackModuleNode>(std::move(code), std::move(fmt),
-                                                    std::move(fmap), std::move(source));
+  auto n = ffi::make_object<CUDAFallbackModuleObj>(std::move(code), std::move(fmt), std::move(fmap),
+                                                   std::move(source));
   return ffi::Module(n);
 }
 

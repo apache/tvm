@@ -28,7 +28,7 @@ TARGET = tvm.target.Target("cuda")
 
 def _build_and_run(func, n=32):
     mod = tvm.IRModule({"main": func})
-    mod = tvm.compile(mod, target=TARGET, tir_pipeline="tirx")
+    mod = tvm.tirx.compile(mod, target=TARGET, pipeline="tirx")
     out_np = np.zeros(n, dtype="float32")
 
     def run_and_check():
@@ -46,13 +46,13 @@ def test_warp_sum_full():
     """Full warp sum (width=32): each lane gets the sum of all 32 values."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(out: T.Tensor((32,), 'float32')):
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([1])
-        lane = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane = T.cuda.lane_id()
         val: T.f32 = T.float32(lane + 1)
         val = T.cuda.warp_sum(val)
         out[lane] = val
@@ -70,13 +70,13 @@ def test_warp_sum_partial_8():
     """Partial warp sum (width=8): 4 groups of 8 lanes, each group sums independently."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(out: T.Tensor((32,), 'float32')):
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([1])
-        lane = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane = T.cuda.lane_id()
         val: T.f32 = T.float32(lane + 1)
         val = T.cuda.warp_sum(val, width=8)
         out[lane] = val
@@ -100,13 +100,13 @@ def test_warp_max_partial_4():
     """Partial warp max (width=4): 8 groups of 4 lanes."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(out: T.Tensor((32,), 'float32')):
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([1])
-        lane = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane = T.cuda.lane_id()
         val: T.f32 = T.float32(lane + 1)
         val = T.cuda.warp_max(val, width=4)
         out[lane] = val
@@ -126,13 +126,13 @@ def test_warp_min_full():
     """Full warp min (width=32)."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(out: T.Tensor((32,), 'float32')):
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([1])
-        lane = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane = T.cuda.lane_id()
         val: T.f32 = T.float32(lane + 1)
         val = T.cuda.warp_min(val)
         out[lane] = val
@@ -148,13 +148,13 @@ def test_warp_sum_partial_2():
     """Smallest partial warp sum (width=2): 16 pairs of adjacent lanes."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(out: T.Tensor((32,), 'float32')):
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([1])
-        lane = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane = T.cuda.lane_id()
         val: T.f32 = T.float32(lane)
         val = T.cuda.warp_sum(val, width=2)
         out[lane] = val
@@ -177,13 +177,13 @@ def test_warp_sum_all_widths(width):
     """Parametric test: warp_sum with every valid width."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(out: T.Tensor((32,), 'float32')):
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        warp_id = T.warp_id([1])
-        lane = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        cta_id = T.cuda.block_idx('x')
+        warp_id = T.cuda.warp_id()
+        lane = T.cuda.lane_id()
         val: T.f32 = T.float32(lane)
         val = T.cuda.warp_sum(val, width=width)
         out[lane] = val

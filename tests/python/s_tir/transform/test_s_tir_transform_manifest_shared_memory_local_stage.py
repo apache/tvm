@@ -27,22 +27,22 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class MatmulBefore:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((1024, 1024), "float32"), B: T.Tensor((1024, 1024), "float32"), C: T.Tensor((1024, 1024), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        for blockIdx_y in T.thread_binding(32, thread="blockIdx.y"):
-            for blockIdx_x in T.thread_binding(32, thread="blockIdx.x"):
-                for threadIdx_y in T.thread_binding(2, thread="threadIdx.y"):
-                    for threadIdx_x in T.thread_binding(2, thread="threadIdx.x"):
+        for blockIdx_y in T.parallel(32, annotations={"thread_binding": "blockIdx.y"}):
+            for blockIdx_x in T.parallel(32, annotations={"thread_binding": "blockIdx.x"}):
+                for threadIdx_y in T.parallel(2, annotations={"thread_binding": "threadIdx.y"}):
+                    for threadIdx_x in T.parallel(2, annotations={"thread_binding": "threadIdx.x"}):
                         for k_0 in T.serial(32):
                             with Ts.sblock():
                                 Ts.reads(A[blockIdx_y * 32 : blockIdx_y * 32 + 32, k_0 * 32 : k_0 * 32 + 32], B[k_0 * 32 : k_0 * 32 + 32, blockIdx_x * 32 : blockIdx_x * 32 + 32])
                                 Ts.writes(C[blockIdx_y * 32 : blockIdx_y * 32 + 32, blockIdx_x * 32 : blockIdx_x * 32 + 32])
-                                A_shared = Ts.sblock_alloc_buffer([1024, 1024], dtype="float32", scope="shared")
-                                B_shared = Ts.sblock_alloc_buffer([1024, 1024], dtype="float32", scope="shared")
+                                A_shared = Ts.sblock_alloc_tensor([1024, 1024], dtype="float32", scope="shared")
+                                B_shared = Ts.sblock_alloc_tensor([1024, 1024], dtype="float32", scope="shared")
                                 for ax0_ax1_fused_0 in T.serial(64):
                                     for ax0_ax1_fused_3 in T.vectorized(4):
                                         with Ts.sblock("A_shared"):
@@ -68,24 +68,24 @@ class MatmulBefore:
 
 @tvm.script.ir_module
 class MatmulAfter:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((1024, 1024), "float32"), B: T.Tensor((1024, 1024), "float32"), C: T.Tensor((1024, 1024), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        for blockIdx_y in T.thread_binding(32, thread="blockIdx.y"):
-            for blockIdx_x in T.thread_binding(32, thread="blockIdx.x"):
-                for threadIdx_y in T.thread_binding(2, thread="threadIdx.y"):
-                    for threadIdx_x in T.thread_binding(2, thread="threadIdx.x"):
+        for blockIdx_y in T.parallel(32, annotations={"thread_binding": "blockIdx.y"}):
+            for blockIdx_x in T.parallel(32, annotations={"thread_binding": "blockIdx.x"}):
+                for threadIdx_y in T.parallel(2, annotations={"thread_binding": "threadIdx.y"}):
+                    for threadIdx_x in T.parallel(2, annotations={"thread_binding": "threadIdx.x"}):
                         for k_0 in T.serial(32):
                             with Ts.sblock():
                                 Ts.reads(A[blockIdx_y * 32 : blockIdx_y * 32 + 32, k_0 * 32 : k_0 * 32 + 32], B[k_0 * 32 : k_0 * 32 + 32, blockIdx_x * 32 : blockIdx_x * 32 + 32])
                                 Ts.writes(C[blockIdx_y * 32 : blockIdx_y * 32 + 32, blockIdx_x * 32 : blockIdx_x * 32 + 32])
-                                A_shared = Ts.sblock_alloc_buffer([1024, 1024], dtype="float32", scope="shared")
-                                B_shared = Ts.sblock_alloc_buffer([1024, 1024], dtype="float32", scope="shared")
-                                A_shared_local = Ts.sblock_alloc_buffer([64, 4], dtype="float32", scope="local")
-                                B_shared_local = Ts.sblock_alloc_buffer([64, 4], dtype="float32", scope="local")
+                                A_shared = Ts.sblock_alloc_tensor([1024, 1024], dtype="float32", scope="shared")
+                                B_shared = Ts.sblock_alloc_tensor([1024, 1024], dtype="float32", scope="shared")
+                                A_shared_local = Ts.sblock_alloc_tensor([64, 4], dtype="float32", scope="local")
+                                B_shared_local = Ts.sblock_alloc_tensor([64, 4], dtype="float32", scope="local")
                                 for ax0_ax1_fused_0 in T.serial(64):
                                     for ax0_ax1_fused_3 in T.vectorized(4):
                                         with Ts.sblock():

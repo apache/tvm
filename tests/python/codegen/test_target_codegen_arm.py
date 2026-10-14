@@ -32,13 +32,13 @@ def test_popcount():
     def check_correct_assembly(type, elements, counts):
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((elements,), type), B: T.Tensor((elements,), type)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.vectorized(elements):
                     B[i] = T.popcount(A[i])
 
-        f = tvm.tirx.build(Module, target=target)
+        f = tvm.tirx.compile(Module, target=target).mod
         # Verify we see the correct number of vpaddl and vcnt instructions in the assembly
         assembly = f.inspect_source("asm")
         matches = re.findall("vpaddl", assembly)
@@ -66,7 +66,7 @@ def test_vmlal_s16():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor((K, N), "int8"), B: T.Tensor((K, N), "int8"), C: T.Tensor((N,), "int32")
             ):
@@ -77,7 +77,7 @@ def test_vmlal_s16():
                     for rv in range(K):
                         C[n] = C[n] + T.Cast("int32", A[rv, n]) * T.Cast("int32", B[rv, n])
 
-        f = tvm.tirx.build(Module, target=target)
+        f = tvm.tirx.compile(Module, target=target).mod
 
         # Verify we see the correct number of vmlal.s16 instructions
         assembly = f.inspect_source("asm")
@@ -94,7 +94,7 @@ def test_vmlal_s16():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor((K, N), "int8"), B: T.Tensor((K,), "int8"), C: T.Tensor((N,), "int32")
             ):
@@ -105,7 +105,7 @@ def test_vmlal_s16():
                     for rv in range(K):
                         C[n] = C[n] + T.Cast("int32", A[rv, n]) * T.Cast("int32", B[rv])
 
-        f = tvm.tirx.build(Module, target=target)
+        f = tvm.tirx.compile(Module, target=target).mod
 
         # Verify we see the correct number of vmlal.s16 instructions
         assembly = f.inspect_source("asm")

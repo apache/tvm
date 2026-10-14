@@ -25,10 +25,9 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/builtin.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -38,7 +37,7 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-// This pass narrows indexing expressions (like BufferStoreNode::indices)
+// This pass narrows indexing expressions (like TensorStoreNode::indices)
 // that trivially fit into i32/i16 (denoted by `target_bits_`) to
 // i32/i16. Considering that i32/i16 indices may be more
 // efficient on some backends (while i64 may be more efficient
@@ -91,7 +90,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
       if (bound_.find(e) == bound_.end()) {
         analyzer_->const_int_bound(e, &bound_);
       }
-      ConstIntBound bound = bound_[e];
+      ConstIntBound bound = bound_.at(e);
       int64_t ubound =
           static_cast<int64_t>(max_value(PrimType::Int(target_bits_)).as_or_throw<IntImm>()->value);
       int64_t lbound =
@@ -124,18 +123,14 @@ class DataTypeVisitor final : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) {
-    if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread) {
-      IterVar iv = op->node.as_or_throw<IterVar>();
-      TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      PrimExpr extent = op->value.as_or_throw<PrimExpr>();
-      analyzer_->Bind(iv->var, Range::FromMinExtent(0, extent));
-      vextent_.insert_or_assign(iv->var.as<VarNode>(), extent.ty());
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    } else {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) {
+    if (op->op.same_as(tirx::launch_thread_op())) {
+      PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
+      PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
+      analyzer_->Bind(var, Range::FromMinExtent(IntImm(extent.ty(), 0), extent));
+      vextent_.insert_or_assign(var.get(), extent.ty());
     }
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) {
@@ -314,12 +309,13 @@ Stmt NarrowDataType(Stmt stmt, int target_bits) {
 namespace transform {
 
 Pass NarrowDataType(int target_bits) {
-  auto pass_func = [target_bits](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [target_bits](Function f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    n->body = ffi::make_object<NarrowDataTypeRewriter>(target_bits)->Rewrite(n->body);
+    n->body = ffi::make_object<NarrowDataTypeRewriter>(target_bits)->Rewrite(n->body.value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.NarrowDataType", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.NarrowDataType");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

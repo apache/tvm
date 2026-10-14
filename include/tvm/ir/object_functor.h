@@ -225,7 +225,7 @@ using ffi::VisitInterrupt;
  * interrupts and errors own their values. A hook controls descent into its node.
  * One visitor must not be shared by overlapping traversals.
  */
-class TVM_DLL ObjectVisitor : public ffi::StructuralVisitorObj {
+class TVM_TIRX_DLL ObjectVisitor : public ffi::StructuralVisitorObj {
  public:
   /*! \brief Construct a visitor using structural fallback for every value. */
   ObjectVisitor() : ObjectVisitor(GlobalVTable()) {}
@@ -343,7 +343,7 @@ class TVM_DLL ObjectVisitor : public ffi::StructuralVisitorObj {
  * replacements and errors own their values. Overrides forward inplace_mode
  * to child calls, following the structural mutation ownership contract.
  */
-class TVM_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
+class TVM_TIRX_DLL ObjectMutator : public ffi::StructuralMapEngineBase {
  public:
   /*! \brief Construct a mutator using structural fallback for every object. */
   ObjectMutator() : ObjectMutator(GlobalVTable()) {}

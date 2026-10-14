@@ -29,11 +29,11 @@ from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.expr_functor import PyExprMutator, mutator
 
 
-@tvm.transform.module_pass(opt_level=0, name="FuseTransposeMatmul")
+@tvm.ir.transform.module_pass(opt_level=0, name="FuseTransposeMatmul")
 class FuseTransposeMatmul:  # pylint: disable=too-few-public-methods
     """A compiler pass that fuses transpose + matmul."""
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm.ir.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
         mod = relax.transform.FuseOpsByPattern(
             [
@@ -168,7 +168,7 @@ class _TransposeMatmulFuser(PyExprMutator):  # pylint: disable=abstract-method
                     te_transposed_matmul,
                     call.args[1],
                     call.args[0],
-                    primfunc_name_hint="NT_matmul",
+                    function_name_hint="NT_matmul",
                 )
 
         return super().visit_call_(call)

@@ -23,8 +23,12 @@
 #include "codegen_trn.h"
 
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -34,10 +38,10 @@
 #include <unordered_map>
 #include <utility>
 
-#include "../../../runtime/thread_storage_scope.h"
 #include "../../../target/build_common.h"
 
 namespace tvm {
+
 namespace codegen {
 using namespace tvm::prim;
 
@@ -54,7 +58,7 @@ std::string PrintShapeAsList(const ffi::Array<PrimExpr>& shape) {
 }
 }  // namespace
 
-void CodeGenTrainium::InitFuncState(const PrimFunc& f) { CodeGenC::InitFuncState(f); }
+void CodeGenTrainium::InitFuncState(const Function& f) { CodeGenC::InitFuncState(f); }
 
 CodeGenTrainium::CodeGenTrainium(Target target) : target_(target) {
   decl_stream << "import neuronxcc.nki.language as nl\n";
@@ -75,13 +79,15 @@ CodeGenTrainium::CodeGenTrainium(Target target) : target_(target) {
                  {"exp", "nki.language.exp"}};
 }
 
-void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const Function& func) {
+  TVM_FFI_CHECK(func->body.has_value(), ValueError)
+      << "Kernel code generation requires a function body";
   // NOTE: There is no inter-function calls among Trainium kernels.
   // For now we keep the Trainium codegen without inter-function call
   // process.
   // We can switch to follow the flow with inter-function call process
   // after the Trainium function declaration is properly printed.
-  // In Trainium, for PrimFuncs with signature
+  // In Trainium, for Functions with signature
   //    def func(A: Buffer, B: Buffer, x: int, y: float) -> None
   // where there are trailing pod parameters, the codegen emits a struct
   //    struct func_params{ x: int; y: float; }
@@ -102,7 +108,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   // add to alloc buffer type.
   auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
   TVM_FFI_ICHECK(global_symbol.has_value())
-      << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
+      << "CodeGenC: Expect Function to have the global_symbol attribute";
 
   // Function header.
   this->stream << "def " << static_cast<std::string>(global_symbol.value()) << "(";
@@ -114,11 +120,11 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   size_t num_buffer = 0;
   for (size_t i = 0; i < func->params.size(); ++i, ++num_buffer) {
     Var v = func->params[i];
-    if (!v->ty.as<PointerTypeNode>()) {
+    if (!v->ty.as<PtrTypeNode>()) {
       LOG(FATAL) << "Trainium codegen currently only support buffer arguments";
     };
     std::string vid = AllocVarID(v.get());
-    if (auto buffer = v.as<tirx::BufferVar>()) {
+    if (auto buffer = v.as<tirx::TensorVar>()) {
       var_idmap_[buffer.value().get()] = vid;
     }
     if (i >= static_cast<size_t>(num_inputs.value())) {
@@ -132,7 +138,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   // the function scope.
   stream << "):\n";
   int func_scope = this->BeginScope();
-  this->PrintStmt(func->body);
+  this->PrintStmt(func->body.value());
   this->PrintIndent();
   stream << "return ";
   for (size_t i = 0; i < output_vids.size(); i++) {
@@ -201,41 +207,43 @@ void CodeGenTrainium::PrintType(const PrimType& t, std::ostream& os) {  // NOLIN
   LOG(FATAL) << "Cannot convert type " << t << " to Trainium type";
 }
 
-std::string CodeGenTrainium::GetStorageScopeStr(const std::string& scope) {  // NOLINT(*)
-  if (scope == "global") {
+std::string CodeGenTrainium::GetStorageScopeStr(const runtime::MemoryScope& scope) {  // NOLINT(*)
+  static const auto scope_trn_sbuf = runtime::MemoryScope::Get("trn.sbuf");
+  static const auto scope_trn_psum = runtime::MemoryScope::Get("trn.psum");
+  if (scope == runtime::MemoryScope::Global()) {
     return "nl.hbm";
-  } else if (scope == "trn.sbuf") {
+  } else if (scope == scope_trn_sbuf) {
     return "nl.sbuf";
-  } else if (scope == "trn.psum") {
+  } else if (scope == scope_trn_psum) {
     return "nl.psum";
   } else {
-    LOG(FATAL) << "Unknown storage scope `" << scope << "`";
+    LOG(FATAL) << "Unknown storage scope `" << scope.name() << "`";
     return "";
   }
 }
 
 void CodeGenTrainium::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
-    if (call->op.same_as(tirx::builtin::decl_tensor())) return DispatchDeclTensor(op, call);
+    if (call->op.same_as(tirx::alloc_tensor_op())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::decl_tensor_op())) return DispatchDeclTensor(op, call);
   }
   CodeGenC::Dispatch_(op);
 }
 
 void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
-  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
-  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
-  ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-  BufferVar buffer = op->var.as_or_throw<BufferVar>();
-  DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
+  static const auto scope_trn_psum = runtime::MemoryScope::Get("trn.psum");
+  tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
+  DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
+  runtime::MemoryScope scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->scope;
+  TensorVar buffer = op->var.as_or_throw<TensorVar>();
   TVM_FFI_ICHECK(buffer.defined());
-  std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
+  std::string vid = AllocVarID(buffer.get(), buffer->name + "_ptr");
 
   this->PrintIndent();
   std::ostringstream dtype_os;
   PrintType(PrimType(dtype), dtype_os);
   std::string dtype_str = dtype_os.str();
-  if (scope == "trn.psum") {
+  if (scope == scope_trn_psum) {
     stream << vid << " = nl.ndarray(shape=[";
     TVM_FFI_ICHECK(shape->fields.size() == 3);
     stream << PrintExpr(shape->fields[0]) << ", nl.par_dim(" << PrintExpr(shape->fields[1]) << "), "
@@ -246,21 +254,18 @@ void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* bu
            << ", dtype=" << dtype_str << ", buffer=";
   }
   Array<PrimExpr> addr;
-  if (auto allocated_addr = annotations->dict.Get(tirx::attr::buffer_allocated_addr)) {
-    addr = allocated_addr.value().as_or_throw<Array<PrimExpr>>();
-  } else {
-    // Fall back to the allocated address stored in the buffer type.
-    addr = buffer->allocated_addr;
+  if (!buffer_call->args.empty()) {
+    addr = buffer_call->args[0].as_or_throw<tvm::Tuple>()->fields.as_or_throw<Array<PrimExpr>>();
   }
   if (addr.empty()) {
     stream << GetStorageScopeStr(scope) << ")\n";
   } else {
-    if (scope == "trn.psum") {
+    if (scope == scope_trn_psum) {
       TVM_FFI_ICHECK(addr.size() == 2);
       TVM_FFI_ICHECK(addr[0]->IsInstance<IntImmNode>())
-          << "allocated_addr[0] must be a constant integer, got: " << addr[0];
+          << "placement[0] must be a constant integer, got: " << addr[0];
       TVM_FFI_ICHECK(addr[1]->IsInstance<IntImmNode>())
-          << "allocated_addr[1] must be a constant integer, got: " << addr[1];
+          << "placement[1] must be a constant integer, got: " << addr[1];
       int64_t base_bank = static_cast<int64_t>(addr[0].as_or_throw<IntImm>()->value);
       int64_t base_addr = static_cast<int64_t>(addr[1].as_or_throw<IntImm>()->value);
       stream << "ncc.psum.mod_alloc(base_bank=" << base_bank << ", base_addr=" << base_addr;
@@ -268,23 +273,24 @@ void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* bu
     } else {
       TVM_FFI_ICHECK(addr.size() == 1);
       TVM_FFI_ICHECK(addr[0]->IsInstance<IntImmNode>())
-          << "allocated_addr[0] must be a constant integer, got: " << addr[0];
+          << "placement[0] must be a constant integer, got: " << addr[0];
       int64_t base_addr = static_cast<int64_t>(addr[0].as_or_throw<IntImm>()->value);
       stream << "ncc.sbuf.mod_alloc(base_addr=" << base_addr << "))\n";
     }
   }
 }
 
-void CodeGenTrainium::Dispatch_(const AttrStmtNode* op) {
-  if (op->attr_key == tirx::attr::tensorized_nki_instruction) {
+void CodeGenTrainium::Dispatch_(const RegionStmtNode* op) {
+  static const Op tensorized_instruction = Op::Get("tirx.nki.tensorized_instruction");
+  if (op->op.same_as(tensorized_instruction)) {
     ctx_.tensorizing = true;
-    ctx_.mask = PrimExpr(nullptr);
+    ctx_.mask = std::nullopt;
     ctx_.loopvar2dim.clear();
     ctx_.is_matmul_input = false;
-  }
-  this->PrintStmt(op->body);
-  if (op->attr_key == tirx::attr::tensorized_nki_instruction) {
+    this->PrintStmt(op->body);
     ctx_.tensorizing = false;
+  } else {
+    CodeGenC::Dispatch_(op);
   }
 }
 
@@ -294,11 +300,12 @@ void CodeGenTrainium::Dispatch_(const ForNode* op) {
   std::string extent = PrintExpr(op->extent);
   PrintIndent();
   std::string vid = AllocVarID(op->loop_var.get());
-  TVM_FFI_ICHECK(is_zero(op->min));
+  TVM_FFI_ICHECK(IsZero(op->min));
   if (ctx_.tensorizing) {
     stream << vid << " = nl.arange(" << extent << ")\n";
-    if (op->annotations.count("nki_dim")) {
-      ctx_.loopvar2dim[op->loop_var.get()] = op->annotations["nki_dim"].as_or_throw<ffi::String>();
+    if (op->annotations.count(tvm::backend::trn::attr::kNkiDim)) {
+      ctx_.loopvar2dim[op->loop_var.get()] =
+          op->annotations[tvm::backend::trn::attr::kNkiDim].as_or_throw<ffi::String>();
     }
     ctx_.tensorized_loop_vars.insert(op->loop_var.get());
     TVM_FFI_ICHECK(ctx_.loopvar2dim.empty() ||
@@ -348,12 +355,12 @@ std::string CodeGenTrainium::PrintIndices(const Array<PrimExpr>& indices) {
   return os.str();
 }
 
-void CodeGenTrainium::Dispatch_(const BufferStoreNode* op) {
+void CodeGenTrainium::Dispatch_(const TensorStoreNode* op) {
   LOG(FATAL) << "Trainium codegen does not support buffer store";
 }
 
 void CodeGenTrainium::Dispatch_(const EvaluateNode* op) {
-  if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
+  if (auto value = op->value.as<PrimExpr>(); value && IsConstInt(value.value())) return;
   std::string vid = this->PrintExpr(op->value);
   if (vid != "") {
     this->PrintIndent();
@@ -363,10 +370,10 @@ void CodeGenTrainium::Dispatch_(const EvaluateNode* op) {
 
 void CodeGenTrainium::Dispatch_(const TensorLoadNode* op, std::ostream& os) {
   std::string buffer_str;
-  if (buffer_idmap_.count(op->source.as_or_throw<tvm::tirx::BufferVar>())) {
-    buffer_str = buffer_idmap_[op->source.as_or_throw<tvm::tirx::BufferVar>()];
+  if (buffer_idmap_.count(op->source.as_or_throw<tvm::tirx::TensorVar>())) {
+    buffer_str = buffer_idmap_[op->source.as_or_throw<tvm::tirx::TensorVar>()];
   } else {
-    buffer_str = GetVarID(op->source.as_or_throw<tvm::tirx::BufferVar>().get());
+    buffer_str = GetVarID(op->source.as_or_throw<tvm::tirx::TensorVar>().get());
   }
   os << buffer_str << "[";
   os << PrintIndices(op->indices);
@@ -378,7 +385,7 @@ std::string PrintBool(bool b) { return b ? "True" : "False"; }
 void CodeGenTrainium::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK(!op->op.as<GlobalVarNode>())
       << "CodegenTrainium does not support inter-function calls, "
-      << "but expression " << ffi::GetRef<Call>(op) << " calls PrimFunc " << op->op;
+      << "but expression " << ffi::GetRef<Call>(op) << " calls Function " << op->op;
   const auto* op_node = op->op.as<OpNode>();
   auto is_op = [&](const Op& compat, const char* canonical_name) {
     return op->op.same_as(compat) || (op_node != nullptr && op_node->name == canonical_name);
@@ -402,7 +409,7 @@ void CodeGenTrainium::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLI
 
   if (is_op(nki_matmul_op, "tirx.nki.matmul")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 4);
-    std::string accum = is_one(op->args[3].as_or_throw<PrimExpr>()) ? " += " : " = ";
+    std::string accum = IsOne(op->args[3].as_or_throw<PrimExpr>()) ? " += " : " = ";
     os << PrintExpr(op->args[0]) << accum;
     ctx_.is_matmul_input = true;
     os << "nisa.nc_matmul(" << PrintExpr(op->args[1]) << "," << PrintExpr(op->args[2]);
@@ -446,7 +453,7 @@ void CodeGenTrainium::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLI
     TVM_FFI_ICHECK_GE(op->args.size(), 2);
     // result, value
     os << PrintExpr(op->args[0]) << " = " << PrintExpr(op->args[1]);
-    TVM_FFI_ICHECK(!ctx_.mask.defined()) << "memset cannot have mask";
+    TVM_FFI_ICHECK(!ctx_.mask.has_value()) << "memset cannot have mask";
     return;
   } else if (is_op(nki_tensorreduce_op, "tirx.nki.tensorreduce")) {
     TVM_FFI_ICHECK(op->args.size() >= 5)
@@ -534,7 +541,7 @@ void CodeGenTrainium::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLI
   } else {
     LOG(FATAL) << "Trainium codegen does not support call to " << op->op;
   }
-  if (ctx_.mask.defined()) {
+  if (ctx_.mask.has_value()) {
     auto walk_fn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
       const VarNode* v = var.get();
       if (ctx_.tensorized_loop_vars.count(v)) {
@@ -550,8 +557,8 @@ void CodeGenTrainium::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLI
       }
       return ffi::WalkResult::Advance();
     };
-    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(ctx_.mask, walk_fn);
-    os << ", mask=" << PrintExpr(ctx_.mask);
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(ctx_.mask.value(), walk_fn);
+    os << ", mask=" << PrintExpr(ctx_.mask.value());
   }
   os << ")";
 }
@@ -596,7 +603,7 @@ void CodeGenTrainium::Dispatch_(const VarNode* op, std::ostream& os) {  // NOLIN
     // nki_dim is not specified for this loop variable
     // we need to use the buffer dimension where the variable appears
     if (ctx_.buffer_index == -1) {
-      // this var is not under BufferLoad. We don't know which dim it belongs to.
+      // this var is not under TensorLoad. We don't know which dim it belongs to.
       return;
     }
     dim = ctx_.buffer_index;
@@ -628,27 +635,29 @@ void CodeGenTrainium::Dispatch_(const prim::FloorModNode* op, std::ostream& os) 
 }
 
 void CodeGenTrainium::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
+  static const auto scope_trn_psum = runtime::MemoryScope::Get("trn.psum");
+  static const auto scope_trn_sbuf = runtime::MemoryScope::Get("trn.sbuf");
   Expr data = buffer_call->args[0];
-  tvm::Tuple shape = buffer_call->args[1].as_or_throw<tvm::Tuple>();
-  DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
-  ffi::String scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
-  BufferVar buffer = op->var.as_or_throw<BufferVar>();
-  if (scope == "trn.psum" || scope == "trn.sbuf") {
+  TensorVar buffer = op->var.as_or_throw<TensorVar>();
+  tvm::Tuple shape(buffer.shape());
+  DLDataType dtype = buffer.dtype()->dtype;
+  runtime::MemoryScope scope = buffer.scope();
+  if (scope == scope_trn_psum || scope == scope_trn_sbuf) {
     return;
   }
   const VarNode* data_var = data.as<VarNode>();
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     data_var = call->args[0].as<VarNode>();
   }
   TVM_FFI_ICHECK(data_var) << "Trainium codegen expects DeclTensor data to be a buffer variable";
-  if (data_var->ty.as<PointerTypeNode>()) {
+  if (data_var->ty.as<PtrTypeNode>()) {
     buffer_idmap_[buffer] = GetVarID(data_var);
     buffer_data_varmap_[buffer] = data_var;
     return;
   }
   TVM_FFI_ICHECK(data_var->ty.as<TensorTypeNode>());
-  BufferVar source_buffer = ffi::GetRef<Var>(data_var).as_or_throw<BufferVar>();
+  TensorVar source_buffer = ffi::GetRef<Var>(data_var).as_or_throw<TensorVar>();
   auto source_it = buffer_data_varmap_.find(source_buffer);
   TVM_FFI_ICHECK(source_it != buffer_data_varmap_.end())
       << "Trainium codegen expects the source buffer to be declared before its alias";
@@ -656,9 +665,9 @@ void CodeGenTrainium::DispatchDeclTensor(const BindNode* op, const CallNode* buf
 
   auto it = data_buffer_idmap_.find(data_var);
   if (it != data_buffer_idmap_.end()) {
-    const BufferVar& prev_buffer = data_decl_buffer_map_.at(data_var);
-    if (ffi::StructuralEqual()(prev_buffer->shape, shape->fields) &&
-        prev_buffer->dtype == PrimType(dtype)) {
+    const TensorVar& prev_buffer = data_decl_buffer_map_.at(data_var);
+    if (ffi::StructuralEqual()(prev_buffer.shape(), shape->fields) &&
+        prev_buffer.dtype() == PrimType(dtype)) {
       buffer_idmap_[buffer] = it->second;
       return;
     }
@@ -668,7 +677,7 @@ void CodeGenTrainium::DispatchDeclTensor(const BindNode* op, const CallNode* buf
   buffer_idmap_[buffer] = buffer_vid;
   buffer_data_varmap_[buffer] = data_var;
   data_buffer_idmap_[data_var] = buffer_vid;
-  data_decl_buffer_map_[data_var] = buffer;
+  data_decl_buffer_map_.insert_or_assign(data_var, buffer);
   PrintIndent();
   stream << buffer_vid << " = " << data_vid << ".reshape("
          << PrintShapeAsList(shape->fields.as_or_throw<Array<PrimExpr>>()) << ")\n";
@@ -683,15 +692,15 @@ ffi::Module BuildTrainium(IRModule mod, Target target) {
   std::string fmt = fTrainium_compile.has_value() ? "Trainiumlib" : "Trainium";
 
   for (auto kv : mod->functions) {
-    TVM_FFI_ICHECK(kv.second->IsInstance<PrimFuncNode>())
-        << "CodeGenTrainium: Can only take PrimFunc";
+    TVM_FFI_ICHECK(kv.second->IsInstance<FunctionNode>())
+        << "CodeGenTrainium: Can only take Function";
     auto global_symbol = kv.second->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     TVM_FFI_ICHECK(global_symbol.has_value());
     std::string func_name = global_symbol.value();
     source_maker << "# Function: " << func_name << "\n";
     CodeGenTrainium cg(target);
     cg.Init(output_ssa);
-    auto f = kv.second.as_or_throw<PrimFunc>();
+    auto f = kv.second.as_or_throw<Function>();
     cg.AddFunction(kv.first, f);
 
     std::string fsource = cg.Finish();
@@ -702,10 +711,10 @@ ffi::Module BuildTrainium(IRModule mod, Target target) {
   return codegen::DeviceSourceModuleCreate(source_maker.str(), fmt, ExtractFuncInfo(mod), "nki");
 }
 
-void CodeGenTrainium::Dispatch_(const IfThenElseNode* op) {
+void CodeGenTrainium::Dispatch_(const IfNode* op) {
   if (ctx_.tensorizing) {
     TVM_FFI_ICHECK(!op->else_case.has_value()) << "Else not allowed in tensorized instruction";
-    TVM_FFI_ICHECK(!ctx_.mask.defined()) << "Only one if stmt allowed in tensorized instruction";
+    TVM_FFI_ICHECK(!ctx_.mask.has_value()) << "Only one if stmt allowed in tensorized instruction";
     ctx_.mask = op->condition;
     Dispatch(op->then_case);
     return;

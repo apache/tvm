@@ -25,62 +25,17 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/expr.h>
-#include <tvm/relax/type.h>
-#include <tvm/s_tir/analysis.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
 
 namespace tvm {
 namespace tirx {
-using namespace tvm::prim;
-
 namespace {
 
-tvm::Type InferType(const PrimFunc& prim_func) {
-  ffi::Array<tvm::Type> params;
-  for (const auto& param : prim_func->params) {
-    tvm::Type param_ty = [&]() -> tvm::Type {
-      if (param->ty.as<TensorTypeNode>()) {
-        BufferVar buf = param.as_or_throw<BufferVar>();
-        relax::ShapeExpr shape(
-            buf->shape.Map([](PrimExpr dim) { return cast(PrimType::Int(64), dim); }));
-        return relax::TensorType(shape, buf->dtype);
-      }
-
-      // A pointer parameter without a buffer annotation is an opaque runtime
-      // object from Relax's perspective (for example, a DLTensor*).  Keep the
-      // same Relax-facing wildcard semantics that opaque handle parameters had
-      // before pointers became exact IR types.
-      if (param->ty.as<PointerTypeNode>()) {
-        return AnyType();
-      }
-
-      return param->ty;
-    }();
-    params.push_back(param_ty);
-  }
-
-  tvm::Type ret = [&]() -> tvm::Type {
-    if (const auto* prim = prim_func->ret_type.as<PrimTypeNode>()) {
-      return tvm::PrimType(prim->dtype);
-    } else if (IsVoidType(prim_func->ret_type)) {
-      return relax::TupleType(ffi::Array<tvm::Type>{});
-    } else {
-      return AnyType();
-    }
-  }();
-
-  bool purity = prim_func->body.defined() ? s_tir::IsPureFunction(prim_func) : false;
-
-  return relax::FuncType(params, ret, purity);
-}
-
-TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> PrimFuncVisit(
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> FunctionVisit(
     ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  // skips: attrs (metadata), ty (derived by InferType)
-  const PrimFuncNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PrimFuncNode>(value);
+  // skips: attrs (metadata), ty (derived from the function signature)
+  const FunctionNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FunctionNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
       kTVMFFIDefRegionKindPattern, [&]() { return visitor->VisitExpected(self->params); }));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->ret_type));
@@ -88,36 +43,41 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> PrimFuncVisit(
   return std::nullopt;
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PrimFuncMutate(
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: attrs (metadata), ty (derived by InferType)
-  const PrimFuncNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PrimFuncNode>(value);
+  // skips: attrs (metadata), ty (derived from the function signature)
+  const FunctionNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FunctionNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Var>>, mapped_params,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&]() {
                                       return mutator->MutateExpected(self->params);
                                     }));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ret_type,
                                     mutator->MutateExpected(self->ret_type));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Stmt>>, mapped_body,
                                     mutator->MutateExpected(self->body));
   if (mapped_params.UnchangedOrSameAs(self->params) &&
       mapped_ret_type.UnchangedOrSameAs(self->ret_type) &&
-      mapped_body.UnchangedOrSameAs(self->body)) {
+      (mapped_body.IsUnchanged() || ffi::AnyView(mapped_body).same_as(self->body))) {
     return ffi::Unchanged();
   }
-  ffi::ObjectPtr<PrimFuncNode> copy = ffi::make_object<PrimFuncNode>(*self);
+  ffi::ObjectPtr<FunctionNode> copy = ffi::make_object<FunctionNode>(*self);
   copy->params = std::move(mapped_params).ValueOrUnchanged(std::move(copy->params));
   copy->ret_type = std::move(mapped_ret_type).ValueOrUnchanged(std::move(copy->ret_type));
-  copy->body = std::move(mapped_body).ValueOrUnchanged(std::move(copy->body));
+  if (!mapped_body.IsUnchanged()) {
+    auto replacement = std::move(mapped_body).ValueUnchecked();
+    copy->body = replacement.has_value()
+                     ? ffi::Optional<SeqStmt>(SeqStmt(std::move(replacement).value()))
+                     : std::nullopt;
+  }
   return ffi::Any(std::move(copy));
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PrimFuncMaybeInplaceMutate(
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMaybeInplaceMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: attrs (metadata), ty (derived by InferType)
-  PrimFuncNode* self = const_cast<PrimFuncNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PrimFuncNode>(value));
+  // skips: attrs (metadata), ty (derived from the function signature)
+  FunctionNode* self = const_cast<FunctionNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FunctionNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Var>>, mapped_params,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&]() {
                                       return mutator->MutateExpected(self->params,
@@ -126,7 +86,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PrimFuncMaybeInplaceMut
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<Type>, mapped_ret_type,
       mutator->MutateExpected(self->ret_type, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Stmt>>, mapped_body,
                                     mutator->MutateExpected(self->body, ffi::InplaceMode::kAllow));
   if (!mapped_params.UnchangedOrSameAs(self->params)) {
     self->params = std::move(mapped_params).ValueUnchecked();
@@ -134,49 +94,81 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PrimFuncMaybeInplaceMut
   if (!mapped_ret_type.UnchangedOrSameAs(self->ret_type)) {
     self->ret_type = std::move(mapped_ret_type).ValueUnchecked();
   }
-  if (!mapped_body.UnchangedOrSameAs(self->body)) {
-    self->body = std::move(mapped_body).ValueUnchecked();
+  if (!(mapped_body.IsUnchanged() || ffi::AnyView(mapped_body).same_as(self->body))) {
+    auto replacement = std::move(mapped_body).ValueUnchecked();
+    self->body = replacement.has_value()
+                     ? ffi::Optional<SeqStmt>(SeqStmt(std::move(replacement).value()))
+                     : std::nullopt;
   }
   return ffi::Unchanged();
 }
 
 }  // namespace
 
-// Get the function type of a PrimFunc
-PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type, DictAttrs attrs,
-                   Span span) {
-  if (ret_type.IsMissing()) {
+// Get the function type of a Function
+Function::Function(ffi::Array<tvm::Var> params, ffi::Optional<SeqStmt> body, Type ret_type,
+                   DictAttrs attrs, Location loc)
+    : BaseFunc(ffi::UnsafeInit{}) {
+  if (ret_type.as<MissingType>().has_value()) {
     ret_type = VoidType();
   }
 
-  auto n = ffi::make_object<PrimFuncNode>();
+  auto n = ffi::make_object<FunctionNode>();
   n->params = std::move(params);
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
   n->attrs = std::move(attrs);
-  n->ty = relax::FuncType::OpaqueFunc();
-  n->span = std::move(span);
+  n->loc = loc;
+  n->ty = n->func_type_annotation();
   data_ = std::move(n);
+}
 
-  (*this)->ty = InferType(*this);
+Function RenewDef(Function func) {
+  // Seed original definitions so identities created by structural hooks are preserved.
+  ffi::Map<Var, Var> definition_remap;
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(func,
+                                                  [&](const Var& var, TVMFFIDefRegionKind kind) {
+                                                    if (kind != kTVMFFIDefRegionKindNone)
+                                                      definition_remap.Set(var, var);
+                                                    return ffi::WalkResult::Advance();
+                                                  });
+  return ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+             func,
+             [remap = std::move(definition_remap)](const Var& var,
+                                                   TVMFFIDefRegionKind kind) mutable {
+               auto mapped = remap.Get(var);
+               if (!mapped.has_value()) return var;
+               if (!mapped.value().same_as(var)) return mapped.value();
+               if (kind == kTVMFFIDefRegionKindNone) return var;
+               Var fresh(var->name, var->ty, var->loc);
+               remap.Set(var, fresh);
+               return fresh;
+             },
+             [](const Function& mapped) {
+               return Function(mapped->params, mapped->body, mapped->ret_type, mapped->attrs,
+                               mapped->loc);
+             })
+      .as_or_throw<Function>();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  PrimFuncNode::RegisterReflection();
-  refl::TypeAttrDef<PrimFuncNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&PrimFuncVisit>())
+  FunctionNode::RegisterReflection();
+  refl::TypeAttrDef<FunctionNode>()
+      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&FunctionVisit>())
       .attr(refl::type_attr::kStructuralMutate,
-            ffi::FStructuralMutate::FromNative<&PrimFuncMutate>())
+            ffi::FStructuralMutate::FromNative<&FunctionMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            ffi::FStructuralMutate::FromNative<&PrimFuncMaybeInplaceMutate>());
+            ffi::FStructuralMutate::FromNative<&FunctionMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("tirx.PrimFunc",
-                        [](ffi::Array<tirx::Var> params, Stmt body, Type ret_type, DictAttrs attrs,
-                           Span span) { return PrimFunc(params, body, ret_type, attrs, span); });
+  refl::GlobalDef().def(
+      "tirx.Function",
+      [](ffi::Array<tvm::Var> params, ffi::Optional<SeqStmt> body, Type ret_type, DictAttrs attrs,
+         Location loc) { return Function(params, body, ret_type, attrs, loc); });
+  refl::GlobalDef().def("tirx.RenewDef", RenewDef);
 }
 
-FuncType PrimFuncNode::func_type_annotation() const {
+FuncType FunctionNode::func_type_annotation() const {
   ffi::Array<Type> param_types;
   for (auto param : this->params) {
     param_types.push_back(param->ty);

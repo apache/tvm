@@ -25,30 +25,30 @@ from tvm.ir.module import IRModule
 from tvm.s_tir.backend.adreno import pipeline as adreno_pipeline
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.tirx.build import split_host_device_mods
+from tvm.tirx._compile import _split_host_device_modules
 from tvm.tirx.compilation_pipeline import finalize_device_passes
 
 
 def test_texture_scope():
     @tvm.script.ir_module
     class PlusOneMultTwo:
-        @Ts.prim_func
+        @Ts.function
         def main(
             A: T.Tensor((128, 128, 4), dtype="float32", scope="global.texture"),
             C: T.Tensor((128, 128, 4), dtype="float32", scope="global.texture"),
         ) -> None:
             T.func_attr({"tirx.noalias": True})
 
-            B = Ts.sblock_alloc_buffer((128, 128, 4), dtype="float32", scope="global.texture")
+            B = Ts.sblock_alloc_tensor((128, 128, 4), dtype="float32", scope="global.texture")
 
-            for block_idx in T.thread_binding(0, 128, thread="blockIdx.x"):
-                for thread_idx in T.thread_binding(0, 128, thread="threadIdx.x"):
+            for block_idx in T.parallel(0, 128, annotations={"thread_binding": "blockIdx.x"}):
+                for thread_idx in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
                     for k in T.serial(4):
                         with Ts.sblock("B"):
                             vb, vt, vk = Ts.axis.remap("SSS", [block_idx, thread_idx, k])
                             B[vb, vt, vk] = A[vb, vt, vk] + T.float32(1)
-            for block_idx in T.thread_binding(0, 128, thread="blockIdx.x"):
-                for thread_idx in T.thread_binding(0, 128, thread="threadIdx.x"):
+            for block_idx in T.parallel(0, 128, annotations={"thread_binding": "blockIdx.x"}):
+                for thread_idx in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
                     for k in T.serial(4):
                         with Ts.sblock("C"):
                             vb, vt, vk = Ts.axis.remap("SSS", [block_idx, thread_idx, k])
@@ -67,9 +67,9 @@ def test_texture_scope():
     lowered = tirx.transform.BindTarget(target.with_host("c"))(sch.mod)
     pipeline, _, _ = adreno_pipeline.default_tir_pipeline()
     lowered = pipeline(lowered)
-    _, device_mods = split_host_device_mods(lowered)
+    _, device_mods = _split_host_device_modules(lowered)
     assert len(device_mods) == 1
-    device_target, device_mod = next(iter(device_mods.items()))
+    (device_target, _backend_config), device_mod = next(iter(device_mods.items()))
     device_mod = finalize_device_passes()(device_mod)
     source = tvm.get_global_func("target.build.opencl")(device_mod, device_target).inspect_source()
     assert "__read_only image2d_array_t" in source

@@ -16,13 +16,22 @@
 # under the License.
 
 import functools
+from functools import cache
 
 import tvm_ffi
 
-from tvm.ir import Call, Op
-from tvm.tirx import Bind, IntImm
-from tvm.tirx.buffer import Buffer
-from tvm.tirx.transform.function_pass import prim_func_pass
+from tvm.ir import Bind, Call, Op, Tuple, Var
+from tvm.runtime import MemoryScope
+from tvm.tirx import IntImm
+from tvm.tirx.transform.function_pass import function_pass
+
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
+
+
+@cache
+def _scope_trn_sbuf():
+    return MemoryScope("trn.sbuf")
 
 
 def is_const_shape(shape) -> bool:
@@ -32,21 +41,21 @@ def is_const_shape(shape) -> bool:
     return True
 
 
-def get_buffer_size(buffer: Buffer, shape, dtype, scope: str) -> int:
-    if scope == "trn.sbuf":
-        if buffer.ty.layout is None:
+def get_tensor_size(tensor: Var, shape, dtype, scope: MemoryScope) -> int:
+    if scope == _scope_trn_sbuf():
+        if tensor.ty.layout is None:
             # the first dimension is partition size
             num_elem = functools.reduce(lambda x, y: x * y, shape[1:])
         else:
-            par_size = buffer.ty.layout.size("P")
+            par_size = tensor.ty.layout.size("P")
             num_elem = functools.reduce(lambda x, y: x * y, shape) // par_size
-    elif scope.startswith("shared"):
+    elif scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN):
         num_elem = functools.reduce(lambda x, y: x * y, shape)
     else:
         return None
     if not is_const_shape(shape):
         raise ValueError(
-            f"Buffer {buffer.name} has non-constant shape. Do not know how to allocate it."
+            f"Var {tensor.name} has non-constant shape. Do not know how to allocate it."
         )
     return int(num_elem * dtype.itemsize)
 
@@ -54,69 +63,68 @@ def get_buffer_size(buffer: Buffer, shape, dtype, scope: str) -> int:
 def _get_alloc_pool_start(stmt) -> int:
     alloc_pool_start = 0
 
-    def collect_alloc_buffer(op: Bind):
+    def collect_alloc_tensor(op: Bind):
         nonlocal alloc_pool_start
         if not isinstance(op.value, Call) or op.value.op != Op.get("tirx.alloc_tensor"):
             return
-        buffer = op.var
-        if len(buffer.ty.allocated_addr) == 0:
+        tensor = op.var
+        allocated_addr = op.value.args[0].fields if op.value.args else []
+        if len(allocated_addr) == 0:
             return
-        shape = op.value.args[0].fields
-        dtype = op.value.args[1].value
-        scope = op.value.args[2].value
-        buffer_size = get_buffer_size(buffer, shape, dtype, scope)
-        if buffer_size is None:
+        tensor_type = op.value.ty_args[0]
+        shape = tensor_type.shape
+        dtype = tensor_type.dtype.dtype
+        scope = tensor_type.scope
+        tensor_size = get_tensor_size(tensor, shape, dtype, scope)
+        if tensor_size is None:
             return
-        alloc_pool_start = max(alloc_pool_start, buffer.ty.allocated_addr[-1] + buffer_size)
+        alloc_pool_start = max(alloc_pool_start, allocated_addr[-1] + tensor_size)
 
-    tvm_ffi.structural_walk(stmt, (Bind, collect_alloc_buffer), order="post")
+    tvm_ffi.structural_walk(stmt, (Bind, collect_alloc_tensor), order="post")
     return alloc_pool_start
 
 
-def _allocate_missing_buffers(stmt, alloc_pool_start: int):
+def _allocate_missing_tensors(stmt, alloc_pool_start: int):
     alloc_offset = alloc_pool_start
-    buffer_map = {}
 
-    def allocate_buffer(op: Bind):
+    def allocate_tensor(op: Bind):
         nonlocal alloc_offset
         if not isinstance(op.value, Call) or op.value.op != Op.get("tirx.alloc_tensor"):
             return op
-        buffer = op.var
-        shape = op.value.args[0].fields
-        dtype = op.value.args[1].value
-        scope = op.value.args[2].value
-        buffer_size = get_buffer_size(buffer, shape, dtype, scope)
-        if len(buffer.ty.allocated_addr) == 0 and buffer_size is not None:
-            new_buffer = buffer.with_allocated_addr([alloc_offset])
-            buffer_map[buffer] = new_buffer
-            alloc_offset += buffer_size
+        tensor = op.var
+        tensor_type = op.value.ty_args[0]
+        shape = tensor_type.shape
+        dtype = tensor_type.dtype.dtype
+        scope = tensor_type.scope
+        tensor_size = get_tensor_size(tensor, shape, dtype, scope)
+        allocated_addr = op.value.args[0].fields if op.value.args else []
+        if len(allocated_addr) == 0 and tensor_size is not None:
+            args = [Tuple([IntImm("int32", int(alloc_offset))])]
+            alloc_offset += tensor_size
             return Bind(
-                new_buffer,
+                tensor,
                 Call(
                     op.value.op,
-                    op.value.args,
+                    args,
                     attrs=op.value.attrs,
                     ty_args=op.value.ty_args,
-                    span=op.value.span,
-                    ty=new_buffer.ty,
+                    loc=op.value.loc,
+                    ty=op.value.ty,
                 ),
-                op.span,
+                op.loc,
             )
         return op
 
-    def replace_buffer(op):
-        return buffer_map.get(op, op)
-
     return tvm_ffi.structural_map(
         stmt,
-        [(Bind, allocate_buffer), (Buffer, replace_buffer)],
+        (Bind, allocate_tensor),
         order="pre",
     )
 
 
-@prim_func_pass(opt_level=0, name="TrnNaiveAllocator")
+@function_pass(opt_level=0, name="TrnNaiveAllocator")
 class TrnNaiveAllocator:
     def transform_function(self, func, mod, ctx):
         alloc_pool_start = _get_alloc_pool_start(func.body)
-        new_body = _allocate_missing_buffers(func.body, alloc_pool_start)
+        new_body = _allocate_missing_tensors(func.body, alloc_pool_start)
         return func.with_body(new_body)

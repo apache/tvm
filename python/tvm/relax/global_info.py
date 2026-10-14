@@ -19,7 +19,7 @@
 import tvm_ffi
 
 from tvm.ir import GlobalInfo
-from tvm.runtime import Device, convert
+from tvm.runtime import Device, MemoryScope, convert
 from tvm.target import Target
 
 from . import _ffi_api
@@ -43,7 +43,7 @@ class VDevice(GlobalInfo):
         self,
         target=None,
         vdevice_id: int = 0,
-        memory_scope: str = "global",
+        memory_scope: str | MemoryScope = MemoryScope("global"),
     ) -> None:
         if isinstance(target, dict | str):
             target = Target(convert(target))

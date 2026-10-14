@@ -291,7 +291,7 @@ def test_load_shard_in_relax():
                     R.shape([1]),
                     ty_args=R.Tensor((16, 128), "float32"),
                 )
-                lv2 = R.tuple(lv0, lv1)
+                lv2 = (lv0, lv1)
                 R.output(lv2)
             return lv2
 

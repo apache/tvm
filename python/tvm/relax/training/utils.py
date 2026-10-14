@@ -202,7 +202,7 @@ def register_te_gradient(te_grad_name: str, te_grad_func: Callable | None = None
                 output_grad,
                 *call_tir_with_grad.args[1],
                 **call_tir_with_grad.attrs.te_grad_kwargs,
-                primfunc_name_hint=te_grad_name,
+                function_name_hint=te_grad_name,
             )
 
         register_global_func(func_prefix + te_grad_name, handler)

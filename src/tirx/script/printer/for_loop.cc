@@ -17,7 +17,10 @@
  * under the License.
  */
 #include <tvm/ir/prim/op.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt.h>
 
 #include <algorithm>
 #include <optional>
@@ -25,7 +28,6 @@
 #include <vector>
 
 #include "../../../script/printer/ir/utils.h"
-#include "utils.h"
 
 namespace tvm {
 namespace script {
@@ -37,25 +39,22 @@ namespace {
 ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                        const ffi::Object* destination) {
   const auto* loop =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ForNode>(input);
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ForNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
   ffi::String method;
   switch (loop->kind) {
-    case tirx::ForKind::kSerial:
+    case ForKind::kDefault:
       method = "serial";
       break;
-    case tirx::ForKind::kParallel:
+    case ForKind::kParallel:
       method = "parallel";
       break;
-    case tirx::ForKind::kVectorized:
+    case ForKind::kVectorized:
       method = "vectorized";
       break;
-    case tirx::ForKind::kUnrolled:
+    case ForKind::kUnrolled:
       method = "unroll";
-      break;
-    case tirx::ForKind::kThreadBinding:
-      method = "thread_binding";
       break;
     default:
       TVM_FFI_THROW(TypeError) << "printer unknown loop kind";
@@ -63,7 +62,7 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   ExprDoc min = d->Translate(loop->min).value();
   ExprDoc extent = d->Translate(loop->extent).value();
   ExprDoc end = OperationDoc(OperationDocNode::Kind::kAdd, {min, extent});
-  if (prim::is_zero(loop->min)) {
+  if (prim::IsZero(loop->min)) {
     end = extent;
   } else if (loop->min.as<IntImmNode>() && loop->extent.as<IntImmNode>()) {
     // Python integer addition can widen the endpoint before the builder sees
@@ -72,25 +71,20 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   }
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
-  if (loop->kind == tirx::ForKind::kThreadBinding) {
-    TVM_FFI_CHECK(loop->thread_binding.has_value(), TypeError)
-        << "printer thread-binding loop lacks thread tag";
-    keys.push_back("thread");
-    values.push_back(LiteralDoc::Str(loop->thread_binding.value()->thread_tag, std::nullopt));
-  }
   bool unroll_option = false;
-  if (loop->kind == tirx::ForKind::kSerial && loop->annotations.size() == 1) {
+  if (loop->kind == ForKind::kDefault && loop->annotations.size() == 1) {
     const auto& [key, value] = *loop->annotations.begin();
     auto boolean = value.as<bool>();
     auto integer = value.as<int64_t>();
-    if (key == "disable_unroll" && boolean.value_or(false)) {
+    if (key == tvm::tirx::attr::kDisableUnroll && boolean.value_or(false)) {
       keys.push_back("unroll");
       values.push_back(LiteralDoc::Boolean(false, std::nullopt));
       unroll_option = true;
-    } else if (key == "pragma_unroll" &&
+    } else if (key == tvm::tirx::attr::kPragmaUnroll &&
                (boolean.value_or(false) || (integer.has_value() && integer.value() > 0))) {
       keys.push_back("unroll");
-      values.push_back(AnyValue(d, value));
+      values.push_back(d->WithExtraStateScope<bool>("ir.explicit_value_type", true,
+                                                    [&] { return d->Translate(value).value(); }));
       unroll_option = true;
     }
   }
@@ -103,14 +97,13 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
     ffi::Array<ExprDoc> annotation_values;
     for (const auto& [key, value] : sorted) {
       annotation_keys.push_back(LiteralDoc::Str(key, std::nullopt));
-      annotation_values.push_back(AnyValue(d, value));
+      annotation_values.push_back(d->WithExtraStateScope<bool>(
+          "ir.explicit_value_type", true, [&] { return d->Translate(value).value(); }));
     }
     keys.push_back("annotations");
     values.push_back(DictDoc(annotation_keys, annotation_values));
   }
   if (loop->step.has_value()) {
-    TVM_FFI_CHECK(loop->kind != tirx::ForKind::kThreadBinding, TypeError)
-        << "printer thread-binding loop cannot have a step";
     keys.push_back("step");
     values.push_back(d->Translate(loop->step.value()).value());
   }
@@ -120,12 +113,8 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   {
     IdDoc var = VarDoc(d, loop->loop_var);
     ffi::Array<ExprDoc> bounds = {min, end};
-    if (loop->kind == tirx::ForKind::kThreadBinding && prim::is_zero(loop->min) &&
-        loop->min.ty() == loop->extent.ty()) {
-      bounds = {end};
-    }
     ExprDoc callee = NamespaceDoc("tirx")->Attr(method);
-    if (loop->kind == tirx::ForKind::kSerial && loop->annotations.empty()) {
+    if (loop->kind == ForKind::kDefault && loop->annotations.empty()) {
       callee = IdDoc("range");
       // range's step is positional. Retain even an explicit unit step because
       // it is part of the source For node, unlike an absent step.
@@ -133,19 +122,20 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
         bounds.push_back(values.back());
         keys.pop_back();
         values.pop_back();
-      } else if (prim::is_zero(loop->min) && loop->min.ty() == PrimType::Int(32)) {
+      } else if (prim::IsZero(loop->min) && loop->min.ty() == PrimType::Int(32)) {
         bounds.erase(bounds.begin());
       }
     }
-    doc = ForDoc(var, callee->Call(bounds, keys, values), Body(loop->body, d));
+    doc = ForDoc(var, callee->Call(bounds, keys, values),
+                 ToStmtDocArray(d->WithDocScope([&]() { d->Translate(loop->body); })));
   }
   d->Emit(doc, ffi::GetRef<ffi::ObjectRef>(loop));
   return std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::ForNode>().attr(kDocTranslate,
-                                                     FDocTranslate::FromNative<&ForDocTranslate>());
+  ffi::reflection::TypeAttrDef<ForNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
+                                               FDocTranslate::FromNative<&ForDocTranslate>());
 }
 
 }  // namespace

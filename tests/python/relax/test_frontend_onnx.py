@@ -155,7 +155,7 @@ def check_correctness(
     # Separate model from parameters.
     tvm_model, params = relax.frontend.detach_params(tvm_model)
     # Compile the relax graph into a VM then run.
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.ir.transform.PassContext(opt_level=3):
         ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
     # Prepare inputs.
@@ -235,7 +235,7 @@ def run_in_tvm(
     tvm_model = relax.transform.LegalizeOps()(tvm_model)
     tvm_model, params = relax.frontend.detach_params(tvm_model)
 
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.ir.transform.PassContext(opt_level=3):
         ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
 
@@ -1055,7 +1055,7 @@ def _make_expected_broadcast_ir_min(
         Expected IR module for the Min operation.
     """
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class ExpectedMin:
@@ -1090,7 +1090,7 @@ def _make_expected_broadcast_ir_max(
         Expected IR module for the Max operation.
     """
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class ExpectedMax:
@@ -2452,7 +2452,7 @@ def test_scatter_dynamic_shape():
     tvm_model = from_onnx(model, shape_dict=shape_dict, opset=9)
     tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
     tvm_model = relax.transform.LegalizeOps()(tvm_model)
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.ir.transform.PassContext(opt_level=3):
         ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
     vm.set_input("main", data, indices, updates)
@@ -2680,7 +2680,7 @@ def test_compress():
         if axis is None:
             flat_shape = (int(np.prod(tensor_shape)),)
 
-            num_nonzero = T.dynamic("num_nonzero")
+            num_nonzero = T.dynamic("num_nonzero", "int64")
 
             @I.ir_module
             class ExpectedCompressFlat:
@@ -2704,7 +2704,7 @@ def test_compress():
 
             return ExpectedCompressFlat
 
-        num_nonzero = T.dynamic("num_nonzero")
+        num_nonzero = T.dynamic("num_nonzero", "int64")
 
         @I.ir_module
         class ExpectedCompressAxis:
@@ -3394,10 +3394,10 @@ def test_unsqueeze_dynamic_axes_ir():
     model = helper.make_model(graph, producer_name="unsqueeze_dynamic_axes_ir_test")
     tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
 
-    unsqueeze_dim_0 = T.dynamic("unsqueeze_dim_0")
-    unsqueeze_dim_1 = T.dynamic("unsqueeze_dim_1")
-    unsqueeze_dim_2 = T.dynamic("unsqueeze_dim_2")
-    unsqueeze_dim_3 = T.dynamic("unsqueeze_dim_3")
+    unsqueeze_dim_0 = T.dynamic("unsqueeze_dim_0", "int64")
+    unsqueeze_dim_1 = T.dynamic("unsqueeze_dim_1", "int64")
+    unsqueeze_dim_2 = T.dynamic("unsqueeze_dim_2", "int64")
+    unsqueeze_dim_3 = T.dynamic("unsqueeze_dim_3", "int64")
 
     @I.ir_module
     class Expected:
@@ -3672,12 +3672,20 @@ def test_clip():
 
     @I.ir_module
     class ExpectedClipMinMax:
-        @Ts.prim_func(private=True)
-        def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
+        @Ts.function(private=True)
+        def maximum(
+            var_input: T.Tensor((32, 64), "float32"),
+            var_min: T.Tensor((), "float32"),
+            var_output: T.Tensor((32, 64), "float32"),
+        ):
             T.evaluate(0)
 
-        @Ts.prim_func(private=True)
-        def minimum(var_input: T.handle, var_max: T.handle, var_output: T.handle):
+        @Ts.function(private=True)
+        def minimum(
+            var_input: T.Tensor((32, 64), "float32"),
+            var_max: T.Tensor((), "float32"),
+            var_output: T.Tensor((32, 64), "float32"),
+        ):
             T.evaluate(0)
 
         @R.function
@@ -3696,7 +3704,7 @@ def test_clip():
                 lv2 = R.call_tir(
                     cls.maximum,
                     (input, lv1),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 lv3: R.Tensor((), dtype="bool") = R.isnan(max)
                 lv4: R.Tensor((), dtype="float32") = R.where(
@@ -3705,7 +3713,7 @@ def test_clip():
                 lv5 = R.call_tir(
                     cls.minimum,
                     (lv2, lv4),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 gv: R.Tensor((32, 64), dtype="float32") = lv5
                 R.output(gv)
@@ -3713,8 +3721,12 @@ def test_clip():
 
     @I.ir_module
     class ExpectedClipMin:
-        @Ts.prim_func(private=True)
-        def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
+        @Ts.function(private=True)
+        def maximum(
+            var_input: T.Tensor((32, 64), "float32"),
+            var_min: T.Tensor((), "float32"),
+            var_output: T.Tensor((32, 64), "float32"),
+        ):
             T.evaluate(0)
 
         @R.function
@@ -3732,7 +3744,7 @@ def test_clip():
                 lv2 = R.call_tir(
                     cls.maximum,
                     (input, lv1),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 gv: R.Tensor((32, 64), dtype="float32") = lv2
                 R.output(gv)
@@ -3740,8 +3752,12 @@ def test_clip():
 
     @I.ir_module
     class ExpectedClipMaxOnlyInput:
-        @Ts.prim_func(private=True)
-        def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
+        @Ts.function(private=True)
+        def maximum(
+            var_input: T.Tensor((32, 64), "float32"),
+            var_min: T.Tensor((), "float32"),
+            var_output: T.Tensor((32, 64), "float32"),
+        ):
             T.evaluate(0)
 
         @R.function
@@ -3759,7 +3775,7 @@ def test_clip():
                 lv2 = R.call_tir(
                     cls.maximum,
                     (input, lv1),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 gv: R.Tensor((32, 64), dtype="float32") = lv2
                 R.output(gv)
@@ -3806,12 +3822,16 @@ def test_clip_v6(max, min):
 
     @I.ir_module
     class ExpectedClipV6:
-        @Ts.prim_func(private=True)
-        def maximum(var_input: T.handle, var_output: T.handle):
+        @Ts.function(private=True)
+        def maximum(
+            var_input: T.Tensor((32, 64), "float32"), var_output: T.Tensor((32, 64), "float32")
+        ):
             T.evaluate(0)
 
-        @Ts.prim_func(private=True)
-        def minimum(var_input: T.handle, var_output: T.handle):
+        @Ts.function(private=True)
+        def minimum(
+            var_input: T.Tensor((32, 64), "float32"), var_output: T.Tensor((32, 64), "float32")
+        ):
             T.evaluate(0)
 
         @R.function
@@ -3822,12 +3842,12 @@ def test_clip_v6(max, min):
                 lv = R.call_tir(
                     cls.maximum,
                     (input,),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 lv1 = R.call_tir(
                     cls.minimum,
                     (lv,),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 gv: R.Tensor((32, 64), dtype="float32") = lv1
                 R.output(gv)
@@ -3993,7 +4013,7 @@ def test_where_shape_expr_broadcast(cond_vals, y_vals, expected):
     model = _make_where_shape_expr_model(t1_shape, cond_vals, y_vals)
     feeds = {"__t": np.ones(t1_shape, dtype="float32")}
     mod = from_onnx(model, shape_dict={"__t": list(t1_shape)})
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.ir.transform.PassContext(opt_level=3):
         ex = tvm.compile(mod, target="llvm")
     vm = relax.VirtualMachine(ex, tvm.cpu())
     out = vm["main"](feeds["__t"])
@@ -4225,7 +4245,7 @@ def test_shape_start_end_symbolic():
         keep_params_in_input=True,
     )
 
-    B = T.dynamic("B")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class Expected:
@@ -4432,7 +4452,7 @@ def test_trilu_dynamic_k_ir(upper: bool):
 
         expected = ExpectedTriu
     else:
-        m = T.dynamic("m")
+        m = T.dynamic("m", "int64")
 
         @I.ir_module
         class ExpectedTril:
@@ -4749,7 +4769,7 @@ def test_softplus_float64_accuracy():
     tvm_model = relax.transform.LegalizeOps()(tvm_model)
     tvm_model, params = relax.frontend.detach_params(tvm_model)
 
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.ir.transform.PassContext(opt_level=3):
         ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
 
@@ -5515,8 +5535,8 @@ def test_dynamic_squeeze():
     tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
     tvm_model["main"] = tvm_model["main"].without_attr("params")
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class Expected:
@@ -5551,9 +5571,9 @@ def test_squeeze_dynamic_axes_ir():
     model = helper.make_model(graph, producer_name="squeeze_dynamic_axes_ir_test")
     tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
 
-    squeeze_num_keep_dims = T.dynamic("squeeze_num_keep_dims")
-    squeeze_dim_0 = T.dynamic("squeeze_dim_0")
-    squeeze_dim_1 = T.dynamic("squeeze_dim_1")
+    squeeze_num_keep_dims = T.dynamic("squeeze_num_keep_dims", "int64")
+    squeeze_dim_0 = T.dynamic("squeeze_dim_0", "int64")
+    squeeze_dim_1 = T.dynamic("squeeze_dim_1", "int64")
 
     @I.ir_module
     class Expected:
@@ -7260,7 +7280,7 @@ def test_expand():
                 R.output(gv)
             return gv
 
-    batch = T.dynamic("batch")
+    batch = T.dynamic("batch", "int64")
 
     @I.ir_module
     class ExpectedDynamicShape:
@@ -7854,7 +7874,7 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
+    A = T.dynamic("A", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice1:
@@ -7871,8 +7891,8 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice2:
@@ -7889,7 +7909,7 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    C = T.dynamic("C")
+    C = T.dynamic("C", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice3:
@@ -7906,9 +7926,9 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
-    C = T.dynamic("C")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
+    C = T.dynamic("C", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice4:
@@ -7940,7 +7960,7 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
+    A = T.dynamic("A", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice6:
@@ -7957,8 +7977,8 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice7:
@@ -7975,7 +7995,7 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    C = T.dynamic("C")
+    C = T.dynamic("C", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice8:
@@ -7992,9 +8012,9 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
-    C = T.dynamic("C")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
+    C = T.dynamic("C", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice9:
@@ -8026,7 +8046,7 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
+    A = T.dynamic("A", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice11:
@@ -8043,8 +8063,8 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice12:
@@ -8061,7 +8081,7 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    C = T.dynamic("C")
+    C = T.dynamic("C", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice13:
@@ -8078,9 +8098,9 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
-    C = T.dynamic("C")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
+    C = T.dynamic("C", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice14:
@@ -8300,8 +8320,10 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadConstantWithInputs:
-            @Ts.prim_func(private=True)
-            def pad(input: T.handle, PadInput: T.handle):
+            @Ts.function(private=True)
+            def pad(
+                input: T.Tensor(input_shape, "float32"), PadInput: T.Tensor(out_shape, "float32")
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8316,7 +8338,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8328,8 +8350,10 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadConstantAttrs:
-            @Ts.prim_func(private=True)
-            def pad(input: T.handle, PadInput: T.handle):
+            @Ts.function(private=True)
+            def pad(
+                input: T.Tensor(input_shape, "float32"), PadInput: T.Tensor(out_shape, "float32")
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8342,7 +8366,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8354,8 +8378,11 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadReflectWithInputs:
-            @Ts.prim_func(private=True)
-            def mirror_pad(input: T.handle, MirrorPadInput: T.handle):
+            @Ts.function(private=True)
+            def mirror_pad(
+                input: T.Tensor(input_shape, "float32"),
+                MirrorPadInput: T.Tensor(out_shape, "float32"),
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8369,7 +8396,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.mirror_pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8381,8 +8408,11 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadReflectAttrs:
-            @Ts.prim_func(private=True)
-            def mirror_pad(input: T.handle, MirrorPadInput: T.handle):
+            @Ts.function(private=True)
+            def mirror_pad(
+                input: T.Tensor(input_shape, "float32"),
+                MirrorPadInput: T.Tensor(out_shape, "float32"),
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8395,7 +8425,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.mirror_pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8407,8 +8437,11 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadEdgeWithInputs:
-            @Ts.prim_func(private=True)
-            def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
+            @Ts.function(private=True)
+            def replicate_pad(
+                input: T.Tensor(input_shape, "float32"),
+                ReplicatePadInput: T.Tensor(out_shape, "float32"),
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8422,7 +8455,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.replicate_pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8434,8 +8467,11 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadEdgeAttrs:
-            @Ts.prim_func(private=True)
-            def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
+            @Ts.function(private=True)
+            def replicate_pad(
+                input: T.Tensor(input_shape, "float32"),
+                ReplicatePadInput: T.Tensor(out_shape, "float32"),
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8448,7 +8484,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.replicate_pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8461,8 +8497,11 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
             @I.ir_module
             class ExpectedPadWrapWithInputs:
-                @Ts.prim_func(private=True)
-                def circular_pad(input: T.handle, CircularPadInput: T.handle):
+                @Ts.function(private=True)
+                def circular_pad(
+                    input: T.Tensor(input_shape, "float32"),
+                    CircularPadInput: T.Tensor(out_shape, "float32"),
+                ):
                     T.evaluate(0)
 
                 @R.function
@@ -8476,7 +8515,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                         lv = R.call_tir(
                             cls.circular_pad,
                             (input,),
-                            out_ty=R.Tensor(out_shape, dtype="float32"),
+                            ty_args=[R.Tensor(out_shape, dtype="float32")],
                         )
                         gv: R.Tensor(out_shape, dtype="float32") = lv
                         R.output(gv)
@@ -8486,8 +8525,11 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadWrapWithAxes:
-            @Ts.prim_func(private=True)
-            def circular_pad(input: T.handle, CircularPadInput: T.handle):
+            @Ts.function(private=True)
+            def circular_pad(
+                input: T.Tensor(input_shape, "float32"),
+                CircularPadInput: T.Tensor(out_shape, "float32"),
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8502,7 +8544,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.circular_pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8991,15 +9033,28 @@ def test_tile():
         expected.update_func(expected.get_global_var("tile"), tvm_model["tile"])
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    tile_input_dim_0 = T.dynamic("tile_input_dim_0")
-    tile_input_dim_1 = T.dynamic("tile_input_dim_1")
-    tile_input_dim_2 = T.dynamic("tile_input_dim_2")
-    tile_input_dim_3 = T.dynamic("tile_input_dim_3")
+    tile_input_dim_0 = T.dynamic("tile_input_dim_0", "int64")
+    tile_input_dim_1 = T.dynamic("tile_input_dim_1", "int64")
+    tile_input_dim_2 = T.dynamic("tile_input_dim_2", "int64")
+    tile_input_dim_3 = T.dynamic("tile_input_dim_3", "int64")
 
     @I.ir_module
     class ExpectedTileDynamicInput:
-        @Ts.prim_func(private=True)
-        def tile(input: T.handle, T_tile: T.handle):
+        @Ts.function(private=True)
+        def tile(
+            input: T.Tensor(
+                (tile_input_dim_0, tile_input_dim_1, tile_input_dim_2, tile_input_dim_3), "float32"
+            ),
+            T_tile: T.Tensor(
+                (
+                    tile_input_dim_0 * 2,
+                    tile_input_dim_1,
+                    tile_input_dim_2 * 3,
+                    tile_input_dim_3 * 2,
+                ),
+                "float32",
+            ),
+        ):
             T.evaluate(0)
 
         @R.function
@@ -9029,15 +9084,17 @@ def test_tile():
                 lv = R.call_tir(
                     cls.tile,
                     (input,),
-                    out_ty=R.Tensor(
-                        (
-                            tile_input_dim_0 * 2,
-                            tile_input_dim_1,
-                            tile_input_dim_2 * 3,
-                            tile_input_dim_3 * 2,
-                        ),
-                        dtype="float32",
-                    ),
+                    ty_args=[
+                        R.Tensor(
+                            (
+                                tile_input_dim_0 * 2,
+                                tile_input_dim_1,
+                                tile_input_dim_2 * 3,
+                                tile_input_dim_3 * 2,
+                            ),
+                            dtype="float32",
+                        )
+                    ],
                 )
                 gv: R.Tensor(
                     (
@@ -9053,8 +9110,10 @@ def test_tile():
 
     @I.ir_module
     class ExpectedTileStaticInput:
-        @Ts.prim_func(private=True)
-        def tile(input: T.handle, T_tile: T.handle):
+        @Ts.function(private=True)
+        def tile(
+            input: T.Tensor((2, 3, 4, 5), "float32"), T_tile: T.Tensor((4, 3, 12, 10), "float32")
+        ):
             T.evaluate(0)
 
         @R.function
@@ -9068,7 +9127,7 @@ def test_tile():
                 lv = R.call_tir(
                     cls.tile,
                     (input,),
-                    out_ty=R.Tensor((4, 3, 12, 10), dtype="float32"),
+                    ty_args=[R.Tensor((4, 3, 12, 10), dtype="float32")],
                 )
                 gv: R.Tensor((4, 3, 12, 10), dtype="float32") = lv
                 R.output(gv)
@@ -9118,13 +9177,16 @@ def test_tile_dynamic_repeats():
         )
 
         if rank == 2:
-            tile_dim_0 = T.dynamic("tile_dim_0")
-            tile_dim_1 = T.dynamic("tile_dim_1")
+            tile_dim_0 = T.dynamic("tile_dim_0", "int64")
+            tile_dim_1 = T.dynamic("tile_dim_1", "int64")
 
             @I.ir_module
             class ExpectedTileRank2:
-                @Ts.prim_func(private=True)
-                def dyn_tile(input: T.handle, var_T_tile: T.handle):
+                @Ts.function(private=True)
+                def dyn_tile(
+                    input: T.Tensor(input_shape, "float32"),
+                    var_T_tile: T.Tensor((tile_dim_0, tile_dim_1), "float32"),
+                ):
                     T.evaluate(0)
 
                 @R.function
@@ -9144,7 +9206,7 @@ def test_tile_dynamic_repeats():
                         lv4 = R.call_tir(
                             cls.dyn_tile,
                             (input,),
-                            out_ty=R.Tensor((tile_dim_0, tile_dim_1), dtype="float32"),
+                            ty_args=[R.Tensor((tile_dim_0, tile_dim_1), dtype="float32")],
                         )
                         gv: R.Tensor((tile_dim_0, tile_dim_1), dtype="float32") = lv4
                         R.output(gv)
@@ -9153,14 +9215,17 @@ def test_tile_dynamic_repeats():
             return ExpectedTileRank2
 
         if rank == 3:
-            tile_dim_0 = T.dynamic("tile_dim_0")
-            tile_dim_1 = T.dynamic("tile_dim_1")
-            tile_dim_2 = T.dynamic("tile_dim_2")
+            tile_dim_0 = T.dynamic("tile_dim_0", "int64")
+            tile_dim_1 = T.dynamic("tile_dim_1", "int64")
+            tile_dim_2 = T.dynamic("tile_dim_2", "int64")
 
             @I.ir_module
             class ExpectedTileRank3:
-                @Ts.prim_func(private=True)
-                def dyn_tile(input: T.handle, var_T_tile: T.handle):
+                @Ts.function(private=True)
+                def dyn_tile(
+                    input: T.Tensor(input_shape, "float32"),
+                    var_T_tile: T.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), "float32"),
+                ):
                     T.evaluate(0)
 
                 @R.function
@@ -9181,7 +9246,9 @@ def test_tile_dynamic_repeats():
                         lv4 = R.call_tir(
                             cls.dyn_tile,
                             (input,),
-                            out_ty=R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32"),
+                            ty_args=[
+                                R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32")
+                            ],
                         )
                         gv: R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32") = lv4
                         R.output(gv)
@@ -9190,15 +9257,20 @@ def test_tile_dynamic_repeats():
             return ExpectedTileRank3
 
         if rank == 4:
-            tile_dim_0 = T.dynamic("tile_dim_0")
-            tile_dim_1 = T.dynamic("tile_dim_1")
-            tile_dim_2 = T.dynamic("tile_dim_2")
-            tile_dim_3 = T.dynamic("tile_dim_3")
+            tile_dim_0 = T.dynamic("tile_dim_0", "int64")
+            tile_dim_1 = T.dynamic("tile_dim_1", "int64")
+            tile_dim_2 = T.dynamic("tile_dim_2", "int64")
+            tile_dim_3 = T.dynamic("tile_dim_3", "int64")
 
             @I.ir_module
             class ExpectedTileRank4:
-                @Ts.prim_func(private=True)
-                def dyn_tile(input: T.handle, var_T_tile: T.handle):
+                @Ts.function(private=True)
+                def dyn_tile(
+                    input: T.Tensor(input_shape, "float32"),
+                    var_T_tile: T.Tensor(
+                        (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3), "float32"
+                    ),
+                ):
                     T.evaluate(0)
 
                 @R.function
@@ -9221,10 +9293,12 @@ def test_tile_dynamic_repeats():
                         lv4 = R.call_tir(
                             cls.dyn_tile,
                             (input,),
-                            out_ty=R.Tensor(
-                                (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3),
-                                dtype="float32",
-                            ),
+                            ty_args=[
+                                R.Tensor(
+                                    (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3),
+                                    dtype="float32",
+                                )
+                            ],
                         )
                         gv: R.Tensor(
                             (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3), dtype="float32"
@@ -9488,8 +9562,8 @@ def test_einsum():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def einsum(x: T.handle, T_einsum: T.handle):
+        @Ts.function(private=True)
+        def einsum(x: T.Tensor((3, 4), "float32"), T_einsum: T.Tensor((3,), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -9497,7 +9571,7 @@ def test_einsum():
             R.func_attr({"num_input": 1})
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir(cls.einsum, (x,), out_ty=R.Tensor((3,), dtype="float32"))
+                lv = R.call_tir(cls.einsum, (x,), ty_args=[R.Tensor((3,), dtype="float32")])
                 gv: R.Tensor((3,), dtype="float32") = lv
                 R.output(gv)
             return gv
@@ -10650,8 +10724,8 @@ def test_flatten_dynamic():
         tvm_model = from_onnx(model, keep_params_in_input=True)
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class ExpectedDynamicAxis0:
@@ -10667,8 +10741,8 @@ def test_flatten_dynamic():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class ExpectedDynamicAxisNegative1:
@@ -10682,8 +10756,8 @@ def test_flatten_dynamic():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class ExpectedDynamicAxis2:
@@ -10796,7 +10870,7 @@ def test_nonzero():
         tvm_model = from_onnx(model, keep_params_in_input=True)
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    nonzero_numbers = T.dynamic("nonzero_numbers")
+    nonzero_numbers = T.dynamic("nonzero_numbers", "int64")
 
     @I.ir_module
     class ExpectedScalar:
@@ -10811,7 +10885,7 @@ def test_nonzero():
                 R.output(gv)
             return gv
 
-    nonzero_numbers = T.dynamic("nonzero_numbers")
+    nonzero_numbers = T.dynamic("nonzero_numbers", "int64")
 
     @I.ir_module
     class ExpectedRank1:
@@ -10826,7 +10900,7 @@ def test_nonzero():
                 R.output(gv)
             return gv
 
-    nonzero_numbers = T.dynamic("nonzero_numbers")
+    nonzero_numbers = T.dynamic("nonzero_numbers", "int64")
 
     @I.ir_module
     class ExpectedRank2:
@@ -10841,7 +10915,7 @@ def test_nonzero():
                 R.output(gv)
             return gv
 
-    nonzero_numbers = T.dynamic("nonzero_numbers")
+    nonzero_numbers = T.dynamic("nonzero_numbers", "int64")
 
     @I.ir_module
     class ExpectedRank3:
@@ -10856,7 +10930,7 @@ def test_nonzero():
                 R.output(gv)
             return gv
 
-    nonzero_numbers = T.dynamic("nonzero_numbers")
+    nonzero_numbers = T.dynamic("nonzero_numbers", "int64")
 
     @I.ir_module
     class ExpectedRank4:
@@ -11052,9 +11126,9 @@ def test_sequence_empty():
         def main() -> R.Tuple:
             R.func_attr({"num_input": 0})
             with R.dataflow():
-                gv: R.Tuple = R.tuple()
+                gv: R.Tuple = ()
                 R.output(gv)
-            return R.tuple()
+            return ()
 
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
@@ -11692,8 +11766,8 @@ def test_symbolic_shape_deduction():
         tvm_model = from_onnx(model, keep_params_in_input=True)
         tvm.ir.assert_structural_equal(tvm_model["main"].without_attr("params"), expected["main"])
 
-    batch = T.dynamic("batch")
-    seq = T.dynamic("seq")
+    batch = T.dynamic("batch", "int64")
+    seq = T.dynamic("seq", "int64")
 
     @I.ir_module
     class ExpectedWithReshapeFlatten:
@@ -11711,8 +11785,8 @@ def test_symbolic_shape_deduction():
                 R.output(gv)
             return gv
 
-    batch = T.dynamic("batch")
-    seq = T.dynamic("seq")
+    batch = T.dynamic("batch", "int64")
+    seq = T.dynamic("seq", "int64")
 
     @I.ir_module
     class ExpectedWithoutReshapeFlatten:
@@ -11748,7 +11822,7 @@ def test_multi_inputs_with_same_symbolic_shape():
     model = helper.make_model(graph, producer_name="test_multi_symbolic_shape_input")
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
-    batch = T.dynamic("batch")
+    batch = T.dynamic("batch", "int64")
 
     @I.ir_module
     class Expected:
@@ -11892,8 +11966,8 @@ def test_shape_dim_string_expression_graph_add():
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
     # fmt: off
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class Expected:
@@ -11927,8 +12001,8 @@ def test_shape_dim_string_expression_graph_subtract():
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
     # fmt: off
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class Expected:
@@ -11962,8 +12036,8 @@ def test_shape_dim_string_expression_graph_mul():
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
     # fmt: off
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class Expected:
@@ -11998,8 +12072,8 @@ def test_shape_dim_string_expression_graph_div_1():
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
     # fmt: off
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class Expected:
@@ -12034,8 +12108,8 @@ def test_shape_dim_string_expression_graph_div_2():
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
     # fmt: off
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class Expected:

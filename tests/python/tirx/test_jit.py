@@ -27,7 +27,6 @@ import pytest
 import tvm
 from tvm.ir import assert_structural_equal
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 
 
 def test_int_constexpr_specializes_loop_bound():
@@ -42,7 +41,7 @@ def test_int_constexpr_specializes_loop_bound():
         for i in range(N):
             C[i] = A[i] + B[i]
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(
         A: T.Tensor((128,), "int32"),
         B: T.Tensor((128,), "int32"),
@@ -54,7 +53,7 @@ def test_int_constexpr_specializes_loop_bound():
     assert_structural_equal(add.specialize(N=128), expected, map_free_vars=True)
 
 
-def test_constexpr_in_2d_buffer_shape():
+def test_constexpr_in_2d_tensor_shape():
     @T.jit(private=True)
     def matadd(
         A: T.Tensor((M, K), "int32"),
@@ -68,7 +67,7 @@ def test_constexpr_in_2d_buffer_shape():
             for k in range(K):
                 C[m, k] = A[m, k] + B[m, k]
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(
         A: T.Tensor((4, 8), "int32"),
         B: T.Tensor((4, 8), "int32"),
@@ -93,7 +92,7 @@ def test_constexpr_in_body_expression():
         for i in range(N):
             B[i] = A[i] * SCALE
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(
         A: T.Tensor((16,), "int32"),
         B: T.Tensor((16,), "int32"),
@@ -175,7 +174,7 @@ def test_jit_kernel_with_nested_inline_helper():
         for i in range(N):
             double(i)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(
         A: T.Tensor((4,), "int32"),
     ):
@@ -196,7 +195,7 @@ def test_constexpr_default_value():
         for i in range(N):
             A[i] = SCALE
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(
         A: T.Tensor((8,), "int32"),
     ):
@@ -209,7 +208,7 @@ def test_constexpr_default_value():
     assert k.specialize(N=8) is not overridden
 
 
-def test_specialize_returns_primfunc():
+def test_specialize_returns_function():
     @T.jit(private=True)
     def k(
         A: T.Tensor((N,), "int32"),
@@ -220,8 +219,8 @@ def test_specialize_returns_primfunc():
             A[i] = 0
 
     spec = k.specialize(N=8)
-    assert isinstance(spec, tvm.tirx.PrimFunc)
-    # Specialized PrimFunc has only the runtime params (constexpr stripped).
+    assert isinstance(spec, tvm.tirx.Function)
+    # Specialized Function has only the runtime params (constexpr stripped).
     assert len(spec.params) == 1
 
 
@@ -235,20 +234,16 @@ def test_constexpr_specializes_nested_selector_condition():
         *,
         LIMIT: T.constexpr,
     ):
-        Tx.copy_async(
-            C[:],
-            A[:],
-            dispatch="tma_explicit",
-            mbar=C.data,
-            src_selector=[(flag < LIMIT, B)],
+        T.cuda.tile.apply(
+            T.ptx["cp.async.cg.shared.global"], C[:], A[:], chunk_bytes=16, ignore_src=flag < LIMIT
         )
 
     specialized = k.specialize(LIMIT=4)
-    op_call = specialized.body
-    condition, candidate = op_call.config["src_selector"][0]
+    op_call = specialized.body[0].value
+    parameters = {pair[0].value: pair[1] for pair in op_call.args[2]}
+    condition = parameters["ignore_src"]
     assert isinstance(condition, tvm.tirx.LT)
     assert int(condition.b) == 4
-    assert candidate.same_as(specialized.params[1])
 
 
 def test_optional_param_present_and_absent_ir():
@@ -259,11 +254,11 @@ def test_optional_param_present_and_absent_ir():
         else:
             out[0] = -1
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected_present(A: T.Tensor((1,), "int32"), out: T.Tensor((1,), "int32")):
         out[0] = A[0]
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected_absent(out: T.Tensor((1,), "int32")):
         out[0] = -1
 
@@ -273,8 +268,8 @@ def test_optional_param_present_and_absent_ir():
     assert_structural_equal(absent, expected_absent, map_free_vars=True)
     assert [param.name for param in present.params] == ["a", "out"]
     assert [param.name for param in absent.params] == ["out"]
-    assert all(tvm.tirx.is_buffer_var(param) for param in present.params)
-    assert all(tvm.tirx.is_buffer_var(param) for param in absent.params)
+    assert all(tvm.tirx.is_tensor_var(param) for param in present.params)
+    assert all(tvm.tirx.is_tensor_var(param) for param in absent.params)
 
 
 def test_optional_specialization_cache_includes_presence():
@@ -356,7 +351,7 @@ def test_only_explicit_t_optional_is_specializable():
 def test_t_optional_is_restricted_to_jit():
     with pytest.raises(TypeError, match="only supported by @T.jit"):
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def invalid(a: T.Optional(T.handle)):
             T.evaluate(0)
 
@@ -374,8 +369,8 @@ def test_compile_time_if_binding_uses_python_scope():
     absent = kernel.specialize(a=None)
     assert len(present.params) == 2
     assert len(absent.params) == 1
-    assert sum(tvm.tirx.is_buffer_var(param) for param in present.params) == 2
-    assert sum(tvm.tirx.is_buffer_var(param) for param in absent.params) == 1
+    assert sum(tvm.tirx.is_tensor_var(param) for param in present.params) == 2
+    assert sum(tvm.tirx.is_tensor_var(param) for param in absent.params) == 1
 
 
 def test_compile_time_bool_ops_and_if_expression_short_circuit():
@@ -431,7 +426,7 @@ def test_present_optional_param_still_rejects_ffi_none():
     def kernel(A: T.Tensor((1,), "int32")):
         A[0] = 0
 
-    executable = tvm.compile(kernel.specialize(), target="llvm", tir_pipeline="tirx")
+    executable = tvm.tirx.compile(kernel.specialize(), target="llvm", pipeline="tirx")
     with pytest.raises(TypeError, match="expected Tensor"):
         executable(None)
 

@@ -22,7 +22,7 @@ from .transform import (
     AllocateWorkspace,
     AlterOpImpl,
     AnnotateTIROpPattern,
-    AttachAttrLayoutFreeBuffers,
+    AttachAttrLayoutFreeTensors,
     AttachGlobalSymbol,
     BindParams,
     BindSymbolicVars,
@@ -82,7 +82,7 @@ from .transform import (
     UpdateParamType,
     UpdateVDevice,
     VMShapeLower,
-    SpecializePrimFuncBasedOnCallSite,
+    SpecializeFunctionBasedOnCallSite,
     dataflowblock_pass,
     function_pass,
 )

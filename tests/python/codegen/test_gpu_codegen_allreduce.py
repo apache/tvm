@@ -27,24 +27,30 @@ from tvm.testing import env
 
 
 def _reduce_module(d1, d2, d3, is_max=False):
-    reducer = T.comm_reducer(
-        (lambda x, y: T.max(x, y)) if is_max else (lambda x, y: x + y),
-        [T.float32(-3.4028234663852886e38 if is_max else 0)],
+    combine = T.Lambda(
+        [T.float32, T.float32],
+        (lambda x, y: (T.max(x, y),)) if is_max else (lambda x, y: (x + y,)),
     )
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((1, d1, d2, d3), "float32"), B: T.Tensor((1, d1, d2), "float32")):
-            for i in T.thread_binding(1, thread="blockIdx.x"):
-                for j in T.thread_binding(d1, thread="threadIdx.z"):
-                    for k in T.thread_binding(d2, thread="threadIdx.y"):
-                        for l in T.thread_binding(d3, thread="threadIdx.x"):
-                            reduced = T.alloc_tensor((1,), "float32", scope="local")
-                            with T.attr(reducer, "reduce_scope", 0):
-                                T.tvm_thread_allreduce(
-                                    T.uint32(1), A[i, j, k, l], True, reduced[0], l
-                                )
+            with T.launch_thread("blockIdx.x", 1) as i:
+                with T.launch_thread("threadIdx.z", d1) as j:
+                    with T.launch_thread("threadIdx.y", d2) as k:
+                        with T.launch_thread("threadIdx.x", d3) as l:
+                            reduced = T.alloc_tensor(
+                                ty_args=[T.Tensor((1,), "float32", scope="local")]
+                            )
+                            T.gpu_thread_allreduce(
+                                combine,
+                                (T.float32(-3.4028234663852886e38 if is_max else 0),),
+                                (A[i, j, k, l],),
+                                True,
+                                (reduced[0],),
+                                (l,),
+                            )
                             if l == 0:
                                 B[i, j, k] = reduced[0]
 
@@ -82,7 +88,7 @@ def test_allreduce_sum(dims, target):
         pytest.skip(f"{target} not enabled")
     d1, d2, d3 = dims
     mod = _reduce_sum_module(d1, d2, d3)
-    f = tvm.compile(mod, target=target)
+    f = tvm.tirx.compile(mod, target=target)
 
     # prepare input and output array
     a_np = np.random.rand(1, d1, d2, d3).astype("float32")
@@ -132,7 +138,7 @@ def test_allreduce_sum_compile(optional_metal_compile_callback):
 
     d1, d2, d3 = dims
     mod = _reduce_sum_module(d1, d2, d3)
-    tvm.compile(mod, target=target)
+    tvm.tirx.compile(mod, target=target)
 
 
 @pytest.mark.parametrize(
@@ -147,7 +153,7 @@ def test_allreduce_max(dims, target):
         pytest.skip(f"{target} not enabled")
     d1, d2, d3 = dims
     mod = _reduce_max_module(d1, d2, d3)
-    f = tvm.compile(mod, target=target)
+    f = tvm.tirx.compile(mod, target=target)
 
     # prepare input and output array
     a_np = -np.random.rand(1, d1, d2, d3).astype("float32")

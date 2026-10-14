@@ -73,6 +73,9 @@ class ExprFunctor<R(const Expr&, Args...)> {
     return (*vtable_)(node, this, std::forward<Args>(args)...);
   }
 
+  virtual R Dispatch_(const LambdaExprNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
   virtual R Dispatch_(const OpaqueExprNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
@@ -230,6 +233,7 @@ class ExprFunctor<R(const Expr&, Args...)> {
    * \param vtable The table to initialize before adding derived registrations.
    */
   static void InitVTable(VTable* vtable) {
+    SetDispatch<TSelf, LambdaExprNode>(vtable);
     SetDispatch<TSelf, OpaqueExprNode>(vtable);
     SetDispatch<TSelf, TupleNode>(vtable);
     SetDispatch<TSelf, TupleGetItemNode>(vtable);
@@ -329,7 +333,7 @@ class ExprFunctor<R(const Expr&, Args...)> {
  * \endcode
  * Use tvm::ExprVisitor explicitly when dialect visitors are also in scope.
  */
-class TVM_DLL ExprVisitor : public ObjectVisitor {
+class TVM_TIRX_DLL ExprVisitor : public ObjectVisitor {
  public:
   /*! \brief Construct a visitor with the core expression hooks. */
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(ExprVisitor, ObjectVisitor)
@@ -424,7 +428,7 @@ class TVM_DLL ExprVisitor : public ObjectVisitor {
  * \endcode
  * Use tvm::ExprMutator explicitly when dialect mutators are also in scope.
  */
-class TVM_DLL ExprMutator : public ObjectMutator {
+class TVM_TIRX_DLL ExprMutator : public ObjectMutator {
  public:
   /*! \brief Construct a mutator with the core expression hooks. */
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(ExprMutator, ObjectMutator)

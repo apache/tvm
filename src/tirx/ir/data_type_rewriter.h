@@ -54,7 +54,7 @@ class DataTypeLegalizer : public StmtExprMutator {
  protected:
   explicit DataTypeLegalizer(const VTable* vtable) : StmtExprMutator(vtable) {}
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override;
@@ -86,19 +86,15 @@ class DataTypeLegalizer : public StmtExprMutator {
 
   /*! \brief Whether to clamp shift amounts after narrowing signed integers. */
   virtual bool ShouldClampShiftAmounts() const { return false; }
-
-  // a map from IterVar before rewrite to that after rewrite,
-  // ensures one old IterVar maps to exactly one new IterVar
-  std::unordered_map<const IterVarNode*, IterVar> ivmap_;
 };
 
 /*!
- * \brief Data type rewriter for buffer indices.
+ * \brief Data type rewriter for tensor indices.
  *
- * Detect the components of buffer indices that should be considered for data type rewriting.
+ * Detect the components of tensor indices that should be considered for data type rewriting.
  * This class doesn't perform actual rewriting of data types. During recursive visiting, the
  * internal flags `is_enabled_` and `is_conditional_` are used to indicate whether the current
- * expression is a buffer index or a conditional expression, which can be used in the sub-classes to
+ * expression is a tensor index or a conditional expression, which can be used in the sub-classes to
  * implement different rewriting rules.
  */
 class IndexDataTypeRewriter : public DataTypeLegalizer {
@@ -111,11 +107,11 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   explicit IndexDataTypeRewriter(const VTable* vtable) : DataTypeLegalizer(vtable) {}
   using Parent = DataTypeLegalizer;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override;
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) override;
   ffi::Array<PrimExpr> VisitIndices(const ffi::Array<PrimExpr>& indices, InplaceMode inplace_mode);
-  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
@@ -135,10 +131,10 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
 };
 
 /*!
- * \brief Normalize the data types of buffer shapes and indices to the same data type.
+ * \brief Normalize the data types of tensor shapes and indices to the same data type.
  *
- * This pass rewrites the data types of buffer shapes and indices to the specified data type. It
- * assumes the specified data type is large enough to hold the original ranges of buffer shapes and
+ * This pass rewrites the data types of tensor shapes and indices to the specified data type. It
+ * assumes the specified data type is large enough to hold the original ranges of tensor shapes and
  * indices.
  */
 class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
@@ -146,7 +142,7 @@ class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
   using IndexDataTypeRewriter::Mutate;
   using IndexDataTypeRewriter::Mutate_;
   explicit IndexDataTypeNormalizer(PrimType target_data_type);
-  PrimFunc Rewrite(PrimFunc func);
+  Function Rewrite(Function func);
 
  protected:
   IndexDataTypeNormalizer(PrimType target_data_type, const VTable* vtable);

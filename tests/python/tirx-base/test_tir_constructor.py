@@ -25,9 +25,9 @@ from tvm.ir.prim import expr_deep_equal
 from tvm.script import tirx as T
 
 
-def _is_buffer_binding(node, *op_names):
+def _is_tensor_binding(node, *op_names):
     return (
-        isinstance(node, tvm.tirx.Bind)
+        isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
         and isinstance(node.value.op, tvm.ir.Op)
         and node.value.op.name in op_names
@@ -39,9 +39,13 @@ def test_expr_constructor():
     assert isinstance(x, tvm.tirx.Var)
     assert x.name == "xx"
 
-    x = tvm.tirx.Reduce(None, [1], [tvm.tirx.IterVar((0, 1), "x", 2)], None, 0)
-    assert isinstance(x, tvm.tirx.Reduce)
-    assert x.combiner is None
+    lhs, rhs = tvm.tirx.Var("lhs", "int32"), tvm.tirx.Var("rhs", "int32")
+    combiner = tvm.te.CommReducer([lhs], [rhs], [lhs + rhs], [tvm.tirx.const(0, "int32")])
+    with pytest.raises(TypeError, match="te.CommReducer"):
+        tvm.te.Reduce(None, [1], [tvm.s_tir.IterVar((0, 1), "x", 2)], None, 0)
+    x = tvm.te.Reduce(combiner, [1], [tvm.s_tir.IterVar((0, 1), "x", 2)], None, 0)
+    assert isinstance(x, tvm.te.Reduce)
+    assert x.combiner.same_as(combiner)
     assert x.value_index == 0
 
     x = tvm.tirx.FloatImm("float32", 1.0)
@@ -103,14 +107,14 @@ def test_expr_constructor():
     assert x.false_value == b
     assert x.condition == a
 
-    buffer_var = tvm.tirx.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
-    buffer = tvm.tirx.decl_tensor([16], "float32", data=buffer_var)
-    x = tvm.tirx.BufferLoad(buffer, [1])
+    tensor_var = tvm.tirx.Var("buf", tvm.ir.PtrType(tvm.ir.PrimType("float32")))
+    tensor = tvm.tirx.decl_tensor([16], "float32", data=tensor_var)
+    x = tvm.tirx.TensorLoad(tensor, [1])
     assert isinstance(x, tvm.ir.TensorLoad)
     assert x.ty == tvm.ir.PrimType("float32")
-    assert x.source == buffer
-    assert x.source.data.args[0].same_as(buffer)
-    assert x.source.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)
+    assert x.source == tensor
+    assert x.source.data.args[0].same_as(tensor)
+    assert x.source.data.ty == tensor.data.ty
     assert list(x.indices) == [1]
 
     x = tvm.tirx.Ramp(1, 2, 10)
@@ -146,10 +150,10 @@ def test_expr_constructor():
     )
     assert x_with_attrs.attrs["disable_tma"] is True
     assert not tvm_ffi.structural_equal(x, x_with_attrs)
-    script = tvm.tirx.Evaluate(x_with_attrs).script()
+    script = tvm.ir.Evaluate(x_with_attrs).script()
     assert "attrs" in script
     assert "disable_tma" in script
-    func = tvm.tirx.PrimFunc([attr_arg], tvm.tirx.Evaluate(x_with_attrs))
+    func = tvm.tirx.Function([attr_arg], tvm.ir.Evaluate(x_with_attrs))
     assert (
         tvm.script.from_source(
             func.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
@@ -209,9 +213,13 @@ def test_expr_constructor():
         attrs={"keep": True},
         ty="int32",
     )
-    simplified = tvm.tirx.transform.StmtSimplify()(
-        tvm.IRModule({"main": tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(outer_if))})
-    )["main"].body.value
+    simplified = (
+        tvm.tirx.transform.StmtSimplify()(
+            tvm.IRModule({"main": tvm.tirx.Function([], tvm.ir.Evaluate(outer_if))})
+        )["main"]
+        .body[0]
+        .value
+    )
     assert simplified.attrs["keep"] is True
 
     v = tvm.tirx.Var("aa", "int32")
@@ -221,9 +229,9 @@ def test_expr_constructor():
     assert x.body == v
 
 
-def test_buffer_region_call_wrappers_reject():
-    buffer = tvm.tirx.decl_tensor([4], "int32")
-    region = buffer[0:4]
+def test_tensor_region_call_wrappers_reject():
+    tensor = tvm.tirx.decl_tensor([4], "int32")
+    region = tensor[0:4]
     calls = [
         lambda: tvm.tirx.call_intrin("int32", "tirx.reinterpret", region),
         lambda: tvm.tirx.call_extern("int32", "consume", region),
@@ -235,13 +243,13 @@ def test_buffer_region_call_wrappers_reject():
         lambda: T.evaluate(region),
     ]
     for call in calls:
-        with pytest.raises(TypeError, match="construct a BufferLoad with explicit indices"):
+        with pytest.raises(TypeError, match="construct a TensorLoad with explicit indices"):
             call()
 
-    assert not hasattr(region, "to_buffer_load")
+    assert not hasattr(region, "to_tensor_load")
 
 
-def test_buffer_region_type_is_singleton():
+def test_tensor_region_type_is_singleton():
     lhs = tvm.tirx.decl_tensor([1], "int32")[0:1]
     rhs = tvm.tirx.decl_tensor([2], "float32")[0:2]
     assert isinstance(lhs, TensorRegion)
@@ -249,30 +257,32 @@ def test_buffer_region_type_is_singleton():
     assert lhs.ty.same_as(rhs.ty)
 
 
-def test_buffer_region_is_not_arithmetic_operand():
+def test_tensor_region_is_not_arithmetic_operand():
     int_region = tvm.tirx.decl_tensor([4], "int32")[0:4]
     with pytest.raises(TypeError, match="construct a TensorLoad explicitly"):
-        tvm.tirx.IterVar((0, 4), "i", tvm.tirx.IterVar.DataPar) + int_region
+        tvm.s_tir.IterVar((0, 4), "i", tvm.s_tir.IterVar.DataPar) + int_region
 
 
 def test_operator_base_categories_have_primitive_type():
     var = tvm.tirx.Var("x", "int32")
-    buffer = tvm.tirx.decl_tensor([4], "float32")
+    tensor = tvm.tirx.decl_tensor([4], "float32")
+    lhs, rhs = tvm.tirx.Var("lhs", "int32"), tvm.tirx.Var("rhs", "int32")
+    combiner = tvm.te.CommReducer([lhs], [rhs], [lhs + rhs], [tvm.tirx.const(0, "int32")])
     expressions = [
         tvm.tirx.IntImm("int32", 1),
         tvm.tirx.Add(var, 1),
         tvm.tirx.LT(var, 1),
         tvm.tirx.And(var < 1, var < 2),
-        tvm.tirx.Reduce(
-            None,
+        tvm.te.Reduce(
+            combiner,
             [1],
-            [tvm.tirx.IterVar((0, 1), "i", tvm.tirx.IterVar.CommReduce)],
+            [tvm.s_tir.IterVar((0, 1), "i", tvm.s_tir.IterVar.CommReduce)],
             None,
             0,
         ),
         tvm.tirx.Cast("float32", var),
         tvm.tirx.Select(var < 1, var, 1),
-        tvm.tirx.BufferLoad(buffer, [0]),
+        tvm.tirx.TensorLoad(tensor, [0]),
         tvm.tirx.Ramp(0, 1, 4),
         tvm.tirx.Broadcast(var, 4),
         tvm.tirx.Shuffle([tvm.tirx.Broadcast(var, 2)], [0]),
@@ -286,69 +296,55 @@ def test_operator_base_categories_have_primitive_type():
 
 def test_stmt_constructor():
     v = tvm.tirx.Var("aa", "int32")
-    nop = tvm.tirx.Evaluate(1)
-    x = tvm.tirx.Bind(v, 1)
-    assert isinstance(x, tvm.tirx.Bind)
+    nop = tvm.ir.Evaluate(1)
+    x = tvm.ir.Bind(v, 1)
+    assert isinstance(x, tvm.ir.Bind)
     assert x.var == v
     assert x.value.value == 1
 
-    x = tvm.tirx.AttrStmt(v == 1, "xx", 1, tvm.tirx.Evaluate(1))
-    assert isinstance(x, tvm.tirx.AttrStmt)
-    assert x.value.value == 1
-
-    x = tvm.tirx.AssertStmt(
+    x = tvm.ir.AssertStmt(
         tvm.tirx.const(1, "bool"),
         tvm.ir.StringImm("RuntimeError"),
         [tvm.ir.StringImm("hellow")],
     )
-    assert isinstance(x, tvm.tirx.AssertStmt)
+    assert isinstance(x, tvm.ir.AssertStmt)
     assert x.error_kind.value == "RuntimeError"
     assert len(x.message_parts) == 1
     assert x.message_parts[0].value == "hellow"
 
-    x = tvm.tirx.For(tvm.tirx.Var("x", "int32"), 0, 10, tvm.tirx.ForKind.SERIAL, nop)
-    assert isinstance(x, tvm.tirx.For)
+    x = tvm.ir.For(tvm.tirx.Var("x", "int32"), 0, 10, tvm.ir.ForKind.DEFAULT, nop)
+    assert isinstance(x, tvm.ir.For)
     assert x.min.value == 0
     assert x.extent.value == 10
-    assert x.body == nop
+    assert len(x.body) == 1 and x.body[0] == nop
 
-    buffer_var = tvm.tirx.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("bool")))
-    buffer = tvm.tirx.decl_tensor([16], "bool", data=buffer_var)
-    x = tvm.tirx.BufferStore(buffer, tvm.tirx.IntImm("bool", 1), [10])
-    assert isinstance(x, tvm.tirx.BufferStore)
-    assert x.buffer == buffer
-    assert x.buffer.data.args[0].same_as(buffer)
-    assert x.buffer.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)
+    tensor_var = tvm.tirx.Var("buf", tvm.ir.PtrType(tvm.ir.PrimType("bool")))
+    tensor = tvm.tirx.decl_tensor([16], "bool", data=tensor_var)
+    x = tvm.ir.TensorStore(tensor, [10], tvm.tirx.IntImm("bool", 1))
+    assert isinstance(x, tvm.ir.TensorStore)
+    assert x.dest == tensor
+    assert x.dest.data.args[0].same_as(tensor)
+    assert x.dest.data.ty == tensor.data.ty
     assert list(x.indices) == [10]
     assert x.value.value == 1
 
     buf = tvm.tirx.decl_tensor([10], "float32")
-    x = tvm.tirx.Bind(
+    x = tvm.ir.Bind(
         buf,
         tvm.ir.Call(
             "tirx.alloc_tensor",
-            [
-                tvm.ir.Tuple(buf.shape),
-                tvm.ir.DataTypeImm(tvm.DataType(buf.dtype)),
-                tvm.ir.StringImm(buf.scope()),
-            ],
+            [],
             attrs=tvm.ir.DictAttrs({}),
-            ty=buf.ty,
+            ty_args=[buf.ty],
         ),
     )
-    assert _is_buffer_binding(x, "tirx.alloc_tensor")
+    assert _is_tensor_binding(x, "tirx.alloc_tensor")
     assert x.var == buf
 
-    x = tvm.tirx.AttrStmt(buffer_var, "xyz", 1, nop)
-    assert isinstance(x, tvm.tirx.AttrStmt)
-    assert x.node == buffer_var
-    assert x.attr_key == "xyz"
-    assert x.body == nop
-
-    x = tvm.tirx.IfThenElse(tvm.tirx.const(1, "bool"), tvm.tirx.Evaluate(11), nop)
-    assert isinstance(x, tvm.tirx.IfThenElse)
-    assert x.then_case.value.value == 11
-    assert x.else_case == nop
+    x = tvm.ir.If(tvm.tirx.const(1, "bool"), tvm.ir.Evaluate(11), nop)
+    assert isinstance(x, tvm.ir.If)
+    assert x.then_case[0].value.value == 11
+    assert x.else_case is not None and len(x.else_case) == 1 and x.else_case[0] == nop
 
 
 def test_float_constructor_requires_float_dtype():
@@ -360,10 +356,10 @@ def test_float_constructor_requires_float_dtype():
 def test_math_unary_constructor_requires_float_dtype():
     x = tvm.tirx.Var("x", "int32")
 
-    with pytest.raises(TypeError, match=r"tirx\.tan only supports floating-point inputs"):
+    with pytest.raises(TypeError, match=r"prim\.tan only supports floating-point inputs"):
         tvm.tirx.tan(x)
 
-    with pytest.raises(TypeError, match=r"tirx\.sin only supports floating-point inputs"):
+    with pytest.raises(TypeError, match=r"prim\.sin only supports floating-point inputs"):
         tvm.tirx.sin(x)
 
     y = tvm.tirx.Var("y", "float32")
@@ -373,7 +369,7 @@ def test_math_unary_constructor_requires_float_dtype():
 def test_topi_tan_requires_float_dtype():
     x = te.placeholder((2, 2), dtype="int32", name="x")
 
-    with pytest.raises(TypeError, match=r"tirx\.tan only supports floating-point inputs"):
+    with pytest.raises(TypeError, match=r"prim\.tan only supports floating-point inputs"):
         topi.tan(x)
 
 

@@ -34,7 +34,7 @@ from tvm.testing import env
 
 @I.ir_module
 class AddModule:
-    @T.prim_func
+    @T.function
     def main(
         A: T.Tensor((1024,), "float32"),
         B: T.Tensor((1024,), "float32"),
@@ -64,7 +64,7 @@ def test_llvm_add_pipeline():
             print(f"Skip because {target} is not enabled..")
             return
         temp = utils.tempdir()
-        f = tvm.tirx.build(AddModule, target=target)
+        f = tvm.tirx.compile(AddModule, target=target).mod
         path = temp.relpath("myadd.o")
         f.write_to_file(path)
         verify_elf(path, 0x28)
@@ -85,9 +85,9 @@ def test_llvm_add_pipeline():
             farm = remote.load_module("myadd.o")
             dev = remote.cpu(0)
             n = nn
-            a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
-            b = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
-            c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+            a = dev.tensor(np.random.uniform(size=n).astype("float32"))
+            b = dev.tensor(np.random.uniform(size=n).astype("float32"))
+            c = dev.tensor(np.zeros(n, dtype="float32"))
             farm(a, b, c)
             tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
             print("Verification finish on remote..")

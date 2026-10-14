@@ -25,6 +25,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax, s_tir, tirx
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.dpl import is_op, wildcard
 from tvm.relax.testing import transform
 from tvm.script import ir as I
@@ -86,7 +87,7 @@ def gen_ground_truth(mod, target):
     # Lower and run tuning
     # Since there is no default schedule for GPU in MS yet, this is necessary
     with target:
-        seq = tvm.transform.Sequential(
+        seq = tvm.ir.transform.Sequential(
             [relax.transform.LegalizeOps(), s_tir.transform.DefaultGPUSchedule()]
         )
         new_mod = seq(mod)
@@ -147,7 +148,7 @@ def test_tensorrt_only(entry_func_name):
         ("tensorrt.add", is_op("relax.add")(wildcard(), wildcard())),
     ]
 
-    new_mod = tvm.transform.Sequential(
+    new_mod = tvm.ir.transform.Sequential(
         [
             relax.transform.FuseOpsByPattern(patterns),
             relax.transform.MergeCompositeFunctions(),
@@ -175,8 +176,8 @@ def test_mix_use_tensorrt_and_tvm():
 
     # Run Codegen pass
     with tempfile.TemporaryDirectory() as work_dir:
-        with target, tvm.transform.PassContext(opt_level=0):
-            new_mod = tvm.transform.Sequential(
+        with target, tvm.ir.transform.PassContext(opt_level=0):
+            new_mod = tvm.ir.transform.Sequential(
                 [
                     relax.transform.FuseOpsByPattern(patterns),
                     relax.transform.MergeCompositeFunctions(),
@@ -254,14 +255,14 @@ class Conv2dx2_after:
     ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
         with R.dataflow():
             lv = R.call_dps_packed(
-                "fused_relax_nn_conv2d_tensorrt",
+                _ExternFunc("fused_relax_nn_conv2d_tensorrt"),
                 (data, weight1),
-                out_ty=R.Tensor((16, 32, 32, 16), dtype="float16"),
+                ty_args=[R.Tensor((16, 32, 32, 16), dtype="float16")],
             )
             gv = R.call_dps_packed(
-                "fused_relax_nn_conv2d_tensorrt",
+                _ExternFunc("fused_relax_nn_conv2d_tensorrt"),
                 (lv, weight2),
-                out_ty=R.Tensor((16, 32, 32, 16), dtype="float16"),
+                ty_args=[R.Tensor((16, 32, 32, 16), dtype="float16")],
             )
             R.output(gv)
         return gv
@@ -297,9 +298,9 @@ def test_default_entry_func():
 def test_dynamic_shape():
     import tvm.relax.backend.cuda.cublas
 
-    r1_main = T.dynamic("r1")
-    r2 = T.dynamic("r2")
-    r1_fused_relax_matmul_cublas = T.dynamic("r1")
+    r1_main = T.dynamic("r1", "int64")
+    r2 = T.dynamic("r2", "int64")
+    r1_fused_relax_matmul_cublas = T.dynamic("r1", "int64")
 
     @I.ir_module
     class Before:
@@ -342,8 +343,8 @@ def test_dynamic_shape():
             gv1: R.Tensor((1, r1_fused_relax_matmul_cublas), dtype="float16") = gv(x, w1)
             return gv1
 
-    r1 = T.dynamic("r1")
-    r2 = T.dynamic("r2")
+    r1 = T.dynamic("r1", "int64")
+    r2 = T.dynamic("r2", "int64")
 
     @I.ir_module
     class Expected:
@@ -355,14 +356,14 @@ def test_dynamic_shape():
         ) -> R.Tuple(R.Tensor((1, r1), dtype="float16"), R.Tensor((1, r2), dtype="float16")):
             with R.dataflow():
                 lv = R.call_dps_packed(
-                    "fused_relax_matmul_cublas",
+                    _ExternFunc("fused_relax_matmul_cublas"),
                     (x, w1),
-                    out_ty=R.Tensor((1, r1), dtype="float16"),
+                    ty_args=[R.Tensor((1, r1), dtype="float16")],
                 )
                 lv1 = R.call_dps_packed(
-                    "fused_relax_matmul_cublas",
+                    _ExternFunc("fused_relax_matmul_cublas"),
                     (x, w2),
-                    out_ty=R.Tensor((1, r2), dtype="float16"),
+                    ty_args=[R.Tensor((1, r2), dtype="float16")],
                 )
                 gv: R.Tuple(
                     R.Tensor((1, r1), dtype="float16"), R.Tensor((1, r2), dtype="float16")
@@ -375,7 +376,7 @@ def test_dynamic_shape():
 
 
 def test_no_op_for_call_to_tir():
-    """Calls to PrimFunc are ignored
+    """Calls to Function are ignored
 
     RunCodegen should only update calls to Relax functions annotated
     with the `"Codegen"` attribute.  Calls to any other function type
@@ -391,10 +392,10 @@ def test_no_op_for_call_to_tir():
         @R.function
         def main(x: R.Tensor([4], "int64")):
             R.func_attr({"relax.force_pure": True})
-            _ = Before.shape_func(x)
+            _ = R.call_tir_packed(Before.shape_func, (x,))
             return x
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def shape_func(H: T.Tensor(T.int64(4), "int64")):
             H[T.int64(0)] = H[T.int64(0)] + T.int64(1)
 

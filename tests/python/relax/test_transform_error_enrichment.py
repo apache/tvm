@@ -63,8 +63,8 @@ def test_pass_error_renders_underlined_tvmscript():
         "@R.function\n"
         'def main(x: R.Tensor((3, 4), dtype="float32"), '
         'y: R.Tensor((5, 6), dtype="float32")) -> R.Tensor((3, 6), dtype="float32"):\n'
-        "    lv = R.matmul(x, y, out_dtype=None)\n"
-        "         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
+        "    lv = R.matmul(x, y)\n"
+        "         ^^^^^^^^^^^^^^\n"
         "    return lv"
     )
 
@@ -75,7 +75,7 @@ def test_sequential_does_not_double_append():
     """Running the failing pass inside a Sequential must not enrich twice — the
     Sequential wrapper does not guard, only the leaf pass does."""
     mod = _bad_matmul_module()
-    seq = tvm.transform.Sequential([relax.transform.Normalize()])
+    seq = tvm.ir.transform.Sequential([relax.transform.Normalize()])
     with pytest.raises(ValueError) as excinfo:
         seq(mod)
     msg = str(excinfo.value)
@@ -89,7 +89,7 @@ def test_error_without_resolvable_node_is_not_masked():
     """A pass that throws an error whose node is not findable in the module must
     surface the original message without raising a printer/render error."""
 
-    @tvm.transform.module_pass(opt_level=0, name="ThrowUnresolvable")
+    @tvm.ir.transform.module_pass(opt_level=0, name="ThrowUnresolvable")
     class ThrowUnresolvable:
         def transform_module(self, mod, ctx):
             # A bare error with no VisitErrorContext payload -> nothing to resolve.

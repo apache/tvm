@@ -82,7 +82,7 @@ class AppendReshapeToBNRewriter(PyExprMutator):
 @transform.function_pass(opt_level=0, name="AppendReshapeToBN")
 class AppendReshapeToBNRewriterPass:
     def transform_function(
-        self, func: relax.Function, mod: IRModule, _ctx: tvm.transform.PassContext
+        self, func: relax.Function, mod: IRModule, _ctx: tvm.ir.transform.PassContext
     ) -> relax.Function:
         updated_func = AppendReshapeToBNRewriter(mod).visit_expr(func)
         updated_func = relax.analysis.remove_all_unused(updated_func)
@@ -612,7 +612,7 @@ class OpenCLMLOffLoad:
             "relax.nn.conv2d": ["NCHW", "OIHW"],
             "relax.nn.conv2d_transpose": ["NCHW", "OIHW"],
         }
-        seq = tvm.transform.Sequential(
+        seq = tvm.ir.transform.Sequential(
             [
                 transform.ConvertLayout(clml_layouts),
                 transform.Normalize(),
@@ -695,7 +695,7 @@ clml_llm_patterns = [
 register_patterns(clml_llm_patterns)
 
 
-@tvm.transform.module_pass(opt_level=0, name="OpenCLMLOffLoadForLLM")
+@tvm.ir.transform.module_pass(opt_level=0, name="OpenCLMLOffLoadForLLM")
 class OpenCLMLOffLoadForLLM:
     """A compiler pass that partition the graph with dequant Matmul to CLML backend offload."""
 
@@ -711,12 +711,12 @@ class OpenCLMLOffLoadForLLM:
     def transform_module(
         self,
         mod: IRModule,
-        _ctx: tvm.transform.PassContext,
+        _ctx: tvm.ir.transform.PassContext,
     ) -> IRModule:
         """Apply required passed to transform"""
 
         if "adreno" in self.target.keys and (clml_sdk_version() >= 5):
-            mod = tvm.transform.Sequential(
+            mod = tvm.ir.transform.Sequential(
                 [
                     transform.Normalize(),
                     transform.FuseOpsByPattern(clml_llm_patterns, annotate_codegen=True),

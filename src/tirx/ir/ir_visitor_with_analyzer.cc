@@ -20,19 +20,20 @@
 /*!
  * \file tirx/ir/ir_visitor_with_analyzer.cc
  */
-#include "ir_visitor_with_analyzer.h"
 
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/region.h>
+#include <tvm/tirx/stmt_functor_with_analyzer.h>
 
 namespace tvm {
 namespace tirx {
-void IRVisitorWithAnalyzer::InitVTable(VTable* vtable) { StmtExprVisitor::InitVTable(vtable); }
+void StmtExprVisitorWithAnalyzer::InitVTable(VTable* vtable) {
+  StmtExprVisitor::InitVTable(vtable);
+}
 
-ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const ForNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitorWithAnalyzer::Visit_(const ForNode* op) {
   return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->min));
@@ -47,7 +48,7 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const ForNode* op) {
   });
 }
 
-ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const BindNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitorWithAnalyzer::Visit_(const BindNode* op) {
   if (!op->value.as<PrimExpr>()) return StmtExprVisitor::Visit_(op);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
   if (ffi::Optional<PrimExpr> value = op->value.as<PrimExpr>()) {
@@ -56,7 +57,7 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const BindNode* op) 
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const IfThenElseNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitorWithAnalyzer::Visit_(const IfNode* op) {
   return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->condition));
 
@@ -79,26 +80,24 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const IfThenElseNode
   });
 }
 
-ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const AttrStmtNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitorWithAnalyzer::Visit_(const RegionStmtNode* op) {
   return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
-    if (op->attr_key == tirx::attr::thread_extent ||
-        op->attr_key == tvm::tirx::attr::virtual_thread) {
-      IterVar iv = op->node.as_or_throw<IterVar>();
-      TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      PrimExpr extent = op->value.as_or_throw<PrimExpr>();
-      analyzer_->Bind(iv->var, Range::FromMinExtent(IntImm(extent.ty(), 0), extent));
+    if (op->op.same_as(tirx::launch_thread_op())) {
+      PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
+      analyzer_->Bind(op->body_params[0].as_or_throw<PrimVar>(),
+                      Range::FromMinExtent(IntImm(extent.ty(), 0), extent));
     }
     return StmtExprVisitor::Visit_(op);
   });
 }
 
-ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const AssertStmtNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitorWithAnalyzer::Visit_(const AssertStmtNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->condition));
   constraint_scope_.Current().Emplace(analyzer_, op->condition);
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const CallNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitorWithAnalyzer::Visit_(const CallNode* op) {
   // add condition context to if_then_else
   static const Op if_then_else_op = Op::Get("prim.if_then_else");
   if (op->op.same_as(if_then_else_op)) {
@@ -121,15 +120,15 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const CallNode* op) 
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const prim::LetNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitorWithAnalyzer::Visit_(const prim::LetNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
   analyzer_->Bind(op->var, op->value);
   return this->Visit(op->body);
 }
 
-PrimExpr IRVisitorWithAnalyzer::ExtractRealCondition(PrimExpr condition) const {
+PrimExpr StmtExprVisitorWithAnalyzer::ExtractRealCondition(PrimExpr condition) const {
   if (auto call = condition.as<CallNode>()) {
-    if (call->op.same_as(prim::builtin::likely())) {
+    if (call->op.same_as(prim::likely_op())) {
       return call->args[0].as_or_throw<PrimExpr>();
     }
   }

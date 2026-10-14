@@ -31,7 +31,7 @@ from .base import _RUNTIME_ONLY
 
 # tvm.runtime
 from .runtime import Object
-from .runtime._tensor import device, device_from_target, cpu, cuda, opencl, vulkan, metal
+from .runtime._tensor import device, cpu, cuda, opencl, vulkan, metal
 from .runtime._tensor import vpi, rocm, ext_dev, hexagon
 from .runtime import DataType, DataTypeCode
 
@@ -39,9 +39,7 @@ from .runtime import DataType, DataTypeCode
 from . import error
 
 # tvm.ir
-from .ir import IRModule
-from .ir import transform
-from .ir import instrument
+from .ir import IRModule, transform
 from . import ir
 
 # tvm.script — must be imported before any dialect package so that
@@ -57,6 +55,7 @@ from . import backend
 
 # tvm.target
 from . import target
+from .target import device_from_target
 
 # tvm.te
 from . import te

@@ -18,27 +18,26 @@
 
 import tvm
 from tvm import tirx
-from tvm.tirx.compilation_pipeline import finalize_host_passes
+from tvm.tirx.compilation_pipeline import _bind_target, finalize_host_passes
 
 from . import transform as trn_transform
 
 
-def trn_pipeline():
-    """The Trainium pipeline used in tvm.tirx.build."""
+def trn_pipeline(*, target=None):
+    """The Trainium pipeline used in tvm.tirx.compile."""
 
-    @tvm.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
+    @tvm.ir.transform.module_pass(opt_level=0)
+    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.ir.transform.PassContext) -> tvm.ir.IRModule:
         """Lower TIRx for the Trainium backend."""
+        mod = _bind_target(mod, target)
         passes = [
-            trn_transform.TrnPrivateBufferAlloc(),
+            trn_transform.TrnPrivateTensorAlloc(),
             trn_transform.TrnNaiveAllocator(),
-            tirx.transform.TilePrimitiveDispatch(),
+            tirx.transform.TileDispatch(),
             trn_transform.LowerTrainiumLayout(),
-            tvm.s_tir.transform.DecorateDeviceScope(),
+            tirx.transform.DecorateDeviceScope(),
             tirx.transform.StmtSimplify(),
-            tirx.transform.LowerTIRxOpaque(),
-            tvm.s_tir.transform.LoopPartition(),
-            tvm.s_tir.transform.HoistIfThenElse(),
+            tirx.transform.HoistIf(),
             tirx.transform.StmtSimplify(),
             tirx.transform.RemoveNoOp(),
             tirx.transform.AnnotateEntryFunc(),

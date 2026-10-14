@@ -38,10 +38,10 @@ def test_image_resize2d():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 8, 8, 3), "float32")) -> R.Tensor((2, 16, 16, 3), "float32"):
-            gv = R.call_tir(Expected.resize2d, (x,), R.Tensor((2, 16, 16, 3), dtype="float32"))
+            gv = R.call_tir(Expected.resize2d, (x,), ty_args=[R.Tensor((2, 16, 16, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def resize2d(rxplaceholder: T.Tensor((T.int64(2), T.int64(8), T.int64(8), T.int64(3)), "float32"), resize: T.Tensor((T.int64(2), T.int64(16), T.int64(16), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(16), T.int64(16), T.int64(3)):
@@ -58,12 +58,12 @@ def test_image_resize2d():
 
 def test_image_resize2d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    oh = T.dynamic("oh")
-    ow = T.dynamic("ow")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    oh = T.dynamic("oh", "int64")
+    ow = T.dynamic("ow", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
 
     @tvm.script.ir_module
     class Resize2D:
@@ -72,27 +72,27 @@ def test_image_resize2d_symbolic():
             gv: R.Tensor((n, c, oh, ow, 16), "float32") = R.image.resize2d(x, size=(oh, ow), layout="NCHW16c", method="nearest_neighbor", coordinate_transformation_mode="asymmetric")
             return gv
 
-    n_main = T.dynamic("n")
-    c_main = T.dynamic("c")
-    oh_main = T.dynamic("oh")
-    ow_main = T.dynamic("ow")
-    h_main = T.dynamic("h")
-    w_main = T.dynamic("w")
-    c_resize2d = T.dynamic("c")
-    h_resize2d = T.dynamic("h")
-    n_resize2d = T.dynamic("n")
-    oh_resize2d = T.dynamic("oh")
-    ow_resize2d = T.dynamic("ow")
-    w_resize2d = T.dynamic("w")
+    n_main = T.dynamic("n", "int64")
+    c_main = T.dynamic("c", "int64")
+    oh_main = T.dynamic("oh", "int64")
+    ow_main = T.dynamic("ow", "int64")
+    h_main = T.dynamic("h", "int64")
+    w_main = T.dynamic("w", "int64")
+    c_resize2d = T.dynamic("c", "int64")
+    h_resize2d = T.dynamic("h", "int64")
+    n_resize2d = T.dynamic("n", "int64")
+    oh_resize2d = T.dynamic("oh", "int64")
+    ow_resize2d = T.dynamic("ow", "int64")
+    w_resize2d = T.dynamic("w", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor((oh_main, ow_main)), x: R.Tensor((n_main, c_main, h_main, w_main, 16), "float32")) -> R.Tensor((n_main, c_main, oh_main, ow_main, 16), "float32"):
-            gv = R.call_tir(Expected.resize2d, (x,), R.Tensor((n_main, c_main, oh_main, ow_main, 16), dtype="float32"))
+            gv = R.call_tir(Expected.resize2d, (x,), ty_args=[R.Tensor((n_main, c_main, oh_main, ow_main, 16), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def resize2d(rxplaceholder: T.Tensor([n_resize2d, c_resize2d, h_resize2d, w_resize2d, T.int64(16)], dtype='float32'), resize: T.Tensor([n_resize2d, c_resize2d, oh_resize2d, ow_resize2d, T.int64(16)], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
@@ -121,11 +121,11 @@ def test_image_affine_grid():
     class Expected:
         @R.function
         def main(theta: R.Tensor((2, 2, 3), "float32")) -> R.Tensor((2, 2, 16, 16), "float32"):
-            gv = R.call_tir(Expected.affine_grid, (theta,), R.Tensor((2, 2, 16, 16), dtype="float32"))
+            gv = R.call_tir(Expected.affine_grid, (theta,), ty_args=[R.Tensor((2, 2, 16, 16), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
-        def affine_grid(theta: T.Tensor((T.int64(2), T.int64(2), T.int64(3))), compute: T.Tensor((T.int64(2), T.int64(2), T.int64(16), T.int64(16)))):
+        @Ts.function(private=True)
+        def affine_grid(theta: T.Tensor((T.int64(2), T.int64(2), T.int64(3)), "float32"), compute: T.Tensor((T.int64(2), T.int64(2), T.int64(16), T.int64(16)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):

@@ -24,10 +24,10 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.ir.utils import derived_object
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.dummy_object import DummyBuilder, DummyRunner
+from tvm.s_tir.utils import derived_object
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
@@ -36,7 +36,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class MatmulModule:
-    @Ts.prim_func
+    @Ts.function
     def main(  # type: ignore
         A: T.Tensor((1024, 1024), "float32"),
         B: T.Tensor((1024, 1024), "float32"),
@@ -54,7 +54,7 @@ class MatmulModule:
 
 @tvm.script.ir_module
 class MatmulReluModule:
-    @Ts.prim_func
+    @Ts.function
     def main(  # type: ignore
         A: T.Tensor((1024, 1024), "float32"),
         B: T.Tensor((1024, 1024), "float32"),
@@ -62,7 +62,7 @@ class MatmulReluModule:
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
-        C = Ts.sblock_alloc_buffer((1024, 1024), "float32")
+        C = Ts.sblock_alloc_tensor((1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
             with Ts.sblock("matmul"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -77,11 +77,11 @@ class MatmulReluModule:
 
 @tvm.script.ir_module
 class BatchMatmulModule:
-    @Ts.prim_func
+    @Ts.function
     def main(  # type: ignore
-        A: T.Tensor([16, 128, 128]),
-        B: T.Tensor([16, 128, 128]),
-        C: T.Tensor([16, 128, 128]),
+        A: T.Tensor([16, 128, 128], "float32"),
+        B: T.Tensor([16, 128, 128], "float32"),
+        C: T.Tensor([16, 128, 128], "float32"),
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 

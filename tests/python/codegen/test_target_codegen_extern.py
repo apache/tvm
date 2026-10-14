@@ -33,7 +33,7 @@ def test_add_pipeline():
     # CPU version: serial loop with vectorized operations
     @I.ir_module
     class ModuleCPU:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((64,), "float32"), C: T.Tensor((64,), "float32")):
             for i in T.serial((64 + 1) // 2):
                 C[T.Ramp(i * 2, 1, 2)] = A[T.Ramp(i * 2, 1, 2)] + T.Broadcast(T.float32(1), 2)
@@ -41,7 +41,7 @@ def test_add_pipeline():
     # GPU version: thread bindings with vectorized operations
     @I.ir_module
     class ModuleGPU:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((64,), "float32"), C: T.Tensor((64,), "float32")):
             bx = T.launch_thread("blockIdx.x", (64 + 4 - 1) // 4)
             tx = T.launch_thread("threadIdx.x", 4)
@@ -54,7 +54,7 @@ def test_add_pipeline():
             return
         mod = ModuleGPU if target in ["opencl", "cuda"] else ModuleCPU
         # build and invoke the kernel.
-        f = tvm.compile(mod, target=target)
+        f = tvm.tirx.compile(mod, target=target)
         n = nn
 
         def run_and_check():
@@ -80,7 +80,7 @@ def test_pack_buffer_simple():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((1024,), "float32"), C: T.Tensor((1024,), "float32")):
             T.evaluate(T.call_packed("my_extern_array_func1", A, C))
 
@@ -92,7 +92,7 @@ def test_pack_buffer_simple():
         if not tvm.testing.device_enabled(target):
             return
         # build and invoke the kernel.
-        f = tvm.compile(Module, target=target)
+        f = tvm.tirx.compile(Module, target=target)
         dev = tvm.cpu(0)
         # launch the kernel.
         n = nn

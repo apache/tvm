@@ -19,7 +19,7 @@
 
 import tvm
 from tvm import relax
-from tvm.ir.instrument import PrintAfterAll, PrintBeforeAll
+from tvm.ir.transform.instrument import PrintAfterAll, PrintBeforeAll
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
@@ -29,14 +29,16 @@ from tvm.script import tirx as T
 
 
 def test_tir_print_all_passes(capsys):
-    @Ts.prim_func
-    def func(A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))) -> None:
+    @Ts.function
+    def func(
+        A: T.Tensor((128, 128, 128, 128), "float32"), B: T.Tensor((128, 128, 128, 128), "float32")
+    ) -> None:
         for i, j, k, l in T.grid(128, 128, 128, 128):
             with Ts.sblock("B"):
                 vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
                 B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
-    with tvm.transform.PassContext(opt_level=3, instruments=[PrintBeforeAll(), PrintAfterAll()]):
+    with tvm.ir.transform.PassContext(opt_level=3, instruments=[PrintBeforeAll(), PrintAfterAll()]):
         tvm.compile(func)
     all_passes_output = capsys.readouterr().out
     assert "Before Running Pass:" in all_passes_output
@@ -54,7 +56,7 @@ def test_relax_print_all_passes(capsys):
             return y
 
     pipeline = relax.get_pipeline("default_build")
-    with tvm.transform.PassContext(opt_level=3, instruments=[PrintBeforeAll(), PrintAfterAll()]):
+    with tvm.ir.transform.PassContext(opt_level=3, instruments=[PrintBeforeAll(), PrintAfterAll()]):
         pipeline(Module)
     all_passes_output = capsys.readouterr().out
     assert "Before Running Pass:" in all_passes_output

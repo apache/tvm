@@ -1131,7 +1131,7 @@ def test_handle_existence_of_call_tir():
             cls = Before
             with R.dataflow():
                 B = cls.fused_relax_nn_relu(A)
-                C = R.call_tir(cls.relu, (B,), out_ty=R.Tensor([10], dtype="float32"))
+                C = R.call_tir(cls.relu, (B,), ty_args=[R.Tensor([10], dtype="float32")])
                 D = cls.fused_relax_nn_gelu(C)
                 R.output(D)
             return D
@@ -1146,7 +1146,7 @@ def test_handle_existence_of_call_tir():
                 R.output(Output)
             return Output
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def relu(
             Input: T.Tensor(T.int64(10), "float32"),
             Output: T.Tensor(T.int64(10), "float32"),
@@ -1174,7 +1174,7 @@ def test_handle_existence_of_call_tir():
             cls = Expected
             with R.dataflow():
                 B = cls.fused_relax_nn_relu1_compiler_A(A)
-                C = R.call_tir(cls.relu, (B,), out_ty=R.Tensor([10], dtype="float32"))
+                C = R.call_tir(cls.relu, (B,), ty_args=[R.Tensor([10], dtype="float32")])
                 D = cls.fused_relax_nn_gelu1_compiler_A(C)
                 R.output(D)
             return D
@@ -1198,7 +1198,7 @@ def test_handle_existence_of_call_tir():
             Output = composite_lambda(Input)
             return Output
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def relu(
             Input: T.Tensor(T.int64(10), "float32"),
             Output: T.Tensor(T.int64(10), "float32"),
@@ -1259,7 +1259,7 @@ def test_tuple_projection_merging():
                 parts = cls.split(x)
                 left = parts[0]
                 right = parts[1]
-                repacked = R.tuple(left, right)
+                repacked = (left, right)
                 reordered_left = repacked[0]
                 reordered_right = repacked[1]
                 difference = cls.subtract(reordered_right, reordered_left)
@@ -1375,7 +1375,7 @@ def test_tuple_projection_rejects_escaping_tuple():
                 alias = parts
                 left = alias[0]
                 out = cls.relu(left)
-                result = R.tuple(alias, out)
+                result = (alias, out)
                 R.output(result)
             return result
 

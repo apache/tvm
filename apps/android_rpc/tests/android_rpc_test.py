@@ -58,7 +58,7 @@ def test_rpc_module():
     tracker = rpc.connect_tracker(tracker_host, tracker_port)
     remote = tracker.request(key, priority=0, session_timeout=60)
 
-    mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "myadd"))
+    mod = tvm.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "myadd"))
     sch = tvm.s_tir.Schedule(mod)
     (x,) = sch.get_loops(block=sch.get_sblock("B"))
     xo, xi = sch.split(i, [None, 32])
@@ -74,8 +74,8 @@ def test_rpc_module():
         dev = remote.cl(0)
         remote.upload(path_dso_cl)
         f1 = remote.load_module("dev_lib_cl.so")
-        a = tvm.runtime.tensor(a_np, dev)
-        b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
+        a = dev.tensor(a_np)
+        b = dev.tensor(np.zeros(1024, dtype=A.dtype))
         time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
         cost = time_f(a, b).mean
         print(f"{cost:g} secs/op\n")

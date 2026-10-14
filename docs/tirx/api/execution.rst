@@ -24,8 +24,23 @@ tvm.tirx.exec_scope
    :members:
    :no-index:
 
-tvm.tirx.exec_context
----------------------
-.. automodule:: tvm.tirx.exec_context
+Backend scopes
+--------------
+
+Execution scope identities remain part of generic layout IR. Backends register
+their finite execution hierarchies and provide the user-facing constructors:
+``T.cuda.ExecScope("warp")`` and ``T.trn.ExecScope("thread")``.
+``T.cuda.ExecScope("kernel")`` names the root used by grid axes such as ``bx``
+in the ``kernel -> cta`` relationship. Every scope uniformly describes a
+hierarchy node; each backend tile instruction declares the scopes it supports.
+For example, CUDA TMA instructions accept ``thread`` and ``tcgen05.ld/st`` accept
+``warpgroup``. CUDA index bindings and predicate analysis live in
+``tvm.backend.cuda.tile.exec_context``.
+
+.. automodule:: tvm.backend.cuda.exec_scope
+   :members:
+   :no-index:
+
+.. automodule:: tvm.backend.trn.exec_scope
    :members:
    :no-index:

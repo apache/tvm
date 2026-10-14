@@ -1,0 +1,329 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Named tensor instruction contracts over ordinary :class:`tvm.ir.Call`.
+
+The Python views below are transient lowering helpers, not IR nodes. Every
+expression, including optional workspace, remains in the Call's argument list.
+"""
+
+from dataclasses import dataclass, field
+from inspect import Parameter, Signature
+from types import SimpleNamespace
+from typing import ClassVar
+
+import tvm_ffi
+
+from tvm.ir import (
+    Attrs,
+    Call,
+    Expr,
+    Op,
+    PrimType,
+    PtrType,
+    StringImm,
+    TensorLoad,
+    TensorRegion,
+    Tuple,
+    const,
+    make_node,
+)
+from tvm.ir.location import UNKNOWN_LOC
+from tvm.ir.op import register_op_attr
+from tvm.tirx.exec_scope import ExecScope
+from tvm.tirx.expr import IntImm
+
+_REQUIRED = object()
+SPECS = {}
+
+
+@dataclass(frozen=True)
+class Operand:
+    name: str
+    role: str = "expr"
+    default: object = _REQUIRED
+
+
+@dataclass
+class Instruction:
+    name: str
+    kind: str
+    operands: tuple[Operand, ...]
+    scopes: tuple[str, ...]
+    schema: str = "ScopeAttrs"
+    options: dict = field(default_factory=dict)
+    workspaces: tuple[str, ...] = ()
+    project: object = None
+    lower: object = None
+
+    @property
+    def backend(self):
+        return self.name.split(".")[1]
+
+    def register(self):
+        if self.name in SPECS:
+            return SPECS[self.name]._factory
+        from .dispatch import run_dispatch
+
+        register_op_attr(self.name, "TCallEffectKind", 3)
+        register_op_attr(self.name, "TFixedReturnType", PrimType("void"))
+        register_op_attr(self.name, "FTileOpDispatch", run_dispatch)
+        op = Op.get(self.name)
+        op.set_signature(args=[arg.name for arg in self.operands])
+        op.set_attrs_type_key("tirx.tensor." + self.schema)
+        tvm_ffi.get_global_func("tirx.ConfigureTensorInstruction")(op, self.validate)
+        SPECS[self.name] = self
+
+        def construct(*args, **qualifiers):
+            return self.make(*args, **qualifiers)
+
+        construct.__name__ = self.name.rsplit(".", 1)[-1]
+        construct.__qualname__ = self.name.removeprefix("tirx.")
+        construct.__doc__ = f"Construct the opaque void Call for {self.name}."
+        parameters = [
+            Parameter(
+                arg.name,
+                Parameter.POSITIONAL_OR_KEYWORD,
+                default=Parameter.empty
+                if arg.default is _REQUIRED
+                else None
+                if arg.default == "@dst"
+                else arg.default,
+            )
+            for arg in self.operands
+        ]
+        parameters += [
+            Parameter(name, Parameter.KEYWORD_ONLY, default=default)
+            for name, default in {"scope": "thread", **self.options}.items()
+        ]
+        construct.__signature__ = Signature(parameters, return_annotation=Call)
+        self._factory = construct
+        return construct
+
+    def make(self, *values, **kw):
+        if len(values) > len(self.operands):
+            raise TypeError(f"{self.name} expects at most {len(self.operands)} operands")
+        loc = kw.pop("loc", UNKNOWN_LOC)
+        explicit_attrs = kw.pop("attrs", None)
+        result_ty = kw.pop("ty", "void")
+        if kw.pop("ty_args", ()):
+            raise TypeError(f"{self.name} does not take type arguments")
+        args = []
+        for i, arg in enumerate(self.operands):
+            if i < len(values):
+                if arg.name in kw:
+                    raise TypeError(f"{self.name}: duplicate operand {arg.name}")
+                value = values[i]
+            elif arg.name in kw:
+                value = kw.pop(arg.name)
+            elif arg.default is not _REQUIRED:
+                value = arg.default
+                if isinstance(value, str) and value == "@dst":
+                    value = args[0]
+            else:
+                raise TypeError(f"{self.name}: missing operand {arg.name}")
+            if value is None and isinstance(arg.default, str) and arg.default == "@dst":
+                value = args[0]
+            args.append(_operand(value, arg.role))
+        allowed = {"scope": "thread", **self.options}
+        unknown = set(kw) - set(allowed)
+        if unknown:
+            raise TypeError(f"{self.name}: unknown qualifier(s) {sorted(unknown)}")
+        scope = kw.get("scope")
+        if isinstance(scope, ExecScope) and scope.backend != self.backend:
+            raise ValueError(f"{self.name}: scope belongs to {scope.backend}")
+        attrs_values = {name: _static(value) for name, value in kw.items()}
+        if isinstance(attrs_values.get("axes"), int):
+            attrs_values["axes"] = [attrs_values["axes"]]
+        for name, default in allowed.items():
+            attrs_values.setdefault(name, default)
+        if explicit_attrs is not None:
+            if kw:
+                raise TypeError("attrs cannot be combined with qualifier keywords")
+            attrs = explicit_attrs
+        else:
+            attrs = make_node("tirx.tensor." + self.schema, **attrs_values)
+        call = Call(self.name, args, attrs=attrs, ty=result_ty, loc=loc)
+        call.validate()
+        return call
+
+    def validate(self, call):
+        if len(call.args) != len(self.operands):
+            raise TypeError(f"{self.name}: invalid operand count")
+        if str(call.attrs.scope) not in self.scopes:
+            raise ValueError(
+                f"{self.name}: unsupported scope {call.attrs.scope!r}; expected {self.scopes}"
+            )
+        for arg, value in zip(self.operands, call.args):
+            if _is_absent(value):
+                if arg.default is not None:
+                    raise TypeError(f"{self.name}: {arg.name} is required")
+                continue
+            if arg.role == "region":
+                _region(value)
+            elif arg.role == "tensor":
+                from tvm.tirx import is_tensor_var
+
+                if not is_tensor_var(value):
+                    raise TypeError(f"{arg.name} must be a tensor variable")
+            elif arg.role == "address":
+                from tvm.ir import is_prim_expr
+
+                if not isinstance(value.ty, PtrType) and not is_prim_expr(value):
+                    raise TypeError(f"{arg.name} must be a pointer or shared address")
+            elif arg.role == "scalar":
+                from tvm.ir import is_prim_expr
+
+                if not is_prim_expr(value):
+                    raise TypeError(f"{arg.name} must be a scalar expression")
+
+        # Validate tensor regions nested inside argument tuples.
+        def check_region(region):
+            _region(region)
+
+        tvm_ffi.structural_walk(call.args, (TensorRegion, check_region))
+
+
+def _expr(value):
+    if isinstance(value, Expr):
+        return value
+    if isinstance(value, list | tuple | tvm_ffi.Array):
+        return Tuple([_expr(v) for v in value])
+    if isinstance(value, str):
+        return StringImm(value)
+    if hasattr(value, "asobject"):
+        return value.asobject()
+    return const(value)
+
+
+def _static(value):
+    if isinstance(value, StringImm):
+        return value.value
+    if isinstance(value, IntImm):
+        return bool(value) if str(value.dtype) == "bool" else int(value)
+    if isinstance(value, ExecScope):
+        return value.name
+    if isinstance(value, Expr):
+        raise TypeError("Instruction qualifiers must be static; expressions belong in operands")
+    return value
+
+
+def _region(value):
+    from tvm.tirx import is_tensor_var
+
+    if is_tensor_var(value):
+        return value[tuple(slice(None) for _ in value.ty.shape)]
+    if not isinstance(value, TensorRegion) or not is_tensor_var(value.source):
+        raise TypeError("Tensor operands require a TensorRegion with a TensorVar source")
+    if len(value.region) != len(value.source.ty.shape):
+        raise ValueError("TensorRegion rank must match its tensor rank")
+    return value
+
+
+def _is_absent(value):
+    return isinstance(value, Tuple) and not value.fields
+
+
+def _operand(value, role="expr"):
+    from tvm.tirx import is_tensor_var
+
+    if value is None or _is_absent(value) or (isinstance(value, tuple | list) and not value):
+        return Tuple([])
+    if role == "region":
+        if isinstance(value, TensorLoad):
+            value = tvm_ffi.get_global_func("tirx.AsTensorRegion")(value)
+        return _region(value)
+    if role == "tensor":
+        return value
+    if is_tensor_var(value):
+        return _region(value)
+    if isinstance(value, list | tuple):
+        return Tuple([_operand(v) for v in value])
+    return _expr(value)
+
+
+def namespace(backend, instructions):
+    result = SimpleNamespace()
+    for instruction in instructions:
+        path = instruction.name.removeprefix(f"tirx.{backend}.tile.").split(".")
+        container = result
+        for part in path[:-1]:
+            if not hasattr(container, part):
+                setattr(container, part, SimpleNamespace())
+            container = getattr(container, part)
+        fn = instruction.register()
+        setattr(container, path[-1], fn)
+    return result
+
+
+class TensorCall:
+    """Read-only semantic view used by tensor instruction lowering code."""
+
+    _registry: ClassVar[dict] = {}
+
+    def __init_subclass__(cls, **kw):
+        super().__init_subclass__(**kw)
+        if "kind" in cls.__dict__:
+            cls._registry[cls.kind] = cls
+
+    @classmethod
+    def decode(cls, call):
+        if isinstance(call, TensorCall):
+            return call
+        spec = SPECS[call.op.name]
+        values = dict(zip((a.name for a in spec.operands), call.args))
+        values = {k: None if _is_absent(v) else v for k, v in values.items()}
+        options = {k: getattr(call.attrs, k) for k in spec.options}
+        if spec.project:
+            kind, args, extras = spec.project(values, call.attrs)
+        else:
+            kind = spec.kind
+            args = [values[a.name] for a in spec.operands if a.name not in spec.workspaces]
+            extras = {}
+        from . import views as _views  # noqa: F401 - register semantic views
+
+        view = cls._registry.get(kind, cls).__new__(cls._registry.get(kind, cls))
+        view.call, view.spec, view.op, view.kind = call, spec, call.op, kind
+        view.args = args
+        # Temporary scheduler options are decoded from individually named
+        # operands and typed static fields; they are never serialized as a bag.
+        view.options = {k: _expr(v) for k, v in options.items() if v is not None}
+        view.options.update({k: v for k, v in extras.items() if v is not None})
+        view.workspaces = {k: values[k] for k in spec.workspaces if values[k] is not None}
+        view.scope = ExecScope(spec.backend, str(call.attrs.scope))
+        return view
+
+    def get_private_tensors(self, tensor_dict, sctx):
+        if sctx.target.kind.name == "trn":
+            return self.get_private_tensors_trn(tensor_dict, sctx)
+        return {}
+
+    def get_private_tensors_trn(self, tensor_dict, sctx):
+        return {}
+
+    def with_workspaces(self, values):
+        args = list(self.call.args)
+        for name, value in values.items():
+            index = next(i for i, arg in enumerate(self.spec.operands) if arg.name == name)
+            args[index] = value
+        return Call(self.op, args, attrs=self.call.attrs, ty=self.call.ty, loc=self.call.loc)
+
+
+for _name in (
+    "ScopeAttrs",
+    "TrnAttrs",
+):
+    tvm_ffi.register_object("tirx.tensor." + _name)(type(_name, (Attrs,), {}))

@@ -21,9 +21,9 @@ import os.path as osp
 from collections.abc import Callable
 from contextlib import contextmanager
 
-from tvm.ir.utils import derived_object
 from tvm.rpc import RPCSession
 from tvm.runtime import Device, Module
+from tvm.s_tir.utils import derived_object
 from tvm.support.popen_pool import PopenPoolExecutor
 
 from ..logging import get_logger
@@ -483,7 +483,7 @@ def default_alloc_argument(
         "Please make sure 'USE_RANDOM' is turned ON in the config.cmake on the RPC server.",
     )
 
-    return alloc_argument_common(f_random_fill, device, args_info, alloc_repeat)
+    return alloc_argument_common(f_random_fill, device, args_info, alloc_repeat, device.empty)
 
 
 def default_run_evaluator(

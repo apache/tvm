@@ -24,13 +24,11 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func
+@T.function
 def ptx_griddepcontrol(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    bx = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(bx, 1)
-    T.launch_thread(tx, 32)
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
     T.ptx.griddepcontrol.wait()
     B[tx] = A[tx]
     T.ptx.griddepcontrol.launch_dependents()
@@ -40,7 +38,7 @@ def ptx_griddepcontrol(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float3
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ptx_griddepcontrol():
     f = ptx_griddepcontrol
-    mod = tvm.compile(f, target="cuda")
+    mod = tvm.tirx.compile(f, target="cuda")
     A_np = np.random.default_rng(0).standard_normal(32).astype("float32")
     B_np = np.zeros((32,), dtype="float32")
 

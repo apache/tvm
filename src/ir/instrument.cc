@@ -24,7 +24,6 @@
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/instrument.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/logging.h>
 
@@ -33,15 +32,15 @@
 #include <stack>
 
 namespace tvm {
-namespace instrument {
+namespace transform {
 
-TVM_FFI_STATIC_INIT_BLOCK() { PassInstrumentNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { PassInstrumentObj::RegisterReflection(); }
 
 /*!
  * \brief Base PassInstrument implementation
  * \sa BasePassInstrument
  */
-class BasePassInstrumentNode : public PassInstrumentNode {
+class BasePassInstrumentObj : public PassInstrumentObj {
  public:
   /*! \brief Callback to run when entering PassContext. */
   ffi::TypedFunction<void()> enter_pass_ctx_callback;
@@ -49,12 +48,12 @@ class BasePassInstrumentNode : public PassInstrumentNode {
   ffi::TypedFunction<void()> exit_pass_ctx_callback;
 
   /*! \brief Callback determines whether to run a pass or not. */
-  ffi::TypedFunction<bool(const IRModule&, const transform::PassInfo&)> should_run_callback;
+  ffi::TypedFunction<bool(const IRModule&, const PassInfo&)> should_run_callback;
 
   /*! \brief Callback to run before a pass. */
-  ffi::TypedFunction<void(const IRModule&, const transform::PassInfo&)> run_before_pass_callback;
+  ffi::TypedFunction<void(const IRModule&, const PassInfo&)> run_before_pass_callback;
   /*! \brief Callback to run after a pass. */
-  ffi::TypedFunction<void(const IRModule&, const transform::PassInfo&)> run_after_pass_callback;
+  ffi::TypedFunction<void(const IRModule&, const PassInfo&)> run_after_pass_callback;
 
   /*! \brief Instrument when entering PassContext. */
   void EnterPassContext() const final;
@@ -69,14 +68,14 @@ class BasePassInstrumentNode : public PassInstrumentNode {
    *
    * \return true to run the pass; false to skip the pass.
    */
-  bool ShouldRun(const IRModule&, const transform::PassInfo& info) const final;
+  bool ShouldRun(const IRModule&, const PassInfo& info) const final;
 
   /*!
    * \brief Instrument before pass run.
    * \param mod The module that an optimization pass runs on.
    * \param info The pass information.
    */
-  void RunBeforePass(const IRModule& mod, const transform::PassInfo& info) const final;
+  void RunBeforePass(const IRModule& mod, const PassInfo& info) const final;
 
   /*!
    * \brief Instrument after pass run.
@@ -84,14 +83,14 @@ class BasePassInstrumentNode : public PassInstrumentNode {
    * \param mod The module that an optimization pass runs on.
    * \param info The pass information.
    */
-  void RunAfterPass(const IRModule& mod, const transform::PassInfo& info) const final;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("instrument.PassInstrument", BasePassInstrumentNode,
-                                    PassInstrumentNode);
+  void RunAfterPass(const IRModule& mod, const PassInfo& info) const final;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.BasePassInstrument", BasePassInstrumentObj,
+                                    PassInstrumentObj);
 };
 
 /*!
- * \brief Managed reference class for BasePassInstrumentNode
- * \sa BasePassInstrumentNode
+ * \brief Managed reference class for BasePassInstrumentObj
+ * \sa BasePassInstrumentObj
  */
 class BasePassInstrument : public PassInstrument {
  public:
@@ -110,26 +109,25 @@ class BasePassInstrument : public PassInstrument {
    * \param run_before_pass_callback Callback to call before a pass run.
    * \param run_after_pass_callback Callback to call after a pass run.
    */
-  TVM_DLL BasePassInstrument(
+  TVM_TIRX_DLL BasePassInstrument(
       ffi::String name, ffi::TypedFunction<void()> enter_pass_ctx_callback,
       ffi::TypedFunction<void()> exit_pass_ctx_callback,
-      ffi::TypedFunction<bool(const IRModule&, const transform::PassInfo&)> should_run_callback,
-      ffi::TypedFunction<void(const IRModule&, const transform::PassInfo&)>
-          run_before_pass_callback,
-      ffi::TypedFunction<void(const IRModule&, const transform::PassInfo&)>
-          run_after_pass_callback);
+      ffi::TypedFunction<bool(const IRModule&, const PassInfo&)> should_run_callback,
+      ffi::TypedFunction<void(const IRModule&, const PassInfo&)> run_before_pass_callback,
+      ffi::TypedFunction<void(const IRModule&, const PassInfo&)> run_after_pass_callback);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BasePassInstrument, PassInstrument,
-                                             BasePassInstrumentNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BasePassInstrument, PassInstrument,
+                                                BasePassInstrumentObj);
 };
 
 BasePassInstrument::BasePassInstrument(
     ffi::String name, ffi::TypedFunction<void()> enter_pass_ctx_callback,
     ffi::TypedFunction<void()> exit_pass_ctx_callback,
-    ffi::TypedFunction<bool(const IRModule&, const transform::PassInfo&)> should_run_callback,
-    ffi::TypedFunction<void(const IRModule&, const transform::PassInfo&)> run_before_pass_callback,
-    ffi::TypedFunction<void(const IRModule&, const transform::PassInfo&)> run_after_pass_callback) {
-  auto pi = ffi::make_object<BasePassInstrumentNode>();
+    ffi::TypedFunction<bool(const IRModule&, const PassInfo&)> should_run_callback,
+    ffi::TypedFunction<void(const IRModule&, const PassInfo&)> run_before_pass_callback,
+    ffi::TypedFunction<void(const IRModule&, const PassInfo&)> run_after_pass_callback)
+    : PassInstrument(ffi::UnsafeInit{}) {
+  auto pi = ffi::make_object<BasePassInstrumentObj>();
   pi->name = std::move(name);
 
   pi->enter_pass_ctx_callback = std::move(enter_pass_ctx_callback);
@@ -143,20 +141,19 @@ BasePassInstrument::BasePassInstrument(
   data_ = std::move(pi);
 }
 
-void BasePassInstrumentNode::EnterPassContext() const {
+void BasePassInstrumentObj::EnterPassContext() const {
   if (enter_pass_ctx_callback != nullptr) {
     enter_pass_ctx_callback();
   }
 }
 
-void BasePassInstrumentNode::ExitPassContext() const {
+void BasePassInstrumentObj::ExitPassContext() const {
   if (exit_pass_ctx_callback != nullptr) {
     exit_pass_ctx_callback();
   }
 }
 
-bool BasePassInstrumentNode::ShouldRun(const IRModule& ir_module,
-                                       const transform::PassInfo& pass_info) const {
+bool BasePassInstrumentObj::ShouldRun(const IRModule& ir_module, const PassInfo& pass_info) const {
   if (should_run_callback == nullptr) {
     return true;
   }
@@ -164,15 +161,15 @@ bool BasePassInstrumentNode::ShouldRun(const IRModule& ir_module,
   return should_run_callback(ir_module, pass_info);
 }
 
-void BasePassInstrumentNode::RunBeforePass(const IRModule& ir_module,
-                                           const transform::PassInfo& pass_info) const {
+void BasePassInstrumentObj::RunBeforePass(const IRModule& ir_module,
+                                          const PassInfo& pass_info) const {
   if (run_before_pass_callback != nullptr) {
     run_before_pass_callback(ir_module, pass_info);
   }
 }
 
-void BasePassInstrumentNode::RunAfterPass(const IRModule& ir_module,
-                                          const transform::PassInfo& pass_info) const {
+void BasePassInstrumentObj::RunAfterPass(const IRModule& ir_module,
+                                         const PassInfo& pass_info) const {
   if (run_after_pass_callback != nullptr) {
     run_after_pass_callback(ir_module, pass_info);
   }
@@ -181,12 +178,12 @@ void BasePassInstrumentNode::RunAfterPass(const IRModule& ir_module,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "instrument.PassInstrument",
+      "transform.PassInstrument",
       [](ffi::String name, ffi::TypedFunction<void()> enter_pass_ctx,
          ffi::TypedFunction<void()> exit_pass_ctx,
-         ffi::TypedFunction<bool(const IRModule&, const transform::PassInfo&)> should_run,
-         ffi::TypedFunction<void(const IRModule&, const transform::PassInfo&)> run_before_pass,
-         ffi::TypedFunction<void(const IRModule&, const transform::PassInfo&)> run_after_pass) {
+         ffi::TypedFunction<bool(const IRModule&, const PassInfo&)> should_run,
+         ffi::TypedFunction<void(const IRModule&, const PassInfo&)> run_before_pass,
+         ffi::TypedFunction<void(const IRModule&, const PassInfo&)> run_after_pass) {
         return BasePassInstrument(name, enter_pass_ctx, exit_pass_ctx, should_run, run_before_pass,
                                   run_after_pass);
       });
@@ -317,14 +314,14 @@ ffi::String RenderPassProfiles() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("instrument.RenderTimePassProfiles", RenderPassProfiles)
-      .def("instrument.MakePassTimingInstrument", []() {
-        auto run_before_pass = [](const IRModule&, const transform::PassInfo& pass_info) {
+      .def("transform.instrument.RenderTimePassProfiles", RenderPassProfiles)
+      .def("transform.instrument.MakePassTimingInstrument", []() {
+        auto run_before_pass = [](const IRModule&, const PassInfo& pass_info) {
           PassProfile::EnterPass(pass_info->name);
           return true;
         };
 
-        auto run_after_pass = [](const IRModule&, const transform::PassInfo& pass_info) {
+        auto run_after_pass = [](const IRModule&, const PassInfo& pass_info) {
           PassProfile::ExitPass();
         };
 
@@ -336,5 +333,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-}  // namespace instrument
+}  // namespace transform
 }  // namespace tvm

@@ -27,6 +27,8 @@
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
 
+#include "../../memory_scope.h"
+
 namespace tvm {
 
 namespace codegen {
@@ -41,6 +43,10 @@ void RegisterTRNTransforms();
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  for (const char* name : {"trn.sbuf", "trn.psum"}) {
+    tvm::backend::RegisterBackendMemoryScope(
+        name, tvm::runtime::MemoryAllocProperty::kSeparateAllocations);
+  }
   using namespace tvm;
   TargetKindDef("trn")
       .set_default_device_type(kDLTrn)

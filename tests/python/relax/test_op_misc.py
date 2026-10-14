@@ -30,8 +30,8 @@ def identity_packed(a):
     return tvm.runtime.tensor(a.numpy())
 
 
-@Ts.prim_func
-def identity_tir(A: T.Tensor([54, 96]), B: T.Tensor([54, 96])) -> None:
+@Ts.function
+def identity_tir(A: T.Tensor([54, 96], "float32"), B: T.Tensor([54, 96], "float32")) -> None:
     for i, j in T.grid(54, 96):
         with Ts.sblock("compute"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -39,21 +39,25 @@ def identity_tir(A: T.Tensor([54, 96]), B: T.Tensor([54, 96])) -> None:
 
 
 def test_call_tir() -> None:
+    callee = rx.BlockBuilder().add_func(identity_tir, "identity_tir")
     v0 = rx.Var("v0", R.Tensor([54, 96], "float32"))
-    v1 = rx.call_dps_packed(rx.extern("test.op.identity"), [v0], R.Tensor((54, 96), "float32"))
-    v1 = rx.call_tir(identity_tir, [v0], R.Tensor((54, 96), "float32"))
+    v1 = rx.call_dps_packed(
+        rx.extern("test.op.identity"), [v0], ty_args=[R.Tensor((54, 96), "float32")]
+    )
+    v1 = rx.call_tir(callee, [v0], ty_args=[R.Tensor((54, 96), "float32")])
 
 
 def test_call_tir_with_grad():
+    callee = rx.BlockBuilder().add_func(identity_tir, "identity_tir")
     v0 = rx.Var("v0", R.Tensor([54, 96], "float32"))
     v1 = rx.call_tir_with_grad(
-        identity_tir, (v0,), R.Tensor((54, 96), "float32"), te_grad_name="identity_grad"
+        callee, (v0,), ty_args=[R.Tensor((54, 96), "float32")], te_grad_name="identity_grad"
     )
     assert v1.attrs.te_grad_name == "identity_grad"
     v2 = rx.call_tir_with_grad(
-        identity_tir,
+        callee,
         (v0,),
-        R.Tensor((54, 96), "float32"),
+        ty_args=[R.Tensor((54, 96), "float32")],
         te_grad_name="identity_k_grad",
         te_grad_kwargs={"k": 1.0},
     )

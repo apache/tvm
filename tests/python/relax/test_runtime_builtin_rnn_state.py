@@ -81,7 +81,7 @@ def set_global_func():
         mod = tvm.IRModule({"main": tir_func})
         with target:
             mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)  # pylint: disable=not-callable
-        f = tvm.tirx.build(mod["main"], target=target)
+        f = tvm.tirx.compile(mod["main"], target=target).mod
         return f.main
 
     _f_tir_gets, _f_tir_sets = [], []
@@ -214,7 +214,7 @@ def rnn_state_get(
     # fmt: off
     batch_size = T.dynamic("batch_size", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _rnn_state_get(
         storage: T.Tensor((reserved_nseq, max_history, *shape), dtype),
         seq_slot_ids: T.Tensor((batch_size,), 'int32'),
@@ -231,8 +231,8 @@ def rnn_state_get(
                     # The following line is equivalent to:
                     # `output[vi, *vs] = storage[seq_id, history_id, *vs]`
                     # However, unpacking operator in subscript requires Python 3.11 or newer
-                    T.buffer_store(
-                        output, T.BufferLoad(storage, [seq_id, history_id, *vs]), [vi, *vs]
+                    T.tensor_store(
+                        output, [vi, *vs], T.TensorLoad(storage, [seq_id, history_id, *vs])
                     )
     # fmt: on
     return _rnn_state_get
@@ -245,7 +245,7 @@ def rnn_state_set(
     # fmt: off
     batch_size = T.dynamic("batch_size", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _rnn_state_set(
         storage: T.Tensor((reserved_nseq, max_history, *shape), dtype),
         seq_slot_ids: T.Tensor((batch_size,), 'int32'),
@@ -264,8 +264,8 @@ def rnn_state_set(
                     # The following line is equivalent to:
                     # `storage[seq_id, history_id, *vs] = data[vi, *vs]`
                     # However, unpacking operator in subscript requires Python 3.11 or newer
-                    T.buffer_store(
-                        storage, T.BufferLoad(data, [vi, *vs]), [seq_id, history_id, *vs]
+                    T.tensor_store(
+                        storage, [seq_id, history_id, *vs], T.TensorLoad(data, [vi, *vs])
                     )
 
     # fmt: on

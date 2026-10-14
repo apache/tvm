@@ -32,24 +32,25 @@
 
 #include <string>
 
+#include "../../memory_scope.h"
+
 namespace tvm {
 
 namespace backend {
 namespace cuda {
 
-bool DetectDeviceFlag(Device device, runtime::DeviceAttrKind flag, ffi::Any* val) {
+bool DetectDeviceFlag(Device device, const ffi::String& name, ffi::Any* val) {
   using runtime::DeviceAPI;
   DeviceAPI* api = DeviceAPI::Get(device, true);
   if (api == nullptr) {
     return false;
   }
-  api->GetAttr(device, runtime::kExist, val);
-  int exists = val->cast<int>();
+  bool exists = api->GetAttr(device, "exist").cast<bool>();
   if (!exists) {
     return false;
   }
-  DeviceAPI::Get(device)->GetAttr(device, flag, val);
-  return true;
+  *val = api->GetAttr(device, name);
+  return val->type_index() != kTVMFFINone;
 }
 
 void CheckOrSetAttr(ffi::Map<ffi::String, ffi::Any>* attrs, const ffi::String& name,
@@ -76,12 +77,12 @@ ffi::Map<ffi::String, ffi::Any> UpdateCUDAAttrs(ffi::Map<ffi::String, ffi::Any> 
   } else {
     int archInt;
     ffi::Any version;
-    if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
-      LOG(WARNING) << "Unable to detect CUDA version, default to \"-arch=sm_50\" instead";
-      archInt = 50;
-    } else {
-      archInt = std::stod(version.cast<std::string>()) * 10 + 0.1;
+    if (!DetectDeviceFlag({kDLCUDA, 0}, "compute_version", &version)) {
+      // Generic targets are also used for backend discovery and IR construction.
+      // Require an explicit architecture when resolving compilation, not here.
+      return target;
     }
+    archInt = std::stod(version.cast<std::string>()) * 10 + 0.1;
     if (archInt >= 90) {
       target.Set("arch", ffi::String("sm_") + std::to_string(archInt) + "a");
     } else {
@@ -100,7 +101,7 @@ ffi::Map<ffi::String, ffi::Any> UpdateNVPTXAttrs(ffi::Map<ffi::String, ffi::Any>
   } else {
     int arch;
     ffi::Any version;
-    if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
+    if (!DetectDeviceFlag({kDLCUDA, 0}, "compute_version", &version)) {
       LOG(WARNING) << "Unable to detect CUDA version, default to \"-mcpu=sm_50\" instead";
       arch = 50;
     } else {
@@ -116,6 +117,11 @@ ffi::Map<ffi::String, ffi::Any> UpdateNVPTXAttrs(ffi::Map<ffi::String, ffi::Any>
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  for (const char* name : {"tmem", "wmma.matrix_a", "wmma.matrix_b", "wmma.accumulator",
+                           "mma.matrixA", "mma.matrixB", "mma.matrixC"}) {
+    tvm::backend::RegisterBackendMemoryScope(
+        name, tvm::runtime::MemoryAllocProperty::kSeparateAllocations);
+  }
   using namespace tvm;
   using namespace tvm::backend::cuda;
   namespace refl = tvm::ffi::reflection;
@@ -126,6 +132,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   TargetKindDef("cuda")
       .set_default_device_type(kDLCUDA)
+      .def_option<ffi::Map<ffi::String, ffi::Any>>("backend_config")
       .def_option<ffi::String>("mcpu")
       .def_option<ffi::String>("arch")
       .def_option<int64_t>("max_shared_memory_per_block")

@@ -173,8 +173,8 @@ class TestPreserveCompileTimeMatmulOnRHS(Base):
     Expected = Before
 
 
-lora_r_before = T.dynamic("lora_r")
-lora_r_expected = T.dynamic("lora_r")
+lora_r_before = T.dynamic("lora_r", "int64")
+lora_r_expected = T.dynamic("lora_r", "int64")
 
 
 class TestLHSDynamic(Base):
@@ -216,8 +216,8 @@ class TestLHSDynamic(Base):
             return x
 
 
-lora_r_before = T.dynamic("lora_r")
-lora_r_expected = T.dynamic("lora_r")
+lora_r_before = T.dynamic("lora_r", "int64")
+lora_r_expected = T.dynamic("lora_r", "int64")
 
 
 class TestRHSDynamic(Base):
@@ -270,8 +270,8 @@ class TestIdempotentRHSDynamic(Base):
     Expected = TestRHSDynamic.Expected
 
 
-batch_size_before = T.dynamic("batch_size")
-lora_r_before = T.dynamic("lora_r")
+batch_size_before = T.dynamic("batch_size", "int64")
+lora_r_before = T.dynamic("lora_r", "int64")
 
 
 class TestDynamicWithBatchSymbolic1(Base):
@@ -377,8 +377,8 @@ class TestDynamicWithBatchConcrete1RHSFirst(Base):
             return out
 
 
-batch_size_before = T.dynamic("batch_size")
-lora_r_before = T.dynamic("lora_r")
+batch_size_before = T.dynamic("batch_size", "int64")
+lora_r_before = T.dynamic("lora_r", "int64")
 
 
 class TestDynamicWithBatchSymbolic2(Base):
@@ -484,10 +484,10 @@ class TestDynamicWithBatchConcrete2LHSFirst(Base):
             return out
 
 
-M_before = T.dynamic("M")
-N_before = T.dynamic("N")
-P_before = T.dynamic("P")
-Q_before = T.dynamic("Q")
+M_before = T.dynamic("M", "int64")
+N_before = T.dynamic("N", "int64")
+P_before = T.dynamic("P", "int64")
+Q_before = T.dynamic("Q", "int64")
 
 
 class TestNoOpForFullyDynamicOnLHS(Base):
@@ -522,10 +522,10 @@ class TestNoOpForFullyDynamicOnLHS(Base):
     Expected = Before
 
 
-M_before = T.dynamic("M")
-N_before = T.dynamic("N")
-P_before = T.dynamic("P")
-Q_before = T.dynamic("Q")
+M_before = T.dynamic("M", "int64")
+N_before = T.dynamic("N", "int64")
+P_before = T.dynamic("P", "int64")
+Q_before = T.dynamic("Q", "int64")
 
 
 class TestNoOpForFullyDynamicOnRHS(Base):
@@ -650,8 +650,8 @@ class TestLHSPermuteDimsNonMatrixAxes(Base):
     Expected = Before
 
 
-lora_r_before = T.dynamic("lora_r")
-lora_r_expected = T.dynamic("lora_r")
+lora_r_before = T.dynamic("lora_r", "int64")
+lora_r_expected = T.dynamic("lora_r", "int64")
 
 
 class TestRHSPermuteDimsDynamic(Base):
@@ -696,10 +696,10 @@ class TestRHSPermuteDimsDynamic(Base):
             return x
 
 
-lora_r_before = T.dynamic("lora_r")
-batch_size_before = T.dynamic("batch_size")
-lora_r_expected = T.dynamic("lora_r")
-batch_size_expected = T.dynamic("batch_size")
+lora_r_before = T.dynamic("lora_r", "int64")
+batch_size_before = T.dynamic("batch_size", "int64")
+lora_r_expected = T.dynamic("lora_r", "int64")
+batch_size_expected = T.dynamic("batch_size", "int64")
 
 
 class TestRHSPermuteDimsWithDynamicBatch(Base):
@@ -765,8 +765,8 @@ class TestRHSPermuteDimsWithDynamicBatch(Base):
             return x
 
 
-lora_r_before = T.dynamic("lora_r")
-lora_r_expected = T.dynamic("lora_r")
+lora_r_before = T.dynamic("lora_r", "int64")
+lora_r_expected = T.dynamic("lora_r", "int64")
 
 
 class TestRHSPermuteDimsDynamicWithSquareMatrix(Base):

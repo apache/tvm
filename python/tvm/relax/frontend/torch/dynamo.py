@@ -37,12 +37,12 @@ def device_from_inputs(example_inputs):
     return None
 
 
-def relax_dynamo(pipeline: tvm.transform.Pass | None = None):
+def relax_dynamo(pipeline: tvm.ir.transform.Pass | None = None):
     """A helper function to create a relax backend.
 
     Parameters
     ----------
-    pipeline : Optional[tvm.transform.Pass]
+    pipeline : Optional[tvm.ir.transform.Pass]
         The pipeline to be applied to the relax module before sent to build.
 
     Returns

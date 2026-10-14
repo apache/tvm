@@ -24,7 +24,7 @@
  *   `HexagonModuleCreateWithFallback` is the ONLY entry point codegen uses
  *   to construct a Hexagon `ffi::Module`.  It tries the runtime-registered
  *   factory "ffi.Module.create.hexagon" via the FFI registry; on miss it
- *   constructs a `HexagonFallbackModuleNode` directly.  The fallback exists
+ *   constructs a `HexagonFallbackModuleObj` directly.  The fallback exists
  *   so that codegen can succeed on a build where the Hexagon runtime is
  *   not linked.  This setup is helpful for cross compilation where we
  *   compile on one env and run on another.
@@ -36,11 +36,11 @@
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/support/env.h>
 
 #include <utility>
 
 #include "../../../runtime/metadata.h"
-#include "../../../support/env.h"
 
 namespace tvm {
 namespace target {
@@ -49,7 +49,7 @@ namespace target {
 using HexagonSourceMap = ffi::Map<ffi::String, ffi::Variant<ffi::String, ffi::Bytes>>;
 
 /*!
- * \brief Construct a `HexagonFallbackModuleNode` directly (no FFI registry
+ * \brief Construct a `HexagonFallbackModuleObj` directly (no FFI registry
  *        round-trip).  Used by `HexagonModuleCreateWithFallback` and by
  *        tests that explicitly want a fallback instance.
  */
@@ -62,9 +62,9 @@ ffi::Module HexagonFallbackModuleCreate(ffi::Bytes code, ffi::String fmt,
  *        "ffi.Module.create.hexagon"; on miss or when forced via env var,
  *        falls back to `HexagonFallbackModuleCreate`.
  *
- *   - Registry hit (USE_HEXAGON=ON build) → real `HexagonModuleNode`
+ *   - Registry hit (USE_HEXAGON=ON build) → real `HexagonModuleObj`
  *     returned.
- *   - Registry miss (USE_HEXAGON=OFF build) → `HexagonFallbackModuleNode`
+ *   - Registry miss (USE_HEXAGON=OFF build) → `HexagonFallbackModuleObj`
  *     returned.
  *   - `TVM_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless of
  *     registry state (used by per-backend fallback tests on a USE_X=ON CI

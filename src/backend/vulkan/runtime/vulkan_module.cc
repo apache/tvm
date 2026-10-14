@@ -27,12 +27,12 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 
 #include <string>
 #include <utility>
 
-#include "../../../support/bytes_io.h"
 #include "spirv_shader.h"
 #include "vulkan_wrapped_func.h"
 
@@ -62,8 +62,8 @@ static ffi::Module VulkanModuleCreateImpl(ffi::Map<ffi::String, ffi::Bytes> smap
   for (const auto& kv : smap) {
     internal_smap[std::string(kv.first)] = DeserializeSPIRVShader(kv.second);
   }
-  auto n = ffi::make_object<VulkanModuleNode>(std::move(internal_smap), std::move(smap),
-                                              std::move(fmt), std::move(fmap), std::move(source));
+  auto n = ffi::make_object<VulkanModuleObj>(std::move(internal_smap), std::move(smap),
+                                             std::move(fmt), std::move(fmap), std::move(source));
   return ffi::Module(n);
 }
 

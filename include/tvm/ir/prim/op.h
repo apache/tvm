@@ -22,7 +22,7 @@
  */
 #ifndef TVM_IR_PRIM_OP_H_
 #define TVM_IR_PRIM_OP_H_
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 
 #include <algorithm>
@@ -30,180 +30,211 @@
 #include <type_traits>
 #include <utility>
 namespace tvm {
+namespace prim {
+
+/*!
+ * \brief Get the target's vscale value. It will be lowered to llvm.vscale intrinsic
+ * (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
+ */
+TVM_TIRX_DLL const Op& vscale_op();
+
+/*! \brief Round up to the nearest integral value. */
+TVM_TIRX_DLL const Op& ceil_op();
+
+/*! \brief Base-two logarithm. */
+TVM_TIRX_DLL const Op& log2_op();
+
+/*! \brief Count leading zero bits. */
+TVM_TIRX_DLL const Op& clz_op();
+
+/*!
+ * \brief Same as select, used for unsafe memory access.
+ *
+ *  Type tvm_if_then_else(cond, a, b) {
+ *    return cond ? a : b;
+ *  }
+ */
+TVM_TIRX_DLL const Op& if_then_else_op();
+
+/*! \brief Marks a condition is likely going to happen. */
+TVM_TIRX_DLL const Op& likely_op();
+
+}  // namespace prim
+
 /*!
  * \brief add operator
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr add(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr add(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief subtraction operator
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr sub(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr sub(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief negation.
  *
  * \param a input.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr neg(PrimExpr a, Span span = Span());
+TVM_TIRX_DLL PrimExpr neg(PrimExpr a, Location loc = UnknownLoc());
 
 /*!
  * \brief multiplication operator
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr mul(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr mul(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief left shift operator
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr left_shift(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr left_shift(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief right shift operator
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr right_shift(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr right_shift(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief greater
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr greater(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr greater(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief greater_equal
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr greater_equal(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr greater_equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief less
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr less(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr less(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief less_equal
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr less_equal(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr less_equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief equal
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr equal(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief not_equal
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr not_equal(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr not_equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief and
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note This operator does eager constant folding.
  */
-TVM_DLL PrimExpr logical_and(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr logical_and(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief or
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note This operator does eager constant folding.
  */
-TVM_DLL PrimExpr logical_or(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr logical_or(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief not
  *
  * \param a left operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note This operator does eager constant folding.
  */
-TVM_DLL PrimExpr logical_not(PrimExpr a, Span span = Span());
+TVM_TIRX_DLL PrimExpr logical_not(PrimExpr a, Location loc = UnknownLoc());
 
 /*!
  * \brief compute division in C semantics.
@@ -214,12 +245,12 @@ TVM_DLL PrimExpr logical_not(PrimExpr a, Span span = Span());
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr div(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr div(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute trunc(a / b)
@@ -228,12 +259,12 @@ TVM_DLL PrimExpr div(PrimExpr a, PrimExpr b, Span span = Span());
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr truncdiv(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr truncdiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute the remainder of truncdiv
@@ -242,12 +273,12 @@ TVM_DLL PrimExpr truncdiv(PrimExpr a, PrimExpr b, Span span = Span());
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr truncmod(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr truncmod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute floor(a / b) where a and b are non-negative.
@@ -259,12 +290,12 @@ TVM_DLL PrimExpr truncmod(PrimExpr a, PrimExpr b, Span span = Span());
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr indexdiv(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr indexdiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute ceil(a / b) where a and b are non-negative.
@@ -276,12 +307,12 @@ TVM_DLL PrimExpr indexdiv(PrimExpr a, PrimExpr b, Span span = Span());
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       shape types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr shapediv(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr shapediv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute the remainder floor(a / b) where a and b are non-negative.
@@ -292,120 +323,120 @@ TVM_DLL PrimExpr shapediv(PrimExpr a, PrimExpr b, Span span = Span());
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr indexmod(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr indexmod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute floor(a / b)
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute ceil(a / b)
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
 
-TVM_DLL PrimExpr ceildiv(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr ceildiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute the remainder of floordiv
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr floormod(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr floormod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take maximum of two values
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr max(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr max(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take minimum of two values
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr min(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr min(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take bitwise and of two values
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take bitwise or of two values
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take bitwise xor of two values
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_TIRX_DLL PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take bitwise negation of two values
  *
  * \param a the input expression.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_neg(PrimExpr a, Span span = Span());
+TVM_TIRX_DLL PrimExpr bitwise_neg(PrimExpr a, Location loc = UnknownLoc());
 
 /*!
  * \brief Conditional expression.
@@ -413,58 +444,58 @@ TVM_DLL PrimExpr bitwise_neg(PrimExpr a, Span span = Span());
  * \param cond The condition
  * \param true_value The value when results are true.
  * \param false_value The value when results are false.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value,
-                              Span span = Span());
+TVM_TIRX_DLL PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value,
+                                   Location loc = UnknownLoc());
 
 /*!
  * \brief Mark condition as likely.
  * \param cond The condition
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The marked expression.
  */
-TVM_DLL PrimExpr likely(PrimExpr cond, Span span = Span());
+TVM_TIRX_DLL PrimExpr likely(PrimExpr cond, Location loc = UnknownLoc());
 /*! \brief Round up to the nearest integral value, preserving the input type. */
-TVM_DLL PrimExpr ceil(PrimExpr x, Span span = Span());
+TVM_TIRX_DLL PrimExpr ceil(PrimExpr x, Location loc = UnknownLoc());
 /*! \brief Construct a base-two logarithm with the input's primitive type. */
-TVM_DLL PrimExpr log2(PrimExpr x, Span span = Span());
+TVM_TIRX_DLL PrimExpr log2(PrimExpr x, Location loc = UnknownLoc());
 namespace prim {
 /*! \brief Count leading zero bits, preserving the input primitive type. */
-TVM_DLL PrimExpr clz(PrimExpr x, Span span = Span());
+TVM_TIRX_DLL PrimExpr clz(PrimExpr x, Location loc = UnknownLoc());
 /*!
  * Query the minimum possible value of dtype.
  * \param dtype The primitive type.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return the minimum possible value in this format.
  */
-TVM_DLL PrimExpr min_value(PrimType dtype, Span span = Span());
+TVM_TIRX_DLL PrimExpr min_value(PrimType dtype, Location loc = UnknownLoc());
 
 /*!
  * Query the maximum possible value of dtype.
  * \param dtype The primitive type.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return the maximum possible value in this format.
  */
-TVM_DLL PrimExpr max_value(PrimType dtype, Span span = Span());
+TVM_TIRX_DLL PrimExpr max_value(PrimType dtype, Location loc = UnknownLoc());
 
 /*!
  * \brief cast value to type.
  *
  * \param t the target type.
  * \param value The value
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note This function may return value if the type is the same. Constant folding
  * uses MakeConst for scalar and vector constants.
  */
-TVM_DLL PrimExpr cast(PrimType t, PrimExpr value, Span span = Span());
-TVM_DLL PrimExpr cast(DLDataType t, PrimExpr value, Span span = Span());
+TVM_TIRX_DLL PrimExpr cast(PrimType t, PrimExpr value, Location loc = UnknownLoc());
+TVM_TIRX_DLL PrimExpr cast(DLDataType t, PrimExpr value, Location loc = UnknownLoc());
 /*! \brief Construct integer absolute value; floating absolute value belongs to TIRX. */
-TVM_DLL PrimExpr IntegerAbs(PrimExpr x, Span span = Span());
+TVM_TIRX_DLL PrimExpr IntegerAbs(PrimExpr x, Location loc = UnknownLoc());
 /*!
  * \brief Make a const value with certain data type.
  *
@@ -478,102 +509,26 @@ TVM_DLL PrimExpr IntegerAbs(PrimExpr x, Span span = Span());
  * \param value The input value
  * \return the result expression.
  * \tparam ValueType The constant value type
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  */
 template <typename ValueType,
           typename = typename std::enable_if<(std::is_standard_layout<ValueType>::value &&
                                               std::is_trivial<ValueType>::value) ||
                                              std::is_same<ValueType, ffi::BigInt>::value>::type>
-inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span = Span());
-
-/*!
- * \brief Check whether x is a constant integer expression.
- * \param x The input argument
- * \param value the value to be compared against.
- * \return whether x is constant expression.
- */
-inline bool is_const_int(const PrimExpr& x, int64_t value);
-
-/*!
- * \brief Check whether x is a constant integer 1
- * \param x The input argument.
- * \note This only return true for integer types.
- * \return whether x is constant 1
- */
-inline bool is_one(const PrimExpr& x) { return is_const_int(x, 1); }
-
-/*!
- * \brief Check whether x is a constant integer 0
- * \param x The input argument
- * \return whether x is constant 0
- * \note This only return true for integer types.
- */
-inline bool is_zero(const PrimExpr& x) { return is_const_int(x, 0); }
-
-/*!
- * \brief Check whether x is an integer constant, including wide IntImm values.
- * \return whether x is constant
- */
-inline bool is_const_int(const PrimExpr& x);
-
-/*!
- * \brief Check whether x is an integer/float constant.
- * \note This only return true for integer types.
- * \return whether x is constant
- */
-inline bool is_const_number(const PrimExpr& x);
-
-/*!
- * \brief Check whether x is a constant power of two
- * If x is power of two, write the power to the shift.
- *
- * \param x The input expression.
- * \param shift The output shift if x is power of two.
- * \return whether x is constant power of two
- */
-TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
-
-// Implementation details after this
-inline bool is_const_int(const PrimExpr& x) { return x.as<IntImmNode>() != nullptr; }
-
-inline bool is_const_number(const PrimExpr& x) {
-  if (x.as<IntImmNode>()) {
-    return true;
-  } else if (x.as<FloatImmNode>()) {
-    return true;
-  } else if (const auto* op = x.as<prim::BroadcastNode>()) {
-    return (op->value->IsInstance<IntImmNode>() || op->value->IsInstance<FloatImmNode>());
-  }
-  return false;
-}
-
-inline bool is_positive_const(const PrimExpr& a) {
-  const auto* as_int = a.as<IntImmNode>();
-  return as_int && as_int->value > 0;
-}
-
-inline bool is_negative_const(const PrimExpr& a) {
-  const auto* as_int = a.as<IntImmNode>();
-  return as_int && as_int->value < 0;
-}
-
-inline bool is_const_int(const PrimExpr& x, int64_t value) {
-  const auto* as_int = x.as<IntImmNode>();
-  return as_int && as_int->value == value;
-}
+inline PrimExpr MakeConst(PrimType dtype, ValueType value, Location loc = UnknownLoc());
 
 template <typename ValueType>
-inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value, Span span = Span()) {
+inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value, Location loc = UnknownLoc()) {
   if constexpr (std::is_enum_v<ValueType>) {
-    return MakeConstScalar(dtype, static_cast<std::underlying_type_t<ValueType>>(value), span);
+    return MakeConstScalar(dtype, static_cast<std::underlying_type_t<ValueType>>(value), loc);
   } else {
     DLDataTypeCode code = dtype.code();
     if (code == DLDataTypeCode::kDLInt || code == DLDataTypeCode::kDLBool) {
-      return IntImm(dtype, ffi::BigInt(value), span);
+      return IntImm(dtype, ffi::BigInt(value), loc);
     }
     if (code == DLDataTypeCode::kDLUInt) {
       TVM_FFI_ICHECK(value >= 0) << "cannot make uint from negative value " << value;
-      return IntImm(dtype, ffi::BigInt(value), span);
+      return IntImm(dtype, ffi::BigInt(value), loc);
     }
     if (dtype.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLFloat8_e3m4,
                           DLDataTypeCode::kDLFloat8_e4m3, DLDataTypeCode::kDLFloat8_e4m3b11fnuz,
@@ -582,7 +537,7 @@ inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value, Span span = Spa
                           DLDataTypeCode::kDLFloat8_e8m0fnu, DLDataTypeCode::kDLFloat6_e2m3fn,
                           DLDataTypeCode::kDLFloat6_e3m2fn, DLDataTypeCode::kDLFloat4_e2m1fn) ||
         dtype.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
-      return FloatImm(dtype, static_cast<double>(value), span);
+      return FloatImm(dtype, static_cast<double>(value), loc);
     }
     TVM_FFI_THROW(InternalError) << "cannot make const for type " << dtype;
     throw;
@@ -590,23 +545,22 @@ inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value, Span span = Spa
 }
 
 template <>
-inline PrimExpr MakeConstScalar(PrimType dtype, bool value, Span span) {
-  return MakeConstScalar(dtype, static_cast<int>(value), span);
+inline PrimExpr MakeConstScalar(PrimType dtype, bool value, Location loc) {
+  return MakeConstScalar(dtype, static_cast<int>(value), loc);
 }
 
 template <typename ValueType, typename>
-inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span) {
+inline PrimExpr MakeConst(PrimType dtype, ValueType value, Location loc) {
   if (!dtype.IsScalableVector() && !dtype.IsFixedLengthVector()) {
-    return MakeConstScalar(dtype, value, span);
+    return MakeConstScalar(dtype, value, loc);
   }
   PrimType elem_ty = dtype.WithLanes(1);
   if (dtype.IsFixedLengthVector()) {
-    return prim::Broadcast(MakeConstScalar(elem_ty, value, span), dtype.lanes(), span);
+    return prim::Broadcast(MakeConstScalar(elem_ty, value, loc), dtype.lanes(), loc);
   }
-  PrimExpr lanes =
-      prim::Mul(Call(PrimType::Int(32), prim::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
-                dtype.VScaleFactor());
-  return prim::Broadcast(MakeConstScalar(elem_ty, value, span), lanes, span);
+  PrimExpr lanes = prim::Mul(Call(PrimType::Int(32), prim::vscale_op(), {}).as_or_throw<PrimExpr>(),
+                             dtype.VScaleFactor());
+  return prim::Broadcast(MakeConstScalar(elem_ty, value, loc), lanes, loc);
 }
 
 }  // namespace prim
@@ -627,45 +581,45 @@ inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span) {
     return Name(a, FloatImm(PrimType::Float(64), b));                                            \
   }
 
-#define TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD_SPANNED(Name)                 \
-  inline PrimExpr Name(const PrimExpr& a, float b, Span span = Span()) {  \
-    return Name(a, PrimExpr(b), span);                                    \
-  }                                                                       \
-  inline PrimExpr Name(float a, const PrimExpr& b, Span span = Span()) {  \
-    return Name(PrimExpr(a), b, span);                                    \
-  }                                                                       \
-  inline PrimExpr Name(int a, const PrimExpr& b, Span span = Span()) {    \
-    return Name(prim::MakeConst(b.ty(), a), b, span);                     \
-  }                                                                       \
-  inline PrimExpr Name(const PrimExpr& a, int b, Span span = Span()) {    \
-    return Name(a, prim::MakeConst(a.ty(), b), span);                     \
-  }                                                                       \
-  inline PrimExpr Name(const PrimExpr& a, double b, Span span = Span()) { \
-    return Name(a, FloatImm(PrimType::Float(64), b), span);               \
+#define TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD_SPANNED(Name)                          \
+  inline PrimExpr Name(const PrimExpr& a, float b, Location loc = UnknownLoc()) {  \
+    return Name(a, PrimExpr(b), loc);                                              \
+  }                                                                                \
+  inline PrimExpr Name(float a, const PrimExpr& b, Location loc = UnknownLoc()) {  \
+    return Name(PrimExpr(a), b, loc);                                              \
+  }                                                                                \
+  inline PrimExpr Name(int a, const PrimExpr& b, Location loc = UnknownLoc()) {    \
+    return Name(prim::MakeConst(b.ty(), a), b, loc);                               \
+  }                                                                                \
+  inline PrimExpr Name(const PrimExpr& a, int b, Location loc = UnknownLoc()) {    \
+    return Name(a, prim::MakeConst(a.ty(), b), loc);                               \
+  }                                                                                \
+  inline PrimExpr Name(const PrimExpr& a, double b, Location loc = UnknownLoc()) { \
+    return Name(a, FloatImm(PrimType::Float(64), b), loc);                         \
   }
 
 #define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(Name)                             \
   inline PrimExpr Name(const PrimExpr& a, bool b) { return Name(a, PrimExpr(b)); } \
   inline PrimExpr Name(bool a, const PrimExpr& b) { return Name(PrimExpr(a), b); }
 
-#define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD_SPANNED(Name)          \
-  inline PrimExpr Name(const PrimExpr& a, bool b, Span span = Span()) { \
-    return Name(a, PrimExpr(b), span);                                  \
-  }                                                                     \
-  inline PrimExpr Name(bool a, const PrimExpr& b, Span span = Span()) { \
-    return Name(PrimExpr(a), b, span);                                  \
+#define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD_SPANNED(Name)                   \
+  inline PrimExpr Name(const PrimExpr& a, bool b, Location loc = UnknownLoc()) { \
+    return Name(a, PrimExpr(b), loc);                                            \
+  }                                                                              \
+  inline PrimExpr Name(bool a, const PrimExpr& b, Location loc = UnknownLoc()) { \
+    return Name(PrimExpr(a), b, loc);                                            \
   }
 
 #define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(Name)                                               \
   inline PrimExpr Name(const PrimExpr& a, int b) { return Name(a, prim::MakeConst(a.ty(), b)); } \
   inline PrimExpr Name(int a, const PrimExpr& b) { return Name(prim::MakeConst(b.ty(), a), b); }
 
-#define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(Name)             \
-  inline PrimExpr Name(const PrimExpr& a, int b, Span span = Span()) { \
-    return Name(a, prim::MakeConst(a.ty(), b), span);                  \
-  }                                                                    \
-  inline PrimExpr Name(int a, const PrimExpr& b, Span span = Span()) { \
-    return Name(prim::MakeConst(b.ty(), a), b, span);                  \
+#define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(Name)                      \
+  inline PrimExpr Name(const PrimExpr& a, int b, Location loc = UnknownLoc()) { \
+    return Name(a, prim::MakeConst(a.ty(), b), loc);                            \
+  }                                                                             \
+  inline PrimExpr Name(int a, const PrimExpr& b, Location loc = UnknownLoc()) { \
+    return Name(prim::MakeConst(b.ty(), a), b, loc);                            \
   }
 
 TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator+=, operator+);
@@ -749,6 +703,349 @@ inline PrimExpr operator%(const PrimExpr& a, const TB& b) {
   DivAmbiguityError(a);
   return a;
 }
+
+// Constant predicates
+namespace prim {
+
+/*!
+ * \brief Check whether x is a constant integer expression.
+ * \param x The input argument
+ * \param value the value to be compared against.
+ * \return whether x is constant expression.
+ */
+inline bool IsConstInt(const PrimExpr& x, int64_t value);
+
+/*!
+ * \brief Check whether x is a constant integer 1
+ * \param x The input argument.
+ * \note This only returns true for integer types.
+ * \return whether x is constant 1
+ */
+inline bool IsOne(const PrimExpr& x);
+
+/*!
+ * \brief Check whether x is a constant integer 0
+ * \param x The input argument
+ * \return whether x is constant 0
+ * \note This only returns true for integer types.
+ */
+inline bool IsZero(const PrimExpr& x);
+
+/*!
+ * \brief Check whether x is an integer constant, including wide IntImm values.
+ * \return whether x is constant
+ */
+inline bool IsConstInt(const PrimExpr& x);
+
+/*!
+ * \brief Check whether x is an integer or floating-point constant.
+ * \note Also recognizes a Broadcast containing an integer or floating-point constant.
+ * \return whether x is constant
+ */
+inline bool IsConstNumber(const PrimExpr& x);
+
+/*!
+ * \brief Check whether x is a constant power of two
+ * If x is power of two, write the power to the shift.
+ *
+ * \param x The input expression.
+ * \param shift The output shift if x is power of two.
+ * \return whether x is constant power of two
+ */
+TVM_TIRX_DLL bool IsPowerOfTwoInt(const PrimExpr& x, int* shift);
+
+/*! \brief Check whether a is a positive integer constant. */
+inline bool IsPositiveConst(const PrimExpr& a);
+
+/*! \brief Check whether a is a negative integer constant. */
+inline bool IsNegativeConst(const PrimExpr& a);
+
+// Inline constant predicate implementations.
+inline bool IsConstInt(const PrimExpr& x) { return x.as<IntImmNode>() != nullptr; }
+
+inline bool IsConstNumber(const PrimExpr& x) {
+  if (x.as<IntImmNode>()) {
+    return true;
+  } else if (x.as<FloatImmNode>()) {
+    return true;
+  } else if (const auto* op = x.as<prim::BroadcastNode>()) {
+    return (op->value->IsInstance<IntImmNode>() || op->value->IsInstance<FloatImmNode>());
+  }
+  return false;
+}
+
+inline bool IsPositiveConst(const PrimExpr& a) {
+  const auto* as_int = a.as<IntImmNode>();
+  return as_int && as_int->value > 0;
+}
+
+inline bool IsNegativeConst(const PrimExpr& a) {
+  const auto* as_int = a.as<IntImmNode>();
+  return as_int && as_int->value < 0;
+}
+
+inline bool IsConstInt(const PrimExpr& x, int64_t value) {
+  const auto* as_int = x.as<IntImmNode>();
+  return as_int && as_int->value == value;
+}
+
+inline bool IsOne(const PrimExpr& x) { return IsConstInt(x, 1); }
+
+inline bool IsZero(const PrimExpr& x) { return IsConstInt(x, 0); }
+
+/*!
+ * Get the value of infinity.
+ * \param dtype The primitive type.
+ * \param loc The location of this operation in the source.
+ * \return the infinity value in this format.
+ */
+TVM_TIRX_DLL PrimExpr infinity(PrimType dtype, Location loc = UnknownLoc());
+
+/*!
+ * \brief Calculate power(x, y)
+ * \param x The left operand.
+ * \param y The right operand.
+ * \param loc The location of this operation in the source.
+ */
+TVM_TIRX_DLL PrimExpr pow(PrimExpr x, PrimExpr y, Location loc = UnknownLoc());
+
+/*!
+ * \brief Calculate absolute value of x.
+ * \param x The input data
+ * \param loc The location of this operation in the source.
+ *
+ * \return The absolute value of input data x
+ */
+TVM_TIRX_DLL PrimExpr abs(PrimExpr x, Location loc = UnknownLoc());
+
+/*!
+ * \brief Check if x is NaN.
+ * \param x The input data
+ * \param loc The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_TIRX_DLL PrimExpr isnan(PrimExpr x, Location loc = UnknownLoc());
+
+/*!
+ * \brief Check if x is finite.
+ * \param x The input data
+ * \param loc The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_TIRX_DLL PrimExpr isfinite(PrimExpr x, Location loc = UnknownLoc());
+
+/*!
+ * \brief Check if x is infinite.
+ * \param x The input data
+ * \param loc The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_TIRX_DLL PrimExpr isinf(PrimExpr x, Location loc = UnknownLoc());
+
+/*!
+ * \brief Calculate floor(x)
+ * \param x The input expression.
+ * \param loc The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_TIRX_DLL PrimExpr floor(PrimExpr x, Location loc = UnknownLoc());
+
+/*!
+ * \brief Round x to the nearest integer, ties to even.
+ *
+ * Uses IEEE 754 default rounding mode (ties-to-even / banker's rounding).
+ * Constant-folding and all backends consistently use std::nearbyint semantics.
+ *
+ * \param x The input expression.
+ * \param loc The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_TIRX_DLL PrimExpr round(PrimExpr x, Location loc = UnknownLoc());
+
+/*!
+ * \brief Round x to the nearest integer, ties to even.
+ *
+ * Equivalent to round(). Both use IEEE 754 default rounding mode (ties-to-even).
+ *
+ * \param x The input expression.
+ * \param loc The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_TIRX_DLL PrimExpr nearbyint(PrimExpr x, Location loc = UnknownLoc());
+
+/*!
+ * \brief Calculate trunc(x)
+ * \param x The input expression.
+ * \param loc The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_TIRX_DLL PrimExpr trunc(PrimExpr x, Location loc = UnknownLoc());
+
+/*! \brief Floating-point remainder of x divided by y. */
+TVM_TIRX_DLL PrimExpr fmod(PrimExpr x, PrimExpr y, Location loc = UnknownLoc());
+/*! \brief Raise x to the power y. Arguments: x, y. */
+TVM_TIRX_DLL const Op& pow_op();
+/*! \brief Absolute value. Argument: x. */
+TVM_TIRX_DLL const Op& fabs_op();
+/*! \brief Floating-point remainder. Arguments: x, y. */
+TVM_TIRX_DLL const Op& fmod_op();
+/*! \brief Round toward negative infinity. Argument: x. */
+TVM_TIRX_DLL const Op& floor_op();
+/*! \brief Round to nearest integer, ties to even. Argument: x. */
+TVM_TIRX_DLL const Op& round_op();
+/*! \brief Round to nearest integer, ties to even. Argument: x. */
+TVM_TIRX_DLL const Op& nearbyint_op();
+/*! \brief Round toward zero. Argument: x. */
+TVM_TIRX_DLL const Op& trunc_op();
+/*! \brief Natural exponential. Argument: x. */
+TVM_TIRX_DLL const Op& exp_op();
+/*! \brief Base-two exponential. Argument: x. */
+TVM_TIRX_DLL const Op& exp2_op();
+/*! \brief Base-ten exponential. Argument: x. */
+TVM_TIRX_DLL const Op& exp10_op();
+/*! \brief Error function. Argument: x. */
+TVM_TIRX_DLL const Op& erf_op();
+/*! \brief Hyperbolic tangent. Argument: x. */
+TVM_TIRX_DLL const Op& tanh_op();
+/*! \brief Logistic sigmoid. Argument: x. */
+TVM_TIRX_DLL const Op& sigmoid_op();
+/*! \brief Square root. Argument: x. */
+TVM_TIRX_DLL const Op& sqrt_op();
+/*! \brief Reciprocal square root. Argument: x. */
+TVM_TIRX_DLL const Op& rsqrt_op();
+/*! \brief Natural logarithm. Argument: x. */
+TVM_TIRX_DLL const Op& log_op();
+/*! \brief Natural logarithm of one plus x. Argument: x. */
+TVM_TIRX_DLL const Op& log1p_op();
+/*! \brief Base-ten logarithm. Argument: x. */
+TVM_TIRX_DLL const Op& log10_op();
+/*! \brief Tangent. Argument: x. */
+TVM_TIRX_DLL const Op& tan_op();
+/*! \brief Cosine. Argument: x. */
+TVM_TIRX_DLL const Op& cos_op();
+/*! \brief Hyperbolic cosine. Argument: x. */
+TVM_TIRX_DLL const Op& cosh_op();
+/*! \brief Sine. Argument: x. */
+TVM_TIRX_DLL const Op& sin_op();
+/*! \brief Hyperbolic sine. Argument: x. */
+TVM_TIRX_DLL const Op& sinh_op();
+/*! \brief Inverse sine. Argument: x. */
+TVM_TIRX_DLL const Op& asin_op();
+/*! \brief Inverse cosine. Argument: x. */
+TVM_TIRX_DLL const Op& acos_op();
+/*! \brief Inverse tangent. Argument: x. */
+TVM_TIRX_DLL const Op& atan_op();
+/*! \brief Inverse hyperbolic cosine. Argument: x. */
+TVM_TIRX_DLL const Op& acosh_op();
+/*! \brief Inverse hyperbolic sine. Argument: x. */
+TVM_TIRX_DLL const Op& asinh_op();
+/*! \brief Inverse hyperbolic tangent. Argument: x. */
+TVM_TIRX_DLL const Op& atanh_op();
+/*! \brief Inverse tangent of y/x with quadrant selection. Arguments: y, x. */
+TVM_TIRX_DLL const Op& atan2_op();
+/*! \brief Next representable value from x toward y. Arguments: x, y. */
+TVM_TIRX_DLL const Op& nextafter_op();
+/*! \brief Euclidean length of x and y. Arguments: x, y. */
+TVM_TIRX_DLL const Op& hypot_op();
+/*! \brief Magnitude of x with the sign of y. Arguments: x, y. */
+TVM_TIRX_DLL const Op& copysign_op();
+/*! \brief Multiply x by two raised to exponent. Arguments: x, exponent. */
+TVM_TIRX_DLL const Op& ldexp_op();
+/*! \brief Check for NaN, preserving the lane count. Argument: x. */
+TVM_TIRX_DLL const Op& isnan_op();
+/*! \brief Count set bits. Argument: x. */
+TVM_TIRX_DLL const Op& popcount_op();
+/*! \brief Fused multiply-add, x * y + z. Arguments: x, y, z. */
+TVM_TIRX_DLL const Op& fma_op();
+/*! \brief Record a known condition for simplification. Argument: condition. */
+TVM_TIRX_DLL const Op& assume_op();
+/*! \brief Record a known condition for compile-time simplification. */
+TVM_TIRX_DLL PrimExpr assume(PrimExpr condition, Location loc = UnknownLoc());
+
+/*! \brief Fused multiply-add of x, y and z, in that order. */
+inline PrimExpr fma(PrimExpr x, PrimExpr y, PrimExpr z, Location loc = UnknownLoc()) {
+  return Call(x.ty(), fma_op(), {x, y, z}, {}, {}, loc).as_or_throw<PrimExpr>();
+}
+
+inline void CheckMathUnaryOpInputDType(const char* op_name, const PrimType& dtype) {
+  TVM_FFI_CHECK(dtype.code() == DLDataTypeCode::kDLFloat ||
+                    dtype.MatchesElementType(DLDataTypeCode::kDLBfloat, 16),
+                TypeError)
+      << "prim." << op_name << " only supports floating-point inputs, but got " << dtype;
+}
+
+// Intrinsic operators
+#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)                          \
+  inline PrimExpr OpName(PrimExpr x, Location loc = UnknownLoc()) {                           \
+    static const Op op = Op::Get("prim." #OpName);                                            \
+    PrimType x_ty = x.ty();                                                                   \
+    CheckInputDType(#OpName, x_ty);                                                           \
+    if (x_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {                             \
+      PrimType bf16_ty = x_ty;                                                                \
+      PrimType f32_ty =                                                                       \
+          x_ty.IsScalableVector()                                                             \
+              ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat, 32, x_ty.VScaleFactor())   \
+              : PrimType::Float(32, x_ty.lanes());                                            \
+      PrimExpr x_fp32 = prim::Cast(f32_ty, x, loc);                                           \
+      PrimExpr result_fp32 = Call(f32_ty, op, {x_fp32}, {}, {}, loc).as_or_throw<PrimExpr>(); \
+      return prim::Cast(bf16_ty, result_fp32, loc);                                           \
+    } else {                                                                                  \
+      return Call(x_ty, op, {x}, {}, {}, loc).as_or_throw<PrimExpr>();                        \
+    }                                                                                         \
+  }
+
+#define TVM_DECLARE_INTRIN_UNARY(OpName) \
+  TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, [](const char*, const PrimType&) {})
+
+#define TVM_DECLARE_FLOAT_INTRIN_UNARY(OpName) \
+  TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckMathUnaryOpInputDType)
+
+TVM_DECLARE_INTRIN_UNARY(exp);
+TVM_DECLARE_INTRIN_UNARY(exp2);
+TVM_DECLARE_INTRIN_UNARY(exp10);
+TVM_DECLARE_INTRIN_UNARY(erf);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(tanh);
+TVM_DECLARE_INTRIN_UNARY(sigmoid);
+TVM_DECLARE_INTRIN_UNARY(sqrt);
+TVM_DECLARE_INTRIN_UNARY(rsqrt);
+TVM_DECLARE_INTRIN_UNARY(log);
+TVM_DECLARE_INTRIN_UNARY(log10);
+TVM_DECLARE_INTRIN_UNARY(log1p);
+TVM_DECLARE_INTRIN_UNARY(popcount);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(tan);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(cos);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(cosh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(sin);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(sinh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(asin);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(acos);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(atan);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(acosh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(asinh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(atanh);
+
+#define TVM_DECLARE_INTRIN_BINARY(OpName)                                       \
+  inline PrimExpr OpName(PrimExpr x, PrimExpr y, Location loc = UnknownLoc()) { \
+    static const Op op = Op::Get("prim." #OpName);                              \
+    return Call(x.ty(), op, {x, y}, {}, {}, loc).as_or_throw<PrimExpr>();       \
+  }
+
+TVM_DECLARE_INTRIN_BINARY(atan2);
+TVM_DECLARE_INTRIN_BINARY(nextafter);
+TVM_DECLARE_INTRIN_BINARY(copysign);
+TVM_DECLARE_INTRIN_BINARY(hypot);
+TVM_DECLARE_INTRIN_BINARY(ldexp);
+
+template <typename FReduce>
+inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const ffi::Array<PrimExpr>& values,
+                      Location loc = UnknownLoc()) {
+  for (PrimExpr val : values) {
+    init_value = freduce(init_value, val, loc);
+  }
+  return init_value;
+}
+
+}  // namespace prim
 
 }  // namespace tvm
 #endif  // TVM_IR_PRIM_OP_H_

@@ -25,6 +25,7 @@ import tvm
 import tvm.testing
 from tvm import ir, tirx
 from tvm import relax as rx
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.script import relax as R
 from tvm.script import tirx as T
 
@@ -221,7 +222,7 @@ def test_base_check():
     vdevice1 = rx.VDevice("llvm")
     vdevice2 = rx.VDevice("cuda", 0)
     vdevice3 = rx.VDevice("cuda", 2)
-    vdevice4 = rx.VDevice("cuda", 0, "")
+    vdevice4 = rx.VDevice("cuda", 0, "global")
 
     tensor0 = rx.TensorType(ndim=-1, dtype="int32")
     tensor1 = rx.TensorType(ndim=-1, dtype="float32")
@@ -708,7 +709,9 @@ def test_collect_symbolic_var_from_tensor_shape():
     x = rx.Var("x", rx.TensorType([m, m + n], "float32"))
     with bb.function("main", [x]):
         v0 = bb.match_cast(x, rx.TensorType([m, k], "float32"))
-        v1 = bb.emit(rx.call_dps_packed("test", x, rx.TensorType([p, q], "float32")))
+        v1 = bb.emit(
+            rx.call_dps_packed(_ExternFunc("test"), x, ty_args=[rx.TensorType([p, q], "float32")])
+        )
         bb.emit_func_output(rx.const(1))
     func = bb.get()["main"]
 
@@ -755,8 +758,8 @@ def test_collect_symbolic_var_from_non_tensor_params(param_type, param_order):
 
 
 def test_collect_nonnegative_expressions():
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @R.function
     def func(
@@ -765,7 +768,7 @@ def test_collect_nonnegative_expressions():
         C: R.Shape([M, N]),
         D: T.int64,
     ):
-        return R.tuple()
+        return ()
 
     M, N = list(func.params[2].ty.values)
 

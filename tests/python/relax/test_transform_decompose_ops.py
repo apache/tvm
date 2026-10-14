@@ -367,9 +367,9 @@ def test_op_tensor_to_shape():
             gv: R.Shape(ndim=3) = R.tensor_to_shape(t)
             return gv
 
-    x = T.dynamic("x")
-    x_1 = T.dynamic("x_1")
-    x_2 = T.dynamic("x_2")
+    x = T.dynamic("x", "int64")
+    x_1 = T.dynamic("x_1", "int64")
+    x_2 = T.dynamic("x_2", "int64")
 
     @I.ir_module
     class Expected:

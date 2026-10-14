@@ -28,11 +28,11 @@ import tvm
 import tvm.testing
 from tvm import te
 from tvm.ir.module import IRModule
-from tvm.ir.utils import derived_object
 from tvm.s_tir.meta_schedule import TuneContext
 from tvm.s_tir.meta_schedule.schedule_rule import PyScheduleRule
 from tvm.s_tir.meta_schedule.space_generator import PostOrderApply
 from tvm.s_tir.schedule import SBlockRV, Schedule
+from tvm.s_tir.utils import derived_object
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
@@ -53,11 +53,11 @@ def get_matmul_packed(m, n, k, lhs_type="int8", rhs_dtype="int8", acc_dtype="int
         ),
         name="compute",
     )
-    return te.create_prim_func([X, W, matmul])
+    return te.create_function([X, W, matmul])
 
 @tvm.script.ir_module
 class Matmul:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((1024, 1024), "float32"),
         B: T.Tensor((1024, 1024), "float32"),
@@ -74,7 +74,7 @@ class Matmul:
 
 @tvm.script.ir_module
 class DuplicateMatmul:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((1024, 1024), "float32"),
         B: T.Tensor((1024, 1024), "float32"),
@@ -95,12 +95,12 @@ class DuplicateMatmul:
 
 @tvm.script.ir_module
 class TrinityMatmul:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((1024, 1024), 'float32'), D: T.Tensor((1024, 1024), 'float32')) -> None:
         T.func_attr({"global_symbol": "main"})
 
-        B = Ts.sblock_alloc_buffer((1024, 1024), "float32")
-        C = Ts.sblock_alloc_buffer((1024, 1024), "float32")
+        B = Ts.sblock_alloc_tensor((1024, 1024), "float32")
+        C = Ts.sblock_alloc_tensor((1024, 1024), "float32")
 
         for i, j in T.grid(1024, 1024):
             with Ts.sblock("A"):
@@ -117,7 +117,7 @@ class TrinityMatmul:
 
 @tvm.script.ir_module
 class TrinityMatmulProcessedForReference:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor([1024, 1024], dtype="float32"), D: T.Tensor([1024, 1024], dtype="float32")
     ) -> None:
@@ -126,7 +126,7 @@ class TrinityMatmulProcessedForReference:
 
         # body
         # with tirx.block("root")
-        B = Ts.sblock_alloc_buffer([1024, 1024], dtype="float32")
+        B = Ts.sblock_alloc_tensor([1024, 1024], dtype="float32")
         for i0_0, i1_0, i0_1, i1_1 in T.grid(16, 64, 64, 16):
             with Ts.sblock("A"):
                 vi = Ts.axis.S(1024, i0_0 * 64 + i0_1)

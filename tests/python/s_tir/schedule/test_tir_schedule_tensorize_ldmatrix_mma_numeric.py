@@ -50,8 +50,8 @@ from tvm.s_tir.tensor_intrin.cuda import (
     shared_16x32_to_ldmatrix_32x16_layout,
     shared_32x16_to_ldmatrix_32x16_layout,
 )
+from tvm.s_tir.testing.tir import mma_schedule
 from tvm.testing import env
-from tvm.testing.tir import mma_schedule
 
 M = 4096
 N = 4096
@@ -102,7 +102,7 @@ def run_test(
     mma_store_intrin,
 ):
     sch = mma_schedule(
-        te.create_prim_func(matmul(M, N, K, in_dtype, out_dtype, b_transposed)),
+        te.create_function(matmul(M, N, K, in_dtype, out_dtype, b_transposed)),
         k_inner,
         in_dtype,
         b_transposed,

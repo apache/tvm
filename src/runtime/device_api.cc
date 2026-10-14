@@ -36,10 +36,13 @@
 #include <array>
 #include <cctype>
 #include <cstdlib>
+#include <limits>
+#include <map>
 #include <mutex>
 #include <sstream>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <variant>
 
 namespace tvm {
@@ -56,7 +59,6 @@ class DeviceAPIManager {
 
  private:
   std::array<DeviceAPI*, kMaxDeviceAPI> api_;
-  DeviceAPI* rpc_api_{nullptr};
   std::mutex mutex_;
   // constructor
   DeviceAPIManager() { std::fill(api_.begin(), api_.end(), nullptr); }
@@ -67,20 +69,14 @@ class DeviceAPIManager {
   }
   // Get or initialize API.
   DeviceAPI* GetAPI(int type, bool allow_missing) {
-    if (type < kRPCSessMask) {
-      if (api_[type] != nullptr) return api_[type];
-      std::lock_guard<std::mutex> lock(mutex_);
-      if (api_[type] != nullptr) return api_[type];
-      api_[type] = GetAPI(DLDeviceType2Str(type), allow_missing);
-      return api_[type];
-    } else {
-      if (rpc_api_ != nullptr) return rpc_api_;
-      std::lock_guard<std::mutex> lock(mutex_);
-      if (rpc_api_ != nullptr) return rpc_api_;
-      rpc_api_ = GetAPI("rpc", allow_missing);
-      return rpc_api_;
-    }
+    TVM_FFI_CHECK(type >= 0 && type < kMaxDeviceAPI, ValueError) << "Invalid device type " << type;
+    if (api_[type] != nullptr) return api_[type];
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (api_[type] != nullptr) return api_[type];
+    api_[type] = GetAPI(DLDeviceType2Str(type), allow_missing);
+    return api_[type];
   }
+
   DeviceAPI* GetAPI(const std::string name, bool allow_missing) {
     std::string factory = "device_api." + name;
     const auto f = tvm::ffi::Function::GetGlobal(factory);
@@ -97,48 +93,30 @@ DeviceAPI* DeviceAPI::Get(Device dev, bool allow_missing) {
   return DeviceAPIManager::Get(static_cast<int>(dev.device_type), allow_missing);
 }
 
+int DeviceAPI::GetDeviceIndex() {
+  TVM_FFI_THROW(NotImplementedError) << "Device does not support GetDeviceIndex.";
+}
+
+namespace {
+// Default workspace allocation has no cache.  Backends with reuse own their pools.
+std::unordered_map<void*, ffi::Tensor>& DefaultWorkspaces(Device dev) {
+  static thread_local std::map<std::pair<int, int>, std::unordered_map<void*, ffi::Tensor>>
+      allocations;
+  return allocations[{dev.device_type, dev.device_id}];
+}
+}  // namespace
+
 void* DeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
-  return AllocDataSpace(dev, size, kTempAllocaAlignment, type_hint);
+  int64_t count =
+      static_cast<int64_t>(size / kTempAllocaAlignment + (size % kTempAllocaAlignment != 0));
+  auto owner = Empty(ffi::ShapeView(&count, 1), DLDataType{kDLUInt, 8, kTempAllocaAlignment}, dev);
+  void* ptr = owner.data_ptr();
+  DefaultWorkspaces(dev).emplace(ptr, std::move(owner));
+  return ptr;
 }
 
-static size_t GetDataAlignment(const DLDataType dtype) {
-  size_t align = (dtype.bits / 8) * dtype.lanes;
-  if (align < kAllocAlignment) return kAllocAlignment;
-  return align;
-}
-
-size_t DeviceAPI::GetDataSize(const DLTensor& arr, ffi::Optional<ffi::String> mem_scope) {
-  if (!mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global") {
-    size_t size = 1;
-    for (int i = 0; i < arr.ndim; ++i) {
-      size *= static_cast<size_t>(arr.shape[i]);
-    }
-    return ffi::GetDataSize(size, arr.dtype);
-  }
-  TVM_FFI_THROW(InternalError) << "Device does not support physical mem computation with "
-                               << "specified memory scope: " << mem_scope.value();
-  return 0;
-}
-
-void* DeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                                ffi::Optional<ffi::String> mem_scope) {
-  if (!mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global") {
-    // by default, we can always redirect to the flat memory allocations
-    DLTensor temp;
-    temp.data = nullptr;
-    temp.device = dev;
-    temp.ndim = ndim;
-    temp.dtype = dtype;
-    temp.shape = const_cast<int64_t*>(shape);
-    temp.strides = nullptr;
-    temp.byte_offset = 0;
-    size_t size = ffi::GetDataSize(temp);
-    size_t alignment = GetDataAlignment(temp.dtype);
-    return AllocDataSpace(dev, size, alignment, dtype);
-  }
-  TVM_FFI_THROW(InternalError) << "Device does not support allocate data space with "
-                               << "specified memory scope: " << mem_scope.value();
-  return nullptr;
+void DeviceAPI::FreeWorkspace(Device dev, void* ptr) {
+  TVM_FFI_ICHECK_EQ(DefaultWorkspaces(dev).erase(ptr), 1);
 }
 
 void DeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
@@ -157,8 +135,6 @@ void DeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void* to, s
                                DLDataType type_hint, TVMStreamHandle stream) {
   TVM_FFI_THROW(InternalError) << "Device does not support CopyDataFromTo.";
 }
-
-void DeviceAPI::FreeWorkspace(Device dev, void* ptr) { FreeDataSpace(dev, ptr); }
 
 TVMStreamHandle DeviceAPI::CreateStream(Device dev) { return nullptr; }
 
@@ -204,31 +180,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed(tvm::runtime::symbol::tvm_set_device,
-                  [](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
-                    DLDevice dev;
-                    dev.device_type = static_cast<DLDeviceType>(args[0].cast<int>());
-                    dev.device_id = args[1].cast<int>();
-                    DeviceAPIManager::Get(dev)->SetDevice(dev);
-                  })
-      .def_packed("runtime.GetDeviceAttr",
-                  [](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
-                    DLDevice dev;
-                    dev.device_type = static_cast<DLDeviceType>(args[0].cast<int>());
-                    dev.device_id = args[1].cast<int>();
-
-                    DeviceAttrKind kind = static_cast<DeviceAttrKind>(args[2].cast<int>());
-                    if (kind == kExist) {
-                      DeviceAPI* api = DeviceAPIManager::Get(dev.device_type, true);
-                      if (api != nullptr) {
-                        api->GetAttr(dev, kind, ret);
-                      } else {
-                        *ret = 0;
-                      }
-                    } else {
-                      DeviceAPIManager::Get(dev)->GetAttr(dev, kind, ret);
-                    }
-                  })
+      .def("runtime.GetDeviceAttr",
+           [](int device_type, int device_id, ffi::String name) {
+             DLDevice dev{static_cast<DLDeviceType>(device_type), device_id};
+             DeviceAPI* api = DeviceAPI::Get(dev, name == "exist");
+             if (api == nullptr) return ffi::Any(false);
+             return api->GetAttr(dev, name);
+           })
       .def("runtime.TVMSetStream", [](int device_type, int device_id, void* stream) {
         Device dev;
         dev.device_type = static_cast<DLDeviceType>(device_type);
@@ -241,24 +199,39 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 using namespace tvm::runtime;
 
+int TVMBackendSetDevice(int device_type, int device_index) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  TVM_FFI_CHECK(device_type > 0 && device_type < TVMDeviceExtType_End, ValueError)
+      << "Expected a local device type, got " << device_type;
+  TVM_FFI_CHECK_GE(device_index, 0, ValueError) << "Expected a nonnegative device index";
+  DLDevice dev{static_cast<DLDeviceType>(device_type), device_index};
+  DeviceAPI::Get(dev)->SetDevice(dev);
+  TVM_FFI_SAFE_CALL_END();
+}
+
+int TVMBackendGetDeviceIndex(int device_type, int* out_device_index) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  TVM_FFI_CHECK(out_device_index != nullptr, ValueError) << "out_device_index must not be null";
+  TVM_FFI_CHECK(device_type > 0 && device_type < TVMDeviceExtType_End, ValueError)
+      << "Expected a local device type, got " << device_type;
+  DLDevice dev{static_cast<DLDeviceType>(device_type), 0};
+  int device_index = DeviceAPI::Get(dev)->GetDeviceIndex();
+  *out_device_index = device_index;
+  TVM_FFI_SAFE_CALL_END();
+}
+
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size, int dtype_code_hint,
                                int dtype_bits_hint) {
-  DLDevice dev;
-  dev.device_type = static_cast<DLDeviceType>(device_type);
-  dev.device_id = device_id;
-
-  DLDataType type_hint;
-  type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
-  type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
-  type_hint.lanes = 1;
-
-  return DeviceAPIManager::Get(dev)->AllocWorkspace(dev, static_cast<size_t>(size), type_hint);
+  DLDevice dev{static_cast<DLDeviceType>(device_type), device_id};
+  TVM_FFI_CHECK_LE(size, std::numeric_limits<size_t>::max(), ValueError)
+      << "Workspace size exceeds addressable memory";
+  DLDataType type_hint{static_cast<uint8_t>(dtype_code_hint), static_cast<uint8_t>(dtype_bits_hint),
+                       1};
+  return DeviceAPI::Get(dev)->AllocWorkspace(dev, static_cast<size_t>(size), type_hint);
 }
 
 int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
-  DLDevice dev;
-  dev.device_type = static_cast<DLDeviceType>(device_type);
-  dev.device_id = device_id;
-  DeviceAPIManager::Get(dev)->FreeWorkspace(dev, ptr);
+  DLDevice dev{static_cast<DLDeviceType>(device_type), device_id};
+  DeviceAPI::Get(dev)->FreeWorkspace(dev, ptr);
   return 0;
 }

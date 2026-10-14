@@ -159,7 +159,7 @@ for i, task in enumerate(tasks):
 ######################################################################
 # Each ``ExtractedTask`` has:
 #
-# - ``task_name``: Derived from the PrimFunc name (e.g., ``"fused_matmul_add_relu"``).
+# - ``task_name``: Derived from the Function name (e.g., ``"fused_matmul_add_relu"``).
 # - ``weight``: How many ``call_tir`` sites invoke this workload. The task
 #   scheduler uses weights to allocate more budget to frequently-called operators.
 # - ``dispatched``: List of candidate TIR modules for this workload.

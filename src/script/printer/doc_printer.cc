@@ -25,6 +25,7 @@
 #include <tvm/ir/object_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/script/printer/printer.h>
+#include <tvm/support/str_escape.h>
 
 #include <algorithm>
 #include <cmath>
@@ -40,9 +41,6 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-#include "../../support/str_escape.h"
-#include "../../support/utils.h"
 
 namespace tvm {
 namespace script {
@@ -252,11 +250,6 @@ class DocPrinter {
    * \brief Virtual method to print a DocStringDoc
    */
   virtual void PrintTypedDoc(const DocStringDoc& doc) = 0;
-
-  /*!
-   * \brief Virtual method to print a OpCallDoc
-   */
-  virtual void PrintTypedDoc(const OpCallDoc& doc) = 0;
 
   /*!
    * \brief Increase the indent level of any content to be
@@ -660,7 +653,6 @@ void DocPrinter::PrintDoc(const Doc& doc) {
     TVM_SCRIPT_PRINT_DISPATCH(ClassDoc);
     TVM_SCRIPT_PRINT_DISPATCH(CommentDoc);
     TVM_SCRIPT_PRINT_DISPATCH(DocStringDoc);
-    TVM_SCRIPT_PRINT_DISPATCH(OpCallDoc);
 #undef TVM_SCRIPT_PRINT_DISPATCH
     table.Finalize();
     return table;
@@ -940,7 +932,6 @@ class PythonDocPrinter : public DocPrinter {
   void PrintTypedDoc(const ClassDoc& doc) final;
   void PrintTypedDoc(const CommentDoc& doc) final;
   void PrintTypedDoc(const DocStringDoc& doc) final;
-  void PrintTypedDoc(const OpCallDoc& doc) final;
 
   void PrintAssignment(const ExprDoc& lhs, const ffi::Optional<ExprDoc>& rhs,
                        const ffi::Optional<ExprDoc>& annotation);
@@ -1046,10 +1037,11 @@ class PythonDocPrinter : public DocPrinter {
 
   void MaybePrintCommenMultiLines(const StmtDoc& stmt, bool new_line = false) {
     if (stmt->comment.has_value()) {
-      std::vector<std::string> comment_lines = support::Split(stmt->comment.value(), '\n');
+      std::istringstream comment_stream(stmt->comment.value());
+      std::string line;
       bool first_line = true;
       size_t start_pos = output_.tellp();
-      for (const std::string& line : comment_lines) {
+      while (std::getline(comment_stream, line)) {
         if (first_line) {
           output_ << "# " << line;
           first_line = false;
@@ -1069,8 +1061,9 @@ class PythonDocPrinter : public DocPrinter {
     size_t start_pos = output_.tellp();
     output_ << "\"\"\"";
 
-    std::vector<std::string> comment_lines = support::Split(comment, '\n');
-    for (const std::string& line : comment_lines) {
+    std::istringstream comment_stream(comment);
+    std::string line;
+    while (std::getline(comment_stream, line)) {
       if (line.empty()) {
         // No indentation on empty line
         output_ << "\n";
@@ -1159,8 +1152,7 @@ void PythonDocPrinter::PrintTypedDoc(const NamespaceDoc& doc) {
   const ffi::String& name = doc->canonical_name;
   ffi::String key = std::string(name) + ".prefix";
   ffi::String fallback = GetNamespaceAliases().Get(key).value_or(name);
-  output_ << (name == "ir" ? config()->ir_prefix
-                           : config()->GetExtraConfig<ffi::String>(key, fallback));
+  output_ << config()->GetExtraConfig<ffi::String>(key, fallback);
 }
 
 void PythonDocPrinter::PrintTypedDoc(const AttrAccessDoc& doc) {
@@ -1251,7 +1243,7 @@ void PythonDocPrinter::PrintTypedDoc(const OperationDoc& doc) {
     PrintChildExprConservatively(doc->operands[1], doc);
   } else if (doc->kind == OpKind::kIfThenElse) {
     TVM_FFI_CHECK_EQ(doc->operands.size(), 3, ValueError)
-        << "IfThenElse requires 3 operands, but got " << doc->operands.size();
+        << "If requires 3 operands, but got " << doc->operands.size();
     PrintChildExpr(doc->operands[1], doc);
     output_ << " if ";
     PrintChildExprConservatively(doc->operands[0], doc);
@@ -1403,10 +1395,10 @@ void PythonDocPrinter::PrintTypedDoc(const IfDoc& doc) {
 
   PrintIndentedBlock(doc->then_branch);
 
-  if (!doc->else_branch.empty()) {
+  if (doc->else_branch.has_value()) {
     NewLine();
     output_ << "else:";
-    PrintIndentedBlock(doc->else_branch);
+    PrintIndentedBlock(doc->else_branch.value());
   }
 }
 
@@ -1543,70 +1535,6 @@ void PythonDocPrinter::PrintTypedDoc(const DocStringDoc& doc) {
   }
 }
 
-void PythonDocPrinter::PrintTypedDoc(const OpCallDoc& doc) {
-  PrintDoc(doc->callee);
-
-  output_ << "(";
-
-  // Print positional args
-  bool wrote_any = false;
-  for (const Doc& arg : doc->args) {
-    if (wrote_any) {
-      output_ << ", ";
-    }
-    wrote_any = true;
-    PrintDoc(arg);
-  }
-  // workspace first (if present and non-empty)
-  if (doc->workspace.has_value() && !doc->workspace.value()->keys.empty()) {
-    if (wrote_any) output_ << ", ";
-    wrote_any = true;
-    output_ << "workspace=";
-    PrintDoc(doc->workspace.value());
-  }
-  // dispatch next (if present)
-  if (doc->dispatch.has_value()) {
-    if (wrote_any) output_ << ", ";
-    wrote_any = true;
-    output_ << "dispatch=";
-    PrintDoc(doc->dispatch.value());
-  }
-  // Flatten config as keyword args: key=value
-  if (doc->config.has_value() && !doc->config.value()->keys.empty()) {
-    const auto* dict = doc->config.value().as<DictDocNode>();
-    // Only flatten if all keys are literal strings; otherwise, fallback to config={...}
-    bool all_str_keys = true;
-    for (const ExprDoc& k : dict->keys) {
-      if (!k.as<LiteralDocNode>()) {
-        all_str_keys = false;
-        break;
-      }
-      const auto* lit = k.as<LiteralDocNode>();
-      if (!lit->value.as<ffi::String>()) {
-        all_str_keys = false;
-        break;
-      }
-    }
-    if (all_str_keys) {
-      int n = dict->keys.size();
-      for (int i = 0; i < n; ++i) {
-        const auto* lit = dict->keys[i].as<LiteralDocNode>();
-        std::string key = lit->value.as_or_throw<ffi::String>();
-        if (wrote_any) output_ << ", ";
-        wrote_any = true;
-        output_ << key << "=";
-        PrintDoc(dict->values[i]);
-      }
-    } else {
-      if (wrote_any) output_ << ", ";
-      wrote_any = true;
-      output_ << "config=";
-      PrintDoc(doc->config.value());
-    }
-  }
-  output_ << ")";
-}
-
 // Associate each recovered path with its nearest statement container.  Expression
 // children keep their more precise paths while annotations use the enclosing
 // statement's ordinary comment rendering. Transparent statement lists introduce
@@ -1698,7 +1626,7 @@ ffi::String RenderPythonScript(Doc doc, const PrinterConfig& cfg,
   std::string script = printer.GetString();
 
   // GetString terminates non-empty output with one newline.  Preserve the
-  // established DocToPythonScript result without normalizing any other
+  // established rendering result without normalizing any other
   // trailing whitespace.
   if (!script.empty()) {
     TVM_FFI_ICHECK_EQ(script.back(), '\n');
@@ -1711,18 +1639,12 @@ ffi::String RenderPythonScript(Doc doc, const PrinterConfig& cfg,
 
 }  // namespace details
 
-ffi::String DocToPythonScriptWithHeader(Doc doc, const PrinterConfig& cfg,
-                                        const ffi::Array<ffi::Any>& header) {
-  return details::RenderPythonScript(std::move(doc), cfg, header, cfg->path_to_underline, {});
-}
-
-ffi::String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
-  return DocToPythonScriptWithHeader(std::move(doc), cfg, {});
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.printer.DocToPythonScript", DocToPythonScript);
+  refl::GlobalDef().def("script.printer.DocToPythonScript", [](Doc doc,
+                                                               const PrinterConfig& config) {
+    return details::RenderPythonScript(std::move(doc), config, {}, config->path_to_underline, {});
+  });
 }
 
 }  // namespace printer

@@ -40,6 +40,8 @@ from typing import Any, Literal
 import tvm
 from tvm import relax as rx
 from tvm import tirx
+from tvm.ir import TupleType as _TupleType
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.frontend.nn import Object, Tensor
 from tvm.target import Target
 
@@ -146,14 +148,14 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         return Tensor(
             _expr=rx.BlockBuilder.current().emit(
                 rx.call_dps_packed(
-                    "vm.builtin.attention_kv_cache_attention_with_fused_qkv",
+                    _ExternFunc("vm.builtin.attention_kv_cache_attention_with_fused_qkv"),
                     [
                         self._expr,
                         rx.prim_value(layer_id),  # type: ignore[arg-type]
                         rx.prim_value(sm_scale),
                         qkv._expr,
                     ],
-                    out_ty=rx.TensorType((b * s, num_qo_heads, d), qkv.dtype),
+                    ty_args=[rx.TensorType((b * s, num_qo_heads, d), qkv.dtype)],
                 )
             )
         ).reshape(b, s, num_qo_heads, d)
@@ -176,7 +178,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         bb = rx.BlockBuilder.current()
         attn_results = bb.emit(
             rx.call_dps_packed(
-                "vm.builtin.attention_kv_cache_self_attention",
+                _ExternFunc("vm.builtin.attention_kv_cache_self_attention"),
                 [
                     self._expr,
                     rx.prim_value(layer_id),  # type: ignore[arg-type]
@@ -185,10 +187,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                     k._expr,
                     v._expr,
                 ],
-                out_ty=[
-                    rx.TensorType((b * s, h_qo, d_v), q.dtype),
-                    rx.TensorType((b * s, h_qo), "float32"),
-                ],
+                ty_args=[_TupleType([rx.TensorType((b * s, h_qo, d_v), q.dtype), rx.TensorType((b * s, h_qo), "float32")])],
             )
         )
         assert isinstance(attn_results.ty, rx.TupleType)
@@ -211,17 +210,14 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         bb = rx.BlockBuilder.current()
         attn_results = bb.emit(
             rx.call_dps_packed(
-                "vm.builtin.attention_kv_cache_cross_attention",
+                _ExternFunc("vm.builtin.attention_kv_cache_cross_attention"),
                 [
                     self._expr,
                     rx.prim_value(layer_id),  # type: ignore[arg-type]
                     rx.prim_value(sm_scale),
                     q._expr,
                 ],
-                out_ty=[
-                    rx.TensorType((b * s, h_qo, v_head_dim), q.dtype),
-                    rx.TensorType((b * s, h_qo), "float32"),
-                ],
+                ty_args=[_TupleType([rx.TensorType((b * s, h_qo, v_head_dim), q.dtype), rx.TensorType((b * s, h_qo), "float32")])],
             )
         )
         assert isinstance(attn_results.ty, rx.TupleType)
@@ -256,7 +252,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         return Tensor(
             _expr=rx.BlockBuilder.current().emit(
                 rx.call_dps_packed(
-                    "vm.builtin.attention_kv_cache_attention_with_shared_kv",
+                    _ExternFunc("vm.builtin.attention_kv_cache_attention_with_shared_kv"),
                     [
                         self._expr,
                         rx.prim_value(source_layer_id),  # type: ignore[arg-type]
@@ -265,7 +261,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                         current_k._expr,
                         current_v._expr,
                     ],
-                    out_ty=rx.TensorType((b * s, h_qo, d_v), q.dtype),
+                    ty_args=[rx.TensorType((b * s, h_qo, d_v), q.dtype)],
                 )
             )
         ).reshape(b, s, h_qo, d_v)

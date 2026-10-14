@@ -26,7 +26,7 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@Ts.prim_func
+@Ts.function
 def matmul(
     A: T.Tensor((128, 128), "float32"),
     B: T.Tensor((128, 128), "float32"),
@@ -40,7 +40,7 @@ def matmul(
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_after_reorder_block_iter_var(
     A: T.Tensor((128, 128), "float32"),
     B: T.Tensor((128, 128), "float32"),

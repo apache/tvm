@@ -18,9 +18,11 @@
 
 from typing import Any
 
-from ..base import Span
+from tvm.ir.location import UNKNOWN_LOC, Location
+
 from ..expr import Call, Expr
 from . import _ffi_api
+from .expr import ExprWithOp
 
 
 def convert(expr) -> Expr:
@@ -28,7 +30,7 @@ def convert(expr) -> Expr:
     return _ffi_api.convert(expr)
 
 
-def min_value(dtype, span=None):
+def min_value(dtype, loc: Location = UNKNOWN_LOC):
     """minimum value of dtype
 
     Parameters
@@ -36,7 +38,7 @@ def min_value(dtype, span=None):
     dtype : str
         The data type.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this operator in the source code.
 
     Returns
@@ -44,10 +46,10 @@ def min_value(dtype, span=None):
     value : tvm.ir.Expr
         The minimum value of dtype.
     """
-    return _ffi_api.min_value(dtype, span)  # type: ignore
+    return _ffi_api.min_value(dtype, loc)  # type: ignore
 
 
-def max_value(dtype: str, span: Span | None = None) -> Any:
+def max_value(dtype: str, loc: Location = UNKNOWN_LOC) -> Any:
     """maximum value of dtype
 
     Parameters
@@ -55,7 +57,7 @@ def max_value(dtype: str, span: Span | None = None) -> Any:
     dtype : str
         The data type.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this operator in the source code.
 
     Returns
@@ -63,7 +65,7 @@ def max_value(dtype: str, span: Span | None = None) -> Any:
     value : tvm.ir.Expr
         The maximum value of dtype.
     """
-    return _ffi_api.max_value(dtype, span)  # type: ignore
+    return _ffi_api.max_value(dtype, loc)  # type: ignore
 
 
 def clz(x):
@@ -81,3 +83,1280 @@ def clz(x):
         The result.
     """
     return Call("prim.clz", [x], ty="int32")
+
+
+def any(*args, loc: Location = UNKNOWN_LOC):
+    """Create a new experssion of the union of all conditions in the arguments
+
+    Parameters
+    ----------
+    args : list
+        List of symbolic boolean expressions
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    expr: Expr
+        Expression
+    """
+    if not args:
+        raise ValueError("Any must take at least 1 argument")
+    if len(args) == 1:
+        return args[0]
+    val = _ffi_api._OpOr(args[0], args[1], loc)  # type: ignore
+    for i in range(2, len(args)):
+        val = _ffi_api._OpOr(val, args[i], loc)  # type: ignore
+    return val
+
+
+def all(*args, loc: Location = UNKNOWN_LOC):
+    """Create a new expression of the intersection of all conditions in the
+      arguments
+
+    Parameters
+    ----------
+    args : list
+        List of symbolic boolean expressions
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    expr: Expr
+        Expression
+    """
+    if not args:
+        raise ValueError("Any must take at least 1 argument")
+    if len(args) == 1:
+        return args[0]
+    val = _ffi_api._OpAnd(args[0], args[1], loc)  # type: ignore
+    for i in range(2, len(args)):
+        val = _ffi_api._OpAnd(val, args[i], loc)  # type: ignore
+    return val
+
+
+def log2(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take log2 of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return Call("prim.log2", [x], ty=ty, loc=loc)
+
+
+def ceil(x, loc: Location = UNKNOWN_LOC):
+    """Take ceil of float input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.ceil(x, loc)  # type: ignore
+
+
+def bitwise_and(x, y, loc: Location = UNKNOWN_LOC):
+    """Take bitwise and of two values
+
+    Parameters
+    ----------
+    x : Expr
+        Left operand
+
+    y : Expr
+        Right operand
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    res : Expr
+        The result.
+    """
+    return _ffi_api.bitwise_and(x, y, loc)
+
+
+def bitwise_not(x, loc: Location = UNKNOWN_LOC):
+    """Take bitwise not of input value
+
+    Parameters
+    ----------
+    x : Expr
+        Input operand
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    res : Expr
+        The result.
+    """
+    return _ffi_api.bitwise_not(x, loc)
+
+
+def bitwise_or(x, y, loc: Location = UNKNOWN_LOC):
+    """Take bitwise or of two values
+
+    Parameters
+    ----------
+    x : Expr
+        Left operand
+
+    y : Expr
+        Right operand
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    res : Expr
+        The result.
+    """
+    return _ffi_api.bitwise_or(x, y, loc)
+
+
+def bitwise_xor(x, y, loc: Location = UNKNOWN_LOC):
+    """Take bitwise xor of two values
+
+    Parameters
+    ----------
+    x : Expr
+        Left operand
+
+    y : Expr
+        Right operand
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    res : Expr
+        The result.
+    """
+    return _ffi_api.bitwise_xor(x, y, loc)
+
+
+def likely(cond, loc: Location = UNKNOWN_LOC):
+    """Mark condition as likely.
+
+    Parameters
+    ----------
+
+    cond : Expr
+        Input argument.
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The marked expression.
+    """
+    return _ffi_api.likely(cond, loc)  # type: ignore
+
+
+def shift_left(x, y, loc: Location = UNKNOWN_LOC):
+    """Return the result of x left shifted by y bits.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    y : Expr
+        Input argument.
+
+    Returns
+    -------
+    z : Expr
+        The result.
+    """
+    return _ffi_api.left_shift(x, y, loc)
+
+
+def shift_right(x, y, loc: Location = UNKNOWN_LOC):
+    """Return the result of x right shifted by y bits.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    y : Expr
+        Input argument.
+
+    Returns
+    -------
+    z : Expr
+        The result.
+    """
+    return _ffi_api.right_shift(x, y, loc)
+
+
+def if_then_else(cond, t, f, loc: Location = UNKNOWN_LOC):
+    """Conditional selection expression.
+
+    Parameters
+    ----------
+    cond : Expr
+        The condition
+
+    t : Expr
+        The result expression if cond is true.
+
+    f : Expr
+        The result expression if cond is false.
+
+    loc : Location, optional
+        The location of this operator in the source.
+
+    Returns
+    -------
+    result : Node
+        The result of conditional expression.
+
+    Note
+    ----
+    Unlike Select, if_then_else will not execute
+    the branch that does not satisfy the condition.
+    You can use it to guard against out of bound access.
+    Unlike Select, if_then_else cannot be vectorized
+    if some lanes in the vector have different conditions.
+    """
+    return _ffi_api._OpIfThenElse(cond, t, f, loc)  # type: ignore
+
+
+def div(a, b, loc: Location = UNKNOWN_LOC):
+    """Compute a / b as in C/C++ semantics.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand, known to be non-negative.
+
+    b : Expr
+        The right hand operand, known to be non-negative.
+
+    loc : Location, optional
+        The location of this operator in the source.
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+    Note
+    ----
+    When operands are integers, returns truncdiv(a, b, loc).
+    """
+    return _ffi_api._OpDiv(a, b, loc)  # type: ignore
+
+
+def indexdiv(a, b, loc: Location = UNKNOWN_LOC):
+    """Compute floor(a / b) where a and b are non-negative.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand, known to be non-negative.
+
+    b : Expr
+        The right hand operand, known to be non-negative.
+
+    loc : Location, optional
+        The location of this operator in the source.
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+
+    Note
+    ----
+    Use this function to split non-negative indices.
+    This function may take advantage of operands'
+    non-negativeness.
+    """
+    return _ffi_api._OpIndexDiv(a, b, loc)  # type: ignore
+
+
+def indexmod(a, b, loc: Location = UNKNOWN_LOC):
+    """Compute the remainder of indexdiv. a and b are non-negative.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand, known to be non-negative.
+
+    b : Expr
+        The right hand operand, known to be non-negative.
+
+    loc : Location, optional
+        The location of this operator in the source.
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+
+    Note
+    ----
+    Use this function to split non-negative indices.
+    This function may take advantage of operands'
+    non-negativeness.
+    """
+    return _ffi_api._OpIndexMod(a, b, loc)  # type: ignore
+
+
+def truncdiv(a, b, loc: Location = UNKNOWN_LOC):
+    """Compute the truncdiv of two expressions.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand
+
+    b : Expr
+        The right hand operand
+
+    loc : Location, optional
+        The location of this operator in the source.
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+
+    Note
+    ----
+    This is the default integer division behavior in C.
+    """
+    return _ffi_api._OpTruncDiv(a, b, loc)  # type: ignore
+
+
+def truncmod(a, b, loc: Location = UNKNOWN_LOC):
+    """Compute the truncmod of two expressions.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand
+
+    b : Expr
+        The right hand operand
+
+    loc : Location, optional
+        The location of this operator in the source.
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+
+    Note
+    ----
+    This is the default integer division behavior in C.
+    """
+    return _ffi_api._OpTruncMod(a, b, loc)  # type: ignore
+
+
+def floordiv(a, b, loc: Location = UNKNOWN_LOC):
+    """Compute the floordiv of two expressions.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand
+
+    b : Expr
+        The right hand operand
+
+    loc : Location, optional
+        The location of this operator in the source.
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+    """
+    return _ffi_api._OpFloorDiv(a, b, loc)  # type: ignore
+
+
+def floormod(a, b, loc: Location = UNKNOWN_LOC):
+    """Compute the floormod of two expressions.
+
+    Parameters
+    ----------
+    a : Expr
+        The left hand operand
+
+    b : Expr
+        The right hand operand
+
+    loc : Location, optional
+        The location of this operator in the source.
+
+    Returns
+    -------
+    res : Expr
+        The result expression.
+    """
+    return _ffi_api._OpFloorMod(a, b, loc)  # type: ignore
+
+
+def ceildiv(lhs, rhs, loc: Location = UNKNOWN_LOC):
+    """Generic ceildiv operator.
+
+    Parameters
+    ----------
+    lhs : object
+        The left operand.
+    rhs : object
+        The right operand.
+    loc : Location, optional
+        The location of this operator in the source.
+
+    Returns
+    -------
+    op : tvm.Expr
+        The result Expr of ceildiv operaton.
+    """
+    return _ffi_api._OpCeilDiv(lhs, rhs, loc)  # type: ignore
+
+
+def vscale(*, ty=None, loc: Location = UNKNOWN_LOC):
+    """Get the target's vscale value. It will be lowered to llvm.vscale intrinsic
+    (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
+    Returns
+    -------
+    call : Expr
+        Call to the vscale intrinsic
+    """
+    return Call("prim.vscale", [], ty=ty, loc=loc)
+
+
+def min(a, b, loc: Location = UNKNOWN_LOC):
+    """Elementwise minimum of two primitive expressions."""
+    return _ffi_api._OpMin(a, b, loc)
+
+
+def max(a, b, loc: Location = UNKNOWN_LOC):
+    """Elementwise maximum of two primitive expressions."""
+    return _ffi_api._OpMax(a, b, loc)
+
+
+def _call_prim(ty, op, *args, loc: Location = UNKNOWN_LOC):
+    return Call(op, args, ty=ty, loc=loc)
+
+
+def _require_float_arg(op_name, x):
+    x = convert(x)
+    dtype = str(x.ty.dtype)
+    if "float" not in dtype and "bfloat" not in dtype:
+        raise TypeError(f"prim.{op_name} only supports floating-point inputs, but got {dtype}")
+    return x
+
+
+def assume(cond=None, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Provide a true statement that can be used for simplifications
+
+    Parameters
+    ----------
+    cond : Expr
+       The constraint condition.
+
+    Returns
+    -------
+    call : Expr
+        The call expression.
+    """
+    return _call_prim(ty, "prim.assume", cond, loc=loc)
+
+
+def infinity(dtype: str, loc: Location = UNKNOWN_LOC) -> Any:
+    """infinity value of dtype
+
+    Parameters
+    ----------
+    dtype : str
+        The data type.
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The infinity value of dtype.
+    """
+    return _ffi_api.infinity(dtype, loc)  # type: ignore
+
+
+def exp(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take exponential of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.exp", x, loc=loc)
+
+
+def exp2(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Calculate 2**x
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.exp2", x, loc=loc)
+
+
+def exp10(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Calculate 10**x
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.exp10", x, loc=loc)
+
+
+def fma(x, y, z, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take fused multiply-add of input x, y, z.
+
+    Parameters
+    ----------
+    x : Expr
+        First input argument.
+
+    y : Expr
+        Second input argument.
+
+    z : Expr
+        Third input argument.
+
+    Returns
+    -------
+    out : Expr
+        The result of x * y + z.
+    """
+    x = convert(x)
+    y = convert(y)
+    z = convert(z)
+    return _call_prim(ty, "prim.fma", x, y, z, loc=loc)
+
+
+def erf(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take gauss error function of the input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.erf", x, loc=loc)
+
+
+def tanh(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take hyperbolic tanh of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.tanh", x, loc=loc)
+
+
+def sigmoid(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Quick function to get sigmoid
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.sigmoid", x, loc=loc)
+
+
+def log(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take log of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.log", x, loc=loc)
+
+
+def log10(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take log10 of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.log10", x, loc=loc)
+
+
+def log1p(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take log(x + 1) with respect to input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.log1p", x, loc=loc)
+
+
+def tan(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take tan of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = _require_float_arg("tan", x)
+    return _call_prim(ty, "prim.tan", x, loc=loc)
+
+
+def cos(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take cos of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = _require_float_arg("cos", x)
+    return _call_prim(ty, "prim.cos", x, loc=loc)
+
+
+def cosh(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take cosh of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.cosh", x, loc=loc)
+
+
+def acos(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take acos of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.acos", x, loc=loc)
+
+
+def acosh(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take acos of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.acosh", x, loc=loc)
+
+
+def sin(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take sin of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = _require_float_arg("sin", x)
+    return _call_prim(ty, "prim.sin", x, loc=loc)
+
+
+def sinh(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take sinh of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.sinh", x, loc=loc)
+
+
+def asin(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take asin of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.asin", x, loc=loc)
+
+
+def asinh(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take asinh of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.asinh", x, loc=loc)
+
+
+def atan(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take atan of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.atan", x, loc=loc)
+
+
+def atanh(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take atanh of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.atanh", x, loc=loc)
+
+
+def atan2(x1, x2, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take arctan2(x1, x2).
+
+    Parameters
+    ----------
+    x1 : Expr
+        Input argument.
+
+    x2 : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x1 = convert(x1)
+    x2 = convert(x2)
+    return _call_prim(ty, "prim.atan2", x1, x2, loc=loc)
+
+
+def sqrt(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take square root of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.sqrt", x, loc=loc)
+
+
+def rsqrt(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Take reciprocal of square root of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.rsqrt", x, loc=loc)
+
+
+def floor(x: ExprWithOp, loc: Location = UNKNOWN_LOC):
+    """Take floor of float input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.floor(x, loc)  # type: ignore
+
+
+def trunc(x, loc: Location = UNKNOWN_LOC):
+    """Get truncated value of the input.
+
+    The truncated value of the scalar x is the
+    nearest integer i which is closer to zero than x is.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.trunc(x, loc)  # type: ignore
+
+
+def abs(x, loc: Location = UNKNOWN_LOC):
+    """Get absolute value of the input element-wise.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.abs(x, loc)  # type: ignore
+
+
+def round(x, loc: Location = UNKNOWN_LOC):
+    """Round elements of the array to the nearest integer.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.round(x, loc)  # type: ignore
+
+
+def nearbyint(x, loc: Location = UNKNOWN_LOC):
+    """Round elements of the array to the nearest integer.
+    This intrinsic uses llvm.nearbyint instead of llvm.round
+    which is faster but will results different from te.round.
+    Notably nearbyint rounds according to the rounding mode,
+    whereas te.round (llvm.round) ignores that.
+    For differences between the two see:
+    https://en.cppreference.com/w/cpp/numeric/math/round
+    https://en.cppreference.com/w/cpp/numeric/math/nearbyint
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.nearbyint(x, loc)  # type: ignore
+
+
+def nextafter(x1, x2, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Return the next floating-point value after x1 towards x2.
+
+    Parameters
+    ----------
+    x1 : Expr
+        Input argument.
+
+    x2 : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x1 = convert(x1)
+    x2 = convert(x2)
+    return _call_prim(ty, "prim.nextafter", x1, x2, loc=loc)  # type: ignore
+
+
+def hypot(x1, x2, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Equivalent to sqrt(x1**2 + x2**2), element-wise.
+
+    Parameters
+    ----------
+    x1 : Expr
+        Input argument.
+
+    x2 : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x1 = convert(x1)
+    x2 = convert(x2)
+    return _call_prim(ty, "prim.hypot", x1, x2, loc=loc)  # type: ignore
+
+
+def copysign(x1, x2, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Change the sign of x1 to that of x2, element-wise.
+
+    Parameters
+    ----------
+    x1 : Expr
+        Input argument.
+
+    x2 : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x1 = convert(x1)
+    x2 = convert(x2)
+    return _call_prim(ty, "prim.copysign", x1, x2, loc=loc)  # type: ignore
+
+
+def ldexp(x1, x2, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Returns x1 * (2 ** x2).
+
+    Parameters
+    ----------
+    x1 : Expr
+        Input argument.
+
+    x2 : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x1 = convert(x1)
+    x2 = convert(x2)
+    return _call_prim(ty, "prim.ldexp", x1, x2, loc=loc)  # type: ignore
+
+
+def isnan(x, loc: Location = UNKNOWN_LOC, *, ty=None):
+    """Check if input value is Nan.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return Call("prim.isnan", [x], ty=ty, loc=loc)
+
+
+def isfinite(x, loc: Location = UNKNOWN_LOC):
+    """Check if input value is finite.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.isfinite(x, loc)  # type: ignore
+
+
+def isinf(x, loc: Location = UNKNOWN_LOC):
+    """Check if input value is infinite.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.isinf(x, loc)  # type: ignore
+
+
+def power(x, y, loc: Location = UNKNOWN_LOC):
+    """x power y
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    y : Expr
+        The exponent
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    z : Expr
+        The result.
+    """
+    return _ffi_api._OpPow(x, y, loc)  # type: ignore
+
+
+def popcount(x, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Count the number of set bits in input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.popcount", x, loc=loc)
+
+
+def fmod(x, y, *, ty=None, loc: Location = UNKNOWN_LOC):
+    """Return the remainder of x divided by y with the same sign as x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+    y : Expr
+        Input argument.
+
+    Returns
+    -------
+    z : Expr
+        The result.
+    """
+    x = convert(x)
+    y = convert(y)
+    return _call_prim(ty, "prim.fmod", x, y, loc=loc)
+
+
+def pow(x, y, loc: Location = UNKNOWN_LOC):
+    """x power y
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    y : Expr
+        The exponent
+
+    loc : Location, optional
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    z : Expr
+        The result.
+    """
+    return _ffi_api._OpPow(x, y, loc)  # type: ignore

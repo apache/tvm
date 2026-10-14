@@ -41,8 +41,8 @@ from tvm.s_tir.tensor_intrin.rocm import (
     shared_16x16_to_local_64x4_layout_B,
     shared_16x16_to_local_64x4_layout_C,
 )
+from tvm.s_tir.testing.tir import mfma_schedule
 from tvm.testing import env
-from tvm.testing.tir import mfma_schedule
 
 M = 1024
 N = 1024
@@ -93,7 +93,7 @@ def run_test(
     mma_store_intrin,
 ):
     sch = mfma_schedule(
-        te.create_prim_func(matmul(M, N, K, in_dtype, out_dtype, b_transposed)),
+        te.create_function(matmul(M, N, K, in_dtype, out_dtype, b_transposed)),
         k_inner,
         in_dtype,
         b_transposed,

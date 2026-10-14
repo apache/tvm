@@ -162,10 +162,8 @@ In CI, downloading files from the Internet is a big source of flaky test failure
 server can go down or be slow), so try to avoid using the network at all during tests. In some cases
 this isn't a reasonable proposition (e.g. the docs tutorials which need to download models).
 
-New network downloads are rejected by the CI `request hook
-<https://github.com/apache/tvm/blob/main/tests/python/request_hook.py>`_. Prefer
-checked-in fixtures or generated data. If a download is unavoidable, arrange a stable
-project-managed mirror with the maintainers and add an explicit ``URL_MAP`` entry.
+Prefer checked-in fixtures or generated data. If a download is unavoidable, arrange a
+stable project-managed mirror with the maintainers.
 
 
 Handle Integer Constant Expression

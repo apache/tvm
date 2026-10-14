@@ -21,7 +21,7 @@ import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.runtime import Executable
-from tvm.tirx.function import PrimFunc
+from tvm.tirx.function import Function
 
 from . import _ffi_api
 
@@ -98,7 +98,7 @@ def _vmlink(
     builder: "relax.ExecBuilder",
     target: str | tvm.target.Target | None,
     tir_mod: tvm.IRModule | None = None,
-    tir_pipeline: str | tvm.transform.Pass | None = "default",
+    tir_pipeline: str | tvm.ir.transform.Pass | None = "default",
     ext_libs: list[tvm.runtime.Module] | None = None,
     params: dict[str, list] | None = None,
     *,
@@ -146,7 +146,7 @@ def _vmlink(
     tir_ext_libs = []
     if tir_mod is not None and len(tir_mod.get_global_vars()) > 0:
         tir_mod = _auto_attach_system_lib_prefix(tir_mod, target, system_lib)
-        lib = tvm.tirx.build(tir_mod, target=target, pipeline=tir_pipeline)
+        lib = tvm.tirx.compile(tir_mod, target=target, pipeline=tir_pipeline).mod
     for ext_mod in ext_libs:
         if _is_device_module(ext_mod):
             tir_ext_libs.append(ext_mod)
@@ -165,8 +165,8 @@ def build(
     mod: tvm.IRModule,
     target: str | tvm.target.Target | None = None,
     params: dict[str, list] | None = None,
-    relax_pipeline: None | str | tvm.transform.Pass = "default",
-    tir_pipeline: None | str | tvm.transform.Pass = "default",
+    relax_pipeline: None | str | tvm.ir.transform.Pass = "default",
+    tir_pipeline: None | str | tvm.ir.transform.Pass = "default",
     *,
     system_lib: bool | None = None,
 ) -> Executable:
@@ -229,6 +229,9 @@ def build(
         constants = attrs.get("const_name_to_constant", {})
         return ext_libs, constants
 
+    from tvm.backend.config import prepare_target
+
+    target = prepare_target(target, mod)
     if isinstance(target, str):
         target = tvm.target.Target(target)
     if not params:
@@ -273,7 +276,7 @@ def build(
 
 
 def _filter_tir(mod: tvm.IRModule) -> tvm.IRModule | None:
-    tir_mod = {gvar: func for gvar, func in mod.functions.items() if isinstance(func, PrimFunc)}
+    tir_mod = {gvar: func for gvar, func in mod.functions.items() if isinstance(func, Function)}
 
     if tir_mod:
         return IRModule(tir_mod, attrs=mod.attrs)

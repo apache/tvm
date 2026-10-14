@@ -65,10 +65,10 @@ def test_vector_comparison(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((1024,), dtype), B: T.Tensor((1024,), dtype)):
-            for i_0 in T.thread_binding(8, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 8) as i_0:
+                with T.launch_thread("threadIdx.x", 32) as i_1:
                     for i_2 in T.vectorized(4):
                         B[i_0 * 128 + i_1 * 4 + i_2] = T.Select(
                             A[i_0 * 128 + i_1 * 4 + i_2] >= zero,
@@ -77,7 +77,7 @@ def test_vector_comparison(dtype):
                         )
 
     # Build
-    f = tvm.tirx.build(Module, target=target)
+    f = tvm.tirx.compile(Module, target=target).mod
 
     # Verify we generate the boolx4 type declaration and the OpSelect
     # v4{float,half,int} instruction
@@ -136,13 +136,13 @@ def test_array_vectorize_add(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((64,), vec_dtype), B: T.Tensor((64,), vec_dtype)):
-            for i_0 in T.thread_binding(16, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(4, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 16) as i_0:
+                with T.launch_thread("threadIdx.x", 4) as i_1:
                     B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + one
 
-    f = tvm.compile(Module, target=target)
+    f = tvm.tirx.compile(Module, target=target)
 
     def run_and_check():
         dev = tvm.vulkan()
@@ -168,13 +168,13 @@ def test_vulkan_bool_load():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((1024,), "bool"), B: T.Tensor((1024,), "int32")):
-            for i_0 in T.thread_binding(8, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(128, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 8) as i_0:
+                with T.launch_thread("threadIdx.x", 128) as i_1:
                     B[i_0 * 128 + i_1] = T.Cast("int32", A[i_0 * 128 + i_1])
 
-    f = tvm.compile(Module, target=target)
+    f = tvm.tirx.compile(Module, target=target)
 
     a_np = np.random.uniform(size=arr_size) > 0.5
     b_np = np.zeros((arr_size,), dtype="int32")
@@ -226,7 +226,7 @@ def test_vulkan_constant_passing(vulkan_parameter_impl, vulkan_parameter_dtype):
     # Build IRModule programmatically since num_int_params is dynamic
     with IRBuilder() as ib:
         with I_builder.ir_module():
-            with T_builder.prim_func():
+            with T_builder.function():
                 T_builder.func_name_("main")
                 scalar_vars = []
                 for i in range(num_int_params):
@@ -240,16 +240,14 @@ def test_vulkan_constant_passing(vulkan_parameter_impl, vulkan_parameter_dtype):
                 scalar_sum = scalar_vars[0]
                 for s in scalar_vars[1:]:
                     scalar_sum = scalar_sum + s
-                with T_builder.thread_binding(
-                    tvm.tirx.ceildiv(n_var, 64), thread="blockIdx.x"
-                ) as i_0:
-                    with T_builder.thread_binding(64, thread="threadIdx.x") as i_1:
+                with T_builder.launch_thread("blockIdx.x", tvm.tirx.ceildiv(n_var, 64)) as i_0:
+                    with T_builder.launch_thread("threadIdx.x", 64) as i_1:
                         v_i = i_0 * 64 + i_1
                         with T_builder.if_(v_i < n_var):
                             with T_builder.then_():
-                                T_builder.buffer_store(B, scalar_sum + A[v_i], [v_i])
+                                T_builder.tensor_store(B, [v_i], scalar_sum + A[v_i])
     mod = ib.get()
-    f_add = tvm.compile(mod, target=target)
+    f_add = tvm.tirx.compile(mod, target=target)
 
     n = 1024
     scalars = np.array([1 for _ in range(num_int_params)]).astype(dtype)
@@ -275,10 +273,10 @@ def test_vulkan_while_if():
     n = 1
     dtype = "int32"
 
-    @T.prim_func
+    @T.function
     def while_if_gpu(A: T.Tensor((1,), "int32"), B: T.Tensor((1,), "int32")):
-        for bx in T.thread_binding(1, thread="blockIdx.x"):
-            iterations = T.decl_tensor((1,), "int32", scope="local")
+        with T.launch_thread("blockIdx.x", 1) as bx:
+            iterations = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
             iterations[0] = 0
             B[0] = 0
             while iterations[0] < T.if_then_else(A[0] > 0, 10, 20):
@@ -286,7 +284,7 @@ def test_vulkan_while_if():
                 B[0] = B[0] + iterations[0]
 
     mod = tvm.IRModule.from_expr(while_if_gpu.with_attr("target", target))
-    compiled_func = tvm.compile(mod, target=target)
+    compiled_func = tvm.tirx.compile(mod, target=target)
 
     def run_and_check():
         dev = tvm.vulkan()
@@ -309,19 +307,19 @@ def test_vulkan_local_threadidx():
     target = tvm.target.Target(target)
     n = 32
 
-    @T.prim_func
+    @T.function
     def local_threadidx_func(A: T.Tensor((32,), "int32"), B: T.Tensor((32,), "int32")):
         # First block with thread extent 16
         for _ in range(1):
-            for tx in T.thread_binding(16, thread="threadIdx.x"):
+            with T.launch_thread("threadIdx.x", 16) as tx:
                 B[tx + 0] = A[tx + 0]
         # Second block with thread extent 16
         for _ in range(1):
-            for tx in T.thread_binding(16, thread="threadIdx.x"):
+            with T.launch_thread("threadIdx.x", 16) as tx:
                 B[tx + 16] = A[tx + 16]
 
     mod = tvm.IRModule.from_expr(local_threadidx_func)
-    func = tvm.compile(mod, target=target)
+    func = tvm.tirx.compile(mod, target=target)
 
     a_np = np.arange(n).astype(dtype="int32")
     b_np = np.zeros((n,), dtype="int32")
@@ -349,16 +347,17 @@ def test_vectorized_index_ramp():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Tensor((n,), "int32", offset_factor=1), B: T.Tensor((n,), "int32", offset_factor=1)
+            A: T.Tensor((n,), "int32", offset_factor=1, elem_offset=T.int32()),
+            B: T.Tensor((n,), "int32", offset_factor=1, elem_offset=T.int32()),
         ):
             T.func_attr({"tirx.noalias": True})
 
             bx = T.launch_thread("blockIdx.x", 1)
             B[ramp_index] = A[ramp_index]
 
-    f = tvm.compile(Module, target=target)
+    f = tvm.tirx.compile(Module, target=target)
 
     a_np = np.random.randint(np.iinfo("int32").max, size=n).astype("int32")
     b_np = np.zeros(n, dtype="int32")
@@ -387,16 +386,17 @@ def test_vectorized_index_broadcast():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
-            A: T.Tensor((n,), "int32", offset_factor=1), B: T.Tensor((n,), "int32", offset_factor=1)
+            A: T.Tensor((n,), "int32", offset_factor=1, elem_offset=T.int32()),
+            B: T.Tensor((n,), "int32", offset_factor=1, elem_offset=T.int32()),
         ):
             T.func_attr({"tirx.noalias": True})
 
             bx = T.launch_thread("blockIdx.x", 1)
             B[ramp_index] = A[broadcast_index]
 
-    f = tvm.compile(Module, target=target)
+    f = tvm.tirx.compile(Module, target=target)
 
     a_np = np.random.randint(np.iinfo("int32").max, size=n).astype("int32")
     b_np = np.zeros(n, dtype="int32")
@@ -436,13 +436,13 @@ def test_negative_operand_divmod():
     offset = 16
     divisor = 5
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((N, 2), "int32")):
-        for i in T.thread_binding(N, thread="threadIdx.x"):
+        with T.launch_thread("threadIdx.x", N) as i:
             A[i, 0] = T.floordiv(i - offset, divisor)
             A[i, 1] = T.floormod(i - offset, divisor)
 
-    built = tvm.compile(func, target=target)
+    built = tvm.tirx.compile(func, target=target)
 
     def run_and_check():
         dev = tvm.vulkan()
@@ -462,40 +462,40 @@ def test_cooperative_matrix(out_dtype):
     # fmt: off
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(X: T.Tensor((16, 32), "float16"), W: T.Tensor((32, 16), "float16"), compute: T.Tensor((16, 16), out_dtype)):
             T.func_attr({"tirx.noalias": True})
-            X_shared = T.alloc_tensor((16, 32), "float16", scope="shared")
-            W_shared = T.alloc_tensor((32, 16), "float16", scope="shared")
-            X_shared_wmma_matrix_a = T.alloc_tensor((16, 32), "float16", scope="wmma.matrix_a")
-            W_shared_wmma_matrix_b = T.alloc_tensor((32, 16), "float16", scope="wmma.matrix_b")
-            compute_wmma_accumulator = T.alloc_tensor((16, 16), out_dtype, scope="wmma.accumulator")
-            for i_0_j_0_fused in T.thread_binding(1, thread="blockIdx.x"):
-                T.tvm_fill_fragment(compute_wmma_accumulator.data, 16, 16, 16, 0, T.float32(0.0))
+            X_shared = T.alloc_tensor(ty_args=[T.Tensor((16, 32), "float16", scope="shared")])
+            W_shared = T.alloc_tensor(ty_args=[T.Tensor((32, 16), "float16", scope="shared")])
+            X_shared_wmma_matrix_a = T.alloc_tensor(ty_args=[T.Tensor((16, 32), "float16", scope="wmma.matrix_a")])
+            W_shared_wmma_matrix_b = T.alloc_tensor(ty_args=[T.Tensor((32, 16), "float16", scope="wmma.matrix_b")])
+            compute_wmma_accumulator = T.alloc_tensor(ty_args=[T.Tensor((16, 16), out_dtype, scope="wmma.accumulator")])
+            with T.launch_thread("blockIdx.x", 1) as i_0_j_0_fused:
+                T.gpu_fill_fragment(compute_wmma_accumulator.data, 16, 16, 16, 0, T.float32(0.0))
                 for k_0 in range(2):
                     for fused_outer in range(2):
-                        for tx in T.thread_binding(32, thread="threadIdx.x"):
+                        with T.launch_thread("threadIdx.x", 32) as tx:
                             for lane in T.vectorized(4):
                                 index = fused_outer * 128 + tx * 4 + lane
                                 X_shared[index // 16, k_0 * 16 + index % 16] = X[index // 16, k_0 * 16 + index % 16]
                                 W_shared[k_0 * 16 + index // 16, index % 16] = W[k_0 * 16 + index // 16, index % 16]
-                    T.tvm_storage_sync("shared")
-                    T.tvm_load_matrix_sync(X_shared_wmma_matrix_a.data, 16, 16, 16, k_0,
-                        T.tvm_access_ptr(T.type_annotation("float16"), X_shared.data, k_0 * 16, 512, 1), 32, "row_major")
-                    T.tvm_load_matrix_sync(W_shared_wmma_matrix_b.data, 16, 16, 16, k_0,
-                        T.tvm_access_ptr(T.type_annotation("float16"), W_shared.data, k_0 * 256, 256, 1), 16, "row_major")
-                    T.tvm_mma_sync(compute_wmma_accumulator.data, 0,
+                    T.gpu_storage_sync("shared")
+                    T.gpu_load_matrix_sync(X_shared_wmma_matrix_a.data, 16, 16, 16, k_0,
+                        X_shared.ptr_to([0, k_0 * 16]), 32, "row_major")
+                    T.gpu_load_matrix_sync(W_shared_wmma_matrix_b.data, 16, 16, 16, k_0,
+                        W_shared.ptr_to([k_0 * 16, 0]), 16, "row_major")
+                    T.gpu_mma_sync(compute_wmma_accumulator.data, 0,
                         X_shared_wmma_matrix_a.data, k_0, W_shared_wmma_matrix_b.data, k_0,
                         compute_wmma_accumulator.data, 0)
-                T.tvm_store_matrix_sync(compute_wmma_accumulator.data, 16, 16, 16, 0,
-                    T.tvm_access_ptr(T.type_annotation(out_dtype), compute.data, 0, 256, 2), 16, "row_major")
+                T.gpu_store_matrix_sync(compute_wmma_accumulator.data, 16, 16, 16, 0,
+                    compute.ptr_to([0, 0]), 16, "row_major")
     # fmt: on
 
     target = {"kind": "vulkan", "from_device": 0}
     tgt_attrs = tvm.target.Target(target).attrs
 
     if tgt_attrs.get("supports_cooperative_matrix"):
-        f = tvm.compile(Module, target=target)
+        f = tvm.tirx.compile(Module, target=target)
 
         def run_and_check():
             dev = tvm.vulkan(0)
@@ -518,11 +518,11 @@ def test_codegen_decl_buffer():
 
     @I.ir_module
     class AllocationBacked:
-        @T.prim_func
+        @T.function
         def kernel():
             T.func_attr({"calling_conv": 2, "global_symbol": "kernel", "tirx.noalias": True})
-            A = T.alloc_tensor((256,), dtype="float32", scope="local")
-            A_buf = T.decl_tensor([256], dtype="float32", scope="local", data=A.data)
+            A = T.alloc_tensor(ty_args=[T.Tensor((256,), "float32", scope="local")])
+            A_buf = T.decl_tensor(A.data, ty_args=[T.Tensor([256], "float32", scope="local")])
             A_buf[0] = T.float32(1)
             T.evaluate(A_buf[0])
 
@@ -532,14 +532,14 @@ def test_codegen_decl_buffer():
 
     @I.ir_module
     class ParameterBacked:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((1,), "float32"), B: T.Tensor((1,), "float32")):
-            A_buf = T.decl_tensor([1], dtype="float32", data=A.data)
-            B_buf = T.decl_tensor([1], dtype="float32", data=B.data)
-            for tx in T.thread_binding(1, thread="threadIdx.x"):
+            A_buf = T.decl_tensor(A.data, ty_args=[T.Tensor([1], "float32", data=A.data)])
+            B_buf = T.decl_tensor(B.data, ty_args=[T.Tensor([1], "float32", data=B.data)])
+            with T.launch_thread("threadIdx.x", 1) as tx:
                 B_buf[tx] = A_buf[tx]
 
-    tvm.compile(ParameterBacked, target=target)
+    tvm.tirx.compile(ParameterBacked, target=target)
 
 
 @pytest.mark.gpu
@@ -549,16 +549,16 @@ def test_codegen_static_shared_memory():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
-            A_shared = T.alloc_tensor((128,), dtype="float32", scope="shared")
+            A_shared = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared")])
 
-            for bx in T.thread_binding(1, thread="blockIdx.x"):
-                for tx in T.thread_binding(128, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", 1) as bx:
+                with T.launch_thread("threadIdx.x", 128) as tx:
                     A_shared[tx] = A[tx]
                     B[tx] = A_shared[tx]
 
-    tvm.compile(Module, target="vulkan")
+    tvm.tirx.compile(Module, target="vulkan")
 
 
 @pytest.mark.gpu
@@ -586,15 +586,15 @@ def test_unary():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((m,), "float32"), B: T.Tensor((m,), "float32")):
-                for i_0 in T.thread_binding((m + 63) // 64, thread="blockIdx.x"):
-                    for i_1 in T.thread_binding(64, thread="threadIdx.x"):
+                with T.launch_thread("blockIdx.x", (m + 63) // 64) as i_0:
+                    with T.launch_thread("threadIdx.x", 64) as i_1:
                         if i_0 * 64 + i_1 < m:
                             B[i_0 * 64 + i_1] = tvm_intrin(A[i_0 * 64 + i_1])
 
         target = tvm.target.Target("vulkan")
-        func = tvm.compile(Module, target=target)
+        func = tvm.tirx.compile(Module, target=target)
 
         if tvm_intrin in [tvm.tirx.asin, tvm.tirx.acos]:
             data = np.random.uniform(-1.0, 1.0, size=n)
@@ -626,15 +626,15 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((n,), "float32"), B: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
-            for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
-                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+            with T.launch_thread("blockIdx.x", n // 32) as i_0:
+                with T.launch_thread("threadIdx.x", 32) as i_1:
                     B[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + 1.0
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
-    host_lib = tvm.compile(Module, target="vulkan")
+    host_lib = tvm.tirx.compile(Module, target="vulkan")
     monkeypatch.delenv("TVM_COMPILE_FORCE_FALLBACK")
 
     lib_path = str(tmp_path / "lib.so")

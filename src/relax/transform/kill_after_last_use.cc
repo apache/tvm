@@ -29,8 +29,9 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/stmt_functor.h>
 
-#include <map>
-#include <set>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "utils.h"
@@ -187,7 +188,7 @@ class CollectLastUsage : public ExprVisitor {
   }
 
   void VisitBinding_(const VarBindingNode* binding, const GenericConstNode* val) override {
-    if (val->value.as<runtime::Tensor>()) constant_tensors_.insert(binding->var.get());
+    if (val->value.as<ffi::TensorObj>()) constant_tensors_.insert(binding->var.get());
   }
 
  private:
@@ -245,21 +246,19 @@ class KillInserter : public ExprMutator {
     if (auto it = last_usage_.find(binding->var.get()); it != last_usage_.end()) {
       static const Op mem_kill_tensor = Op::Get("relax.memory.kill_tensor");
       for (const auto& tensor_obj : it->second.tensors) {
-        builder_->Emit(
-            Call::Unchecked(Type::Missing(), mem_kill_tensor, {ffi::GetRef<Expr>(tensor_obj)}),
-            /*name_hint=*/"_");
+        builder_->Emit(Call(Type::Missing(), mem_kill_tensor, {ffi::GetRef<Expr>(tensor_obj)}),
+                       /*name_hint=*/"_");
       }
 
       static const Op mem_kill_storage = Op::Get("relax.memory.kill_storage");
       for (const VarNode* storage_obj : it->second.storage) {
-        builder_->Emit(
-            Call::Unchecked(Type::Missing(), mem_kill_storage, {ffi::GetRef<Expr>(storage_obj)}),
-            /*name_hint=*/"_");
+        builder_->Emit(Call(Type::Missing(), mem_kill_storage, {ffi::GetRef<Expr>(storage_obj)}),
+                       /*name_hint=*/"_");
       }
 
       static const Op vm_kill_object = Op::Get("relax.vm.kill_object");
       for (const VarNode* obj : it->second.objects) {
-        builder_->Emit(Call::Unchecked(Type::Missing(), vm_kill_object, {ffi::GetRef<Expr>(obj)}),
+        builder_->Emit(Call(Type::Missing(), vm_kill_object, {ffi::GetRef<Expr>(obj)}),
                        /*name_hint=*/"_");
       }
     }
@@ -282,7 +281,7 @@ Pass KillAfterLastUse() {
   auto pass_func = [=](Function func, IRModule m, PassContext pc) {
     return relax::KillAfterLastUse(std::move(func)).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, /*opt_level=*/0, "KillAfterLastUse", {});
+  return CreateFunctionPass(pass_func, /*opt_level=*/0, "KillAfterLastUse");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -19,13 +19,13 @@
 
 /*!
  * \file update_pointer_storage_scope.h
- * \brief A pass to update storage scopes for buffer variables.
+ * \brief A pass to update storage scopes for tensor and pointer variables.
  */
 #ifndef TVM_TIR_TRANSFORM_UPDATE_POINTER_STORAGE_SCOPE_H_
 #define TVM_TIR_TRANSFORM_UPDATE_POINTER_STORAGE_SCOPE_H_
 
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
@@ -42,11 +42,11 @@ class UpdatePointerStorageScope : public StmtExprMutator {
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final;
 
   explicit UpdatePointerStorageScope(
-      const std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
+      const std::unordered_map<Var, runtime::MemoryScope, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
           new_storage_scopes);
 
  private:
-  std::unordered_map<const CallNode*, ffi::String> buffer_scopes_;
+  std::unordered_map<const CallNode*, runtime::MemoryScope> tensor_scopes_;
 };
 
 }  // namespace tirx

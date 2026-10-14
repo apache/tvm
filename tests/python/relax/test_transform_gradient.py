@@ -1077,7 +1077,7 @@ def test_function_copy():
 
 
 def test_tir_copy():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -1107,7 +1107,7 @@ def test_report_error():
         def main(x: R.Tensor((3, 3), "float32")):
             with R.dataflow():
                 lv1 = R.sum(x)
-                gv = R.tuple(lv1, lv1)
+                gv = (lv1, lv1)
                 R.output(gv)
             return gv
 
@@ -1209,7 +1209,7 @@ def test_report_error():
                 R.output(gv)
             return gv
 
-        @Ts.prim_func
+        @Ts.function
         def sum(
             rxplaceholder: T.Tensor((T.int64(3), T.int64(3)), "float32"),
             rxplaceholder_red: T.Tensor((), "float32"),

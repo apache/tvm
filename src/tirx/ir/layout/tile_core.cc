@@ -151,10 +151,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { ComposeLayoutNode::RegisterReflection(); }
 
 /**************** Iter ****************/
 Iter::Iter(PrimExpr extent, PrimExpr stride, Axis axis) {
-  auto n = ffi::make_object<IterNode>();
-  n->extent = extent;
-  n->stride = stride;
-  n->axis = axis;
+  auto n = ffi::make_object<IterNode>(extent, stride, axis);
   data_ = std::move(n);
 }
 
@@ -174,7 +171,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /**************** TileLayout ****************/
 TileLayout::TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
-                       ffi::Map<Axis, PrimExpr> offset) {
+                       ffi::Map<Axis, PrimExpr> offset)
+    : Layout(ffi::UnsafeInit{}) {
   auto n = ffi::make_object<TileLayoutNode>();
   n->shard = shard;
   n->replica = replica;
@@ -199,43 +197,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-bool TileLayoutNode::CompatibleWithShape(const Array<PrimExpr>& shape) const { return true; }
-
-bool VerifyCompactness(const std::vector<Iter>& iters) {
-  sym::Analyzer analyzer;
-  PrimExpr stride_to_find = 1;
-  for (size_t i = 0; i < iters.size(); ++i) {
-    auto iter = std::find_if(iters.begin(), iters.end(), [&](const Iter& iter) {
-      return analyzer->CanProveEqual(iter->stride, stride_to_find);
-    });
-    if (iter == iters.end()) return false;
-    stride_to_find *= (*iter)->extent;
-  }
-  return true;
-}
-
 bool TileLayoutNode::VerifyWellFormed() const {
-  // // 1. For thread axes, verify its compactness
-  // std::unordered_map<String, std::vector<Iter>> thread_axes;
-  // auto collect_thread_axis = [&thread_axes](const Iter& iter) {
-  //   if (iter->axis->IsThreadAxis()) {
-  //     thread_axes[iter->axis.name()].push_back(iter);
-  //   }
-  // };
-  // for (const auto& iter : shard) {
-  //   collect_thread_axis(iter);
-  // }
-  // for (const auto& iter : replica) {
-  //   collect_thread_axis(iter);
-  // }
-  // for (const auto& [axis, off] : offset) {
-  //   collect_thread_axis(Iter(1, off, axis));
-  // }
-  // for (const auto& [axis, iters] : thread_axes) {
-  //   if (!VerifyCompactness(iters)) {
-  //     return false;
-  //   }
-  // }
   // 1. Check if the scope is connected
   if (!GetScope().has_value() && HasThreadAxis()) {
     return false;
@@ -323,18 +285,20 @@ ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(Array<PrimExpr> coord) con
   for (size_t i = 0; i < shard.size(); ++i) {
     auto it = result.find(shard[i]->axis.name());
     if (it == result.end()) {
-      result[shard[i]->axis.name()] = analyzer->Simplify(coord[i] * shard[i]->stride);
+      result.insert_or_assign(shard[i]->axis.name(),
+                              analyzer->Simplify(coord[i] * shard[i]->stride));
     } else {
-      result[shard[i]->axis.name()] = analyzer->Simplify(it->second + coord[i] * shard[i]->stride);
+      result.insert_or_assign(shard[i]->axis.name(),
+                              analyzer->Simplify(it->second + coord[i] * shard[i]->stride));
     }
   }
   // Add offset to the result
   for (const auto& [axis, off] : offset) {
     auto it = result.find(axis.name());
     if (it == result.end()) {
-      result[axis.name()] = analyzer->Simplify(off);
+      result.insert_or_assign(axis.name(), analyzer->Simplify(off));
     } else {
-      result[axis.name()] = analyzer->Simplify(it->second + off);
+      result.insert_or_assign(axis.name(), analyzer->Simplify(it->second + off));
     }
   }
   return result;
@@ -347,7 +311,7 @@ ffi::Array<PrimExpr> TileLayoutNode::GetShardShape() const {
 bool TileLayoutNode::IsTrivial() const {
   if (shard.size() > 1) return false;
   if (shard.size() == 1) {
-    if (!shard[0]->axis->IsMemoryAxis() || !is_one(shard[0]->stride)) return false;
+    if (!shard[0]->axis->IsMemoryAxis() || !IsOne(shard[0]->stride)) return false;
   }
   return replica.size() == 0 && offset.size() == 0;
 }
@@ -357,24 +321,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("tirx.TileLayoutIsTrivial", [](const TileLayout& layout) {
     return layout->Canonicalize().as<TileLayout>().value()->IsTrivial();
   });
-}
-
-bool TileLayoutNode::IsTrainium() const {
-  return !std::any_of(shard.begin(), shard.end(), [](const Iter& iter) {
-    return iter->axis->IsMemoryAxis() && !iter->axis.same_as(Axis::Get("F")) &&
-           !iter->axis.same_as(Axis::Get("P")) && !iter->axis.same_as(Axis::Get("Bank"));
-  });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.TileLayoutIsTrainium",
-                        [](const TileLayout& layout) { return layout->IsTrainium(); });
-}
-
-bool TileLayoutNode::HasMemoryAxis() const {
-  return std::any_of(shard.begin(), shard.end(),
-                     [](const Iter& iter) { return iter->axis->IsMemoryAxis(); });
 }
 
 bool TileLayoutNode::HasThreadAxis() const {
@@ -387,19 +333,27 @@ ffi::Optional<ffi::Tuple<ExecScope, ExecScope>> TileLayoutNode::GetScope() const
 
   std::unordered_map<ffi::String, ffi::String> scope_map;
   ffi::Optional<ffi::String> inner_most;
+  ffi::Optional<ffi::String> backend;
 
   auto check_axis = [&](const Axis& axis) {
     if (!axis->IsThreadAxis()) return;
 
-    auto subtile_primitivet = axis->GetSubscope();
-    auto tile_primitivet = axis->GetScope();
-    TVM_FFI_ICHECK(subtile_primitivet.has_value() && tile_primitivet.has_value())
+    auto subscope_opt = axis->GetSubscope();
+    auto scope_opt = axis->GetScope();
+    TVM_FFI_ICHECK(subscope_opt.has_value() && scope_opt.has_value())
         << "Thread axis " << axis.name() << " has no subscope or scope";
 
-    ffi::String subscope = subtile_primitivet.value()->name();
-    ffi::String scope = tile_primitivet.value()->name();
+    if (backend.has_value()) {
+      TVM_FFI_CHECK(backend.value() == subscope_opt.value()->backend, ValueError)
+          << "Layout contains thread axes from different backends";
+    } else {
+      backend = subscope_opt.value()->backend;
+    }
+    ffi::String subscope = subscope_opt.value()->name();
+    ffi::String scope = scope_opt.value()->name();
 
-    if (!inner_most.has_value() || ScopeNameHigher(inner_most.value(), subscope))
+    if (!inner_most.has_value() ||
+        ScopeHigher(ExecScope(backend.value(), inner_most.value()), subscope_opt.value()))
       inner_most = subscope;
 
     auto it = scope_map.find(subscope);
@@ -423,7 +377,8 @@ ffi::Optional<ffi::Tuple<ExecScope, ExecScope>> TileLayoutNode::GetScope() const
   }
 
   TVM_FFI_ICHECK_EQ(count, scope_map.size()) << "Ill-formed tile layout: disconnected scope chain";
-  return Tuple<ExecScope, ExecScope>{ExecScope(inner_most.value()), ExecScope(outer_most)};
+  return Tuple<ExecScope, ExecScope>{ExecScope(backend.value(), inner_most.value()),
+                                     ExecScope(backend.value(), outer_most)};
 }
 
 TileLayout TileLayoutNode::DefaultLayout(ffi::Array<PrimExpr> shape) {
