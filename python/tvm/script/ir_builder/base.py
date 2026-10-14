@@ -225,11 +225,12 @@ class IRBuilder(_Object):
                 self
             )
 
-    def _set_current_loc(self, value):
-        """Compose the active source location onto the same supported IR node or frame."""
-        return _ffi_api.IRBuilderSetCurrentLoc(  # type: ignore[attr-defined] # pylint: disable=no-member
-            self, value
+    def _attach_loc(self, value, loc=None):
+        """Compose active and explicit source context onto the same supported IR node or frame."""
+        _ffi_api.IRBuilderAttachLoc(  # type: ignore[attr-defined] # pylint: disable=no-member
+            self, value, UnknownLoc() if loc is None else loc
         )
+        return value
 
     @staticmethod
     def name(s: str, v: Any) -> Any:
@@ -366,7 +367,7 @@ def at(loc: LocationEntry | ir.Location | None, value: _T) -> _T:
     targets = target if isinstance(target, list | tuple) else (target,)
     for item in targets:
         if isinstance(item, _Object):
-            _ffi_api.IRBuilderSetLoc(IRBuilder.current(), item, loc)
+            IRBuilder.current()._attach_loc(item, loc)
     return value
 
 

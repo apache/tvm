@@ -179,12 +179,10 @@ class IRBuilderObj : public ffi::Object {
   void PushLoc(Location loc);
   /*! \brief Pop the innermost frontend source location. */
   void PopLoc();
-  /*! \brief Return the normalized active source loc, including expansion history. */
-  Location GetCurrentLoc(Location location = UnknownLoc()) const;
-  /*! \brief Compose active source context onto a supported node or construction frame. */
-  ffi::ObjectRef SetCurrentLoc(ffi::ObjectRef obj) const;
-  /*! \brief Attach an explicit location composed with the active source-call context. */
-  ffi::ObjectRef SetLoc(ffi::ObjectRef obj, Location loc) const;
+  /*! \brief Normalize the full active source stack with an optional explicit location. */
+  Location ResolveLoc(Location location = UnknownLoc()) const;
+  /*! \brief Compose active and explicit source context onto the same supported node or frame. */
+  ffi::ObjectRef AttachLoc(ffi::ObjectRef obj, Location loc = UnknownLoc()) const;
 };
 
 /*!
