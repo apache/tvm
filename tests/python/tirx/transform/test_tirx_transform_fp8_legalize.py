@@ -17,6 +17,7 @@
 import tvm
 import tvm.script
 import tvm.testing
+from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.target import Target
 from tvm.tirx.transform.transform import BindTarget
@@ -222,7 +223,13 @@ def test_fp8_compute_legalize_preserves_opaque_tensor_access(dtype, promote_dtyp
         tensor = T.alloc_tensor(ty_args=[T.Tensor((16,), dtype)])
         T.evaluate(T.call_extern("consume", tensor.data, ty="void"))
 
-    before_mod = tvm.IRModule.from_expr(before)
+    input_func = before
+
+    @I.ir_module(check_well_formed=False)
+    class InputModule:
+        main = input_func
+
+    before_mod = InputModule
     after = tvm.tirx.transform.FP8ComputeLegalize(promote_dtype)(before_mod)
     tvm.ir.assert_structural_equal(after, before_mod)
 

@@ -292,5 +292,15 @@ def test_tir_op_TVMBackendFreeWorkspace():
     assert expr.op.name == "tirx.free_workspace"
 
 
+def test_ptx_ops_have_variadic_call_signature():
+    from tvm.backend.cuda.ptx import TABLE
+
+    op = tvm.ir.Op.get(next(iter(TABLE.values())).op_name)
+    assert not op.args_info
+    assert op.var_args_info.name == "operands"
+    tvm.ir.Call(op, []).validate()
+    tvm.ir.Call(op, [tvm.ir.Var("x", tvm.ir.AnyType())]).validate()
+
+
 if __name__ == "__main__":
     tvm.testing.main()

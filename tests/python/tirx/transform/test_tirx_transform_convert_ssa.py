@@ -26,19 +26,18 @@ from tvm.script import tirx as T
 def test_reuse_in_sequential_bind():
     """De-dup sequential variable bindings"""
 
-    # Manually construct the Function body, as SSA violations are
-    # not valid TIR, and may not be expressible in future versions
-    # of TVMSCript.
-    var = tirx.Var("var", "int32")
-    sequential_bindings = tvm.ir.SeqStmt(
-        [
-            tvm.ir.Bind(var, 16),
-            tvm.ir.Evaluate(var),
-            tvm.ir.Bind(var, 32),
-            tvm.ir.Evaluate(var),
-        ]
-    )
-    before = tirx.Function([], sequential_bindings)
+    var = T.dynamic("var", "int32")
+
+    @I.ir_module(check_well_formed=False)
+    class Before:
+        @T.function(private=True)
+        def main():
+            T.bind(16, var=var)
+            T.evaluate(var)
+            T.bind(32, var=var)
+            T.evaluate(var)
+
+    assert Before["main"].body[0].var.same_as(Before["main"].body[2].var)
 
     @T.function(private=True)
     def expected():
@@ -47,60 +46,37 @@ def test_reuse_in_sequential_bind():
         var2 = T.bind(T.int32(32))
         T.evaluate(var2)
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = tvm.tirx.transform.ConvertSSA()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    After = tvm.tirx.transform.ConvertSSA()(Before)
+    tvm.ir.assert_structural_equal(After["main"], expected)
 
 
 def test_reuse_in_nested_bind():
-    """De-dup sequential bindings of the same variable.
+    """Redefinition changes all subsequent uses, including the final sibling."""
+    var = T.dynamic("var", "int32")
 
-    In the flat Bind model, all Binds are siblings in a SeqStmt. A second
-    Bind of the same variable redefines it for all subsequent siblings.
-    ConvertSSA should create a new variable for the second binding and
-    update all subsequent uses to refer to the new variable.
-    """
+    @I.ir_module(check_well_formed=False)
+    class Before:
+        @T.function(private=True)
+        def main():
+            T.bind(32, var=var)
+            T.evaluate(var)
+            T.bind(16, var=var)
+            T.evaluate(var)
+            T.evaluate(var)
 
-    # Manually construct the Function body, as SSA violations are
-    # not valid TIR, and may not be expressible in future versions
-    # of TVMScript.
-    var = tirx.Var("var", "int32")
-    # Note: nested SeqStmt is flattened by the IR builder, so the input
-    # is actually a flat SeqStmt with 5 elements.
-    inner_seq = tvm.ir.SeqStmt(
-        [
-            tvm.ir.Bind(var, 16),
-            tvm.ir.Evaluate(var),
-        ]
-    )
-    outer_seq = tvm.ir.SeqStmt(
-        [
-            tvm.ir.Bind(var, 32),
-            tvm.ir.Evaluate(var),
-            inner_seq,
-            tvm.ir.Evaluate(var),
-        ]
-    )
-    before = tirx.Function([], outer_seq)
+    @I.ir_module
+    class Expected:
+        @T.function(private=True)
+        def main():
+            var1 = T.bind(32)
+            T.evaluate(var1)
+            var2 = T.bind(16)
+            T.evaluate(var2)
+            T.evaluate(var2)
 
-    # In the flat model, the second Bind(var, 16) redefines var for
-    # ALL subsequent siblings including the last Evaluate.
-    var1 = tirx.Var("var", "int32")
-    var2 = tirx.Var("var", "int32")
-    expected_body = tvm.ir.SeqStmt(
-        [
-            tvm.ir.Bind(var1, 32),
-            tvm.ir.Evaluate(var1),
-            tvm.ir.Bind(var2, 16),
-            tvm.ir.Evaluate(var2),
-            tvm.ir.Evaluate(var2),
-        ]
-    )
-    expected = tirx.Function([], expected_body)
-
-    mod = tvm.IRModule.from_expr(before)
-    mod = tvm.tirx.transform.ConvertSSA()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    assert Before["main"].body[0].var.same_as(Before["main"].body[2].var)
+    After = tvm.tirx.transform.ConvertSSA()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 def test_reused_var_across_module():
@@ -111,12 +87,12 @@ def test_reused_var_across_module():
         var = T.bind(10)
         T.evaluate(var)
 
-    before = tvm.IRModule(
-        {
-            "func_a": func.with_attr("global_symbol", "func_a"),
-            "func_b": func.with_attr("global_symbol", "func_b"),
-        }
-    )
+    @I.ir_module(check_well_formed=False)
+    class before:
+        func_a = func.with_attr("global_symbol", "func_a")
+        func_b = func.with_attr("global_symbol", "func_b")
+
+    assert before["func_a"].body.same_as(before["func_b"].body)
 
     @I.ir_module
     class expected:
@@ -145,12 +121,12 @@ def test_reused_parameter():
     def func(n: T.int32):
         T.evaluate(n)
 
-    before = tvm.IRModule(
-        {
-            "func_a": func.with_attr("global_symbol", "func_a"),
-            "func_b": func.with_attr("global_symbol", "func_b"),
-        }
-    )
+    @I.ir_module(check_well_formed=False)
+    class before:
+        func_a = func.with_attr("global_symbol", "func_a")
+        func_b = func.with_attr("global_symbol", "func_b")
+
+    assert before["func_a"].body.same_as(before["func_b"].body)
 
     @I.ir_module
     class expected:
@@ -174,12 +150,12 @@ def test_reused_tensor_obj():
         A = T.decl_tensor(a, ty_args=[T.Tensor(1, "float32", data=a)])
         T.evaluate(A[0])
 
-    before = tvm.IRModule(
-        {
-            "func_a": func.with_attr("global_symbol", "func_a"),
-            "func_b": func.with_attr("global_symbol", "func_b"),
-        }
-    )
+    @I.ir_module(check_well_formed=False)
+    class before:
+        func_a = func.with_attr("global_symbol", "func_a")
+        func_b = func.with_attr("global_symbol", "func_b")
+
+    assert before["func_a"].body.same_as(before["func_b"].body)
 
     @I.ir_module
     class expected:
@@ -204,12 +180,12 @@ def test_reused_tensor_parameter():
     def func(A: T.Tensor(1, "float32")):
         T.evaluate(A[0])
 
-    before = tvm.IRModule(
-        {
-            "func_a": func.with_attr("global_symbol", "func_a"),
-            "func_b": func.with_attr("global_symbol", "func_b"),
-        }
-    )
+    @I.ir_module(check_well_formed=False)
+    class before:
+        func_a = func.with_attr("global_symbol", "func_a")
+        func_b = func.with_attr("global_symbol", "func_b")
+
+    assert before["func_a"].body.same_as(before["func_b"].body)
 
     @I.ir_module
     class expected:
@@ -227,17 +203,34 @@ def test_reused_tensor_parameter():
 
 def test_reused_compound_tensor_shape_var():
     """De-duplicate implicit Vars nested in tensor parameter shapes."""
-    n = tirx.Var("n", "int32")
-    A = tirx.decl_tensor((tirx.max(n, 1),), layout=None)
-    func = tirx.Function([A], tvm.ir.Evaluate(n))
-    before = tvm.IRModule(
-        {
-            "func_a": func.with_attr("global_symbol", "func_a"),
-            "func_b": func.with_attr("global_symbol", "func_b"),
-        }
-    )
+    n = T.dynamic("n", "int32")
+
+    @T.function(private=True)
+    def func(A: T.Tensor((T.max(n, 1),), "float32", layout=None)):
+        T.evaluate(n)
+
+    @I.ir_module(check_well_formed=False)
+    class before:
+        func_a = func.with_attr("global_symbol", "func_a")
+        func_b = func.with_attr("global_symbol", "func_b")
+
+    assert before["func_a"].body.same_as(before["func_b"].body)
+
+    n_a = T.dynamic("n", "int32")
+    n_b = T.dynamic("n", "int32")
+
+    @I.ir_module
+    class Expected:
+        @T.function
+        def func_a(A: T.Tensor((T.max(n_a, 1),), "float32", layout=None)):
+            T.evaluate(n_a)
+
+        @T.function
+        def func_b(A: T.Tensor((T.max(n_b, 1),), "float32", layout=None)):
+            T.evaluate(n_b)
 
     after = tvm.tirx.transform.ConvertSSA()(before)
+    tvm.ir.assert_structural_equal(after, Expected)
     func_a = after["func_a"]
     func_b = after["func_b"]
     n_a = func_a.params[0].shape[0].a
@@ -293,7 +286,7 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
         def kernel_1(A: T.Tensor([256], "float32")):
             T.region(
                 "tirx.launch_thread",
-                [tvm.ir.StringImm("threadIdx.x"), 256],
+                ["threadIdx.x", 256],
                 body_params=[threadIdx_x],
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
@@ -302,7 +295,7 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
         def kernel_2(A: T.Tensor([256], "float32")):
             T.region(
                 "tirx.launch_thread",
-                [tvm.ir.StringImm("threadIdx.x"), 256],
+                ["threadIdx.x", 256],
                 body_params=[threadIdx_x],
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
@@ -316,7 +309,7 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
         def kernel_1(A: T.Tensor([256], "float32")):
             T.region(
                 "tirx.launch_thread",
-                [tvm.ir.StringImm("threadIdx.x"), 256],
+                ["threadIdx.x", 256],
                 body_params=[kernel_1_threadIdx_x],
             )
             A[kernel_1_threadIdx_x] = A[kernel_1_threadIdx_x] + T.float32(1)
@@ -325,64 +318,7 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
         def kernel_2(A: T.Tensor([256], "float32")):
             T.region(
                 "tirx.launch_thread",
-                [tvm.ir.StringImm("threadIdx.x"), 256],
-                body_params=[kernel_2_threadIdx_x],
-            )
-            A[kernel_2_threadIdx_x] = A[kernel_2_threadIdx_x] + T.float32(1)
-
-    after = tvm.tirx.transform.ConvertSSA()(before)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_de_duplicate_thread_idx_iter_var_across_multiple_functions():
-    """ConvertSSA separates a shared parameter list reused across functions.
-
-    Launch regions no longer wrap their bindings in IterVars; this retains the
-    existing shared-wrapper fixture using the explicit body-parameter list."""
-
-    threadIdx_x = T.dynamic("threadIdx_x", "int32")
-    body_params = [threadIdx_x]
-
-    # complaints of multiple definitions for threadIdx_x
-    @I.ir_module(check_well_formed=False)
-    class before:
-        @T.function
-        def kernel_1(A: T.Tensor([256], "float32")):
-            T.region(
-                "tirx.launch_thread",
-                [tvm.ir.StringImm("threadIdx.x"), 256],
-                body_params=body_params,
-            )
-            A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
-
-        @T.function
-        def kernel_2(A: T.Tensor([256], "float32")):
-            T.region(
-                "tirx.launch_thread",
-                [tvm.ir.StringImm("threadIdx.x"), 256],
-                body_params=body_params,
-            )
-            A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
-
-    kernel_1_threadIdx_x = T.dynamic("threadIdx_x", "int32")
-    kernel_2_threadIdx_x = T.dynamic("threadIdx_x", "int32")
-
-    @I.ir_module(check_well_formed=False)
-    class expected:
-        @T.function
-        def kernel_1(A: T.Tensor([256], "float32")):
-            T.region(
-                "tirx.launch_thread",
-                [tvm.ir.StringImm("threadIdx.x"), 256],
-                body_params=[kernel_1_threadIdx_x],
-            )
-            A[kernel_1_threadIdx_x] = A[kernel_1_threadIdx_x] + T.float32(1)
-
-        @T.function
-        def kernel_2(A: T.Tensor([256], "float32")):
-            T.region(
-                "tirx.launch_thread",
-                [tvm.ir.StringImm("threadIdx.x"), 256],
+                ["threadIdx.x", 256],
                 body_params=[kernel_2_threadIdx_x],
             )
             A[kernel_2_threadIdx_x] = A[kernel_2_threadIdx_x] + T.float32(1)
@@ -407,13 +343,13 @@ def test_thread_idx_reused_within_and_across_functions():
         def kernel_1(A: T.Tensor([256], "float32")):
             with T.region(
                 "tirx.launch_thread",
-                [tvm.ir.StringImm("threadIdx.x"), 256],
+                ["threadIdx.x", 256],
                 body_params=body_params,
             ):
                 A[threadIdx_x] = A[threadIdx_x] + 1.0
             with T.region(
                 "tirx.launch_thread",
-                [tvm.ir.StringImm("threadIdx.x"), 256],
+                ["threadIdx.x", 256],
                 body_params=body_params,
             ):
                 A[threadIdx_x] = A[threadIdx_x] + 2.0
@@ -422,13 +358,13 @@ def test_thread_idx_reused_within_and_across_functions():
         def kernel_2(A: T.Tensor([256], "float32")):
             with T.region(
                 "tirx.launch_thread",
-                [tvm.ir.StringImm("threadIdx.x"), 256],
+                ["threadIdx.x", 256],
                 body_params=body_params,
             ):
                 A[threadIdx_x] = A[threadIdx_x] + 1.0
             with T.region(
                 "tirx.launch_thread",
-                [tvm.ir.StringImm("threadIdx.x"), 256],
+                ["threadIdx.x", 256],
                 body_params=body_params,
             ):
                 A[threadIdx_x] = A[threadIdx_x] + 2.0
@@ -462,70 +398,85 @@ def test_shared_shape_var_in_tensor_params_and_alloc_tensor():
     function body (including AllocTensor shapes) must remain the same
     Var object so that MakePackedAPI can bind it from the DLTensor shape.
     """
-    n = tirx.Var("n", "int32")
-    A = tirx.decl_tensor((n,), "float32", "A")
-    B = tirx.decl_tensor((n,), "float32", "B")
+    n = T.dynamic("n", "int32")
 
-    # AllocTensor with shape [n] in the body (flat, no body)
-    C = tirx.decl_tensor((n,), "float32", "C")
-    body = tvm.ir.SeqStmt(
-        [
-            tvm.ir.Bind(
-                C,
-                tvm.ir.Call(
-                    "tirx.alloc_tensor",
-                    [],
-                    attrs=tvm.ir.DictAttrs({}),
-                    ty_args=[C.ty],
-                ),
-            ),
-            tvm.ir.Evaluate(1),
-        ]
-    )
+    @I.ir_module
+    class Before:
+        @T.function(private=True)
+        def main(A: T.Tensor((n,), "float32"), B: T.Tensor((n,), "float32")):
+            C = T.alloc_tensor(ty_args=[T.Tensor((n,), "float32")])
+            T.evaluate(1)
 
-    before = tirx.Function([A, B], body)
-
-    mod = tvm.IRModule.from_expr(before)
-    after = tvm.tirx.transform.ConvertSSA()(mod)
-    # The function is already SSA — ConvertSSA should not change it.
-    tvm.ir.assert_structural_equal(after["main"], before)
+    After = tvm.tirx.transform.ConvertSSA()(Before)
+    tvm.ir.assert_structural_equal(After, Before)
+    assert After.same_as(Before)
 
 
 def test_reused_loop_var_in_decl_tensor_elem_offset():
     """Remap a tensor whose elem_offset depends on an SSA-renamed loop var."""
-    loop_var = tirx.Var("loop_var", "int32")
-    tensor = tirx.decl_tensor(
-        (128,),
-        "float32",
-        "tensor",
-        elem_offset=loop_var * 128,
-        scope="shared.dyn",
-    )
-    buffer_data = tirx.Var("buffer_data", tensor.data.ty)
-    loop = tvm.ir.For(
-        loop_var,
-        0,
-        128,
-        tvm.ir.ForKind.DEFAULT,
-        tvm.ir.SeqStmt(
-            [
-                tvm.ir.Bind(
-                    tensor,
-                    tvm.ir.Call(
-                        "tirx.decl_tensor",
-                        [buffer_data],
-                        ty_args=[tensor.ty],
-                    ),
-                ),
-                tvm.ir.Evaluate(tirx.TensorLoad(tensor, [0])),
-            ]
-        ),
-    )
-    func = tirx.Function([buffer_data], tvm.ir.SeqStmt([loop, loop, loop]))
 
-    after = tvm.tirx.transform.ConvertSSA()(tvm.IRModule.from_expr(func))
+    @T.function(private=True)
+    def template(data: T.handle("float32", "shared.dyn")):
+        for i in range(128):
+            tensor = T.decl_tensor(
+                data,
+                ty_args=[
+                    T.Tensor((128,), "float32", data=data, elem_offset=i * 128, scope="shared.dyn")
+                ],
+            )
+            T.evaluate(tensor[0])
 
-    tvm.tirx.analysis.verify_well_formed(after["main"], assert_mode=True)
+    shared_loop = template.body[0]
+    shared_data = template.params[0]
+
+    @I.ir_module(check_well_formed=False)
+    class Before:
+        @T.function(private=True)
+        def main(data: shared_data):
+            T.add_to_parent(shared_loop)
+            T.add_to_parent(shared_loop)
+            T.add_to_parent(shared_loop)
+
+    @I.ir_module
+    class Expected:
+        @T.function(private=True)
+        def main(data: T.handle("float32", "shared.dyn")):
+            for i in range(128):
+                tensor = T.decl_tensor(
+                    data,
+                    ty_args=[
+                        T.Tensor(
+                            (128,), "float32", data=data, elem_offset=i * 128, scope="shared.dyn"
+                        )
+                    ],
+                )
+                T.evaluate(tensor[0])
+            for j in range(128):
+                tensor = T.decl_tensor(
+                    data,
+                    ty_args=[
+                        T.Tensor(
+                            (128,), "float32", data=data, elem_offset=j * 128, scope="shared.dyn"
+                        )
+                    ],
+                )
+                T.evaluate(tensor[0])
+            for k in range(128):
+                tensor = T.decl_tensor(
+                    data,
+                    ty_args=[
+                        T.Tensor(
+                            (128,), "float32", data=data, elem_offset=k * 128, scope="shared.dyn"
+                        )
+                    ],
+                )
+                T.evaluate(tensor[0])
+
+    assert Before["main"].body[0].same_as(Before["main"].body[1])
+    assert Before["main"].body[1].same_as(Before["main"].body[2])
+    After = tvm.tirx.transform.ConvertSSA()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+    tvm.tirx.analysis.verify_well_formed(After["main"], assert_mode=True)
 
 
 if __name__ == "__main__":

@@ -15,15 +15,28 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
+from tvm.script import ir as I
+from tvm.script import tirx as T
 
 
 def test_decorate_device():
-    x = tvm.tirx.Var("x", "int32")
-    mod = tvm.IRModule.from_expr(tvm.tirx.Function([x], tvm.ir.Evaluate(x)))
+    @I.ir_module
+    class Before:
+        @T.function(private=True)
+        def main(x: T.int32):
+            T.evaluate(x)
 
-    stmt = tvm.tirx.transform.DecorateDeviceScope()(mod)["main"].body[0]
-    assert stmt.op.same_as(tvm.ir.Op.get("tirx.device_scope"))
+    @I.ir_module
+    class Expected:
+        @T.function(private=True)
+        def main(x: T.int32):
+            with T.region("tirx.device_scope", []):
+                T.evaluate(x)
+
+    After = tvm.tirx.transform.DecorateDeviceScope()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
-    test_decorate_device()
+    tvm.testing.main()

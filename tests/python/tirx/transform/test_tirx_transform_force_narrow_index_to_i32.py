@@ -18,6 +18,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
@@ -39,7 +40,10 @@ def test_thread_axis1():
         threadIdx_x = T.launch_thread("threadIdx.x", 32)
         B[blockIdx_x * 32 + threadIdx_x] = A[blockIdx_x * 32 + threadIdx_x] + T.float32(1)
 
-    mod = tvm.IRModule.from_expr(before)
+    @I.ir_module
+    class mod:
+        main = before
+
     func = tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
     tvm.ir.assert_structural_equal(func, expected)
 
@@ -226,7 +230,10 @@ def test_thread_axis2():
                             ],
                         )
 
-    mod = tvm.IRModule.from_expr(before)
+    @I.ir_module
+    class mod:
+        main = before
+
     func = tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
     tvm.ir.assert_structural_equal(func, expected)
 
@@ -247,7 +254,10 @@ def test_block():
             for j in T.serial(0, T.int32(8)):
                 B[i * T.int32(8) + j] = A[i * T.int32(8) + j] + T.float32(1)
 
-    mod = tvm.IRModule.from_expr(before)
+    @I.ir_module
+    class mod:
+        main = before
+
     func = tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
     tvm.ir.assert_structural_equal(func, expected)
 
@@ -268,7 +278,10 @@ def test_i16_tensor():
             for j in T.serial(0, 16):
                 B[i * 8 + j] = A[i * 8 + j] + T.int16(1)
 
-    mod = tvm.IRModule.from_expr(before)
+    @I.ir_module
+    class mod:
+        main = before
+
     after = tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
 
@@ -280,7 +293,10 @@ def test_fail_on_tensor_param():
             for j in T.serial(0, 8):
                 B[i * 8 + j] = A[i * 8 + j] + T.int64(1)
 
-    mod = tvm.IRModule.from_expr(func)
+    @I.ir_module
+    class mod:
+        main = func
+
     with pytest.raises(RuntimeError):
         tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
 
@@ -296,7 +312,10 @@ def test_fail_on_internal_tensor():
             for j in T.serial(0, 8):
                 B[i * 8 + j] = T.cast(C[i * 8 + j] + T.int64(1), "int32")
 
-    mod = tvm.IRModule.from_expr(func)
+    @I.ir_module
+    class mod:
+        main = func
+
     with pytest.raises(RuntimeError):
         tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
 

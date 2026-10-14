@@ -14,8 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
-import pytest
 
 import tvm
 import tvm.testing
@@ -24,67 +22,37 @@ from tvm.script import tirx as T
 
 
 def test_annotate_entry_func_single_function():
-    @tvm.script.ir_module
-    class MockModule:
+    @I.ir_module
+    class Before:
         @T.function(private=True)
-        def func1(A: T.Tensor((16,), "float32")):
-            for i in T.serial(16):
-                if i == 5:
-                    if i == 5:
-                        A[i] = 0.0
+        def main():
+            T.evaluate(0)
 
-    mod = MockModule
-    assert mod
-    assert "tirx.is_entry_func" not in (mod["func1"].attrs or {})
-    after = tvm.tirx.transform.AnnotateEntryFunc()(mod)
-    assert (
-        after["func1"].attrs
-        and "tirx.is_entry_func" in after["func1"].attrs
-        and after["func1"].attrs["tirx.is_entry_func"]
-    )
+    @I.ir_module
+    class Expected:
+        @T.function(private=True)
+        def main():
+            T.func_attr({"tirx.is_entry_func": True})
+            T.evaluate(0)
+
+    assert "tirx.is_entry_func" not in (Before["main"].attrs or {})
+    After = tvm.tirx.transform.AnnotateEntryFunc()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-# Test module
-@tvm.script.ir_module
-class MockModule:
-    @T.function(private=True)
-    def func1(A: T.Tensor((16,), "float32")):
-        for i in T.serial(16):
-            if i == 5:
-                if i == 5:
-                    A[i] = 0.0
-
-    @T.function(private=True)
-    def func2(A: T.Tensor((32,), "float32")):
-        for i in T.serial(32):
-            if i == 15:
-                if i == 15:
-                    A[i] = 0.0
-
-
-@pytest.mark.xfail
 def test_annotate_entry_func_multiple_function():
-    mod = MockModule
-    assert mod
-    assert "target" not in (mod["func1"].attrs or {})
-    assert "target" not in (mod["func2"].attrs or {})
-    # This should fail
-    after = tvm.tirx.transform.AnnotateEntryFunc()(mod)
+    @I.ir_module
+    class Before:
+        @T.function(private=True)
+        def func1():
+            T.evaluate(0)
 
+        @T.function(private=True)
+        def func2():
+            T.evaluate(0)
 
-def test_bind_target():
-    mod = MockModule
-    assert mod
-
-    target = tvm.target.Target("cuda")
-    assert "target" not in (mod["func1"].attrs or {})
-    assert "target" not in (mod["func2"].attrs or {})
-    after = tvm.tirx.transform.BindTarget(target)(mod)
-
-    assert "target" in after["func1"].attrs
-    assert after["func1"].attrs["target"] == target
-    assert "target" in after["func2"].attrs
-    assert after["func2"].attrs["target"] == target
+    After = tvm.tirx.transform.AnnotateEntryFunc()(Before)
+    tvm.ir.assert_structural_equal(After, Before)
 
 
 def test_bind_target_adds_attribute():
@@ -224,6 +192,7 @@ def test_bind_target_multiple_functions():
             T.func_attr({"target": T.target("cuda")})
             T.evaluate(0)
 
+    assert all("target" not in (func.attrs or {}) for func in Before.functions.values())
     After = tvm.tirx.transform.BindTarget(tvm.target.Target("cuda"))(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
@@ -340,37 +309,36 @@ def test_bind_target_with_tirx_device_entry():
 
 
 def test_filter_function():
-    mod = MockModule
-    assert mod
-    # Annotate each function for testing
-    mod["func1"] = mod["func1"].with_attr("temp", "test1")
-    mod["func2"] = mod["func2"].with_attr("temp", "test2")
+    @I.ir_module
+    class Before:
+        @T.function(private=True)
+        def func1():
+            T.func_attr({"temp": "test1"})
+            T.evaluate(0)
 
-    # Test condition that does not filter out anything
-    def checker_filter_out_none(func: tvm.tirx.Function):
-        return "temp" in func.attrs
+        @T.function(private=True)
+        def func2():
+            T.func_attr({"temp": "test2"})
+            T.evaluate(0)
 
-    after = tvm.tirx.transform.Filter(checker_filter_out_none)(mod)
-    assert len(after.functions) == 2
-    # Filtered functions should satisfy the given condition.
-    assert checker_filter_out_none(after["func1"])
-    assert checker_filter_out_none(after["func2"])
+    @I.ir_module
+    class One:
+        @T.function(private=True)
+        def func1():
+            T.func_attr({"temp": "test1"})
+            T.evaluate(0)
 
-    # Test condition that selectively filters out functions
-    def checker_filter_out_one(func: tvm.tirx.Function):
-        return ("temp" in func.attrs) and func.attrs["temp"] == "test1"
+    @I.ir_module
+    class Empty:
+        pass
 
-    after = tvm.tirx.transform.Filter(checker_filter_out_one)(mod)
-    assert len(after.functions) == 1
-    # Filtered functions should satisfy the given condition.
-    assert checker_filter_out_one(after["func1"])
-
-    # Test condition that filters out everything
-    def checker_filter_out_both(func: tvm.tirx.Function):
-        return "invalid_attr" in func.attrs
-
-    after = tvm.tirx.transform.Filter(checker_filter_out_both)(mod)
-    assert len(after.functions) == 0
+    for predicate, Expected in [
+        (lambda func: "temp" in func.attrs, Before),
+        (lambda func: func.attrs["temp"] == "test1", One),
+        (lambda func: "invalid_attr" in func.attrs, Empty),
+    ]:
+        After = tvm.tirx.transform.Filter(predicate)(Before)
+        tvm.ir.assert_structural_equal(After, Expected)
 
 
 def test_filter_removes_global_var_map():

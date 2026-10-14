@@ -66,6 +66,7 @@
 #include <unordered_set>
 
 #include "../../backend/memory_scope.h"
+#include "../../tirx/transform/ir_utils.h"
 #include "llvm_instance.h"
 
 namespace tvm {

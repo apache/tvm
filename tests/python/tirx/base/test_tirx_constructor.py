@@ -379,5 +379,14 @@ def test_math_unary_constructor_preserves_bfloat16():
     assert y.ty == tvm.ir.PrimType("bfloat16")
 
 
+def test_function_declaration_optional_body_roundtrip():
+    declaration = tvm.tirx.Function([], None)
+    assert declaration.body is None
+    assert len(declaration.with_body(tvm.ir.Evaluate(0)).body) == 0
+    restored = tvm.ir.load_json(tvm.ir.save_json(declaration))
+    tvm.ir.assert_structural_equal(declaration, restored, map_free_vars=True)
+    assert "def" in declaration.script()
+
+
 if __name__ == "__main__":
     tvm.testing.main()

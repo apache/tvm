@@ -14,86 +14,83 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
 import pytest
 
 import tvm
 import tvm.testing
+from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
-def nop():
-    return tvm.ir.Evaluate(1)
+@pytest.mark.parametrize("case", ["empty_nest", "side_effect", "zero_extent"])
+def test_remove_no_op(case):
+    @I.ir_module
+    class Before:
+        @T.function
+        def main(A: T.Tensor((16,), "int64"), m: T.int32, n: T.int32, i: T.int32):
+            if T.constexpr(case == "empty_nest"):
+                for ii in T.serial(4):
+                    for j in T.serial(n):
+                        for k in T.serial(m):
+                            if ii * m + j + k < n:
+                                T.evaluate(m)
+                            else:
+                                T.evaluate(n)
+            elif T.constexpr(case == "side_effect"):
+                T.evaluate(1)
+                A[i + 1] = A[i] + T.int64(1)
+                T.evaluate(1)
+            else:
+                for j in T.serial(0):
+                    A[j + 1] = A[j] + T.int64(1)
 
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main(A: T.Tensor((16,), "int64"), m: T.int32, n: T.int32, i: T.int32):
+            if T.constexpr(case == "side_effect"):
+                A[i + 1] = A[i] + T.int64(1)
+            else:
+                T.evaluate(0)
 
-def test_remove_no_op():
-    i = tvm.tirx.Var("i", "int32")
-    j = tvm.tirx.Var("j", "int32")
-    k = tvm.tirx.Var("k", "int32")
-    m = tvm.tirx.Var("m", "int32")
-    n = tvm.tirx.Var("n", "int32")
-    dtype = "int64"
-    Ab = tvm.tirx.decl_tensor((n,), dtype)
-    stmt = tvm.ir.For(
-        i,
-        0,
-        4,
-        tvm.ir.ForKind.DEFAULT,
-        tvm.ir.For(
-            j,
-            0,
-            n,
-            tvm.ir.ForKind.DEFAULT,
-            tvm.ir.For(
-                k,
-                0,
-                m,
-                tvm.ir.ForKind.DEFAULT,
-                tvm.ir.If((i * m + j + k < n), tvm.ir.Evaluate(m), tvm.ir.Evaluate(n)),
-            ),
-        ),
-    )
-
-    mod = tvm.IRModule.from_expr(tvm.tirx.Function([Ab], stmt))
-    ret = tvm.tirx.transform.RemoveNoOp()(mod)["main"].body
-
-    assert isinstance(ret, tvm.ir.SeqStmt) and len(ret) == 0
-    store = tvm.ir.TensorStore(Ab, [i + 1], tvm.tirx.TensorLoad(Ab, [i]) + 1)
-    stmt2 = tvm.ir.SeqStmt([nop(), tvm.ir.SeqStmt([store, nop()])])
-
-    mod = tvm.IRModule.from_expr(tvm.tirx.Function([Ab], stmt2))
-    ret = tvm.tirx.transform.RemoveNoOp()(mod)["main"].body
-    assert len(ret) == 1 and ret[0] == store
-
-    # remove zero extent loop
-    stmt3 = tvm.ir.For(i, 0, 0, tvm.ir.ForKind.DEFAULT, store)
-    mod = tvm.IRModule.from_expr(tvm.tirx.Function([Ab], stmt3))
-    ret = tvm.tirx.transform.RemoveNoOp()(mod)["main"].body
-    assert isinstance(ret, tvm.ir.SeqStmt) and len(ret) == 0
+    After = tvm.tirx.transform.RemoveNoOp()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 def test_remove_no_op_with_invalid_extent():
-    @T.function
-    def main(A: T.Tensor((16), "int32"), B: T.Tensor((16), "int32")) -> None:
-        for i in T.serial(16):
-            for j in T.serial(i - 20):
-                B[i] = A[i] + j
+    @I.ir_module
+    class Before:
+        @T.function
+        def main(A: T.Tensor((16,), "int32"), B: T.Tensor((16,), "int32")):
+            for i in T.serial(16):
+                for j in T.serial(i - 20):
+                    B[i] = A[i] + j
 
-    mod = tvm.ir.module.IRModule.from_expr(main)
-    ret = tvm.tirx.transform.RemoveNoOp()(mod)["main"].body
-    assert isinstance(ret, tvm.ir.SeqStmt) and len(ret) == 0
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main(A: T.Tensor((16,), "int32"), B: T.Tensor((16,), "int32")):
+            T.evaluate(0)
+
+    After = tvm.tirx.transform.RemoveNoOp()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-def _apply_remove_no_op(mod, max_simplification_steps=0):
+def _apply_remove_no_op(func, max_simplification_steps=0):
     """Helper function to apply RemoveNoOp transform with config."""
+
+    @I.ir_module
+    class Before:
+        main = func
+
     config = {
         "tirx.RemoveNoOp": {
             "max_simplification_steps": max_simplification_steps,
         }
     }
     with tvm.ir.transform.PassContext(config=config):
-        mod = tvm.tirx.transform.RemoveNoOp()(mod)
-    return mod
+        mod = tvm.tirx.transform.RemoveNoOp()(Before)
+    return mod["main"]
 
 
 def test_remove_empty_for_loop():
@@ -108,9 +105,8 @@ def test_remove_empty_for_loop():
     def expected():
         T.evaluate(0)
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_remove_zero_extent_loop():
@@ -125,9 +121,8 @@ def test_remove_zero_extent_loop():
     def expected(A: T.Tensor(16, "int32")):
         T.evaluate(0)
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_remove_unused_let():
@@ -149,9 +144,8 @@ def test_remove_unused_let():
         for i in T.serial(16):
             A[i] = 0
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_remove_let_used_only_in_no_op():
@@ -172,9 +166,8 @@ def test_remove_let_used_only_in_no_op():
         x = 5
         T.evaluate(0)
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_keep_side_effects_of_let():
@@ -190,9 +183,8 @@ def test_keep_side_effects_of_let():
         x = T.call_extern("extern_func", ty="int32")
         T.evaluate(0)
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_remove_empty_then_case():
@@ -212,9 +204,8 @@ def test_remove_empty_then_case():
             if not (i < 8):
                 A[i] = 42
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_remove_empty_else_case():
@@ -234,9 +225,8 @@ def test_remove_empty_else_case():
             if i < 8:
                 A[i] = 42
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_suppress_removal_of_unused_write():
@@ -251,9 +241,8 @@ def test_suppress_removal_of_unused_write():
             A[i] = 100
             A[i] = 42
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], before)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, before)
 
 
 def test_keep_first_write_when_used():
@@ -265,9 +254,8 @@ def test_keep_first_write_when_used():
             A[i] = 100
             A[i] = A[i] + 1
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], before)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, before)
 
 
 def test_keep_partially_overwritten_loop():
@@ -286,9 +274,8 @@ def test_keep_partially_overwritten_loop():
             if i < 12:
                 A[i] = 42
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], before)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, before)
 
 
 def test_remove_read_write():
@@ -302,9 +289,8 @@ def test_remove_read_write():
     def expected(A: T.Tensor(1, "int32")):
         T.evaluate(0)
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_keep_read_write_to_different_indices():
@@ -315,9 +301,8 @@ def test_keep_read_write_to_different_indices():
         for i in T.serial(15):
             A[i] = A[i + 1]
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], before)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, before)
 
 
 def test_remove_read_write_same_index_different_expression():
@@ -341,9 +326,8 @@ def test_remove_read_write_same_index_different_expression():
             for ii in range(4):
                 i: T.let[T.int32] = 4 * io + ii
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_remove_read_write_same_index_using_constraint():
@@ -368,9 +352,8 @@ def test_remove_read_write_same_index_using_constraint():
             if i != 0:
                 A[i] = A[i - 1]
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 @pytest.mark.xfail(reason="Dead alloc removal not yet implemented for flat AllocTensor")
@@ -386,9 +369,8 @@ def test_remove_empty_temporary():
     def expected():
         T.evaluate(0)
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 @pytest.mark.xfail(reason="Dead alloc removal not yet implemented for flat AllocTensor")
@@ -409,9 +391,8 @@ def test_remove_empty_temporary_with_decl_tensor():
     def expected():
         T.evaluate(0)
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 @pytest.mark.xfail(reason="Not implemented yet")
@@ -429,9 +410,8 @@ def test_remove_unused_temporary():
         for i in T.serial(16):
             A[i] = 1
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 @pytest.mark.xfail(reason="Not implemented yet")
@@ -448,9 +428,8 @@ def test_remove_unused_write_into_temporary():
     def expected():
         T.evaluate(0)
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_keep_used_write_into_temporary():
@@ -465,9 +444,8 @@ def test_keep_used_write_into_temporary():
         for i in T.serial(16):
             B[i] = A[i]
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], before)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, before)
 
 
 @pytest.mark.xfail(reason="Not implemented yet")
@@ -497,9 +475,8 @@ def test_remove_write_into_temporary():
         for i in T.serial(16):
             C[0] = C[0] + B[i]
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_certain_condition():
@@ -517,9 +494,8 @@ def test_certain_condition():
     def expected():
         T.evaluate(0)
 
-    mod = tvm.IRModule.from_expr(before)
-    mod = _apply_remove_no_op(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    after = _apply_remove_no_op(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 if __name__ == "__main__":

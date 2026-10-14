@@ -14,22 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm_ffi
 
 import tvm
 import tvm.script
+from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.target import Target
 from tvm.tirx.transform.transform import BindTarget
-
-
-def _is_tensor_binding(node, *op_names):
-    return (
-        isinstance(node, tvm.ir.Bind)
-        and isinstance(node.value, tvm.ir.Call)
-        and isinstance(node.value.op, tvm.ir.Op)
-        and node.value.op.name in op_names
-    )
 
 
 def u16tof32(v):
@@ -161,53 +152,95 @@ def test_bf16_masked_load_store_will_legalize():
     after_compute = tvm.tirx.transform.BF16ComputeLegalize()(before)
     after_storage = tvm.tirx.transform.BF16StorageLegalize()(after_compute)
 
-    def collect(mod):
-        nodes = []
+    @I.ir_module
+    class ExpectedCompute:
+        @T.function
+        def main(Aptr: T.Ptr(T.PrimType("bfloat16")), Cptr: T.Ptr(T.PrimType("bfloat16"))):
+            T.func_attr({"target": target})
+            A = T.decl_tensor(Aptr, ty_args=[T.Tensor((16,), T.bfloat16)])
+            B = T.alloc_tensor(ty_args=[T.Tensor((16,), T.float32)])
+            C = T.decl_tensor(Cptr, ty_args=[T.Tensor((16,), T.bfloat16)])
+            mask = T.alloc_tensor(ty_args=[T.Tensor((1,), T.PrimType("boolx4"), scope="local")])
+            mask[0] = T.Broadcast(T.bool(True), 4)
+            T.masked_store(
+                B,
+                T.reinterpret(
+                    T.Cast(
+                        T.reinterpret(T.masked_load(A, T.Ramp(0, 1, 4), mask[0]), ty="uint16x4"),
+                        "uint32x4",
+                    )
+                    << T.Broadcast(T.uint32(16), 4),
+                    ty="float32x4",
+                ),
+                T.Ramp(0, 1, 4),
+                mask[0],
+            )
+            T.masked_store(
+                C,
+                T.reinterpret(
+                    T.Cast(
+                        T.reinterpret(T.masked_load(B, T.Ramp(0, 1, 4), mask[0]), ty="uint32x4")
+                        + (
+                            (
+                                T.reinterpret(
+                                    T.masked_load(B, T.Ramp(0, 1, 4), mask[0]), ty="uint32x4"
+                                )
+                                >> T.Broadcast(T.uint32(16), 4)
+                                & T.Broadcast(T.uint32(1), 4)
+                            )
+                            + T.Broadcast(T.uint32(32767), 4)
+                        )
+                        >> T.Broadcast(T.uint32(16), 4),
+                        "uint16x4",
+                    ),
+                    ty="bfloat16x4",
+                ),
+                T.Ramp(0, 1, 4),
+                mask[0],
+            )
 
-        def collect_once(node):
-            if not any(node.same_as(existing) for existing in nodes):
-                nodes.append(node)
+    tvm.ir.assert_structural_equal(after_compute, ExpectedCompute)
 
-        tvm_ffi.structural_walk(
-            mod["main"].body,
-            ((tvm.ir.Bind, tvm.ir.Call), collect_once),
-        )
-        tensors = {
-            node.var.name: str(node.var.dtype)
-            for node in nodes
-            if _is_tensor_binding(node, "tirx.alloc_tensor", "tirx.decl_tensor")
-        }
-        masked_loads = [
-            node
-            for node in nodes
-            if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.masked_load"
-        ]
-        masked_stores = [
-            node
-            for node in nodes
-            if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.masked_store"
-        ]
-        return tensors, masked_loads, masked_stores
+    @I.ir_module
+    class ExpectedStorage:
+        @T.function
+        def main(Aptr: T.Ptr(T.PrimType("uint16")), Cptr: T.Ptr(T.PrimType("uint16"))):
+            T.func_attr({"target": target})
+            A = T.decl_tensor(Aptr, ty_args=[T.Tensor((16,), T.uint16)])
+            B = T.alloc_tensor(ty_args=[T.Tensor((16,), T.float32)])
+            C = T.decl_tensor(Cptr, ty_args=[T.Tensor((16,), T.uint16)])
+            mask = T.alloc_tensor(ty_args=[T.Tensor((1,), T.PrimType("boolx4"), scope="local")])
+            mask[0] = T.Broadcast(T.bool(True), 4)
+            T.masked_store(
+                B,
+                T.reinterpret(
+                    T.Cast(T.masked_load(A, T.Ramp(0, 1, 4), mask[0]), "uint32x4")
+                    << T.Broadcast(T.uint32(16), 4),
+                    ty="float32x4",
+                ),
+                T.Ramp(0, 1, 4),
+                mask[0],
+            )
+            T.masked_store(
+                C,
+                T.Cast(
+                    T.reinterpret(T.masked_load(B, T.Ramp(0, 1, 4), mask[0]), ty="uint32x4")
+                    + (
+                        (
+                            T.reinterpret(T.masked_load(B, T.Ramp(0, 1, 4), mask[0]), ty="uint32x4")
+                            >> T.Broadcast(T.uint32(16), 4)
+                            & T.Broadcast(T.uint32(1), 4)
+                        )
+                        + T.Broadcast(T.uint32(32767), 4)
+                    )
+                    >> T.Broadcast(T.uint32(16), 4),
+                    "uint16x4",
+                ),
+                T.Ramp(0, 1, 4),
+                mask[0],
+            )
 
-    compute_tensors, compute_loads, compute_stores = collect(after_compute)
-    assert compute_tensors == {"A": "bfloat16", "B": "float32", "C": "bfloat16", "mask": "boolx4"}
-    assert sorted(str(load.ty) for load in compute_loads) == ["bfloat16x4", "float32x4"]
-    assert sorted(str(store.args[1].ty) for store in compute_stores) == [
-        "bfloat16x4",
-        "float32x4",
-    ]
-
-    storage_tensors, storage_loads, storage_stores = collect(after_storage)
-    assert storage_tensors == {"A": "uint16", "B": "float32", "C": "uint16", "mask": "boolx4"}
-    assert sorted(str(load.ty) for load in storage_loads) == [
-        "float32x4",
-        "float32x4",
-        "uint16x4",
-    ]
-    assert sorted(str(store.args[1].ty) for store in storage_stores) == [
-        "float32x4",
-        "uint16x4",
-    ]
+    tvm.ir.assert_structural_equal(after_storage, ExpectedStorage)
 
 
 def test_bf16_storage_compute_scope_will_legalize():

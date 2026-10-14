@@ -21,6 +21,8 @@ import tvm_ffi
 import tvm
 from tvm import ir, relax, tirx
 from tvm.ir import prim
+from tvm.script import ir as I
+from tvm.script import tirx as T
 
 
 @pytest.mark.parametrize("inplace", [False, True])
@@ -160,6 +162,34 @@ def test_symbolic_call_type_rewrite_remaps_later_use(inplace):
     assert new_binding.var.ty.same_as(new_binding.value.ty)
     assert rewritten.seq[1].value.same_as(new_binding.var)
     ir.assert_structural_equal(ir.reinfer_type(new_binding.value), tensor_ty)
+
+
+def test_structural_map_tensor_shape_and_body():
+    @I.ir_module
+    class Before:
+        @T.function
+        def main(n: T.int32):
+            A = T.alloc_tensor(ty_args=[T.Tensor((n,), "float32")])
+            for i in range(n):
+                T.evaluate(A[i])
+
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main():
+            A = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32")])
+            for i in range(16):
+                T.evaluate(A[i])
+
+    func = Before["main"]
+    shape_var = func.params[0]
+    body = tvm_ffi.structural_map(
+        func.body,
+        (tvm.ir.Var, lambda var: T.int32(16) if var.same_as(shape_var) else var),
+        order="post",
+    )
+    After = tvm.IRModule.from_expr(tvm.tirx.Function([], body).with_attr("global_symbol", "main"))
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
