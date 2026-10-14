@@ -20,9 +20,10 @@ import linecache
 import sys
 import sysconfig
 import threading
+from collections.abc import Callable
 from contextlib import AbstractContextManager
 from pathlib import Path
-from types import FrameType
+from types import FrameType, TracebackType
 from typing import Any
 
 import tvm_ffi
@@ -31,6 +32,8 @@ from tvm.ir import SourceLoc, SourceName, UnknownLoc
 
 from . import _ffi_api
 from .base import IRBuilder
+
+_TraceFunction = Callable[[FrameType, str, Any], Any]
 
 _STATE = threading.local()
 _TVM_ROOT = Path(__file__).resolve().parents[2]
@@ -46,7 +49,7 @@ class _TraceManager:
         self.previous_trace = sys.gettrace()
         self.callback = self.trace
         self.scopes: list[_LineTrace] = []
-        self.frames: dict[FrameType, tuple[Any, bool, bool]] = {}
+        self.frames: dict[FrameType, tuple[_TraceFunction | None, bool, bool]] = {}
         self.sources: dict[str, bool] = {}
         self.locations: dict[tuple[str, int], SourceLoc] = {}
 
@@ -83,9 +86,9 @@ class _TraceManager:
             self.locations[key] = SourceLoc(
                 SourceName(filename), line, 1, line, max(2, len(text) + 1)
             )
-        _ffi_api.IRBuilderUpdateTraceLoc(scope.builder, scope.slot, self.locations[key])
+        _ffi_api.IRBuilderUpdateLoc(scope.builder, scope.slot, self.locations[key])
 
-    def trace(self, frame: FrameType, event: str, arg: Any) -> Any:
+    def trace(self, frame: FrameType, event: str, arg: Any) -> _TraceFunction | None:
         # CPython disables tracing while executing this callback, including FFI calls.
         if not self.scopes:
             return None
@@ -114,7 +117,7 @@ class _TraceManager:
                         break
                     caller = caller.f_back
                 if not restored:
-                    _ffi_api.IRBuilderUpdateTraceLoc(scope.builder, scope.slot, UnknownLoc())
+                    _ffi_api.IRBuilderUpdateLoc(scope.builder, scope.slot, UnknownLoc())
             # Completed helper frames can own large IR graphs. Restore them now
             # instead of retaining every call until the enclosing scope exits.
             if frame in self.frames and all(frame is not item.caller for item in self.scopes):
@@ -154,7 +157,8 @@ class _LineTrace(AbstractContextManager[None]):
             manager = _TraceManager()
         self.builder = IRBuilder.current()
         self.caller = sys._getframe(1)  # pylint: disable=protected-access
-        self.slot = _ffi_api.IRBuilderPushTraceLoc(self.builder)
+        # Keep the entry stable while explicit with_loc scopes are nested above it.
+        self.slot = _ffi_api.IRBuilderPushLoc(self.builder, UnknownLoc())
         self.manager = manager
         manager.scopes.append(self)
         try:
@@ -169,12 +173,17 @@ class _LineTrace(AbstractContextManager[None]):
             raise
         return None
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         manager = self.manager
         if manager is None:
             return
         try:
-            _ffi_api.IRBuilderPopTraceLoc(self.builder, self.slot)
+            _ffi_api.IRBuilderPopLoc(self.builder)
         finally:
             manager.scopes.pop()
             if not manager.scopes:

@@ -24,6 +24,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/object_functor.h>
 
+#include <cstdint>
 #include <vector>
 
 namespace tvm {
@@ -175,8 +176,17 @@ class IRBuilderObj : public ffi::Object {
    */
   template <typename TObjectRef>
   inline TObjectRef Get() const;
-  /*! \brief Push a frontend source location for IR constructed in the nested scope. */
-  void PushLoc(Location loc);
+  /*!
+   * \brief Push a frontend source location for IR constructed in the nested scope.
+   * \return The index of the pushed scope, valid until it is popped.
+   */
+  int64_t PushLoc(Location loc);
+  /*!
+   * \brief Update a source location without changing its nested scopes.
+   * \param index The index returned by PushLoc for a scope that has not been popped.
+   * \param loc The replacement location for that scope.
+   */
+  void UpdateLoc(int64_t index, Location loc);
   /*! \brief Pop the innermost frontend source location. */
   void PopLoc();
   /*! \brief Normalize the full active source stack with an optional explicit location. */

@@ -445,7 +445,7 @@ def test_native_line_trace_locations_and_cleanup(monkeypatch):
         helper_lines.append(sys._getframe().f_lineno + 1)
         return T.evaluate(1)
 
-    update = _ffi_api.IRBuilderUpdateTraceLoc
+    update = _ffi_api.IRBuilderUpdateLoc
     fail = False
 
     def update_loc(*args):
@@ -455,7 +455,7 @@ def test_native_line_trace_locations_and_cleanup(monkeypatch):
             raise RuntimeError("trace callback failed")
         return update(*args)
 
-    monkeypatch.setattr(_ffi_api, "IRBuilderUpdateTraceLoc", update_loc)
+    monkeypatch.setattr(_ffi_api, "IRBuilderUpdateLoc", update_loc)
     with I.IRBuilder() as ib:
         with ib.with_loc(caller):
             with builder_api.line_trace():
@@ -465,8 +465,10 @@ def test_native_line_trace_locations_and_cleanup(monkeypatch):
                 same_line = sys._getframe().f_lineno + 1
                 first, second = helper(), T.evaluate(2)
                 with ib.with_loc(explicit):
+                    explicit_line = sys._getframe().f_lineno + 1
+                    third = T.evaluate(3)
                     attached_line = sys._getframe().f_lineno + 1
-                    third = builder_api.at_(attached, T.evaluate(3))
+                    fourth = builder_api.at_(attached, T.evaluate(4))
                 callback = sys.gettrace()
                 with pytest.raises(RuntimeError, match="trace callback failed"):
                     with builder_api.line_trace():
@@ -474,25 +476,26 @@ def test_native_line_trace_locations_and_cleanup(monkeypatch):
                         T.evaluate(0)
                 assert sys.gettrace() is callback
                 final_line = sys._getframe().f_lineno + 1
-                last = T.evaluate(4)
+                last = T.evaluate(5)
         assert sys.gettrace() is previous
         assert (frame.f_trace, frame.f_trace_lines, frame.f_trace_opcodes) == saved
     result = ib.get()
     assert result.loc.caller.same_as(caller)
     assert result.loc.callee.start_line == loop_line
-    for receipt, statement, line in zip(
-        (first, second, third, last),
+    for receipt, statement, line, extra in zip(
+        (first, second, third, fourth, last),
         result.body.seq,
-        (helper_lines[0], same_line, attached_line, final_line),
+        (helper_lines[0], same_line, explicit_line, attached_line, final_line),
+        (None, None, explicit, attached, None),
     ):
         assert receipt.value.same_as(statement)
         loc = statement.loc
-        if receipt is third:
-            assert loc.callee.same_as(attached)
+        if extra is not None:
+            assert loc.callee.same_as(extra)
             loc = loc.caller
         assert loc.caller.same_as(caller)
         assert loc.callee.source_name.name == __file__
         assert loc.callee.start_line == line
-    assert len(result.body.seq) == 4
+    assert len(result.body.seq) == 5
     with I.IRBuilder():
         assert isinstance(T.evaluate(0).value.loc, ir.UnknownLoc)

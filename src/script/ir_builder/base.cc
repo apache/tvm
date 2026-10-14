@@ -154,7 +154,16 @@ IRBuilder::IRBuilder() {
   data_ = n;
 }
 
-void IRBuilderObj::PushLoc(Location loc) { locs.push_back(std::move(loc)); }
+int64_t IRBuilderObj::PushLoc(Location loc) {
+  locs.push_back(std::move(loc));
+  return static_cast<int64_t>(locs.size()) - 1;
+}
+
+void IRBuilderObj::UpdateLoc(int64_t index, Location loc) {
+  TVM_FFI_CHECK(index >= 0 && static_cast<size_t>(index) < locs.size(), ValueError)
+      << "Invalid source location scope";
+  locs[index] = std::move(loc);
+}
 
 void IRBuilderObj::PopLoc() {
   TVM_FFI_CHECK(!locs.empty(), ValueError)
@@ -261,28 +270,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.IRBuilderIsInScope", IRBuilder::IsInScope)
       .def_method("script.ir_builder.IRBuilderGet", &IRBuilderObj::Get<ffi::ObjectRef>)
       .def_method("script.ir_builder.IRBuilderPushLoc", &IRBuilderObj::PushLoc)
+      .def_method("script.ir_builder.IRBuilderUpdateLoc", &IRBuilderObj::UpdateLoc)
       .def_method("script.ir_builder.IRBuilderPopLoc", &IRBuilderObj::PopLoc)
-      // Tracing owns a stable slot below any explicit nested location scopes.
-      .def("script.ir_builder.IRBuilderPushTraceLoc",
-           [](IRBuilder builder) {
-             int64_t slot = static_cast<int64_t>(builder->locs.size());
-             builder->PushLoc(UnknownLoc());
-             return slot;
-           })
-      .def(
-          "script.ir_builder.IRBuilderUpdateTraceLoc",
-          [](IRBuilder builder, int64_t slot, Location loc) {
-            TVM_FFI_CHECK(slot >= 0 && static_cast<size_t>(slot) < builder->locs.size(), ValueError)
-                << "Invalid line-trace location scope";
-            builder->locs[slot] = std::move(loc);
-          })
-      .def("script.ir_builder.IRBuilderPopTraceLoc",
-           [](IRBuilder builder, int64_t slot) {
-             TVM_FFI_CHECK(slot >= 0 && static_cast<size_t>(slot) + 1 == builder->locs.size(),
-                           ValueError)
-                 << "Unbalanced line-trace location scope";
-             builder->PopLoc();
-           })
       .def_method("script.ir_builder.IRBuilderAttachLoc", &IRBuilderObj::AttachLoc)
       .def("script.ir_builder.IRBuilderName", IRBuilder::Name<ffi::ObjectRef>);
 }
