@@ -50,12 +50,14 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
-#include <map>
+#include <cstring>
+#include <functional>
+#include <iterator>
 #include <sstream>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 

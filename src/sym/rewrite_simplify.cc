@@ -1192,12 +1192,12 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorDivNode*
       }
     }
 
-    // Enabled only under the caller's no-overflow assertion (uint_as_index):
+    // Enabled only under the caller's no-overflow assertion (AllowUIntAsIndex):
     // these floordiv identities are unsound in general for unsigned
     // wraparound (the quotient's high bits are lost when x*c1 overflows), but
     // are exact in the asserted no-overflow domain. Each application is
     // logged for audit.
-    if (uint_as_index::Enabled()) {
+    if (AllowUIntAsIndex::Enabled()) {
       if (floordiv(x * c1, c2).Match(ret) && c2.Eval()->value > 0 &&
           c1.Eval()->value % c2.Eval()->value == 0) {
         LOG(WARNING) << "sym: no-overflow floordiv rule on unsigned expr: " << ret;
@@ -1374,11 +1374,11 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::FloorModNode*
       }
     }
 
-    // Under the caller's no-overflow assertion (uint_as_index) the pow2
+    // Under the caller's no-overflow assertion (AllowUIntAsIndex) the pow2
     // restriction above disappears: without wraparound the residues are the
     // plain integer ones, so these hold for any c2 != 0. Each application is
     // logged for audit.
-    if (uint_as_index::Enabled()) {
+    if (AllowUIntAsIndex::Enabled()) {
       if (floormod(x * c1, c2).Match(ret) && c2.Eval()->value != 0 &&
           c1.Eval()->value % c2.Eval()->value == 0) {
         LOG(WARNING) << "sym: no-overflow floormod rule on unsigned expr: " << ret;

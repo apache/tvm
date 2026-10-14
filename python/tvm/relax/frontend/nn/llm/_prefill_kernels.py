@@ -50,6 +50,10 @@ from ._kernel_common import (
     _rope,
     _schedule_prefill_kernel,
 )
+from ._prefill_parallel import (
+    _attention_prefill_paged_parallel,
+    _attention_prefill_ragged_parallel,
+)
 
 
 def _attention_prefill_cpu(
@@ -213,6 +217,10 @@ def _attention_prefill(
     page_size: int = 16,
     sliding_window_size: int = 1024,
 ):
+    if target.kind.name == "webgpu" and dtype == "float32" and d == 512:
+        return _attention_prefill_paged_parallel(
+            h_kv, h_q, rope_scaling, sliding_window, page_size, sliding_window_size
+        )
     NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d, dtype, target)
 
     global_symbol = "batch_prefill_paged_kv"
@@ -747,6 +755,8 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
     return batch_prefill_ragged_kv
 
 def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[str, Any], target: Target):
+    if target.kind.name == "webgpu" and dtype == "float32" and d_qk == d_v == 512:
+        return _attention_prefill_ragged_parallel(h_kv, h_q, rope_scaling)
     NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d_qk, dtype, target, d_v=d_v)
     init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, _, advance_tile_batch, paged_store_output_lse, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, d_v, bdx, num_warps, group_size)
 
