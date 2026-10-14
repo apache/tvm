@@ -21,12 +21,17 @@
 #define TVM_RUNTIME_MEMORY_SCOPE_H_
 
 #include <tvm/ffi/enum.h>
+#include <tvm/ffi/reflection/enum_def.h>
 #include <tvm/runtime/base.h>
 
 #include <ostream>
+#include <string_view>
 
 namespace tvm {
 namespace runtime {
+namespace detail {
+TVM_RUNTIME_DLL void RegisterBuiltinMemoryScopes();
+}  // namespace detail
 
 /*! \brief Allocation behavior associated with a memory scope. */
 enum class MemoryAllocProperty : int {
@@ -37,7 +42,8 @@ enum class MemoryAllocProperty : int {
 
 namespace attr {
 /*! \brief Integer-valued MemoryAllocProperty; absence denotes kNormal. */
-inline constexpr const char* kMemoryAllocProperty = "runtime.memory_alloc_property";
+inline constexpr ffi::reflection::AttrKey<MemoryAllocProperty> kMemoryAllocProperty{
+    "runtime.memory_alloc_property"};
 }  // namespace attr
 
 /*! \brief Canonical identity of an extensible memory space. */
@@ -61,12 +67,33 @@ class MemoryScope : public ffi::Enum {
   explicit MemoryScope(const ffi::String& name) : ffi::Enum(Get(name)) {}
   /*! \brief Return the canonical spelling. */
   const ffi::String& name() const { return get()->_str_index; }
-  /*! \brief Return the allocation property assigned by the scope owner. */
-  TVM_RUNTIME_DLL MemoryAllocProperty alloc_property() const;
+  /*! \brief Test whether a name is registered, without initializing memory scopes. */
+  static bool IsDefined(const ffi::String& name) {
+    namespace refl = ffi::reflection;
+    constexpr auto key = refl::AsByteArray(ffi::type_attr::kEnumState.name);
+    if (TVMFFIGetTypeAttrColumn(&key) == nullptr) return false;
+    auto value = refl::TypeAttrColumn(
+        ffi::type_attr::kEnumState)[MemoryScopeObj::_GetOrAllocRuntimeTypeIndex()];
+    if (value == nullptr) return false;
+    TVM_FFI_CHECK(value.type_index() == ffi::EnumStateObj::_GetOrAllocRuntimeTypeIndex(), TypeError)
+        << "Expected enum state for memory scopes";
+    // The derived EnumState type index may still be deferred during static initialization.
+    auto* state = static_cast<const ffi::EnumStateObj*>(value.cast<ffi::ObjectRef>().get());
+    return state->indexes.count(name) != 0;
+  }
   /*! \brief Look up a registered name. Unknown names raise ValueError. */
   TVM_RUNTIME_DLL static MemoryScope Get(const ffi::String& name);
   /*! \brief Register a new name. Duplicate names raise ValueError. */
-  TVM_RUNTIME_DLL static MemoryScope Register(const ffi::String& name);
+  static MemoryScope Register(const ffi::String& name) {
+    namespace refl = ffi::reflection;
+    detail::RegisterBuiltinMemoryScopes();
+    TVM_FFI_CHECK(!name.empty(), ValueError) << "Memory scope name must not be empty";
+    TVM_FFI_CHECK(std::string_view(name.data(), name.size()).find('\0') == std::string_view::npos,
+                  ValueError)
+        << "Memory scope name must not contain a null character";
+    refl::EnumDef<MemoryScopeObj>(name.c_str());
+    return Get(name);
+  }
   /*! \brief Return the canonical global singleton. */
   TVM_RUNTIME_DLL static const MemoryScope& Global();
   bool operator==(const MemoryScope& other) const { return same_as(other); }

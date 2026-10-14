@@ -59,6 +59,22 @@ using runtime::MemoryScope;
 
 namespace {
 
+MemoryAllocProperty GetMemoryAllocProperty(const MemoryScope& scope) {
+  static ffi::reflection::TypeAttrColumn state_column(ffi::type_attr::kEnumState);
+  auto state = state_column[runtime::MemoryScopeObj::RuntimeTypeIndex()].cast<ffi::EnumState>();
+  if (auto column = state->attrs.Get(runtime::attr::kMemoryAllocProperty.name)) {
+    if (auto value = column->Get(scope)) {
+      int property = value->cast<int>();
+      TVM_FFI_CHECK(property >= static_cast<int>(MemoryAllocProperty::kNormal) &&
+                        property <= static_cast<int>(MemoryAllocProperty::kSeparateAllocations),
+                    ValueError)
+          << "Invalid memory allocation property for " << scope.name();
+      return static_cast<MemoryAllocProperty>(property);
+    }
+  }
+  return MemoryAllocProperty::kNormal;
+}
+
 ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
   if (auto var = data.as<Var>()) {
     return var;
@@ -801,7 +817,7 @@ class StoragePlanRewriter : public StmtExprMutator {
 
   static bool RequiresExactAllocation(const CallNode* call) {
     auto type = call->ty_args[0].as_or_throw<TensorType>();
-    if (type->scope.alloc_property() == MemoryAllocProperty::kSeparateAllocations) {
+    if (GetMemoryAllocProperty(type->scope) == MemoryAllocProperty::kSeparateAllocations) {
       return true;
     }
     // Flat packing and lifetime reuse cannot reconstruct arbitrary physical views.
@@ -923,7 +939,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       std::vector<StorageEntry*>& vec = kv.second;
       for (size_t i = 0; i < vec.size(); ++i) {
         StorageEntry* e = vec[i];
-        if (e->scope.alloc_property() != MemoryAllocProperty::kSingleAllocation) continue;
+        if (GetMemoryAllocProperty(e->scope) != MemoryAllocProperty::kSingleAllocation) continue;
         auto alignment = PackingAlignment(vec, e->scope);
         if (!alignment) continue;
         e->packing_alignment_bits = *alignment;
@@ -1071,7 +1087,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
   // New allocation for merged data
   void NewAllocMerged(StorageEntry* e) {
-    TVM_FFI_ICHECK(e->scope.alloc_property() == MemoryAllocProperty::kSingleAllocation);
+    TVM_FFI_ICHECK(GetMemoryAllocProperty(e->scope) == MemoryAllocProperty::kSingleAllocation);
     // allocate with element type.
     TVM_FFI_ICHECK_NE(e->const_nbits, 0U);
     uint64_t total_bits = e->const_nbits;
@@ -1199,7 +1215,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           StorageEntry* dst_entry = nullptr;
           // inplace detection
           if (detect_inplace && !RequiresExactAllocation(call) &&
-              (scope.alloc_property() != MemoryAllocProperty::kSingleAllocation ||
+              (GetMemoryAllocProperty(scope) != MemoryAllocProperty::kSingleAllocation ||
                alloc->var->ty.as_or_throw<TensorType>()->ConstantAllocationSize().value_or(0) >
                    0)) {
             DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
@@ -1315,12 +1331,13 @@ class StoragePlanRewriter : public StmtExprMutator {
 
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
-    bool is_small_array = scope.alloc_property() == MemoryAllocProperty::kNormal && is_known_size &&
-                          const_nbits <= 32;
+    bool is_small_array = GetMemoryAllocProperty(scope) == MemoryAllocProperty::kNormal &&
+                          is_known_size && const_nbits <= 32;
 
     if (RequiresExactAllocation(call) || is_scalable_vector || !enable_reuse || is_small_array ||
         !is_flat_memory_space ||
-        (scope.alloc_property() == MemoryAllocProperty::kSingleAllocation && !is_known_size)) {
+        (GetMemoryAllocProperty(scope) == MemoryAllocProperty::kSingleAllocation &&
+         !is_known_size)) {
       return NewAlloc(op, attach_scope, scope, const_nbits);
     }
 
@@ -1381,10 +1398,11 @@ class StoragePlanRewriter : public StmtExprMutator {
     const auto* call = e->allocs[0]->value.as<CallNode>();
     PrimType element_type(call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype);
     if (element_type.IsScalableVector()) return;
-    if (e->scope.alloc_property() == MemoryAllocProperty::kNormal && e->const_nbits > 0 &&
+    if (GetMemoryAllocProperty(e->scope) == MemoryAllocProperty::kNormal && e->const_nbits > 0 &&
         e->const_nbits <= 32)
       return;
-    if (e->scope.alloc_property() == MemoryAllocProperty::kSingleAllocation && e->const_nbits == 0)
+    if (GetMemoryAllocProperty(e->scope) == MemoryAllocProperty::kSingleAllocation &&
+        e->const_nbits == 0)
       return;
     // normal free.
     if (e->const_nbits != 0) {

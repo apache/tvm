@@ -48,11 +48,13 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <tvm/ffi/extra/module.h>
+#include <tvm/ffi/reflection/enum_def.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/analysis.h>
 #include <tvm/ir/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/cpu.h>
@@ -65,7 +67,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../backend/memory_scope.h"
 #include "../../tirx/transform/ir_utils.h"
 #include "llvm_instance.h"
 
@@ -1222,8 +1223,9 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  tvm::backend::RegisterBackendMemoryScope("amx.tmm",
-                                           tvm::runtime::MemoryAllocProperty::kSeparateAllocations);
+  ffi::reflection::EnumDef<runtime::MemoryScopeObj>("amx.tmm").set_attr(
+      runtime::attr::kMemoryAllocProperty,
+      static_cast<int>(runtime::MemoryAllocProperty::kSeparateAllocations));
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.codegen.llvm.target_cpu",
                                [](const ffi::PackedArgs& targs, ffi::Any* rv) {

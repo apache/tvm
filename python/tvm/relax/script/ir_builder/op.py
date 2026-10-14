@@ -235,6 +235,7 @@ from tvm.relax.op.builtin import stop_lift_params
 from tvm.relax.type import Type
 from tvm.relax.utils import convert_to_expr
 from tvm.script.ir_builder import base as _base
+from tvm.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
 
 from . import distributed as dist  # noqa: F401
 from .ir import _value, lookup_vdevice
@@ -309,16 +310,7 @@ def call_packed(
     elif not isinstance(ty_args, list):
         ty_args = [ty_args]
 
-    ty_args = [
-        (
-            ty()
-            if callable(ty) and not isinstance(ty, _ir.Type)
-            else ty.__tvm_ffi_object__()
-            if hasattr(ty, "__tvm_ffi_object__")
-            else ty
-        )
-        for ty in ty_args
-    ]
+    ty_args = [ty() if callable(ty) and not isinstance(ty, _ir.Type) else ty for ty in ty_args]
 
     is_default = False
     if "attrs_type_key" in kwargs:
@@ -582,7 +574,7 @@ def ne_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
 
 
 inspect = _Namespace()
-_init_op_api("relax", __name__)
+_init_op_api("relax", __name__, wrapper=_auto_emit_void_call)
 
 __all__ = [
     "ArgmaxArgminAttrs",

@@ -23,11 +23,11 @@
  */
 #include <dlpack/dlpack.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/enum_def.h>
 #include <tvm/runtime/base.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
-
-#include "../../memory_scope.h"
 
 namespace tvm {
 
@@ -41,8 +41,9 @@ void RegisterMetalIntrinRules();
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"metal.simdgroup", "metal.cooperative_tensor"}) {
-    tvm::backend::RegisterBackendMemoryScope(
-        name, tvm::runtime::MemoryAllocProperty::kSeparateAllocations);
+    tvm::ffi::reflection::EnumDef<tvm::runtime::MemoryScopeObj>(name).set_attr(
+        tvm::runtime::attr::kMemoryAllocProperty,
+        static_cast<int>(tvm::runtime::MemoryAllocProperty::kSeparateAllocations));
   }
   using namespace tvm;
   namespace refl = tvm::ffi::reflection;

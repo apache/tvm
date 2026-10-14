@@ -34,6 +34,7 @@ from tvm.ir.prim import _ffi_api as _prim_ffi
 from tvm.ir.prim import _ffi_api as _prim_ffi_api
 from tvm.script.ir_builder import base as _base
 from tvm.script.ir_builder.base import IRBuilder
+from tvm.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
 from tvm.script.ir_builder.frame import IRModuleFrame
 from tvm.script.ir_builder.stmt import _as_expr as _as_expr
 from tvm.tirx import Expr, is_tensor_var
@@ -75,11 +76,14 @@ from tvm.tirx.expr import (
 from tvm.tirx.op import CallFFIKernelAttr
 
 from . import _ffi_api
-from .external_kernel import call_kernel
+from .external_kernel import call_kernel as _call_kernel
+
+call_kernel = _auto_emit_void_call(_call_kernel)
 
 # pylint: enable=unused-import
 
 
+@_auto_emit_void_call
 def _call_global(func: ir.GlobalVar, *args: Expr) -> Call:
     """Build a TIRX call using the declared function's exact result type."""
     if IRBuilder.is_in_scope():
@@ -162,6 +166,7 @@ class WebGPUNamespace:
     """The WebGPU intrinsics submodule."""
 
     @staticmethod
+    @_auto_emit_void_call
     def subgroup_shuffle(var, lane, *, ty=None, loc: Location = UNKNOWN_LOC):
         if is_tensor_var(var):
             var = var[0]
@@ -173,6 +178,7 @@ class WebGPUNamespace:
         )
 
     @staticmethod
+    @_auto_emit_void_call
     def subgroup_shuffle_up(var, delta, *, ty=None, loc: Location = UNKNOWN_LOC):
         if is_tensor_var(var):
             var = var[0]
@@ -184,6 +190,7 @@ class WebGPUNamespace:
         )
 
     @staticmethod
+    @_auto_emit_void_call
     def subgroup_shuffle_down(var, delta, *, ty=None, loc: Location = UNKNOWN_LOC):
         if is_tensor_var(var):
             var = var[0]
@@ -241,226 +248,231 @@ def register_script_namespace(name: str, namespace: object) -> object:
     return namespace
 
 
-abs = _tir_op.abs  # pylint: disable=redefined-builtin
+abs = _auto_emit_void_call(_tir_op.abs)  # pylint: disable=redefined-builtin
 
 
-acos = _tir_op.acos
+acos = _auto_emit_void_call(_tir_op.acos)
 
 
-acosh = _tir_op.acosh
+acosh = _auto_emit_void_call(_tir_op.acosh)
 
 
-address_of = _tir_op.address_of
+address_of = _auto_emit_void_call(_tir_op.address_of)
 
-atomic_add = _ir.op._make_op_api(_ir.Op.get("tirx.atomic_add"), __name__)
+atomic_add = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("tirx.atomic_add"), __name__))
 
-call_spirv_pure_glsl450 = _ir.op._make_op_api(_ir.Op.get("tirx.call_spirv_pure_glsl450"), __name__)
+call_spirv_pure_glsl450 = _auto_emit_void_call(
+    _ir.op._make_op_api(_ir.Op.get("tirx.call_spirv_pure_glsl450"), __name__)
+)
 
 device_scope = _ir.op._make_op_api(_ir.Op.get("tirx.device_scope"), __name__)
 
-prefetch = _ir.op._make_op_api(_ir.Op.get("tirx.prefetch"), __name__)
+prefetch = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("tirx.prefetch"), __name__))
 
-static_handle = _ir.op._make_op_api(_ir.Op.get("tirx.static_handle"), __name__)
+static_handle = _auto_emit_void_call(
+    _ir.op._make_op_api(_ir.Op.get("tirx.static_handle"), __name__)
+)
 
 
-asin = _tir_op.asin
+asin = _auto_emit_void_call(_tir_op.asin)
 
 
-asinh = _tir_op.asinh
+asinh = _auto_emit_void_call(_tir_op.asinh)
 
 
-atan = _tir_op.atan
+atan = _auto_emit_void_call(_tir_op.atan)
 
 
-atan2 = _tir_op.atan2
+atan2 = _auto_emit_void_call(_tir_op.atan2)
 
 
-atanh = _tir_op.atanh
+atanh = _auto_emit_void_call(_tir_op.atanh)
 
 
-bitwise_and = _tir_op.bitwise_and
+bitwise_and = _auto_emit_void_call(_tir_op.bitwise_and)
 
 
-bitwise_not = _tir_op.bitwise_not
+bitwise_not = _auto_emit_void_call(_tir_op.bitwise_not)
 
 
-bitwise_or = _tir_op.bitwise_or
+bitwise_or = _auto_emit_void_call(_tir_op.bitwise_or)
 
 
-bitwise_xor = _tir_op.bitwise_xor
+bitwise_xor = _auto_emit_void_call(_tir_op.bitwise_xor)
 
 
-ceil = _ir.op._make_op_api(_ir.Op.get("prim.ceil"), __name__)
+ceil = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("prim.ceil"), __name__))
 
 
-clz = _ir.op._make_op_api(_ir.Op.get("prim.clz"), __name__)
+clz = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("prim.clz"), __name__))
 
 
-copysign = _tir_op.copysign
+copysign = _auto_emit_void_call(_tir_op.copysign)
 
 
-cos = _tir_op.cos
+cos = _auto_emit_void_call(_tir_op.cos)
 
 
-cosh = _tir_op.cosh
+cosh = _auto_emit_void_call(_tir_op.cosh)
 
 
-erf = _tir_op.erf
+erf = _auto_emit_void_call(_tir_op.erf)
 
 
-exp = _tir_op.exp
+exp = _auto_emit_void_call(_tir_op.exp)
 
 
-exp2 = _tir_op.exp2
+exp2 = _auto_emit_void_call(_tir_op.exp2)
 
 
-exp10 = _tir_op.exp10
+exp10 = _auto_emit_void_call(_tir_op.exp10)
 
 
-gpu_thread_filter = _tir_op.gpu_thread_filter
+gpu_thread_filter = _auto_emit_void_call(_tir_op.gpu_thread_filter)
 
 
-gpu_active_thread_selector = _tir_op.gpu_active_thread_selector
+gpu_active_thread_selector = _auto_emit_void_call(_tir_op.gpu_active_thread_selector)
 
 
-floor = _ir.op._make_op_api(_ir.Op.get("prim.floor"), __name__)
+floor = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("prim.floor"), __name__))
 
 
-ceildiv = _tir_op.ceildiv
+ceildiv = _auto_emit_void_call(_tir_op.ceildiv)
 
 
-floordiv = _tir_op.floordiv
+floordiv = _auto_emit_void_call(_tir_op.floordiv)
 
 
-floormod = _tir_op.floormod
+floormod = _auto_emit_void_call(_tir_op.floormod)
 
 
-fmod = _tir_op.fmod
+fmod = _auto_emit_void_call(_tir_op.fmod)
 
 
-fma = _tir_op.fma
+fma = _auto_emit_void_call(_tir_op.fma)
 
 
-hypot = _tir_op.hypot
+hypot = _auto_emit_void_call(_tir_op.hypot)
 
 
-if_then_else = _ir.op._make_op_api(_ir.Op.get("prim.if_then_else"), __name__)
+if_then_else = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("prim.if_then_else"), __name__))
 
 
-infinity = _tir_op.infinity
+infinity = _auto_emit_void_call(_tir_op.infinity)
 
 
-isfinite = _tir_op.isfinite
+isfinite = _auto_emit_void_call(_tir_op.isfinite)
 
 
-isinf = _tir_op.isinf
+isinf = _auto_emit_void_call(_tir_op.isinf)
 
 
-isnan = _tir_op.isnan
+isnan = _auto_emit_void_call(_tir_op.isnan)
 
 
-isnullptr = _tir_op.isnullptr
+isnullptr = _auto_emit_void_call(_tir_op.isnullptr)
 
 
-ldexp = _tir_op.ldexp
+ldexp = _auto_emit_void_call(_tir_op.ldexp)
 
 
-likely = _ir.op._make_op_api(_ir.Op.get("prim.likely"), __name__)
+likely = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("prim.likely"), __name__))
 
 
-log = _tir_op.log
+log = _auto_emit_void_call(_tir_op.log)
 
 
-log1p = _tir_op.log1p
+log1p = _auto_emit_void_call(_tir_op.log1p)
 
 
-log2 = _tir_op.log2
+log2 = _auto_emit_void_call(_tir_op.log2)
 
 
-log10 = _tir_op.log10
+log10 = _auto_emit_void_call(_tir_op.log10)
 
 
-max_value = _tir_op.max_value
+max_value = _auto_emit_void_call(_tir_op.max_value)
 
 
-min_value = _tir_op.min_value
+min_value = _auto_emit_void_call(_tir_op.min_value)
 
 
-nearbyint = _ir.op._make_op_api(_ir.Op.get("prim.nearbyint"), __name__)
+nearbyint = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("prim.nearbyint"), __name__))
 
 
-nextafter = _tir_op.nextafter
+nextafter = _auto_emit_void_call(_tir_op.nextafter)
 
 
-popcount = _tir_op.popcount
+popcount = _auto_emit_void_call(_tir_op.popcount)
 
 
-pow = _ir.op._make_op_api(_ir.Op.get("prim.pow"), __name__)
+pow = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("prim.pow"), __name__))
 
 
-round = _ir.op._make_op_api(_ir.Op.get("prim.round"), __name__)
+round = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("prim.round"), __name__))
 
 
-rsqrt = _tir_op.rsqrt
+rsqrt = _auto_emit_void_call(_tir_op.rsqrt)
 
 
-shift_left = _tir_op.shift_left
+shift_left = _auto_emit_void_call(_tir_op.shift_left)
 
 
-shift_right = _tir_op.shift_right
+shift_right = _auto_emit_void_call(_tir_op.shift_right)
 
 
-sigmoid = _tir_op.sigmoid
+sigmoid = _auto_emit_void_call(_tir_op.sigmoid)
 
 
-sin = _tir_op.sin
+sin = _auto_emit_void_call(_tir_op.sin)
 
 
-sinh = _tir_op.sinh
+sinh = _auto_emit_void_call(_tir_op.sinh)
 
 
-sqrt = _tir_op.sqrt
+sqrt = _auto_emit_void_call(_tir_op.sqrt)
 
 
-tan = _tir_op.tan
+tan = _auto_emit_void_call(_tir_op.tan)
 
 
-tanh = _tir_op.tanh
+tanh = _auto_emit_void_call(_tir_op.tanh)
 
 
-gpu_thread_return = _tir_op.gpu_thread_return
+gpu_thread_return = _auto_emit_void_call(_tir_op.gpu_thread_return)
 
 
-trunc = _ir.op._make_op_api(_ir.Op.get("prim.trunc"), __name__)
+trunc = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("prim.trunc"), __name__))
 
 
-truncdiv = _tir_op.truncdiv
+truncdiv = _auto_emit_void_call(_tir_op.truncdiv)
 
 
-truncmod = _tir_op.truncmod
+truncmod = _auto_emit_void_call(_tir_op.truncmod)
 
 
-ptr_byte_offset = _tir_op.ptr_byte_offset
+ptr_byte_offset = _auto_emit_void_call(_tir_op.ptr_byte_offset)
 
 
-throw_last_error = _tir_op.throw_last_error
+throw_last_error = _auto_emit_void_call(_tir_op.throw_last_error)
 
 
-stack_alloca = _tir_op.stack_alloca
+stack_alloca = _auto_emit_void_call(_tir_op.stack_alloca)
 
 
-stack_make_shape = _tir_op.stack_make_shape
+stack_make_shape = _auto_emit_void_call(_tir_op.stack_make_shape)
 
 
-stack_make_dltensor = _tir_op.stack_make_dltensor
+stack_make_dltensor = _auto_emit_void_call(_tir_op.stack_make_dltensor)
 
 
-call_packed = _tir_op.call_packed
+call_packed = _auto_emit_void_call(_tir_op.call_packed)
 
 
 _call_ffi_kernel_raw = _ir.op._make_op_api(_ir.Op.get("tirx.call_ffi_kernel"), __name__)
 
 
+@_auto_emit_void_call
 def call_ffi_kernel(*args, launch=None, **kwargs):
     """Call a kernel with a CUDA LaunchConfig, or read a printed low-level call."""
     if launch is not None:
@@ -468,125 +480,134 @@ def call_ffi_kernel(*args, launch=None, **kwargs):
     return _call_ffi_kernel_raw(*args, **kwargs)
 
 
-call_cpacked = _tir_op.call_cpacked
+call_cpacked = _auto_emit_void_call(_tir_op.call_cpacked)
 
 
-call_packed_lowered = _tir_op.call_packed_lowered
+call_packed_lowered = _auto_emit_void_call(_tir_op.call_packed_lowered)
 
 
-call_cpacked_lowered = _tir_op.call_cpacked_lowered
+call_cpacked_lowered = _auto_emit_void_call(_tir_op.call_cpacked_lowered)
 
 
-tensor_data_ptr = _tir_op.tensor_data_ptr
+tensor_data_ptr = _auto_emit_void_call(_tir_op.tensor_data_ptr)
 
 
-handle_add_byte_offset = _tir_op.handle_add_byte_offset
+handle_add_byte_offset = _auto_emit_void_call(_tir_op.handle_add_byte_offset)
 
 
-abi_field_set = _tir_op.abi_field_set
+abi_field_set = _auto_emit_void_call(_tir_op.abi_field_set)
 
 
-abi_field_get = _ir.op._make_op_api(_ir.Op.get("tirx.abi_field_get"), __name__)
+abi_field_get = _auto_emit_void_call(
+    _ir.op._make_op_api(_ir.Op.get("tirx.abi_field_get"), __name__)
+)
 
 
-gpu_thread_invariant = _tir_op.gpu_thread_invariant
+gpu_thread_invariant = _auto_emit_void_call(_tir_op.gpu_thread_invariant)
 
 
-gpu_thread_allreduce = _tir_op.gpu_thread_allreduce
+gpu_thread_allreduce = _auto_emit_void_call(_tir_op.gpu_thread_allreduce)
 
 
-gpu_load_matrix_sync = _tir_op.gpu_load_matrix_sync
+gpu_load_matrix_sync = _auto_emit_void_call(_tir_op.gpu_load_matrix_sync)
 
 
-gpu_mma_sync = _tir_op.gpu_mma_sync
+gpu_mma_sync = _auto_emit_void_call(_tir_op.gpu_mma_sync)
 
 
-gpu_fill_fragment = _tir_op.gpu_fill_fragment
+gpu_fill_fragment = _auto_emit_void_call(_tir_op.gpu_fill_fragment)
 
 
-gpu_store_matrix_sync = _tir_op.gpu_store_matrix_sync
+gpu_store_matrix_sync = _auto_emit_void_call(_tir_op.gpu_store_matrix_sync)
 
 
-gpu_storage_sync = _tir_op.gpu_storage_sync
-cpu_parallel_barrier = _tir_op.cpu_parallel_barrier
+gpu_storage_sync = _auto_emit_void_call(_tir_op.gpu_storage_sync)
+cpu_parallel_barrier = _auto_emit_void_call(_tir_op.cpu_parallel_barrier)
 
 
-kernel_replace_point = _tir_op.kernel_replace_point
+kernel_replace_point = _auto_emit_void_call(_tir_op.kernel_replace_point)
 
 
-gpu_warp_shuffle = _tir_op.gpu_warp_shuffle
+gpu_warp_shuffle = _auto_emit_void_call(_tir_op.gpu_warp_shuffle)
 
 
-gpu_warp_shuffle_up = _tir_op.gpu_warp_shuffle_up
+gpu_warp_shuffle_up = _auto_emit_void_call(_tir_op.gpu_warp_shuffle_up)
 
 
-gpu_warp_shuffle_down = _tir_op.gpu_warp_shuffle_down
+gpu_warp_shuffle_down = _auto_emit_void_call(_tir_op.gpu_warp_shuffle_down)
 
 
-gpu_warp_shuffle_xor = _tir_op.gpu_warp_shuffle_xor
+gpu_warp_shuffle_xor = _auto_emit_void_call(_tir_op.gpu_warp_shuffle_xor)
 
 
-gpu_warp_activemask = _tir_op.gpu_warp_activemask
+gpu_warp_activemask = _auto_emit_void_call(_tir_op.gpu_warp_activemask)
 
 
-assume = _tir_op.assume
-assume_aligned = _tir_op.assume_aligned
+assume = _auto_emit_void_call(_tir_op.assume)
+assume_aligned = _auto_emit_void_call(_tir_op.assume_aligned)
 
 
-undef = _tir_op.undef
+undef = _auto_emit_void_call(_tir_op.undef)
 
 
-alloc_workspace = _tir_op.alloc_workspace
+alloc_workspace = _auto_emit_void_call(_tir_op.alloc_workspace)
 
 
-free_workspace = _tir_op.free_workspace
+free_workspace = _auto_emit_void_call(_tir_op.free_workspace)
 
 
-vscale = _tir_op.vscale
+vscale = _auto_emit_void_call(_tir_op.vscale)
 
 
-ignore_loop_partition = _tir_op.ignore_loop_partition
+ignore_loop_partition = _auto_emit_void_call(_tir_op.ignore_loop_partition)
 
 
-reinterpret = _ir.op._make_op_api(_ir.Op.get("tirx.reinterpret"), __name__)
+reinterpret = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("tirx.reinterpret"), __name__))
 
 
-call_extern = _ir.op._make_op_api(_ir.Op.get("tirx.call_extern"), __name__)
+call_extern = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("tirx.call_extern"), __name__))
 
 
+@_auto_emit_void_call
 def call_intrin(func_name, *args, ty, attrs=None, loc: Location = UNKNOWN_LOC):
     """Call an intrinsic with an explicit result type."""
     return _tir_op.call_intrin(ty, func_name, *args, attrs=attrs, loc=loc)
 
 
-call_llvm_intrin = _llvm_result_type(_tir_op.call_llvm_intrin)
+call_llvm_intrin = _auto_emit_void_call(_llvm_result_type(_tir_op.call_llvm_intrin))
 
 
-call_llvm_pure_intrin = _llvm_result_type(_tir_op.call_llvm_pure_intrin)
+call_llvm_pure_intrin = _auto_emit_void_call(_llvm_result_type(_tir_op.call_llvm_pure_intrin))
 
 
-call_pure_extern = _ir.op._make_op_api(_ir.Op.get("tirx.call_pure_extern"), __name__)
+call_pure_extern = _auto_emit_void_call(
+    _ir.op._make_op_api(_ir.Op.get("tirx.call_pure_extern"), __name__)
+)
 
 
-vector_low = _ir.op._make_op_api(_ir.Op.get("tirx.vector_low"), __name__)
+vector_low = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("tirx.vector_low"), __name__))
 
 
-vector_high = _ir.op._make_op_api(_ir.Op.get("tirx.vector_high"), __name__)
+vector_high = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("tirx.vector_high"), __name__))
 
 
-vector_combine = _ir.op._make_op_api(_ir.Op.get("tirx.vector_combine"), __name__)
+vector_combine = _auto_emit_void_call(
+    _ir.op._make_op_api(_ir.Op.get("tirx.vector_combine"), __name__)
+)
 
 
-get_active_lane_mask = _ir.op._make_op_api(_ir.Op.get("tirx.get_active_lane_mask"), __name__)
+get_active_lane_mask = _auto_emit_void_call(
+    _ir.op._make_op_api(_ir.Op.get("tirx.get_active_lane_mask"), __name__)
+)
 
 
-masked_load = _ir.op._make_op_api(_ir.Op.get("tirx.masked_load"), __name__)
+masked_load = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("tirx.masked_load"), __name__))
 
 
-masked_store = _tir_op.masked_store
+masked_store = _auto_emit_void_call(_tir_op.masked_store)
 
 
-gpu_dp4a = _tir_op.gpu_dp4a
+gpu_dp4a = _auto_emit_void_call(_tir_op.gpu_dp4a)
 
 
 broadcast = Broadcast
@@ -595,7 +616,7 @@ broadcast = Broadcast
 ramp = Ramp
 
 
-fabs = _ir.op._make_op_api(_ir.Op.get("prim.fabs"), __name__)
+fabs = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("prim.fabs"), __name__))
 
 
 def logical_and(*values):

@@ -20,7 +20,8 @@
 #ifndef TVM_BACKEND_OPENCL_MEMORY_SCOPE_H_
 #define TVM_BACKEND_OPENCL_MEMORY_SCOPE_H_
 
-#include "../memory_scope.h"
+#include <tvm/ffi/reflection/enum_def.h>
+#include <tvm/runtime/memory_scope.h>
 
 namespace tvm {
 namespace backend {
@@ -30,17 +31,20 @@ inline constexpr const char* kTextureStorage = "opencl.texture_storage";
 
 inline void RegisterMemoryScopes() {
   using runtime::MemoryAllocProperty;
-  static const bool initialized = [] {
-    RegisterBackendMemoryScope("texture", MemoryAllocProperty::kSeparateAllocations,
-                               {{kTextureStorage, true}});
-    for (const char* name : {"global.texture", "global.texture-1d", "global.texture-nchw",
-                             "global.texture-nhwc", "global.texture-weight"}) {
-      RegisterBackendMemoryScope(name, MemoryAllocProperty::kSingleAllocation,
-                                 {{kTextureStorage, true}});
-    }
-    return true;
-  }();
-  (void)initialized;
+  if (!runtime::MemoryScope::IsDefined("texture")) {
+    ffi::reflection::EnumDef<runtime::MemoryScopeObj>("texture")
+        .set_attr(runtime::attr::kMemoryAllocProperty,
+                  static_cast<int>(MemoryAllocProperty::kSeparateAllocations))
+        .set_attr(kTextureStorage, true);
+  }
+  for (const char* name : {"global.texture", "global.texture-1d", "global.texture-nchw",
+                           "global.texture-nhwc", "global.texture-weight"}) {
+    if (runtime::MemoryScope::IsDefined(name)) continue;
+    ffi::reflection::EnumDef<runtime::MemoryScopeObj>(name)
+        .set_attr(runtime::attr::kMemoryAllocProperty,
+                  static_cast<int>(MemoryAllocProperty::kSingleAllocation))
+        .set_attr(kTextureStorage, true);
+  }
 }
 
 }  // namespace opencl
