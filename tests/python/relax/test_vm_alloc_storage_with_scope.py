@@ -17,10 +17,12 @@
 """Test tensor allocation with memory scope for Relax VM"""
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm import relax
+from tvm.runtime import MemoryScope
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
@@ -72,6 +74,24 @@ def test_alloc_storage_with_scope_global():
     vm_rt.invoke_stateful("main")
     output = vm_rt.get_outputs("main").numpy()
     tvm.testing.assert_allclose(output_ref, output)
+
+
+def test_relax_allocation_scope_operands():
+    scope = MemoryScope("global")
+    for make_call in (
+        lambda value: tvm.relax.op.builtin.alloc_tensor((4,), "float32", 0, value),
+        lambda value: tvm.relax.op.memory.alloc_storage((16,), 0, value, "float32"),
+        lambda value: tvm.relax.op.vm.alloc_storage((16,), 0, "float32", value),
+    ):
+        tvm.ir.assert_structural_equal(make_call(scope), make_call(scope.name))
+
+
+def test_vdevice_memory_scope():
+    global_scope = MemoryScope("global")
+    for scope in ("global", global_scope):
+        assert tvm.relax.VDevice("llvm", memory_scope=scope).memory_scope.same_as(global_scope)
+    with pytest.raises(ValueError):
+        tvm.relax.VDevice("llvm", memory_scope="")
 
 
 if __name__ == "__main__":
