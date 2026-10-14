@@ -21,11 +21,10 @@
  * \file intrin_rule_opencl.cc
  * \brief OpenCL intrinsic rules.
  */
+#include <tvm/codegen/intrin_rule.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op_attr_types.h>
-
-#include "../../../target/intrin_rule.h"
 
 namespace tvm {
 namespace codegen {

@@ -22,14 +22,13 @@
  * \brief CUDA intrinsic rules.
  */
 #include <tvm/backend/cuda/op_attr_types.h>
+#include <tvm/codegen/intrin_rule.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op_attr_types.h>
-
-#include "../../../target/intrin_rule.h"
 
 namespace tvm {
 namespace codegen {

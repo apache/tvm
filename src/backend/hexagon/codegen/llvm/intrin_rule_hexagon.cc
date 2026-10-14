@@ -24,7 +24,7 @@
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op_attr_types.h>
 
-#include "../../../../target/llvm/intrin_rule_llvm.h"
+#include "../../../../codegen/llvm/intrin_rule_llvm.h"
 
 namespace tvm {
 namespace codegen {

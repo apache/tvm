@@ -24,13 +24,13 @@
 #ifndef TVM_TARGET_OPENCL_CODEGEN_OPENCL_H_
 #define TVM_TARGET_OPENCL_CODEGEN_OPENCL_H_
 
+#include <tvm/codegen/codegen.h>
 #include <tvm/runtime/memory_scope.h>
-#include <tvm/target/codegen.h>
 
 #include <string>
 #include <unordered_map>
 
-#include "../../../target/source/codegen_c.h"
+#include "../../../codegen/c/codegen_c.h"
 
 namespace tvm {
 namespace codegen {

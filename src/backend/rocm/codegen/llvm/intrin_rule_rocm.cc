@@ -23,6 +23,7 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <llvm/IR/Intrinsics.h>
+#include <tvm/codegen/intrin_rule.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
@@ -33,8 +34,7 @@
 
 #include <sstream>
 
-#include "../../../../target/intrin_rule.h"
-#include "../../../../target/llvm/intrin_rule_llvm.h"
+#include "../../../../codegen/llvm/intrin_rule_llvm.h"
 
 namespace tvm {
 namespace codegen {
@@ -201,7 +201,7 @@ void RegisterROCMIntrinRules() {
 
   OpDef("prim.tanh")
       .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                                 ::tvm::codegen::intrin::DispatchNumericalStableTanh);
+                                 ::tvm::codegen::intrin::DispatchNumericallyStableTanh);
 
   OpDef("prim.erf")
       .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", ::tvm::codegen::intrin::DispatchFastErf);
