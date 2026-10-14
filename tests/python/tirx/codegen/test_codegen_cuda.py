@@ -152,6 +152,45 @@ def test_cuda_module_destructor_preserves_current_device():
         torch.cuda.set_device(original_device)
 
 
+@pytest.mark.parametrize(
+    "op_name", ["ptx_legacy.mma", "ptx_legacy.ldmatrix", "cuda.mma_store", "cuda.mma_fill"]
+)
+def test_legacy_tensorcore_ops_require_downstream_codegen(op_name):
+    from tvm.backend.cuda import op as cuda_op
+
+    data = tvm.tirx.Var("data", tvm.ir.PtrType("float16", "global"))
+    calls = {
+        "ptx_legacy.mma": lambda: cuda_op.ptx_legacy_mma(
+            "m16n8k16",
+            "row",
+            "col",
+            "float16",
+            "float16",
+            "float32",
+            data,
+            0,
+            data,
+            0,
+            data,
+            0,
+            False,
+        ),
+        "ptx_legacy.ldmatrix": lambda: cuda_op.ptx_legacy_ldmatrix(
+            False, 4, ".b16", data, 0, data, 0, ty="float16"
+        ),
+        "cuda.mma_store": lambda: cuda_op.mma_store("float16", 16, 16, data, data, 0, 16),
+        "cuda.mma_fill": lambda: cuda_op.mma_fill("float16", 8, data, 0),
+    }
+    call = calls[op_name]()
+    assert call.op.name == "tirx." + op_name
+    func = tvm.tirx.Function([data], tvm.ir.Evaluate(call)).with_attr("global_symbol", "main")
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
+    with pytest.raises(
+        tvm.error.InternalError, match="Unresolved call.*" + re.escape(call.op.name)
+    ):
+        tvm.get_global_func("target.build.cuda")(tvm.IRModule.from_expr(func), target)
+
+
 def test_typed_buffer_bindings(monkeypatch):
     @T.function
     def main(data: T.handle("float32"), output: T.handle):

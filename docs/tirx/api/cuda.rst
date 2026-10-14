@@ -76,6 +76,10 @@ The current ``Tx.cuda`` surface includes:
        ``iket.official_event``, ``timer_init``, ``timer_start``, ``timer_end``,
        ``timer_finalize``, ``mma_store``, and ``mma_fill``
 
+``mma_store`` and ``mma_fill`` remain available for downstream emitters.
+TVM CUDA codegen does not emit them; express stores and initialization with
+ordinary tensor assignments.
+
 NVSHMEM namespace
 -----------------
 
