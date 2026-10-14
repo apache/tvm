@@ -63,11 +63,11 @@ def test_allocation_property_controls_reuse(property_value):
         def func(output: T.Tensor((2,), T.float32)):
             A = T.alloc_tensor(ty_args=[T.Tensor((128,), T.float32, scope=scope)])
             for i in range(128):
-                A[i] = T.Cast("float32", i)
+                A[i] = T.Cast(i, "float32")
             output[0] = A[127]
             A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((128,), T.float32, scope=scope)])
             for i_1 in range(128):
-                A_1[i_1] = T.Cast("float32", i_1 + 1)
+                A_1[i_1] = T.Cast(i_1 + 1, "float32")
             output[1] = A_1[127]
 
     expected = Expected["func"] if property_value != 2 else func
@@ -95,8 +95,8 @@ def test_allocation_property_controls_packing(property_value):
             A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((128,), T.float32, scope=scope)])
             A_2 = T.decl_tensor(A.data, ty_args=[T.Tensor((128,), T.float32, scope=scope)])
             for i in range(128):
-                A_1[i] = T.Cast("float32", i)
-                A_2[128 + i] = T.Cast("float32", i + 1)
+                A_1[i] = T.Cast(i, "float32")
+                A_2[128 + i] = T.Cast(i + 1, "float32")
             output[0] = A_1[127] + A_2[255]
 
     expected = Expected["func"] if property_value == 1 else func
@@ -143,8 +143,8 @@ def test_single_allocation_preserves_exact_metadata():
                 annotations={"test.constraint": 7},
             )
             for i in range(128):
-                A[i] = T.Cast("float32", i)
-                B[i] = T.Cast("float32", i + 1)
+                A[i] = T.Cast(i, "float32")
+                B[i] = T.Cast(i + 1, "float32")
             output[0] = A[127] + B[127]
 
     after = _rewrite(func)
@@ -180,10 +180,10 @@ def test_allocation_constraints_prevent_lifetime_reuse(property_value, stride, o
                 ]
             )
             for i in range(128):
-                A[i] = T.Cast("float32", i)
+                A[i] = T.Cast(i, "float32")
             output[0] = A[127]
             for i_1 in range(128):
-                B[i_1] = T.Cast("float32", i_1 + 1)
+                B[i_1] = T.Cast(i_1 + 1, "float32")
             output[1] = B[127]
 
     tvm.ir.assert_structural_equal(_rewrite(func), Expected["func"])
@@ -215,13 +215,13 @@ def test_lifetime_reuse_preserves_alignment(property_value):
                 A.data, ty_args=[T.Tensor((128,), T.float32, scope=scope, data_alignment=256)]
             )
             for i in range(128):
-                A_1[i] = T.Cast("float32", i)
+                A_1[i] = T.Cast(i, "float32")
             output[0] = A_1[127]
             A_2 = T.decl_tensor(
                 A.data, ty_args=[T.Tensor((256,), T.float32, scope=scope, data_alignment=256)]
             )
             for i_1 in range(256):
-                A_2[i_1] = T.Cast("float32", i_1 + 1)
+                A_2[i_1] = T.Cast(i_1 + 1, "float32")
             output[1] = A_2[255]
 
     after = _rewrite(func)
@@ -253,7 +253,7 @@ def test_packing_preserves_different_alignment_contracts():
             )
             A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((17,), T.float32, scope=scope)])
             for i in range(17):
-                A_1[i] = T.Cast("float32", i)
+                A_1[i] = T.Cast(i, "float32")
             output[0] = A_1[16]
             A_2 = T.decl_tensor(
                 A.data,
@@ -262,7 +262,7 @@ def test_packing_preserves_different_alignment_contracts():
                 ],
             )
             for i_1 in range(17):
-                A_2[128 + i_1] = T.Cast("float32", i_1 + 1)
+                A_2[128 + i_1] = T.Cast(i_1 + 1, "float32")
             output[1] = A_2[144]
 
     after = _rewrite(func)
@@ -344,19 +344,19 @@ def test_alloc_different_dtypes(first_dtype, last_dtype, size, offsets):
         D = T.alloc_tensor(ty_args=[T.Tensor((1024,), last_dtype, "local.L0A")])
         E = T.alloc_tensor(ty_args=[T.Tensor((1024,), "int8", "local.L0A")])
         for j in range(1024):
-            A[j] = T.Cast(first_dtype, 1)
+            A[j] = T.Cast(1, first_dtype)
         for j in range(1024):
-            B[j] = T.Cast("int32", 1)
+            B[j] = T.Cast(1, "int32")
         for j in range(1024):
-            C[j] = T.Cast("uint16", 1)
+            C[j] = T.Cast(1, "uint16")
         for j in range(1024):
-            D[j] = T.Cast(last_dtype, 1)
+            D[j] = T.Cast(1, last_dtype)
         for j in range(1024):
             E[j] = (
-                T.Cast("int8", A[j])
-                + T.Cast("int8", B[j])
-                + T.Cast("int8", C[j])
-                + T.Cast("int8", D[j])
+                T.Cast(A[j], "int8")
+                + T.Cast(B[j], "int8")
+                + T.Cast(C[j], "int8")
+                + T.Cast(D[j], "int8")
             )
 
     @I.ir_module
@@ -370,19 +370,19 @@ def test_alloc_different_dtypes(first_dtype, last_dtype, size, offsets):
             D = T.decl_tensor(storage.data, ty_args=[T.Tensor((1024,), last_dtype, "local.L0A")])
             E = T.decl_tensor(storage.data, ty_args=[T.Tensor((1024,), "int8", "local.L0A")])
             for j in range(1024):
-                A[j] = T.Cast(first_dtype, 1)
+                A[j] = T.Cast(1, first_dtype)
             for j in range(1024):
-                B[offsets[0] + j] = T.Cast("int32", 1)
+                B[offsets[0] + j] = T.Cast(1, "int32")
             for j in range(1024):
-                C[offsets[1] + j] = T.Cast("uint16", 1)
+                C[offsets[1] + j] = T.Cast(1, "uint16")
             for j in range(1024):
-                D[offsets[2] + j] = T.Cast(last_dtype, 1)
+                D[offsets[2] + j] = T.Cast(1, last_dtype)
             for j in range(1024):
                 E[j if T.constexpr(offsets[3] == 0) else offsets[3] + j] = (
-                    T.Cast("int8", A[j])
-                    + T.Cast("int8", B[offsets[0] + j])
-                    + T.Cast("int8", C[offsets[1] + j])
-                    + T.Cast("int8", D[offsets[2] + j])
+                    T.Cast(A[j], "int8")
+                    + T.Cast(B[offsets[0] + j], "int8")
+                    + T.Cast(C[offsets[1] + j], "int8")
+                    + T.Cast(D[offsets[2] + j], "int8")
                 )
 
     tvm.ir.assert_structural_equal(_rewrite(before), Expected["before"])

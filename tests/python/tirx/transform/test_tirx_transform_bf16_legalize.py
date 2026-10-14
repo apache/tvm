@@ -166,8 +166,8 @@ def test_bf16_masked_load_store_will_legalize():
                 B,
                 T.reinterpret(
                     T.Cast(
-                        "uint32x4",
                         T.reinterpret(T.masked_load(A, T.Ramp(0, 1, 4), mask[0]), ty="uint16x4"),
+                        "uint32x4",
                     )
                     << T.Broadcast(T.uint32(16), 4),
                     ty="float32x4",
@@ -179,7 +179,6 @@ def test_bf16_masked_load_store_will_legalize():
                 C,
                 T.reinterpret(
                     T.Cast(
-                        "uint16x4",
                         T.reinterpret(T.masked_load(B, T.Ramp(0, 1, 4), mask[0]), ty="uint32x4")
                         + (
                             (
@@ -192,6 +191,7 @@ def test_bf16_masked_load_store_will_legalize():
                             + T.Broadcast(T.uint32(32767), 4)
                         )
                         >> T.Broadcast(T.uint32(16), 4),
+                        "uint16x4",
                     ),
                     ty="bfloat16x4",
                 ),
@@ -214,7 +214,7 @@ def test_bf16_masked_load_store_will_legalize():
             T.masked_store(
                 B,
                 T.reinterpret(
-                    T.Cast("uint32x4", T.masked_load(A, T.Ramp(0, 1, 4), mask[0]))
+                    T.Cast(T.masked_load(A, T.Ramp(0, 1, 4), mask[0]), "uint32x4")
                     << T.Broadcast(T.uint32(16), 4),
                     ty="float32x4",
                 ),
@@ -224,7 +224,6 @@ def test_bf16_masked_load_store_will_legalize():
             T.masked_store(
                 C,
                 T.Cast(
-                    "uint16x4",
                     T.reinterpret(T.masked_load(B, T.Ramp(0, 1, 4), mask[0]), ty="uint32x4")
                     + (
                         (
@@ -235,6 +234,7 @@ def test_bf16_masked_load_store_will_legalize():
                         + T.Broadcast(T.uint32(32767), 4)
                     )
                     >> T.Broadcast(T.uint32(16), 4),
+                    "uint16x4",
                 ),
                 T.Ramp(0, 1, 4),
                 mask[0],

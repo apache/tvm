@@ -76,7 +76,6 @@ def test_memory_scope_json_roundtrip():
         assert tvm.ir.load_json(tvm.ir.save_json(scope)).same_as(scope)
 
 
-
 if __name__ == "__main__":
     test_func_type()
     test_tuple_type()

@@ -178,7 +178,7 @@ def test_lower_view_get():
                     A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
                 )
                 for i in T.vectorized(2):
-                    A_local[i] = T.Cast("float16", in_buf_1[T.cuda.thread_idx("x") * 2 + i])
+                    A_local[i] = T.Cast(in_buf_1[T.cuda.thread_idx("x") * 2 + i], "float16")
                 B_1 = T.decl_tensor(
                     A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
                 )
@@ -186,7 +186,7 @@ def test_lower_view_get():
                     A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
                 )
                 for i in T.vectorized(2):
-                    out_1[T.cuda.thread_idx("x") * 2 + i] = T.Cast("float32", A_local_1[i])
+                    out_1[T.cuda.thread_idx("x") * 2 + i] = T.Cast(A_local_1[i], "float32")
 
     compare(Before1, Expected1, LowerTIRx)
 
@@ -448,11 +448,11 @@ def test_lower_view_get():
                 A_local = T.decl_tensor(
                     A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
                 )
-                A_local[0] = T.Cast("float16", in_buf_1[T.cuda.thread_idx("x") * 2])
+                A_local[0] = T.Cast(in_buf_1[T.cuda.thread_idx("x") * 2], "float16")
                 A_local_1 = T.decl_tensor(
                     A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
                 )
-                A_local_1[1] = T.Cast("float16", in_buf_1[T.cuda.thread_idx("x") * 2 + 1])
+                A_local_1[1] = T.Cast(in_buf_1[T.cuda.thread_idx("x") * 2 + 1], "float16")
                 B_2 = T.decl_tensor(
                     A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
                 )
@@ -462,11 +462,11 @@ def test_lower_view_get():
                 A_local_2 = T.decl_tensor(
                     A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
                 )
-                out_1[T.cuda.thread_idx("x") * 2] = T.Cast("float32", A_local_2[0])
+                out_1[T.cuda.thread_idx("x") * 2] = T.Cast(A_local_2[0], "float32")
                 A_local_3 = T.decl_tensor(
                     A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
                 )
-                out_1[T.cuda.thread_idx("x") * 2 + 1] = T.Cast("float32", A_local_3[1])
+                out_1[T.cuda.thread_idx("x") * 2 + 1] = T.Cast(A_local_3[1], "float32")
 
     compare(Before4_multi_view_get, Expected4_multi_view_get, LowerTIRx)
 
@@ -1001,7 +1001,7 @@ def test_lower_uint32_scope_id_casts_at_bind():
                 [1, 1, 1, 128, 1, 1],
                 attrs=_CTA_LAUNCH_ATTRS,
             ):
-                tx: T.let[T.uint32] = T.Cast("uint32", T.cuda.thread_idx("x"))
+                tx: T.let[T.uint32] = T.Cast(T.cuda.thread_idx("x"), "uint32")
                 for k in T.serial(T.uint32(4)):
                     T.evaluate(tx + k)
 
@@ -1524,7 +1524,7 @@ def test_simplify_uses_floor_div_scope_predicate_as_context_fact():
                 warp_id: T.let[T.int32] = warp_id_in_cta % 4
                 lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
                 if wg_id == 0:
-                    A_1[warp_id_in_cta % 4] = T.Cast("float32", lane_id)
+                    A_1[warp_id_in_cta % 4] = T.Cast(lane_id, "float32")
 
     @I.ir_module
     class ExpectedSimplified:
@@ -1539,7 +1539,7 @@ def test_simplify_uses_floor_div_scope_predicate_as_context_fact():
                 warp_id: T.let[T.int32] = warp_id_in_cta % 4
                 lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
                 if warp_id_in_cta // 4 == 0:
-                    A_1[warp_id_in_cta] = T.Cast("float32", T.cuda.thread_idx("x") % 32)
+                    A_1[warp_id_in_cta] = T.Cast(T.cuda.thread_idx("x") % 32, "float32")
 
     with tvm.target.Target("cuda"):
         lowered = LowerTIRx()(Before)
@@ -1677,7 +1677,7 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
                 )
                 warp_id: T.let[T.int32] = warp_id_in_cta
                 lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
-                if T.Cast("uint32", warp_id == 0) & T.cuda.elect_sync():
+                if T.Cast(warp_id == 0, "uint32") & T.cuda.elect_sync():
                     pass
 
     with tvm.target.Target("cuda"):
@@ -2021,8 +2021,8 @@ def test_lower_remaps_tensor_memory_address_metadata(offset):
 
     def expected_address(addr, i):
         if offset:
-            return addr[0] + T.uint32(offset) + T.Cast("uint32", i)
-        return addr[0] + T.Cast("uint32", i)
+            return addr[0] + T.uint32(offset) + T.Cast(i, "uint32")
+        return addr[0] + T.Cast(i, "uint32")
 
     @I.ir_module
     class Expected:
