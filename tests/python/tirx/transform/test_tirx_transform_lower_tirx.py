@@ -2341,7 +2341,9 @@ def test_alloc_tensor_layout_span_without_threads(scope):
             A = T.alloc_tensor(ty_args=[T.Tensor((39,), "uint32", scope=scope, layout=None)])
             A[38] = T.uint32(7)
 
-    compare(Before, Expected, LowerTIRx)
+    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+        After = LowerTIRx()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 @pytest.mark.parametrize("scope", ["local", "shared"])
@@ -2363,4 +2365,6 @@ def test_alloc_tensor_swizzle_storage_span(scope):
             A = T.alloc_tensor(ty_args=[T.Tensor((1024,), "uint32", scope=scope, layout=None)])
             A[1023] = T.uint32(7)
 
-    compare(Before, Expected, LowerTIRx)
+    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+        After = LowerTIRx()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
