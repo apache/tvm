@@ -25,11 +25,7 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
-
-pytestmark = pytest.mark.skipif(
-    not tvm.runtime.enabled("llvm") or "hexagon" not in tvm.codegen.llvm_get_targets(),
-    reason="LLVM Hexagon target is required",
-)
+from tvm.testing import env
 
 
 @pytest.fixture(autouse=True)
@@ -50,6 +46,7 @@ def register_linker():
         register_global_func(name, original_linker, override=True)
 
 
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_basic():
     target = tvm.target.Target("qcom/hexagon-v66")
 
@@ -71,6 +68,7 @@ def test_basic():
     assert vadds, asm
 
 
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_llvm_target_features():
     target = tvm.target.Target("qcom/hexagon-v66")
 
@@ -89,6 +87,7 @@ def test_llvm_target_features():
     assert fs  # Check that it's non-empty
 
 
+@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_llvm_options():
     target = tvm.target.Target(
         {
