@@ -93,8 +93,7 @@ class TensorTypeNode : public TypeNode {
     refl::ObjectDef<TensorTypeNode>()
         .def_ro("shape", &TensorTypeNode::shape, refl::AttachFieldFlag::SEqHashDefSimple())
         .def_ro("dtype", &TensorTypeNode::dtype)
-        .def_ro("scope", &TensorTypeNode::scope,
-                refl::DefaultValue(runtime::MemoryScope::Global()))
+        .def_ro("scope", &TensorTypeNode::scope, refl::DefaultValue(runtime::MemoryScope::Global()))
         .def_ro("strides", &TensorTypeNode::strides, refl::AttachFieldFlag::SEqHashDefSimple(),
                 refl::DefaultValue(ffi::Array<PrimExpr>()))
         .def_ro("elem_offset", &TensorTypeNode::elem_offset,
@@ -140,8 +139,7 @@ class TensorTypeNode : public TypeNode {
 class TensorType : public Type {
  public:
   TVM_TIRX_DLL TensorType(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
-                          runtime::MemoryScope scope = {},
-                          ffi::Array<PrimExpr> strides = {},
+                          runtime::MemoryScope scope = {}, ffi::Array<PrimExpr> strides = {},
                           ffi::Optional<PrimExpr> elem_offset = std::nullopt,
                           int data_alignment = 0, int offset_factor = 0,
                           ffi::Optional<Layout> layout = std::nullopt, Location loc = UnknownLoc());
