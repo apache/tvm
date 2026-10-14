@@ -28,6 +28,7 @@
 #include <tvm/runtime/memory_scope.h>
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
+#include <tvm/tirx/tile/thread_scope.h>
 
 namespace tvm {
 
@@ -43,6 +44,12 @@ void RegisterTRNTransforms();
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  for (const auto& [name, rank] : {std::pair{"kernel", -1}, {"thread", 0}}) {
+    auto qualified = tvm::ffi::String("trn.") + name;
+    tvm::ffi::reflection::EnumDef<tvm::tirx::ThreadScopeObj>(qualified.c_str())
+        .set_attr(tvm::tirx::thread_scope_attr::kBackend, tvm::ffi::String("trn"))
+        .set_attr(tvm::tirx::thread_scope_attr::kRank, rank);
+  }
   for (const char* name : {"trn.sbuf", "trn.psum"}) {
     tvm::ffi::reflection::EnumDef<tvm::runtime::MemoryScopeObj>(name).set_attr(
         tvm::runtime::attr::kMemoryAllocProperty,

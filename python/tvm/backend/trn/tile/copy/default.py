@@ -47,7 +47,7 @@ def copy_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     """Schedule copy operation between global and shared memory on CUDA."""
     # Basic validation checks
     if sctx.scope_kind != "thread":
-        fail("requires thread exec_scope for TRN copy")
+        fail("requires thread scope for TRN copy")
 
     dst_region, src_region = op.args
     src, dst = src_region.source, dst_region.source

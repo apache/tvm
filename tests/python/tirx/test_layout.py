@@ -76,8 +76,8 @@ def test_axis():
     assert CUDAAxis.TCol.is_memory()
     assert CUDAAxis.TLane.is_memory()
 
-    assert CUDAAxis.bx.get_scope().name == "kernel"
-    assert CUDAAxis.bx.get_subscope().name == "cta"
+    assert CUDAAxis.bx.get_scope().name == "cuda.kernel"
+    assert CUDAAxis.bx.get_subscope().name == "cuda.cta"
 
 
 def test_constructor():
@@ -201,22 +201,22 @@ def test_verify_well_formed():
         layout = TileLayout(S[(8, 4, 2) : (4 @ laneid, 1 @ laneid, 1)])
         res = layout.get_scope()
         assert res is not None
-        assert res[0].name == "thread"
-        assert res[1].name == "warp"
+        assert res[0].name == "cuda.thread"
+        assert res[1].name == "cuda.warp"
         assert layout.verify_well_formed()
 
         layout = TileLayout(S[8 : 4 @ laneid] + R[4 : 1 @ laneid])
         res = layout.get_scope()
         assert res is not None
-        assert res[0].name == "thread"
-        assert res[1].name == "warp"
+        assert res[0].name == "cuda.thread"
+        assert res[1].name == "cuda.warp"
         assert layout.verify_well_formed()
 
         layout = TileLayout(S[(8, 4, 2) : (4 @ laneid, 1 @ laneid, 1)])
         res = layout.get_scope()
         assert res is not None
-        assert res[0].name == "thread"
-        assert res[1].name == "warp"
+        assert res[0].name == "cuda.thread"
+        assert res[1].name == "cuda.warp"
         assert layout.verify_well_formed()
 
         layout = TileLayout(
@@ -224,8 +224,8 @@ def test_verify_well_formed():
         )
         res = layout.get_scope()
         assert res is not None
-        assert res[0].name == "thread"
-        assert res[1].name == "cta"
+        assert res[0].name == "cuda.thread"
+        assert res[1].name == "cuda.cta"
         assert layout.verify_well_formed()
 
         layout = TileLayout(
@@ -233,8 +233,8 @@ def test_verify_well_formed():
         )
         res = layout.get_scope()
         assert res is not None
-        assert res[0].name == "thread"
-        assert res[1].name == "warpgroup"
+        assert res[0].name == "cuda.thread"
+        assert res[1].name == "cuda.warpgroup"
         assert layout.verify_well_formed()
 
         layout = TileLayout(S[(2, 8, 2, 4, 2) : (2 @ wgid, 4 @ laneid, 1 @ wgid, 1 @ laneid, 1)])

@@ -35,8 +35,8 @@ from tvm.ir import PrimType, PtrType, Range, TensorRegion, TensorRegionType
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
 from tvm.tirx import IntImm, Var
-from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import ComposeLayout, S, TileLayout
+from tvm.tirx.thread_scope import ThreadScope
 from tvm.tirx.tile.dispatch import DispatchContext, run_dispatch
 
 _TMA_OPS = {
@@ -745,7 +745,7 @@ def _region(tensor, ranges=None):
 def _context(arch="sm_100a", ranges=None):
     return DispatchContext(
         tvm.target.Target({"kind": "cuda", "arch": arch}),
-        ExecScope("cuda", "thread"),
+        ThreadScope("cuda.thread"),
         {},
         ranges or {},
     )

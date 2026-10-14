@@ -45,14 +45,14 @@ def _run(kernel, arrays, expected, output=0, atol=1e-3, rtol=1e-7, target="cuda"
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-@pytest.mark.parametrize("exec_scope", ["warp", "warpgroup"])
-def test_unary_op_shared_subcta_scope(exec_scope):
-    warps = 4 if exec_scope == "warpgroup" else 1
+@pytest.mark.parametrize("thread_scope", ["warp", "warpgroup"])
+def test_unary_op_shared_subcta_scope(thread_scope):
+    warps = 4 if thread_scope == "warpgroup" else 1
     shape = (warps * 32, 8)
-    group = (warps, 32, 8, 1) if exec_scope == "warpgroup" else (32, 8, 1)
+    group = (warps, 32, 8, 1) if thread_scope == "warpgroup" else (32, 8, 1)
     layout = (
         TileLayout(S[(4, 32, 8, 1) : (1 @ wid_in_wg, 1 @ laneid, 1, 1)])
-        if exec_scope == "warpgroup"
+        if thread_scope == "warpgroup"
         else TileLayout(S[(32, 8, 1) : (1 @ laneid, 1, 1)])
     )
     size = math.prod(shape)
@@ -71,7 +71,7 @@ def test_unary_op_shared_subcta_scope(exec_scope):
                 sf[q] = af[q]
         T.cuda.cta_sync()
         r = T.alloc_local(group, "uint16", layout=layout)
-        if T.constexpr(exec_scope == "warp"):
+        if T.constexpr(thread_scope == "warp"):
             if warp == 5:
                 T.cuda.tile.apply(T.ptx["mov.b16"], r, T.uint16(0), scope="warp")
                 T.cuda.tile.apply(
@@ -97,9 +97,9 @@ def test_unary_op_shared_subcta_scope(exec_scope):
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("shape", [(128, 8), (128, 4, 16), (128, 5, 5)])
 @pytest.mark.parametrize("op_type", ["fill"])
-@pytest.mark.parametrize("exec_scope", ["thread", "cta"])
+@pytest.mark.parametrize("thread_scope", ["thread", "cta"])
 @pytest.mark.parametrize("storage_scope", ["local", "shared"])
-def test_unary_op_vectorized(shape, op_type, exec_scope, storage_scope):
+def test_unary_op_vectorized(shape, op_type, thread_scope, storage_scope):
     n = math.prod(shape[1:])
     bits = int(np.float16(7.89).view("uint16"))
     group_layout = TileLayout(S[(4, 32, n, 1) : (1 @ warpid, 1 @ laneid, 1, 1)])
@@ -109,7 +109,7 @@ def test_unary_op_vectorized(shape, op_type, exec_scope, storage_scope):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=128))
         tid = T.cuda.thread_idx("x")
         r = T.alloc_local(shape[1:], "float16", layout="default")
-        if T.constexpr(exec_scope == "cta"):
+        if T.constexpr(thread_scope == "cta"):
             values = r.view(4, 32, n, 1, layout=group_layout).view("uint16")
             T.cuda.tile.apply(T.ptx["mov.b16"], values, T.uint16(bits), scope="cta")
         else:

@@ -43,7 +43,9 @@ registers an adapter that decodes the semantic view and invokes its lowerer.
 Custom implementations can register the callback directly using
 ``tvm.ir.register_op_attr(op_name, "FTileOpDispatch", dispatch)`` or C++
 ``OpDef::set_attr<tile::FTileOpDispatch>``. The Call must carry reflected
-attributes with a string ``scope`` field in the target's execution hierarchy.
+attributes with a required ``ThreadScope`` ``scope`` field in the target's
+execution hierarchy. Direct construction may use a registered qualified name,
+such as ``"cuda.thread"``, which the typed FFI boundary resolves to its enum.
 
 Named workspace operands have fixed optional slots. Declare a workspace policy
 only for instructions that own such scratch storage; do not use it to hide
@@ -55,13 +57,15 @@ The common Python API is under ``tvm.tirx.tile`` (also ``T.tile``):
 ``Instruction``, ``Operand``, ``TensorCall``, and ``DispatchContext``. Backend
 implementations live under ``tvm.backend.cuda.tile`` and
 ``tvm.backend.trn.tile``. Their user-facing instruction paths remain
-``T.cuda.tile`` and ``T.trn.tile``. Operator names and serialized type keys
-remain unchanged.
+``T.cuda.tile`` and ``T.trn.tile``. Instruction operator names and attribute
+schema type keys remain unchanged. Scope tags use the ``tirx.ThreadScope`` type
+key; serialized data containing the former scope type must be regenerated.
 
-Execution scopes are generic backend/name identities. Backend load hooks
-register their supported scopes and ordering; CUDA exposes
-``T.cuda.ExecScope("warp")`` and Trainium exposes
-``T.trn.ExecScope("thread")``. A string instruction scope is resolved by the
-instruction's backend. CUDA predicate analysis, index bindings, and active
-thread sets live in its private tile implementation; Trainium does not use
-CUDA's execution-context model.
+Thread scopes are backend-qualified enum identities. Native backends register
+their supported tags and explicit ranks with ``EnumDef``; CUDA exposes
+``T.cuda.ThreadScope("warp")`` and Trainium exposes
+``T.trn.ThreadScope("thread")``. A string instruction scope is resolved by the
+instruction's backend before constructing its Call. Lowerers consume the enum
+directly through ``DispatchContext.thread_scope``. CUDA predicate analysis,
+index bindings, and active thread sets live in its private tile implementation;
+Trainium does not use CUDA's execution-context model.

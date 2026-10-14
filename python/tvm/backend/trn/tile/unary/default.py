@@ -36,7 +36,7 @@ def unary_trn(op: TensorCall, unary_op: MapOpType, sctx: DispatchContext) -> Fun
     """Schedule unary operation on Trainium."""
     # Check execution environment
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
-        fail("requires Trainium target and thread exec_scope")
+        fail("requires Trainium target and thread scope")
 
     # Extract operation arguments
     dst_tensor_region, _src = op.args
