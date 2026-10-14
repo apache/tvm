@@ -26,7 +26,7 @@ from tvm.target import Target
 
 def test_matmul():
     # fmt: off
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @Ts.function(private=True)
     def before(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)), "float32")):
@@ -38,7 +38,7 @@ def test_matmul():
                     matmul[v_i0, v_i1, v_i2] = T.float32(0)
                 matmul[v_i0, v_i1, v_i2] = matmul[v_i0, v_i1, v_i2] + inp0[v_i0, v_i1, v_k] * inp1[v_k, v_i2]
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @Ts.function(private=True)
     def expected(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)), "float32")):
@@ -350,7 +350,7 @@ def test_skip_gemv():
 
 def test_output_fp32():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function(private=True)
     def before(lv13: T.Tensor((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Tensor((T.int64(4096), T.int64(128)), "float16"), lv48: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16'), lv13_1: T.Tensor((T.int64(4096),), "float16"), lv3: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16'), p_output0_intermediate: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16')):
@@ -401,7 +401,7 @@ def test_output_fp32():
                 Ts.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
                 p_output0_intermediate[v_ax0, v_ax1, v_ax2] = var_compute_intermediate_1[v_ax0, v_ax1, v_ax2] + lv3[v_ax0, v_ax1, v_ax2]
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function(private=True)
     def expected(lv13: T.Tensor((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Tensor((T.int64(4096), T.int64(128)), "float16"), lv48: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16'), lv13_1: T.Tensor((T.int64(4096),), "float16"), lv3: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16'), p_output0_intermediate: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16')):
@@ -482,7 +482,7 @@ def test_output_fp32():
 
 def test_inline_consumer_chain():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function(private=True)
     def before(lv26: T.Tensor((n, T.int64(2048)), 'float16'), lv9: T.Tensor((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Tensor((T.int64(1), n, T.int64(2048)), "float32"), var_T_multiply_intermediate: T.Tensor((n, T.int64(2048)), 'float16')):
@@ -533,7 +533,7 @@ def test_inline_consumer_chain():
                 Ts.writes(var_T_multiply_intermediate[v_ax0, v_ax1])
                 var_T_multiply_intermediate[v_ax0, v_ax1] = var_compute_intermediate[v_ax0, v_ax1] * var_T_multiply_intermediate_1[v_ax0, v_ax1]
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function(private=True)
     def expected(lv26: T.Tensor((n, T.int64(2048)), 'float16'), lv9: T.Tensor((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Tensor((T.int64(1), n, T.int64(2048)), "float32"), var_T_multiply_intermediate: T.Tensor((n, T.int64(2048)), 'float16')):
@@ -614,7 +614,7 @@ def test_inline_consumer_chain():
 
 def test_matmul_android():
     # fmt: off
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @Ts.function(private=True)
     def before(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)), "float32")):
@@ -626,7 +626,7 @@ def test_matmul_android():
                     matmul[v_i0, v_i1, v_i2] = T.float32(0)
                 matmul[v_i0, v_i1, v_i2] = matmul[v_i0, v_i1, v_i2] + inp0[v_i0, v_i1, v_k] * inp1[v_k, v_i2]
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @Ts.function(private=True)
     def expected(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)), "float32")):
@@ -707,7 +707,7 @@ def test_matmul_android():
 
 def test_fused_dequant_matmul_android():
     # fmt: off
-    seq_len = T.dynamic("seq_len")
+    seq_len = T.dynamic("seq_len", "int64")
 
     @Ts.function(private=True)
     def before(lv452: T.Tensor((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Tensor((T.int64(128), T.int64(12288)), "float16"), rms_norm130: T.Tensor((T.int64(1), seq_len, T.int64(4096)), 'float16'), transformer_h_0_attn_c_attn_bias3: T.Tensor((T.int64(12288),), "float16"), T_add_intermediate_intermediate: T.Tensor((T.int64(1), seq_len, T.int64(12288)), 'float16')):
@@ -744,7 +744,7 @@ def test_fused_dequant_matmul_android():
                 Ts.writes(T_add_intermediate_intermediate[v_ax0, v_ax1, v_ax2])
                 T_add_intermediate_intermediate[v_ax0, v_ax1, v_ax2] = matmul_intermediate[v_ax0, v_ax1, v_ax2] + transformer_h_0_attn_c_attn_bias3[v_ax2]
 
-    seq_len = T.dynamic("seq_len")
+    seq_len = T.dynamic("seq_len", "int64")
 
     @Ts.function(private=True)
     def expected(lv452: T.Tensor((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Tensor((T.int64(128), T.int64(12288)), "float16"), rms_norm130: T.Tensor((T.int64(1), seq_len, T.int64(4096)), 'float16'), transformer_h_0_attn_c_attn_bias3: T.Tensor((T.int64(12288),), "float16"), T_add_intermediate_intermediate: T.Tensor((T.int64(1), seq_len, T.int64(12288)), 'float16')):

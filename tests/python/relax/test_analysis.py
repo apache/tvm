@@ -304,9 +304,9 @@ def test_edge_binding_block_fake_unused_remove_all_unused():
 
 
 def test_edge_binding_block_fake_unused_remove_all_unused2():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
-    k = T.dynamic("k")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    k = T.dynamic("k", "int64")
 
     @tvm.script.ir_module
     class IdentityUnused:
@@ -402,7 +402,7 @@ def test_retain_impure_calls_unused_in_binding_block():
 
 
 def test_retain_calls_to_impure_builtin_ops():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -673,7 +673,7 @@ def test_reshape_pattern_expand_dims():
 
 
 def test_reshape_pattern_dyn_1():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def reshape(
@@ -701,7 +701,7 @@ def test_reshape_pattern_dyn_1():
 
 
 def test_reshape_pattern_dyn_2():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def reshape(A: T.Tensor((T.int64(1), n), "int32"), T_reshape: T.Tensor((n,), "int32")):
@@ -716,7 +716,7 @@ def test_reshape_pattern_dyn_2():
 
 
 def test_reshape_pattern_dyn_3():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def reshape(
@@ -738,7 +738,7 @@ def test_reshape_pattern_dyn_3():
 
 
 def test_reshape_pattern_dyn_4():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def reshape(
@@ -768,7 +768,7 @@ def test_reshape_pattern_dyn_4():
 
 
 def test_reshape_pattern_dyn_5():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def reshape(

@@ -136,8 +136,8 @@ def test_type_vars_roundtrip():
     script = func.script()
     assert script.startswith("from __future__ import annotations\n\n")
     assert "def main[M](" in script
-    assert "T.Tensor((M, M * T.int64(2)), T.float32)" in script
-    assert "M = T.int64()" not in script
+    assert "T.Tensor((M, M * 2), T.float32)" in script
+    assert "M = T.int32()" not in script
     typed = tvm.script.from_source(
         """
 @T.function(private=True)
@@ -147,14 +147,14 @@ def func[M: int](A: T.Tensor((M, M * 2), T.float32)):
         extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
     )
     tvm.ir.assert_structural_equal(func, typed)
-    assert 'M = T.dynamic("M", dtype="int64")' not in script
+    assert 'M = T.dynamic("M", dtype="int32")' not in script
 
     repeated = func.script()
     assert "from __future__ import annotations" in repeated
     assert "def main[M](" in repeated
-    assert "T.Tensor((M, M * T.int64(2)), T.float32)" in repeated
+    assert "T.Tensor((M, M * 2), T.float32)" in repeated
     assert "UNUSED" not in script
-    assert "M = T.int64()" not in repeated
+    assert "M = T.int32()" not in repeated
     assert len(func.params) == 1
     assert not hasattr(func, "type_params")
     assert func.attrs.get("tirx.type_vars") is None
@@ -176,10 +176,10 @@ def test_dynamic_int32_roundtrip():
         A[0] = T.float32(1)
 
     source = func.script()
-    assert "def main[n: T.int32](" in source
+    assert "def main[n](" in source
     assert 'n = T.dynamic("n", dtype="int32")' not in source
     repeated = func.script()
-    assert "def main[n: T.int32](" in repeated
+    assert "def main[n](" in repeated
     tvm.ir.assert_structural_equal(
         func, tvm.script.from_source(source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
     )
@@ -235,9 +235,9 @@ def test_dynamic_symbols_are_fresh_and_scope_independent():
     assert T.dynamic is I.dynamic
     n = T.dynamic("n")
     same_name = T.dynamic("n")
-    k = T.dynamic("k", "int32")
-    assert n.ty.dtype == "int64"
-    assert k.ty.dtype == "int32"
+    k = T.dynamic("k", "int64")
+    assert n.ty.dtype == "int32"
+    assert k.ty.dtype == "int64"
     assert not n.same_as(same_name)
 
     @I.ir_module

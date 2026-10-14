@@ -68,10 +68,10 @@ def test_replace_symbolic_variables():
     parameter, which actually *defines* the variable.
     """
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_func = T.dynamic("m")
-    n_func = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_func = T.dynamic("m", "int64")
+    n_func = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -83,10 +83,10 @@ def test_replace_symbolic_variables():
         def func(A: R.Tensor([m_func, n_func], "float32")) -> R.Tensor([m_func, n_func], "float32"):
             return R.zeros(R.shape([m_func, n_func]), dtype="float32")
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_func = T.dynamic("m")
-    n_func = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_func = T.dynamic("m", "int64")
+    n_func = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -115,10 +115,10 @@ def test_no_extra_symbolic_variables():
     distinct parameter.
     """
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_func = T.dynamic("m")
-    n_func = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_func = T.dynamic("m", "int64")
+    n_func = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -145,10 +145,10 @@ def test_remove_extra_prim_parameters():
     dtype-only scalar parameters are unused by the private function.
     """
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_func = T.dynamic("m")
-    n_func = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_func = T.dynamic("m", "int64")
+    n_func = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -166,10 +166,10 @@ def test_remove_extra_prim_parameters():
             out = R.add(A, zeros)
             return out
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_func = T.dynamic("m")
-    n_func = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_func = T.dynamic("m", "int64")
+    n_func = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -195,10 +195,10 @@ def test_remove_extra_shape_variables():
     different parameter, then the `R.Shape` parameter can be removed.
     """
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_func = T.dynamic("m")
-    n_func = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_func = T.dynamic("m", "int64")
+    n_func = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -215,10 +215,10 @@ def test_remove_extra_shape_variables():
             out = R.add(A, zeros)
             return out
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_func = T.dynamic("m")
-    n_func = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_func = T.dynamic("m", "int64")
+    n_func = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:

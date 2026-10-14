@@ -538,7 +538,7 @@ def test_combine_matmul_of_static_and_dynamic_shapes():
 
     """
 
-    M = T.dynamic("M")
+    M = T.dynamic("M", "int64")
 
     @R.function(private=True)
     def before(
@@ -553,7 +553,7 @@ def test_combine_matmul_of_static_and_dynamic_shapes():
             R.output(out)
         return out
 
-    M = T.dynamic("M")
+    M = T.dynamic("M", "int64")
 
     @R.function(private=True)
     def expected(
@@ -596,7 +596,7 @@ def test_combine_matmul_of_dynamic_and_static_shapes():
     concatenated weights.
     """
 
-    M = T.dynamic("M")
+    M = T.dynamic("M", "int64")
 
     @R.function(private=True)
     def before(
@@ -611,7 +611,7 @@ def test_combine_matmul_of_dynamic_and_static_shapes():
             R.output(out)
         return out
 
-    M = T.dynamic("M")
+    M = T.dynamic("M", "int64")
 
     @R.function(private=True)
     def expected(
@@ -654,8 +654,8 @@ def test_limit_one_dynamic_shape_in_combined_matmul():
     matmul.
     """
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @R.function(private=True)
     def before(
@@ -672,8 +672,8 @@ def test_limit_one_dynamic_shape_in_combined_matmul():
             R.output(out)
         return out
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @R.function(private=True)
     def expected(

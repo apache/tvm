@@ -759,8 +759,8 @@ def test_static_args():
 
 
 def test_dynamic_capture():
-    m_add_one = T.dynamic("m")
-    m_main = T.dynamic("m")
+    m_add_one = T.dynamic("m", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -796,9 +796,9 @@ def test_dynamic_capture():
             _ = R.call_tir_packed(Before.add_one, (alloc2, alloc3))
             return alloc3
 
-    m_add_one = T.dynamic("m")
-    m_main_cuda_graph_capture = T.dynamic("m")
-    m_main = T.dynamic("m")
+    m_add_one = T.dynamic("m", "int64")
+    m_main_cuda_graph_capture = T.dynamic("m", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -1096,7 +1096,7 @@ def test_disable_capture_output():
 
 
 def test_static_input_with_symbolic_shape():
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -1115,8 +1115,8 @@ def test_static_input_with_symbolic_shape():
             gv = (alloc3,)
             return gv
 
-    m_main_cuda_graph_capture = T.dynamic("m")
-    m_main = T.dynamic("m")
+    m_main_cuda_graph_capture = T.dynamic("m", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -1193,7 +1193,7 @@ if __name__ == "__main__":
 
 
 def test_match_cast_of_captured_value():
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:

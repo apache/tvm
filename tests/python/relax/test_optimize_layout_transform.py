@@ -270,8 +270,8 @@ def test_optimize_transform_layout_pass_two_args():
 
 
 def test_tranform_layout_tir_remove_pad_transform_layout():
-    p0 = T.dynamic("p0")
-    i0 = T.dynamic("i0")
+    p0 = T.dynamic("p0", "int64")
+    i0 = T.dynamic("i0", "int64")
 
     @I.ir_module
     class Before:
@@ -343,8 +343,8 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                 R.output(gv)
             return gv
 
-    p0 = T.dynamic("p0")
-    i0 = T.dynamic("i0")
+    p0 = T.dynamic("p0", "int64")
+    i0 = T.dynamic("i0", "int64")
 
     @I.ir_module
     class Expected:

@@ -298,9 +298,9 @@ def test_default_entry_func():
 def test_dynamic_shape():
     import tvm.relax.backend.cuda.cublas
 
-    r1_main = T.dynamic("r1")
-    r2 = T.dynamic("r2")
-    r1_fused_relax_matmul_cublas = T.dynamic("r1")
+    r1_main = T.dynamic("r1", "int64")
+    r2 = T.dynamic("r2", "int64")
+    r1_fused_relax_matmul_cublas = T.dynamic("r1", "int64")
 
     @I.ir_module
     class Before:
@@ -343,8 +343,8 @@ def test_dynamic_shape():
             gv1: R.Tensor((1, r1_fused_relax_matmul_cublas), dtype="float16") = gv(x, w1)
             return gv1
 
-    r1 = T.dynamic("r1")
-    r2 = T.dynamic("r2")
+    r1 = T.dynamic("r1", "int64")
+    r2 = T.dynamic("r2", "int64")
 
     @I.ir_module
     class Expected:

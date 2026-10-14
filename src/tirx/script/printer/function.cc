@@ -136,7 +136,7 @@ void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc 
           for (const auto& [var, signature_id] : signature_candidates) {
             if (!pending.count(var) || !var->ty.as<PrimTypeNode>()) continue;
             IdDoc id = VarDoc(d, var);
-            if (var->ty.as_or_throw<PrimType>()->dtype == (DLDataType{kDLInt, 64, 1})) {
+            if (var->ty.as_or_throw<PrimType>()->dtype == (DLDataType{kDLInt, 32, 1})) {
               doc->type_params.push_back(id);
             } else {
               doc->type_params.push_back(

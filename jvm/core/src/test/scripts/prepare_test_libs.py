@@ -27,7 +27,7 @@ from tvm.script import relax as R
 
 def prepare_relax_lib(base_path):
     pipeline = relax.get_pipeline()
-    n = I.dynamic("n")
+    n = I.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Mod:

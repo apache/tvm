@@ -287,15 +287,15 @@ def test_tracking_through_externally_exposed_func(provide_entry_func_name):
 
 def test_unused_relax_func_symbolic_shape():
     # Test with relax function w/ symbolic shape.
-    m_tir_matmul = T.dynamic("m")
-    n_tir_matmul = T.dynamic("n")
-    k_tir_matmul = T.dynamic("k")
-    m_unused_func = T.dynamic("m")
-    n_unused_func = T.dynamic("n")
-    k_unused_func = T.dynamic("k")
-    m_main = T.dynamic("m")
-    k_main = T.dynamic("k")
-    n_main = T.dynamic("n")
+    m_tir_matmul = T.dynamic("m", "int64")
+    n_tir_matmul = T.dynamic("n", "int64")
+    k_tir_matmul = T.dynamic("k", "int64")
+    m_unused_func = T.dynamic("m", "int64")
+    n_unused_func = T.dynamic("n", "int64")
+    k_unused_func = T.dynamic("k", "int64")
+    m_main = T.dynamic("m", "int64")
+    k_main = T.dynamic("k", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @tvm.script.ir_module(check_well_formed=False)
     class InputModule:

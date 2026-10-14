@@ -35,7 +35,7 @@ def test_redistribute_replica_to_shard():
             gv0 = R.dist.redistribute_replica_to_shard(x, num_workers=2, axis=1)
             return gv0
 
-    worker_id = T.dynamic("worker_id")
+    worker_id = T.dynamic("worker_id", "int64")
 
     @I.ir_module
     class Expected:

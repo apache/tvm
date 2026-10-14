@@ -476,8 +476,8 @@ class BlockBuilder(Object):
 
         .. code-block:: python
 
-            m = T.dynamic("m")
-            n = T.dynamic("n")
+            m = T.dynamic("m", "int64")
+            n = T.dynamic("n", "int64")
 
             @tvm.script.ir_module
             class Module:
@@ -527,8 +527,8 @@ class BlockBuilder(Object):
 
         .. code-block:: python
 
-            m = T.dynamic("m")
-            n = T.dynamic("n")
+            m = T.dynamic("m", "int64")
+            n = T.dynamic("n", "int64")
 
             @tvm.script.ir_module
             class Module:

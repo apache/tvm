@@ -132,7 +132,7 @@ def test_quantize_fp16_to_uint8():
 
 
 def test_quantize_fp32_to_int8_symbolic():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Quantize:
@@ -145,8 +145,8 @@ def test_quantize_fp32_to_int8_symbolic():
             out = R.quantize(data, scale, zp, axis=-1, out_dtype="int8")
             return out
 
-    n_quantize = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_quantize = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -421,7 +421,7 @@ def test_dequantize_int8_to_fp32_scalar_param():
 
 
 def test_dequantize_int8_to_fp32_symbolic():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Dequantize:
@@ -434,8 +434,8 @@ def test_dequantize_int8_to_fp32_symbolic():
             out = R.dequantize(data, scale, zp, axis=-1, out_dtype="float32")
             return out
 
-    n_dequantize = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_dequantize = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:

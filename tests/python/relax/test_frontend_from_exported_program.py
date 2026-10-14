@@ -5506,8 +5506,8 @@ def test_slice_with_symbolic_end():
             return x[:, :seq_len] + 0.0  # +0.0 to ensure output is a new tensor
 
     # The identity slice is elided; only x + 0.0 remains.
-    s0 = T.dynamic("s0")
-    s1 = T.dynamic("s1")
+    s0 = T.dynamic("s0", "int64")
+    s1 = T.dynamic("s1", "int64")
 
     @I.ir_module
     class ExpectedIdentity:
@@ -6465,7 +6465,7 @@ def test_masked_select():
         def forward(self, data: torch.Tensor, mask: torch.Tensor):
             return torch.masked_select(data, mask)
 
-    u0 = T.dynamic("u0")
+    u0 = T.dynamic("u0", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -7790,7 +7790,7 @@ def test_dynamic_shape():
         def forward(self, x1, x2):
             return torch.ops.aten.add.Tensor(x1, x2)
 
-    s0 = T.dynamic("s0")
+    s0 = T.dynamic("s0", "int64")
 
     @I.ir_module
     class Expected:
@@ -8392,7 +8392,7 @@ def test_dynamic_shape_with_range_constraints():
         def forward(self, x1, x2):
             return torch.ops.aten.add.Tensor(x1, x2)
 
-    s0 = T.dynamic("s0")
+    s0 = T.dynamic("s0", "int64")
 
     @I.ir_module
     class Expected:
@@ -8426,7 +8426,7 @@ def test_dynamic_shape_with_addition_constraints():
         def forward(self, x, y):
             return torch.cat([x, y], dim=0)
 
-    s0 = T.dynamic("s0")
+    s0 = T.dynamic("s0", "int64")
 
     @I.ir_module
     class Expected:
@@ -8460,7 +8460,7 @@ def test_dynamic_shape_with_multiplication_constraints():
         def forward(self, x, y):
             return torch.cat([x, y], dim=0)
 
-    s0 = T.dynamic("s0")
+    s0 = T.dynamic("s0", "int64")
 
     @I.ir_module
     class Expected:
@@ -8494,7 +8494,7 @@ def test_dynamic_shape_with_unbounded_constraints():
         def forward(self, x):
             return torch.ops.aten.add.Tensor(x, x)
 
-    s0 = T.dynamic("s0")
+    s0 = T.dynamic("s0", "int64")
 
     @I.ir_module
     class Expected:
@@ -8529,7 +8529,7 @@ def test_sym_size_int():
             shape_dim = torch.ops.aten.sym_size.int(x, 0)
             return x.reshape(shape_dim, -1)
 
-    s0 = T.dynamic("s0")
+    s0 = T.dynamic("s0", "int64")
 
     @I.ir_module
     class Expected:
@@ -8940,9 +8940,9 @@ def test_cond_shape_predicate():
 
             return torch.cond(x.shape[0] > 4, true_fn, false_fn, (x,))
 
-    s77_cond_true_branch_0 = T.dynamic("s77")
-    s77_cond_false_branch_1 = T.dynamic("s77")
-    s77_main = T.dynamic("s77")
+    s77_cond_true_branch_0 = T.dynamic("s77", "int64")
+    s77_cond_false_branch_1 = T.dynamic("s77", "int64")
+    s77_main = T.dynamic("s77", "int64")
 
     @tvm.script.ir_module
     class expected:

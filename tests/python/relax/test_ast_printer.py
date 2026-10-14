@@ -351,7 +351,7 @@ def test_ty():
 
 def test_call_packed():
     # test case from test_parser
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @R.function(pure=False)
     def f(
@@ -440,10 +440,10 @@ def test_op_attrs():
 
 def test_call_tir():
     # also from test_parser
-    m_addone = T.dynamic("m")
-    n_addone = T.dynamic("n")
-    m_foo = T.dynamic("m")
-    n_foo = T.dynamic("n")
+    m_addone = T.dynamic("m", "int64")
+    n_addone = T.dynamic("n", "int64")
+    m_foo = T.dynamic("m", "int64")
+    n_foo = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class TestCallTIR:
@@ -511,8 +511,8 @@ def test_call_tir():
 
 
 def test_call_dps_packed():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @R.function
     def foo(x: R.Tensor((m, n), "float32")):

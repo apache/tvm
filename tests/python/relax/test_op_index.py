@@ -901,7 +901,7 @@ def test_dynamic_strided_slice_infer_ty_arg_wrong_shape_info():
 def test_legalize_dynamic_begin_end():
     """relax.op.strided_slice FLegalize must support dynamic begin/end"""
 
-    index = T.dynamic("index")
+    index = T.dynamic("index", "int64")
 
     @I.ir_module
     class before:
@@ -909,7 +909,7 @@ def test_legalize_dynamic_begin_end():
         def main(A: R.Tensor((16, 16), "float32"), B: R.Shape([index])) -> R.Tensor((1, 16)):
             return R.strided_slice(A, [0], [index], [index + 1], assume_inbound=True)
 
-    index = T.dynamic("index")
+    index = T.dynamic("index", "int64")
 
     @I.ir_module
     class expected:
@@ -940,7 +940,7 @@ def test_legalize_dynamic_begin_end():
 def test_legalize_dynamic_begin_inf_end():
     """relax.op.strided_slice FLegalize must support dynamic begin/end"""
 
-    index = T.dynamic("index")
+    index = T.dynamic("index", "int64")
 
     @I.ir_module
     class before:
@@ -951,7 +951,7 @@ def test_legalize_dynamic_begin_inf_end():
             )
 
     # fmt: off
-    index = T.dynamic("index")
+    index = T.dynamic("index", "int64")
 
     @I.ir_module
     class expected:

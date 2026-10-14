@@ -87,9 +87,9 @@ def _check_ir_equality(mod):
 
     # pylint: enable=import-outside-toplevel
 
-    x = T.dynamic("x")
-    y = T.dynamic("y")
-    z = T.dynamic("z")
+    x = T.dynamic("x", "int64")
+    y = T.dynamic("y", "int64")
+    z = T.dynamic("z", "int64")
 
     @I.ir_module
     class ExpectedModule:

@@ -58,12 +58,12 @@ def test_image_resize2d():
 
 def test_image_resize2d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    oh = T.dynamic("oh")
-    ow = T.dynamic("ow")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    oh = T.dynamic("oh", "int64")
+    ow = T.dynamic("ow", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
 
     @tvm.script.ir_module
     class Resize2D:
@@ -72,18 +72,18 @@ def test_image_resize2d_symbolic():
             gv: R.Tensor((n, c, oh, ow, 16), "float32") = R.image.resize2d(x, size=(oh, ow), layout="NCHW16c", method="nearest_neighbor", coordinate_transformation_mode="asymmetric")
             return gv
 
-    n_main = T.dynamic("n")
-    c_main = T.dynamic("c")
-    oh_main = T.dynamic("oh")
-    ow_main = T.dynamic("ow")
-    h_main = T.dynamic("h")
-    w_main = T.dynamic("w")
-    c_resize2d = T.dynamic("c")
-    h_resize2d = T.dynamic("h")
-    n_resize2d = T.dynamic("n")
-    oh_resize2d = T.dynamic("oh")
-    ow_resize2d = T.dynamic("ow")
-    w_resize2d = T.dynamic("w")
+    n_main = T.dynamic("n", "int64")
+    c_main = T.dynamic("c", "int64")
+    oh_main = T.dynamic("oh", "int64")
+    ow_main = T.dynamic("ow", "int64")
+    h_main = T.dynamic("h", "int64")
+    w_main = T.dynamic("w", "int64")
+    c_resize2d = T.dynamic("c", "int64")
+    h_resize2d = T.dynamic("h", "int64")
+    n_resize2d = T.dynamic("n", "int64")
+    oh_resize2d = T.dynamic("oh", "int64")
+    ow_resize2d = T.dynamic("ow", "int64")
+    w_resize2d = T.dynamic("w", "int64")
 
     @tvm.script.ir_module
     class Expected:

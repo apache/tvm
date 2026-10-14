@@ -118,8 +118,8 @@ def test_static_fn_check():
 def test_simple_symbolic_shape():
     MS = MatchShapeCode
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -133,8 +133,8 @@ def test_simple_symbolic_shape():
         "m": 1,
     }
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -180,9 +180,9 @@ def test_symbolic_compute():
     MS = MatchShapeCode
     MK = MakeShapeCode
 
-    m = T.dynamic("m")
-    k = T.dynamic("k")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    k = T.dynamic("k", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -198,9 +198,9 @@ def test_symbolic_compute():
     # 0: n, 1: m, 2:k, 3: k+1
     sindex = {"n": 0, "m": 1, "k": 2, "k+1": 3}
 
-    m = T.dynamic("m")
-    k = T.dynamic("k")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    k = T.dynamic("k", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -298,9 +298,9 @@ def test_symbolic_compute():
 def test_tuple_handling():
     MS = MatchShapeCode
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
-    k = T.dynamic("k")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+    k = T.dynamic("k", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -314,9 +314,9 @@ def test_tuple_handling():
     # slot assignment:
     sindex = {"n": 0, "m": 1, "k": 2}
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
-    k = T.dynamic("k")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+    k = T.dynamic("k", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -391,8 +391,8 @@ def test_return_match_check():
     """Test when return body is not same as ret_ty, runtime match check needed."""
     MS = MatchShapeCode
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -407,8 +407,8 @@ def test_return_match_check():
         "m": 1,
     }
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -478,7 +478,7 @@ def test_return_match_check_with_new_expr():
     """
     MS = MatchShapeCode
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -494,7 +494,7 @@ def test_return_match_check_with_new_expr():
         "n * n": 1,
     }
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -561,10 +561,10 @@ def test_symbolic_shape_multiple_function():
     MS = MatchShapeCode
     MK = MakeShapeCode
 
-    m_fn1 = T.dynamic("m")
-    n_fn1 = T.dynamic("n")
-    n_fn2 = T.dynamic("n")
-    m_fn2 = T.dynamic("m")
+    m_fn1 = T.dynamic("m", "int64")
+    n_fn1 = T.dynamic("n", "int64")
+    n_fn2 = T.dynamic("n", "int64")
+    m_fn2 = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -588,10 +588,10 @@ def test_symbolic_shape_multiple_function():
         "m": 1,
     }
 
-    m_fn1 = T.dynamic("m")
-    n_fn1 = T.dynamic("n")
-    n_fn2 = T.dynamic("n")
-    m_fn2 = T.dynamic("m")
+    m_fn1 = T.dynamic("m", "int64")
+    n_fn1 = T.dynamic("n", "int64")
+    n_fn2 = T.dynamic("n", "int64")
+    m_fn2 = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -757,7 +757,7 @@ def test_check_lifted_weights():
 def test_check_weights_with_dynamic_shape():
     MS = MatchShapeCode
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -771,7 +771,7 @@ def test_check_weights_with_dynamic_shape():
             param_1 = params[1]
             return (x, param_0, param_1)
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:

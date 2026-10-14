@@ -42,8 +42,8 @@ extern "C" __global__ void add_kernel(float* x, float* y, float* output, int n_e
 def test_tir_call_source_kernel():
     BLOCK_SIZE = 64
 
-    m_add = T.dynamic("m")
-    m_main = T.dynamic("m")
+    m_add = T.dynamic("m", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Module:
@@ -77,7 +77,7 @@ def test_tir_call_source_kernel():
                 R.output(output)
             return output
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Parsed:

@@ -174,8 +174,8 @@ def gpu_2d_continuous_cumsum(
                                     bx > 0, source[by, src_offset + bx - 1], 0
                                 )
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @Ts.function(private=True)
     def cumsum(A: T.Tensor([m, n], dtype=in_dtype), Out: T.Tensor([m, n], dtype=out_dtype)):
@@ -254,9 +254,9 @@ def gpu_3d_axis_1_cumsum(
     out_dtype = out_dtype or in_dtype
     TX = T.int64(tx_len)
 
-    outer = T.dynamic("outer")
-    scan = T.dynamic("scan")
-    inner = T.dynamic("inner")
+    outer = T.dynamic("outer", "int64")
+    scan = T.dynamic("scan", "int64")
+    inner = T.dynamic("inner", "int64")
 
     @Ts.function(private=True)
     def cumsum(

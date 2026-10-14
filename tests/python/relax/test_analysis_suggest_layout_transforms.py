@@ -258,10 +258,10 @@ def test_SRSR_block():
 
 
 def test_op_elemwise_symbolic():
-    N = T.dynamic("N")
-    C = T.dynamic("C")
-    H = T.dynamic("H")
-    W = T.dynamic("W")
+    N = T.dynamic("N", "int64")
+    C = T.dynamic("C", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
 
     @Ts.function(private=True)
     def before(Arg: T.Tensor((N, C, H, W), "float32"), Relu: T.Tensor((N, C, H, W), "float32")):
@@ -272,10 +272,10 @@ def test_op_elemwise_symbolic():
                 Ts.writes(Relu[v_i0, v_i1, v_i2, v_i3])
                 Relu[v_i0, v_i1, v_i2, v_i3] = T.max(Arg[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
-    N = T.dynamic("N")
-    C = T.dynamic("C")
-    H = T.dynamic("H")
-    W = T.dynamic("W")
+    N = T.dynamic("N", "int64")
+    C = T.dynamic("C", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
 
     @Ts.function(private=True)
     def expected(Arg: T.Tensor((N, H, W, C), "float32"), Relu: T.Tensor((N, H, W, C), "float32")):

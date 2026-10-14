@@ -724,10 +724,10 @@ def test_concat_mm_split():
 def test_self_attention():
     # The example comes from.
     # https://developer.nvidia.com/blog/nlu-with-tensorrt-bert/
-    b = T.dynamic("b")
-    s = T.dynamic("s")
-    n = T.dynamic("n")
-    h = T.dynamic("h")
+    b = T.dynamic("b", "int64")
+    s = T.dynamic("s", "int64")
+    n = T.dynamic("n", "int64")
+    h = T.dynamic("h", "int64")
 
     @tvm.script.ir_module
     class SelfAttention:
@@ -1603,7 +1603,7 @@ def test_same_shape_pattern(same_shape_func_type):
             return out
 
     elif same_shape_func_type == "same_dynamic_shape":
-        n = T.dynamic("n")
+        n = T.dynamic("n", "int64")
 
         @R.function(private=True)
         def func(
@@ -1632,8 +1632,8 @@ def test_same_shape_pattern(same_shape_func_type):
             return out
 
     elif same_shape_func_type == "different_dynamic_shape":
-        n = T.dynamic("n")
-        m = T.dynamic("m")
+        n = T.dynamic("n", "int64")
+        m = T.dynamic("m", "int64")
 
         @R.function(private=True)
         def func(

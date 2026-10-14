@@ -440,8 +440,8 @@ def test_lambda_function_with_same_name_as_global():
 
 
 def test_symbolic_variable_defined_by_inner_func():
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -457,8 +457,8 @@ def test_symbolic_variable_defined_by_inner_func():
             sum_main = inner(x1, y1)
             return sum_main
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -481,8 +481,8 @@ def test_symbolic_variable_defined_by_inner_func():
 
 
 def test_runtime_symbolic_variable_defined_by_inner_func():
-    n_from_param = T.dynamic("n")
-    n_from_match_cast = T.dynamic("n")
+    n_from_param = T.dynamic("n", "int64")
+    n_from_match_cast = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -510,8 +510,8 @@ def test_runtime_symbolic_variable_defined_by_inner_func():
 
 
 def test_symbolic_variable_defined_by_outer_func():
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -527,10 +527,10 @@ def test_symbolic_variable_defined_by_outer_func():
             sum_main = inner(x1, y1)
             return sum_main
 
-    n_main = T.dynamic("n")
-    m_main = T.dynamic("m")
-    n_main_inner = T.dynamic("n")
-    m_main_inner = T.dynamic("m")
+    n_main = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
+    n_main_inner = T.dynamic("n", "int64")
+    m_main_inner = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:

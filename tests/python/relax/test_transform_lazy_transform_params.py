@@ -403,7 +403,7 @@ def test_extra_set_item_params_with_const_output():
 
 
 def test_lazy_transform_params_with_symbolic_vars():
-    slice_index = T.dynamic("slice_index")
+    slice_index = T.dynamic("slice_index", "int64")
 
     @I.ir_module
     class Before:
@@ -440,7 +440,7 @@ def test_lazy_transform_params_with_symbolic_vars():
                     vi = Ts.axis.remap("S", [i])
                     Output[vi] = Input[slice_index, vi]
 
-    slice_index = T.dynamic("slice_index")
+    slice_index = T.dynamic("slice_index", "int64")
 
     @I.ir_module
     class Expected:
@@ -481,7 +481,7 @@ def test_lazy_transform_params_with_symbolic_vars():
 
 def test_param_shape_symbolic():
     ic_transform_layout_IOHW_to_OIHW = T.dynamic("ic", "int32")
-    ic_main_transform_params = T.dynamic("ic")
+    ic_main_transform_params = T.dynamic("ic", "int64")
 
     @I.ir_module
     class Before:
@@ -524,7 +524,7 @@ def test_param_shape_symbolic():
             return gv
 
     ic_transform_layout_IOHW_to_OIHW = T.dynamic("ic", "int32")
-    ic_main_transform_params = T.dynamic("ic")
+    ic_main_transform_params = T.dynamic("ic", "int64")
 
     @I.ir_module
     class Expected:
@@ -623,7 +623,7 @@ def test_output():
     target = "llvm"
     dev = tvm.cpu()
 
-    ic = T.dynamic("ic")
+    ic = T.dynamic("ic", "int64")
 
     @I.ir_module
     class TransformModule:
@@ -797,8 +797,8 @@ def test_get_item_callback():
 
 
 def test_get_item_callback_dynamic_shape():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -810,8 +810,8 @@ def test_get_item_callback_dynamic_shape():
             D = R.add(C, B)
             return (D, B)
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:

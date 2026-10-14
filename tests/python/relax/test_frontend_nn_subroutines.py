@@ -42,9 +42,9 @@ def test_linear():
             state = nn.op.matmul(input, self.weights)
             return self.activation(state)
 
-    batch_size_forward = I.dynamic("batch_size")
-    batch_size_layer = I.dynamic("batch_size")
-    batch_size_activation = I.dynamic("batch_size")
+    batch_size_forward = I.dynamic("batch_size", "int64")
+    batch_size_layer = I.dynamic("batch_size", "int64")
+    batch_size_activation = I.dynamic("batch_size", "int64")
 
     @I.ir_module
     class Expected:

@@ -745,8 +745,8 @@ def te_resize2d_symbolic():
     return [A, B]
 
 
-oh = T.dynamic("oh")
-ow = T.dynamic("ow")
+oh = T.dynamic("oh", "int64")
+ow = T.dynamic("ow", "int64")
 
 
 @Ts.function
@@ -836,8 +836,8 @@ def te_slice_with_var_input():
     return [tensor, idx, slice0]
 
 
-m = T.dynamic("m")
-n = T.dynamic("n")
+m = T.dynamic("m", "int64")
+n = T.dynamic("n", "int64")
 
 
 @Ts.function

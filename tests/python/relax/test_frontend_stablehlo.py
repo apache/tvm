@@ -183,10 +183,10 @@ def test_add_dynamic():
 
     mod = from_stablehlo(add_dyn)
 
-    n_0 = T.dynamic("n_0")
-    n_1 = T.dynamic("n_1")
-    n_2 = T.dynamic("n_2")
-    n_3 = T.dynamic("n_3")
+    n_0 = T.dynamic("n_0", "int64")
+    n_1 = T.dynamic("n_1", "int64")
+    n_2 = T.dynamic("n_2", "int64")
+    n_3 = T.dynamic("n_3", "int64")
 
     @I.ir_module
     class Expected:

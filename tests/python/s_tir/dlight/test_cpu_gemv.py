@@ -433,7 +433,7 @@ def test_outer_reduction_adreno():
 
 def test_outer_reduction_adreno_dynamic():
     # fmt: off
-    v = T.dynamic("v")
+    v = T.dynamic("v", "int64")
 
     @Ts.function(private=True)
     def before(lv612: T.Tensor((T.int64(512), v), 'uint32'), lv613: T.Tensor((T.int64(128), v), 'float16'), lv1607: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Tensor((T.int64(1), T.int64(1), v), "float32")):
@@ -463,7 +463,7 @@ def test_outer_reduction_adreno_dynamic():
                 Ts.writes(p_output0_intermediate[v_i0, v_i1, v_i2])
                 p_output0_intermediate[v_i0, v_i1, v_i2] = T.Cast("float32", var_matmul_intermediate[v_i0, v_i1, v_i2])
 
-    v = T.dynamic("v")
+    v = T.dynamic("v", "int64")
 
     @Ts.function(private=True)
     def expected(lv612: T.Tensor((T.int64(512), v), 'uint32'), lv613: T.Tensor((T.int64(128), v), 'float16'), lv1607: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Tensor((T.int64(1), T.int64(1), v), "float32")):

@@ -43,8 +43,8 @@ def test_op_size():
 
 
 def test_op_size_dynamic():
-    m = I.dynamic("m")
-    n = I.dynamic("n")
+    m = I.dynamic("m", "int64")
+    n = I.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Module:

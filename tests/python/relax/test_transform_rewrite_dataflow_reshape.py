@@ -656,7 +656,7 @@ def test_rewrite_static_reshape():
 
 
 # def test_rewrite_dynamic_reshape():
-#     N = T.dynamic("N")
+#     N = T.dynamic("N", "int64")
 #
 #     @I.ir_module
 #     class Before:
@@ -717,7 +717,7 @@ def test_rewrite_static_reshape():
 
 
 def test_rewrite_dynamic_reshape():
-    N = T.dynamic("N")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module
     class Before:
@@ -729,7 +729,7 @@ def test_rewrite_dynamic_reshape():
                 R.output(z)
             return z
 
-    N = T.dynamic("N")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module
     class Expected:

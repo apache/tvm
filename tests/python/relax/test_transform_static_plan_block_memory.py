@@ -681,10 +681,10 @@ def test_call_packed_external_func():
 
 
 def test_symbolic_shape():
-    m_exp = T.dynamic("m")
-    n_exp = T.dynamic("n")
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
+    m_exp = T.dynamic("m", "int64")
+    n_exp = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Module:
@@ -702,10 +702,10 @@ def test_symbolic_shape():
             y: R.Tensor((m_main, n_main), dtype="float32") = alloc
             return x
 
-    m_exp = T.dynamic("m")
-    n_exp = T.dynamic("n")
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
+    m_exp = T.dynamic("m", "int64")
+    n_exp = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -918,7 +918,7 @@ def test_multiple_functions():
 
 def test_tir_var_upper_bound():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Module:
@@ -968,7 +968,7 @@ def test_tir_var_upper_bound():
             gv: R.Tensor((2 * n + 2,), dtype="float32") = alloc4
             return gv
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1027,7 +1027,7 @@ def test_tir_var_upper_bound():
 
 def test_lower_bound_only():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Module:
@@ -1077,7 +1077,7 @@ def test_lower_bound_only():
             gv: R.Tensor((2 * n + 2,), dtype="float32") = alloc4
             return gv
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1137,7 +1137,7 @@ def test_lower_bound_only():
 
 def test_upper_and_lower_bounds():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Module:
@@ -1187,7 +1187,7 @@ def test_upper_and_lower_bounds():
             gv: R.Tensor((2 * n + 2,), dtype="float32") = alloc4
             return gv
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1245,7 +1245,7 @@ def test_upper_and_lower_bounds():
 
 
 def test_invalid_tir_var_upper_bound():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Module:
@@ -1259,7 +1259,7 @@ def test_invalid_tir_var_upper_bound():
 
 
 def test_invalid_tir_var_lower_bound():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Module:
@@ -1274,8 +1274,8 @@ def test_invalid_tir_var_lower_bound():
 
 def test_tir_var_decreasing_monotone():
     # fmt: off
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Module:
@@ -1298,8 +1298,8 @@ def test_tir_var_decreasing_monotone():
             r: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = alloc2
             return r
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -1331,7 +1331,7 @@ def test_tir_var_decreasing_monotone():
 
 def test_call_tir_dyn():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -1358,7 +1358,7 @@ def test_call_tir_dyn():
             lv3: R.Tensor((n,), dtype="float32") = alloc2
             return lv3
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1394,7 +1394,7 @@ def test_call_tir_dyn():
 
 def test_call_tir_dyn_plan_dynamic_func_output():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -1421,7 +1421,7 @@ def test_call_tir_dyn_plan_dynamic_func_output():
             lv3: R.Tensor((n,), dtype="float32") = alloc2
             return lv3
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1458,8 +1458,8 @@ def test_call_tir_dyn_plan_dynamic_func_output():
 
 def test_call_tir_dyn_plan_partially_dynamic():
     # fmt: off
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Module:
@@ -1489,8 +1489,8 @@ def test_call_tir_dyn_plan_partially_dynamic():
             lv4: R.Tensor((n, m), dtype="float32") = alloc3
             return lv4
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -1598,8 +1598,8 @@ def test_function_independence():
 
 
 def test_add():
-    batch_size = T.dynamic("batch_size")
-    vocab_size = T.dynamic("vocab_size")
+    batch_size = T.dynamic("batch_size", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
 
     @I.ir_module
     class Module:
@@ -1645,8 +1645,8 @@ def test_add():
             )
             return lv1_1
 
-    batch_size = T.dynamic("batch_size")
-    vocab_size = T.dynamic("vocab_size")
+    batch_size = T.dynamic("batch_size", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
 
     @I.ir_module
     class Expected:

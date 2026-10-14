@@ -709,10 +709,10 @@ def test_skip_call_dps_packed():
 
 
 def test_symbolic_shape_aware_fuse():
-    n_fused_add_exp_squeeze = T.dynamic("n")
-    m_fused_add_exp_squeeze = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_main = T.dynamic("m")
+    n_fused_add_exp_squeeze = T.dynamic("n", "int64")
+    m_fused_add_exp_squeeze = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -742,8 +742,8 @@ def test_symbolic_shape_aware_fuse():
     def fused_add_exp_squeeze(x, p0):
         return topi.squeeze(topi.exp(topi.add(x, p0)))
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -758,8 +758,8 @@ def test_symbolic_shape_aware_fuse():
 
 
 def test_fuse_of_dynamic_kernel_with_var_params_and_static_args():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -824,8 +824,8 @@ def test_fuse_of_dynamic_kernel_with_expression_params_and_static_args():
     Here, the kernel requires arguments (m*n), and is provided
     """
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -913,8 +913,8 @@ def test_symbolic_shape_aware_fuse_with_allocation():
     def te_mean(x, axis):
         return topi.divide(topi.sum(x, axis, keepdims=True), 4096)
 
-    n_fused_mean_add_tir_sqrt_divide_multiply = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_fused_mean_add_tir_sqrt_divide_multiply = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -953,7 +953,7 @@ def test_symbolic_shape_aware_fuse_with_allocation():
         lv3 = topi.divide(y, lv2)
         return topi.multiply(rms_norm_weight, lv3)
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -972,8 +972,8 @@ def test_symbolic_shape_aware_fuse_with_allocation():
 
 
 def test_symbolic_var_in_call_tir_args():
-    m_fused = T.dynamic("m")
-    m_main = T.dynamic("m")
+    m_fused = T.dynamic("m", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -1019,7 +1019,7 @@ def test_symbolic_var_in_call_tir_args():
                 R.output(gv)
             return gv
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -1183,8 +1183,8 @@ def test_same_buffer_multiple_read():
 
 
 def test_tir_expression_in_shape():
-    n_fused_transpose_matmul = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_fused_transpose_matmul = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -1213,7 +1213,7 @@ def test_tir_expression_in_shape():
                 R.output(lv)
             return lv
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1486,11 +1486,11 @@ def test_symbolic_var_in_buffer_shape():
     typically determined from the DLTensor's known shape.)
     """
 
-    sequence_length_foo = T.dynamic("sequence_length")
-    sequence_length_fused = T.dynamic("sequence_length")
-    m_fused = T.dynamic("m")
-    sequence_length_main = T.dynamic("sequence_length")
-    m_main = T.dynamic("m")
+    sequence_length_foo = T.dynamic("sequence_length", "int64")
+    sequence_length_fused = T.dynamic("sequence_length", "int64")
+    m_fused = T.dynamic("m", "int64")
+    sequence_length_main = T.dynamic("sequence_length", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -1540,9 +1540,9 @@ def test_symbolic_var_in_buffer_shape():
                 R.output(gv)
             return gv
 
-    sequence_length_fused = T.dynamic("sequence_length")
-    sequence_length_main = T.dynamic("sequence_length")
-    m = T.dynamic("m")
+    sequence_length_fused = T.dynamic("sequence_length", "int64")
+    sequence_length_main = T.dynamic("sequence_length", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -1597,7 +1597,7 @@ def test_symbolic_var_in_buffer_shape():
 def test_symbolic_var_called_with_static_shape():
     """A dynamic Function may be called with a static shape"""
 
-    num_elements = T.dynamic("num_elements")
+    num_elements = T.dynamic("num_elements", "int64")
 
     @I.ir_module
     class Before:
@@ -1670,7 +1670,7 @@ def test_symbolic_var_called_with_static_shape():
 def test_symbolic_var_called_with_multiple_static_shapes():
     """A dynamic Function may be called with different shapes each time"""
 
-    num_elements = T.dynamic("num_elements")
+    num_elements = T.dynamic("num_elements", "int64")
 
     @I.ir_module
     class Before:

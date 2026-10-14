@@ -211,9 +211,9 @@ def test_shape_check_builtin():
     # 0: n, 1: m
     sindex = {"n": 0, "m": 1}
 
-    n = T.dynamic("n")
-    k = T.dynamic("k")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    k = T.dynamic("k", "int64")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class TestVMShapeCheck:

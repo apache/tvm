@@ -80,10 +80,10 @@ def test_bind_params(use_np_array):
 
 
 def test_bind_params_symbolic_vars():
-    batch = T.dynamic("batch")
-    k = T.dynamic("k")
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    batch = T.dynamic("batch", "int64")
+    k = T.dynamic("k", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:

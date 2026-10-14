@@ -128,7 +128,7 @@ ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView in
         for (const auto& [var, signature_id] : signature_candidates) {
           if (!pending.count(var) || !var->ty.as<PrimTypeNode>()) continue;
           IdDoc id = VarDoc(d, var);
-          if (var->ty.as_or_throw<PrimType>()->dtype == (DLDataType{kDLInt, 64, 1})) {
+          if (var->ty.as_or_throw<PrimType>()->dtype == (DLDataType{kDLInt, 32, 1})) {
             function->type_params.push_back(id);
           } else {
             function->type_params.push_back(

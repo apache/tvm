@@ -65,12 +65,14 @@ are read only when needed, including conditional and optional annotations.
 Annotations read concrete values from their definition scope, preserving missing-name
 errors when a value is used. Create external symbols with ``n = I.dynamic("n")``
 or the identical ``T.dynamic`` and ``Ts.dynamic`` constructors. Each call creates a
-fresh native variable, defaulting to int64. Reuse that object in ordinary Python shape,
+fresh native variable, defaulting to int32. Reuse that object in ordinary Python shape,
 stride and offset expressions to share identity; strings in those fields are not
 parsed as expressions. On Python 3.12+, explicit headers such as
-``def f[n, k: T.int32](...)`` declare local symbols; ``n: int`` retains the int64
-default. Use ``from __future__ import annotations`` to defer eager Python evaluation
-of header symbols. Explicit whole quoted annotations are rejected in script source;
+``def f[n, k: T.int64](...)`` declare local symbols; ``n: int`` retains the int32
+default. Relax symbolic shapes require explicit int64 symbols, such as
+``I.dynamic("n", "int64")`` or ``def f[n: T.int64](...)``; Relax integer shape
+constants continue to normalize to int64. Use ``from __future__ import annotations``
+to defer eager Python evaluation of header symbols. Explicit whole quoted annotations are rejected in script source;
 normal string arguments inside annotation constructors remain valid. Captured runtime ``typing.TypeVar``
 objects are not script symbols; ordinary Python typing uses remain unaffected.
 

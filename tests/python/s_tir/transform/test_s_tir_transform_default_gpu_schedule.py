@@ -26,8 +26,8 @@ from tvm.script import tirx as T
 def test_broadcast_to_symbolic():
     # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
-    x_0 = T.dynamic("x_0")
-    x_1 = T.dynamic("x_1")
+    x_0 = T.dynamic("x_0", "int64")
+    x_1 = T.dynamic("x_1", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -46,8 +46,8 @@ def test_broadcast_to_symbolic():
                     Ts.writes(T_broadcast_to[v_ax0, v_ax1])
                     T_broadcast_to[v_ax0, v_ax1] = rxplaceholder[v_ax0, T.int64(0)]
 
-    x_0 = T.dynamic("x_0")
-    x_1 = T.dynamic("x_1")
+    x_0 = T.dynamic("x_0", "int64")
+    x_1 = T.dynamic("x_1", "int64")
 
     @tvm.script.ir_module
     class Expected:

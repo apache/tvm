@@ -51,7 +51,7 @@ def test_function_symbolic_tensor_param_roundtrip():
 
     source = func.script()
     assert "T.Tensor((n + 1, n)" in source
-    assert source.index("def main[n: T.int32](") < source.index("T.evaluate(n)")
+    assert source.index("def main[n](") < source.index("T.evaluate(n)")
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
             source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
@@ -72,7 +72,7 @@ def test_function_compound_tensor_shape_first_use_roundtrip():
 
     source = func.script()
     assert "T.Tensor((T.max(n, 1),)" in source
-    assert source.index("def main[n: T.int32](") < source.index("T.evaluate(n)")
+    assert source.index("def main[n](") < source.index("T.evaluate(n)")
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
             source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}

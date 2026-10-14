@@ -845,7 +845,7 @@ def test_reduction_inner_no_broadcasting2():
 
 def test_reduction_inner_spatial_choose_perfect_factor():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -862,7 +862,7 @@ def test_reduction_inner_spatial_choose_perfect_factor():
                     with Ts.init():
                         matmul[v_i0, v_i1, v_i2, v_i3] = T.float16(0)
                     matmul[v_i0, v_i1, v_i2, v_i3] = matmul[v_i0, v_i1, v_i2, v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1085,7 +1085,7 @@ def test_reduction_inner_spatial_uses_normalized_split_extent():
 def test_repeat_transpose_gemv():
     # fmt: off
 
-    kv_seq_len = T.dynamic("kv_seq_len")
+    kv_seq_len = T.dynamic("kv_seq_len", "int64")
 
     @I.ir_module
     class Before:
@@ -1116,7 +1116,7 @@ def test_repeat_transpose_gemv():
                     with Ts.init():
                         var_matmul_intermediate[v_i0, v_i1, v_i2, v_i3] = T.float16(0)
                     var_matmul_intermediate[v_i0, v_i1, v_i2, v_i3] = var_matmul_intermediate[v_i0, v_i1, v_i2, v_i3] + astype66[v_i0, v_i1, v_i2, v_k] * var_T_transpose_intermediate[v_i0, v_i1, v_k, v_i3]
-    kv_seq_len = T.dynamic("kv_seq_len")
+    kv_seq_len = T.dynamic("kv_seq_len", "int64")
 
     @I.ir_module
     class Expected:
@@ -1167,7 +1167,7 @@ def test_repeat_transpose_gemv():
 
 
 def test_gemv_dyn_shape_epilogue():
-    vocab_size = T.dynamic("vocab_size")
+    vocab_size = T.dynamic("vocab_size", "int64")
 
     @I.ir_module
     class Module:
@@ -1198,7 +1198,7 @@ def test_gemv_dyn_shape_epilogue():
                     C[v_i0, v_i1, v_i2] = T.Cast("float32", C_temp[v_i0, v_i1, v_i2])
 
     # fmt: off
-    vocab_size = T.dynamic("vocab_size")
+    vocab_size = T.dynamic("vocab_size", "int64")
 
     @I.ir_module
     class Expected:

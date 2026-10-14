@@ -1402,7 +1402,7 @@ def test_stop_lifting():
 
 
 def test_symbolic_var_1():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -1413,7 +1413,7 @@ def test_symbolic_var_1():
                 zeros = R.zeros((n, n), "float32")
             return shape
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1438,8 +1438,8 @@ def test_symbolic_var_1():
 
 
 def test_symbolic_var_2():
-    n_zeros = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_zeros = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -1465,8 +1465,8 @@ def test_symbolic_var_2():
                 R.output()
             return shape
 
-    n_zeros = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_zeros = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1504,7 +1504,7 @@ def test_symbolic_var_2():
 
 
 def test_symbolic_var_from_shape():
-    slice_index = T.dynamic("slice_index")
+    slice_index = T.dynamic("slice_index", "int64")
 
     @I.ir_module
     class Before:
@@ -1543,8 +1543,8 @@ def test_symbolic_var_from_shape():
                     vj = Ts.axis.remap("S", [j])
                     Output_Slice[vj] = Input_2d[slice_index, vj]
 
-    slice_index_main = T.dynamic("slice_index")
-    slice_index_main_transform_params = T.dynamic("slice_index")
+    slice_index_main = T.dynamic("slice_index", "int64")
+    slice_index_main_transform_params = T.dynamic("slice_index", "int64")
 
     @I.ir_module
     class Expected:
@@ -1604,8 +1604,8 @@ def test_symbolic_var_from_shape():
 
 
 def test_symbolic_var_in_param_shape():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -1626,9 +1626,9 @@ def test_symbolic_var_in_param_shape():
                 R.output(conv2)
             return conv2
 
-    m_main_transform_params = T.dynamic("m")
-    n = T.dynamic("n")
-    m_main = T.dynamic("m")
+    m_main_transform_params = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -1708,8 +1708,8 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
     not variable definitions.
     """
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:
@@ -1726,9 +1726,9 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
                 R.output(output)
             return output
 
-    k = T.dynamic("k")
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    k = T.dynamic("k", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1819,8 +1819,8 @@ def test_only_lift_when_variable_uses_constants():
 def test_lift_transform_is_idempotent(shared_transform):
     """Multiple applicates of LiftTransformParams are allowed"""
 
-    batch_size = T.dynamic("batch_size")
-    lora_rank = T.dynamic("lora_rank")
+    batch_size = T.dynamic("batch_size", "int64")
+    lora_rank = T.dynamic("lora_rank", "int64")
 
     @I.ir_module
     class Module:
@@ -1851,9 +1851,9 @@ def test_lift_transform_when_one_already_exists():
     """If the module already contains `transform_params`, the
     functions are composed together"""
 
-    batch_size = T.dynamic("batch_size")
-    lora_rank_main = T.dynamic("lora_rank")
-    lora_rank_main_transform_params = T.dynamic("lora_rank")
+    batch_size = T.dynamic("batch_size", "int64")
+    lora_rank_main = T.dynamic("lora_rank", "int64")
+    lora_rank_main_transform_params = T.dynamic("lora_rank", "int64")
 
     @I.ir_module
     class Module:

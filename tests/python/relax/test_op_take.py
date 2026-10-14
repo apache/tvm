@@ -148,7 +148,7 @@ def test_take_dynamic_prim_value_as_index(axis):
     target = "llvm"
     dev = tvm.cpu()
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:

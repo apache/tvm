@@ -1225,12 +1225,12 @@ def test_match_dynamic_shape():
 
     """
 
-    N1_pattern = T.dynamic("N1")
-    M_pattern = T.dynamic("M")
-    N2_pattern = T.dynamic("N2")
-    N1_replacement = T.dynamic("N1")
-    N2_replacement = T.dynamic("N2")
-    M_replacement = T.dynamic("M")
+    N1_pattern = T.dynamic("N1", "int64")
+    M_pattern = T.dynamic("M", "int64")
+    N2_pattern = T.dynamic("N2", "int64")
+    N1_replacement = T.dynamic("N1", "int64")
+    N2_replacement = T.dynamic("N2", "int64")
+    M_replacement = T.dynamic("M", "int64")
 
     @R.rewriter
     class Rewriter:
@@ -1271,9 +1271,9 @@ def test_match_dynamic_shape():
         out = proj_A + proj_B
         return out
 
-    N1 = T.dynamic("N1")
-    M = T.dynamic("M")
-    N2 = T.dynamic("N2")
+    N1 = T.dynamic("N1", "int64")
+    M = T.dynamic("M", "int64")
+    N2 = T.dynamic("N2", "int64")
 
     @R.function(private=True)
     def expected(
@@ -1303,10 +1303,10 @@ def test_match_dynamic_shape():
 def test_match_dynamic_pattern_against_dynamic_shape():
     """A dynamic pattern may match a static shape"""
 
-    M_pattern = T.dynamic("M")
-    N_pattern = T.dynamic("N")
-    M_replacement = T.dynamic("M")
-    N_replacement = T.dynamic("N")
+    M_pattern = T.dynamic("M", "int64")
+    N_pattern = T.dynamic("N", "int64")
+    M_replacement = T.dynamic("M", "int64")
+    N_replacement = T.dynamic("N", "int64")
 
     @R.rewriter
     class Rewriter:
@@ -1329,7 +1329,7 @@ def test_match_dynamic_pattern_against_dynamic_shape():
                 ty_args=R.Tensor([M_replacement, N_replacement], "float32"),
             )
 
-    N = T.dynamic("N")
+    N = T.dynamic("N", "int64")
 
     @R.function(private=True)
     def before(
@@ -1342,7 +1342,7 @@ def test_match_dynamic_pattern_against_dynamic_shape():
         F: R.Tensor([N * 2, N], "float32") = R.matmul(E, C)
         return F
 
-    N = T.dynamic("N")
+    N = T.dynamic("N", "int64")
 
     @R.function(private=True)
     def expected(

@@ -44,9 +44,9 @@ class MultiFromUniformModule:
 
 def test_dispatch_multinomial_from_uniform_generic():
     # fmt: off
-    batch = T.dynamic("batch")
-    vocab_size = T.dynamic("vocab_size")
-    out_batch = T.dynamic("out_batch")
+    batch = T.dynamic("batch", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
+    out_batch = T.dynamic("out_batch", "int64")
 
     @I.ir_module
     class Expected:
@@ -82,9 +82,9 @@ def test_dispatch_multinomial_from_uniform_generic():
 
 def test_dispatch_multinomial_from_uniform_gpu():
     # fmt: off
-    n = T.dynamic("n")
-    vocab_size = T.dynamic("vocab_size")
-    batch_size = T.dynamic("batch_size")
+    n = T.dynamic("n", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @I.ir_module
     class Expected:

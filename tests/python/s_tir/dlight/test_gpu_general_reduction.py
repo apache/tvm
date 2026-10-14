@@ -91,8 +91,8 @@ def test_scalar_argmin_reduction_value_scope():
 
 def test_softmax_1():
     # fmt: off
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -141,8 +141,8 @@ def test_softmax_1():
                     Ts.writes(var_compute_intermediate[v_i0, v_i1, v_i2, v_i3])
                     var_compute_intermediate[v_i0, v_i1, v_i2, v_i3] = T.Cast("float16", var_T_softmax_norm_intermediate[v_i0, v_i1, v_i2, v_i3])
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class After:
@@ -371,7 +371,7 @@ def test_softmax_3():
 
 def test_layer_norm():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -408,7 +408,7 @@ def test_layer_norm():
                     Ts.writes(var_compute_intermediate[v_i0, v_i1, v_i2])
                     var_compute_intermediate[v_i0, v_i1, v_i2] = T.Cast("float16", var_T_layer_norm_intermediate[v_i0, v_i1, v_i2])
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class After:
@@ -449,7 +449,7 @@ def test_layer_norm():
 
 def test_rms_norm():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -474,7 +474,7 @@ def test_rms_norm():
                     Ts.writes(rms_norm_1[v_bsz, v_i, v_k])
                     rms_norm_1[v_bsz, v_i, v_k] = T.Cast("float16", T.Cast("float32", B[v_k]) * (T.Cast("float32", A[v_bsz, v_i, v_k]) / T.sqrt(Ared_temp[v_bsz, v_i] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))))
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class After:
@@ -601,9 +601,9 @@ def test_group_norm():
 
 
 def test_logsumexp():
-    batch_size = T.dynamic("batch_size")
-    vocab_size = T.dynamic("vocab_size")
-    num_chunks = T.dynamic("num_chunks")
+    batch_size = T.dynamic("batch_size", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
+    num_chunks = T.dynamic("num_chunks", "int64")
 
     @I.ir_module
     class Before:
@@ -650,9 +650,9 @@ def test_logsumexp():
                     v0, v1, v2 = Ts.axis.remap("SSS", [l0, l1, l2])
                     blocked_lse[v0, v1] = T.log(temp_sum[v0, v1]) + temp_max[v0, v1]
 
-    batch_size = T.dynamic("batch_size")
-    vocab_size = T.dynamic("vocab_size")
-    num_chunks = T.dynamic("num_chunks")
+    batch_size = T.dynamic("batch_size", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
+    num_chunks = T.dynamic("num_chunks", "int64")
 
     @I.ir_module
     class After:

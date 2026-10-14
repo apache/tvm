@@ -56,8 +56,8 @@ def test_pipeline_with_kv_cache():
     target = tvm.target.Target("llvm", host="llvm")
     pipeline = relax.pipeline.get_default_pipeline(target)
 
-    m = T.dynamic("m")
-    L = T.dynamic("L")
+    m = T.dynamic("m", "int64")
+    L = T.dynamic("L", "int64")
 
     @tvm.script.ir_module
     class Mod:

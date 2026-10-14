@@ -638,8 +638,8 @@ def test_tensor_ir_op():
     fused_heads = num_q_heads + num_kv_heads * 2
     dtype = "float16"
 
-    batch_size = T.dynamic("batch_size")
-    seq_len = T.dynamic("seq_len")
+    batch_size = T.dynamic("batch_size", "int64")
+    seq_len = T.dynamic("seq_len", "int64")
 
     @Ts.function(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
@@ -666,9 +666,9 @@ def test_tensor_ir_op():
             return tensor_expr_op_out
 
     # fmt: off
-    batch_size = T.dynamic("batch_size")
-    seq_len = T.dynamic("seq_len")
-    offset_1 = T.dynamic("offset_1")
+    batch_size = T.dynamic("batch_size", "int64")
+    seq_len = T.dynamic("seq_len", "int64")
+    offset_1 = T.dynamic("offset_1", "int64")
 
     @I.ir_module
     class Expected:
@@ -714,9 +714,9 @@ def test_tensor_ir_inplace_op():
     hidden_size = 4096
     dtype = "float16"
 
-    vocab_size = T.dynamic("vocab_size")
-    seq_len = T.dynamic("seq_len")
-    total_seq_len = T.dynamic("total_seq_len")
+    vocab_size = T.dynamic("vocab_size", "int64")
+    seq_len = T.dynamic("seq_len", "int64")
+    total_seq_len = T.dynamic("total_seq_len", "int64")
 
     @Ts.function
     def inplace_take(
@@ -747,13 +747,13 @@ def test_tensor_ir_inplace_op():
             )
             return tensor_expr_op_out
 
-    vocab_size_inplace_take = T.dynamic("vocab_size")
-    seq_len_inplace_take = T.dynamic("seq_len")
-    total_seq_len_inplace_take = T.dynamic("total_seq_len")
-    total_seq_len_test = T.dynamic("total_seq_len")
-    offset_1 = T.dynamic("offset_1")
-    vocab_size_test = T.dynamic("vocab_size")
-    seq_len_test = T.dynamic("seq_len")
+    vocab_size_inplace_take = T.dynamic("vocab_size", "int64")
+    seq_len_inplace_take = T.dynamic("seq_len", "int64")
+    total_seq_len_inplace_take = T.dynamic("total_seq_len", "int64")
+    total_seq_len_test = T.dynamic("total_seq_len", "int64")
+    offset_1 = T.dynamic("offset_1", "int64")
+    vocab_size_test = T.dynamic("vocab_size", "int64")
+    seq_len_test = T.dynamic("seq_len", "int64")
 
     @I.ir_module
     class Expected:
@@ -1020,11 +1020,11 @@ def test_sample_top_p_top_k_from_sorted_prob():
             return z0
 
     # fmt: off
-    batch_get_index_from_sorted = T.dynamic("batch")
-    vocab_size_get_index_from_sorted = T.dynamic("vocab_size")
-    out_batch = T.dynamic("out_batch")
-    batch_get_renorm_prob = T.dynamic("batch")
-    vocab_size_get_renorm_prob = T.dynamic("vocab_size")
+    batch_get_index_from_sorted = T.dynamic("batch", "int64")
+    vocab_size_get_index_from_sorted = T.dynamic("vocab_size", "int64")
+    out_batch = T.dynamic("out_batch", "int64")
+    batch_get_renorm_prob = T.dynamic("batch", "int64")
+    vocab_size_get_renorm_prob = T.dynamic("vocab_size", "int64")
 
     @I.ir_module
     class Expected:
@@ -1145,8 +1145,8 @@ def test_renormalize_top_p_top_k_prob():
             return z0
 
     # fmt: off
-    batch = T.dynamic("batch")
-    vocab_size = T.dynamic("vocab_size")
+    batch = T.dynamic("batch", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
 
     @I.ir_module
     class Expected:
@@ -1256,7 +1256,7 @@ def test_sort_argsort_topk():
             z2 = op.topk(x, k=2, axis=-1)
             return z0, z1, z2
 
-    seq_len = T.dynamic("seq_len")
+    seq_len = T.dynamic("seq_len", "int64")
 
     @I.ir_module
     class Expected:

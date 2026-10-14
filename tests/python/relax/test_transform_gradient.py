@@ -1077,7 +1077,7 @@ def test_function_copy():
 
 
 def test_tir_copy():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:

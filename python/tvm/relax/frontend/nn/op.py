@@ -2801,8 +2801,8 @@ def sample_top_p_top_k_from_sorted_prob(
     def _cumsum_mask(cumsum_sorted, top_p, top_k, i, j):
         return _tir.all(cumsum_sorted[i, j] < top_p[i, 0], j + 1 < top_k[i, 0])
 
-    batch = T.dynamic("batch")
-    vocab_size = T.dynamic("vocab_size")
+    batch = T.dynamic("batch", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
 
     @Ts.function(private=True)
     def _get_renorm_prob(
@@ -2822,9 +2822,9 @@ def sample_top_p_top_k_from_sorted_prob(
                     elif not _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, v_ax1 + 1):
                         renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, v_ax1 + 1]
 
-    batch = T.dynamic("batch")
-    vocab_size = T.dynamic("vocab_size")
-    kernel_out_batch = T.dynamic("out_batch")
+    batch = T.dynamic("batch", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
+    kernel_out_batch = T.dynamic("out_batch", "int64")
 
     @Ts.function(private=True)
     def _get_index_from_sorted(
@@ -2910,8 +2910,8 @@ def renormalize_top_p_top_k_prob(prob, sorted_prob, top_p, top_k):
     def _cumsum_mask(cumsum_sorted, top_p, top_k, i, j):
         return _tir.all(cumsum_sorted[i, j] < top_p[i, 0], j + 1 < top_k[i, 0])
 
-    kernel_batch = T.dynamic("batch")
-    vocab_size = T.dynamic("vocab_size")
+    kernel_batch = T.dynamic("batch", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
 
     @Ts.function(private=True)
     def _get_renorm_cutoff(

@@ -334,9 +334,9 @@ def test_take_backward():
 
 def test_take_backward_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    i = T.dynamic("i")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    i = T.dynamic("i", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class TakeBackward:
@@ -345,12 +345,12 @@ def test_take_backward_symbolic():
             gv = R.grad.take_backward(output_grad, x, indices, axis=1)
             return gv
 
-    m_take_backward = T.dynamic("m")
-    i_take_backward = T.dynamic("i")
-    n_take_backward = T.dynamic("n")
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    i_main = T.dynamic("i")
+    m_take_backward = T.dynamic("m", "int64")
+    i_take_backward = T.dynamic("i", "int64")
+    n_take_backward = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    i_main = T.dynamic("i", "int64")
 
     @I.ir_module
     class Expected:
