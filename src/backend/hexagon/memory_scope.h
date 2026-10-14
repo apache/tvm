@@ -20,19 +20,25 @@
 #ifndef TVM_BACKEND_HEXAGON_MEMORY_SCOPE_H_
 #define TVM_BACKEND_HEXAGON_MEMORY_SCOPE_H_
 
-#include "../memory_scope.h"
+#include <tvm/ffi/reflection/enum_def.h>
+#include <tvm/runtime/memory_scope.h>
 
 namespace tvm {
 namespace backend {
 namespace hexagon {
 
 inline void RegisterMemoryScopes() {
-  static const bool initialized = [] {
-    RegisterBackendMemoryScope("global.ddr", runtime::MemoryAllocProperty::kSingleAllocation);
-    RegisterBackendMemoryScope("global.vtcm", runtime::MemoryAllocProperty::kNormal);
-    return true;
-  }();
-  (void)initialized;
+  using runtime::MemoryAllocProperty;
+  if (!runtime::MemoryScope::IsDefined("global.ddr")) {
+    ffi::reflection::EnumDef<runtime::MemoryScopeObj>("global.ddr")
+        .set_attr(runtime::attr::kMemoryAllocProperty,
+                  static_cast<int>(MemoryAllocProperty::kSingleAllocation));
+  }
+  if (!runtime::MemoryScope::IsDefined("global.vtcm")) {
+    ffi::reflection::EnumDef<runtime::MemoryScopeObj>("global.vtcm")
+        .set_attr(runtime::attr::kMemoryAllocProperty,
+                  static_cast<int>(MemoryAllocProperty::kNormal));
+  }
 }
 
 }  // namespace hexagon
