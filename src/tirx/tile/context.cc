@@ -48,8 +48,8 @@ void DispatchContextObj::AddAllocTensor(TensorVar tensor, ffi::Array<PrimExpr> a
   auto tensors = getOrSetDefault(callbacks, callback::kPrivateAlloc, ffi::Array<Bind>());
   ffi::Array<Expr> args;
   if (!allocated_addr.empty()) args.push_back(tvm::Tuple(allocated_addr));
-  tensors.push_back(Bind(tensor.var(), Call(tensor.type(), alloc_tensor_op(), args,
-                                            DictAttrs(annotations), {tensor.type()})));
+  tensors.push_back(Bind(
+      tensor, Call(tensor.ty(), alloc_tensor_op(), args, DictAttrs(annotations), {tensor.ty()})));
   callbacks.Set(callback::kPrivateAlloc, tensors);
 }
 

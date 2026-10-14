@@ -354,20 +354,20 @@ class WellFormednessVerifier : public StmtExprVisitor {
     auto define_if_needed = [&](const Var& var, AccessPath site) {
       if (!current_.count(var)) Define(var, std::move(site));
     };
-    for (size_t i = 0; i < tensor->shape.size(); ++i) {
+    for (size_t i = 0; i < tensor.shape().size(); ++i) {
       auto site = field->Attr("shape")->ArrayItem(i);
       auto walk = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
         define_if_needed(var, site);
         return ffi::WalkResult::Advance();
       };
-      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(tensor->shape[i], walk);
+      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(tensor.shape()[i], walk);
     }
-    for (size_t i = 0; i < tensor->strides.size(); ++i) {
-      if (auto var = tensor->strides[i].as<Var>()) {
+    for (size_t i = 0; i < tensor.strides().size(); ++i) {
+      if (auto var = tensor.strides()[i].as<Var>()) {
         define_if_needed(var.value(), field->Attr("strides")->ArrayItem(i));
       }
     }
-    if (auto var = tensor->elem_offset.as<Var>()) {
+    if (auto var = tensor.elem_offset().as<Var>()) {
       define_if_needed(var.value(), field->Attr("elem_offset"));
     }
   }
@@ -428,10 +428,10 @@ class WellFormednessVerifier : public StmtExprVisitor {
 
   void TensorUse(const TensorVar& tensor) {
     if (check_ != Check::kTensors) return;
-    if (current_.count(tensor.var())) return;
-    auto it = previous_.find(tensor.var());
+    if (current_.count(tensor)) return;
+    auto it = previous_.find(tensor);
     auto verify = Verify(false);
-    verify << "TIR is ill-formed: tensor " << tensor.name() << " is used at <current location>";
+    verify << "TIR is ill-formed: tensor " << tensor->name << " is used at <current location>";
     if (it != previous_.end()) {
       verify << " but its declaration is no longer in-scope. It was declared at "
              << DefinitionPath(it->second) << ".";
@@ -586,14 +586,14 @@ class WellFormednessVerifier : public StmtExprVisitor {
                AccessPath::Root()->Attr("iter_vars")->ArrayItem(i)->Attr("var"));
       }
       for (size_t i = 0; i < op->alloc_tensors.size(); ++i) {
-        Define(op->alloc_tensors[i].var(), AccessPath::Root()->Attr("alloc_tensors")->ArrayItem(i));
+        Define(op->alloc_tensors[i], AccessPath::Root()->Attr("alloc_tensors")->ArrayItem(i));
       }
       for (size_t i = 0; i < op->match_tensors.size(); ++i) {
         const auto& match = op->match_tensors[i];
         this->Visit(match->source);
         auto site = AccessPath::Root()->Attr("match_tensors")->ArrayItem(i)->Attr("tensor");
         MatchTensorDefinitions(match->tensor, site->Attr("ty"));
-        Define(match->tensor.var(), site);
+        Define(match->tensor, site);
       }
       this->Visit(op->reads);
       this->Visit(op->writes);
@@ -640,10 +640,10 @@ auto WellFormednessVerifier::Visit_(const TensorLoadNode* op) -> Result {
     return std::nullopt;
   }
 
-  bool valid_indices = tensor.value()->shape.size() == op->indices.size();
+  bool valid_indices = tensor.value().shape().size() == op->indices.size();
   auto valid_rank = Verify(valid_indices);
   valid_rank << "ValueError: TIR TensorLoad at " << "<current location>" << " indexes "
-             << tensor.value()->shape.size() << "-dimensional tensor " << tensor.value().name()
+             << tensor.value().shape().size() << "-dimensional tensor " << tensor.value()->name
              << " with " << op->indices.size() << " indices.";
   if (!valid_indices) {
     this->Visit(op->indices);
@@ -664,7 +664,7 @@ auto WellFormednessVerifier::Visit_(const TensorLoadNode* op) -> Result {
   }
 
   ffi::Optional<PrimType> index_ty = op->indices.empty()
-                                         ? ffi::Optional<PrimType>(tensor.value()->dtype)
+                                         ? ffi::Optional<PrimType>(tensor.value().dtype())
                                          : op->indices.back().ty().as<PrimType>();
   auto valid_index_type = Verify(index_ty.has_value());
   valid_index_type << "TypeError: TIR TensorLoad final index at <current location>.indices";
@@ -675,7 +675,7 @@ auto WellFormednessVerifier::Visit_(const TensorLoadNode* op) -> Result {
     return std::nullopt;
   }
 
-  bool scalable_compatible = op->indices.empty() || !(tensor.value()->dtype.IsScalableVector() &&
+  bool scalable_compatible = op->indices.empty() || !(tensor.value().dtype().IsScalableVector() &&
                                                       index_ty.value().IsScalableVector());
   auto valid_scalability = Verify(scalable_compatible);
   valid_scalability << "TypeError: TIR TensorLoad at " << "<current location>"
@@ -685,7 +685,7 @@ auto WellFormednessVerifier::Visit_(const TensorLoadNode* op) -> Result {
     return std::nullopt;
   }
 
-  TensorLoad expected = MakeTensorLoad(tensor.value(), op->indices, op->loc);
+  TensorLoad expected = TensorLoad(tensor.value(), op->indices, op->loc);
   ffi::Optional<PrimType> asserted_ty = op->ty.as<PrimType>();
   ffi::Optional<PrimType> expected_ty = expected->ty.as<PrimType>();
   auto valid_type = Verify(asserted_ty.has_value() && expected_ty.has_value() &&

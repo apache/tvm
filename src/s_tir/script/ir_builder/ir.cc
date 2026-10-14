@@ -231,14 +231,14 @@ TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
     block_frame.value()->alloc_tensors.push_back(tensor);
     if (!allocated_addr.empty()) {
       block_frame.value()->allocated_addresses.push_back(
-          ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor.var(), allocated_addr));
+          ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor, allocated_addr));
     }
   } else if (opt_func_frame.has_value()) {
     auto frame = ffi::GetRef<FunctionFrame>(opt_func_frame.value().as<FunctionFrameObj>());
     frame->root_alloc_tensors.push_back(tensor);
     if (!allocated_addr.empty()) {
       frame->root_allocated_addresses.push_back(
-          ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor.var(), allocated_addr));
+          ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor, allocated_addr));
     }
   } else {
     TVM_FFI_CHECK(allocated_addr.empty(), ValueError)

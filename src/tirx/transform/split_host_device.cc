@@ -189,7 +189,7 @@ class HostDeviceSplitter : public StmtExprMutator {
       } else {
         std::unordered_map<Var, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> param_order;
         for (size_t i = 0; i < cur_func_->params.size(); ++i) {
-          param_order[cur_func_->params[i].as_or_throw<tvm::tirx::TensorVar>().var()] = i;
+          param_order[cur_func_->params[i].as_or_throw<tvm::tirx::TensorVar>()] = i;
         }
         // sort by original order
         std::sort(params.begin(), params.end(),
@@ -208,8 +208,8 @@ class HostDeviceSplitter : public StmtExprMutator {
     for (const Var& param : params) {
       if (param->ty.as<TensorTypeNode>()) {
         TensorVar tensor = param.as_or_throw<TensorVar>();
-        TensorVar kernel_tensor(tensor.name(), tensor.type(), tensor.loc());
-        Var data_param(tensor.name() + "_ptr", tensor.type()->DataPtrType());
+        TensorVar kernel_tensor(tensor->name, tensor.ty(), tensor->loc);
+        Var data_param(tensor->name + "_ptr", tensor.ty()->DataPtrType());
         kernel_params.push_back(data_param);
         call_args.push_back(tensor.data());
         tensor_data_params.Set(param, data_param);
@@ -239,15 +239,15 @@ class HostDeviceSplitter : public StmtExprMutator {
     }
 
     for (TensorVar buf : tensors_to_declare) {
-      auto data_param = tensor_data_params.Get(buf.var());
+      auto data_param = tensor_data_params.Get(buf);
       auto kernel_tensor = kernel_rewriter->VarRemapGet(buf);
       TVM_FFI_ICHECK(data_param.has_value())
-          << "Undefined tensor " << buf.name() << " was not captured as a kernel parameter";
+          << "Undefined tensor " << buf->name << " was not captured as a kernel parameter";
       TVM_FFI_ICHECK(kernel_tensor != nullptr);
       body = SeqStmt(
           {Bind(kernel_tensor.as_or_throw<TensorVar>(),
-                Call(kernel_tensor.as_or_throw<TensorVar>().type(), decl_tensor_op(),
-                     {data_param.value()}, {}, {kernel_tensor.as_or_throw<TensorVar>().type()})),
+                Call(kernel_tensor.as_or_throw<TensorVar>().ty(), decl_tensor_op(),
+                     {data_param.value()}, {}, {kernel_tensor.as_or_throw<TensorVar>().ty()})),
            std::move(body)});
     }
     Function device_func(kernel_params, SeqStmt(body), kernel_ret_type);

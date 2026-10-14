@@ -1383,11 +1383,11 @@ void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());
-  std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
+  std::string vid = AllocVarID(buffer.get(), buffer->name + "_ptr");
 
   this->PrintIndent();
   PrintStorageScope(scope, stream);
-  int align = buffer->data_alignment;
+  int align = buffer.ty()->data_alignment;
   auto it = annotations->dict.find(tvm::tirx::attr::kTensorDataAlignment);
   if (it != annotations->dict.end()) {
     if (const auto* n = (*it).second.as<IntImmNode>()) {

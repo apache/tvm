@@ -263,7 +263,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
     tvm::Var ndim("ndim", PrimType::Int(32));
 
     tirx::TensorVar shape_buffer =
-        tirx::decl_tensor({ndim.as_or_throw<PrimExpr>()}, field_ty, "shape");
+        tirx::TensorVar("shape", tirx::TensorType({ndim.as_or_throw<PrimExpr>()}, field_ty));
 
     tvm::Var extent("extent", field_ty);
 
@@ -279,14 +279,13 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
                  tvm::prim::cast(axis->ty.as_or_throw<PrimType>(), ndim.as_or_throw<PrimExpr>()),
              StringImm("RuntimeError"),
              {StringImm("Specified axis may not be larger than the tensor's dimensionality")}),
-         tvm::Bind(
-             shape_buffer,
-             tvm::Call(shape_buffer.type(), tvm::tirx::decl_tensor_op(),
-                       {tvm::Call(shape_buffer.type()->DataPtrType(), tirx::abi_field_get_op(),
-                                  {dlpack_handle, IntImm::Int32(0),
-                                   IntImm::Int32(tirx::TVMStructFieldKind::kDLTensorShape)})},
-                       {}, {shape_buffer.type()})),
-         tvm::Bind(extent, tirx::MakeTensorLoad(shape_buffer, {axis.as_or_throw<PrimExpr>()})),
+         tvm::Bind(shape_buffer,
+                   tvm::Call(shape_buffer.ty(), tvm::tirx::decl_tensor_op(),
+                             {tvm::Call(shape_buffer.ty()->DataPtrType(), tirx::abi_field_get_op(),
+                                        {dlpack_handle, IntImm::Int32(0),
+                                         IntImm::Int32(tirx::TVMStructFieldKind::kDLTensorShape)})},
+                             {}, {shape_buffer.ty()})),
+         tvm::Bind(extent, TensorLoad(shape_buffer, {axis.as_or_throw<PrimExpr>()})),
          tvm::Return(extent)});
 
     DictAttrs attrs({{tvm::s_tir::attr::kIsScheduled, true}, {tvm::tirx::attr::kIsHostFunc, true}});

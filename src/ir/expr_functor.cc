@@ -430,21 +430,24 @@ UnchangedOr<Expr> ExprMutator::Mutate_(const TupleGetItemNode* node, InplaceMode
 
 UnchangedOr<PrimExpr> ExprMutator::Mutate_(const TensorLoadNode* node, InplaceMode inplace_mode) {
   auto ty_u = Mutate(node->ty, inplace_mode).as_or_throw<UnchangedOr<Type>>();
+  Type result_ty = std::move(ty_u).ValueOrUnchanged(node->ty);
+  TVM_FFI_CHECK(result_ty.as<PrimTypeNode>(), TypeError)
+      << "TensorLoad requires a concrete PrimType";
   auto source_u = Mutate(node->source, inplace_mode);
   auto indices_u =
       Mutate(node->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-  if (ty_u.UnchangedOrSameAs(node->ty) && source_u.UnchangedOrSameAs(node->source) &&
+  if (result_ty.same_as(node->ty) && source_u.UnchangedOrSameAs(node->source) &&
       indices_u.UnchangedOrSameAs(node->indices))
     return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<TensorLoadNode*>(node);
-    if (!ty_u.IsUnchanged()) writable->ty = std::move(ty_u).ValueUnchecked();
+    writable->ty = std::move(result_ty);
     if (!source_u.IsUnchanged()) writable->source = std::move(source_u).ValueUnchecked();
     if (!indices_u.IsUnchanged()) writable->indices = std::move(indices_u).ValueUnchecked();
     return ffi::Unchanged();
   }
   auto copy = ffi::make_object<TensorLoadNode>(*node);
-  if (!ty_u.IsUnchanged()) copy->ty = std::move(ty_u).ValueUnchecked();
+  copy->ty = std::move(result_ty);
   if (!source_u.IsUnchanged()) copy->source = std::move(source_u).ValueUnchecked();
   if (!indices_u.IsUnchanged()) copy->indices = std::move(indices_u).ValueUnchecked();
   return PrimExpr(std::move(copy));

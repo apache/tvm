@@ -905,7 +905,7 @@ class ModuleInplaceTransformer : public ExprMutator {
       // also do the same with the tensor vars
       auto output_tensor = output_var.as_or_throw<tirx::TensorVar>();
       auto inplace_tensor = inplace_var.as_or_throw<tirx::TensorVar>();
-      var_subst_map.Set(output_tensor.var(), inplace_tensor.var());
+      var_subst_map.Set(output_tensor, inplace_tensor);
       tensor_subst_map.Set(output_tensor, inplace_tensor);
     }
 

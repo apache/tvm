@@ -122,7 +122,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    info_.write_access_set.insert(ResolveBuffer(op->dest.as_or_throw<TensorVar>().var()));
+    info_.write_access_set.insert(ResolveBuffer(op->dest.as_or_throw<TensorVar>()));
 
     return std::nullopt;
   }
@@ -631,8 +631,8 @@ void CodeGenWebGPU::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // 
 
   PrimType value_ty = op->ty.as_or_throw<PrimType>();
   PrimExpr index = op->indices[0];
-  Var buffer_var = op->source.as_or_throw<tvm::tirx::TensorVar>().var();
-  const PrimType& element_ty = op->source.as_or_throw<tvm::tirx::TensorVar>()->dtype;
+  Var buffer_var = op->source.as_or_throw<tvm::tirx::TensorVar>();
+  const PrimType& element_ty = op->source.as_or_throw<tvm::tirx::TensorVar>().dtype();
 
   int lanes = value_ty.lanes();
   std::string buffer_vid = GetVarID(buffer_var.get());
@@ -710,9 +710,9 @@ void CodeGenWebGPU::Dispatch_(const TensorStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
 
   PrimType value_ty = op->value.ty();
-  const PrimType& element_ty = op->dest.as_or_throw<TensorVar>()->dtype;
+  const PrimType& element_ty = op->dest.as_or_throw<TensorVar>().dtype();
   PrimExpr index = op->indices[0];
-  Var buffer_var = op->dest.as_or_throw<TensorVar>().var();
+  Var buffer_var = op->dest.as_or_throw<TensorVar>();
 
   std::string buffer_vid = GetVarID(buffer_var.get());
 

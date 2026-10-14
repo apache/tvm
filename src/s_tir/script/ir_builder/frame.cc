@@ -71,7 +71,7 @@ void FunctionFrameObj::BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::Tensor
   frame->match_tensors.push_back(tvm::s_tir::MatchTensorRegion(tensor, std::move(region)));
   if (!allocated_addr.empty()) {
     frame->allocated_addresses.push_back(
-        ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor.var(), std::move(allocated_addr)));
+        ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor, std::move(allocated_addr)));
   }
 }
 

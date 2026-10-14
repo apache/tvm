@@ -98,8 +98,8 @@ ffi::Array<ArgInfo> ArgInfo::FromFunction(const tirx::Function& func) {
   result.reserve(func->params.size());
   for (const tvm::Var& arg : func->params) {
     if (auto tensor = arg.as<tirx::TensorVar>()) {
-      result.push_back(TensorInfo(/*dtype=*/tensor.value()->dtype->dtype,
-                                  /*shape=*/AsVector<PrimExpr, int64_t>(tensor.value()->shape)));
+      result.push_back(TensorInfo(/*dtype=*/tensor.value().dtype()->dtype,
+                                  /*shape=*/AsVector<PrimExpr, int64_t>(tensor.value().shape())));
     } else {
       TVM_FFI_THROW(ValueError) << "Unsupported argument type: " << arg;
     }

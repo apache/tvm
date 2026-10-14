@@ -51,10 +51,10 @@ UpdatePointerStorageScope::UpdatePointerStorageScope(
         new_storage_scopes) {
   for (auto& kv : new_storage_scopes) {
     if (kv.first->ty.as<TensorTypeNode>()) {
-      TensorVar tensor = GetTensorVar(kv.first.get());
-      auto type = CopyTensorType(tensor);
+      TensorVar tensor = ffi::GetRef<Var>(kv.first.get()).as_or_throw<TensorVar>();
+      auto type = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
       type->scope = kv.second;
-      TensorVar replacement = RebuildTensorVar(tensor, std::move(type));
+      TensorVar replacement = TensorVar(tensor->name, TensorType(std::move(type)), tensor->loc);
       VarRemapSet(kv.first, replacement);
     } else {
       VarRemapSet(kv.first, WithStorageScope(kv.first.get(), kv.second));

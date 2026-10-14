@@ -336,37 +336,37 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> SBlockRealizeMaybeInpla
 // MatchTensorRegion
 MatchTensorRegion::MatchTensorRegion(TensorVar tensor, TensorRegion source) {
   const TensorVar& source_tensor = source->source.as_or_throw<TensorVar>();
-  TVM_FFI_ICHECK_EQ(source_tensor->shape.size(), source->region.size())
+  TVM_FFI_ICHECK_EQ(source_tensor.shape().size(), source->region.size())
       << "MatchTensorRegion source must match its tensor rank";
   sym::Analyzer analyzer;
   // Check scope and dtype
   TVM_FFI_ICHECK_EQ(tensor.scope(), source_tensor.scope())
       << "MatchTensor " << tensor << " scope mismatch:" << tensor.scope() << " vs. "
       << source_tensor.scope();
-  TVM_FFI_ICHECK_EQ(tensor->dtype, source_tensor->dtype)
-      << "MatchTensor " << tensor << " data type mismatch:" << tensor->dtype << " vs. "
-      << source_tensor->dtype;
+  TVM_FFI_ICHECK_EQ(tensor.dtype(), source_tensor.dtype())
+      << "MatchTensor " << tensor << " data type mismatch:" << tensor.dtype() << " vs. "
+      << source_tensor.dtype();
 
   // Check data_alignment
-  TVM_FFI_ICHECK(source_tensor->data_alignment % tensor->data_alignment == 0)
+  TVM_FFI_ICHECK(source_tensor.ty()->data_alignment % tensor.ty()->data_alignment == 0)
       << "Trying to match tensor to another one with lower alignment requirement "
-      << " required alignment=" << tensor->data_alignment
-      << ", provided alignment=" << source_tensor->data_alignment;
+      << " required alignment=" << tensor.ty()->data_alignment
+      << ", provided alignment=" << source_tensor.ty()->data_alignment;
 
   // Validate shape
-  TVM_FFI_ICHECK(source->region.size() >= tensor->shape.size())
+  TVM_FFI_ICHECK(source->region.size() >= tensor.shape().size())
       << "Dimension of source ffi::Array<Range> expected to be larger or equal than target tensor "
          "shape, but "
          "got "
-      << source->region.size() << " vs. " << tensor->shape.size();
-  size_t offset = source->region.size() - tensor->shape.size();
+      << source->region.size() << " vs. " << tensor.shape().size();
+  size_t offset = source->region.size() - tensor.shape().size();
   for (size_t i = 0; i < offset; ++i) {
     TVM_FFI_ICHECK(analyzer->CanProve(source->region[i]->extent == 1))
         << "The higher dimension should be 1, but got " << source->region[i]->extent << ".";
   }
-  for (size_t i = 0; i < tensor->shape.size(); ++i) {
+  for (size_t i = 0; i < tensor.shape().size(); ++i) {
     const Range& source_range = source->region[i + offset];
-    const PrimExpr& tensor_shape = tensor->shape[i];
+    const PrimExpr& tensor_shape = tensor.shape()[i];
     if (!tensor_shape.as<PrimVar>()) {
       TVM_FFI_ICHECK(analyzer->CanProve(source_range->extent == tensor_shape))
           << "The dimension mismatched between source region and target tensor shape, got "
@@ -405,7 +405,7 @@ SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<TensorRegion> reads,
   for (const auto& regions : {reads, writes}) {
     for (const TensorRegion& region : regions) {
       const auto tensor = region->source.as_or_throw<TensorVar>();
-      TVM_FFI_ICHECK_EQ(tensor->shape.size(), region->region.size())
+      TVM_FFI_ICHECK_EQ(tensor.shape().size(), region->region.size())
           << "SBlock region must match its tensor rank";
     }
   }

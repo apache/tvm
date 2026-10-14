@@ -503,13 +503,13 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<TensorStore>> GetInitValuesAndUpdates
   // - Check all indices of the TensorStores are the same
   // - Check tensors written in the block init and the block body can match
   // - Check tensors do not duplicate
-  const ffi::Array<PrimExpr>& expected_shape = updates[0]->dest.as_or_throw<TensorVar>()->shape;
+  const ffi::Array<PrimExpr>& expected_shape = updates[0]->dest.as_or_throw<TensorVar>().shape();
   const ffi::Array<PrimExpr>& expected_indices = updates[0]->indices;
   TVM_FFI_ICHECK_EQ(expected_shape.size(), expected_indices.size());
   int n_dim = expected_indices.size();
   sym::Analyzer ana;
   for (int i = 0; i < n_tensors; ++i) {
-    if (static_cast<int>(updates[i]->dest.as_or_throw<TensorVar>()->shape.size()) != n_dim) {
+    if (static_cast<int>(updates[i]->dest.as_or_throw<TensorVar>().shape().size()) != n_dim) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/11);
     }
     if (static_cast<int>(inits[i]->indices.size()) != n_dim ||
@@ -517,7 +517,7 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<TensorStore>> GetInitValuesAndUpdates
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/12);
     }
     for (int d = 0; d < n_dim; ++d) {
-      if (!ana->CanProveEqual(updates[i]->dest.as_or_throw<TensorVar>()->shape[d],
+      if (!ana->CanProveEqual(updates[i]->dest.as_or_throw<TensorVar>().shape()[d],
                               expected_shape[d])) {
         ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/11);
       }
@@ -728,7 +728,7 @@ bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
 
   for (int i = 0; i < n; ++i) {
     tensor_loads.push_back(
-        MakeTensorLoad(combiners[i]->dest.as_or_throw<TensorVar>(), combiners[i]->indices));
+        TensorLoad(combiners[i]->dest.as_or_throw<TensorVar>(), combiners[i]->indices));
     stored_values.push_back(combiners[i]->value);
   }
 

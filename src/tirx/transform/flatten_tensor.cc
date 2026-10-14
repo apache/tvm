@@ -87,8 +87,8 @@ class TensorFlattener : public StmtExprMutatorWithAnalyzer {
         if (pass->tensors_used_.count(old_buf.value())) {
           auto new_buf = pass->Lookup(old_buf.value()).flattened;
           if (!old_buf.value().same_as(new_buf)) {
-            body = SeqStmt({Bind(new_buf, Call(new_buf.type(), decl_tensor_op(),
-                                               {old_buf.value().data()}, {}, {new_buf.type()})),
+            body = SeqStmt({Bind(new_buf, Call(new_buf.ty(), decl_tensor_op(),
+                                               {old_buf.value().data()}, {}, {new_buf.ty()})),
                             std::move(body).value()});
             body_unchanged = false;
           }
@@ -117,12 +117,12 @@ class TensorFlattener : public StmtExprMutatorWithAnalyzer {
   /*! \brief Derive {fold view, flattened husk} for ``buf`` at its definition
    *   point. Idempotent so params can be seeded up front. */
   const FlatInfo& Define(const TensorVar& buf) {
-    if (auto it = flat_map_.find(buf.var()); it != flat_map_.end()) {
+    if (auto it = flat_map_.find(buf); it != flat_map_.end()) {
       return it->second;
     }
 
     // Fold view: rewrite the geometry's expression leaves.
-    auto view_type = CopyTensorType(buf);
+    auto view_type = ffi::make_object<TensorTypeNode>(*buf.ty().get());
     auto mutate_expr = [this](const PrimExpr& expr) { return Mutate(expr).ValueOrUnchanged(expr); };
     view_type->shape = view_type->shape.Map(mutate_expr);
     view_type->strides = view_type->strides.Map(mutate_expr);
@@ -147,12 +147,12 @@ class TensorFlattener : public StmtExprMutatorWithAnalyzer {
         view_type->layout = TileLayout(shard, replica, tile->offset);
       }
     }
-    TensorVar fold_view = RebuildTensorVar(buf, std::move(view_type));
+    TensorVar fold_view = TensorVar(buf->name, TensorType(std::move(view_type)), buf->loc);
 
     // buf': the storage husk. The linearized indices carry layout and
     // elem_offset, so the husk keeps neither.
     auto flat = FlattenedTensor(fold_view);
-    auto type = CopyTensorType(flat);
+    auto type = ffi::make_object<TensorTypeNode>(*flat.ty().get());
     for (size_t i = 0; i < type->shape.size(); ++i) {
       type->shape.Set(i, analyzer_->canonical_simplify(type->shape[i]));
     }
@@ -165,20 +165,20 @@ class TensorFlattener : public StmtExprMutatorWithAnalyzer {
     // rebuilt view onto the argument tensor with an explicit DeclTensor, and
     // downstream s_tir passes pin that shape.
     TensorVar flattened =
-        (!extern_tensors_.count(buf) && ffi::StructuralEqual()(TensorType(type), buf.type()))
+        (!extern_tensors_.count(buf) && ffi::StructuralEqual()(TensorType(type), buf.ty()))
             ? buf
-            : RebuildTensorVar(buf, std::move(type));
+            : TensorVar(buf->name, TensorType(std::move(type)), buf->loc);
 
     // Feed the base mutator's remap so stray tensor-var expressions follow.
     VarRemapSet(buf, flattened);
-    auto [it, inserted] = flat_map_.emplace(buf.var(), FlatInfo{fold_view, flattened});
+    auto [it, inserted] = flat_map_.emplace(buf, FlatInfo{fold_view, flattened});
     return it->second;
   }
 
   const FlatInfo& Lookup(const TensorVar& buf) {
-    auto it = flat_map_.find(buf.var());
+    auto it = flat_map_.find(buf);
     TVM_FFI_ICHECK(it != flat_map_.end())
-        << "Tensor " << buf.name()
+        << "Tensor " << buf->name
         << " is used before its definition (AllocTensor/DeclTensor/Function param)";
     return it->second;
   }
@@ -203,9 +203,9 @@ class TensorFlattener : public StmtExprMutatorWithAnalyzer {
       return ffi::Unchanged();
     }
 
-    return Bind(info.flattened.var(),
-                Call(info.flattened.type(), tirx::alloc_tensor_op(), args, tensor_call->attrs,
-                     {info.flattened.type()}, tensor_call->loc),
+    return Bind(info.flattened,
+                Call(info.flattened.ty(), tirx::alloc_tensor_op(), args, tensor_call->attrs,
+                     {info.flattened.ty()}, tensor_call->loc),
                 op->loc);
   }
 
@@ -229,8 +229,8 @@ class TensorFlattener : public StmtExprMutatorWithAnalyzer {
       return ffi::Unchanged();
     }
     return Bind(info.flattened,
-                Call(info.flattened.type(), decl_tensor_op(), {std::move(data)}, tensor_call->attrs,
-                     {info.flattened.type()}, tensor_call->loc),
+                Call(info.flattened.ty(), decl_tensor_op(), {std::move(data)}, tensor_call->attrs,
+                     {info.flattened.ty()}, tensor_call->loc),
                 op->loc);
   }
 
@@ -269,7 +269,7 @@ class TensorFlattener : public StmtExprMutatorWithAnalyzer {
       }
       tensors_used_.insert(original);
       const FlatInfo& info = Lookup(original);
-      ffi::Array<Expr> args{info.flattened.var()};
+      ffi::Array<Expr> args{info.flattened};
       if (!is_load)
         args.push_back(this->Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<Expr>());
       for (const PrimExpr& index : FoldIndices(info, indices)) args.push_back(index);
@@ -291,7 +291,7 @@ class TensorFlattener : public StmtExprMutatorWithAnalyzer {
   }
 
   ffi::Array<PrimExpr> FoldIndices(const FlatInfo& info, const ffi::Array<PrimExpr>& indices) {
-    auto flattened_indices = info.fold_view->ElemOffset(indices);
+    auto flattened_indices = info.fold_view.ty()->ElemOffset(indices);
     return this->IterMapSimplifyWithContext(flattened_indices, false);
   }
 
@@ -311,7 +311,7 @@ class TensorFlattener : public StmtExprMutatorWithAnalyzer {
   TensorLoad VisitTensorAccess(TensorLoad node, const TensorVar& original_tensor) {
     tensors_used_.insert(original_tensor);
     const FlatInfo& info = Lookup(original_tensor);
-    return MakeTensorLoad(info.flattened, FoldIndices(info, node->indices), node->loc);
+    return TensorLoad(info.flattened, FoldIndices(info, node->indices), node->loc);
   }
 
   /*! \brief Set of tensors accessed during visitation (used to emit DeclTensor for param tensors).

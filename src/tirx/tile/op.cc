@@ -25,6 +25,8 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/tile/op.h>
 
+#include <utility>
+
 namespace tvm::tirx::tile {
 
 struct ScopeAttrs : public AttrsNode {
@@ -64,7 +66,8 @@ struct TrnAttrs : public AttrsNode {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.tensor.TrnAttrs", TrnAttrs, AttrsNode);
 };
 
-ffi::Expected<void> ValidateTensorInstruction(const CallNode* call) noexcept try {
+ffi::Expected<void> ValidateTensorInstruction(const CallNode* call,
+                                              const ffi::Function& validator) noexcept try {
   auto op = call->op.as_or_throw<Op>();
   TVM_FFI_CHECK_EQ(call->args.size(), op->args_info.size(), TypeError)
       << op->name << " has an invalid operand count";
@@ -73,8 +76,7 @@ ffi::Expected<void> ValidateTensorInstruction(const CallNode* call) noexcept try
   TVM_FFI_CHECK(call->attrs.has_value() && call->attrs->GetTypeKey() == op->attrs_type_key,
                 TypeError)
       << op->name << " requires its registered static attributes";
-  static const auto& validators = Op::GetAttrMap<ffi::Function>(op_attr::kTensorCallValidate);
-  validators[op](ffi::GetRef<Call>(call));
+  validator(ffi::GetRef<Call>(call));
   return {};
 } catch (const ffi::Error& error) {
   return ffi::Unexpected(error);
@@ -83,11 +85,15 @@ ffi::Expected<void> ValidateTensorInstruction(const CallNode* call) noexcept try
 }
 
 void ConfigureTensorInstruction(Op op, ffi::Function validator) {
-  OpDef(op->name)
-      .set_attr(op_attr::kTensorCallValidate, validator)
-      .set_validator(ffi::reflection::NativeFunctionView<void(
-                         const CallNode*)>::FromNative<&ValidateTensorInstruction>(),
-                     true);
+  TVM_FFI_CHECK(!op->validator_is_custom, ValueError)
+      << "Tensor instruction " << op->name << " already has a custom validator";
+  TVM_FFI_CHECK(validator != nullptr, ValueError)
+      << "Tensor instruction " << op->name << " requires a non-null validator";
+  ffi::TypedFunction<ffi::Expected<void>(const CallNode*)> composed(
+      [validator = std::move(validator)](const CallNode* call) {
+        return ValidateTensorInstruction(call, validator);
+      });
+  OpDef(op->name).set_validator(composed, true);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -134,7 +134,7 @@ class ReadWriteAtTensorReplacer : public StmtExprMutator {
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load))
                           .as_or_throw<TensorLoad>();
     if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(src_)) {
-      return MakeTensorLoad(dst_, load->indices, load->loc);
+      return TensorLoad(dst_, load->indices, load->loc);
     }
     return load;
   }
@@ -167,7 +167,7 @@ struct ReadWriteAtImpl {
     TensorVar dst = WithScope(src, runtime::MemoryScope::Get(storage_scope));
     ReadWriteAtImpl impl(self, loop_sref, src, dst, annotations);
     std::pair<For, SBlockRealize> new_loop_block =
-        impl.MakeLoopAndBlock<is_read>(src.name() + "_" + storage_scope);
+        impl.MakeLoopAndBlock<is_read>(src->name + "_" + storage_scope);
     StmtSRef result_block_sref =
         impl.ReplaceScopeBlock(new_loop_block.first.get(), new_loop_block.second->block.get());
     impl.UpdateSBlockInfo(result_block_sref, !new_loop_block.second->iter_values.empty());
@@ -334,8 +334,7 @@ struct ReadWriteAtImpl {
     for (int i = 0; i < n; ++i) {
       indices.push_back(domain[i]->min + loop_vars[i].as_or_throw<PrimExpr>());
     }
-    Stmt stmt =
-        TensorStore(copy_to, /*indices=*/indices, /*value=*/MakeTensorLoad(copy_from, indices));
+    Stmt stmt = TensorStore(copy_to, /*indices=*/indices, /*value=*/TensorLoad(copy_from, indices));
     for (int i = n - 1; i >= 0; --i) {
       stmt = For(loop_vars[i].as_or_throw<PrimVar>(), IntImm::Int32(0), domain[i]->extent,
                  ForKind::kDefault, stmt);

@@ -56,7 +56,7 @@ CallDoc TensorHelperCall(DocTranslatorObj* d, const Type& type, const ffi::Strin
 void PrintMatchTensor(DocTranslatorObj* d, const s_tir::MatchTensorRegionNode* match,
                       const ffi::Array<PrimExpr>& allocated_addr = {}) {
   ExprDoc source = d->Translate(match->source).value();
-  CallDoc rhs = TensorHelperCall(d, match->tensor.var()->ty, "match_tensor");
+  CallDoc rhs = TensorHelperCall(d, match->tensor->ty, "match_tensor");
   rhs->args.insert(rhs->args.begin(), source);
   if (!allocated_addr.empty()) {
     rhs->kwargs_keys.push_back("allocated_addr");
@@ -144,9 +144,9 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
               block->annotations);
     }
     for (const tirx::TensorVar& tensor : block->alloc_tensors) {
-      CallDoc rhs = TensorHelperCall(d, tensor.var()->ty, "sblock_alloc_tensor");
-      const auto* tensor_type = tensor.var()->ty.as<tirx::TensorTypeNode>();
-      auto allocated_addr = addresses.Get(tensor.var()).value_or(ffi::Array<PrimExpr>{});
+      CallDoc rhs = TensorHelperCall(d, tensor->ty, "sblock_alloc_tensor");
+      const auto* tensor_type = tensor->ty.as<tirx::TensorTypeNode>();
+      auto allocated_addr = addresses.Get(tensor).value_or(ffi::Array<PrimExpr>{});
       TVM_FFI_CHECK(
           allocated_addr.empty() ||
               (tensor_type->scope != runtime::MemoryScope::Global() &&
@@ -163,7 +163,7 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
     }
     for (const s_tir::MatchTensorRegion& match : block->match_tensors) {
       PrintMatchTensor(d, match.get(),
-                       addresses.Get(match->tensor.var()).value_or(ffi::Array<PrimExpr>{}));
+                       addresses.Get(match->tensor).value_or(ffi::Array<PrimExpr>{}));
     }
     if (block->init.has_value()) {
       d->Emit(

@@ -588,8 +588,8 @@ class FactorAxisOutOfRangeError : public ScheduleErrorContextObj {
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    int ndim = static_cast<int>(tensor_->shape.size());
-    os << "The write tensor " << tensor_.name() << " has " << ndim
+    int ndim = static_cast<int>(tensor_.shape().size());
+    os << "The write tensor " << tensor_->name << " has " << ndim
        << " dimension(s), so `factor_axis` is required to be in [" << -(ndim + 1) << ", " << ndim
        << "] for rfactor. However, the input `factor_axis` is " << factor_axis_
        << ", which is out of the expected range";
@@ -600,7 +600,7 @@ class FactorAxisOutOfRangeError : public ScheduleErrorContextObj {
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
   static int CheckAndUpdate(const IRModule& mod, const TensorVar& tensor, int factor_axis) {
-    int ndim = static_cast<int>(tensor->shape.size());
+    int ndim = static_cast<int>(tensor.shape().size());
     if (factor_axis < -(ndim + 1) || factor_axis > ndim) {
       throw MakeScheduleError<FactorAxisOutOfRangeError>(mod, tensor, factor_axis);
     }
@@ -740,12 +740,12 @@ ffi::Array<TensorVar> CreateRFactorTensors(const ffi::Array<TensorStore>& tensor
   rf_tensors.reserve(tensor_stores.size());
   for (const TensorStore& tensor_store : tensor_stores) {
     TensorVar tensor = tensor_store->dest.as_or_throw<TensorVar>();
-    ffi::Array<PrimExpr> rf_shape = tensor->shape;
+    ffi::Array<PrimExpr> rf_shape = tensor.shape();
     rf_shape.insert(rf_shape.begin() + factor_axis, rf_loop->extent);
 
-    ffi::ObjectPtr<TensorTypeNode> n = CopyTensorType(tensor);
+    ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
     n->shape = rf_shape;
-    rf_tensors.push_back(RebuildTensorVar(tensor, std::move(n), tensor.name() + ".rf"));
+    rf_tensors.push_back(TensorVar(tensor->name + ".rf", TensorType(std::move(n)), tensor->loc));
   }
   return rf_tensors;
 }
@@ -858,7 +858,7 @@ class BaseBlockCreator {
     ffi::Array<Var> let_vars;
     let_vars.reserve(n_tensors_);
     for (int i = 0; i < n_tensors_; ++i) {
-      Var var("v_" + update_tensors_[i].name(), stored_values[i].ty());
+      Var var("v_" + update_tensors_[i]->name, stored_values[i].ty());
       let_vars.push_back(var);
       tensor_stores.push_back(
           TensorStore(update_tensors_[i], update_indices_[i], var.as_or_throw<PrimExpr>()));
@@ -1040,7 +1040,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
     for (int i = 0; i < n_tensors_; ++i) {
       update_tensors_.push_back(rf_tensors_[i]);
       update_indices_.push_back(rf_tensor_access_indices_);
-      update_lhs_.push_back(MakeTensorLoad(update_tensors_[i], rf_tensor_access_indices_));
+      update_lhs_.push_back(TensorLoad(update_tensors_[i], rf_tensor_access_indices_));
       update_rhs_.push_back(combiner_rhs_[i]);
     }
   }
@@ -1158,7 +1158,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
       return ffi::Unchanged();
     };
     for (int i = 0; i < n_tensors_; ++i) {
-      PrimExpr rhs = MakeTensorLoad(rf_tensors_[i], rf_tensor_access_indices_);
+      PrimExpr rhs = TensorLoad(rf_tensors_[i], rf_tensor_access_indices_);
       update_tensors_.push_back(old_reduction_updates_[i]->dest.as_or_throw<TensorVar>());
       update_indices_.push_back(old_reduction_updates_[i]->indices);
       update_lhs_.push_back(

@@ -1776,7 +1776,7 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
     } else {
       // fallback path for non-integer or step of unknown sign
       return tvm::prim::cast(
-          PrimType(DefaultIndexType()),
+          DefaultIndexType(),
           tvm::ceil(tvm::prim::cast(tvm::PrimType::Float(32), stop - start) / step));
     }
   }();

@@ -623,7 +623,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     return spirv::Value();
   } else if (op->op.same_as(tirx::address_of_op())) {
     const TensorLoadNode* load = op->args[0].as<TensorLoadNode>();
-    Var buffer_var = load->source.as_or_throw<tvm::tirx::TensorVar>().var();
+    Var buffer_var = load->source.as_or_throw<tvm::tirx::TensorVar>();
     const VarNode* buffer_node = buffer_var.get();
     PrimExpr index = load->indices[0];
     PrimType ele_dtype = GetElementDataType(buffer_node);
@@ -667,7 +667,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const prim::BroadcastNode* op) {
 
 spirv::Value CodeGenSPIRV::Dispatch_(const TensorLoadNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
-  Var buffer_var = op->source.as_or_throw<tvm::tirx::TensorVar>().var();
+  Var buffer_var = op->source.as_or_throw<tvm::tirx::TensorVar>();
   PrimExpr prim_index = op->indices[0];
 
   PrimType desired_read_type = op->ty.as_or_throw<PrimType>();
@@ -753,7 +753,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const prim::ShuffleNode* op) {
 
 void CodeGenSPIRV::Dispatch_(const TensorStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
-  Var buffer_var = op->dest.as_or_throw<TensorVar>().var();
+  Var buffer_var = op->dest.as_or_throw<TensorVar>();
   PrimExpr prim_index = op->indices[0];
 
   auto it = storage_info_.find(buffer_var.get());
@@ -945,7 +945,7 @@ void CodeGenSPIRV::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
   if (scope == scope_wmma_matrix_a || scope == scope_wmma_matrix_b ||
       scope == scope_wmma_accumulator) {
     auto shape = annotations->dict.Get("fragment_shape");
-    TVM_FFI_ICHECK(shape.has_value()) << "Cannot find shape of the wmma fragment " << buffer.name();
+    TVM_FFI_ICHECK(shape.has_value()) << "Cannot find shape of the wmma fragment " << buffer->name;
     fragment_info_[var_node] = {shape.value().as_or_throw<ffi::String>()};
     fragment_info_[var_node].scope = scope;
     etype = GetFragmentSType(var_node, PrimType(dtype));
@@ -974,11 +974,11 @@ void CodeGenSPIRV::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
     TVM_FFI_THROW(InternalError) << "Can only allocate shared or local memory inside kernel";
   }
 
-  builder_->SetName(buf, buffer.name());
+  builder_->SetName(buf, buffer->name);
 
   StorageInfo& info = storage_info_[var_node];
   TVM_FFI_ICHECK(!info.element_type_known);
-  info.SetContentType(PrimType(dtype), buffer.name());
+  info.SetContentType(PrimType(dtype), buffer->name);
 
   TVM_FFI_ICHECK(!var_map_.count(var_node));
   var_map_[var_node] = buf;
@@ -993,9 +993,9 @@ void CodeGenSPIRV::DispatchDeclTensor(const BindNode* op, const CallNode* buffer
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   const VarNode* buffer_var = buffer.get();
   TVM_FFI_ICHECK(!var_map_.count(buffer_var))
-      << "Buffer variable " << buffer.name() << " is already defined";
+      << "Buffer variable " << buffer->name << " is already defined";
   TVM_FFI_ICHECK(!storage_info_.count(buffer_var))
-      << "Storage metadata for buffer variable " << buffer.name() << " is already defined";
+      << "Storage metadata for buffer variable " << buffer->name << " is already defined";
 
   spirv::Value data_value = MakeValue(data);
 
@@ -1011,11 +1011,11 @@ void CodeGenSPIRV::DispatchDeclTensor(const BindNode* op, const CallNode* buffer
     auto it = storage_info_.find(source);
     if (it != storage_info_.end()) {
       info = it->second;
-      info.name_hint = buffer.name();
+      info.name_hint = buffer->name;
     }
   }
   if (!info.element_type_known) {
-    info.SetContentType(declared_storage_type, buffer.name());
+    info.SetContentType(declared_storage_type, buffer->name);
   }
 
   var_map_[buffer_var] = data_value;

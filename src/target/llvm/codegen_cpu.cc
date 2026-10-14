@@ -89,7 +89,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
 
   // Runtime types.
   t_tvm_shape_index_ =
-      llvm::Type::getIntNTy(*llvm_target_->GetContext(), DefaultIndexPrimType().bits());
+      llvm::Type::getIntNTy(*llvm_target_->GetContext(), DefaultIndexType().bits());
   // Defined in 3rdparty/dlpack/include/dlpack/dlpack.h:
   // typedef struct { DLDeviceType device_type; int device_id; } DLDevice;
   t_tvm_device_ = llvm::StructType::create({t_int_, t_int_});

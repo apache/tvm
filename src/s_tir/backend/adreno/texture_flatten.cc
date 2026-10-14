@@ -76,7 +76,7 @@ class TextureLoweringBase : public StmtExprMutator {
   }
 
  protected:
-  runtime::MemoryScope GetStorageScope(const TensorVar& tensor) { return tensor->scope; }
+  runtime::MemoryScope GetStorageScope(const TensorVar& tensor) { return tensor.scope(); }
 
   // Set of all external input and output tensors
   std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> extern_tensor_;
@@ -120,7 +120,7 @@ class TextureFlattener : public TextureLoweringBase {
       ffi::Array<Expr> args =
           GetTextureAccessArgs(op, op->source.as_or_throw<tvm::tirx::TensorVar>());
       args.push_back(op->indices.back());
-      expr = Call(op->source.as_or_throw<tvm::tirx::TensorVar>()->dtype,
+      expr = Call(op->source.as_or_throw<tvm::tirx::TensorVar>().dtype(),
                   tvm::backend::opencl::texture2d_load_op(), args)
                  .as_or_throw<PrimExpr>();
     }
@@ -132,22 +132,22 @@ class TextureFlattener : public TextureLoweringBase {
   template <typename T>
   ffi::Array<Expr> GetTextureAccessArgs(const T* op, const TensorVar& tensor) {
     ffi::Array<Expr> args;
-    if (let_binding_.count(tensor.var())) {
-      args.push_back(let_binding_.at(tensor.var()));
+    if (let_binding_.count(tensor)) {
+      args.push_back(let_binding_.at(tensor));
     } else {
       args.push_back(tensor.data());
     }
     ffi::Array<PrimExpr> row_dims, row_indices, col_dims, col_indices, depth_dims, depth_indices;
-    size_t axis = DefaultTextureLayoutSeparator(tensor->shape.size(), GetStorageScope(tensor));
-    for (size_t i = 0; i < tensor->shape.size() - 1; i++) {
+    size_t axis = DefaultTextureLayoutSeparator(tensor.shape().size(), GetStorageScope(tensor));
+    for (size_t i = 0; i < tensor.shape().size() - 1; i++) {
       if (i < (axis - 1)) {
-        depth_dims.push_back(tensor->shape[i]);
+        depth_dims.push_back(tensor.shape()[i]);
         depth_indices.push_back(op->indices[i]);
       } else if (i < axis) {
-        col_dims.push_back(tensor->shape[i]);
+        col_dims.push_back(tensor.shape()[i]);
         col_indices.push_back(op->indices[i]);
       } else {
-        row_dims.push_back(tensor->shape[i]);
+        row_dims.push_back(tensor.shape()[i]);
         row_indices.push_back(op->indices[i]);
       }
     }
@@ -156,7 +156,7 @@ class TextureFlattener : public TextureLoweringBase {
     PrimExpr depth_offset = SimplifyOffset(depth_dims, depth_indices);
     PrimExpr channel_size =
         IntImm(PrimType::Int(32, 1),
-               tensor->shape.back().as_or_throw<IntImm>()->value * tensor->dtype.bits());
+               tensor.shape().back().as_or_throw<IntImm>()->value * tensor.dtype().bits());
     args.push_back(row_offset);
     args.push_back(col_offset);
     args.push_back(depth_offset);

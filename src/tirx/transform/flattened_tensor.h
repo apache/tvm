@@ -34,34 +34,33 @@ namespace tirx {
 // A changed type requires a fresh variable. Callers bind that variable to a
 // decl_tensor over the source's physical pointer when using it as a view.
 TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& tensor) {
-  auto self = tensor.operator->();
-
   ffi::Array<PrimExpr> output_shape{1};
-  if (self->strides.size()) {
+  if (tensor.strides().size()) {
     // Preserve the outer allocation footprint and cover every addressed element.
     // Permuted views can have their largest physical stride on an inner axis.
-    TVM_FFI_ICHECK_EQ(self->shape.size(), self->strides.size());
+    TVM_FFI_ICHECK_EQ(tensor.shape().size(), tensor.strides().size());
     PrimExpr span = 1;
-    for (size_t i = 0; i < self->shape.size(); ++i) {
-      span = span + (self->shape[i] - 1) * self->strides[i];
+    for (size_t i = 0; i < tensor.shape().size(); ++i) {
+      span = span + (tensor.shape()[i] - 1) * tensor.strides()[i];
     }
-    output_shape.Set(0, prim::Max(self->strides[0] * self->shape[0], span));
+    output_shape.Set(0, prim::Max(tensor.strides()[0] * tensor.shape()[0], span));
   } else {
     // Otherwise, the flattened extent is the product of the input extents.
     // This also flattens rank-0 tensors to a rank-1 tensor of shape [1].
-    for (size_t i = 0; i < self->shape.size(); i++) {
-      output_shape.Set(0, output_shape[0] * self->shape[i]);
+    for (size_t i = 0; i < tensor.shape().size(); i++) {
+      output_shape.Set(0, output_shape[0] * tensor.shape()[i]);
     }
   }
 
-  if (output_shape.size() == self->shape.size() && self->strides.empty()) {
+  if (output_shape.size() == tensor.shape().size() && tensor.strides().empty()) {
     return tensor;
   } else {
     // The original layout describes the old rank; reset it for the flattened shape.
-    return TensorVar(tensor.name(),
-                     TensorType(output_shape, self->dtype, self->scope, {}, self->elem_offset,
-                                self->data_alignment, self->offset_factor, std::nullopt),
-                     tensor.loc());
+    return TensorVar(
+        tensor->name,
+        TensorType(output_shape, tensor.dtype(), tensor.scope(), {}, tensor.elem_offset(),
+                   tensor.ty()->data_alignment, tensor.ty()->offset_factor, std::nullopt),
+        tensor->loc);
   }
 }
 

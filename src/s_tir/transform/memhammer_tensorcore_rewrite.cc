@@ -159,8 +159,8 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                                  /*storage_scope=*/tgt_tensor.scope(), /*strides=*/{},
                                  /*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty),
                                  /*data_alignment=*/64, /*offset_factor=*/16));
-  ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor->shape, var_dom);
-  ffi::Array<Range> write_region = RelaxIndices(tensor_store->indices, tgt_tensor->shape, var_dom);
+  ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor.shape(), var_dom);
+  ffi::Array<Range> write_region = RelaxIndices(tensor_store->indices, tgt_tensor.shape(), var_dom);
   static const Op gpu_load_matrix_sync_op = Op::Get("tirx.gpu_load_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},
@@ -179,12 +179,12 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                   /*1:*/ PrimExpr(16),
                   /*2:*/ PrimExpr(16),
                   /*3:*/ PrimExpr(16),
-                  /*4:*/ floordiv(new_tgt_tensor->elem_offset, 256) +
-                      floordiv(floormod(new_tgt_tensor->elem_offset, 256), 16),
+                  /*4:*/ floordiv(new_tgt_tensor.elem_offset(), 256) +
+                      floordiv(floormod(new_tgt_tensor.elem_offset(), 256), 16),
                   /*5:*/
                   Call(new_src_tensor.data()->ty, tirx::address_of_op(),
-                       {MakeTensorLoad(new_src_tensor, {PrimExpr(0), PrimExpr(0)})}),
-                  /*6:*/ new_src_tensor->strides[new_src_tensor->strides.size() - 2],
+                       {TensorLoad(new_src_tensor, {PrimExpr(0), PrimExpr(0)})}),
+                  /*6:*/ new_src_tensor.strides()[new_src_tensor.strides().size() - 2],
                   /*7:*/ StringImm(layout),
               })),
           /*init=*/std::nullopt,
@@ -246,7 +246,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   TensorVar src_tensor = tensor_load->source.as_or_throw<tvm::tirx::TensorVar>();
   TensorVar tgt_tensor = tensor_store->dest.as_or_throw<TensorVar>();
 
-  PrimType dtype_ty = src_tensor->dtype;
+  PrimType dtype_ty = src_tensor.dtype();
   const PrimType& dtype = dtype_ty;
 
   TensorVar new_src_tensor(
@@ -257,8 +257,8 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                         {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
                         PrimVar("tgt_elem_offset", int32_ty), 64, 16));
 
-  ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor->shape, var_dom);
-  ffi::Array<Range> write_region = RelaxIndices(tensor_store->indices, tgt_tensor->shape, var_dom);
+  ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor.shape(), var_dom);
+  ffi::Array<Range> write_region = RelaxIndices(tensor_store->indices, tgt_tensor.shape(), var_dom);
   static const Op gpu_store_matrix_sync_op = Op::Get("tirx.gpu_store_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},  //
@@ -275,12 +275,12 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                                /*1:*/ PrimExpr(16),
                                /*2:*/ PrimExpr(16),
                                /*3:*/ PrimExpr(16),
-                               /*4:*/ floordiv(new_src_tensor->elem_offset, 256) +
-                                   floordiv(floormod(new_src_tensor->elem_offset, 256), 16),
+                               /*4:*/ floordiv(new_src_tensor.elem_offset(), 256) +
+                                   floordiv(floormod(new_src_tensor.elem_offset(), 256), 16),
                                /*5:*/
                                Call(new_tgt_tensor.data()->ty, tirx::address_of_op(),
-                                    {MakeTensorLoad(new_tgt_tensor, {PrimExpr(0), PrimExpr(0)})}),
-                               /*6:*/ new_tgt_tensor->strides[0],
+                                    {TensorLoad(new_tgt_tensor, {PrimExpr(0), PrimExpr(0)})}),
+                               /*6:*/ new_tgt_tensor.strides()[0],
                                /*7:*/ StringImm("row_major")})),
           /*init=*/std::nullopt,
           /*alloc_tensors=*/{},
@@ -469,7 +469,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
   // Step 3.1. Generate new tensor
   TensorVar src_tensor = tensor_load->source.as_or_throw<tvm::tirx::TensorVar>();
   TensorVar tgt_tensor = tensor_store->dest.as_or_throw<TensorVar>();
-  PrimType dtype_ty = src_tensor->dtype;
+  PrimType dtype_ty = src_tensor.dtype();
   const PrimType& dtype = dtype_ty;
   TensorVar new_src_tensor(
       "src", TensorType({IntImm::Int32(8), IntImm::Int32(8)}, dtype, src_tensor.scope(), {},
@@ -480,8 +480,8 @@ Stmt RewriteMmaStore(Stmt stmt) {
                         PrimVar("tgt_elem_offset", int32_ty), 64, 8));
 
   // Step 3.2. Generate new r/w region
-  ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor->shape, var_dom);
-  ffi::Array<Range> write_region = RelaxIndices(tensor_store->indices, tgt_tensor->shape, var_dom);
+  ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor.shape(), var_dom);
+  ffi::Array<Range> write_region = RelaxIndices(tensor_store->indices, tgt_tensor.shape(), var_dom);
 
   // Step 3.3. Generate new inner loop body
   // for v in T.vectorized(2):
@@ -501,8 +501,8 @@ Stmt RewriteMmaStore(Stmt stmt) {
                      For(vec.as_or_throw<PrimVar>(), 0, 2, ForKind::kVectorized,
                          /*body=*/
                          TensorStore(new_tgt_tensor, {floordiv(tx, 4), floormod(tx, 4) * 2 + vec},
-                                     MakeTensorLoad(new_src_tensor, {floordiv(tx, 4),
-                                                                     floormod(tx, 4) * 2 + vec})))),
+                                     TensorLoad(new_src_tensor,
+                                                {floordiv(tx, 4), floormod(tx, 4) * 2 + vec})))),
           /*init=*/std::nullopt,
           /*alloc_tensors=*/{},
           /*match_tensors=*/

@@ -502,7 +502,8 @@ std::vector<State> MultiLevelTilingTensorCoreObj::TransformIntermediateOutputLay
   int tensor_ndim = static_cast<int>(sch->Get(state->block_rv)
                                          ->writes[0]
                                          ->source.as_or_throw<tvm::tirx::TensorVar>()
-                                         ->shape.size());
+                                         .shape()
+                                         .size());
   // The dimension of the tensor should be larger or same as that of the tensor intrin.
   TVM_FFI_ICHECK_GE(tensor_ndim, 2);
   int num_higher_dims = tensor_ndim - 2;
@@ -640,7 +641,7 @@ std::vector<State> MultiLevelTilingTensorCoreObj::AddReadReuseTensorCore(
     tirx::TensorVar cache_read_tensor =
         s_tir::GetNthAccessTensor(sch->state(), ffi::GetRef<s_tir::SBlock>(cache_read_block), 0,
                                   s_tir::TensorIndexType::kWrite);
-    const DLDataType dtype = cache_read_tensor->dtype->dtype;
+    const DLDataType dtype = cache_read_tensor.dtype()->dtype;
     // Storage alignment is chosen from element storage width; this schedule rule uses scalar
     // cache-read tensors, so the old element-type-only test is preserved.
     if ((((dtype).code == kDLFloat) && ((dtype).bits == 16))) {

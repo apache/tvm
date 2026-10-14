@@ -70,10 +70,10 @@ namespace utils {
  * \return The shape of the tensor
  */
 std::vector<int64_t> GetTensorShape(const TensorVar& tensor, sym::AnalyzerObj* analyzer) {
-  int ndim = tensor->shape.size();
+  int ndim = tensor.shape().size();
   std::vector<int64_t> result;
   result.reserve(ndim);
-  for (const PrimExpr& i : tensor->shape) {
+  for (const PrimExpr& i : tensor.shape()) {
     if (const IntImmNode* int_imm = i.as<IntImmNode>()) {
       result.push_back(static_cast<int64_t>(int_imm->value));
       continue;
@@ -941,7 +941,7 @@ void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
   if (n_loops == 0) {
     // In this case, the `access_shape` is not calculated
     for (SubFeature& feature : sub_features) {
-      feature.access_shape = IntVec(feature.tensor->shape.size(), 1);
+      feature.access_shape = IntVec(feature.tensor.shape().size(), 1);
     }
     return;
   }
@@ -960,7 +960,7 @@ void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
       feature.access_shape = utils::RelaxAndUnion(feature.multi_indices, &numel, analyzer);
       numel = std::max<int64_t>(0, numel);
       feature.loop_accessed_numel[i][tensor] = numel;
-      touched_bytes += numel * static_cast<int64_t>(tensor->dtype.StorageBytes());
+      touched_bytes += numel * static_cast<int64_t>(tensor.dtype().StorageBytes());
       (*tensor_touched_under_loop)[loop][tensor].push_back(numel);
     }
   }
@@ -971,7 +971,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, sym::AnalyzerObj*
   const std::vector<const ForNode*>& loops = loop_nest.loops;
   // For each tensor, we find the loop stride on it
   TensorVar tensor = this->tensor;
-  int ndim = tensor->shape.size();
+  int ndim = tensor.shape().size();
   IntVec tensor_shape = utils::GetTensorShape(tensor, analyzer);
   // Calculate the tensor's stride from its shape
   IntVec tensor_stride(ndim);
@@ -988,7 +988,8 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, sym::AnalyzerObj*
     TVM_FFI_ICHECK_EQ(access_shape.size(), tensor_shape.size());
     for (int i = ndim - 1; i >= 0; --i) {
       if (access_shape[i] == tensor_shape[i]) {
-        num_continuous_bytes = tensor_shape[i] * static_cast<int64_t>(tensor->dtype.StorageBytes());
+        num_continuous_bytes =
+            tensor_shape[i] * static_cast<int64_t>(tensor.dtype().StorageBytes());
         break;
       }
     }
@@ -1069,7 +1070,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
           TensorVar tensor = iter.first;
           const IntVec& numels = iter.second;
           int64_t numel = std::accumulate(numels.begin(), numels.end(), int64_t(0));
-          reuse_dis_bytes += numel * static_cast<int64_t>(tensor->dtype.StorageBytes());
+          reuse_dis_bytes += numel * static_cast<int64_t>(tensor.dtype().StorageBytes());
         }
       }
       break;
@@ -1090,7 +1091,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
         TensorVar tensor = iter.first;
         const IntVec& numels = iter.second;
         int64_t numel = std::accumulate(numels.begin(), numels.end(), int64_t(0));
-        reuse_dis_bytes += numel * static_cast<int64_t>(tensor->dtype.StorageBytes());
+        reuse_dis_bytes += numel * static_cast<int64_t>(tensor.dtype().StorageBytes());
       }
       reuse_dis_iter /= extent;
       reuse_dis_bytes /= extent;
@@ -1100,7 +1101,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
 }
 
 void Feature::SubFeature::SetFeature(const LoopNest& loop_nest, int64_t cache_line_bytes) {
-  int64_t dtype_bytes = static_cast<int64_t>(this->tensor->dtype.StorageBytes());
+  int64_t dtype_bytes = static_cast<int64_t>(this->tensor.dtype().StorageBytes());
   this->stride = this->innermost_stride;
   this->bytes = dtype_bytes * loop_nest.prod;
   if (loop_nest.loops.empty()) {
@@ -1140,7 +1141,7 @@ Feature::Feature(const TensorStoreNode* store, const LoopNest& loop_nest, int64_
   int64_t top_loop_touch_bytes = 0.0;
   if (n_loops > 0) {
     for (const SubFeature& feature : sub_features) {
-      int64_t bytes = static_cast<int64_t>(feature.tensor->dtype.StorageBytes());
+      int64_t bytes = static_cast<int64_t>(feature.tensor.dtype().StorageBytes());
       int64_t n_tensor = feature.loop_accessed_numel[0].size();
       top_loop_touch_bytes += bytes * n_tensor;
     }
@@ -1160,7 +1161,7 @@ Feature::Feature(const TensorStoreNode* store, const LoopNest& loop_nest, int64_
     if (a.bytes != b.bytes) {
       return a.bytes > b.bytes;
     }
-    return a.tensor.name() < b.tensor.name();
+    return a.tensor->name < b.tensor->name;
   });
 }
 
@@ -1280,7 +1281,7 @@ struct Feature {
     for (int64_t x : shape) {
       numel *= x;
     }
-    alloc_size = numel * static_cast<int64_t>(tensor->dtype.StorageBytes());
+    alloc_size = numel * static_cast<int64_t>(tensor.dtype().StorageBytes());
     alloc_prod = numel * loop_nest.prod;
     alloc_outer_prod = loop_nest.prod;
   }

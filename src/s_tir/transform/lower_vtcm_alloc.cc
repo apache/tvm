@@ -62,10 +62,10 @@ class VtcmAllocator : public StmtExprMutator {
       args.push_back(Call(PtrType(PrimType::Int(64)), tirx::stack_make_shape_op(), shape->fields));
       TensorVar tensor = op->var.as_or_throw<TensorVar>();
       return Bind(tensor,
-                  Call(tensor.type(), tirx::decl_tensor_op(),
-                       {Call(tensor.type()->DataPtrType(),
+                  Call(tensor.ty(), tirx::decl_tensor_op(),
+                       {Call(tensor.ty()->DataPtrType(),
                              tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args)},
-                       {}, {tensor.type()}, call->loc),
+                       {}, {tensor.ty()}, call->loc),
                   op->loc);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);

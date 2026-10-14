@@ -75,10 +75,10 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
     ffi::Array<Var> params;
 
     for (const auto& info : rewrite_infos_) {
-      params.push_back(info.pre_rewrite_tensor.var());
+      params.push_back(info.pre_rewrite_tensor);
     }
     for (const auto& info : rewrite_infos_) {
-      params.push_back(info.post_rewrite_tensor.var());
+      params.push_back(info.post_rewrite_tensor);
     }
 
     // Step 3: Create the body for the new tirx::Function
@@ -112,7 +112,7 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
     for (const auto& info : rewrite_infos_) {
       const Var& param = params[info.tensor_index];
       TVM_FFI_ICHECK(param.as<tirx::TensorVar>().value() == info.pre_rewrite_tensor);
-      params.Set(info.tensor_index, info.post_rewrite_tensor.var());
+      params.Set(info.tensor_index, info.post_rewrite_tensor);
     }
 
     // Step 2: Create the body for the new tirx::Function
@@ -309,13 +309,13 @@ class SplitLayoutRewritePreproc : public ExprMutator {
     for (const auto& info : rewrite_infos) {
       preproc_args.push_back(call_tir_args[info.tensor_index]);
       tirx::TensorVar rewritten_tensor = info.post_rewrite_tensor;
-      for (const auto& shape_expr : rewritten_tensor->shape) {
+      for (const auto& shape_expr : rewritten_tensor.shape()) {
         TVM_FFI_ICHECK(shape_expr.as<IntImmNode>())
             << "Currently does not support rewrite tensor with "
                "dynamic shape.";
       }
       preproc_ty_list.push_back(
-          TensorType(ShapeExpr(rewritten_tensor->shape), rewritten_tensor->dtype));
+          TensorType(ShapeExpr(rewritten_tensor.shape()), rewritten_tensor.dtype()));
     }
     Type preproc_ty = preproc_ty_list.size() > 1        //
                           ? TupleType(preproc_ty_list)  //

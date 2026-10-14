@@ -1388,8 +1388,8 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     }
 
     TypedPointer buffer_ptr =
-        CreateBufferPtr(MakeValue(load->source.as_or_throw<tvm::tirx::TensorVar>().var()),
-                        load->source.as_or_throw<tvm::tirx::TensorVar>()->dtype, indices_val,
+        CreateBufferPtr(MakeValue(load->source.as_or_throw<tvm::tirx::TensorVar>()),
+                        load->source.as_or_throw<tvm::tirx::TensorVar>().dtype(), indices_val,
                         PrimType(load->ty.as_or_throw<PrimType>()->dtype));
     return buffer_ptr.addr;
   } else if (op->op.same_as(tirx::reinterpret_op()) && args[0].as<PrimExpr>() &&
@@ -1738,10 +1738,10 @@ void CodeGenLLVM::BufferAccessHelper(
     std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                      llvm::Value* predicate, int alignment, bool is_volatile)>
         make_instruction) {
-  PrimType buffer_element_dtype = BufferAccessType(buffer->dtype);
+  PrimType buffer_element_dtype = BufferAccessType(buffer.dtype());
 
   TVM_FFI_ICHECK_GE(indices.size(), 1)
-      << "Buffer " << buffer.name() << " is accessed with no indices.  "
+      << "Buffer " << buffer->name << " is accessed with no indices.  "
       << "0-d scalar buffers are expected to be flattened to 1-d buffers prior to codegen.";
 
   // Only the last index is allowed to be multi-lane.  All earlier
@@ -1751,7 +1751,7 @@ void CodeGenLLVM::BufferAccessHelper(
   std::vector<llvm::Value*> earlier_index_values;
   for (size_t i = 0; i < indices.size() - 1; i++) {
     TVM_FFI_ICHECK_EQ(PrimType(indices[i].ty()->dtype).lanes(), 1)
-        << "Buffer " << buffer.name() << " is accessed with a multi-lane index at position " << i
+        << "Buffer " << buffer->name << " is accessed with a multi-lane index at position " << i
         << ".  Multi-lane indices are only supported as the last index.";
     earlier_index_values.push_back(MakeValue(indices[i]));
   }
@@ -1831,10 +1831,10 @@ void CodeGenLLVM::BufferAccessHelper(
 
     TypedPointer buffer_ptr =
         value_dtype.IsScalableVector()
-            ? CreateBufferPtr(MakeValue(buffer.var()), buffer_element_dtype, all_index_values,
+            ? CreateBufferPtr(MakeValue(buffer), buffer_element_dtype, all_index_values,
                               WithScalableVScaleFactor(
                                   value_dtype, value_dtype.VScaleFactor() / last_index_lanes))
-            : CreateBufferPtr(MakeValue(buffer.var()), buffer_element_dtype, all_index_values,
+            : CreateBufferPtr(MakeValue(buffer), buffer_element_dtype, all_index_values,
                               value_dtype.WithLanes(value_dtype.lanes() / last_index_lanes));
     auto instruction =
         make_instruction(buffer_ptr, subelement_i, predicate_value, alignment, is_volatile);
@@ -2067,7 +2067,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const prim::BroadcastNode* op) {
 void CodeGenLLVM::Dispatch_(const TensorStoreNode* op) {
   EmitDebugLocation(op);
   PrimType value_dtype = PrimType(op->value.ty()->dtype);
-  Var buffer_var = op->dest.as_or_throw<TensorVar>().var();
+  Var buffer_var = op->dest.as_or_throw<TensorVar>();
 
   llvm::Value* value = MakeValue(op->value);
 
@@ -2206,8 +2206,8 @@ void CodeGenLLVM::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
   DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
   EmitDebugLocation(op);
   TVM_FFI_ICHECK_EQ(shape->fields.size(), 1)
-      << "LLVM codegen only supports flat 1-d buffer allocation, but allocation of "
-      << buffer.name() << " is " << shape->fields << "-d";
+      << "LLVM codegen only supports flat 1-d buffer allocation, but allocation of " << buffer->name
+      << " is " << shape->fields << "-d";
 
   llvm::Value* buf = nullptr;
 
@@ -2218,8 +2218,8 @@ void CodeGenLLVM::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
 
   StorageInfo& info = alloc_storage_info_[buffer.get()];
   // Use buffer's data_alignment if specified, otherwise compute from shape.
-  if (buffer->data_alignment > 0) {
-    info.alignment = buffer->data_alignment;
+  if (buffer.ty()->data_alignment > 0) {
+    info.alignment = buffer.ty()->data_alignment;
   } else if (constant_size % 4 == 0 && info.alignment == 0) {
     info.alignment = GetTempAllocaAlignment(PrimType(dtype), constant_size);
   }
@@ -2241,7 +2241,7 @@ void CodeGenLLVM::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
   buf = builder_->CreatePointerCast(
       buf,
       llvmGetPointerTo(DTypeToLLVMType(PrimType(dtype)), buf->getType()->getPointerAddressSpace()));
-  AddDebugInformation(buf, buffer.var());
+  AddDebugInformation(buf, buffer);
 
   TVM_FFI_ICHECK(!var_map_.count(buffer.get()));
   var_map_[buffer.get()] = buf;
@@ -2356,11 +2356,11 @@ void CodeGenLLVM::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_
 
   llvm::Type* expected_type = GetLLVMType(PtrType(PrimType(dtype), scope));
   if (value->getType() != expected_type) {
-    value->setName((buffer.name() + "_source_ptr").c_str());
+    value->setName((buffer->name + "_source_ptr").c_str());
     value = builder_->CreatePointerCast(value, expected_type);
   }
 
-  AddDebugInformation(value, buffer.var());
+  AddDebugInformation(value, buffer);
   var_map_[buffer_var] = value;
   const VarNode* physical_root = GetBufferPhysicalRoot(buffer_var);
   if (alloc_storage_info_.count(physical_root) &&
