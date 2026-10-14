@@ -65,13 +65,6 @@ class NVTXScopedRange {
   NVTXScopedRange& operator=(NVTXScopedRange&& other) = delete;
 };
 
-#ifdef _MSC_VER
-#define TVM_NVTX_FUNC_SCOPE() ::tvm::support::NVTXScopedRange _nvtx_func_scope_(__FUNCSIG__);
-#else
-#define TVM_NVTX_FUNC_SCOPE() \
-  ::tvm::support::NVTXScopedRange _nvtx_func_scope_(__PRETTY_FUNCTION__);
-#endif
-
 }  // namespace support
 }  // namespace tvm
 

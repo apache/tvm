@@ -26,7 +26,6 @@
 #define TVM_IR_WITH_CONTEXT_H_
 
 #include <exception>
-#include <functional>
 #include <memory>
 #include <utility>
 #include <vector>
