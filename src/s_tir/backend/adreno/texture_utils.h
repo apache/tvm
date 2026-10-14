@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file texture_utils.h
+ * \file src/s_tir/backend/adreno/texture_utils.h
  * \brief Texture utilities
  */
-#ifndef TVM_TEXTURE_UTILS_H_
-#define TVM_TEXTURE_UTILS_H_
+#ifndef TVM_S_TIR_BACKEND_ADRENO_TEXTURE_UTILS_H_
+#define TVM_S_TIR_BACKEND_ADRENO_TEXTURE_UTILS_H_
 
 #include <tvm/ffi/error.h>
 #include <tvm/ir/prim/op.h>
@@ -129,4 +129,4 @@ size_t GetTextureMemorySize(T shape, int bits, int lanes, runtime::MemoryScope m
 
 }  // namespace texture
 }  // namespace tvm
-#endif  // TVM_TEXTURE_UTILS_H_
+#endif  // TVM_S_TIR_BACKEND_ADRENO_TEXTURE_UTILS_H_

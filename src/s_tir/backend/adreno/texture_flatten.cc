@@ -36,7 +36,7 @@
 
 #include <unordered_map>
 
-#include "../../../texture_utils.h"
+#include "texture_utils.h"
 
 namespace tvm {
 namespace s_tir {
