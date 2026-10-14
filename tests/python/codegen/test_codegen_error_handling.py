@@ -388,7 +388,7 @@ def test_forward_reference_symbolic_shape(codegen_target):
     message uses rendered access paths (e.g. "B.shape[0] + 1") for shape checks.
     """
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @T.function
     def func(A: T.Tensor((batch_size + 1,), "int32"), B: T.Tensor((batch_size,), "int32")):

@@ -1696,7 +1696,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 self._raise_error(parameter, "Only scalar type parameters are supported")
             bound = getattr(parameter, "bound", None)
             dtype = (
-                "int64"
+                "int32"
                 if bound is None or (isinstance(bound, ast.Name) and bound.id == "int")
                 else protocol_registry.SCALAR_ANNOTATION_DTYPE.get(
                     self.module.prescan_ctx._match_special_func(bound)
