@@ -30,7 +30,60 @@ from . import _ffi_api
 from .expr import Expr
 
 
-def _init_op_api(namespace, target_module_name=None):
+def _make_op_api(op, module_name):
+    """Build a callable whose operands and result are governed by its Op."""
+    from .attrs import make_node  # pylint: disable=import-outside-toplevel
+    from .expr import Call  # pylint: disable=import-outside-toplevel
+
+    def call(
+        *args,
+        attrs=None,
+        ty_args=None,
+        loc: Location = UNKNOWN_LOC,
+        ty=None,
+        **kwargs,
+    ):
+        # Bind named operands using the registered signature, without inventing
+        # defaults or interpreting arbitrary Python wrapper signatures.
+        is_region = op.get_attr("FRegionGetBodyParams") is not None
+        body_params = kwargs.pop("body_params", None) if is_region else None
+        operands = list(args)
+        for index, info in enumerate(op.args_info):
+            if index < len(args):
+                if info.name in kwargs:
+                    raise TypeError(f"{op.name}: multiple values for {info.name!r}")
+            elif info.name in kwargs:
+                operands.append(kwargs.pop(info.name))
+            else:
+                raise TypeError(f"{op.name}: missing operand {info.name!r}")
+        if kwargs or (attrs is None and op.attrs_type_key):
+            if not op.attrs_type_key:
+                raise TypeError(f"{op.name}: unexpected keyword operands {tuple(kwargs)}")
+            if attrs is not None:
+                raise TypeError(f"{op.name}: cannot mix attrs with attribute keywords")
+            attrs = make_node(op.attrs_type_key, **kwargs)
+        if is_region:
+            from tvm.script.ir_builder.stmt import region
+
+            if (
+                ty is not None
+                or ty_args is not None
+                or not isinstance(loc, Location)
+                or not loc.same_as(UNKNOWN_LOC)
+            ):
+                raise TypeError(
+                    f"{op.name}: region builders do not accept ty, ty_args or an explicit loc"
+                )
+            return region(op, operands, body_params=body_params, attrs=attrs)
+        return Call(op, operands, attrs=attrs, ty_args=ty_args, loc=loc, ty=ty)
+
+    call.__name__ = op.name.rsplit(".", 1)[-1]
+    call.__module__ = module_name
+    call.__doc__ = op.doc or f"Construct a call to {op.name}."
+    return call
+
+
+def _init_op_api(namespace, target_module_name=None, *, wrapper=None):
     """Initialize registered Op callables in an already loaded Python module.
 
     Like :func:`tvm_ffi.init_ffi_api`, the registry prefix comes first and the
@@ -42,8 +95,6 @@ def _init_op_api(namespace, target_module_name=None):
     ``attrs``, ``ty_args``, ``loc`` and ``ty``.
     Region operations construct a RegionFrame and accept ``body_params`` instead
     of Call result/type arguments.
-    Ordinary void calls emit once under an active IRBuilder and return an
-    AlreadyEmitted receipt; outside a builder they remain Call expressions.
     Omitting the result invokes an available Op inference hook; without one,
     Call retains a missing type.
     Explicit results and inference errors are preserved; Call.validate checks
@@ -53,7 +104,10 @@ def _init_op_api(namespace, target_module_name=None):
     Existing Python callables retain ownership of their names; only missing
     exposures are generated. Existing functions must accept printed calls or
     have an appropriate exceptional printer hook. Non-callable collisions fail
-    before any functions are installed. Returns None.
+    before any functions are installed. An optional ``wrapper`` adapts newly
+    generated Call constructors at export time; existing exposures and region
+    builders are untouched.
+    Returns None.
     """
     if not namespace or any(
         not part.isidentifier() or keyword.iskeyword(part) for part in namespace.split(".")
@@ -83,7 +137,10 @@ def _init_op_api(namespace, target_module_name=None):
             if not callable(current):
                 raise ValueError(f"Op {name!r} conflicts with an existing Python attribute")
         else:
-            pending.append((container, parts[-1], _make_op_api(op, target.__name__)))
+            call = _make_op_api(op, target.__name__)
+            if wrapper is not None and op.get_attr("FRegionGetBodyParams") is None:
+                call = wrapper(call)
+            pending.append((container, parts[-1], call))
     for container, name, call in pending:
         setattr(container, name, call)
 
@@ -223,61 +280,3 @@ def register_op_attr(op_name, attr_key, value=None, override=False):
         return v
 
     return _register(value) if value is not None else _register
-
-
-def _make_op_api(op, module_name):
-    """Build a callable whose operands and result are governed by its Op."""
-    from .attrs import make_node  # pylint: disable=import-outside-toplevel
-    from .builder_base import (
-        builder_maybe_emit_void_call,  # pylint: disable=import-outside-toplevel
-    )
-    from .expr import Call  # pylint: disable=import-outside-toplevel
-
-    def call(
-        *args,
-        attrs=None,
-        ty_args=None,
-        loc: Location = UNKNOWN_LOC,
-        ty=None,
-        **kwargs,
-    ):
-        # Bind named operands using the registered signature, without inventing
-        # defaults or interpreting arbitrary Python wrapper signatures.
-        is_region = op.get_attr("FRegionGetBodyParams") is not None
-        body_params = kwargs.pop("body_params", None) if is_region else None
-        operands = list(args)
-        for index, info in enumerate(op.args_info):
-            if index < len(args):
-                if info.name in kwargs:
-                    raise TypeError(f"{op.name}: multiple values for {info.name!r}")
-            elif info.name in kwargs:
-                operands.append(kwargs.pop(info.name))
-            else:
-                raise TypeError(f"{op.name}: missing operand {info.name!r}")
-        if kwargs or (attrs is None and op.attrs_type_key):
-            if not op.attrs_type_key:
-                raise TypeError(f"{op.name}: unexpected keyword operands {tuple(kwargs)}")
-            if attrs is not None:
-                raise TypeError(f"{op.name}: cannot mix attrs with attribute keywords")
-            attrs = make_node(op.attrs_type_key, **kwargs)
-        if is_region:
-            from tvm.script.ir_builder.stmt import region
-
-            if (
-                ty is not None
-                or ty_args is not None
-                or not isinstance(loc, Location)
-                or not loc.same_as(UNKNOWN_LOC)
-            ):
-                raise TypeError(
-                    f"{op.name}: region builders do not accept ty, ty_args or an explicit loc"
-                )
-            return region(op, operands, body_params=body_params, attrs=attrs)
-        return builder_maybe_emit_void_call(
-            Call(op, operands, attrs=attrs, ty_args=ty_args, loc=loc, ty=ty)
-        )
-
-    call.__name__ = op.name.rsplit(".", 1)[-1]
-    call.__module__ = module_name
-    call.__doc__ = op.doc or f"Construct a call to {op.name}."
-    return call

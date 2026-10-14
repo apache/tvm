@@ -14,16 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Core behavior of canonical void operators in an IRBuilder."""
+"""Core behavior of script-facing void operators in an IRBuilder."""
 
 import pytest
 import tvm_ffi
 
 from tvm import ir, tirx
 from tvm.backend import cuda
-from tvm.ir.builder_base import AlreadyEmitted
 from tvm.script import ir_builder as I
 from tvm.script import tirx as T
+from tvm.script.ir_builder.base import AlreadyEmitted
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -33,12 +33,12 @@ def register_cuda():
 
 @pytest.mark.parametrize("ty", [ir.PrimType("void"), ir.TupleType([])])
 def test_void_emission_and_fallback(ty):
-    assert isinstance(tirx.cpu_parallel_barrier(ty=ty), ir.Call)
+    assert isinstance(T.cpu_parallel_barrier(ty=ty), ir.Call)
     with I.IRBuilder() as builder:
-        value = tirx.cpu_parallel_barrier(ty="int32")
+        value = T.cpu_parallel_barrier(ty="int32")
         assert isinstance(value, ir.Call)
         assert builder.result is None
-        receipt = tirx.cpu_parallel_barrier(ty=ty)
+        receipt = T.cpu_parallel_barrier(ty=ty)
         assert isinstance(receipt, AlreadyEmitted)
         assert T.evaluate(receipt) is receipt
     assert builder.get().value.same_as(receipt.value)
@@ -64,12 +64,14 @@ def test_parser_emits_once_with_source_locations():
 
 def test_raw_construction_and_codegen_do_not_emit():
     from tvm.backend.cuda.codegen.registry import CODEGEN_REGISTRY
+    from tvm.backend.cuda.ptx import PTXNamespace
 
     ptx = T.ptx.barrier.sync.aligned(0)
     assert isinstance(ptx, ir.Call)
     with I.IRBuilder() as builder:
-        raw = tirx.call_intrin("void", "tirx.cpu_parallel_barrier")
+        raw = tirx.cpu_parallel_barrier()
         assert isinstance(raw, ir.Call)
+        assert isinstance(PTXNamespace()["barrier.sync.aligned"](0), ir.Call)
         helper, _ = CODEGEN_REGISTRY[ptx.op.name](ptx.args)
         assert isinstance(helper, ir.Call)
         ptx.script()

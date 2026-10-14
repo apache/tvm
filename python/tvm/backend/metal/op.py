@@ -14,17 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Metal-owned TIR intrinsic builders.
-Fixed-void operator APIs return the constructed Call outside an IRBuilder.
-Inside an active builder they emit one Evaluate and return an AlreadyEmitted
-receipt. Explicit non-void result types remain expressions. Low-level Call
-and call_intrin construction do not emit statements.
-"""
+"""Metal-owned TIR intrinsic builders."""
 
 from __future__ import annotations
 
 from tvm.ir import Call, Expr, Op, Var
-from tvm.ir.builder_base import builder_maybe_emit_void_call
 from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.op import _make_op_api
 from tvm.tirx import is_tensor_var
@@ -36,13 +30,11 @@ def make_filled_simdgroup_matrix(
 ):
     """Create a filled SIMDGroup matrix."""
 
-    return builder_maybe_emit_void_call(
-        Call(
-            "tirx.metal.make_filled_simdgroup_matrix",
-            [d, index, value, col, row],
-            ty=ty,
-            loc=loc,
-        )
+    return Call(
+        "tirx.metal.make_filled_simdgroup_matrix",
+        [d, index, value, col, row],
+        ty=ty,
+        loc=loc,
     )
 
 
@@ -60,13 +52,11 @@ def simdgroup_load(
 ):
     """Load data from device or threadgroup memory to simdgroup."""
 
-    return builder_maybe_emit_void_call(
-        Call(
-            "tirx.metal.simdgroup_load",
-            [d, index, ptr, stride, col, row, transpose_matrix],
-            ty=ty,
-            loc=loc,
-        )
+    return Call(
+        "tirx.metal.simdgroup_load",
+        [d, index, ptr, stride, col, row, transpose_matrix],
+        ty=ty,
+        loc=loc,
     )
 
 
@@ -84,13 +74,11 @@ def simdgroup_store(
 ):
     """Store data from simdgroup to device or threadgroup memory."""
 
-    return builder_maybe_emit_void_call(
-        Call(
-            "tirx.metal.simdgroup_store",
-            [d, index, ptr, stride, col, row, transpose_matrix],
-            ty=ty,
-            loc=loc,
-        )
+    return Call(
+        "tirx.metal.simdgroup_store",
+        [d, index, ptr, stride, col, row, transpose_matrix],
+        ty=ty,
+        loc=loc,
     )
 
 
@@ -99,13 +87,11 @@ def simdgroup_multiply_accumulate(
 ):
     """Multiply and accumulate two matrices in simdgroup."""
 
-    return builder_maybe_emit_void_call(
-        Call(
-            "tirx.metal.simdgroup_multiply_accumulate",
-            [d, index_d, a, index_a, b, index_b, c, index_c],
-            ty=ty,
-            loc=loc,
-        )
+    return Call(
+        "tirx.metal.simdgroup_multiply_accumulate",
+        [d, index_d, a, index_a, b, index_b, c, index_c],
+        ty=ty,
+        loc=loc,
     )
 
 
@@ -160,17 +146,15 @@ def cooperative_tensor_fill(
     ty=None,
     loc: Location = UNKNOWN_LOC,
 ):
-    return builder_maybe_emit_void_call(
-        call_intrin(
-            ty,
-            "tirx.metal.cooperative_tensor_fill",
-            d,
-            index,
-            value,
-            rows,
-            cols,
-            loc=loc,
-        )
+    return call_intrin(
+        ty,
+        "tirx.metal.cooperative_tensor_fill",
+        d,
+        index,
+        value,
+        rows,
+        cols,
+        loc=loc,
     )
 
 
@@ -190,23 +174,21 @@ def cooperative_tensor_load(
     ty=None,
     loc: Location = UNKNOWN_LOC,
 ):
-    return builder_maybe_emit_void_call(
-        call_intrin(
-            ty,
-            "tirx.metal.cooperative_tensor_load",
-            d,
-            index,
-            ptr,
-            stride,
-            rows,
-            cols,
-            transpose_matrix,
-            mma_M,
-            mma_N,
-            mma_K,
-            operand_role,
-            loc=loc,
-        )
+    return call_intrin(
+        ty,
+        "tirx.metal.cooperative_tensor_load",
+        d,
+        index,
+        ptr,
+        stride,
+        rows,
+        cols,
+        transpose_matrix,
+        mma_M,
+        mma_N,
+        mma_K,
+        operand_role,
+        loc=loc,
     )
 
 
@@ -226,23 +208,21 @@ def cooperative_tensor_store(
     ty=None,
     loc: Location = UNKNOWN_LOC,
 ):
-    return builder_maybe_emit_void_call(
-        call_intrin(
-            ty,
-            "tirx.metal.cooperative_tensor_store",
-            d,
-            index,
-            ptr,
-            stride,
-            rows,
-            cols,
-            transpose_matrix,
-            mma_M,
-            mma_N,
-            mma_K,
-            operand_role,
-            loc=loc,
-        )
+    return call_intrin(
+        ty,
+        "tirx.metal.cooperative_tensor_store",
+        d,
+        index,
+        ptr,
+        stride,
+        rows,
+        cols,
+        transpose_matrix,
+        mma_M,
+        mma_N,
+        mma_K,
+        operand_role,
+        loc=loc,
     )
 
 
@@ -264,23 +244,21 @@ def cooperative_tensor_multiply_accumulate(
     ty=None,
     loc: Location = UNKNOWN_LOC,
 ):
-    return builder_maybe_emit_void_call(
-        call_intrin(
-            ty,
-            "tirx.metal.cooperative_tensor_multiply_accumulate",
-            d,
-            index_d,
-            a,
-            index_a,
-            b,
-            index_b,
-            c,
-            index_c,
-            M,
-            N,
-            K,
-            transpose_a,
-            transpose_b,
-            loc=loc,
-        )
+    return call_intrin(
+        ty,
+        "tirx.metal.cooperative_tensor_multiply_accumulate",
+        d,
+        index_d,
+        a,
+        index_a,
+        b,
+        index_b,
+        c,
+        index_c,
+        M,
+        N,
+        K,
+        transpose_a,
+        transpose_b,
+        loc=loc,
     )

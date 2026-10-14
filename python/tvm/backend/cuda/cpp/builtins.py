@@ -29,7 +29,7 @@ inline asm; anything that needs a hand-written PTX body lives in
 * thread queries, scheduling hints, and the CUDA-side sync helpers
 """
 
-from tvm.backend.cuda.op import _make_cuda_func_call
+from tvm.backend.cuda.op import cuda_func_call
 
 from ..codegen.registry import register_codegen
 from ..codegen.schema import device_intrinsic
@@ -50,7 +50,7 @@ device_intrinsic(
 
 # =============================================================================
 # CUDA-side warp / CTA reductions (templated butterfly shuffle-XOR).
-# Emitted directly via ``_make_cuda_func_call`` — the helper signature uses a
+# Emitted directly via ``cuda_func_call`` — the helper signature uses a
 # single template parameter ``T`` for both arg and return, which doesn't
 # match the operand-driven C signature pattern.
 # =============================================================================
@@ -91,7 +91,7 @@ def codegen_cuda_warp_reduce(value, op, width):
 
     func_name = f"tvm_builtin_cuda_warp_reduce_{op_str}_{width_int}"
     source_code = _warp_reduce_source(func_name, width_int, step_expr)
-    return _make_cuda_func_call(func_name, value, source_code, ty=value.ty)
+    return cuda_func_call(func_name, value, source_code, ty=value.ty)
 
 
 @register_codegen("cuda_cta_reduce")
@@ -124,7 +124,7 @@ def codegen_cuda_cta_reduce(value, op, num_warps, scratch):
         "    return scratch[0];\n"
         "}\n"
     )
-    return _make_cuda_func_call(func_name, value, scratch, cta_body, ty=value.ty)
+    return cuda_func_call(func_name, value, scratch, cta_body, ty=value.ty)
 
 
 # =============================================================================

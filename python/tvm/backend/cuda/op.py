@@ -15,12 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, too-many-arguments
-"""CUDA, PTX, and NVSHMEM TIR intrinsic builders.
-Fixed-void operator APIs return the constructed Call outside an IRBuilder.
-Inside an active builder they emit one Evaluate and return an AlreadyEmitted
-receipt. Explicit non-void result types remain expressions. Low-level Call
-and call_intrin construction do not emit statements.
-"""
+"""CUDA, PTX, and NVSHMEM TIR intrinsic builders."""
 
 from __future__ import annotations
 
@@ -31,7 +26,6 @@ import tvm_ffi
 
 from tvm import DataType, tirx
 from tvm.ir import Attrs, Call, Op, StringImm, const
-from tvm.ir.builder_base import builder_maybe_emit_void_call
 from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.op import _init_op_api, _make_op_api
 from tvm.ir.type import PrimType, PtrType
@@ -62,8 +56,8 @@ def _tmem_address(tensor):
 def cuda_iket_mark(name, payload=None):
     """Create an NVIDIA IKET marker annotation."""
     if payload is not None:
-        return builder_maybe_emit_void_call(call_intrin("", "tirx.cuda.iket_mark", name, payload))
-    return builder_maybe_emit_void_call(call_intrin("", "tirx.cuda.iket_mark", name))
+        return call_intrin("", "tirx.cuda.iket_mark", name, payload)
+    return call_intrin("", "tirx.cuda.iket_mark", name)
 
 
 def cuda_iket_range_start(name, payload=None):
@@ -76,19 +70,15 @@ def cuda_iket_range_start(name, payload=None):
 def cuda_iket_range_end(token, payload=None):
     """Create an NVIDIA IKET token-range end annotation."""
     if payload is not None:
-        return builder_maybe_emit_void_call(
-            call_intrin("", "tirx.cuda.iket_range_end", token, payload)
-        )
-    return builder_maybe_emit_void_call(call_intrin("", "tirx.cuda.iket_range_end", token))
+        return call_intrin("", "tirx.cuda.iket_range_end", token, payload)
+    return call_intrin("", "tirx.cuda.iket_range_end", token)
 
 
 def cuda_iket_range_push(name, payload=None):
     """Create an NVIDIA IKET stack-range push annotation."""
     if payload is not None:
-        return builder_maybe_emit_void_call(
-            call_intrin("", "tirx.cuda.iket_range_push", name, payload)
-        )
-    return builder_maybe_emit_void_call(call_intrin("", "tirx.cuda.iket_range_push", name))
+        return call_intrin("", "tirx.cuda.iket_range_push", name, payload)
+    return call_intrin("", "tirx.cuda.iket_range_push", name)
 
 
 def cuda_iket_official_event(event_id, source_code="", payload=None):
@@ -106,11 +96,6 @@ def cuda_func_call(func_name, *args, ty=None, loc: Location = UNKNOWN_LOC):
     ``args`` contains the function arguments followed by the source string.
     ``ty`` specifies an explicit result; omitted results are void.
     """
-    return builder_maybe_emit_void_call(_make_cuda_func_call(func_name, *args, ty=ty, loc=loc))
-
-
-def _make_cuda_func_call(func_name, *args, ty=None, loc: Location = UNKNOWN_LOC):
-    """Construct a CUDA helper call for codegen without builder side effects."""
     return Call("tirx.cuda.func_call", [func_name, *args], ty=ty, loc=loc)
 
 
@@ -523,20 +508,18 @@ def bmma_sync(
     call : Expr
         The call expression.
     """
-    return builder_maybe_emit_void_call(
-        call_intrin(
-            ty,
-            "tirx.cuda.bmma_sync",
-            fragment_d,
-            index_d,
-            fragment_a,
-            index_a,
-            fragment_b,
-            index_b,
-            fragment_c,
-            index_c,
-            loc=loc,
-        )
+    return call_intrin(
+        ty,
+        "tirx.cuda.bmma_sync",
+        fragment_d,
+        index_d,
+        fragment_a,
+        index_a,
+        fragment_b,
+        index_b,
+        fragment_c,
+        index_c,
+        loc=loc,
     )
 
 
@@ -1265,13 +1248,11 @@ def nvshmem_getmem_nbi(dst, src, nelems, pe, *, ty=None, loc: Location = UNKNOWN
         The call expression.
     """  # noqa: E501
 
-    return builder_maybe_emit_void_call(
-        Call(
-            "tirx.nvshmem.getmem_nbi",
-            [dst, src, nelems, pe],
-            ty=ty,
-            loc=loc,
-        )
+    return Call(
+        "tirx.nvshmem.getmem_nbi",
+        [dst, src, nelems, pe],
+        ty=ty,
+        loc=loc,
     )
 
 
@@ -1298,13 +1279,11 @@ def nvshmem_putmem_nbi(dst, src, nelems, pe, *, ty=None, loc: Location = UNKNOWN
         The call expression.
     """
 
-    return builder_maybe_emit_void_call(
-        Call(
-            "tirx.nvshmem.putmem_nbi",
-            [dst, src, nelems, pe],
-            ty=ty,
-            loc=loc,
-        )
+    return Call(
+        "tirx.nvshmem.putmem_nbi",
+        [dst, src, nelems, pe],
+        ty=ty,
+        loc=loc,
     )
 
 
@@ -1331,13 +1310,11 @@ def nvshmem_getmem_nbi_warp(dst, src, nelems, pe, *, ty=None, loc: Location = UN
         The call expression.
     """  # noqa: E501
 
-    return builder_maybe_emit_void_call(
-        Call(
-            "tirx.nvshmem.getmem_nbi_warp",
-            [dst, src, nelems, pe],
-            ty=ty,
-            loc=loc,
-        )
+    return Call(
+        "tirx.nvshmem.getmem_nbi_warp",
+        [dst, src, nelems, pe],
+        ty=ty,
+        loc=loc,
     )
 
 
@@ -1364,13 +1341,11 @@ def nvshmem_putmem_nbi_warp(dst, src, nelems, pe, *, ty=None, loc: Location = UN
         The call expression.
     """
 
-    return builder_maybe_emit_void_call(
-        Call(
-            "tirx.nvshmem.putmem_nbi_warp",
-            [dst, src, nelems, pe],
-            ty=ty,
-            loc=loc,
-        )
+    return Call(
+        "tirx.nvshmem.putmem_nbi_warp",
+        [dst, src, nelems, pe],
+        ty=ty,
+        loc=loc,
     )
 
 
@@ -1428,13 +1403,11 @@ def nvshmem_putmem_nbi_block(dst, src, nelems, pe, *, ty=None, loc: Location = U
         The call expression.
     """
 
-    return builder_maybe_emit_void_call(
-        Call(
-            "tirx.nvshmem.putmem_nbi_block",
-            [dst, src, nelems, pe],
-            ty=ty,
-            loc=loc,
-        )
+    return Call(
+        "tirx.nvshmem.putmem_nbi_block",
+        [dst, src, nelems, pe],
+        ty=ty,
+        loc=loc,
     )
 
 
@@ -1466,13 +1439,11 @@ def nvshmem_signal_op(sig_addr, signal, sig_op, pe, *, ty=None, loc: Location = 
     """
 
     _choice("sig_op", sig_op, _NVSHMEM_SIG_OP)
-    return builder_maybe_emit_void_call(
-        Call(
-            "tirx.nvshmem.signal_op",
-            [sig_addr, signal, sig_op, pe],
-            ty=ty,
-            loc=loc,
-        )
+    return Call(
+        "tirx.nvshmem.signal_op",
+        [sig_addr, signal, sig_op, pe],
+        ty=ty,
+        loc=loc,
     )
 
 
@@ -1502,13 +1473,11 @@ def nvshmem_wait_until(
     """
 
     _choice("cmp", cmp, _NVSHMEM_CMP)
-    return builder_maybe_emit_void_call(
-        Call(
-            "tirx.nvshmem.wait_until",
-            [ivar, cmp, cmp_value, type],
-            ty=ty,
-            loc=loc,
-        )
+    return Call(
+        "tirx.nvshmem.wait_until",
+        [ivar, cmp, cmp_value, type],
+        ty=ty,
+        loc=loc,
     )
 
 
@@ -1521,7 +1490,7 @@ def nvshmem_quiet(*, ty=None, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
 
-    return builder_maybe_emit_void_call(Call("tirx.nvshmem.quiet", [], ty=ty, loc=loc))
+    return Call("tirx.nvshmem.quiet", [], ty=ty, loc=loc)
 
 
 def nvshmem_putmem_signal_nbi(
@@ -1558,13 +1527,11 @@ def nvshmem_putmem_signal_nbi(
         The call expression.
     """  # noqa: E501
 
-    return builder_maybe_emit_void_call(
-        Call(
-            "tirx.nvshmem.putmem_signal_nbi",
-            [dst, src, nelems, sig_addr, signal, sig_op, pe],
-            ty=ty,
-            loc=loc,
-        )
+    return Call(
+        "tirx.nvshmem.putmem_signal_nbi",
+        [dst, src, nelems, sig_addr, signal, sig_op, pe],
+        ty=ty,
+        loc=loc,
     )
 
 
@@ -1602,13 +1569,11 @@ def nvshmem_putmem_signal_nbi_warp(
         The call expression.
     """  # noqa: E501
 
-    return builder_maybe_emit_void_call(
-        Call(
-            "tirx.nvshmem.putmem_signal_nbi_warp",
-            [dst, src, nelems, sig_addr, signal, sig_op, pe],
-            ty=ty,
-            loc=loc,
-        )
+    return Call(
+        "tirx.nvshmem.putmem_signal_nbi_warp",
+        [dst, src, nelems, sig_addr, signal, sig_op, pe],
+        ty=ty,
+        loc=loc,
     )
 
 
@@ -1646,13 +1611,11 @@ def nvshmem_putmem_signal_nbi_block(
         The call expression.
     """  # noqa: E501
 
-    return builder_maybe_emit_void_call(
-        Call(
-            "tirx.nvshmem.putmem_signal_nbi_block",
-            [dst, src, nelems, sig_addr, signal, sig_op, pe],
-            ty=ty,
-            loc=loc,
-        )
+    return Call(
+        "tirx.nvshmem.putmem_signal_nbi_block",
+        [dst, src, nelems, sig_addr, signal, sig_op, pe],
+        ty=ty,
+        loc=loc,
     )
 
 
@@ -1665,7 +1628,7 @@ def nvshmem_fence(*, ty=None, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
 
-    return builder_maybe_emit_void_call(Call("tirx.nvshmem.fence", [], ty=ty, loc=loc))
+    return Call("tirx.nvshmem.fence", [], ty=ty, loc=loc)
 
 
 def nvshmem_barrier_all(*, ty=None, loc: Location = UNKNOWN_LOC):
@@ -1677,7 +1640,7 @@ def nvshmem_barrier_all(*, ty=None, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
 
-    return builder_maybe_emit_void_call(Call("tirx.nvshmem.barrier_all", [], ty=ty, loc=loc))
+    return Call("tirx.nvshmem.barrier_all", [], ty=ty, loc=loc)
 
 
 # Canonical Op builders also supply the historical direct-import aliases.

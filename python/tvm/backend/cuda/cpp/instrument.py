@@ -27,7 +27,7 @@ import hashlib
 import json
 
 import tvm
-from tvm.backend.cuda.op import _make_cuda_func_call
+from tvm.backend.cuda.op import cuda_func_call
 
 from ..codegen.registry import register_codegen
 from ..codegen.schema import device_intrinsic
@@ -118,7 +118,7 @@ def codegen_cuda_iket_official_event(event_id, source_code, payload=None):
     else:
         source_code = parse_str(source_code)
     args = (event_id,) if payload is None else (event_id, payload)
-    return _make_cuda_func_call(
+    return cuda_func_call(
         "tvm_builtin_iket_official_event",
         *args,
         source_code,
@@ -175,7 +175,7 @@ __noinline__ __device__ void {func_name}({params}) {{
     printf({fmt_literal}{comma_call_args});
 }}
 """
-    return _make_cuda_func_call(func_name, *args, source_code)
+    return cuda_func_call(func_name, *args, source_code)
 
 
 device_intrinsic(

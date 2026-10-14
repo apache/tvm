@@ -20,13 +20,12 @@ from collections.abc import Callable
 from contextlib import contextmanager, nullcontext
 from functools import wraps
 from inspect import signature
-from typing import Any, TypeVar
+from typing import Any, Generic, ParamSpec, TypeVar
 
 from tvm_ffi import register_object as _register_object
 from tvm_ffi.dataclasses import MISSING as MISSING
 
 from tvm import ir
-from tvm.ir.builder_base import AlreadyEmitted as AlreadyEmitted
 from tvm.ir.location import UnknownLoc
 from tvm.runtime import Object as _Object
 
@@ -274,6 +273,64 @@ class IRBuilder(_Object):
 
 
 _T = TypeVar("_T")
+
+
+class AlreadyEmitted(Generic[_T]):
+    """Hold the exact native result of an already emitted builder operation.
+
+    Parameters
+    ----------
+    value : T
+        Native result retained without copying or emitting it. Operator APIs
+        wrap their original Call; statement APIs wrap the emitted statement.
+
+    Attributes
+    ----------
+    value : T
+        The same object, available for identity checks and source-location
+        attachment. Builder consumers must check for this receipt before FFI
+        conversion, so they do not emit the object again.
+
+    Notes
+    -----
+    FFI conversion exposes only the wrapped object, not its emission history.
+    """
+
+    __slots__ = ("value",)
+    value: _T
+
+    def __init__(self, value: _T) -> None:
+        self.value = value
+
+    def __tvm_ffi_object__(self) -> _T:
+        """Return the exact wrapped native object without copying or emitting."""
+        return self.value
+
+
+_P = ParamSpec("_P")
+
+
+def auto_emit_void_call(func: Callable[_P, _T]) -> Callable[_P, _T | AlreadyEmitted[ir.Call]]:
+    """Adapt an operator constructor to the script builder boundary.
+
+    Construct once and preserve the callable's signature and metadata. A void
+    Call under an active IRBuilder emits one Evaluate(call) and returns a
+    receipt containing the exact original Call. Both primitive void and the
+    empty tuple type count as void. Non-Call results, non-void calls and calls
+    outside a builder pass through unchanged.
+
+    The native hook supplies source context to both Call and Evaluate, handles
+    frameless builders, and propagates normal errors from invalid frames.
+    """
+
+    @wraps(func)
+    def wrapped(*args: _P.args, **kwargs: _P.kwargs) -> _T | AlreadyEmitted[ir.Call]:
+        result = func(*args, **kwargs)
+        if isinstance(result, ir.Call) and _ffi_api.MaybeEmitVoidCall(result):
+            return AlreadyEmitted(result)
+        return result
+
+    return wrapped
 
 
 class LocationEntry:
