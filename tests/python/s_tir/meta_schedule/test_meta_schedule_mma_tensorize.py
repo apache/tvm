@@ -22,6 +22,7 @@ import pytest
 import tvm
 import tvm.s_tir.tensor_intrin  # pylint: disable=unused-import
 import tvm.testing
+from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.schedule import Schedule
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
@@ -65,6 +66,26 @@ class Gemm_F16F16F32:
                 with Ts.init():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + T.cast(A[vi, vk], "float32") * T.cast(B[vk, vj], "float32")
+
+
+BATCH, BM, BN, BK = 4, 512, 512, 512
+
+
+@tvm.script.ir_module
+class BatchGemm_F16F16F32:
+    # fmt: off
+    @Ts.function
+    def main(
+        A: T.Tensor((BATCH, BM, BK), "float16"),  # type: ignore
+        B: T.Tensor((BATCH, BK, BN), "float16"),  # type: ignore
+        C: T.Tensor((BATCH, BM, BN), "float32"),  # type: ignore
+    ):
+        for b, i, j, k in T.grid(BATCH, BM, BN, BK):
+            with Ts.sblock("C"):
+                vb, vi, vj, vk = Ts.axis.remap("SSSR", [b, i, j, k])
+                with Ts.init():
+                    C[vb, vi, vj] = T.float32(0)
+                C[vb, vi, vj] = C[vb, vi, vj] + T.cast(A[vb, vi, vk], "float32") * T.cast(B[vb, vk, vj], "float32")
 
 
 @pytest.mark.gpu
@@ -336,6 +357,153 @@ def test_f16f16f32_mma_gemm():
     sch.tensorize(block_or_loop=b160, tensor_intrin="mma_sync_m16n8k8_f16f16f32", preserve_unit_iters=True)
     mod = sch.mod
     test_run_target(mod, out_dtype="float32")
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_f16f16f32_mma_batch_gemm():
+    # The batch axis joins the outermost tile (blockIdx.y), and the mma.matrixC accesses keep
+    # their batch index through TransformMmaTensorLayout.
+    sch = Schedule(BatchGemm_F16F16F32)
+    # fmt: off
+    b0 = sch.get_sblock(name="C", func_name="main")
+    b1 = sch.get_sblock(name="root", func_name="main")
+    sch.annotate(block_or_loop=b0, ann_key="meta_schedule.tiling_structure", ann_val="SSSRRSRS")
+    b2 = sch.reindex(block=b0, tensor=("write", 0))
+    b3 = sch.reindex(block=b0, tensor=("read", 0))
+    b4 = sch.reindex(block=b0, tensor=("read", 1))
+    sch.transform_layout(block=b0, tensor=("read", 0), index_map=lambda v_i0, v_i1, v_k: (v_i0, v_i1, v_k,), pad_value=None, assume_injective_transform=True)
+    sch.transform_layout(block=b0, tensor=("read", 1), index_map=lambda v_i0, v_i2, v_k: (v_i0, v_k, v_i2,), pad_value=None, assume_injective_transform=True)
+    sch.transform_layout(block=b0, tensor=("write", 0), index_map=lambda v_i0, v_i1, v_i2: (v_i0, v_i1, v_i2,), pad_value=None, assume_injective_transform=True)
+    sch.transform_block_layout(block=b2, index_map=lambda v_i0, v_i1, v_i2: (v_i0, v_i1, v_i2,))
+    sch.transform_block_layout(block=b3, index_map=lambda v_i0, v_i1, v_k: (v_i0, v_i1, v_k,))
+    sch.transform_block_layout(block=b4, index_map=lambda v_i0, v_i2, v_k: (v_i0, v_k, v_i2,))
+    sch.transform_block_layout(block=b0, index_map=lambda v_i0, v_i1, v_i2, v_k: (v_i0, v_i1, v_i2, v_k,))
+    l5, l6, l7, l8 = sch.get_loops(block=b0)
+    l9, l10 = sch.split(loop=l8, factors=[None, 8], preserve_unit_iters=True, disable_predication=False)
+    l11, l12 = sch.split(loop=l7, factors=[None, 8], preserve_unit_iters=True, disable_predication=False)
+    l13, l14 = sch.split(loop=l6, factors=[None, 16], preserve_unit_iters=True, disable_predication=False)
+    l15, l16, l17, l18, l19, l20, l21 = sch.get_loops(block=b0)
+    sch.reorder(l18, l20, l14, l12, l10)
+    b22 = sch.blockize(target=l14, preserve_unit_iters=True)
+    sch.annotate(block_or_loop=b22, ann_key="meta_schedule.auto_tensorize", ann_val="mma_sync_m16n8k8_f16f16f32")
+    sch.annotate(block_or_loop=b22, ann_key="meta_schedule.auto_tensorize_init", ann_val="mma_init_m16n8k8_f32")
+    sch.annotate(block_or_loop=b22, ann_key="warp_execution", ann_val=1)
+    l23, l24, l25, l26 = sch.get_loops(block=b22)
+    v27, v28, v29, v30, v31 = sch.sample_partitioned_tile(loop=l24, n=5, partition_pos=3, innerpart_factor=2, decision=[4, 2, 1, 4, 1])
+    l32, l33, l34, l35, l36 = sch.split(loop=l24, factors=[v27, v28, v29, v30, v31], preserve_unit_iters=True, disable_predication=False)
+    v37, v38, v39, v40, v41 = sch.sample_partitioned_tile(loop=l25, n=5, partition_pos=3, innerpart_factor=4, decision=[8, 1, 2, 1, 4])
+    l42, l43, l44, l45, l46 = sch.split(loop=l25, factors=[v37, v38, v39, v40, v41], preserve_unit_iters=True, disable_predication=False)
+    v47, v48, v49 = sch.sample_perfect_tile(loop=l26, n=3, max_innermost_factor=4, decision=[16, 2, 2])
+    l50, l51, l52 = sch.split(loop=l26, factors=[v47, v48, v49], preserve_unit_iters=True, disable_predication=False)
+    sch.reorder(l23, l32, l42, l33, l43, l34, l44, l50, l51, l35, l45, l52, l36, l46)
+    l53 = sch.fuse(l23, l32, l42, preserve_unit_iters=True)
+    sch.bind(loop=l53, thread_axis="blockIdx.y")
+    l54 = sch.fuse(l33, l43, preserve_unit_iters=True)
+    sch.bind(loop=l54, thread_axis="blockIdx.x")
+    l55 = sch.fuse(l34, l44, preserve_unit_iters=True)
+    sch.bind(loop=l55, thread_axis="threadIdx.y")
+    sch.annotate(block_or_loop=b22, ann_key="meta_schedule.thread_extent_low_inclusive", ann_val=32)
+    sch.annotate(block_or_loop=b22, ann_key="meta_schedule.thread_extent_high_inclusive", ann_val=1024)
+    b56 = sch.write_at(loop=l55, block=b22, write_tensor_index=0, storage_scope="mma.matrixC")
+    sch.reverse_compute_inline(block=b2)
+    b57 = sch.read_at(loop=l50, block=b22, read_tensor_index=0, storage_scope="shared.dyn")
+    sch.annotate(block_or_loop=b57, ann_key="permuted_layout", ann_val="g2s_A")
+    b58 = sch.read_at(loop=l50, block=b22, read_tensor_index=1, storage_scope="shared.dyn")
+    sch.annotate(block_or_loop=b58, ann_key="permuted_layout", ann_val="g2s_B")
+    b59 = sch.cache_read(block=b22, read_tensor_index=0, storage_scope="mma.matrixA")
+    sch.compute_at(block=b59, loop=l51, preserve_unit_loops=True, index=-1)
+    l60, l61, l62, l63, l64, l65, l66, l67 = sch.get_loops(block=b59)
+    l68, l69 = sch.split(loop=l67, factors=[None, 8], preserve_unit_iters=True, disable_predication=False)
+    l70, l71 = sch.split(loop=l66, factors=[None, 32], preserve_unit_iters=True, disable_predication=False)
+    l72, l73, l74, l75, l76, l77, l78, l79, l80, l81 = sch.get_loops(block=b59)
+    sch.reorder(l80, l71, l69)
+    b82 = sch.blockize(target=l71, preserve_unit_iters=True)
+    sch.annotate(block_or_loop=b82, ann_key="meta_schedule.auto_tensorize", ann_val="mma_load_m16n8k8_f16_A_shared_dyn")
+    sch.annotate(block_or_loop=b82, ann_key="permuted_layout", ann_val="s2l_A")
+    b83 = sch.cache_read(block=b22, read_tensor_index=1, storage_scope="mma.matrixB")
+    sch.compute_at(block=b83, loop=l51, preserve_unit_loops=True, index=-1)
+    l84, l85, l86, l87, l88, l89, l90, l91 = sch.get_loops(block=b83)
+    l92, l93 = sch.split(loop=l91, factors=[None, 32], preserve_unit_iters=True, disable_predication=False)
+    l94, l95 = sch.split(loop=l90, factors=[None, 8], preserve_unit_iters=True, disable_predication=False)
+    l96, l97, l98, l99, l100, l101, l102, l103, l104, l105 = sch.get_loops(block=b83)
+    sch.reorder(l104, l95, l93)
+    b106 = sch.blockize(target=l95, preserve_unit_iters=True)
+    sch.annotate(block_or_loop=b106, ann_key="meta_schedule.auto_tensorize", ann_val="mma_load_m16n8k8_f16_B_shared_dyn")
+    sch.annotate(block_or_loop=b106, ann_key="permuted_layout", ann_val="s2l_B")
+    b107, = sch.get_producers(block=b57)
+    sch.compute_inline(block=b107)
+    sch.storage_align(block=b57, tensor_index=0, axis=-2, factor=32, offset=8)
+    b108, = sch.get_producers(block=b58)
+    sch.compute_inline(block=b108)
+    sch.storage_align(block=b58, tensor_index=0, axis=-2, factor=32, offset=8)
+    sch.annotate(block_or_loop=b57, ann_key="vector_bytes", ann_val=16)
+    sch.annotate(block_or_loop=b58, ann_key="vector_bytes", ann_val=16)
+    sch.annotate(block_or_loop=l51, ann_key="software_pipeline_stage", ann_val=[0, 0, 1])
+    sch.annotate(block_or_loop=l51, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
+    sch.annotate(block_or_loop=l50, ann_key="software_pipeline_async_stages", ann_val=[0])
+    sch.annotate(block_or_loop=l50, ann_key="software_pipeline_stage", ann_val=[0, 0, 1, 2, 2])
+    sch.annotate(block_or_loop=l50, ann_key="software_pipeline_order", ann_val=[0, 1, 3, 2, 4])
+    v109 = sch.sample_categorical(candidates=[0, 16, 32, 64, 128, 256, 512, 1024], probs=[0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125], decision=1)
+    sch.annotate(block_or_loop=b1, ann_key="meta_schedule.unroll_explicit", ann_val=v109)
+    sch.enter_postproc()
+    b110 = sch.get_sblock(name="root", func_name="main")
+    sch.unannotate(block_or_loop=b110, ann_key="meta_schedule.unroll_explicit")
+    b111, b112, b113, b114, b115, b116 = sch.get_child_blocks(b110)
+    l117, l118, l119, l120 = sch.get_loops(block=b111)
+    l121, l122, l123, l124 = sch.get_loops(block=b112)
+    l125, l126, l127, l128, l129, l130, l131, l132 = sch.get_loops(block=b113)
+    l133, l134, l135, l136, l137, l138, l139, l140 = sch.get_loops(block=b114)
+    l141, l142, l143, l144, l145, l146, l147, l148, l149, l150 = sch.get_loops(block=b115)
+    sch.annotate(block_or_loop=l141, ann_key="auto_unroll_max_step", ann_val=16)
+    sch.annotate(block_or_loop=l141, ann_key="unroll_explicit", ann_val=1)
+    l151, l152, l153 = sch.get_loops(block=b116)
+    b154 = sch.get_sblock(name="C_o", func_name="main")
+    l155, l156, l157, l158, l159, l160, l161, l162, l163, l164 = sch.get_loops(block=b154)
+    b165 = sch.decompose_reduction(block=b154, loop=l158)
+    sch.unannotate(block_or_loop=b165, ann_key="meta_schedule.auto_tensorize")
+    sch.annotate(block_or_loop=b165, ann_key="meta_schedule.auto_tensorize", ann_val="mma_init_m16n8k8_f32")
+    sch.unannotate(block_or_loop=b154, ann_key="meta_schedule.auto_tensorize_init")
+    sch.unannotate(block_or_loop=b165, ann_key="meta_schedule.auto_tensorize_init")
+    b166 = sch.get_sblock(name="C_o_init", func_name="main")
+    sch.unannotate(block_or_loop=b166, ann_key="meta_schedule.auto_tensorize")
+    sch.tensorize(block_or_loop=b166, tensor_intrin="mma_init_m16n8k8_f32", preserve_unit_iters=True)
+    b167 = sch.get_sblock(name="A_reindex_shared.dyn_mma.matrixA_o", func_name="main")
+    sch.unannotate(block_or_loop=b167, ann_key="meta_schedule.auto_tensorize")
+    sch.tensorize(block_or_loop=b167, tensor_intrin="mma_load_m16n8k8_f16_A_shared_dyn", preserve_unit_iters=True)
+    b168 = sch.get_sblock(name="B_reindex_shared.dyn_mma.matrixB_o", func_name="main")
+    sch.unannotate(block_or_loop=b168, ann_key="meta_schedule.auto_tensorize")
+    sch.tensorize(block_or_loop=b168, tensor_intrin="mma_load_m16n8k8_f16_B_shared_dyn", preserve_unit_iters=True)
+    b169 = sch.get_sblock(name="C_o_update", func_name="main")
+    sch.unannotate(block_or_loop=b169, ann_key="meta_schedule.auto_tensorize")
+    sch.tensorize(block_or_loop=b169, tensor_intrin="mma_sync_m16n8k8_f16f16f32", preserve_unit_iters=True)
+    # fmt: on
+    lib = tvm.compile(sch.mod, target="cuda")
+    a_np = np.random.rand(BATCH, BM, BK).astype("float16")
+    b_np = np.random.rand(BATCH, BK, BN).astype("float16")
+    c_np = np.zeros((BATCH, BM, BN), dtype="float32")
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        c = tvm.runtime.tensor(c_np, dev)
+        lib["main"](tvm.runtime.tensor(a_np, dev), tvm.runtime.tensor(b_np, dev), c)
+        c_th = torch.matmul(
+            torch.tensor(a_np).to(torch.float32), torch.tensor(b_np).to(torch.float32)
+        )
+        assert torch.allclose(c_th, torch.tensor(c.numpy()), rtol=0.05, atol=0.05)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+def test_batch_gemm_mma_design_space():
+    # The batch axis stays outside the MMA tile, so a batch matmul also gets an MMA sketch.
+    spaces = ms.TuneContext(
+        mod=BatchGemm_F16F16F32,
+        target=tvm.target.Target("nvidia/nvidia-a100"),
+        space_generator="post-order-apply",
+        task_name="test",
+    ).generate_design_space()
+    assert any("mma_sync_m16n8k8_f16f16f32" in str(space.trace) for space in spaces)
 
 
 if __name__ == """__main__""":

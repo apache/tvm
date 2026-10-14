@@ -153,10 +153,7 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
     if (auto replacement = VarRemapGet(original_tensor).as<TensorVar>()) {
       auto* n = store.CopyOnWrite();
       if ((scope_mma_matrixC && original_tensor.scope() == *scope_mma_matrixC)) {
-        const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
-        TVM_FFI_ICHECK(index_map_func.has_value());
-        auto index_map = IndexMap::FromFunc(2, *index_map_func);
-        auto new_indices = index_map->MapIndices(store->indices, analyzer);
+        auto new_indices = MapMatrixCIndices(store->indices);
         n->dest = replacement.value();
         n->indices = std::move(new_indices);
       } else if ((scope_mma_matrixA && original_tensor.scope() == *scope_mma_matrixA) ||
@@ -184,10 +181,7 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
     if (auto replacement = VarRemapGet(tensor).as<TensorVar>()) {
       ffi::Array<PrimExpr> indices = load->indices;
       if ((scope_mma_matrixC && tensor.scope() == *scope_mma_matrixC)) {
-        const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
-        TVM_FFI_ICHECK(index_map_func.has_value());
-        auto index_map = IndexMap::FromFunc(2, *index_map_func);
-        indices = index_map->MapIndices(load->indices, analyzer);
+        indices = MapMatrixCIndices(load->indices);
       } else {
         TVM_FFI_ICHECK(false)
             << "TransformMmaTensorLayout requires " << tensor.scope()
@@ -200,6 +194,22 @@ class MmaTensorLayoutTransformer : public StmtExprMutator {
   }
 
  private:
+  // Map the last two indices through the m16n8k8 matrixC layout. Leading indices (e.g. the batch
+  // axis of a batch matmul) index the leading dimensions, which the new shape keeps unchanged.
+  ffi::Array<PrimExpr> MapMatrixCIndices(const ffi::Array<PrimExpr>& indices) {
+    const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
+    TVM_FFI_ICHECK(index_map_func.has_value());
+    auto index_map = IndexMap::FromFunc(2, *index_map_func);
+    size_t size = indices.size();
+    TVM_FFI_ICHECK_GE(size, 2);
+    ffi::Array<PrimExpr> result(indices.begin(), indices.end() - 2);
+    for (const PrimExpr& index :
+         index_map->MapIndices({indices[size - 2], indices[size - 1]}, analyzer)) {
+      result.push_back(index);
+    }
+    return result;
+  }
+
   sym::Analyzer analyzer;
 };
 

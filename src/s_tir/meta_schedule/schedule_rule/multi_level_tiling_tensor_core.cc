@@ -361,12 +361,19 @@ std::vector<State> MultiLevelTilingTensorCoreObj::MMATileLoopNest(TensorCoreStat
   const SBlockRV& block_rv = state->block_rv;
   // Step 1. Assuming trivial binding, pair the loops and their iter-var-types
   ffi::Array<LoopRV> loops = sch->GetLoops(block_rv);
-  if (!(loops.size() == 3 || !state->is_mma)) {
-    LOG(DEBUG) << "The MMA tensor core only supports SSR loops now";
-    return {};
-  }
   std::vector<IterVarType> iter_types = GetSBlockVarTypes(sch->GetSRef(state->block_rv));
   TVM_FFI_ICHECK_EQ(loops.size(), iter_types.size());
+  // The loops are [batch..., i, j, k]. Leading spatial loops such as the batch axis of a batch
+  // matmul are not split: they join the outermost tile, so each thread block works on one batch.
+  int n_loops = loops.size();
+  if (n_loops < 3 || iter_types[n_loops - 1] != IterVarType::kCommReduce ||
+      std::any_of(
+          iter_types.begin(), iter_types.end() - 1,
+          [](IterVarType type) { return type != IterVarType::kDataPar; })) {
+    LOG(DEBUG) << "The MMA tensor core only supports [batch...] x SSR loops now";
+    return {};
+  }
+  const int i_loop = n_loops - 3;
   // Step 2. For each loop axis, tile it
   int64_t spatial_loop_product = 1;
   std::vector<ffi::Array<LoopRV>> tiles(s_indices_.size() + r_indices_.size());
@@ -396,15 +403,17 @@ std::vector<State> MultiLevelTilingTensorCoreObj::MMATileLoopNest(TensorCoreStat
 
     const int n_tiles = idx->size();
 
-    if (n_tiles == 1) {
+    if (i < i_loop) {
+      tiles[s_indices_[0]].push_back(loop);
+    } else if (n_tiles == 1) {
       tiles[idx->at(0)].push_back(loop);
     } else {
       auto [factors, splits] =
           iter_types[i] == IterVarType::kDataPar
               ? MMASplitLoop(
                     sch, block_rv, loop, n_tiles, 3,
-                    i == 0 ? 2  // 32 (load A intrin i shape) / 16 (sync intrin i shape) == 2
-                           : 4  // 32 (load B intrin j shape) /  8 (sync intrin j shape) == 4
+                    i == i_loop ? 2  // 32 (load A intrin i shape) / 16 (sync intrin i shape) == 2
+                                : 4  // 32 (load B intrin j shape) /  8 (sync intrin j shape) == 4
                     )
               : SplitLoop(sch, block_rv, loop, n_tiles);
 
