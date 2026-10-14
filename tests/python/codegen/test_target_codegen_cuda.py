@@ -1029,7 +1029,10 @@ def test_min_max_nan_preserving_cuda(op, dt, form, *, backend_config):
         a_np = np.array([np.nan, 1.0, np.nan, 0.0, -0.0, 3.0, 2.0, -5.0], dtype=dt)
         b_np = np.array([1.0, np.nan, np.nan, -0.0, 0.0, 2.0, 2.0, -4.0], dtype=dt)
 
-    mod = tvm.compile(_min_max_nan_module(op, dt, n, vectorize=vectorize), target={"kind": "cuda", "backend_config": backend_config})
+    mod = tvm.compile(
+        _min_max_nan_module(op, dt, n, vectorize=vectorize),
+        target={"kind": "cuda", "backend_config": backend_config},
+    )
     a = tvm.runtime.tensor(a_np, tvm.cuda(0))
     b = tvm.runtime.tensor(b_np, tvm.cuda(0))
     c = tvm.runtime.empty((n,), dt, tvm.cuda(0))
@@ -1285,7 +1288,10 @@ def test_min_max_int_vector_cuda(op, *, backend_config):
     a_np = np.array([3, -5, 7, 0, -1, 9, 2, -8], dtype=dt)
     b_np = np.array([1, 9, -2, 4, -3, 9, 5, -8], dtype=dt)
 
-    mod = tvm.compile(_min_max_nan_module(op, dt, n, vectorize=True), target={"kind": "cuda", "backend_config": backend_config})
+    mod = tvm.compile(
+        _min_max_nan_module(op, dt, n, vectorize=True),
+        target={"kind": "cuda", "backend_config": backend_config},
+    )
     a = tvm.runtime.tensor(a_np, tvm.cuda(0))
     b = tvm.runtime.tensor(b_np, tvm.cuda(0))
     c = tvm.runtime.empty((n,), dt, tvm.cuda(0))
