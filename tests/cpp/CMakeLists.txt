@@ -102,9 +102,6 @@ if(GTEST_FOUND)
     )
   endif()
   target_compile_definitions(cpptest PRIVATE "NDEBUG")
-  if(TVM_DEBUG_WITH_ABI_CHANGE)
-    target_compile_definitions(cpptest PRIVATE "TVM_DEBUG_WITH_ABI_CHANGE")
-  endif(TVM_DEBUG_WITH_ABI_CHANGE)
 
   # For some reason, compile definitions are not propagated correctly, so we manually add them here
   target_compile_definitions(cpptest PUBLIC $<TARGET_PROPERTY:tvm_compiler,INTERFACE_COMPILE_DEFINITIONS>)
