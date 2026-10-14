@@ -23,8 +23,8 @@ rem build-wheel-cuda\lib\ for the wheel build to bundle. Windows mirror of
 rem manylinux_build_libtvm_runtime_cuda.sh. Run with: shell: cmd.
 setlocal enableextensions
 
-rem repo root = this script's directory / ..\..\.. (native Windows paths; no cygpath).
-pushd "%~dp0..\..\.." || exit /b 1
+rem repo root = this script's directory / ..\.. (native Windows paths; no cygpath).
+pushd "%~dp0..\.." || exit /b 1
 set "repo_root=%CD%"
 popd
 set "build_dir=%repo_root%\build-wheel-cuda"

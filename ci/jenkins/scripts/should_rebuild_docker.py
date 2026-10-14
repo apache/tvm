@@ -23,7 +23,6 @@ import logging
 import subprocess
 from typing import Any
 
-from cmd_utils import Sh, init_log
 from http_utils import get
 
 DOCKER_API_BASE = "https://hub.docker.com/v2/"
@@ -57,9 +56,10 @@ def any_docker_changes_since(hash: str) -> bool:
     Check the docker/ directory, return True if there have been any code changes
     since the specified hash
     """
-    sh = Sh()
-    cmd = f"git diff {hash} -- docker/"
-    proc = sh.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    cmd = ["git", "diff", hash, "--", "docker/"]
+    proc = subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=True
+    )
     stdout = proc.stdout.strip()
     return stdout != "", stdout
 
@@ -68,9 +68,10 @@ def does_commit_exist(hash: str) -> bool:
     """
     Returns True if the hash exists in the repo
     """
-    sh = Sh()
-    cmd = f"git rev-parse -q {hash}"
-    proc = sh.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
+    cmd = ["git", "rev-parse", "-q", hash]
+    proc = subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False
+    )
     print(proc.stdout)
     if proc.returncode == 0:
         return True
@@ -136,7 +137,9 @@ def main():
 
 
 if __name__ == "__main__":
-    init_log()
+    logging.basicConfig(
+        format="[%(filename)s:%(lineno)d %(levelname)s] %(message)s", level=logging.INFO
+    )
     parser = argparse.ArgumentParser(
         description="Exits 0 if Docker images don't need to be rebuilt, 1 otherwise"
     )

@@ -15,25 +15,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E402, E501, F841, RUF012
+# ruff: noqa: E501, F841, RUF012
 
 import argparse
 import json
 import logging
 import os
 import re
-import sys
 import traceback
 import warnings
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-# Hackery to enable importing of utils from ci/scripts/jenkins
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
-
-from cmd_utils import init_log
 from git_utils import GitHubRepo, git, parse_remote, post
 
 Review = dict[str, Any]
@@ -729,7 +723,9 @@ if __name__ == "__main__":
         help="run but don't send any request to GitHub",
     )
     args = parser.parse_args()
-    init_log()
+    logging.basicConfig(
+        format="[%(filename)s:%(lineno)d %(levelname)s] %(message)s", level=logging.INFO
+    )
     comment = json.loads(args.trigger_comment_json)
     body = comment["body"].strip()
 

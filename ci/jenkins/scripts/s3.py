@@ -20,10 +20,11 @@ import argparse
 import importlib.util
 import logging
 import re
+import subprocess
 from enum import Enum
 from pathlib import Path
 
-from cmd_utils import REPO_ROOT, Sh, init_log
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 DATA_PY = REPO_ROOT / "ci" / "jenkins" / "data.py"
 
@@ -49,9 +50,8 @@ def resolve_bundles(bundle_names: list[str]) -> list[str]:
     return items
 
 
-RETRY_SCRIPT = REPO_ROOT / "ci" / "scripts" / "jenkins" / "retry.sh"
+RETRY_SCRIPT = REPO_ROOT / "ci" / "jenkins" / "scripts" / "retry.sh"
 S3_DOWNLOAD_REGEX = re.compile(r"download: s3://.* to (.*)")
-SH = Sh()
 
 
 class Action(Enum):
@@ -61,7 +61,7 @@ class Action(Enum):
 
 def show_md5(item: str) -> None:
     if not Path(item).is_dir():
-        sh.run(f"md5sum {item}")
+        subprocess.run(["md5sum", item], check=True)
 
 
 def parse_output_files(stdout: str) -> list[str]:
@@ -91,25 +91,44 @@ def chmod(files: list[str]) -> None:
     to_chmod = [str(f) for f in files]
     logging.info(f"Adding execute bit for files: {to_chmod}")
     if len(to_chmod) > 0:
-        SH.run(f"chmod +x {' '.join(to_chmod)}")
+        subprocess.run(["chmod", "+x", *to_chmod], check=True)
 
 
 def s3(source: str, destination: str, recursive: bool) -> list[str]:
     """
     Send or download the source to the destination in S3
     """
-    cmd = f". {RETRY_SCRIPT.relative_to(REPO_ROOT)} && retry 3 aws s3 cp --no-progress"
-
+    # Retry each transfer independently; retain retry.sh's bounded random backoff.
+    command = [
+        "bash",
+        "-c",
+        '. "$1"; shift; retry 3 "$@"',
+        "s3",
+        str(RETRY_SCRIPT),
+        "aws",
+        "s3",
+        "cp",
+        "--no-progress",
+    ]
     if recursive:
-        cmd += " --recursive"
-
-    cmd += f" {source} {destination}"
-    _, stdout = SH.tee(cmd)
+        command.append("--recursive")
+    command.extend([source, destination])
+    logging.info("Copying %s to %s", source, destination)
+    with subprocess.Popen(command, stdout=subprocess.PIPE, text=True) as process:
+        output = []
+        for line in process.stdout:
+            print(line, end="", flush=True)
+            output.append(line)
+        stdout = "".join(output)
+        if process.wait():
+            raise subprocess.CalledProcessError(process.returncode, command, stdout)
     return stdout
 
 
 if __name__ == "__main__":
-    init_log()
+    logging.basicConfig(
+        format="[%(filename)s:%(lineno)d %(levelname)s] %(message)s", level=logging.INFO
+    )
     help = "Uploads or downloads files from S3"
     parser = argparse.ArgumentParser(description=help)
     parser.add_argument("--action", help="either 'upload' or 'download'", required=True)
@@ -132,8 +151,6 @@ if __name__ == "__main__":
         parser.error("--items and --bundle are mutually exclusive")
 
     logging.info(args)
-
-    sh = Sh()
 
     if Path.cwd() != REPO_ROOT:
         logging.error(f"s3.py can only be executed from the repo root, instead was in {Path.cwd()}")

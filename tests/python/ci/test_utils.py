@@ -25,8 +25,8 @@ import subprocess
 from typing import Any
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent
-GITHUB_SCRIPT_ROOT = REPO_ROOT / "ci" / "scripts" / "github"
-JENKINS_SCRIPT_ROOT = REPO_ROOT / "ci" / "scripts" / "jenkins"
+GITHUB_SCRIPT_ROOT = REPO_ROOT / "ci" / "github"
+JENKINS_SCRIPT_ROOT = REPO_ROOT / "ci" / "jenkins" / "scripts"
 
 
 class TempGit:

@@ -18,13 +18,10 @@
 """Test various CI scripts and GitHub Actions workflows"""
 
 import json
-import os
 import subprocess
 from pathlib import Path
 
 import pytest
-
-import tvm.testing
 
 from .test_utils import JENKINS_SCRIPT_ROOT, TempGit, run_script
 
@@ -170,123 +167,6 @@ def assert_in(needle: str, haystack: str):
         raise AssertionError(f"item not found:\n{needle}\nin:\n{haystack}")
 
 
-@pytest.mark.skipif(
-    os.getenv("WHEEL_TEST", "").lower() in {"true", "1", "yes"},
-    reason="Test not supported in wheel.",
-)
-@parameterize_named(
-    same_tags=dict(
-        tlcpackstaging_body={
-            "results": [
-                {
-                    "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "123-123-abc",
-                },
-            ]
-        },
-        tlcpack_body={
-            "results": [
-                {
-                    "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "123-123-abc",
-                },
-            ]
-        },
-        expected="Tag names were the same, no update needed",
-        expected_images=[],
-    ),
-    staging_update=dict(
-        tlcpackstaging_body={
-            "results": [
-                {
-                    "last_updated": "2022-06-01T01:00:00.123456Z",
-                    "name": "234-234-abc-staging",
-                },
-                {
-                    "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "456-456-abc",
-                },
-            ]
-        },
-        tlcpack_body={
-            "results": [
-                {
-                    "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "123-123-abc",
-                },
-            ]
-        },
-        expected="Using tlcpackstaging tag on tlcpack",
-        expected_images=[
-            "ci_arm: tlcpack/ci-arm:456-456-abc",
-        ],
-    ),
-    tlcpack_update=dict(
-        tlcpackstaging_body={
-            "results": [
-                {
-                    "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "123-123-abc",
-                },
-            ]
-        },
-        tlcpack_body={
-            "results": [
-                {
-                    "last_updated": "2022-06-01T00:01:00.123456Z",
-                    "name": "234-234-abc",
-                },
-            ]
-        },
-        expected="Found newer image, using: tlcpack",
-        expected_images=[
-            "ci_arm: tlcpack/ci-arm:234-234-abc",
-        ],
-    ),
-)
-def test_open_docker_update_pr(
-    tmpdir_factory, tlcpackstaging_body, tlcpack_body, expected, expected_images
-):
-    """Test workflow to open a PR to update Docker images"""
-    tag_script = JENKINS_SCRIPT_ROOT / "open_docker_update_pr.py"
-
-    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
-    git.run("config", "user.name", "ci")
-    git.run("config", "user.email", "email@example.com")
-    images = [
-        "ci_arm",
-        "ci_cortexm",
-        "ci_cpu",
-        "ci_gpu",
-        "ci_minimal",
-        "ci_riscv",
-        "ci_wasm",
-    ]
-
-    docker_data = {}
-    for image in images:
-        docker_data[f"repositories/tlcpackstaging/{image}/tags"] = tlcpackstaging_body
-        docker_data[f"repositories/tlcpack/{image.replace('_', '-')}/tags"] = tlcpack_body
-
-    proc = run_script(
-        [
-            tag_script,
-            "--dry-run",
-            "--testing-docker-data",
-            json.dumps(docker_data),
-        ],
-        cwd=git.cwd,
-        env={"GITHUB_TOKEN": "1234"},
-        stderr=subprocess.STDOUT,
-    )
-
-    for line in expected_images:
-        if line not in proc.stdout:
-            raise RuntimeError(f"Missing line {line} in output:\n{proc.stdout}")
-
-    assert_in(expected, proc.stdout)
-
-
 @parameterize_named(
     use_tlcpack=dict(
         images=["ci_arm", "ci_cpu"],
@@ -423,4 +303,4 @@ def test_should_rebuild_docker(tmpdir_factory, changed_files, name, check, expec
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    raise SystemExit(pytest.main([__file__]))

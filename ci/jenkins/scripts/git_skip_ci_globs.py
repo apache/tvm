@@ -20,7 +20,7 @@
 import argparse
 import fnmatch
 
-from git_utils import git
+from git_skip_ci import git
 
 globs = [
     "*.md",

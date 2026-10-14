@@ -17,11 +17,44 @@
 # under the License.
 
 import argparse
+import json
 import logging
 import os
+import re
+import subprocess
+from urllib import request
 
-from cmd_utils import init_log, tags_from_title
-from git_utils import GitHubRepo, git, parse_remote
+
+def parse_remote(remote: str) -> tuple[str, str]:
+    """
+    Get a GitHub (user, repo) pair out of a git remote
+    """
+    if remote.startswith("https://"):
+        # Parse HTTP remote
+        parts = remote.split("/")
+        if len(parts) < 2:
+            raise RuntimeError(f"Unable to parse remote '{remote}'")
+        user, repo = parts[-2], parts[-1].replace(".git", "")
+    else:
+        # Parse SSH remote
+        m = re.search(r":(.*)/(.*)\.git", remote)
+        if m is None or len(m.groups()) != 2:
+            raise RuntimeError(f"Unable to parse remote '{remote}'")
+        user, repo = m.groups()
+
+    user = os.getenv("DEBUG_USER", user)
+    repo = os.getenv("DEBUG_REPO", repo)
+    return user, repo
+
+
+def git(command, **kwargs):
+    command = ["git", *command]
+    logging.info(f"Running {command}")
+    proc = subprocess.run(command, stdout=subprocess.PIPE, encoding="utf-8", **kwargs)
+    if proc.returncode != 0:
+        raise RuntimeError(f"Command failed {command}:\nstdout:\n{proc.stdout}")
+    return proc.stdout.strip()
+
 
 if __name__ == "__main__":
     help = "Exits with 0 if CI should be skipped, 1 otherwise"
@@ -32,7 +65,9 @@ if __name__ == "__main__":
         "--pr-title", help="(testing) PR title to use instead of fetching from GitHub"
     )
     args = parser.parse_args()
-    init_log()
+    logging.basicConfig(
+        format="[%(filename)s:%(lineno)d %(levelname)s] %(message)s", level=logging.INFO
+    )
 
     branch = git(["rev-parse", "--abbrev-ref", "HEAD"])
     log = git(["log", "--format=%s", "-1"])
@@ -45,11 +80,15 @@ if __name__ == "__main__":
         if args.pr_title:
             title = args.pr_title
         else:
-            github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
-            pr = github.get(f"pulls/{args.pr}")
+            req = request.Request(
+                f"https://api.github.com/repos/{user}/{repo}/pulls/{args.pr}",
+                headers={"Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}"},
+            )
+            with request.urlopen(req) as response:
+                pr = json.loads(response.read())
             title = pr["title"]
         logging.info(f"pr title: {title}")
-        tags = tags_from_title(title)
+        tags = [tag.strip() for tag in re.findall(r"\[(.*?)\]", title)]
         logging.info(f"Found title tags: {tags}")
         return "skip ci" in tags
 

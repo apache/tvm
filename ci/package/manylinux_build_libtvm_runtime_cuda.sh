@@ -25,7 +25,7 @@
 # Usage: manylinux_build_libtvm_runtime_cuda.sh
 set -euxo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 build_dir="${repo_root}/build-wheel-cuda"
 parallel="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 

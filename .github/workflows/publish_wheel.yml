@@ -60,19 +60,19 @@ jobs:
             os: ubuntu-latest
             container: quay.io/manylinux_cuda/manylinux_2_28_x86_64_cuda13_1:latest
             arch: x86_64
-            script: ci/scripts/package/manylinux_build_libtvm_runtime_cuda.sh
+            script: ci/package/manylinux_build_libtvm_runtime_cuda.sh
             lib: build-wheel-cuda/lib/libtvm_runtime_cuda.so
           - name: "CUDA runtime sidecar (Linux aarch64, manylinux_2_28)"
             os: ubuntu-24.04-arm
             container: quay.io/manylinux_cuda/manylinux_2_28_aarch64_cuda13_1:latest
             arch: aarch64
-            script: ci/scripts/package/manylinux_build_libtvm_runtime_cuda.sh
+            script: ci/package/manylinux_build_libtvm_runtime_cuda.sh
             lib: build-wheel-cuda/lib/libtvm_runtime_cuda.so
           - name: "CUDA runtime sidecar (Windows AMD64)"
             os: windows-2022
             container: ""
             arch: AMD64
-            script: ci/scripts/package/windows_build_libtvm_runtime_cuda.bat
+            script: ci/package/windows_build_libtvm_runtime_cuda.bat
             lib: build-wheel-cuda/lib/tvm_runtime_cuda.dll
     steps:
       # The containerized Linux legs check out as root; mark the tree safe so git

@@ -25,8 +25,9 @@ import urllib.error
 from pathlib import Path
 from typing import Any
 
-from cmd_utils import REPO_ROOT, init_log
 from http_utils import get
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 DOCKER_API_BASE = "https://hub.docker.com/v2/"
 PAGE_SIZE = 25
@@ -83,7 +84,9 @@ def lookup_image_tag(name: str) -> str:
 
 
 if __name__ == "__main__":
-    init_log()
+    logging.basicConfig(
+        format="[%(filename)s:%(lineno)d %(levelname)s] %(message)s", level=logging.INFO
+    )
     parser = argparse.ArgumentParser(
         description="Writes out Docker images names to be used to .docker-image-names/"
     )

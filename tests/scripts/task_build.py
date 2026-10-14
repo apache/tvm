@@ -15,22 +15,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E402
 import argparse
 import logging
 import multiprocessing
 import os
 import shutil
-import sys
+import subprocess
 from pathlib import Path
 
-# Hackery to enable importing of utils from ci/scripts/jenkins
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
-from cmd_utils import REPO_ROOT, Sh, init_log
 
 if __name__ == "__main__":
-    init_log()
+    logging.basicConfig(
+        format="[%(filename)s:%(lineno)d %(levelname)s] %(message)s", level=logging.INFO
+    )
 
     parser = argparse.ArgumentParser(description="List pytest nodeids for a folder")
     parser.add_argument("--sccache-bucket", required=False, help="sccache bucket name")
@@ -48,7 +46,7 @@ if __name__ == "__main__":
     use_sccache = sccache_exe is not None
     build_dir = Path(os.getcwd()) / args.build_dir
     build_dir = build_dir.relative_to(REPO_ROOT)
-    env = {}
+    env = os.environ.copy()
 
     if use_sccache:
         if args.sccache_bucket and "AWS_ACCESS_KEY_ID" in os.environ:
@@ -70,12 +68,10 @@ if __name__ == "__main__":
             reason = "<unknown>"
         logging.info(f"Not using sccache, reason: {reason}")
 
-    sh = Sh(env)
-
     if use_sccache:
-        sh.run("sccache --start-server", check=False)
+        subprocess.run(["sccache", "--start-server"], env=env, check=False)
         logging.info("===== sccache stats =====")
-        sh.run("sccache --show-stats")
+        subprocess.run(["sccache", "--show-stats"], env=env, check=True)
 
     executors = int(os.environ.get("CI_NUM_EXECUTORS", 1))
     build_platform = os.environ.get("PLATFORM", None)
@@ -85,22 +81,21 @@ if __name__ == "__main__":
     available_cpus = nproc // executors
     num_cpus = max(available_cpus, 1)
 
-    if args.debug:
-        sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..", cwd=build_dir)
-    else:
-        sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
+    build_type = "Debug" if args.debug else "RelWithDebInfo"
+    subprocess.run(
+        ["cmake", "-GNinja", f"-DCMAKE_BUILD_TYPE={build_type}", ".."],
+        cwd=build_dir,
+        env=env,
+        check=True,
+    )
 
-    target = ""
+    ninja_args = [f"-j{num_cpus}"]
     if args.cmake_target:
-        target = args.cmake_target
-
-    verbose = os.environ.get("VERBOSE", "true").lower() in {"1", "true", "yes"}
-    ninja_args = [target, f"-j{num_cpus}"]
-    if verbose:
+        ninja_args.insert(0, args.cmake_target)
+    if os.environ.get("VERBOSE", "true").lower() in {"1", "true", "yes"}:
         ninja_args.append("-v")
-
-    sh.run("cmake --build . -- " + " ".join(ninja_args), cwd=build_dir)
+    subprocess.run(["cmake", "--build", ".", "--", *ninja_args], cwd=build_dir, env=env, check=True)
 
     if use_sccache:
         logging.info("===== sccache stats =====")
-        sh.run("sccache --show-stats")
+        subprocess.run(["sccache", "--show-stats"], env=env, check=True)
