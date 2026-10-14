@@ -201,7 +201,7 @@ class TileLayoutNode : public LayoutNode {
   ffi::Optional<Tuple<ExecScope, ExecScope>> GetScope() const;
 
   /*! \brief Get the default layout for the shape */
-  static TileLayout DefaultLayout(ffi::Array<PrimExpr> shape);
+  TVM_TIRX_DLL static TileLayout DefaultLayout(ffi::Array<PrimExpr> shape);
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TileLayout", TileLayoutNode, LayoutNode);
 };

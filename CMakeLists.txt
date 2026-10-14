@@ -132,13 +132,12 @@ add_library(tvm_runtime_extra SHARED)
 list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_extra)
 set_target_properties(tvm_runtime_extra PROPERTIES LINKER_LANGUAGE CXX)
 # INTERFACE target carrying compile definitions for OBJECT libs that build
-# into tvm_runtime_extra. On MSVC, TVM_RUNTIME_EXPORTS makes TVM_RUNTIME_DLL
-# expand to __declspec(dllexport) so that functions defined in extra modules
-# are properly exported from tvm_runtime_extra.dll.
+# into tvm_runtime_extra. On MSVC, TVM_RUNTIME_EXTRA_EXPORTS exports extra-owned
+# APIs while core-runtime APIs remain imports from tvm_runtime.dll.
 add_library(tvm_runtime_extra_defs INTERFACE)
 target_link_libraries(tvm_runtime_extra_defs INTERFACE tvm_ffi_header)
 target_compile_definitions(tvm_runtime_extra_defs
-  INTERFACE TVM_RUNTIME_EXPORTS TVM_FFI_EXPORTS)
+  INTERFACE TVM_RUNTIME_EXTRA_EXPORTS TVM_FFI_EXPORTS)
 
 
 # Check if this is being run on its own or as a subdirectory for another project
