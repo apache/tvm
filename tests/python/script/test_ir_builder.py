@@ -49,3 +49,82 @@ def test_ir_builder_irmodule():
     ir_module_expected = ir.IRModule(None, None)
 
     assert_structural_equal(ir_module_actual, ir_module_expected, map_free_vars=True)
+
+
+def _source_loc(name, line, column=1, end_line=None, end_column=20):
+    return ir.SourceLoc(ir.SourceName(name), line, column, end_line or line, end_column)
+
+
+def _source_chain(loc):
+    if isinstance(loc, ir.CallSiteLoc):
+        return [*_source_chain(loc.caller), *_source_chain(loc.callee)]
+    return [loc]
+
+
+def test_attach_loc_normalizes_full_stack_and_preserves_identity():
+    caller = _source_loc("caller.py", 2)
+    outer = _source_loc("definition.py", 1, end_line=10)
+    inner = _source_loc("definition.py", 3)
+    leaf = _source_loc("leaf.py", 5)
+    node = ir.prim.IntImm("int32", 1)
+    with IRBuilder() as ib:
+        with ib.with_loc(caller), ib.with_loc(outer), ib.with_loc(ir.UnknownLoc()):
+            with ib.with_loc(ir.CallSiteLoc(inner, caller)):
+                assert ib._attach_loc(node, leaf) is node
+    assert_structural_equal(node.loc, ir.CallSiteLoc(leaf, ir.CallSiteLoc(inner, caller)))
+
+
+def test_attach_loc_preserves_shared_prefix_and_receipt_identity():
+    from tvm.script.ir_builder.base import AlreadyEmitted, at
+
+    caller = _source_loc("caller.py", 2)
+    callee = _source_loc("definition.py", 3)
+    node = ir.prim.IntImm("int32", 1)
+    receipt = AlreadyEmitted(node)
+    container = [node]
+    with IRBuilder() as ib:
+        with ib.with_loc(caller):
+            assert ib._attach_loc(node) is node
+            with ib.with_loc(callee):
+                assert at(caller, receipt) is receipt
+                assert receipt.value is node
+                assert at(caller, container) is container
+    assert_structural_equal(node.loc, ir.CallSiteLoc(callee, caller))
+
+
+def test_unknown_attachment_and_scope_exception_restore_context():
+    from tvm.script.ir_builder.base import at
+
+    caller = _source_loc("caller.py", 2)
+    callee = _source_loc("definition.py", 3)
+    node = ir.prim.IntImm("int32", 1)
+    with IRBuilder() as ib:
+        assert ib._attach_loc(node) is node
+        assert isinstance(node.loc, ir.UnknownLoc)
+        with ib.with_loc(caller):
+            assert at(ir.UnknownLoc(), node) is node
+            assert isinstance(node.loc, ir.UnknownLoc)
+            with pytest.raises(RuntimeError, match="scope failure"):
+                with ib.with_loc(callee):
+                    raise RuntimeError("scope failure")
+            ib._attach_loc(node)
+        assert node.loc.same_as(caller)
+        untouched = ir.prim.IntImm("int32", 2)
+        ib._attach_loc(untouched)
+        assert isinstance(untouched.loc, ir.UnknownLoc)
+    assert not IRBuilder.is_in_scope()
+
+
+def test_frame_captures_full_location_stack_before_entering():
+    caller = _source_loc("caller.py", 2)
+    callee = _source_loc("definition.py", 3)
+    with IRBuilder() as ib:
+        with ib.with_loc(caller), ib.with_loc(callee):
+            frame = I.ir_module()
+        assert_structural_equal(frame.loc, ir.CallSiteLoc(callee, caller))
+        with frame:
+            pass
+    assert [loc.source_name.name for loc in _source_chain(frame.loc)] == [
+        "caller.py",
+        "definition.py",
+    ]

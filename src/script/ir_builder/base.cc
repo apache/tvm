@@ -124,7 +124,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 IRBuilderFrameObj::IRBuilderFrameObj() {
-  if (IRBuilder::IsInScope()) loc = IRBuilder::Current()->GetCurrentLoc();
+  if (IRBuilder::IsInScope()) loc = IRBuilder::Current()->ResolveLoc();
 }
 
 void IRBuilderFrameObj::EnterWithScope() {
@@ -162,7 +162,7 @@ void IRBuilderObj::PopLoc() {
   locs.pop_back();
 }
 
-Location IRBuilderObj::GetCurrentLoc(Location location) const {
+Location IRBuilderObj::ResolveLoc(Location location) const {
   std::vector<Location> normalized;
   normalized.reserve(locs.size());
   for (const Location& loc : locs) {
@@ -172,12 +172,8 @@ Location IRBuilderObj::GetCurrentLoc(Location location) const {
   return NormalizedLoc(normalized);
 }
 
-ffi::ObjectRef IRBuilderObj::SetCurrentLoc(ffi::ObjectRef obj) const {
-  return SetLoc(std::move(obj), UnknownLoc());
-}
-
-ffi::ObjectRef IRBuilderObj::SetLoc(ffi::ObjectRef obj, Location loc) const {
-  loc = ComposeLoc(GetCurrentLoc(), loc);
+ffi::ObjectRef IRBuilderObj::AttachLoc(ffi::ObjectRef obj, Location loc) const {
+  loc = ComposeLoc(ResolveLoc(), loc);
   if (!loc.as<UnknownLocNode>() && obj.defined()) {
     if (Location* target = details::LocationAccessor::vtable()(obj)) {
       *target = ComposeLoc(loc, *target);
@@ -266,8 +262,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("script.ir_builder.IRBuilderGet", &IRBuilderObj::Get<ffi::ObjectRef>)
       .def_method("script.ir_builder.IRBuilderPushLoc", &IRBuilderObj::PushLoc)
       .def_method("script.ir_builder.IRBuilderPopLoc", &IRBuilderObj::PopLoc)
-      .def_method("script.ir_builder.IRBuilderSetCurrentLoc", &IRBuilderObj::SetCurrentLoc)
-      .def_method("script.ir_builder.IRBuilderSetLoc", &IRBuilderObj::SetLoc)
+      .def_method("script.ir_builder.IRBuilderAttachLoc", &IRBuilderObj::AttachLoc)
       .def("script.ir_builder.IRBuilderName", IRBuilder::Name<ffi::ObjectRef>);
 }
 

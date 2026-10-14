@@ -44,7 +44,7 @@ inline IRModuleFrame FindModuleFrame(const ffi::String& method) {
 /*! \brief Add an eager statement under the current source-call context. */
 inline void AddToParent(tvm::Stmt stmt) {
   // Some builder paths use an undefined statement as an omitted branch.
-  if (stmt.defined()) IRBuilder::Current()->SetCurrentLoc(stmt);
+  if (stmt.defined()) IRBuilder::Current()->AttachLoc(stmt);
   AddToParent(std::move(stmt), UnknownLoc());
 }
 
