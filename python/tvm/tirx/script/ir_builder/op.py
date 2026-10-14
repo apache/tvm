@@ -21,10 +21,6 @@ from __future__ import annotations
 import functools
 from typing import Any
 
-import tvm_ffi as _ffi
-
-# isort: off
-# isort: on
 from tvm import ir
 from tvm import ir as _ir
 from tvm import tirx as _tir
@@ -608,7 +604,7 @@ def logical_and(*values):
     Parameters
     ----------
     values : Expr or Python value
-        One or more operands. Object-convertible values are normalized first.
+        One or more operands. Values implementing ``__tvm_ffi_object__`` are normalized first.
         Host pairs follow Python logical operations; IR pairs use scalar logical
         or vector bitwise operations according to their types.
 
@@ -625,7 +621,8 @@ def logical_and(*values):
     if not values:
         raise TypeError("logical_and requires at least one operand")
     values = [
-        value.asobject() if isinstance(value, _ffi.ObjectConvertible) else value for value in values
+        value.__tvm_ffi_object__() if hasattr(value, "__tvm_ffi_object__") else value
+        for value in values
     ]
     result = values[0]
     for value in values[1:]:
@@ -643,7 +640,7 @@ def logical_or(*values):
     Parameters
     ----------
     values : Expr or Python value
-        One or more operands. Object-convertible values are normalized first.
+        One or more operands. Values implementing ``__tvm_ffi_object__`` are normalized first.
         Host pairs follow Python logical operations; IR pairs use scalar logical
         or vector bitwise operations according to their types.
 
@@ -660,7 +657,8 @@ def logical_or(*values):
     if not values:
         raise TypeError("logical_or requires at least one operand")
     values = [
-        value.asobject() if isinstance(value, _ffi.ObjectConvertible) else value for value in values
+        value.__tvm_ffi_object__() if hasattr(value, "__tvm_ffi_object__") else value
+        for value in values
     ]
     result = values[0]
     for value in values[1:]:
@@ -678,7 +676,7 @@ def logical_not(value):
     Parameters
     ----------
     value : Expr or Python value
-        Operand to negate. Object-convertible values are normalized first;
+        Operand to negate. Values implementing ``__tvm_ffi_object__`` are normalized first;
         IR expressions use primitive Not and host values use Python not.
 
     Returns
@@ -686,8 +684,8 @@ def logical_not(value):
     result : Expr or bool
         The logical negation without testing an IR expression as a Python bool.
     """
-    if isinstance(value, _ffi.ObjectConvertible):
-        value = value.asobject()
+    if hasattr(value, "__tvm_ffi_object__"):
+        value = value.__tvm_ffi_object__()
     return _tir.Not(value) if isinstance(value, _ir.Expr) else not value
 
 
@@ -697,7 +695,7 @@ def select(condition, true_value, false_value):
     Parameters
     ----------
     condition : Expr or Python value
-        Scalar IR condition or host truth value. Object-convertible conditions
+        Scalar IR condition or host truth value. Conditions implementing ``__tvm_ffi_object__``
         are normalized before selection.
     true_value : Expr or Python value
         Value selected when the condition is true.
@@ -714,8 +712,8 @@ def select(condition, true_value, false_value):
     Both Python value arguments are constructed before this call. The generated
     IR conditional evaluates only its selected arm at runtime.
     """
-    if isinstance(condition, _ffi.ObjectConvertible):
-        condition = condition.asobject()
+    if hasattr(condition, "__tvm_ffi_object__"):
+        condition = condition.__tvm_ffi_object__()
     if not isinstance(condition, _ir.Expr):
         return true_value if condition else false_value
     return _tir.if_then_else(condition, true_value, false_value)
