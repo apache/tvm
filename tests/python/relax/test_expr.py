@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F811
+import json
+
 import numpy as np
 import pytest
 import tvm_ffi
@@ -479,6 +481,110 @@ def test_shared_operator_surface_calls_function_typed_values():
         assert call.op.same_as(func)
         assert len(call.args) == 1
         assert call.args[0].same_as(arg)
+
+
+def test_op_set_signature_preserves_custom_validator():
+    op = tvm.ir.Op.get("relax.call_pure_packed")
+    original_args = [(info.name, info.doc) for info in op.args_info]
+    original_ty_args = [(info.name, info.doc) for info in op.ty_args_info]
+    original_var_args = (op.var_args_info.name, op.var_args_info.doc)
+    original_var_ty_args = (op.var_ty_args_info.name, op.var_ty_args_info.doc)
+    try:
+        op.set_signature()
+        with pytest.raises(TypeError, match="call_pure_packed expects a function argument"):
+            tvm.ir.Call(op, []).validate()
+    finally:
+        op.set_signature(
+            original_args,
+            ty_args=original_ty_args,
+            var_args=original_var_args,
+            var_ty_args=original_var_ty_args,
+        )
+
+
+_LEGACY_TIRX_VAR_JSON = """{
+  "root_index": 6,
+  "nodes": [
+    {"type": "ir.SourceName", "data": "legacy_tirx.py"},
+    {"type": "ir.SourceLoc", "data": {"source_name": 0, "start_line": 7, "start_column": 2,
+      "end_line": 9, "end_column": 14}},
+    {"type": "ir.UnknownLoc", "data": null},
+    {"type": "ir.PrimType", "data": {"loc": 2, "dtype": "int64"}},
+    {"type": "ffi.String", "data": "legacy"},
+    {"type": "tirx.Var", "data": {"loc": 1, "ty": 3, "name": 4}},
+    {"type": "tirx.Add", "data": {"loc": 1, "ty": 3, "a": 5, "b": 5}}
+  ],
+  "metadata": {"tvm_version": "0.26.dev0"}
+}"""
+
+
+def _make_pre_name_field_json(type_key):
+    graph = json.loads(_LEGACY_TIRX_VAR_JSON)
+    graph["root_index"] = 5
+    var = graph["nodes"][5]
+    var["type"] = type_key
+    var["data"]["name_hint"] = var["data"].pop("name")
+    return json.dumps(graph)
+
+
+def _check_legacy_var(
+    var, source_name, line, end_line, column, end_column, expected_type=tvm.ir.Var
+):
+    assert type(var) is expected_type
+    assert var.name == "legacy"
+    assert var.ty == tvm.ir.PrimType("int64")
+    assert var.loc.source_name.name == source_name
+    assert var.loc.start_line == line
+    assert var.loc.end_line == end_line
+    assert var.loc.start_column == column
+    assert var.loc.end_column == end_column
+
+
+_PRE_NAME_FIELD_DATAFLOW_VAR_JSON = _make_pre_name_field_json("relax.expr.DataflowVar")
+
+
+@pytest.mark.parametrize(
+    ("legacy_json", "expected_type"),
+    [
+        (_PRE_NAME_FIELD_DATAFLOW_VAR_JSON, tvm.relax.DataflowVar),
+    ],
+)
+def test_var_name_legacy_json_load(legacy_json, expected_type):
+    restored = tvm.ir.load_json(legacy_json)
+    _check_legacy_var(restored, "legacy_tirx.py", 7, 9, 2, 14, expected_type)
+    graph = json.loads(tvm.ir.save_json(restored))
+    fields = graph["nodes"][graph["root_index"]]["data"]
+    assert "name" in fields
+    assert "name_hint" not in fields
+
+
+def test_dataflow_var_json_is_not_migrated_to_canonical_var():
+    dataflow_var = tvm.relax.DataflowVar("value", tvm.ir.PrimType("int64"))
+    graph = json.loads(tvm.ir.save_json(dataflow_var))
+    root = graph["nodes"][graph["root_index"]]
+    assert root["type"] == "relax.expr.DataflowVar"
+    restored = tvm.ir.load_json(json.dumps(graph))
+    assert type(restored) is tvm.relax.DataflowVar
+
+
+def _empty_relax_func():
+    return rx.Function([], rx.Tuple([]))
+
+
+def test_ir_module_from_expr_freshens_main_collision():
+    main_gv = tvm.ir.GlobalVar("main")
+    mod = tvm.IRModule.from_expr(_empty_relax_func(), {main_gv: _empty_relax_func()})
+
+    assert sorted(gvar.name_hint for gvar in mod.get_global_vars()) == ["main", "main_1"]
+
+
+def test_ir_module_from_expr_reuses_existing_global_symbol():
+    foo_gv = tvm.ir.GlobalVar("foo")
+    func = _empty_relax_func().with_attr("global_symbol", "foo")
+    mod = tvm.IRModule.from_expr(func, {foo_gv: _empty_relax_func()})
+
+    assert mod.get_global_var("foo").same_as(foo_gv)
+    assert [gvar.name_hint for gvar in mod.get_global_vars()] == ["foo"]
 
 
 if __name__ == "__main__":

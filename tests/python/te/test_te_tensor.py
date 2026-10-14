@@ -223,6 +223,29 @@ def test_tensor_inputs():
     assert tuple(y.op.input_tensors) == (x,)
 
 
+def test_make_sum():
+    A = te.placeholder((2, 10), name="A")
+    k = te.reduce_axis((0, 10), "k")
+    B = te.compute((2,), lambda i: te.sum(A[i, k], axis=k), name="B")
+    json_str = tvm.ir.save_json(B)
+    BB = tvm.ir.load_json(json_str)
+    assert B.op.body[0].combiner is not None
+    assert BB.op.body[0].combiner is not None
+
+
+def test_tensor_make_node():
+    tensor = te.placeholder((10,), name="A")
+    restored = tvm.ir.make_node(
+        "te.Tensor",
+        shape=tensor.shape,
+        dtype=tensor.dtype,
+        op=tensor.op,
+        value_index=tensor.value_index,
+    )
+    assert restored.op == tensor.op
+    assert restored.value_index == tensor.value_index
+
+
 if __name__ == "__main__":
     test_tensor()
     test_rank_zero()

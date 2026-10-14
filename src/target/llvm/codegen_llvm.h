@@ -62,7 +62,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../tirx/transform/ir_utils.h"
 #include "codegen_params.h"
 #include "llvm_instance.h"
 
@@ -261,6 +260,9 @@ class CodeGenLLVM : public tvm::ExprFunctor<llvm::Value*(const Expr&)>,
       llvm::GlobalValue::LinkageTypes linkage_type = llvm::GlobalValue::InternalLinkage);
 
  protected:
+  /*! \brief Allocation alignment for constant-size temporary arrays. */
+  static int GetTempAllocaAlignment(const PrimType& type, int64_t const_size);
+
   /*!
    * \brief Address and type pair to assist in handling opaque pointers.
    */
