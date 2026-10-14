@@ -359,16 +359,23 @@ def test_roundtrip_unary_inplace():
 
     code = test.script()
     # Opcode and explicit operand aliases survive printing.
-    expected = 'T.cuda.tile.apply("ex2.approx.ftz.f32", (A[0:32], A[0:32]), (), scope="warp")'
+    expected = (
+        'T.cuda.tile.apply("ex2.approx.ftz.f32", (A[0:32], A[0:32]), '
+        '(), scope=T.ThreadScope("cuda.warp"))'
+    )
     assert expected in code, (
         f"expected explicit exp2, got:\n{code}"
     )
-    assert 'T.cuda.tile.apply("sqrt.rn.f32", (A[32:64], A[32:64]), (), scope="warp")' in code, (
+    expected = (
+        'T.cuda.tile.apply("sqrt.rn.f32", (A[32:64], A[32:64]), '
+        '(), scope=T.ThreadScope("cuda.warp"))'
+    )
+    assert expected in code, (
         f"expected explicit sqrt, got:\n{code}"
     )
     expected = (
         'T.cuda.tile.apply("div.rn.f32", (A[64:96], T.float32(1.0), A[64:96]), '
-        '(), scope="warp")'
+        '(), scope=T.ThreadScope("cuda.warp"))'
     )
     assert expected in code, (
         f"expected explicit reciprocal, got:\n{code}"
@@ -395,7 +402,10 @@ def test_roundtrip_unary_different_dst_src():
         # fmt: on
 
     code = test.script()
-    expected = 'T.cuda.tile.apply("ex2.approx.ftz.f32", (A[0:32], B[0:32]), (), scope="warp")'
+    expected = (
+        'T.cuda.tile.apply("ex2.approx.ftz.f32", (A[0:32], B[0:32]), '
+        '(), scope=T.ThreadScope("cuda.warp"))'
+    )
     assert expected in code, (
         f"different dst/src should keep both:\n{code}"
     )

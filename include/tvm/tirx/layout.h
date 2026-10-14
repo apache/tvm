@@ -31,7 +31,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/tile/exec_scope.h>
+#include <tvm/tirx/tile/thread_scope.h>
 
 namespace tvm {
 
@@ -78,7 +78,7 @@ class Layout : public ffi::ObjectRef {
 };
 
 // target, subscope, scope, iter -> fused_iter
-using FAxisFuser = ffi::TypedFunction<ffi::Optional<Iter>(Target, ffi::String, ffi::String, Iter)>;
+using FAxisFuser = ffi::TypedFunction<ffi::Optional<Iter>(Target, ThreadScope, ThreadScope, Iter)>;
 
 // Axis
 class AxisNode : public ffi::EnumObj {
@@ -93,10 +93,10 @@ class AxisNode : public ffi::EnumObj {
   ffi::Optional<ffi::String> GetBackend() const;
 
   /*! \brief Get the scope of the (thread) axis. */
-  ffi::Optional<ExecScope> GetScope() const;
+  ffi::Optional<ThreadScope> GetScope() const;
 
   /*! \brief Get the subscope of the (thread) axis. */
-  ffi::Optional<ExecScope> GetSubscope() const;
+  ffi::Optional<ThreadScope> GetSubscope() const;
 
   /*! \brief Get the fuser of the (thread) axis. */
   ffi::Optional<FAxisFuser> GetFuser() const;
@@ -198,7 +198,7 @@ class TileLayoutNode : public LayoutNode {
   bool HasThreadAxis() const;
 
   /*! \brief Get the scope pair of the layout */
-  ffi::Optional<Tuple<ExecScope, ExecScope>> GetScope() const;
+  ffi::Optional<Tuple<ThreadScope, ThreadScope>> GetScope() const;
 
   /*! \brief Get the default layout for the shape */
   TVM_TIRX_DLL static TileLayout DefaultLayout(ffi::Array<PrimExpr> shape);

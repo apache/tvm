@@ -33,7 +33,7 @@ _LAZY_SUBMODULES = {
     "lang",
     "layout",
     "axis",
-    "exec_scope",
+    "thread_scope",
     "launch",
     "op",
     "ptx",
@@ -60,9 +60,8 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register CUDA-owned Python semantics."""
-    from . import axis, exec_scope
+    from . import axis
 
-    exec_scope.register()
     axis.register()
     from tvm.target.detect_target import register_device_target_detector
     from tvm.tirx.script.ir_builder import (
@@ -127,7 +126,6 @@ __all__ = [
     "axis",
     "codegen",
     "cpp",
-    "exec_scope",
     "export_cuda_host",
     "iket",
     "lang",
@@ -140,6 +138,7 @@ __all__ = [
     "script_namespace",
     "script_namespaces",
     "target_tags",
+    "thread_scope",
     "tile",
     "transforms",
 ]

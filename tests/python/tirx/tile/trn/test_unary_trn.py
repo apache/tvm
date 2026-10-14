@@ -27,7 +27,7 @@ from tvm.tirx.layout import S, TileLayout
 target = tvm.target.Target("aws/trn1/trn1.2xlarge")
 
 
-def _strip_exec_scope_stmt(stmt):
+def _strip_thread_scope_stmt(stmt):
     def _strip_region(node: tvm.ir.RegionStmt):
         if node.op.same_as(tvm.ir.Op.get("tirx.device_entry")):
             return node.body
@@ -42,9 +42,9 @@ def _strip_exec_scope_stmt(stmt):
 
 def assert_structural_equal(lhs, rhs, *args, **kwargs):
     if isinstance(lhs, tvm.tirx.Function):
-        lhs = lhs.with_body(_strip_exec_scope_stmt(lhs.body))
+        lhs = lhs.with_body(_strip_thread_scope_stmt(lhs.body))
     if isinstance(rhs, tvm.tirx.Function):
-        rhs = rhs.with_body(_strip_exec_scope_stmt(rhs.body))
+        rhs = rhs.with_body(_strip_thread_scope_stmt(rhs.body))
     _assert_structural_equal(lhs, rhs, *args, **kwargs)
 
 

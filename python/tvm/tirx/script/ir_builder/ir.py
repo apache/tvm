@@ -42,7 +42,6 @@ from tvm.target import Target
 
 # pylint: disable=unused-import
 from tvm.tirx import Expr, IndexMap, Var, is_tensor_var, tile
-from tvm.tirx.exec_scope import ExecScope
 
 # import tirx.expr for direct ir construction to pass structural_equal comparison
 from tvm.tirx.expr import (
@@ -51,6 +50,7 @@ from tvm.tirx.expr import (
     TensorLoad,
 )
 from tvm.tirx.layout import Axis, ComposeLayout, Iter, Layout, R, S, TileLayout
+from tvm.tirx.thread_scope import ThreadScope
 
 from . import _ffi_api
 
@@ -1064,7 +1064,6 @@ Tensor = tir.TensorType
 __all__ = [
     "Axis",
     "ComposeLayout",
-    "ExecScope",
     "FloatImm",
     "IntImm",
     "Iter",
@@ -1080,6 +1079,7 @@ __all__ = [
     "TensorLoad",
     "TensorMap",
     "TensorRegion",
+    "ThreadScope",
     "TileLayout",
     "Tuple",
     "Var",

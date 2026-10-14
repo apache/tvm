@@ -27,7 +27,7 @@ from tvm.runtime import Object
 from tvm.target import Target
 
 from .. import _ffi_api
-from ..exec_scope import ExecScope
+from ..thread_scope import ThreadScope
 
 
 @register_object("tirx.DispatchContext")
@@ -39,7 +39,7 @@ class DispatchContext(Object, Scriptable):
     target : Target
         The target of the dispatch context.
 
-    exec_scope : ExecScope
+    thread_scope : ThreadScope
         The execution scope of the dispatch context.
 
     launch_params : Dict[str, Tuple[Var, Expr]]
@@ -56,7 +56,7 @@ class DispatchContext(Object, Scriptable):
     """
 
     target: Target
-    exec_scope: ExecScope
+    thread_scope: ThreadScope
     launch_params: dict[str, tuple[Var, Expr]]
     var_range_map: dict[Var, Range]
     alloc_only: bool
@@ -74,7 +74,7 @@ class DispatchContext(Object, Scriptable):
     def __init__(
         self,
         target: Target,
-        exec_scope: ExecScope,
+        thread_scope: ThreadScope,
         launch_params: dict[str, tuple[Var, Expr]],
         var_range_map: dict[Var, Range],
         alloc_only: bool = False,
@@ -87,7 +87,7 @@ class DispatchContext(Object, Scriptable):
         self.__init_handle_by_constructor__(
             _ffi_api.DispatchContext,  # pylint: disable=no-member
             target,
-            exec_scope,
+            thread_scope,
             launch_params,
             var_range_map,
             alloc_only,

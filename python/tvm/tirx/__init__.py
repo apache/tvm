@@ -78,7 +78,7 @@ from .op import gpu_dp4a
 from .op import ignore_loop_partition
 
 # TIRX-specific imports (must come before subpackage imports to avoid circular imports)
-from .exec_scope import ExecScope
+from .thread_scope import ThreadScope
 from .layout import TileLayout, Layout, ComposeLayout
 from . import transform
 from . import analysis

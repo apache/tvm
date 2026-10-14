@@ -66,12 +66,21 @@ def test_instruction_scope_contract(backend, scope):
     with pytest.raises(ValueError, match=f"unsupported scope '{scope}'"):
         instruction(tensor, tensor, tensor, scope=scope)
 
-    # Raw Calls obey the same instruction contract through Op validation.
+    # Registered scope enums still obey the instruction's allowed scope set.
     call = instruction(tensor, tensor, tensor)
-    attrs = tvm.ir.make_node("tirx.tensor." + SPECS[call.op.name].schema, scope=scope)
-    raw = tvm.ir.Call(call.op, call.args, attrs=attrs, ty=call.ty)
-    with pytest.raises(ValueError, match=f"unsupported scope '{scope}'"):
-        raw.validate()
+    if scope == "kernel":
+        attrs = tvm.ir.make_node(
+            "tirx.tensor." + SPECS[call.op.name].schema,
+            scope=T.ThreadScope(f"{backend}.kernel"),
+        )
+        raw = tvm.ir.Call(call.op, call.args, attrs=attrs, ty=call.ty)
+        with pytest.raises(ValueError, match=f"unsupported scope '{scope}'"):
+            raw.validate()
+    else:
+        with pytest.raises(ValueError):
+            tvm.ir.make_node(
+                "tirx.tensor." + SPECS[call.op.name].schema, scope=f"{backend}.{scope}"
+            )
 
 
 def _custom_call(name):
@@ -81,7 +90,11 @@ def _custom_call(name):
     op = Op.get(op_name)
     op.set_signature(args=["token"])
     op.set_attrs_type_key("tirx.tensor.ScopeAttrs")
-    return Call(op, [const(7)], attrs=make_node("tirx.tensor.ScopeAttrs"))
+    return Call(
+        op,
+        [const(7)],
+        attrs=make_node("tirx.tensor.ScopeAttrs", scope=T.ThreadScope("cuda.thread")),
+    )
 
 
 def _lower(body):
@@ -101,7 +114,7 @@ def test_op_attribute_dispatches_without_python_instruction_spec():
         assert actual_call.same_as(call)
         assert isinstance(context, DispatchContext)
         assert context.target.kind.name == "cuda"
-        assert context.exec_scope.backend == "cuda"
+        assert context.thread_scope.backend == "cuda"
         assert context.scope_kind == "thread"
         seen.append(actual_call)
         return Function([], Evaluate(23))

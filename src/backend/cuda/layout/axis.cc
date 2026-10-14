@@ -30,45 +30,45 @@ void RegisterLayoutAxes() {
   AxisDef("bx")
       .set_attr("backend", ffi::String("cuda"))
       .set_attr("thread", true)
-      .set_attr("scope", ExecScope("cuda", "kernel"))
-      .set_attr("subscope", ExecScope("cuda", "cta"));
+      .set_attr("scope", ThreadScope("cuda.kernel"))
+      .set_attr("subscope", ThreadScope("cuda.cta"));
 
   AxisDef("by")
       .set_attr("backend", ffi::String("cuda"))
       .set_attr("thread", true)
-      .set_attr("scope", ExecScope("cuda", "kernel"))
-      .set_attr("subscope", ExecScope("cuda", "cta"));
+      .set_attr("scope", ThreadScope("cuda.kernel"))
+      .set_attr("subscope", ThreadScope("cuda.cta"));
 
   AxisDef("bz")
       .set_attr("backend", ffi::String("cuda"))
       .set_attr("thread", true)
-      .set_attr("scope", ExecScope("cuda", "kernel"))
-      .set_attr("subscope", ExecScope("cuda", "cta"));
+      .set_attr("scope", ThreadScope("cuda.kernel"))
+      .set_attr("subscope", ThreadScope("cuda.cta"));
 
   AxisDef("cbx")
       .set_attr("backend", ffi::String("cuda"))
       .set_attr("thread", true)
-      .set_attr("scope", ExecScope("cuda", "cluster"))
-      .set_attr("subscope", ExecScope("cuda", "cta"));
+      .set_attr("scope", ThreadScope("cuda.cluster"))
+      .set_attr("subscope", ThreadScope("cuda.cta"));
 
   AxisDef("cby")
       .set_attr("backend", ffi::String("cuda"))
       .set_attr("thread", true)
-      .set_attr("scope", ExecScope("cuda", "cluster"))
-      .set_attr("subscope", ExecScope("cuda", "cta"));
+      .set_attr("scope", ThreadScope("cuda.cluster"))
+      .set_attr("subscope", ThreadScope("cuda.cta"));
 
   AxisDef("cbz")
       .set_attr("backend", ffi::String("cuda"))
       .set_attr("thread", true)
-      .set_attr("scope", ExecScope("cuda", "cluster"))
-      .set_attr("subscope", ExecScope("cuda", "cta"));
+      .set_attr("scope", ThreadScope("cuda.cluster"))
+      .set_attr("subscope", ThreadScope("cuda.cta"));
 
   AxisDef("tx")
       .set_attr("backend", ffi::String("cuda"))
       .set_attr("thread", true)
-      .set_attr("scope", ExecScope("cuda", "cta"))
-      .set_attr("subscope", ExecScope("cuda", "thread"))
-      .set_attr("fuser", FAxisFuser([](Target target, ffi::String subscope, ffi::String scope,
+      .set_attr("scope", ThreadScope("cuda.cta"))
+      .set_attr("subscope", ThreadScope("cuda.thread"))
+      .set_attr("fuser", FAxisFuser([](Target target, ThreadScope subscope, ThreadScope scope,
                                        Iter iter) -> ffi::Optional<Iter> {
                   if (target->kind->default_device_type == kDLCUDA) {
                     return std::nullopt;
@@ -79,13 +79,14 @@ void RegisterLayoutAxes() {
   AxisDef("warpid")
       .set_attr("backend", ffi::String("cuda"))
       .set_attr("thread", true)
-      .set_attr("scope", ExecScope("cuda", "cta"))
-      .set_attr("subscope", ExecScope("cuda", "warp"))
-      .set_attr("fuser", FAxisFuser([](Target target, ffi::String subscope, ffi::String scope,
+      .set_attr("scope", ThreadScope("cuda.cta"))
+      .set_attr("subscope", ThreadScope("cuda.warp"))
+      .set_attr("fuser", FAxisFuser([](Target target, ThreadScope subscope, ThreadScope scope,
                                        Iter iter) -> ffi::Optional<Iter> {
                   if (target->kind->default_device_type == kDLCUDA) {
                     // cta->warp ===> cta->thread (tx)
-                    if (subscope == "thread" && scope == "cta") {
+                    if (subscope.same_as(ThreadScope("cuda.thread")) &&
+                        scope.same_as(ThreadScope("cuda.cta"))) {
                       return Iter(iter->extent, 32 * iter->stride, Axis::Get("tx"));
                     }
                     return std::nullopt;
@@ -96,15 +97,17 @@ void RegisterLayoutAxes() {
   AxisDef("laneid")
       .set_attr("backend", ffi::String("cuda"))
       .set_attr("thread", true)
-      .set_attr("scope", ExecScope("cuda", "warp"))
-      .set_attr("subscope", ExecScope("cuda", "thread"))
-      .set_attr("fuser", FAxisFuser([](Target target, ffi::String subscope, ffi::String scope,
+      .set_attr("scope", ThreadScope("cuda.warp"))
+      .set_attr("subscope", ThreadScope("cuda.thread"))
+      .set_attr("fuser", FAxisFuser([](Target target, ThreadScope subscope, ThreadScope scope,
                                        Iter iter) -> ffi::Optional<Iter> {
                   if (target->kind->default_device_type == kDLCUDA) {
-                    if (subscope == "thread" && scope == "warpgroup") {
+                    if (subscope.same_as(ThreadScope("cuda.thread")) &&
+                        scope.same_as(ThreadScope("cuda.warpgroup"))) {
                       // warp->thread ===> warpgroup->thread (tid_in_wg)
                       return Iter(iter->extent, iter->stride, Axis::Get("tid_in_wg"));
-                    } else if (subscope == "thread" && scope == "cta") {
+                    } else if (subscope.same_as(ThreadScope("cuda.thread")) &&
+                               scope.same_as(ThreadScope("cuda.cta"))) {
                       // warp->thread ===> cta->thread (tx)
                       return Iter(iter->extent, iter->stride, Axis::Get("tx"));
                     }
@@ -116,15 +119,17 @@ void RegisterLayoutAxes() {
   AxisDef("wgid")
       .set_attr("backend", ffi::String("cuda"))
       .set_attr("thread", true)
-      .set_attr("scope", ExecScope("cuda", "cta"))
-      .set_attr("subscope", ExecScope("cuda", "warpgroup"))
-      .set_attr("fuser", FAxisFuser([](Target target, ffi::String subscope, ffi::String scope,
+      .set_attr("scope", ThreadScope("cuda.cta"))
+      .set_attr("subscope", ThreadScope("cuda.warpgroup"))
+      .set_attr("fuser", FAxisFuser([](Target target, ThreadScope subscope, ThreadScope scope,
                                        Iter iter) -> ffi::Optional<Iter> {
                   if (target->kind->default_device_type == kDLCUDA) {
-                    if (subscope == "thread" && scope == "cta") {
+                    if (subscope.same_as(ThreadScope("cuda.thread")) &&
+                        scope.same_as(ThreadScope("cuda.cta"))) {
                       // cta->warpgroup ===> cta->thread (tx)
                       return Iter(iter->extent, iter->stride * 128, Axis::Get("tx"));
-                    } else if (subscope == "warp" && scope == "cta") {
+                    } else if (subscope.same_as(ThreadScope("cuda.warp")) &&
+                               scope.same_as(ThreadScope("cuda.cta"))) {
                       // cta->warpgroup ===> cta->warp (warpid)
                       return Iter(iter->extent, iter->stride * 4, Axis::Get("wgid"));
                     }
@@ -135,12 +140,13 @@ void RegisterLayoutAxes() {
   AxisDef("tid_in_wg")
       .set_attr("backend", ffi::String("cuda"))
       .set_attr("thread", true)
-      .set_attr("scope", ExecScope("cuda", "warpgroup"))
-      .set_attr("subscope", ExecScope("cuda", "thread"))
-      .set_attr("fuser", FAxisFuser([](Target target, ffi::String subscope, ffi::String scope,
+      .set_attr("scope", ThreadScope("cuda.warpgroup"))
+      .set_attr("subscope", ThreadScope("cuda.thread"))
+      .set_attr("fuser", FAxisFuser([](Target target, ThreadScope subscope, ThreadScope scope,
                                        Iter iter) -> ffi::Optional<Iter> {
                   if (target->kind->default_device_type == kDLCUDA) {
-                    if (subscope == "thread" && scope == "cta") {
+                    if (subscope.same_as(ThreadScope("cuda.thread")) &&
+                        scope.same_as(ThreadScope("cuda.cta"))) {
                       // warpgroup->thread ===> cta->thread (tx)
                       return Iter(iter->extent, iter->stride, Axis::Get("tx"));
                     }
@@ -152,18 +158,21 @@ void RegisterLayoutAxes() {
   AxisDef("wid_in_wg")
       .set_attr("backend", ffi::String("cuda"))
       .set_attr("thread", true)
-      .set_attr("scope", ExecScope("cuda", "warpgroup"))
-      .set_attr("subscope", ExecScope("cuda", "warp"))
-      .set_attr("fuser", FAxisFuser([](Target target, ffi::String subscope, ffi::String scope,
+      .set_attr("scope", ThreadScope("cuda.warpgroup"))
+      .set_attr("subscope", ThreadScope("cuda.warp"))
+      .set_attr("fuser", FAxisFuser([](Target target, ThreadScope subscope, ThreadScope scope,
                                        Iter iter) -> ffi::Optional<Iter> {
                   if (target->kind->default_device_type == kDLCUDA) {
-                    if (subscope == "thread" && scope == "warpgroup") {
+                    if (subscope.same_as(ThreadScope("cuda.thread")) &&
+                        scope.same_as(ThreadScope("cuda.warpgroup"))) {
                       // warpgroup->warp ===> warpgroup->thread (tid_in_wg)
                       return Iter(iter->extent, iter->stride * 32, Axis::Get("tid_in_wg"));
-                    } else if (subscope == "thread" && scope == "cta") {
+                    } else if (subscope.same_as(ThreadScope("cuda.thread")) &&
+                               scope.same_as(ThreadScope("cuda.cta"))) {
                       // warpgroup->warp ===> cta->thread (tx)
                       return Iter(iter->extent, iter->stride * 32, Axis::Get("tx"));
-                    } else if (subscope == "warp" && scope == "cta") {
+                    } else if (subscope.same_as(ThreadScope("cuda.warp")) &&
+                               scope.same_as(ThreadScope("cuda.cta"))) {
                       // warpgroup->warp ===> cta->warp (warpid)
                       return Iter(iter->extent, iter->stride, Axis::Get("warpid"));
                     }

@@ -121,7 +121,7 @@ def matmul_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     """Schedule GEMM operation on Trainium."""
     # Basic validation checks
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
-        fail("requires Trainium target and thread exec_scope")
+        fail("requires Trainium target and thread scope")
 
     # Extract arguments
     (

@@ -35,7 +35,7 @@ def unary_with_bias_scale_trn(
     """Schedule unary operation with bias and scale on Trainium."""
     # Check execution environment
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
-        fail("requires Trainium target and thread exec_scope")
+        fail("requires Trainium target and thread scope")
 
     if len(op.args) == 2:
         dst_tensor_region, src_tensor_region = op.args
