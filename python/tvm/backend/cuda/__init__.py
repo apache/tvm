@@ -95,10 +95,10 @@ def register_backend():
 def script_namespaces(**_):
     """Return CUDA-owned TVMScript namespaces."""
     from . import script  # pylint: disable=import-outside-toplevel
-    from .ptx import PTXNamespace  # pylint: disable=import-outside-toplevel
     from .script import (  # pylint: disable=import-outside-toplevel
         NVSHMEMNamespace,
         PTXLegacyNamespace,
+        PTXNamespace,
         STIRNamespace,
     )
 
