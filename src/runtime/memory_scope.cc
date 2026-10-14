@@ -66,6 +66,19 @@ MemoryAllocProperty MemoryScope::alloc_property() const {
   return MemoryAllocProperty::kNormal;
 }
 
+bool MemoryScope::IsRegistered(const ffi::String& name) {
+  constexpr auto key = refl::AsByteArray(ffi::type_attr::kEnumState.name);
+  if (TVMFFIGetTypeAttrColumn(&key) == nullptr) return false;
+  auto value = refl::TypeAttrColumn(
+      ffi::type_attr::kEnumState)[MemoryScopeObj::_GetOrAllocRuntimeTypeIndex()];
+  if (value == nullptr) return false;
+  TVM_FFI_CHECK(value.type_index() == ffi::EnumStateObj::_GetOrAllocRuntimeTypeIndex(), TypeError)
+      << "Expected enum state for memory scopes";
+  // The derived EnumState type index may still be deferred during static initialization.
+  auto* state = static_cast<const ffi::EnumStateObj*>(value.cast<ffi::ObjectRef>().get());
+  return state->indexes.count(name) != 0;
+}
+
 MemoryScope MemoryScope::Get(const ffi::String& name) {
   RegisterBuiltinScopes();
   return ffi::EnumObj::_GetByStrIndex<MemoryScopeObj>(name).as_or_throw<MemoryScope>();

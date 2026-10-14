@@ -53,6 +53,30 @@ TEST(MemoryScope, ExtensionRegistrationAndAttributes) {
   EXPECT_EQ(registered, MemoryScope::Get(registered.name()));
 }
 
+TEST(MemoryScope, MembershipQueryPreservesRegistry) {
+  auto scope = MemoryScope::Register("memory_scope_test.membership");
+  auto state = ffi::reflection::TypeAttrColumn(
+                   ffi::type_attr::kEnumState)[MemoryScopeObj::RuntimeTypeIndex()]
+                   .cast<ffi::EnumState>();
+  auto num_entries = state->entries.size();
+  auto num_indexes = state->indexes.size();
+  auto num_attrs = state->attrs.size();
+  auto global = MemoryScope::Global();
+  auto property = global.alloc_property();
+  EXPECT_TRUE(MemoryScope::IsRegistered("global"));
+  EXPECT_TRUE(MemoryScope::IsRegistered(scope.name()));
+  EXPECT_FALSE(MemoryScope::IsRegistered("memory_scope_test.unknown"));
+  EXPECT_FALSE(MemoryScope::IsRegistered(""));
+  EXPECT_FALSE(MemoryScope::IsRegistered(ffi::String("global\0suffix", 13)));
+  EXPECT_EQ(state->entries.size(), num_entries);
+  EXPECT_EQ(state->indexes.size(), num_indexes);
+  EXPECT_EQ(state->attrs.size(), num_attrs);
+  EXPECT_TRUE(MemoryScope::Get(scope.name()).same_as(scope));
+  EXPECT_TRUE(MemoryScope::Global().same_as(global));
+  EXPECT_EQ(global.alloc_property(), property);
+  EXPECT_THROW(MemoryScope::Get("memory_scope_test.unknown"), ffi::Error);
+}
+
 TEST(MemoryScope, AllocationProperties) {
   EXPECT_EQ(MemoryScope::Global().alloc_property(), MemoryAllocProperty::kNormal);
   EXPECT_EQ(MemoryScope::Get("shared").alloc_property(), MemoryAllocProperty::kNormal);

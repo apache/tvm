@@ -28,23 +28,17 @@ namespace backend {
 namespace hexagon {
 
 inline void RegisterMemoryScopes() {
-  // The compiler and runtime sidecar can load independently, with hidden symbols.
-  // Keep the once guard in their shared FFI registry rather than a DSO-local static.
-  constexpr auto registered = ffi::reflection::AsByteArray("hexagon.memory_scopes_registered");
-  if (TVMFFIGetTypeAttrColumn(&registered) != nullptr &&
-      ffi::reflection::TypeAttrColumn("hexagon.memory_scopes_registered")
-              [runtime::MemoryScopeObj::_GetOrAllocRuntimeTypeIndex()] != nullptr) {
-    return;
-  }
   using runtime::MemoryAllocProperty;
-  ffi::reflection::EnumDef<runtime::MemoryScopeObj>("global.ddr")
-      .set_attr(runtime::attr::kMemoryAllocProperty,
-                static_cast<int>(MemoryAllocProperty::kSingleAllocation));
-  ffi::reflection::EnumDef<runtime::MemoryScopeObj>("global.vtcm")
-      .set_attr(runtime::attr::kMemoryAllocProperty,
-                static_cast<int>(MemoryAllocProperty::kNormal));
-  ffi::reflection::TypeAttrDef<runtime::MemoryScopeObj>().def("hexagon.memory_scopes_registered",
-                                                              true);
+  if (!runtime::MemoryScope::IsRegistered("global.ddr")) {
+    ffi::reflection::EnumDef<runtime::MemoryScopeObj>("global.ddr")
+        .set_attr(runtime::attr::kMemoryAllocProperty,
+                  static_cast<int>(MemoryAllocProperty::kSingleAllocation));
+  }
+  if (!runtime::MemoryScope::IsRegistered("global.vtcm")) {
+    ffi::reflection::EnumDef<runtime::MemoryScopeObj>("global.vtcm")
+        .set_attr(runtime::attr::kMemoryAllocProperty,
+                  static_cast<int>(MemoryAllocProperty::kNormal));
+  }
 }
 
 }  // namespace hexagon

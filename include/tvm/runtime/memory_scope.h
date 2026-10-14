@@ -63,6 +63,8 @@ class MemoryScope : public ffi::Enum {
   const ffi::String& name() const { return get()->_str_index; }
   /*! \brief Return the allocation property assigned by the scope owner. */
   TVM_RUNTIME_DLL MemoryAllocProperty alloc_property() const;
+  /*! \brief Test whether a name is registered, without initializing memory scopes. */
+  TVM_RUNTIME_DLL static bool IsRegistered(const ffi::String& name);
   /*! \brief Look up a registered name. Unknown names raise ValueError. */
   TVM_RUNTIME_DLL static MemoryScope Get(const ffi::String& name);
   /*! \brief Register a new name. Duplicate names raise ValueError. */

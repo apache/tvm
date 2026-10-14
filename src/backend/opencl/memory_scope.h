@@ -30,28 +30,21 @@ namespace opencl {
 inline constexpr const char* kTextureStorage = "opencl.texture_storage";
 
 inline void RegisterMemoryScopes() {
-  // The compiler and runtime sidecar can load independently, with hidden symbols.
-  // Keep the once guard in their shared FFI registry rather than a DSO-local static.
-  constexpr auto registered = ffi::reflection::AsByteArray("opencl.memory_scopes_registered");
-  if (TVMFFIGetTypeAttrColumn(&registered) != nullptr &&
-      ffi::reflection::TypeAttrColumn("opencl.memory_scopes_registered")
-              [runtime::MemoryScopeObj::_GetOrAllocRuntimeTypeIndex()] != nullptr) {
-    return;
-  }
   using runtime::MemoryAllocProperty;
-  ffi::reflection::EnumDef<runtime::MemoryScopeObj>("texture")
-      .set_attr(runtime::attr::kMemoryAllocProperty,
-                static_cast<int>(MemoryAllocProperty::kSeparateAllocations))
-      .set_attr(kTextureStorage, true);
+  if (!runtime::MemoryScope::IsRegistered("texture")) {
+    ffi::reflection::EnumDef<runtime::MemoryScopeObj>("texture")
+        .set_attr(runtime::attr::kMemoryAllocProperty,
+                  static_cast<int>(MemoryAllocProperty::kSeparateAllocations))
+        .set_attr(kTextureStorage, true);
+  }
   for (const char* name : {"global.texture", "global.texture-1d", "global.texture-nchw",
                            "global.texture-nhwc", "global.texture-weight"}) {
+    if (runtime::MemoryScope::IsRegistered(name)) continue;
     ffi::reflection::EnumDef<runtime::MemoryScopeObj>(name)
         .set_attr(runtime::attr::kMemoryAllocProperty,
                   static_cast<int>(MemoryAllocProperty::kSingleAllocation))
         .set_attr(kTextureStorage, true);
   }
-  ffi::reflection::TypeAttrDef<runtime::MemoryScopeObj>().def("opencl.memory_scopes_registered",
-                                                              true);
 }
 
 }  // namespace opencl
