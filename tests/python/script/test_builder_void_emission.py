@@ -19,16 +19,15 @@
 import pytest
 import tvm_ffi
 
-from tvm import ir, tirx
-from tvm.backend import cuda
+from tvm import backend, ir, tirx
 from tvm.script import ir_builder as I
 from tvm.script import tirx as T
 from tvm.script.ir_builder.base import AlreadyEmitted
 
 
 @pytest.fixture(scope="module", autouse=True)
-def register_cuda():
-    cuda.register_backend()
+def load_cuda():
+    backend.load("cuda")
 
 
 @pytest.mark.parametrize("ty", [ir.PrimType("void"), ir.TupleType([])])
