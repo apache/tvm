@@ -18,6 +18,8 @@
 
 from __future__ import annotations
 
+from tvm.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
+
 from . import op as _trn_op
 
 
@@ -25,22 +27,22 @@ class NKINamespace:
     """The NKI instructions submodule."""
 
     def __init__(self):
-        self.load = _trn_op.nki_load
-        self.store = _trn_op.nki_store
-        self.tensor_copy = _trn_op.nki_tensor_copy
-        self.matmul = _trn_op.nki_matmul
-        self.activation = _trn_op.nki_activation
-        self.activation_reduce = _trn_op.nki_activation_reduce
-        self.reciprocal = _trn_op.nki_reciprocal
-        self.tensorreduce = _trn_op.nki_tensorreduce
-        self.tensortensor = _trn_op.nki_tensortensor
-        self.tensorscalar = _trn_op.nki_tensorscalar
-        self.tensorscalar_reduce = _trn_op.nki_tensorscalar_reduce
-        self.scalar_tensor_tensor = _trn_op.nki_scalar_tensor_tensor
-        self.scalar_tensor_scalar = _trn_op.nki_scalar_tensor_scalar
-        self.memset = _trn_op.nki_memset
-        self.identity = _trn_op.nki_identity
-        self.affine_select = _trn_op.nki_affine_select
+        self.load = _auto_emit_void_call(_trn_op.nki_load)
+        self.store = _auto_emit_void_call(_trn_op.nki_store)
+        self.tensor_copy = _auto_emit_void_call(_trn_op.nki_tensor_copy)
+        self.matmul = _auto_emit_void_call(_trn_op.nki_matmul)
+        self.activation = _auto_emit_void_call(_trn_op.nki_activation)
+        self.activation_reduce = _auto_emit_void_call(_trn_op.nki_activation_reduce)
+        self.reciprocal = _auto_emit_void_call(_trn_op.nki_reciprocal)
+        self.tensorreduce = _auto_emit_void_call(_trn_op.nki_tensorreduce)
+        self.tensortensor = _auto_emit_void_call(_trn_op.nki_tensortensor)
+        self.tensorscalar = _auto_emit_void_call(_trn_op.nki_tensorscalar)
+        self.tensorscalar_reduce = _auto_emit_void_call(_trn_op.nki_tensorscalar_reduce)
+        self.scalar_tensor_tensor = _auto_emit_void_call(_trn_op.nki_scalar_tensor_tensor)
+        self.scalar_tensor_scalar = _auto_emit_void_call(_trn_op.nki_scalar_tensor_scalar)
+        self.memset = _auto_emit_void_call(_trn_op.nki_memset)
+        self.identity = _auto_emit_void_call(_trn_op.nki_identity)
+        self.affine_select = _auto_emit_void_call(_trn_op.nki_affine_select)
 
     @staticmethod
     def tensorized_instruction():

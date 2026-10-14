@@ -16,7 +16,6 @@
 # under the License.
 """OpenCL-owned backend hooks."""
 
-import sys
 from pathlib import Path
 
 from tvm_ffi.libinfo import load_lib_ctypes
@@ -55,8 +54,10 @@ def register_backend():
     except (OSError, FileNotFoundError, RuntimeError):
         pass
     register_device_target_detector("opencl", _detect_target_from_device)
+    from . import script
+
     _init_op_api("tirx.opencl", __name__)
-    builder_op.register_script_namespace("opencl", sys.modules[__name__])
+    builder_op.register_script_namespace("opencl", script)
     return None
 
 
