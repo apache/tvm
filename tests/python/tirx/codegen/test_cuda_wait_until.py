@@ -83,7 +83,7 @@ def packed_contribution():
             T.cuda.wait_until(
                 observed[0],
                 slot.ptr_to([0]),
-                predicate=lambda v: T.shift_right(v, T.uint64(32)) == T.Cast("uint64", n),
+                predicate=lambda v: T.shift_right(v, T.uint64(32)) == T.Cast(n, "uint64"),
                 scope="gpu",
             )
             out[0] = T.bitwise_and(observed[0], T.uint64(0xFFFFFFFF))

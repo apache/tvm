@@ -69,7 +69,7 @@ def test_llvm_target_features():
         def add_one(C: T.Tensor((128,), "int32"), A: T.Tensor((128,), "uint8")):
             T.func_attr({"tirx.noalias": True})
             for i in range(128):
-                C[i] = T.Cast("int32", A[i]) + 1
+                C[i] = T.Cast(A[i], "int32") + 1
 
     m = tvm.tirx.compile(Module, target=tvm.target.Target(target, target))
     llvm_ir = m.inspect_source("ll")

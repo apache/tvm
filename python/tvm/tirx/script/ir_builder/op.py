@@ -101,7 +101,7 @@ def _call_global(func: ir.GlobalVar, *args: Expr) -> Call:
 
 def cast(value, dtype, loc: Location = UNKNOWN_LOC):
     """Cast an expression to the requested data type."""
-    return _prim_ffi_api._cast(dtype, value, loc)  # type: ignore[attr-defined]
+    return _prim_ffi_api._cast(value, dtype, loc)  # type: ignore[attr-defined]
 
 
 def Let(  # pylint: disable=invalid-name

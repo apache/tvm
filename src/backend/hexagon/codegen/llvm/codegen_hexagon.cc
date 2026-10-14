@@ -328,7 +328,7 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(TensorVar buffer, PrimType buffer_
   auto native_vector_bytes = native_vector_bits_ / 8;
 
   // Indexes
-  llvm::Value* trunc = MakeValue(prim::Cast(index_ty.WithBits(8), index));
+  llvm::Value* trunc = MakeValue(prim::Cast(index, index_ty.WithBits(8)));
   llvm::Value* index_pad = CreateVecPad(trunc, native_vector_bytes);
 
   // Values

@@ -40,7 +40,7 @@ def test_metal_inf_nan():
             ):
                 T.func_attr({"tirx.noalias": True})
                 with T.launch_thread("threadIdx.x", 1) as i:
-                    C[i] = T.Cast(dtype, value)
+                    C[i] = T.Cast(value, dtype)
 
         fun = tvm.tirx.compile(Module, target=target)
 
@@ -178,7 +178,7 @@ def test_vectorized_uint8():
     def func(A: T.Tensor((16), "uint8"), B: T.Tensor((16), "float32")):
         with T.launch_thread("threadIdx.x", 4) as i:
             for j in T.vectorized(4):
-                B[i * 4 + j] = T.Cast("float32", A[i * 4 + j])
+                B[i * 4 + j] = T.Cast(A[i * 4 + j], "float32")
 
     a = np.arange(16).astype("uint8")
     f = tvm.tirx.compile(func, target="metal")

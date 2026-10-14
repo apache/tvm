@@ -53,18 +53,18 @@ UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const ForNode* op, InplaceMode inpl
   PrimType var_ty = var->ty.as_or_throw<PrimType>();
   if (inplace_mode == InplaceMode::kAllow) {
     auto* n = const_cast<ForNode*>(op);
-    n->min = prim::cast(var_ty, op->min);
-    n->extent = prim::cast(var_ty, op->extent);
+    n->min = prim::cast(op->min, var_ty);
+    n->extent = prim::cast(op->extent, var_ty);
     if (op->step.has_value()) {
-      n->step = prim::cast(var_ty, *op->step);
+      n->step = prim::cast(*op->step, var_ty);
     }
     return result;
   }
   auto n = ffi::make_object<ForNode>(*op);
-  n->min = prim::cast(var_ty, op->min);
-  n->extent = prim::cast(var_ty, op->extent);
+  n->min = prim::cast(op->min, var_ty);
+  n->extent = prim::cast(op->extent, var_ty);
   if (op->step.has_value()) {
-    n->step = prim::cast(var_ty, *op->step);
+    n->step = prim::cast(*op->step, var_ty);
   }
   return For(n);
 }
@@ -77,7 +77,7 @@ UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const RegionStmtNode* op, InplaceMo
   PrimExpr extent = region->args[1].as_or_throw<PrimExpr>();
   if (var.ty() == extent.ty()) return result;
   RegionStmt updated = ffi::GetRef<RegionStmt>(region);
-  updated.CopyOnWrite()->args.Set(1, prim::cast(var.ty(), extent));
+  updated.CopyOnWrite()->args.Set(1, prim::cast(extent, var.ty()));
   return updated;
 }
 
@@ -92,7 +92,7 @@ UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::LetNode* op,
       var = op->var.CopyWithDType(value.ty());
       VarRemapSet(op->var, var);
     } else {
-      value = prim::cast(var->ty.as_or_throw<PrimType>(), value);
+      value = prim::cast(value, var->ty.as_or_throw<PrimType>());
       value_unchanged = false;
     }
   }
@@ -149,8 +149,8 @@ UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::SelectNode* op,
     PrimType false_dtype = false_value.ty();
     int bits = std::max(true_dtype.bits(), false_dtype.bits());
     PrimType dtype = true_dtype.WithBits(bits);
-    if (true_dtype != dtype) true_value = prim::cast(dtype, true_value);
-    if (false_dtype != dtype) false_value = prim::cast(dtype, false_value);
+    if (true_dtype != dtype) true_value = prim::cast(true_value, dtype);
+    if (false_dtype != dtype) false_value = prim::cast(false_value, dtype);
     return prim::Select(condition, true_value, false_value);
   }
 }
@@ -172,8 +172,8 @@ UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::RampNode* op,
                    stride_dtype.MatchesCode(DLDataTypeCode::kDLInt));
     int bits = std::max(base_dtype.bits(), stride_dtype.bits());
     PrimType dtype = base_dtype.WithBits(bits);
-    if (base_dtype->dtype != dtype->dtype) base = prim::cast(dtype, base);
-    if (stride_dtype->dtype != dtype->dtype) stride = prim::cast(dtype, stride);
+    if (base_dtype->dtype != dtype->dtype) base = prim::cast(base, dtype);
+    if (stride_dtype->dtype != dtype->dtype) stride = prim::cast(stride, dtype);
     return prim::Ramp(base, stride, op->lanes);
   }
 }
@@ -354,7 +354,7 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const TensorStoreNode* op,
   auto value = std::move(value_result).ValueOrUnchanged(op->value);
   PrimType value_dtype = value.ty();
   if (new_tensor.dtype() != value_dtype && value_dtype.IsScalar()) {
-    value = prim::cast(new_tensor.dtype(), value);
+    value = prim::cast(value, new_tensor.dtype());
     value_unchanged = false;
   }
   auto indices = VisitIndices(op->indices, inplace_mode);
@@ -444,8 +444,8 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const ForNode* op, InplaceMode 
     For new_for = ffi::GetRef<For>(op);
     auto* n = new_for.CopyOnWrite();
     n->loop_var = new_loop_var;
-    n->min = prim::cast(new_loop_var.ty(), min);
-    n->extent = prim::cast(new_loop_var.ty(), extent);
+    n->min = prim::cast(min, new_loop_var.ty());
+    n->extent = prim::cast(extent, new_loop_var.ty());
     n->body = new_body;
     return new_for;
 
@@ -469,7 +469,7 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const BindNode* op, InplaceMode
       Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value).as_or_throw<PrimExpr>();
   is_enabled_ = is_enabled;
   // The collected index requirement need not apply to every variable in the RHS.
-  return Bind(var, prim::cast(var->ty.as_or_throw<PrimType>(), value), op->loc);
+  return Bind(var, prim::cast(value, var->ty.as_or_throw<PrimType>()), op->loc);
 }
 
 #define TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                                   \
@@ -502,8 +502,8 @@ UnchangedOr<Expr> IndexDataTypeRewriter::Mutate_(const CallNode* op, InplaceMode
     PrimType true_dtype = true_value.ty();
     PrimType false_dtype = false_value.ty();
     PrimType dtype = true_dtype.WithBits(std::max(true_dtype.bits(), false_dtype.bits()));
-    if (true_dtype != dtype) true_value = prim::cast(dtype, true_value);
-    if (false_dtype != dtype) false_value = prim::cast(dtype, false_value);
+    if (true_dtype != dtype) true_value = prim::cast(true_value, dtype);
+    if (false_dtype != dtype) false_value = prim::cast(false_value, dtype);
     return Call(dtype, op->op, {cond, true_value, false_value}, op->attrs, {}, op->loc)
         .as_or_throw<PrimExpr>();
   }
@@ -533,8 +533,8 @@ UnchangedOr<PrimExpr> IndexDataTypeRewriter::Mutate_(const prim::SelectNode* op,
     PrimType false_dtype = false_value.ty();
     int bits = std::max(true_dtype.bits(), false_dtype.bits());
     PrimType dtype = true_dtype.WithBits(bits);
-    if (true_dtype->dtype != dtype->dtype) true_value = prim::cast(dtype, true_value);
-    if (false_dtype->dtype != dtype->dtype) false_value = prim::cast(dtype, false_value);
+    if (true_dtype->dtype != dtype->dtype) true_value = prim::cast(true_value, dtype);
+    if (false_dtype->dtype != dtype->dtype) false_value = prim::cast(false_value, dtype);
     return prim::Select(condition, true_value, false_value);
   }
 }
@@ -600,7 +600,7 @@ UnchangedOr<PrimExpr> IndexDataTypeNormalizer::Mutate_(const IntImmNode* op,
                                                        InplaceMode inplace_mode) {
   if (is_enabled_ && CanRewriteDType(op->ty.as_or_throw<PrimType>())) {
     TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<IntImm>()->value);
-    return prim::cast(target_data_type_, ffi::GetRef<IntImm>(op));
+    return prim::cast(ffi::GetRef<IntImm>(op), target_data_type_);
   }
   return ffi::Unchanged();
 }
@@ -613,7 +613,7 @@ UnchangedOr<PrimExpr> IndexDataTypeNormalizer::Mutate_(const prim::CastNode* op,
   PrimType dtype = op->ty.as_or_throw<PrimType>();
   if (is_enabled_ && CanRewriteDType(dtype)) {
     PrimExpr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
-    return value.ty() == target_data_type_ ? value : prim::Cast(target_data_type_, value);
+    return value.ty() == target_data_type_ ? value : prim::Cast(value, target_data_type_);
   }
   return IndexDataTypeRewriter::Mutate_(op, inplace_mode);
 }

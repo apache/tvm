@@ -216,7 +216,7 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Location loc)
   TVM_FFI_ICHECK(base_ty.IsScalar());
   TVM_FFI_ICHECK(stride_ty.IsScalar());
   if (stride_ty != base_ty) {
-    stride = prim::cast(base_ty, stride);
+    stride = prim::cast(stride, base_ty);
   }
 
   ffi::ObjectPtr<RampNode> node = ffi::make_object<RampNode>(base, stride, lanes);

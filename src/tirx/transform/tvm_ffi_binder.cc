@@ -484,7 +484,7 @@ Expr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int par
     PrimType api_type = APIType(prim_type.value());
     PrimExpr res = Call(api_type, tirx::abi_field_get_op(), call_args).as_or_throw<PrimExpr>();
     if (api_type != prim_type.value()) {
-      res = prim::Cast(prim_type.value(), res);
+      res = prim::Cast(res, prim_type.value());
     }
     return res;
   }
@@ -519,8 +519,8 @@ PrimExpr TVMFFIABIBuilder::DecodeParamBool(int param_index, const PrimExpr& type
       param_index,
       type_index == ffi::TypeIndex::kTVMFFIBool || type_index == ffi::TypeIndex::kTVMFFIInt,
       "boolean");
-  return prim::Cast(PrimType::Bool(),
-                    LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PrimType::Int(64)));
+  return prim::Cast(LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PrimType::Int(64)),
+                    PrimType::Bool());
 }
 
 PrimExpr TVMFFIABIBuilder::DecodeParamInt(int param_index, const PrimExpr& type_index,
@@ -544,7 +544,7 @@ PrimExpr TVMFFIABIBuilder::DecodeParamFloat(int param_index, const PrimExpr& typ
       type_index == ffi::TypeIndex::kTVMFFIFloat,
       /* true_value = */ LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, dtype),
       /* false_value = */
-      prim::Cast(dtype, LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PrimType::Int(64))));
+      prim::Cast(LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PrimType::Int(64)), dtype));
 }
 
 // ============================================================
@@ -677,7 +677,7 @@ void TVMFFIABIBuilder::BindCompactStrides(const TensorVar& tensor, const Var& st
   ffi::Array<PrimExpr> conds;
   for (size_t i = tensor.shape().size(); i != 0; --i) {
     size_t k = i - 1;
-    PrimExpr svalue = cast(stype, LoadInt64ArrayElem(strides_ptr, k));
+    PrimExpr svalue = cast(LoadInt64ArrayElem(strides_ptr, k), stype);
     conds.push_back(tensor.shape()[k] == 1 || expect_stride == svalue);
     expect_stride = expect_stride * tensor.shape()[k];
   }
@@ -701,13 +701,13 @@ void TVMFFIABIBuilder::BindRegularStrides(const TensorVar& tensor, const Var& st
                                           const ffi::reflection::AccessPath& param_path) {
   PrimExpr stride_from_shape = 1;
   for (int k = tensor.strides().size() - 1; k >= 0; k--) {
-    PrimExpr explicit_stride = cast(tensor.shape()[k].ty(), LoadInt64ArrayElem(strides_ptr, k));
+    PrimExpr explicit_stride = cast(LoadInt64ArrayElem(strides_ptr, k), tensor.shape()[k].ty());
     ffi::reflection::AccessPath strides_k_path =
         param_path->Attr(ffi::String("strides"))->ArrayItem(k);
     BindScalar(tensor.strides()[k],
                tvm::if_then_else(v_strides_is_null, stride_from_shape, explicit_stride),
                strides_k_path, true);
-    stride_from_shape *= cast(tensor.shape()[k].ty(), LoadInt64ArrayElem(shape_ptr, k));
+    stride_from_shape *= cast(LoadInt64ArrayElem(shape_ptr, k), tensor.shape()[k].ty());
   }
 }
 
@@ -772,7 +772,7 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
       break;
     }
     ffi::reflection::AccessPath shape_k_path = param_path->Attr(ffi::String("shape"))->ArrayItem(k);
-    BindScalar(tensor.shape()[k], cast(tensor.shape()[k].ty(), LoadInt64ArrayElem(shape_ptr, k)),
+    BindScalar(tensor.shape()[k], cast(LoadInt64ArrayElem(shape_ptr, k), tensor.shape()[k].ty()),
                shape_k_path, true);
   }
 
@@ -804,11 +804,11 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
                    MakeConst(PrimType::UInt(64), 0),
                "ValueError", "Tensor byte offset must be divisible by its element size");
     if (BindScalar(tensor.elem_offset(),
-                   cast(tensor.elem_offset().ty(),
-                        (Call(PrimType::UInt(64), tirx::abi_field_get_op(),
+                   cast((Call(PrimType::UInt(64), tirx::abi_field_get_op(),
                               {handle, IntImm::Int32(0), IntImm::Int32(tirx::kDLTensorByteOffset)})
                              .as_or_throw<PrimExpr>() /
-                         MakeConst(PrimType::UInt(64), data_bytes))),
+                         MakeConst(PrimType::UInt(64), data_bytes)),
+                        tensor.elem_offset().ty()),
                    byte_offset_path, true)) {
       if (tensor.ty()->offset_factor > 1) {
         PrimExpr offset = tensor.elem_offset();
@@ -875,7 +875,7 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
       }();
       // Data pointer null and alignment checks go to asserts_ because alloc_size
       // references tensor->shape which may contain forward-referenced symbolic vars.
-      PrimExpr empty_alloc = cast(PrimType::Bool(), alloc_size == 0);
+      PrimExpr empty_alloc = cast(alloc_size == 0, PrimType::Bool());
       PrimExpr data_non_null =
           !Call(PrimType::Bool(), tirx::isnullptr_op(), {vptr}).as_or_throw<PrimExpr>();
       asserts_.emplace_back(AssertStmt(
