@@ -77,7 +77,6 @@ class StmtSimplifier : public StmtExprMutatorWithAnalyzer {
 };
 
 Function StmtSimplifier::Run(Function func) {
-  analyzer_->rewrite_simplify.SetEnabledExtensions(sym::RewriteSimplifier::kNone);
   MarkTensorParamShapes(func);
   auto* n = func.CopyOnWrite();
   // Shared string literals no longer enter the primitive analyzer.  Inline their

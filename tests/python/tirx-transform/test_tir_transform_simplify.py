@@ -614,31 +614,6 @@ def test_left_shift_by_negative_value():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_suppress_transitively_provable_condition():
-    @T.function(private=True)
-    def before(A: T.Tensor(1, "bool"), i: T.int32, j: T.int32, k: T.int32):
-        if i < j and j < k:
-            A[0] = i < k
-
-    expected = before
-
-    after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_suppress_rewrite_as_and_of_ors():
-    """Only rewrite into AND of OR when allowed"""
-
-    @T.function(private=True)
-    def before(A: T.Tensor(3, "bool")):
-        T.evaluate(A[0] or (A[1] and A[2]))
-
-    expected = before
-
-    after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
-
-
 def test_conditional_floor_mod():
     """A regression test for negative floormod denominator
 
