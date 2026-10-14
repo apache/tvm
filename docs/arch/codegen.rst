@@ -64,6 +64,11 @@ It performs these steps:
 Target Dispatch
 ---------------
 
+Generic target configuration and registration live in ``src/target/``. Shared
+code generation lives in ``src/codegen/``, with installed APIs in
+``include/tvm/codegen/`` and Python helpers in ``tvm.codegen``. Platform-specific
+generators remain under ``src/backend/<platform>/codegen/``.
+
 The core dispatch logic lives in ``codegen::Build()`` (``src/codegen/codegen.cc``), which is
 called from the Python-side ``_build_for_target()`` in ``tirx/_compile.py``. It selects the correct
 backend based on the ``Target`` object:
@@ -188,7 +193,7 @@ target subclass overrides methods to emit target-specific syntax.
 - ``PrintType(dtype, os)`` — emit target-specific type names (e.g., ``half`` for float16).
 - ``PrintVecBinaryOp(...)`` — emit vectorized operations in target syntax.
 
-For CUDA, the build flow (``BuildCUDA`` in ``src/target/opt/build_cuda_on.cc``) is:
+For CUDA, the build flow (``BuildCUDA`` in ``src/backend/cuda/codegen/codegen_cuda.cc``) is:
 
 1. ``CodeGenCUDA`` generates CUDA C source.
 2. An optional post-processing callback (``tvm_callback_cuda_postproc``) transforms the source.
@@ -303,9 +308,9 @@ Source Code Map
      - ``CodeGenMetal``: TIR → Metal Shading Language
    * - ``src/codegen/c/codegen_c_host.h``
      - ``CodeGenCHost``: TIR → C host code
-   * - ``src/target/opt/build_cuda_on.cc``
+   * - ``src/backend/cuda/codegen/codegen_cuda.cc``
      - ``BuildCUDA``: CUDA build flow (codegen → compile → module)
-   * - ``src/target/spirv/codegen_spirv.h``
+   * - ``src/backend/vulkan/codegen/codegen_spirv.h``
      - ``CodeGenSPIRV``: TIR → SPIR-V for Vulkan
    * - ``src/backend/webgpu/codegen/codegen_webgpu.h``
      - ``CodeGenWebGPU``: TIR → WGSL
