@@ -81,7 +81,4 @@ if(USE_CLML_GRAPH_EXECUTOR)
 
     message(STATUS "Enable OpenCL as fallback to CLML")
     set(USE_OPENCL ${CLML_PATH})
-    if(USE_OPENCL_ENABLE_HOST_PTR)
-        add_definitions(-DOPENCL_ENABLE_HOST_PTR)
-    endif(USE_OPENCL_ENABLE_HOST_PTR)
 endif()

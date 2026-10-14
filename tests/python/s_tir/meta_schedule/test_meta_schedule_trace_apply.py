@@ -20,13 +20,13 @@ import pytest
 import tvm
 import tvm.s_tir.meta_schedule as ms
 import tvm.testing
+from tvm.codegen import llvm_lookup_intrinsic_id
 from tvm.s_tir import Schedule
 from tvm.s_tir.tensor_intrin.cuda import *
 from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
-from tvm.target.codegen import llvm_lookup_intrinsic_id
 from tvm.tirx import floordiv, floormod
 
 

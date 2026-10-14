@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Target description and codegen module.
+"""Target configuration and registry.
 
 TVM uses JSON-based target configuration. Targets can be constructed via:
 
@@ -33,5 +33,4 @@ and :py:func:`tvm.target.register_tag` to register new tags.
 
 from .target import Target, TargetKind, device_from_target
 from .tag import list_tags, register_tag
-from . import codegen
 from . import tag_registry  # registers tags on import

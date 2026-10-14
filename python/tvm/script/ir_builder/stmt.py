@@ -28,8 +28,6 @@ from collections.abc import Sequence
 from functools import partial as _partial
 from typing import Any
 
-import tvm_ffi as _ffi
-
 import tvm
 from tvm import ir as _ir
 from tvm.ir import Expr, TensorRegion, Type, Var
@@ -44,8 +42,8 @@ _Loc = _base.LocationEntry | _ir.Location | None
 
 
 def _as_expr(value):
-    if isinstance(value, _ffi.ObjectConvertible):
-        value = value.asobject()
+    if hasattr(value, "__tvm_ffi_object__"):
+        value = value.__tvm_ffi_object__()
     if isinstance(value, _ir.Expr):
         return value
     if isinstance(value, str):

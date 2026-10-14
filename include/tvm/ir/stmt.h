@@ -484,7 +484,7 @@ class ForNode : public StmtNode {
   }
 
   /*! \brief Check it is a loop without nontrivial loop step. */
-  bool HasTrivialStep() const;
+  TVM_TIRX_DLL bool HasTrivialStep() const;
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.For", ForNode, StmtNode);
 };

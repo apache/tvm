@@ -35,4 +35,5 @@ export PYTHONPATH="$(pwd)/python"
 export PYTEST_ADDOPTS="${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
 
 python3 -m pytest -vvs -n auto -m "${TVM_TEST_MARKER}" \
-    tests/python/codegen/test_target_codegen_vulkan.py
+    tests/python/backend/vulkan/codegen/test_vulkan.py \
+    tests/python/backend/vulkan/test_vulkan_module_export.py

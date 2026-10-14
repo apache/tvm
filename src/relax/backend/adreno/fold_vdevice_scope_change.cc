@@ -34,7 +34,7 @@
 
 #include <tuple>
 
-#include "../../../texture_utils.h"
+#include "../../../s_tir/backend/adreno/texture_utils.h"
 #include "../../op/tensor/manipulate.h"
 #include "../../transform/infer_layout_utils.h"
 #include "../../transform/utils.h"

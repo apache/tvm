@@ -18,9 +18,9 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.codegen import llvm_version_major
 from tvm.script import ir as I
 from tvm.script import tirx as T
-from tvm.target.codegen import llvm_version_major
 
 simple_target = tvm.target.Target({"kind": "llvm", "mtriple": "x86_64-linux-gnu"})
 sve_target = tvm.target.Target(

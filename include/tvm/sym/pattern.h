@@ -36,7 +36,8 @@ namespace sym {
  * \param vars List of variables to be used in detection.
  * \return [coeff[i]] if it is possible, empty array if it is not.
  */
-ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const ffi::Array<PrimVar>& vars);
+TVM_TIRX_DLL ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
+                                                       const ffi::Array<PrimVar>& vars);
 
 /*!
  * \brief Detect if expression corresponds to clip bound of the vars

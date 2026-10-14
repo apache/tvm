@@ -35,10 +35,8 @@
 #define TVM_VERSION "0.28.dev0"
 #endif
 
-// TVM ships two shared libraries: libtvm_compiler and libtvm_runtime.
-// Each exposes its own DLL macro pair.  The two families are defined
-// independently so that each can be overridden separately by downstream
-// embedders who need custom visibility on only one of the two libraries.
+// The compiler, core runtime and runtime-extra libraries expose independent
+// DLL policies so downstream embedders can override their visibility separately.
 //
 // TVM_DLL / TVM_DLL_EXPORT: symbols in libtvm_compiler.
 //   - TVM_DLL is dllexport when TVM_EXPORTS is defined (compiler build),
@@ -50,8 +48,12 @@
 //     (runtime build), dllimport otherwise.
 //   - TVM_RUNTIME_DLL_EXPORT is always dllexport.
 //
+// TVM_RUNTIME_EXTRA_DLL: symbols in libtvm_runtime_extra.
+//   - dllexport when TVM_RUNTIME_EXTRA_EXPORTS is defined (extra build),
+//     dllimport otherwise, including core-runtime and compiler builds.
+//
 // On non-MSVC platforms the import/export decision is made by the dynamic
-// loader, so all four macros expand to visibility("default"). Under
+// loader, so the macros expand to visibility("default"). Under
 // Emscripten they expand to EMSCRIPTEN_KEEPALIVE.
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
@@ -99,6 +101,21 @@
 #ifndef TVM_RUNTIME_DLL
 #define TVM_RUNTIME_DLL __attribute__((visibility("default")))
 #define TVM_RUNTIME_DLL_EXPORT __attribute__((visibility("default")))
+#endif
+
+// --- TVM_RUNTIME_EXTRA_DLL (libtvm_runtime_extra) ---
+#ifndef TVM_RUNTIME_EXTRA_DLL
+#if defined(__EMSCRIPTEN__)
+#define TVM_RUNTIME_EXTRA_DLL EMSCRIPTEN_KEEPALIVE
+#elif defined(_MSC_VER)
+#ifdef TVM_RUNTIME_EXTRA_EXPORTS
+#define TVM_RUNTIME_EXTRA_DLL __declspec(dllexport)
+#else
+#define TVM_RUNTIME_EXTRA_DLL __declspec(dllimport)
+#endif
+#else
+#define TVM_RUNTIME_EXTRA_DLL __attribute__((visibility("default")))
+#endif
 #endif
 
 #endif  // TVM_RUNTIME_BASE_H_

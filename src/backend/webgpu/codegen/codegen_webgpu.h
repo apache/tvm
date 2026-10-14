@@ -27,13 +27,13 @@
 #ifndef TVM_TARGET_WEBGPU_CODEGEN_WEBGPU_H_
 #define TVM_TARGET_WEBGPU_CODEGEN_WEBGPU_H_
 
+#include <tvm/codegen/codegen.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/target/codegen.h>
 
 #include <cstddef>
 #include <string>
 
-#include "../../../target/source/codegen_c.h"
+#include "../../../codegen/c/codegen_c.h"
 
 namespace tvm {
 namespace codegen {
