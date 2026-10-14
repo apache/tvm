@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Runtime tensor views and imported storage."""
+"""Native FFI object conversion for TVM wrappers and script helpers."""
 
 import pytest
 import tvm_ffi
