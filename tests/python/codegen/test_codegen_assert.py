@@ -120,5 +120,13 @@ def test_tvmscript_assert_preserves_parts(codegen_target):
         lib(0)
 
 
+def test_op_translation_to_not_implemented():
+    try:
+        tvm.testing.test_raise_error("OpNotImplemented", "myop")
+        assert False
+    except tvm.error.OpNotImplemented as e:
+        assert isinstance(e, NotImplementedError)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

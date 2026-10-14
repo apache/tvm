@@ -22,7 +22,6 @@ import os
 import platform
 import stat
 import sys
-import tempfile
 import time
 
 import numpy as np
@@ -33,14 +32,10 @@ pytest.importorskip("tornado")  # tvm.rpc.proxy and tvm.rpc.tracker require torn
 
 import tvm
 import tvm.testing
-from tvm import rpc, te
+from tvm import rpc
 from tvm.rpc.proxy import Proxy
 from tvm.rpc.tracker import Tracker
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
 from tvm.support import cc, utils
-from tvm.testing import env
 
 if __name__ == "__main__":
     # NOTE: must live here to avoid registering PackedFunc with libtvm_compiler.so twice.
@@ -66,39 +61,6 @@ pytestmark = pytest.mark.skipif(
 
 # NOTE: When writing tests, wrap remote related checking in a sub-function
 # to ensure all the remote resources destructs before the server terminates
-
-
-@pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
-)
-def test_bigendian_rpc():
-    """Test big endian rpc when there is a PowerPC RPC server available"""
-    host = os.environ.get("TVM_POWERPC_TEST_HOST", None)
-    port = os.environ.get("TVM_POWERPC_TEST_PORT", 9090)
-    if host is None:
-        return
-
-    def verify_rpc(remote, target, shape, dtype):
-        A = te.placeholder(shape, dtype=dtype)
-        B = te.compute(A.shape, lambda i: A[i] + tvm.tirx.const(1, A.dtype))
-        f = tvm.compile(te.create_function([A, B]), target=target)
-
-        dev = remote.cpu(0)
-        a = dev.tensor(np.random.randint(0, 256, size=shape).astype(str(A.dtype)))
-        b = dev.tensor(np.zeros(shape).astype(str(A.dtype)))
-        temp = utils.tempdir()
-        path_dso = temp.relpath("dev_lib.o")
-        f.write_to_file(path_dso)
-        remote.upload(path_dso)
-        f = remote.load_module("dev_lib.o")
-        f(a, b)
-        tvm.testing.assert_allclose(a.numpy() + 1, b.numpy())
-
-    print("Test RPC connection to PowerPC...")
-    remote = rpc.connect(host, port)
-    target = {"kind": "llvm", "mtriple": "powerpc-linux-gnu"}
-    for dtype in ["float32", "float64", "int32", "int8"]:
-        verify_rpc(remote, target, (10,), dtype)
 
 
 @pytest.mark.skipif(
@@ -207,26 +169,6 @@ def test_rpc_echo():
 
     check(client, False)
 
-    def check_minrpc():
-        if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
-            return
-        # Test minrpc server.
-        temp = utils.tempdir()
-        minrpc_exec = temp.relpath("minrpc")
-        tvm.rpc.with_minrpc(cc.create_executable)(minrpc_exec, [])
-        check(rpc.PopenSession(minrpc_exec), False)
-        # minrpc on the remote
-        server = rpc.Server()
-        client = rpc.connect(
-            "127.0.0.1",
-            server.port,
-            session_constructor_args=["rpc.PopenSession", open(minrpc_exec, "rb").read()],
-        )
-        check(client, False)
-
-    # skip for now until we upgrade to new FFI
-    # check_minrpc()
-
 
 @pytest.mark.skipif(
     tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
@@ -247,114 +189,66 @@ def test_rpc_file_exchange():
 @pytest.mark.skipif(
     tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
-@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
-def test_rpc_remote_module():
-    # graph
-    n = tvm.runtime.convert(102)
-    A = te.placeholder((n,), name="A")
-    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-    mod = tvm.ir.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "myadd"))
+def test_rpc_remote_module(native_object, system_library_source, tmp_path):
+    module = tvm.runtime.load_static_library(str(native_object), ["main", "answer", "callback"])
+    path_dso = tmp_path / "dev_lib.so"
+    path_tar = tmp_path / "dev_lib.tar"
+    module.export_library(str(path_dso))
+    module.export_library(str(path_tar))
+
+    def check_remote(remote, name):
+        dev = remote.cpu(0)
+        remote.upload(str(path_dso))
+        loaded = remote.load_module("dev_lib.so")
+        a = dev.tensor(np.random.uniform(size=102).astype("float32"))
+        b = dev.tensor(np.zeros(102, dtype="float32"))
+        rpc.time_evaluator(loaded, "main", dev, number=10)(a, b)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+
+        remote.upload(str(path_tar))
+        path = tmp_path / f"download-{name}.so"
+        path.write_bytes(remote.download_linked_module("dev_lib.tar"))
+        downloaded = tvm.runtime.load_module(str(path))
+        a = tvm.runtime.tensor(np.random.uniform(size=102).astype("float32"))
+        b = tvm.runtime.tensor(np.zeros(102, dtype="float32"))
+        downloaded(a, b)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
     server0 = rpc.Server(key="x0")
     server1 = rpc.Server(key="x1")
+    try:
+        client = rpc.connect(
+            "127.0.0.1",
+            server0.port,
+            key="x0",
+            session_constructor_args=["rpc.Connect", "127.0.0.1", server1.port, "x1", False],
+        )
+        check_remote(rpc.LocalSession(), "local")
+        check_remote(client, "tcp")
+        del client
+    finally:
+        server0.terminate()
+        server1.terminate()
 
-    client = rpc.connect(
-        "127.0.0.1",
-        server0.port,
-        key="x0",
-        session_constructor_args=["rpc.Connect", "127.0.0.1", server1.port, "x1", False],
-    )
-
-    def check_remote(remote):
-        temp = utils.tempdir()
-        dev = remote.cpu(0)
-        f = tvm.compile(mod, "llvm")
-        path_dso = temp.relpath("dev_lib.so")
-        f.export_library(path_dso)
-        remote.upload(path_dso)
-        f1 = remote.load_module("dev_lib.so")
-        a = dev.tensor(np.random.uniform(size=102).astype(str(A.dtype)))
-        b = dev.tensor(np.zeros(102, dtype=str(A.dtype)))
-        time_f = rpc.time_evaluator(f1, f1.entry_name, remote.cpu(0), number=10)
-        cost = time_f(a, b).mean
-        print(f"{cost:g} secs/op")
-        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
-
-        # Download the file from the remote
-        path_tar = temp.relpath("dev_lib.tar")
-        f.export_library(path_tar)
-        remote.upload(path_tar)
-        local_download_path = temp.relpath("dev_lib.download.so")
-        with open(local_download_path, "wb") as fo:
-            fo.write(remote.download_linked_module("dev_lib.tar"))
-        fupdated = tvm.runtime.load_module(local_download_path)
-        a = tvm.runtime.tensor(np.random.uniform(size=102).astype(str(A.dtype)), tvm.cpu(0))
-        b = tvm.runtime.tensor(np.zeros(102, dtype=str(A.dtype)), tvm.cpu(0))
-        fupdated(a, b)
-        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
-
-    def check_minrpc():
-        if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
-            return
-        # export to minrpc
-        temp = utils.tempdir()
-        # system lib prefix will trigger system lib build
-        f = tvm.compile(mod.with_attr("system_lib_prefix", ""), "llvm")
-        path_minrpc = temp.relpath("dev_lib.minrpc")
-        f.export_library(path_minrpc, fcompile=rpc.with_minrpc(cc.create_executable))
-
-        with pytest.raises(RuntimeError):
-            rpc.PopenSession("filenotexist")
-
-        # statrt the minrpc session.
-        remote = tvm.rpc.PopenSession(path_minrpc)
-        dev = remote.cpu(0)
-        f1 = remote.system_lib()
-
-        a = dev.tensor(np.random.uniform(size=102).astype(str(A.dtype)))
-        b = dev.tensor(np.zeros(102, dtype=str(A.dtype)))
-        time_f = rpc.time_evaluator(f1, "myadd", remote.cpu(0), number=1)
-        cost = time_f(a, b).mean
-        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
-
-        # change to not executable
-        os.chmod(path_minrpc, stat.S_IRUSR)
-        with pytest.raises(RuntimeError):
-            rpc.PopenSession(path_minrpc)
-
-    def check_remote_link_cl(remote):
-        """Test function to run remote code such as cl
-
-        This is not enabled because there is forking issue
-        of TVM runtime when server launches after OpenCL
-        runtime initializes. We leave it as an example
-        on how to do rpc when we want to do linking on remote.
-        """
-        if not tvm.testing.device_enabled("opencl"):
-            print("Skip because opencl is not enabled")
-            return
-        temp = utils.tempdir()
-        dev = remote.cl(0)
-
-        s = tvm.s_tir.Schedule(mod)
-
-        x = s.get_loops(s.get_sblock("B"))
-        xo, xi = s.split(x, factors=[None, 32])
-        s.bind(xo, "blockIdx.x")
-        s.bind(xi, "threadIdx.x")
-        f = tvm.compile(s.mod, tvm.target.Target("opencl", host="llvm"))
-        path_tar = temp.relpath("myadd.tar")
-        f.export_library(path_tar)
-        remote.upload(path_tar)
-        fhost = remote.load_module("myadd.tar")
-        a = dev.tensor(np.random.uniform(size=102).astype(str(A.dtype)))
-        b = dev.tensor(np.zeros(102, dtype=str(A.dtype)))
-        fhost(a, b)
-        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
-
-    check_remote(rpc.LocalSession())
-    check_remote(client)
-    check_minrpc()
+    if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
+        return
+    source = tmp_path / "system.cc"
+    source.write_text(system_library_source)
+    path_minrpc = tmp_path / "dev_lib.minrpc"
+    rpc.with_minrpc(cc.create_executable)(str(path_minrpc), [str(source)])
+    with pytest.raises(RuntimeError):
+        rpc.PopenSession("filenotexist")
+    remote = rpc.PopenSession(str(path_minrpc))
+    dev = remote.cpu(0)
+    loaded = remote.system_lib()
+    a = dev.tensor(np.random.uniform(size=102).astype("float32"))
+    b = dev.tensor(np.zeros(102, dtype="float32"))
+    rpc.time_evaluator(loaded, "main", dev, number=1)(a, b)
+    np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+    del a, b, loaded, dev, remote
+    os.chmod(path_minrpc, stat.S_IRUSR)
+    with pytest.raises(RuntimeError):
+        rpc.PopenSession(str(path_minrpc))
 
 
 @pytest.mark.skipif(
@@ -568,11 +462,11 @@ def test_rpc_tracker_register(device_key):
     tracker.terminate()
 
 
-def _target(host, port, device_key, timeout):
+def _target(host, port, device_key, timeout, acquired):
     client = rpc.connect_tracker(host, port)
     remote = client.request(device_key, session_timeout=timeout)
-    while True:
-        pass
+    acquired.set()
+    multiprocessing.Event().wait()
     remote.cpu()
 
 
@@ -581,7 +475,6 @@ def _target(host, port, device_key, timeout):
 )
 @pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
 def test_rpc_tracker_request(device_key):
-    # test concurrent request
     tracker = Tracker(port=9000, port_end=10000)
     server = rpc.Server(
         port=9000,
@@ -590,33 +483,39 @@ def test_rpc_tracker_request(device_key):
         tracker_addr=("127.0.0.1", tracker.port),
     )
     client = rpc.connect_tracker("127.0.0.1", tracker.port)
-
-    proc1 = multiprocessing.Process(target=_target, args=("127.0.0.1", tracker.port, device_key, 4))
-    proc2 = multiprocessing.Process(
-        target=_target, args=("127.0.0.1", tracker.port, device_key, 200)
+    acquired1 = multiprocessing.Event()
+    acquired2 = multiprocessing.Event()
+    proc1 = multiprocessing.Process(
+        target=_target, args=("127.0.0.1", tracker.port, device_key, 4, acquired1)
     )
-    proc1.start()
-    time.sleep(0.5)
-    proc2.start()
-    time.sleep(0.5)
-
-    summary = client.summary()
-
-    assert summary["queue_info"][device_key]["free"] == 0
-    assert summary["queue_info"][device_key]["pending"] == 1
-
-    proc1.terminate()
-    proc1.join()
-    time.sleep(0.5)
-
-    summary = client.summary()
-    assert summary["queue_info"][device_key]["free"] == 0
-    assert summary["queue_info"][device_key]["pending"] == 0
-
-    proc2.terminate()
-    proc2.join()
-    server.terminate()
-    tracker.terminate()
+    proc2 = multiprocessing.Process(
+        target=_target, args=("127.0.0.1", tracker.port, device_key, 200, acquired2)
+    )
+    try:
+        proc1.start()
+        assert acquired1.wait(20), "first RPC session was not acquired"
+        proc2.start()
+        deadline = time.monotonic() + 10
+        while True:
+            queue = client.summary()["queue_info"][device_key]
+            if queue["pending"] == 1 or time.monotonic() >= deadline:
+                break
+            time.sleep(0.05)
+        assert queue["free"] == 0
+        assert queue["pending"] == 1
+        proc1.terminate()
+        proc1.join()
+        assert acquired2.wait(20), "pending RPC request did not acquire the released session"
+        queue = client.summary()["queue_info"][device_key]
+        assert queue["free"] == 0
+        assert queue["pending"] == 0
+    finally:
+        for process in (proc1, proc2):
+            if process.pid is not None:
+                process.terminate()
+                process.join()
+        server.terminate()
+        tracker.terminate()
 
 
 @pytest.mark.skipif(
@@ -683,58 +582,35 @@ def test_rpc_session_timeout_error(with_proxy):
         server = rpc.Server(port=port, port_end=port_end, tracker_addr=tracker_addr, key="x1")
     time.sleep(0.5)
 
-    rpc_sess = rpc.connect_tracker(*tracker_addr).request(key="x1", session_timeout=1)
-
-    with pytest.raises(tvm.error.RPCSessionTimeoutError):
+    try:
+        # Leave room for server startup before testing expiration of an established session.
+        rpc_sess = rpc.connect_tracker(*tracker_addr).request(key="x1", session_timeout=5)
         f1 = rpc_sess.get_function("rpc.test.addone")
-        time.sleep(2)
-        f1(10)
+        time.sleep(6)
+        with pytest.raises(tvm.error.RPCSessionTimeoutError):
+            f1(10)
+    finally:
+        server.terminate()
+        if with_proxy:
+            proxy.terminate()
+        tracker.terminate()
 
-    server.terminate()
-    if with_proxy:
-        proxy.terminate()
-    tracker.terminate()
 
-
+@pytest.mark.skipif(
+    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+)
 @pytest.mark.parametrize("call_with_unused_argument", [True, False])
-def test_compiled_function_with_zero_arguments(call_with_unused_argument):
-    """RPC functions do not require an argument
-
-    This is a regression test.  When no arguments are provided, RPC
-    provides NULL as the `TVMFFIAny* args` argument to a PackedFunc.
-    However, previous implementations of `MakePackedAPI`
-    unconditionally asserted that the `args` pointer was non-null.
-    This assertion is now generated only when the function accepts
-    a non-zero number of arguments.
-
-    """
-
-    @I.ir_module
-    class Module:
-        @Ts.function
-        def func_without_arg() -> T.int64:
-            return T.int64(42)
-
-        @Ts.function
-        def func_with_arg(unused: T.int64) -> T.int64:
-            return T.int64(42)
-
-    built = tvm.compile(Module, target="llvm")
-
-    server = tvm.rpc.Server(key="x1")
-    client = tvm.rpc.connect("127.0.0.1", server.port, key="x1")
-
-    libname = "libbuilt.so"
-    with tempfile.TemporaryDirectory(prefix="tvm_rpc_testing_") as temp_dir:
-        local_path = os.path.join(temp_dir, libname)
-        built.export_library(local_path)
-        client.upload(local_path)
-
-    remote_mod = client.load_module(libname)
-
-    if call_with_unused_argument:
-        res = remote_mod["func_with_arg"](0)
-    else:
-        res = remote_mod["func_without_arg"]()
-
-    assert res == 42
+def test_remote_function_with_zero_arguments(native_library, call_with_unused_argument):
+    server = rpc.Server(key="x1")
+    try:
+        client = rpc.connect("127.0.0.1", server.port, key="x1")
+        client.upload(str(native_library))
+        module = client.load_module(native_library.name)
+        if call_with_unused_argument:
+            result = module["with_arg"](0)
+        else:
+            result = module["answer"]()
+        assert result == 42
+        del module, client
+    finally:
+        server.terminate()

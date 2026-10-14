@@ -14,18 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Test runtime error handling"""
+import random
 
-import tvm
+import pytest
+
 import tvm.testing
+from tvm.rpc import base
 
 
-def test_op_translation_to_not_implemented():
-    try:
-        tvm.testing.test_raise_error("OpNotImplemented", "myop")
-        assert False
-    except tvm.error.OpNotImplemented as e:
-        assert isinstance(e, NotImplementedError)
+@pytest.mark.parametrize("device_key", ["16e995b6", "127.0.0.1:5555"])
+def test_rpc_base_random_key(device_key):
+    random.seed(0)
+    key = base.random_key(device_key)
+    assert key.startswith(device_key)
+    res_device_key, _ = base.split_random_key(key)
+    assert device_key == res_device_key
+    # start with seed 0 as well, but use cmap arg(a conflict map)
+    # to generate another unique random key
+    random.seed(0)
+    new_key = base.random_key(device_key, cmap={key})
+    assert key != new_key
+    assert new_key.startswith(device_key)
+    res_device_key2, _ = base.split_random_key(new_key)
+    assert device_key == res_device_key2
 
 
 if __name__ == "__main__":

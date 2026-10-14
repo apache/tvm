@@ -19,6 +19,7 @@
 
 import math
 import sys
+import uuid
 
 import pytest
 import tvm_ffi
@@ -29,6 +30,7 @@ import tvm.testing
 from tirx.layout_fixtures import tcgen05_register_layout
 from tvm.backend.cuda.axis import TCol, TLane, laneid, warpid
 from tvm.ir import TensorRegion, assert_structural_equal
+from tvm.runtime import MemoryScope
 from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
@@ -1435,3 +1437,53 @@ def test_roundtrip_tmem_decl_tensor():
     tmem_decl = next(decl for decl in decls if decl.var.scope() == tvm.runtime.MemoryScope("tmem"))
     assert isinstance(tmem_decl.value.args[0], tvm.ir.TensorLoad)
     assert len(tmem_decl.value.ty_args) == 1
+
+
+def test_memory_scope_json_and_script_roundtrip():
+    custom = MemoryScope.register("test.script.scope." + uuid.uuid4().hex)
+    for scope in (MemoryScope("global"), MemoryScope("shared.dyn"), custom):
+        assert tvm.ir.load_json(tvm.ir.save_json(scope)).same_as(scope)
+        ty = T.Tensor((4,), "float32", scope=scope)
+        restored = tvm.ir.load_json(tvm.ir.save_json(ty))
+        assert restored.scope.same_as(scope)
+        tvm.ir.assert_structural_equal(ty, restored)
+
+        @T.function
+        def func(A: T.Tensor((4,), "float32", scope=scope)):
+            A[0] = T.float32(1)
+
+        script = func.script()
+        if scope != MemoryScope("global"):
+            assert f'scope="{scope.name}"' in script
+        restored_func = tvm.script.from_source(script, extra_vars={"T": T})
+        tvm.ir.assert_structural_equal(func, restored_func)
+        assert restored_func.params[0].scope().same_as(scope)
+
+
+def test_memory_scope_canonical_constructor_aliases_and_reflected_scopes():
+    assert T.Ptr is tvm.ir.PtrType
+    assert T.Tensor is tvm.tirx.TensorType
+    custom = MemoryScope.register("test.script.scope." + uuid.uuid4().hex)
+    for scope in (MemoryScope("global"), custom):
+        pointer = T.Ptr(T.float32, scope)
+        source = pointer.script()
+        expected = (
+            "T.Ptr(T.float32)"
+            if scope == MemoryScope("global")
+            else f'T.Ptr(T.float32, "{scope.name}")'
+        )
+        assert source == expected
+        restored = eval(source, {"T": T, "I": I})
+        tvm.ir.assert_structural_equal(pointer, restored)
+        assert restored.scope.same_as(scope)
+        tensor = T.Tensor((4,), T.float32, scope, byte_offset=8, align=128, layout="default")
+        assert tensor.scope.same_as(scope)
+        assert tensor.elem_offset.value == 2
+        assert tensor.data_alignment == 128
+        restored_tensor = eval(tensor.script(), {"T": T, "I": I})
+        tvm.ir.assert_structural_equal(tensor, restored_tensor)
+    for scope in (custom, custom.name):
+        tensor = T.Tensor((4,), T.float32, scope=scope)
+        assert tensor.scope.same_as(custom)
+    with pytest.raises(ValueError):
+        T.Ptr(T.float32, "")

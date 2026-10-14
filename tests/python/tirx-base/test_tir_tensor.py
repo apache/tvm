@@ -16,11 +16,14 @@
 # under the License.
 # ruff: noqa: E741, F401, F841
 
+import uuid
+
 import numpy as np
 import pytest
 
 import tvm
 import tvm.testing
+from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
 
 
@@ -256,6 +259,48 @@ def test_tensor_flatten(shape, strides, expected):
     assert flat.data.args[0].same_as(flat)
     assert flat.data.op.name == "tirx.tensor_data_ptr"
     tvm.ir.assert_structural_equal(flat.ty.shape, [T.int32(expected)])
+
+
+def test_memory_scope_typed_conversion():
+    custom = MemoryScope.register("test.tensor.scope." + uuid.uuid4().hex)
+    for scope in (custom, custom.name):
+        ptr_ty = tvm.ir.PtrType(tvm.ir.PrimType("float32"), scope)
+        tensor = tvm.tirx.decl_tensor((4,), "float32", scope=scope)
+        tensor_ty = tvm.tirx.TensorType((4,), "float32", scope)
+        assert tensor_ty.scope.same_as(custom)
+        assert ptr_ty.scope.same_as(custom)
+        assert tensor.ty.scope.same_as(custom)
+        assert tensor.scope().same_as(custom)
+        assert tensor.data.ty.scope.same_as(custom)
+
+    unknown = "test.memory_scope.unknown." + uuid.uuid4().hex
+    for construct in (
+        lambda: tvm.ir.PtrType(tvm.ir.PrimType("float32"), unknown),
+        lambda: tvm.tirx.decl_tensor((4,), "float32", scope=unknown),
+        lambda: T.Tensor((4,), "float32", scope=unknown),
+    ):
+        with pytest.raises(ValueError):
+            construct()
+    with pytest.raises(ValueError):
+        MemoryScope(unknown)
+
+
+def test_memory_scope_global_defaults():
+    global_scope = MemoryScope("global")
+    assert tvm.ir.PtrType(tvm.ir.PrimType("float32")).scope.same_as(global_scope)
+    assert tvm.tirx.decl_tensor((4,), "float32").scope().same_as(global_scope)
+    for scope in ("global", global_scope):
+        assert tvm.ir.PtrType(tvm.ir.PrimType("float32"), scope).scope.same_as(global_scope)
+        assert tvm.tirx.decl_tensor((4,), "float32", scope=scope).scope().same_as(global_scope)
+        assert T.Tensor((4,), "float32", scope=scope).scope.same_as(global_scope)
+    for construct in (
+        lambda: MemoryScope(""),
+        lambda: tvm.ir.PtrType(tvm.ir.PrimType("float32"), ""),
+        lambda: tvm.tirx.decl_tensor((4,), "float32", scope=""),
+        lambda: T.Tensor((4,), "float32", scope=""),
+    ):
+        with pytest.raises(ValueError):
+            construct()
 
 
 if __name__ == "__main__":
