@@ -28,8 +28,8 @@ import pytest
 from .test_utils import JENKINS_SCRIPT_ROOT, REPO_ROOT
 
 
-def load_s3():
-    spec = importlib.util.spec_from_file_location("jenkins_s3", JENKINS_SCRIPT_ROOT / "s3.py")
+def load_s3(script_root=JENKINS_SCRIPT_ROOT):
+    spec = importlib.util.spec_from_file_location("jenkins_s3", script_root / "s3.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -40,8 +40,11 @@ def executable(path, body):
     path.chmod(0o755)
 
 
+@pytest.mark.parametrize(
+    "script_root", [JENKINS_SCRIPT_ROOT, REPO_ROOT / "ci/scripts/jenkins"], ids=["native", "legacy"]
+)
 @pytest.mark.parametrize("failures", [2, 3])
-def test_s3_transfer_retries(tmp_path, monkeypatch, failures):
+def test_s3_transfer_retries(tmp_path, monkeypatch, failures, script_root):
     # Run the real retry.sh with fake AWS and sleep, without network or delays.
     executable(
         tmp_path / "aws",
@@ -66,17 +69,19 @@ with pathlib.Path(os.environ["SLEEP_LOG"]).open("a") as out:
     monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
     monkeypatch.setenv("FAILURES", str(failures))
     monkeypatch.setenv("SLEEP_LOG", str(tmp_path / "sleeps"))
-    s3 = load_s3()
+    monkeypatch.syspath_prepend(str(script_root))
+    destination = "file name" if script_root == JENKINS_SCRIPT_ROOT else "artifact.so"
     for transfer in range(2):
         log = tmp_path / f"aws-{transfer}"
         monkeypatch.setenv("AWS_LOG", str(log))
+        s3 = load_s3(script_root)
         if failures == 3:
             with pytest.raises(subprocess.CalledProcessError):
-                s3.s3("s3://bucket/file", "file name", False)
+                s3.s3("s3://bucket/file", destination, False)
         else:
-            assert s3.parse_output_files(s3.s3("s3://bucket/file", "file name", False))
+            assert s3.parse_output_files(s3.s3("s3://bucket/file", destination, False))
         commands = [json.loads(line) for line in log.read_text().splitlines()]
-        assert commands == [["s3", "cp", "--no-progress", "s3://bucket/file", "file name"]] * 3
+        assert commands == [["s3", "cp", "--no-progress", "s3://bucket/file", destination]] * 3
     delays = (tmp_path / "sleeps").read_text().splitlines()
     assert len(delays) == 4
     assert all(30 <= int(delay) <= 200 for delay in delays)

@@ -66,12 +66,14 @@ the PR target revision for subsequent stages, including release targets.
 Host scripts and artifact metadata follow that pinned target revision for PR
 authors outside `CONTRIBUTORS.md`.
 
-Migrate each trusted target branch as a unit. An older monolithic entry point
-can call a renamed host script before the merge and trusted-file restoration,
-so a PR deleting that old path can fail preparation. This includes the
-node-information command moved into `scripts/`. Use a trusted branch build to
-exercise helper changes and the complete new layout; do not bypass a refused
-read by evaluating PR-owned code or a different target revision.
+The legacy `ci/scripts/` hierarchy and `tests/scripts/task_show_node_info.sh`
+remain alongside the new paths because fork PR jobs can select older trusted
+Jenkinsfiles from their target branch. Those files keep the old docs-only and
+slow-test gates and their helper imports; the native pipelines use the new
+layout without those gates. Both layouts share the artifact registry and image
+configuration. Keep the legacy commands until the trusted targets no longer
+call them. Use a trusted branch build to exercise native helper changes; do not
+bypass a refused read by evaluating PR-owned code or a different revision.
 
 Before enabling the migration on production jobs, validate it with the existing
 Jenkins plugin versions and sandbox settings on a trusted branch: run all five
