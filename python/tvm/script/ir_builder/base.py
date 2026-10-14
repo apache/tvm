@@ -203,6 +203,21 @@ class IRBuilder(_Object):
         """Get the constructed IR."""
         return _ffi_api.IRBuilderGet(self)  # type: ignore[attr-defined] # pylint: disable=no-member
 
+    def line_trace_scope(self, *, exclude_paths=()):
+        """Track Python source lines while executing builder code.
+
+        TVM and Python implementation frames are excluded automatically.
+        ``exclude_paths`` supplies additional implementation directories.
+        User helpers retain their own line and the caller's location. Nested
+        scopes and exceptions restore the preceding trace and location state.
+        Locations cover whole lines; use the parser for expression ranges.
+        Tracing only supplies locations: script-facing void calls emit under
+        any active builder, independently of this scope.
+        """
+        from .tracing import LineTraceScope  # pylint: disable=import-outside-toplevel
+
+        return LineTraceScope(self, exclude_paths=exclude_paths)
+
     @contextmanager
     def with_loc(self, loc):
         """Attach ``loc`` to IR nodes constructed in the nested scope.
