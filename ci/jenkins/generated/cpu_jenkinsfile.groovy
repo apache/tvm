@@ -19,19 +19,26 @@
 ci = evaluate(readTrusted('ci/jenkins/generated/common.groovy'))
 ci.start()
 
-ci.build('CPU', 'BUILD: CPU', 'tvm/build-cpu', images.ci_cpu, 'cpu') {
-  sh(
-    script: "${docker_run} ${images.ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
-    label: 'Create CPU CMake config',
-  )
-  ci.cmake_build(images.ci_cpu, 'build')
-  ci.make_cpp_tests(images.ci_cpu, 'build')
-  ci.upload('cpu', '--artifacts tvm_lib --artifacts cpptest')
+stage('Build') {
+  ci.with_node(instance: 'CPU-SPOT', retry_instance: 'CPU',
+    name: 'BUILD: CPU', folder: 'tvm/build-cpu', variables: ['PLATFORM=cpu']) {
+    ci.docker_init(images.ci_cpu)
+    sh(
+      script: "${docker_run} ${images.ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
+      label: 'Create CPU CMake config',
+    )
+    ci.cmake_build(images.ci_cpu, 'build')
+    ci.make_cpp_tests(images.ci_cpu, 'build')
+    ci.upload_artifacts('cpu', '--artifacts tvm_lib --artifacts cpptest')
+  }
 }
 
 stage('Test') {
   parallel('unittest: CPU': {
-    ci.test('CPU', 'unittest: CPU', 'tvm/ut-python-cpu', images.ci_cpu, 'cpu') {
+    ci.with_node(instance: 'CPU-SPOT', retry_instance: 'CPU',
+      name: 'unittest: CPU', folder: 'tvm/ut-python-cpu',
+      variables: ['PLATFORM=cpu', 'TEST_STEP_NAME=unittest: CPU']) {
+      ci.docker_init(images.ci_cpu)
       ci.download('cpu')
       ci.cpp_unittest(images.ci_cpu)
       ci.python_unittest(images.ci_cpu)

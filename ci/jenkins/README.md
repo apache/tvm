@@ -55,13 +55,25 @@ expanding local or remote globs.
 Use `s3.py --artifacts NAME...` to select registry entries or `--paths PATH...`
 to select raw paths; the selections are mutually exclusive. Existing Jenkinsfiles
 can keep `--bundle` and `--items`, which are aliases with the same semantics.
-The shared helper's legacy `upload(tag, options)` passes those options unchanged.
+`upload_artifacts(tag, options)` passes those options unchanged, as does the
+retained legacy `upload(tag, options)`.
 `artifacts.py` exposes the declarative `ARTIFACTS` registry; there is no `data.py`
 compatibility module.
 
 The shared helper groups internal dependencies first, public entry points next,
 and retained legacy functions last. Existing function signatures, shared variables,
-startup and retry behavior remain available to the platform Jenkinsfiles.
+startup and retry behavior remain available to existing Jenkinsfiles.
+
+Native build and test stages use `with_node(options, body)`. Callers provide exact
+`instance` and optional `retry_instance` labels, a stage `name`, a workspace
+`folder`, and optional environment `variables`. Skipped CI returns before node
+allocation or setup. Each attempt checks out sources in its workspace and runs
+the body under a timeout; callers explicitly run `docker_init(image)` in the body.
+When a retry label is supplied, build and test failures use the same fallback
+policy, retaining the newest-build guard. User cancellation and milestone interruptions propagate without retry, as does
+failure of the fallback attempt. Agent loss and attempt timeouts remain eligible
+for fallback. Omit `retry_instance` for a single attempt.
+Stage and parallel layout remain in the platform files.
 
 Host-side commands live in `scripts/`. GitHub bot and release API helpers live
 in `../github/`. The retained `determine_docker_images.py` supports both

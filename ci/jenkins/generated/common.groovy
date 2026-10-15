@@ -286,6 +286,42 @@ def run_on_node(label, name, folder, image, variables, body) {
 
 // Public entry points.
 
+// The caller supplies exact node labels; omitting retry_instance disables fallback.
+// Docker setup stays in the body so each attempt uses the caller's chosen image.
+def with_node(options, body) {
+  if (skip_ci) {
+    Utils.markStageSkippedForConditional(options.name)
+    return
+  }
+  def run = { instance ->
+    node(instance) {
+      ws(per_exec_ws(options.folder)) {
+        init_git()
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv(options.variables ?: []) { body() }
+        }
+      }
+    }
+  }
+  try {
+    run(options.instance)
+  } catch (Throwable ex) {
+    // Jenkins also uses FlowInterruptedException for agent loss and timeouts.
+    // Actual interruptions (user cancellation or a milestone) must not retry.
+    if (ex instanceof org.jenkinsci.plugins.workflow.steps.FlowInterruptedException) {
+      if (ex.isActualInterruption()) throw ex
+    } else if (ex instanceof InterruptedException) {
+      throw ex
+    }
+    if (!options.retry_instance) throw ex
+    retry_latest(ex) { run(options.retry_instance) }
+  }
+}
+
+def upload_artifacts(tag, options) {
+  upload(tag, options)
+}
+
 def docker_init(image) {
   // Clear out all Docker images that aren't going to be used
   sh(

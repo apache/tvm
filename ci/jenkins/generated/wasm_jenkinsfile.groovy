@@ -19,16 +19,20 @@
 ci = evaluate(readTrusted('ci/jenkins/generated/common.groovy'))
 ci.start()
 
-ci.build('CPU', 'BUILD: WASM', 'tvm/build-wasm', images.ci_wasm, 'wasm') {
-  sh(
-    script: "${docker_run} ${images.ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
-    label: 'Create WASM CMake config',
-  )
-  ci.cmake_build(images.ci_wasm, 'build')
-  ci.make_cpp_tests(images.ci_wasm, 'build')
-  ci.cpp_unittest(images.ci_wasm)
-  sh(
-    script: "${docker_run} ${images.ci_wasm} ./tests/scripts/task_web_wasm.sh",
-    label: 'Run WASM lint and tests',
-  )
+stage('Build') {
+  ci.with_node(instance: 'CPU-SPOT', retry_instance: 'CPU',
+    name: 'BUILD: WASM', folder: 'tvm/build-wasm', variables: ['PLATFORM=wasm']) {
+    ci.docker_init(images.ci_wasm)
+    sh(
+      script: "${docker_run} ${images.ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
+      label: 'Create WASM CMake config',
+    )
+    ci.cmake_build(images.ci_wasm, 'build')
+    ci.make_cpp_tests(images.ci_wasm, 'build')
+    ci.cpp_unittest(images.ci_wasm)
+    sh(
+      script: "${docker_run} ${images.ci_wasm} ./tests/scripts/task_web_wasm.sh",
+      label: 'Run WASM lint and tests',
+    )
+  }
 }

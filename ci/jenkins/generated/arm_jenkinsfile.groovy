@@ -19,12 +19,16 @@
 ci = evaluate(readTrusted('ci/jenkins/generated/common.groovy'))
 ci.start()
 
-ci.build('ARM-GRAVITON3', 'BUILD: arm', 'tvm/build-arm', images.ci_arm, 'arm') {
-  sh(
-    script: "${docker_run} ${images.ci_arm} ./tests/scripts/task_config_build_arm.sh build",
-    label: 'Create ARM CMake config',
-  )
-  ci.cmake_build(images.ci_arm, 'build')
-  ci.make_cpp_tests(images.ci_arm, 'build')
-  ci.upload('arm', '--artifacts tvm_lib --artifacts cpptest')
+stage('Build') {
+  ci.with_node(instance: 'ARM-GRAVITON3-SPOT', retry_instance: 'ARM-GRAVITON3',
+    name: 'BUILD: arm', folder: 'tvm/build-arm', variables: ['PLATFORM=arm']) {
+    ci.docker_init(images.ci_arm)
+    sh(
+      script: "${docker_run} ${images.ci_arm} ./tests/scripts/task_config_build_arm.sh build",
+      label: 'Create ARM CMake config',
+    )
+    ci.cmake_build(images.ci_arm, 'build')
+    ci.make_cpp_tests(images.ci_arm, 'build')
+    ci.upload_artifacts('arm', '--artifacts tvm_lib --artifacts cpptest')
+  }
 }

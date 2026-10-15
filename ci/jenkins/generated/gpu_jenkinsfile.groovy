@@ -19,21 +19,28 @@
 ci = evaluate(readTrusted('ci/jenkins/generated/common.groovy'))
 ci.start()
 
-ci.build('CPU', 'BUILD: GPU', 'tvm/build-gpu', images.ci_gpu, 'gpu') {
-  sh "${docker_run} --no-gpu ${images.ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
-  ci.cmake_build("${images.ci_gpu} --no-gpu", 'build')
-  ci.upload('gpu', '--artifacts tvm_lib --artifacts tvm_lib_gpu_extra')
+stage('Build') {
+  ci.with_node(instance: 'CPU-SPOT', retry_instance: 'CPU',
+    name: 'BUILD: GPU', folder: 'tvm/build-gpu', variables: ['PLATFORM=gpu']) {
+    ci.docker_init(images.ci_gpu)
+    sh "${docker_run} --no-gpu ${images.ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
+    ci.cmake_build("${images.ci_gpu} --no-gpu", 'build')
+    ci.upload_artifacts('gpu', '--artifacts tvm_lib --artifacts tvm_lib_gpu_extra')
 
-  // Check the compiler-only GPU configuration after publishing the test build.
-  sh 'rm -rf build'
-  sh "${docker_run} --no-gpu ${images.ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
-  sh "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_gpu} --no-gpu ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --cmake-target tvm_runtime --build-dir build"
+    // Check the compiler-only GPU configuration after publishing the test build.
+    sh 'rm -rf build'
+    sh "${docker_run} --no-gpu ${images.ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
+    sh "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_gpu} --no-gpu ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --cmake-target tvm_runtime --build-dir build"
+  }
 }
 
 stage('Test') {
   parallel(
     'unittest: GPU': {
-      ci.test('GPU', 'unittest: GPU', 'tvm/ut-python-gpu', images.ci_gpu, 'gpu') {
+      ci.with_node(instance: 'GPU-SPOT', retry_instance: 'GPU',
+        name: 'unittest: GPU', folder: 'tvm/ut-python-gpu',
+        variables: ['PLATFORM=gpu', 'TEST_STEP_NAME=unittest: GPU']) {
+        ci.docker_init(images.ci_gpu)
         ci.download('gpu')
         sh(
           script: "${docker_run} ${images.ci_gpu} ./tests/scripts/task_java_unittest.sh",
@@ -46,13 +53,16 @@ stage('Test') {
       }
     },
     'docs: GPU': {
-      ci.test('GPU', 'docs: GPU', 'tvm/docs-python-gpu', images.ci_gpu, 'gpu') {
+      ci.with_node(instance: 'GPU-SPOT', retry_instance: 'GPU',
+        name: 'docs: GPU', folder: 'tvm/docs-python-gpu',
+        variables: ['PLATFORM=gpu', 'TEST_STEP_NAME=docs: GPU']) {
+        ci.docker_init(images.ci_gpu)
         ci.download('gpu')
         sh(
           script: "${docker_run} ${images.ci_gpu} ./tests/scripts/task_python_docs.sh",
           label: 'Build docs',
         )
-        ci.upload('docs', '--paths docs.tgz')
+        ci.upload_artifacts('docs', '--paths docs.tgz')
         sh(
           script: "aws s3 cp --no-progress _docs s3://${s3_bucket}/${s3_prefix}/docs --recursive",
           label: 'Upload docs to S3',
