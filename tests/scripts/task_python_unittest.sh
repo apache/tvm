@@ -29,4 +29,4 @@ python3 tests/scripts/task_build.py --ffi-only
 # --no-deps keeps the submodule-built tvm-ffi above from being replaced by a PyPI build.
 uv pip install --no-deps apache-tvm-ffi-orcjit==0.1.2
 
-python3 -m pytest -vvs -n auto -m "${TVM_TEST_MARKER:-not gpu}" tests/python tirx/tests/python
+python3 -m pytest -vvs -n auto -o faulthandler_timeout=120 -m "${TVM_TEST_MARKER:-not gpu}" tests/python tirx/tests/python
