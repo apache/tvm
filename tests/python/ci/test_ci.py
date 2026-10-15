@@ -18,12 +18,65 @@
 """Test various CI scripts and GitHub Actions workflows"""
 
 import json
+import os
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from .test_utils import JENKINS_SCRIPT_ROOT, TempGit, run_script
+JENKINS_SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "ci" / "jenkins" / "scripts"
+
+
+class TempGit:
+    """
+    A wrapper to run commands in a directory (specifically for use in CI tests)
+    """
+
+    def __init__(self, cwd):
+        self.cwd = cwd
+        # Jenkins git is too old and doesn't have 'git init --initial-branch',
+        # so init and checkout need to be separate steps
+        self.run("init", stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        self.run("checkout", "-b", "main", stderr=subprocess.PIPE)
+        self.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+
+    def run(self, *args, **kwargs):
+        """
+        Run a git command based on *args
+        """
+        proc = subprocess.run(
+            ["git"] + list(args), encoding="utf-8", cwd=self.cwd, check=False, **kwargs
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"git command failed: '{args}'")
+
+        return proc
+
+
+def run_script(command: list[Any], check: bool = True, **kwargs):
+    """
+    Wrapper to run a script and print its output if there was an error
+    """
+    command = [str(c) for c in command]
+    kwargs_to_send = {
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "encoding": "utf-8",
+    }
+    env = kwargs.pop("env", None)
+    if env is not None:
+        kwargs_to_send["env"] = {**os.environ, **env}
+    kwargs_to_send.update(kwargs)
+    proc = subprocess.run(
+        command,
+        check=False,
+        **kwargs_to_send,
+    )
+    if check and proc.returncode != 0:
+        raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
+
+    return proc
 
 
 @pytest.fixture
