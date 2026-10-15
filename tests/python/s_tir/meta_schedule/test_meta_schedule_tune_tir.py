@@ -23,14 +23,15 @@ import pytest
 
 pytest.importorskip("tornado")  # tvm.rpc.tracker (LocalRPC) requires tornado
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
 from tvm.s_tir.schedule import SBlockRV, Schedule
 from tvm.s_tir.utils import derived_object
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 from tvm_tirx.testing import env

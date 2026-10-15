@@ -616,7 +616,9 @@ def test_tcgen05_16xnb_sub_slab_view_read(shape, rep):
 
     target = tvm_tirx.target.Target("cuda")
     with target:
-        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx"
+        )
         source_np = tvm_tirx.testing.generate_random_array(dtype, (128, regs128))
 
         def run_and_check():
@@ -726,7 +728,9 @@ def test_layout_B_rejects_16xnb_fragment():
             (ValueError, RuntimeError),
             match="TMEM lane partition must belong to the executing warp",
         ):
-            tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx")
+            tvm_tirx.tirx.compile(
+                tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx"
+            )
 
 
 def test_layout_B_partial_column_copy():
@@ -805,7 +809,9 @@ def test_datapath_B_codegen(direction):
 
     target = tvm_tirx.target.Target("cuda")
     with target:
-        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx"
+        )
     source = mod.mod.imports[0].inspect_source()
     assert f"tcgen05.{direction}" in source
     assert "32x32b.x32" in source
@@ -888,7 +894,9 @@ def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
 
     target = tvm_tirx.target.Target("cuda")
     with target:
-        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx"
+        )
         source_np = tvm_tirx.testing.generate_random_array("float32", (128, n_half))
 
         def run_and_check():

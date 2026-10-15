@@ -19,8 +19,8 @@
 
 from collections.abc import Iterable
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 
 
 class LibCompareVMInstrument:

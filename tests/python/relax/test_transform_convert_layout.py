@@ -16,8 +16,9 @@
 # under the License.
 # ruff: noqa: E501, F841
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.transform import ConvertLayout, Normalize
 from tvm_tirx.script.parser import ir as I
 from tvm_tirx.script.parser import relax as R

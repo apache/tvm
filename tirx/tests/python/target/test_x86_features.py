@@ -205,7 +205,8 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
         # check for feature via the ffi llvm api (no explicit target, no context target)
         try:
             assert (
-                tvm_tirx.get_global_func("codegen.target_has_feature")(x86_feature, None) == is_supported
+                tvm_tirx.get_global_func("codegen.target_has_feature")(x86_feature, None)
+                == is_supported
             )
             assert False
         except tvm_tirx.error.InternalError as e:

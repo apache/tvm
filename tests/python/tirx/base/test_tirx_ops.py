@@ -16,8 +16,9 @@
 # under the License.
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 
 
 def check_throws(f):

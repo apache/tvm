@@ -19,11 +19,12 @@
 Test relax transform - Eliminate redundant reshape operations
 """
 
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx.testing
 from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.transform import DeadCodeElimination, RemoveRedundantReshape
 from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 
 
 def _run_pass_compare_output(Before, Expected):

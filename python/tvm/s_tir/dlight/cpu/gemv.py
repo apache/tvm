@@ -16,8 +16,8 @@
 # under the License.
 """A rule for GEMV and DecodeGEMV."""
 
-from tvm_tirx import tirx
 from tvm import s_tir
+from tvm_tirx import tirx
 from tvm_tirx.target import Target
 
 from ..analysis import SBlockInfo, normalize_function

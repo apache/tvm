@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """ROI Align operator"""
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
 
 from ..cpp.utils import bilinear_sample_nchw, bilinear_sample_nhwc

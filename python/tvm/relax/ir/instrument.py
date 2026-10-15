@@ -16,7 +16,7 @@
 # under the License.
 """Common relax pass instrumentation across IR variants."""
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax
 
 

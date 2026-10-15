@@ -29,8 +29,8 @@ import numpy as np  # type: ignore
 import tvm_ffi
 from tvm_ffi import get_global_func, register_global_func
 
-import tvm, tvm_tirx
-from tvm_tirx.ir import IRModule
+import tvm
+import tvm_tirx
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.tune_utils import generate_input_data
@@ -38,6 +38,7 @@ from tvm.s_tir.meta_schedule.utils import remove_build_dir
 from tvm.s_tir.schedule import Trace
 from tvm.s_tir.tensor_intrin import *  # type: ignore # pylint: disable=wildcard-import,unused-wildcard-import
 from tvm.s_tir.testing import strtobool
+from tvm_tirx.ir import IRModule
 from tvm_tirx.support import describe
 from tvm_tirx.target import Target
 
@@ -443,7 +444,8 @@ def make_alloc_arg_and_check(
             The list of argument lists.
         """
         return [
-            [tvm_tirx.runtime.tensor(arg, device=device) for arg in inputs] for _ in range(alloc_repeat)
+            [tvm_tirx.runtime.tensor(arg, device=device) for arg in inputs]
+            for _ in range(alloc_repeat)
         ]
 
     def f_with_args_run_evaluator_common(

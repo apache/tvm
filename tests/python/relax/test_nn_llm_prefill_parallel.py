@@ -17,8 +17,9 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.frontend.nn.llm._prefill_kernels import (
     _attention_prefill,
     _attention_prefill_ragged,

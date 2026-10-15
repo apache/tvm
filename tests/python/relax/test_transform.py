@@ -18,15 +18,15 @@
 
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.script, tvm
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.ir import TupleType as _TupleType
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
 from tvm.s_tir import script as Ts
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 
@@ -382,7 +382,9 @@ def test_call_dps_packed_rewrite_nested_tuple_output():
         relax.TensorType((4,), "int32"),
         relax.TensorType((5, 6), "float16"),
     ]
-    output_ty = tvm_tirx.ir.TupleType([flat_output_types[0], tvm_tirx.ir.TupleType(flat_output_types[1:])])
+    output_ty = tvm_tirx.ir.TupleType(
+        [flat_output_types[0], tvm_tirx.ir.TupleType(flat_output_types[1:])]
+    )
 
     x = relax.Var("x", input_ty)
     call = relax.Call(

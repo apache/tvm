@@ -28,15 +28,16 @@ import pytest
 from tvm_ffi import Shape
 from tvm_ffi.core import String
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 
 # Imported for the side effect of registering the tests.disco.* worker functions.
 from tvm.exec import disco_worker as _  # noqa: F401  # pylint: disable=unused-import
-from tvm.runtime import disco as di
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
+from tvm.runtime import disco as di
 from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 if di is None:

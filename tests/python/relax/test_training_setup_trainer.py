@@ -17,15 +17,15 @@
 # ruff: noqa: E501
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.ir.base import assert_structural_equal
+from tvm.relax import script as R
 from tvm.relax.training import SetupTrainer
 from tvm.relax.training.loss import MSELoss
 from tvm.relax.training.optimizer import SGD, MomentumSGD
+from tvm_tirx.ir.base import assert_structural_equal
 from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 
 
 def test_simple():

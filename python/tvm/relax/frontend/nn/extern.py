@@ -26,7 +26,8 @@ from pathlib import Path
 
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm_tirx import libinfo, tirx
 from tvm_tirx.runtime import Module, load_static_library
 from tvm_tirx.support import cc as _cc
@@ -277,7 +278,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
                 f"Using environment variable `TVM_HOME`, but it is not a directory: {tvm_path!s}"
             )
         else:
-            import tvm, tvm_tirx  # pylint: disable=import-outside-toplevel
+            import tvm
 
             tvm_path = Path(tvm.__file__).parent
             assert tvm_path.is_dir()

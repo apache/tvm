@@ -30,7 +30,9 @@ TARGET = tvm_tirx.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_
 
 def _cuda_source(func) -> str:
     with TARGET:
-        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": func}), target=TARGET, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": func}), target=TARGET, pipeline="tirx"
+        )
     return mod.mod.imports[0].inspect_source("cuda")
 
 
@@ -302,9 +304,13 @@ def test_ptx_addr_printer_script_and_json_roundtrip():
     assert script.count("T.ptx.addr(") == 2
     tvm_tirx.ir.assert_structural_equal(
         kernel,
-        tvm_tirx.script.from_source(script, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}),
+        tvm_tirx.script.from_source(
+            script, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+        ),
     )
-    tvm_tirx.ir.assert_structural_equal(kernel, tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(kernel)))
+    tvm_tirx.ir.assert_structural_equal(
+        kernel, tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(kernel))
+    )
 
 
 def test_ptx_addr_legacy_positional_offsets_rejected():

@@ -21,8 +21,9 @@ from collections.abc import Callable
 
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.runtime, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.runtime
 from tvm_tirx.ir import Attrs, Call, Op
 from tvm_tirx.ir.attrs import make_node as _make_attrs
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
@@ -493,7 +494,9 @@ def print(format: str | Expr, *values: Expr, ty=None, loc: Location = UNKNOWN_LO
 
 
 @tvm_tirx.register_global_func("relax.run.assert_op")
-def relax_assert_op(condition: tvm_tirx.Object, format_str: str, *format_args: tvm_tirx.Object) -> None:
+def relax_assert_op(
+    condition: tvm_tirx.Object, format_str: str, *format_args: tvm_tirx.Object
+) -> None:
     """
     A variadic function. The first value serves as the assertion condition:
     If the condition is true, then the operator does nothing.

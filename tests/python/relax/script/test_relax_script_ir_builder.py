@@ -16,12 +16,12 @@
 # under the License.
 """Relax script ir builder."""
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.script import ir_builder as R
+from tvm_tirx import tirx
 from tvm_tirx.script.ir_builder.base import IRBuilder
 
 
@@ -192,8 +192,8 @@ def test_regression_py_print():
 def test_function_subroutine_before_main():
     """The block builder can generate subroutines, and calls into subroutines"""
 
-    from tvm_tirx.script import ir as I
     from tvm.relax import script as R
+    from tvm_tirx.script import ir as I
 
     # create with TVMScript
     @I.ir_module
@@ -234,8 +234,8 @@ def test_function_subroutine_before_main():
 def test_function_subroutine_during_main():
     """Subroutines may be generated as needed, pausing the main function collection"""
 
-    from tvm_tirx.script import ir as I
     from tvm.relax import script as R
+    from tvm_tirx.script import ir as I
 
     # create with TVMScript
     @I.ir_module

@@ -174,8 +174,12 @@ def test_parser_locs_do_not_affect_structural_identity():
     source_a = """@T.function\ndef f():\n    T.evaluate(1)\n"""
     source_b = """\n\n@T.function\ndef f():\n    T.evaluate(1)\n"""
 
-    func_a = tvm_tirx.script.from_source(source_a, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
-    func_b = tvm_tirx.script.from_source(source_b, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
+    func_a = tvm_tirx.script.from_source(
+        source_a, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+    )
+    func_b = tvm_tirx.script.from_source(
+        source_b, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+    )
 
     assert _loc_range(func_a.body[0].loc) == ("<str>", 3, 5, 3, 18)
     assert _loc_range(func_b.body[0].loc) == ("<str>", 5, 5, 5, 18)

@@ -80,7 +80,8 @@ def function_pass(
 
     Parameters
     ----------
-    pass_func : Optional[Callable[(tvm_tirx.tirx.Function, IRModule, PassContext) -> tvm_tirx.tirx.Function]]
+    pass_func : Optional[Callable[
+        (tvm_tirx.tirx.Function, IRModule, PassContext) -> tvm_tirx.tirx.Function]]
         The transformation function or class.
 
     opt_level : int

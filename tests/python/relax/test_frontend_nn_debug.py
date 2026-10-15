@@ -17,11 +17,11 @@
 # pylint: disable=missing-docstring
 import torch
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import op, spec
+from tvm_tirx import tirx
 from tvm_tirx.runtime import Tensor
 
 

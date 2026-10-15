@@ -20,13 +20,14 @@
 import numpy as np
 import pytest
 
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.ir.base import assert_structural_equal
-from tvm.relax.transform import DeadCodeElimination, FuseTIR, OptimizeLayoutTransform
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
+from tvm.relax.transform import DeadCodeElimination, FuseTIR, OptimizeLayoutTransform
 from tvm.s_tir import script as Ts
+from tvm_tirx.ir.base import assert_structural_equal
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 

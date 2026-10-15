@@ -22,13 +22,13 @@ import weakref
 
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.testing.dummy_object import DummyBuilder, DummyRunner
 from tvm.s_tir.utils import derived_object
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring

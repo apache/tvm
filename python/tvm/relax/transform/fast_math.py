@@ -17,10 +17,11 @@
 # pylint: disable=invalid-name, unused-argument, redefined-argument-from-local
 """Relax Use Fast Math pass."""
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import topi
-from tvm_tirx.ir.module import IRModule
 from tvm.relax import Call, Expr, PyExprMutator, expr_functor
+from tvm_tirx.ir.module import IRModule
 
 
 @expr_functor.mutator

@@ -18,8 +18,8 @@
 
 from collections.abc import Callable
 
-from tvm_tirx import tirx
 from tvm import s_tir
+from tvm_tirx import tirx
 from tvm_tirx.target import Target
 
 

@@ -16,9 +16,10 @@
 # under the License.
 """Quantized Neural Network (QNN) Operators"""
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
 from tvm import te, topi
+from tvm_tirx import tirx
 
 SQNN_DISABLE = 0
 SQNN_INT8 = 1

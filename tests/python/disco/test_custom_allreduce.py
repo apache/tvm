@@ -23,8 +23,8 @@ import numpy as np
 import pytest
 from tvm_ffi import Shape
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.runtime import disco
 from tvm_tirx.runtime import DataType
 

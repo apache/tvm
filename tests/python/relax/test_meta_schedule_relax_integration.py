@@ -22,15 +22,16 @@ import tempfile
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.runtime import cpu as tvm_cpu
-from tvm_tirx.runtime import tensor as tvm_tensor
+from tvm.relax import script as R
 from tvm.runtime.vm import VirtualMachine
 from tvm.s_tir import meta_schedule as ms
+from tvm_tirx.runtime import cpu as tvm_cpu
+from tvm_tirx.runtime import tensor as tvm_tensor
 from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 
 

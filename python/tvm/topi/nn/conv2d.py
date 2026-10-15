@@ -25,7 +25,7 @@ from collections.abc import Sequence
 
 import numpy as np
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
 
 from ..utils import get_const_int, get_const_tuple, simplify, tag

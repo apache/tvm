@@ -21,8 +21,9 @@ import sys
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import te
 from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
@@ -193,7 +194,9 @@ class TestFunctions:
         ir_mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
         function = ir_mod["main"]
 
-        buf_name_map = {param.name: param for param in func.params if tvm_tirx.tirx.is_tensor_var(param)}
+        buf_name_map = {
+            param.name: param for param in func.params if tvm_tirx.tirx.is_tensor_var(param)
+        }
         input_tensors = [te.placeholder(buf_name_map[name].shape) for name in params]
         output = te.extern_function(input_tensors, function)
         rt_function = te.create_function(tensors_from_extern_op(output, function))

@@ -17,11 +17,11 @@
 
 from __future__ import annotations
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx.ir import Var
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import SBlock
 from tvm.s_tir import script as Ts
+from tvm_tirx.ir import Var
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx.function import Function
 

@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,missing-docstring
-import tvm, tvm_tirx
+import tvm_tirx
+from tvm.relax import script as R
 from tvm.relax.frontend import nn
 from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 
 
 def _iter_binding_names(mod):

@@ -19,8 +19,9 @@
 
 from __future__ import annotations
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax import VDevice
 from tvm.relax.transform import RealizeVDevice
 from tvm_tirx.script.parser import ir as I

@@ -271,7 +271,9 @@ class _ScriptableMethods:
             Object to be annotated
 
         """
-        from tvm_tirx.script.printer.highlight import cprint  # pylint: disable=import-outside-toplevel
+        from tvm_tirx.script.printer.highlight import (
+            cprint,  # pylint: disable=import-outside-toplevel
+        )
 
         if black_format is None:
             env = os.environ.get("TVM_BLACK_FORMAT")

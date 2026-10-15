@@ -20,7 +20,7 @@
 import math
 from collections import deque
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm.s_tir import meta_schedule
 from tvm.s_tir.schedule import ExprRV, LoopRV, SBlockRV, Schedule
 

@@ -27,9 +27,9 @@ from typing import Literal
 
 from tvm_ffi import register_object
 
+from tvm.s_tir.schedule import Schedule, Trace
 from tvm_tirx.ir.module import IRModule
 from tvm_tirx.runtime import Object
-from tvm.s_tir.schedule import Schedule, Trace
 from tvm_tirx.target import Target
 
 from .. import _ffi_api

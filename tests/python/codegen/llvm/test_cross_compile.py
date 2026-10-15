@@ -23,8 +23,9 @@ import struct
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import rpc
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T

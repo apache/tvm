@@ -18,8 +18,8 @@
 #  type: ignore
 from __future__ import annotations
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm_tirx.script.parser import ir as I
 from tvm_tirx.script.parser import relax as R

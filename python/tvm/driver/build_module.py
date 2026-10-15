@@ -20,7 +20,8 @@
 
 from collections.abc import Callable
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm_tirx.ir.module import IRModule
 from tvm_tirx.runtime import Executable
 from tvm_tirx.target import Target

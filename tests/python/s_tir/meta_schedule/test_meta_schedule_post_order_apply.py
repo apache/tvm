@@ -24,16 +24,17 @@ import pytest
 import tvm_ffi
 from tvm_ffi import register_global_func
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import te
-from tvm_tirx.ir.module import IRModule
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule import TuneContext
 from tvm.s_tir.meta_schedule.schedule_rule import PyScheduleRule
 from tvm.s_tir.meta_schedule.space_generator import PostOrderApply
 from tvm.s_tir.schedule import SBlockRV, Schedule
 from tvm.s_tir.utils import derived_object
-from tvm.s_tir import script as Ts
+from tvm_tirx.ir.module import IRModule
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 

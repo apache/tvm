@@ -20,13 +20,14 @@ import sys
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.relax.frontend import nn
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
+from tvm.relax.frontend import nn
 from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 

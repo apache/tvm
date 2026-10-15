@@ -26,13 +26,13 @@ from typing import Literal
 import tvm_ffi
 from tvm_ffi import get_global_func
 
-import tvm, tvm_tirx
-from tvm_tirx import ir, tirx
+import tvm_tirx
 from tvm import s_tir
-from tvm_tirx.ir import TensorRegion
-from tvm_tirx.runtime import MemoryScope
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
+from tvm_tirx import ir, tirx
+from tvm_tirx.ir import TensorRegion
+from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.target.target import Target
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name

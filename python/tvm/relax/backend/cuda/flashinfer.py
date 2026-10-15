@@ -20,7 +20,7 @@
 import re
 from pathlib import Path
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm_tirx.target import Target
 
 

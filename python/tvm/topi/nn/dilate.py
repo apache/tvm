@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """Dilation operators"""
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
 
 from .. import tag, utils

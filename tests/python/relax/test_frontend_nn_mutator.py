@@ -17,7 +17,7 @@
 
 from typing import Any
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm.relax.frontend import nn
 
 

@@ -20,7 +20,8 @@
 # pylint: disable=invalid-name
 from typing import Optional, Union
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm_tirx.ir import IRModule, TensorRegion
 from tvm_tirx.tirx.expr import Var
 from tvm.s_tir import SBlock

@@ -24,12 +24,12 @@ implementation using TVM's testing infrastructure.
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.backend.pattern_registry import get_patterns_with_prefix
 from tvm.relax.transform import FuseOpsByPattern, MergeCompositeFunctions, RunCodegen
-from tvm.relax import script as R
 
 
 @tvm_tirx.script.ir_module
@@ -224,7 +224,6 @@ def test_example_npu_codegen():
 @example_npu_enabled
 def test_example_npu_runtime_execution():
     """Test end-to-end execution with the example NPU runtime"""
-    import tvm.relax.backend.contrib.example_npu
 
     # Create simple test inputs
     np.random.seed(42)

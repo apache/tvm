@@ -20,7 +20,7 @@ from collections.abc import Callable
 
 import numpy as np  # type: ignore
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm_tirx.runtime import Tensor
 
 

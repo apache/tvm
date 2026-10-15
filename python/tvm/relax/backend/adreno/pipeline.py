@@ -16,7 +16,8 @@
 # under the License.
 """The Relax Adreno GPU backend compilation pipeline and other passes."""
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import relax
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 

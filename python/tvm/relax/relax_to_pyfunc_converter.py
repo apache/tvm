@@ -28,9 +28,10 @@ import numpy  # pylint: disable=unused-import
 import torch
 import torch.nn.functional as F
 
-import tvm, tvm_tirx
-from tvm_tirx import runtime
+import tvm
+import tvm_tirx
 from tvm import relax
+from tvm_tirx import runtime
 from tvm_tirx.ir import IRModule, Op
 
 

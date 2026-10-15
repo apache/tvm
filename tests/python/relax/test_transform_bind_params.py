@@ -18,9 +18,10 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.script, tvm
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax
 from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax import script as R
@@ -133,7 +134,9 @@ def test_bind_params_consistent_explicit_and_inferred_symbolic_var():
     n = relax.Var("n", prim_type)
     data = relax.Var("data", relax.TensorType([n], "float32"))
     before = relax.Function([n, data], n, prim_type)
-    explicit_value = tvm_tirx.tirx.Add(tvm_tirx.tirx.const(2, "int64"), tvm_tirx.tirx.const(3, "int64"))
+    explicit_value = tvm_tirx.tirx.Add(
+        tvm_tirx.tirx.const(2, "int64"), tvm_tirx.tirx.const(3, "int64")
+    )
 
     after = before.bind_params({n: explicit_value, data: np.zeros([5], "float32")})
 

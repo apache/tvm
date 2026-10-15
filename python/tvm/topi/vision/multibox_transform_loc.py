@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """Multibox location transform (SSD / TFLite DetectionPostProcess decode)."""
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te, topi
 
 

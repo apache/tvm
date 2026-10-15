@@ -17,13 +17,13 @@
 # ruff: noqa: E741, F841
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.ir import Op
 from tvm.relax import VDevice
 from tvm.relax import script as R
+from tvm_tirx import tirx
+from tvm_tirx.ir import Op
 
 
 def test_op_correctness():
@@ -381,7 +381,9 @@ def test_max_pool2d_infer_ty_ceil_mode_symbolic():
         relax.op.nn.max_pool2d(
             x, pool_size=(3, 3), strides=(2, 2), padding=(1, 1), dilation=(2, 2), ceil_mode=True
         ),
-        relax.TensorType((n, c, tvm_tirx.tirx.floordiv(ih, 2), tvm_tirx.tirx.floordiv(iw, 2)), "float32"),
+        relax.TensorType(
+            (n, c, tvm_tirx.tirx.floordiv(ih, 2), tvm_tirx.tirx.floordiv(iw, 2)), "float32"
+        ),
     )
 
 
@@ -613,7 +615,13 @@ def test_max_pool3d_infer_ty_ceil_mode_symbolic():
             ceil_mode=True,
         ),
         relax.TensorType(
-            (n, c, tvm_tirx.tirx.floordiv(id_, 2), tvm_tirx.tirx.floordiv(ih, 2), tvm_tirx.tirx.floordiv(iw, 2)),
+            (
+                n,
+                c,
+                tvm_tirx.tirx.floordiv(id_, 2),
+                tvm_tirx.tirx.floordiv(ih, 2),
+                tvm_tirx.tirx.floordiv(iw, 2),
+            ),
             "float32",
         ),
     )
@@ -1040,7 +1048,9 @@ def test_avg_pool2d_infer_ty_ceil_mode_symbolic():
         relax.op.nn.avg_pool2d(
             x, pool_size=(3, 3), strides=(2, 2), padding=(1, 1), dilation=(2, 2), ceil_mode=True
         ),
-        relax.TensorType((n, c, tvm_tirx.tirx.floordiv(ih, 2), tvm_tirx.tirx.floordiv(iw, 2)), "float32"),
+        relax.TensorType(
+            (n, c, tvm_tirx.tirx.floordiv(ih, 2), tvm_tirx.tirx.floordiv(iw, 2)), "float32"
+        ),
     )
 
 

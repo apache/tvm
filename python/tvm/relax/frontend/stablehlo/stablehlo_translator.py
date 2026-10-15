@@ -21,9 +21,9 @@
 from collections.abc import Callable
 from typing import Any
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm_tirx
 from tvm import relax
+from tvm_tirx import tirx
 
 
 def _is_tensor_var(value) -> bool:

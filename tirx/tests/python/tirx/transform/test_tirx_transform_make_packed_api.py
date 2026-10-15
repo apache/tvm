@@ -543,7 +543,8 @@ def test_subroutine_call_to_externally_visible_subroutine():
 
     subroutine_call_op = main_compute_scope.body[0].value.op
     assert (
-        isinstance(subroutine_call_op, tvm_tirx.ir.Op) and subroutine_call_op.name == "tirx.call_cpacked"
+        isinstance(subroutine_call_op, tvm_tirx.ir.Op)
+        and subroutine_call_op.name == "tirx.call_cpacked"
     ), (
         f"The main function's CallNode should be lowered to the builtin 'tirx.call_cpacked', "
         f"but instead has an operation of type {subroutine_call_op}"
@@ -691,7 +692,9 @@ def test_return_from_parallel_scope_is_rejected():
             for i in T.parallel(2):
                 return i
 
-    with pytest.raises(tvm_tirx.error.InternalError, match="Return cannot be used in parallel scope"):
+    with pytest.raises(
+        tvm_tirx.error.InternalError, match="Return cannot be used in parallel scope"
+    ):
         tvm_tirx.tirx.transform.MakePackedAPI()(Before)
 
 
@@ -1529,7 +1532,9 @@ def test_tensor_alignment_attached_to_tensor_var():
     declared_tensors = []
 
     def collect(node):
-        if isinstance(node, tvm_tirx.ir.Call) and node.op == tvm_tirx.ir.Op.get("tirx.assume_aligned"):
+        if isinstance(node, tvm_tirx.ir.Call) and node.op == tvm_tirx.ir.Op.get(
+            "tirx.assume_aligned"
+        ):
             alignment_nodes.append(node.args[0])
         if _is_tensor_binding(node, "tirx.decl_tensor"):
             declared_tensors.append(node.var)

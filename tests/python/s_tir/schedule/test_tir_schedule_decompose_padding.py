@@ -19,11 +19,12 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
-from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import script as Ts
+from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
+from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg

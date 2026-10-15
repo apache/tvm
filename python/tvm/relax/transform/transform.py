@@ -28,7 +28,8 @@ import numpy as np  # type: ignore
 import tvm_ffi
 from tvm_ffi import Array
 
-import tvm_tirx.ir, tvm
+import tvm
+import tvm_tirx.ir
 from tvm.relax import Expr, Type, Var
 from tvm.relax.dpl import DFPattern
 from tvm_tirx.runtime import Object, Tensor
@@ -1404,7 +1405,9 @@ def ToMixedPrecision(
     return _ffi_api.ToMixedPrecision(out_dtype, fp16_input_names)  # type: ignore
 
 
-def SplitCallTIRByPattern(patterns: list[Function], fcodegen: Callable) -> tvm_tirx.ir.transform.Pass:
+def SplitCallTIRByPattern(
+    patterns: list[Function], fcodegen: Callable
+) -> tvm_tirx.ir.transform.Pass:
     """Split a Function into 2 parts: the first part is a TIR Function which is
        matched with some pattern, and the second part is the rest of the original
        Function. It will call fcodegen to generate the code for the matched pattern

@@ -23,7 +23,7 @@ import subprocess
 import sys
 import tempfile
 
-import tvm_tirx.testing, tvm
+import tvm_tirx.testing
 
 TEST_SCRIPT_FILE = pathlib.Path(__file__).with_name("pickle_memoize_script.py").resolve()
 

@@ -26,7 +26,7 @@ from typing import Any
 import numpy as np  # type: ignore
 from tvm_ffi import Function, register_global_func
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm_tirx.runtime import Device, Object
 
 

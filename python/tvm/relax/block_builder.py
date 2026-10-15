@@ -23,7 +23,7 @@ from typing import Any, Optional
 
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax as rx
 from tvm_tirx import tirx
 from tvm_tirx.ir.module import IRModule

@@ -29,9 +29,9 @@ from typing import Literal
 # isort: on
 from tvm_ffi import register_object
 
+from tvm.s_tir.schedule import Schedule
 from tvm_tirx.ir import IRModule
 from tvm_tirx.runtime import Object
-from tvm.s_tir.schedule import Schedule
 
 from .. import _ffi_api
 

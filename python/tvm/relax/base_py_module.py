@@ -26,9 +26,10 @@ from typing import Any, Optional, Union
 import numpy as np
 from tvm_ffi import Function
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
 from tvm import relax
+from tvm_tirx import tirx
 from tvm_tirx.ir import IRModule
 from tvm_tirx.runtime import Device, Tensor
 from tvm_tirx.target import Target
@@ -639,7 +640,9 @@ class BasePyModule:
         This method extends the standard IRModule show() method to handle
         Python functions stored in the IRModule's pyfuncs attribute.
         """
-        from tvm_tirx.script.printer.highlight import cprint  # pylint: disable=import-outside-toplevel
+        from tvm_tirx.script.printer.highlight import (
+            cprint,  # pylint: disable=import-outside-toplevel
+        )
 
         if black_format is None:
             env = os.environ.get("TVM_BLACK_FORMAT")

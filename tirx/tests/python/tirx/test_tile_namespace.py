@@ -225,7 +225,8 @@ def test_none_layout_script_roundtrip():
 
     assert kernel.params[0].ty.layout is None
     assert_structural_equal(
-        kernel, tvm_tirx.script.from_source(kernel.script(), extra_vars={"T": T, "I": tvm_tirx.script.ir})
+        kernel,
+        tvm_tirx.script.from_source(kernel.script(), extra_vars={"T": T, "I": tvm_tirx.script.ir}),
     )
 
 
@@ -253,7 +254,9 @@ def test_none_layout_views_execute_with_offsets_and_strides():
 
     def run():
         source = tvm_tirx.runtime.tensor(data, device=tvm_tirx.cuda(0))
-        output = tvm_tirx.runtime.tensor(np.zeros((3, 16), dtype="float32"), device=tvm_tirx.cuda(0))
+        output = tvm_tirx.runtime.tensor(
+            np.zeros((3, 16), dtype="float32"), device=tvm_tirx.cuda(0)
+        )
         compiled(source, output)
         np.testing.assert_array_equal(output.numpy(), expected)
 

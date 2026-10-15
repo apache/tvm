@@ -19,8 +19,8 @@ Apply ScheduleRules onto an IRModule to generate default schedules without tunin
 or a space for MetaSchedule tuning
 """
 
-from tvm_tirx import tirx
 from tvm import s_tir
+from tvm_tirx import tirx
 from tvm_tirx.ir import IRModule
 from tvm_tirx.ir.transform import PassContext, module_pass
 from tvm_tirx.target import Target

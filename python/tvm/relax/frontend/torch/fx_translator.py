@@ -22,7 +22,7 @@
 from collections.abc import Callable
 from functools import partial, reduce
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax
 
 from .base_fx_graph_translator import BaseFXGraphImporter

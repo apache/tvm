@@ -23,17 +23,18 @@ import sys
 
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.script, tvm
-import tvm_tirx.testing, tvm
-from tvm_tirx import IRModule, tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax, topi
-from tvm_tirx.ir import TupleType as _TupleType
 from tvm.relax import DummyGlobalInfo, VDevice
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
 from tvm.s_tir import script as Ts
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 

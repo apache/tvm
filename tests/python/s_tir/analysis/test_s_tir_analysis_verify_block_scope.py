@@ -17,15 +17,18 @@
 
 import pytest
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
+from tvm.s_tir import script as Ts
 from tvm_tirx.ir import TensorRegion, TensorRegionType
 from tvm_tirx.script import ir as I
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 
 def test_tensor_region_bounds_are_visited():
-    data = tvm_tirx.tirx.Var("data", tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("int32"), scope="global"))
+    data = tvm_tirx.tirx.Var(
+        "data", tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("int32"), scope="global")
+    )
     tensor = tvm_tirx.tirx.decl_tensor([4], "int32", data=data)
     undefined = tvm_tirx.tirx.Var("undefined", "int32")
     region = TensorRegion(

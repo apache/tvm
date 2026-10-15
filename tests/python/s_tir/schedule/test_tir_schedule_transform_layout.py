@@ -21,15 +21,16 @@ import sys
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm_tirx import tirx
 from tvm_tirx.script import ir as I
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 # fmt: off
@@ -297,7 +298,8 @@ def test_simplify():
                         # C[...] = B[vi // 16 + vi_o, vj // 16 + vj_o, vi % 16, vj % 16] + T.float32(1)
 
     expected = tvm_tirx.tirx.Function(
-        [param for param in ref.params if tvm_tirx.tirx.is_tensor_var(param)], ref.body[0].block.body
+        [param for param in ref.params if tvm_tirx.tirx.is_tensor_var(param)],
+        ref.body[0].block.body,
     )
     actual_block = sch.get(block_outer)
     actual = tvm_tirx.tirx.Function(

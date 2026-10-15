@@ -22,10 +22,10 @@ import os
 
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm_tirx
+from tvm.relax.expr import DataflowBlock, Var
 from tvm_tirx.ir import Call
 from tvm_tirx.ir.module import IRModule
-from tvm.relax.expr import DataflowBlock, Var
 from tvm_tirx.runtime import Object
 
 
@@ -42,7 +42,9 @@ def dataflow_liveness_analysis(block: DataflowBlock) -> dict[Var, tuple[int, int
     if "PYTEST_CURRENT_TEST" not in os.environ:
         logging.warning("The function dataflow_liveness_analysis is exposed for testing only.")
 
-    live_ranges = tvm_tirx.get_global_func("relax.testing.transform.DataflowLivenessAnalysis")(block)  # type: ignore
+    live_ranges = tvm_tirx.get_global_func("relax.testing.transform.DataflowLivenessAnalysis")(
+        block
+    )  # type: ignore
     ret = {}
     for var, live_range in live_ranges.items():
         ret[var] = tuple(live_range)
@@ -58,7 +60,9 @@ def dataflow_alias_analysis(
     if "PYTEST_CURRENT_TEST" not in os.environ:
         logging.warning("The function dataflow_alias_analysis is exposed for testing only.")
 
-    alias_sets, tuple_map = tvm_tirx.get_global_func("relax.testing.transform.DataflowAliasAnalysis")(
+    alias_sets, tuple_map = tvm_tirx.get_global_func(
+        "relax.testing.transform.DataflowAliasAnalysis"
+    )(
         block,
         inputs,
     )  # type: ignore

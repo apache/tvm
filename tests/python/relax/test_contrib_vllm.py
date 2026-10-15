@@ -18,12 +18,13 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 
@@ -767,7 +768,9 @@ def test_reconstruct_from_cache():
     num_blocks = 1
 
     reshape_and_cache_func = tvm_tirx.get_global_func("tvm.contrib.vllm.reshape_and_cache")
-    reconstruct_from_cache_func = tvm_tirx.get_global_func("tvm.contrib.vllm.reconstruct_from_cache")
+    reconstruct_from_cache_func = tvm_tirx.get_global_func(
+        "tvm.contrib.vllm.reconstruct_from_cache"
+    )
 
     def run_and_check():
         dev = tvm_tirx.cuda(0)

@@ -20,10 +20,10 @@ import numpy as np
 import pytest
 from tvm_ffi import Shape
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx.runtime import Device
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.runtime import disco as di
+from tvm_tirx.runtime import Device
 
 page_size = 4
 num_layers = 4

@@ -16,7 +16,7 @@
 # under the License.
 """Binary Neural Network (BNN) Operators"""
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
 
 from .. import tag

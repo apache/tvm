@@ -21,9 +21,10 @@ import pytest
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
 import tvm.topi.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import te
 from tvm.contrib import cblas, dnnl, mkl
 

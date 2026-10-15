@@ -18,7 +18,7 @@
 
 from collections.abc import Callable
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
 from tvm_tirx.ir import Call, GenericConst
 from tvm_tirx.runtime import DataTypeCode

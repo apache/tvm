@@ -18,8 +18,8 @@
 # ruff: noqa: E741
 """ScatterND operator"""
 
-from tvm_tirx import DataTypeCode, ir, tirx
 from tvm import te  # hide redefinition of min and max
+from tvm_tirx import DataTypeCode, ir, tirx
 from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.sym.analyzer import Analyzer
 from tvm_tirx.tirx.script import ir_builder as T

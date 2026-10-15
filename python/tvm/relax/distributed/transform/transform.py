@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """Relax distributed-related transformation passes."""
 
-import tvm_tirx.ir, tvm
+import tvm_tirx.ir
 
 from . import _ffi_api
 

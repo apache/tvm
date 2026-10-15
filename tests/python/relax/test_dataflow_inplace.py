@@ -20,10 +20,9 @@ import numpy as np
 import pytest
 import torch
 
-import tvm, tvm_tirx
-from tvm_tirx import testing
+import tvm
+import tvm_tirx
 from tvm import relax
-from tvm_tirx.ir import TupleType as _TupleType
 from tvm.relax.testing.transform import (
     dataflow_alias_analysis,
     dataflow_inplace_analysis,
@@ -32,6 +31,8 @@ from tvm.relax.testing.transform import (
 )
 from tvm.relax.transform import DataflowUseInplaceCalls
 from tvm.s_tir import script as Ts
+from tvm_tirx import testing
+from tvm_tirx.ir import TupleType as _TupleType
 from tvm_tirx.script.parser import ir as I
 from tvm_tirx.script.parser import relax as R
 from tvm_tirx.script.parser import tirx as T

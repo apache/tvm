@@ -28,8 +28,8 @@ import scipy.special
 import tvm_ffi
 from tvm_ffi import Shape
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.frontend.nn.llm.kv_cache import (
     AttnKind,
     _attention_decode_cpu,
@@ -141,7 +141,9 @@ def set_global_func(head_dim, dtype, layer_sliding_window_size=1024):
     fprepare_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
     fimport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
     ffinish_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_finish_import")
-    fget_sequence_length = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_get_sequence_length")
+    fget_sequence_length = tvm_tirx.get_global_func(
+        "vm.builtin.attention_kv_cache_get_sequence_length"
+    )
 
     target = tvm_tirx.target.Target.from_device(device)
     cache_key = (
@@ -522,7 +524,9 @@ def apply_attention(
         queries_np = global_new_q[layer_id]
         keys_np = global_new_k[layer_id]
         values_np = global_new_v[layer_id]
-        qkv = tvm_tirx.runtime.tensor(np.concatenate([queries_np, keys_np, values_np], axis=1), device)
+        qkv = tvm_tirx.runtime.tensor(
+            np.concatenate([queries_np, keys_np, values_np], axis=1), device
+        )
         outputs = tvm_tirx.runtime.empty(queries_np.shape, dtype, device=device)
         fattention_with_fuse_qkv(kv_cache, layer_id, sm_scale, qkv, outputs)
 
@@ -755,7 +759,9 @@ def test_attention_with_shared_kv(source_attn_kind, layer_window_size):
         shared_q = rng.standard_normal((append_length, num_qo_heads, head_dim)).astype(dtype)
 
         fbegin_forward(kv_cache, Shape([0]), Shape([append_length]), None)
-        qkv = tvm_tirx.runtime.tensor(np.concatenate([source_q, current_k, current_v], axis=1), device)
+        qkv = tvm_tirx.runtime.tensor(
+            np.concatenate([source_q, current_k, current_v], axis=1), device
+        )
         source_output = tvm_tirx.runtime.empty(source_q.shape, dtype, device=device)
         fattention_with_fuse_qkv(kv_cache, 0, sm_scale, qkv, source_output)
 

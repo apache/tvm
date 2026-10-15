@@ -16,11 +16,11 @@
 # under the License.
 # ruff: noqa: E501
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.relax.transform import LegalizeOps
 from tvm.relax import script as R
+from tvm.relax.transform import LegalizeOps
 from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 

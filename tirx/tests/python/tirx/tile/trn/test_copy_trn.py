@@ -738,7 +738,10 @@ def test_explicit_transpose_prepares_identity_and_psum(columns, copy_to_sbuf):
     names = []
     tvm_ffi.structural_walk(
         lowered,
-        (tvm_tirx.ir.Call, lambda n: names.append(n.op.name) if isinstance(n.op, tvm_tirx.ir.Op) else None),
+        (
+            tvm_tirx.ir.Call,
+            lambda n: names.append(n.op.name) if isinstance(n.op, tvm_tirx.ir.Op) else None,
+        ),
     )
     assert "tirx.nki.identity" in names
     assert "tirx.nki.matmul" in names

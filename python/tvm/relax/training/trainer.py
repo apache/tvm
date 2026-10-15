@@ -19,7 +19,7 @@
 
 import numpy as np  # type: ignore
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax
 from tvm_tirx.ir.module import IRModule
 from tvm_tirx.runtime._tensor import Tensor
@@ -140,14 +140,18 @@ class Trainer:
     def zero_init_params(self):
         """Zero initialize all parameters. Requires all parameters have static shapes."""
         self._params = [
-            tvm_tirx.runtime.tensor(np.zeros(self._get_shape_list(p), p.ty.dtype.dtype), self.device)
+            tvm_tirx.runtime.tensor(
+                np.zeros(self._get_shape_list(p), p.ty.dtype.dtype), self.device
+            )
             for p in self._param_vars
         ]
 
     def zero_init_states(self):
         """Zero initialize all states. Requires all states have static shapes."""
         self._states = [
-            tvm_tirx.runtime.tensor(np.zeros(self._get_shape_list(s), s.ty.dtype.dtype), self.device)
+            tvm_tirx.runtime.tensor(
+                np.zeros(self._get_shape_list(s), s.ty.dtype.dtype), self.device
+            )
             for s in self._state_vars
         ]
 
@@ -155,8 +159,9 @@ class Trainer:
         self,
         params: list[np.ndarray | Tensor] | dict[str, np.ndarray | Tensor],
     ):
-        """Load parameters from a dict or a list. Will convert parameters into tvm_tirx.runtime.Tensor
-        in self.device.
+        """Load parameters from a dict or a list.
+
+        Will convert parameters into tvm_tirx.runtime.Tensor in self.device.
 
         Parameters
         ----------
@@ -181,7 +186,9 @@ class Trainer:
             for key, val in params.items():
                 if key not in self._param_name_to_pos:
                     raise ValueError(f"Parameter {key} is not found in the model")
-                self._params[self._param_name_to_pos[key]] = tvm_tirx.runtime.tensor(val, self.device)
+                self._params[self._param_name_to_pos[key]] = tvm_tirx.runtime.tensor(
+                    val, self.device
+                )
         else:
             raise ValueError("The type of extern_params should be either list or dict")
 
@@ -215,7 +222,9 @@ class Trainer:
             for key, val in states.items():
                 if key not in self._param_name_to_pos:
                     raise ValueError(f"Parameter {key} is not found in the model")
-                self._states[self._param_name_to_pos[key]] = tvm_tirx.runtime.tensor(val, self.device)
+                self._states[self._param_name_to_pos[key]] = tvm_tirx.runtime.tensor(
+                    val, self.device
+                )
         else:
             raise ValueError("The type of extern_states should be either list or dict")
 

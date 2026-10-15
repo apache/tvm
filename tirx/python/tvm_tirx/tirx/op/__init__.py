@@ -1197,7 +1197,11 @@ def reinterpret(dtype, value, loc: Location = UNKNOWN_LOC) -> Expr:
         The reinterpret cast value of dtype.
     """
     if isinstance(dtype, str):
-        dtype = PtrType(tvm_tirx.ir.PrimType("void")) if dtype == "handle" else tvm_tirx.ir.PrimType(dtype)
+        dtype = (
+            PtrType(tvm_tirx.ir.PrimType("void"))
+            if dtype == "handle"
+            else tvm_tirx.ir.PrimType(dtype)
+        )
     return _ffi_api.reinterpret(dtype, value, loc)  # type: ignore
 
 

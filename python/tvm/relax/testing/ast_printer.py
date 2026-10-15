@@ -24,10 +24,10 @@ but it can be useful for tutorials and debugging.
 
 from collections.abc import Iterable
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax
-from tvm_tirx.ir.expr import Expr
 from tvm.relax import ExprFunctor
+from tvm_tirx.ir.expr import Expr
 
 
 def wrap_quotes(text: str) -> str:

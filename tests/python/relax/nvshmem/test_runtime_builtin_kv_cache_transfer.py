@@ -30,8 +30,9 @@ import torch
 import tvm_ffi
 from tvm_ffi import Shape
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.frontend.nn.llm.kv_cache import (
     AttnKind,
     RopeMode,

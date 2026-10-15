@@ -18,7 +18,8 @@
 # ruff: noqa: E741, F821
 """TVM operator input resize compute."""
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import te
 from tvm.topi.utils import nchw_pack_layout, nchw_xc_layout
 

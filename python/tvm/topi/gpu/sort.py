@@ -18,7 +18,8 @@
 # ruff: noqa: RUF005
 """Sort related operators"""
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import te
 from tvm.s_tir.script import ir_builder as Ts
 from tvm_tirx.script.ir_builder import IRBuilder
@@ -148,7 +149,9 @@ def _odd_even_sort(
                             ],
                         )
 
-        T.evaluate(tvm_tirx.ir.Call("tirx.gpu_storage_sync", [tvm_tirx.ir.StringImm("shared")], ty="void"))
+        T.evaluate(
+            tvm_tirx.ir.Call("tirx.gpu_storage_sync", [tvm_tirx.ir.StringImm("shared")], ty="void")
+        )
 
         idxm = tvm_tirx.tirx.indexmod
         # OddEvenTransposeSort
@@ -177,7 +180,9 @@ def _odd_even_sort(
                                 )
                                 T.tensor_store(tmp_values_swap, [tid + n + 1], temp_values[0])
             T.evaluate(
-                tvm_tirx.ir.Call("tirx.gpu_storage_sync", [tvm_tirx.ir.StringImm("shared")], ty="void")
+                tvm_tirx.ir.Call(
+                    "tirx.gpu_storage_sync", [tvm_tirx.ir.StringImm("shared")], ty="void"
+                )
             )
 
         ## Copy sorted data to output
@@ -607,7 +612,9 @@ def _sort_common(
 
             # calculate the start, mid, and end points of this section
             start_pos = width * bz
-            middle = cast(tvm.te.min(start_pos + tvm_tirx.tirx.indexdiv(width, 2), size), target_dtype)
+            middle = cast(
+                tvm.te.min(start_pos + tvm_tirx.tirx.indexdiv(width, 2), size), target_dtype
+            )
             end = cast(tvm.te.min(start_pos + width, size), target_dtype)
 
             with T.if_(start_pos < size):
@@ -652,7 +659,9 @@ def _sort_common(
     ## if the final sorted data ended up in the swap, copy it to the real output
     nthread_bx = ceil_div(size, nthread_tx)
     with T.if_(
-        tvm_tirx.tirx.all(upper_lim > lower_lim, tvm_tirx.tirx.indexmod(upper_lim - lower_lim, 2) == 1)
+        tvm_tirx.tirx.all(
+            upper_lim > lower_lim, tvm_tirx.tirx.indexmod(upper_lim - lower_lim, 2) == 1
+        )
     ):
         with T.then_():
             with T.frame_scope(_thread_launches(nthread_tx, nthread_bx, nthread_by)) as (
@@ -834,7 +843,9 @@ def sort_thrust(data, axis=-1, is_ascend=1, workspace=None):
     value_buf = tvm_tirx.tirx.decl_tensor(
         data.shape, data.dtype, "value_buf", data_alignment=8, layout=None
     )
-    indices_buf = tvm_tirx.tirx.decl_tensor(data.shape, dtype, "out_buf", data_alignment=8, layout=None)
+    indices_buf = tvm_tirx.tirx.decl_tensor(
+        data.shape, dtype, "out_buf", data_alignment=8, layout=None
+    )
 
     def f_compute(ins, outs):
         args = ["tvm.contrib.thrust.sort", ins[0], outs[0], outs[1], is_ascend]
@@ -901,7 +912,9 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices"):
     value_swap_buf = tvm_tirx.tirx.decl_tensor(
         data.shape, data.dtype, "value_swap_buf", data_alignment=8, layout=None
     )
-    indices_buf = tvm_tirx.tirx.decl_tensor(data.shape, dtype, "out_buf", data_alignment=8, layout=None)
+    indices_buf = tvm_tirx.tirx.decl_tensor(
+        data.shape, dtype, "out_buf", data_alignment=8, layout=None
+    )
     indices_swap_buf = tvm_tirx.tirx.decl_tensor(
         data.shape, dtype, "out_swap_buf", data_alignment=8, layout=None
     )
@@ -1130,7 +1143,9 @@ def topk_thrust(
     else:
         workspace_buf = None
     out_bufs = [
-        tvm_tirx.tirx.decl_tensor(data.shape, data.dtype, "value_buf", data_alignment=8, layout=None),
+        tvm_tirx.tirx.decl_tensor(
+            data.shape, data.dtype, "value_buf", data_alignment=8, layout=None
+        ),
         tvm_tirx.tirx.decl_tensor(data.shape, dtype, "indices_buf", data_alignment=8, layout=None),
     ]
 
@@ -1222,7 +1237,9 @@ def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
             values_ptr = values_buf
             indices_ptr = indices_buf
 
-            max_threads = int(tvm_tirx.target.Target.current(allow_none=False).attrs["max_num_threads"])
+            max_threads = int(
+                tvm_tirx.target.Target.current(allow_none=False).attrs["max_num_threads"]
+            )
             nthread_tx = max_threads
             nthread_bx = ceil_div(num_search, nthread_tx)
             with T.frame_scope(

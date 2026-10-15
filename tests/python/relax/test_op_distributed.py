@@ -16,8 +16,8 @@
 # under the License.
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm_tirx.script.parser import relax as R
 
@@ -34,7 +34,9 @@ def test_redistribute_R_to_S():
 
     # Distributed placement requires the contextual builder inference rule.
     distributed_abs = relax.op.abs(x)
-    tvm_tirx.ir.assert_structural_equal(tvm_tirx.ir.reinfer_type(distributed_abs), tvm_tirx.ir.Type.missing())
+    tvm_tirx.ir.assert_structural_equal(
+        tvm_tirx.ir.reinfer_type(distributed_abs), tvm_tirx.ir.Type.missing()
+    )
     _check_inference(bb, distributed_abs, x.ty)
 
     _check_inference(

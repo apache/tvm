@@ -19,8 +19,9 @@ import json
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import script as Ts
 from tvm_tirx.target import Target
 from tvm_tirx.testing import env
@@ -61,7 +62,9 @@ def test_device_from_target_override():
 
 
 def test_target_string_parse():
-    target = tvm_tirx.target.Target({"kind": "cuda", "model": "unknown", "libs": ["cublas", "cudnn"]})
+    target = tvm_tirx.target.Target(
+        {"kind": "cuda", "model": "unknown", "libs": ["cublas", "cudnn"]}
+    )
 
     assert target.kind.name == "cuda"
     assert target.attrs["model"] == "unknown"
@@ -264,7 +267,9 @@ def test_target_host_single_string_with_tag():
 
 
 def test_target_host_merge_0():
-    tgt = tvm_tirx.target.Target(tvm_tirx.target.Target({"kind": "cuda", "host": "nvidia/jetson-nano"}), None)
+    tgt = tvm_tirx.target.Target(
+        tvm_tirx.target.Target({"kind": "cuda", "host": "nvidia/jetson-nano"}), None
+    )
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
@@ -305,7 +310,9 @@ def test_target_tvm_object():
 @pytest.mark.skip(reason="Causing infinite loop because of pytest and handle issue")
 def test_target_host_merge_3():
     with pytest.raises(ValueError, match=r"target host has to be a string or dictionary."):
-        tvm_tirx.target.Target(tvm_tirx.target.Target({"kind": "cuda", "host": {"kind": "llvm"}}), 12.34)
+        tvm_tirx.target.Target(
+            tvm_tirx.target.Target({"kind": "cuda", "host": {"kind": "llvm"}}), 12.34
+        )
 
 
 def test_target_with_host():

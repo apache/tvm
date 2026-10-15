@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E501, F401
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
 from tvm import s_tir
 from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
 
 

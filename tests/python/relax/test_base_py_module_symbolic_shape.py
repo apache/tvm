@@ -19,13 +19,13 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm_tirx
 from tvm import relax
-from tvm_tirx.ir import IRModule
-from tvm.relax.base_py_module import BasePyModule
 from tvm.relax import script as R
+from tvm.relax.base_py_module import BasePyModule
 from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.ir import IRModule
 from tvm_tirx.script import tirx as T
 
 

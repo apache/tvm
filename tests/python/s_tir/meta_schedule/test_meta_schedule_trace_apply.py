@@ -17,13 +17,14 @@
 # ruff: noqa: E501, F401, F841
 import pytest
 
-import tvm, tvm_tirx
+import tvm
 import tvm.s_tir.meta_schedule as ms
-import tvm_tirx.testing, tvm
-from tvm_tirx.codegen import llvm_lookup_intrinsic_id
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import Schedule
-from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 from tvm.s_tir import script as Ts
+from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
+from tvm_tirx.codegen import llvm_lookup_intrinsic_id
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 from tvm_tirx.tirx import floordiv, floormod

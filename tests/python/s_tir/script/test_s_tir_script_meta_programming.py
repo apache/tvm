@@ -22,11 +22,12 @@ from __future__ import annotations
 import numpy
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm_tirx.script import ir as I
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 
@@ -61,7 +62,9 @@ def test_meta_programming_matmul():
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
     f = matmul_generator(128, 128, 128, "float16").with_attr("global_symbol", "main")
-    tvm_tirx.ir.assert_structural_equal(f, matmul_128_128_128_fp16.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(
+        f, matmul_128_128_128_fp16.with_attr("global_symbol", "main")
+    )
 
 
 def test_meta_programming_uncaptured_var():
@@ -506,7 +509,8 @@ def matmul(
 def test_multi_element_array_in_outmost_namespace():
     func = matmul
     rt_func = tvm_tirx.script.from_source(
-        func.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script}
+        func.script(),
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     tvm_tirx.ir.assert_structural_equal(func, rt_func)
 

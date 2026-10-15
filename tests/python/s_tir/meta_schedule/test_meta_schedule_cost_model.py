@@ -26,8 +26,10 @@ from importlib.util import find_spec
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.cost_model import PyCostModel, RandomModel, XGBModel
 from tvm.s_tir.meta_schedule.cost_model.xgb_model import PackSum, _get_custom_call_back
 from tvm.s_tir.meta_schedule.feature_extractor import RandomFeatureExtractor
@@ -36,7 +38,6 @@ from tvm.s_tir.meta_schedule.search_strategy import MeasureCandidate
 from tvm.s_tir.meta_schedule.tune_context import TuneContext
 from tvm.s_tir.schedule.schedule import Schedule
 from tvm.s_tir.utils import derived_object
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 requires_xgboost = pytest.mark.skipif(

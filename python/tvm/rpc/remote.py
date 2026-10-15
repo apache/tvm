@@ -23,7 +23,7 @@ A remote tensor is not a local tensor or a DLPack provider. Use ``numpy`` or
 import numpy as np
 import tvm_ffi
 
-import tvm_tirx.runtime, tvm
+import tvm_tirx.runtime
 
 from . import _ffi_api
 

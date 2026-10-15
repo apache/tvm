@@ -16,8 +16,9 @@
 # under the License.
 # pylint: disable=missing-docstring, invalid-name, unnecessary-comprehension, unused-argument
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm.contrib.hexagon import hexagon_unary_ops
 
@@ -83,7 +84,9 @@ class Tanh2TakeReplace(tvm.relax.PyExprMutator):
                 take_func_gv = self.builder_.add_func(take_func, "take")
                 take_node = relax.call_tir(
                     take_func_gv,
-                    relax.expr.Tuple([call_node.args[1][0], relax.const(tvm_tirx.runtime.tensor(LUT))]),
+                    relax.expr.Tuple(
+                        [call_node.args[1][0], relax.const(tvm_tirx.runtime.tensor(LUT))]
+                    ),
                     ty_args=[call_node.ty],
                 )
                 return take_node

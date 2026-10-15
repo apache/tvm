@@ -17,7 +17,8 @@
 # pylint: disable=too-many-arguments
 """Argsort operator"""
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import te
 
 from .utils import get_const_tuple
@@ -51,7 +52,9 @@ def sort(data, axis=-1, is_ascend=1):
     data_buf = tvm_tirx.tirx.decl_tensor(
         data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
     )
-    out_buf = tvm_tirx.tirx.decl_tensor(data.shape, data.dtype, "out_buf", data_alignment=8, layout=None)
+    out_buf = tvm_tirx.tirx.decl_tensor(
+        data.shape, data.dtype, "out_buf", data_alignment=8, layout=None
+    )
     out = te.extern(
         data.shape,
         [data],
@@ -136,7 +139,9 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
             tag="argsort_nms_cpu",
         )
     else:
-        out_buf = tvm_tirx.tirx.decl_tensor(data.shape, dtype, "out_buf", data_alignment=8, layout=None)
+        out_buf = tvm_tirx.tirx.decl_tensor(
+            data.shape, dtype, "out_buf", data_alignment=8, layout=None
+        )
         out = te.extern(
             data.shape,
             [data],
@@ -196,11 +201,15 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
     out_bufs = []
     if ret_type in ["both", "values"]:
         out_bufs.append(
-            tvm_tirx.tirx.decl_tensor(out_shape, data.dtype, "value_buf", data_alignment=8, layout=None)
+            tvm_tirx.tirx.decl_tensor(
+                out_shape, data.dtype, "value_buf", data_alignment=8, layout=None
+            )
         )
     if ret_type in ["both", "indices"]:
         out_bufs.append(
-            tvm_tirx.tirx.decl_tensor(out_shape, dtype, "indices_buf", data_alignment=8, layout=None)
+            tvm_tirx.tirx.decl_tensor(
+                out_shape, dtype, "indices_buf", data_alignment=8, layout=None
+            )
         )
     out_shapes = [out_shape] * len(out_bufs)
 

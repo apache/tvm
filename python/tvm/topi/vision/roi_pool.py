@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """ROI Pool operator"""
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
 
 
@@ -53,8 +53,12 @@ def roi_pool_nchw(data, rois, pooled_size, spatial_scale):
         roi_h = te.max(roi_end_h - roi_start_h + 1, tvm_tirx.tirx.const(1, "int32"))
         roi_w = te.max(roi_end_w - roi_start_w + 1, tvm_tirx.tirx.const(1, "int32"))
 
-        bin_h = tvm_tirx.tirx.Cast(roi_h, roi_dtype) / tvm_tirx.tirx.const(float(pooled_size_h), roi_dtype)
-        bin_w = tvm_tirx.tirx.Cast(roi_w, roi_dtype) / tvm_tirx.tirx.const(float(pooled_size_w), roi_dtype)
+        bin_h = tvm_tirx.tirx.Cast(roi_h, roi_dtype) / tvm_tirx.tirx.const(
+            float(pooled_size_h), roi_dtype
+        )
+        bin_w = tvm_tirx.tirx.Cast(roi_w, roi_dtype) / tvm_tirx.tirx.const(
+            float(pooled_size_w), roi_dtype
+        )
 
         hstart = te.floor(tvm_tirx.tirx.Cast(ph, roi_dtype) * bin_h).astype("int32")
         wstart = te.floor(tvm_tirx.tirx.Cast(pw, roi_dtype) * bin_w).astype("int32")

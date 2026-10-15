@@ -21,8 +21,8 @@ from collections.abc import Callable
 
 import numpy as np  # type: ignore
 
-from tvm_tirx.runtime import Executable, Module
 from tvm.s_tir.meta_schedule.runner import RPCConfig
+from tvm_tirx.runtime import Executable, Module
 
 
 def run_module_via_rpc(

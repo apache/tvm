@@ -20,16 +20,17 @@
 # The test here do not depend on tvmscript to cover most basic features
 import pytest
 
-import tvm, tvm_tirx
+import tvm
 import tvm.contrib.cblas
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax as rx
-from tvm_tirx import tirx
 from tvm import te, topi
-from tvm_tirx.ir.base import assert_structural_equal
 from tvm.relax import ExternFunc
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
+from tvm_tirx import tirx
+from tvm_tirx.ir.base import assert_structural_equal
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx.function import Function
 

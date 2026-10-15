@@ -22,14 +22,15 @@ import json
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax, rpc
+from tvm.relax import script as R
 from tvm.relax.backend.adreno import clml
 from tvm.relax.script import ir_builder as relax_builder
-from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.script.ir_builder import IRBuilder
 

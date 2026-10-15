@@ -116,9 +116,9 @@ def test_var_exact_base_legacy_tirx_json_load():
     assert restored.a.same_as(restored.b)
     _check_legacy_var(restored.a, "legacy_tirx.py", 7, 9, 2, 14)
     assert restored.loc.same_as(restored.a.loc)
-    assert {node["type"] for node in json.loads(tvm_tirx.ir.save_json(restored))["nodes"]}.isdisjoint(
-        {"relax.expr.Var", "tirx.Var", "tirx.Add"}
-    )
+    assert {
+        node["type"] for node in json.loads(tvm_tirx.ir.save_json(restored))["nodes"]
+    }.isdisjoint({"relax.expr.Var", "tirx.Var", "tirx.Add"})
 
 
 def test_var_exact_base_legacy_relax_json_load():
@@ -127,9 +127,9 @@ def test_var_exact_base_legacy_relax_json_load():
     assert restored.fields[0].same_as(restored.fields[1])
     _check_legacy_var(restored.fields[0], "legacy_relax.py", 3, 5, 3, 11)
     assert restored.loc.same_as(restored.fields[0].loc)
-    assert {node["type"] for node in json.loads(tvm_tirx.ir.save_json(restored))["nodes"]}.isdisjoint(
-        {"relax.expr.Var", "tirx.Var"}
-    )
+    assert {
+        node["type"] for node in json.loads(tvm_tirx.ir.save_json(restored))["nodes"]
+    }.isdisjoint({"relax.expr.Var", "tirx.Var"})
 
 
 @pytest.mark.parametrize(

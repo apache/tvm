@@ -18,10 +18,10 @@
 # ruff: noqa: RUF005
 """Default legalization function for ccl operators."""
 
-from tvm_tirx import sym, tirx
 from tvm import topi
-from tvm_tirx.ir import Call
 from tvm.relax import ExternFunc as _ExternFunc
+from tvm_tirx import sym, tirx
+from tvm_tirx.ir import Call
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr, ShapeExpr

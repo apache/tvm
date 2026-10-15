@@ -18,8 +18,8 @@
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax as rx
 from tvm_tirx import tirx
 from tvm_tirx.ir import Range

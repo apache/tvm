@@ -18,7 +18,7 @@
 
 import numpy as np
 
-import tvm_tirx.runtime, tvm
+import tvm_tirx.runtime
 from tvm.s_tir.meta_schedule import TuneContext
 from tvm.s_tir.meta_schedule.feature_extractor import PyFeatureExtractor
 from tvm.s_tir.meta_schedule.search_strategy import MeasureCandidate

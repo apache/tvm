@@ -26,12 +26,13 @@ import textwrap
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
 from tvm.relax.dpl import is_op, wildcard
+from tvm_tirx import tirx
 from tvm_tirx.support import cc
 from tvm_tirx.testing import env
 

@@ -37,7 +37,8 @@ def mfma_schedule(
     shared_scope="shared",
 ):
     """Create a tensorized schedule for GEMM with MFMA intrinsics."""
-    import tvm, tvm_tirx
+    import tvm
+    import tvm_tirx
 
     ir_module = tvm_tirx.IRModule({"main": workload})
     sch = tvm.s_tir.Schedule(ir_module)

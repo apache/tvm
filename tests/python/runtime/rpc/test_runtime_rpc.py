@@ -30,8 +30,9 @@ import tvm_ffi
 
 pytest.importorskip("tornado")  # tvm.rpc.proxy and tvm.rpc.tracker require tornado
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import rpc
 from tvm.rpc.proxy import Proxy
 from tvm.rpc.tracker import Tracker
@@ -252,7 +253,9 @@ def test_rpc_file_exchange():
     tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_rpc_remote_module(native_object, system_library_source, tmp_path):
-    module = tvm_tirx.runtime.load_static_library(str(native_object), ["main", "answer", "with_arg"])
+    module = tvm_tirx.runtime.load_static_library(
+        str(native_object), ["main", "answer", "with_arg"]
+    )
     path_dso = tmp_path / "dev_lib.so"
     path_tar = tmp_path / "dev_lib.tar"
     module.export_library(str(path_dso))

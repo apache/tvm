@@ -259,7 +259,9 @@ def test_avg_pool2d():
 
     after = tvm_tirx.tirx.transform.NarrowDataType(32)(Before)
     after = tvm_tirx.tirx.transform.StmtSimplify()(after)
-    tvm_tirx.ir.assert_structural_equal(after["main"], expected_after.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(
+        after["main"], expected_after.with_attr("global_symbol", "main")
+    )
 
 
 def test_narrow_i64_valued_tensorload_index_to_i32():

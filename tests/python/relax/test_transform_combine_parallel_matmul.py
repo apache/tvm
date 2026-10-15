@@ -17,12 +17,13 @@
 # ruff: noqa: E731, F401
 import pytest
 
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx.testing
 from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.transform import CombineParallelMatmul
-from tvm.relax import script as R
+from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
 from tvm_tirx.script.ir_builder import IRBuilder
 

@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
-from tvm.s_tir.meta_schedule.arg_info import ArgInfo, TensorInfo
 from tvm.s_tir import script as Ts
+from tvm.s_tir.meta_schedule.arg_info import ArgInfo, TensorInfo
 from tvm_tirx.script import tirx as T
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument

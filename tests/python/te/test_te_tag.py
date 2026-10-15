@@ -17,7 +17,8 @@
 # ruff: noqa: E741, F401, F841
 import json
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import te
 
 

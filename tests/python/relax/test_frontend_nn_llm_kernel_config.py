@@ -17,8 +17,9 @@
 
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.frontend.nn.llm._decode_kernels import _merge_state_inplace
 from tvm.relax.frontend.nn.llm._kernel_common import (
     _get_prefill_kernel_config,

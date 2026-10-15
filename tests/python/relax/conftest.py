@@ -16,7 +16,7 @@
 
 import pytest
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm.relax.ir.instrument import WellFormedInstrument
 
 

@@ -18,9 +18,9 @@
 # ruff: noqa: E741
 """scatter_nd related operators"""
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm_tirx
 from tvm import te  # hide redefinition of min and max
+from tvm_tirx import tirx
 from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.tirx.script import ir_builder as T
 

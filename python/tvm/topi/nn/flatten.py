@@ -16,7 +16,8 @@
 # under the License.
 """TVM operator flatten compute."""
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import te
 
 from .. import tag

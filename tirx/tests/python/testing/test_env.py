@@ -270,7 +270,9 @@ def test_hexagon_environment_requirements(
         "enabled",
         lambda kind: runtime if kind == "hexagon" else llvm_target is not None,
     )
-    monkeypatch.setattr(tvm_tirx.codegen, "llvm_get_targets", lambda: ["hexagon"] if llvm_target else [])
+    monkeypatch.setattr(
+        tvm_tirx.codegen, "llvm_get_targets", lambda: ["hexagon"] if llvm_target else []
+    )
     assert env.has_hexagon_toolchain() is can_compile
     assert env.has_hexagon() is can_run
 

@@ -18,12 +18,12 @@
 
 import tvm_ffi
 
+from tvm.relax.expr import Tuple as _Tuple
 from tvm_tirx.error import InternalError as _InternalError
 from tvm_tirx.ir import Attrs
 from tvm_tirx.ir import Call as _Call
 from tvm_tirx.ir.attrs import make_node as _make_attrs
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
-from tvm.relax.expr import Tuple as _Tuple
 
 from ..expr import Expr
 from ..utils import convert_to_expr

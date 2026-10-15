@@ -18,9 +18,12 @@
 # pylint: disable=invalid-name
 """S-TIR namespace for scheduable TensorIR"""
 
-import tvm_tirx.script, tvm
+import tvm_tirx.script
+import tvm
 
-tvm_tirx.script.register_dialect("s_tir", "tvm.s_tir.script", builder_path="tvm.s_tir.script.ir_builder")
+tvm_tirx.script.register_dialect(
+    "s_tir", "tvm.s_tir.script", builder_path="tvm.s_tir.script.ir_builder"
+)
 
 from .iter_var import IterVar
 from ._tensor_intrin import TensorIntrin

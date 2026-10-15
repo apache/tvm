@@ -24,7 +24,8 @@ import functools
 
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm.relax import build as relax_build
 
 from .fx_translator import from_fx

@@ -17,10 +17,11 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 # ruff: noqa: F401
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 
@@ -368,7 +369,9 @@ def test_rewrite_cuda_loop_split_no_reduction_large():
     sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
-    tvm_tirx.ir.assert_structural_equal(sch.mod, Bert_fused_reshape_transpose_reshape_after_rub_large)
+    tvm_tirx.ir.assert_structural_equal(
+        sch.mod, Bert_fused_reshape_transpose_reshape_after_rub_large
+    )
 
 
 def test_rewrite_cuda_loop_split_for_kind():

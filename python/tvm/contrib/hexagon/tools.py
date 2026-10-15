@@ -29,7 +29,7 @@ import tarfile
 import numpy
 from tvm_ffi import register_global_func
 
-import tvm, tvm_tirx
+import tvm_tirx
 import tvm_tirx.support.cc as cc
 from tvm_tirx.backend.hexagon.linker import (
     HEXAGON_LINK_MAIN as HEXAGON_LINK_MAIN,

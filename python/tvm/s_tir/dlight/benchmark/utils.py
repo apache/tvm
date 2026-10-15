@@ -18,7 +18,7 @@
 
 from typing import Any
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax
 
 INPUT_SHAPE_TYPE = list[tuple[tuple[int, ...], str]]  # pylint: disable=invalid-name

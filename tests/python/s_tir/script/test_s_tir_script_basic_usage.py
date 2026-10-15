@@ -21,12 +21,13 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm_tirx.script import from_source
 from tvm_tirx.script import ir as I
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 

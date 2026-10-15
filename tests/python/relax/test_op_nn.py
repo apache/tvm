@@ -17,13 +17,13 @@
 # ruff: noqa: F841
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.ir import Op
 from tvm.relax import VDevice
 from tvm.relax import script as R
+from tvm_tirx import tirx
+from tvm_tirx.ir import Op
 
 
 def test_op_correctness():

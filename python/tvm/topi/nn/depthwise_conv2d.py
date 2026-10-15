@@ -22,7 +22,7 @@ from collections import namedtuple
 
 import numpy as np
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
 
 from ..utils import get_const_tuple, simplify

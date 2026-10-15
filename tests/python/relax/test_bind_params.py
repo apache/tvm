@@ -19,12 +19,12 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.script, tvm
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax
 from tvm.relax import script as R
+from tvm_tirx import tirx
 
 param_specification = tvm_tirx.testing.parameter("by_string", "by_var")
 param_shape = tvm_tirx.testing.parameter("static_shape", "dynamic_shape", "ndim", "arbitrary")

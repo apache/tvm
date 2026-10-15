@@ -131,7 +131,11 @@ def test_gemm_tcgen05_explicit_mma_tile_preserves_ws_datapath():
     a = rng.uniform(-1, 1, (2, M, K)).astype(ml_dtypes.bfloat16)
     b = rng.uniform(-1, 1, (N, K)).astype(ml_dtypes.bfloat16)
     result = tvm_tirx.runtime.tensor(np.zeros((M, N), "float32"), tvm_tirx.cuda())
-    f(tvm_tirx.runtime.tensor(a, tvm_tirx.cuda()), tvm_tirx.runtime.tensor(b, tvm_tirx.cuda()), result)
+    f(
+        tvm_tirx.runtime.tensor(a, tvm_tirx.cuda()),
+        tvm_tirx.runtime.tensor(b, tvm_tirx.cuda()),
+        result,
+    )
     ref = np.concatenate(
         [
             a[bank].astype("float32") @ b[bank * 64 : (bank + 1) * 64].astype("float32").T

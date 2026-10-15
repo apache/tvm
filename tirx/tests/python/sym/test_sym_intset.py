@@ -66,8 +66,12 @@ def test_add_sub():
     ck = IntSetChecker()
     x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
     ck.verify(x + y, {x: tvm_tirx.sym.IntervalSet(0, 10)}, (y, 10 + y))
-    ck.verify(x + y, {x: tvm_tirx.sym.IntervalSet(0, 10), y: tvm_tirx.sym.IntervalSet(1, 11)}, (1, 21))
-    ck.verify(x - y, {x: tvm_tirx.sym.IntervalSet(0, 10), y: tvm_tirx.sym.IntervalSet(1, 11)}, (-11, 9))
+    ck.verify(
+        x + y, {x: tvm_tirx.sym.IntervalSet(0, 10), y: tvm_tirx.sym.IntervalSet(1, 11)}, (1, 21)
+    )
+    ck.verify(
+        x - y, {x: tvm_tirx.sym.IntervalSet(0, 10), y: tvm_tirx.sym.IntervalSet(1, 11)}, (-11, 9)
+    )
 
 
 def test_mul_div():
@@ -118,7 +122,9 @@ def test_mod():
     ck1 = IntSetChecker()
     ck1.analyzer.bind(x, tvm_tirx.ir.Range.from_min_extent(0, 2))
     ck1.verify(
-        flm(y, 8), {y: tvm_tirx.sym.IntervalSet(z * 8 + x * 4, z * 8 + x * 4 + 3)}, (x * 4, x * 4 + 3)
+        flm(y, 8),
+        {y: tvm_tirx.sym.IntervalSet(z * 8 + x * 4, z * 8 + x * 4 + 3)},
+        (x * 4, x * 4 + 3),
     )
 
 
@@ -134,7 +140,9 @@ def test_max_min():
 def test_select():
     ck = IntSetChecker()
     x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
-    ck.verify(tvm_tirx.tirx.Select(x > 0, x - 1, x + 1), {x: tvm_tirx.sym.IntervalSet(0, 10)}, (-1, 11))
+    ck.verify(
+        tvm_tirx.tirx.Select(x > 0, x - 1, x + 1), {x: tvm_tirx.sym.IntervalSet(0, 10)}, (-1, 11)
+    )
 
 
 def check_region_bound(expect_region, var_dom, mode, predicate=None):
@@ -218,7 +226,11 @@ def test_region_bound_not_independent():
     check_region_bound({(i, i + 2): (0, 65), (i + 2, i + 4): (2, 67)}, var_dom, mode="upperbound")
 
     # when only a subset of access indices are affine
-    i, j, k = tvm_tirx.tirx.Var("i", "int32"), tvm_tirx.tirx.Var("j", "int32"), tvm_tirx.tirx.Var("k", "int32")
+    i, j, k = (
+        tvm_tirx.tirx.Var("i", "int32"),
+        tvm_tirx.tirx.Var("j", "int32"),
+        tvm_tirx.tirx.Var("k", "int32"),
+    )
     var_dom = {
         i: tvm_tirx.ir.Range(begin=0, end=16),
         j: tvm_tirx.ir.Range(begin=0, end=16),
@@ -389,7 +401,9 @@ def test_modular_set():
     x = tvm_tirx.tirx.Var("x", "int32")
     y = tvm_tirx.tirx.Var("y", "int32")
     expr = (x * 2048 + y * 16) % 7168
-    ck.verify(expr, {x: tvm_tirx.sym.IntervalSet(0, 128), y: tvm_tirx.sym.IntervalSet(0, 3584)}, (0, 7152))
+    ck.verify(
+        expr, {x: tvm_tirx.sym.IntervalSet(0, 128), y: tvm_tirx.sym.IntervalSet(0, 3584)}, (0, 7152)
+    )
 
 
 def test_relax_deep_variable_dependency_chain():

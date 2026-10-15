@@ -19,12 +19,13 @@
 
 import pytest
 
-import tvm, tvm_tirx
-from tvm_tirx.ir import StringImm
-from tvm.relax.base_py_module import BasePyModule
-from tvm_tirx.script import ir as I
+import tvm
+import tvm_tirx
 from tvm.relax import script as R
+from tvm.relax.base_py_module import BasePyModule
 from tvm.s_tir import script as Ts
+from tvm_tirx.ir import StringImm
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 

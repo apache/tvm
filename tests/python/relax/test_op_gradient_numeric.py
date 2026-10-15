@@ -22,14 +22,15 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.ir import Call
-from tvm_tirx.ir.op import Op
 from tvm.relax.testing.gradient import check_numerical_grads
 from tvm.relax.transform import LegalizeOps
 from tvm.relax.type import TensorType, TupleType
+from tvm_tirx.ir import Call
+from tvm_tirx.ir.op import Op
 
 
 def relax_check_gradients(

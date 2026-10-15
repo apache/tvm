@@ -25,11 +25,12 @@ import pytest
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
-import tvm_tirx.testing, tvm
+import tvm
 import tvm.topi.testing
+import tvm_tirx.testing
 from tvm.s_tir import meta_schedule as ms
-from tvm.s_tir.meta_schedule.builder import LocalBuilder
 from tvm.s_tir import script as Ts
+from tvm.s_tir.meta_schedule.builder import LocalBuilder
 from tvm_tirx.script import tirx as T
 
 from .infrastructure import get_android_gpu_target, get_rpc_runner

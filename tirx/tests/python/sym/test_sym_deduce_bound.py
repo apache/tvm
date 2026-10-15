@@ -156,12 +156,16 @@ def test_deduce_basic():
         assert tvm_tirx.sym.Analyzer().can_prove_equal((x * coff + 3 + y) < 17, True)
 
         # expression containing variable a is on rhs
-        res1 = tvm_tirx.sym.deduce_bound(a, tvm_tirx.tirx.const(17, "int32") < e0, {b: b_s}, {b: b_s})
+        res1 = tvm_tirx.sym.deduce_bound(
+            a, tvm_tirx.tirx.const(17, "int32") < e0, {b: b_s}, {b: b_s}
+        )
         [x, y] = [res1.max_value, b_s.max_value] if coff < 0 else [res1.min_value, b_s.min_value]
         assert tvm_tirx.sym.Analyzer().can_prove_equal((x * coff + 3 + y) > 17, True)
 
         # expression containing variable a is on rhs
-        res1 = tvm_tirx.sym.deduce_bound(a, tvm_tirx.tirx.const(17, "int32") >= e0, {b: b_s}, {b: b_s})
+        res1 = tvm_tirx.sym.deduce_bound(
+            a, tvm_tirx.tirx.const(17, "int32") >= e0, {b: b_s}, {b: b_s}
+        )
         [x, y] = [res1.max_value, b_s.max_value] if coff > 0 else [res1.min_value, b_s.min_value]
 
         assert tvm_tirx.sym.Analyzer().can_prove_equal((x * coff + 3 + y) <= 17, True)
@@ -190,7 +194,9 @@ def test_deduce_complex():
         assert tvm_tirx.sym.Analyzer().can_prove_equal(((x * 3 + t * coff) * 4) < 63, True)
 
         # expression containing variable a is on rhs
-        res1 = tvm_tirx.sym.deduce_bound(a, tvm_tirx.tirx.const(63, "int32") >= e0, {b: b_s}, {b: b_s})
+        res1 = tvm_tirx.sym.deduce_bound(
+            a, tvm_tirx.tirx.const(63, "int32") >= e0, {b: b_s}, {b: b_s}
+        )
         [t, x] = [res1.max_value, b_s.max_value] if coff > 0 else [res1.min_value, b_s.min_value]
         assert tvm_tirx.sym.Analyzer().can_prove_equal(((x * 3 + t * coff) * 4) <= 63, True)
 
@@ -199,7 +205,9 @@ def test_deduce_complex():
         assert tvm_tirx.sym.Analyzer().can_prove_equal(((x * 3 + t * coff) * 4) > 63, True)
 
         # expression containing variable a is on rhs
-        res1 = tvm_tirx.sym.deduce_bound(a, tvm_tirx.tirx.const(63, "int32") <= e0, {b: b_s}, {b: b_s})
+        res1 = tvm_tirx.sym.deduce_bound(
+            a, tvm_tirx.tirx.const(63, "int32") <= e0, {b: b_s}, {b: b_s}
+        )
         [t, x] = [res1.max_value, b_s.max_value] if coff < 0 else [res1.min_value, b_s.min_value]
         assert tvm_tirx.sym.Analyzer().can_prove_equal(((x * 3 + t * coff) * 4) >= 63, True)
 

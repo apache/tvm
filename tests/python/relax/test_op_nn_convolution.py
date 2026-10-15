@@ -16,13 +16,13 @@
 # under the License.
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.ir import Op
 from tvm.relax import VDevice
 from tvm.relax import script as R
+from tvm_tirx import tirx
+from tvm_tirx.ir import Op
 
 
 def test_conv1d_op_correctness():
@@ -917,7 +917,12 @@ def test_conv2d_infer_ty_shape_symbolic():
         bb,
         relax.op.nn.conv2d(x0, w0, strides=(2, 2), padding=(1, 1), dilation=(2, 2)),
         relax.TensorType(
-            (n, ko, tvm_tirx.tirx.floordiv(ih + 3, 2) + 1 - kh, tvm_tirx.tirx.floordiv(iw + 3, 2) + 1 - kw),
+            (
+                n,
+                ko,
+                tvm_tirx.tirx.floordiv(ih + 3, 2) + 1 - kh,
+                tvm_tirx.tirx.floordiv(iw + 3, 2) + 1 - kw,
+            ),
             "float32",
         ),
     )

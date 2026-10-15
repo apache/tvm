@@ -17,8 +17,9 @@
 # ruff: noqa: E741, F401, F821, F841
 import numpy as np
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import te
 from tvm.topi.nn.pooling import pool2d
 

@@ -18,17 +18,18 @@
 
 from __future__ import annotations
 
-import tvm, tvm_tirx
-import tvm_tirx.script, tvm
-import tvm_tirx.testing, tvm
-from tvm_tirx import IRModule
+import tvm
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.ir import Range
 from tvm.relax import Call, SeqExpr, VarBinding
-from tvm.relax.distributed import DeviceMesh
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
+from tvm.relax.distributed import DeviceMesh
 from tvm.s_tir import script as Ts
+from tvm_tirx import IRModule
+from tvm_tirx.ir import Range
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 

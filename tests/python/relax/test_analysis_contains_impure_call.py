@@ -16,11 +16,11 @@
 # under the License.
 # ruff: noqa: F841
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax as rx
-from tvm.relax.analysis import contains_impure_call
 from tvm.relax import script as R
+from tvm.relax.analysis import contains_impure_call
 
 
 def test_simple_pure_case():

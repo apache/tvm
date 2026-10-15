@@ -17,12 +17,13 @@
 # ruff: noqa: F401
 import numpy as np
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import s_tir
-from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 from tvm.s_tir import script as Ts
+from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
+from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
 
 

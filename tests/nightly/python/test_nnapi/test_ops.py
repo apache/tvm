@@ -19,8 +19,9 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.script, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.script
 import tvm_tirx.script.relax as R
 from test_nnapi.conftest import remote
 from test_nnapi.infrastructure import build_and_run

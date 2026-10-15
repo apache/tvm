@@ -18,8 +18,9 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm_tirx.testing import env
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
@@ -27,10 +28,10 @@ pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 import tvm.topi.testing
 from tvm import relax
 from tvm.contrib.pickle_memoize import memoize
+from tvm.relax import script as R
 from tvm.relax.backend.cuda.cudnn import partition_for_cudnn
 from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.testing import get_relax_stacked_attention_module
-from tvm.relax import script as R
 from tvm_tirx.script.ir_builder import IRBuilder
 
 

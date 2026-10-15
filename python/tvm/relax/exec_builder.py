@@ -23,7 +23,7 @@ from enum import IntEnum
 import tvm_ffi
 from tvm_ffi import Shape
 
-import tvm, tvm_tirx
+import tvm_tirx
 
 from . import _ffi_api
 from .vm_build import VMExecutable

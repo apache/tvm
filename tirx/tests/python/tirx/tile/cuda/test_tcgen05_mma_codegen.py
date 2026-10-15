@@ -33,7 +33,9 @@ def _compile(func):
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
         return (
-            tvm_tirx.tirx.compile(func, target=target, pipeline="tirx").mod.imports[0].inspect_source()
+            tvm_tirx.tirx.compile(func, target=target, pipeline="tirx")
+            .mod.imports[0]
+            .inspect_source()
         )
 
 

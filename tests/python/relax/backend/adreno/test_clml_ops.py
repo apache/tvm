@@ -46,14 +46,15 @@ from mod_utils import (
 )
 from utils import skip_unless_adreno_clml, verify_results
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax, rpc
+from tvm.relax import script as R
 from tvm.relax.backend.adreno import clml
 from tvm.relax.backend.adreno.clml import OpenCLMLOffLoad, OpenCLMLOffLoadForLLM
 from tvm.relax.script import ir_builder as relax_builder
 from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 from tvm_tirx.script.ir_builder import IRBuilder
 

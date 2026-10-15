@@ -20,7 +20,8 @@
 import operator
 from collections.abc import Callable
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import te
 from tvm.contrib.thrust import can_use_rocthrust, can_use_thrust
 from tvm_tirx.script.ir_builder import IRBuilder
@@ -158,7 +159,8 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                                 T.tensor_store(
                                     middle,
                                     T.tensor_indices(middle, 0),
-                                    start[T.tensor_indices(start, 0)] + tvm_tirx.tirx.indexdiv(width, 2),
+                                    start[T.tensor_indices(start, 0)]
+                                    + tvm_tirx.tirx.indexdiv(width, 2),
                                 )
                                 T.tensor_store(
                                     end,
@@ -257,7 +259,8 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                                 T.tensor_store(
                                     middle,
                                     T.tensor_indices(middle, 0),
-                                    start[T.tensor_indices(start, 0)] + tvm_tirx.tirx.indexdiv(width, 2),
+                                    start[T.tensor_indices(start, 0)]
+                                    + tvm_tirx.tirx.indexdiv(width, 2),
                                 )
                                 T.tensor_store(
                                     end,

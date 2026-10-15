@@ -22,15 +22,16 @@ import sys
 import pytest
 from tvm_ffi.access_path import AccessPath
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import IRModule, tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import s_tir
-from tvm_tirx.ir import Range, TensorRegion, TensorRegionType
+from tvm.s_tir import script as Ts
 from tvm.s_tir.script.ir_builder import function as build_function
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.ir import Range, TensorRegion, TensorRegionType
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import ir_builder as IB
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.tirx.script import ir_builder as TB
@@ -55,7 +56,8 @@ def test_function_symbolic_tensor_param_roundtrip():
     assert source.index("def main[n](") < source.index("T.evaluate(n)")
     tvm_tirx.ir.assert_structural_equal(
         tvm_tirx.script.from_source(
-            source, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script}
+            source,
+            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
         ),
         func,
     )
@@ -76,7 +78,8 @@ def test_function_compound_tensor_shape_first_use_roundtrip():
     assert source.index("def main[n](") < source.index("T.evaluate(n)")
     tvm_tirx.ir.assert_structural_equal(
         tvm_tirx.script.from_source(
-            source, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script}
+            source,
+            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
         ),
         func,
     )
@@ -633,7 +636,8 @@ def test_masked_load_prevents_scalar_allocation_init_fusion():
     assert "A[0] = T.masked_load" in source
     tvm_tirx.ir.assert_structural_equal(
         tvm_tirx.script.from_source(
-            source, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script}
+            source,
+            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
         ),
         main,
     )
@@ -2178,7 +2182,9 @@ class Module:
 def test_str_metadata():
     # This test is to check we reuse the existing metadata element for the same metadata-backed GenericConst
     # So metadata["ir.GenericConst"][0] will occur in the printed script for three times
-    str_imm = tvm_tirx.ir.GenericConst(tvm_tirx.runtime.convert(["aaa\nbbb\n"]), tvm_tirx.ir.AnyType())
+    str_imm = tvm_tirx.ir.GenericConst(
+        tvm_tirx.runtime.convert(["aaa\nbbb\n"]), tvm_tirx.ir.AnyType()
+    )
 
     @I.ir_module
     class Module:

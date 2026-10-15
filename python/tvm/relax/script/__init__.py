@@ -27,8 +27,8 @@ from typing import TYPE_CHECKING
 from typing import Any as _Any
 
 if TYPE_CHECKING:
-    from tvm_tirx.ir import IRModule
     from tvm.relax.base_py_module import BasePyModule
+    from tvm_tirx.ir import IRModule
     from tvm_tirx.runtime import Device
     from tvm_tirx.target import Target
 
@@ -83,8 +83,8 @@ class _PyModuleFactory:
         self.__name__ = original_class.__name__
 
     def __call__(self, device: Device | None = None, target: Target | None = None) -> BasePyModule:
-        from tvm_tirx import cpu, ir
         from tvm.relax.base_py_module import BasePyModule
+        from tvm_tirx import cpu, ir
 
         source = self.ir_module
         instance_module = ir.IRModule(
@@ -157,9 +157,9 @@ def py_module(
     """
 
     def apply(source_class: type) -> IRModule | _PyModuleFactory:
-        from tvm_tirx import ir
         from tvm import relax
         from tvm.relax.base_py_module import BasePyModule
+        from tvm_tirx import ir
         from tvm_tirx.script.parser.entry import parse
         from tvm_tirx.script.parser.inspect_source import acquire_source, capture_definition_scope
 

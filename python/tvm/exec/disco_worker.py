@@ -25,7 +25,7 @@ from collections.abc import Callable
 from tvm_ffi import Shape, get_global_func, register_global_func
 from tvm_ffi.core import String
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm_tirx.runtime import Tensor, tensor
 
 

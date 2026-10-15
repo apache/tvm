@@ -18,12 +18,13 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.script, tvm
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
+from tvm_tirx.script import ir as I
 
 
 def test_multinomial_from_uniform():

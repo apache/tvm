@@ -24,15 +24,16 @@ import math
 import pytest
 import tvm_ffi
 
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx.testing
 from tvm import relax as rx
-from tvm_tirx import tirx
-from tvm_tirx.ir import TupleType as _TupleType
 from tvm.relax import ExternFunc as _ExternFunc
+from tvm.relax import script as R
 from tvm.relax.analysis import get_var2val
 from tvm.relax.dpl import *
-from tvm.relax import script as R
 from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.ir import TupleType as _TupleType
 from tvm_tirx.script import tirx as T
 
 

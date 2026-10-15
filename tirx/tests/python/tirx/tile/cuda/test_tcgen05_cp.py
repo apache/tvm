@@ -333,7 +333,9 @@ def _build_case(
 def _compile(kernel):
     target = tvm_tirx.target.Target("cuda")
     with target:
-        return tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx")
+        return tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx"
+        )
 
 
 def _run_case(shape, multicast, sw, dtype, n_mid, s_row_off=0, t_col_off_e=0):
@@ -730,7 +732,9 @@ def _assert_compile_raises(kernel, fragment):
     target = tvm_tirx.target.Target("cuda")
     with target:
         with pytest.raises(Exception, match=fragment):
-            tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx")
+            tvm_tirx.tirx.compile(
+                tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx"
+            )
 
 
 def test_cp_rejects_wrong_replica_for_multicast():

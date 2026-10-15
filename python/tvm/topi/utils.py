@@ -22,7 +22,8 @@ from numbers import Integral
 
 import numpy as np
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import te
 from tvm.s_tir import sbijective_layout, slayout
 from tvm_tirx.sym.utils import get_const_int
@@ -411,7 +412,9 @@ def get_shape(src_shape, src_layout, dst_layout):
     assert len(src_layout) == len(dst_layout), f"Incompatible layout {src_layout} vs {dst_layout}"
 
     layout_mapping = sbijective_layout(src_layout, dst_layout)
-    dst_indices = layout_mapping.forward_index(tvm_tirx.runtime.convert(list(range(len(src_layout)))))
+    dst_indices = layout_mapping.forward_index(
+        tvm_tirx.runtime.convert(list(range(len(src_layout))))
+    )
 
     return get_const_tuple(tuple([src_shape[i.value] for i in dst_indices]))
 

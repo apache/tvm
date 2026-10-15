@@ -22,10 +22,10 @@ from typing import Literal
 
 from tvm_ffi import register_object as _register_object
 
+from tvm.s_tir import SBlock
 from tvm_tirx.error import register_error
 from tvm_tirx.ir import Expr, For, GlobalVar, IRModule, is_prim_expr
 from tvm_tirx.runtime import DataTypeCode, MemoryScope, Object
-from tvm.s_tir import SBlock
 from tvm_tirx.tirx import FloatImm, Function, IntImm, Var, is_tensor_var
 from tvm_tirx.tirx.function import IndexMap
 

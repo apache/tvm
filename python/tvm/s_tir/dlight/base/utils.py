@@ -17,9 +17,9 @@
 # pylint: disable=missing-docstring
 """Utility methods for generic GPU."""
 
-import tvm, tvm_tirx
-from tvm_tirx import DataType, tirx
+import tvm_tirx
 from tvm import s_tir
+from tvm_tirx import DataType, tirx
 from tvm_tirx.ir import PrimType
 from tvm_tirx.target import Target
 

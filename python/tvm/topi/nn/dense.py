@@ -18,7 +18,7 @@
 # ruff: noqa: E741, F821
 """TVM operator fully connected compute."""
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
 
 from .. import add, tag
@@ -105,7 +105,12 @@ def matmul(
     batch_dims_b = [1] * (result_ndim - len(batch_dims_b)) + batch_dims_b
 
     for idx, (l, r) in enumerate(zip(batch_dims_a, batch_dims_b)):
-        if not tvm_tirx.ir.is_prim_var(l) and not tvm_tirx.ir.is_prim_var(r) and int(l) != 1 and int(r) != 1:
+        if (
+            not tvm_tirx.ir.is_prim_var(l)
+            and not tvm_tirx.ir.is_prim_var(r)
+            and int(l) != 1
+            and int(r) != 1
+        ):
             assert int(l) == int(r), (
                 "Batch dimensions of dense do not match: "
                 f"{tensor_a.shape[:-2]} vs {tensor_b.shape[:-2]}."

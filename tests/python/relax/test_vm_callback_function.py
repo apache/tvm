@@ -19,11 +19,14 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax import script as R
 
-pytestmark = pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+pytestmark = pytest.mark.skipif(
+    not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled"
+)
 
 
 def test_pass_tensor_to_function():

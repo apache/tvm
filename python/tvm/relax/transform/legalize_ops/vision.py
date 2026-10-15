@@ -16,9 +16,9 @@
 # under the License.
 """Default legalization function for vision network related operators."""
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm_tirx
 from tvm import relax, te, topi
+from tvm_tirx import tirx
 from tvm_tirx.ir import Call
 
 from ...block_builder import BlockBuilder

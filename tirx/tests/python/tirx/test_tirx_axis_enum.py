@@ -61,7 +61,11 @@ def test_axis_runtime_only_import():
     env = os.environ.copy()
     env["TVM_USE_RUNTIME_LIB"] = "1"
     subprocess.run(
-        [sys.executable, "-c", "import tvm_tirx; import tvm_tirx.tirx.layout; assert tvm_tirx.base._RUNTIME_ONLY"],
+        [
+            sys.executable,
+            "-c",
+            "import tvm_tirx; import tvm_tirx.tirx.layout; assert tvm_tirx.base._RUNTIME_ONLY",
+        ],
         env=env,
         check=True,
     )

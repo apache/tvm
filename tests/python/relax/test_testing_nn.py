@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: RUF005
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.testing import nn
 from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 
 

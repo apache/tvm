@@ -16,11 +16,12 @@
 # under the License.
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import s_tir
-from tvm_tirx.ir import Range, TensorRegion, TensorRegionType
 from tvm.s_tir import script as Ts
+from tvm_tirx.ir import Range, TensorRegion, TensorRegionType
 from tvm_tirx.script import tirx as T
 
 

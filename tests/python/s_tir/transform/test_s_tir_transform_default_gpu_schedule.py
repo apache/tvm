@@ -16,10 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name,,missing-function-docstring
 # ruff: noqa: E501, F841
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm.s_tir.transform import DefaultGPUSchedule
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import script as Ts
+from tvm.s_tir.transform import DefaultGPUSchedule
 from tvm_tirx.script import tirx as T
 
 

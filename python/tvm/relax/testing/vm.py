@@ -21,7 +21,7 @@ from typing import Any
 
 import numpy as np  # type: ignore
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax
 from tvm_tirx.runtime import Object
 

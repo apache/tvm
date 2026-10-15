@@ -19,16 +19,17 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax, s_tir
-from tvm_tirx.ir import TupleType as _TupleType
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm.relax.frontend.nn import Module, Tensor, op, spec
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
+from tvm.relax.frontend.nn import Module, Tensor, op, spec
 from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 
@@ -988,7 +989,9 @@ def test_multinomial_from_uniform():
     np_prob = np_rand / np_rand.sum(axis=1, keepdims=True)
     nd_prob = tvm_tirx.runtime.tensor(np_prob, dev)
     # special sample to get deterministic results
-    nd_sample = tvm_tirx.runtime.tensor(np.array([[1], [0], [1], [1], [0], [1]]).astype(np.float32), dev)
+    nd_sample = tvm_tirx.runtime.tensor(
+        np.array([[1], [0], [1], [1], [0], [1]]).astype(np.float32), dev
+    )
     nd_sample_indices = tvm_tirx.runtime.tensor(
         np.array([[0], [1], [1], [2], [2], [2]]).astype(np.int64), dev
     )

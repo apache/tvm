@@ -16,8 +16,9 @@
 # under the License.
 import numpy as np
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import te
 from tvm.contrib.dlpack import to_pytorch_func
 

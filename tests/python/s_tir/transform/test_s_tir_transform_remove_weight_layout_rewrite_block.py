@@ -17,9 +17,10 @@
 # ruff: noqa: F401
 import sys
 
-import tvm, tvm_tirx
-from tvm_tirx.ir.module import IRModule
+import tvm
+import tvm_tirx
 from tvm.s_tir import script as Ts
+from tvm_tirx.ir.module import IRModule
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx.function import Function
 

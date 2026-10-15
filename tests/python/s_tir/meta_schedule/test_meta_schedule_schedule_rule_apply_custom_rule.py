@@ -19,10 +19,11 @@ import tempfile
 
 import pytest
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm.s_tir import meta_schedule as ms
-from tvm.s_tir.meta_schedule.schedule_rule import ApplyCustomRule
 from tvm.s_tir import script as Ts
+from tvm.s_tir.meta_schedule.schedule_rule import ApplyCustomRule
 from tvm_tirx.script import tirx as T
 
 

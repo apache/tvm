@@ -16,10 +16,10 @@
 # under the License.
 # ruff: noqa: E501
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm.relax.analysis import estimate_memory_usage
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax import script as R
+from tvm.relax.analysis import estimate_memory_usage
 from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 

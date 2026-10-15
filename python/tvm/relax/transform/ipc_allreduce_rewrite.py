@@ -18,11 +18,11 @@
 The pass is written in Python for experiment, fast development.
 """
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax
-from tvm_tirx.ir.module import IRModule
 from tvm.relax.expr import Expr, Var
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
+from tvm_tirx.ir.module import IRModule
 
 
 @tvm_tirx.ir.transform.module_pass(opt_level=0, name="IPCAllReduceRewrite")

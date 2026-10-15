@@ -19,8 +19,8 @@ import random
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm_tirx.support import utils
 
@@ -49,7 +49,9 @@ def test_sampling():
     # Probability tensor (each row sums to 1)
     probs_np = np.array([[0.1, 0.2, 0.3, 0.2, 0.2] for _ in range(batch_size)], dtype="float32")
 
-    target = tvm_tirx.testing.run_with_gpu_lock(lambda: tvm_tirx.target.Target.from_device(tvm_tirx.cuda()))
+    target = tvm_tirx.testing.run_with_gpu_lock(
+        lambda: tvm_tirx.target.Target.from_device(tvm_tirx.cuda())
+    )
     sampling_mod = load_module(
         "flashinfer_sampling",
         relax.backend.cuda.flashinfer.gen_sampling_module(

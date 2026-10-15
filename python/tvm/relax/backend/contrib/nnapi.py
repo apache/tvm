@@ -19,13 +19,13 @@
 
 from collections.abc import Mapping
 
-from tvm_tirx.ir import IRModule
 from tvm.relax.dpl.pattern import (
     DFPattern,
     is_op,
     wildcard,
 )
 from tvm.relax.transform import FuseOpsByPattern, MergeCompositeFunctions
+from tvm_tirx.ir import IRModule
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 

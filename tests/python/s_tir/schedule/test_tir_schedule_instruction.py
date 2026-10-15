@@ -21,7 +21,8 @@ import sys
 
 import pytest
 
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx.testing
 from tvm.s_tir.schedule import Instruction, InstructionKind, LoopRV, SBlockRV
 
 

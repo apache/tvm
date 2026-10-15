@@ -18,13 +18,14 @@
 
 from __future__ import annotations
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax, topi
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
 from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 
@@ -1717,7 +1718,9 @@ def test_primitive_call_arg_not_inlined():
         def main(x: R.Tensor((4,), dtype="int64")):
             cls = Before
             with R.dataflow():
-                value: T.int64 = R.call_pure_packed("get_scalar", ty_args=tvm_tirx.ir.PrimType("int64"))
+                value: T.int64 = R.call_pure_packed(
+                    "get_scalar", ty_args=tvm_tirx.ir.PrimType("int64")
+                )
                 lv = R.call_tir(
                     cls.add_scalar,
                     (x, value),

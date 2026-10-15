@@ -26,12 +26,13 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm.relax.relax_to_pyfunc_converter import RelaxToPyFuncConverter
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
+from tvm.relax.relax_to_pyfunc_converter import RelaxToPyFuncConverter
 from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 n_symbolic_add = T.dynamic("n", "int64")

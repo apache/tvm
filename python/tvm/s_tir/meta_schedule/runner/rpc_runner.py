@@ -22,8 +22,8 @@ from collections.abc import Callable
 from contextlib import contextmanager
 
 from tvm.rpc import RPCSession
-from tvm_tirx.runtime import Device, Module
 from tvm.s_tir.utils import derived_object
+from tvm_tirx.runtime import Device, Module
 from tvm_tirx.support.popen_pool import PopenPoolExecutor
 
 from ..logging import get_logger

@@ -24,10 +24,10 @@ from typing import Optional, Union
 
 from tvm_ffi import register_global_func
 
-from tvm_tirx.ir import IRModule
-from tvm_tirx.runtime import Module, Tensor
 from tvm.runtime.vm import load_param_dict, save_param_dict
 from tvm.s_tir.utils import derived_object
+from tvm_tirx.ir import IRModule
+from tvm_tirx.runtime import Module, Tensor
 from tvm_tirx.support.popen_pool import MapResult, PopenPoolExecutor, StatusKind
 from tvm_tirx.target import Target
 

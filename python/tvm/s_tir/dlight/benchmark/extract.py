@@ -21,7 +21,8 @@ from pathlib import Path
 import cloudpickle
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import relax
 
 from .utils import default_dym_var_sample_func, get_func_name_from_gv
@@ -217,7 +218,9 @@ def extract_all_func_info_from_relax(
     ]
         The function input information and dynamic shape variable dictionary.
     """
-    relax_func_dict: dict[tvm_tirx.ir.GlobalVar, dict[tvm_tirx.ir.GlobalVar, list[tuple[list, int]]]] = {}
+    relax_func_dict: dict[
+        tvm_tirx.ir.GlobalVar, dict[tvm_tirx.ir.GlobalVar, list[tuple[list, int]]]
+    ] = {}
     for gv, func in mod.functions_items():  # pylint: disable=invalid-name,too-many-nested-blocks
         if isinstance(func, tvm.relax.Function):
             for block in func.body.blocks:

@@ -23,9 +23,10 @@ from numbers import Integral as _Integral
 
 from tvm_ffi import Array
 
-import tvm_tirx.sym._ffi_api, tvm
-import tvm_tirx.tirx, tvm
-import tvm_tirx.tirx._ffi_api, tvm
+import tvm
+import tvm_tirx.sym._ffi_api
+import tvm_tirx.tirx
+import tvm_tirx.tirx._ffi_api
 from tvm_tirx.ir import is_prim_expr
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.runtime import convert
@@ -355,7 +356,9 @@ def extern(
     return res[0] if len(res) == 1 else res
 
 
-def extern_function(input_tensors: list[_tensor.Tensor], function: tvm_tirx.tirx.Function, **kwargs):
+def extern_function(
+    input_tensors: list[_tensor.Tensor], function: tvm_tirx.tirx.Function, **kwargs
+):
     """Compute tensors via a schedulable TIR Function
 
     Parameters

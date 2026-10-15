@@ -22,14 +22,15 @@ import tempfile
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import get_global_func
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax as rx
+from tvm.relax import script as R
 from tvm.runtime import disco as di
 from tvm.runtime.vm import VirtualMachine
 from tvm.s_tir import dlight as dl
-from tvm.relax import script as R
+from tvm_tirx import get_global_func
 
 if di is None:
     pytest.skip("disco runtime is not available", allow_module_level=True)

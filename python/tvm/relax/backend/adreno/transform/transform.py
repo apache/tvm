@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """Adreno Relax transformation passes."""
 
-import tvm_tirx.ir, tvm
+import tvm_tirx.ir
 from tvm_tirx.target import Target
 
 from . import _ffi_api

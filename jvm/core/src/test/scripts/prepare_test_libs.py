@@ -19,7 +19,8 @@
 import os
 import sys
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import relax, te
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import relax as R
@@ -52,7 +53,9 @@ def prepare_cpu_lib(base_path):
     A = te.placeholder((n,), name="A")
     B = te.placeholder((n,), name="B")
     C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
-    mod = tvm_tirx.IRModule.from_expr(te.create_function([A, B, C]).with_attr("global_symbol", "myadd"))
+    mod = tvm_tirx.IRModule.from_expr(
+        te.create_function([A, B, C]).with_attr("global_symbol", "myadd")
+    )
     fadd = tvm_tirx.tirx.compile(mod, target).mod
     lib_path = os.path.join(base_path, "add_cpu.so")
     fadd.export_library(lib_path)
@@ -66,7 +69,9 @@ def prepare_gpu_lib(base_path):
     A = te.placeholder((n,), name="A")
     B = te.placeholder((n,), name="B")
     C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
-    mod = tvm_tirx.IRModule.from_expr(te.create_function([A, B, C]).with_attr("global_symbol", "myadd"))
+    mod = tvm_tirx.IRModule.from_expr(
+        te.create_function([A, B, C]).with_attr("global_symbol", "myadd")
+    )
     sch = tvm.s_tir.Schedule(mod)
     sch.work_on("myadd")
     (i,) = sch.get_loops(block=sch.get_sblock("C"))

@@ -19,14 +19,15 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
@@ -190,11 +191,17 @@ def test_fuse_reduction_epilogue_numerical_correctness():
     D_fused_tvm = tvm_tirx.runtime.tensor(np.zeros((16, 16), dtype="int32"))
 
     mod_original(
-        tvm_tirx.runtime.tensor(A_np), tvm_tirx.runtime.tensor(B_np), tvm_tirx.runtime.tensor(C_np), D_original_tvm
+        tvm_tirx.runtime.tensor(A_np),
+        tvm_tirx.runtime.tensor(B_np),
+        tvm_tirx.runtime.tensor(C_np),
+        D_original_tvm,
     )
 
     mod_fused(
-        tvm_tirx.runtime.tensor(A_np), tvm_tirx.runtime.tensor(B_np), tvm_tirx.runtime.tensor(C_np), D_fused_tvm
+        tvm_tirx.runtime.tensor(A_np),
+        tvm_tirx.runtime.tensor(B_np),
+        tvm_tirx.runtime.tensor(C_np),
+        D_fused_tvm,
     )
 
     D_original = D_original_tvm.numpy()

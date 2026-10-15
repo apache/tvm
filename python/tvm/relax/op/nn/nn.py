@@ -18,8 +18,8 @@
 
 import tvm_ffi
 
-from tvm_tirx import DataType
 from tvm import relax
+from tvm_tirx import DataType
 from tvm_tirx.error import InternalError as _InternalError
 from tvm_tirx.ir import Attrs
 from tvm_tirx.ir import Call as _Call

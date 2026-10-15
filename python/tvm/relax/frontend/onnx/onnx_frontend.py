@@ -56,14 +56,14 @@ except ImportError as err:
 
 import tvm_ffi
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm_tirx
 from tvm import relax, topi
+from tvm.topi.utils import get_const_tuple
+from tvm_tirx import tirx
 from tvm_tirx.ir import Expr as TvmExpr
 from tvm_tirx.ir import IRModule
 from tvm_tirx.ir.supply import UniqueNameSupply
 from tvm_tirx.runtime import DataType, DataTypeCode
-from tvm.topi.utils import get_const_tuple
 
 from ..common import autopad
 
@@ -160,7 +160,9 @@ def get_value(token, value_dict: dict[str, tvm_tirx.tirx.Var]) -> int | tvm_tirx
         return value
 
 
-def parse_shape_name(name: str, value_dict: dict[str, tvm_tirx.tirx.Var]) -> tirx.Expr | tvm_tirx.tirx.Var:
+def parse_shape_name(
+    name: str, value_dict: dict[str, tvm_tirx.tirx.Var]
+) -> tirx.Expr | tvm_tirx.tirx.Var:
     """Converts expressions in the shape dimension name to prim expressions.
 
     Parameters
@@ -1178,7 +1180,9 @@ class Unsqueeze(OnnxOpConverter):
             if constant_axes == [0]:
                 return relax.ShapeExpr([data])
             raise NotImplementedError("Unsqueeze with symbolic scalar inputs only supports axis 0.")
-        if isinstance(data, tvm_tirx.ir.GenericConst) and isinstance(axes, tvm_tirx.ir.GenericConst):
+        if isinstance(data, tvm_tirx.ir.GenericConst) and isinstance(
+            axes, tvm_tirx.ir.GenericConst
+        ):
             constant_axes = _normalize_constant_axes(
                 list(map(int, axes.value.numpy().tolist())),
                 data.value.numpy().ndim + axes.value.numpy().size,
@@ -1742,7 +1746,9 @@ class Reshape(OnnxOpConverter):
             # Other reshape targets follow regular int64 tensor reshape semantics.
             data = bb.normalize(relax.op.shape_to_tensor(data))
 
-        if isinstance(data, tvm_tirx.ir.GenericConst) and isinstance(new_shape, tvm_tirx.ir.GenericConst):
+        if isinstance(data, tvm_tirx.ir.GenericConst) and isinstance(
+            new_shape, tvm_tirx.ir.GenericConst
+        ):
             data_array = data.value.numpy()
             new_shape_values = new_shape.value.numpy().tolist()
             if not allowzero:
@@ -3469,7 +3475,9 @@ class Expand(OnnxOpConverter):
                     if s.value == -1:
                         # -1 means preserve the input dimension
                         target_shape[i] = data_shape[i]
-                    elif isinstance(data_shape[i], tvm_tirx.tirx.IntImm) and data_shape[i].value == 1:
+                    elif (
+                        isinstance(data_shape[i], tvm_tirx.tirx.IntImm) and data_shape[i].value == 1
+                    ):
                         # Input dimension is 1, can broadcast to any target dimension >= 1
                         if s.value < 1:
                             raise ValueError(
@@ -5369,9 +5377,13 @@ class OneHot(OnnxOpConverter):
         depth = get_constant(inputs[1], params)
         values = get_constant(inputs[2], params)
         axis = attr.get("axis", -1)
-        assert isinstance(depth, tvm_tirx.ir.GenericConst), "Only constant depth currently supported."
+        assert isinstance(depth, tvm_tirx.ir.GenericConst), (
+            "Only constant depth currently supported."
+        )
         depth = depth.value.numpy().tolist()
-        assert isinstance(values, tvm_tirx.ir.GenericConst), "Only constant values currently supported."
+        assert isinstance(values, tvm_tirx.ir.GenericConst), (
+            "Only constant values currently supported."
+        )
         values = values.value.numpy().tolist()
         off_value, on_value = values
         off_value, on_value = (

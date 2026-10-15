@@ -30,12 +30,12 @@ from typing import Any, NoReturn
 
 import tvm_ffi as _ffi
 
-from tvm_tirx import ir as _ir
 from tvm import relax as _relax
-from tvm_tirx.ir.location import UnknownLoc
 from tvm.relax import Call, Expr, Var, VarBinding
 from tvm.relax.type import Type
 from tvm.relax.utils import gen_call_tir_inputs
+from tvm_tirx import ir as _ir
+from tvm_tirx.ir.location import UnknownLoc
 from tvm_tirx.runtime import Object as tvm_Object
 from tvm_tirx.script.ir_builder import base as _base
 from tvm_tirx.script.ir_builder.base import IRBuilder as _IRBuilder

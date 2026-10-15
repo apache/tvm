@@ -17,12 +17,13 @@
 
 import pytest
 
-import tvm, tvm_tirx
+import tvm
 import tvm.relax
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.relax import script as R
 from tvm.relax.transform import KillAfterLastUse
 from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 from tvm_tirx.testing import env
 
 

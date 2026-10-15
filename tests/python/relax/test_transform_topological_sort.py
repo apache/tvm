@@ -16,10 +16,11 @@
 # under the License.
 # ruff: noqa: F841
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx.script import ir as I
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax import script as R
+from tvm_tirx.script import ir as I
 
 
 def test_depth_first_from_inputs():

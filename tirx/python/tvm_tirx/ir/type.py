@@ -197,7 +197,9 @@ class PtrType(Type):
         self.__init_handle_by_constructor__(_ffi_api.PtrType, _normalize_type(element_type), scope)
         if loc is not UNKNOWN_LOC:
             # Keep the script constructor's source-context behavior on the class alias.
-            from tvm_tirx.script.ir_builder.base import at  # pylint: disable=import-outside-toplevel
+            from tvm_tirx.script.ir_builder.base import (
+                at,  # pylint: disable=import-outside-toplevel
+            )
 
             at(loc, self)
 

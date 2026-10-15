@@ -23,8 +23,9 @@ import threading
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import rpc, te
 from tvm.contrib import random
 

@@ -18,7 +18,7 @@
 # ruff: noqa: RUF005
 """TVM operator for softmax and log_softmax compute."""
 
-import tvm, tvm_tirx
+import tvm
 from tvm import te, topi
 
 

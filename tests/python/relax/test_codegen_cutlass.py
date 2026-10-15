@@ -18,10 +18,11 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx.ir import TupleType as _TupleType
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax import ExternFunc as _ExternFunc
+from tvm_tirx.ir import TupleType as _TupleType
 from tvm_tirx.testing import env
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
@@ -30,6 +31,7 @@ import tvm.topi.testing
 from tvm import relax
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.contrib.pickle_memoize import memoize
+from tvm.relax import script as R
 from tvm.relax.backend.cuda.cutlass import partition_for_cutlass
 from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.testing import (
@@ -37,9 +39,8 @@ from tvm.relax.testing import (
     get_relax_matmul_module,
     get_relax_stacked_attention_module,
 )
-from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.script.ir_builder import IRBuilder
 

@@ -20,7 +20,8 @@ import os
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import rpc, te
 from tvm.contrib import coreml_runtime
 from tvm_tirx.support import utils, xcode
@@ -76,7 +77,8 @@ def test_coreml_runtime():
         runtime = coreml_runtime.create("main", model_path, dev, session=session)
         for name in inputs:
             runtime.set_input(
-                name, dev.tensor(inputs[name]) if session else tvm_tirx.runtime.tensor(inputs[name], dev)
+                name,
+                dev.tensor(inputs[name]) if session else tvm_tirx.runtime.tensor(inputs[name], dev),
             )
         runtime.invoke()
         tvm_outputs = [runtime.get_output(i).numpy() for i in range(runtime.get_num_outputs())]

@@ -86,7 +86,9 @@ def test_roundtrip_layout():
 
 
 def from_source(code):
-    return tvm_tirx.script.from_source(code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
+    return tvm_tirx.script.from_source(
+        code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+    )
 
 
 def test_roundtrip_layout_replica_and_offset():
@@ -1431,7 +1433,9 @@ def test_roundtrip_tmem_decl_tensor():
     )
     # The shared alias has an explicit definition before the tensor-memory use.
     assert len(decls) == 2
-    tmem_decl = next(decl for decl in decls if decl.var.scope() == tvm_tirx.runtime.MemoryScope("tmem"))
+    tmem_decl = next(
+        decl for decl in decls if decl.var.scope() == tvm_tirx.runtime.MemoryScope("tmem")
+    )
     assert isinstance(tmem_decl.value.args[0], tvm_tirx.ir.TensorLoad)
     assert len(tmem_decl.value.ty_args) == 1
 

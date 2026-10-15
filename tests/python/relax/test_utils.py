@@ -20,7 +20,7 @@ import re
 
 import pytest
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax
 from tvm_tirx.ir.base import assert_structural_equal
 from tvm_tirx.script import tirx as T

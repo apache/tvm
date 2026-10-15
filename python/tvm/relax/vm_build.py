@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, no-member
 """VM build logics"""
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax
 from tvm_tirx.ir.module import IRModule
 from tvm_tirx.runtime import Executable

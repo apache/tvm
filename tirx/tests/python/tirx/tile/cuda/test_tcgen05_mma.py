@@ -1045,7 +1045,9 @@ def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
 
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": gemm_async}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": gemm_async}), target=target, pipeline="tirx"
+        )
 
     np.random.seed(0)
     a_np = np.random.randn(m_per_cta * 2, k).astype(input_dtype)
@@ -3573,7 +3575,9 @@ def _run_dense_gemm(
     np.random.seed(0)
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": gemm_async}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": gemm_async}), target=target, pipeline="tirx"
+        )
 
     def _rand(shape, dtype):
         f = np.random.randn(*shape).astype("float32")

@@ -19,7 +19,7 @@
 
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
 
 

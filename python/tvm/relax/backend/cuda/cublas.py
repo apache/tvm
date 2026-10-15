@@ -20,10 +20,11 @@
 import operator
 from functools import reduce
 
-import tvm, tvm_tirx
-from tvm_tirx import DataType
+import tvm
+import tvm_tirx
 from tvm.relax import transform
 from tvm.relax.transform import PatternCheckContext
+from tvm_tirx import DataType
 from tvm_tirx.sym import Analyzer
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns

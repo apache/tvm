@@ -78,7 +78,9 @@ def test_runtime_tensor_allocation():
     for scope in (None, "global", MemoryScope("global")):
         tensor = tvm_tirx.runtime.tensor(expected, tvm_tirx.cpu(), mem_scope=scope)
         np.testing.assert_array_equal(tensor.numpy(), expected)
-        np.testing.assert_array_equal(tensor.copyto(tvm_tirx.cpu(), mem_scope=scope).numpy(), expected)
+        np.testing.assert_array_equal(
+            tensor.copyto(tvm_tirx.cpu(), mem_scope=scope).numpy(), expected
+        )
     for scope in ("", "test.memory_scope.unregistered"):
         with pytest.raises(ValueError):
             tvm_tirx.runtime.empty((4,), mem_scope=scope)

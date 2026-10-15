@@ -17,8 +17,8 @@
 
 import numpy as np
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm.relax.transform import ToMixedPrecision
 from tvm.s_tir import script as Ts

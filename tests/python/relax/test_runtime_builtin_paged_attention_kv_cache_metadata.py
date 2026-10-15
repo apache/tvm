@@ -20,10 +20,10 @@ import pytest
 import tvm_ffi
 from tvm_ffi import Shape
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx.error import InternalError
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.frontend.nn.llm.kv_cache import AttnKind, RopeMode
+from tvm_tirx.error import InternalError
 
 reserved_nseq = 4
 maximum_total_seq_length = 128
@@ -117,7 +117,9 @@ def test_checkpoint_metadata_reports_layout_pages_and_groups():
     fprepare_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
     fimport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
     ffinish_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_finish_import")
-    fget_sequence_length = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_get_sequence_length")
+    fget_sequence_length = tvm_tirx.get_global_func(
+        "vm.builtin.attention_kv_cache_get_sequence_length"
+    )
 
     kv_cache = create_kv_cache()
     append_tokens(kv_cache)
@@ -217,7 +219,9 @@ def test_checkpoint_metadata_rejects_unsupported_layouts_and_sequence_ids():
     rope_ext_cache = create_kv_cache(
         rope_ext_factors=tvm_tirx.runtime.empty((head_dim // 2,), "float32", device=device)
     )
-    dst = tvm_tirx.runtime.empty((1, 1, 2, num_kv_heads, page_size, head_dim), "float16", device=device)
+    dst = tvm_tirx.runtime.empty(
+        (1, 1, 2, num_kv_heads, page_size, head_dim), "float16", device=device
+    )
 
     with pytest.raises(InternalError, match="sliding-window"):
         fget_layout_hash(sliding_cache)

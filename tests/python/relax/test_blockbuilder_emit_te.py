@@ -18,11 +18,12 @@
 
 # The tests here depend on tvmscript
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import relax as rx
 from tvm import te
-from tvm_tirx.ir.base import assert_structural_equal
 from tvm.s_tir import script as Ts
+from tvm_tirx.ir.base import assert_structural_equal
 from tvm_tirx.script.parser import ir as I
 from tvm_tirx.script.parser import relax as R
 from tvm_tirx.script.parser import tirx as T

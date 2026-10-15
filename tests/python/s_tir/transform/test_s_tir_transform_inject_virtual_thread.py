@@ -17,10 +17,11 @@
 # ruff: noqa: F841
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx.script import ir as I
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 
@@ -183,7 +184,9 @@ def test_vthread_simplified():
     after_mod = tvm.s_tir.transform.InjectVirtualThread()(before_mod)
     after_func = after_mod["main"]
 
-    tvm_tirx.ir.assert_structural_equal(after_func, expected_func.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(
+        after_func, expected_func.with_attr("global_symbol", "main")
+    )
 
 
 def test_vthread_vectorized():

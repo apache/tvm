@@ -18,8 +18,9 @@
 import pytest
 from utils import skip_unless_adreno_opencl_vulkan, verify_results
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm  # noqa: F401  # Register the parent Relax script dialect.
+import tvm_tirx
+import tvm_tirx.testing
 from tvm_tirx.script.parser import ir as I
 from tvm_tirx.script.parser import relax as R
 

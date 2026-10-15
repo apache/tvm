@@ -24,7 +24,8 @@ import argparse
 
 import numpy as np
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import rpc, te
 from tvm_tirx.support import utils, xcode
 
@@ -48,7 +49,9 @@ def test_rpc_module(host, port, key, mode):
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     temp = utils.tempdir()
-    mod = tvm_tirx.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "myadd"))
+    mod = tvm_tirx.IRModule.from_expr(
+        te.create_function([A, B]).with_attr("global_symbol", "myadd")
+    )
     sch = tvm.s_tir.Schedule(mod)
     (i,) = sch.get_loops(block=sch.get_sblock("B"))
     i0, i1 = sch.split(i, [None, 32])

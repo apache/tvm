@@ -23,15 +23,16 @@ import sys
 
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.script, tvm
-import tvm_tirx.testing, tvm
-from tvm_tirx import IRModule, tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
 from tvm.s_tir import script as Ts
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 M = T.dynamic("M", "int64")
@@ -76,13 +77,15 @@ def func[M: T.int64](x: R.Tensor((M, M * 2), "float32")):
     tvm_tirx.ir.assert_structural_equal(
         func,
         tvm_tirx.script.from_source(
-            script, extra_vars={"I": tvm_tirx.script.ir, "R": tvm.relax.script, "T": tvm_tirx.script.tirx}
+            script,
+            extra_vars={"I": tvm_tirx.script.ir, "R": tvm.relax.script, "T": tvm_tirx.script.tirx},
         ),
     )
     tvm_tirx.ir.assert_structural_equal(
         func,
         tvm_tirx.script.from_source(
-            repeated, extra_vars={"I": tvm_tirx.script.ir, "R": tvm.relax.script, "T": tvm_tirx.script.tirx}
+            repeated,
+            extra_vars={"I": tvm_tirx.script.ir, "R": tvm.relax.script, "T": tvm_tirx.script.tirx},
         ),
     )
 

@@ -28,9 +28,9 @@ from functools import reduce
 
 import tvm_ffi
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm_tirx
 from tvm import relax
+from tvm_tirx import tirx
 from tvm_tirx.ir import PrimType
 from tvm_tirx.runtime import DataTypeCode
 
@@ -725,9 +725,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 isinstance(rhs, tvm_tirx.ir.Var) and isinstance(rhs.ty, relax.TensorType)
             ):
                 return call_binary_op(relax_op, lhs, rhs)
-            elif isinstance(lhs, tvm_tirx.ir.GenericConst) and not isinstance(rhs, tvm_tirx.ir.GenericConst):
+            elif isinstance(lhs, tvm_tirx.ir.GenericConst) and not isinstance(
+                rhs, tvm_tirx.ir.GenericConst
+            ):
                 return call_binary_op(relax_op, lhs, relax.const(rhs, dtype=lhs.ty.dtype))
-            elif isinstance(rhs, tvm_tirx.ir.GenericConst) and not isinstance(lhs, tvm_tirx.ir.GenericConst):
+            elif isinstance(rhs, tvm_tirx.ir.GenericConst) and not isinstance(
+                lhs, tvm_tirx.ir.GenericConst
+            ):
                 return call_binary_op(relax_op, relax.const(lhs, dtype=rhs.ty.dtype), rhs)
             return intrinsic_op(lhs, rhs)
 
@@ -3046,7 +3050,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         if isinstance(x, list | tuple | relax.ShapeExpr | relax.Tuple):
             return x[node.args[1]]
-        elif isinstance(x, tvm_tirx.ir.Var) and isinstance(x.ty, relax.TupleType | relax.TensorType):
+        elif isinstance(x, tvm_tirx.ir.Var) and isinstance(
+            x.ty, relax.TupleType | relax.TensorType
+        ):
             if isinstance(x.ty, relax.TupleType):
                 return self.block_builder.emit(relax.TupleGetItem(x, node.args[1]))
 

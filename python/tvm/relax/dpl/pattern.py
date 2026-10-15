@@ -25,12 +25,12 @@ from typing import Union
 import tvm_ffi
 from tvm_ffi import Array
 
-import tvm, tvm_tirx
-from tvm_tirx.ir.op import Op
-
+import tvm_tirx
 from tvm_tirx.ir import make_node
 from tvm_tirx.ir.base import Node
+from tvm_tirx.ir.op import Op
 from tvm_tirx.runtime import Object
+
 from ..expr import Expr, Var
 from . import _ffi as ffi
 

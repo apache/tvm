@@ -17,8 +17,8 @@
 # ruff: noqa: F841
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import te
 
 

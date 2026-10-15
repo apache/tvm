@@ -19,12 +19,13 @@
 
 import pytest
 
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx.testing
 from tvm import relax, topi
-from tvm_tirx.ir.base import assert_structural_equal
-from tvm.relax.transform import FastMathTransform
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
+from tvm.relax.transform import FastMathTransform
+from tvm_tirx.ir.base import assert_structural_equal
+from tvm_tirx.script import ir as I
 
 
 def _run_pass_compare_output(Before, Expected):

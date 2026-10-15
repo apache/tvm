@@ -28,11 +28,11 @@ from functools import reduce
 
 from tvm_ffi import register_global_func
 
-import tvm, tvm_tirx
-from tvm_tirx import runtime
+import tvm_tirx
 from tvm import relax
-from tvm_tirx.support.nvcc import get_cuda_version
 from tvm.topi.utils import get_const_tuple
+from tvm_tirx import runtime
+from tvm_tirx.support.nvcc import get_cuda_version
 
 from .gen_conv2d import CutlassConv2DProfiler
 from .gen_gemm import CutlassGemmProfiler

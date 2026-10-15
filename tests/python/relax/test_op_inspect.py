@@ -22,11 +22,12 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx.testing
 from tvm import relax
+from tvm.relax import script as R
 from tvm_tirx.ir import Op
 from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 
 # Parameterization for reading dtype of DLTensor.  Chosen to have

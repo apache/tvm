@@ -20,7 +20,7 @@
 import operator
 from functools import partial, reduce
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax
 from tvm.relax import PyExprMutator, expr_functor, transform
 from tvm.relax.transform import PatternCheckContext

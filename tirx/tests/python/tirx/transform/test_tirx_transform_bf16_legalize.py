@@ -35,7 +35,9 @@ def bf16tof32(v):
 
 def f32tou16(v):
     uint32_v = T.reinterpret(v, ty="uint32")
-    rounding_bias = (uint32_v >> tvm_tirx.tirx.const(16, "uint32")) & tvm_tirx.tirx.const(1, "uint32")
+    rounding_bias = (uint32_v >> tvm_tirx.tirx.const(16, "uint32")) & tvm_tirx.tirx.const(
+        1, "uint32"
+    )
     rounding_bias += tvm_tirx.tirx.const(0x7FFF, "uint32")
     uint32_v = uint32_v + rounding_bias
     return (uint32_v >> tvm_tirx.tirx.const(16, "uint32")).astype("uint16")

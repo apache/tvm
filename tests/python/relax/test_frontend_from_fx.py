@@ -23,13 +23,13 @@ import torch.nn.functional as F
 from torch import fx
 from torch.nn import Module
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.frontend import detach_params
 from tvm.relax.frontend.torch import from_fx
 from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 
 

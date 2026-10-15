@@ -23,11 +23,11 @@ from typing import Literal
 
 import tvm_ffi
 
-from tvm_tirx.ir import IRModule
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.schedule import Trace
 from tvm.s_tir.schedule.testing import verify_trace_roundtrip
+from tvm_tirx.ir import IRModule
 from tvm_tirx.target import Target
 
 

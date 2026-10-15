@@ -20,12 +20,13 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm
 import tvm.s_tir.testing
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import s_tir
-from tvm_tirx.script import ir as I
 from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 
@@ -42,7 +43,8 @@ def test_cp_async_raw_dtype_round_trips():
             T.s_tir.cp_async_raw(B.data, i * 16, A.data, i * 16, 16, ty="float16")
 
     reparsed = tvm_tirx.script.from_source(
-        f.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script}
+        f.script(),
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     tvm_tirx.ir.assert_structural_equal(f, reparsed)
 

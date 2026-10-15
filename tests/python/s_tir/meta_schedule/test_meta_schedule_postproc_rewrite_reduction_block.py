@@ -17,10 +17,11 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 # ruff: noqa: E501, F401
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 

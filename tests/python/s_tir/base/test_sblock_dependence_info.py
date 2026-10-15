@@ -22,13 +22,14 @@ import sys
 import pytest
 from tvm_ffi import structural_walk
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import SBlockDependenceInfo
+from tvm.s_tir import script as Ts
+from tvm.s_tir.sblock_scope import DepKind
 from tvm_tirx import tirx
 from tvm_tirx.ir import IRModule
-from tvm.s_tir import SBlockDependenceInfo
-from tvm.s_tir.sblock_scope import DepKind
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx import Function
 

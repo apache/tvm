@@ -16,12 +16,12 @@
 # under the License.
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 
-import tvm, tvm_tirx
-from tvm_tirx import sym, tirx
+import tvm_tirx
 from tvm import s_tir
-from tvm_tirx.ir import TensorLoad
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
+from tvm_tirx import sym, tirx
+from tvm_tirx.ir import TensorLoad
 from tvm_tirx.target import Target
 
 from ..analysis import detect_dominant_read, normalize_function

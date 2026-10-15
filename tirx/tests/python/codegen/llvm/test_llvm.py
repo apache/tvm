@@ -251,7 +251,9 @@ def test_llvm_madd_pipeline():
 
         f = tvm_tirx.tirx.compile(Module, target="llvm")
         dev = tvm_tirx.cpu(0)
-        a = tvm_tirx.runtime.tensor(np.random.uniform(size=(nn + base, stride)).astype("float32"), dev)
+        a = tvm_tirx.runtime.tensor(
+            np.random.uniform(size=(nn + base, stride)).astype("float32"), dev
+        )
         c = tvm_tirx.runtime.tensor(np.zeros((nn, stride), dtype="float32"), dev)
         f(a, c)
         tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy()[base:] + 1)

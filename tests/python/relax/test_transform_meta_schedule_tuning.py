@@ -36,15 +36,16 @@ import tempfile
 
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm
 import tvm.s_tir.meta_schedule as ms
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
 from tvm_tirx.ir import transform
 from tvm_tirx.ir.module import IRModule
 from tvm_tirx.ir.transform import PassContext
-from tvm.relax import script as R
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 target = tvm_tirx.target.Target({"kind": "llvm", "num-cores": 16})

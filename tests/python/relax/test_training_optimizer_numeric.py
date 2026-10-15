@@ -22,12 +22,13 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import IRModule
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm.relax.training.optimizer import SGD, Adam, MomentumSGD
 from tvm.runtime.vm import VirtualMachine
+from tvm_tirx import IRModule
 from tvm_tirx.script.parser import relax as R
 from tvm_tirx.testing import assert_allclose
 

@@ -22,12 +22,13 @@ from collections.abc import Callable
 import pytest
 from numpy.testing import assert_allclose
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import s_tir, te
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
 
 N_FEATURES = 164

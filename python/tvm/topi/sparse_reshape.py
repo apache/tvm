@@ -17,8 +17,8 @@
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
 """Sparse_Reshape operator"""
 
-from tvm_tirx.script.ir_builder import IRBuilder
 from tvm.te import div, extern, floordiv, floormod
+from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.tirx import Cast, decl_tensor
 from tvm_tirx.tirx.script import ir_builder as T
 

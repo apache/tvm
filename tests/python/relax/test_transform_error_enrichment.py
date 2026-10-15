@@ -23,8 +23,8 @@ pass name plus the offending location rendered as underlined TVMScript.
 
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm_tirx.ir import IRModule
 

@@ -37,12 +37,12 @@ test suite can continue to import them via ``tvm.relax.frontend.nn.llm.kv_cache`
 import math
 from typing import Any, Literal
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax as rx
-from tvm_tirx import tirx
-from tvm_tirx.ir import TupleType as _TupleType
 from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.frontend.nn import Object, Tensor
+from tvm_tirx import tirx
+from tvm_tirx.ir import TupleType as _TupleType
 from tvm_tirx.target import Target
 
 # Re-export enums + kernel factories so existing ``from kv_cache import ...``

@@ -132,7 +132,9 @@ def test_kernel_replace_point_is_builtin_marker_not_tile_op():
     assert "kernel_replace_point" in code
     assert "T.tile.kernel_replace_point" not in code
     assert "Tx.kernel_replace_point" not in code
-    reparsed = tvm_tirx.script.from_source(code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
+    reparsed = tvm_tirx.script.from_source(
+        code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+    )
     assert_structural_equal(marker, reparsed)
 
 
@@ -303,7 +305,9 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
     assert "T.metal.simd_shuffle_up(" in code
     assert "T.metal.simd_shuffle_down(" in code
     assert "T.tirx." not in code
-    reparsed = tvm_tirx.script.from_source(code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
+    reparsed = tvm_tirx.script.from_source(
+        code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+    )
     assert reparsed.script() == code
     assert_structural_equal(device_namespaces, reparsed)
 

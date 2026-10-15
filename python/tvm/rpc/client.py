@@ -27,7 +27,8 @@ import time
 import tvm_ffi
 from tvm_ffi import DLDeviceType
 
-import tvm_tirx.runtime, tvm
+import tvm
+import tvm_tirx.runtime
 from tvm_tirx.support import utils
 
 from . import _ffi_api, base, server

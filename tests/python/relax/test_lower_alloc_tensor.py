@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.relax import script as R
 from tvm.relax.transform import LowerAllocTensor
 from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 
 
 def test_basic():

@@ -22,10 +22,10 @@ import tempfile
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx.runtime import ShapeTuple
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.runtime import disco as di
+from tvm_tirx.runtime import ShapeTuple
 from tvm_tirx.script import tirx as T
 from tvm_tirx.support.popen_pool import PopenWorker
 from tvm_tirx.testing import env

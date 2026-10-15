@@ -24,12 +24,8 @@ import inspect
 import numbers as _numbers
 import re as _re
 
-from tvm_tirx import ir as _ir
 from tvm import relax
 from tvm import relax as _relax
-from tvm_tirx.ir import IRModule
-from tvm_tirx.ir.location import UNKNOWN_LOC, Location
-from tvm_tirx.ir.type import _init_type_api, _normalize_type
 from tvm.relax import Expr, ExternFunc, ShapeExpr, TupleGetItem, const
 from tvm.relax.distributed import DeviceMesh as _DeviceMesh
 from tvm.relax.distributed import DTensorType as _DTensorType
@@ -37,6 +33,10 @@ from tvm.relax.distributed import Placement as _Placement
 from tvm.relax.distributed import device_mesh
 from tvm.relax.dpl import PatternMatchingRewriter
 from tvm.relax.global_info import DummyGlobalInfo, VDevice
+from tvm_tirx import ir as _ir
+from tvm_tirx.ir import IRModule
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.type import _init_type_api, _normalize_type
 from tvm_tirx.runtime._tensor import (
     cpu,
     cuda,

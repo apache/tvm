@@ -19,11 +19,11 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Optional
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax
-from tvm_tirx.ir import IRModule
 from tvm.s_tir.meta_schedule.runner import EvaluatorConfig
 from tvm.s_tir.meta_schedule.testing.tune_utils import generate_input_data
+from tvm_tirx.ir import IRModule
 from tvm_tirx.tirx import Function
 
 from .extract import extract_all_func_info_from_relax, extract_func_info_from_function
@@ -116,7 +116,9 @@ def benchmark(
         else:
             # normal case like [1, n, 128], generate random tensor
             input_tensors.append(
-                tvm_tirx.runtime.tensor(generate_input_data(list(input_shape), input_dtype), device=dev)
+                tvm_tirx.runtime.tensor(
+                    generate_input_data(list(input_shape), input_dtype), device=dev
+                )
             )
     # append scalar input tensors for rotary embedding
     input_tensors.extend(scalar_input_tensors)
@@ -144,7 +146,9 @@ def benchmark(
         _, profile_result = rpc_run(
             rt_mod,
             device_type=dev._DEVICE_TYPE_TO_NAME[dev.dlpack_device_type()],
-            args=[w.numpy() if isinstance(w, tvm_tirx.runtime.Tensor) else w for w in input_tensors],
+            args=[
+                w.numpy() if isinstance(w, tvm_tirx.runtime.Tensor) else w for w in input_tensors
+            ],
             rpc_config=rpc_config,
             evaluator_config=evaluator_config,
         )

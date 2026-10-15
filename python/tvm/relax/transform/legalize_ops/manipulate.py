@@ -18,13 +18,14 @@
 # ruff: noqa: RUF005
 """Default legalization function for manipulate operators."""
 
-import tvm, tvm_tirx
-from tvm_tirx import DataTypeCode, tirx
+import tvm
+import tvm_tirx
 from tvm import relax, te, topi
-from tvm_tirx.ir import Call
 from tvm.relax.op.base import call_tir
 from tvm.relax.type import TensorType
 from tvm.relax.utils import gen_call_tir_inputs
+from tvm_tirx import DataTypeCode, tirx
+from tvm_tirx.ir import Call
 from tvm_tirx.tirx.expr import IntImm
 
 from ...block_builder import BlockBuilder

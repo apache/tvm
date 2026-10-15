@@ -23,9 +23,10 @@ from pathlib import Path
 import numpy as np
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.libinfo, tvm
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.libinfo
+import tvm_tirx.testing
 from tvm import relax
 from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.frontend import nn
@@ -81,8 +82,8 @@ def _test_infer_sym(func, x, y, z):  # pylint: disable=invalid-name
 
 def _check_ir_equality(mod):
     # pylint: disable=import-outside-toplevel
-    from tvm_tirx.script import ir as I
     from tvm.relax import script as R
+    from tvm_tirx.script import ir as I
     from tvm_tirx.script import tirx as T
 
     # pylint: enable=import-outside-toplevel

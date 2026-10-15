@@ -19,7 +19,7 @@
 
 import numpy as np
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
 from tvm.topi.transform import concatenate
 

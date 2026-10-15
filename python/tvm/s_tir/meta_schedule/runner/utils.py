@@ -20,9 +20,9 @@ import itertools
 from collections.abc import Callable
 from typing import Any
 
-import tvm_tirx.runtime, tvm
-
+import tvm_tirx.runtime
 from tvm_tirx.runtime import Device, Module
+
 from .config import EvaluatorConfig
 
 T_ARG_INFO_JSON_OBJ = list[Any]  # pylint: disable=invalid-name

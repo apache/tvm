@@ -460,7 +460,9 @@ def test_cuda_gemm_mma_lowers_to_mma_sync(dtype):
     function = _lower(_build_gemm(beta=0, dtype=dtype))["main"]
     calls = []
     structural_walk(function.body, [(tvm_tirx.ir.Call, calls.append)])
-    mma_calls = [c for c in calls if isinstance(c.op, tvm_tirx.ir.Op) and c.op.name == "tirx.ptx.mma"]
+    mma_calls = [
+        c for c in calls if isinstance(c.op, tvm_tirx.ir.Op) and c.op.name == "tirx.ptx.mma"
+    ]
     assert len(mma_calls) == 1
     operands = mma_calls[0].args
     assert any(isinstance(a, tvm_tirx.ir.StringImm) and a.value == "m16n8k16" for a in operands)
@@ -577,7 +579,9 @@ def test_cuda_gemm_mma_numerical(dtype):
             D_g[lane // 4 + 8 * rM, 2 * (lane % 4) + rN] = D_reg[s]
 
     with tvm_tirx.target.Target("cuda"):
-        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": gemm}), target="cuda", pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": gemm}), target="cuda", pipeline="tirx"
+        )
 
     np.random.seed(0)
     A_np = np.random.uniform(-1, 1, (16, 16)).astype(np.float32)
@@ -636,7 +640,9 @@ def test_cuda_gemm_mma_numerical_tiled(dtype, beta, Mt, Nt, Kt, kinst):
 
     func, M, N, K = _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype)
     with tvm_tirx.target.Target("cuda"):
-        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": func}), target="cuda", pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": func}), target="cuda", pipeline="tirx"
+        )
 
     np.random.seed(0)
     A_np = np.random.uniform(-1, 1, (M, K)).astype(np.float32)
@@ -676,7 +682,9 @@ def test_cuda_gemm_mma_numerical_transpose(transpose_A, transpose_B, dtype):
 
     func = _build_transpose_numeric(transpose_A, transpose_B, dtype)
     with tvm_tirx.target.Target("cuda"):
-        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": func}), target="cuda", pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": func}), target="cuda", pipeline="tirx"
+        )
 
     np.random.seed(0)
     A_log = np.random.uniform(-1, 1, (16, 16)).astype(np.float32)  # logical A[M, K]

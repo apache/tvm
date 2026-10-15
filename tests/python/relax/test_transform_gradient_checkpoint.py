@@ -17,12 +17,12 @@
 # ruff: noqa: E501, F811
 """Unit tests for gradient with checkpointing."""
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.ir.base import assert_structural_equal
 from tvm.relax.block_builder import BlockBuilder
 from tvm.relax.testing import nn
+from tvm_tirx.ir.base import assert_structural_equal
 from tvm_tirx.script.parser import ir as I
 from tvm_tirx.script.parser import relax as R
 

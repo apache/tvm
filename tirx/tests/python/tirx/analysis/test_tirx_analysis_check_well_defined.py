@@ -108,7 +108,8 @@ def test_error_for_repeated_binding():
         T.evaluate(i)
 
     with pytest.raises(
-        (ValueError, tvm_tirx.error.InternalError), match="multiple nested definitions of variable i"
+        (ValueError, tvm_tirx.error.InternalError),
+        match="multiple nested definitions of variable i",
     ):
         tvm_tirx.tirx.analysis.verify_well_formed(func)
 
@@ -176,7 +177,8 @@ def test_reuse_of_region_parameter_across_functions_is_ill_formed():
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
     with pytest.raises(
-        (ValueError, tvm_tirx.error.InternalError), match="multiple definitions of variable threadIdx_x"
+        (ValueError, tvm_tirx.error.InternalError),
+        match="multiple definitions of variable threadIdx_x",
     ):
         tvm_tirx.tirx.analysis.verify_well_formed(mod)
 

@@ -16,7 +16,7 @@
 # under the License.
 """External function interface to cuBLASlt libraries."""
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
 
 

@@ -23,7 +23,7 @@ as it is or serves as a basis to do further composition.
 
 # pylint: disable=unused-argument
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm.s_tir import meta_schedule as ms
 
 from . import backend, transform
@@ -44,7 +44,9 @@ def zero_pipeline(*, enable_warning: bool = False):
     """
 
     @tvm_tirx.ir.transform.module_pass(opt_level=0)
-    def f_zero_pipeline(mod: tvm_tirx.ir.IRModule, ctx: tvm_tirx.ir.transform.PassContext) -> tvm_tirx.ir.IRModule:
+    def f_zero_pipeline(
+        mod: tvm_tirx.ir.IRModule, ctx: tvm_tirx.ir.transform.PassContext
+    ) -> tvm_tirx.ir.IRModule:
         """Pipeline that applies pre-tuned logs.
 
         Parameters
@@ -81,7 +83,9 @@ def default_build_pipeline():
     """The default compilation pipeline used in tvm.compile"""
 
     @tvm_tirx.ir.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext) -> tvm_tirx.ir.IRModule:
+    def _pipeline(
+        mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext
+    ) -> tvm_tirx.ir.IRModule:
         seq = tvm_tirx.ir.transform.Sequential(
             [
                 backend.DispatchSampling(),
@@ -169,7 +173,9 @@ def static_shape_tuning_pipeline(
     """
 
     @tvm_tirx.ir.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext) -> tvm_tirx.ir.IRModule:
+    def _pipeline(
+        mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext
+    ) -> tvm_tirx.ir.IRModule:
         if cpu_weight_prepack:
             pre_tuning_layout_rewrite = [transform.AttachAttrLayoutFreeTensors()]
             post_tuning_layout_rewrite = [

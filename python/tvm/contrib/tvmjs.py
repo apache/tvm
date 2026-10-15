@@ -36,7 +36,8 @@ try:
 except ImportError:
     ml_dtypes = None
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm_tirx.runtime import DataType
 
 from .emcc import create_wasm as create_tvmjs_wasm

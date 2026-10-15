@@ -73,7 +73,11 @@ def test_mma(k, dtype, initial):
     aa = np.ascontiguousarray(a.reshape(M, 16, K, k).transpose(0, 2, 1, 3)).view(np.uint32)
     bb = np.ascontiguousarray(b.reshape(N, 8, K, k).transpose(0, 2, 1, 3)).view(np.uint32)
     output = tvm_tirx.runtime.tensor(np.zeros((M * 16, N * 8), "float32"), tvm_tirx.cuda())
-    f(tvm_tirx.runtime.tensor(aa, tvm_tirx.cuda()), tvm_tirx.runtime.tensor(bb, tvm_tirx.cuda()), output)
+    f(
+        tvm_tirx.runtime.tensor(aa, tvm_tirx.cuda()),
+        tvm_tirx.runtime.tensor(bb, tvm_tirx.cuda()),
+        output,
+    )
     np.testing.assert_allclose(
         output.numpy(), a.astype("float32") @ b.astype("float32").T + initial, rtol=2e-4, atol=2e-4
     )
@@ -524,7 +528,11 @@ def test_tcgen05_tmem_a_repeated_mnk():
     aa = np.ascontiguousarray(a.reshape(mr, m, kr, k).transpose(0, 2, 1, 3)).view("uint32")
     bb = np.ascontiguousarray(b.reshape(nr, n, kr, k).transpose(0, 2, 1, 3))
     out = tvm_tirx.runtime.tensor(np.zeros((mr * m, nr * n), "float32"), tvm_tirx.cuda())
-    f(tvm_tirx.runtime.tensor(aa, tvm_tirx.cuda()), tvm_tirx.runtime.tensor(bb, tvm_tirx.cuda()), out)
+    f(
+        tvm_tirx.runtime.tensor(aa, tvm_tirx.cuda()),
+        tvm_tirx.runtime.tensor(bb, tvm_tirx.cuda()),
+        out,
+    )
     np.testing.assert_allclose(
         out.numpy(), a.astype("float32") @ b.astype("float32").T, rtol=2e-4, atol=2e-4
     )

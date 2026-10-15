@@ -19,10 +19,11 @@ import numpy
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx.ir.module import IRModule
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import script as Ts
+from tvm_tirx.ir.module import IRModule
 from tvm_tirx.script import tirx as T
 
 
@@ -359,7 +360,9 @@ def test_loop_partition_unroll_hint():
     mod = tvm_tirx.tirx.transform.UnrollLoop()(mod)
     mod = tvm_tirx.tirx.transform.RemoveNoOp()(mod)
     mod = tvm_tirx.tirx.transform.StmtSimplify()(mod)
-    tvm_tirx.ir.assert_structural_equal(mod["main"], partitioned_main.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(
+        mod["main"], partitioned_main.with_attr("global_symbol", "main")
+    )
 
 
 def test_loop_partition_recursive_unroll_hint():
@@ -424,7 +427,9 @@ def test_loop_partition_recursive_unroll_hint():
             }
         },
     )
-    tvm_tirx.ir.assert_structural_equal(mod["main"], partitioned_main.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(
+        mod["main"], partitioned_main.with_attr("global_symbol", "main")
+    )
 
 
 def test_loop_partition_keep_loop_annotations():

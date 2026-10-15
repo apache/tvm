@@ -24,8 +24,9 @@ import re
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import te, topi
 from tvm_tirx.support import utils
 from tvm_tirx.testing import env

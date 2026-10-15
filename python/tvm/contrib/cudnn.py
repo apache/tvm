@@ -23,7 +23,7 @@ import ctypes
 import numpy as np
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
 
 # algos can be read from cudnn.h

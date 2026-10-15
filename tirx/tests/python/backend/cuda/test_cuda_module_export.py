@@ -127,7 +127,9 @@ def test_export_load_with_fallback(monkeypatch, tmp_path, *, backend_config):
                     B[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + 1.0
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
-    host_lib = tvm_tirx.tirx.compile(Module, target={"kind": "cuda", "backend_config": backend_config})
+    host_lib = tvm_tirx.tirx.compile(
+        Module, target={"kind": "cuda", "backend_config": backend_config}
+    )
     monkeypatch.delenv("TVM_COMPILE_FORCE_FALLBACK")
 
     lib_path = str(tmp_path / "lib.so")

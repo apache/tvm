@@ -21,7 +21,8 @@ from math import pi
 
 import numpy as np
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import te, topi
 
 from . import cpp, tag
@@ -320,7 +321,9 @@ def strided_set(a, v, begin, end, strides=None):
         strides = [tvm_tirx.tirx.const(1, "int32")] * n
     else:
         strides = [
-            tvm_tirx.tirx.if_then_else(strides.shape[0] > i, strides[i], tvm_tirx.tirx.const(1, "int32"))
+            tvm_tirx.tirx.if_then_else(
+                strides.shape[0] > i, strides[i], tvm_tirx.tirx.const(1, "int32")
+            )
             for i in range(n)
         ]
 
@@ -352,7 +355,9 @@ def strided_set(a, v, begin, end, strides=None):
         for i in range(n):
             from_val.append(within_index(begin[i], end[i], strides[i], indices[i]))
             index_tuple.append(make_idx(begin[i], end[i], strides[i], a.shape[i], indices[i]))
-        return tvm_tirx.tirx.if_then_else(tvm_tirx.tirx.all(*from_val), v(*index_tuple), a(*indices))
+        return tvm_tirx.tirx.if_then_else(
+            tvm_tirx.tirx.all(*from_val), v(*index_tuple), a(*indices)
+        )
 
     return te.compute(a.shape, _select, name="strided_set")
 

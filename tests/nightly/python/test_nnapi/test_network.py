@@ -23,7 +23,8 @@ pytest.importorskip("onnx")
 
 import onnx
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from test_nnapi.conftest import remote
 from test_nnapi.infrastructure import build_and_run  # , build_and_run_vm
 from tvm.contrib.download import download_testdata
@@ -127,7 +128,9 @@ def test_network(name, dtype):
     for _name, (shape, _dtype) in inputs.items():
         input_data[_name] = np.random.uniform(-1.0, 1.0, shape).astype(_dtype)
 
-    inputs_tvm: list[tvm_tirx.runtime.Tensor] = [tvm_tirx.runtime.tensor(v) for k, v in input_data.items()]
+    inputs_tvm: list[tvm_tirx.runtime.Tensor] = [
+        tvm_tirx.runtime.tensor(v) for k, v in input_data.items()
+    ]
     outputs = _build_and_run_network(remote_obj, tracker, mod, inputs_tvm)
     nnapi_out = outputs[0]
     expected_out = outputs[1]

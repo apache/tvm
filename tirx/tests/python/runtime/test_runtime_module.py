@@ -204,7 +204,9 @@ def test_min_repeat_ms(native_library):
     module = tvm_tirx.runtime.load_module(str(native_library))
     module.time_evaluator("callback", tvm_tirx.cpu(), number=1, repeat=1)(callback)
     assert len(calls) == 2
-    module.time_evaluator("callback", tvm_tirx.cpu(), number=1, repeat=1, min_repeat_ms=1000)(callback)
+    module.time_evaluator("callback", tvm_tirx.cpu(), number=1, repeat=1, min_repeat_ms=1000)(
+        callback
+    )
     assert len(calls) > 12
 
 

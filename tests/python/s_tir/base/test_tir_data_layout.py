@@ -18,10 +18,11 @@
 
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx.error import InternalError
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.topi.utils import get_const_tuple
+from tvm_tirx.error import InternalError
 
 
 def test_layout():

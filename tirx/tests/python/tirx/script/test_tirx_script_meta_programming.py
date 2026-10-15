@@ -87,7 +87,9 @@ def test_meta_class_multiple_instances_preserve_owned_resources():
 
 
 def from_source(code):
-    return tvm_tirx.script.from_source(code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
+    return tvm_tirx.script.from_source(
+        code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+    )
 
 
 def test_macro():
@@ -169,7 +171,9 @@ def test_list_comprehension():
         T.evaluate(regs[0])
         T.evaluate(tvm_tirx.tirx.all(*regs))
         T.evaluate(tvm_tirx.tirx.all(*[acc[_] for _ in range(10)]))
-        T.evaluate(tvm_tirx.tirx.all(*([acc[_] for _ in range(2, 4)] + [acc[_] for _ in range(6, 8)])))
+        T.evaluate(
+            tvm_tirx.tirx.all(*([acc[_] for _ in range(2, 4)] + [acc[_] for _ in range(6, 8)]))
+        )
 
     @T.function(private=True)
     def expected():

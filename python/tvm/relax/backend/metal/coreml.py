@@ -22,14 +22,15 @@ import shutil
 
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm.contrib import coreml_runtime
-from tvm_tirx.ir import Call, GenericConst, PrimType
 from tvm.relax import transform
 from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.expr import BindingBlock, Function, SeqExpr, Var, VarBinding
 from tvm.relax.transform import PatternCheckContext
 from tvm.relax.type import TensorType
+from tvm_tirx.ir import Call, GenericConst, PrimType
 from tvm_tirx.support.xcode import compile_coreml
 
 from ...expr_functor import PyExprVisitor, visitor

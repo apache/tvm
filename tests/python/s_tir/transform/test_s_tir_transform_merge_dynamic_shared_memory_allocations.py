@@ -17,13 +17,14 @@
 # ruff: noqa: F401, F841
 import numpy as np
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import s_tir
-from tvm_tirx.script import ir as I
 from tvm.s_tir import script as Ts
-from tvm_tirx.script import tirx as T
 from tvm.topi.math import cast
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_matmul_t_tensor():

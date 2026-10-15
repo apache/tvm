@@ -21,17 +21,17 @@ import threading
 from numbers import Integral
 from typing import Any
 
+from tvm.s_tir.iter_var import IterVar
+from tvm.s_tir.op import comm_reducer
+from tvm.te import CommReducer, Reduce
 from tvm_tirx import ir
 from tvm_tirx import tirx as tir
 from tvm_tirx.ir import TensorLoad, TensorRegion, is_prim_expr
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.ir.type import _normalize_type
 from tvm_tirx.runtime import MemoryScope
-from tvm.s_tir.iter_var import IterVar
-from tvm.s_tir.op import comm_reducer
 from tvm_tirx.script.ir_builder.base import MISSING, auto_emit_void_call
 from tvm_tirx.script.parser.protocol_registry import register_mutable_decl as _register_mutable_decl
-from tvm.te import CommReducer, Reduce
 from tvm_tirx.tirx import Expr, IntImm, Var
 from tvm_tirx.tirx.layout import Layout
 from tvm_tirx.tirx.script.ir_builder.ir import _get_layout, _record_meta_resource

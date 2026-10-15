@@ -21,17 +21,18 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.script, tvm
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax, topi
 from tvm.contrib.thrust import can_use_thrust
-from tvm_tirx.ir.base import assert_structural_equal
+from tvm.relax import script as R
 from tvm.relax.backend import DispatchSortScan
 from tvm.s_tir import dlight
+from tvm_tirx import tirx
+from tvm_tirx.ir.base import assert_structural_equal
 from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 
 

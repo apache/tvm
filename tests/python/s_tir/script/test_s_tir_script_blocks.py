@@ -20,12 +20,13 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import s_tir
-from tvm_tirx.ir import Range, TensorRegion, TensorRegionType
-from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm.s_tir import script as Ts
+from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
+from tvm_tirx.ir import Range, TensorRegion, TensorRegionType
 from tvm_tirx.script import tirx as T
 
 # Expected completed types use the configured fixed index dtype, not shape dtype.
@@ -443,7 +444,8 @@ def test_alloc_zero_dim_tensor_round_trip():
     func = alloc_zero_dim_tensor
     func_with_block = alloc_zero_dim_tensor_block
     rt_func = tvm_tirx.script.from_source(
-        func.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script}
+        func.script(),
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     rt_func_with_block = tvm_tirx.script.from_source(
         func_with_block.script(),

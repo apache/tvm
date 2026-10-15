@@ -24,8 +24,9 @@ import numpy as np
 import pytest
 import torch
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 
 DEFAULT_WORKSPACE_SIZE = 32 * 1024 * 1024
@@ -424,7 +425,9 @@ def test_grouped_gemm_correctness(
         else:
             output = tvm_tirx.runtime.empty(output_shape, dtype="float32", device=device)
 
-        int_workspace = tvm_tirx.runtime.empty((DEFAULT_WORKSPACE_SIZE,), dtype="int32", device=device)
+        int_workspace = tvm_tirx.runtime.empty(
+            (DEFAULT_WORKSPACE_SIZE,), dtype="int32", device=device
+        )
         float_workspace = tvm_tirx.runtime.empty(
             (DEFAULT_WORKSPACE_SIZE,), dtype="float32", device=device
         )

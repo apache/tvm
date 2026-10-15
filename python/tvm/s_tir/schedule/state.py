@@ -22,9 +22,9 @@ from enum import IntEnum
 
 from tvm_ffi import register_object
 
+from tvm.s_tir import SBlock, SBlockRealize
 from tvm_tirx.ir import For, IRModule
 from tvm_tirx.runtime import Object
-from tvm.s_tir import SBlock, SBlockRealize
 from tvm_tirx.tirx import Function
 
 from ..sblock_scope import SBlockScope, StmtSRef

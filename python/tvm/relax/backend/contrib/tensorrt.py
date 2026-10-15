@@ -23,8 +23,6 @@ converter registered under the same name (the converters are keyed by
 out of the module and annotates them for the ``tensorrt`` codegen.
 """
 
-from tvm_tirx import tirx
-from tvm_tirx.ir import IRModule
 from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.expr import ShapeExpr
 from tvm.relax.transform import (
@@ -32,6 +30,8 @@ from tvm.relax.transform import (
     MergeCompositeFunctions,
     PatternCheckContext,
 )
+from tvm_tirx import tirx
+from tvm_tirx.ir import IRModule
 
 from ..pattern_registry import Pattern, get_patterns_with_prefix, register_patterns
 

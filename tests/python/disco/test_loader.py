@@ -25,14 +25,15 @@ import numpy as np
 import pytest
 from tvm_ffi import Shape, register_global_func
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax as rx
 from tvm.contrib import tvmjs
+from tvm.relax import script as R
 from tvm.runtime import disco as di
 from tvm.s_tir import dlight as dl
 from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 from tvm_tirx.target import Target
 from tvm_tirx.testing import env
 

@@ -24,16 +24,17 @@ import time
 import pytest
 from tvm_ffi import register_global_func
 
-import tvm_tirx.testing, tvm
-from tvm_tirx import script
-from tvm_tirx.runtime import Module
+import tvm
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.builder import (
     BuilderInput,
     BuilderResult,
     LocalBuilder,
     PyBuilder,
 )
-from tvm.s_tir import script as Ts
+from tvm_tirx import script
+from tvm_tirx.runtime import Module
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 

@@ -37,7 +37,9 @@ from tvm_tirx.script import tirx as T
 def build(func):
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": func}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": func}), target=target, pipeline="tirx"
+        )
     return getattr(mod, "mod", mod).imports[0].inspect_source("")
 
 

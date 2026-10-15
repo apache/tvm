@@ -17,15 +17,15 @@
 # ruff: noqa: F841
 """S-TIR script ir builder."""
 
-import tvm, tvm_tirx
-import tvm_tirx.runtime, tvm
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm_tirx
+import tvm_tirx.runtime
+import tvm_tirx.testing
 from tvm import s_tir
+from tvm.s_tir import script as Ts
+from tvm.s_tir.script.ir_builder import function as build_function
+from tvm_tirx import tirx
 from tvm_tirx.ir.base import assert_structural_equal
 from tvm_tirx.ir.location import SourceLoc, SourceName
-from tvm.s_tir.script.ir_builder import function as build_function
-from tvm.s_tir import script as Ts
 from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.tirx.script import ir_builder as T
 

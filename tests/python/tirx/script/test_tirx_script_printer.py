@@ -20,11 +20,11 @@
 import pytest
 from tvm_ffi import get_global_func
 
-import tvm, tvm_tirx
-import tvm_tirx.script, tvm
-import tvm_tirx.testing, tvm
-from tvm_tirx import ir, tirx
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import s_tir
+from tvm_tirx import ir, tirx
 from tvm_tirx import tirx as tir
 from tvm_tirx.ir import Range, TensorRegion, TensorRegionType, assert_structural_equal
 from tvm_tirx.script import ir as I
@@ -135,7 +135,9 @@ def test_reflected_type_recursive_values(monkeypatch):
 
     monkeypatch.setattr(T, "PrinterValues", PrinterValuesType, raising=False)
     value = PrinterValuesType(
-        tvm_ffi.convert([T.int32(128), {"nested": [T.float32(1.25), tvm_tirx.ir.PrimType("int32")]}])
+        tvm_ffi.convert(
+            [T.int32(128), {"nested": [T.float32(1.25), tvm_tirx.ir.PrimType("int32")]}]
+        )
     )
     source = value.script()
     assert source == 'T.PrinterValues([T.int32(128), {"nested": [T.float32(1.25), T.int32]}])'
@@ -736,7 +738,9 @@ def test():
 
 
 def from_source(code):
-    return tvm_tirx.script.from_source(code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
+    return tvm_tirx.script.from_source(
+        code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+    )
 
 
 def test_default_script_prefix_tirx_irmodule_non_main():
@@ -906,7 +910,9 @@ def test_printer_cuda_low_level_warp_intrinsics_roundtrip():
     assert "T.cuda.__shfl_xor_sync(" in code
     assert "T.tirx." not in code
     assert (
-        tvm_tirx.script.from_source(code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}).script()
+        tvm_tirx.script.from_source(
+            code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+        ).script()
         == code
     )
 
@@ -924,7 +930,9 @@ def test_printer_webgpu_namespace_roundtrip():
     assert "T.webgpu.subgroup_shuffle_down(" in code
     assert "T.tirx." not in code
     assert (
-        tvm_tirx.script.from_source(code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}).script()
+        tvm_tirx.script.from_source(
+            code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+        ).script()
         == code
     )
 

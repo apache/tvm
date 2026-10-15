@@ -23,11 +23,11 @@ from typing import TYPE_CHECKING, Any
 from tvm_ffi import Array, Map
 from tvm_ffi import register_object as _register_object
 
+from tvm_tirx.ir import save_json
 from tvm_tirx.runtime import Object
 from tvm_tirx.tirx.expr import FloatImm, IntImm
 from tvm_tirx.tirx.function import IndexMap
 
-from tvm_tirx.ir import save_json
 from . import _ffi_api
 from .instruction import ATTR_TYPE, INPUT_RV_TYPE, Instruction
 

@@ -17,7 +17,8 @@
 # ruff: noqa: RUF005
 """TVM operator pixel shuffle compute."""
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 
 
 def pixel_shuffle(data, upscale_factor, name="PixelShuffle"):

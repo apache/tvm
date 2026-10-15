@@ -22,8 +22,8 @@ import torch
 import tvm_ffi
 from tvm_ffi import Shape
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.frontend.nn.llm.kv_cache import (
     AttnKind,
     RopeMode,
@@ -297,11 +297,15 @@ def apply_attention(
         outputs1 = tvm_tirx.runtime.empty(
             (total_seq_length, num_attention_heads, v_head_dim), dtype, device=device
         )
-        lse1 = tvm_tirx.runtime.empty((total_seq_length, num_attention_heads), "float32", device=device)
+        lse1 = tvm_tirx.runtime.empty(
+            (total_seq_length, num_attention_heads), "float32", device=device
+        )
         outputs2 = tvm_tirx.runtime.empty(
             (total_seq_length, num_attention_heads, kv_lora_rank), dtype, device=device
         )
-        lse2 = tvm_tirx.runtime.empty((total_seq_length, num_attention_heads), "float32", device=device)
+        lse2 = tvm_tirx.runtime.empty(
+            (total_seq_length, num_attention_heads), "float32", device=device
+        )
 
         fappend_mla_kv(kv_cache, layer_id, key_value)
         if not is_decode_request:

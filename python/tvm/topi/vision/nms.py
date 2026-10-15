@@ -17,7 +17,8 @@
 # pylint: disable=import-error, invalid-name, no-member, too-many-locals, too-many-arguments, undefined-variable, too-many-nested-blocks, too-many-branches, too-many-statements, too-many-function-args
 """Non-maximum suppression operator"""
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import te
 from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.tirx import if_then_else
@@ -53,7 +54,9 @@ def _get_valid_counts_ir(
                 if id_index < 0:
                     is_valid = score > score_threshold
                 else:
-                    is_valid = tvm_tirx.tirx.all(score > score_threshold, data[(i, j, id_index)] >= 0)
+                    is_valid = tvm_tirx.tirx.all(
+                        score > score_threshold, data[(i, j, id_index)] >= 0
+                    )
 
                 with T.if_(is_valid):
                     with T.then_():
@@ -952,7 +955,9 @@ def _nms_loop(
                             on_new_invalidated_box_func(i, k)
 
     with T.serial(0, batch_size) as i:
-        nkeep = if_then_else(tvm_tirx.tirx.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i])
+        nkeep = if_then_else(
+            tvm_tirx.tirx.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i]
+        )
 
         with T.if_(tvm_tirx.tirx.all(iou_threshold > te.const(0), valid_count[i] > te.const(0))):
             with T.then_():

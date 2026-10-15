@@ -18,14 +18,15 @@
 
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.script, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.script
 from tvm import relax
-from tvm_tirx.ir import assert_structural_equal
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
 from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 

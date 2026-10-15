@@ -33,7 +33,7 @@ except ImportError as err:
         "torch is required by the PyTorch frontend. Install it with: pip install torch"
     ) from err
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax
 
 from .base_fx_graph_translator import BaseFXGraphImporter

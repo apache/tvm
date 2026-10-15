@@ -54,7 +54,9 @@ def _redecl(
     ``data``/``strides``/``elem_offset`` through.
     """
     if _is_tmem_scope(buf.scope()):
-        from tvm_tirx.backend.cuda.op import _tmem_address  # pylint: disable=import-outside-toplevel
+        from tvm_tirx.backend.cuda.op import (
+            _tmem_address,  # pylint: disable=import-outside-toplevel
+        )
         from tvm_tirx.tirx.script.ir_builder.parser_protocol import (
             bind_,  # pylint: disable=import-outside-toplevel
         )
@@ -203,7 +205,8 @@ def view(buf: Var, *args, **kwargs) -> Var:
 
     shape = args
     assert all(
-        isinstance(arg, int) or (tvm_tirx.ir.is_prim_expr(arg) and arg.ty.dtype in ["int32", "int64"])
+        isinstance(arg, int)
+        or (tvm_tirx.ir.is_prim_expr(arg) and arg.ty.dtype in ["int32", "int64"])
         for arg in shape
     ), "shape must be a list of integers or Exprs with dtype int32 or int64"
     layout = kwargs.get("layout", None)
@@ -404,7 +407,9 @@ def _rebuild_view(buf: Var, new_shape, new_shard, grouped, swizzle, extra_offset
         previous = offset_map.get(m_axis)
         offset_map[m_axis] = extra_offset if previous is None else previous + extra_offset
         extra_offset = None
-    new_layout = tvm_tirx.tirx.layout.TileLayout.from_iters(new_shard, list(grouped.replica), offset_map)
+    new_layout = tvm_tirx.tirx.layout.TileLayout.from_iters(
+        new_shard, list(grouped.replica), offset_map
+    )
     new_layout = _rewrap_swizzle(new_layout, swizzle)
     if is_tmem:
         addr_offset = _tmem_element_offset_to_column_offset(buf, extra_offset)

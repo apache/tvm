@@ -24,7 +24,7 @@ import tempfile
 import numpy as np
 import pytest
 
-import tvm_tirx.testing, tvm
+import tvm_tirx.testing
 from tvm.contrib import tvmjs
 
 dtype = tvm_tirx.testing.parameter(

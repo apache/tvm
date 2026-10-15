@@ -19,7 +19,7 @@
 import argparse
 import logging
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.te_workload import create_te_workload
 from tvm.s_tir.testing import strtobool

@@ -16,8 +16,8 @@
 # under the License.
 """CPU reduction rule for operators including softmax, layer norm, RMS norm, etc."""
 
-from tvm_tirx import tirx
 from tvm import s_tir
+from tvm_tirx import tirx
 from tvm_tirx.codegen import llvm_get_vector_width
 from tvm_tirx.target import Target
 

@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-arguments
 """Deformable Conv2D operators"""
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
 
 from ..cpp.utils import bilinear_sample_nchw, bilinear_sample_nhwc

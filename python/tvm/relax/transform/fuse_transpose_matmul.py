@@ -23,11 +23,11 @@ Note that
    ops into library (e.g. cuBLAS) calls, please run dispatch pass before this pass.
 """
 
-import tvm, tvm_tirx
-from tvm_tirx import IRModule, tirx
+import tvm_tirx
 from tvm import relax, te
 from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.expr_functor import PyExprMutator, mutator
+from tvm_tirx import IRModule, tirx
 
 
 @tvm_tirx.ir.transform.module_pass(opt_level=0, name="FuseTransposeMatmul")

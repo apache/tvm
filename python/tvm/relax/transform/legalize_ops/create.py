@@ -20,9 +20,9 @@
 
 import numpy as np
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm_tirx
 from tvm import te, topi
+from tvm_tirx import tirx
 from tvm_tirx.ir import Call
 
 from ...block_builder import BlockBuilder

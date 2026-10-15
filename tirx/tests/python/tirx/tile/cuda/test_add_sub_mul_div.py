@@ -311,7 +311,9 @@ def test_binary_op_local_subcta_trivial(thread_scope, rhs_kind, op_type):
             T.ptx[f"{op_type}.rn.f16"],
             dst.view("uint16").view(m, n, 1),
             lhs.view("uint16").view(m, n, 1),
-            rhs.view("uint16").view(m, n, 1) if isinstance(rhs, tvm_tirx.ir.Var) else T.uint16(0x3D00),
+            rhs.view("uint16").view(m, n, 1)
+            if isinstance(rhs, tvm_tirx.ir.Var)
+            else T.uint16(0x3D00),
         )
 
     tid_in_scope_fn = {
@@ -956,7 +958,9 @@ def test_binary_maximum_reg():
 
     target = tvm_tirx.target.Target("cuda")
     with target:
-        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": relu_max}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": relu_max}), target=target, pipeline="tirx"
+        )
     np.random.seed(0)
     a = np.random.randn(N).astype("float32")
     b = np.random.randn(N).astype("float32")
@@ -1064,7 +1068,9 @@ def test_mul_tcgen05_16x256b_atom_warpgroup_dispatch():
 
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx"
+        )
         src = mod.mod.imports[0].inspect_source()
     assert re.search(r"mul\.[a-z]+\.ftz\.f32x2", src), (
         f"expected packed mul_f32x2 for tcgen05 atom; got:\n{src[:2000]}"

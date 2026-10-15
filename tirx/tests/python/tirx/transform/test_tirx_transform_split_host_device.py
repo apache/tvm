@@ -604,7 +604,10 @@ def test_cuda_required_block_size_coexists_with_launch_bounds():
     launches = []
 
     def collect_launch(node):
-        if isinstance(node, tvm_tirx.ir.Call) and getattr(node.op, "name", "") == "tirx.call_ffi_kernel":
+        if (
+            isinstance(node, tvm_tirx.ir.Call)
+            and getattr(node.op, "name", "") == "tirx.call_ffi_kernel"
+        ):
             launches.append(node)
 
     tvm_ffi.structural_walk(after["main"], collect_launch)

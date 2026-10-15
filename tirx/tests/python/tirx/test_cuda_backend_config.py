@@ -191,7 +191,9 @@ def test_entry_ir_roundtrip_and_resolution():
     tvm_tirx.ir.assert_structural_equal(
         kernel, tvm_tirx.script.from_source(kernel.script(), extra_vars={"T": T})
     )
-    tvm_tirx.ir.assert_structural_equal(kernel, tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(kernel)))
+    tvm_tirx.ir.assert_structural_equal(
+        kernel, tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(kernel))
+    )
     target = tvm_tirx.target.Target(
         {
             "kind": "cuda",

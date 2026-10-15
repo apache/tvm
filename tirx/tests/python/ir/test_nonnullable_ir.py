@@ -46,7 +46,12 @@ def test_optional_statement_fields_and_roundtrip():
     conditional = tvm_tirx.ir.If(True, body, None)
     assert conditional.else_case is None
     loop = tvm_tirx.ir.For(
-        tvm_tirx.ir.Var("i", tvm_tirx.ir.PrimType("int32")), 0, 4, tvm_tirx.ir.ForKind.DEFAULT, body, step=None
+        tvm_tirx.ir.Var("i", tvm_tirx.ir.PrimType("int32")),
+        0,
+        4,
+        tvm_tirx.ir.ForKind.DEFAULT,
+        body,
+        step=None,
     )
     assert loop.step is None
     for value in [conditional, loop]:

@@ -17,10 +17,11 @@
 # pylint: disable=missing-docstring
 """A RMS norm schedule rule for GPU operators."""
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
+from tvm.s_tir import SBlock
 from tvm_tirx import tirx
 from tvm_tirx.ir import Call, TensorLoad, TensorStore
-from tvm.s_tir import SBlock
 from tvm_tirx.target import Target
 from tvm_tirx.tirx.expr import Cast
 

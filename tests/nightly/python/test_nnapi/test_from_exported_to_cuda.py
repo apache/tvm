@@ -24,8 +24,9 @@ from torch.export import export
 from torch.nn import Softmax, Upsample
 from torch.nn import functional as F
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm.relax.frontend.torch import from_exported_program
 
@@ -60,7 +61,9 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
             for i in range(len(pytorch_out)):
                 actual = gpu_out[i].numpy()
                 desired = pytorch_out[i].detach().numpy()
-                tvm_tirx.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
+                tvm_tirx.testing.assert_allclose(
+                    actual=actual, desired=desired, rtol=1e-5, atol=1e-5
+                )
         else:
             actual = gpu_out[0].numpy()
             desired = pytorch_out.detach().numpy()

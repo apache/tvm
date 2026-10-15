@@ -21,7 +21,8 @@ import sys
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import s_tir
 from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
@@ -1136,9 +1137,9 @@ def verify_single_allocation(stmt, alloc_size=None):
     alloc_extents = []
 
     def verify(n):
-        if _is_tensor_binding(n, "tirx.alloc_tensor") and n.var.scope() == tvm_tirx.runtime.MemoryScope(
-            "shared.dyn"
-        ):
+        if _is_tensor_binding(
+            n, "tirx.alloc_tensor"
+        ) and n.var.scope() == tvm_tirx.runtime.MemoryScope("shared.dyn"):
             num_alloc[0] += 1
             alloc_extents.append(n.var.shape)
 

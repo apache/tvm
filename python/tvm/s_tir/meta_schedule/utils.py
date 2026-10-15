@@ -24,8 +24,8 @@ from typing import Any
 import numpy as np  # type: ignore
 from tvm_ffi import Array, Function, Map, get_global_func, register_global_func
 
-from tvm_tirx.ir import IRModule
 from tvm.rpc import RPCSession
+from tvm_tirx.ir import IRModule
 from tvm_tirx.tirx import FloatImm, IntImm
 
 

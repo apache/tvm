@@ -17,10 +17,8 @@
 # pylint: disable=invalid-name, unused-argument, pointless-exception-statement
 """Pattern table for CLML backend"""
 
-import tvm, tvm_tirx
-from tvm_tirx import IRModule, tirx
+import tvm_tirx
 from tvm import relax
-from tvm_tirx.ir.transform import PassContext, module_pass
 from tvm.relax import transform
 from tvm.relax.dpl.pattern import (
     GlobalVarPattern,
@@ -33,6 +31,8 @@ from tvm.relax.dpl.pattern import (
 from tvm.relax.expr import TupleGetItem, VarBinding
 from tvm.relax.expr_functor import PyExprMutator, mutator
 from tvm.relax.transform import PatternCheckContext
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.ir.transform import PassContext, module_pass
 
 from ..pattern_registry import register_patterns
 

@@ -208,7 +208,9 @@ def test_bitwise():
     assert str(~x) == "~x"
     assert (tvm_tirx.tirx.const(1, "int8x2") >> 1).ty.dtype == "int8x2"
     assert (x >> tvm_tirx.tirx.const(1, "int32x2")).ty.dtype == "int32x2"
-    assert (tvm_tirx.tirx.Var("z", "int8x2") << tvm_tirx.tirx.const(1, "int8x2")).ty.dtype == "int8x2"
+    assert (
+        tvm_tirx.tirx.Var("z", "int8x2") << tvm_tirx.tirx.const(1, "int8x2")
+    ).ty.dtype == "int8x2"
 
 
 def test_float_bitwise():
@@ -355,7 +357,8 @@ def test_tensor_load_store():
 
     tensor = tvm_tirx.tirx.decl_tensor((4, 8), "float32", elem_offset=100)
     tvm_tirx.ir.assert_structural_equal(
-        tensor[2, 3].indices, [tvm_tirx.ir.prim.IntImm("int32", 2), tvm_tirx.ir.prim.IntImm("int32", 3)]
+        tensor[2, 3].indices,
+        [tvm_tirx.ir.prim.IntImm("int32", 2), tvm_tirx.ir.prim.IntImm("int32", 3)],
     )
 
 
@@ -433,7 +436,8 @@ def test_scalable_vec(lanes, node_func):
 
 
 @pytest.mark.parametrize(
-    "lanes", [(tvm_tirx.tirx.vscale()), (tvm_tirx.tirx.vscale() + 3), (tvm_tirx.tirx.vscale() * 2 + 5)]
+    "lanes",
+    [(tvm_tirx.tirx.vscale()), (tvm_tirx.tirx.vscale() + 3), (tvm_tirx.tirx.vscale() * 2 + 5)],
 )
 @pytest.mark.parametrize("node_func", [_create_ramp, _create_broadcast])
 def test_scalable_vec_error(lanes, node_func):

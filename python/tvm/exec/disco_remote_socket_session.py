@@ -20,7 +20,8 @@
 
 import sys
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 
 from . import disco_worker as _  # pylint: disable=unused-import
 

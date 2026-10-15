@@ -22,9 +22,9 @@ from typing import Literal
 
 import tvm_ffi
 
-import tvm, tvm_tirx
-from tvm_tirx import sym, tirx
+import tvm_tirx
 from tvm import s_tir
+from tvm_tirx import sym, tirx
 from tvm_tirx.target import Target
 
 from ..analysis import (

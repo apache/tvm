@@ -17,7 +17,8 @@
 # pylint: disable=invalid-name, unused-variable
 """NN operator common utilities"""
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 
 from ..utils import get_const_int
 

@@ -29,13 +29,14 @@ import numpy as np
 import pytest
 from tvm_ffi import Shape
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx.ir import TupleType as _TupleType
-from tvm.runtime import disco as di
-from tvm_tirx.script import ir as I
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax import script as R
+from tvm.runtime import disco as di
 from tvm.s_tir import script as Ts
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 
@@ -340,7 +341,10 @@ def _kernel_compile(compile_mode):
             target = tvm_tirx.target.Target("cuda")
             tvm.compile(
                 NvshmemQueryModule,
-                target={**tvm_tirx.target.Target(target).export(), "backend_config": backend_config},
+                target={
+                    **tvm_tirx.target.Target(target).export(),
+                    "backend_config": backend_config,
+                },
             ).export_library(path)
             mod = sess.load_vm_module(path)
             result = mod["main"]()

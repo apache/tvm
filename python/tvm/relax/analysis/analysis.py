@@ -24,12 +24,13 @@ configuring the passes and scripting them in Python.
 from collections.abc import Callable
 from enum import IntEnum
 
-import tvm, tvm_tirx
-from tvm_tirx import IRModule, tirx
-from tvm_tirx.ir import Call, Type
+import tvm
+import tvm_tirx
 from tvm.relax.expr import Binding, DataflowBlock, Expr, Function, GlobalVar
 from tvm.relax.type import FuncType
 from tvm.s_tir import SBlock
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.ir import Call, Type
 from tvm_tirx.tirx import IndexMap, Var
 
 from . import _ffi_api

@@ -17,8 +17,9 @@
 # ruff: noqa: RUF005
 import numpy as np
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm.relax.testing import nn
 from tvm.relax.testing.lib_comparator import LibCompareVMInstrument

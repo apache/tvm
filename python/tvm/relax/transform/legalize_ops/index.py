@@ -17,9 +17,9 @@
 # pylint: disable=invalid-name
 """Default legalization function for index operators."""
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm_tirx
 from tvm import te, topi
+from tvm_tirx import tirx
 from tvm_tirx.ir import Call, PrimType
 
 from ...block_builder import BlockBuilder

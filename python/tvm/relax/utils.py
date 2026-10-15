@@ -28,12 +28,12 @@ from typing import Any, Optional
 import tvm_ffi
 from tvm_ffi import Array, Map
 
-import tvm, tvm_tirx
-from tvm_tirx.ir import StringImm
+import tvm
+import tvm_tirx
 from tvm.relax.global_info import VDevice
-
 from tvm_tirx import tirx
-from tvm_tirx.ir import Attrs, Type
+from tvm_tirx.ir import Attrs, StringImm, Type
+
 from ..te import Tensor as te_Tensor
 from ..te import create_function
 from . import _ffi_api
@@ -328,7 +328,9 @@ def gen_call_tir_inputs(
         return ShapeExpr(
             [
                 tvm_ffi.structural_map(
-                    value, (tvm_tirx.ir.Var, lambda var: tir_var_inverse_map.get(var, var)), order="post"
+                    value,
+                    (tvm_tirx.ir.Var, lambda var: tir_var_inverse_map.get(var, var)),
+                    order="post",
                 )
                 for value in shape_values
             ]

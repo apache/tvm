@@ -20,7 +20,9 @@
 
 import tvm_tirx.script
 
-tvm_tirx.script.register_dialect("tirx", "tvm_tirx.tirx.script", builder_path="tvm_tirx.tirx.script.ir_builder")
+tvm_tirx.script.register_dialect(
+    "tirx", "tvm_tirx.tirx.script", builder_path="tvm_tirx.tirx.script.ir_builder"
+)
 
 
 from tvm_tirx.ir import Expr
@@ -99,7 +101,9 @@ if not _RUNTIME_ONLY_TIRX:
 
 import tvm_tirx.script
 
-tvm_tirx.script.register_dialect("tirx", "tvm_tirx.tirx.script", builder_path="tvm_tirx.tirx.script.ir_builder")
+tvm_tirx.script.register_dialect(
+    "tirx", "tvm_tirx.tirx.script", builder_path="tvm_tirx.tirx.script.ir_builder"
+)
 
 
 def _check_script_module(module: "tvm_tirx.ir.IRModule") -> None:

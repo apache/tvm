@@ -17,9 +17,9 @@
 
 import pytest
 
-import tvm_tirx.testing, tvm
-from tvm.s_tir.analysis import assert_pure_function, is_pure_function
+import tvm_tirx.testing
 from tvm.s_tir import script as Ts
+from tvm.s_tir.analysis import assert_pure_function, is_pure_function
 from tvm_tirx.script import tirx as T
 
 

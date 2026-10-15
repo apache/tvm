@@ -20,10 +20,11 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import relax
-from tvm.relax.testing.vm import check_saved_func
 from tvm.relax import script as R
+from tvm.relax.testing.vm import check_saved_func
 
 
 def test_vm_execute():

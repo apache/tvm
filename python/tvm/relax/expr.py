@@ -26,15 +26,15 @@ import numpy as _np  # type: ignore
 import tvm_ffi
 from tvm_ffi.core import String
 
-import tvm_tirx.ir, tvm
+import tvm
 import tvm.relax
-import tvm_tirx.runtime, tvm
+import tvm_tirx.ir
+import tvm_tirx.runtime
 from tvm_tirx import DataType
-from tvm_tirx.ir import Scriptable
+from tvm_tirx.ir import BaseFunc, Location, Node, Scriptable
+from tvm_tirx.ir.expr import _CallableExprWithOp
 from tvm_tirx.ir.location import UNKNOWN_LOC, UnknownLoc
 
-from tvm_tirx.ir import BaseFunc, Location, Node
-from tvm_tirx.ir.expr import _CallableExprWithOp
 from . import _ffi_api
 
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370

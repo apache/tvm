@@ -21,10 +21,10 @@ from collections.abc import Callable
 
 from tvm_ffi import register_global_func
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax
-from tvm_tirx.ir import Call
 from tvm.relax.block_builder import BlockBuilder
+from tvm_tirx.ir import Call
 
 from ..expr import Function, Var
 from . import _ffi_api

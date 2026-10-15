@@ -34,8 +34,9 @@ import tensorflow as tf
 import tflite.Model
 from tensorflow.keras import applications as keras_app
 
-import tvm, tvm_tirx
+import tvm
 import tvm.relax.frontend.tflite.tflite_frontend as tflite_frontend
+import tvm_tirx
 from tvm import relax
 from tvm.relax.frontend.tflite import from_tflite
 from tvm_tirx.script.parser import ir as I
@@ -5177,7 +5178,9 @@ def _build_tflite_operator_marker_model(builtin_name):
 @pytest.mark.parametrize("builtin_name", ["DELEGATE", "PLACEHOLDER_FOR_GREATER_OP_CODES"])
 def test_operator_marker_unsupported(builtin_name):
     """TFLite marker builtins report explicit unsupported diagnostics."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match=f"TFLite operator marker {builtin_name}"):
+    with pytest.raises(
+        tvm_tirx.error.OpNotImplemented, match=f"TFLite operator marker {builtin_name}"
+    ):
         _load_model_from_buffer(_build_tflite_operator_marker_model(builtin_name))
 
 
@@ -5945,7 +5948,9 @@ def test_call_subgraph_nested_call():
 
 def test_call_subgraph_invalid_index_unsupported():
     """Test CALL rejects invalid subgraph indices before lowering."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="CALL requires a valid subgraph index"):
+    with pytest.raises(
+        tvm_tirx.error.OpNotImplemented, match="CALL requires a valid subgraph index"
+    ):
         _load_model_from_buffer(_build_tflite_call_model(call_subgraph_index=2))
 
 
@@ -6287,7 +6292,9 @@ def test_if_subgraphs_multi_output():
 
 def test_if_subgraphs_non_bool_condition_unsupported():
     """Test IF rejects non-bool condition tensors."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="IF requires a scalar bool condition"):
+    with pytest.raises(
+        tvm_tirx.error.OpNotImplemented, match="IF requires a scalar bool condition"
+    ):
         _load_model_from_buffer(_build_tflite_if_model(condition_type=_tfl_tensor_type.INT32))
 
 
@@ -6757,13 +6764,17 @@ def test_while_subgraphs_two_loop_vars():
 
 def test_while_subgraphs_non_bool_condition_unsupported():
     """Test WHILE rejects cond subgraphs that do not return scalar bool."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="WHILE requires a scalar bool condition"):
+    with pytest.raises(
+        tvm_tirx.error.OpNotImplemented, match="WHILE requires a scalar bool condition"
+    ):
         _load_model_from_buffer(_build_tflite_while_model(cond_output_type=_tfl_tensor_type.INT32))
 
 
 def test_while_subgraphs_invalid_index_unsupported():
     """Test WHILE rejects invalid cond/body subgraph indices before lowering."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="WHILE requires a valid subgraph index"):
+    with pytest.raises(
+        tvm_tirx.error.OpNotImplemented, match="WHILE requires a valid subgraph index"
+    ):
         _load_model_from_buffer(_build_tflite_while_model(cond_subgraph_index=3))
 
 
@@ -6785,7 +6796,9 @@ def test_while_subgraphs_loop_state_metadata_mismatch_unsupported():
 
 def test_while_subgraphs_output_count_mismatch_unsupported():
     """Test WHILE rejects body subgraphs whose output arity does not match loop vars."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="WHILE subgraph output count mismatch"):
+    with pytest.raises(
+        tvm_tirx.error.OpNotImplemented, match="WHILE subgraph output count mismatch"
+    ):
         _load_model_from_buffer(_build_tflite_while_model(body_outputs=[]))
 
 
@@ -9150,7 +9163,9 @@ def test_stablehlo_rng_bit_generator_constant_state():
 def test_stablehlo_rng_bit_generator_unsupported_output_dtype():
     """TFLite STABLEHLO_RNG_BIT_GENERATOR rejects non-integer output dtypes."""
     buf = _build_stablehlo_rng_model(_tfl_rng_algorithm.PHILOX, 3, [2, 3], _tfl_tensor_type.FLOAT32)
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="output dtype float32 is not supported"):
+    with pytest.raises(
+        tvm_tirx.error.OpNotImplemented, match="output dtype float32 is not supported"
+    ):
         _load_model_from_buffer(buf)
 
 

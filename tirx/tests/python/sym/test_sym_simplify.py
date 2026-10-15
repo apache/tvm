@@ -93,9 +93,9 @@ def test_regression_simplify_inf_recursion():
     ana = tvm_tirx.sym.Analyzer()
     cond = tirx.Var("cond", "int32")
 
-    res = (tvm_tirx.tirx.NE(cond, 0).astype("int8") - tvm_tirx.tirx.NE(cond, 0).astype("int8")).astype(
-        "int32"
-    ) == 0
+    res = (
+        tvm_tirx.tirx.NE(cond, 0).astype("int8") - tvm_tirx.tirx.NE(cond, 0).astype("int8")
+    ).astype("int32") == 0
     # regression in a previous case
     # try compare and int set recursive call can cause infinite loop
     ana.rewrite_simplify(res)

@@ -18,11 +18,12 @@
 # ruff: noqa: E501
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import meta_schedule as ms
-from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm.s_tir import script as Ts
+from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 

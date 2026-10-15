@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm.s_tir import Schedule
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.transform import tile_with_tensor_intrin
 from tvm.s_tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN, VNNI_DOT_16x4_INTRIN
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 

@@ -21,8 +21,10 @@ import math
 
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.space_generator import (
     PostOrderApply,
     PySpaceGenerator,
@@ -32,7 +34,6 @@ from tvm.s_tir.meta_schedule.space_generator import (
 from tvm.s_tir.meta_schedule.tune_context import TuneContext
 from tvm.s_tir.schedule import Schedule
 from tvm.s_tir.utils import derived_object
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument

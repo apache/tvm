@@ -19,9 +19,9 @@
 
 from functools import reduce
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm_tirx
 from tvm import s_tir
+from tvm_tirx import tirx
 from tvm_tirx.target import Target
 
 from ..analysis import (

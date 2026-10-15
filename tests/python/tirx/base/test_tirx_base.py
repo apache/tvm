@@ -21,7 +21,8 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm_tirx import tirx
 from tvm_tirx.ir.transform import PassContext
 from tvm_tirx.script import tirx as T

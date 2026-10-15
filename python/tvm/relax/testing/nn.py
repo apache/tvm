@@ -23,10 +23,11 @@ from typing import Any
 
 import numpy as np  # type: ignore
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
 from tvm import relax, topi
 from tvm.relax.op.grad.grad import end_checkpoint, start_checkpoint
+from tvm_tirx import tirx
 
 
 def emit(expr: relax.Expr, name_hint: str = "") -> relax.Var:

@@ -27,8 +27,8 @@ This test verifies:
 import pytest
 import torch
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax import BasePyModule
 from tvm.relax import script as R
 from tvm.s_tir import script as Ts

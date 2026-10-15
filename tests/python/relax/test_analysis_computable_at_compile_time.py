@@ -17,8 +17,9 @@
 # ruff: noqa: F841
 
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 

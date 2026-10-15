@@ -21,7 +21,7 @@ import operator
 import threading
 import typing
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm_tirx import tirx
 from tvm_tirx.ir import IRModule
 

@@ -18,10 +18,10 @@
 # ruff: noqa: RUF005
 """Relax LazyTransformParams pass."""
 
-import tvm, tvm_tirx
-from tvm_tirx import IRModule
+import tvm_tirx
 from tvm import relax
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
+from tvm_tirx import IRModule
 
 
 @visitor

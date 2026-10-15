@@ -34,13 +34,13 @@ from typing import (
 
 import numpy as np  # type: ignore
 
-import tvm_tirx.runtime, tvm
+import tvm_tirx.runtime
+from tvm.runtime.vm import VirtualMachine
 from tvm_tirx import tirx
 from tvm_tirx.ir import IRModule
 from tvm_tirx.ir.transform import Pass
 from tvm_tirx.runtime import Device
 from tvm_tirx.runtime import device as as_device
-from tvm.runtime.vm import VirtualMachine
 from tvm_tirx.target import Target
 
 from .... import relax as rx

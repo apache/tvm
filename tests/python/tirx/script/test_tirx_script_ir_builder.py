@@ -21,11 +21,11 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.runtime, tvm
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm_tirx
+import tvm_tirx.runtime
+import tvm_tirx.testing
 from tvm import te, topi
+from tvm_tirx import tirx
 from tvm_tirx.ir.base import assert_structural_equal
 from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.tirx.layout import S, TileLayout
@@ -629,7 +629,9 @@ def test_imperative_tensors_numerical(kind):
     outputs = build(*inputs)
     outputs = list(outputs) if isinstance(outputs, list | tuple | tvm_tirx.ir.Array) else [outputs]
     executable = tvm_tirx.tirx.compile(te.create_function([*inputs, *outputs]), target="llvm")
-    actual = [tvm_tirx.runtime.empty(tuple(int(dim) for dim in out.shape), out.dtype) for out in outputs]
+    actual = [
+        tvm_tirx.runtime.empty(tuple(int(dim) for dim in out.shape), out.dtype) for out in outputs
+    ]
     executable(*[tvm_tirx.runtime.tensor(array) for array in arrays], *actual)
     for result, reference in zip(actual, expected):
         tvm_tirx.testing.assert_allclose(result.numpy(), reference, atol=1e-5, rtol=1e-5)

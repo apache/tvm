@@ -482,7 +482,8 @@ def test_stack_allocation_element_count_overflow_rejected():
             T.evaluate(scratch.data)
 
     with pytest.raises(
-        tvm_tirx.error.InternalError, match="Metal allocation element count is too large to represent"
+        tvm_tirx.error.InternalError,
+        match="Metal allocation element count is too large to represent",
     ):
         _build_metal(Module)
 

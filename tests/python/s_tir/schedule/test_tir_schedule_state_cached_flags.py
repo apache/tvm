@@ -21,12 +21,13 @@ import sys
 import pytest
 from tvm_ffi import structural_walk
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import s_tir
-from tvm.s_tir.schedule.state import CachedFlags
 from tvm.s_tir import script as Ts
+from tvm.s_tir.schedule.state import CachedFlags
+from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg

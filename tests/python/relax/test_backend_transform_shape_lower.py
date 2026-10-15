@@ -16,14 +16,14 @@
 # under the License.
 # ruff: noqa: F841
 
-import tvm_tirx.script, tvm
-import tvm_tirx.testing, tvm
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.ir import assert_structural_equal
-from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
+from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
 from tvm.s_tir import script as Ts
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 # note: we expected RemovePurityChecking to be run first, so we force purity in most test cases

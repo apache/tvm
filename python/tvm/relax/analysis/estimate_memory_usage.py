@@ -17,7 +17,7 @@
 # pylint: disable=abstract-method,unused-argument
 # pylint: disable=missing-function-docstring,missing-module-docstring
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm_tirx.ir import Call, Op
 from tvm_tirx.ir.module import IRModule
 

@@ -18,11 +18,12 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.relax.frontend.nn import Module, Tensor, spec
 from tvm.relax import script as R
+from tvm.relax.frontend.nn import Module, Tensor, spec
 
 
 def test_tensor_from_numpy():

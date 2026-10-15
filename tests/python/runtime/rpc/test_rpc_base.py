@@ -18,7 +18,7 @@ import random
 
 import pytest
 
-import tvm_tirx.testing, tvm
+import tvm_tirx.testing
 from tvm.rpc import base
 
 

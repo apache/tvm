@@ -26,15 +26,16 @@ from typing import Optional
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
-from tvm_tirx.ir.module import IRModule
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.database import TuningRecord, Workload
 from tvm.s_tir.utils import derived_object
-from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.ir.module import IRModule
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 

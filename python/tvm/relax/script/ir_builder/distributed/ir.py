@@ -22,9 +22,9 @@ from numbers import Number
 
 import numpy as _np  # type: ignore
 
-import tvm, tvm_tirx
-from tvm_tirx.ir import GenericConst
+import tvm_tirx
 from tvm.relax.distributed import DeviceMesh, DTensorType
+from tvm_tirx.ir import GenericConst
 from tvm_tirx.runtime import _tensor
 
 

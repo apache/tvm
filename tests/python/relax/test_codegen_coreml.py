@@ -19,8 +19,9 @@ import importlib.util
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 
 target, dev = "llvm", tvm_tirx.cpu()
@@ -28,7 +29,7 @@ target, dev = "llvm", tvm_tirx.cpu()
 
 def _has_xcode():
     try:
-        import tvm_tirx.support.xcode, tvm
+        import tvm_tirx.support.xcode
 
         tvm_tirx.support.xcode.xcrun([])
         return True

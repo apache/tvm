@@ -20,7 +20,7 @@
 import operator
 from functools import reduce
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm.relax import transform
 from tvm.relax.transform import PatternCheckContext
 

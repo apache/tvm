@@ -22,10 +22,11 @@ import sys
 
 import pytest
 
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm_tirx.script import from_source
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 

@@ -20,7 +20,7 @@
 import logging
 import time
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import rpc
 
 

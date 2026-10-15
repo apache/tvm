@@ -159,11 +159,16 @@ def func[M: int](A: T.Tensor((M, M * 2), T.float32)):
     assert not hasattr(func, "type_params")
     assert func.attrs.get("tirx.type_vars") is None
     tvm_tirx.ir.assert_structural_equal(
-        func, tvm_tirx.script.from_source(script, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
+        func,
+        tvm_tirx.script.from_source(
+            script, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+        ),
     )
     tvm_tirx.ir.assert_structural_equal(
         func,
-        tvm_tirx.script.from_source(repeated, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}),
+        tvm_tirx.script.from_source(
+            repeated, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+        ),
     )
 
 
@@ -181,11 +186,16 @@ def test_dynamic_int32_roundtrip():
     repeated = func.script()
     assert "def main[n](" in repeated
     tvm_tirx.ir.assert_structural_equal(
-        func, tvm_tirx.script.from_source(source, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
+        func,
+        tvm_tirx.script.from_source(
+            source, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+        ),
     )
     tvm_tirx.ir.assert_structural_equal(
         func,
-        tvm_tirx.script.from_source(repeated, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}),
+        tvm_tirx.script.from_source(
+            repeated, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+        ),
     )
 
 
@@ -206,7 +216,9 @@ def test_dynamic_module_body_identity():
     source = mod.script()
     assert source.count('T.dynamic("n", dtype="int32")') == 2
     restored = tvm_tirx.script.from_source(
-        source, check_well_formed=False, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+        source,
+        check_well_formed=False,
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx},
     )
     shared = restored["first"].body[0].value
     summed = restored["second"].body[0].value

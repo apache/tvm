@@ -136,7 +136,9 @@ def _epilogue_pairs(tensor):
 def _count_tile_instructions(kernel, opcode):
     target = tvm_tirx.target.Target("cuda")
     with target:
-        ex = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx")
+        ex = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx"
+        )
     return _native_call_count(ex, opcode)
 
 
@@ -351,7 +353,9 @@ def test_reg_explicit_cache_nc():
 
     def _src(f):
         with target:
-            mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": f}), target=target, pipeline="tirx")
+            mod = tvm_tirx.tirx.compile(
+                tvm_tirx.IRModule({"main": f}), target=target, pipeline="tirx"
+            )
         return mod.mod.imports[0].inspect_source()
 
     nc_src = _src(_nc_strided_reg_copy)

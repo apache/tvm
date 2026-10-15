@@ -262,7 +262,9 @@ def test_vector_pointer_uses_byte_offset():
     body = tvm_tirx.ir.Evaluate(tvm_tirx.tirx.call_extern("void", "consume", pointer))
     func = tvm_tirx.tirx.Function([buffer], body).with_attr("global_symbol", "main")
 
-    source = tvm_tirx.tirx.compile(tvm_tirx.IRModule.from_expr(func), target="c").mod.inspect_source()
+    source = tvm_tirx.tirx.compile(
+        tvm_tirx.IRModule.from_expr(func), target="c"
+    ).mod.inspect_source()
     call = next(line.strip() for line in source.splitlines() if line.strip().startswith("consume("))
     assert "int32_t2" not in call
     assert "float2*" in call

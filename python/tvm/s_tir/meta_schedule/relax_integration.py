@@ -19,7 +19,7 @@
 import warnings
 from typing import TYPE_CHECKING, Union
 
-import tvm, tvm_tirx
+import tvm_tirx
 
 # isort: off
 from typing import Literal
@@ -466,7 +466,9 @@ def compile_relax(
     is_gpu_target = relax_pipeline_mod.BackendDispatcher.is_gpu_target(target)
 
     @tvm_tirx.ir.transform.module_pass(opt_level=3)
-    def _ms_pipeline(mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext) -> tvm_tirx.ir.IRModule:
+    def _ms_pipeline(
+        mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext
+    ) -> tvm_tirx.ir.IRModule:
         fuse_seq = [
             *dispatch_passes,
             relax.transform.LegalizeOps(enable_warning=enable_warning),

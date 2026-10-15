@@ -18,14 +18,15 @@
 
 from __future__ import annotations
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.ir import TupleType as _TupleType
-from tvm_tirx.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.s_tir import script as Ts
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.ir.module import IRModule
 from tvm_tirx.script.parser import ir as I
 from tvm_tirx.script.parser import relax as R
 from tvm_tirx.script.parser import tirx as T

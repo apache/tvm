@@ -23,8 +23,8 @@ from typing import TYPE_CHECKING, Literal, Optional, Union
 if TYPE_CHECKING:
     import numpy as np
 
-    from tvm_tirx.runtime import Device, Module, Tensor
     from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig
+    from tvm_tirx.runtime import Device, Module, Tensor
 
 # pylint: disable=import-outside-toplevel,protected-access
 
@@ -123,8 +123,8 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
     import os.path as osp
     import tempfile
 
-    from tvm_tirx.runtime import device, load_module
     from tvm.s_tir.meta_schedule.runner import EvaluatorConfig
+    from tvm_tirx.runtime import device, load_module
 
     evaluator_config = EvaluatorConfig._normalized(evaluator_config)
     export_func, output_format = _normalize_export_func(export_func, output_format)

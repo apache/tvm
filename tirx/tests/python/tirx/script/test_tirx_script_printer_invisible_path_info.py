@@ -28,7 +28,9 @@ def test_render_invisible_path_info_defaults_to_true():
     config = PrinterConfig()
     assert config.render_invisible_path_info is True
 
-    result = tvm_tirx.ir.PrimType("int32").script(path_to_underline=[AccessPath.root().attr("dtype")])
+    result = tvm_tirx.ir.PrimType("int32").script(
+        path_to_underline=[AccessPath.root().attr("dtype")]
+    )
     assert result == (
         "Access path: <root>.dtype\n"
         "Note: The underlined object is the nearest visible parent of this path.\n\n"

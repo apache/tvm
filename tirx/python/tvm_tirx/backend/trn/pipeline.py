@@ -27,7 +27,9 @@ def trn_pipeline(*, target=None):
     """The Trainium pipeline used in tvm_tirx.tirx.compile."""
 
     @tvm_tirx.ir.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext) -> tvm_tirx.ir.IRModule:
+    def _pipeline(
+        mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext
+    ) -> tvm_tirx.ir.IRModule:
         """Lower TIRx for the Trainium backend."""
         mod = _bind_target(mod, target)
         passes = [

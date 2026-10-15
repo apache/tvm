@@ -22,7 +22,8 @@ import itertools
 
 import numpy as np
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import te
 from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig
 from tvm.s_tir.testing.runner import local_run, rpc_run

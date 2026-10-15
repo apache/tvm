@@ -20,9 +20,9 @@
 from collections.abc import Sequence
 from typing import Any
 
-import tvm, tvm_tirx
-from tvm_tirx.ir import IRModule, assert_structural_equal
+import tvm_tirx
 from tvm.s_tir.schedule import Schedule, Trace
+from tvm_tirx.ir import IRModule, assert_structural_equal
 from tvm_tirx.tirx import Function
 
 

@@ -18,10 +18,11 @@
 
 import pytest
 
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx.testing
 from tvm import relax, s_tir
 from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
 
 

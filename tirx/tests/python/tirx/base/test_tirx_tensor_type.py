@@ -88,12 +88,17 @@ def test_tensor_ptr_to():
     assert pointer.args[0].source.same_as(tensor)
     tvm_tirx.ir.assert_structural_equal(pointer.args[0].indices, [T.int32(2), T.int32(3)])
     shared = tvm_tirx.tirx.decl_tensor((m, n), "float32", scope="shared")
-    assert shared.ptr_to([0, 0]).ty == tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("float32"), "shared")
+    assert shared.ptr_to([0, 0]).ty == tvm_tirx.ir.PtrType(
+        tvm_tirx.ir.PrimType("float32"), "shared"
+    )
 
 
 @pytest.mark.parametrize("dtype,scope", [("float32", "global"), ("bool", "shared")])
 def test_tensor_type_and_projection(dtype, scope):
-    m, n = tvm_tirx.ir.Var("m", tvm_tirx.ir.PrimType("int32")), tvm_tirx.ir.Var("n", tvm_tirx.ir.PrimType("int32"))
+    m, n = (
+        tvm_tirx.ir.Var("m", tvm_tirx.ir.PrimType("int32")),
+        tvm_tirx.ir.Var("n", tvm_tirx.ir.PrimType("int32")),
+    )
     tensor = tvm_tirx.tirx.decl_tensor((m, n), dtype, scope=scope)
     assert type(tensor) is tvm_tirx.ir.Var
     assert tvm_tirx.tirx.is_tensor_var(tensor)
@@ -172,7 +177,9 @@ def test_memory_scope_global_defaults():
     assert tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("float32")).scope.same_as(global_scope)
     assert tvm_tirx.tirx.decl_tensor((4,), "float32").scope().same_as(global_scope)
     for scope in ("global", global_scope):
-        assert tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("float32"), scope).scope.same_as(global_scope)
+        assert tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("float32"), scope).scope.same_as(
+            global_scope
+        )
         assert tvm_tirx.tirx.decl_tensor((4,), "float32", scope=scope).scope().same_as(global_scope)
         assert T.Tensor((4,), "float32", scope=scope).scope.same_as(global_scope)
     for construct in (

@@ -18,16 +18,17 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
 import tvm.topi.testing
-from tvm_tirx import tirx
 from tvm import relax
-from tvm.relax.transform import LegalizeOps
 from tvm.relax import script as R
+from tvm.relax.transform import LegalizeOps
+from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
 
 # TODO(tvm-team): `tirx.transform.DefaultGPUSchedule` does not work.

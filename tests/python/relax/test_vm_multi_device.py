@@ -19,8 +19,9 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm_tirx.ir.module import IRModule
 from tvm_tirx.script.parser import ir as I

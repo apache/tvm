@@ -34,7 +34,9 @@ def tirx_pipeline(*, prepare_only=False, target=None):
     """The TIRX pipeline used in tvm_tirx.tirx.compile"""
 
     @tvm_tirx.ir.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext) -> tvm_tirx.ir.IRModule:
+    def _pipeline(
+        mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext
+    ) -> tvm_tirx.ir.IRModule:
         """The default lowering passes for TIR backend."""
         mod = _bind_target(mod, target)
         pass_ctx = tvm_tirx.ir.transform.PassContext.current()

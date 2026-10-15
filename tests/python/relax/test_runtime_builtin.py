@@ -19,11 +19,12 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.contrib import tvmjs
-from tvm_tirx.ir import assert_structural_equal
 from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
+from tvm_tirx.ir import assert_structural_equal
 from tvm_tirx.support import utils
 
 

@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """TVM operator depth_to_space compute."""
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
 
 from .. import tag

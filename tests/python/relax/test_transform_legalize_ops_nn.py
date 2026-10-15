@@ -18,13 +18,13 @@
 
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx.ir import TupleType as _TupleType
-from tvm.relax.transform import LegalizeOps
-from tvm_tirx.script import ir as I
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax import script as R
+from tvm.relax.transform import LegalizeOps
 from tvm.s_tir import script as Ts
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 ##################### Neural network #####################

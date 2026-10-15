@@ -23,7 +23,8 @@ from typing import Optional, Union
 import numpy as np  # type: ignore
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 
 from ..block_builder import BlockBuilder
 from ..expr import Function, TupleGetItem, Var, const
@@ -150,7 +151,10 @@ class Optimizer:
                     f"type {x.ty}"
                 )
             data_type = tvm_tirx.DataType(x.ty.dtype.dtype)
-            if data_type.type_code not in (tvm_tirx.DataTypeCode.BFLOAT, tvm_tirx.DataTypeCode.FLOAT):
+            if data_type.type_code not in (
+                tvm_tirx.DataTypeCode.BFLOAT,
+                tvm_tirx.DataTypeCode.FLOAT,
+            ):
                 raise ValueError(
                     f"Optimizers only support Tensor parameters of floating point dtype, but dtype "
                     f"of {x.name} is {x.ty.dtype}"

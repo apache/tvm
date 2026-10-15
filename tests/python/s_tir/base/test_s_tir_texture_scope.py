@@ -18,12 +18,13 @@
 
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
+from tvm.s_tir.backend.adreno import pipeline as adreno_pipeline
 from tvm_tirx import tirx
 from tvm_tirx.ir.module import IRModule
-from tvm.s_tir.backend.adreno import pipeline as adreno_pipeline
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx._compile import _split_host_device_modules
 from tvm_tirx.tirx.compilation_pipeline import finalize_device_passes
@@ -71,7 +72,9 @@ def test_texture_scope():
     assert len(device_mods) == 1
     (device_target, _backend_config), device_mod = next(iter(device_mods.items()))
     device_mod = finalize_device_passes()(device_mod)
-    source = tvm_tirx.get_global_func("target.build.opencl")(device_mod, device_target).inspect_source()
+    source = tvm_tirx.get_global_func("target.build.opencl")(
+        device_mod, device_target
+    ).inspect_source()
     assert "__read_only image2d_array_t" in source
     assert "__write_only image2d_array_t" in source
     assert "READ_IMAGEF" in source

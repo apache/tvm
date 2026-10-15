@@ -18,7 +18,7 @@
 # pylint: disable=unused-argument, redefined-builtin
 """Bitserial Conv2D operators"""
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
 
 from ..utils import get_const_tuple

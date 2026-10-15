@@ -17,8 +17,8 @@
 # pylint: disable=invalid-name
 """IndexPut operator"""
 
-from tvm_tirx import tirx
 from tvm import te
+from tvm_tirx import tirx
 from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.tirx.script import ir_builder as T
 

@@ -20,7 +20,8 @@ from __future__ import annotations
 
 import pytest
 
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx.testing
 from tvm.s_tir import dlight as dl
 from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T

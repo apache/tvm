@@ -17,12 +17,13 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm.contrib.pickle_memoize import memoize
-from tvm.relax.dpl import make_fused_bias_activation_pattern
 from tvm.relax import script as R
+from tvm.relax.dpl import make_fused_bias_activation_pattern
 
 
 @tvm_tirx.script.ir_module

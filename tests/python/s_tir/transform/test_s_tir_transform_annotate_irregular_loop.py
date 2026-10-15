@@ -18,12 +18,13 @@
 
 """Tests for AnnotateIrregularLoop"""
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import s_tir
-from tvm_tirx.script import ir as I
 from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 
@@ -58,7 +59,9 @@ def test_handle_irrgular_unit_loop():
     mod = tvm_tirx.IRModule.from_expr(before)
     mod = tvm.s_tir.transform.AnnotateIrregularLoop()(mod)
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    tvm_tirx.ir.assert_structural_equal(mod["before"].with_attr("global_symbol", "expected"), expected)
+    tvm_tirx.ir.assert_structural_equal(
+        mod["before"].with_attr("global_symbol", "expected"), expected
+    )
 
 
 def test_annotate_loop_with_break():

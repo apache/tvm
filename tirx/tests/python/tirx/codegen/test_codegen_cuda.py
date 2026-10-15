@@ -183,7 +183,9 @@ def test_legacy_tensorcore_ops_require_downstream_codegen(op_name):
     }
     call = calls[op_name]()
     assert call.op.name == "tirx." + op_name
-    func = tvm_tirx.tirx.Function([data], tvm_tirx.ir.Evaluate(call)).with_attr("global_symbol", "main")
+    func = tvm_tirx.tirx.Function([data], tvm_tirx.ir.Evaluate(call)).with_attr(
+        "global_symbol", "main"
+    )
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_80"})
     with pytest.raises(
         tvm_tirx.error.InternalError, match="Unresolved call.*" + re.escape(call.op.name)
@@ -203,7 +205,9 @@ def test_warp_storage_requires_explicit_local_layout(target_kind):
 
     target = tvm_tirx.target.Target(target_kind)
     with pytest.raises(tvm_tirx.error.InternalError, match="warp storage is unsupported"):
-        tvm_tirx.get_global_func("target.build." + target_kind)(tvm_tirx.IRModule.from_expr(main), target)
+        tvm_tirx.get_global_func("target.build." + target_kind)(
+            tvm_tirx.IRModule.from_expr(main), target
+        )
 
 
 def test_typed_buffer_bindings(monkeypatch):
@@ -767,7 +771,9 @@ def test_ptx_sync_and_clc_codegen():
 
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": main}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": main}), target=target, pipeline="tirx"
+        )
     src = mod.mod.imports[0].inspect_source()
     assert "cp.async.mbarrier.arrive.shared.b64" in src
     assert "cp.async.mbarrier.arrive.noinc.shared::cta.b64" in src
@@ -822,7 +828,9 @@ def test_ptx_mbarrier_arrive_new_forms_codegen():
 
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": main}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": main}), target=target, pipeline="tirx"
+        )
     src = mod.mod.imports[0].inspect_source()
     assert "mbarrier.arrive.relaxed.cta.shared::cta.b64 _, [%0];" in src
     assert "mbarrier.arrive.relaxed.cluster.shared::cluster.b64 _, [%0];" in src

@@ -26,18 +26,19 @@ import pytest
 import tvm_ffi
 from tvm_ffi import Shape
 
-import tvm, tvm_tirx
-import tvm_tirx.script, tvm
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax, rpc, te, topi
-from tvm_tirx.ir import TupleType as _TupleType
 from tvm.relax import ExternFunc as _ExternFunc
+from tvm.relax import script as R
 from tvm.relax.testing import nn
 from tvm.relax.testing.vm import check_saved_func
-from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.support import cc, popen_pool, utils
 from tvm_tirx.testing import env
@@ -222,7 +223,9 @@ def test_vm_compile_e2e():
     shape = (32, 16)
     inp = tvm_tirx.runtime.tensor(np.random.rand(*shape).astype(np.float32))
     res = check_saved_func(vm, "foo", inp)
-    tvm_tirx.testing.assert_allclose(res.numpy(), np.tile(inp.numpy(), (1, 2)), rtol=1e-7, atol=1e-7)
+    tvm_tirx.testing.assert_allclose(
+        res.numpy(), np.tile(inp.numpy(), (1, 2)), rtol=1e-7, atol=1e-7
+    )
 
 
 def test_vm_compile_e2e_func_param_with_shape():
@@ -638,7 +641,9 @@ def test_vm_relax_dyn_tir_shape():
 
     with utils.tempdir() as temp:
         ex.export_library(temp.relpath("exec.so"))
-        vm = relax.VirtualMachine(tvm_tirx.runtime.load_module(temp.relpath("exec.so")), tvm_tirx.cpu())
+        vm = relax.VirtualMachine(
+            tvm_tirx.runtime.load_module(temp.relpath("exec.so")), tvm_tirx.cpu()
+        )
 
     inp = tvm_tirx.runtime.tensor(np.random.rand(2).astype(np.float32))
     inp2 = tvm_tirx.runtime.tensor(np.random.rand(3).astype(np.float32))
@@ -696,7 +701,9 @@ def test_vm_tuplegetitem():
     x_inp = tvm_tirx.runtime.tensor(np.random.rand(2, 3).astype("float32"))
     y_inp = tvm_tirx.runtime.tensor(np.random.rand(2, 3).astype("float32"))
     res = check_saved_func(vm, "tuple_get_item", x_inp, y_inp)
-    tvm_tirx.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy(), rtol=1e-7, atol=1e-7)
+    tvm_tirx.testing.assert_allclose(
+        res.numpy(), x_inp.numpy() + y_inp.numpy(), rtol=1e-7, atol=1e-7
+    )
 
 
 def test_lower_memory_alloc_storage_tensor():
@@ -820,7 +827,9 @@ def test_recursion():
     inp.fill(recursion_runs)
     inp = tvm_tirx.runtime.tensor(inp)
     res = check_saved_func(vm, "recursion", inp)
-    tvm_tirx.testing.assert_allclose(res.numpy(), np.power(2.0, recursion_runs), rtol=1e-7, atol=1e-7)
+    tvm_tirx.testing.assert_allclose(
+        res.numpy(), np.power(2.0, recursion_runs), rtol=1e-7, atol=1e-7
+    )
 
 
 @pytest.mark.gpu

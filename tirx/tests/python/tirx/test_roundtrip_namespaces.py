@@ -21,7 +21,9 @@ from tvm_tirx.script import tirx as T
 
 
 def from_source(code):
-    return tvm_tirx.script.from_source(code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
+    return tvm_tirx.script.from_source(
+        code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+    )
 
 
 def test_roundtrip_tir_namespaces_minimal():

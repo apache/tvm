@@ -21,11 +21,11 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from tvm_tirx import tirx
 from tvm import s_tir
-from tvm_tirx.ir import Range
 from tvm.s_tir import IterVar
 from tvm.s_tir.schedule.schedule import SBlockRV
+from tvm_tirx import tirx
+from tvm_tirx.ir import Range
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 from tvm_tirx.tirx import Expr, Var

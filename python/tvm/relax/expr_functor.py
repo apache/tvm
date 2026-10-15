@@ -23,12 +23,12 @@ from collections.abc import Callable
 import tvm_ffi
 
 from tvm import te as _te
+from tvm.s_tir.utils import derived_object
 from tvm_tirx import tirx as _tirx
 from tvm_tirx.ir import Call, DataTypeImm, GenericConst, Op, StringImm, TensorLoad, is_prim_expr
-from tvm_tirx.runtime import Object
-from tvm.s_tir.utils import derived_object
-
 from tvm_tirx.ir.module import IRModule
+from tvm_tirx.runtime import Object
+
 from . import _ffi_api
 from .block_builder import BlockBuilder
 from .expr import (

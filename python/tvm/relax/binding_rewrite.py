@@ -19,7 +19,7 @@
 
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm_tirx.runtime import Object
 
 from . import Binding, DataflowBlock, Expr, Function, Var, _ffi_api

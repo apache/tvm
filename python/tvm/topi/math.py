@@ -17,9 +17,10 @@
 """Elementwise operators"""
 
 # pylint: disable=redefined-builtin,unused-argument
-import tvm, tvm_tirx
-from tvm_tirx import DataTypeCode
+import tvm
+import tvm_tirx
 from tvm import te
+from tvm_tirx import DataTypeCode
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from . import cpp, tag

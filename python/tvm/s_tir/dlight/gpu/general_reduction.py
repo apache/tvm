@@ -19,8 +19,8 @@
 
 import tvm_ffi
 
-from tvm_tirx import sym, tirx
 from tvm import s_tir
+from tvm_tirx import sym, tirx
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.target import Target
 

@@ -17,7 +17,7 @@
 
 """The Graph Matching Context Manager for Dataflow Pattern Language."""
 
-import tvm, tvm_tirx
+import tvm_tirx
 
 from ..expr import DataflowBlock, Var
 from . import _ffi as ffi

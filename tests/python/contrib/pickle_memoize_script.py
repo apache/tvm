@@ -19,7 +19,7 @@
 
 import sys
 
-import tvm, tvm_tirx
+import tvm
 
 
 @tvm.contrib.pickle_memoize.memoize("test_memoize_save_data", save_at_exit=True)

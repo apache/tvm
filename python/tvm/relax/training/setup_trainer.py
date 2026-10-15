@@ -17,7 +17,7 @@
 # pylint: disable=not-callable, unused-argument
 """Setup Trainer Pass."""
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm_tirx.ir.module import IRModule
 from tvm_tirx.tirx.expr import IntImm
 

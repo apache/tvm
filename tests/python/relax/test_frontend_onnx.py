@@ -38,14 +38,15 @@ import onnxruntime
 import tvm_ffi
 from onnx import ModelProto, TensorProto, helper, numpy_helper
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.relax.frontend.onnx import from_onnx
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
+from tvm.relax.frontend.onnx import from_onnx
 from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 bg = np.random.MT19937(0)
@@ -11765,7 +11766,9 @@ def test_symbolic_shape_deduction():
         )
         model = helper.make_model(graph, producer_name="test_shape_deduction")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm_tirx.ir.assert_structural_equal(tvm_model["main"].without_attr("params"), expected["main"])
+        tvm_tirx.ir.assert_structural_equal(
+            tvm_model["main"].without_attr("params"), expected["main"]
+        )
 
     batch = T.dynamic("batch", "int64")
     seq = T.dynamic("seq", "int64")

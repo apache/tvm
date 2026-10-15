@@ -21,12 +21,13 @@
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import ir, tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax as rx
 from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax import script as R
+from tvm_tirx import ir, tirx
 from tvm_tirx.script import tirx as T
 
 
@@ -37,7 +38,9 @@ def test_get_static_type_basic():
 
     # prim
     s1 = tvm_tirx.ir.PrimType("float32")
-    tvm_tirx.ir.assert_structural_equal(rx.analysis.get_static_type(s1), tvm_tirx.ir.PrimType("float32"))
+    tvm_tirx.ir.assert_structural_equal(
+        rx.analysis.get_static_type(s1), tvm_tirx.ir.PrimType("float32")
+    )
 
 
 def test_get_static_type_shape():
@@ -635,7 +638,11 @@ def _generate_prim_test_cases():
 
     for dtype in dtypes:
         # LCA of a PrimType with itself yields itself
-        yield (tvm_tirx.ir.PrimType(dtype), tvm_tirx.ir.PrimType(dtype), tvm_tirx.ir.PrimType(dtype))
+        yield (
+            tvm_tirx.ir.PrimType(dtype),
+            tvm_tirx.ir.PrimType(dtype),
+            tvm_tirx.ir.PrimType(dtype),
+        )
 
     for dtype_a in dtypes:
         for dtype_b in dtypes:

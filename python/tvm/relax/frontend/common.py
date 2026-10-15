@@ -19,11 +19,13 @@
 
 import numpy as _np
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import topi
 
 
-def detach_params(mod: tvm_tirx.IRModule) -> tuple[tvm_tirx.IRModule, dict[str, list[tvm_tirx.runtime.Tensor]]]:
+def detach_params(
+    mod: tvm_tirx.IRModule,
+) -> tuple[tvm_tirx.IRModule, dict[str, list[tvm_tirx.runtime.Tensor]]]:
     """Detach the attribute "params" in the functions of the input IRModule as
     separate dictionary of params.
 

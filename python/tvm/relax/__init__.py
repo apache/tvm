@@ -111,9 +111,12 @@ from .vm_build import build, VMExecutable
 
 from .binding_rewrite import DataflowBlockRewrite
 
-import tvm_tirx.script, tvm
+import tvm_tirx.script
+import tvm
 
-tvm_tirx.script.register_dialect("relax", "tvm.relax.script", builder_path="tvm.relax.script.ir_builder")
+tvm_tirx.script.register_dialect(
+    "relax", "tvm.relax.script", builder_path="tvm.relax.script.ir_builder"
+)
 
 
 def _check_script_module(module: "tvm_tirx.ir.IRModule") -> None:

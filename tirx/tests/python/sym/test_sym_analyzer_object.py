@@ -186,7 +186,9 @@ def test_analyzer_object_state_persists_across_ffi_calls():
 
     # The same analyzer object is borrowed by the C++ DetectIterMap entry point;
     # its binding makes the otherwise-undetectable floormod recognizable.
-    result = tvm_tirx.sym.detect_iter_map([i % tile], {i: tvm_tirx.ir.Range(0, 32)}, analyzer=analyzer)
+    result = tvm_tirx.sym.detect_iter_map(
+        [i % tile], {i: tvm_tirx.ir.Range(0, 32)}, analyzer=analyzer
+    )
     assert len(result.indices) == 1
 
     # The binding still lives in the same stateful object after the FFI call.

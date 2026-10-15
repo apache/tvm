@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, line-too-long
 """Operators of one-to-one-mapping on the first input"""
 
-import tvm, tvm_tirx
+import tvm
 from tvm import te
 
 from .. import tag

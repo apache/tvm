@@ -17,10 +17,10 @@
 # ruff: noqa: F841
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import te
+from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
 
 
@@ -48,7 +48,11 @@ class CanonicalChecker:
 
 def test_mul_sum_simplify():
     ck = CanonicalChecker()
-    x, y, z = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32"), tvm_tirx.tirx.Var("z", "int32")
+    x, y, z = (
+        tvm_tirx.tirx.Var("x", "int32"),
+        tvm_tirx.tirx.Var("y", "int32"),
+        tvm_tirx.tirx.Var("z", "int32"),
+    )
 
     ck.verify(2 + (3 * x + z + y + 1) * 4 + x, x * 13 + z * 4 + y * 4 + 6)
     ck.verify(x * 3 - 4 * x + 1, 1 - x)
@@ -70,7 +74,11 @@ def test_mul_sum_simplify():
 
 def test_split_index_simplify():
     ck = CanonicalChecker()
-    x, y, z = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32"), tvm_tirx.tirx.Var("z", "int32")
+    x, y, z = (
+        tvm_tirx.tirx.Var("x", "int32"),
+        tvm_tirx.tirx.Var("y", "int32"),
+        tvm_tirx.tirx.Var("z", "int32"),
+    )
 
     # trucdiv
     tdiv = tvm_tirx.tirx.truncdiv
@@ -254,8 +262,12 @@ def test_simplify_if_then_else():
     ck.verify(res, expected)
     ck.verify(res2, expected)
     # can only simplify if condition
-    res = tvm_tirx.tirx.Select(tvm_tirx.tirx.all(x >= -1, y >= 0), tmod(x + y + 100, 3), tmod(x + 100, 3))
-    expected = tvm_tirx.tirx.Select(tvm_tirx.tirx.all(x >= -1, y >= 0), tmod(x + y + 1, 3), tmod(x + 100, 3))
+    res = tvm_tirx.tirx.Select(
+        tvm_tirx.tirx.all(x >= -1, y >= 0), tmod(x + y + 100, 3), tmod(x + 100, 3)
+    )
+    expected = tvm_tirx.tirx.Select(
+        tvm_tirx.tirx.all(x >= -1, y >= 0), tmod(x + y + 1, 3), tmod(x + 100, 3)
+    )
     ck.verify(res, ck.analyzer.canonical_simplify(expected))
 
     res = tvm_tirx.tirx.Select(x >= 10, tvm_tirx.tirx.if_then_else(tdiv(x, 3) > 2, x, 0), 0)
@@ -331,7 +343,9 @@ def test_simplify_cast():
             "int32",
         )
         + tvm_tirx.tirx.const(1, "int32")
-        - tcast(flm(axis, tvm_tirx.tirx.const(7, "int64")) * tvm_tirx.tirx.const(2, "int64"), "int32")
+        - tcast(
+            flm(axis, tvm_tirx.tirx.const(7, "int64")) * tvm_tirx.tirx.const(2, "int64"), "int32"
+        )
     )
     ck.verify(res, 2)
 
@@ -357,7 +371,11 @@ def test_proddiv_simplify():
     tdiv = tvm_tirx.tirx.truncdiv
     tmod = tvm_tirx.tirx.truncmod
 
-    x, y, z = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32"), tvm_tirx.tirx.Var("y", "int32")
+    x, y, z = (
+        tvm_tirx.tirx.Var("x", "int32"),
+        tvm_tirx.tirx.Var("y", "int32"),
+        tvm_tirx.tirx.Var("y", "int32"),
+    )
 
     ck.verify(flm(x * 32 * x, x), 0)
     ck.verify(flm(z * x * 32 * x * y, x * z), 0)
@@ -389,7 +407,11 @@ def test_floormod_two():
 def test_simplify_le():
     ck = CanonicalChecker()
     # Case 1. Ignore the extra expr if it's small than the division number
-    x, y, z = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32"), tvm_tirx.tirx.Var("z", "int32")
+    x, y, z = (
+        tvm_tirx.tirx.Var("x", "int32"),
+        tvm_tirx.tirx.Var("y", "int32"),
+        tvm_tirx.tirx.Var("z", "int32"),
+    )
     ck.analyzer.bind(y, tvm_tirx.ir.Range(0, 8))
     ck.analyzer.bind(z, tvm_tirx.ir.Range(0, 2))
     ck.verify(x * 8 + y < 16, x < 2)
@@ -425,7 +447,11 @@ def test_simplify_le():
     ck.verify(tx // 2 % 8 + vec < 8, tx % 16 // 2 + vec < 8)
 
     # Case 3. No failure
-    x, y, z = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32"), tvm_tirx.tirx.Var("z", "int32")
+    x, y, z = (
+        tvm_tirx.tirx.Var("x", "int32"),
+        tvm_tirx.tirx.Var("y", "int32"),
+        tvm_tirx.tirx.Var("z", "int32"),
+    )
     ck.analyzer.bind(y, tvm_tirx.ir.Range(0, 1024))
     ck.verify(x * 1024 + y < z * 7168, x - z * 7 < 0)
 

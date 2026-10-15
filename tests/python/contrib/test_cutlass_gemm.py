@@ -19,8 +19,8 @@ import ml_dtypes
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm_tirx.testing import env
 

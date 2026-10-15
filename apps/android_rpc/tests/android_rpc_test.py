@@ -26,7 +26,8 @@ import os
 
 import numpy as np
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import rpc, te
 from tvm_tirx.support import ndk, utils
 
@@ -58,7 +59,9 @@ def test_rpc_module():
     tracker = rpc.connect_tracker(tracker_host, tracker_port)
     remote = tracker.request(key, priority=0, session_timeout=60)
 
-    mod = tvm_tirx.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "myadd"))
+    mod = tvm_tirx.IRModule.from_expr(
+        te.create_function([A, B]).with_attr("global_symbol", "myadd")
+    )
     sch = tvm.s_tir.Schedule(mod)
     (x,) = sch.get_loops(block=sch.get_sblock("B"))
     xo, xi = sch.split(i, [None, 32])

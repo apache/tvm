@@ -19,9 +19,9 @@ to store the block level dependences"""
 
 from tvm_ffi import register_object
 
+from tvm.s_tir import SBlock
 from tvm_tirx.ir.module import IRModule
 from tvm_tirx.runtime import Object
-from tvm.s_tir import SBlock
 from tvm_tirx.tirx import Function
 
 from . import _ffi_api

@@ -20,8 +20,8 @@
 import logging
 import math
 
-from tvm_tirx import tirx
 from tvm import s_tir, te, topi
+from tvm_tirx import tirx
 from tvm_tirx.ir import Call
 
 from ...block_builder import BlockBuilder

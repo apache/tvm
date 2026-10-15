@@ -16,11 +16,11 @@
 # under the License.
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.ir import Op
 from tvm.relax import script as R
+from tvm_tirx.ir import Op
 
 
 def test_op_correctness():

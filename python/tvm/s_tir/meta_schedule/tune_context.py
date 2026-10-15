@@ -26,9 +26,9 @@ from tvm_ffi import register_object, register_global_func
 
 # isort: on
 
+from tvm.s_tir import Schedule
 from tvm_tirx import IRModule
 from tvm_tirx.runtime import Object
-from tvm.s_tir import Schedule
 from tvm_tirx.target import Target
 from tvm_tirx.tirx import Function
 

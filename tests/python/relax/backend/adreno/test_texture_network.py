@@ -27,14 +27,15 @@ pytest.importorskip("onnx")
 import onnx
 from utils import verify_results
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.frontend.onnx import from_onnx
 from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm_tirx.script import ir as I
-from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 from tvm_tirx.script.ir_builder import IRBuilder
 

@@ -17,17 +17,18 @@
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm_tirx.testing import env
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
 import tvm.topi.testing
 from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.backend.rocm.hipblas import partition_for_hipblas
 from tvm.relax.testing import get_relax_matmul_module
-from tvm.relax import script as R
 
 try:
     import ml_dtypes

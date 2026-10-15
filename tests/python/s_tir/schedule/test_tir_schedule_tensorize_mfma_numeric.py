@@ -19,8 +19,9 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import te
 from tvm.s_tir.tensor_intrin.rocm import (
     ROCM_MFMA_f16f16f32_INTRIN,

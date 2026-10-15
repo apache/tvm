@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 import tvm_ffi
 from tvm_ffi import Array
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm_tirx import ir
 from tvm_tirx import tirx as tir
 from tvm_tirx.ir import Expr, Scriptable, Var, const

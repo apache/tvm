@@ -20,8 +20,9 @@
 # pylint: disable=invalid-name
 import numpy as np
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import te
 
 

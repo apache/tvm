@@ -20,7 +20,7 @@
 
 import numpy as np
 
-import tvm, tvm_tirx
+import tvm_tirx
 
 
 # RPC test functions to be registered for unit-tests purposes

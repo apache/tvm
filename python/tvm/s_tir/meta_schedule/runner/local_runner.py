@@ -21,11 +21,11 @@ import subprocess
 from collections.abc import Callable
 from contextlib import contextmanager
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm.s_tir.utils import derived_object
+from tvm_tirx.runtime import Device, Module
 from tvm_tirx.support.popen_pool import PopenPoolExecutor
 
-from tvm_tirx.runtime import Device, Module
 from ..logging import get_logger
 from ..profiler import Profiler
 from ..utils import get_global_func_with_default_on_worker

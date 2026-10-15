@@ -21,11 +21,12 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import relax as rx
-from tvm_tirx import tirx
-from tvm.relax.expr import make_shape
 from tvm.relax import script as R
+from tvm.relax.expr import make_shape
+from tvm_tirx import tirx
 
 
 def _check_equal(x, y, map_free_vars=False):
@@ -73,7 +74,9 @@ def test_var_name_keyword_compatibility() -> None:
 
 
 def test_tensor_type_empty_dtype_is_unknown() -> None:
-    tvm_tirx.ir.assert_structural_equal(rx.TensorType([1, 2], dtype=""), rx.TensorType([1, 2], None))
+    tvm_tirx.ir.assert_structural_equal(
+        rx.TensorType([1, 2], dtype=""), rx.TensorType([1, 2], None)
+    )
 
 
 def test_relax_expr_ty_running_example() -> None:
@@ -414,7 +417,9 @@ def test_call_reinfer_type_from_current_inputs():
     func = rx.Var("func", rx.FuncType([original_ty], original_ty))
     _check_type_missing(tvm_tirx.ir.reinfer_type(rx.Call(func, [x])))
 
-    invalid = rx.Call("relax.abs", [rx.Var("scalar", tvm_tirx.ir.PrimType("int32"))], ty=original_ty)
+    invalid = rx.Call(
+        "relax.abs", [rx.Var("scalar", tvm_tirx.ir.PrimType("int32"))], ty=original_ty
+    )
     with pytest.raises(TypeError):
         tvm_tirx.ir.reinfer_type(invalid)
 
@@ -427,7 +432,9 @@ def test_call_reinfer_type_from_current_inputs():
     )
     _check_equal(tvm_tirx.ir.reinfer_type(changed_explicit), changed_ty)
 
-    _check_equal(tvm_tirx.ir.reinfer_type(rx.op.astype(x, "float16")), rx.TensorType([2], "float16"))
+    _check_equal(
+        tvm_tirx.ir.reinfer_type(rx.op.astype(x, "float16")), rx.TensorType([2], "float16")
+    )
     _check_equal(tvm_tirx.ir.reinfer_type(rx.op.astype(x, "int32")), rx.TensorType([2], "int32"))
 
 

@@ -29,10 +29,11 @@ from tvm_ffi import register_global_func
 
 pytest.importorskip("tornado")  # tvm.rpc.tracker (LocalRPC) requires tornado
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.rpc import RPCSession
-from tvm_tirx.runtime import Device, Module
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.arg_info import TensorInfo
 from tvm.s_tir.meta_schedule.builder import BuilderInput, LocalBuilder
 from tvm.s_tir.meta_schedule.runner import (
@@ -59,7 +60,7 @@ from tvm.s_tir.meta_schedule.utils import (
     get_global_func_with_default_on_worker,
 )
 from tvm.s_tir.utils import derived_object
-from tvm.s_tir import script as Ts
+from tvm_tirx.runtime import Device, Module
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 from tvm_tirx.tirx import FloatImm

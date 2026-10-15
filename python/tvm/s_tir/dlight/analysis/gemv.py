@@ -18,9 +18,9 @@
 
 import tvm_ffi
 
-import tvm, tvm_tirx
-from tvm_tirx import sym, tirx
+import tvm_tirx
 from tvm import s_tir
+from tvm_tirx import sym, tirx
 
 from .common_analysis import (
     SBlockInfo,

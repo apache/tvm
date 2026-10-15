@@ -401,7 +401,8 @@ def test_predicate():
         var_dom([(i, 12), (j, 16)]),
         predicate=tvm_tirx.tirx.And(
             tvm_tirx.tirx.And(
-                i * 16 + j < 184, tvm_tirx.tirx.LE(tvm_tirx.tirx.IntImm("int32", 8), (i * 16 + j) % 23)
+                i * 16 + j < 184,
+                tvm_tirx.tirx.LE(tvm_tirx.tirx.IntImm("int32", 8), (i * 16 + j) % 23),
             ),
             tvm_tirx.tirx.LE(tvm_tirx.tirx.IntImm("int32", 15), (i * 16 + j) % 23),
         ),
@@ -582,7 +583,9 @@ def test_subspace_division():
     c = tvm_tirx.tirx.Var("c", "int32")
 
     # simple 1.1
-    res = tvm_tirx.sym.subspace_divide([z * 12 + y * 3 + x + c], var_dom([(x, 3), (y, 4), (z, 5)]), [x])
+    res = tvm_tirx.sym.subspace_divide(
+        [z * 12 + y * 3 + x + c], var_dom([(x, 3), (y, 4), (z, 5)]), [x]
+    )
     res = convert_division(res)
     assert len(res) == 2
     tvm_tirx.ir.assert_structural_equal(res[0][0], z * 4 + y)
@@ -659,7 +662,9 @@ def test_subspace_division():
     assert len(res2) == 2
 
     # compound 1.5
-    res = tvm_tirx.sym.subspace_divide([k0[0], k1[0]], var_dom([i0, j0, i3]), [j0[0], i3[0]], k1[0] < 7)
+    res = tvm_tirx.sym.subspace_divide(
+        [k0[0], k1[0]], var_dom([i0, j0, i3]), [j0[0], i3[0]], k1[0] < 7
+    )
     res = convert_division(res)
     assert len(res) == 3
     tvm_tirx.ir.assert_structural_equal(res[0][0], i0[0])
@@ -694,7 +699,9 @@ def test_subspace_division():
     i2 = ifuse([j2, j3])
 
     # compound 2.1
-    res = tvm_tirx.sym.subspace_divide([i0[0], i1[0], i2[0]], var_dom([j0, l0, l1, j3]), [l1[0], j3[0]])
+    res = tvm_tirx.sym.subspace_divide(
+        [i0[0], i1[0], i2[0]], var_dom([j0, l0, l1, j3]), [l1[0], j3[0]]
+    )
     res = convert_division(res)
     assert len(res) == 4
     tvm_tirx.ir.assert_structural_equal(res[0][0], (j0[0] * 2) + l0[0])
@@ -704,9 +711,13 @@ def test_subspace_division():
     tvm_tirx.ir.assert_structural_equal(res[2][0], T.int32(0))
     tvm_tirx.ir.assert_structural_equal(res[2][1], (floormod(l1[0], 3) * 3) + j3[0])
 
-    res1 = tvm_tirx.sym.detect_iter_map([res[0][1], res[1][1], res[2][1]], var_dom([l1, j3])).indices
+    res1 = tvm_tirx.sym.detect_iter_map(
+        [res[0][1], res[1][1], res[2][1]], var_dom([l1, j3])
+    ).indices
     assert len(res1) == 3
-    res2 = tvm_tirx.sym.detect_iter_map([res[0][0], res[1][0], res[2][0]], var_dom([j0, l0])).indices
+    res2 = tvm_tirx.sym.detect_iter_map(
+        [res[0][0], res[1][0], res[2][0]], var_dom([j0, l0])
+    ).indices
     assert len(res2) == 3
 
     # compound 2.2
@@ -722,13 +733,17 @@ def test_subspace_division():
     tvm_tirx.ir.assert_structural_equal(res[2][0], T.int32(0))
     tvm_tirx.ir.assert_structural_equal(res[2][1], (floormod(l0[0] * 6 + l1[0], 3) * 3) + j3[0])
 
-    res1 = tvm_tirx.sym.detect_iter_map([res[0][1], res[1][1], res[2][1]], var_dom([l0, l1, j3])).indices
+    res1 = tvm_tirx.sym.detect_iter_map(
+        [res[0][1], res[1][1], res[2][1]], var_dom([l0, l1, j3])
+    ).indices
     assert len(res1) == 3
     res2 = tvm_tirx.sym.detect_iter_map([res[0][0], res[1][0], res[2][0]], var_dom([j0])).indices
     assert len(res2) == 3
 
     # compound 2.3
-    res = tvm_tirx.sym.subspace_divide([i0[0], i1[0], i2[0]], var_dom([j0, l0, l1, j3]), [l0[0], j3[0]])
+    res = tvm_tirx.sym.subspace_divide(
+        [i0[0], i1[0], i2[0]], var_dom([j0, l0, l1, j3]), [l0[0], j3[0]]
+    )
     res = convert_division(res)
     assert len(res) == 0
 
@@ -750,9 +765,13 @@ def test_subspace_division():
     tvm_tirx.ir.assert_structural_equal(res[3][0], (j0[0] * 2) + l0[0] < 7)
     tvm_tirx.ir.assert_structural_equal(res[3][1], (floormod(l1[0], 3) * 3) + j3[0] < 8)
 
-    res1 = tvm_tirx.sym.detect_iter_map([res[0][1], res[1][1], res[2][1]], var_dom([l1, j3])).indices
+    res1 = tvm_tirx.sym.detect_iter_map(
+        [res[0][1], res[1][1], res[2][1]], var_dom([l1, j3])
+    ).indices
     assert len(res1) == 3
-    res2 = tvm_tirx.sym.detect_iter_map([res[0][0], res[1][0], res[2][0]], var_dom([j0, l0])).indices
+    res2 = tvm_tirx.sym.detect_iter_map(
+        [res[0][0], res[1][0], res[2][0]], var_dom([j0, l0])
+    ).indices
     assert len(res2) == 3
 
     # compound 2.5
@@ -852,7 +871,10 @@ def test_complex():
     )
     m0_mark = tvm_tirx.sym.IterMark(m0_expr, 6)
     l2_expr = tvm_tirx.sym.IterSumExpr(
-        [tvm_tirx.sym.IterSplitExpr(m0_mark, 1, 6, 3), tvm_tirx.sym.IterSplitExpr(m1_mark, 1, m1[1], 1)],
+        [
+            tvm_tirx.sym.IterSplitExpr(m0_mark, 1, 6, 3),
+            tvm_tirx.sym.IterSplitExpr(m1_mark, 1, m1[1], 1),
+        ],
         0,
     )
     l2_mark = tvm_tirx.sym.IterMark(l2_expr, 16)
@@ -867,11 +889,15 @@ def test_complex():
 
     j0_expr = tvm_tirx.sym.IterSumExpr([k0_expr, k1_expr], 0)
     j0_mark = tvm_tirx.sym.IterMark(j0_expr, 7)
-    i0_expr = tvm_tirx.sym.IterSumExpr([tvm_tirx.sym.IterSplitExpr(j0_mark, 1, 7, 32), k2_expr, k3_expr], 0)
+    i0_expr = tvm_tirx.sym.IterSumExpr(
+        [tvm_tirx.sym.IterSplitExpr(j0_mark, 1, 7, 32), k2_expr, k3_expr], 0
+    )
 
     j3_expr = tvm_tirx.sym.IterSumExpr([k6_expr, k7_expr], 0)
     j3_mark = tvm_tirx.sym.IterMark(j3_expr, 15)
-    i1_expr = tvm_tirx.sym.IterSumExpr([k4_expr, k5_expr, tvm_tirx.sym.IterSplitExpr(j3_mark, 1, 15, 1)], 0)
+    i1_expr = tvm_tirx.sym.IterSumExpr(
+        [k4_expr, k5_expr, tvm_tirx.sym.IterSplitExpr(j3_mark, 1, 15, 1)], 0
+    )
 
     i0_mark = tvm_tirx.sym.IterMark(i0_expr, i0[1])
     i1_mark = tvm_tirx.sym.IterMark(i1_expr, i1[1])
@@ -911,7 +937,9 @@ def test_complex():
     tvm_tirx.ir.assert_structural_equal(
         res[1][1], ((floormod(((n0[0] * 4 + n1[0]) * 3 + m1[0]), 4) * 4) + floormod(l3[0], 4))
     )
-    tvm_tirx.ir.assert_structural_equal(res[2][0], (floordiv(l0[0], 2) * 4) + floordiv(l1[0], 2) < 7)
+    tvm_tirx.ir.assert_structural_equal(
+        res[2][0], (floordiv(l0[0], 2) * 4) + floordiv(l1[0], 2) < 7
+    )
     tvm_tirx.ir.assert_structural_equal(
         res[2][1],
         tvm_tirx.tirx.all(
@@ -943,7 +971,9 @@ def test_normalize_iter_map_to_expr():
         tvm_tirx.sym.normalize_iter_map_to_expr(res.indices[0]),
         fld(y, 3) * 6 + fld(x, 5) * 3 + flm(y, 3),
     )
-    tvm_tirx.ir.assert_structural_equal(tvm_tirx.sym.normalize_iter_map_to_expr(res.indices[1]), flm(x, 5))
+    tvm_tirx.ir.assert_structural_equal(
+        tvm_tirx.sym.normalize_iter_map_to_expr(res.indices[1]), flm(x, 5)
+    )
 
     # iter mark wrap a complex expr
     split = tvm_tirx.sym.IterSplitExpr(tvm_tirx.sym.IterMark(x * y + 1, 1024), 1, 1024, 1)

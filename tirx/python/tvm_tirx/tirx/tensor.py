@@ -90,7 +90,9 @@ class TensorType(Type):
 
         from .layout import Layout, S, TileLayout
 
-        shape = (shape,) if tvm_tirx.ir.is_prim_expr(shape) or isinstance(shape, Integral) else shape
+        shape = (
+            (shape,) if tvm_tirx.ir.is_prim_expr(shape) or isinstance(shape, Integral) else shape
+        )
         shape = tuple(shape)
         dtype = _normalize_type(dtype)
         if not isinstance(dtype, PrimType):

@@ -17,11 +17,11 @@
 
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import s_tir
 from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
 
 
@@ -55,7 +55,9 @@ def test_matrix_c_load_store_lower_without_intrinsic_catalogue():
             fragment[i // 16, j // 8, i % 16 // 8, j % 2] = A[i, j]
             B[i, j] = fragment[i // 16, j // 8, i % 16 // 8, j % 2]
 
-    result = s_tir.transform.TransformMmaTensorLayout()(tvm_tirx.IRModule.from_expr(before))["before"]
+    result = s_tir.transform.TransformMmaTensorLayout()(tvm_tirx.IRModule.from_expr(before))[
+        "before"
+    ]
     tvm_tirx.ir.assert_structural_equal(
         result.without_attr("global_symbol"), expected.without_attr("global_symbol")
     )

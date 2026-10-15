@@ -34,15 +34,20 @@ def test_llvm_targets(capfd):
     assert len(codegen.llvm_get_system_triple())
     assert len(codegen.llvm_get_system_x86_vendor())
     # check ffi vs python
-    assert codegen.llvm_get_system_cpu() == tvm_tirx.get_global_func("codegen.llvm_get_system_cpu")()
     assert (
-        codegen.llvm_get_system_triple() == tvm_tirx.get_global_func("codegen.llvm_get_system_triple")()
+        codegen.llvm_get_system_cpu() == tvm_tirx.get_global_func("codegen.llvm_get_system_cpu")()
+    )
+    assert (
+        codegen.llvm_get_system_triple()
+        == tvm_tirx.get_global_func("codegen.llvm_get_system_triple")()
     )
     assert (
         codegen.llvm_get_system_x86_vendor()
         == tvm_tirx.get_global_func("codegen.llvm_get_system_x86_vendor")()
     )
-    assert str(codegen.llvm_get_targets()) == str(tvm_tirx.get_global_func("codegen.llvm_get_targets")())
+    assert str(codegen.llvm_get_targets()) == str(
+        tvm_tirx.get_global_func("codegen.llvm_get_targets")()
+    )
 
     tvm_tirx.codegen.llvm_get_cpu_features(
         tvm_tirx.target.Target({"kind": "llvm", "mtriple": "x86_64-linux-gnu", "mcpu": "dummy"})

@@ -16,7 +16,8 @@
 # under the License.
 """Pad the data by constant value"""
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import te
 
 from .. import tag
@@ -92,7 +93,9 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput", attrs=
         dshape.append(dim)
     out_shape = tuple(ana.simplify(dshape[i] + pad_before[i] + pad_after[i]) for i in range(n))
     pad_value = (
-        pad_value if tvm_tirx.ir.is_prim_expr(pad_value) else tvm_tirx.tirx.const(pad_value, data.dtype)
+        pad_value
+        if tvm_tirx.ir.is_prim_expr(pad_value)
+        else tvm_tirx.tirx.const(pad_value, data.dtype)
     )
 
     def _pad(*indices):
@@ -259,7 +262,9 @@ def replicate_pad(data, pad_before, pad_after=None, name="ReplicatePadInput"):
             # Branchless edge clamp. This is bit-identical to the nested
             # if_then_else form (0 below 0, size-1 at or above size, orig_idx
             # otherwise) but lowers to min/max instead of per-element branches.
-            clamped_idx = tvm_tirx.tirx.max(tvm_tirx.tirx.const(0, "int32"), tvm_tirx.tirx.min(size - 1, orig_idx))
+            clamped_idx = tvm_tirx.tirx.max(
+                tvm_tirx.tirx.const(0, "int32"), tvm_tirx.tirx.min(size - 1, orig_idx)
+            )
             index_tuple.append(clamped_idx)
         return data(*index_tuple)
 

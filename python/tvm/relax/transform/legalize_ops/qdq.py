@@ -17,9 +17,9 @@
 # pylint: disable=invalid-name
 """Default legalization function for quantize/dequantize operators."""
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm_tirx
 from tvm import te
+from tvm_tirx import tirx
 from tvm_tirx.ir import Call
 from tvm_tirx.runtime import DataTypeCode
 

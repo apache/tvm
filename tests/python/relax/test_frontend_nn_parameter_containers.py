@@ -20,8 +20,8 @@ from typing import Any
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.frontend import nn
 
 
@@ -171,8 +171,12 @@ def test_load_state_dict():
     assert unexpected_keys == []
     tvm_tirx.testing.assert_allclose(m.list_params[0].data.numpy(), np.full((4,), 1.0, "float32"))
     tvm_tirx.testing.assert_allclose(m.list_params[1].data.numpy(), np.full((4,), 2.0, "float32"))
-    tvm_tirx.testing.assert_allclose(m.dict_params["foo"].data.numpy(), np.full((4,), 3.0, "float32"))
-    tvm_tirx.testing.assert_allclose(m.dict_params["bar"].data.numpy(), np.full((4,), 4.0, "float32"))
+    tvm_tirx.testing.assert_allclose(
+        m.dict_params["foo"].data.numpy(), np.full((4,), 3.0, "float32")
+    )
+    tvm_tirx.testing.assert_allclose(
+        m.dict_params["bar"].data.numpy(), np.full((4,), 4.0, "float32")
+    )
 
 
 def test_export_tvm_parameter_names():

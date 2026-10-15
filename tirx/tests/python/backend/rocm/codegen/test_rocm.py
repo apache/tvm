@@ -98,7 +98,9 @@ def test_rocm_vectorize_add():
 
         def run_and_check():
             dev = tvm_tirx.rocm(0)
-            a = tvm_tirx.runtime.empty((n,), vec_dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
+            a = tvm_tirx.runtime.empty((n,), vec_dtype, dev).copyfrom(
+                np.random.uniform(size=(n, lanes))
+            )
             c = tvm_tirx.runtime.empty((n,), vec_dtype, dev)
             fun(a, c)
             tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy() + 1)

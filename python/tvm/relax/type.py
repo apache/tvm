@@ -21,10 +21,10 @@
 import tvm_ffi
 from tvm_ffi import Array
 
+from tvm.relax.global_info import VDevice
 from tvm_tirx.ir import AnyType, EnvFunc, Location, PrimType, TupleType
 from tvm_tirx.ir.location import UNKNOWN_LOC, UnknownLoc
 from tvm_tirx.ir.type import _normalize_type
-from tvm.relax.global_info import VDevice
 
 from . import _ffi_api
 from .expr import Expr, ShapeExpr, Type

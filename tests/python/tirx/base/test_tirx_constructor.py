@@ -18,7 +18,8 @@
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import te, topi
 from tvm_tirx.ir import TensorRegion
 from tvm_tirx.ir.prim import expr_deep_equal

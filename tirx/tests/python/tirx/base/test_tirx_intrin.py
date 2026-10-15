@@ -107,7 +107,13 @@ def test_round_ties_to_even(target):
 
 def test_round_intrinsics_on_int():
     i = tvm_tirx.tirx.Var("i", "int32")
-    for op in [tvm_tirx.tirx.round, tvm_tirx.tirx.trunc, tvm_tirx.tirx.ceil, tvm_tirx.tirx.floor, tvm_tirx.tirx.nearbyint]:
+    for op in [
+        tvm_tirx.tirx.round,
+        tvm_tirx.tirx.trunc,
+        tvm_tirx.tirx.ceil,
+        tvm_tirx.tirx.floor,
+        tvm_tirx.tirx.nearbyint,
+    ]:
         assert op(tvm_tirx.tirx.const(10, "int32")).value == 10
         assert op(tvm_tirx.tirx.const(True, "bool")).value == True
         assert op(i).same_as(i)
@@ -199,7 +205,9 @@ def test_asin_acos_boundary_values():
         a2 = tvm_tirx.runtime.tensor(threshold_values, dev)
         b2 = tvm_tirx.runtime.tensor(np.empty_like(threshold_values), dev)
         func(a2, b2)
-        tvm_tirx.testing.assert_allclose(b2.numpy(), np_func(threshold_values), atol=1e-4, rtol=1e-4)
+        tvm_tirx.testing.assert_allclose(
+            b2.numpy(), np_func(threshold_values), atol=1e-4, rtol=1e-4
+        )
 
         # Test values just below threshold: ±0.49 (should use Taylor series)
         below_threshold_values = np.array([0.49, -0.49, 0.3, -0.3, 0.0], dtype=np.float32)
@@ -238,14 +246,18 @@ def test_binary_intrin():
         b = tvm_tirx.runtime.tensor(np.random.uniform(0, 1, size=n).astype("float32"), dev)
         c = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
         func(a, b, c)
-        tvm_tirx.testing.assert_allclose(c.numpy(), np_func(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5)
+        tvm_tirx.testing.assert_allclose(
+            c.numpy(), np_func(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5
+        )
 
     for func in test_funcs:
         run_test(*func)
 
 
 def test_ldexp():
-    func = tvm_tirx.tirx.compile(_binary_kernel(tvm_tirx.tirx.ldexp, rhs_dtype="int32"), target="llvm")
+    func = tvm_tirx.tirx.compile(
+        _binary_kernel(tvm_tirx.tirx.ldexp, rhs_dtype="int32"), target="llvm"
+    )
 
     dev = tvm_tirx.cpu(0)
     n = 10
@@ -253,7 +265,9 @@ def test_ldexp():
     b = tvm_tirx.runtime.tensor(np.random.randint(0, 5, size=n).astype("int32"), dev)
     c = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
     func(a, b, c)
-    tvm_tirx.testing.assert_allclose(c.numpy(), np.ldexp(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5)
+    tvm_tirx.testing.assert_allclose(
+        c.numpy(), np.ldexp(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5
+    )
 
 
 dtype = tvm_tirx.testing.parameter("int32", "int64")
@@ -282,7 +296,8 @@ def test_clz(target, dtype):
         return clz
 
     func = tvm_tirx.tirx.compile(
-        _unary_kernel(tvm_tirx.tirx.clz, dtype, "int32", gpu=target.kind.name == "vulkan"), target=target
+        _unary_kernel(tvm_tirx.tirx.clz, dtype, "int32", gpu=target.kind.name == "vulkan"),
+        target=target,
     )
 
     def run_and_check():
@@ -334,7 +349,9 @@ class Module:
 def test_fma():
     opt = tvm_tirx.ir.transform.Sequential(
         [
-            tvm_tirx.tirx.transform.Apply(lambda f: f.with_attr("target", tvm_tirx.target.Target("llvm"))),
+            tvm_tirx.tirx.transform.Apply(
+                lambda f: f.with_attr("target", tvm_tirx.target.Target("llvm"))
+            ),
             tvm_tirx.tirx.transform.LowerIntrin(),
         ]
     )

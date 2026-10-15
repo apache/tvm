@@ -22,7 +22,8 @@ Connect javascript end to the websocket port and connect to the RPC.
 
 import numpy as np
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import rpc, te
 from tvm.contrib import emcc
 from tvm_tirx.support import utils
@@ -74,7 +75,9 @@ def test_rpc():
         f1 = remote.system_lib()
         addone = f1.get_function("main")
         addone(a, b)
-        tvm_tirx.testing.assert_allclose(b.numpy(), np.log(np.abs(a.numpy()) + 1), atol=1e-5, rtol=1e-5)
+        tvm_tirx.testing.assert_allclose(
+            b.numpy(), np.log(np.abs(a.numpy()) + 1), atol=1e-5, rtol=1e-5
+        )
         print("Test pass..")
 
     check(remote, 71821 * 32)

@@ -20,9 +20,9 @@
 
 import tvm_ffi
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm_tirx
 from tvm import s_tir
+from tvm_tirx import tirx
 from tvm_tirx.tirx import compilation_pipeline as tir_pipeline
 
 tir = tirx  # alias for backward compat

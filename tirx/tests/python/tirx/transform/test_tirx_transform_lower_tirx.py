@@ -1174,7 +1174,10 @@ def test_lower_exec_context_respects_preferred_cluster_bounds():
             )
             getattr(T.cuda.tile, variant)(B[0:1], A[0:1], scope="cluster")
 
-    with tvm_tirx.target.Target("cuda"), pytest.raises(ValueError, match="one static cluster shape"):
+    with (
+        tvm_tirx.target.Target("cuda"),
+        pytest.raises(ValueError, match="one static cluster shape"),
+    ):
         LowerTIRx()(fixed_shape_instruction)
 
 
@@ -2049,7 +2052,9 @@ def test_lower_remaps_tensor_memory_address_metadata(offset):
     address = next(
         node.var for node in bindings if node.var.scope() == tvm_tirx.runtime.MemoryScope("shared")
     )
-    tensor = next(node for node in bindings if node.var.scope() == tvm_tirx.runtime.MemoryScope("tmem"))
+    tensor = next(
+        node for node in bindings if node.var.scope() == tvm_tirx.runtime.MemoryScope("tmem")
+    )
     loads = []
     tvm_ffi.structural_walk(tensor.value.args[0], (tvm_tirx.ir.TensorLoad, loads.append))
     assert len(loads) == 1

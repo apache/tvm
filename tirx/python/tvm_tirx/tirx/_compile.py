@@ -232,8 +232,8 @@ def compile(  # pylint: disable=redefined-builtin
         )
     else:
         # default pipeline depends on the target
-        pipeline, finalize_host_passes, finalize_device_passes = tvm_tirx.tirx.get_default_tir_pipeline(
-            target, mod, target_to_bind=target_to_bind
+        pipeline, finalize_host_passes, finalize_device_passes = (
+            tvm_tirx.tirx.get_default_tir_pipeline(target, mod, target_to_bind=target_to_bind)
         )
     mod = pipeline(mod)
 

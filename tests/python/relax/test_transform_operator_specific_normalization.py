@@ -21,9 +21,10 @@
 import pytest
 import tvm_ffi
 
-import tvm, tvm_tirx
+import tvm
 import tvm.relax.testing.transform
-import tvm_tirx.testing, tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm.s_tir import script as Ts
 from tvm_tirx.script.parser import ir as I

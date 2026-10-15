@@ -18,7 +18,7 @@
 
 import numpy as np  # type: ignore
 
-import tvm_tirx.runtime, tvm
+import tvm_tirx.runtime
 from tvm.s_tir.utils import derived_object
 
 from ..feature_extractor import PyFeatureExtractor

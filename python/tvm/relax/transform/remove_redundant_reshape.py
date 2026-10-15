@@ -19,11 +19,11 @@
 
 import tvm_ffi
 
-from tvm_tirx import IRModule
 from tvm import relax
-from tvm_tirx.ir.transform import PassContext
 from tvm.relax import Expr
 from tvm.relax.dpl import is_op, rewrite_call, wildcard
+from tvm_tirx import IRModule
+from tvm_tirx.ir.transform import PassContext
 
 from . import function_pass
 

@@ -20,13 +20,13 @@
 from functools import reduce
 from operator import mul
 
-from tvm_tirx import DataType
 from tvm import relax, topi
 from tvm.contrib.thrust import can_use_thrust
+from tvm.relax import expr_functor
+from tvm_tirx import DataType
 from tvm_tirx.ir import GlobalVar, Op
 from tvm_tirx.ir.module import IRModule
 from tvm_tirx.ir.transform import PassContext, module_pass
-from tvm.relax import expr_functor
 from tvm_tirx.target import Target
 
 from .utils import BackendDispatcher

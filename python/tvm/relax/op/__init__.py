@@ -274,7 +274,8 @@ def _register_op_make():
 
     def _call(func, *args, attrs=None):
         if not isinstance(
-            func.ty, expr.tvm_tirx.ir.FuncType | expr.tvm.relax.FuncType | expr.tvm_tirx.ir.MissingType
+            func.ty,
+            expr.tvm_tirx.ir.FuncType | expr.tvm.relax.FuncType | expr.tvm_tirx.ir.MissingType,
         ):
             return NotImplemented
         return expr.tvm_tirx.ir.Call(func, args, attrs=attrs)

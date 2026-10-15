@@ -22,7 +22,7 @@ import operator
 from collections.abc import Mapping, Sequence
 from functools import reduce
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.relax import (
     Call,

@@ -24,13 +24,8 @@ import numbers as _numbers
 from types import SimpleNamespace as _Namespace
 from typing import Any
 
-import tvm, tvm_tirx
-from tvm_tirx import ir as _ir
+import tvm_tirx
 from tvm import relax as _relax
-from tvm_tirx import tirx as _tir
-from tvm_tirx.ir.location import UNKNOWN_LOC, Location
-from tvm_tirx.ir.op import _init_op_api
-from tvm_tirx.ir.prim import _ffi_api as _prim_ffi
 from tvm.relax import Call, Expr, ExternFunc
 from tvm.relax.global_info import VDevice
 from tvm.relax.op import (
@@ -234,6 +229,11 @@ from tvm.relax.op import to_vdevice as _to_vdevice
 from tvm.relax.op.builtin import stop_lift_params
 from tvm.relax.type import Type
 from tvm.relax.utils import convert_to_expr
+from tvm_tirx import ir as _ir
+from tvm_tirx import tirx as _tir
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.op import _init_op_api
+from tvm_tirx.ir.prim import _ffi_api as _prim_ffi
 from tvm_tirx.script.ir_builder import base as _base
 from tvm_tirx.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
 

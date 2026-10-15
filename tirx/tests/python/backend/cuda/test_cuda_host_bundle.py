@@ -52,7 +52,8 @@ def test_cuda_host_bundle(tmp_path, *, backend_config):
 
     target = tvm_tirx.target.Target("cuda", host="cuda_host")
     built = tvm_tirx.tirx.compile(
-        add_one, target={**tvm_tirx.target.Target(target).export(), "backend_config": backend_config}
+        add_one,
+        target={**tvm_tirx.target.Target(target).export(), "backend_config": backend_config},
     ).mod
     source = export_cuda_host(built)
     assert "tvm_cuda_binary_0" in source
@@ -167,7 +168,8 @@ def test_cuda_host_bundle_programmatic_dependent_launch(tmp_path, *, backend_con
     target = tvm_tirx.target.Target("cuda", host="cuda_host")
     source = export_cuda_host(
         tvm_tirx.tirx.compile(
-            add_one, target={**tvm_tirx.target.Target(target).export(), "backend_config": backend_config}
+            add_one,
+            target={**tvm_tirx.target.Target(target).export(), "backend_config": backend_config},
         ).mod
     )
     assert "cudaLaunchAttributeProgrammaticStreamSerialization" in source

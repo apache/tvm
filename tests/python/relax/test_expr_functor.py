@@ -17,13 +17,12 @@
 # ruff: noqa: E501, F841
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax, te
-from tvm_tirx.ir import Call, GenericConst, Op, StringImm
-from tvm_tirx.ir.base import assert_structural_equal
 from tvm.relax import PyExprMutator, PyExprVisitor
+from tvm.relax import script as R
 from tvm.relax.expr import (
     BindingBlock,
     DataflowBlock,
@@ -41,7 +40,9 @@ from tvm.relax.expr import (
     Var,
     VarBinding,
 )
-from tvm.relax import script as R
+from tvm_tirx import tirx
+from tvm_tirx.ir import Call, GenericConst, Op, StringImm
+from tvm_tirx.ir.base import assert_structural_equal
 
 m, n = tirx.Var("m", "int64"), tirx.Var("n", "int64")
 x = relax.Var("x", R.Tensor([n], "float32"))

@@ -22,12 +22,13 @@ import ctypes.util
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
 from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 
@@ -181,7 +182,9 @@ def test_capture_error_is_recoverable():
         cudart.cudaGetLastError.restype = ctypes.c_int
         cudart.cudaGetLastError()
 
-        @tvm_tirx.register_global_func("test_vm_cuda_graph.invalid_impl_for_cudagraph", override=True)
+        @tvm_tirx.register_global_func(
+            "test_vm_cuda_graph.invalid_impl_for_cudagraph", override=True
+        )
         def invalid_impl_for_cudagraph(arg_tensor):
             # Memory allocation/deallocation may not be performed while
             # capturing a cudaGraph.  This passes the warm-up run

@@ -19,8 +19,8 @@
 
 # pylint: disable=missing-docstring
 
-from tvm_tirx import tirx
 from tvm import te, topi
+from tvm_tirx import tirx
 from tvm_tirx.target import Target
 
 

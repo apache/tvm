@@ -18,7 +18,8 @@
 
 import numpy as np
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 import tvm_tirx.script.relax as R
 from tvm.relax.backend.contrib.nnapi import partition_for_nnapi
 from tvm_tirx.support import ndk, utils

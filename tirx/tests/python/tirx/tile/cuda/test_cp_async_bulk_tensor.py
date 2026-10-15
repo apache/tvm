@@ -1576,7 +1576,9 @@ def test_dispatch_propagates_flat_bind_to_explicit_coordinates():
     # inline a runtime load during dispatch.
     assert str(args["coords"][2]) == "d_n // 64"
     bindings = []
-    tvm_ffi.structural_walk(lowered["main"].body, (tvm_tirx.ir.Bind, lambda bind: bindings.append(bind)))
+    tvm_ffi.structural_walk(
+        lowered["main"].body, (tvm_tirx.ir.Bind, lambda bind: bindings.append(bind))
+    )
     assert any(
         bind.var.name == "d_n" and str(bind.value) == "tile_index[0] * 128" for bind in bindings
     )
@@ -1766,7 +1768,9 @@ def test_explicit_gather_uses_extracted_swizzled_slice_pointer():
     physical = next(c for c in calls if c.op.name == "tirx.cuda.cvta_generic_to_shared")
     # Row 4 has physical byte offset 576; the instruction must start at 512.
     concrete = tvm_ffi.structural_map(
-        pointer, (tvm_tirx.ir.Call, lambda c: T.uint32(576) if c.same_as(physical) else c), order="post"
+        pointer,
+        (tvm_tirx.ir.Call, lambda c: T.uint32(576) if c.same_as(physical) else c),
+        order="post",
     )
     assert int(Analyzer().simplify(concrete)) == 512
 
@@ -1887,8 +1891,12 @@ def test_caller_tiles_nested_shared_layout(case_id):
     f = _compile_module(kernel)
     rng = np.random.default_rng(17)
     values = rng.standard_normal(shape if is_load else (32, 512)).astype("float16")
-    g = tvm_tirx.runtime.tensor(values if is_load else np.full(shape, -9, "float16"), tvm_tirx.cuda())
-    a = tvm_tirx.runtime.tensor(np.zeros((32, 512), "float16") if is_load else values, tvm_tirx.cuda())
+    g = tvm_tirx.runtime.tensor(
+        values if is_load else np.full(shape, -9, "float16"), tvm_tirx.cuda()
+    )
+    a = tvm_tirx.runtime.tensor(
+        np.zeros((32, 512), "float16") if is_load else values, tvm_tirx.cuda()
+    )
     f(g, a)
     if is_load:
         np.testing.assert_array_equal(a.numpy(), values if rank == 2 else values[0])

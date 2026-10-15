@@ -18,7 +18,8 @@
 # ruff: noqa: E741
 """Common utilities used in Non-maximum suppression operators"""
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import te
 from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.tirx.script import ir_builder as T

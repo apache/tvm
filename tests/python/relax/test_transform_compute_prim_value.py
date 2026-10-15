@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx.script import ir as I
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax import script as R
 from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 

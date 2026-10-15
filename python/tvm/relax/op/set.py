@@ -19,7 +19,7 @@
 
 import numpy as np  # type: ignore
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm_tirx.ir import Call as _Call
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 

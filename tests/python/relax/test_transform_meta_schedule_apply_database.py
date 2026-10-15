@@ -16,13 +16,14 @@
 # under the License.
 # ruff: noqa: F401
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm.s_tir import meta_schedule as ms
-from tvm_tirx.script import ir as I
 from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 target = tvm_tirx.target.Target({"kind": "llvm", "num-cores": 16})

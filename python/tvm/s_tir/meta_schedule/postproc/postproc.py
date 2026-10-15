@@ -27,8 +27,8 @@ from typing import Literal
 
 from tvm_ffi import register_object
 
-from tvm_tirx.runtime import Object
 from tvm.s_tir.schedule import Schedule
+from tvm_tirx.runtime import Object
 
 from .. import _ffi_api
 

@@ -20,7 +20,8 @@
 
 import os
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig, RPCRunner
 
 

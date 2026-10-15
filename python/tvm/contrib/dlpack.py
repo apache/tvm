@@ -16,7 +16,7 @@
 # under the License.
 """Wrapping functions to bridge frameworks with DLPack support to TVM"""
 
-import tvm_tirx.runtime, tvm
+import tvm_tirx.runtime
 
 
 def convert_func(tvm_func, tensor_type, to_dlpack_func):
@@ -38,7 +38,9 @@ def convert_func(tvm_func, tensor_type, to_dlpack_func):
 
     def _wrapper(*args):
         args = tuple(
-            tvm_tirx.runtime.from_dlpack(to_dlpack_func(arg)) if isinstance(arg, tensor_type) else arg
+            tvm_tirx.runtime.from_dlpack(to_dlpack_func(arg))
+            if isinstance(arg, tensor_type)
+            else arg
             for arg in args
         )
         return tvm_func(*args)

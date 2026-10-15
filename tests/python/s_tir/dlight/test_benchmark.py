@@ -23,8 +23,10 @@ import pytest
 
 pytest.importorskip("cloudpickle")  # tvm.s_tir.dlight.benchmark imports cloudpickle
 
-import tvm_tirx.testing, tvm
+import tvm_tirx.testing
+from tvm.relax import script as R
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.dlight.benchmark import (
     benchmark,
     benchmark_function,
@@ -35,8 +37,6 @@ from tvm.s_tir.dlight.benchmark import (
 )
 from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
 from tvm_tirx.script import ir as I
-from tvm.relax import script as R
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 # The test function uses an undefined symbolic var in Relax.

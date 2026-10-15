@@ -40,7 +40,8 @@ import onnx
 import onnx.backend.test
 from onnx.backend.base import Backend, BackendRep
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import relax
 from tvm.relax.frontend.onnx import from_onnx
 
