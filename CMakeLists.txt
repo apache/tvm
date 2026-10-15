@@ -359,40 +359,32 @@ endif()
 if(USE_IOS_RPC)
   add_subdirectory(apps/ios_rpc)
 endif()
-# The parent owns installation of the core when it embeds the source build.
-if(NOT TVM_USE_INSTALLED_TIRX)
-  set(_core_install_targets tvm_tirx tvm_runtime tvm_runtime_static)
-  foreach(_backend cuda opencl vulkan metal rocm)
-    if(TARGET tvm_runtime_${_backend})
-      list(APPEND _core_install_targets tvm_runtime_${_backend})
-    endif()
-  endforeach()
-  install(TARGETS ${_core_install_targets}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR})
-  install(DIRECTORY tirx/include/ DESTINATION include FILES_MATCHING PATTERN "*.h")
-  install(FILES tirx/cmake/tvm_tirx-config.cmake tirx/python/tvm_tirx/config.py
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tvm_tirx")
-  install(DIRECTORY tirx/cmake/utils/
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tvm_tirx/utils" FILES_MATCHING PATTERN "Find*.cmake")
-endif()
 install(TARGETS tvm_compiler tvm_runtime_extra
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR})
-install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} FILES_MATCHING PATTERN "*.h")
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm
+  RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm)
+if(TVM_TIRX_USE_CUDA AND USE_CUTLASS)
+  install(TARGETS fpA_intB_gemm flash_attn
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm
+    RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm)
+endif()
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  COMPONENT tvm FILES_MATCHING PATTERN "*.h")
 # Parent minRPC compilation retains its own source and private header closure.
-install(DIRECTORY src/runtime/rpc/ DESTINATION src/runtime/rpc FILES_MATCHING PATTERN "*.h" PATTERN "*.cc")
-install(DIRECTORY src/support/ DESTINATION src/support FILES_MATCHING PATTERN "*.h")
-install(DIRECTORY src/runtime/extra/ DESTINATION src/runtime/extra FILES_MATCHING PATTERN "*.h" PATTERN "*.cuh")
+install(DIRECTORY src/runtime/rpc/ DESTINATION src/runtime/rpc
+  COMPONENT tvm FILES_MATCHING PATTERN "*.h" PATTERN "*.cc")
+install(DIRECTORY src/support/ DESTINATION src/support
+  COMPONENT tvm FILES_MATCHING PATTERN "*.h")
+install(DIRECTORY src/runtime/extra/ DESTINATION src/runtime/extra
+  COMPONENT tvm FILES_MATCHING PATTERN "*.h" PATTERN "*.cuh")
 if(TVM_BUILD_PYTHON_MODULE)
-  install(DIRECTORY web/ DESTINATION web)
-  install(DIRECTORY licenses/ DESTINATION licenses)
-  install(FILES LICENSE NOTICE DESTINATION .)
+  install(DIRECTORY web/ DESTINATION web COMPONENT tvm)
+  install(DIRECTORY licenses/ DESTINATION licenses COMPONENT tvm)
+  install(FILES LICENSE NOTICE DESTINATION . COMPONENT tvm)
   if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/cutlass/include")
     install(DIRECTORY 3rdparty/cutlass/include/ DESTINATION 3rdparty/cutlass/include
-      FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
+      COMPONENT tvm FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
   endif()
 endif()
 find_and_set_linker(${USE_ALTERNATIVE_LINKER})

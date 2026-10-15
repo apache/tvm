@@ -95,8 +95,8 @@ endif()
 
 # ######### TIRx build settings ##########
 
+include(GNUInstallDirs)
 if(PROJECT_IS_TOP_LEVEL)
-  include(GNUInstallDirs)
   if(TVM_TIRX_BUILD_PYTHON_MODULE)
     set(CMAKE_INSTALL_LIBDIR lib)
   endif()
@@ -268,38 +268,40 @@ endforeach()
 
 # ######### Installation ##########
 
-if(PROJECT_IS_TOP_LEVEL)
-  # Public headers
-  file(GLOB_RECURSE _headers CONFIGURE_DEPENDS RELATIVE
-    "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
-  foreach(_header IN LISTS _headers)
-    get_filename_component(_directory "${_header}" DIRECTORY)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/${_header}" DESTINATION "include/${_directory}")
+# Public headers
+file(GLOB_RECURSE _headers CONFIGURE_DEPENDS RELATIVE
+  "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
+foreach(_header IN LISTS _headers)
+  get_filename_component(_directory "${_header}" DIRECTORY)
+  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/${_header}"
+    DESTINATION "include/${_directory}" COMPONENT tvm_tirx)
+endforeach()
+
+# Libraries
+install(TARGETS tvm_tirx_header tvm_tirx tvm_runtime tvm_runtime_static
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm_tirx
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm_tirx
+  RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm_tirx)
+
+# CMake package and dependency helpers
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/tvm_tirx-config.cmake"
+  "${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_tirx/config.py"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tvm_tirx" COMPONENT tvm_tirx)
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils/"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tvm_tirx/utils"
+  COMPONENT tvm_tirx FILES_MATCHING PATTERN "Find*.cmake")
+
+# Python package artifacts and licenses
+if(TVM_TIRX_BUILD_PYTHON_MODULE)
+  foreach(_extra_lib IN LISTS TVM_TIRX_PACKAGE_EXTRA_LIBS)
+    if(NOT EXISTS "${_extra_lib}")
+      message(FATAL_ERROR "TVM_TIRX_PACKAGE_EXTRA_LIBS entry does not exist: ${_extra_lib}")
+    endif()
+    install(FILES "${_extra_lib}" DESTINATION lib COMPONENT tvm_tirx)
   endforeach()
-
-  # Libraries
-  install(TARGETS tvm_tirx_header tvm_tirx tvm_runtime tvm_runtime_static
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR})
-
-  # CMake package and dependency helpers
-  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/tvm_tirx-config.cmake"
-    "${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_tirx/config.py" DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tvm_tirx")
-  install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils/"
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tvm_tirx/utils" FILES_MATCHING PATTERN "Find*.cmake")
-
-  # Python package artifacts and licenses
-  if(TVM_TIRX_BUILD_PYTHON_MODULE)
-    foreach(_extra_lib IN LISTS TVM_TIRX_PACKAGE_EXTRA_LIBS)
-      if(NOT EXISTS "${_extra_lib}")
-        message(FATAL_ERROR "TVM_TIRX_PACKAGE_EXTRA_LIBS entry does not exist: ${_extra_lib}")
-      endif()
-      install(FILES "${_extra_lib}" DESTINATION lib)
-    endforeach()
-    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/licenses/" DESTINATION licenses)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE" "${CMAKE_CURRENT_SOURCE_DIR}/NOTICE" DESTINATION .)
-  endif()
+  install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/licenses/" DESTINATION licenses COMPONENT tvm_tirx)
+  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE" "${CMAKE_CURRENT_SOURCE_DIR}/NOTICE"
+    DESTINATION . COMPONENT tvm_tirx)
 endif()
 
 # ######### C++ tests ##########

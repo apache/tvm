@@ -103,7 +103,7 @@ if(TVM_TIRX_BUILD_PYTHON_MODULE AND Z3_TARGET)
       "import importlib.util; from pathlib import Path; s=importlib.util.find_spec('mlc_z3_static'); print((Path(s.origin).parent / 'licenses/LICENSE-Z3.txt').as_posix() if s else '')"
       OUTPUT_VARIABLE _z3_license OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(EXISTS "${_z3_license}")
-      install(FILES "${_z3_license}" DESTINATION licenses)
+      install(FILES "${_z3_license}" DESTINATION licenses COMPONENT tvm_tirx)
     endif()
   endif()
 endif()
