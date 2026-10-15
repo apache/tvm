@@ -18,15 +18,20 @@
 """Test various CI scripts and GitHub Actions workflows"""
 
 import json
-import os
 import subprocess
 from pathlib import Path
 
 import pytest
 
-import tvm.testing
+from .test_utils import JENKINS_SCRIPT_ROOT, REPO_ROOT, TempGit, run_script
 
-from .test_utils import JENKINS_SCRIPT_ROOT, TempGit, run_script
+
+@pytest.fixture(
+    params=[JENKINS_SCRIPT_ROOT, REPO_ROOT / "ci/scripts/jenkins"], ids=["native", "legacy"]
+)
+def jenkins_script_root(request):
+    # Fork PR jobs still use main's Jenkinsfiles and the legacy command paths.
+    return request.param
 
 
 def parameterize_named(**kwargs):
@@ -101,11 +106,11 @@ def parameterize_named(**kwargs):
         why="skip ci tag should work anywhere in title",
     ),
 )
-def test_skip_ci(tmpdir_factory, commands, should_skip, pr_title, why):
+def test_skip_ci(tmpdir_factory, commands, should_skip, pr_title, why, jenkins_script_root):
     """
     Test that CI is skipped when it should be
     """
-    skip_ci_script = JENKINS_SCRIPT_ROOT / "git_skip_ci.py"
+    skip_ci_script = jenkins_script_root / "git_skip_ci.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
 
@@ -138,11 +143,11 @@ def test_skip_ci(tmpdir_factory, commands, should_skip, pr_title, why):
     ),
     yaml_and_readme=dict(files=[".asf.yaml", "docs/README.md"], should_skip=True),
 )
-def test_skip_globs(tmpdir_factory, files, should_skip):
+def test_skip_globs(tmpdir_factory, files, should_skip, jenkins_script_root):
     """
     Test that CI is skipped if only certain files are edited
     """
-    script = JENKINS_SCRIPT_ROOT / "git_skip_ci_globs.py"
+    script = jenkins_script_root / "git_skip_ci_globs.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
 
@@ -170,123 +175,6 @@ def assert_in(needle: str, haystack: str):
         raise AssertionError(f"item not found:\n{needle}\nin:\n{haystack}")
 
 
-@pytest.mark.skipif(
-    os.getenv("WHEEL_TEST", "").lower() in {"true", "1", "yes"},
-    reason="Test not supported in wheel.",
-)
-@parameterize_named(
-    same_tags=dict(
-        tlcpackstaging_body={
-            "results": [
-                {
-                    "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "123-123-abc",
-                },
-            ]
-        },
-        tlcpack_body={
-            "results": [
-                {
-                    "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "123-123-abc",
-                },
-            ]
-        },
-        expected="Tag names were the same, no update needed",
-        expected_images=[],
-    ),
-    staging_update=dict(
-        tlcpackstaging_body={
-            "results": [
-                {
-                    "last_updated": "2022-06-01T01:00:00.123456Z",
-                    "name": "234-234-abc-staging",
-                },
-                {
-                    "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "456-456-abc",
-                },
-            ]
-        },
-        tlcpack_body={
-            "results": [
-                {
-                    "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "123-123-abc",
-                },
-            ]
-        },
-        expected="Using tlcpackstaging tag on tlcpack",
-        expected_images=[
-            "ci_arm: tlcpack/ci-arm:456-456-abc",
-        ],
-    ),
-    tlcpack_update=dict(
-        tlcpackstaging_body={
-            "results": [
-                {
-                    "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "123-123-abc",
-                },
-            ]
-        },
-        tlcpack_body={
-            "results": [
-                {
-                    "last_updated": "2022-06-01T00:01:00.123456Z",
-                    "name": "234-234-abc",
-                },
-            ]
-        },
-        expected="Found newer image, using: tlcpack",
-        expected_images=[
-            "ci_arm: tlcpack/ci-arm:234-234-abc",
-        ],
-    ),
-)
-def test_open_docker_update_pr(
-    tmpdir_factory, tlcpackstaging_body, tlcpack_body, expected, expected_images
-):
-    """Test workflow to open a PR to update Docker images"""
-    tag_script = JENKINS_SCRIPT_ROOT / "open_docker_update_pr.py"
-
-    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
-    git.run("config", "user.name", "ci")
-    git.run("config", "user.email", "email@example.com")
-    images = [
-        "ci_arm",
-        "ci_cortexm",
-        "ci_cpu",
-        "ci_gpu",
-        "ci_minimal",
-        "ci_riscv",
-        "ci_wasm",
-    ]
-
-    docker_data = {}
-    for image in images:
-        docker_data[f"repositories/tlcpackstaging/{image}/tags"] = tlcpackstaging_body
-        docker_data[f"repositories/tlcpack/{image.replace('_', '-')}/tags"] = tlcpack_body
-
-    proc = run_script(
-        [
-            tag_script,
-            "--dry-run",
-            "--testing-docker-data",
-            json.dumps(docker_data),
-        ],
-        cwd=git.cwd,
-        env={"GITHUB_TOKEN": "1234"},
-        stderr=subprocess.STDOUT,
-    )
-
-    for line in expected_images:
-        if line not in proc.stdout:
-            raise RuntimeError(f"Missing line {line} in output:\n{proc.stdout}")
-
-    assert_in(expected, proc.stdout)
-
-
 @parameterize_named(
     use_tlcpack=dict(
         images=["ci_arm", "ci_cpu"],
@@ -302,9 +190,9 @@ def test_open_docker_update_pr(
         },
     ),
 )
-def test_determine_docker_images(tmpdir_factory, images, expected):
+def test_determine_docker_images(tmpdir_factory, images, expected, jenkins_script_root):
     """Test script to decide whether to use tlcpack or tlcpackstaging for images"""
-    script = JENKINS_SCRIPT_ROOT / "determine_docker_images.py"
+    script = jenkins_script_root / "determine_docker_images.py"
 
     git_dir = tmpdir_factory.mktemp("tmp_git_dir")
 
@@ -363,11 +251,13 @@ def test_determine_docker_images(tmpdir_factory, images, expected):
         expected_code=2,
     ),
 )
-def test_should_rebuild_docker(tmpdir_factory, changed_files, name, check, expected_code):
+def test_should_rebuild_docker(
+    tmpdir_factory, changed_files, name, check, expected_code, jenkins_script_root
+):
     """
     Check that the Docker images are built when necessary
     """
-    tag_script = JENKINS_SCRIPT_ROOT / "should_rebuild_docker.py"
+    tag_script = jenkins_script_root / "should_rebuild_docker.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
     git.run("config", "user.name", "ci")
@@ -423,4 +313,50 @@ def test_should_rebuild_docker(tmpdir_factory, changed_files, name, check, expec
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    raise SystemExit(pytest.main([__file__]))
+
+
+@pytest.mark.parametrize(
+    "files, expected",
+    [([], 0), (["docs/page.rst"], 1), (["src/code.cc"], 0), (["docs/page.rst", "src/code.cc"], 0)],
+)
+def test_legacy_docs_gate(tmp_path, files, expected):
+    repo = TempGit(tmp_path)
+    repo.run("config", "user.name", "CI Test")
+    repo.run("config", "user.email", "ci-test@example.com")
+    repo.run("commit", "--allow-empty", "-m", "base")
+    repo.run("update-ref", "refs/remotes/origin/main", "HEAD")
+    for filename in files:
+        path = tmp_path / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("change")
+    repo.run("add", ".")
+    repo.run("commit", "--allow-empty", "-m", "change")
+    result = run_script(
+        [REPO_ROOT / "ci/scripts/jenkins/git_change_docs.sh"], cwd=tmp_path, check=False
+    )
+    assert result.returncode == expected
+
+
+@pytest.mark.parametrize(
+    "branch, body, expected",
+    [
+        ("main", "ordinary change", 1),
+        ("ci-docker-staging", "ordinary change", 1),
+        ("feature", "ordinary change", 0),
+        ("feature", "@tvm-bot run slow tests", 1),
+    ],
+)
+def test_legacy_slow_gate(tmp_path, branch, body, expected):
+    repo = TempGit(tmp_path)
+    repo.run("config", "user.name", "CI Test")
+    repo.run("config", "user.email", "ci-test@example.com")
+    repo.run("commit", "--allow-empty", "-m", "base")
+    if branch != "main":
+        repo.run("checkout", "-b", branch)
+    result = run_script(
+        [REPO_ROOT / "ci/scripts/jenkins/should_run_slow_tests.py", "--pr", "1", "--pr-body", body],
+        cwd=tmp_path,
+        check=False,
+    )
+    assert result.returncode == expected

@@ -431,7 +431,7 @@ if [ -n "${EXPANDED_SHORTCUT}" ]; then
     if [ "${CI+x}" == "x" ]; then
         DOCKER_IMAGE_NAME="${EXPANDED_SHORTCUT}"
     else
-        python3 ci/scripts/jenkins/determine_docker_images.py "$DOCKER_IMAGE_NAME" 2> /dev/null
+        python3 ci/jenkins/scripts/determine_docker_images.py "$DOCKER_IMAGE_NAME" 2> /dev/null
         DOCKER_IMAGE_NAME=$(cat ".docker-image-names/$DOCKER_IMAGE_NAME")
         if [[ "$DOCKER_IMAGE_NAME" == *"tlcpackstaging"* ]]; then
             echo "WARNING: resolved docker image to fallback tag in tlcpackstaging" >&2

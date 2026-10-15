@@ -233,7 +233,7 @@ Running in a Local Docker Container
 The ``docker/bash.sh`` script can be used to run unit tests inside the
 same docker image as is used by the CI.  The first argument should
 specify which docker image to run (e.g. ``docker/bash.sh ci_gpu``).
-Allowed image names are defined in ``ci/jenkins/data.py`` in the TVM source directory,
+Allowed image names are defined in ``ci/jenkins/docker-images.ini`` in the TVM source directory,
 and map to images at `tlcpack`_.
 
 If no additional arguments are given, the docker image will be loaded

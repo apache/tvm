@@ -26,8 +26,6 @@ from typing import Any
 
 import pytest
 
-import tvm
-
 from .test_utils import GITHUB_SCRIPT_ROOT, TempGit, run_script
 
 SUCCESS_EXPECTED_OUTPUT = """
@@ -54,7 +52,7 @@ class _TvmBotTest:
         os.getenv("WHEEL_TEST", "").lower() in {"true", "1", "yes"},
         reason="Test not supported in wheel.",
     )
-    def test(self, tmpdir_factory):
+    def test_command(self, tmpdir_factory):
         """
         Run the tvm-bot script using the data from preprocess_data
         """
@@ -284,4 +282,4 @@ class TestIgnoreJobs(_TvmBotTest):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    raise SystemExit(pytest.main([__file__]))
