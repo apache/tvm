@@ -42,8 +42,7 @@ endif()
 if(TVM_USE_INSTALLED_TIRX)
   find_package(Python COMPONENTS Interpreter REQUIRED)
   if(NOT tvm_tirx_DIR)
-    execute_process(COMMAND "${Python_EXECUTABLE}" -c
-      "import importlib.util; from pathlib import Path; print(Path(importlib.util.find_spec('tvm_tirx').origin).parent / 'lib/cmake/tvm_tirx')"
+    execute_process(COMMAND "${Python_EXECUTABLE}" -m tvm_tirx.config --cmakedir
       OUTPUT_VARIABLE tvm_tirx_DIR OUTPUT_STRIP_TRAILING_WHITESPACE
       COMMAND_ERROR_IS_FATAL ANY)
   endif()
@@ -63,9 +62,19 @@ else()
       list(APPEND _tirx_output_defaults ${_kind})
     endif()
   endforeach()
+  # The parent includes the core package in its installation.
+  if(NOT DEFINED TVM_TIRX_INSTALL)
+    set(TVM_TIRX_INSTALL ON)
+  endif()
   add_subdirectory(tirx)
-  # The embedding parent explicitly owns installation of the core package.
-  tvm_tirx_install()
+  if(TARGET tirx_cpptest)
+    set_target_properties(tirx_cpptest PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+    foreach(_config IN LISTS CMAKE_CONFIGURATION_TYPES)
+      string(TOUPPER "${_config}" _config_upper)
+      set_target_properties(tirx_cpptest PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${_config_upper} "${CMAKE_BINARY_DIR}")
+    endforeach()
+  endif()
   foreach(_kind IN LISTS _tirx_output_defaults)
     unset(CMAKE_${_kind}_OUTPUT_DIRECTORY)
   endforeach()

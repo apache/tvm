@@ -49,6 +49,11 @@ endif()
 set_target_properties(tirx_cpptest PROPERTIES
   CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}")
+foreach(_config IN LISTS CMAKE_CONFIGURATION_TYPES)
+  string(TOUPPER "${_config}" _config_upper)
+  set_target_properties(tirx_cpptest PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY_${_config_upper} "${PROJECT_BINARY_DIR}")
+endforeach()
 target_compile_definitions(tirx_cpptest PRIVATE NDEBUG)
 if(APPLE)
   set_property(TARGET tirx_cpptest PROPERTY BUILD_RPATH "@loader_path/lib")

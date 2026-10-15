@@ -131,6 +131,9 @@ if __name__ == "__main__":
     available_cpus = nproc // executors
     num_cpus = max(available_cpus, 1)
 
+    if "tirx_cpptest" in args.cmake_target:
+        cmake_args.append("-DTVM_TIRX_BUILD_TESTS=ON")
+
     build_type = "Debug" if args.debug else "RelWithDebInfo"
     subprocess.run(
         ["cmake", "-GNinja", f"-DCMAKE_BUILD_TYPE={build_type}", *cmake_args, ".."],

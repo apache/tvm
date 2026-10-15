@@ -21,51 +21,114 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT DEFINED CMAKE_EXPO
 endif()
 project(tvm_tirx LANGUAGES C CXX)
 
-# ######### Configuration ##########
+# ######### Common options ##########
 
 set(TVM_TIRX_VERSION "0.1.0a0")
+# Embedding parents opt in before add_subdirectory; standalone builds install by default.
+if(NOT DEFINED TVM_TIRX_INSTALL)
+  set(TVM_TIRX_INSTALL ${PROJECT_IS_TOP_LEVEL})
+endif()
 if(PROJECT_IS_TOP_LEVEL)
   option(TVM_TIRX_BUILD_TESTS "Build C++ tests" OFF)
   option(TVM_TIRX_BUILD_PYTHON_MODULE "Build the Python package with scikit-build-core" OFF)
 endif()
 option(TVM_TIRX_USE_THREADS "Build with thread support" ON)
-option(TVM_TIRX_USE_METAL "Build with Metal" OFF)
+option(TVM_TIRX_USE_CUSTOM_LOGGING "Use user-defined logging implementations" OFF)
+set(TVM_TIRX_USE_OPENMP OFF CACHE STRING "OpenMP thread pool implementation (OFF, gnu, intel)")
+set_property(CACHE TVM_TIRX_USE_OPENMP PROPERTY STRINGS OFF gnu intel)
+
+# ######### LLVM ##########
+
+set(TVM_TIRX_USE_LLVM OFF CACHE STRING "Build with LLVM (OFF, ON, or llvm-config command)")
+
+# ######### Z3 ##########
+
+set(TVM_TIRX_USE_Z3 AUTO CACHE STRING "Build with Z3 SMT solver support (OFF, ON, AUTO)")
+set_property(CACHE TVM_TIRX_USE_Z3 PROPERTY STRINGS OFF ON AUTO)
+
+# ######### CUDA ##########
+
+set(TVM_TIRX_USE_CUDA OFF CACHE STRING "Build with CUDA (OFF, ON, or SDK path)")
+
+# ######### Other device runtimes ##########
+
+# OpenCL
+set(TVM_TIRX_USE_OPENCL OFF CACHE STRING "Build with OpenCL (OFF, ON, or SDK path)")
 option(TVM_TIRX_USE_OPENCL_ENABLE_HOST_PTR "Enable OpenCL memory object access to host" OFF)
 option(TVM_TIRX_USE_OPENCL_EXTN_QCOM "Enable Qualcomm OpenCL extensions" OFF)
-option(TVM_TIRX_USE_SPIRV_KHR_INTEGER_DOT_PRODUCT "Enable SPIR-V integer dot product" OFF)
-option(TVM_TIRX_USE_CUSTOM_LOGGING "Use user-defined logging implementations" OFF)
 
-# These features also accept SDK paths or a named implementation.
-set(TVM_TIRX_USE_CUDA OFF CACHE STRING "Build with CUDA (OFF, ON, or SDK path)")
-set(TVM_TIRX_USE_OPENCL OFF CACHE STRING "Build with OpenCL (OFF, ON, or SDK path)")
+# Vulkan
 set(TVM_TIRX_USE_VULKAN OFF CACHE STRING "Build with Vulkan (OFF, ON, or SDK path)")
 set(TVM_TIRX_USE_KHRONOS_SPIRV OFF CACHE STRING "Use Khronos SPIR-V tools (OFF or install path)")
+option(TVM_TIRX_USE_SPIRV_KHR_INTEGER_DOT_PRODUCT "Enable SPIR-V integer dot product" OFF)
+
+# ROCm
 set(TVM_TIRX_ROCM_PATH /opt/rocm CACHE PATH "Default ROCm SDK location")
 set(TVM_TIRX_USE_ROCM OFF CACHE STRING "Build with ROCm (OFF, ON, or SDK path)")
-set(TVM_TIRX_USE_LLVM OFF CACHE STRING "Build with LLVM (OFF, ON, or llvm-config command)")
-set(TVM_TIRX_USE_OPENMP OFF CACHE STRING "OpenMP thread pool implementation (OFF, gnu, intel)")
-set(TVM_TIRX_USE_Z3 AUTO CACHE STRING "Build with Z3 SMT solver support (OFF, ON, AUTO)")
-set_property(CACHE TVM_TIRX_USE_OPENMP PROPERTY STRINGS OFF gnu intel)
-set_property(CACHE TVM_TIRX_USE_Z3 PROPERTY STRINGS OFF ON AUTO)
+
+# Metal
+option(TVM_TIRX_USE_METAL "Build with Metal" OFF)
 
 # ######### Dependencies ##########
 
 # Use the same source-built FFI targets throughout this build graph.
 add_subdirectory(3rdparty/tvm-ffi)
 include(cmake/utils/Library.cmake)
-foreach(_dependency CUDA OpenCL Vulkan LLVM ROCM)
-  include(cmake/utils/Find${_dependency}.cmake)
-endforeach()
+include(cmake/utils/FindLLVM.cmake)
+include(cmake/utils/FindCUDA.cmake)
+include(cmake/utils/FindOpenCL.cmake)
+include(cmake/utils/FindVulkan.cmake)
+include(cmake/utils/FindROCM.cmake)
 set(IS_FALSE_PATTERN "^[Oo][Ff][Ff]$|^0$|^[Ff][Aa][Ll][Ss][Ee]$|^[Nn][Oo]$|^[Nn][Oo][Tt][Ff][Oo][Uu][Nn][Dd]$|.*-[Nn][Oo][Tt][Ff][Oo][Uu][Nn][Dd]$|^$")
 set(IS_TRUE_PATTERN "^[Oo][Nn]$|^[1-9][0-9]*$|^[Tt][Rr][Uu][Ee]$|^[Yy][Ee][Ss]$|^[Yy]$")
 if(TVM_TIRX_USE_THREADS)
   find_package(Threads REQUIRED)
 endif()
 
+# ######### TIRx build settings ##########
+
+# Apply these after the FFI subdirectory so its own settings remain independent.
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_STANDARD 20)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
+if(TVM_TIRX_INSTALL)
+  include(GNUInstallDirs)
+  if(TVM_TIRX_BUILD_PYTHON_MODULE)
+    set(CMAKE_INSTALL_LIBDIR lib)
+  endif()
+endif()
+add_compile_definitions(TVM_VERSION="${TVM_TIRX_VERSION}")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/compiler-rt")
+
+if(MSVC)
+  add_compile_definitions(WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS
+    _SCL_SECURE_NO_WARNINGS _ENABLE_EXTENDED_ALIGNED_STORAGE NOMINMAX)
+  add_compile_options(/EHsc /MP /bigobj /permissive-
+    /wd4244 /wd4267 /wd4018 /wd4316 /wd4101 /wd4180 /wd4251 /wd4624 /wd4146 /wd4141 /wd4068)
+else()
+  add_compile_options(-Wall)
+endif()
+
+# Keep libraries together while honoring an embedding parent's output layout.
+foreach(_kind ARCHIVE LIBRARY RUNTIME)
+  if(NOT DEFINED CMAKE_${_kind}_OUTPUT_DIRECTORY)
+    set(CMAKE_${_kind}_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib")
+  endif()
+  foreach(_config IN LISTS CMAKE_CONFIGURATION_TYPES)
+    string(TOUPPER "${_config}" _config)
+    set(CMAKE_${_kind}_OUTPUT_DIRECTORY_${_config} "${CMAKE_${_kind}_OUTPUT_DIRECTORY}")
+  endforeach()
+endforeach()
+
 # ######### Target: `tvm_tirx_header` ##########
 
 add_library(tvm_tirx_header INTERFACE)
-set_target_properties(tvm_tirx_header PROPERTIES EXPORT_NAME header)
+add_library(tvm_tirx::header ALIAS tvm_tirx_header)
 target_compile_features(tvm_tirx_header INTERFACE cxx_std_20)
 target_compile_definitions(tvm_tirx_header INTERFACE TVM_INDEX_DEFAULT_I64=1)
 target_include_directories(tvm_tirx_header INTERFACE
@@ -141,23 +204,22 @@ file(GLOB RUNTIME_SRCS CONFIGURE_DEPENDS
 )
 set(TVM_RUNTIME_EXT_OBJS "")
 
-# Backend modules add sources, dependencies, and separate runtime targets.
-foreach(_module CUDA OpenCL OpenMP Vulkan Metal ROCM LLVM contrib/Z3 Git)
-  include(cmake/modules/${_module}.cmake)
-endforeach()
+# The core runtime's thread pool implementation supplies its link dependencies.
+include(cmake/modules/OpenMP.cmake)
 
 # ######### Targets: `tvm_runtime`, `tvm_runtime_static` ##########
 
 add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
 target_link_libraries(tvm_runtime_objs PUBLIC tvm_tirx_header)
-tvm_tirx_configure_target(tvm_runtime_objs)
 if(MSVC)
   target_compile_definitions(tvm_runtime_objs PRIVATE TVM_RUNTIME_EXPORTS TVM_FFI_EXPORTS)
 endif()
 
 add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs> ${TVM_RUNTIME_EXT_OBJS})
+add_library(tvm_tirx::tvm_runtime ALIAS tvm_runtime)
 target_link_libraries(tvm_runtime PUBLIC tvm_tirx_header tvm_ffi::shared)
 add_library(tvm_runtime_static STATIC $<TARGET_OBJECTS:tvm_runtime_objs> ${TVM_RUNTIME_EXT_OBJS})
+add_library(tvm_tirx::tvm_runtime_static ALIAS tvm_runtime_static)
 target_link_libraries(tvm_runtime_static PUBLIC tvm_tirx_header tvm_ffi::static)
 # Static consumers retain registration objects from both archives, with
 # tvm_ffi::static before tvm_runtime_static in their whole-archive link group.
@@ -170,8 +232,30 @@ foreach(_target tvm_runtime tvm_runtime_static)
   if(TVM_TIRX_USE_THREADS)
     target_link_libraries(${_target} PUBLIC Threads::Threads)
   endif()
-  tvm_tirx_configure_target(${_target})
 endforeach()
+
+# ######### Device runtimes and compiler backends ##########
+
+# The core runtime exists before device runtimes link to it. Compiler backend
+# contributions are collected before the compiler object target is created.
+foreach(_module CUDA OpenCL Vulkan Metal ROCM LLVM contrib/Z3 Git)
+  include(cmake/modules/${_module}.cmake)
+endforeach()
+if(TARGET tvm_runtime_cuda)
+  add_library(tvm_tirx::tvm_runtime_cuda ALIAS tvm_runtime_cuda)
+endif()
+if(TARGET tvm_runtime_opencl)
+  add_library(tvm_tirx::tvm_runtime_opencl ALIAS tvm_runtime_opencl)
+endif()
+if(TARGET tvm_runtime_vulkan)
+  add_library(tvm_tirx::tvm_runtime_vulkan ALIAS tvm_runtime_vulkan)
+endif()
+if(TARGET tvm_runtime_metal)
+  add_library(tvm_tirx::tvm_runtime_metal ALIAS tvm_runtime_metal)
+endif()
+if(TARGET tvm_runtime_rocm)
+  add_library(tvm_tirx::tvm_runtime_rocm ALIAS tvm_runtime_rocm)
+endif()
 
 # ######### Target: `tvm_tirx` ##########
 
@@ -183,11 +267,10 @@ endif()
 if(MSVC)
   target_compile_definitions(tvm_tirx_objs PRIVATE TVM_TIRX_EXPORTS TVM_FFI_EXPORTS)
 endif()
-tvm_tirx_configure_target(tvm_tirx_objs)
 add_library(tvm_tirx SHARED $<TARGET_OBJECTS:tvm_tirx_objs>)
+add_library(tvm_tirx::tvm_tirx ALIAS tvm_tirx)
 target_link_libraries(tvm_tirx PUBLIC tvm_runtime tvm_tirx_header)
 target_link_libraries(tvm_tirx PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
-tvm_tirx_configure_target(tvm_tirx)
 
 # Avoid GNU ld relaxation of LLVM's GOT calls into incorrect direct calls.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT "${TVM_TIRX_USE_LLVM}" MATCHES ${IS_FALSE_PATTERN})
@@ -196,33 +279,70 @@ endif()
 include(cmake/modules/Logging.cmake)
 include(cmake/modules/ClangFlags.cmake)
 
-set(_tirx_targets tvm_tirx_header tvm_tirx tvm_runtime tvm_runtime_static ${TVM_RUNTIME_BACKEND_LIBS})
-foreach(_target IN LISTS _tirx_targets)
-  get_target_property(_export_name ${_target} EXPORT_NAME)
-  if(NOT _export_name)
-    set(_export_name ${_target})
+# ######### Library configuration ##########
+
+foreach(_target tvm_runtime_objs tvm_tirx_objs tvm_runtime tvm_runtime_static tvm_tirx)
+  tvm_ffi_add_prefix_map(${_target} "${CMAKE_CURRENT_SOURCE_DIR}")
+endforeach()
+foreach(_target IN LISTS TVM_RUNTIME_BACKEND_LIBS)
+  tvm_ffi_add_prefix_map(${_target}_objs "${CMAKE_CURRENT_SOURCE_DIR}")
+  tvm_ffi_add_prefix_map(${_target} "${CMAKE_CURRENT_SOURCE_DIR}")
+endforeach()
+foreach(_target tvm_runtime tvm_tirx ${TVM_RUNTIME_BACKEND_LIBS})
+  tvm_tirx_configure_target(${_target})
+  if(APPLE)
+    target_link_options(${_target} PRIVATE "-Wl,-undefined,error")
+  elseif(UNIX)
+    target_link_options(${_target} PRIVATE "-Wl,--no-undefined")
   endif()
-  add_library(tvm_tirx::${_export_name} ALIAS ${_target})
+  tvm_ffi_hide_static_linked_lib_symbols(${_target})
+  tvm_ffi_add_apple_dsymutil(${_target})
 endforeach()
-set(TVM_TIRX_CMAKE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-foreach(_variable _tirx_targets TVM_TIRX_VERSION TVM_TIRX_USE_CUDA TVM_TIRX_USE_ROCM
-    TVM_TIRX_USE_THREADS TVM_FFI_USE_THREADS TVM_FFI_USE_LIBBACKTRACE BUILD_FOR_ANDROID)
-  set_property(TARGET tvm_tirx PROPERTY TVM_TIRX_INSTALL_${_variable} "${${_variable}}")
-endforeach()
-include(cmake/Install.cmake)
-if(NOT PROJECT_IS_TOP_LEVEL)
-  foreach(_variable TVM_TIRX_VERSION TVM_TIRX_CMAKE_DIR TVM_TIRX_USE_CUDA TVM_TIRX_USE_ROCM)
-    set(${_variable} "${${_variable}}" PARENT_SCOPE)
+
+# ######### Installation ##########
+
+if(TVM_TIRX_INSTALL)
+  # Only TIRx's consumer interface needs metadata; FFI owns its own configuration.
+  set(_tirx_openmp OFF)
+  if(OPENMP_FOUND AND TVM_TIRX_USE_OPENMP MATCHES "^(gnu|intel)$")
+    set(_tirx_openmp "${TVM_TIRX_USE_OPENMP}")
+  endif()
+  set(_tirx_custom_logging false)
+  if(TVM_TIRX_USE_CUSTOM_LOGGING)
+    set(_tirx_custom_logging true)
+  endif()
+  set(_tirx_use_threads false)
+  if(TVM_TIRX_USE_THREADS)
+    set(_tirx_use_threads true)
+  endif()
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/tvm_tirx-build.json"
+    "{\"version\": \"${TVM_TIRX_VERSION}\", \"openmp\": \"${_tirx_openmp}\", \"custom_logging\": ${_tirx_custom_logging}, \"use_threads\": ${_tirx_use_threads}}\n")
+  file(GLOB_RECURSE _headers CONFIGURE_DEPENDS RELATIVE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
+  foreach(_header IN LISTS _headers)
+    get_filename_component(_directory "${_header}" DIRECTORY)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/${_header}" DESTINATION "include/${_directory}")
   endforeach()
-  set(TVM_TIRX_BUILD_FOR_ANDROID "${BUILD_FOR_ANDROID}" PARENT_SCOPE)
-  return()
+  install(TARGETS tvm_tirx_header tvm_tirx tvm_runtime tvm_runtime_static
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/tvm_tirx-config.cmake"
+    "${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_tirx/config.py"
+    "${CMAKE_CURRENT_BINARY_DIR}/tvm_tirx-build.json" DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tvm_tirx")
+  install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils/"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tvm_tirx/utils" FILES_MATCHING PATTERN "Find*.cmake")
+  if(TVM_TIRX_BUILD_PYTHON_MODULE)
+    foreach(_extra_lib IN LISTS TVM_TIRX_PACKAGE_EXTRA_LIBS)
+      if(NOT EXISTS "${_extra_lib}")
+        message(FATAL_ERROR "TVM_TIRX_PACKAGE_EXTRA_LIBS entry does not exist: ${_extra_lib}")
+      endif()
+      install(FILES "${_extra_lib}" DESTINATION lib)
+    endforeach()
+    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/licenses/" DESTINATION licenses)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE" "${CMAKE_CURRENT_SOURCE_DIR}/NOTICE" DESTINATION .)
+  endif()
 endif()
-
-# ----------------------------------------------------------------------------
-# Standalone tests, Python packaging, and installation.
-# ----------------------------------------------------------------------------
-
-add_custom_target(runtime DEPENDS tvm_runtime tvm_runtime_static ${TVM_RUNTIME_BACKEND_LIBS})
 
 # ######### C++ tests ##########
 
@@ -231,6 +351,15 @@ if(TVM_TIRX_BUILD_TESTS)
   add_subdirectory(tests/cpp)
 endif()
 
-# ######### Installation ##########
+set(TVM_TIRX_CMAKE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+if(NOT PROJECT_IS_TOP_LEVEL)
+  foreach(_variable TVM_TIRX_VERSION TVM_TIRX_CMAKE_DIR TVM_TIRX_USE_CUDA TVM_TIRX_USE_ROCM)
+    set(${_variable} "${${_variable}}" PARENT_SCOPE)
+  endforeach()
+  set(TVM_TIRX_BUILD_FOR_ANDROID "${BUILD_FOR_ANDROID}" PARENT_SCOPE)
+  return()
+endif()
 
-tvm_tirx_install()
+# ######### Standalone build targets ##########
+
+add_custom_target(runtime DEPENDS tvm_runtime tvm_runtime_static ${TVM_RUNTIME_BACKEND_LIBS})
