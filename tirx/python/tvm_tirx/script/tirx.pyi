@@ -2634,5 +2634,5 @@ class _PTX:
 
 ptx: _PTX
 
-# Every other tvm.script.tirx member stays dynamically typed, as before.
+# Every other tvm_tirx.script.tirx member stays dynamically typed, as before.
 def __getattr__(name: str) -> Any: ...
