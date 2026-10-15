@@ -443,5 +443,41 @@ def test_legalize_with_vdevice():
     tvm.ir.assert_structural_equal(Expected, After)
 
 
+def test_legalize_with_vdevice_keyword_tensor_args():
+    """The vdevice target is bound when FLegalize passes tensors by keyword
+
+    This is a regression test.  The legalization of `R.nn.conv2d`
+    passes the data and kernel to `call_te` as keyword arguments.  In
+    previous implementations, the vdevice was only inferred from
+    positional arguments, so the output of `R.call_tir` had no
+    vdevice and the generated kernel was not annotated with the
+    target of the vdevice.
+
+    """
+
+    @I.ir_module
+    class Before:
+        I.module_global_infos({"vdevice": [R.vdevice("llvm")]})
+
+        @R.function
+        def main(
+            x: R.Tensor([1, 3, 8, 8], "float32", "llvm"),
+            w: R.Tensor([4, 3, 3, 3], "float32", "llvm"),
+        ):
+            y = R.nn.conv2d(x, w)
+            return y
+
+    with tvm.target.Target("cuda"):
+        After = tvm.relax.transform.LegalizeOps()(Before)
+
+    call = After["main"].body.blocks[0].bindings[0].value
+    assert call.op.name == "relax.call_tir"
+    assert call.ty_args[0].vdevice.target.kind.name == "llvm"
+
+    kernel = After[call.args[0]]
+    assert call.args[0].name_hint == "conv2d_llvm"
+    assert kernel.attrs["target"].kind.name == "llvm"
+
+
 if __name__ == "__main__":
     tvm.testing.main()
