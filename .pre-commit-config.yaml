@@ -53,13 +53,13 @@ repos:
       - id: check-merge-conflict
       - id: check-symlinks
       - id: end-of-file-fixer
-        exclude: ^3rdparty/
+        exclude: ^(tirx/)?3rdparty/
       - id: mixed-line-ending
-        exclude: ^3rdparty/
+        exclude: ^(tirx/)?3rdparty/
       - id: requirements-txt-fixer
         exclude: ^docker/python/bootstrap
       - id: trailing-whitespace
-        exclude: ^3rdparty/
+        exclude: ^(tirx/)?3rdparty/
       - id: check-yaml
       - id: check-toml
 
@@ -95,7 +95,7 @@ repos:
     hooks:
       - id: clang-format
         types_or: [c, c++, cuda, objective-c++]
-        exclude: ^3rdparty/
+        exclude: ^(tirx/)?3rdparty/
 
   # ---------- Cython ----------
   - repo: https://github.com/MarcoGorelli/cython-lint
