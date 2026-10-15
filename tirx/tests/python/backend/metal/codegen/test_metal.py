@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -202,16 +203,26 @@ def test_func_with_trailing_pod_params():
         with T.launch_thread("threadIdx.x", 16) as i:
             B[i] = A[i] + x
 
-    @tvm_tirx.register_global_func("tvm_callback_metal_compile")
+    previous_callback = tvm_tirx.get_global_func("tvm_callback_metal_compile", allow_missing=True)
+
+    @tvm_tirx.register_global_func("tvm_callback_metal_compile", override=True)
     def compile_metal(src, target):
         return xcode.compile_metal(src)
 
-    mod = tvm_tirx.IRModule({"main": func})
+    try:
+        mod = tvm_tirx.IRModule({"main": func})
 
-    f = tvm_tirx.tirx.compile(mod, target="metal").mod
-    src: str = f.imports[0].inspect_source()
-    occurrences = src.count("struct func_kernel_args_t")
-    assert occurrences == 1, occurrences
+        f = tvm_tirx.tirx.compile(mod, target="metal").mod
+        src: str = f.imports[0].inspect_source()
+        occurrences = src.count("struct func_kernel_args_t")
+        assert occurrences == 1, occurrences
+    finally:
+        if previous_callback is None:
+            tvm_ffi.registry.remove_global_func("tvm_callback_metal_compile")
+        else:
+            tvm_tirx.register_global_func(
+                "tvm_callback_metal_compile", previous_callback, override=True
+            )
 
 
 def test_codegen_simdgroup_buffer_data():
