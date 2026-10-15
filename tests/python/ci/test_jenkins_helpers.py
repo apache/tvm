@@ -25,7 +25,7 @@ import sys
 
 import pytest
 
-from .test_utils import JENKINS_SCRIPT_ROOT, REPO_ROOT
+from .test_utils import JENKINS_SCRIPT_ROOT, REPO_ROOT, TempGit
 
 
 def load_s3(script_root=JENKINS_SCRIPT_ROOT):
@@ -93,6 +93,16 @@ def test_build_environment_and_target(tmp_path):
     script.parent.mkdir(parents=True)
     shutil.copy(REPO_ROOT / "tests/scripts/task_build.py", script)
     (tmp_path / "build").mkdir()
+    ffi_path = tmp_path / "3rdparty/tvm-ffi"
+    ffi_path.mkdir(parents=True)
+    ffi_repo = TempGit(ffi_path)
+    ffi_repo.run("config", "user.name", "CI Test")
+    ffi_repo.run("config", "user.email", "ci-test@example.com")
+    ffi_repo.run("commit", "--allow-empty", "-m", "FFI fixture")
+    ffi_commit = ffi_repo.run("rev-parse", "HEAD", stdout=subprocess.PIPE).stdout.strip()
+    ffi_marker = tmp_path / "python/tvm_ffi/.source-commit"
+    ffi_marker.parent.mkdir(parents=True)
+    ffi_marker.write_text(f"{ffi_commit} {sys.implementation.cache_tag}\n")
     executable(
         tmp_path / "cmake",
         """

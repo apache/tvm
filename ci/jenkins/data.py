@@ -29,6 +29,7 @@ data-driven artifact lists.
 """
 
 import sys
+from glob import glob
 
 files_to_stash = {
     # Executables and build files needed to run c++ tests
@@ -45,7 +46,8 @@ files_to_stash = {
         "build/lib/libtvm_compiler.so",
         "build/lib/libtvm_tirx.so",
         "build/lib/libtvm_runtime.so",
-        "build/lib/libtvm_ffi.so",
+        "python/tvm_ffi",
+        *glob("python/apache_tvm_ffi-*.dist-info"),
         "build/lib/libtvm_runtime_cuda.so",
         "build/lib/libtvm_runtime_vulkan.so",
         "build/lib/libtvm_runtime_opencl.so",
