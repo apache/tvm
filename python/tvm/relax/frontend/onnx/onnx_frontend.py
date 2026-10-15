@@ -5536,6 +5536,45 @@ class HardSwish(OnnxOpConverter):
         )
 
 
+class Swish(OnnxOpConverter):
+    """Converts an onnx Swish node into an equivalent Relax expression.
+
+    swish(x, beta=1) = x * sigmoid(beta * x) = x / (1 + exp(-beta * x))
+    When beta == 1 this is equivalent to the SiLU activation.
+    """
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        x = inputs[0]
+        beta = attr.get("beta", 1.0)
+        if beta == 1.0:
+            return relax.op.nn.silu(x)
+        dtype = x.ty.dtype
+        return relax.op.multiply(x, relax.op.sigmoid(relax.op.multiply(relax.const(beta, dtype), x)))
+
+
+class Celu(OnnxOpConverter):
+    """Converts an onnx Celu node into an equivalent Relax expression.
+
+    celu(x, alpha=1) = max(0, x) + min(0, alpha * (exp(x / alpha) - 1))
+    """
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        x = inputs[0]
+        alpha = attr.get("alpha", 1.0)
+        dtype = x.ty.dtype
+        alpha_const = relax.const(alpha, dtype)
+        zero = relax.const(0, dtype)
+        pos_part = relax.op.nn.relu(x)
+        neg_expr = relax.op.multiply(
+            alpha_const,
+            relax.op.subtract(relax.op.exp(relax.op.divide(x, alpha_const)), relax.const(1.0, dtype)),
+        )
+        neg_part = relax.op.where(relax.op.less(x, zero), neg_expr, zero)
+        return relax.op.add(pos_part, neg_part)
+
+
 class Sign(OnnxOpConverter):
     """Converts an onnx Sign node into an equivalent Relax expression."""
 
@@ -6169,6 +6208,8 @@ def _get_convert_map():
         "BiasGelu": BiasGelu,
         "HardSigmoid": HardSigmoid,
         "HardSwish": HardSwish,
+        "Swish": Swish,
+        "Celu": Celu,
         "Sign": Sign,
         "Softplus": Softplus,
         "Softsign": Softsign,
