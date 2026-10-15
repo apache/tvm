@@ -22,6 +22,7 @@ import pytest
 import tvm_ffi
 from tvm_ffi.access_path import AccessPath
 
+import tvm  # noqa: F401  # Register the parent Relax printer.
 import tvm_tirx
 from tvm_tirx.script.printer.scriptable import PrinterConfig, _script
 

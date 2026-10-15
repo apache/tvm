@@ -23,10 +23,11 @@ import sys
 import numpy as np
 import pytest
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx.script import ir as I
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 
@@ -82,7 +83,8 @@ def test_mixed_module_roundtrip():
     tvm_tirx.ir.assert_structural_equal(
         Mixed,
         tvm_tirx.script.from_source(
-            script, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script}
+            script,
+            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
         ),
     )
     direct_script = Mixed["direct"].script()
@@ -223,15 +225,17 @@ def test_s_tir_options_and_helpers():
         "tvm_tirx.tirx.script",
         "tvm_tirx.script.parser",
         "tvm.s_tir.script.ir_builder.frame",
-        "tvm.s_tir.script.ir_builder",
+        "tvm_tirx.script.ir_builder.s_tir.frame",
     ],
 )
 def test_import_order(first):
+    # Parent initialization registers its deep builder alias with the shared core.
+    setup = "import tvm\n" if first == "tvm_tirx.script.ir_builder.s_tir.frame" else ""
     subprocess.run(
         [
             sys.executable,
             "-c",
-            f"import {first}\n"
+            setup + f"import {first}\n"
             "import tvm.s_tir.script as direct\n"
             "from tvm.s_tir import script as Ts\nfrom tvm_tirx.script import tirx as T\n"
             "from tvm_tirx.script.parser import s_tir as parser\n"

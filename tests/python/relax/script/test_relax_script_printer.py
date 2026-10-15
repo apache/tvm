@@ -22,18 +22,19 @@ from __future__ import annotations
 import pytest
 from tvm_ffi.access_path import AccessPath
 
-import tvm, tvm_tirx
-import tvm_tirx.testing, tvm
-from tvm_tirx import IRModule, tirx
+import tvm
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm_tirx.ir import Range
-from tvm_tirx.ir import TupleType as _TupleType
 from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax import TensorType
-from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
-from tvm_tirx.script import ir as I
 from tvm.relax import script as R
+from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
 from tvm.s_tir import script as Ts
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.ir import Range
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.script.printer.scriptable import PrinterConfig, _script
 
@@ -434,11 +435,12 @@ class Module:
         z: R.Tensor((), dtype="int32") = T.Call(nested, [x], ty=R.Tensor((), dtype="int32"))
         return z
 """.replace("R.", f"{relax_prefix}.")
-        .replace("relax as R", f"relax as {relax_prefix}")
+        .replace("script as R", f"script as {relax_prefix}")
         .replace("# from", "# from" if comment_imports else "from"),
     )
     tvm_tirx.ir.assert_structural_equal(
-        NestedFunction, tvm_tirx.script.from_source(script, extra_vars={"I": I, "T": T, relax_prefix: R})
+        NestedFunction,
+        tvm_tirx.script.from_source(script, extra_vars={"I": I, "T": T, relax_prefix: R}),
     )
 
 
