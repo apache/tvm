@@ -21,6 +21,7 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 image_platforms = [ci_arm: 'ARM', ci_cpu: 'CPU', ci_gpu: 'GPU', ci_wasm: 'CPU']
 images = image_platforms.collectEntries { name, platform -> [(name): ''] }
 source_images = [:]
+enable_docker_hub_cache = true
 built_images = [:]
 upstream_revision = null
 max_time = 180
@@ -127,10 +128,7 @@ def init_git() {
 }
 
 // Apply only after Hub selection and job overrides; inputs stay public image names.
-def docker_hub_image(image) {
-  def cache = env.DOCKER_HUB_CACHE
-  if (cache == null) cache = '477529581014.dkr.ecr.us-west-2.amazonaws.com/docker-hub'
-  cache = cache.trim().replaceAll('/+$', '')
+def docker_hub_image(image, cache) {
   if (!cache || !image) return image
 
   def path = image
@@ -248,9 +246,18 @@ def prepare(node_type) {
             ).trim()
           }
         }
+        def cache = ''
+        if (enable_docker_hub_cache) {
+          def aws_account_id = sh(
+            returnStdout: true,
+            script: 'aws sts get-caller-identity --query Account --output text',
+            label: 'Get AWS ID'
+          ).trim()
+          cache = "${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com/docker-hub"
+        }
         images.keySet().each { name ->
           source_images[name] = params["${name}_param"] ?: images[name]
-          images[name] = docker_hub_image(source_images[name])
+          images[name] = docker_hub_image(source_images[name], cache)
         }
         sh(
           script: 'echo "Docker images being used in this build:"\n' +
