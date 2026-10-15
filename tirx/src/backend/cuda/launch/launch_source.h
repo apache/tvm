@@ -21,7 +21,8 @@
 #ifndef TVM_BACKEND_CUDA_LAUNCH_LAUNCH_SOURCE_H_
 #define TVM_BACKEND_CUDA_LAUNCH_LAUNCH_SOURCE_H_
 namespace tvm_cuda_launch {
-inline constexpr const char* kSupportSource = R"TVM_CUDA_LAUNCH(
+inline constexpr const char* kSupportSource =
+    R"TVM_CUDA_LAUNCH(
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -223,7 +224,8 @@ inline void NormalizeLegacyPresence(LaunchValues* values) {
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
+)TVM_CUDA_LAUNCH"
+    R"TVM_CUDA_LAUNCH( * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
@@ -400,7 +402,8 @@ inline unsigned EncodeDriverAttributes(const LaunchValues& config,
 #if CUDA_VERSION >= 13020
     auto& attr = (*attrs)[count++];
     attr.id = CU_LAUNCH_ATTRIBUTE_PORTABLE_CLUSTER_SIZE_MODE;
-    attr.value.portableClusterSizeMode = static_cast<decltype(attr.value.portableClusterSizeMode)>(
+)TVM_CUDA_LAUNCH"
+    R"TVM_CUDA_LAUNCH(    attr.value.portableClusterSizeMode = static_cast<decltype(attr.value.portableClusterSizeMode)>(
         config.Get(Field::kPortableClusterSizeMode).integer);
 #else
     throw std::invalid_argument(
@@ -574,7 +577,8 @@ inline unsigned EncodeRuntimeAttributes(const LaunchValues& config,
     attr.val.accessPolicyWindow.missProp =
         static_cast<decltype(attr.val.accessPolicyWindow.missProp)>(
             config.Get(Field::kAccessPolicyWindowMissProp).integer);
-#else
+)TVM_CUDA_LAUNCH"
+    R"TVM_CUDA_LAUNCH(#else
     throw std::invalid_argument(
         "CUDA launch field access_policy_window requires toolkit 12.0 or newer");
 #endif
@@ -759,7 +763,8 @@ inline LaunchValues Normalize(LaunchValues config, const KernelRequirements& ker
     }
   }
   for (Field flag :
-       {Field::kCooperative, Field::kProgrammaticStreamSerialization,
+)TVM_CUDA_LAUNCH"
+    R"TVM_CUDA_LAUNCH(       {Field::kCooperative, Field::kProgrammaticStreamSerialization,
         Field::kNvlinkUtilCentricScheduling, Field::kProgrammaticEventTriggerAtBlockStart}) {
     Require(config.Int(flag) == 0 || config.Int(flag) == 1,
             std::string(kFields[static_cast<size_t>(flag)].name) + " must be a boolean");
@@ -933,7 +938,8 @@ inline void EncodeRuntime(const LaunchValues& values, const KernelRequirements& 
     *block[axis] = values.Int(Axis(Field::kBlockX, axis));
     if (kernel.required_block_size) {
 #if CUDART_VERSION >= 13000
-      *grid[axis] /= values.Int(Axis(Field::kClusterX, axis));
+)TVM_CUDA_LAUNCH"
+    R"TVM_CUDA_LAUNCH(      *grid[axis] /= values.Int(Axis(Field::kClusterX, axis));
       *block[axis] = 1;
 #else
       throw std::invalid_argument("CUDA required block size requires CUDA 13 or newer");
