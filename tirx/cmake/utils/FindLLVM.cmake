@@ -15,6 +15,29 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# Isolate the signature probe from an embedding project's compilation defaults.
+function(_tvm_llvm_check_dibuilder)
+  include(CheckCXXSourceCompiles)
+  include(CMakePushCheckState)
+  cmake_push_check_state(RESET)
+  set(CMAKE_REQUIRED_INCLUDES ${LLVM_INCLUDE_DIRS})
+  # Probe the headers with the same standard as the TIRx compilation targets.
+  set(CMAKE_CXX_STANDARD 20)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+  set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+  check_cxx_source_compiles("
+    #include <llvm/IR/DIBuilder.h>
+    #include <llvm/IR/Instructions.h>
+    void f(llvm::DIBuilder* b, llvm::Value* v, llvm::DILocalVariable* var,
+           llvm::DIExpression* e, const llvm::DILocation* dl,
+           llvm::Instruction* i) {
+      b->insertDeclare(v, var, e, dl, llvm::BasicBlock::iterator(i));
+      b->insertDbgValueIntrinsic(v, var, e, dl, llvm::BasicBlock::iterator(i));
+    }
+  " TVM_LLVM_DIBUILDER_USES_ITERATOR)
+  cmake_pop_check_state()
+endfunction()
+
 #######################################################
 # Enhanced version of find llvm.
 #
@@ -233,31 +256,7 @@ macro(find_llvm use_llvm)
   # (upstream LLVM 20+) vs Instruction* (pre-LLVM 20 and ROCm-bundled LLVM 20,
   # which reports version 200 but retains the legacy Instruction* overload).
   if (${TVM_LLVM_VERSION} GREATER_EQUAL 200)
-    include(CheckCXXSourceCompiles)
-    include(CMakePushCheckState)
-    cmake_push_check_state(RESET)
-    set(CMAKE_REQUIRED_INCLUDES ${LLVM_INCLUDE_DIRS})
-    # Only force -std= when the outer project hasn't already selected a
-    # standard; signature-only probe does not need -fno-rtti. Use the
-    # compiler-appropriate form so the probe works under MSVC as well.
-    if(NOT CMAKE_CXX_STANDARD)
-      if(MSVC)
-        set(CMAKE_REQUIRED_FLAGS "/std:c++20")
-      else()
-        set(CMAKE_REQUIRED_FLAGS "-std=c++20")
-      endif()
-    endif()
-    check_cxx_source_compiles("
-      #include <llvm/IR/DIBuilder.h>
-      #include <llvm/IR/Instructions.h>
-      void f(llvm::DIBuilder* b, llvm::Value* v, llvm::DILocalVariable* var,
-             llvm::DIExpression* e, const llvm::DILocation* dl,
-             llvm::Instruction* i) {
-        b->insertDeclare(v, var, e, dl, llvm::BasicBlock::iterator(i));
-        b->insertDbgValueIntrinsic(v, var, e, dl, llvm::BasicBlock::iterator(i));
-      }
-    " TVM_LLVM_DIBUILDER_USES_ITERATOR)
-    cmake_pop_check_state()
+    _tvm_llvm_check_dibuilder()
     if(TVM_LLVM_DIBUILDER_USES_ITERATOR)
       add_definitions(-DTVM_LLVM_DIBUILDER_USES_ITERATOR=1)
       message(STATUS "LLVM DIBuilder insertion APIs use BasicBlock::iterator")
