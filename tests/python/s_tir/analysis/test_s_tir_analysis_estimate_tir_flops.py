@@ -24,7 +24,7 @@ import tvm_tirx.testing, tvm
 from tvm_tirx.ir import IRModule
 from tvm.s_tir.analysis import estimate_tir_flops
 from tvm.s_tir.meta_schedule.testing.te_workload import create_te_workload
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 

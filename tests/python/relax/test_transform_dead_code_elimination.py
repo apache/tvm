@@ -21,7 +21,7 @@ import pytest
 import tvm, tvm_tirx
 import tvm_tirx.testing, tvm
 from tvm.relax.transform import DeadCodeElimination
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script.parser import ir as I
 from tvm_tirx.script.parser import relax as R
 from tvm_tirx.script.parser import tirx as T

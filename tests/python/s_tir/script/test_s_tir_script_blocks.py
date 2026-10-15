@@ -25,7 +25,7 @@ import tvm_tirx.testing, tvm
 from tvm import s_tir
 from tvm_tirx.ir import Range, TensorRegion, TensorRegionType
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 # Expected completed types use the configured fixed index dtype, not shape dtype.
@@ -305,14 +305,14 @@ def expected_recursive_tensorslice_indices(
 def test_complete_tensor_indices():
     new_func = tvm_tirx.script.from_source(
         func_with_tensorslice_indices.script(),
-        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     ).with_attr("global_symbol", "main")
     tvm_tirx.ir.assert_structural_equal(
         new_func, expected_tensorslice_indices.with_attr("global_symbol", "main")
     )
     new_func = tvm_tirx.script.from_source(
         func_with_recursive_tensorslice_indices.script(),
-        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     ).with_attr("global_symbol", "main")
     tvm_tirx.ir.assert_structural_equal(
         new_func, expected_recursive_tensorslice_indices.with_attr("global_symbol", "main")
@@ -389,7 +389,7 @@ def expect_alloc_tensor_func(
 def test_complete_alloc_tensor():
     rt_func = tvm_tirx.script.from_source(
         alloc_tensor_func.script(),
-        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     ).with_attr("global_symbol", "main")
     tvm_tirx.ir.assert_structural_equal(
         rt_func, expect_alloc_tensor_func.with_attr("global_symbol", "main")
@@ -443,11 +443,11 @@ def test_alloc_zero_dim_tensor_round_trip():
     func = alloc_zero_dim_tensor
     func_with_block = alloc_zero_dim_tensor_block
     rt_func = tvm_tirx.script.from_source(
-        func.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir}
+        func.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script}
     )
     rt_func_with_block = tvm_tirx.script.from_source(
         func_with_block.script(),
-        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     rt_mod = tvm.compile(rt_func, "llvm")
     rt_mod_with_block = tvm.compile(rt_func_with_block, "llvm")
@@ -641,8 +641,8 @@ def test_matmul_original():
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(func, rt_func)
@@ -663,8 +663,8 @@ def test_element_wise():
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(func, rt_func)
@@ -687,8 +687,8 @@ def test_predicate():
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(func, rt_func)
@@ -726,8 +726,8 @@ def test_match_tensor_region():
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(func, rt_func)
@@ -776,8 +776,8 @@ def test_block_elements():
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(func, rt_func)
@@ -817,8 +817,8 @@ def test_opaque_block():
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(func, rt_func)
@@ -1025,8 +1025,8 @@ def test_roundtrip_blocks(ir_generator):
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)

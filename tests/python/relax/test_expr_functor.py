@@ -41,7 +41,7 @@ from tvm.relax.expr import (
     Var,
     VarBinding,
 )
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 m, n = tirx.Var("m", "int64"), tirx.Var("n", "int64")
 x = relax.Var("x", R.Tensor([n], "float32"))

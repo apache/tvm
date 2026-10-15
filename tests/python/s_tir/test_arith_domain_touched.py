@@ -20,7 +20,7 @@ import pytest
 import tvm_ffi
 
 import tvm, tvm_tirx
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 m = T.dynamic("m", "int32")

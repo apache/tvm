@@ -26,7 +26,7 @@ import tvm, tvm_tirx
 import tvm_tirx.testing, tvm
 from tvm_tirx import tirx
 from tvm_tirx.ir import IRModule
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
@@ -95,7 +95,7 @@ def block_in_opaque_block(
 def replace_ir_builder(deep_copy=False, realize=False):
     new_func = tvm_tirx.script.from_source(
         elementwise.script(),
-        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     s = tvm.s_tir.ScheduleState(new_func, debug_mask="all")
     target = tvm.s_tir.SBlock(
@@ -124,11 +124,11 @@ def replace_ir_builder(deep_copy=False, realize=False):
 def replace_ir_builder_module(deep_copy=False, realize=False):
     new_func = tvm_tirx.script.from_source(
         elementwise.script(),
-        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     other_func = tvm_tirx.script.from_source(
         elementwise.script(),
-        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     mod = IRModule(functions={"main": new_func, "other": other_func})
     s = tvm.s_tir.ScheduleState(mod, debug_mask="all")
@@ -158,7 +158,7 @@ def replace_ir_builder_module(deep_copy=False, realize=False):
 def replace_ir_builder_with_opaque():
     func = tvm_tirx.script.from_source(
         block_in_opaque_block.script(),
-        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     s = tvm.s_tir.ScheduleState(func, debug_mask="all")
     gc.collect()

@@ -26,13 +26,13 @@ import pytest
 import tvm, tvm_tirx
 import tvm_tirx.testing, tvm
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_shared_operations_and_aliases():
-    from tvm_tirx.script import s_tir as S
+    from tvm.s_tir import script as S
 
     n = S.dynamic("n")
 
@@ -53,7 +53,7 @@ def test_shared_operations_and_aliases():
         shared,
         tvm_tirx.script.from_source(
             shared.script(),
-            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
         ),
     )
 
@@ -82,7 +82,7 @@ def test_mixed_module_roundtrip():
     tvm_tirx.ir.assert_structural_equal(
         Mixed,
         tvm_tirx.script.from_source(
-            script, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir}
+            script, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script}
         ),
     )
     direct_script = Mixed["direct"].script()
@@ -106,7 +106,7 @@ def test_tirx_construction_roundtrip_and_execution_are_independent(monkeypatch):
 
     restored = tvm_tirx.script.from_source(
         Direct.script(),
-        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     tvm_tirx.ir.assert_structural_equal(Direct, restored)
     assert "s_tir" not in restored["main"].attrs
@@ -136,7 +136,7 @@ def test_legacy_mode_is_not_a_function_option(namespace, option):
         tvm_tirx.script.from_source(
             f"@{namespace}.function({option}=True, check_well_formed=False)\n"
             "def main():\n    T.evaluate(0)\n",
-            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
         )
 
 
@@ -169,7 +169,7 @@ def test_tirx_rejects_s_tir_blocks():
         tvm_tirx.script.from_source(
             "@T.function(check_well_formed=False)\n"
             "def main():\n    with Ts.sblock('bad'):\n        T.evaluate(0)\n",
-            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
         )
 
 
@@ -179,7 +179,7 @@ def test_tirx_cannot_change_dialect_with_attribute(value):
         tvm_tirx.script.from_source(
             "@T.function(check_well_formed=False)\n"
             f"def main():\n    T.func_attr({{'s_tir': {value}}})\n    T.evaluate(0)\n",
-            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
         )
 
 
@@ -211,7 +211,7 @@ def test_s_tir_options_and_helpers():
         scheduled,
         tvm_tirx.script.from_source(
             scheduled.script(),
-            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
         ),
     )
 
@@ -223,7 +223,7 @@ def test_s_tir_options_and_helpers():
         "tvm_tirx.tirx.script",
         "tvm_tirx.script.parser",
         "tvm.s_tir.script.ir_builder.frame",
-        "tvm_tirx.script.ir_builder.s_tir.frame",
+        "tvm.s_tir.script.ir_builder",
     ],
 )
 def test_import_order(first):
@@ -233,7 +233,7 @@ def test_import_order(first):
             "-c",
             f"import {first}\n"
             "import tvm.s_tir.script as direct\n"
-            "from tvm_tirx.script import s_tir as Ts, tirx as T\n"
+            "from tvm.s_tir import script as Ts\nfrom tvm_tirx.script import tirx as T\n"
             "from tvm_tirx.script.parser import s_tir as parser\n"
             "assert Ts is direct is parser\n"
             "assert Ts.Tensor is T.Tensor\n"

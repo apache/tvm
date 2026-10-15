@@ -30,8 +30,8 @@ from tvm_tirx import IRModule, tirx
 from tvm import relax
 from tvm.relax import ExternFunc as _ExternFunc
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
-from tvm_tirx.script import s_tir as Ts
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 M = T.dynamic("M", "int64")
@@ -59,7 +59,7 @@ def test_type_vars_roundtrip():
 def func[M: T.int64](x: R.Tensor((M, M * 2), "float32")):
     return x
 """,
-        extra_vars={"I": tvm_tirx.script.ir, "R": tvm_tirx.script.relax, "T": tvm_tirx.script.tirx},
+        extra_vars={"I": tvm_tirx.script.ir, "R": tvm.relax.script, "T": tvm_tirx.script.tirx},
     )
     tvm_tirx.ir.assert_structural_equal(func, typed)
     assert 'M = T.dynamic("M", dtype="int64")' not in script
@@ -76,13 +76,13 @@ def func[M: T.int64](x: R.Tensor((M, M * 2), "float32")):
     tvm_tirx.ir.assert_structural_equal(
         func,
         tvm_tirx.script.from_source(
-            script, extra_vars={"I": tvm_tirx.script.ir, "R": tvm_tirx.script.relax, "T": tvm_tirx.script.tirx}
+            script, extra_vars={"I": tvm_tirx.script.ir, "R": tvm.relax.script, "T": tvm_tirx.script.tirx}
         ),
     )
     tvm_tirx.ir.assert_structural_equal(
         func,
         tvm_tirx.script.from_source(
-            repeated, extra_vars={"I": tvm_tirx.script.ir, "R": tvm_tirx.script.relax, "T": tvm_tirx.script.tirx}
+            repeated, extra_vars={"I": tvm_tirx.script.ir, "R": tvm.relax.script, "T": tvm_tirx.script.tirx}
         ),
     )
 
@@ -105,7 +105,7 @@ def test_dynamic_module_symbol_identity():
     restored = tvm_tirx.script.from_source(
         source,
         check_well_formed=False,
-        extra_vars={"I": tvm_tirx.script.ir, "R": tvm_tirx.script.relax, "T": tvm_tirx.script.tirx},
+        extra_vars={"I": tvm_tirx.script.ir, "R": tvm.relax.script, "T": tvm_tirx.script.tirx},
     )
     first_n = restored["first"].params[0].ty.shape.values[0]
     second_shape = restored["second"].params[0].ty.shape.values
@@ -124,9 +124,9 @@ def _check(
         test,
         extra_vars={
             "I": tvm_tirx.script.ir,
-            "R": tvm_tirx.script.relax,
+            "R": tvm.relax.script,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
+            "Ts": tvm.s_tir.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(parsed, roundtrip_mod)
@@ -250,9 +250,9 @@ def test_call_tir_with_tir_var():
             repeated,
             extra_vars={
                 "I": tvm_tirx.script.ir,
-                "R": tvm_tirx.script.relax,
+                "R": tvm.relax.script,
                 "T": tvm_tirx.script.tirx,
-                "Ts": tvm_tirx.script.s_tir,
+                "Ts": tvm.s_tir.script,
             },
         ),
     )
@@ -651,8 +651,8 @@ def test_roundtrip_dynamic_shape(ir_generator):
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)

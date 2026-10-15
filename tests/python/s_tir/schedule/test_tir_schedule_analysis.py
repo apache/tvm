@@ -34,7 +34,7 @@ from tvm.s_tir.schedule.analysis import (
     suggest_index_map,
 )
 from tvm.s_tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm.te import create_function
 from tvm_tirx.tirx import IndexMap, Var, decl_tensor, floordiv, floormod

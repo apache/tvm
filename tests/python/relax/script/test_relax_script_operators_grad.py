@@ -20,7 +20,7 @@ import tvm, tvm_tirx
 import tvm_tirx.testing, tvm
 from tvm_tirx import IRModule
 from tvm import relax
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 
 def _check(
@@ -29,7 +29,7 @@ def _check(
 ):
     test = parsed.script(show_meta=True)
     roundtrip_mod = tvm_tirx.script.from_source(
-        test, extra_vars={"I": tvm_tirx.script.ir, "R": tvm_tirx.script.relax, "T": tvm_tirx.script.tirx}
+        test, extra_vars={"I": tvm_tirx.script.ir, "R": tvm.relax.script, "T": tvm_tirx.script.tirx}
     )
     tvm_tirx.ir.assert_structural_equal(parsed, roundtrip_mod)
     if expect:

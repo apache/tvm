@@ -32,8 +32,8 @@ from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax import TensorType
 from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
-from tvm_tirx.script import s_tir as Ts
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.script.printer.scriptable import PrinterConfig, _script
 
@@ -166,7 +166,7 @@ def test_func():
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
+# from tvm.relax import script as R
 # from tvm_tirx.script import tirx as T
 
 @R.function
@@ -183,8 +183,8 @@ def test_module():
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.relax import script as R
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @T.ir_module
@@ -234,7 +234,7 @@ def test_function():
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
+# from tvm.relax import script as R
 
 @R.function
 def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
@@ -315,7 +315,7 @@ def test_lone_private_function():
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
+# from tvm.relax import script as R
 
 @R.function(private=True)
 def main(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
@@ -340,7 +340,7 @@ def test_extern_func():
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
+# from tvm.relax import script as R
 # from tvm_tirx.script import tirx as T
 
 @T.ir_module
@@ -366,7 +366,7 @@ def test_extern_func_with_ty():
     _assert_print_lines(
         obj,
         """
-# from tvm_tirx.script import relax as R
+# from tvm.relax import script as R
 # from tvm_tirx.script import tirx as T
 
 @T.ir_module
@@ -389,9 +389,9 @@ def test_extern_func_with_ty_roundtrip():
         mod.script(verbose_expr=True),
         extra_vars={
             "I": tvm_tirx.script.ir,
-            "R": tvm_tirx.script.relax,
+            "R": tvm.relax.script,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
+            "Ts": tvm.s_tir.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(mod, roundtrip)
@@ -420,7 +420,7 @@ def test_nested_function(relax_prefix, comment_imports):
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
+# from tvm.relax import script as R
 # from tvm_tirx.script import tirx as T
 
 @T.ir_module
@@ -581,7 +581,7 @@ def test_prim_value():
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
+# from tvm.relax import script as R
 # from tvm_tirx.script import tirx as T
 
 @R.function
@@ -601,9 +601,9 @@ def func() -> T.int64:
             float_script,
             extra_vars={
                 "I": tvm_tirx.script.ir,
-                "R": tvm_tirx.script.relax,
+                "R": tvm.relax.script,
                 "T": tvm_tirx.script.tirx,
-                "Ts": tvm_tirx.script.s_tir,
+                "Ts": tvm.s_tir.script,
             },
         ),
         float_func,
@@ -627,9 +627,9 @@ def test_primitive_bindings_roundtrip_without_prim_value_marker():
                 source,
                 extra_vars={
                     "I": tvm_tirx.script.ir,
-                    "R": tvm_tirx.script.relax,
+                    "R": tvm.relax.script,
                     "T": tvm_tirx.script.tirx,
-                    "Ts": tvm_tirx.script.s_tir,
+                    "Ts": tvm.s_tir.script,
                 },
             ),
             func,
@@ -959,8 +959,8 @@ def test_module_cross_func_call():
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.relax import script as R
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @T.ir_module
@@ -983,8 +983,8 @@ class Module:
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.relax import script as R
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @T.ir_module
@@ -1014,7 +1014,7 @@ def test_assert_op():
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
+# from tvm.relax import script as R
 # from tvm_tirx.script import tirx as T
 
 @T.ir_module
@@ -1040,7 +1040,7 @@ def test_print():
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
+# from tvm.relax import script as R
 # from tvm_tirx.script import tirx as T
 
 @T.ir_module
@@ -1066,7 +1066,7 @@ def test_private_function():
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
+# from tvm.relax import script as R
 # from tvm_tirx.script import tirx as T
 
 @T.ir_module
@@ -1121,7 +1121,7 @@ def test_directly_construct_private_funcs():
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
+# from tvm.relax import script as R
 # from tvm_tirx.script import tirx as T
 
 @T.ir_module
@@ -1168,7 +1168,7 @@ def test_reused_extern_func():
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
+# from tvm.relax import script as R
 
 @R.function
 def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
@@ -1198,7 +1198,7 @@ def test_inline_extern_func():
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
+# from tvm.relax import script as R
 
 @R.function
 def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
@@ -1248,7 +1248,7 @@ def test_hide_inferable_ty():
         """
 from __future__ import annotations
 
-# from tvm_tirx.script import relax as R
+# from tvm.relax import script as R
 
 @R.function
 def func(A: R.Tensor((10, 20), dtype="float32"), B: R.Tensor(dtype="float32", ndim=2)) -> R.Tensor((10, 20), dtype="float32"):
@@ -1286,8 +1286,8 @@ def test_extern_func_roundtrip(show_all_ty):
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)

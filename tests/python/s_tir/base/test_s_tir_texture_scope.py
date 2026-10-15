@@ -23,7 +23,7 @@ import tvm_tirx.testing, tvm
 from tvm_tirx import tirx
 from tvm_tirx.ir.module import IRModule
 from tvm.s_tir.backend.adreno import pipeline as adreno_pipeline
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx._compile import _split_host_device_modules
 from tvm_tirx.tirx.compilation_pipeline import finalize_device_passes

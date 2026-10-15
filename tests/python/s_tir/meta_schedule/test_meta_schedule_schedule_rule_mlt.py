@@ -25,7 +25,7 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
     generate_design_space,
     print_sketches,
 )
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 

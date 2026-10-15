@@ -19,7 +19,7 @@
 import tvm, tvm_tirx
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.tensor_intrin import dot_product_common, x86
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 

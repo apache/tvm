@@ -26,7 +26,7 @@ import tvm, tvm_tirx
 import tvm_tirx.testing, tvm
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 
@@ -506,7 +506,7 @@ def matmul(
 def test_multi_element_array_in_outmost_namespace():
     func = matmul
     rt_func = tvm_tirx.script.from_source(
-        func.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir}
+        func.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script}
     )
     tvm_tirx.ir.assert_structural_equal(func, rt_func)
 

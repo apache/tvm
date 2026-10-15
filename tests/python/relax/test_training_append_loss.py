@@ -21,7 +21,7 @@ import tvm_tirx.testing, tvm
 from tvm_tirx.ir.base import assert_structural_equal
 from tvm.relax.training import AppendLoss
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 
 def test_simple():

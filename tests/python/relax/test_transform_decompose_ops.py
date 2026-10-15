@@ -25,7 +25,7 @@ from tvm_tirx import IRModule
 from tvm import relax
 from tvm.relax import Function
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 
 

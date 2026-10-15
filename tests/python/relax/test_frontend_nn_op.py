@@ -27,8 +27,8 @@ from tvm_tirx.ir import TupleType as _TupleType
 from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.frontend.nn import Module, Tensor, op, spec
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
-from tvm_tirx.script import s_tir as Ts
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 

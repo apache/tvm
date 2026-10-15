@@ -30,8 +30,8 @@ import tvm_tirx.testing, tvm
 from tvm_tirx import IRModule, ir
 from tvm import relax, topi
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
-from tvm_tirx.script import s_tir as Ts
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 
@@ -44,9 +44,9 @@ def _check(
         test,
         extra_vars={
             "I": tvm_tirx.script.ir,
-            "R": tvm_tirx.script.relax,
+            "R": tvm.relax.script,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
+            "Ts": tvm.s_tir.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(parsed, roundtrip_mod)

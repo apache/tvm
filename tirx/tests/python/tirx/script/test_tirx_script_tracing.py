@@ -301,7 +301,7 @@ def test_shared_tensor_shapes_are_checked_by_compiled_host():
             I.arg_("x", T.Tensor((n,), T.float32))
             I.arg_("y", T.Tensor((n,), T.float32))
             I.return_(n)
-    compiled = tvm_tirx.compile(builder.get(), target="llvm", tir_pipeline="tirx")
+    compiled = tvm_tirx.tirx.compile(builder.get(), target="llvm", pipeline="tirx")
     assert compiled(torch.zeros(3), torch.zeros(3)) == 3
     for other, error, message in (
         (torch.zeros(4), ValueError, "expected to match"),

@@ -29,7 +29,7 @@ import tvm_tirx.testing, tvm
 from tvm import relax
 from tvm.relax.backend.pattern_registry import get_patterns_with_prefix
 from tvm.relax.transform import FuseOpsByPattern, MergeCompositeFunctions, RunCodegen
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 
 @tvm_tirx.script.ir_module

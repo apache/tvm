@@ -59,7 +59,7 @@ def test_pass_error_renders_underlined_tvmscript():
         "Location (TVMScript):\n"
         "Access path: <root>.body.blocks[0].bindings[0].value\n\n"
         "from __future__ import annotations\n\n"
-        "# from tvm_tirx.script import relax as R\n\n"
+        "# from tvm.relax import script as R\n\n"
         "@R.function\n"
         'def main(x: R.Tensor((3, 4), dtype="float32"), '
         'y: R.Tensor((5, 6), dtype="float32")) -> R.Tensor((3, 6), dtype="float32"):\n'

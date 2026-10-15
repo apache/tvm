@@ -168,7 +168,7 @@ def test_lower_floordiv_and_floormod(dtype, kind, variant):
         [tvm_tirx.tirx.transform.StmtSimplify(), tvm_tirx.tirx.transform.LowerIntrin()]
     )(Before)
     tvm_tirx.ir.assert_structural_equal(After, Expected)
-    compiled = tvm_tirx.compile(After, "llvm")
+    compiled = tvm_tirx.tirx.compile(After, "llvm")
     data = itertools.product(range(-10, 10), [y for y in range(-10, 10) if y])
     for x, y in data:
         if (variant == "pow2" and y != 8) or (variant == "offset" and y != 5):
@@ -226,7 +226,7 @@ def test_lower_floordiv_overflow_checks(dtype, clamp, data):
         [tvm_tirx.tirx.transform.StmtSimplify(), tvm_tirx.tirx.transform.LowerIntrin()]
     )(Before)
     tvm_tirx.ir.assert_structural_equal(After, Expected)
-    compiled = tvm_tirx.compile(After, "llvm")
+    compiled = tvm_tirx.tirx.compile(After, "llvm")
     for value in data:
         expected = min(max(value, -10), 32758) if clamp else value
         assert compiled(value) == expected // 3

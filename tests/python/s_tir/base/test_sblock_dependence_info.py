@@ -28,7 +28,7 @@ from tvm_tirx import tirx
 from tvm_tirx.ir import IRModule
 from tvm.s_tir import SBlockDependenceInfo
 from tvm.s_tir.sblock_scope import DepKind
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx import Function
 

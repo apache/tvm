@@ -31,7 +31,7 @@ from tvm_tirx.ir.base import assert_structural_equal
 from tvm.relax.backend import DispatchSortScan
 from tvm.s_tir import dlight
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 
 

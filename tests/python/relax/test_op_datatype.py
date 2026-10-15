@@ -22,7 +22,7 @@ import tvm_tirx.testing, tvm
 from tvm_tirx import tirx
 from tvm import relax
 from tvm_tirx.ir import Op
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 
 def test_op_correctness():

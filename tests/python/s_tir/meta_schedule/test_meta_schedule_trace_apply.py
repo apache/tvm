@@ -23,7 +23,7 @@ import tvm_tirx.testing, tvm
 from tvm_tirx.codegen import llvm_lookup_intrinsic_id
 from tvm.s_tir import Schedule
 from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 from tvm_tirx.tirx import floordiv, floormod

@@ -23,7 +23,7 @@ import tvm_tirx.script, tvm
 import tvm_tirx.testing, tvm
 from tvm import relax
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 
 def test_multinomial_from_uniform():

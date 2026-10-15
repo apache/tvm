@@ -26,7 +26,7 @@ import tvm_tirx.testing, tvm
 from tvm_tirx import tirx
 from tvm import te
 from tvm.s_tir.meta_schedule.testing import te_workload
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 

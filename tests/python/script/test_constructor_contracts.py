@@ -26,7 +26,7 @@ import tvm_tirx.testing, tvm
 from tvm_tirx import ir, tirx
 from tvm import relax
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 
 

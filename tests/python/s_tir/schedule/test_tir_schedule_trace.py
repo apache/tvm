@@ -27,7 +27,7 @@ from tvm_tirx import tirx
 from tvm import s_tir
 from tvm.s_tir.schedule import Instruction, InstructionKind, LoopRV, SBlockRV, Trace
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable

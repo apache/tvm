@@ -27,7 +27,7 @@ def _tirx_conftest(pytestconfig):
     for plugin in pytestconfig.pluginmanager.get_plugins():
         plugin_path = getattr(plugin, "__file__", None)
         if plugin_path is not None and Path(plugin_path).resolve() == expected:
-            return plugin
+            return plugin._pytest
     raise AssertionError(f"TIRx conftest plugin {expected} is not loaded")
 
 

@@ -24,7 +24,7 @@ from tvm_tirx.ir.base import assert_structural_equal
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.space_generation import generate_design_space
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 

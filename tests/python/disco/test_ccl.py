@@ -29,7 +29,7 @@ from tvm import relax as rx
 from tvm.runtime import disco as di
 from tvm.runtime.vm import VirtualMachine
 from tvm.s_tir import dlight as dl
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 if di is None:
     pytest.skip("disco runtime is not available", allow_module_level=True)

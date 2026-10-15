@@ -26,7 +26,7 @@ import tvm_tirx.testing, tvm
 from tvm_tirx import ir, tirx
 from tvm import relax as rx
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 
 

@@ -30,7 +30,7 @@ from tvm_tirx.ir import Range, TensorRegion, TensorRegionType
 from tvm.s_tir.script.ir_builder import function as build_function
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import ir_builder as IB
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.tirx.script import ir_builder as TB
@@ -55,7 +55,7 @@ def test_function_symbolic_tensor_param_roundtrip():
     assert source.index("def main[n](") < source.index("T.evaluate(n)")
     tvm_tirx.ir.assert_structural_equal(
         tvm_tirx.script.from_source(
-            source, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir}
+            source, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script}
         ),
         func,
     )
@@ -76,7 +76,7 @@ def test_function_compound_tensor_shape_first_use_roundtrip():
     assert source.index("def main[n](") < source.index("T.evaluate(n)")
     tvm_tirx.ir.assert_structural_equal(
         tvm_tirx.script.from_source(
-            source, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir}
+            source, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script}
         ),
         func,
     )
@@ -109,7 +109,7 @@ def test_function_symbolic_alloc_tensor_roundtrip():
         tvm_tirx.script.from_source(
             source,
             check_well_formed=False,
-            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
         ),
         func,
     )
@@ -132,7 +132,7 @@ def test_function():
         expected="""
 from __future__ import annotations
 
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -159,7 +159,7 @@ def test_function_tensor_data_use():
         expected="""
 from __future__ import annotations
 
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -188,7 +188,7 @@ def test_function_tensor_data_argument_is_scope_hint():
         expected="""
 from __future__ import annotations
 
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -286,7 +286,7 @@ def test_bind():
     _assert_print(
         obj,
         """
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function(private=True)
@@ -322,7 +322,7 @@ def test_remap():
                 v4, v5 = Ts.axis.remap("RS", [i4, i5])
 
     expected_output = """
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -370,7 +370,7 @@ def test_root_block():
                     TB.evaluate(0)
 
     expected_output = """
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -403,7 +403,7 @@ def test_private_function():
         expected="""
 from __future__ import annotations
 
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function(private=True)
@@ -424,7 +424,7 @@ def test_function_different_symbol():
     expected_output = """
 from __future__ import annotations
 
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -442,7 +442,7 @@ def test_return_statement():
         return TB.int32(5)
 
     expected_output = """
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -481,7 +481,7 @@ def test_custom_float_types(dtype):
         TB.evaluate(getattr(TB, dtype)(0.0))
 
     expected_output = f"""
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -523,7 +523,7 @@ def test_predicated_load_store():
     expected_output = """
 from __future__ import annotations
 
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -570,7 +570,7 @@ def test_predicated_tensor_load_store():
     expected_output = """
 from __future__ import annotations
 
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function(private=True)
@@ -607,7 +607,7 @@ def test_predicated_scalable_load_store():
     expected_output = """
 from __future__ import annotations
 
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -633,7 +633,7 @@ def test_masked_load_prevents_scalar_allocation_init_fusion():
     assert "A[0] = T.masked_load" in source
     tvm_tirx.ir.assert_structural_equal(
         tvm_tirx.script.from_source(
-            source, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir}
+            source, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script}
         ),
         main,
     )
@@ -649,7 +649,7 @@ def test_vload_with_explicit_scalable_data_type():
     expected_output = """
 from __future__ import annotations
 
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -672,7 +672,7 @@ def test_vectorize_llvm_pure_intrin():
     expected_output = """
 from __future__ import annotations
 
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -698,7 +698,7 @@ def test_func_with_loop_jumps():
     expected_output = """
 from __future__ import annotations
 
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -1272,8 +1272,8 @@ def test_same_name_var():
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(func, rt_func)
@@ -1458,8 +1458,8 @@ def test_div_mod():
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(func, rt_func, True)
@@ -1698,8 +1698,8 @@ def test_void_ptr_vs_handle():
             extra_vars={
                 "I": tvm_tirx.script.ir,
                 "T": tvm_tirx.script.tirx,
-                "Ts": tvm_tirx.script.s_tir,
-                "R": tvm_tirx.script.relax,
+                "Ts": tvm.s_tir.script,
+                "R": tvm.relax.script,
             },
         ),
     )
@@ -1718,8 +1718,8 @@ def test_void_ptr_vs_handle():
             extra_vars={
                 "I": tvm_tirx.script.ir,
                 "T": tvm_tirx.script.tirx,
-                "Ts": tvm_tirx.script.s_tir,
-                "R": tvm_tirx.script.relax,
+                "Ts": tvm.s_tir.script,
+                "R": tvm.relax.script,
             },
         ),
     )
@@ -2072,7 +2072,7 @@ def test_annotation_multi_access_paths():
     )
     assert (
         result
-        == """# from tvm_tirx.script import s_tir as Ts
+        == """# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -2100,7 +2100,7 @@ def test_annotate_from_multi_obj():
     )
     assert (
         result
-        == """# from tvm_tirx.script import s_tir as Ts
+        == """# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -2133,7 +2133,7 @@ def test_disable_concise_scoping_when_scope_annotated():
     )
     assert (
         result
-        == """# from tvm_tirx.script import s_tir as Ts
+        == """# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @Ts.function
@@ -2163,7 +2163,7 @@ def test_ir_module():
     _assert_module_representations(
         mod,
         """
-# from tvm_tirx.script import s_tir as Ts
+# from tvm.s_tir import script as Ts
 # from tvm_tirx.script import tirx as T
 
 @T.ir_module
@@ -2223,8 +2223,8 @@ def test_roundtrip_lowered(ir_generator):
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
@@ -2258,8 +2258,8 @@ def test_roundtrip_expressions(ir_generator):
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
@@ -2291,8 +2291,8 @@ def test_roundtrip_tensors(ir_generator):
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
@@ -2316,8 +2316,8 @@ def test_roundtrip_metadata(ir_generator):
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)

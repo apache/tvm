@@ -22,7 +22,7 @@ import tvm.relax
 import tvm_tirx.testing, tvm
 from tvm.relax.transform import KillAfterLastUse
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 from tvm_tirx.testing import env
 
 

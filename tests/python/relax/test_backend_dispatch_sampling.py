@@ -23,8 +23,8 @@ import tvm_tirx.testing, tvm
 from tvm_tirx.ir.base import assert_structural_equal
 from tvm.relax.backend import DispatchSampling
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
-from tvm_tirx.script import s_tir as Ts
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 

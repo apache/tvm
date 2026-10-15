@@ -22,7 +22,7 @@ from unittest import mock
 import tvm_tirx.testing, tvm
 from tvm.s_tir import dlight as dl
 from tvm.s_tir.dlight.gpu import low_batch_gemv
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 

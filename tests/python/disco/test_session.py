@@ -35,8 +35,8 @@ import tvm_tirx.testing, tvm
 from tvm.exec import disco_worker as _  # noqa: F401  # pylint: disable=unused-import
 from tvm.runtime import disco as di
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
-from tvm_tirx.script import s_tir as Ts
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 if di is None:

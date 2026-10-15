@@ -29,7 +29,7 @@ from tvm import te, topi
 from tvm_tirx.ir.base import assert_structural_equal
 from tvm.relax import ExternFunc
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx.function import Function
 

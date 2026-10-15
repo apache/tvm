@@ -29,7 +29,7 @@ from tvm import relax
 from tvm.relax.backend.cuda.cublas import partition_for_cublas
 from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.testing import get_relax_matmul_module
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 from tvm_tirx.script.ir_builder import IRBuilder
 
 try:

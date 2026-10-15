@@ -25,7 +25,7 @@ import tvm, tvm_tirx
 import tvm_tirx.testing, tvm
 from tvm_tirx import tirx
 from tvm import s_tir, te, topi
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 
@@ -471,7 +471,7 @@ def test_tensor_attr():
     )
     func = te.create_function([A, B, C])
     rt_func = tvm_tirx.script.from_source(
-        func.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir}
+        func.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script}
     )
     tvm_tirx.ir.assert_structural_equal(func, rt_func)
 

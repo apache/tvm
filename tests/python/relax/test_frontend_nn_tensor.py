@@ -22,7 +22,7 @@ import tvm, tvm_tirx
 import tvm_tirx.testing, tvm
 from tvm import relax
 from tvm.relax.frontend.nn import Module, Tensor, spec
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 
 def test_tensor_from_numpy():

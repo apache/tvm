@@ -24,7 +24,7 @@ from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.analysis import name_to_binding
 from tvm.relax.binding_rewrite import DataflowBlockRewrite
 from tvm.relax.expr import DataflowVar, Var
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 
 @tvm_tirx.script.ir_module

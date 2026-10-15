@@ -25,7 +25,7 @@ from tvm import s_tir
 from tvm_tirx.ir.base import assert_structural_equal
 from tvm_tirx.ir.location import SourceLoc, SourceName
 from tvm.s_tir.script.ir_builder import function as build_function
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.tirx.script import ir_builder as T
 

@@ -27,7 +27,7 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
 from tvm.s_tir.tensor_intrin.arm_cpu import DP4A_S8S8S32_INTRIN
 from tvm.s_tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN as AVX512_INTRIN
 from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 

@@ -25,7 +25,7 @@ import tvm, tvm_tirx
 from tvm import relax as rx
 from tvm_tirx import tirx
 from tvm.relax.expr import make_shape
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 
 def _check_equal(x, y, map_free_vars=False):

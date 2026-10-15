@@ -44,8 +44,8 @@ from tvm_tirx import tirx
 from tvm import relax
 from tvm.relax.frontend.onnx import from_onnx
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
-from tvm_tirx.script import s_tir as Ts
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 bg = np.random.MT19937(0)

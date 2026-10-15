@@ -32,7 +32,7 @@ from tvm.contrib import tvmjs
 from tvm.runtime import disco as di
 from tvm.s_tir import dlight as dl
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 from tvm_tirx.target import Target
 from tvm_tirx.testing import env
 

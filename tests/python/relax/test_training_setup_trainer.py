@@ -25,7 +25,7 @@ from tvm.relax.training import SetupTrainer
 from tvm.relax.training.loss import MSELoss
 from tvm.relax.training.optimizer import SGD, MomentumSGD
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 
 def test_simple():

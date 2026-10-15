@@ -18,7 +18,7 @@
 import tvm, tvm_tirx
 from tvm.relax.frontend import nn
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 
 def _iter_binding_names(mod):

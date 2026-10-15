@@ -126,7 +126,7 @@ def test_opencl_memory_scope_registration_load_order(load_order):
     )
     if not opencl_path.is_file():
         pytest.skip("OpenCL runtime sidecar is not built")
-    compiler = tvm_tirx.base._LOADED_LIBS.get("tvm_compiler")
+    compiler = tvm_tirx.base._LOADED_LIBS.get("tvm_tirx")
     if compiler is None and load_order != "runtime_only":
         pytest.skip("Compiler library is not available")
     env = {

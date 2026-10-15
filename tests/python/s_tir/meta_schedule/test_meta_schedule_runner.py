@@ -59,7 +59,7 @@ from tvm.s_tir.meta_schedule.utils import (
     get_global_func_with_default_on_worker,
 )
 from tvm.s_tir.utils import derived_object
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 from tvm_tirx.tirx import FloatImm

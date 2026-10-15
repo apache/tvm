@@ -23,7 +23,7 @@ import tvm_ffi
 import tvm, tvm_tirx
 from tvm import relax
 from tvm.relax.testing.vm import check_saved_func
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 
 def test_vm_execute():

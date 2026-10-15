@@ -20,7 +20,7 @@ from tvm import relax
 from tvm.relax.frontend import detach_params
 from tvm.relax.frontend.common import autopad
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.script.parser import relax as R
 

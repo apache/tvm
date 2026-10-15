@@ -656,7 +656,7 @@ def main(A: T.Tensor((32,), "float32")):
 target = TARGET
 if target == "target_object":
     target = tvm_tirx.target.Target("cuda", host="llvm")
-module = tvm_tirx.compile(main, target=target)
+module = tvm_tirx.tirx.compile(main, target=target)
 metadata = module.mod.imports[0].inspect_source("backend_config")
 from tvm_tirx.backend.config import parse_backend_config
 assert parse_backend_config(metadata)["cuda"]["arch"] == "sm_100a"

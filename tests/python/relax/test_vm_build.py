@@ -36,8 +36,8 @@ from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.testing import nn
 from tvm.relax.testing.vm import check_saved_func
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
-from tvm_tirx.script import s_tir as Ts
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.support import cc, popen_pool, utils
 from tvm_tirx.testing import env

@@ -26,7 +26,7 @@ import tvm_tirx.testing, tvm
 from tvm_tirx import tirx
 from tvm import s_tir
 from tvm.s_tir.schedule.state import CachedFlags
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg

@@ -24,8 +24,8 @@ from tvm_tirx import tirx
 from tvm import relax
 from tvm_tirx.ir import IRModule
 from tvm.relax.base_py_module import BasePyModule
-from tvm_tirx.script import relax as R
-from tvm_tirx.script import s_tir as Ts
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 

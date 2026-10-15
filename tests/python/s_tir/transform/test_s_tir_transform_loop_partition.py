@@ -22,7 +22,7 @@ import tvm_ffi
 import tvm, tvm_tirx
 import tvm_tirx.testing, tvm
 from tvm_tirx.ir.module import IRModule
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 

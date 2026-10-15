@@ -82,7 +82,7 @@ def _test_infer_sym(func, x, y, z):  # pylint: disable=invalid-name
 def _check_ir_equality(mod):
     # pylint: disable=import-outside-toplevel
     from tvm_tirx.script import ir as I
-    from tvm_tirx.script import relax as R
+    from tvm.relax import script as R
     from tvm_tirx.script import tirx as T
 
     # pylint: enable=import-outside-toplevel

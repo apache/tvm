@@ -30,7 +30,7 @@ from tvm_tirx.runtime import tensor as tvm_tensor
 from tvm.runtime.vm import VirtualMachine
 from tvm.s_tir import meta_schedule as ms
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 
 

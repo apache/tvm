@@ -19,7 +19,7 @@ import pytest
 import tvm, tvm_tirx
 import tvm_tirx.testing, tvm
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 
 replace_by_tir_var = tvm_tirx.testing.parameter(

@@ -27,7 +27,7 @@ import tvm.topi.testing
 from tvm import relax
 from tvm.relax.backend.rocm.hipblas import partition_for_hipblas
 from tvm.relax.testing import get_relax_matmul_module
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 try:
     import ml_dtypes

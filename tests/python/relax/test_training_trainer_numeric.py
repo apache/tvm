@@ -24,7 +24,7 @@ from tvm.relax.training import SetupTrainer, Trainer
 from tvm.relax.training.loss import MSELoss
 from tvm.relax.training.optimizer import SGD, Adam
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 
 def _get_backbone():

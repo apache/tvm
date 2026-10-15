@@ -23,7 +23,7 @@ from tvm import relax
 from tvm.contrib.pickle_memoize import memoize
 from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
 from tvm.relax.dpl import is_op, make_fused_bias_activation_pattern, wildcard
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 from tvm_tirx.testing import env
 
 

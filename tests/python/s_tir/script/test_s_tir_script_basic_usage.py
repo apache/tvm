@@ -26,7 +26,7 @@ import tvm_tirx.testing, tvm
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm_tirx.script import from_source
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 
@@ -474,8 +474,8 @@ def test_for_thread_binding():
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(func, rt_func)
@@ -761,8 +761,8 @@ def test_assert_stmt_roundtrip(error_type, message_parts):
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(func, roundtrip, map_free_vars=True)
@@ -956,7 +956,7 @@ def func():
         j{annotation} = i // 4
         T.evaluate(j)
 """,
-        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     binding = func.body[0].body.seq[0]
     if mutable:
@@ -1076,8 +1076,8 @@ def test_roundtrip_basic_usage(ir_generator):
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)

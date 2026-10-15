@@ -25,7 +25,7 @@ import pytest
 
 import tvm, tvm_tirx
 from tvm_tirx import codegen
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 

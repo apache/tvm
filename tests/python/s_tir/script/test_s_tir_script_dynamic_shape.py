@@ -25,7 +25,7 @@ import pytest
 import tvm_tirx.testing, tvm
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm_tirx.script import from_source
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 
@@ -105,7 +105,7 @@ def gemm_dyn_shape(
 def test_dynamic_shape_gemm():
     gemm_dyn_shape_roundtrip = from_source(
         gemm_dyn_shape.script(),
-        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     assert_structural_equal_ignore_global_symbol(gemm_dyn_shape, gemm_dyn_shape_roundtrip)
 
@@ -273,8 +273,8 @@ def test_roundtrip_dynamic_shape(ir_generator):
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
-            "Ts": tvm_tirx.script.s_tir,
-            "R": tvm_tirx.script.relax,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
     tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)

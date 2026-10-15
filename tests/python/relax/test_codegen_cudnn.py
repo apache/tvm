@@ -30,7 +30,7 @@ from tvm.contrib.pickle_memoize import memoize
 from tvm.relax.backend.cuda.cudnn import partition_for_cudnn
 from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.testing import get_relax_stacked_attention_module
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 from tvm_tirx.script.ir_builder import IRBuilder
 
 

@@ -22,7 +22,7 @@ import tvm_tirx.testing, tvm
 from tvm import relax
 from tvm.contrib.pickle_memoize import memoize
 from tvm.relax.dpl import make_fused_bias_activation_pattern
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 
 @tvm_tirx.script.ir_module

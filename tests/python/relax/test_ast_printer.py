@@ -27,8 +27,8 @@ from tvm_tirx import tirx
 from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.testing import dump_ast
 from tvm.relax.testing.ast_printer import ASTPrinter
-from tvm_tirx.script import relax as R
-from tvm_tirx.script import s_tir as Ts
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 # Overload dump_ast to test both type and type annotations

@@ -24,7 +24,7 @@ from tvm import relax, topi
 from tvm_tirx.ir.base import assert_structural_equal
 from tvm.relax.transform import FastMathTransform
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 
 def _run_pass_compare_output(Before, Expected):

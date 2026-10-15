@@ -24,7 +24,7 @@ import tvm_tirx.script, tvm
 import tvm_tirx.testing, tvm
 from tvm_tirx import tirx
 from tvm import relax
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 
 param_specification = tvm_tirx.testing.parameter("by_string", "by_var")
 param_shape = tvm_tirx.testing.parameter("static_shape", "dynamic_shape", "ndim", "arbitrary")

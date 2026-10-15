@@ -22,7 +22,7 @@ from tvm_tirx import tirx
 from tvm import relax
 from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.transform import CombineParallelMatmul
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 from tvm_tirx.script.ir_builder import IRBuilder
 
