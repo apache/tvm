@@ -109,6 +109,24 @@ standard CMake settings. The standalone core does not read ``config.cmake``.
 C++ tests are off by default; enabling them supplies GTest in the test subtree.
 Installation includes public headers, libraries, and CMake package targets.
 
+For a Python core package build, pass these options through the ``CMAKE_ARGS``
+environment variable. Quote values containing spaces inside the variable::
+
+    CMAKE_ARGS='-DTVM_TIRX_USE_LLVM="llvm-config --link-static"' \
+        python -m pip install -v ./tirx
+
+The repository's native build script also accepts ``CMAKE_ARGS`` for its TVM
+configuration, including parent-only options::
+
+    mkdir -p build
+    CMAKE_ARGS='-DTVM_TIRX_USE_LLVM=ON -DUSE_RPC=ON' \
+        python tests/scripts/task_build.py --build-dir build
+
+The native build script applies these settings only to TVM configuration;
+its separate source-FFI Python package build keeps its own defaults. Direct
+``cmake`` invocations use command-line options as shown above, since CMake
+itself does not read ``CMAKE_ARGS``.
+
 A parent project can use ``add_subdirectory(path/to/tirx)`` and link to
 ``tvm_tirx::tvm_tirx`` or ``tvm_tirx::tvm_runtime``. This builds the bundled FFI
 source targets and leaves tests, packaging, and installation to the parent.

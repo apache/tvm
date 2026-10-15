@@ -19,6 +19,7 @@ import argparse
 import logging
 import multiprocessing
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -31,7 +32,9 @@ if __name__ == "__main__":
         format="[%(filename)s:%(lineno)d %(levelname)s] %(message)s", level=logging.INFO
     )
 
-    parser = argparse.ArgumentParser(description="List pytest nodeids for a folder")
+    parser = argparse.ArgumentParser(
+        description="Build TVM with optional settings from the CMAKE_ARGS environment variable"
+    )
     parser.add_argument("--sccache-bucket", required=False, help="sccache bucket name")
     parser.add_argument("--sccache-region", required=False, help="sccache region")
     parser.add_argument("--build-dir", default="build", help="build folder")
@@ -55,6 +58,8 @@ if __name__ == "__main__":
     build_dir = Path(os.getcwd()) / args.build_dir
     build_dir = build_dir.relative_to(REPO_ROOT)
     env = os.environ.copy()
+    # CMAKE_ARGS configures TVM, not the separate source-FFI Python package.
+    cmake_args = shlex.split(env.pop("CMAKE_ARGS", ""))
     env["PYTHONPATH"] = os.pathsep.join(
         [
             str(REPO_ROOT / "tirx" / "python"),
@@ -128,7 +133,7 @@ if __name__ == "__main__":
 
     build_type = "Debug" if args.debug else "RelWithDebInfo"
     subprocess.run(
-        ["cmake", "-GNinja", f"-DCMAKE_BUILD_TYPE={build_type}", ".."],
+        ["cmake", "-GNinja", f"-DCMAKE_BUILD_TYPE={build_type}", *cmake_args, ".."],
         cwd=build_dir,
         env=env,
         check=True,
