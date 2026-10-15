@@ -372,8 +372,8 @@ ffi::String RenderScript(const ffi::ObjectRef& obj, const PrinterConfig& config)
                                                 ->Attr("load_json")
                                                 ->Call({LiteralDoc::Str(json, std::nullopt)}),
                                             std::nullopt));
-      header.push_back(
-          ffi::String(loader == "tvm_tirx" ? "import tvm_tirx\n" : "import tvm_tirx as " + loader + "\n"));
+      header.push_back(ffi::String(loader == "tvm_tirx" ? "import tvm_tirx\n"
+                                                        : "import tvm_tirx as " + loader + "\n"));
     } else {
       block.value()->stmts.push_back(
           CommentDoc("Metadata omitted. Use show_meta=True in script() method to show it."));

@@ -46,8 +46,9 @@ struct TensorCacheMetadata {
        * \param staging_buffer The buffer to be used to avoid extra OpenCL copies. Pass in a nullptr
        * in other cases
        */
-      TVM_RUNTIME_EXTRA_DLL ffi::Tensor Load(Device device, const std::string* raw_data,
-                                       ffi::Optional<ffi::Tensor>* staging_buffer = nullptr) const;
+      TVM_RUNTIME_EXTRA_DLL ffi::Tensor Load(
+          Device device, const std::string* raw_data,
+          ffi::Optional<ffi::Tensor>* staging_buffer = nullptr) const;
 
       /*! \brief Name of the parameter */
       std::string name;
@@ -88,7 +89,7 @@ struct TensorCacheMetadata {
   TVM_RUNTIME_EXTRA_DLL static TensorCacheMetadata Load(const std::string& path);
   /*! \brief Load the metadata from a given JSON string */
   TVM_RUNTIME_EXTRA_DLL static TensorCacheMetadata LoadFromStr(const std::string& json_str,
-                                                         const std::string& path);
+                                                               const std::string& path);
 };
 
 }  // namespace vm

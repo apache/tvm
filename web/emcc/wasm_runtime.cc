@@ -35,20 +35,20 @@
 #include <cstring>
 #include <limits>
 
-#include "tirx/src/runtime/cpu_device_api.cc"
-#include "tirx/src/runtime/device_api.cc"
 #include "src/runtime/extra/contrib/sort/sort.cc"
-#include "tirx/src/runtime/logging.cc"
-#include "tirx/src/runtime/metadata.cc"
 #include "src/runtime/rpc/rpc_channel.cc"
 #include "src/runtime/rpc/rpc_endpoint.cc"
 #include "src/runtime/rpc/rpc_event_impl.cc"
 #include "src/runtime/rpc/rpc_local_session.cc"
 #include "src/runtime/rpc/rpc_module.cc"
 #include "src/runtime/rpc/rpc_session.cc"
+#include "src/runtime/vm/params.cc"
+#include "tirx/src/runtime/cpu_device_api.cc"
+#include "tirx/src/runtime/device_api.cc"
+#include "tirx/src/runtime/logging.cc"
+#include "tirx/src/runtime/metadata.cc"
 #include "tirx/src/runtime/tensor.cc"
 #include "tirx/src/runtime/timer.cc"
-#include "src/runtime/vm/params.cc"
 #include "tirx/src/runtime/workspace_pool.cc"
 // relax setup
 #include "3rdparty/tvm-ffi/src/ffi/backtrace.cc"
@@ -69,7 +69,6 @@
 #include "3rdparty/tvm-ffi/src/ffi/tensor.cc"
 #include "3rdparty/tvm-ffi/src/ffi/testing/testing.cc"
 // Enum registration requires the FFI type-attribute registry above.
-#include "tirx/src/runtime/memory_scope.cc"
 #include "src/runtime/vm/attn_backend.cc"
 #include "src/runtime/vm/builtin.cc"
 #include "src/runtime/vm/bytecode.cc"
@@ -80,6 +79,7 @@
 #include "src/runtime/vm/rnn_state.cc"
 #include "src/runtime/vm/tensor_cache_support.cc"
 #include "src/runtime/vm/vm.cc"
+#include "tirx/src/runtime/memory_scope.cc"
 
 // --- Implementations of backend and wasm runtime API. ---
 

@@ -55,7 +55,7 @@ TVM_TIRX_DLL ffi::Module Build(IRModule mod, Target target);
  * \return cstr The C string representation of the file.
  */
 TVM_TIRX_DLL std::string PackImportsToC(const ffi::Module& m, bool system_lib,
-                                   const std::string& c_symbol_prefix = "");
+                                        const std::string& c_symbol_prefix = "");
 
 /*!
  * \brief Pack imported device libraries into an object file using LLVM.
@@ -70,9 +70,9 @@ TVM_TIRX_DLL std::string PackImportsToC(const ffi::Module& m, bool system_lib,
  * \param c_symbol_prefix Optional blob symbol prefix, valid only for system libraries.
  */
 TVM_TIRX_DLL void PackImportsToObjectFile(const ffi::Module& mod, bool system_lib,
-                                     const std::string& llvm_target_string,
-                                     const std::string& file_name,
-                                     const std::string& c_symbol_prefix = "");
+                                          const std::string& llvm_target_string,
+                                          const std::string& file_name,
+                                          const std::string& c_symbol_prefix = "");
 
 namespace attr {
 constexpr const char* kParallelStridePattern = "parallel_stride_pattern";
