@@ -1,0 +1,574 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+import tvm_tirx
+import tvm_tirx.script
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
+from tvm_tirx.tirx.transform.transform import BindTarget
+
+
+def u16tof32(v):
+    uint32_v = v.astype("uint32")
+    uint32_v = uint32_v << tvm_tirx.tirx.const(16, "uint32")
+    return T.reinterpret(uint32_v, ty="float32")
+
+
+def bf16tof32(v):
+    return u16tof32(T.reinterpret(v, ty="uint16"))
+
+
+def f32tou16(v):
+    uint32_v = T.reinterpret(v, ty="uint32")
+    rounding_bias = (uint32_v >> tvm_tirx.tirx.const(16, "uint32")) & tvm_tirx.tirx.const(
+        1, "uint32"
+    )
+    rounding_bias += tvm_tirx.tirx.const(0x7FFF, "uint32")
+    uint32_v = uint32_v + rounding_bias
+    return (uint32_v >> tvm_tirx.tirx.const(16, "uint32")).astype("uint16")
+
+
+def f32tobf16(v):
+    return T.reinterpret(f32tou16(v), ty="bfloat16")
+
+
+def test_bf16_simple_store_will_legalize():
+    def get_before():
+        @tvm_tirx.script.ir_module
+        class Before:
+            @T.function
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+                Cptr: T.handle("bfloat16"),
+            ):
+                T.func_attr({"global_symbol": "main"})
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "bfloat16", data=Aptr)])
+                B = T.alloc_tensor(ty_args=[T.Tensor((100,), "bfloat16")])
+                C = T.decl_tensor(Cptr, ty_args=[T.Tensor((100,), "bfloat16", data=Cptr)])
+                for i in T.grid(100):
+                    B[i] = A[i]
+                    C[i] = T.exp(B[i])
+
+        return Before
+
+    def after_compute_legalize():
+        @tvm_tirx.script.ir_module
+        class After:
+            @T.function
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+                Cptr: T.handle("bfloat16"),
+            ):
+                T.func_attr({"global_symbol": "main"})
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "bfloat16", data=Aptr)])
+                B = T.alloc_tensor(ty_args=[T.Tensor((100,), "float32")])
+                C = T.decl_tensor(Cptr, ty_args=[T.Tensor((100,), "bfloat16", data=Cptr)])
+                for i in T.grid(100):
+                    B[i] = bf16tof32(A[i])
+                    C[i] = f32tobf16(T.exp(B[i]))
+
+        return After
+
+    def after_storage_legalize():
+        @tvm_tirx.script.ir_module
+        class After:
+            @T.function
+            def main(
+                Aptr: T.handle("uint16", storage_scope="shared"),
+                Cptr: T.handle("uint16"),
+            ):
+                T.func_attr({"global_symbol": "main"})
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "uint16", data=Aptr)])
+                B = T.alloc_tensor(ty_args=[T.Tensor((100,), "float32")])
+                C = T.decl_tensor(Cptr, ty_args=[T.Tensor((100,), "uint16", data=Cptr)])
+                for i in T.grid(100):
+                    B[i] = u16tof32(A[i])
+                    C[i] = f32tou16(T.exp(B[i]))
+
+        return After
+
+    target = Target("nvidia/geforce-rtx-2080-ti")
+    before = BindTarget(target)(get_before())
+    after_compute = tvm_tirx.tirx.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm_tirx.tirx.transform.BF16StorageLegalize()(after_compute)
+    tvm_tirx.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
+    tvm_tirx.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
+
+
+def test_bf16_masked_load_store_will_legalize():
+    def get_before():
+        @tvm_tirx.script.ir_module
+        class Before:
+            @T.function
+            def main(Aptr: T.handle("bfloat16"), Cptr: T.handle("bfloat16")):
+                T.func_attr({"global_symbol": "main"})
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((16,), "bfloat16", data=Aptr)])
+                B = T.alloc_tensor(ty_args=[T.Tensor((16,), "bfloat16")])
+                C = T.decl_tensor(Cptr, ty_args=[T.Tensor((16,), "bfloat16", data=Cptr)])
+                mask = T.local_scalar("boolx4")
+                mask = T.Broadcast(T.bool(True), 4)
+                T.evaluate(
+                    T.call_intrin(
+                        "tirx.masked_store",
+                        B,
+                        T.call_intrin(
+                            "tirx.masked_load", A, T.Ramp(0, 1, 4), mask, ty="bfloat16x4"
+                        ),
+                        T.Ramp(0, 1, 4),
+                        mask,
+                        ty="void",
+                    )
+                )
+                T.evaluate(
+                    T.call_intrin(
+                        "tirx.masked_store",
+                        C,
+                        T.call_intrin(
+                            "tirx.masked_load", B, T.Ramp(0, 1, 4), mask, ty="bfloat16x4"
+                        ),
+                        T.Ramp(0, 1, 4),
+                        mask,
+                        ty="void",
+                    )
+                )
+
+        return Before
+
+    target = Target("nvidia/geforce-rtx-2080-ti")
+    before = BindTarget(target)(get_before())
+    after_compute = tvm_tirx.tirx.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm_tirx.tirx.transform.BF16StorageLegalize()(after_compute)
+
+    @I.ir_module
+    class ExpectedCompute:
+        @T.function
+        def main(Aptr: T.Ptr(T.PrimType("bfloat16")), Cptr: T.Ptr(T.PrimType("bfloat16"))):
+            T.func_attr({"target": target})
+            A = T.decl_tensor(Aptr, ty_args=[T.Tensor((16,), T.bfloat16)])
+            B = T.alloc_tensor(ty_args=[T.Tensor((16,), T.float32)])
+            C = T.decl_tensor(Cptr, ty_args=[T.Tensor((16,), T.bfloat16)])
+            mask = T.alloc_tensor(ty_args=[T.Tensor((1,), T.PrimType("boolx4"), scope="local")])
+            mask[0] = T.Broadcast(T.bool(True), 4)
+            T.masked_store(
+                B,
+                T.reinterpret(
+                    T.Cast(
+                        T.reinterpret(T.masked_load(A, T.Ramp(0, 1, 4), mask[0]), ty="uint16x4"),
+                        "uint32x4",
+                    )
+                    << T.Broadcast(T.uint32(16), 4),
+                    ty="float32x4",
+                ),
+                T.Ramp(0, 1, 4),
+                mask[0],
+            )
+            T.masked_store(
+                C,
+                T.reinterpret(
+                    T.Cast(
+                        T.reinterpret(T.masked_load(B, T.Ramp(0, 1, 4), mask[0]), ty="uint32x4")
+                        + (
+                            (
+                                T.reinterpret(
+                                    T.masked_load(B, T.Ramp(0, 1, 4), mask[0]), ty="uint32x4"
+                                )
+                                >> T.Broadcast(T.uint32(16), 4)
+                                & T.Broadcast(T.uint32(1), 4)
+                            )
+                            + T.Broadcast(T.uint32(32767), 4)
+                        )
+                        >> T.Broadcast(T.uint32(16), 4),
+                        "uint16x4",
+                    ),
+                    ty="bfloat16x4",
+                ),
+                T.Ramp(0, 1, 4),
+                mask[0],
+            )
+
+    tvm_tirx.ir.assert_structural_equal(after_compute, ExpectedCompute)
+
+    @I.ir_module
+    class ExpectedStorage:
+        @T.function
+        def main(Aptr: T.Ptr(T.PrimType("uint16")), Cptr: T.Ptr(T.PrimType("uint16"))):
+            T.func_attr({"target": target})
+            A = T.decl_tensor(Aptr, ty_args=[T.Tensor((16,), T.uint16)])
+            B = T.alloc_tensor(ty_args=[T.Tensor((16,), T.float32)])
+            C = T.decl_tensor(Cptr, ty_args=[T.Tensor((16,), T.uint16)])
+            mask = T.alloc_tensor(ty_args=[T.Tensor((1,), T.PrimType("boolx4"), scope="local")])
+            mask[0] = T.Broadcast(T.bool(True), 4)
+            T.masked_store(
+                B,
+                T.reinterpret(
+                    T.Cast(T.masked_load(A, T.Ramp(0, 1, 4), mask[0]), "uint32x4")
+                    << T.Broadcast(T.uint32(16), 4),
+                    ty="float32x4",
+                ),
+                T.Ramp(0, 1, 4),
+                mask[0],
+            )
+            T.masked_store(
+                C,
+                T.Cast(
+                    T.reinterpret(T.masked_load(B, T.Ramp(0, 1, 4), mask[0]), ty="uint32x4")
+                    + (
+                        (
+                            T.reinterpret(T.masked_load(B, T.Ramp(0, 1, 4), mask[0]), ty="uint32x4")
+                            >> T.Broadcast(T.uint32(16), 4)
+                            & T.Broadcast(T.uint32(1), 4)
+                        )
+                        + T.Broadcast(T.uint32(32767), 4)
+                    )
+                    >> T.Broadcast(T.uint32(16), 4),
+                    "uint16x4",
+                ),
+                T.Ramp(0, 1, 4),
+                mask[0],
+            )
+
+    tvm_tirx.ir.assert_structural_equal(after_storage, ExpectedStorage)
+
+
+def test_bf16_storage_compute_scope_will_legalize():
+    def get_before():
+        @tvm_tirx.script.ir_module
+        class Before:
+            @T.function
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+                Bptr: T.handle("bfloat16", storage_scope="local"),
+                Dptr: T.handle("bfloat16"),
+            ):
+                T.func_attr({"global_symbol": "main"})
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "bfloat16", data=Aptr)])
+                B = T.decl_tensor(Bptr, ty_args=[T.Tensor((100,), "bfloat16", data=Bptr)])
+                D = T.decl_tensor(Dptr, ty_args=[T.Tensor((100,), "bfloat16", data=Dptr)])
+                C = T.alloc_tensor(ty_args=[T.Tensor((100,), "bfloat16")])
+                for i in T.grid(100):
+                    C[i] = A[i] + B[i]
+                    D[i] = T.exp(C[i])
+
+        return Before
+
+    def after_compute_legalize():
+        @tvm_tirx.script.ir_module
+        class After:
+            @T.function
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+                Bptr: T.handle("bfloat16", storage_scope="local"),
+                Dptr: T.handle("bfloat16"),
+            ):
+                T.func_attr({"global_symbol": "main"})
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "bfloat16", data=Aptr)])
+                B = T.decl_tensor(Bptr, ty_args=[T.Tensor((100,), "bfloat16", data=Bptr)])
+                D = T.decl_tensor(Dptr, ty_args=[T.Tensor((100,), "bfloat16", data=Dptr)])
+                C = T.alloc_tensor(ty_args=[T.Tensor((100,), "float32")])
+                for i in T.grid(100):
+                    C[i] = bf16tof32(A[i]) + bf16tof32(B[i])
+                    D[i] = f32tobf16(T.exp(C[i]))
+
+        return After
+
+    def after_storage_legalize():
+        @tvm_tirx.script.ir_module
+        class After:
+            @T.function
+            def main(
+                Aptr: T.handle("uint16", storage_scope="shared"),
+                Bptr: T.handle("uint16", storage_scope="local"),
+                Dptr: T.handle("uint16"),
+            ):
+                T.func_attr({"global_symbol": "main"})
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "uint16", data=Aptr)])
+                B = T.decl_tensor(Bptr, ty_args=[T.Tensor((100,), "uint16", data=Bptr)])
+                D = T.decl_tensor(Dptr, ty_args=[T.Tensor((100,), "uint16", data=Dptr)])
+                C = T.alloc_tensor(ty_args=[T.Tensor((100,), "float32")])
+                for i in T.grid(100):
+                    C[i] = u16tof32(A[i]) + u16tof32(B[i])
+                    D[i] = f32tou16(T.exp(C[i]))
+
+        return After
+
+    target = Target("nvidia/geforce-rtx-2080-ti")
+    before = BindTarget(target)(get_before())
+    after_compute = tvm_tirx.tirx.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm_tirx.tirx.transform.BF16StorageLegalize()(after_compute)
+    tvm_tirx.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
+    tvm_tirx.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
+
+
+def test_bf16_storage_compute_scope_wont_legalize():
+    def get_before():
+        @tvm_tirx.script.ir_module
+        class Before:
+            @T.function
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+                Bptr: T.handle("bfloat16", storage_scope="local"),
+                Dptr: T.handle("bfloat16"),
+            ):
+                T.func_attr({"global_symbol": "main"})
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "bfloat16", data=Aptr)])
+                B = T.decl_tensor(Bptr, ty_args=[T.Tensor((100,), "bfloat16", data=Bptr)])
+                D = T.decl_tensor(Dptr, ty_args=[T.Tensor((100,), "bfloat16", data=Dptr)])
+                C = T.alloc_tensor(ty_args=[T.Tensor((100,), "bfloat16")])
+                for i in T.grid(100):
+                    C[i] = A[i] + B[i]
+                    D[i] = T.exp(C[i])
+
+        return Before
+
+    def after_compute_legalize():
+        @tvm_tirx.script.ir_module
+        class After:
+            @T.function
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+                Bptr: T.handle("bfloat16", storage_scope="local"),
+                Dptr: T.handle("bfloat16"),
+            ):
+                T.func_attr({"global_symbol": "main"})
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "bfloat16", data=Aptr)])
+                B = T.decl_tensor(Bptr, ty_args=[T.Tensor((100,), "bfloat16", data=Bptr)])
+                D = T.decl_tensor(Dptr, ty_args=[T.Tensor((100,), "bfloat16", data=Dptr)])
+                C = T.alloc_tensor(ty_args=[T.Tensor((100,), "bfloat16")])
+                for i in T.grid(100):
+                    C[i] = A[i] + B[i]
+                    D[i] = T.exp(C[i])
+
+        return After
+
+    def after_storage_legalize():
+        @tvm_tirx.script.ir_module
+        class After:
+            @T.function
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+                Bptr: T.handle("bfloat16", storage_scope="local"),
+                Dptr: T.handle("bfloat16"),
+            ):
+                T.func_attr({"global_symbol": "main"})
+                A = T.decl_tensor(Aptr, ty_args=[T.Tensor((100,), "bfloat16", data=Aptr)])
+                B = T.decl_tensor(Bptr, ty_args=[T.Tensor((100,), "bfloat16", data=Bptr)])
+                D = T.decl_tensor(Dptr, ty_args=[T.Tensor((100,), "bfloat16", data=Dptr)])
+                C = T.alloc_tensor(ty_args=[T.Tensor((100,), "bfloat16")])
+                for i in T.grid(100):
+                    C[i] = A[i] + B[i]
+                    D[i] = T.exp(C[i])
+
+        return After
+
+    target = Target("nvidia/geforce-rtx-3090-ti")
+    before = BindTarget(target)(get_before())
+    after_compute = tvm_tirx.tirx.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm_tirx.tirx.transform.BF16StorageLegalize()(after_compute)
+    tvm_tirx.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
+    tvm_tirx.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
+
+
+def test_bf16_reduce_will_legalize():
+    def get_before():
+        @tvm_tirx.script.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+            ):
+                A_flat = T.decl_tensor(Aptr, ty_args=[T.Tensor(4096, "bfloat16", data=Aptr)])
+
+                for i in range(128):
+                    threadIdx_x = T.launch_thread("threadIdx.x", 32)
+
+                    reduce = T.alloc_tensor(ty_args=[T.Tensor(1, "bfloat16", scope="local")])
+
+                    T.gpu_thread_allreduce(
+                        T.Lambda([T.bfloat16, T.bfloat16], lambda x, y: (x + y,)),
+                        (T.bfloat16(0),),
+                        (A_flat[0],),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
+
+        return Before
+
+    def after_compute_legalize():
+        @tvm_tirx.script.ir_module
+        class After:
+            @T.function(private=True)
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+            ):
+                A_flat_1 = T.decl_tensor(Aptr, ty_args=[T.Tensor(4096, "bfloat16", data=Aptr)])
+
+                for i in range(128):
+                    threadIdx_x = T.launch_thread("threadIdx.x", 32)
+
+                    reduce = T.alloc_tensor(ty_args=[T.Tensor(1, "float32", scope="local")])
+
+                    T.gpu_thread_allreduce(
+                        T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                        (T.float32(0),),
+                        (
+                            T.reinterpret(
+                                T.shift_left(
+                                    T.Cast(T.reinterpret(A_flat_1[0], ty="uint16"), "uint32"),
+                                    T.uint32(16),
+                                ),
+                                ty="float32",
+                            ),
+                        ),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
+
+        return After
+
+    def after_storage_legalize():
+        @tvm_tirx.script.ir_module
+        class After:
+            @T.function(private=True)
+            def main(
+                Aptr: T.handle("uint16", storage_scope="shared"),
+            ):
+                A_flat = T.decl_tensor(Aptr, ty_args=[T.Tensor(4096, "uint16", data=Aptr)])
+
+                for i in range(128):
+                    threadIdx_x = T.launch_thread("threadIdx.x", 32)
+
+                    reduce = T.alloc_tensor(ty_args=[T.Tensor(1, "float32", scope="local")])
+
+                    T.gpu_thread_allreduce(
+                        T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                        (T.float32(0),),
+                        (
+                            T.reinterpret(
+                                T.shift_left(
+                                    T.Cast(A_flat[0], "uint32"),
+                                    T.uint32(16),
+                                ),
+                                ty="float32",
+                            ),
+                        ),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
+
+        return After
+
+    target = Target("nvidia/geforce-rtx-2080-ti")
+    before = BindTarget(target)(get_before())
+    after_compute = tvm_tirx.tirx.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm_tirx.tirx.transform.BF16StorageLegalize()(after_compute)
+    tvm_tirx.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
+    tvm_tirx.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
+
+
+def test_bf16_reduce_wont_legalize():
+    def get_before():
+        @tvm_tirx.script.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+            ):
+                A_flat = T.decl_tensor(Aptr, ty_args=[T.Tensor(4096, "bfloat16", data=Aptr)])
+
+                for i in range(128):
+                    threadIdx_x = T.launch_thread("threadIdx.x", 32)
+
+                    reduce = T.alloc_tensor(ty_args=[T.Tensor(1, "bfloat16", scope="local")])
+
+                    T.gpu_thread_allreduce(
+                        T.Lambda([T.bfloat16, T.bfloat16], lambda x, y: (x + y,)),
+                        (T.bfloat16(0),),
+                        (A_flat[0],),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
+
+        return Before
+
+    def after_compute_legalize():
+        @tvm_tirx.script.ir_module
+        class After:
+            @T.function(private=True)
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+            ):
+                A_flat = T.decl_tensor(Aptr, ty_args=[T.Tensor(4096, "bfloat16", data=Aptr)])
+
+                for i in range(128):
+                    threadIdx_x = T.launch_thread("threadIdx.x", 32)
+
+                    reduce = T.alloc_tensor(ty_args=[T.Tensor(1, "bfloat16", scope="local")])
+
+                    T.gpu_thread_allreduce(
+                        T.Lambda([T.bfloat16, T.bfloat16], lambda x, y: (x + y,)),
+                        (T.bfloat16(0),),
+                        (A_flat[0],),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
+
+        return After
+
+    def after_storage_legalize():
+        @tvm_tirx.script.ir_module
+        class After:
+            @T.function(private=True)
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+            ):
+                A_flat = T.decl_tensor(Aptr, ty_args=[T.Tensor(4096, "bfloat16", data=Aptr)])
+
+                for i in range(128):
+                    threadIdx_x = T.launch_thread("threadIdx.x", 32)
+
+                    reduce = T.alloc_tensor(ty_args=[T.Tensor(1, "bfloat16", scope="local")])
+
+                    T.gpu_thread_allreduce(
+                        T.Lambda([T.bfloat16, T.bfloat16], lambda x, y: (x + y,)),
+                        (T.bfloat16(0),),
+                        (A_flat[0],),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
+
+        return After
+
+    target = Target("nvidia/geforce-rtx-3090-ti")
+    before = BindTarget(target)(get_before())
+    after_compute = tvm_tirx.tirx.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm_tirx.tirx.transform.BF16StorageLegalize()(after_compute)
+    tvm_tirx.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
+    tvm_tirx.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
+
+
+if __name__ == "__main__":
+    test_bf16_storage_compute_scope_will_legalize()
+    test_bf16_storage_compute_scope_wont_legalize()
+    test_bf16_reduce_will_legalize()
+    test_bf16_reduce_wont_legalize()

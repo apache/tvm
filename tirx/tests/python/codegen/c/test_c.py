@@ -1,0 +1,303 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+import numpy as np
+
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.support import utils
+
+
+def test_add():
+    nn = 1024
+
+    @I.ir_module
+    class Module:
+        @T.function
+        def test_fadd(
+            A: T.Tensor((1024,), "float32"),
+            B: T.Tensor((1024,), "float32"),
+            C: T.Tensor((1024,), "float32"),
+        ):
+            T.func_attr({"tirx.noalias": True})
+            for i0 in range(1024):
+                C[i0] = A[i0] + B[i0]
+
+    def check_c():
+        mhost = tvm_tirx.tirx.compile(Module, target="c")
+        temp = utils.tempdir()
+        path_dso = temp.relpath("temp.so")
+        mhost.export_library(path_dso)
+        m = tvm_tirx.runtime.load_module(path_dso)
+        fadd = m["test_fadd"]
+        dev = tvm_tirx.cpu(0)
+        n = nn
+        a = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+        b = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+        c = tvm_tirx.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+        fadd(a, b, c)
+        tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
+
+    check_c()
+
+
+def test_reinterpret():
+    nn = 1024
+
+    @I.ir_module
+    class Module:
+        @T.function
+        def test_reinterpret(
+            A: T.Tensor((1024,), "int32"),
+            B: T.Tensor((1024,), "float32"),
+        ):
+            T.func_attr({"tirx.noalias": True})
+            for i0 in range(1024):
+                B[i0] = T.reinterpret(A[i0] + 2, ty="float32")
+
+    def check_c():
+        mhost = tvm_tirx.tirx.compile(Module, target="c")
+        temp = utils.tempdir()
+        path_dso = temp.relpath("temp.so")
+        mhost.export_library(path_dso)
+        m = tvm_tirx.runtime.load_module(path_dso)
+        fadd = m["test_reinterpret"]
+        dev = tvm_tirx.cpu(0)
+        n = nn
+        a = tvm_tirx.runtime.tensor(np.random.randint(-(2**30), 2**30, size=n).astype("int32"), dev)
+        b = tvm_tirx.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+        fadd(a, b)
+        tvm_tirx.testing.assert_allclose(b.numpy(), (2 + a.numpy()).view("float32"))
+
+    check_c()
+
+
+def test_ceil():
+    nn = 1024
+
+    @I.ir_module
+    class Module:
+        @T.function
+        def test_ceil(
+            A: T.Tensor((1024,), "float32"),
+            B: T.Tensor((1024,), "float32"),
+        ):
+            T.func_attr({"tirx.noalias": True})
+            for i0 in range(1024):
+                B[i0] = T.ceil(A[i0])
+
+    def check_c():
+        mhost = tvm_tirx.tirx.compile(Module, target="c")
+        temp = utils.tempdir()
+        path_dso = temp.relpath("temp.so")
+        mhost.export_library(path_dso)
+        m = tvm_tirx.runtime.load_module(path_dso)
+        fceil = m["test_ceil"]
+        dev = tvm_tirx.cpu(0)
+        n = nn
+        a = tvm_tirx.runtime.tensor(np.random.rand(n).astype("float32"), dev)
+        b = tvm_tirx.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+        fceil(a, b)
+        tvm_tirx.testing.assert_allclose(b.numpy(), (np.ceil(a.numpy()).view("float32")))
+
+    check_c()
+
+
+def test_floor():
+    nn = 1024
+
+    @I.ir_module
+    class Module:
+        @T.function
+        def test_floor(
+            A: T.Tensor((1024,), "float32"),
+            B: T.Tensor((1024,), "float32"),
+        ):
+            T.func_attr({"tirx.noalias": True})
+            for i0 in range(1024):
+                B[i0] = T.floor(A[i0])
+
+    def check_c():
+        mhost = tvm_tirx.tirx.compile(Module, target="c")
+        temp = utils.tempdir()
+        path_dso = temp.relpath("temp.so")
+        mhost.export_library(path_dso)
+        m = tvm_tirx.runtime.load_module(path_dso)
+        ffloor = m["test_floor"]
+        dev = tvm_tirx.cpu(0)
+        n = nn
+        a = tvm_tirx.runtime.tensor(np.random.rand(n).astype("float32"), dev)
+        b = tvm_tirx.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+        ffloor(a, b)
+        tvm_tirx.testing.assert_allclose(b.numpy(), (np.floor(a.numpy()).view("float32")))
+
+    check_c()
+
+
+def test_round():
+    nn = 1024
+
+    @I.ir_module
+    class Module:
+        @T.function
+        def test_round(
+            A: T.Tensor((1024,), "float32"),
+            B: T.Tensor((1024,), "float32"),
+        ):
+            T.func_attr({"tirx.noalias": True})
+            for i0 in range(1024):
+                B[i0] = T.round(A[i0])
+
+    def check_c():
+        mhost = tvm_tirx.tirx.compile(Module, target="c")
+        temp = utils.tempdir()
+        path_dso = temp.relpath("temp.so")
+        mhost.export_library(path_dso)
+        m = tvm_tirx.runtime.load_module(path_dso)
+        fround = m["test_round"]
+        dev = tvm_tirx.cpu(0)
+        n = nn
+        # Exact midpoints first: this is where ties-to-even (np.round, and the
+        # semantics every other backend and the constant folder use) differs
+        # from ties-away-from-zero. np.random.rand never produces them, so the
+        # random tail alone cannot exercise the tie rule.
+        midpoints = np.array([0.5, 1.5, 2.5, 3.5, -0.5, -1.5, -2.5, -3.5], dtype="float32")
+        a_np = np.concatenate(
+            [midpoints, np.random.rand(n - len(midpoints)).astype("float32")]
+        ).astype("float32")
+        a = tvm_tirx.runtime.tensor(a_np, dev)
+        b = tvm_tirx.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+        fround(a, b)
+        tvm_tirx.testing.assert_allclose(b.numpy(), (np.round(a.numpy()).view("float32")))
+
+    check_c()
+
+
+def test_subroutine_call():
+    @I.ir_module
+    class Module:
+        @T.function
+        def main(A: T.Tensor(1, dtype="float32")):
+            Module.subroutine(A.data)
+
+        @T.function(private=True)
+        def subroutine(A_data: T.handle("float32")):
+            A = T.decl_tensor(A_data, ty_args=[T.Tensor(1, "float32", data=A_data)])
+            A[0] = 42.0
+
+    built = tvm_tirx.tirx.compile(Module, target="c").mod
+
+    source = built.inspect_source()
+    assert source.count("__tvm_ffi_main(void*") == 2, (
+        "Expected two occurrences, for forward-declaration and definition"
+    )
+    assert source.count("subroutine(float*") == 2, (
+        "Expected two occurrences, for forward-declaration and definition"
+    )
+    assert source.count("subroutine(") == 3, (
+        "Expected three occurrences, for forward-declaration, definition, and call from main."
+    )
+
+
+def test_workspace_allocation_cast():
+    @I.ir_module
+    class Module:
+        @T.function
+        def main(A: T.Tensor((256,), "float32")):
+            workspace = T.alloc_tensor(ty_args=[T.Tensor((256,), "float32", scope="global")])
+            for i in range(256):
+                workspace[i] = A[i]
+            for i in range(256):
+                A[i] = workspace[i]
+
+    built = tvm_tirx.tirx.compile(Module, target="c").mod
+    assert "((float*)TVMBackendAllocWorkspace(" in built.inspect_source()
+
+    temp = utils.tempdir()
+    built.export_library(temp.relpath("workspace.so"))
+
+
+def test_local_alloc_buffer_uses_plain_c_pointer():
+    @I.ir_module
+    class Module:
+        @T.function
+        def main(A: T.Tensor((1,), "float32")):
+            B = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
+            for i in range(1):
+                B[i] = A[i] + T.float32(1)
+                A[i] = B[i]
+
+    built = tvm_tirx.tirx.compile(Module, target="c").mod
+    assert "local float*" not in built.inspect_source()
+
+    temp = utils.tempdir()
+    path_dso = temp.relpath("local_alloc.so")
+    built.export_library(path_dso)
+    loaded = tvm_tirx.runtime.load_module(path_dso)
+
+    data = tvm_tirx.runtime.tensor(np.array([1.0], dtype="float32"))
+    loaded["main"](data)
+    tvm_tirx.testing.assert_allclose(data.numpy(), np.array([2.0], dtype="float32"))
+
+
+def test_vector_pointer_uses_byte_offset():
+    buffer = tvm_tirx.tirx.decl_tensor((8,), "float32x2", name="A")
+    pointer = tvm_tirx.tirx.ptr_byte_offset(buffer.data, 16, ty=buffer.data.ty)
+    body = tvm_tirx.ir.Evaluate(tvm_tirx.tirx.call_extern("void", "consume", pointer))
+    func = tvm_tirx.tirx.Function([buffer], body).with_attr("global_symbol", "main")
+
+    source = tvm_tirx.tirx.compile(
+        tvm_tirx.IRModule.from_expr(func), target="c"
+    ).mod.inspect_source()
+    call = next(line.strip() for line in source.splitlines() if line.strip().startswith("consume("))
+    assert "int32_t2" not in call
+    assert "float2*" in call
+    assert " + 16" in call
+
+
+def test_if_then_else_avoids_extraneous_parentheses():
+    @I.ir_module
+    class Module:
+        @T.function
+        def main(A: T.Tensor((8,), "int32"), B: T.Tensor((8,), "int32")):
+            for i in range(8):
+                B[i] = T.if_then_else(i == 0, 1, A[i])
+
+    built = tvm_tirx.tirx.compile(Module, target="c").mod
+    source = built.inspect_source()
+    assert "if ((" not in source, (
+        "Generated code contains extraneous parentheses in the if condition, "
+        "which triggers clang's -Wparentheses-equality warning"
+    )
+
+    temp = utils.tempdir()
+    path_dso = temp.relpath("if_then_else.so")
+    built.export_library(path_dso)
+    loaded = tvm_tirx.runtime.load_module(path_dso)
+
+    a = tvm_tirx.runtime.tensor(np.arange(8, dtype="int32"))
+    b = tvm_tirx.runtime.tensor(np.zeros(8, dtype="int32"))
+    loaded["main"](a, b)
+    tvm_tirx.testing.assert_allclose(
+        b.numpy(), np.where(np.arange(8) == 0, 1, np.arange(8)).astype("int32")
+    )
+
+
+if __name__ == "__main__":
+    tvm_tirx.testing.main()

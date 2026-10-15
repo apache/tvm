@@ -1,0 +1,175 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# ruff: noqa: E741
+import numpy as np
+import pytest
+import tvm_ffi
+
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+
+
+def _reduce_module(d1, d2, d3, is_max=False):
+    combine = T.Lambda(
+        [T.float32, T.float32],
+        (lambda x, y: (T.max(x, y),)) if is_max else (lambda x, y: (x + y,)),
+    )
+
+    @I.ir_module
+    class Module:
+        @T.function
+        def main(A: T.Tensor((1, d1, d2, d3), "float32"), B: T.Tensor((1, d1, d2), "float32")):
+            with T.launch_thread("blockIdx.x", 1) as i:
+                with T.launch_thread("threadIdx.z", d1) as j:
+                    with T.launch_thread("threadIdx.y", d2) as k:
+                        with T.launch_thread("threadIdx.x", d3) as l:
+                            reduced = T.alloc_tensor(
+                                ty_args=[T.Tensor((1,), "float32", scope="local")]
+                            )
+                            T.gpu_thread_allreduce(
+                                combine,
+                                (T.float32(-3.4028234663852886e38 if is_max else 0),),
+                                (A[i, j, k, l],),
+                                True,
+                                (reduced[0],),
+                                (l,),
+                            )
+                            if l == 0:
+                                B[i, j, k] = reduced[0]
+
+    return Module
+
+
+def _reduce_sum_module(d1, d2, d3):
+    return _reduce_module(d1, d2, d3)
+
+
+def _reduce_max_module(d1, d2, d3):
+    return _reduce_module(d1, d2, d3, is_max=True)
+
+
+def generate_param_sets():
+    for d1 in range(1, 5):
+        for d2 in range(1, 5):
+            for d3 in [2, 4, 8, 12, 16, 32, 48, 64, 100, 128, 201, 256, 512, 1024]:
+                if d1 * d2 * d3 < 1024:
+                    yield (d1, d2, d3)
+
+
+dims = tvm_tirx.testing.parameter(*generate_param_sets())
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param("metal", marks=pytest.mark.gpu),
+    ],
+)
+def test_allreduce_sum(dims, target):
+    if not tvm_tirx.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    d1, d2, d3 = dims
+    mod = _reduce_sum_module(d1, d2, d3)
+    f = tvm_tirx.tirx.compile(mod, target=target)
+
+    # prepare input and output array
+    a_np = np.random.rand(1, d1, d2, d3).astype("float32")
+    b_np = a_np.sum(axis=-1).astype("float32")
+
+    def run_and_check():
+        dev = tvm_tirx.device_from_target(target)
+        a = tvm_tirx.runtime.tensor(a_np, dev)
+        b = tvm_tirx.runtime.tensor(np.zeros_like(b_np), dev)
+        f(a, b)
+        tvm_tirx.testing.assert_allclose(b.numpy(), b_np, rtol=1e-6, atol=1e-6)
+
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
+
+
+define_metal_compile_callback = tvm_tirx.testing.parameter(True, False)
+
+
+@pytest.fixture
+def optional_metal_compile_callback(define_metal_compile_callback):
+    name = "tvm_callback_metal_compile"
+    cached = tvm_tirx.get_global_func(name, allow_missing=True)
+
+    if define_metal_compile_callback:
+
+        @tvm_tirx.register_global_func(name, override=True)
+        def compile_metal(src, target):
+            from tvm_tirx.support.xcode import (
+                compile_metal,  # pylint: disable=import-outside-toplevel
+            )
+
+            return compile_metal(src, sdk="macosx")
+
+    yield
+
+    if define_metal_compile_callback:
+        if cached is None:
+            tvm_ffi.registry.remove_global_func(name)
+        else:
+            tvm_tirx.register_global_func(name, cached, override=True)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
+def test_allreduce_sum_compile(optional_metal_compile_callback):
+    # Disable the parametrization over dims, at least for now
+    dims = (1, 1, 2)
+    target = "metal"
+
+    d1, d2, d3 = dims
+    mod = _reduce_sum_module(d1, d2, d3)
+    tvm_tirx.tirx.compile(mod, target=target)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param("metal", marks=pytest.mark.gpu),
+    ],
+)
+def test_allreduce_max(dims, target):
+    if not tvm_tirx.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+    d1, d2, d3 = dims
+    mod = _reduce_max_module(d1, d2, d3)
+    f = tvm_tirx.tirx.compile(mod, target=target)
+
+    # prepare input and output array
+    a_np = -np.random.rand(1, d1, d2, d3).astype("float32")
+    b_np = a_np.max(axis=-1).astype("float32")
+
+    def run_and_check():
+        dev = tvm_tirx.device_from_target(target)
+        a = tvm_tirx.runtime.tensor(a_np, dev)
+        b = tvm_tirx.runtime.tensor(np.zeros_like(b_np), dev)
+        f(a, b)
+        tvm_tirx.testing.assert_allclose(b.numpy(), b_np, rtol=1e-6, atol=1e-6)
+
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
+
+
+if __name__ == "__main__":
+    tvm_tirx.testing.main()
