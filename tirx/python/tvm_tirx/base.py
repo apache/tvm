@@ -19,6 +19,7 @@
 """Base library for TVM."""
 
 import os
+from pathlib import Path
 
 from tvm_ffi import libinfo as tvm_ffi_libinfo
 from tvm_ffi.libinfo import load_lib_ctypes
@@ -34,7 +35,7 @@ from . import libinfo
 _RUNTIME_ONLY = os.environ.get("TVM_USE_RUNTIME_LIB") == "1"
 
 # Handles of the core libraries actually loaded, keyed by basename
-# (e.g. ``{"tvm_runtime": <CDLL>, "tvm_compiler": <CDLL>}``). Downstream /
+# (e.g. ``{"tvm_runtime": <CDLL>, "tvm_tirx": <CDLL>}``). Downstream /
 # autoloaded extensions can inspect this to skip duplicate libraries
 # (``"tvm_runtime" in _LOADED_LIBS``) and obtain the loaded handle.
 _LOADED_LIBS = {}
@@ -43,19 +44,21 @@ _LOADED_LIBS = {}
 # runtime is loaded RTLD_GLOBAL to expose its symbols to subsequent loads;
 # compiler is loaded RTLD_LOCAL.
 _LOADED_LIBS["tvm_runtime"] = load_lib_ctypes(
-    "tvm", "tvm_runtime", "RTLD_GLOBAL", extra_lib_paths=libinfo.package_lib_paths()
+    "tvm_tirx", "tvm_runtime", "RTLD_GLOBAL", extra_lib_paths=libinfo.package_lib_paths()
 )
 
 if not _RUNTIME_ONLY:
-    _lib_paths = libinfo.package_lib_paths()
+    _lib_paths = [Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent]
     try:
-        tvm_ffi_libinfo._find_library_by_basename("tvm", "tvm_compiler", extra_lib_paths=_lib_paths)
+        tvm_ffi_libinfo._find_library_by_basename(
+            "tvm_tirx", "tvm_tirx", extra_lib_paths=_lib_paths
+        )
     except RuntimeError:
         # A runtime-only installation need not contain the compiler library.
         _RUNTIME_ONLY = True
     else:
-        _LOADED_LIBS["tvm_compiler"] = load_lib_ctypes(
-            "tvm", "tvm_compiler", "RTLD_LOCAL", extra_lib_paths=_lib_paths
+        _LOADED_LIBS["tvm_tirx"] = load_lib_ctypes(
+            "tvm_tirx", "tvm_tirx", "RTLD_LOCAL", extra_lib_paths=_lib_paths
         )
 
 if _RUNTIME_ONLY:

@@ -18,11 +18,11 @@
 
 import os
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import relax, te
 from tvm.contrib import emcc
+from tvm.relax import script as R
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
 
 
 def prepare_relax_lib(base_path):

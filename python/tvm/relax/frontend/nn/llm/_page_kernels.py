@@ -32,7 +32,7 @@ This module contains:
 from __future__ import annotations
 
 # pylint: disable=too-many-statements,too-many-arguments,invalid-name,line-too-long
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 

@@ -32,11 +32,4 @@ from ._tensor import device, cpu, cuda, opencl, vulkan, metal
 from ._tensor import vpi, rocm, ext_dev, from_dlpack
 from .module import load_module, enabled, system_lib, load_static_library, num_threads
 
-try:
-    from . import disco
-except (ImportError, ValueError):
-    # disco C++ runtime is in libtvm_runtime_extra which may not be present.
-    # Make the disco module optional.
-    disco = None  # type: ignore[assignment]
-
 from tvm_ffi import Shape as ShapeTuple

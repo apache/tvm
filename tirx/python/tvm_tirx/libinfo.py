@@ -25,7 +25,7 @@ from tvm_ffi import libinfo as tvm_ffi_libinfo
 
 
 def _rel_top_directory() -> Path:
-    """Top directory in the installed (wheel) layout: ``python/tvm/``."""
+    """Top directory in the installed (wheel) layout: ``python/tvm_tirx/``."""
     return Path(__file__).parent
 
 
@@ -37,22 +37,25 @@ def _dev_top_directory() -> Path:
 def package_lib_paths() -> list[Path]:
     """Return search directories for TVM's shared libraries.
 
-    Anchored on this file's location (``python/tvm/libinfo.py``), the list
-    covers the wheel-install layout (``python/tvm/lib/``) and the in-tree dev
+    Anchored on this file's location (``python/tvm_tirx/libinfo.py``), the list
+    covers the wheel-install layout (``python/tvm_tirx/lib/``) and the in-tree dev
     build layouts (``<worktree>/build/lib/`` and ``<worktree>/lib/``).
-    ``TVM_LIBRARY_PATH`` is prepended when set so it takes priority. Callers
+    ``TVM_TIRX_LIBRARY_PATH`` is prepended when set so it takes priority. Callers
     pick the basenames they want (e.g. ``libtvm_runtime.so``) and the load
     mode; this function only returns the search path.
     """
-    pkg = _rel_top_directory()  # python/tvm/
+    pkg = _rel_top_directory()  # python/tvm_tirx/
     paths: list[Path] = []
-    if os.environ.get("TVM_LIBRARY_PATH"):
-        paths.append(Path(os.environ["TVM_LIBRARY_PATH"]))
+    if os.environ.get("TVM_TIRX_LIBRARY_PATH"):
+        paths.append(Path(os.environ["TVM_TIRX_LIBRARY_PATH"]))
     paths += [
         pkg / "lib",  # wheel layout
         _dev_top_directory() / "build" / "lib",  # dev: <worktree>/build/lib
         _dev_top_directory() / "lib",  # dev: <worktree>/lib
     ]
+    dev = _dev_top_directory().resolve()
+    if dev.name == "tirx" and (dev.parent / "CMakeLists.txt").is_file():
+        paths.append(dev.parent / "build" / "lib")
     return paths
 
 
@@ -70,7 +73,7 @@ def find_libtvm_runtime() -> str:
         If the runtime library cannot be found.
     """
     candidate = tvm_ffi_libinfo._find_library_by_basename(
-        "tvm", "tvm_runtime", extra_lib_paths=package_lib_paths()
+        "tvm_tirx", "tvm_runtime", extra_lib_paths=package_lib_paths()
     )
     if ret := tvm_ffi_libinfo._resolve_and_validate([candidate], cond=lambda _: True):
         return ret
@@ -90,10 +93,4 @@ def find_include_path() -> str:
     raise RuntimeError("Cannot find TVM include path.")
 
 
-# The version is written by setuptools_scm into _version.py at build time
-# (see [tool.setuptools_scm] in pyproject.toml). The fallback keeps a source
-# checkout with no build run importable.
-try:
-    from ._version import version as __version__
-except ImportError:  # pragma: no cover - source tree without a build
-    __version__ = "0.28.dev0"
+__version__ = "0.1.0a0"

@@ -19,6 +19,7 @@
 
 from collections.abc import Mapping
 
+from tvm.relax import script as R
 from tvm.relax.dpl.pattern import (
     DFPattern,
     GlobalVarPattern,
@@ -28,7 +29,6 @@ from tvm.relax.dpl.pattern import (
     is_tuple_get_item,
     wildcard,
 )
-from tvm_tirx.script import relax as R
 from tvm_tirx.script import tirx as T
 
 

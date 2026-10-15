@@ -20,8 +20,8 @@
 import math
 from collections.abc import Callable
 
-import tvm, tvm_tirx
-from tvm_tirx.script import s_tir as Ts
+import tvm_tirx
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx import Function
 

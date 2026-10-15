@@ -27,13 +27,13 @@ import math
 
 import numpy as np
 
-import tvm, tvm_tirx
-from tvm_tirx import tirx
+import tvm_tirx
 from tvm import relax
-from tvm_tirx.ir import TupleType as _TupleType
 from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax import op as _op
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.ir import TupleType as _TupleType
 
 from .tflite_flexbuffer import FlexBufferDecoder
 
@@ -751,16 +751,22 @@ class OperatorConverter:
 
         offsets = np.frombuffer(data, dtype="<i4", count=count + 1, offset=4).astype(np.int64)
         if np.any(offsets < header_size) or np.any(offsets > len(data)):
-            raise tvm_tirx.error.OpNotImplemented(f"{op_name} has out-of-bounds string tensor offsets")
+            raise tvm_tirx.error.OpNotImplemented(
+                f"{op_name} has out-of-bounds string tensor offsets"
+            )
         if np.any(offsets[:-1] > offsets[1:]):
-            raise tvm_tirx.error.OpNotImplemented(f"{op_name} has non-monotonic string tensor offsets")
+            raise tvm_tirx.error.OpNotImplemented(
+                f"{op_name} has non-monotonic string tensor offsets"
+            )
 
         try:
             values = [
                 data[int(offsets[i]) : int(offsets[i + 1])].decode("utf-8") for i in range(count)
             ]
         except UnicodeDecodeError as e:
-            raise tvm_tirx.error.OpNotImplemented(f"{op_name} has invalid UTF-8 string data: {e}") from e
+            raise tvm_tirx.error.OpNotImplemented(
+                f"{op_name} has invalid UTF-8 string data: {e}"
+            ) from e
         shape = self._get_tensor_shape_tuple(tensor_wrapper)
         expected_count = math.prod(shape) if shape else 1
         if expected_count != count:
@@ -811,11 +817,15 @@ class OperatorConverter:
         key_shape = self._get_tensor_shape_tuple(key_tensor)
         value_shape = self._get_tensor_shape_tuple(value_tensor)
         if key_shape != value_shape:
-            raise tvm_tirx.error.OpNotImplemented("HASHTABLE_IMPORT requires keys and values same shape")
+            raise tvm_tirx.error.OpNotImplemented(
+                "HASHTABLE_IMPORT requires keys and values same shape"
+            )
         if not self._has_tensor_buffer_data(key_tensor) or not self._has_tensor_buffer_data(
             value_tensor
         ):
-            raise tvm_tirx.error.OpNotImplemented("HASHTABLE_IMPORT requires constant keys and values")
+            raise tvm_tirx.error.OpNotImplemented(
+                "HASHTABLE_IMPORT requires constant keys and values"
+            )
 
         if self._is_tflite_string_type(table_info["key_dtype"]):
             keys = self._get_string_tensor_value(key_tensor, "HASHTABLE_IMPORT")
@@ -889,7 +899,9 @@ class OperatorConverter:
         query_shape = self._get_tensor_shape_tuple(query_tensor)
         output_shape = self._get_tensor_shape_tuple(output_tensor)
         if output_shape != query_shape:
-            raise tvm_tirx.error.OpNotImplemented("HASHTABLE_FIND output shape must match query shape")
+            raise tvm_tirx.error.OpNotImplemented(
+                "HASHTABLE_FIND output shape must match query shape"
+            )
 
         query_values = self._get_string_tensor_value(query_tensor, "HASHTABLE_FIND")
         default_values = self.get_tensor_value(default_tensor)
@@ -1554,7 +1566,9 @@ class OperatorConverter:
         from tflite.LocalResponseNormalizationOptions import LocalResponseNormalizationOptions
 
         if self.is_quantized(op):
-            raise tvm_tirx.error.OpNotImplemented("TFlite quantized LRN operator is not supported yet.")
+            raise tvm_tirx.error.OpNotImplemented(
+                "TFlite quantized LRN operator is not supported yet."
+            )
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
@@ -2096,7 +2110,9 @@ class OperatorConverter:
         elif dtype.startswith(("int", "uint")):
             op_fn = _op.bitwise_and
         else:
-            raise tvm_tirx.error.OpNotImplemented(f"STABLEHLO_AND with dtype {dtype} is not supported")
+            raise tvm_tirx.error.OpNotImplemented(
+                f"STABLEHLO_AND with dtype {dtype} is not supported"
+            )
         return self.bb.normalize(op_fn(lhs, rhs))
 
     def _convert_stablehlo_or(self, op):
@@ -2114,7 +2130,9 @@ class OperatorConverter:
         elif dtype.startswith(("int", "uint")):
             op_fn = _op.bitwise_or
         else:
-            raise tvm_tirx.error.OpNotImplemented(f"STABLEHLO_OR with dtype {dtype} is not supported")
+            raise tvm_tirx.error.OpNotImplemented(
+                f"STABLEHLO_OR with dtype {dtype} is not supported"
+            )
         return self.bb.normalize(op_fn(lhs, rhs))
 
     def _convert_stablehlo_ternary(self, op, relax_op):
@@ -2561,7 +2579,9 @@ class OperatorConverter:
         elif direction == _DIR.STABLEHLO_COMPARISON_DIRECTION_GT:
             descending = True
         else:
-            raise tvm_tirx.error.OpNotImplemented("STABLEHLO_SORT only supports LT or GT comparators")
+            raise tvm_tirx.error.OpNotImplemented(
+                "STABLEHLO_SORT only supports LT or GT comparators"
+            )
 
         data = self.get_tensor_expr(input_tensors[0])
         return self.bb.normalize(
@@ -2602,7 +2622,9 @@ class OperatorConverter:
             return self.get_tensor_expr(input_tensors[0])
 
         target = call_target_name or "<empty>"
-        raise tvm_tirx.error.OpNotImplemented(f"STABLEHLO_CUSTOM_CALL target {target} is not supported")
+        raise tvm_tirx.error.OpNotImplemented(
+            f"STABLEHLO_CUSTOM_CALL target {target} is not supported"
+        )
 
     def _convert_stablehlo_rng_bit_generator(self, op):
         """Convert STABLEHLO_RNG_BIT_GENERATOR to a bit-exact call_tir kernel."""
@@ -2638,7 +2660,9 @@ class OperatorConverter:
         if algorithm == "threefry" and state_len != 2:
             raise tvm_tirx.error.OpNotImplemented(f"{op_name} THREEFRY requires a u64[2] state")
         if algorithm == "philox" and state_len not in (2, 3):
-            raise tvm_tirx.error.OpNotImplemented(f"{op_name} PHILOX requires a u64[2] or u64[3] state")
+            raise tvm_tirx.error.OpNotImplemented(
+                f"{op_name} PHILOX requires a u64[2] or u64[3] state"
+            )
 
         out_state_tensor, out_tensor = output_tensors
         if self.get_tensor_type_str(out_state_tensor.tensor.Type()) != "uint64":
@@ -2650,7 +2674,9 @@ class OperatorConverter:
             )
         out_dtype = self.get_tensor_type_str(out_tensor.tensor.Type())
         if out_dtype not in ("int32", "int64", "uint32", "uint64"):
-            raise tvm_tirx.error.OpNotImplemented(f"{op_name} output dtype {out_dtype} is not supported")
+            raise tvm_tirx.error.OpNotImplemented(
+                f"{op_name} output dtype {out_dtype} is not supported"
+            )
         out_shape = tuple(self._get_static_tensor_shape(out_tensor, op_name))
 
         function = _build_stablehlo_rng_bit_generator_function(
@@ -2779,7 +2805,9 @@ class OperatorConverter:
     def _check_tensor_metadata_match(self, actual, expected, op_name, tensor_role):
         """Validate that two TFLite tensors have matching static metadata."""
         if self._get_tensor_metadata(actual) != self._get_tensor_metadata(expected):
-            raise tvm_tirx.error.OpNotImplemented(f"{op_name} {tensor_role} tensor metadata mismatch")
+            raise tvm_tirx.error.OpNotImplemented(
+                f"{op_name} {tensor_role} tensor metadata mismatch"
+            )
 
     def _check_subgraph_tensor_metadata(
         self, subgraph, op_name, tensor_role, subgraph_indices, expected_tensors
@@ -3087,7 +3115,9 @@ class OperatorConverter:
         input_tensors = self.get_input_tensors(op)
         output_tensors = self.get_output_tensors(op)
         if len(input_tensors) != 0 or len(output_tensors) != 0:
-            raise tvm_tirx.error.OpNotImplemented("CALL_ONCE with inputs or outputs is not supported")
+            raise tvm_tirx.error.OpNotImplemented(
+                "CALL_ONCE with inputs or outputs is not supported"
+            )
 
         init_subgraph = self._get_subgraph(init_subgraph_index, "CALL_ONCE")
         if init_subgraph.InputsLength() != 0 or init_subgraph.OutputsLength() != 0:
@@ -3603,7 +3633,9 @@ class OperatorConverter:
         data_shape = self._get_static_tensor_shape(input_tensors[0], "STABLEHLO_CONVOLUTION")
         kernel_shape = self._get_static_tensor_shape(input_tensors[1], "STABLEHLO_CONVOLUTION")
         if len(data_shape) != 4 or len(kernel_shape) != 4:
-            raise tvm_tirx.error.OpNotImplemented("STABLEHLO_CONVOLUTION only supports 2D convolution")
+            raise tvm_tirx.error.OpNotImplemented(
+                "STABLEHLO_CONVOLUTION only supports 2D convolution"
+            )
         if data_shape[3] != kernel_shape[2]:
             raise tvm_tirx.error.OpNotImplemented(
                 "STABLEHLO_CONVOLUTION input channels must match kernel input channels"
@@ -3691,7 +3723,9 @@ class OperatorConverter:
                 "STABLEHLO_GATHER only supports collapsed_slice_dims matching the gather axis"
             )
         if len(slice_sizes) != len(data_shape):
-            raise tvm_tirx.error.OpNotImplemented("STABLEHLO_GATHER slice_sizes must match operand rank")
+            raise tvm_tirx.error.OpNotImplemented(
+                "STABLEHLO_GATHER slice_sizes must match operand rank"
+            )
         for i, (size, dim) in enumerate(zip(slice_sizes, data_shape)):
             expected = 1 if i == axis else dim
             if size != expected:
@@ -3703,7 +3737,9 @@ class OperatorConverter:
                 "STABLEHLO_GATHER only supports trailing index_vector_dim"
             )
         if not indices_shape or indices_shape[index_vector_dim] != 1:
-            raise tvm_tirx.error.OpNotImplemented("STABLEHLO_GATHER only supports index vector size 1")
+            raise tvm_tirx.error.OpNotImplemented(
+                "STABLEHLO_GATHER only supports index vector size 1"
+            )
 
         indices_batch_shape = indices_shape[:index_vector_dim]
         expected_offset_dims = list(range(axis)) + list(
@@ -8515,7 +8551,7 @@ def _build_tflite_rfft2d_fft_function(input_shape, output_pair_shape):
     # this kernel.
     function_source = (
         "from tvm_tirx.script.parser import tirx as T\n"
-        "from tvm_tirx.script import s_tir as Ts\n"
+        "from tvm.s_tir import script as Ts\n"
         "@Ts.function(private=True, check_well_formed=False)\n"
         "def kernel(\n"
         f"    data: T.Tensor({tuple(int(x) for x in input_shape)}, 'float32'),\n"

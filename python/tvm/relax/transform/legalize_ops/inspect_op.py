@@ -19,8 +19,8 @@
 
 import enum
 
+from tvm.s_tir import script as Ts
 from tvm_tirx.ir import Call
-from tvm_tirx.script import s_tir as Ts
 from tvm_tirx.script import tirx as T
 
 from ... import op

@@ -16,7 +16,7 @@
 # under the License.
 """Parallel dot-product prefill for wide FP32 WebGPU attention heads."""
 
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 from ._kernel_common import _get_kv_chunk_len, _get_seq_offset, _length_info_buffer, _rope

@@ -50,7 +50,7 @@ def register_backend():
     try:
         # Runtime sidecars only need registration side effects; libtvm_runtime is global.
         _LOADED_LIBS["tvm_runtime_metal"] = load_lib_ctypes(
-            package="tvm",
+            package="tvm_tirx",
             target_name="tvm_runtime_metal",
             extra_lib_paths=[runtime_dir],
             mode="RTLD_LOCAL",

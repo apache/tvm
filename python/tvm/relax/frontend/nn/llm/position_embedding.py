@@ -22,9 +22,9 @@ from collections.abc import Callable
 from functools import partial
 from typing import Any
 
-from tvm_tirx import tirx
 from tvm.relax.frontend.nn import Tensor, op
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
 
 # pylint: disable=invalid-name

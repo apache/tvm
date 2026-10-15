@@ -31,7 +31,7 @@ Contents:
 import math
 from typing import Any
 
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 

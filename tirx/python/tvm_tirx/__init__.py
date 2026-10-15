@@ -60,12 +60,6 @@ from .target import device_from_target
 # Shared code generation helpers
 from . import codegen
 
-# tvm.te
-from . import te
-
-# tvm.driver
-from .driver import compile
-
 # others
 from . import sym
 
@@ -74,12 +68,6 @@ from . import support
 
 # Side-effect imports: register CUDA/ROCm FFI callbacks at TVM startup
 from .support import rocm as _rocm, nvcc as _nvcc
-
-# Relax contain modules that are only available in compiler package
-# Do not import them if TVM is built with runtime only
-if not _RUNTIME_ONLY:
-    # tvm.relax — registers itself via tvm.script.register_dialect in its __init__
-    from . import relax
 
 # NOTE: This file should be python2 compatible so we can
 # raise proper error message when user run the package using

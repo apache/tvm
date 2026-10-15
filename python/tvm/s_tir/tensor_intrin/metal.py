@@ -19,9 +19,9 @@
 
 from typing import Literal
 
-from tvm_tirx.runtime import MemoryScope
 from tvm.s_tir import TensorIntrin
-from tvm_tirx.script import s_tir as Ts
+from tvm.s_tir import script as Ts
+from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx import Expr, Function, Var
 

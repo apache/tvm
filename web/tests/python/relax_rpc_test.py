@@ -18,10 +18,11 @@
 
 import numpy as np
 
-import tvm, tvm_tirx
+import tvm
+import tvm_tirx
 from tvm import relax, rpc
 from tvm.contrib import emcc
-from tvm_tirx.script import relax as R
+from tvm.relax import script as R
 from tvm_tirx.support import utils
 
 proxy_host = "127.0.0.1"

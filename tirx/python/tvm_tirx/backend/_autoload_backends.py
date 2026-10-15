@@ -21,12 +21,8 @@ from __future__ import annotations
 import os
 import warnings
 from importlib.metadata import entry_points
-from pathlib import Path
-
-from tvm_ffi.libinfo import load_lib_ctypes
 
 from tvm_tirx.backend.loader import load
-from tvm_tirx.base import _LOADED_LIBS
 
 _BUILTIN_BACKENDS = (
     "cuda",
@@ -48,17 +44,6 @@ def _load_builtin_backends() -> None:
     for name in _BUILTIN_BACKENDS:
         load(name)
 
-    runtime_dir = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent
-    try:
-        # Load libtvm_runtime_extra if available for registration side effects.
-        _LOADED_LIBS["tvm_runtime_extra"] = load_lib_ctypes(
-            package="tvm",
-            target_name="tvm_runtime_extra",
-            extra_lib_paths=[runtime_dir],
-            mode="RTLD_LOCAL",
-        )
-    except (OSError, FileNotFoundError, RuntimeError):
-        pass
     return None
 
 
@@ -78,10 +63,10 @@ def _autoload_backends() -> None:
         _load_builtin_backends()
 
     # Out-of-tree extensions opt into being loaded automatically at ``import tvm`` time
-    # by declaring an entry point in the ``tvm.backends`` group:
-    # [project.entry-points."tvm.backends"] tvm_foo = "tvm_foo:_autoload".
+    # by declaring an entry point in the ``tvm_tirx.backends`` group:
+    # [project.entry-points."tvm_tirx.backends"] tvm_foo = "tvm_foo:_autoload".
     # Autoload can be disabled via ``TVM_DEVICE_BACKEND_AUTOLOAD=0``.
-    for entry_pt in entry_points(group="tvm.backends"):
+    for entry_pt in entry_points(group="tvm_tirx.backends"):
         try:
             entry_pt.load()()
         except Exception as e:  # pylint: disable=broad-except

@@ -25,10 +25,10 @@ from typing import Any, TypeVar
 
 import numpy as np
 
-import tvm, tvm_tirx
+import tvm_tirx
 from tvm import te
+from tvm.s_tir import script as Ts
 from tvm_tirx import tirx as _tir
-from tvm_tirx.script import s_tir as Ts
 from tvm_tirx.script import tirx as T
 
 from ... import expr as rx
@@ -2181,7 +2181,8 @@ def extern(
     out: OutType,
 ) -> OutType:
     """Invoke an extern function during runtime. The extern function must be registered with the "
-    TVM runtime using `reflection::GlobalDef().def` (C++), or `tvm_tirx.register_global_func` (Python).
+    TVM runtime using `reflection::GlobalDef().def` (C++), or
+    `tvm_tirx.register_global_func` (Python).
 
     Parameters
     ----------
