@@ -25,16 +25,9 @@ import json
 import sys
 from pathlib import Path
 
-_LIBRARY_NAMES = (
-    "tvm_runtime",
-    "tvm_tirx",
-    "tvm_runtime_static",
-    "tvm_runtime_cuda",
-    "tvm_runtime_opencl",
-    "tvm_runtime_vulkan",
-    "tvm_runtime_metal",
-    "tvm_runtime_rocm",
-)
+__version__ = "0.1.0a0"
+
+_LIBRARY_NAMES = ("tvm_tirx", "tvm_runtime")
 
 
 def _find_prefix(start: Path) -> Path:
@@ -52,9 +45,12 @@ def _paths(prefix: Path | None, library_dir: Path | None) -> tuple[Path, Path]:
         prefix = prefix.resolve() if prefix is not None else _find_prefix(Path(__file__).parent)
         library_dir = prefix / "lib"
         for candidate in (prefix / "lib", prefix / "lib64", prefix / "build/lib"):
-            if (candidate / "cmake/tvm_tirx/tvm_tirx-build.json").is_file() and any(
-                (candidate / name).is_file()
-                for name in ("libtvm_runtime.so", "libtvm_runtime.dylib", "tvm_runtime.dll")
+            if all(
+                any(
+                    (candidate / filename).is_file()
+                    for filename in (f"lib{name}.so", f"lib{name}.dylib", f"{name}.dll")
+                )
+                for name in _LIBRARY_NAMES
             ):
                 library_dir = candidate
                 break
@@ -68,9 +64,7 @@ def _libraries(library_dir: Path, platform: str) -> dict[str, dict[str, str]]:
     windows = platform in ("Windows", "win32")
     apple = platform in ("Darwin", "iOS", "darwin")
     for name in _LIBRARY_NAMES:
-        if name.endswith("_static"):
-            filenames = (f"{name}.lib", f"lib{name}.a") if windows else (f"lib{name}.a",)
-        elif windows:
+        if windows:
             filenames = (f"{name}.dll",)
         elif apple:
             filenames = (f"lib{name}.dylib", f"lib{name}.so")
@@ -78,19 +72,15 @@ def _libraries(library_dir: Path, platform: str) -> dict[str, dict[str, str]]:
             filenames = (f"lib{name}.so",)
         location = next((library_dir / f for f in filenames if (library_dir / f).is_file()), None)
         if location is None:
-            continue
+            raise RuntimeError(f"Cannot find TIRx library {name} in {library_dir}")
         implib = ""
-        if windows and not name.endswith("_static"):
+        if windows:
             import_names = (f"{name}.lib", f"lib{name}.dll.a")
             import_library = next(
                 (library_dir / f for f in import_names if (library_dir / f).is_file()), None
             )
             if import_library is None:
-                if name in ("tvm_runtime", "tvm_tirx"):
-                    raise RuntimeError(f"Missing import library for {location}")
-                # Optional wheel sidecars may only support runtime loading.
-                # Without an import library they cannot provide a native link target.
-                continue
+                raise RuntimeError(f"Missing import library for {location}")
             implib = str(import_library)
         libraries[name] = {"location": str(location), "implib": implib}
     return libraries
@@ -101,36 +91,14 @@ def configuration(
     library_dir: Path | None = None,
     platform: str = sys.platform,
 ) -> dict:
-    """Return paths and consumer metadata for one installed TIRx prefix."""
+    """Return the public include and core shared-library paths for one installation."""
     prefix, library_dir = _paths(prefix, library_dir)
-    cmake_dir = library_dir / "cmake/tvm_tirx"
-    metadata_path = cmake_dir / "tvm_tirx-build.json"
-    try:
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:
-        raise RuntimeError(
-            f"Cannot read TIRx build metadata at {metadata_path}: {error}"
-        ) from error
-    if not isinstance(metadata, dict) or not isinstance(metadata.get("version"), str):
-        raise RuntimeError(f"Invalid TIRx version metadata in {metadata_path}")
-    if metadata.get("openmp") not in ("OFF", "gnu", "intel"):
-        raise RuntimeError(f"Invalid TIRx OpenMP metadata in {metadata_path}")
-    custom_logging = metadata.get("custom_logging", False)
-    use_threads = metadata.get("use_threads", True)
-    if not isinstance(custom_logging, bool) or not isinstance(use_threads, bool):
-        raise RuntimeError(f"Invalid TIRx runtime interface metadata in {metadata_path}")
-    libraries = _libraries(library_dir, platform)
-    if "tvm_runtime" not in libraries:
-        raise RuntimeError(f"Cannot find the TIRx runtime library in {library_dir}")
     return {
-        "version": metadata["version"],
-        "openmp": metadata["openmp"],
-        "custom_logging": custom_logging,
-        "use_threads": use_threads,
+        "version": __version__,
         "include_dir": str(prefix / "include"),
         "library_dir": str(library_dir),
-        "cmake_dir": str(cmake_dir),
-        "libraries": libraries,
+        "cmake_dir": str(library_dir / "cmake/tvm_tirx"),
+        "libraries": _libraries(library_dir, platform),
     }
 
 

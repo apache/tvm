@@ -32,7 +32,7 @@ if (OS)
    endif()
 endif()
 
-if(TARGET tvm_tirx::tvm_runtime_opencl)
+if(TARGET tvm_runtime_opencl)
    if (ANDROID_ABI)
      if(DEFINED ENV{ANDROID_NDK_MAJOR})
        if($ENV{ANDROID_NDK_MAJOR} VERSION_LESS "23")
@@ -47,7 +47,7 @@ target_include_directories(
   PUBLIC "../../include"
 )
 
-target_link_libraries(tvm_rpc PUBLIC tvm_ffi_header)
+target_link_libraries(tvm_rpc PUBLIC tvm_ffi::shared)
 
 if(NOT MSVC AND NOT APPLE)
   list(APPEND TVM_RPC_LINKER_LIBS tvm_runtime "-Wl,--no-as-needed" ${TVM_RUNTIME_BACKEND_LIBS} "-Wl,--as-needed")

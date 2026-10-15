@@ -24,10 +24,6 @@ project(tvm_tirx LANGUAGES C CXX)
 # ######### Common options ##########
 
 set(TVM_TIRX_VERSION "0.1.0a0")
-# Embedding parents opt in before add_subdirectory; standalone builds install by default.
-if(NOT DEFINED TVM_TIRX_INSTALL)
-  set(TVM_TIRX_INSTALL ${PROJECT_IS_TOP_LEVEL})
-endif()
 if(PROJECT_IS_TOP_LEVEL)
   option(TVM_TIRX_BUILD_TESTS "Build C++ tests" OFF)
   option(TVM_TIRX_BUILD_PYTHON_MODULE "Build the Python package with scikit-build-core" OFF)
@@ -96,7 +92,7 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
-if(TVM_TIRX_INSTALL)
+if(PROJECT_IS_TOP_LEVEL)
   include(GNUInstallDirs)
   if(TVM_TIRX_BUILD_PYTHON_MODULE)
     set(CMAKE_INSTALL_LIBDIR lib)
@@ -216,10 +212,9 @@ if(MSVC)
 endif()
 
 add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs> ${TVM_RUNTIME_EXT_OBJS})
-add_library(tvm_tirx::tvm_runtime ALIAS tvm_runtime)
+add_library(tvm_runtime::shared ALIAS tvm_runtime)
 target_link_libraries(tvm_runtime PUBLIC tvm_tirx_header tvm_ffi::shared)
 add_library(tvm_runtime_static STATIC $<TARGET_OBJECTS:tvm_runtime_objs> ${TVM_RUNTIME_EXT_OBJS})
-add_library(tvm_tirx::tvm_runtime_static ALIAS tvm_runtime_static)
 target_link_libraries(tvm_runtime_static PUBLIC tvm_tirx_header tvm_ffi::static)
 # Static consumers retain registration objects from both archives, with
 # tvm_ffi::static before tvm_runtime_static in their whole-archive link group.
@@ -241,22 +236,6 @@ endforeach()
 foreach(_module CUDA OpenCL Vulkan Metal ROCM LLVM contrib/Z3 Git)
   include(cmake/modules/${_module}.cmake)
 endforeach()
-if(TARGET tvm_runtime_cuda)
-  add_library(tvm_tirx::tvm_runtime_cuda ALIAS tvm_runtime_cuda)
-endif()
-if(TARGET tvm_runtime_opencl)
-  add_library(tvm_tirx::tvm_runtime_opencl ALIAS tvm_runtime_opencl)
-endif()
-if(TARGET tvm_runtime_vulkan)
-  add_library(tvm_tirx::tvm_runtime_vulkan ALIAS tvm_runtime_vulkan)
-endif()
-if(TARGET tvm_runtime_metal)
-  add_library(tvm_tirx::tvm_runtime_metal ALIAS tvm_runtime_metal)
-endif()
-if(TARGET tvm_runtime_rocm)
-  add_library(tvm_tirx::tvm_runtime_rocm ALIAS tvm_runtime_rocm)
-endif()
-
 # ######### Target: `tvm_tirx` ##########
 
 add_library(tvm_tirx_objs OBJECT ${COMPILER_SRCS})
@@ -268,7 +247,7 @@ if(MSVC)
   target_compile_definitions(tvm_tirx_objs PRIVATE TVM_TIRX_EXPORTS TVM_FFI_EXPORTS)
 endif()
 add_library(tvm_tirx SHARED $<TARGET_OBJECTS:tvm_tirx_objs>)
-add_library(tvm_tirx::tvm_tirx ALIAS tvm_tirx)
+add_library(tvm_tirx::shared ALIAS tvm_tirx)
 target_link_libraries(tvm_tirx PUBLIC tvm_runtime tvm_tirx_header)
 target_link_libraries(tvm_tirx PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 
@@ -301,22 +280,7 @@ endforeach()
 
 # ######### Installation ##########
 
-if(TVM_TIRX_INSTALL)
-  # Only TIRx's consumer interface needs metadata; FFI owns its own configuration.
-  set(_tirx_openmp OFF)
-  if(OPENMP_FOUND AND TVM_TIRX_USE_OPENMP MATCHES "^(gnu|intel)$")
-    set(_tirx_openmp "${TVM_TIRX_USE_OPENMP}")
-  endif()
-  set(_tirx_custom_logging false)
-  if(TVM_TIRX_USE_CUSTOM_LOGGING)
-    set(_tirx_custom_logging true)
-  endif()
-  set(_tirx_use_threads false)
-  if(TVM_TIRX_USE_THREADS)
-    set(_tirx_use_threads true)
-  endif()
-  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/tvm_tirx-build.json"
-    "{\"version\": \"${TVM_TIRX_VERSION}\", \"openmp\": \"${_tirx_openmp}\", \"custom_logging\": ${_tirx_custom_logging}, \"use_threads\": ${_tirx_use_threads}}\n")
+if(PROJECT_IS_TOP_LEVEL)
   file(GLOB_RECURSE _headers CONFIGURE_DEPENDS RELATIVE
     "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
   foreach(_header IN LISTS _headers)
@@ -328,8 +292,7 @@ if(TVM_TIRX_INSTALL)
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR})
   install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/tvm_tirx-config.cmake"
-    "${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_tirx/config.py"
-    "${CMAKE_CURRENT_BINARY_DIR}/tvm_tirx-build.json" DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tvm_tirx")
+    "${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_tirx/config.py" DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tvm_tirx")
   install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils/"
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tvm_tirx/utils" FILES_MATCHING PATTERN "Find*.cmake")
   if(TVM_TIRX_BUILD_PYTHON_MODULE)

@@ -39,12 +39,10 @@ def _installation(prefix, libdir="lib", windows=False):
     library_dir = prefix / libdir
     cmake_dir = library_dir / "cmake/tvm_tirx"
     cmake_dir.mkdir(parents=True)
-    (cmake_dir / "tvm_tirx-build.json").write_text(
-        json.dumps({"version": "0.1.0a0", "openmp": "OFF"}), encoding="utf-8"
-    )
-    filenames = ("tvm_runtime.dll", "tvm_runtime.lib") if windows else ("libtvm_runtime.so",)
-    for filename in filenames:
-        (library_dir / filename).touch()
+    for name in ("tvm_tirx", "tvm_runtime"):
+        filenames = (f"{name}.dll", f"{name}.lib") if windows else (f"lib{name}.so",)
+        for filename in filenames:
+            (library_dir / filename).touch()
     return library_dir
 
 
@@ -56,7 +54,8 @@ def test_exact_library_directory_and_relocation(tmp_path):
     (libdir / "libtvm_ffi.so").touch()
     result = config.configuration(library_dir=libdir, platform="Linux")
     assert result["include_dir"] == str(prefix / "include")
-    assert set(result["libraries"]) == {"tvm_runtime", "tvm_runtime_static", "tvm_runtime_cuda"}
+    assert set(result["libraries"]) == {"tvm_tirx", "tvm_runtime"}
+    assert set(result) == {"version", "include_dir", "library_dir", "cmake_dir", "libraries"}
     moved = tmp_path / "relocated"
     shutil.copytree(prefix, moved)
     result = config.configuration(library_dir=moved / "lib/x86_64-linux-gnu", platform="Linux")
@@ -77,69 +76,28 @@ def test_prefix_selects_installed_lib64(tmp_path):
         capture_output=True,
     )
     assert result.stdout.strip() == str(libdir / "cmake/tvm_tirx")
-    with pytest.raises(RuntimeError, match="Cannot read TIRx build metadata"):
+    with pytest.raises(RuntimeError, match="Cannot find TIRx library"):
         config.configuration(library_dir=prefix / "lib", platform="Linux")
 
 
-def test_windows_library_pairing(tmp_path):
+@pytest.mark.parametrize("name", ["tvm_tirx", "tvm_runtime"])
+def test_windows_library_pairing(tmp_path, name):
     libdir = _installation(tmp_path / "windows", windows=True)
     (libdir / "tvm_runtime_static.lib").touch()
-    result = config.configuration(library_dir=libdir, platform="Windows")
-    assert result["libraries"]["tvm_runtime"] == {
-        "location": str(libdir / "tvm_runtime.dll"),
-        "implib": str(libdir / "tvm_runtime.lib"),
-    }
-    assert result["libraries"]["tvm_runtime_static"]["implib"] == ""
-    (libdir / "tvm_runtime.lib").unlink()
-    with pytest.raises(RuntimeError, match="Missing import library"):
-        config.configuration(library_dir=libdir, platform="Windows")
-
-
-def test_windows_runtime_only_backend(tmp_path):
-    libdir = _installation(tmp_path / "windows", windows=True)
     (libdir / "tvm_runtime_cuda.dll").touch()
-    result = config.configuration(library_dir=libdir, platform="Windows")
-    assert set(result["libraries"]) == {"tvm_runtime"}
-    assert (libdir / "tvm_runtime_cuda.dll").is_file()
-    (libdir / "tvm_tirx.dll").touch()
-    with pytest.raises(RuntimeError, match="Missing import library.*tvm_tirx.dll"):
-        config.configuration(library_dir=libdir, platform="Windows")
-    (libdir / "tvm_tirx.lib").touch()
     (libdir / "tvm_runtime_cuda.lib").touch()
     result = config.configuration(library_dir=libdir, platform="Windows")
-    assert set(result["libraries"]) == {"tvm_runtime", "tvm_tirx", "tvm_runtime_cuda"}
-
-
-def test_runtime_interface_metadata(tmp_path):
-    libdir = _installation(tmp_path / "install")
-    result = config.configuration(library_dir=libdir, platform="Linux")
-    assert result["custom_logging"] is False
-    assert result["use_threads"] is True
-    metadata = {"version": "0.1.0a0", "openmp": "OFF", "custom_logging": True, "use_threads": False}
-    (libdir / "cmake/tvm_tirx/tvm_tirx-build.json").write_text(
-        json.dumps(metadata), encoding="utf-8"
-    )
-    result = config.configuration(library_dir=libdir, platform="Linux")
-    assert result["custom_logging"] is True
-    assert result["use_threads"] is False
-
-
-@pytest.mark.parametrize(
-    "metadata",
-    [
-        {"version": 1, "openmp": "OFF"},
-        {"version": "1"},
-        {"version": "1", "openmp": "OFF", "custom_logging": "ON"},
-        {"version": "1", "openmp": "OFF", "use_threads": 1},
-    ],
-)
-def test_invalid_metadata(tmp_path, metadata):
-    libdir = _installation(tmp_path / "install")
-    (libdir / "cmake/tvm_tirx/tvm_tirx-build.json").write_text(
-        json.dumps(metadata), encoding="utf-8"
-    )
-    with pytest.raises(RuntimeError, match="Invalid TIRx"):
-        config.configuration(library_dir=libdir, platform="Linux")
+    assert set(result["libraries"]) == {"tvm_tirx", "tvm_runtime"}
+    assert result["libraries"][name] == {
+        "location": str(libdir / f"{name}.dll"),
+        "implib": str(libdir / f"{name}.lib"),
+    }
+    (libdir / f"{name}.lib").unlink()
+    with pytest.raises(RuntimeError, match="Missing import library"):
+        config.configuration(library_dir=libdir, platform="Windows")
+    (libdir / f"lib{name}.dll.a").touch()
+    result = config.configuration(library_dir=libdir, platform="Windows")
+    assert result["libraries"][name]["implib"] == str(libdir / f"lib{name}.dll.a")
 
 
 def test_explicit_prefix_does_not_fall_back(tmp_path, monkeypatch):
@@ -165,3 +123,50 @@ def test_module_cli_without_native_dependencies(tmp_path):
         capture_output=True,
     )
     assert json.loads(result.stdout)["include_dir"] == str(prefix / "include")
+
+
+@pytest.mark.skipif(shutil.which("cmake") is None, reason="CMake is not installed")
+def test_cmake_targets_without_ffi(tmp_path):
+    libdir = _installation(tmp_path / "install")
+    cmake_dir = libdir / "cmake/tvm_tirx"
+    shutil.copy2(_CONFIG_PATH, cmake_dir / "config.py")
+    shutil.copy2(
+        _CONFIG_PATH.parents[2] / "cmake/tvm_tirx-config.cmake",
+        cmake_dir / "tvm_tirx-config.cmake",
+    )
+    source = tmp_path / "consumer"
+    source.mkdir()
+    (source / "CMakeLists.txt").write_text(
+        """cmake_minimum_required(VERSION 3.26)
+project(config_contract LANGUAGES NONE)
+find_package(tvm_tirx CONFIG REQUIRED)
+get_property(imported DIRECTORY PROPERTY IMPORTED_TARGETS)
+list(FILTER imported EXCLUDE REGEX "^Python::")
+list(SORT imported)
+if(NOT "${imported}" STREQUAL "tvm_runtime::shared;tvm_tirx::header;tvm_tirx::shared")
+  message(FATAL_ERROR "Unexpected imported targets: ${imported}")
+endif()
+foreach(target tvm_tirx::header tvm_tirx::shared tvm_runtime::shared)
+  get_target_property(links ${target} INTERFACE_LINK_LIBRARIES)
+  if(links MATCHES "ffi|OpenMP|Threads")
+    message(FATAL_ERROR "Unexpected implicit dependency: ${links}")
+  endif()
+endforeach()
+""",
+        encoding="utf-8",
+    )
+    subprocess.run(
+        [
+            "cmake",
+            "-S",
+            str(source),
+            "-B",
+            str(tmp_path / "build"),
+            f"-Dtvm_tirx_DIR={cmake_dir}",
+            f"-DPython_EXECUTABLE={sys.executable}",
+            "-DCMAKE_DISABLE_FIND_PACKAGE_tvm_ffi=TRUE",
+        ],
+        check=True,
+        text=True,
+        capture_output=True,
+    )

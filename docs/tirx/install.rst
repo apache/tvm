@@ -128,27 +128,45 @@ its separate source-FFI Python package build keeps its own defaults. Direct
 itself does not read ``CMAKE_ARGS``.
 
 A parent project can use ``add_subdirectory(path/to/tirx)`` and link to
-``tvm_tirx::tvm_tirx`` or ``tvm_tirx::tvm_runtime``. This builds the bundled FFI
+``tvm_tirx::shared`` or ``tvm_runtime::shared``. This builds the bundled FFI
 source targets and leaves tests, packaging, and installation to the parent.
-A parent that wants to install the core package sets ``TVM_TIRX_INSTALL`` to
-``ON`` before ``add_subdirectory(...)``; embedded builds otherwise omit installation.
+TIRx registers installation rules only when it is the top-level project.
+An embedding parent owns the installation rules for the libraries, public
+headers, and package files it chooses to include.
 
-Installed consumers use the separate ``apache-tvm-ffi`` package. TIRx installs
-only its own public headers, libraries and package helpers; it does not copy FFI
-libraries, headers or CMake files. Install FFI into the Python environment used
-by CMake::
+Installed consumers
+-------------------
 
-    python -m pip install apache-tvm-ffi
+An ordinary downstream compiler links TIRx and the separate FFI package
+explicitly. Install both Python packages into the environment used by CMake::
 
-For an installed Python core package, query its CMake directory with::
+    python -m pip install apache-tvm-tirx apache-tvm-ffi
+
+Query each package's CMake directory::
 
     python -m tvm_tirx.config --cmakedir
+    python -m tvm_ffi.config --cmakedir
 
-Pass that directory as ``tvm_tirx_DIR`` to a CMake consumer using
-``find_package(tvm_tirx CONFIG REQUIRED)``. For a native prefix installation,
-use its ``lib/cmake/tvm_tirx`` directory (or the configured library directory).
-The handwritten package config uses Python to query the selected prefix, so a
-separately installed TIRx wheel cannot override an explicitly selected native
-installation. ``Python_EXECUTABLE`` selects the environment supplying FFI.
-The imported static TIRx runtime links against that separately supplied shared
-FFI library; FFI's own static-build configuration remains owned by FFI.
+Pass those directories as ``tvm_tirx_DIR`` and ``tvm_ffi_DIR`` when configuring
+the consumer. Its CMakeLists.txt uses both packages directly:
+
+.. code-block:: cmake
+
+    find_package(tvm_tirx CONFIG REQUIRED)
+    find_package(tvm_ffi CONFIG REQUIRED)
+    add_executable(app main.cc)
+    target_link_libraries(app PRIVATE tvm_tirx::shared tvm_ffi::shared)
+
+The public TIRx targets are ``tvm_tirx::header``, ``tvm_tirx::shared``, and
+``tvm_runtime::shared``. The package config describes the normal Python build;
+it does not reconstruct build options, expose static or backend targets, or
+find/link FFI implicitly. Enabled backend libraries are still installed and
+loaded by the runtime. Consumers of an internally built static runtime supply
+its dependencies, including OpenMP when enabled, themselves.
+
+TIRx installs only its own public headers, libraries, and package helpers;
+it does not copy FFI libraries, headers, or CMake files. For a native prefix
+installation, use its ``lib/cmake/tvm_tirx`` directory (or the configured
+library directory). The handwritten config queries that exact prefix, so a
+separately installed TIRx wheel cannot override the selected installation.
+``Python_EXECUTABLE`` selects the Python interpreter used for discovery.
