@@ -240,15 +240,36 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
 
   void serialize(Function func) {
     // First we convert all the parameters into input nodes.
+    // Skip non-TensorType parameters (e.g. tir_vars injected by
+    // FuseOpsByPattern for symbolic arithmetic like n // 2).  These
+    // are shape/symbol parameters, not tensor inputs to the JSON graph.
     for (const auto& param : func->params) {
-      auto node_ptr = std::make_shared<JSONGraphNode>(param->name, "input" /* op_type_ */);
-      memo_[param] = AddNode(node_ptr, param);
+      auto ty = GetType(param);
+      if (ty.as<TensorTypeNode>() || ty.as<TupleTypeNode>()) {
+        auto node_ptr = std::make_shared<JSONGraphNode>(param->name, "input" /* op_type_ */);
+        memo_[param] = AddNode(node_ptr, param);
+      } else {
+        // Non-tensor param: record as a shape/symbol parameter so that
+        // downstream backends know to pass it at runtime.
+        shape_params_.push_back(param);
+      }
     }
     heads_ = VisitExpr(func->body);
   }
 
   /*!\brief Return the required constants. */
   ffi::Array<ffi::String> GetConstantNames() const { return constants_used_; }
+
+  /*!\brief Return the names of shape / symbol parameters (tir_vars) that
+   *        were skipped during serialization because they are not tensor
+   *        inputs to the JSON graph. */
+  ffi::Array<ffi::String> GetShapeParams() const {
+    ffi::Array<ffi::String> names;
+    for (const auto& v : shape_params_) {
+      names.push_back(v->name);
+    }
+    return names;
+  }
 
   /*!\brief Return the generated json. */
   std::string GetJSON() {
@@ -485,6 +506,15 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
     json::Array nrp_arr;
     for (auto x : node_row_ptr) nrp_arr.push_back(static_cast<int64_t>(x));
     obj.Set(ffi::String("node_row_ptr"), std::move(nrp_arr));
+    // shape_params: symbol / shape vars (tir_vars) that are function params
+    // but not tensor inputs to the JSON graph.
+    if (!shape_params_.empty()) {
+      json::Array sp_arr;
+      for (const auto& v : shape_params_) {
+        sp_arr.push_back(ffi::String(v->name));
+      }
+      obj.Set(ffi::String("shape_params"), std::move(sp_arr));
+    }
     return obj;
   }
 
@@ -497,6 +527,10 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   ffi::Array<ffi::String> constants_used_;
   /*! \brief The names of all constants in the original module. */
   const ffi::Map<GenericConst, ffi::String> constant_names_;
+  /*! \brief Shape / symbol parameters (tir_vars) from the function signature
+   *         that are not TensorType and therefore were not serialized as
+   *         input nodes. */
+  std::vector<Var> shape_params_;
 };
 
 }  // namespace contrib
