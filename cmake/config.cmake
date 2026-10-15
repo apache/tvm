@@ -46,7 +46,7 @@
 # - ON: enable CUDA with CMake's auto search
 # - OFF: disable CUDA
 # - /path/to/cuda: use specific path to CUDA toolkit
-set(USE_CUDA OFF)
+set(TVM_TIRX_USE_CUDA OFF)
 
 # Whether to enable NCCL support:
 # - ON: enable NCCL with CMake's auto search
@@ -54,7 +54,7 @@ set(USE_CUDA OFF)
 # - /path/to/nccl: use specific path to nccl
 set(USE_NCCL OFF)
 
-# Whether to enable NVTX support (must have USE_CUDA enabled):
+# Whether to enable NVTX support (must have TVM_TIRX_USE_CUDA enabled):
 # - ON: enable NCCL with CMake's auto search
 # - OFF: disable NCCL
 set(USE_NVTX OFF)
@@ -65,7 +65,7 @@ set(USE_NVTX OFF)
 # - ON: enable ROCM with CMake's auto search
 # - OFF: disable ROCM
 # - /path/to/rocm: use specific path to rocm
-set(USE_ROCM OFF)
+set(TVM_TIRX_USE_ROCM OFF)
 
 # Whether to enable RCCL support:
 # - ON: enable RCCL with CMake's auto search
@@ -80,15 +80,15 @@ set(USE_RCCL OFF)
 #       time and trigger dynamic search and loading of OpenCL in runtime
 # - OFF: disable OpenCL
 # - /path/to/opencl-sdk: use specific path to opencl-sdk
-set(USE_OPENCL OFF)
+set(TVM_TIRX_USE_OPENCL OFF)
 
 # Whether to allow OPENCL cl_mem access to host
 # cl_mem will be allocated with CL_MEM_ALLOC_HOST_PTR
 # OpenCLWorkspace->GetHostPtr API returns the host accessible pointer
-set(USE_OPENCL_ENABLE_HOST_PTR OFF)
+set(TVM_TIRX_USE_OPENCL_ENABLE_HOST_PTR OFF)
 
 # Whether enable Metal runtime
-set(USE_METAL OFF)
+set(TVM_TIRX_USE_METAL OFF)
 
 # Whether enable Vulkan runtime
 #
@@ -96,7 +96,7 @@ set(USE_METAL OFF)
 # - ON: enable Vulkan with CMake's auto search
 # - OFF: disable vulkan
 # - /path/to/vulkan-sdk: use specific path to vulkan-sdk
-set(USE_VULKAN OFF)
+set(TVM_TIRX_USE_VULKAN OFF)
 
 # Whether to use spirv-tools and SPIRV-Headers from Khronos GitHub or GitLab.
 #
@@ -104,10 +104,10 @@ set(USE_VULKAN OFF)
 # - OFF: not to use
 # - /path/to/install: path to your khronis spirv-tools and SPIRV-Headers installation directory
 #
-set(USE_KHRONOS_SPIRV OFF)
+set(TVM_TIRX_USE_KHRONOS_SPIRV OFF)
 
 # whether enable SPIRV_KHR_DOT_PRODUCT
-set(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT OFF)
+set(TVM_TIRX_USE_SPIRV_KHR_INTEGER_DOT_PRODUCT OFF)
 
 # Whether enable RPC runtime
 set(USE_RPC ON)
@@ -129,7 +129,7 @@ set(USE_IOS_RPC OFF)
 # - OFF: disable llvm, note this will disable CPU codegen
 #        which is needed for most cases
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
-set(USE_LLVM OFF)
+set(TVM_TIRX_USE_LLVM OFF)
 
 #---------------------------------------------
 # Contrib libraries
@@ -174,7 +174,7 @@ set(USE_AMX OFF)
 
 # Whether use OpenMP thread pool, choices: gnu, intel
 # Note: "gnu" uses gomp library, "intel" uses iomp5 library
-set(USE_OPENMP none)
+set(TVM_TIRX_USE_OPENMP OFF)
 
 # Whether use contrib.random in runtime
 set(USE_RANDOM ON)
@@ -275,7 +275,7 @@ set(TVM_FFI_BACKTRACE_ON_SEGFAULT ON)
 set(USE_GTEST AUTO)
 
 # Enable using CUTLASS as a BYOC backend
-# Need to have USE_CUDA=ON
+# Need to have TVM_TIRX_USE_CUDA=ON
 set(USE_CUTLASS OFF)
 
 # Whether to enable FlashInfer or not.
@@ -304,4 +304,4 @@ SET(CMAKE_VS_PLATFORM_NAME_DEFAULT "x64")
 SET(CMAKE_VS_PLATFORM_TOOLSET_HOST_ARCHITECTURE "x64")
 
 # Enable Qualcomm OpenCL extension support
-set(USE_OPENCL_EXTN_QCOM OFF)
+set(TVM_TIRX_USE_OPENCL_EXTN_QCOM OFF)

@@ -57,7 +57,7 @@ jobs:
         run: |
           set -euxo pipefail
           pip install scikit-build-core
-          export CMAKE_ARGS="-DUSE_LLVM=ON -DUSE_METAL=ON -DBUILD_TESTING=OFF"
+          export CMAKE_ARGS="-DTVM_TIRX_USE_LLVM=ON -DTVM_TIRX_USE_METAL=ON -DTVM_TIRX_BUILD_TESTS=OFF"
           pip wheel --no-deps -w dist ./tirx -v
           export PIP_FIND_LINKS="$(pwd)/dist"
           export CMAKE_ARGS="-DBUILD_TESTING=OFF"
@@ -122,7 +122,7 @@ jobs:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         run: |
           pip install scikit-build-core || exit /b 1
-          set CMAKE_ARGS=-DUSE_LLVM=ON -DBUILD_TESTING=OFF
+          set CMAKE_ARGS=-DTVM_TIRX_USE_LLVM=ON -DTVM_TIRX_BUILD_TESTS=OFF
           pip wheel --no-deps -w dist ./tirx -v || exit /b 1
           set PIP_FIND_LINKS=%CD%\dist
           set CMAKE_ARGS=-DBUILD_TESTING=OFF

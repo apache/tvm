@@ -51,11 +51,10 @@ rm -rf "${build_dir}"
 # modern CMake fills in a default so configure does not fail without it.
 cmake -S "${repo_root}/tirx" -B "${build_dir}" \
   -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_TESTING=OFF \
-  -DTVM_BUILD_PYTHON_MODULE=ON \
-  -DUSE_CUDA=/usr/local/cuda \
-  -DUSE_LLVM=OFF \
-  -DUSE_NVTX=OFF \
+  -DTVM_TIRX_BUILD_TESTS=OFF \
+  -DTVM_TIRX_BUILD_PYTHON_MODULE=ON \
+  -DTVM_TIRX_USE_CUDA=/usr/local/cuda \
+  -DTVM_TIRX_USE_LLVM=OFF \
   -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc
 cmake --build "${build_dir}" --target tvm_runtime tvm_runtime_cuda --parallel "${parallel}"
 

@@ -35,7 +35,7 @@ ROOTDIR="$(cd "$(dirname "$0")/../.." && pwd)"
 TVM_BUILD_PATH="${TVM_BUILD_PATH:-${ROOTDIR}/build}"
 TVM_BUILD_PATH="$(realpath "${TVM_BUILD_PATH}")"
 
-DLPACK_PATH="${DLPACK_PATH:-${ROOTDIR}/3rdparty/tvm-ffi/3rdparty/dlpack}"
+DLPACK_PATH="${DLPACK_PATH:-${ROOTDIR}/tirx/3rdparty/tvm-ffi/3rdparty/dlpack}"
 
 INCLUDE_FLAGS="-I${ROOTDIR}/include -I${DLPACK_PATH}/include"
 PKG_CFLAGS="-Wall -O3 ${INCLUDE_FLAGS} -fPIC"

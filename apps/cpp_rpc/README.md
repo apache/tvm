@@ -37,9 +37,9 @@ This folder contains a simple recipe to make RPC server in c++.
   # Path to the desired C++ cross compiler
   set(CMAKE_CXX_COMPILER /path/to/cross/compiler/executable)
 ```
-- If you need to build cpp_rpc with OpenCL support, specify variable `USE_OPENCL` in the config:
+- If you need to build cpp_rpc with OpenCL support, specify variable `TVM_TIRX_USE_OPENCL` in the config:
   ```
-  set(USE_OPENCL ON)
+  set(TVM_TIRX_USE_OPENCL ON)
   ```
   In this case [OpenCL-wrapper](../../src/runtime/opencl/opencl_wrapper) or OpenCL installed to your system will be used.
   When OpenCL-wrapper is used, it will dynamically load OpenCL library on the device.
@@ -47,7 +47,7 @@ This folder contains a simple recipe to make RPC server in c++.
 
   If linking against a custom device OpenCL library is needed, in the config specify the path to the OpenCL SDK containing the include/CL headers and lib/ or lib64/libOpenCL.so:
 ```
-  set(USE_OPENCL /path/to/opencl-sdk)
+  set(TVM_TIRX_USE_OPENCL /path/to/opencl-sdk)
 ```
 
 - From within the configured tvm build directory, compile `tvm_runtime` and the `tvm_rpc` server:

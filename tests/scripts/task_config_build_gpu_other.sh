@@ -25,8 +25,8 @@ mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 cp ../cmake/config.cmake .
 
-echo set\(USE_OPENCL ON\) >> config.cmake
-echo set\(USE_ROCM ON\) >> config.cmake
+echo set\(TVM_TIRX_USE_OPENCL ON\) >> config.cmake
+echo set\(TVM_TIRX_USE_ROCM ON\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake

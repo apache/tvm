@@ -16,12 +16,8 @@
 # under the License.
 
 [build-system]
-# mlc-z3-static ships the PIC static libz3 + headers consumed by USE_Z3=ON.
-requires = [
-  "scikit-build-core>=0.11",
-  "mlc-z3-static>=4.16.0",
-  "apache-tvm-ffi>=0.1.15rc0",
-]
+# mlc-z3-static ships the PIC static libz3 + headers consumed by TVM_TIRX_USE_Z3=ON.
+requires = ["scikit-build-core>=0.11", "mlc-z3-static>=4.16.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -109,6 +105,7 @@ sdist.include = [
   "/NOTICE",
   "/tests/**",
   "/3rdparty/compiler-rt/builtin_fp16.h",
+  "/3rdparty/tvm-ffi/**",
   "!**/.git",
   "!**/.git/**",
   "!**/__pycache__/**",
@@ -123,11 +120,11 @@ sdist.exclude = ["**"]
 logging.level = "INFO"
 
 [tool.scikit-build.cmake.define]
-TVM_BUILD_PYTHON_MODULE = "ON"
-USE_CUDA = "OFF"
+TVM_TIRX_BUILD_PYTHON_MODULE = "ON"
+TVM_TIRX_USE_CUDA = "OFF"
 # Statically link Z3 from the mlc-z3-static build dependency by default.
-USE_Z3 = "AUTO"
-BUILD_TESTING = "OFF"
+TVM_TIRX_USE_Z3 = "AUTO"
+TVM_TIRX_BUILD_TESTS = "OFF"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

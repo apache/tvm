@@ -142,7 +142,7 @@ jobs:
             build: cp310-macosx_arm64
             include_cuda_runtime: "0"
             artifact_suffix: macos-arm64
-            cmake_defines: "-DUSE_METAL=ON"
+            cmake_defines: "-DTVM_TIRX_USE_METAL=ON"
           - name: "Windows AMD64 wheel with CUDA runtime"
             os: windows-2022
             arch: AMD64

@@ -25,7 +25,7 @@ cp ../cmake/config.cmake .
 
 echo set\(USE_SORT ON\) >> config.cmake
 echo set\(USE_RPC ON\) >> config.cmake
-echo set\(USE_LLVM llvm-config-17\) >> config.cmake
+echo set\(TVM_TIRX_USE_LLVM llvm-config-17\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake

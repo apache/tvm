@@ -47,7 +47,7 @@ This folder contains the source of TVM's documentation, hosted at https://tvm.ap
    ```bash
    export TVM_HOME=/path-to-tvm
    export TVM_LIBRARY_PATH=$TVM_HOME/build
-   pip install --target=$TVM_HOME/python $TVM_HOME/3rdparty/tvm-ffi
+   pip install --target=$TVM_HOME/python $TVM_HOME/tirx/3rdparty/tvm-ffi
    export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
    ```
 

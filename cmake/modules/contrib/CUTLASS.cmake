@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-if(USE_CUDA AND USE_CUTLASS)
+if(TVM_TIRX_USE_CUDA AND USE_CUTLASS)
   tvm_file_glob(GLOB CUTLASS_CONTRIB_SRC
     src/relax/backend/contrib/cutlass/*.cc
   )

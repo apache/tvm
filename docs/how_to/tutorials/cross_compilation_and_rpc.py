@@ -278,7 +278,7 @@ print(f"{cost:g} secs/op")
 #   set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 #
 # Build the runtime from the TVM repository root.  Enable target-specific
-# options such as ``USE_OPENCL`` or vendor runtime support in ``config.cmake``.
+# options such as ``TVM_TIRX_USE_OPENCL`` or vendor runtime support in ``config.cmake``.
 # Build any target-specific runtime libraries that your deployment needs, such
 # as ``tvm_runtime_opencl`` for OpenCL.
 #
@@ -288,12 +288,12 @@ print(f"{cost:g} secs/op")
 #   cd cross_build
 #   cp ../cmake/config.cmake ./
 #
-#   # Enable other options as needed, e.g. USE_OPENCL or vendor runtimes.
-#   sed -i "s|USE_LLVM.*)|USE_LLVM OFF)|" config.cmake
+#   # Enable other options as needed, e.g. TVM_TIRX_USE_OPENCL or vendor runtimes.
+#   sed -i "s|TVM_TIRX_USE_LLVM.*)|TVM_TIRX_USE_LLVM OFF)|" config.cmake
 #
 #   cmake -DCMAKE_TOOLCHAIN_FILE=/YYY/aarch64-linux-gnu.cmake -DCMAKE_BUILD_TYPE=Release ..
 #   cmake --build . --target runtime -j
-#   # Optional example when USE_OPENCL is enabled:
+#   # Optional example when TVM_TIRX_USE_OPENCL is enabled:
 #   # cmake --build . --target tvm_runtime_opencl -j
 #   cd ..
 #
@@ -406,7 +406,7 @@ print(f"{cost:g} secs/op")
 #
 #    mkdir -p build && cd build
 #    cp ../cmake/config.cmake .
-#    sed -i "s/USE_OPENCL OFF/USE_OPENCL ON/" config.cmake
+#    sed -i "s/TVM_TIRX_USE_OPENCL OFF/TVM_TIRX_USE_OPENCL ON/" config.cmake
 #    cmake .. && cmake --build . --parallel $(nproc)
 #
 # The following function shows how we run an OpenCL kernel remotely
