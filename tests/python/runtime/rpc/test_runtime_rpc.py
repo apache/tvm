@@ -31,15 +31,16 @@ import tvm_ffi
 pytest.importorskip("tornado")  # tvm.rpc.proxy and tvm.rpc.tracker require tornado
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import rpc
 from tvm.rpc.proxy import Proxy
 from tvm.rpc.tracker import Tracker
-from tvm.support import cc, utils
+from tvm_tirx.support import cc, utils
 
 if __name__ == "__main__":
     # NOTE: must live here to avoid registering PackedFunc with libtvm_compiler.so twice.
-    tvm.testing.main()
+    tvm_tirx.testing.main()
 
 
 # tkonolige: The issue as I understand it is this: multiprocessing's spawn
@@ -54,7 +55,7 @@ pytestmark = pytest.mark.skipif(
     # Windows does not support fork so we can enable Windows for testing
     sys.platform.startswith("win") == False and multiprocessing.get_start_method() != "fork",
     reason=(
-        "pytest + multiprocessing spawn method causes tvm.register_global_func to "
+        "pytest + multiprocessing spawn method causes tvm_tirx.register_global_func to "
         "not work on the rpc.Server."
     ),
 )
@@ -126,7 +127,7 @@ static RegisterSystemLibrary register_system_library;
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_rpc_simple():
     server = rpc.Server(key="x1")
@@ -147,7 +148,7 @@ def test_rpc_simple():
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_rpc_runtime_string():
     server = rpc.Server(key="x1")
@@ -163,7 +164,7 @@ def test_rpc_runtime_string():
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_rpc_array():
     server = rpc.Server()
@@ -181,7 +182,7 @@ def test_rpc_array():
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_rpc_large_array():
     # testcase of large array creation
@@ -202,7 +203,7 @@ def test_rpc_large_array():
 
 @pytest.mark.skipif("32bit" in platform.architecture()[0], reason="skipping test for i386.")
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_rpc_echo():
     def check(remote, local_session):
@@ -233,7 +234,7 @@ def test_rpc_echo():
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_rpc_file_exchange():
     server = rpc.Server()
@@ -249,10 +250,12 @@ def test_rpc_file_exchange():
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_rpc_remote_module(native_object, system_library_source, tmp_path):
-    module = tvm.runtime.load_static_library(str(native_object), ["main", "answer", "with_arg"])
+    module = tvm_tirx.runtime.load_static_library(
+        str(native_object), ["main", "answer", "with_arg"]
+    )
     path_dso = tmp_path / "dev_lib.so"
     path_tar = tmp_path / "dev_lib.tar"
     module.export_library(str(path_dso))
@@ -270,9 +273,9 @@ def test_rpc_remote_module(native_object, system_library_source, tmp_path):
         remote.upload(str(path_tar))
         path = tmp_path / f"download-{name}.so"
         path.write_bytes(remote.download_linked_module("dev_lib.tar"))
-        downloaded = tvm.runtime.load_module(str(path))
-        a = tvm.runtime.tensor(np.random.uniform(size=102).astype("float32"))
-        b = tvm.runtime.tensor(np.zeros(102, dtype="float32"))
+        downloaded = tvm_tirx.runtime.load_module(str(path))
+        a = tvm_tirx.runtime.tensor(np.random.uniform(size=102).astype("float32"))
+        b = tvm_tirx.runtime.tensor(np.zeros(102, dtype="float32"))
         downloaded(a, b)
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
@@ -292,7 +295,7 @@ def test_rpc_remote_module(native_object, system_library_source, tmp_path):
         server0.terminate()
         server1.terminate()
 
-    if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
+    if tvm_tirx.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
         return
     source = tmp_path / "system.cc"
     source.write_text(system_library_source)
@@ -314,7 +317,7 @@ def test_rpc_remote_module(native_object, system_library_source, tmp_path):
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_rpc_return_func():
     server = rpc.Server(key="x1")
@@ -329,7 +332,7 @@ def test_rpc_return_func():
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_rpc_session_constructor_args():
     # start server
@@ -355,7 +358,7 @@ def test_rpc_session_constructor_args():
         assert nd.numpy()[1] == 2
 
     def check_error_handling():
-        with pytest.raises(tvm.error.RPCError):
+        with pytest.raises(tvm_tirx.error.RPCError):
             client = rpc.connect(
                 "127.0.0.1",
                 server0.port,
@@ -368,7 +371,7 @@ def test_rpc_session_constructor_args():
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_rpc_return_tensor():
     def run_arr_test():
@@ -391,7 +394,7 @@ def test_rpc_return_tensor():
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_rpc_return_remote_object():
     def check(client, is_local):
@@ -419,7 +422,7 @@ def test_rpc_return_remote_object():
     check_remote()
 
     def check_minrpc():
-        if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
+        if tvm_tirx.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
             return
         # Test minrpc server.
         temp = utils.tempdir()
@@ -439,7 +442,7 @@ def test_rpc_return_remote_object():
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_local_func():
     client = rpc.LocalSession()
@@ -458,7 +461,7 @@ def test_local_func():
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 @pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
 def test_rpc_tracker_register(device_key):
@@ -533,7 +536,7 @@ def _target(host, port, device_key, timeout, acquired):
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 @pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
 def test_rpc_tracker_request(device_key):
@@ -581,7 +584,7 @@ def test_rpc_tracker_request(device_key):
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 @pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
 def test_rpc_tracker_via_proxy(device_key):
@@ -625,7 +628,7 @@ def test_rpc_tracker_via_proxy(device_key):
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 @pytest.mark.parametrize("with_proxy", (True, False))
 def test_rpc_session_timeout_error(with_proxy):
@@ -649,7 +652,7 @@ def test_rpc_session_timeout_error(with_proxy):
         rpc_sess = rpc.connect_tracker(*tracker_addr).request(key="x1", session_timeout=5)
         f1 = rpc_sess.get_function("rpc.test.addone")
         time.sleep(6)
-        with pytest.raises(tvm.error.RPCSessionTimeoutError):
+        with pytest.raises(tvm_tirx.error.RPCSessionTimeoutError):
             f1(10)
     finally:
         server.terminate()
@@ -659,7 +662,7 @@ def test_rpc_session_timeout_error(with_proxy):
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 @pytest.mark.parametrize("call_with_unused_argument", [True, False])
 def test_remote_function_with_zero_arguments(native_library, call_with_unused_argument):

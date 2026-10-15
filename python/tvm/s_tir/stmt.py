@@ -20,10 +20,10 @@ from collections.abc import Mapping, Sequence
 
 import tvm_ffi
 
-from tvm.ir import Expr, Location, Scriptable, SeqStmt, Stmt, TensorRegion, Var, const
-from tvm.ir.location import UNKNOWN_LOC
-from tvm.runtime import Object
 from tvm.s_tir import IterVar
+from tvm_tirx.ir import Expr, Location, Scriptable, SeqStmt, Stmt, TensorRegion, Var, const
+from tvm_tirx.ir.location import UNKNOWN_LOC
+from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 

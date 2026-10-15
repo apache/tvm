@@ -27,10 +27,12 @@ import numpy as np
 from tvm_ffi import Function
 
 import tvm
-from tvm import relax, tirx
-from tvm.ir import IRModule
-from tvm.runtime import Device, Tensor
-from tvm.target import Target
+import tvm_tirx
+from tvm import relax
+from tvm_tirx import tirx
+from tvm_tirx.ir import IRModule
+from tvm_tirx.runtime import Device, Tensor
+from tvm_tirx.target import Target
 
 try:
     from torch.utils.dlpack import to_dlpack as to_dlpack_legacy
@@ -82,7 +84,7 @@ class BasePyModule:
             # globals this needs may already be cleared.
             if not owned or sys.is_finalizing():
                 return
-            unregister_py_func = tvm.get_global_func("vm.builtin.unregister_py_func")
+            unregister_py_func = tvm_tirx.get_global_func("vm.builtin.unregister_py_func")
             for func_name in owned:
                 unregister_py_func(func_name)
         except Exception:  # pylint: disable=broad-except
@@ -158,7 +160,7 @@ class BasePyModule:
     def _compile_functions(self):
         """Compile TIR and Relax functions using JIT compilation."""
         # Compile TIR functions first
-        tir_mod = tvm.IRModule(
+        tir_mod = tvm_tirx.IRModule(
             {
                 gv: func
                 for gv, func in self.ir_mod.functions_items()
@@ -222,7 +224,7 @@ class BasePyModule:
             return
 
         try:
-            register_py_func = tvm.get_global_func("vm.builtin.register_py_func")
+            register_py_func = tvm_tirx.get_global_func("vm.builtin.register_py_func")
         except ValueError:
             return
 
@@ -302,7 +304,7 @@ class BasePyModule:
 
         if func_name not in self.extern_funcs:
             try:
-                self.extern_funcs[func_name] = tvm.get_global_func(func_name)
+                self.extern_funcs[func_name] = tvm_tirx.get_global_func(func_name)
             except ValueError as error:
                 raise ValueError(
                     f"Function '{func_name}' not found as a global function. "
@@ -422,14 +424,14 @@ class BasePyModule:
             if _FASTER_DLPACK_EXTENSION is not None:
                 try:
                     dlpack = torch.to_dlpack(tensor)
-                    return tvm.runtime.from_dlpack(dlpack)
+                    return tvm_tirx.runtime.from_dlpack(dlpack)
                 except (AttributeError, ValueError):
                     pass  # Fall through to the next method
 
             # 2. Try modern `torch.to_dlpack` (preferred for PyTorch >= 1.7)
             try:
                 dlpack = torch.to_dlpack(tensor)
-                return tvm.runtime.from_dlpack(dlpack)
+                return tvm_tirx.runtime.from_dlpack(dlpack)
             except (AttributeError, ValueError):
                 pass  # Fall through to the next method
 
@@ -437,7 +439,7 @@ class BasePyModule:
             if to_dlpack_legacy:
                 try:
                     dlpack = to_dlpack_legacy(tensor)
-                    return tvm.runtime.from_dlpack(dlpack)
+                    return tvm_tirx.runtime.from_dlpack(dlpack)
                 except (AttributeError, ValueError) as error_legacy:
                     print(
                         f"Warning: Legacy DLPack conversion failed ({error_legacy}), "
@@ -446,12 +448,12 @@ class BasePyModule:
 
             # 4. If all DLPack methods fail, use numpy fallback
             numpy_array = tensor.detach().cpu().numpy()
-            return tvm.runtime.tensor(numpy_array, device=self.device)
+            return tvm_tirx.runtime.tensor(numpy_array, device=self.device)
 
         # For other types (like scalars, lists), convert to numpy first
         try:
             numpy_array = np.array(tensor, dtype=np.float32)
-            return tvm.runtime.tensor(numpy_array, device=self.device)
+            return tvm_tirx.runtime.tensor(numpy_array, device=self.device)
         except (TypeError, ValueError) as error:
             raise TypeError(
                 f"Unsupported type for conversion to TVM Tensor: {type(tensor)}"
@@ -638,7 +640,9 @@ class BasePyModule:
         This method extends the standard IRModule show() method to handle
         Python functions stored in the IRModule's pyfuncs attribute.
         """
-        from tvm.script.printer.highlight import cprint  # pylint: disable=import-outside-toplevel
+        from tvm_tirx.script.printer.highlight import (
+            cprint,  # pylint: disable=import-outside-toplevel
+        )
 
         if black_format is None:
             env = os.environ.get("TVM_BLACK_FORMAT")

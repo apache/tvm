@@ -25,11 +25,11 @@ from typing import Any, TypeVar
 
 import numpy as np
 
-import tvm
+import tvm_tirx
 from tvm import te
-from tvm import tirx as _tir
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx as _tir
+from tvm_tirx.script import tirx as T
 
 from ... import expr as rx
 from ... import op as _op
@@ -2078,7 +2078,7 @@ def tensor_ir_op(
             call_tir_args.append(arg._expr)
         elif isinstance(arg, rx.ShapeExpr):
             call_tir_args.extend(arg.values)
-        elif tvm.ir.is_prim_expr(arg):
+        elif tvm_tirx.ir.is_prim_expr(arg):
             call_tir_args.append(arg)
         else:
             raise TypeError(
@@ -2091,7 +2091,7 @@ def tensor_ir_op(
     else:
         out_ty = [x._expr.ty for x in out]
 
-    out_ty = out_ty[0] if len(out_ty) == 1 else tvm.ir.TupleType(out_ty)
+    out_ty = out_ty[0] if len(out_ty) == 1 else tvm_tirx.ir.TupleType(out_ty)
     bb = BlockBuilder.current()
     global_var = bb.add_func(func, name_hint)
 
@@ -2148,7 +2148,7 @@ def tensor_ir_inplace_op(
             call_tir_args.append(arg._expr)
         elif isinstance(arg, rx.ShapeExpr):
             call_tir_args.extend(arg.values)
-        elif tvm.ir.is_prim_expr(arg):
+        elif tvm_tirx.ir.is_prim_expr(arg):
             call_tir_args.append(arg)
         else:
             raise TypeError(
@@ -2161,7 +2161,7 @@ def tensor_ir_inplace_op(
     else:
         out_ty = [x._expr.ty for x in out]
 
-    out_ty = out_ty[0] if len(out_ty) == 1 else tvm.ir.TupleType(out_ty)
+    out_ty = out_ty[0] if len(out_ty) == 1 else tvm_tirx.ir.TupleType(out_ty)
     bb = BlockBuilder.current()
     global_var = bb.add_func(func, name_hint)
 
@@ -2181,7 +2181,8 @@ def extern(
     out: OutType,
 ) -> OutType:
     """Invoke an extern function during runtime. The extern function must be registered with the "
-    TVM runtime using `reflection::GlobalDef().def` (C++), or `tvm.register_global_func` (Python).
+    TVM runtime using `reflection::GlobalDef().def` (C++), or
+    `tvm_tirx.register_global_func` (Python).
 
     Parameters
     ----------
@@ -2209,8 +2210,8 @@ def extern(
         if isinstance(arg, float):
             return rx.prim_value(_tir.FloatImm("float64", arg))
         if isinstance(arg, str):
-            return tvm.ir.StringImm(arg)
-        if tvm.ir.is_prim_expr(arg):
+            return tvm_tirx.ir.StringImm(arg)
+        if tvm_tirx.ir.is_prim_expr(arg):
             return rx.prim_value(arg)
         if isinstance(arg, tuple | list):
             return rx.Tuple([_convert(e, f"{name}_{i}") for i, e in enumerate(arg)])
@@ -2238,7 +2239,7 @@ def debug_func(
 
     .. code-block:: python
 
-        @tvm.register_global_func(name_of_debug_func)
+        @tvm_tirx.register_global_func(name_of_debug_func)
         def debug_func(lineno: str, arg_0, arg_1, ...) -> None:
             ...
 
@@ -2274,10 +2275,10 @@ def debug_func(
             converted_args.append(rx.prim_value(_tir.IntImm("int64", arg)))
         elif isinstance(arg, float):
             converted_args.append(rx.prim_value(_tir.FloatImm("float32", arg)))
-        elif tvm.ir.is_prim_expr(arg):
+        elif tvm_tirx.ir.is_prim_expr(arg):
             converted_args.append(rx.prim_value(arg))
         elif isinstance(arg, str):
-            converted_args.append(tvm.ir.StringImm(arg))
+            converted_args.append(tvm_tirx.ir.StringImm(arg))
         else:
             raise TypeError(f"Unsupported type {type(arg)}")
 
@@ -2285,8 +2286,8 @@ def debug_func(
         rx.call_pure_packed(
             "vm.builtin.invoke_debug_func",
             io.effect,
-            tvm.ir.StringImm(name),
-            tvm.ir.StringImm(_line_info),
+            tvm_tirx.ir.StringImm(name),
+            tvm_tirx.ir.StringImm(_line_info),
             *converted_args,
             ty_args=[rx.AnyType()],
         ),

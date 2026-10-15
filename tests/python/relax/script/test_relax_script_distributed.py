@@ -19,16 +19,18 @@
 from __future__ import annotations
 
 import tvm
-import tvm.script
-import tvm.testing
-from tvm import IRModule, relax
-from tvm.ir import Range
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
+from tvm import relax
 from tvm.relax import Call, SeqExpr, VarBinding
+from tvm.relax import script as R
 from tvm.relax.distributed import DeviceMesh
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import IRModule
+from tvm_tirx.ir import Range
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def _check(
@@ -36,18 +38,18 @@ def _check(
     expect: relax.Function | IRModule | None = None,
 ):
     test = parsed.script(show_meta=True)
-    roundtrip_mod = tvm.script.from_source(
+    roundtrip_mod = tvm_tirx.script.from_source(
         test,
         extra_vars={
-            "I": tvm.script.ir,
-            "R": tvm.script.relax,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
+            "I": tvm_tirx.script.ir,
+            "R": tvm.relax.script,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
         },
     )
-    tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
+    tvm_tirx.ir.assert_structural_equal(parsed, roundtrip_mod)
     if expect:
-        tvm.ir.assert_structural_equal(parsed, expect)
+        tvm_tirx.ir.assert_structural_equal(parsed, expect)
 
 
 def test_call_tir_dtensor():
@@ -210,4 +212,4 @@ def test_constant():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

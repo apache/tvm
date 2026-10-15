@@ -18,11 +18,12 @@
 # ruff: noqa: F401
 
 import tvm
-from tvm import tirx
+import tvm_tirx
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def _target() -> Target:
@@ -46,7 +47,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 # pylint: disable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Before_cooperative_fetch:
     @Ts.function
     def main(
@@ -58,7 +59,7 @@ class Before_cooperative_fetch:
                 B[vi, vj] = A[vi, vj] + 1.0
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class After_cooperative_fetch:
     @Ts.function
     def main(
@@ -72,7 +73,7 @@ class After_cooperative_fetch:
                     B[vi, vj] = A[vi, vj] + 1.0
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Before_norm_bmn:
     @Ts.function
     def main(A: T.Tensor((1, 256, 256), "float32"), D: T.Tensor((1,), "float32")) -> None:
@@ -89,7 +90,7 @@ class Before_norm_bmn:
                 D[b] = T.sqrt(C[b])
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class After_norm_bmn:
     @Ts.function
     def main(A: T.Tensor((1, 256, 256), "float32"), D: T.Tensor((1,), "float32")) -> None:
@@ -110,7 +111,7 @@ class After_norm_bmn:
                     D[b] = T.sqrt(C[b])
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Bert_fused_reshape_transpose_reshape:
     @Ts.function
     def main(
@@ -129,7 +130,7 @@ class Bert_fused_reshape_transpose_reshape:
                 ]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Bert_fused_reshape_transpose_reshape_large:
     @Ts.function
     def main(
@@ -148,7 +149,7 @@ class Bert_fused_reshape_transpose_reshape_large:
                 ]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Bert_fused_reshape_transpose_reshape_after_rub:
     @Ts.function
     def main(
@@ -186,7 +187,7 @@ class Bert_fused_reshape_transpose_reshape_after_rub:
                     ]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Bert_fused_reshape_transpose_reshape_after_rub_large:
     @Ts.function
     def main(
@@ -338,7 +339,7 @@ def test_rewrite_cooperative_fetch():
     sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
-    tvm.ir.assert_structural_equal(sch.mod, After_cooperative_fetch)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, After_cooperative_fetch)
 
 
 def test_rewrite_norm_bmn():
@@ -348,7 +349,7 @@ def test_rewrite_norm_bmn():
     sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
-    tvm.ir.assert_structural_equal(sch.mod, After_norm_bmn)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, After_norm_bmn)
 
 
 def test_rewrite_cuda_loop_split_no_reduction():
@@ -358,7 +359,7 @@ def test_rewrite_cuda_loop_split_no_reduction():
     sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
-    tvm.ir.assert_structural_equal(sch.mod, Bert_fused_reshape_transpose_reshape_after_rub)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, Bert_fused_reshape_transpose_reshape_after_rub)
 
 
 def test_rewrite_cuda_loop_split_no_reduction_large():
@@ -368,7 +369,9 @@ def test_rewrite_cuda_loop_split_no_reduction_large():
     sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
-    tvm.ir.assert_structural_equal(sch.mod, Bert_fused_reshape_transpose_reshape_after_rub_large)
+    tvm_tirx.ir.assert_structural_equal(
+        sch.mod, Bert_fused_reshape_transpose_reshape_after_rub_large
+    )
 
 
 def test_rewrite_cuda_loop_split_for_kind():
@@ -378,7 +381,7 @@ def test_rewrite_cuda_loop_split_for_kind():
     sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
-    tvm.ir.assert_structural_equal(sch.mod["main"], after_unrolled_loop)
+    tvm_tirx.ir.assert_structural_equal(sch.mod["main"], after_unrolled_loop)
 
 
 if __name__ == "__main__":

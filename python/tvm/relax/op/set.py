@@ -19,9 +19,9 @@
 
 import numpy as np  # type: ignore
 
-import tvm
-from tvm.ir import Call as _Call
-from tvm.ir.location import UNKNOWN_LOC, Location
+import tvm_tirx
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr, prim_value
 
@@ -91,15 +91,15 @@ def unique(
     )
 
 
-@tvm.register_global_func("relax.run.unique")
+@tvm_tirx.register_global_func("relax.run.unique")
 def numpy_unique(
-    x: tvm.runtime.tensor,
+    x: tvm_tirx.runtime.tensor,
     sorted: int,
     return_index: int,
     return_inverse: int,
     return_counts: int,
     axis: int | None = None,
-) -> tvm.runtime.tensor:
+) -> tvm_tirx.runtime.tensor:
     """Returns the unique elements of the input tensor.
 
     Uses numpy.unique to compute unique elements.
@@ -123,7 +123,7 @@ def numpy_unique(
         if not sorted:
             indices = np.unique(x_numpy, return_index=True, axis=axis)[1]
             unique_values = np.take(x_numpy, builtins.sorted(indices), axis=axis)
-        return tvm.runtime.tensor(unique_values)
+        return tvm_tirx.runtime.tensor(unique_values)
 
     # Otherwise, numpy returns a tuple
     unique_values = result[0]
@@ -139,23 +139,23 @@ def numpy_unique(
         sort_order = np.argsort(indices)
         unique_values = np.take(unique_values, sort_order, axis=axis)
         indices = np.sort(indices)
-        output_list.append(tvm.runtime.tensor(unique_values))
-        output_list.append(tvm.runtime.tensor(indices))
+        output_list.append(tvm_tirx.runtime.tensor(unique_values))
+        output_list.append(tvm_tirx.runtime.tensor(indices))
     elif not sorted:
         # Need to get indices to reorder
         _, indices = np.unique(x_numpy, return_index=True, axis=axis)
         sort_order = np.argsort(indices)
         unique_values = np.take(unique_values, sort_order, axis=axis)
-        output_list.append(tvm.runtime.tensor(unique_values))
+        output_list.append(tvm_tirx.runtime.tensor(unique_values))
         if bool(return_index):
             indices_from_result = result[result_idx]
             result_idx += 1
-            output_list.append(tvm.runtime.tensor(np.sort(indices_from_result)))
+            output_list.append(tvm_tirx.runtime.tensor(np.sort(indices_from_result)))
     else:
         # Sorted case
-        output_list.append(tvm.runtime.tensor(unique_values))
+        output_list.append(tvm_tirx.runtime.tensor(unique_values))
         if bool(return_index):
-            output_list.append(tvm.runtime.tensor(result[result_idx]))
+            output_list.append(tvm_tirx.runtime.tensor(result[result_idx]))
             result_idx += 1
 
     if bool(return_inverse):
@@ -171,7 +171,7 @@ def numpy_unique(
         # When axis is None, it has length X.size (flattened)
         # When axis is specified, it has length X.shape[axis]
         # numpy.unique already returns 1D inverse_indices, so no reshaping needed
-        output_list.append(tvm.runtime.tensor(inverse_indices))
+        output_list.append(tvm_tirx.runtime.tensor(inverse_indices))
         result_idx += 1
 
     if bool(return_counts):
@@ -181,7 +181,7 @@ def numpy_unique(
             _, orig_indices = np.unique(x_numpy, return_index=True, axis=axis)
             sort_order = np.argsort(orig_indices)
             counts = counts[sort_order]
-        output_list.append(tvm.runtime.tensor(counts))
+        output_list.append(tvm_tirx.runtime.tensor(counts))
 
     return tuple(output_list)
 
@@ -217,7 +217,7 @@ def nonzero(x: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     return _Call("relax.nonzero", [x], ty=ty, loc=loc)  # type: ignore
 
 
-@tvm.register_global_func("relax.run.nonzero")
-def numpy_nonzero(x: tvm.runtime.tensor) -> tvm.runtime.tensor:
+@tvm_tirx.register_global_func("relax.run.nonzero")
+def numpy_nonzero(x: tvm_tirx.runtime.tensor) -> tvm_tirx.runtime.tensor:
     np_result = np.atleast_1d(x.numpy()).nonzero()
-    return tvm.runtime.tensor(np.stack(np_result, axis=0))
+    return tvm_tirx.runtime.tensor(np.stack(np_result, axis=0))

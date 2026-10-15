@@ -18,11 +18,11 @@
 
 import tvm_ffi
 
-from tvm import DataType, DataTypeCode
-from tvm.ir import Attrs, PrimType, is_prim_expr
-from tvm.ir import Call as _Call
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx import DataType, DataTypeCode
+from tvm_tirx.ir import Attrs, PrimType, is_prim_expr
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr, ShapeExpr, prim_value
 

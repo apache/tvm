@@ -17,11 +17,13 @@
 """Relax script operators manipulate."""
 
 import tvm
-import tvm.script
-import tvm.testing
-from tvm import IRModule, relax
-from tvm.script import ir as I
-from tvm.script import relax as R
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
+from tvm import relax
+from tvm.relax import script as R
+from tvm_tirx import IRModule
+from tvm_tirx.script import ir as I
 
 
 def _check(
@@ -29,12 +31,12 @@ def _check(
     expect: relax.Function | IRModule | None,
 ):
     test = parsed.script(show_meta=True)
-    roundtrip_mod = tvm.script.from_source(
-        test, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax, "T": tvm.script.tirx}
+    roundtrip_mod = tvm_tirx.script.from_source(
+        test, extra_vars={"I": tvm_tirx.script.ir, "R": tvm.relax.script, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
+    tvm_tirx.ir.assert_structural_equal(parsed, roundtrip_mod)
     if expect:
-        tvm.ir.assert_structural_equal(parsed, expect)
+        tvm_tirx.ir.assert_structural_equal(parsed, expect)
 
 
 def test_broadcast_to():
@@ -455,4 +457,4 @@ def test_hint_on_device_scoped():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

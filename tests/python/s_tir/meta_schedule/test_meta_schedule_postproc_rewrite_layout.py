@@ -19,14 +19,15 @@
 import pytest
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
-tvm.runtime.MemoryScope.register("global2")
+tvm_tirx.runtime.MemoryScope.register("global2")
 
 
 def _target() -> Target:
@@ -116,9 +117,9 @@ def test_tir_matmul():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B_reindex[vj, vk // 4, vk % 4]
 
-    mod = tvm.IRModule.from_expr(before)
+    mod = tvm_tirx.IRModule.from_expr(before)
     mod = _apply_rewrite_layout(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_rewritten_tensors_must_occur_within_block():
@@ -132,7 +133,7 @@ def test_rewritten_tensors_must_occur_within_block():
         for i, j in T.grid(16, 16):
             T.evaluate(A[i, j])
 
-    mod = tvm.IRModule.from_expr(before)
+    mod = tvm_tirx.IRModule.from_expr(before)
     with pytest.raises(RuntimeError):
         _apply_rewrite_layout(mod)
 
@@ -170,9 +171,9 @@ def test_extent_one():
                 vi, vj = Ts.axis.remap("SS", [i, j])
                 T.evaluate(A_global[vi])
 
-    mod = tvm.IRModule.from_expr(before)
+    mod = tvm_tirx.IRModule.from_expr(before)
     mod = _apply_rewrite_layout(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 @Ts.function
@@ -225,7 +226,7 @@ def test_layout_rewrite():
 
 
 # fmt: off
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dCacheRead:
     @Ts.function
     def main(p0: T.Tensor((1, 56, 56, 64), "float32"), p1: T.Tensor((3, 3, 64, 64), "float32"), conv2d_nhwc: T.Tensor((1, 56, 56, 64), "float32")):
@@ -302,7 +303,7 @@ class Conv2dCacheRead:
                                 conv2d_nhwc[v0, v1, v2, v3] = conv2d_nhwc_global[v0, v1, v2, v3]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dCacheReadRewritten:
     @Ts.function
     def main(p0: T.Tensor((1, 56, 56, 64), "float32"), p1: T.Tensor((3, 3, 64, 64), "float32"), conv2d_nhwc: T.Tensor((1, 56, 56, 64), "float32")):
@@ -387,7 +388,7 @@ class Conv2dCacheReadRewritten:
                                 conv2d_nhwc[v0, v1, v2, v3] = conv2d_nhwc_global[v0, v1, v2, v3]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dCacheReadMultipleRewritten:
     @Ts.function
     def main(p0: T.Tensor((1, 56, 56, 64), "float32"), p1: T.Tensor((3, 3, 64, 64), "float32"), conv2d_nhwc: T.Tensor((1, 56, 56, 64), "float32")):
@@ -487,7 +488,7 @@ def test_layout_rewrite_cache_read():
     sch = tvm.s_tir.Schedule(Conv2dCacheRead, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
-    tvm.ir.assert_structural_equal(sch.mod, Conv2dCacheReadRewritten)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, Conv2dCacheReadRewritten)
 
 
 def test_layout_rewrite_cache_read_multiple():
@@ -497,7 +498,7 @@ def test_layout_rewrite_cache_read_multiple():
     sch.cache_read(sch.get_sblock("p1_global"), 0, "global2")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
-    tvm.ir.assert_structural_equal(sch.mod, Conv2dCacheReadMultipleRewritten)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, Conv2dCacheReadMultipleRewritten)
 
 
 def test_layout_rewrite_int64_index():
@@ -631,10 +632,10 @@ def test_layout_rewrite_int64_index():
                             p1_global[v_b // T.int64(6), v_k, v_b % T.int64(6), v_j], "int32"
                         )
 
-    mod = tvm.IRModule.from_expr(before)
+    mod = tvm_tirx.IRModule.from_expr(before)
     mod = _apply_rewrite_layout(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

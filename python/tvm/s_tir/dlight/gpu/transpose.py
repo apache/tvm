@@ -16,12 +16,13 @@
 # under the License.
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 
-import tvm
-from tvm import s_tir, sym, tirx
-from tvm.ir import TensorLoad
+import tvm_tirx
+from tvm import s_tir
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
-from tvm.target import Target
+from tvm_tirx import sym, tirx
+from tvm_tirx.ir import TensorLoad
+from tvm_tirx.target import Target
 
 from ..analysis import detect_dominant_read, normalize_function
 from ..base import try_inline_contiguous_spatial
@@ -33,7 +34,7 @@ class Transpose(GPUScheduleRule):
 
     def is_transpose(self, sch: Schedule, block_rv: SBlockRV):
         block = sch.get(block_rv)
-        if len(block.body) == 1 and isinstance(block.body[0], tvm.ir.TensorStore):
+        if len(block.body) == 1 and isinstance(block.body[0], tvm_tirx.ir.TensorStore):
             store = block.body[0]
             rhs = store.value
             if isinstance(rhs, TensorLoad):

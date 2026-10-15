@@ -29,7 +29,7 @@ from typing import Literal
 import numpy as np  # type: ignore
 from tvm_ffi import register_object
 
-from tvm.runtime import Object
+from tvm_tirx.runtime import Object
 
 from .. import _ffi_api
 from ..runner import RunnerResult

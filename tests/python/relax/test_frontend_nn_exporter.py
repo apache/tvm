@@ -17,14 +17,15 @@
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import relax, tirx
-from tvm.ir import assert_structural_equal
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.frontend import nn
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_simple():
@@ -645,4 +646,4 @@ def test_duplicate_names(dynamic_type):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

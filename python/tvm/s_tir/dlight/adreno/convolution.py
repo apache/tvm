@@ -17,8 +17,9 @@
 # pylint: disable=missing-docstring, invalid-name
 """A Conv2d schedule rule for Adreno GPU operators."""
 
-from tvm import s_tir, tirx
-from tvm.target import Target
+from tvm import s_tir
+from tvm_tirx import tirx
+from tvm_tirx.target import Target
 
 from .. import analysis
 from .base import AdrenoScheduleRule

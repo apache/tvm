@@ -23,11 +23,12 @@ import pytest
 import tvm_ffi
 
 import tvm
-import tvm.testing
-from tvm import tirx
-from tvm.ir import IRModule
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.ir import IRModule
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -93,9 +94,9 @@ def block_in_opaque_block(
 
 
 def replace_ir_builder(deep_copy=False, realize=False):
-    new_func = tvm.script.from_source(
+    new_func = tvm_tirx.script.from_source(
         elementwise.script(),
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     s = tvm.s_tir.ScheduleState(new_func, debug_mask="all")
     target = tvm.s_tir.SBlock(
@@ -122,13 +123,13 @@ def replace_ir_builder(deep_copy=False, realize=False):
 
 
 def replace_ir_builder_module(deep_copy=False, realize=False):
-    new_func = tvm.script.from_source(
+    new_func = tvm_tirx.script.from_source(
         elementwise.script(),
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
-    other_func = tvm.script.from_source(
+    other_func = tvm_tirx.script.from_source(
         elementwise.script(),
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     mod = IRModule(functions={"main": new_func, "other": other_func})
     s = tvm.s_tir.ScheduleState(mod, debug_mask="all")
@@ -156,9 +157,9 @@ def replace_ir_builder_module(deep_copy=False, realize=False):
 
 
 def replace_ir_builder_with_opaque():
-    func = tvm.script.from_source(
+    func = tvm_tirx.script.from_source(
         block_in_opaque_block.script(),
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     s = tvm.s_tir.ScheduleState(func, debug_mask="all")
     gc.collect()
@@ -171,7 +172,7 @@ def test_replace_direct_write0():
     sref = s.get_sref(s.mod["main"].body[0].block.body[1])
     s.replace(sref, target)
     # Check the replaced part is equal to the target
-    tvm.ir.assert_structural_equal(s.mod["main"].body[0].block.body[1], target)
+    tvm_tirx.ir.assert_structural_equal(s.mod["main"].body[0].block.body[1], target)
     # There is no other reference so the AST node can be written directly
     assert old_hash == s.mod["main"].__hash__()
     # The target reuse the stmt of the sref, so the sref won't be None
@@ -188,7 +189,7 @@ def test_replace_direct_write1():
     assert old_hash == s.mod["main"].body[0].block.body.__hash__()
     assert not tvm_ffi.structural_equal(hold_ref.body, target)
     # Check the replaced part is equal to the target
-    tvm.ir.assert_structural_equal(s.mod["main"].body[0].block.body[1], target)
+    tvm_tirx.ir.assert_structural_equal(s.mod["main"].body[0].block.body[1], target)
     # The target reuse `sref.stmt`, so the sref won't be None
     assert sref.stmt is not None
 
@@ -205,7 +206,7 @@ def test_replace_copy():
     assert not tvm_ffi.structural_equal(old_func.body, s.mod["main"].body)
     assert old_hash == old_func.__hash__()
     # Check the replaced part is equal to the target
-    tvm.ir.assert_structural_equal(s.mod["main"].body[0].block.body[0], target)
+    tvm_tirx.ir.assert_structural_equal(s.mod["main"].body[0].block.body[0], target)
     # The replaced AST node will be deleted, so the ref will be None
     assert sref.stmt is None
 
@@ -226,7 +227,7 @@ def test_replace_partial_copy0():
     assert func_old_hash == s.mod["main"].__hash__()
     assert other_part_hash == s.mod["main"].body[0].block.body[1].__hash__()
     # Check the replaced part is equal to the target
-    tvm.ir.assert_structural_equal(s.mod["main"].body[0].block.body[0].body[0], target)
+    tvm_tirx.ir.assert_structural_equal(s.mod["main"].body[0].block.body[0].body[0], target)
     # The replaced AST node will be deleted, so the ref will be None
     assert sref.stmt is None
 
@@ -246,7 +247,7 @@ def test_replace_partial_copy1():
     assert func_old_hash == s.mod["main"].__hash__()
     assert other_part_hash == s.mod["main"].body[0].block.body[1].__hash__()
     # Check the replaced part is equal to the target
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         s.mod["main"].body[0].block.body[0].body[0].body[0].block, target
     )
     # The replaced AST node will be deleted, so the ref will be None
@@ -260,7 +261,7 @@ def test_replace_root_write():
     s.replace(sref, target)
     # Check no copy and the new body equals to target
     assert old_hash == s.mod["main"].__hash__()
-    tvm.ir.assert_structural_equal(s.mod["main"].body[0].block, target)
+    tvm_tirx.ir.assert_structural_equal(s.mod["main"].body[0].block, target)
 
 
 def test_replace_root_copy0():
@@ -271,7 +272,7 @@ def test_replace_root_copy0():
     s.replace(sref, target)
     # Check the new body equals to target
     assert old_hash != s.mod["main"].__hash__()
-    tvm.ir.assert_structural_equal(s.mod["main"].body[0].block, target)
+    tvm_tirx.ir.assert_structural_equal(s.mod["main"].body[0].block, target)
     # Check the original func remains unchanged
     assert old_hash == func_ref.__hash__()
     assert not tvm_ffi.structural_equal(func_ref.body, target)
@@ -285,7 +286,7 @@ def test_replace_root_copy1():
     s.replace(sref, target)
     # Check the new body equals to target
     assert old_hash != s.mod["main"].body[0].block.__hash__()
-    tvm.ir.assert_structural_equal(s.mod["main"].body[0].block.body[0], target)
+    tvm_tirx.ir.assert_structural_equal(s.mod["main"].body[0].block.body[0], target)
     # Check the original func remains unchanged
     assert old_hash == func_ref.__hash__()
     assert not tvm_ffi.structural_equal(func_ref.body, target)
@@ -299,7 +300,7 @@ def test_replace_root_copy2():
     s.replace(sref, target)
     # Check the new body equals to target
     assert old_hash != s.mod.functions.__hash__()
-    tvm.ir.assert_structural_equal(s.mod["main"].body[0].block, target)
+    tvm_tirx.ir.assert_structural_equal(s.mod["main"].body[0].block, target)
     # Check the original func remains unchanged
     assert old_hash == func_ref.__hash__()
     for _, v in func_ref.items():
@@ -314,7 +315,7 @@ def test_replace_root_copy3():
     s.replace(sref, target)
     # Check the new body equals to target
     assert old_hash != s.mod.__hash__()
-    tvm.ir.assert_structural_equal(s.mod["main"].body[0].block, target)
+    tvm_tirx.ir.assert_structural_equal(s.mod["main"].body[0].block, target)
     # Check the original func remains unchanged
     assert old_hash == func_ref.__hash__()
     assert not tvm_ffi.structural_equal(func_ref["main"].body[0].block, target)
@@ -330,7 +331,7 @@ def test_replace_block_remap():
     sref_new = s.get_sref(s.mod["main"].body[0].block.body[0].body[0].body[0].block)
     # Check the original sref has been remapped
     assert sref.__hash__() == sref_new.__hash__()
-    tvm.ir.assert_structural_equal(sref.stmt, target)
+    tvm_tirx.ir.assert_structural_equal(sref.stmt, target)
 
 
 def test_replace_block_in_opaque_block():
@@ -338,17 +339,17 @@ def test_replace_block_in_opaque_block():
     root_hash = s.mod["main"].__hash__()
     for_loop = s.mod["main"].body[0].block.body[0].body[0].block.body[1].then_case[0].block.body[0]
     sref = s.get_sref(for_loop)
-    new_for_loop = tvm.ir.For(
+    new_for_loop = tvm_tirx.ir.For(
         loop_var=for_loop.loop_var,
         min=0,
         extent=128,
-        kind=tvm.ir.ForKind.DEFAULT,
-        body=tvm.ir.Evaluate(0),
+        kind=tvm_tirx.ir.ForKind.DEFAULT,
+        body=tvm_tirx.ir.Evaluate(0),
         annotations=None,
     )
     s.replace(sref, new_for_loop)
     assert root_hash == s.mod["main"].__hash__()
-    tvm.ir.assert_structural_equal(sref.stmt, new_for_loop)
+    tvm_tirx.ir.assert_structural_equal(sref.stmt, new_for_loop)
 
 
 def test_replace_ir_module():
@@ -360,7 +361,7 @@ def test_replace_ir_module():
     s.replace(sref, target)
     # Check the new body equals to target
     assert old_hash != s.mod["main"].__hash__()
-    tvm.ir.assert_structural_equal(s.mod["main"].body[0].block, target)
+    tvm_tirx.ir.assert_structural_equal(s.mod["main"].body[0].block, target)
     # Check the original func remains unchanged
     assert old_hash == func_ref.__hash__()
     assert not tvm_ffi.structural_equal(func_ref.body, target)
@@ -368,4 +369,4 @@ def test_replace_ir_module():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -25,12 +25,12 @@ from typing import Union
 import tvm_ffi
 from tvm_ffi import Array
 
-import tvm
-from tvm.ir.op import Op
+import tvm_tirx
+from tvm_tirx.ir import make_node
+from tvm_tirx.ir.base import Node
+from tvm_tirx.ir.op import Op
+from tvm_tirx.runtime import Object
 
-from ...ir import make_node
-from ...ir.base import Node
-from ...runtime import Object
 from ..expr import Expr, Var
 from . import _ffi as ffi
 
@@ -160,7 +160,7 @@ class DFPattern(Node):
         has_shape assumes that the matched relax.Expr only has one
         output tensor. Use is_tuple for those with multiple outputs.
         """
-        if not isinstance(shape, list | tuple) and not tvm.ir.is_prim_expr(shape):
+        if not isinstance(shape, list | tuple) and not tvm_tirx.ir.is_prim_expr(shape):
             raise ValueError("has_shape takes a list or tuple as input.")
         return ShapePattern(pattern=self, shape=shape)
 
@@ -613,11 +613,11 @@ class ShapePattern(DFPattern):
     pattern: tvm.relax.dpl.DFPattern
         The input pattern that needs type annotation.
 
-    shape: List[tvm.ir.Expr]
+    shape: List[tvm_tirx.ir.Expr]
         The shape to match.
     """
 
-    def __init__(self, pattern: "DFPattern", shape: list[tvm.ir.Expr]):
+    def __init__(self, pattern: "DFPattern", shape: list[tvm_tirx.ir.Expr]):
         self.__init_handle_by_constructor__(ffi.ShapePattern, pattern, shape)  # type: ignore
 
 
@@ -642,11 +642,11 @@ class PrimArrPattern(DFPattern):
 
     Parameters
     ----------
-    shape : List[tvm.ir.Expr]
+    shape : List[tvm_tirx.ir.Expr]
         The shape to match.
     """
 
-    def __init__(self, shape: list[tvm.ir.Expr]):
+    def __init__(self, shape: list[tvm_tirx.ir.Expr]):
         self.__init_handle_by_constructor__(ffi.PrimArrPattern, shape)  # type: ignore
 
     def __getitem__(self, index: int):
@@ -668,11 +668,11 @@ class AttrPattern(DFPattern):
     pattern: tvm.relax.dpl.DFPattern
         The input pattern.
 
-    attrs: tvm.ir.attrs.Attrs
+    attrs: tvm_tirx.ir.attrs.Attrs
         The attributes to match.
     """
 
-    def __init__(self, pattern: "DFPattern", attrs: tvm.ir.attrs.Attrs):
+    def __init__(self, pattern: "DFPattern", attrs: tvm_tirx.ir.attrs.Attrs):
         self.__init_handle_by_constructor__(ffi.AttrPattern, pattern, attrs)  # type: ignore
 
 
@@ -744,7 +744,7 @@ def is_op(op_name: str) -> ExprPattern:
     Parameters
     ----------
     op_name: String
-        The name of the tvm.ir.op.Op object
+        The name of the tvm_tirx.ir.op.Op object
 
     Returns
     -------
@@ -830,13 +830,13 @@ def has_dtype(dtype: str, pattern: DFPattern = None) -> DataTypePattern:
     return DataTypePattern(pattern, dtype)
 
 
-def is_shape(shape: list[tvm.ir.Expr]) -> "PrimArrPattern":
+def is_shape(shape: list[tvm_tirx.ir.Expr]) -> "PrimArrPattern":
     """
     Directly matches a shape which is an array of Expr
 
     Parameters
     ----------
-    shape : List[tvm.ir.Expr]
+    shape : List[tvm_tirx.ir.Expr]
         The expected shape
 
     Returns

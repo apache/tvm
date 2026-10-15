@@ -21,9 +21,10 @@ from collections.abc import Mapping
 
 import tvm_ffi
 
-import tvm
-from tvm import s_tir, sym, tirx
-from tvm.target import Target
+import tvm_tirx
+from tvm import s_tir
+from tvm_tirx import sym, tirx
+from tvm_tirx.target import Target
 
 from ..analysis import (
     SBlockInfo,
@@ -40,7 +41,7 @@ def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     if len(block.body) != 1:
         return None
     tensor_store = block.body[0]
-    if not isinstance(tensor_store, tvm.ir.TensorStore):
+    if not isinstance(tensor_store, tvm_tirx.ir.TensorStore):
         return None
     if not isinstance(tensor_store.value, tirx.Add):
         return None

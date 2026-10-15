@@ -17,15 +17,17 @@
 # ruff: noqa: F401
 import numpy as np
 
-import tvm.testing
-from tvm import relax, tirx
+import tvm
+import tvm_tirx.testing
+from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.transform import CombineParallelMatmul
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.script.ir_builder import IRBuilder
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.ir_builder import IRBuilder
 
 
 def test_param():
@@ -77,7 +79,7 @@ def test_param():
             return gv
 
     after = relax.transform.AttachAttrLayoutFreeTensors()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_const():
@@ -139,7 +141,7 @@ def test_const():
             return gv
 
     after = relax.transform.AttachAttrLayoutFreeTensors()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_multiple_same_func():
@@ -217,7 +219,7 @@ def test_multiple_same_func():
             return gv
 
     after = relax.transform.AttachAttrLayoutFreeTensors()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_multiple_same_func_with_different_free_buffers():
@@ -308,8 +310,8 @@ def test_multiple_same_func_with_different_free_buffers():
             return gv
 
     after = relax.transform.AttachAttrLayoutFreeTensors()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

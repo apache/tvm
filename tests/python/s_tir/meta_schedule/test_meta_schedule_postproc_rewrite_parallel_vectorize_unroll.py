@@ -17,17 +17,18 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 # ruff: noqa: E501, F841
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.postproc import RewriteParallelVectorizeUnroll
 from tvm.s_tir.schedule import Schedule
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,not-callable,misplaced-comparison-constant
 # fmt: off
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Move_PUV:
     @Ts.function
     def main(A: T.Tensor([1024, 1024, 1024], dtype='float32'), B: T.Tensor([1024, 1024, 1024], dtype='float32')) -> None:
@@ -70,7 +71,7 @@ def Move_PUV0(A: T.Tensor([1024, 1024, 1024], dtype='float32'), B: T.Tensor([102
                         Ts.writes([B[vi, vj, vk]])
                         B[vi, vj, vk] = A[vi, vj, vk]
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Fused_NN_Dense:
     @Ts.function
     def main(placeholder: T.Tensor((64, 768), "float32"), placeholder_1: T.Tensor((768, 768), "float32"), T_matmul_NT: T.Tensor((64, 768), "float32")) -> None:
@@ -201,7 +202,7 @@ def test_meta_schedule_postproc_rewrite_parallel_unroll_vectorize():
     sch = Schedule(Move_PUV)
     assert postproc.apply(sch)
     mod = tvm.s_tir.transform.StmtSimplify()(sch.mod)
-    tvm.ir.assert_structural_equal(mod["main"], Move_PUV0)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], Move_PUV0)
 
 
 def test_vectorize_inner_loop():
@@ -287,4 +288,4 @@ def test_rewrite_parallel_vectorize_unroll_dynamic_shape_no_crash():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

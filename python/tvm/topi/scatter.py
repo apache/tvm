@@ -18,10 +18,11 @@
 # ruff: noqa: E741
 """ScatterND operator"""
 
-from tvm import DataTypeCode, ir, te, tirx  # hide redefinition of min and max
-from tvm.script.ir_builder import IRBuilder
-from tvm.sym.analyzer import Analyzer
-from tvm.tirx.script import ir_builder as T
+from tvm import te  # hide redefinition of min and max
+from tvm_tirx import DataTypeCode, ir, tirx
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.sym.analyzer import Analyzer
+from tvm_tirx.tirx.script import ir_builder as T
 
 
 def _verify_scatter_nd_inputs(data, indices, updates):

@@ -17,9 +17,10 @@
 # pylint: disable=invalid-name
 """Unique operator"""
 
-from tvm import te, tirx
-from tvm.script.ir_builder import IRBuilder
-from tvm.tirx.script import ir_builder as T
+from tvm import te
+from tvm_tirx import tirx
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx.script import ir_builder as T
 
 
 def _calc_adjacent_diff_ir(data, output, binop=tirx.Sub):
@@ -37,7 +38,7 @@ def _calc_adjacent_diff_ir(data, output, binop=tirx.Sub):
 
     binop: function, optional
         A binary associative op to use for calculating adjacent difference. The function takes two
-        TIR expressions and produce a new TIR expression. By default it uses tvm.tirx.Sub to
+        TIR expressions and produce a new TIR expression. By default it uses tvm_tirx.tirx.Sub to
         compute the adjacent difference.
     """
     with IRBuilder() as ib:
@@ -75,7 +76,7 @@ def _calc_adjacent_diff(data, out_dtype="int32", binop=tirx.Sub):
 
     binop: function, optional
         A binary associative op to use for calculating difference. The function takes two
-        TIR expressions and produce a new TIR expression. By default it uses tvm.tirx.Sub to
+        TIR expressions and produce a new TIR expression. By default it uses tvm_tirx.tirx.Sub to
         compute the adjacent difference.
 
     Returns

@@ -98,13 +98,14 @@ import numpy as np
 import tvm_ffi
 
 import tvm
+import tvm_tirx
 from tvm import rpc, te
-from tvm.support import utils
+from tvm_tirx.support import utils
 
-n = tvm.runtime.convert(1024)
+n = tvm_tirx.runtime.convert(1024)
 A = te.placeholder((n,), name="A")
 B = te.compute((n,), lambda i: A[i] + 1.0, name="B")
-mod = tvm.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "add_one"))
+mod = tvm_tirx.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "add_one"))
 
 ######################################################################
 # Then we cross compile the kernel.
@@ -416,10 +417,10 @@ def run_opencl():
     # them according to your environment.
     opencl_device_host = "10.77.1.145"
     opencl_device_port = 9090
-    target = tvm.target.Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
+    target = tvm_tirx.target.Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
 
     # create schedule for the above "add one" compute declaration
-    mod = tvm.IRModule.from_expr(te.create_function([A, B]))
+    mod = tvm_tirx.IRModule.from_expr(te.create_function([A, B]))
     sch = tvm.s_tir.Schedule(mod)
     (x,) = sch.get_loops(block=sch.get_sblock("B"))
     xo, xi = sch.split(x, [None, 32])
@@ -538,7 +539,7 @@ def run_pytorch_model_via_rpc():
 
     if local_demo:
         # For demonstration on local machine, use local target
-        target = tvm.target.Target("llvm")
+        target = tvm_tirx.target.Target("llvm")
         print("Using local target for demonstration")
     else:
         # Choose the appropriate target for your device:
@@ -560,7 +561,7 @@ def run_pytorch_model_via_rpc():
         #   - OpenCL: tvm.target.Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
         #
         # For this example, we use ARM 64-bit
-        target = tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
+        target = tvm_tirx.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
         print(f"Cross-compiling for target: {target}")
 
     # Apply optimization pipeline

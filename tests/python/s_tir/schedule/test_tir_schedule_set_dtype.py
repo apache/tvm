@@ -20,14 +20,15 @@
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
@@ -94,7 +95,7 @@ def element_wise_subregion_match_set_dtype(A: T.Tensor((128, 128), "float32"), C
             B_subregion1 = Ts.match_tensor(B[vi, vj], (), "float16", offset_factor=1)
             C[vi, vj] = T.cast(B_subregion1[()], "float32") + 1.0
 
-use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
 def test_set_dtype(use_block_name):
     func = element_wise
@@ -125,4 +126,4 @@ def test_set_dtype_subregion():
     verify_trace_roundtrip(sch=sch, mod=func)
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -23,11 +23,13 @@ import pytest
 from numpy.testing import assert_allclose
 
 import tvm
-import tvm.testing
-from tvm import s_tir, te, tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import s_tir, te
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 N_FEATURES = 164
 
@@ -56,7 +58,7 @@ def matmul(
 # fmt: off
 
 # from tvm.script import tirx as T
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class LayoutTransform:
     @Ts.function
     def main(placeholder: T.Tensor((1, 16, 7, 7, 32), "float32"), placeholder_1: T.Tensor((25088,), "float32"), T_layout_trans: T.Tensor((1, 1, 7, 7, 512), "float32")) -> None:
@@ -224,7 +226,7 @@ def test_cpu_matmul():
 
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
-        _make_context(tvm.target.Target("llvm")),
+        _make_context(tvm_tirx.target.Target("llvm")),
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
@@ -443,7 +445,7 @@ def test_cpu_fusion():
 
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
-        _make_context(tvm.target.Target("llvm")),
+        _make_context(tvm_tirx.target.Target("llvm")),
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
@@ -729,7 +731,7 @@ def test_empty_feature():
 
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
-        _make_context(tvm.target.Target("llvm")),
+        _make_context(tvm_tirx.target.Target("llvm")),
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
@@ -790,7 +792,7 @@ def test_gpu():
 
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
-        _make_context(tvm.target.Target("cuda")),
+        _make_context(tvm_tirx.target.Target("cuda")),
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
@@ -1621,7 +1623,7 @@ def test_gpu():
 def test_cpu_layout_transform():
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
-        _make_context(tvm.target.Target("llvm")),
+        _make_context(tvm_tirx.target.Target("llvm")),
         candidates=[_make_candidate(lambda: s_tir.Schedule(LayoutTransform))],
     )
 
@@ -1635,7 +1637,7 @@ def negative_extent(A: T.Tensor((1,), "float32")):
 def test_negative_extent():
     extractor = ms.feature_extractor.PerStoreFeature()
     (features,) = extractor.extract_from(
-        _make_context(tvm.target.Target("llvm")),
+        _make_context(tvm_tirx.target.Target("llvm")),
         candidates=[_make_candidate(lambda: s_tir.Schedule(negative_extent))],
     )
     named_features = dict(zip(_feature_names(), list(features.numpy()[0, :])))
@@ -1643,4 +1645,4 @@ def test_negative_extent():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

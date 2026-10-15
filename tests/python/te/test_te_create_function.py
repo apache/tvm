@@ -22,10 +22,12 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import s_tir, te, tirx, topi
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import s_tir, te, topi
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 
 def test_unique_name_complete_block():
@@ -54,9 +56,9 @@ def _check_workload(te_workload, tir_workload, index_dtype_override=None, do_sim
     func = te.create_function(te_workload(), index_dtype_override)
     if do_simplify:
         simplify = tirx.transform.StmtSimplify()
-        func = simplify(tvm.IRModule.from_expr(func))["main"]
-        tir_workload = simplify(tvm.IRModule.from_expr(tir_workload))["main"]
-    tvm.ir.assert_structural_equal(func, tir_workload)
+        func = simplify(tvm_tirx.IRModule.from_expr(func))["main"]
+        tir_workload = simplify(tvm_tirx.IRModule.from_expr(tir_workload))["main"]
+    tvm_tirx.ir.assert_structural_equal(func, tir_workload)
     # make sure that we can create schedule from the func
     s = tvm.s_tir.Schedule(func, debug_mask="all")
     assert s
@@ -149,8 +151,8 @@ def te_conv2d():
     W = te.placeholder((in_channel, kernel, kernel, out_channel), name="W")
     Apad = te.compute(
         (batch, in_channel, size + 2, size + 2),
-        lambda nn, cc, yy, xx: tvm.tirx.if_then_else(
-            tvm.tirx.all(yy >= 1, yy - 1 < size, xx >= 1, xx - 1 < size),
+        lambda nn, cc, yy, xx: tvm_tirx.tirx.if_then_else(
+            tvm_tirx.tirx.all(yy >= 1, yy - 1 < size, xx >= 1, xx - 1 < size),
             A[nn, cc, yy - 1, xx - 1],
             0.0,
         ),
@@ -240,7 +242,7 @@ def te_extern():
     C = te.extern(
         (128, 128),
         [A, B],
-        lambda ins, outs: tvm.tirx.call_packed(
+        lambda ins, outs: tvm_tirx.tirx.call_packed(
             "tvm.contrib.cblas.matmul", ins[0], ins[1], outs[0], 0, 0
         ),
         name="C",
@@ -308,7 +310,7 @@ def te_extern_epilogue():
     C = te.extern(
         (4, 2),
         [A, B],
-        lambda ins, outs: tvm.tirx.call_packed("testing.echo", ins[0], ins[1], outs[0]),
+        lambda ins, outs: tvm_tirx.tirx.call_packed("testing.echo", ins[0], ins[1], outs[0]),
         name="C",
     )
     D = te.compute(C.shape, lambda i, j: C[i, j] + 1.0, name="D")
@@ -385,7 +387,7 @@ def test_error_reporting():
     try:
         te.create_function(te_scan())
         assert False
-    except (TypeError, tvm.error.InternalError) as e:
+    except (TypeError, tvm_tirx.error.InternalError) as e:
         error_message = str(e)
         assert error_message.find("Unsupported Operation: te.ScanOp.") != -1
         return
@@ -401,9 +403,9 @@ def test_constant():
     func = te.create_function([C, A])
     func = tvm.compile(func)
     a_np = np.random.uniform(size=(M,)).astype(A.dtype.dtype)
-    c = tvm.runtime.tensor(np.zeros(M, dtype=C.dtype.dtype))
-    x = func(c, tvm.runtime.tensor(a_np))
-    tvm.testing.assert_allclose(a_np + 2, c.numpy())
+    c = tvm_tirx.runtime.tensor(np.zeros(M, dtype=C.dtype.dtype))
+    x = func(c, tvm_tirx.runtime.tensor(a_np))
+    tvm_tirx.testing.assert_allclose(a_np + 2, c.numpy())
 
 
 @pytest.mark.parametrize("op_name", ["acos", "acosh", "asin", "asinh", "atanh"])
@@ -425,9 +427,9 @@ def test_topi_float_unary_accepts_float_input(op_name, dtype):
     op = getattr(topi, op_name)
     out = op(x)
 
-    func = te.create_function([x, out]).with_attr("target", tvm.target.Target("llvm"))
-    mod = tvm.IRModule({"main": func})
-    compiled = tvm.tirx.compile(mod, target="llvm").mod
+    func = te.create_function([x, out]).with_attr("target", tvm_tirx.target.Target("llvm"))
+    mod = tvm_tirx.IRModule({"main": func})
+    compiled = tvm_tirx.tirx.compile(mod, target="llvm").mod
 
     assert compiled is not None
 
@@ -442,9 +444,9 @@ def test_data_dependent_access():
 
     a_np = np.random.uniform(size=(10,)).astype(A.dtype.dtype)
     b_np = np.arange(10, dtype=B.dtype.dtype)
-    c = tvm.runtime.tensor(np.zeros(10, dtype=C.dtype.dtype))
-    func(c, tvm.runtime.tensor(a_np), tvm.runtime.tensor(b_np))
-    tvm.testing.assert_allclose(a_np[b_np], c.numpy())
+    c = tvm_tirx.runtime.tensor(np.zeros(10, dtype=C.dtype.dtype))
+    func(c, tvm_tirx.runtime.tensor(a_np), tvm_tirx.runtime.tensor(b_np))
+    tvm_tirx.testing.assert_allclose(a_np[b_np], c.numpy())
 
 
 def test_select_simplify():
@@ -469,10 +471,11 @@ def test_tensor_attr():
         attrs={"layout_free_placeholders": [B]},
     )
     func = te.create_function([A, B, C])
-    rt_func = tvm.script.from_source(
-        func.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+    rt_func = tvm_tirx.script.from_source(
+        func.script(),
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
-    tvm.ir.assert_structural_equal(func, rt_func)
+    tvm_tirx.ir.assert_structural_equal(func, rt_func)
 
 
 @Ts.function
@@ -542,17 +545,17 @@ def test_tensor_layout_attr(index_dtype_override, expected):
         attrs={"layout_free_placeholders": [C]},
     )
     func = te.create_function([A, B, D], index_dtype_override=index_dtype_override)
-    tvm.ir.assert_structural_equal(func, expected)
+    tvm_tirx.ir.assert_structural_equal(func, expected)
 
 
 def te_argmax_idx_val():
     def f_combine(x, y):
-        lhs = tvm.tirx.Select((x[1] >= y[1]), x[0], y[0])
-        rhs = tvm.tirx.Select((x[1] >= y[1]), x[1], y[1])
+        lhs = tvm_tirx.tirx.Select((x[1] >= y[1]), x[0], y[0])
+        rhs = tvm_tirx.tirx.Select((x[1] >= y[1]), x[1], y[1])
         return lhs, rhs
 
-    def f_identity(dtype0: tvm.DataType, dtype1: tvm.DataType):
-        return tvm.tirx.const(-1, dtype0), tvm.te.min_value(dtype1)
+    def f_identity(dtype0: tvm_tirx.DataType, dtype1: tvm_tirx.DataType):
+        return tvm_tirx.tirx.const(-1, dtype0), tvm.te.min_value(dtype1)
 
     argmax = te.comm_reducer(f_combine, f_identity, name="argmax")
 
@@ -600,12 +603,12 @@ def tir_argmax_idx_val(
 
 def te_argmax_val_idx():
     def f_combine(x, y):
-        lhs = tvm.tirx.Select((x[0] >= y[0]), x[0], y[0])
-        rhs = tvm.tirx.Select((x[0] >= y[0]), x[1], y[1])
+        lhs = tvm_tirx.tirx.Select((x[0] >= y[0]), x[0], y[0])
+        rhs = tvm_tirx.tirx.Select((x[0] >= y[0]), x[1], y[1])
         return lhs, rhs
 
-    def f_identity(dtype0: tvm.DataType, dtype1: tvm.DataType):
-        return tvm.te.min_value(dtype0), tvm.tirx.const(-1, dtype1)
+    def f_identity(dtype0: tvm_tirx.DataType, dtype1: tvm_tirx.DataType):
+        return tvm.te.min_value(dtype0), tvm_tirx.tirx.const(-1, dtype1)
 
     argmax = te.comm_reducer(f_combine, f_identity, name="argmax")
 
@@ -698,7 +701,9 @@ def test_zero_dim_add():
 
 def te_reshape():
     # The following is possible to be generated by TOPI. So we test this case.
-    A = te.placeholder((tvm.tirx.IntImm("int64", 2), tvm.tirx.IntImm("int64", 4)), name="A")
+    A = te.placeholder(
+        (tvm_tirx.tirx.IntImm("int64", 2), tvm_tirx.tirx.IntImm("int64", 4)), name="A"
+    )
     B = topi.reshape(A, (4, 2))
     return [A, B]
 
@@ -803,7 +808,7 @@ def test_extern_with_explicit_buffer_access():
         C = te.extern(
             (128, 128),
             [A, B, P],
-            lambda ins, outs: tvm.tirx.call_extern(
+            lambda ins, outs: tvm_tirx.tirx.call_extern(
                 "", "myfunc", ins[0].data, ins[1].data, outs[0].data, ins[2][0]
             ),
             name="C",
@@ -999,10 +1004,10 @@ def test_adaptive_pooling_mixed_reduction_levels(input_shape, expected):
     input_data = np.arange(10, 10 + np.prod(input_shape), dtype="float32").reshape(
         1, 1, *input_shape
     )
-    actual = tvm.runtime.tensor(np.empty((1, 1, 2, 2), dtype="float32"))
-    compiled(tvm.runtime.tensor(input_data), actual)
+    actual = tvm_tirx.runtime.tensor(np.empty((1, 1, 2, 2), dtype="float32"))
+    compiled(tvm_tirx.runtime.tensor(input_data), actual)
 
-    tvm.testing.assert_allclose(actual.numpy()[0, 0], np.array(expected, dtype="float32"))
+    tvm_tirx.testing.assert_allclose(actual.numpy()[0, 0], np.array(expected, dtype="float32"))
 
 
 def test_global_pool():
@@ -1055,8 +1060,8 @@ def test_nested_reduce_domain_dependency():
         x = te.placeholder([8, 8, 8, 8, 8], "float32", "x")
 
         def fcompute(*axes):
-            r1 = te.reduce_axis(tvm.ir.Range.from_min_extent(0, axes[1]))
-            r2 = te.reduce_axis(tvm.ir.Range.from_min_extent(0, r1))
+            r1 = te.reduce_axis(tvm_tirx.ir.Range.from_min_extent(0, axes[1]))
+            r2 = te.reduce_axis(tvm_tirx.ir.Range.from_min_extent(0, r1))
             all_axes = [*axes, r1, r2]
             return te.sum(x(*all_axes), [r1, r2])
 
@@ -1068,4 +1073,4 @@ def test_nested_reduce_domain_dependency():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

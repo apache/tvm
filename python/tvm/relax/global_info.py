@@ -18,9 +18,9 @@
 
 import tvm_ffi
 
-from tvm.ir import GlobalInfo
-from tvm.runtime import Device, MemoryScope, convert
-from tvm.target import Target
+from tvm_tirx.ir import GlobalInfo
+from tvm_tirx.runtime import Device, MemoryScope, convert
+from tvm_tirx.target import Target
 
 from . import _ffi_api
 

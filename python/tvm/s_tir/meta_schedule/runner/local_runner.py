@@ -21,11 +21,11 @@ import subprocess
 from collections.abc import Callable
 from contextlib import contextmanager
 
-import tvm
+import tvm_tirx
 from tvm.s_tir.utils import derived_object
-from tvm.support.popen_pool import PopenPoolExecutor
+from tvm_tirx.runtime import Device, Module
+from tvm_tirx.support.popen_pool import PopenPoolExecutor
 
-from ....runtime import Device, Module
 from ..logging import get_logger
 from ..profiler import Profiler
 from ..utils import get_global_func_with_default_on_worker
@@ -145,10 +145,10 @@ def _worker_func(
     with resource_handler():
         # Step 1: create the local runtime module
         with Profiler.timeit("LocalRunner/load_module"):
-            rt_mod = tvm.runtime.load_module(artifact_path)
+            rt_mod = tvm_tirx.runtime.load_module(artifact_path)
         # Step 2: Allocate input arguments
         with Profiler.timeit("LocalRunner/alloc_argument"):
-            device = tvm.runtime.device(device_type, 0)
+            device = tvm_tirx.runtime.device(device_type, 0)
             repeated_args: list[T_ARGUMENT_LIST] = f_alloc_argument(
                 device,
                 args_info,
@@ -392,7 +392,7 @@ def default_cleanup() -> None:
     pass  # pylint: disable=unnecessary-pass
 
 
-@tvm.register_global_func("s_tir.meta_schedule.runner.get_local_runner")
+@tvm_tirx.register_global_func("s_tir.meta_schedule.runner.get_local_runner")
 def get_local_builder() -> LocalRunner:
     """Get the local Runner.
 

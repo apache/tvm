@@ -17,11 +17,12 @@
 """The Relax Adreno GPU backend compilation pipeline and other passes."""
 
 import tvm
+import tvm_tirx
 from tvm import relax
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 
 
-def library_dispatch_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def library_dispatch_passes(target: tvm_tirx.target.Target):  # pylint: disable=unused-argument
     """The default library dispatch passes for Adreno GPU backend."""
     if "clml" in target.keys:
         return [
@@ -32,7 +33,7 @@ def library_dispatch_passes(target: tvm.target.Target):  # pylint: disable=unuse
         return []
 
 
-def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def legalize_passes(target: tvm_tirx.target.Target):  # pylint: disable=unused-argument
     """The default legalization passes for Adreno GPU backend."""
     desired_layouts = {"relax.nn.conv2d": ["NCHW4c", "OIHW4o", "NCHW4c"]}
     skip_ops = [
@@ -44,7 +45,7 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
 
     pass_list.extend(
         [
-            tvm.tirx.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
+            tvm_tirx.tirx.transform.BindTarget(tvm_tirx.target.Target.current(allow_none=False)),
             relax.transform.DecomposeOpsForInference(),
         ]
     )
@@ -110,23 +111,23 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
     return pass_list
 
 
-def dataflow_lower_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def dataflow_lower_passes(target: tvm_tirx.target.Target):  # pylint: disable=unused-argument
     """The default dataflow lowering passes for Adreno GPU backend."""
     return relax.backend.gpu_generic.dataflow_lower_passes(target)
 
 
-def finalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def finalize_passes(target: tvm_tirx.target.Target):  # pylint: disable=unused-argument
     """The default finalization passes for Adreno GPU backend."""
     return relax.backend.gpu_generic.finalize_passes(target)
 
 
-def get_default_pipeline(target: tvm.target.Target):
+def get_default_pipeline(target: tvm_tirx.target.Target):
     """Return the default compilation pipeline for Adreno GPU."""
 
-    @tvm.ir.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.ir.transform.PassContext):
+    @tvm_tirx.ir.transform.module_pass(opt_level=0)
+    def _pipeline(mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext):
         with target:
-            seq = tvm.ir.transform.Sequential(
+            seq = tvm_tirx.ir.transform.Sequential(
                 library_dispatch_passes(target)
                 + legalize_passes(target)
                 + dataflow_lower_passes(target)

@@ -22,10 +22,10 @@ gradients for forward operators. The ty inference for grad operators just return
 ty of the input.
 """
 
-from tvm.ir import Call as _Call
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC as _UNKNOWN_LOC
-from tvm.ir.location import Location as _Location
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC as _UNKNOWN_LOC
+from tvm_tirx.ir.location import Location as _Location
 
 from ...expr import Expr
 

@@ -19,9 +19,9 @@
 
 import math
 
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.tirx import Function
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import Function
 
 
 def _is_power_of_two(n: int):

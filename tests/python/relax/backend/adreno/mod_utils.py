@@ -23,15 +23,16 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax, rpc
+from tvm.relax import script as R
 from tvm.relax.backend.adreno import clml
 from tvm.relax.script import ir_builder as relax_builder
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.script.ir_builder import IRBuilder
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.ir_builder import IRBuilder
 
 
 def get_relax_conv2d_mod(
@@ -98,7 +99,7 @@ def get_relax_conv2d_mod(
             R.func_ret_value(frame.output_vars[0])
 
     func = builder.get()
-    return tvm.IRModule({"main": func})
+    return tvm_tirx.IRModule({"main": func})
 
 
 def get_clml_conv2d_codegen(
@@ -239,7 +240,7 @@ def get_relax_conv2d_transpose_mod(
             R.func_ret_value(frame.output_vars[0])
 
     func = builder.get()
-    return tvm.IRModule({"main": func})
+    return tvm_tirx.IRModule({"main": func})
 
 
 def get_conv2d_transpose_expected_codegen(
@@ -300,7 +301,7 @@ def get_batchnorm_mod(data_shape, channels, axis, epsilon, dtype):
             R.func_ret_value(frame.output_vars[0])
 
         func = builder.get()
-        return tvm.IRModule({"main": func})
+        return tvm_tirx.IRModule({"main": func})
 
 
 def get_binary_op_mod(a_shape, b_shape, op, dtype):
@@ -322,7 +323,7 @@ def get_binary_op_mod(a_shape, b_shape, op, dtype):
     a_data = np.random.uniform(low, high, size=(a_shape)).astype(dtype)
     b_data = np.random.uniform(low, high, size=(b_shape)).astype(dtype)
 
-    return (tvm.IRModule({"main": func}), (a_data, b_data))
+    return (tvm_tirx.IRModule({"main": func}), (a_data, b_data))
 
 
 def get_unary_op_mod(a_shape, op, dtype):
@@ -342,7 +343,7 @@ def get_unary_op_mod(a_shape, op, dtype):
     low, high = 0, 1
     a_data = np.random.uniform(low, high, size=(a_shape)).astype(dtype)
 
-    return (tvm.IRModule({"main": func}), (a_data,))
+    return (tvm_tirx.IRModule({"main": func}), (a_data,))
 
 
 def get_relax_maxpool_mod(
@@ -359,7 +360,7 @@ def get_relax_maxpool_mod(
         has_pad (bool, optional): Whether to apply explicit padding. Defaults to False.
 
     Returns:
-        tvm.IRModule: Relax MaxPool module
+        tvm_tirx.IRModule: Relax MaxPool module
     """
     with IRBuilder() as builder:
         with relax_builder.function():
@@ -388,7 +389,7 @@ def get_relax_maxpool_mod(
             R.func_ret_value(frame.output_vars[0])
 
     func = builder.get()
-    return tvm.IRModule({"main": func})
+    return tvm_tirx.IRModule({"main": func})
 
 
 def get_maxpool_expected_codegen(input_shape, pool_size, stride, padding, pool_type, dtype):
@@ -451,7 +452,7 @@ def get_relax_avgpool_mod(data_shape, dtype, pool_size, stride, dilation, paddin
         count_include_pad (bool, optional): Whether to include padding in averaging. Defaults to True.
 
     Returns:
-        tvm.IRModule: Relax AvgPool module
+        tvm_tirx.IRModule: Relax AvgPool module
     """
     with IRBuilder() as builder:
         with relax_builder.function():
@@ -480,7 +481,7 @@ def get_relax_avgpool_mod(data_shape, dtype, pool_size, stride, dilation, paddin
             R.func_ret_value(frame.output_vars[0])
 
     func = builder.get()
-    return tvm.IRModule({"main": func})
+    return tvm_tirx.IRModule({"main": func})
 
 
 def get_avgpool_expected_codegen(input_shape, pool_size, stride, padding, pool_type, dtype):
@@ -538,7 +539,7 @@ def get_relax_reshape_mod(input_shape, output_shape, dtype):
         dtype (str, optional): Data type. Defaults to "float32".
 
     Returns:
-        tvm.IRModule: Relax Reshape module
+        tvm_tirx.IRModule: Relax Reshape module
     """
     with IRBuilder() as builder:
         with relax_builder.function():
@@ -552,7 +553,7 @@ def get_relax_reshape_mod(input_shape, output_shape, dtype):
             R.func_ret_value(frame.output_vars[0])
 
     func = builder.get()
-    return tvm.IRModule({"main": func})
+    return tvm_tirx.IRModule({"main": func})
 
 
 def get_relax_reshape_codegen(input_shape, output_shape, dtype):
@@ -597,7 +598,7 @@ def get_relax_global_avgpool_mod(data_shape, keepdims, dtype):
         dtype (str): Data type
 
     Returns:
-        tvm.IRModule: Relax GAP module
+        tvm_tirx.IRModule: Relax GAP module
     """
     with IRBuilder() as builder:
         with relax_builder.function():
@@ -611,7 +612,7 @@ def get_relax_global_avgpool_mod(data_shape, keepdims, dtype):
             R.func_ret_value(frame.output_vars[0])
 
     func = builder.get()
-    return tvm.IRModule({"main": func})
+    return tvm_tirx.IRModule({"main": func})
 
 
 def get_global_avgpool_expected_codegen(input_shape, keep_dims, dtype):
@@ -659,7 +660,7 @@ def get_relax_global_maxpool_mod(data_shape, keepdims, dtype):
         dtype (str): Data type
 
     Returns:
-        tvm.IRModule: Relax GAP module
+        tvm_tirx.IRModule: Relax GAP module
     """
     N, C, H, W = data_shape
     with IRBuilder() as builder:
@@ -678,7 +679,7 @@ def get_relax_global_maxpool_mod(data_shape, keepdims, dtype):
             R.func_ret_value(frame.output_vars[0])
 
     func = builder.get()
-    return tvm.IRModule({"main": func})
+    return tvm_tirx.IRModule({"main": func})
 
 
 def get_global_maxpool_expected_codegen(input_shape, pool_size, stride, padding, pool_type, dtype):

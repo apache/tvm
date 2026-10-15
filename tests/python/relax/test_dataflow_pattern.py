@@ -24,19 +24,20 @@ import math
 import pytest
 import tvm_ffi
 
-import tvm.testing
+import tvm
+import tvm_tirx.testing
 from tvm import relax as rx
-from tvm import tirx
-from tvm.ir import TupleType as _TupleType
 from tvm.relax import ExternFunc as _ExternFunc
+from tvm.relax import script as R
 from tvm.relax.analysis import get_var2val
 from tvm.relax.dpl import *
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import tirx as T
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Module:
     @Ts.function
     def tir_matmul(
@@ -388,7 +389,7 @@ def test_counter_syntax_match():
         assert not ctx.match_dfb(dfb)
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Diamond:
     @R.function
     def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
@@ -459,7 +460,7 @@ def test_diamond_counter_oub():
         assert not ctx.match_dfb(dfb)
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class SmallDiamond:
     @R.function
     def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
@@ -478,7 +479,7 @@ class SmallDiamond:
         return lv1
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class SmallParallel:
     @R.function
     def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
@@ -528,7 +529,7 @@ def test_distinguish_diamond_and_parallel():
         assert not ctx.match_dfb(diamond)
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class CBRx2:
     @R.function
     def main(
@@ -624,7 +625,7 @@ def test_two_cbr():
 
 def test_two_matmul():
     # Same as Figure 2(a) in TASO paper.
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class MatMul2:
         @R.function
         def main(
@@ -663,7 +664,7 @@ def test_two_matmul():
 
 def test_concat_mm_split():
     # Same as Figure 2(b) in TASO paper.
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class CMS:
         @R.function
         def main(
@@ -729,7 +730,7 @@ def test_self_attention():
     n = T.dynamic("n", "int64")
     h = T.dynamic("h", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class SelfAttention:
         @R.function
         def main(
@@ -790,7 +791,7 @@ def test_self_attention():
 
 
 def test_nested_diamond():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class DiamondInDiamond:
         @R.function
         def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
@@ -986,7 +987,7 @@ def test_rewrite_simple():
         return R.multiply(matchings[x], R.const(2, "float32"))
 
     rewritten = rewrite_call(pattern, rewriter, main)
-    tvm.ir.assert_structural_equal(rewritten, expected1.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(rewritten, expected1.with_attr("global_symbol", "main"))
 
     add1 = is_op("relax.add")(x, x)
     pattern = is_op("relax.add")(add1, add1)
@@ -995,14 +996,14 @@ def test_rewrite_simple():
         return R.multiply(matchings[x], R.const(4, "float32"))
 
     rewritten = rewrite_call(pattern, rewriter, main)
-    tvm.ir.assert_structural_equal(rewritten, expected2.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(rewritten, expected2.with_attr("global_symbol", "main"))
 
     # No rewriting, return the original call node as is
     def rewriter(orig, _):
         return orig
 
     rewritten = rewrite_call(pattern, rewriter, main)
-    tvm.ir.assert_structural_equal(rewritten, main)
+    tvm_tirx.ir.assert_structural_equal(rewritten, main)
 
 
 def test_rewrite_attention():
@@ -1070,11 +1071,11 @@ def test_rewrite_attention():
         return R.nn.attention(matchings[Q], matchings[K], matchings[V])
 
     rewritten = rewrite_call(pattern, rewriter, main)
-    tvm.ir.assert_structural_equal(rewritten, expected.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(rewritten, expected.with_attr("global_symbol", "main"))
 
 
 def test_attention_qkv():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class QKV_proj:
         @R.function
         def main(
@@ -1110,7 +1111,7 @@ def test_attention_qkv():
 
 
 def test_attention_fake_qkv():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class QKV_proj:
         @R.function
         def main(
@@ -1222,7 +1223,7 @@ def test_combine_matmul_twice():
 
     ctx, rewriter = get_qkv_proj_rewriter()
     rewritten = rewrite_bindings(ctx, rewriter, qkv_x2)
-    tvm.ir.assert_structural_equal(rewritten, expected)
+    tvm_tirx.ir.assert_structural_equal(rewritten, expected)
 
 
 def test_dataflow_may_start_with_match_cast():
@@ -1276,7 +1277,7 @@ def test_dataflow_may_start_with_match_cast():
 
     ctx, rewriter = get_qkv_proj_rewriter()
     rewritten = rewrite_bindings(ctx, rewriter, before)
-    tvm.ir.assert_structural_equal(rewritten, expected)
+    tvm_tirx.ir.assert_structural_equal(rewritten, expected)
 
 
 def test_combine_matmul_emit_order():
@@ -1323,10 +1324,10 @@ def test_combine_matmul_emit_order():
     ctx, rewriter = get_qkv_proj_rewriter()
 
     rewritten = rewrite_bindings(ctx, rewriter, main)
-    tvm.ir.assert_structural_equal(rewritten, expected)
+    tvm_tirx.ir.assert_structural_equal(rewritten, expected)
 
     # make sure it builds
-    mod = tvm.IRModule()
+    mod = tvm_tirx.IRModule()
     mod["main"] = rewritten
 
     tvm.compile(mod, target="llvm")
@@ -1416,10 +1417,10 @@ def test_combine_transposed_matmul_twice():
             }
 
         rewritten = rewrite_bindings(ctx, rewriter, main)
-        tvm.ir.assert_structural_equal(rewritten, expected)
+        tvm_tirx.ir.assert_structural_equal(rewritten, expected)
 
         # make sure it builds
-        mod = tvm.IRModule()
+        mod = tvm_tirx.IRModule()
         mod["main"] = rewritten
         print(mod)
 
@@ -1466,7 +1467,7 @@ def test_commutative_pattern_match():
             return expr
 
     after = rewrite_call(pattern, rewriter, before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_repeated_pattern_match():
@@ -1514,10 +1515,10 @@ def test_repeated_pattern_match():
         return (matches[pattern_add_lhs] * const) + (matches[pattern_add_rhs] * const)
 
     after = rewrite_call(pattern, rewriter, before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
-bind_to_dataflow_var = tvm.testing.parameter(
+bind_to_dataflow_var = tvm_tirx.testing.parameter(
     by_dict={"var-to-var": False, "var-to-dataflow-var": True}
 )
 
@@ -1576,10 +1577,10 @@ def test_rewrite_without_trivial_binding(bind_to_dataflow_var):
             return expr
 
     after = rewrite_call(pattern, rewriter, before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
-same_shape_func_type = tvm.testing.parameter(
+same_shape_func_type = tvm_tirx.testing.parameter(
     "same_static_shape",
     "same_dynamic_shape",
     "different_static_shape",
@@ -1744,7 +1745,7 @@ def test_iterative_rewrite_without_trivial_binding():
         return expr
 
     after = rewrite_call(pattern, rewriter, before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_iterative_rewrite_with_removed_intermediates():
@@ -1863,7 +1864,7 @@ def test_iterative_rewrite_with_removed_intermediates():
         return expr
 
     after = rewrite_call(pattern, rewriter, before)
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_wildcard_with_ty_updates_when_matching():
@@ -1899,7 +1900,7 @@ def test_wildcard_with_ty_updates_when_matching():
         return C
 
     after = rewrite_call(pat, rewriter, before)
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_wildcard_with_ty_is_no_op_when_not_matching():
@@ -1933,7 +1934,7 @@ def test_wildcard_with_ty_is_no_op_when_not_matching():
     expected = before
 
     after = rewrite_call(pat, rewriter, before)
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_wildcard_ty_for_unknown_dtype():
@@ -1979,7 +1980,7 @@ def test_wildcard_ty_for_unknown_dtype():
         return output
 
     after = rewrite_call(pat, rewriter, before)
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_wildcard_ty_with_symbolic_vars():
@@ -2032,7 +2033,7 @@ def test_wildcard_ty_with_symbolic_vars():
         return output
 
     after = rewrite_call(pat, rewriter, before)
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_backtrack_if_rewriter_returns_no_op():
@@ -2095,7 +2096,7 @@ def test_backtrack_if_rewriter_returns_no_op():
         return C
 
     after = rewrite_call(pat, rewriter, before)
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_backtrack_for_no_op_rewriter_does_not_match_on_var():
@@ -2128,8 +2129,8 @@ def test_backtrack_for_no_op_rewriter_does_not_match_on_var():
 
     expected = before
     after = rewrite_call(pat, rewriter, before)
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

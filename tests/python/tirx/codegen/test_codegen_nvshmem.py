@@ -22,23 +22,23 @@ import tempfile
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.runtime import ShapeTuple
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.runtime import disco as di
-from tvm.script import tirx as T
-from tvm.support.popen_pool import PopenWorker
-from tvm.testing import env
+from tvm_tirx.runtime import ShapeTuple
+from tvm_tirx.script import tirx as T
+from tvm_tirx.support.popen_pool import PopenWorker
+from tvm_tirx.testing import env
 
 NUM_WORKERS = 4
 
 
 def run_function(sess, function, *args):
     """Compile, export, load, and run a Function in the shared disco session."""
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with tempfile.TemporaryDirectory() as tmpdir:
         path = f"{tmpdir}/test.so"
-        mod = tvm.tirx.compile(function, target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(function, target=target, pipeline="tirx")
         print(mod.mod.imports[0].inspect_source())
         mod.export_library(path)
         rt_mod = sess.load_vm_module(path)
@@ -69,7 +69,7 @@ def test_codegen_nvshmem():
     def _test_func():
         ############ setup ############
         sess = di.ProcessSession(num_workers=NUM_WORKERS)
-        f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+        f_init_nvshmem_uid = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
         uid = f_init_nvshmem_uid()
         init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
         init_dfunc(uid, NUM_WORKERS, 0)
@@ -305,8 +305,8 @@ def test_codegen_nvshmem():
         finally:
             worker.kill()
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -18,11 +18,11 @@
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import relax, te, tirx
-from tvm.ir import Call, GenericConst, Op, StringImm
-from tvm.ir.base import assert_structural_equal
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import relax, te
 from tvm.relax import PyExprMutator, PyExprVisitor
+from tvm.relax import script as R
 from tvm.relax.expr import (
     BindingBlock,
     DataflowBlock,
@@ -40,7 +40,9 @@ from tvm.relax.expr import (
     Var,
     VarBinding,
 )
-from tvm.script import relax as R
+from tvm_tirx import tirx
+from tvm_tirx.ir import Call, GenericConst, Op, StringImm
+from tvm_tirx.ir.base import assert_structural_equal
 
 m, n = tirx.Var("m", "int64"), tirx.Var("n", "int64")
 x = relax.Var("x", R.Tensor([n], "float32"))
@@ -416,11 +418,11 @@ def test_shape_expr():
 
 
 def test_prim_expr():
-    basic_check(tvm.tirx.IntImm("int64", 1), "", "")
-    basic_check(tvm.tirx.FloatImm("float32", 1.0), "", "")
+    basic_check(tvm_tirx.tirx.IntImm("int64", 1), "", "")
+    basic_check(tvm_tirx.tirx.FloatImm("float32", 1.0), "", "")
     basic_check(m + n, "\n".join(["Var", "Var"]), "\n".join(["Var", "Var"]))
     basic_check(
-        tvm.tirx.call_extern("int32", "test"),
+        tvm_tirx.tirx.call_extern("int32", "test"),
         "\n".join(["Call", "\tOp", "\tStringImm"]),
         "\n".join(["Op", "StringImm", "Call"]),
     )
@@ -872,7 +874,7 @@ def test_function_parameter_mutation():
         return R.matmul(A, B)
 
     after = ParamMutator({"A": (1, 32)}).visit_expr(before)
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_unmapped_python_mutator_var_is_absent():
@@ -881,12 +883,12 @@ def test_unmapped_python_mutator_var_is_absent():
         pass
 
     mutator = Mutator()
-    old = tvm.relax.Var("old", tvm.ir.PrimType("int32"))
-    new = tvm.relax.Var("new", tvm.ir.PrimType("int32"))
+    old = tvm.relax.Var("old", tvm_tirx.ir.PrimType("int32"))
+    new = tvm.relax.Var("new", tvm_tirx.ir.PrimType("int32"))
     assert mutator.get_var_remap(old) is None
     mutator.set_var_remap(old, new)
     assert mutator.get_var_remap(old).same_as(new)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

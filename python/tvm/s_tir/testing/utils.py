@@ -18,7 +18,7 @@
 # pylint: disable=invalid-name,unnecessary-comprehension,redefined-outer-name
 """Small helpers for S-TIR tests and tuning scripts."""
 
-from tvm.support import nvcc
+from tvm_tirx.support import nvcc
 
 
 def is_ampere_or_newer():

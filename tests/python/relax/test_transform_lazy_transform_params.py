@@ -18,13 +18,14 @@
 import numpy as np
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.transform import LazyTransformParams
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_lazy_transform_params():
@@ -105,7 +106,7 @@ def test_lazy_transform_params():
             return gv
 
     after = LazyTransformParams()(Before)
-    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
 def test_get_item_only():
@@ -188,7 +189,7 @@ def test_get_item_only():
             return gv_1
 
     after = LazyTransformParams(fget_item="get_item_0", fset_item=None)(Before)
-    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
 def test_extra_get_item_params():
@@ -273,7 +274,7 @@ def test_extra_get_item_params():
     after = LazyTransformParams(extra_get_item_params=[relax.Var("loader", relax.AnyType())])(
         Before
     )
-    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
 def test_extra_set_item_params():
@@ -358,7 +359,7 @@ def test_extra_set_item_params():
     after = LazyTransformParams(extra_set_item_params=[relax.Var("setter", relax.AnyType())])(
         Before
     )
-    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
 def test_extra_set_item_params_with_const_output():
@@ -399,7 +400,7 @@ def test_extra_set_item_params_with_const_output():
     after = LazyTransformParams(extra_set_item_params=[relax.Var("setter", relax.AnyType())])(
         Before
     )
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_lazy_transform_params_with_symbolic_vars():
@@ -476,7 +477,7 @@ def test_lazy_transform_params_with_symbolic_vars():
                     Output[vi] = Input[slice_index, vi]
 
     after = LazyTransformParams()(Before)
-    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
 def test_param_shape_symbolic():
@@ -566,7 +567,7 @@ def test_param_shape_symbolic():
             return gv4
 
     after = LazyTransformParams()(Before)
-    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
 def test_output_with_use_site():
@@ -616,12 +617,12 @@ def test_output_with_use_site():
             return gv
 
     after = LazyTransformParams()(Module)
-    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
 def test_output():
     target = "llvm"
-    dev = tvm.cpu()
+    dev = tvm_tirx.cpu()
 
     ic = T.dynamic("ic", "int64")
 
@@ -655,11 +656,11 @@ def test_output():
     transformed = {}
     expected = [params[0].transpose(1, 0, 2, 3), params[1]]
 
-    @tvm.register_global_func("get_item", override=True)
+    @tvm_tirx.register_global_func("get_item", override=True)
     def get_item(i):
-        return tvm.runtime.tensor(params[i], dev)
+        return tvm_tirx.runtime.tensor(params[i], dev)
 
-    @tvm.register_global_func("set_item", override=True)
+    @tvm_tirx.register_global_func("set_item", override=True)
     def set_item(i, value):
         assert i not in transformed, f"Set item called multiple times for index {i}"
         transformed[i] = value.numpy()
@@ -672,7 +673,7 @@ def test_output():
     assert len(transformed) == len(expected)
 
     for expected_i, transformed_i in zip(expected, transformed):
-        tvm.testing.assert_allclose(expected_i, transformed_i)
+        tvm_tirx.testing.assert_allclose(expected_i, transformed_i)
 
 
 def test_duplicate_outputs():
@@ -720,7 +721,7 @@ def test_duplicate_outputs():
             return output
 
     after = LazyTransformParams()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_params_without_tuple():
@@ -746,7 +747,7 @@ def test_params_without_tuple():
             return (D, B)
 
     After = LazyTransformParams(fset_item=None)(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_params_without_tuple_with_symbolic_var():
@@ -766,7 +767,7 @@ def test_params_without_tuple_with_symbolic_var():
             return (A,)
 
     After = LazyTransformParams(fset_item=None)(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_get_item_callback():
@@ -793,7 +794,7 @@ def test_get_item_callback():
             return (D, B)
 
     After = relax.transform.LazyGetInput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_get_item_callback_dynamic_shape():
@@ -831,7 +832,7 @@ def test_get_item_callback_dynamic_shape():
             return (D, B)
 
     After = relax.transform.LazyGetInput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_set_output_callback():
@@ -864,7 +865,7 @@ def test_set_output_callback():
             return ()
 
     After = relax.transform.LazySetOutput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_set_output_callback_of_param():
@@ -898,7 +899,7 @@ def test_set_output_callback_of_param():
             return ()
 
     After = relax.transform.LazySetOutput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_set_output_callback_num_input():
@@ -933,7 +934,7 @@ def test_set_output_callback_num_input():
             return ()
 
     After = relax.transform.LazySetOutput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_set_output_callback_with_duplicate_output():
@@ -967,14 +968,14 @@ def test_set_output_callback_with_duplicate_output():
             return ()
 
     After = relax.transform.LazySetOutput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_set_output_callback_with_inline_const():
     """fset_output may be called for inline objects
 
     The return tuple may contain inline leaf nodes, such as
-    `Expr` or `tvm.ir.GenericConst`.  A call to `fset_output`
+    `Expr` or `tvm_tirx.ir.GenericConst`.  A call to `fset_output`
     must be generated, even though they do not have an associated
     `relax.VarBinding`.
     """
@@ -1004,7 +1005,7 @@ def test_set_output_callback_with_inline_const():
             return ()
 
     After = relax.transform.LazySetOutput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_set_output_callback_with_non_tuple_output():
@@ -1032,8 +1033,8 @@ def test_set_output_callback_with_non_tuple_output():
             return ()
 
     After = relax.transform.LazySetOutput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

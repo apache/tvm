@@ -21,10 +21,10 @@ import pytest
 from tvm_ffi import structural_walk
 
 import tvm
-import tvm.testing
-from tvm.ir import Evaluate, For, ForKind
-from tvm.ir.prim import expr_deep_equal
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import Schedule, TensorIntrin
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.s_tir.schedule.analysis import (
     TensorizeInfo,
@@ -34,10 +34,11 @@ from tvm.s_tir.schedule.analysis import (
     suggest_index_map,
 )
 from tvm.s_tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
 from tvm.te import create_function
-from tvm.tirx import IndexMap, Var, decl_tensor, floordiv, floormod
+from tvm_tirx.ir import Evaluate, For, ForKind
+from tvm_tirx.ir.prim import expr_deep_equal
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import IndexMap, Var, decl_tensor, floordiv, floormod
 
 
 def _make_vars(*args: str) -> list[Var]:
@@ -144,7 +145,7 @@ def test_suggest_index_map_winograd():
     assert inverse_index_map.is_equivalent_to(expected_inverse_index_map)
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class DenseTIRModule:
     @Ts.function
     def main(
@@ -168,7 +169,7 @@ class DenseTIRModule:
                     )
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dNCHWcTIRModule:
     @Ts.function
     def main(
@@ -211,7 +212,7 @@ class Conv2dNCHWcTIRModule:
 
 def collect_loops(function):
     loops = []
-    structural_walk(function.body, (tvm.ir.For, loops.append), order="pre")
+    structural_walk(function.body, (tvm_tirx.ir.For, loops.append), order="pre")
 
     return loops
 
@@ -454,4 +455,4 @@ def test_empty_grid():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

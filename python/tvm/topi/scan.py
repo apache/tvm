@@ -21,11 +21,11 @@ import operator
 from collections.abc import Callable
 
 import tvm
-from tvm.script.ir_builder import IRBuilder
-from tvm.tirx.script import ir_builder as T
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx import decl_tensor
+from tvm_tirx.tirx.script import ir_builder as T
 
 from ..te import extern
-from ..tirx import decl_tensor
 from . import utils
 from .math import cast
 

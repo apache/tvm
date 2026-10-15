@@ -23,21 +23,18 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import (
-    DataType,
-    IRModule,
-    relax,
-    tirx,
-)
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import relax
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.rpc import connect_tracker
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.support import ndk
-from tvm.target import Target
-from tvm.testing import env
+from tvm.s_tir import script as Ts
+from tvm_tirx import DataType, IRModule, tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.support import ndk
+from tvm_tirx.target import Target
+from tvm_tirx.testing import env
 
 
 def get_rpc():
@@ -62,13 +59,13 @@ def get_rpc():
 
 def preprocess_pipeline(mod: IRModule) -> IRModule:
     desired_layouts = {"relax.nn.conv2d": ["NCHW16c", "OIHW16o", "NCHW16c"]}
-    seq = tvm.ir.transform.Sequential(
+    seq = tvm_tirx.ir.transform.Sequential(
         [
-            tvm.tirx.transform.BindTarget(Target.current(allow_none=False)),
+            tvm_tirx.tirx.transform.BindTarget(Target.current(allow_none=False)),
             tvm.relax.transform.FoldConstant(),
             tvm.relax.transform.DecomposeOpsForInference(),
             tvm.relax.transform.FoldConstant(),
-            tvm.tirx.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
+            tvm_tirx.tirx.transform.BindTarget(tvm_tirx.target.Target.current(allow_none=False)),
             tvm.relax.transform.ConvertLayout(desired_layouts),
             tvm.relax.transform.Normalize(),
             tvm.relax.transform.FoldConstant(),
@@ -89,7 +86,7 @@ def preprocess_pipeline(mod: IRModule) -> IRModule:
 
 
 def postprocess_pipeline(mod: IRModule) -> IRModule:
-    seq = tvm.ir.transform.Sequential(
+    seq = tvm_tirx.ir.transform.Sequential(
         [
             tvm.relax.transform.ToNonDataflow(),
             tvm.relax.transform.RemovePurityChecking(),
@@ -174,9 +171,9 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
         if remote_session is not None:
             dev = remote_session.cl()
         elif "opencl" in backend:
-            dev = tvm.opencl(0)
+            dev = tvm_tirx.opencl(0)
         elif "vulkan" in backend:
-            dev = tvm.vulkan(0)
+            dev = tvm_tirx.vulkan(0)
         else:
             raise RuntimeError("Unsupported backend")
 
@@ -189,7 +186,7 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
             inps = [dev.tensor(inp) for inp in inputs]
         else:
             vm = relax.VirtualMachine(rexec, device_arr)
-            inps = [tvm.runtime.tensor(inp, dev) for inp in inputs]
+            inps = [tvm_tirx.runtime.tensor(inp, dev) for inp in inputs]
         vm["main"](*inps)
         np.testing.assert_equal(inps[-1].numpy(), inps[0].numpy())
 
@@ -204,8 +201,8 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
             finally:
                 remote.get_function("CloseRPCConnection")()
         else:
-            tvm.testing.run_with_gpu_lock(run_and_check, ex, None)
+            tvm_tirx.testing.run_with_gpu_lock(run_and_check, ex, None)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

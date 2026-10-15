@@ -17,10 +17,11 @@
 """The Relax generic GPU backend compilation pipeline and other passes."""
 
 import tvm
+import tvm_tirx
 from tvm import relax
 
 
-def library_dispatch_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def library_dispatch_passes(target: tvm_tirx.target.Target):  # pylint: disable=unused-argument
     """The default library dispatch passes for generic GPU backend."""
     return [
         relax.backend.DispatchSampling(),
@@ -28,7 +29,7 @@ def library_dispatch_passes(target: tvm.target.Target):  # pylint: disable=unuse
     ]
 
 
-def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def legalize_passes(target: tvm_tirx.target.Target):  # pylint: disable=unused-argument
     """The default legalization passes for generic GPU backend."""
     from tvm.s_tir import dlight as dl  # pylint: disable=import-outside-toplevel
 
@@ -48,7 +49,7 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
     ]
 
 
-def dataflow_lower_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def dataflow_lower_passes(target: tvm_tirx.target.Target):  # pylint: disable=unused-argument
     """The default dataflow lowering passes for generic GPU backend."""
     return [
         relax.transform.RewriteDataflowReshape(),
@@ -58,7 +59,7 @@ def dataflow_lower_passes(target: tvm.target.Target):  # pylint: disable=unused-
     ]
 
 
-def finalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def finalize_passes(target: tvm_tirx.target.Target):  # pylint: disable=unused-argument
     """The default finalization passes for generic GPU backend."""
     return [
         relax.transform.StaticPlanBlockMemory(),
@@ -71,13 +72,13 @@ def finalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
     ]
 
 
-def get_default_pipeline(target: tvm.target.Target):
+def get_default_pipeline(target: tvm_tirx.target.Target):
     """Return the default compilation pipeline for generic GPU."""
 
-    @tvm.ir.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.ir.transform.PassContext):
+    @tvm_tirx.ir.transform.module_pass(opt_level=0)
+    def _pipeline(mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext):
         with target:
-            seq = tvm.ir.transform.Sequential(
+            seq = tvm_tirx.ir.transform.Sequential(
                 library_dispatch_passes(target)
                 + legalize_passes(target)
                 + dataflow_lower_passes(target)

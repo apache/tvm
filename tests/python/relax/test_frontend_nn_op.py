@@ -20,16 +20,18 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import relax, s_tir, tirx
-from tvm.ir import TupleType as _TupleType
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import relax, s_tir
 from tvm.relax import ExternFunc as _ExternFunc
+from tvm.relax import script as R
 from tvm.relax.frontend.nn import Module, Tensor, op, spec
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.testing import env
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
 
@@ -58,7 +60,7 @@ def test_unary():
         spec={"test": {"x": spec.Tensor([1, 10], "float32")}},
         debug=True,
     )
-    tvm.ir.assert_structural_equal(irmodule["test"], test)
+    tvm_tirx.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_binary():
@@ -108,7 +110,7 @@ def test_binary():
         spec={"test": {"x": spec.Tensor([1, 10], "float32"), "y": spec.Tensor([10, 1], "float32")}},
         debug=True,
     )
-    tvm.ir.assert_structural_equal(irmodule["test"], test)
+    tvm_tirx.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_sum():
@@ -132,7 +134,7 @@ def test_sum():
     irmodule, _ = m.export_tvm(
         spec={"test": {"x": spec.Tensor([3, 5, 2, 4], "float32")}}, debug=True
     )
-    tvm.ir.assert_structural_equal(irmodule["test"], test)
+    tvm_tirx.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_max():
@@ -156,7 +158,7 @@ def test_max():
     irmodule, _ = m.export_tvm(
         spec={"test": {"x": spec.Tensor([3, 5, 2, 4], "float32")}}, debug=True
     )
-    tvm.ir.assert_structural_equal(irmodule["test"], test)
+    tvm_tirx.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_min():
@@ -180,7 +182,7 @@ def test_min():
     irmodule, _ = m.export_tvm(
         spec={"test": {"x": spec.Tensor([3, 5, 2, 4], "float32")}}, debug=True
     )
-    tvm.ir.assert_structural_equal(irmodule["test"], test)
+    tvm_tirx.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_manipulate():
@@ -215,7 +217,7 @@ def test_manipulate():
     m = Model()
     irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([1, 5, 2], "float32")}}, debug=True)
 
-    tvm.ir.assert_structural_equal(irmodule["test"], test)
+    tvm_tirx.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_index():
@@ -241,7 +243,7 @@ def test_index():
         debug=True,
     )
 
-    tvm.ir.assert_structural_equal(irmodule["test"], test)
+    tvm_tirx.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_datatype():
@@ -264,7 +266,7 @@ def test_datatype():
     m = Model()
     irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([2, 1, 10], "float32")}}, debug=True)
 
-    tvm.ir.assert_structural_equal(irmodule["test"], test)
+    tvm_tirx.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_image():
@@ -338,7 +340,7 @@ def test_image():
         },
         debug=True,
     )
-    tvm.ir.assert_structural_equal(irmodule["test"], test)
+    tvm_tirx.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_chunk():
@@ -383,7 +385,7 @@ def test_chunk():
 
     m = Model()
     irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([8], "float32")}}, debug=True)
-    tvm.ir.assert_structural_equal(irmodule["test"], test)
+    tvm_tirx.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_nn():
@@ -456,7 +458,7 @@ def test_nn():
         debug=True,
     )
 
-    tvm.ir.assert_structural_equal(irmodule["test"], test)
+    tvm_tirx.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_create():
@@ -498,7 +500,7 @@ def test_create():
         spec={"test": {"x": spec.Tensor([10, 10], "float32")}}, debug=True
     )
 
-    tvm.ir.assert_structural_equal(irmodule["test"], test)
+    tvm_tirx.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_timestep_embedding():
@@ -543,7 +545,7 @@ def test_timestep_embedding():
 
     m = Model()
     irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([3], "float32")}}, debug=True)
-    tvm.ir.assert_structural_equal(irmodule["test"], test)
+    tvm_tirx.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_scaled_dot_product_attention():
@@ -582,7 +584,7 @@ def test_scaled_dot_product_attention():
         },
         debug=True,
     )
-    tvm.ir.assert_structural_equal(irmodule["test"], test)
+    tvm_tirx.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_tensor_expr_op():
@@ -630,7 +632,7 @@ def test_tensor_expr_op():
     m = Model()
     irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([10, 10], "float32")}}, debug=True)
 
-    tvm.ir.assert_structural_equal(irmodule, Expected)
+    tvm_tirx.ir.assert_structural_equal(irmodule, Expected)
 
 
 def test_tensor_ir_op():
@@ -707,7 +709,7 @@ def test_tensor_ir_op():
         },
         debug=True,
     )
-    tvm.ir.assert_structural_equal(irmodule, Expected)
+    tvm_tirx.ir.assert_structural_equal(irmodule, Expected)
 
 
 def test_tensor_ir_inplace_op():
@@ -819,7 +821,7 @@ def test_tensor_ir_inplace_op():
         },
         debug=True,
     )
-    tvm.ir.assert_structural_equal(irmodule, Expected)
+    tvm_tirx.ir.assert_structural_equal(irmodule, Expected)
 
 
 def test_tensor_ir_op_no_tir_var():
@@ -855,7 +857,7 @@ def test_tensor_ir_op_no_tir_var():
 
     m = Model()
     irmodule, _ = m.export_tvm(spec={"test": {"A": spec.Tensor([16, 16], "float32")}})
-    tvm.ir.assert_structural_equal(irmodule, Expected)
+    tvm_tirx.ir.assert_structural_equal(irmodule, Expected)
 
 
 def test_extern():
@@ -903,11 +905,11 @@ def test_extern():
         },
         debug=True,
     )
-    tvm.ir.assert_structural_equal(irmodule, Expected)
+    tvm_tirx.ir.assert_structural_equal(irmodule, Expected)
 
 
 def test_empty():
-    @tvm.register_global_func("test_empty_assert", override=True)
+    @tvm_tirx.register_global_func("test_empty_assert", override=True)
     def test_empty_assert(_lineo, x):
         assert x.shape == (10, 10)
         assert x.dtype == "float32"
@@ -920,7 +922,7 @@ def test_empty():
 
     irmodule, _ = Model().export_tvm(spec={"test": {}}, debug=True)
     ex = tvm.compile(irmodule, "llvm")
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     effects = vm["_initialize_effect"]()
     vm["test"](*effects)
 
@@ -970,14 +972,14 @@ def test_multinomial_from_uniform():
         debug=True,
     )
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
-    target = tvm.target.Target("cuda", host="llvm")
+    target = tvm_tirx.target.Target("cuda", host="llvm")
     with target:
         mod = relax.backend.DispatchSampling()(mod)
         mod = s_tir.transform.DefaultGPUSchedule()(mod)
     ex = tvm.compile(mod, target)
-    dev = tvm.cuda(0)
+    dev = tvm_tirx.cuda(0)
     vm = relax.VirtualMachine(ex, dev)
 
     effects = vm["_initialize_effect"]()
@@ -985,15 +987,17 @@ def test_multinomial_from_uniform():
     np_rand = np.random.rand(*prob_shape).astype(np.float32)
     # normalize it to get the random prob
     np_prob = np_rand / np_rand.sum(axis=1, keepdims=True)
-    nd_prob = tvm.runtime.tensor(np_prob, dev)
+    nd_prob = tvm_tirx.runtime.tensor(np_prob, dev)
     # special sample to get deterministic results
-    nd_sample = tvm.runtime.tensor(np.array([[1], [0], [1], [1], [0], [1]]).astype(np.float32), dev)
-    nd_sample_indices = tvm.runtime.tensor(
+    nd_sample = tvm_tirx.runtime.tensor(
+        np.array([[1], [0], [1], [1], [0], [1]]).astype(np.float32), dev
+    )
+    nd_sample_indices = tvm_tirx.runtime.tensor(
         np.array([[0], [1], [1], [2], [2], [2]]).astype(np.int64), dev
     )
     inputs = [nd_prob, nd_sample, nd_sample_indices, effects]
     res = vm["foo"](*inputs)
-    tvm.testing.assert_allclose(
+    tvm_tirx.testing.assert_allclose(
         res[0].numpy(), np.array([[4], [0], [4], [4], [0], [4]]).astype(np.int64)
     )
 
@@ -1100,31 +1104,31 @@ def test_sample_top_p_top_k_from_sorted_prob():
         debug=True,
     )
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
-    target = tvm.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
+    target = tvm_tirx.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
     with target:
         mod = s_tir.transform.DefaultGPUSchedule()(mod)
 
     ex = tvm.compile(mod, target)
 
     def run_and_check():
-        dev = tvm.cuda(0)
+        dev = tvm_tirx.cuda(0)
         vm = relax.VirtualMachine(ex, dev)
         effects = vm["_initialize_effect"]()
-        sorted_prob = tvm.runtime.tensor(
+        sorted_prob = tvm_tirx.runtime.tensor(
             np.array([[0.5, 0.4, 0.1], [0.4, 0.3, 0.3]]).astype(np.float32), dev
         )
-        indices = tvm.runtime.tensor(np.array([[2, 1, 0], [2, 0, 1]]).astype(np.int64), dev)
-        top_p = tvm.runtime.tensor(np.array([[0.6], [0.9]]).astype(np.float32), dev)
-        top_k = tvm.runtime.tensor(np.array([[3], [2]]).astype(np.int64), dev)
-        usample = tvm.runtime.tensor(np.array([[0.5], [0.6], [0.7]]).astype(np.float32), dev)
-        sample_indices = tvm.runtime.tensor(np.array([[0], [1], [1]]).astype(np.int64), dev)
+        indices = tvm_tirx.runtime.tensor(np.array([[2, 1, 0], [2, 0, 1]]).astype(np.int64), dev)
+        top_p = tvm_tirx.runtime.tensor(np.array([[0.6], [0.9]]).astype(np.float32), dev)
+        top_k = tvm_tirx.runtime.tensor(np.array([[3], [2]]).astype(np.int64), dev)
+        usample = tvm_tirx.runtime.tensor(np.array([[0.5], [0.6], [0.7]]).astype(np.float32), dev)
+        sample_indices = tvm_tirx.runtime.tensor(np.array([[0], [1], [1]]).astype(np.int64), dev)
         inputs = [sorted_prob, indices, top_p, top_k, usample, sample_indices, effects]
         res = vm["foo"](*inputs)
-        tvm.testing.assert_allclose(res[0].numpy(), np.array([[2], [0], [0]]).astype(np.int64))
+        tvm_tirx.testing.assert_allclose(res[0].numpy(), np.array([[2], [0], [0]]).astype(np.int64))
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1217,9 +1221,9 @@ def test_renormalize_top_p_top_k_prob():
         debug=True,
     )
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
-    target = tvm.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
+    target = tvm_tirx.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
     with target:
         mod = relax.transform.LegalizeOps()(mod)
         mod = s_tir.transform.DefaultGPUSchedule()(mod)
@@ -1227,25 +1231,25 @@ def test_renormalize_top_p_top_k_prob():
     ex = tvm.compile(mod, target)
 
     def run_and_check():
-        dev = tvm.cuda(0)
+        dev = tvm_tirx.cuda(0)
         vm = relax.VirtualMachine(ex, dev)
         effects = vm["_initialize_effect"]()
-        prob = tvm.runtime.tensor(
+        prob = tvm_tirx.runtime.tensor(
             np.array([[0.2, 0.3, 0.5], [0.3, 0.3, 0.4]]).astype(np.float32), dev
         )
-        sorted_prob = tvm.runtime.tensor(
+        sorted_prob = tvm_tirx.runtime.tensor(
             np.array([[0.5, 0.3, 0.2], [0.4, 0.3, 0.3]]).astype(np.float32), dev
         )
-        top_p = tvm.runtime.tensor(np.array([[0.6], [0.9]]).astype(np.float32), dev)
-        top_k = tvm.runtime.tensor(np.array([[3], [2]]).astype(np.int64), dev)
+        top_p = tvm_tirx.runtime.tensor(np.array([[0.6], [0.9]]).astype(np.float32), dev)
+        top_k = tvm_tirx.runtime.tensor(np.array([[3], [2]]).astype(np.int64), dev)
         inputs = [prob, sorted_prob, top_p, top_k, effects]
         res = vm["foo"](*inputs)
-        tvm.testing.assert_allclose(
+        tvm_tirx.testing.assert_allclose(
             res[0].numpy(),
             np.array([[0, 0.375, 0.625], [0.3, 0.3, 0.4]]).astype(np.float32),
         )
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_sort_argsort_topk():
@@ -1276,8 +1280,8 @@ def test_sort_argsort_topk():
     m = Model()
     mod, _ = m.export_tvm({"foo": {"x": spec.Tensor(("seq_len", 64), "float16")}})
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

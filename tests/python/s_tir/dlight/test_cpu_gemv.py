@@ -20,11 +20,12 @@ from __future__ import annotations
 
 import pytest
 
-import tvm.testing
+import tvm
+import tvm_tirx.testing
 from tvm.s_tir import dlight as dl
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def test_gemv_basic():
@@ -105,10 +106,10 @@ def test_gemv_basic():
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("llvm"):
         mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv_256_threads():
@@ -152,10 +153,10 @@ def test_decode_gemv_256_threads():
                                 var_NT_matmul_intermediate[0, 0, v0] = var_NT_matmul_intermediate[0, 0, v0] + lv1654[0, 0, v1] * ((T.Cast(T.bitwise_and(T.shift_right(lv571[v0, v1 // 8], T.Cast(v1 % 8, "uint32") * T.uint32(4)), T.uint32(15)), "float16") - T.float16(7.0)) * lv572[v0, v1 // 32])
         # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("llvm"):
         mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv1():
@@ -200,10 +201,10 @@ def test_decode_gemv1():
                                 var_NT_matmul_intermediate[0, 0, v0] = var_NT_matmul_intermediate[0, 0, v0] + lv1654[0, 0, v1] * ((T.Cast(T.bitwise_and(T.shift_right(lv571[v0, v1 // 8], T.Cast(v1 % 8, "uint32") * T.uint32(4)), T.uint32(15)), "float16") - T.float16(7.0)) * lv572[v0, v1 // 32])
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("llvm"):
         mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv2():
@@ -262,10 +263,10 @@ def test_decode_gemv2():
                 p_output0_intermediate[0, 0, v0] = T.Cast(var_NT_matmul_intermediate[0, 0, v0], "float32")
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("llvm"):
         mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv3():
@@ -325,10 +326,10 @@ def test_decode_gemv3():
                 p_output0_intermediate[T.int64(0), T.int64(0), v0] = lv570[T.int64(0), T.int64(0), v0] + var_NT_matmul_intermediate[T.int64(0), T.int64(0), v0]
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("llvm"):
         mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_autogptq_decode_gemv():
@@ -363,10 +364,10 @@ def test_autogptq_decode_gemv():
 
     # The GeMV rule does not yet support the inner dim being grouped.
     # So the rule is expected to skip transforming this function.
-    mod = tvm.IRModule({"main": func})
+    mod = tvm_tirx.IRModule({"main": func})
     with Target("llvm"):
         mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], func)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], func)
 
 
 def test_outer_reduction_adreno():
@@ -425,10 +426,10 @@ def test_outer_reduction_adreno():
                 Ts.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
                 p_output0_intermediate[v_ax0, v_ax1, v_ax2] = lv570[v_ax0, v_ax1, v_ax2] + var_matmul_intermediate[v_ax0, v_ax1, v_ax2]
     # fmt: on
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("llvm"):
         mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_outer_reduction_adreno_dynamic():
@@ -494,10 +495,10 @@ def test_outer_reduction_adreno_dynamic():
                 p_output0_intermediate[v_i0, v_i1, v_i2] = T.Cast(var_matmul_intermediate[v_i0, v_i1, v_i2], "float32")
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("llvm"):
         mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-        tvm.ir.assert_structural_equal(mod["main"], expected)
+        tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_blockized_gemv():
@@ -546,10 +547,10 @@ def test_blockized_gemv():
                                             o[v_expert_id_o, v0] = T.float16(0.0)
                                         o[v_expert_id_o, v0] = o[v_expert_id_o, v0] + x[0, v1] * w[indptr[v_expert_id_o], v0, v1]
     # fmt: on
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("llvm"):
         mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-        tvm.ir.assert_structural_equal(mod["main"], expected)
+        tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_func_to_skip():
@@ -579,11 +580,11 @@ def test_func_to_skip():
             )
 
     # This function should be skipped.
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("llvm"):
         mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-        tvm.ir.assert_structural_equal(mod["main"], before)
+        tvm_tirx.ir.assert_structural_equal(mod["main"], before)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

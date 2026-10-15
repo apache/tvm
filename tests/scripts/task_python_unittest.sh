@@ -18,15 +18,15 @@
 
 set -euxo pipefail
 
-export PYTHONPATH="$(pwd)/python"
+export PYTHONPATH="$(pwd)/tirx/python:$(pwd)/python"
 export PYTEST_ADDOPTS="${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
 
-# setup tvm-ffi into python folder
-uv pip install -v --target=python ./3rdparty/tvm-ffi/
+# Reuse the exact source-pinned FFI package transferred by the native build.
+python3 tests/scripts/task_build.py --ffi-only
 
 # LLVMModule JIT execution. Installed here as well as in the CI image because a docker/
 # change does not reach the test containers in the same run (they use the pinned tag).
 # --no-deps keeps the submodule-built tvm-ffi above from being replaced by a PyPI build.
 uv pip install --no-deps apache-tvm-ffi-orcjit==0.1.2
 
-python3 -m pytest -vvs -n auto -m "${TVM_TEST_MARKER:-not gpu}" tests/python
+python3 -m pytest -vvs -n auto -o faulthandler_timeout=120 -m "${TVM_TEST_MARKER:-not gpu}" tests/python tirx/tests/python

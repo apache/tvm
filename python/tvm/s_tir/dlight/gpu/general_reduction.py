@@ -19,9 +19,10 @@
 
 import tvm_ffi
 
-from tvm import s_tir, sym, tirx
-from tvm.runtime import MemoryScope
-from tvm.target import Target
+from tvm import s_tir
+from tvm_tirx import sym, tirx
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.target import Target
 
 from ..analysis import get_root_block, normalize_function
 from ..base import try_inline_contiguous_spatial

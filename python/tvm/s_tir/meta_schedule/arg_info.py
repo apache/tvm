@@ -20,9 +20,9 @@ from typing import Any
 
 from tvm_ffi import Shape, register_object
 
-from tvm.ir import IRModule
-from tvm.runtime import DataType, Object
-from tvm.tirx import Function
+from tvm_tirx.ir import IRModule
+from tvm_tirx.runtime import DataType, Object
+from tvm_tirx.tirx import Function
 
 from . import _ffi_api
 from .utils import _json_de_tvm

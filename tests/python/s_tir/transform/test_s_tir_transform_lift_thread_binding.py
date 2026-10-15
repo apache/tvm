@@ -16,9 +16,11 @@
 # under the License.
 # ruff: noqa: E501, F401
 import tvm
-from tvm import s_tir, tirx
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm import s_tir
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 
 def test_lift_tx_beyond_local():
@@ -129,9 +131,9 @@ def test_lift_tx_beyond_local():
                         Ts.writes(C[blockIdx_x // n, 0, blockIdx_x % n])
                         C[blockIdx_x // n, 0, blockIdx_x % n] = D_local[blockIdx_x // n, 0, blockIdx_x % n] * T.float32(0.088397790055248615)
     # fmt: on
-    mod = tvm.IRModule({"main": before.with_attr("global_symbol", "main")})
+    mod = tvm_tirx.IRModule({"main": before.with_attr("global_symbol", "main")})
     after = s_tir.transform.LiftThreadBinding()(mod)
-    tvm.ir.assert_structural_equal(expected.with_attr("global_symbol", "main"), after["main"])
+    tvm_tirx.ir.assert_structural_equal(expected.with_attr("global_symbol", "main"), after["main"])
 
 
 if __name__ == "__main__":

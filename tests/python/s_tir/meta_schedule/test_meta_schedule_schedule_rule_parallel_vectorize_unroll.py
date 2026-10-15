@@ -16,20 +16,20 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 # ruff: noqa: E501
-import tvm
+import tvm_tirx
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Matmul:
     @Ts.function
     def main(A: T.Tensor((1024, 1024), 'float32'), B: T.Tensor((1024, 1024), 'float32'), C: T.Tensor((1024, 1024), 'float32')) -> None:
@@ -42,7 +42,7 @@ class Matmul:
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class ParallelizeVectorizeUnroll:
     @Ts.function
     def main(A: T.Tensor((1024, 1024), 'float32'), B: T.Tensor((1024, 1024), 'float32'), C: T.Tensor((1024, 1024), 'float32')) -> None:
@@ -60,7 +60,7 @@ class ParallelizeVectorizeUnroll:
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 # from tvm.script import tirx as T
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class PureSpatial:
     @Ts.function
     def main(placeholder: T.Tensor((1, 13, 13, 3, 85), "float32"), placeholder_1: T.Tensor((1, 26, 26, 3, 85), "float32"), placeholder_2: T.Tensor((1, 52, 52, 3, 85), "float32"), T_expand_dims: T.Tensor((1, 80, 10647), "float32")) -> None:

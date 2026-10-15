@@ -19,11 +19,11 @@
 
 from typing import Literal
 
-from tvm.runtime import MemoryScope
 from tvm.s_tir import TensorIntrin
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.tirx import Expr, Function, Var
+from tvm.s_tir import script as Ts
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import Expr, Function, Var
 
 _SCOPE_GLOBAL = MemoryScope("global")
 _SCOPE_SHARED = MemoryScope("shared")

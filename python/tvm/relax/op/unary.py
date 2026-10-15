@@ -17,8 +17,8 @@
 # pylint: disable=redefined-builtin, invalid-name
 """Relax unary arithmetic operators."""
 
-from tvm.ir import Call as _Call
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 from ..utils import convert_to_expr

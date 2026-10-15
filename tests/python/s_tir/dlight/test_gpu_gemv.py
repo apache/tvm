@@ -20,11 +20,12 @@
 from __future__ import annotations
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import dlight as dl
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def test_gemv_rejects_composite_normalized_axis():
@@ -46,10 +47,10 @@ def test_gemv_rejects_composite_normalized_axis():
                     data[0, vrc, (vw + vrw - 383) // 256] * weight[vrc, 0, 511 - vrw]
                 )
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("webgpu"):
         scheduled = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(scheduled["main"], before)
+    tvm_tirx.ir.assert_structural_equal(scheduled["main"], before)
 
 
 def test_gemv_basic():
@@ -198,10 +199,10 @@ def test_gemv_basic():
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv_256_threads():
@@ -293,10 +294,10 @@ def test_decode_gemv_256_threads():
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("apple/m1-gpu-restricted"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv1():
@@ -401,10 +402,10 @@ def test_decode_gemv1():
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv2():
@@ -524,10 +525,10 @@ def test_decode_gemv2():
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv3():
@@ -648,10 +649,10 @@ def test_decode_gemv3():
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_autogptq_decode_gemv():
@@ -686,10 +687,10 @@ def test_autogptq_decode_gemv():
 
     # The GeMV rule does not yet support the inner dim being grouped.
     # So the rule is expected to skip transforming this function.
-    mod = tvm.IRModule({"main": func})
+    mod = tvm_tirx.IRModule({"main": func})
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], func)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], func)
 
 
 def test_outer_reduction_adreno():
@@ -798,10 +799,10 @@ def test_outer_reduction_adreno():
                         Ts.writes(p_output0_intermediate[0, 0, v0])
                         p_output0_intermediate[0, 0, v0] = lv570[0, 0, v0] + var_matmul_intermediate_local[0, 0, v0]
     # fmt: on
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-android"}):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_outer_reduction_adreno_dynamic():
@@ -938,10 +939,10 @@ def test_outer_reduction_adreno_dynamic():
                         p_output0_intermediate[T.int64(0), T.int64(0), v0] = T.Cast(var_matmul_intermediate_local[T.int64(0), T.int64(0), v0], "float32")
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-android"}):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-        tvm.ir.assert_structural_equal(mod["main"], expected)
+        tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_blockized_gemv():
@@ -1040,10 +1041,10 @@ def test_blockized_gemv():
                                     o[v_expert_id_o, v0] = o[v_expert_id_o, v0] + o_rf_local_1[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_0, v_expert_id_o, v0]
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("metal"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-        tvm.ir.assert_structural_equal(mod["main"], expected)
+        tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_func_to_skip():
@@ -1073,10 +1074,10 @@ def test_func_to_skip():
             )
 
     # This function should be skipped.
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("metal"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-        tvm.ir.assert_structural_equal(mod["main"], before)
+        tvm_tirx.ir.assert_structural_equal(mod["main"], before)
 
 
 def test_gemv_cuda_target_without_max_shared_memory_per_block():
@@ -1104,7 +1105,7 @@ def test_gemv_cuda_target_without_max_shared_memory_per_block():
     target = Target({"kind": "cuda", "max_num_threads": 1024})
     assert target.attrs.get("max_shared_memory_per_block", None) is None
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with target:
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
 
@@ -1128,7 +1129,7 @@ def test_gemv_rank_one_vector_input():
                     output[vi] = T.float32(0)
                 output[vi] += matrix[vi, vk] * vector[vk]
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
 
@@ -1136,7 +1137,7 @@ def test_gemv_rank_one_vector_input():
     sch = tvm.s_tir.Schedule(mod)
     vector_local = sch.get_sblock("vector_local")
     vector_load_loop = sch.get(sch.get_loops(vector_local)[-1])
-    assert vector_load_loop.kind == tvm.ir.ForKind.VECTORIZED
+    assert vector_load_loop.kind == tvm_tirx.ir.ForKind.VECTORIZED
 
 
 def test_gemv_broadcast_epilogue():
@@ -1175,7 +1176,7 @@ def test_gemv_broadcast_epilogue():
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
 
@@ -1183,4 +1184,4 @@ def test_gemv_broadcast_epilogue():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

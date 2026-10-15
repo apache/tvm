@@ -29,18 +29,18 @@ import tarfile
 import numpy
 from tvm_ffi import register_global_func
 
-import tvm
-import tvm.support.cc as cc
-from tvm.backend.hexagon.linker import (
+import tvm_tirx
+import tvm_tirx.support.cc as cc
+from tvm_tirx.backend.hexagon.linker import (
     HEXAGON_LINK_MAIN as HEXAGON_LINK_MAIN,
 )
-from tvm.backend.hexagon.linker import (
+from tvm_tirx.backend.hexagon.linker import (
     hexagon_link as hexagon_link,
 )
-from tvm.backend.hexagon.linker import (
+from tvm_tirx.backend.hexagon.linker import (
     link_shared as link_shared,
 )
-from tvm.backend.hexagon.linker import (
+from tvm_tirx.backend.hexagon.linker import (
     register_linker as register_linker,
 )
 
@@ -113,7 +113,7 @@ def link_shared_macos(so_name, objs, extra_args=None):
     ----------
     so_name : str
         Name of the shared library file.
-    objs : list[str, tvm.ir.StringImm]
+    objs : list[str, tvm_tirx.ir.StringImm]
     extra_args : dict (str->str) or Map<String,String>
         Additional arguments:
             'hex_arch' - Hexagon architecture, e.g. v68
@@ -127,7 +127,7 @@ def link_shared_macos(so_name, objs, extra_args=None):
     # The list of object files can be passed as built-in Python strings,
     # or as tvm.ir.StringImm's.
     def to_str(s):
-        if isinstance(s, tvm.ir.StringImm):
+        if isinstance(s, tvm_tirx.ir.StringImm):
             return s.value
         assert isinstance(s, str), 'argument "' + str(s) + '" should be a string or StrImm'
         return s
@@ -227,7 +227,7 @@ def create_aot_shared(so_name: str | pathlib.Path, files, hexagon_arch: str, opt
 
 
 def pack_imports(
-    module: tvm.runtime.Module,
+    module: tvm_tirx.runtime.Module,
     is_system_lib: bool,  # pylint: disable=unused-argument
     c_symbol_prefix: str,
     workspace_dir: str,
@@ -238,7 +238,7 @@ def pack_imports(
 
     Parameters
     ----------
-    module: tvm.runtime.Module
+    module: tvm_tirx.runtime.Module
         Module whose imported modules need to be serialized.
     is_system_lib: bool
         Flag whether the exported module will be used as a system library.
@@ -255,12 +255,12 @@ def pack_imports(
 
     path_bin = os.path.join(workspace_dir, "imports.bin")
     pack_to_bin_f_name = "runtime.ModulePackImportsToTensor"
-    fpack_to_bin = tvm.get_global_func(pack_to_bin_f_name)
+    fpack_to_bin = tvm_tirx.get_global_func(pack_to_bin_f_name)
     assert fpack_to_bin, f"Expecting {pack_to_bin_f_name} in registry"
 
     fpack_to_bin(module).numpy().tofile(path_bin)
 
-    mblob_symbol = c_symbol_prefix + tvm.get_global_func("runtime.ModuleImportsBlobName")()
+    mblob_symbol = c_symbol_prefix + tvm_tirx.get_global_func("runtime.ModuleImportsBlobName")()
 
     binary_size = os.path.getsize(path_bin)
     hexagon_toolchain = os.environ.get("HEXAGON_TOOLCHAIN")
@@ -344,7 +344,7 @@ def allocate_hexagon_array(dev, tensor_shape=None, dtype=None, data=None, mem_sc
 
     physical_shape = [numpy.prod(tensor_shape)]
 
-    arr = tvm.runtime.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)
+    arr = tvm_tirx.runtime.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)
 
     if data is not None:
         arr.copyfrom(data.reshape(physical_shape))

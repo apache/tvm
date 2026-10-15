@@ -26,13 +26,14 @@ from typing import Literal
 import tvm_ffi
 from tvm_ffi import get_global_func
 
-import tvm
-from tvm import ir, s_tir, tirx
-from tvm.ir import TensorRegion
-from tvm.runtime import MemoryScope
+import tvm_tirx
+from tvm import s_tir
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
-from tvm.target.target import Target
+from tvm_tirx import ir, tirx
+from tvm_tirx.ir import TensorRegion
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.target.target import Target
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -85,7 +86,7 @@ class TensorInfo:
     tensor_region: TensorRegion
     shape: tuple[int]
     assoc_lps: list[s_tir.schedule.LoopRV | None]
-    assoc_lps_info: list[tvm.ir.For | None]
+    assoc_lps_info: list[tvm_tirx.ir.For | None]
 
     def __init__(
         self,
@@ -453,7 +454,7 @@ def _tensor_region_offset(region):
             offset = offset * tensor.shape[axis] + bounds.min
     if not (isinstance(tensor.elem_offset, tirx.IntImm) and tensor.elem_offset.value == 0):
         offset += tensor.elem_offset
-    return tvm.sym.Analyzer().simplify(offset)
+    return tvm_tirx.sym.Analyzer().simplify(offset)
 
 
 def is_broadcast_epilogue(

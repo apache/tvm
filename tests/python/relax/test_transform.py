@@ -18,23 +18,23 @@
 
 import pytest
 
-import tvm
-import tvm.script
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax
-from tvm.ir import TupleType as _TupleType
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def _make_dataflow_block_with_dual_role_var():
-    prim_ty = tvm.ir.PrimType("int64")
-    source = tvm.ir.Var("source", prim_ty)
-    data = tvm.ir.Var("data", relax.TensorType(dtype="float32", ndim=1))
-    extent = tvm.ir.Var("extent", prim_ty)
+    prim_ty = tvm_tirx.ir.PrimType("int64")
+    source = tvm_tirx.ir.Var("source", prim_ty)
+    data = tvm_tirx.ir.Var("data", relax.TensorType(dtype="float32", ndim=1))
+    extent = tvm_tirx.ir.Var("extent", prim_ty)
     matched_ty = relax.TensorType([extent], "float32")
     matched = relax.DataflowVar("matched", matched_ty)
 
@@ -45,7 +45,7 @@ def _make_dataflow_block_with_dual_role_var():
         ]
     )
     func = relax.Function([source, data], relax.SeqExpr([block], extent), prim_ty)
-    return relax.transform.Normalize()(tvm.IRModule.from_expr(func))
+    return relax.transform.Normalize()(tvm_tirx.IRModule.from_expr(func))
 
 
 def test_dataflowblock_pass_rejects_deleting_binding_role_of_symbolic_var():
@@ -55,7 +55,7 @@ def test_dataflowblock_pass_rejects_deleting_binding_role_of_symbolic_var():
     def delete_ordinary_binding(block, _mod, _ctx):
         return relax.DataflowBlock([block.bindings[1]])
 
-    with pytest.raises(tvm.error.InternalError, match="global-scope Var"):
+    with pytest.raises(tvm_tirx.error.InternalError, match="global-scope Var"):
         delete_ordinary_binding(mod)
 
 
@@ -65,7 +65,7 @@ def test_dataflowblock_pass_rejects_rewriting_match_cast_role_of_binding_var():
     @relax.transform.dataflowblock_pass(opt_level=0)
     def rewrite_match_cast_symbol(block, _mod, _ctx):
         old_match_cast = block.bindings[1]
-        replacement = tvm.ir.Var("replacement", "int64")
+        replacement = tvm_tirx.ir.Var("replacement", "int64")
         replacement_ty = relax.TensorType([replacement], "float32")
         new_match_cast = relax.MatchCast(
             relax.DataflowVar(old_match_cast.var.name, replacement_ty),
@@ -74,7 +74,7 @@ def test_dataflowblock_pass_rejects_rewriting_match_cast_role_of_binding_var():
         )
         return relax.DataflowBlock([block.bindings[0], new_match_cast])
 
-    with pytest.raises(tvm.error.InternalError, match="symbolic Var declared by a MatchCast"):
+    with pytest.raises(tvm_tirx.error.InternalError, match="symbolic Var declared by a MatchCast"):
         rewrite_match_cast_symbol(mod)
 
 
@@ -82,7 +82,7 @@ def test_to_non_dataflow():
     m = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TestToNonDataflow:
         @R.function
         def foo(x: R.Tensor((m, n), "float32")):
@@ -115,7 +115,7 @@ def test_to_non_dataflow():
     old_vars = []
 
     def fvisit(e):
-        if isinstance(e, relax.Var) and not tvm.ir.is_prim_expr(e):
+        if isinstance(e, relax.Var) and not tvm_tirx.ir.is_prim_expr(e):
             nonlocal old_vars
             old_vars.append(e)
 
@@ -127,7 +127,7 @@ def test_to_non_dataflow():
     new_vars = []
 
     def fvisit(e):
-        if isinstance(e, relax.Var) and not tvm.ir.is_prim_expr(e):
+        if isinstance(e, relax.Var) and not tvm_tirx.ir.is_prim_expr(e):
             nonlocal new_vars
             new_vars.append(e)
 
@@ -149,7 +149,7 @@ def test_call_tir_rewrite():
     m_foo = T.dynamic("m", "int64")
     n_foo = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TestCallTIRRewrite:
         @Ts.function
         def exp(A: T.Tensor((m_exp, n_exp), "float32"), B: T.Tensor((m_exp, n_exp), "float32")):
@@ -183,7 +183,7 @@ def test_call_tir_rewrite():
     assert isinstance(s1, relax.Call)
     assert s1.op.name == "relax.builtin.alloc_tensor"
     assert isinstance(s1.args[0], relax.ShapeExpr)
-    tvm.ir.assert_structural_equal(s1.args[0], s0.ty_args[0].shape)
+    tvm_tirx.ir.assert_structural_equal(s1.args[0], s0.ty_args[0].shape)
     s2 = block.bindings[1].value
     assert s2.op.name == "relax.call_tir_packed"
     assert s2.args[0].name_hint == "exp"
@@ -222,14 +222,14 @@ def test_call_tir_rewrite_with_interspersed_primitive_argument():
     assert call.op.name == "relax.call_tir_packed"
     assert call.args[0].name_hint == "scale_add"
     assert not call.op.get_attr("FPurity")
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         call.args[1].fields,
         [func.params[0], func.params[1], func.params[2], output_buffer],
     )
 
 
 def test_transform_remove_purity_checking():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def base(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -277,7 +277,7 @@ def test_transform_remove_purity_checking():
             z = nested()
             return y
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def base(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -332,14 +332,14 @@ def test_transform_remove_purity_checking():
             return y
 
     new_mod = relax.transform.RemovePurityChecking()(Before)
-    tvm.ir.assert_structural_equal(new_mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(new_mod, Expected)
 
 
 def test_call_dps_packed_rewrite():
     m = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TestCallDPSPackedRewrite:
         @R.function
         def foo(x: R.Tensor((m, n), "float32")):
@@ -369,7 +369,7 @@ def test_call_dps_packed_rewrite():
     assert isinstance(s1, relax.Call)
     assert s1.op.name == "relax.builtin.alloc_tensor"
     assert isinstance(s1.args[0], relax.ShapeExpr)
-    tvm.ir.assert_structural_equal(s1.args[0], s0.ty_args[0].shape)
+    tvm_tirx.ir.assert_structural_equal(s1.args[0], s0.ty_args[0].shape)
     s2 = block.bindings[1].value
     assert s2.op.global_symbol == "test.op.identity"
 
@@ -382,11 +382,13 @@ def test_call_dps_packed_rewrite_nested_tuple_output():
         relax.TensorType((4,), "int32"),
         relax.TensorType((5, 6), "float16"),
     ]
-    output_ty = tvm.ir.TupleType([flat_output_types[0], tvm.ir.TupleType(flat_output_types[1:])])
+    output_ty = tvm_tirx.ir.TupleType(
+        [flat_output_types[0], tvm_tirx.ir.TupleType(flat_output_types[1:])]
+    )
 
     x = relax.Var("x", input_ty)
     call = relax.Call(
-        tvm.ir.Op.get("relax.call_dps_packed"),
+        tvm_tirx.ir.Op.get("relax.call_dps_packed"),
         [relax.ExternFunc("test.op.nested_outputs"), relax.Tuple([x])],
         ty_args=[output_ty],
     )
@@ -403,7 +405,7 @@ def test_call_dps_packed_rewrite_nested_tuple_output():
     alloc_bindings = block.bindings[:3]
     for binding, expected_ty in zip(alloc_bindings, flat_output_types):
         assert binding.value.op.name == "relax.builtin.alloc_tensor"
-        tvm.ir.assert_structural_equal(binding.var.ty, expected_ty)
+        tvm_tirx.ir.assert_structural_equal(binding.var.ty, expected_ty)
 
     packed_call = block.bindings[3].value
     assert packed_call.op.global_symbol == "test.op.nested_outputs"
@@ -420,7 +422,7 @@ def test_call_dps_packed_rewrite_nested_tuple_output():
 
 def test_call_tir_inplace_simple():
     # simple case: one inplace argument
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Input:
         @Ts.function
         def zeros(A: T.Tensor((2, 3), "int32")):
@@ -441,7 +443,7 @@ def test_call_tir_inplace_simple():
             )
             return gv0
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def zeros(A: T.Tensor((2, 3), "int32")):
@@ -460,11 +462,11 @@ def test_call_tir_inplace_simple():
             return gv0
 
     new_mod = relax.transform.CallTIRRewrite()(Input)
-    tvm.ir.assert_structural_equal(Expected["foo"], new_mod["foo"], map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(Expected["foo"], new_mod["foo"], map_free_vars=True)
 
 
 def test_call_tir_inplace_multiple_args():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Input:
         @Ts.function
         def copy(
@@ -495,7 +497,7 @@ def test_call_tir_inplace_multiple_args():
             )
             return gv0
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def copy(
@@ -521,11 +523,11 @@ def test_call_tir_inplace_multiple_args():
             return gv0
 
     new_mod = relax.transform.CallTIRRewrite()(Input)
-    tvm.ir.assert_structural_equal(Expected["foo"], new_mod["foo"], map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(Expected["foo"], new_mod["foo"], map_free_vars=True)
 
 
 def test_call_tir_inplace_some_new():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Input:
         @Ts.function
         def copy(
@@ -569,7 +571,7 @@ def test_call_tir_inplace_some_new():
             )
             return gv0
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def copy(
@@ -611,13 +613,13 @@ def test_call_tir_inplace_some_new():
             return gv2
 
     new_mod = relax.transform.CallTIRRewrite()(Input)
-    tvm.ir.assert_structural_equal(Expected["foo"], new_mod["foo"], map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(Expected["foo"], new_mod["foo"], map_free_vars=True)
 
 
 def test_call_tir_inplace_repeated_input():
     with pytest.raises(ValueError):
 
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class Input:
             @Ts.function
             def func(
@@ -651,7 +653,7 @@ def test_call_tir_inplace_repeated_input():
 def test_call_tir_inplace_all_new():
     with pytest.raises(ValueError):
 
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class Input:
             @Ts.function
             def func(A: T.Tensor((2, 3), "int32")):
@@ -791,4 +793,4 @@ def test_inplace_mutation_with_incompatible_tensor_dtype_raises_error():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

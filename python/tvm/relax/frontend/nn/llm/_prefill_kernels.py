@@ -30,10 +30,10 @@ import math
 from typing import Any, Literal
 
 import tvm
-from tvm import tirx
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 from ._kernel_common import (
     _alloc_mha_qkvo_buffers,

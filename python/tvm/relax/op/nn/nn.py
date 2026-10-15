@@ -18,14 +18,15 @@
 
 import tvm_ffi
 
-from tvm import DataType, relax
-from tvm.error import InternalError as _InternalError
-from tvm.ir import Attrs
-from tvm.ir import Call as _Call
-from tvm.ir import PrimType as _PrimType
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.tirx import FloatImm
+from tvm import relax
+from tvm_tirx import DataType
+from tvm_tirx.error import InternalError as _InternalError
+from tvm_tirx.ir import Attrs
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir import PrimType as _PrimType
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.tirx import FloatImm
 
 from ...expr import Expr
 

@@ -21,12 +21,13 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import s_tir
-from tvm.ir import Range, TensorRegion, TensorRegionType
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.ir import Range, TensorRegion, TensorRegionType
+from tvm_tirx.script import tirx as T
 
 # Expected completed types use the configured fixed index dtype, not shape dtype.
 _DEFAULT_ELEM_OFFSET = T.IntImm(T.Tensor((), "float32").elem_offset.ty.dtype, 0)
@@ -107,7 +108,7 @@ def func_with_part_access_region(
 
 def test_complete_matmul():
     func = matmul
-    A, B, C = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
+    A, B, C = [x for x in func.params if tvm_tirx.tirx.is_tensor_var(x)]
 
     block = func.body[0].block.body[0].body[0].body[0].body[0].block
     assert isinstance(block, tvm.s_tir.SBlock)
@@ -121,13 +122,13 @@ def test_complete_matmul():
     access_C = TensorRegion(
         C, [Range.from_min_extent(vi, 1), Range.from_min_extent(vj, 1)], ty=TensorRegionType()
     )
-    tvm.ir.assert_structural_equal(block.reads, [access_A, access_B])
-    tvm.ir.assert_structural_equal(block.writes, [access_C])
+    tvm_tirx.ir.assert_structural_equal(block.reads, [access_A, access_B])
+    tvm_tirx.ir.assert_structural_equal(block.writes, [access_C])
 
 
 def test_complete_matmul_original():
     func = matmul_original
-    A, B, C = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
+    A, B, C = [x for x in func.params if tvm_tirx.tirx.is_tensor_var(x)]
 
     block1 = func.body[0].block.body[0].body[0].body[0].block
     assert isinstance(block1, tvm.s_tir.SBlock)
@@ -137,8 +138,8 @@ def test_complete_matmul_original():
         [Range.from_min_extent(vi * 4, 4), Range.from_min_extent(vj * 4, 4)],
         ty=TensorRegionType(),
     )
-    tvm.ir.assert_structural_equal(block1.reads, [])
-    tvm.ir.assert_structural_equal(block1.writes, [access_C])
+    tvm_tirx.ir.assert_structural_equal(block1.reads, [])
+    tvm_tirx.ir.assert_structural_equal(block1.writes, [access_C])
 
     block2 = func.body[0].block.body[0].body[0].body[1].body[0].block
     assert isinstance(block2, tvm.s_tir.SBlock)
@@ -158,12 +159,12 @@ def test_complete_matmul_original():
         [Range.from_min_extent(vi * 4, 4), Range.from_min_extent(vj * 4, 4)],
         ty=TensorRegionType(),
     )
-    tvm.ir.assert_structural_equal(block2.reads, [access_C, access_A, access_B])
-    tvm.ir.assert_structural_equal(block2.writes, [access_C])
+    tvm_tirx.ir.assert_structural_equal(block2.reads, [access_C, access_A, access_B])
+    tvm_tirx.ir.assert_structural_equal(block2.writes, [access_C])
 
 
 def _check_elementwise(func):
-    A, B, C = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
+    A, B, C = [x for x in func.params if tvm_tirx.tirx.is_tensor_var(x)]
 
     root_block = func.body[0].block
     assert len(root_block.reads) == 0
@@ -173,7 +174,7 @@ def _check_elementwise(func):
     assert isinstance(block1, tvm.s_tir.SBlock)
     vi, vj = [x.var for x in block1.iter_vars]
 
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         block1.reads,
         [
             TensorRegion(
@@ -183,7 +184,7 @@ def _check_elementwise(func):
             )
         ],
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         block1.writes,
         [
             TensorRegion(
@@ -197,7 +198,7 @@ def _check_elementwise(func):
     block2 = func.body[0].block.body[1].body[0].body[0].block
     assert isinstance(block2, tvm.s_tir.SBlock)
     vi, vj = [x.var for x in block2.iter_vars]
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         block2.reads,
         [
             TensorRegion(
@@ -207,7 +208,7 @@ def _check_elementwise(func):
             )
         ],
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         block2.writes,
         [
             TensorRegion(
@@ -303,18 +304,18 @@ def expected_recursive_tensorslice_indices(
 
 
 def test_complete_tensor_indices():
-    new_func = tvm.script.from_source(
+    new_func = tvm_tirx.script.from_source(
         func_with_tensorslice_indices.script(),
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     ).with_attr("global_symbol", "main")
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         new_func, expected_tensorslice_indices.with_attr("global_symbol", "main")
     )
-    new_func = tvm.script.from_source(
+    new_func = tvm_tirx.script.from_source(
         func_with_recursive_tensorslice_indices.script(),
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     ).with_attr("global_symbol", "main")
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         new_func, expected_recursive_tensorslice_indices.with_attr("global_symbol", "main")
     )
 
@@ -350,7 +351,7 @@ def expected_match_tensor_func(A: T.Tensor((16, 16), "float32")) -> None:
 
 
 def test_complete_match_tensor():
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         match_tensor_func.with_attr("global_symbol", "main"),
         expected_match_tensor_func.with_attr("global_symbol", "main"),
     )
@@ -387,11 +388,11 @@ def expect_alloc_tensor_func(
 
 
 def test_complete_alloc_tensor():
-    rt_func = tvm.script.from_source(
+    rt_func = tvm_tirx.script.from_source(
         alloc_tensor_func.script(),
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     ).with_attr("global_symbol", "main")
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         rt_func, expect_alloc_tensor_func.with_attr("global_symbol", "main")
     )
 
@@ -421,12 +422,12 @@ def alloc_zero_dim_tensor_block(A: T.Tensor((), "float32"), B: T.Tensor((), "flo
 
 def _check_alloc_zero_dim_tensor(f):
     dtype = "float32"
-    ctx = tvm.cpu()
+    ctx = tvm_tirx.cpu()
 
     np_data = np.zeros(shape=()).astype(dtype)
     np_out = np.zeros(shape=()).astype(dtype)
-    tvm_data = tvm.runtime.tensor(np_data, ctx)
-    tvm_out = tvm.runtime.tensor(np_out, ctx)
+    tvm_data = tvm_tirx.runtime.tensor(np_data, ctx)
+    tvm_out = tvm_tirx.runtime.tensor(np_out, ctx)
 
     # np func exection
     np_inter = np.array(1)
@@ -436,25 +437,26 @@ def _check_alloc_zero_dim_tensor(f):
 
     # tvm func execution
     f(tvm_data, tvm_out)
-    tvm.testing.assert_allclose(tvm_out.numpy(), np_out, rtol=1e-5)
+    tvm_tirx.testing.assert_allclose(tvm_out.numpy(), np_out, rtol=1e-5)
 
 
 def test_alloc_zero_dim_tensor_round_trip():
     func = alloc_zero_dim_tensor
     func_with_block = alloc_zero_dim_tensor_block
-    rt_func = tvm.script.from_source(
-        func.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+    rt_func = tvm_tirx.script.from_source(
+        func.script(),
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
-    rt_func_with_block = tvm.script.from_source(
+    rt_func_with_block = tvm_tirx.script.from_source(
         func_with_block.script(),
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     rt_mod = tvm.compile(rt_func, "llvm")
     rt_mod_with_block = tvm.compile(rt_func_with_block, "llvm")
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         func.with_attr("global_symbol", "main"), func_with_block.with_attr("global_symbol", "main")
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         rt_func.with_attr("global_symbol", "main"),
         rt_func_with_block.with_attr("global_symbol", "main"),
     )
@@ -533,7 +535,7 @@ except TypeError:
 def test_slice_op():
     if slice_op_test is None:
         pytest.skip("slice arithmetic on TensorRegion is not defined")
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         slice_op_test.with_attr("global_symbol", "main"),
         slice_op_test_ref.with_attr("global_symbol", "main"),
     )
@@ -549,7 +551,7 @@ def test_different_dtype_assignment_to_var():
         a = Ts.sblock_alloc_tensor([10, 10], dtype="int8")
         T.evaluate(0)
 
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         test_case.with_attr("global_symbol", "main"), func_ref.with_attr("global_symbol", "main")
     )
 
@@ -624,79 +626,79 @@ def predicate():
 
 
 def test_module_define():
-    func1 = tvm.ir.IRModule({"matmul": roundtrip_matmul()})["matmul"]
-    func2 = tvm.ir.IRModule({"element_wise": element_wise()})["element_wise"]
-    func3 = tvm.ir.IRModule({"predicate": predicate()})["predicate"]
-    mod1 = tvm.ir.IRModule({"func1": func1, "func2": func2, "func3": func3})
-    mod2 = tvm.ir.IRModule(
+    func1 = tvm_tirx.ir.IRModule({"matmul": roundtrip_matmul()})["matmul"]
+    func2 = tvm_tirx.ir.IRModule({"element_wise": element_wise()})["element_wise"]
+    func3 = tvm_tirx.ir.IRModule({"predicate": predicate()})["predicate"]
+    mod1 = tvm_tirx.ir.IRModule({"func1": func1, "func2": func2, "func3": func3})
+    mod2 = tvm_tirx.ir.IRModule(
         {"func1": roundtrip_matmul(), "func2": element_wise(), "func3": predicate()}
     )
-    tvm.ir.assert_structural_equal(mod1, mod2)
+    tvm_tirx.ir.assert_structural_equal(mod1, mod2)
 
 
 def test_matmul_original():
     func = roundtrip_matmul_original()
-    rt_func = tvm.script.from_source(
+    rt_func = tvm_tirx.script.from_source(
         func.script(),
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(func, rt_func)
+    tvm_tirx.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body[0].block, s_tir.SBlock)
-    assert isinstance(rt_func.body[0].block.body[0], tvm.ir.For)
-    assert isinstance(rt_func.body[0].block.body[0].body[0], tvm.ir.For)
-    assert isinstance(rt_func.body[0].block.body[0].body[0].body, tvm.ir.SeqStmt)
+    assert isinstance(rt_func.body[0].block.body[0], tvm_tirx.ir.For)
+    assert isinstance(rt_func.body[0].block.body[0].body[0], tvm_tirx.ir.For)
+    assert isinstance(rt_func.body[0].block.body[0].body[0].body, tvm_tirx.ir.SeqStmt)
     assert isinstance(rt_func.body[0].block.body[0].body[0].body[0].block, s_tir.SBlock)
-    assert isinstance(rt_func.body[0].block.body[0].body[0].body[1], tvm.ir.For)
+    assert isinstance(rt_func.body[0].block.body[0].body[0].body[1], tvm_tirx.ir.For)
     assert isinstance(rt_func.body[0].block.body[0].body[0].body[1].body[0].block, s_tir.SBlock)
 
 
 def test_element_wise():
     func = element_wise()
-    rt_func = tvm.script.from_source(
+    rt_func = tvm_tirx.script.from_source(
         func.script(),
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(func, rt_func)
+    tvm_tirx.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body[0].block, s_tir.SBlock)
-    assert isinstance(rt_func.body[0].block.body, tvm.ir.SeqStmt)
-    assert isinstance(rt_func.body[0].block.body[0], tvm.ir.For)
-    assert isinstance(rt_func.body[0].block.body[0].body[0], tvm.ir.For)
+    assert isinstance(rt_func.body[0].block.body, tvm_tirx.ir.SeqStmt)
+    assert isinstance(rt_func.body[0].block.body[0], tvm_tirx.ir.For)
+    assert isinstance(rt_func.body[0].block.body[0].body[0], tvm_tirx.ir.For)
     assert isinstance(rt_func.body[0].block.body[0].body[0].body[0].block, s_tir.SBlock)
 
-    assert isinstance(rt_func.body[0].block.body[1], tvm.ir.For)
-    assert isinstance(rt_func.body[0].block.body[1].body[0], tvm.ir.For)
+    assert isinstance(rt_func.body[0].block.body[1], tvm_tirx.ir.For)
+    assert isinstance(rt_func.body[0].block.body[1].body[0], tvm_tirx.ir.For)
     assert isinstance(rt_func.body[0].block.body[1].body[0].body[0].block, s_tir.SBlock)
 
 
 def test_predicate():
     func = predicate()
-    rt_func = tvm.script.from_source(
+    rt_func = tvm_tirx.script.from_source(
         func.script(),
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(func, rt_func)
+    tvm_tirx.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body[0].block, s_tir.SBlock)
-    assert isinstance(rt_func.body[0].block.body[0], tvm.ir.For)
-    assert isinstance(rt_func.body[0].block.body[0].body[0], tvm.ir.For)
-    assert isinstance(rt_func.body[0].block.body[0].body[0].body[0], tvm.ir.For)
+    assert isinstance(rt_func.body[0].block.body[0], tvm_tirx.ir.For)
+    assert isinstance(rt_func.body[0].block.body[0].body[0], tvm_tirx.ir.For)
+    assert isinstance(rt_func.body[0].block.body[0].body[0].body[0], tvm_tirx.ir.For)
     assert isinstance(rt_func.body[0].block.body[0].body[0].body[0].body[0].block, s_tir.SBlock)
 
 
@@ -721,34 +723,34 @@ def match_tensor_region():
 
 def test_match_tensor_region():
     func = match_tensor_region()
-    rt_func = tvm.script.from_source(
+    rt_func = tvm_tirx.script.from_source(
         func.script(),
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(func, rt_func)
+    tvm_tirx.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body[0], s_tir.SBlockRealize)
     root = rt_func.body[0].block
 
-    assert isinstance(root.body[0], tvm.ir.For)
-    assert isinstance(root.body[0].body[0], tvm.ir.For)
+    assert isinstance(root.body[0], tvm_tirx.ir.For)
+    assert isinstance(root.body[0].body[0], tvm_tirx.ir.For)
     assert isinstance(root.body[0].body[0].body[0], s_tir.SBlockRealize)
     outer_block = root.body[0].body[0].body[0].block
     assert len(outer_block.match_tensors) == 1
     tensor_C = outer_block.match_tensors[0].tensor
-    tvm.ir.assert_structural_equal(tensor_C.shape, [T.int32(16), T.int32(1), T.int32(4)])
+    tvm_tirx.ir.assert_structural_equal(tensor_C.shape, [T.int32(16), T.int32(1), T.int32(4)])
 
-    assert isinstance(outer_block.body[0], tvm.ir.For)
+    assert isinstance(outer_block.body[0], tvm_tirx.ir.For)
     assert isinstance(outer_block.body[0].body[0], s_tir.SBlockRealize)
     inner_block = outer_block.body[0].body[0].block
     assert len(inner_block.match_tensors) == 1
     tensor_D = inner_block.match_tensors[0].tensor
-    tvm.ir.assert_structural_equal(tensor_D.shape, [T.int32(4), T.int32(1), T.int32(4)])
+    tvm_tirx.ir.assert_structural_equal(tensor_D.shape, [T.int32(4), T.int32(1), T.int32(4)])
 
 
 def block_elements():
@@ -771,23 +773,23 @@ def block_elements():
 
 def test_block_elements():
     func = block_elements()
-    rt_func = tvm.script.from_source(
+    rt_func = tvm_tirx.script.from_source(
         func.script(),
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(func, rt_func)
+    tvm_tirx.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body[0].block, s_tir.SBlock)
     assert isinstance(rt_func.body[0].block.body[0], s_tir.SBlockRealize)
     assert isinstance(rt_func.body[0].block.body[0].block, s_tir.SBlock)
     block = rt_func.body[0].block.body[0].block
-    assert isinstance(block.body[0], tvm.ir.TensorStore)
-    assert isinstance(block.init[0], tvm.ir.TensorStore)
+    assert isinstance(block.body[0], tvm_tirx.ir.TensorStore)
+    assert isinstance(block.init[0], tvm_tirx.ir.TensorStore)
     assert len(block.annotations) == 1
     assert block.annotations["attr_key"] == "attr_value"
 
@@ -812,21 +814,21 @@ def opaque_block():
 
 def test_opaque_block():
     func = opaque_block()
-    rt_func = tvm.script.from_source(
+    rt_func = tvm_tirx.script.from_source(
         func.script(),
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(func, rt_func)
+    tvm_tirx.ir.assert_structural_equal(func, rt_func)
 
     root_block = rt_func.body[0].block
     assert isinstance(root_block, s_tir.SBlock)
-    assert isinstance(root_block.body[0], tvm.ir.For)
-    assert isinstance(root_block.body[0].body[0], tvm.ir.For)
+    assert isinstance(root_block.body[0], tvm_tirx.ir.For)
+    assert isinstance(root_block.body[0].body[0], tvm_tirx.ir.For)
     assert isinstance(root_block.body[0].body[0].body[0], s_tir.SBlockRealize)
     assert isinstance(root_block.body[0].body[0].body[0].block, s_tir.SBlock)
     assert len(root_block.body[0].body[0].body[0].block.iter_vars) == 0
@@ -1019,17 +1021,17 @@ def test_match_tensor_region_has_implicit_shape_dtype():
 )
 def test_roundtrip_blocks(ir_generator):
     original = ir_generator()
-    after_roundtrip = tvm.script.from_source(
+    after_roundtrip = tvm_tirx.script.from_source(
         original.script(show_meta=True),
         check_well_formed=False,
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
 
 
 # Import-time construction also checks the annotated S-TIR API.
@@ -1103,4 +1105,4 @@ def different_access_indices(
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

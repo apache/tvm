@@ -1,0 +1,46 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""FFI APIs for tvm_tirx.script.ir_builder"""
+
+import tvm_ffi
+
+tvm_ffi.init_ffi_api("script.ir_builder", __name__)  # pylint: disable=protected-access
+
+# Shared module construction retains its native registry namespace.
+tvm_ffi.init_ffi_api("script.ir_builder.ir", __name__)  # pylint: disable=protected-access
+
+# These core-statement builders retain their historical registry identities.
+# Resolve only the shared functions; importing an entire dialect API here would
+# collide with module construction and couple shared script to dialect loading.
+for _name in (
+    "AddToParent",
+    "Assert",
+    "Bind",
+    "Break",
+    "Continue",
+    "Else",
+    "Evaluate",
+    "ForFrameSetNames",
+    "Grid",
+    "If",
+    "Region",
+    "Return",
+    "Then",
+    "While",
+):
+    globals()[_name] = tvm_ffi.get_global_func("script.ir_builder.tirx." + _name)
+del _name

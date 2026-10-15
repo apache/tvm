@@ -18,7 +18,7 @@
 
 set -euxo pipefail
 
-export PYTHONPATH=python
+export PYTHONPATH=tirx/python:python
 export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
 
 # to avoid CI CPU thread throttling.

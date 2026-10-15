@@ -36,11 +36,12 @@ from tensorflow.keras import applications as keras_app
 
 import tvm
 import tvm.relax.frontend.tflite.tflite_frontend as tflite_frontend
+import tvm_tirx
 from tvm import relax
 from tvm.relax.frontend.tflite import from_tflite
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def _get_mod_from_cfunc(cfunc):
@@ -68,7 +69,7 @@ def verify(TestClass, expected=None):
     mod = _get_mod_from_cfunc(cf)
 
     if expected:
-        tvm.ir.assert_structural_equal(mod, expected)
+        tvm_tirx.ir.assert_structural_equal(mod, expected)
 
     # Run E2E test only on nightly
     if "CI_ENV_NIGHTLY" not in os.environ:
@@ -87,9 +88,9 @@ def verify(TestClass, expected=None):
     tf_output = cf(*tf_inputs)
 
     # TVM Run
-    tgt = tvm.target.Target("c")
+    tgt = tvm_tirx.target.Target("c")
     ex = tvm.compile(mod, tgt)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     vm.set_input("main", *tvm_inputs)
     vm.invoke_stateful("main")
     tvm_output = vm.get_outputs("main")
@@ -112,9 +113,9 @@ def _verify_random_with_inputs(cfunc, inputs):
 
     tf_output = cfunc(*tf_inputs)
 
-    tgt = tvm.target.Target("c")
+    tgt = tvm_tirx.target.Target("c")
     ex = tvm.compile(mod, tgt)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
 
     def run_tvm():
         vm.set_input("main", *tvm_inputs)
@@ -632,7 +633,7 @@ def test_unique():
             return gv
 
     mod = _get_mod_from_cfunc(Unique().func.get_concrete_function())
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_reshape():
@@ -756,7 +757,7 @@ def test_rank():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_bucketize():
@@ -854,8 +855,8 @@ def test_range_dynamic_scalar_inputs(start, limit, delta, dtype):
         np.array(delta, np_dtype),
     ]
 
-    ex = tvm.compile(mod, tvm.target.Target("llvm"))
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    ex = tvm.compile(mod, tvm_tirx.target.Target("llvm"))
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     vm.set_input("main", *inputs)
     vm.invoke_stateful("main")
     tvm_out = vm.get_outputs("main").numpy()
@@ -1160,7 +1161,7 @@ def test_random_uniform_dynamic_shape():
 
     cf = TfRandomUniform().func.get_concrete_function()
     mod = _get_mod_from_cfunc(cf)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
     _verify_random_with_inputs(cf, [np.array([2, 3], dtype="int32")])
 
@@ -1212,7 +1213,7 @@ def test_random_standard_normal_dynamic_shape():
 
     cf = TfRandomStandardNormal().func.get_concrete_function()
     mod = _get_mod_from_cfunc(cf)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
     _verify_random_with_inputs(cf, [np.array([2, 4], dtype="int32")])
 
@@ -1288,7 +1289,7 @@ def test_multinomial_dynamic_num_samples():
 
     cf = TfMultinomial().func.get_concrete_function()
     mod = _get_mod_from_cfunc(cf)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
     _verify_random_with_inputs(
         cf,
@@ -2073,8 +2074,8 @@ def test_reverse_sequence():
     expected = data.copy()
     expected[1, :3, :] = expected[1, :3, :][::-1]
 
-    ex = tvm.compile(mod, tvm.target.Target("c"))
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    ex = tvm.compile(mod, tvm_tirx.target.Target("c"))
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     vm.set_input("main", data, seq_lengths)
     vm.invoke_stateful("main")
     output = vm.get_outputs("main")
@@ -2180,7 +2181,7 @@ def test_squeeze():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_unpack():
@@ -2211,7 +2212,7 @@ def test_unpack():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_zeros_like():
@@ -2229,7 +2230,7 @@ def test_zeros_like():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _make_conv2d_module(data_shape, kernel_shape, data_format, strides, padding):
@@ -2707,7 +2708,7 @@ def test_networks(net, shape):
     concrete_func = model.func.get_concrete_function(tf.TensorSpec(shape=shape, dtype=tf.float32))
 
     mod = _get_mod_from_cfunc(concrete_func)
-    tvm.ir.assert_structural_equal(mod["main"].ret_ty, relax.TensorType((1, 1000), "float32"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"].ret_ty, relax.TensorType((1, 1000), "float32"))
     verify(concrete_func)
 
 
@@ -3017,9 +3018,9 @@ def _verify_nms_v4(mod, tf_func, boxes_np, scores_np):
     tf_indices, tf_valid = tf_func(tf.constant(boxes_np), tf.constant(scores_np))
     n_valid = int(tf_valid.numpy())
 
-    tgt = tvm.target.Target("llvm")
+    tgt = tvm_tirx.target.Target("llvm")
     ex = tvm.compile(mod, tgt)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     vm.set_input("main", boxes_np, scores_np)
     vm.invoke_stateful("main")
     tvm_indices, tvm_valid = vm.get_outputs("main")
@@ -3070,9 +3071,9 @@ def _verify_nms_v5(mod, tf_func, boxes_np, scores_np, soft_nms_sigma=0.0):
     tf_indices, tf_scores, tf_valid = tf_func(tf.constant(boxes_np), tf.constant(scores_np))
     n_valid = int(tf_valid.numpy())
 
-    tgt = tvm.target.Target("llvm")
+    tgt = tvm_tirx.target.Target("llvm")
     ex = tvm.compile(mod, tgt)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     vm.set_input("main", boxes_np, scores_np)
     vm.invoke_stateful("main")
     tvm_indices, tvm_scores, tvm_valid = vm.get_outputs("main")
@@ -3471,7 +3472,7 @@ def test_nms_v5_ir():
         score_threshold=0.0,
     )
 
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         mod["main"].ret_ty,
         relax.TupleType(
             [
@@ -3562,7 +3563,7 @@ def test_nms_v4_ir():
         score_threshold=0.0,
     )
 
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         mod["main"].ret_ty,
         relax.TupleType(
             [
@@ -3652,9 +3653,9 @@ def test_detection_postprocess_smoke(build_kwargs, expected_topk_count, expected
     multibox_calls = []
 
     def _visit(expr):
-        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.topk"):
+        if isinstance(expr, relax.Call) and expr.op == tvm_tirx.ir.Op.get("relax.topk"):
             topk_calls.append(expr)
-        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get(
+        if isinstance(expr, relax.Call) and expr.op == tvm_tirx.ir.Op.get(
             "relax.vision.multibox_transform_loc"
         ):
             multibox_calls.append(expr)
@@ -3667,7 +3668,7 @@ def test_detection_postprocess_smoke(build_kwargs, expected_topk_count, expected
 
     expected_batch = build_kwargs["batch_size"]
     expected_max_detections = build_kwargs["max_detections"]
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         mod["main"].ret_ty,
         relax.TupleType(
             [
@@ -3680,7 +3681,7 @@ def test_detection_postprocess_smoke(build_kwargs, expected_topk_count, expected
     )
 
     legalized = relax.transform.LegalizeOps()(mod)
-    tvm.ir.assert_structural_equal(legalized["main"].ret_ty, mod["main"].ret_ty)
+    tvm_tirx.ir.assert_structural_equal(legalized["main"].ret_ty, mod["main"].ret_ty)
 
 
 @pytest.mark.parametrize("build_kwargs", _DETECTION_POSTPROCESS_SHAPE_CASES)
@@ -3691,11 +3692,11 @@ def test_detection_postprocess_shape_variations(build_kwargs):
     input_num_classes = build_kwargs["input_num_classes"]
     max_detections = build_kwargs["max_detections"]
 
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         mod["main"].params[1].ty,
         relax.TensorType((batch_size, num_anchors, input_num_classes), "float32"),
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         mod["main"].ret_ty,
         relax.TupleType(
             [
@@ -3720,7 +3721,7 @@ def test_detection_postprocess_removes_background_without_softmax():
     multibox_calls = []
 
     def _visit(expr):
-        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get(
+        if isinstance(expr, relax.Call) and expr.op == tvm_tirx.ir.Op.get(
             "relax.vision.multibox_transform_loc"
         ):
             multibox_calls.append(expr)
@@ -3729,7 +3730,7 @@ def test_detection_postprocess_removes_background_without_softmax():
     assert len(multibox_calls) == 1
     assert not multibox_calls[0].attrs.apply_softmax
     assert multibox_calls[0].attrs.keep_background
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         multibox_calls[0].args[0].ty,
         relax.TensorType((1, 2, 4), "float32"),
     )
@@ -3985,7 +3986,7 @@ def test_reduction_bool_ops(tf_op, relax_op, input_shape, axes, keepdims):
     verify(ReduceBoolModule, expected)
 
     # Regression guard: compile to catch a bool max/min lowering path.
-    tvm.compile(expected, tvm.target.Target("llvm"))
+    tvm.compile(expected, tvm_tirx.target.Target("llvm"))
 
 
 def test_pad():
@@ -4397,7 +4398,7 @@ def test_relu_0_to_1():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_relu_n1_to_1():
@@ -4562,7 +4563,7 @@ def test_prelu(shared_axes):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_matrix_diag():
@@ -5151,7 +5152,7 @@ def test_broadcast_to_dynamic_shape():
 
     shape_binding, result_binding = mod["main"].body.blocks[0].bindings
     assert not isinstance(shape_binding.var, relax.DataflowVar)
-    tvm.ir.assert_structural_equal(result_binding.var.ty.shape, shape_binding.var)
+    tvm_tirx.ir.assert_structural_equal(result_binding.var.ty.shape, shape_binding.var)
     assert mod["main"].body.body.same_as(result_binding.var)
 
 
@@ -5177,7 +5178,9 @@ def _build_tflite_operator_marker_model(builtin_name):
 @pytest.mark.parametrize("builtin_name", ["DELEGATE", "PLACEHOLDER_FOR_GREATER_OP_CODES"])
 def test_operator_marker_unsupported(builtin_name):
     """TFLite marker builtins report explicit unsupported diagnostics."""
-    with pytest.raises(tvm.error.OpNotImplemented, match=f"TFLite operator marker {builtin_name}"):
+    with pytest.raises(
+        tvm_tirx.error.OpNotImplemented, match=f"TFLite operator marker {builtin_name}"
+    ):
         _load_model_from_buffer(_build_tflite_operator_marker_model(builtin_name))
 
 
@@ -5322,9 +5325,9 @@ def _build_tflite_zeros_like_model():
 
 
 def _run_module(mod, *inputs):
-    tgt = tvm.target.Target("c")
+    tgt = tvm_tirx.target.Target("c")
     ex = tvm.compile(mod, tgt)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     vm.set_input("main", *inputs)
     vm.invoke_stateful("main")
     outputs = vm.get_outputs("main")
@@ -5581,7 +5584,7 @@ def test_rfft2d_mismatched_fft_length_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="fft_length"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="fft_length"):
         from_tflite(tflite_model)
 
 
@@ -5607,7 +5610,7 @@ def test_rfft2d_dynamic_fft_length_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="requires a constant fft_length"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="requires a constant fft_length"):
         from_tflite(tflite_model)
 
 
@@ -5710,7 +5713,7 @@ def test_call_subgraph():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _build_tflite_multi_output_call_model():
@@ -5818,7 +5821,7 @@ def test_call_subgraph_multi_output():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _build_tflite_nested_call_model():
@@ -5940,25 +5943,27 @@ def test_call_subgraph_nested_call():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_call_subgraph_invalid_index_unsupported():
     """Test CALL rejects invalid subgraph indices before lowering."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="CALL requires a valid subgraph index"):
+    with pytest.raises(
+        tvm_tirx.error.OpNotImplemented, match="CALL requires a valid subgraph index"
+    ):
         _load_model_from_buffer(_build_tflite_call_model(call_subgraph_index=2))
 
 
 def test_call_subgraph_io_mismatch_unsupported():
     """Test CALL rejects callees whose input arity does not match the call site."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="CALL subgraph input count mismatch"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="CALL subgraph input count mismatch"):
         _load_model_from_buffer(_build_tflite_call_model(callee_inputs=[]))
 
 
 def test_call_subgraph_output_metadata_mismatch_unsupported():
     """Test CALL rejects callees whose output metadata does not match the call site."""
     with pytest.raises(
-        tvm.error.OpNotImplemented, match="CALL subgraph output tensor metadata mismatch"
+        tvm_tirx.error.OpNotImplemented, match="CALL subgraph output tensor metadata mismatch"
     ):
         _load_model_from_buffer(_build_tflite_call_model(callee_output_shape=[2]))
 
@@ -6115,7 +6120,7 @@ def test_if_subgraphs():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _build_tflite_multi_output_if_model():
@@ -6282,31 +6287,33 @@ def test_if_subgraphs_multi_output():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_if_subgraphs_non_bool_condition_unsupported():
     """Test IF rejects non-bool condition tensors."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="IF requires a scalar bool condition"):
+    with pytest.raises(
+        tvm_tirx.error.OpNotImplemented, match="IF requires a scalar bool condition"
+    ):
         _load_model_from_buffer(_build_tflite_if_model(condition_type=_tfl_tensor_type.INT32))
 
 
 def test_if_subgraphs_invalid_index_unsupported():
     """Test IF rejects invalid branch subgraph indices before lowering."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="IF requires a valid subgraph index"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="IF requires a valid subgraph index"):
         _load_model_from_buffer(_build_tflite_if_model(then_subgraph_index=3))
 
 
 def test_if_subgraphs_output_count_mismatch_unsupported():
     """Test IF rejects branches whose output arity does not match the call site."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="IF subgraph output count mismatch"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="IF subgraph output count mismatch"):
         _load_model_from_buffer(_build_tflite_if_model(else_outputs=[]))
 
 
 def test_if_subgraphs_input_metadata_mismatch_unsupported():
     """Test IF rejects branches whose input metadata does not match the call site."""
     with pytest.raises(
-        tvm.error.OpNotImplemented, match="IF subgraph input tensor metadata mismatch"
+        tvm_tirx.error.OpNotImplemented, match="IF subgraph input tensor metadata mismatch"
     ):
         _load_model_from_buffer(_build_tflite_if_model(else_input_shape=[2]))
 
@@ -6314,7 +6321,7 @@ def test_if_subgraphs_input_metadata_mismatch_unsupported():
 def test_if_subgraphs_output_metadata_mismatch_unsupported():
     """Test IF rejects branches whose output metadata does not match the call site."""
     with pytest.raises(
-        tvm.error.OpNotImplemented, match="IF subgraph output tensor metadata mismatch"
+        tvm_tirx.error.OpNotImplemented, match="IF subgraph output tensor metadata mismatch"
     ):
         _load_model_from_buffer(_build_tflite_if_model(else_output_shape=[2]))
 
@@ -6576,7 +6583,7 @@ def test_while_subgraphs():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_while_subgraphs_repeated_cond_body_pair():
@@ -6584,8 +6591,8 @@ def test_while_subgraphs_repeated_cond_body_pair():
     mod = _load_model_from_buffer(_build_tflite_repeated_while_model())
     names = [gv.name_hint for gv in mod.get_global_vars()]
     assert names.count("tflite_while_subgraph_1_2") == 1
-    tvm.ir.assert_structural_equal(mod["main"].ret_ty, relax.TensorType((), "int32"))
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(mod["main"].ret_ty, relax.TensorType((), "int32"))
+    tvm_tirx.ir.assert_structural_equal(
         mod["tflite_while_subgraph_1_2"].ret_ty,
         relax.TensorType((), "int32"),
     )
@@ -6752,31 +6759,35 @@ def test_while_subgraphs_two_loop_vars():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_while_subgraphs_non_bool_condition_unsupported():
     """Test WHILE rejects cond subgraphs that do not return scalar bool."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="WHILE requires a scalar bool condition"):
+    with pytest.raises(
+        tvm_tirx.error.OpNotImplemented, match="WHILE requires a scalar bool condition"
+    ):
         _load_model_from_buffer(_build_tflite_while_model(cond_output_type=_tfl_tensor_type.INT32))
 
 
 def test_while_subgraphs_invalid_index_unsupported():
     """Test WHILE rejects invalid cond/body subgraph indices before lowering."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="WHILE requires a valid subgraph index"):
+    with pytest.raises(
+        tvm_tirx.error.OpNotImplemented, match="WHILE requires a valid subgraph index"
+    ):
         _load_model_from_buffer(_build_tflite_while_model(cond_subgraph_index=3))
 
 
 def test_while_subgraphs_zero_loop_vars_unsupported():
     """Test WHILE rejects operators without loop-carried tensors."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="WHILE requires loop-carried inputs"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="WHILE requires loop-carried inputs"):
         _load_model_from_buffer(_build_tflite_zero_var_while_model())
 
 
 def test_while_subgraphs_loop_state_metadata_mismatch_unsupported():
     """Test WHILE rejects loop outputs whose metadata does not match loop inputs."""
     with pytest.raises(
-        tvm.error.OpNotImplemented, match="WHILE loop state tensor metadata mismatch"
+        tvm_tirx.error.OpNotImplemented, match="WHILE loop state tensor metadata mismatch"
     ):
         _load_model_from_buffer(
             _build_tflite_while_model(main_output_type=_tfl_tensor_type.FLOAT32)
@@ -6785,14 +6796,16 @@ def test_while_subgraphs_loop_state_metadata_mismatch_unsupported():
 
 def test_while_subgraphs_output_count_mismatch_unsupported():
     """Test WHILE rejects body subgraphs whose output arity does not match loop vars."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="WHILE subgraph output count mismatch"):
+    with pytest.raises(
+        tvm_tirx.error.OpNotImplemented, match="WHILE subgraph output count mismatch"
+    ):
         _load_model_from_buffer(_build_tflite_while_model(body_outputs=[]))
 
 
 def test_while_subgraphs_input_metadata_mismatch_unsupported():
     """Test WHILE rejects cond subgraph inputs whose metadata does not match loop vars."""
     with pytest.raises(
-        tvm.error.OpNotImplemented, match="WHILE subgraph input tensor metadata mismatch"
+        tvm_tirx.error.OpNotImplemented, match="WHILE subgraph input tensor metadata mismatch"
     ):
         _load_model_from_buffer(_build_tflite_while_model(cond_input_type=_tfl_tensor_type.FLOAT32))
 
@@ -6800,7 +6813,7 @@ def test_while_subgraphs_input_metadata_mismatch_unsupported():
 def test_while_subgraphs_output_metadata_mismatch_unsupported():
     """Test WHILE rejects body outputs whose metadata does not match loop vars."""
     with pytest.raises(
-        tvm.error.OpNotImplemented, match="WHILE subgraph output tensor metadata mismatch"
+        tvm_tirx.error.OpNotImplemented, match="WHILE subgraph output tensor metadata mismatch"
     ):
         _load_model_from_buffer(
             _build_tflite_while_model(body_output_type=_tfl_tensor_type.FLOAT32)
@@ -6899,18 +6912,18 @@ def test_call_once_empty_init_subgraph():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_call_once_non_empty_init_subgraph_unsupported():
     """Test CALL_ONCE rejects init subgraphs with side-effect-like bodies."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="CALL_ONCE"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="CALL_ONCE"):
         _load_model_from_buffer(_build_tflite_call_once_model(init_has_op=True))
 
 
 def test_call_once_inputs_outputs_unsupported():
     """Test CALL_ONCE rejects operator inputs and outputs."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="CALL_ONCE with inputs or outputs"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="CALL_ONCE with inputs or outputs"):
         _load_model_from_buffer(
             _build_tflite_call_once_model(call_once_inputs=[0], call_once_outputs=[0])
         )
@@ -6919,7 +6932,7 @@ def test_call_once_inputs_outputs_unsupported():
 def test_call_once_init_subgraph_io_unsupported():
     """Test CALL_ONCE rejects init subgraphs with inputs or outputs."""
     with pytest.raises(
-        tvm.error.OpNotImplemented, match="CALL_ONCE with non-empty init subgraph I/O"
+        tvm_tirx.error.OpNotImplemented, match="CALL_ONCE with non-empty init subgraph I/O"
     ):
         _load_model_from_buffer(_build_tflite_call_once_model(init_inputs=[0], init_outputs=[0]))
 
@@ -6927,7 +6940,7 @@ def test_call_once_init_subgraph_io_unsupported():
 def test_call_once_invalid_index_unsupported():
     """Test CALL_ONCE rejects invalid init subgraph indices before lowering."""
     with pytest.raises(
-        tvm.error.OpNotImplemented, match="CALL_ONCE requires a valid subgraph index"
+        tvm_tirx.error.OpNotImplemented, match="CALL_ONCE requires a valid subgraph index"
     ):
         _load_model_from_buffer(_build_tflite_call_once_model(init_subgraph_index=2))
 
@@ -7667,18 +7680,18 @@ def test_resource_variable_call_once_init_read():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_assign_variable_main_subgraph_unsupported():
     """Test ASSIGN_VARIABLE remains unsupported outside CALL_ONCE initialization."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="ASSIGN_VARIABLE outside CALL_ONCE"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="ASSIGN_VARIABLE outside CALL_ONCE"):
         _load_model_from_buffer(_build_tflite_resource_assign_in_main_model())
 
 
 def test_read_variable_uninitialized_unsupported():
     """Test READ_VARIABLE rejects resource handles without supported initialization."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="READ_VARIABLE requires a resource"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="READ_VARIABLE requires a resource"):
         _load_model_from_buffer(_build_tflite_resource_read_uninitialized_model())
 
 
@@ -7696,7 +7709,7 @@ def test_hashtable_call_once_import_find_string_to_int64():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_hashtable_call_once_import_find_string_to_int64_2d_query():
@@ -7718,18 +7731,18 @@ def test_hashtable_call_once_import_find_string_to_int64_2d_query():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_hashtable_call_once_import_find_int64_to_string_unsupported():
     """Test HASHTABLE_FIND rejects int64-to-string tables until string outputs exist."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="string -> int64"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="string -> int64"):
         _load_model_from_buffer(_build_tflite_hashtable_find_int64_to_string_model())
 
 
 def test_hashtable_call_once_import_find_runtime_query_unsupported():
     """Test HASHTABLE_FIND rejects runtime string queries."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="string queries|STRING graph inputs"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="string queries|STRING graph inputs"):
         _load_model_from_buffer(
             _build_tflite_hashtable_find_string_to_int64_model(query_is_input=True)
         )
@@ -7737,7 +7750,7 @@ def test_hashtable_call_once_import_find_runtime_query_unsupported():
 
 def test_hashtable_call_once_import_duplicate_keys_unsupported():
     """Test HASHTABLE_IMPORT rejects duplicate static keys."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="duplicate keys"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="duplicate keys"):
         _load_model_from_buffer(
             _build_tflite_hashtable_find_string_to_int64_model(
                 table_keys=["alpha", "alpha"], table_values=[10, 20]
@@ -7759,18 +7772,18 @@ def test_hashtable_call_once_import_size():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_hashtable_import_main_subgraph_unsupported():
     """Test HASHTABLE_IMPORT remains unsupported outside CALL_ONCE initialization."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="HASHTABLE_IMPORT outside CALL_ONCE"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="HASHTABLE_IMPORT outside CALL_ONCE"):
         _load_model_from_buffer(_build_tflite_hashtable_import_in_main_model())
 
 
 def test_hashtable_size_uninitialized_unsupported():
     """Test HASHTABLE_SIZE rejects tables without supported initialization."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="HASHTABLE_SIZE requires a table"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="HASHTABLE_SIZE requires a table"):
         _load_model_from_buffer(_build_tflite_hashtable_size_uninitialized_model())
 
 
@@ -7931,7 +7944,7 @@ def test_hashtable_lookup_2d_value():
 
 def test_hashtable_lookup_string_value_unsupported():
     string_type = _get_string_tensor_type()
-    with pytest.raises(tvm.error.OpNotImplemented, match="STRING graph inputs"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="STRING graph inputs"):
         _load_model_from_buffer(
             _build_tflite_hashtable_lookup_model(value_shape=[3], value_type=string_type)
         )
@@ -8635,7 +8648,7 @@ def test_stablehlo_unary(builtin_name, relax_op):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 @pytest.mark.parametrize(
@@ -8667,7 +8680,7 @@ def test_stablehlo_binary(builtin_name, relax_op):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_model_with_unused_subgraph():
@@ -8687,7 +8700,7 @@ def test_stablehlo_model_with_unused_subgraph():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 @pytest.mark.parametrize(
@@ -8713,7 +8726,7 @@ def test_stablehlo_reduce(reducer_name, init_value, relax_op):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_reduce_unsupported_reducer():
@@ -8724,7 +8737,7 @@ def test_stablehlo_reduce_unsupported_reducer():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="reducer"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="reducer"):
         from_tflite(tflite_model)
 
 
@@ -8736,7 +8749,7 @@ def test_stablehlo_reduce_non_identity_init_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="init value"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="init value"):
         from_tflite(tflite_model)
 
 
@@ -8767,7 +8780,7 @@ def test_stablehlo_sort(comparison_direction, descending):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_sort_unsupported_comparator():
@@ -8779,7 +8792,7 @@ def test_stablehlo_sort_unsupported_comparator():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="LT or GT"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="LT or GT"):
         from_tflite(tflite_model)
 
 
@@ -8792,7 +8805,7 @@ def test_stablehlo_sort_stable_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="stable sort"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="stable sort"):
         from_tflite(tflite_model)
 
 
@@ -8821,7 +8834,7 @@ def test_stablehlo_reduce_window_max_pool2d():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_reduce_window_unsupported_reducer():
@@ -8832,7 +8845,7 @@ def test_stablehlo_reduce_window_unsupported_reducer():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="MAXIMUM"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="MAXIMUM"):
         from_tflite(tflite_model)
 
 
@@ -8844,7 +8857,7 @@ def test_stablehlo_reduce_window_base_dilation_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="base dilation"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="base dilation"):
         from_tflite(tflite_model)
 
 
@@ -8877,7 +8890,7 @@ def test_stablehlo_scatter(reducer_name, reduction):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_scatter_unsupported_reducer():
@@ -8888,7 +8901,7 @@ def test_stablehlo_scatter_unsupported_reducer():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="reducer"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="reducer"):
         from_tflite(tflite_model)
 
 
@@ -8900,7 +8913,7 @@ def test_stablehlo_scatter_update_window_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="point updates"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="point updates"):
         from_tflite(tflite_model)
 
 
@@ -8918,14 +8931,14 @@ def test_stablehlo_custom_call_sharding():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_custom_call_unsupported_target():
     """TFLite StableHLO CUSTOM_CALL rejects unknown external call targets."""
     buf = _build_stablehlo_custom_call_model(call_target_name="custom_backend")
     with pytest.raises(
-        tvm.error.OpNotImplemented,
+        tvm_tirx.error.OpNotImplemented,
         match="STABLEHLO_CUSTOM_CALL target custom_backend is not supported",
     ):
         _load_model_from_buffer(buf)
@@ -8934,14 +8947,14 @@ def test_stablehlo_custom_call_unsupported_target():
 def test_stablehlo_custom_call_sharding_side_effect_unsupported():
     """TFLite StableHLO CUSTOM_CALL rejects side-effecting Sharding calls."""
     buf = _build_stablehlo_custom_call_model(has_side_effect=True)
-    with pytest.raises(tvm.error.OpNotImplemented, match="side effects"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="side effects"):
         _load_model_from_buffer(buf)
 
 
 def test_stablehlo_custom_call_sharding_metadata_mismatch_unsupported():
     """TFLite StableHLO CUSTOM_CALL rejects Sharding calls that change tensor metadata."""
     buf = _build_stablehlo_custom_call_model(output_tensor_type=_tfl_tensor_type.INT32)
-    with pytest.raises(tvm.error.OpNotImplemented, match="Sharding tensor metadata mismatch"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="Sharding tensor metadata mismatch"):
         _load_model_from_buffer(buf)
 
 
@@ -8949,7 +8962,7 @@ def test_stablehlo_options_missing_payload_unsupported():
     """A StableHLO op that declares an options type but omits the payload fails cleanly."""
     buf = _build_stablehlo_custom_call_model(include_options=False)
     with pytest.raises(
-        tvm.error.OpNotImplemented,
+        tvm_tirx.error.OpNotImplemented,
         match="StablehloCustomCallOptions is required but missing from the operator",
     ):
         _load_model_from_buffer(buf)
@@ -9079,9 +9092,9 @@ def test_stablehlo_rng_bit_generator_threefry(out_dtype, out_tensor_type):
     """TFLite STABLEHLO_RNG_BIT_GENERATOR THREEFRY matches the runtime kernel bit-exactly."""
     buf = _build_stablehlo_rng_model(_tfl_rng_algorithm.THREEFRY, 2, [2, 3], out_tensor_type)
     mod = _load_model_from_buffer(buf)
-    ex = tvm.compile(mod, tvm.target.Target("llvm"))
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    result = vm["main"](tvm.runtime.tensor(np.array([1, 2], dtype="uint64")))
+    ex = tvm.compile(mod, tvm_tirx.target.Target("llvm"))
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
+    result = vm["main"](tvm_tirx.runtime.tensor(np.array([1, 2], dtype="uint64")))
     state, output = result[0].numpy(), result[1].numpy()
     assert output.flatten().tolist() == _RNG_THREEFRY_EXPECTED[out_dtype]
     assert state.tolist() == _RNG_THREEFRY_STATE[out_dtype]
@@ -9100,9 +9113,9 @@ def test_stablehlo_rng_bit_generator_philox(out_dtype, out_tensor_type):
     """TFLite STABLEHLO_RNG_BIT_GENERATOR PHILOX matches the runtime kernel bit-exactly."""
     buf = _build_stablehlo_rng_model(_tfl_rng_algorithm.PHILOX, 3, [2, 3], out_tensor_type)
     mod = _load_model_from_buffer(buf)
-    ex = tvm.compile(mod, tvm.target.Target("llvm"))
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    result = vm["main"](tvm.runtime.tensor(np.array([1, 2, 3], dtype="uint64")))
+    ex = tvm.compile(mod, tvm_tirx.target.Target("llvm"))
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
+    result = vm["main"](tvm_tirx.runtime.tensor(np.array([1, 2, 3], dtype="uint64")))
     state, output = result[0].numpy(), result[1].numpy()
     assert output.flatten().tolist() == _RNG_PHILOX_EXPECTED[out_dtype]
     assert state.tolist() == _RNG_PHILOX_STATE[out_dtype]
@@ -9112,9 +9125,9 @@ def test_stablehlo_rng_bit_generator_default_matches_philox():
     """TFLite STABLEHLO_RNG_BIT_GENERATOR DEFAULT resolves to the PHILOX algorithm."""
     buf = _build_stablehlo_rng_model(_tfl_rng_algorithm.DEFAULT, 3, [2, 3], _tfl_tensor_type.INT32)
     mod = _load_model_from_buffer(buf)
-    ex = tvm.compile(mod, tvm.target.Target("llvm"))
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    result = vm["main"](tvm.runtime.tensor(np.array([1, 2, 3], dtype="uint64")))
+    ex = tvm.compile(mod, tvm_tirx.target.Target("llvm"))
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
+    result = vm["main"](tvm_tirx.runtime.tensor(np.array([1, 2, 3], dtype="uint64")))
     state, output = result[0].numpy(), result[1].numpy()
     assert output.flatten().tolist() == _RNG_PHILOX_EXPECTED["int32"]
     assert state.tolist() == _RNG_PHILOX_STATE["int32"]
@@ -9124,9 +9137,9 @@ def test_stablehlo_rng_bit_generator_deterministic():
     """Re-running the imported RNG kernel yields identical bit-exact output."""
     buf = _build_stablehlo_rng_model(_tfl_rng_algorithm.PHILOX, 3, [3, 3], _tfl_tensor_type.INT32)
     mod = _load_model_from_buffer(buf)
-    ex = tvm.compile(mod, tvm.target.Target("llvm"))
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    init = tvm.runtime.tensor(np.array([7, 8, 9], dtype="uint64"))
+    ex = tvm.compile(mod, tvm_tirx.target.Target("llvm"))
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
+    init = tvm_tirx.runtime.tensor(np.array([7, 8, 9], dtype="uint64"))
     first = vm["main"](init)
     second = vm["main"](init)
     np.testing.assert_equal(first[1].numpy(), second[1].numpy())
@@ -9140,8 +9153,8 @@ def test_stablehlo_rng_bit_generator_constant_state():
     )
     mod = _load_model_from_buffer(buf)
     assert len(mod["main"].params) == 0
-    ex = tvm.compile(mod, tvm.target.Target("llvm"))
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    ex = tvm.compile(mod, tvm_tirx.target.Target("llvm"))
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     result = vm["main"]()
     assert result[1].numpy().flatten().tolist() == _RNG_THREEFRY_EXPECTED["int32"]
     assert result[0].numpy().tolist() == _RNG_THREEFRY_STATE["int32"]
@@ -9150,14 +9163,16 @@ def test_stablehlo_rng_bit_generator_constant_state():
 def test_stablehlo_rng_bit_generator_unsupported_output_dtype():
     """TFLite STABLEHLO_RNG_BIT_GENERATOR rejects non-integer output dtypes."""
     buf = _build_stablehlo_rng_model(_tfl_rng_algorithm.PHILOX, 3, [2, 3], _tfl_tensor_type.FLOAT32)
-    with pytest.raises(tvm.error.OpNotImplemented, match="output dtype float32 is not supported"):
+    with pytest.raises(
+        tvm_tirx.error.OpNotImplemented, match="output dtype float32 is not supported"
+    ):
         _load_model_from_buffer(buf)
 
 
 def test_stablehlo_rng_bit_generator_threefry_invalid_state_unsupported():
     """TFLite STABLEHLO_RNG_BIT_GENERATOR rejects a u64[3] state for THREEFRY."""
     buf = _build_stablehlo_rng_model(_tfl_rng_algorithm.THREEFRY, 3, [2, 3], _tfl_tensor_type.INT32)
-    with pytest.raises(tvm.error.OpNotImplemented, match="THREEFRY requires a u64.2. state"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="THREEFRY requires a u64.2. state"):
         _load_model_from_buffer(buf)
 
 
@@ -9192,7 +9207,7 @@ def test_stablehlo_rng_bit_generator_non_uint64_state_unsupported():
     buf = _finish_tflite_model(
         builder, subgraph=subgraph, operator_codes=[rng_code], buffers=buffers
     )
-    with pytest.raises(tvm.error.OpNotImplemented, match="requires a uint64 initial state"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="requires a uint64 initial state"):
         _load_model_from_buffer(buf)
 
 
@@ -9251,13 +9266,13 @@ def test_stablehlo_while():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_while_non_bool_condition_unsupported():
     """STABLEHLO_WHILE rejects cond subgraphs that do not return scalar bool."""
     with pytest.raises(
-        tvm.error.OpNotImplemented, match="STABLEHLO_WHILE requires a scalar bool condition"
+        tvm_tirx.error.OpNotImplemented, match="STABLEHLO_WHILE requires a scalar bool condition"
     ):
         _load_model_from_buffer(
             _build_stablehlo_while_model(cond_output_type=_tfl_tensor_type.INT32)
@@ -9267,7 +9282,7 @@ def test_stablehlo_while_non_bool_condition_unsupported():
 def test_stablehlo_while_invalid_index_unsupported():
     """STABLEHLO_WHILE rejects invalid cond/body subgraph indices before lowering."""
     with pytest.raises(
-        tvm.error.OpNotImplemented, match="STABLEHLO_WHILE requires a valid subgraph index"
+        tvm_tirx.error.OpNotImplemented, match="STABLEHLO_WHILE requires a valid subgraph index"
     ):
         _load_model_from_buffer(_build_stablehlo_while_model(cond_subgraph_index=3))
 
@@ -9275,7 +9290,7 @@ def test_stablehlo_while_invalid_index_unsupported():
 def test_stablehlo_while_output_count_mismatch_unsupported():
     """STABLEHLO_WHILE rejects body subgraphs whose output arity does not match loop vars."""
     with pytest.raises(
-        tvm.error.OpNotImplemented, match="STABLEHLO_WHILE subgraph output count mismatch"
+        tvm_tirx.error.OpNotImplemented, match="STABLEHLO_WHILE subgraph output count mismatch"
     ):
         _load_model_from_buffer(_build_stablehlo_while_model(body_outputs=[]))
 
@@ -9283,7 +9298,7 @@ def test_stablehlo_while_output_count_mismatch_unsupported():
 def test_stablehlo_while_input_metadata_mismatch_unsupported():
     """STABLEHLO_WHILE rejects cond subgraph inputs whose metadata does not match loop vars."""
     with pytest.raises(
-        tvm.error.OpNotImplemented,
+        tvm_tirx.error.OpNotImplemented,
         match="STABLEHLO_WHILE subgraph input tensor metadata mismatch",
     ):
         _load_model_from_buffer(
@@ -9294,7 +9309,7 @@ def test_stablehlo_while_input_metadata_mismatch_unsupported():
 def test_stablehlo_while_output_metadata_mismatch_unsupported():
     """STABLEHLO_WHILE rejects body outputs whose metadata does not match loop vars."""
     with pytest.raises(
-        tvm.error.OpNotImplemented,
+        tvm_tirx.error.OpNotImplemented,
         match="STABLEHLO_WHILE subgraph output tensor metadata mismatch",
     ):
         _load_model_from_buffer(
@@ -9316,7 +9331,7 @@ def test_stablehlo_composite():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_composite_does_not_overwrite_main_bindings():
@@ -9336,7 +9351,7 @@ def test_stablehlo_composite_does_not_overwrite_main_bindings():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_composite_attributes_unsupported():
@@ -9347,7 +9362,7 @@ def test_stablehlo_composite_attributes_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="composite attributes"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="composite attributes"):
         from_tflite(tflite_model)
 
 
@@ -9380,7 +9395,7 @@ def test_stablehlo_typed_binary(builtin_name, relax_op, dtype, tensor_type):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 @pytest.mark.parametrize(
@@ -9438,7 +9453,7 @@ def test_stablehlo_ternary(builtin_name, relax_op):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _build_stablehlo_convert_model():
@@ -9479,7 +9494,7 @@ def test_stablehlo_convert():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_clamp():
@@ -9502,7 +9517,7 @@ def test_stablehlo_clamp():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _build_stablehlo_concat_model(dimension, num_inputs):
@@ -9570,7 +9585,7 @@ def test_stablehlo_concatenate(dimension):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _build_stablehlo_reshape_model(input_shape, output_shape, tensor_type=_tfl_tensor_type.FLOAT32):
@@ -9614,7 +9629,7 @@ def test_stablehlo_reshape():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_reshape_scalar():
@@ -9631,7 +9646,7 @@ def test_stablehlo_reshape_scalar():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_reshape_complex64():
@@ -9654,7 +9669,7 @@ def test_stablehlo_reshape_complex64():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _build_stablehlo_slice_model(input_shape, start_indices, limit_indices, strides, output_shape):
@@ -9735,7 +9750,7 @@ def test_stablehlo_slice():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _build_stablehlo_transpose_model(
@@ -9799,7 +9814,7 @@ def test_stablehlo_transpose():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_transpose_complex64():
@@ -9825,7 +9840,7 @@ def test_stablehlo_transpose_complex64():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _build_stablehlo_broadcast_in_dim_model(input_shape, broadcast_dims, output_shape):
@@ -9892,7 +9907,7 @@ def test_stablehlo_broadcast_in_dim():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _build_stablehlo_iota_model(iota_dimension, output_shape):
@@ -9948,7 +9963,7 @@ def test_stablehlo_iota():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _build_stablehlo_compare_model(direction):
@@ -10035,7 +10050,7 @@ def test_stablehlo_compare(direction_enum, relax_op):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_compare_totalorder_unsupported():
@@ -10088,7 +10103,7 @@ def test_stablehlo_compare_totalorder_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="TOTALORDER"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="TOTALORDER"):
         from_tflite(tflite_model)
 
 
@@ -10211,7 +10226,7 @@ def test_stablehlo_gather_take_equivalent(axis, offset_dims, slice_sizes, output
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_gather_complex_unsupported():
@@ -10231,7 +10246,7 @@ def test_stablehlo_gather_complex_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="start_index_map"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="start_index_map"):
         from_tflite(tflite_model)
 
 
@@ -10323,7 +10338,7 @@ def test_stablehlo_pad():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_pad_interior_unsupported():
@@ -10387,7 +10402,7 @@ def test_stablehlo_pad_interior_unsupported():
         tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
-    with pytest.raises(tvm.error.OpNotImplemented, match="interior"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="interior"):
         from_tflite(tflite_model)
 
 
@@ -10452,7 +10467,7 @@ def test_stablehlo_pad_negative_unsupported():
         tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
-    with pytest.raises(tvm.error.OpNotImplemented, match="negative"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="negative"):
         from_tflite(tflite_model)
 
 
@@ -10581,7 +10596,7 @@ def test_stablehlo_dynamic_slice():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_dynamic_slice_dynamic_starts_unsupported():
@@ -10592,7 +10607,7 @@ def test_stablehlo_dynamic_slice_dynamic_starts_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="dynamic start"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="dynamic start"):
         from_tflite(tflite_model)
 
 
@@ -10604,7 +10619,7 @@ def test_stablehlo_dynamic_slice_out_of_bounds_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="out-of-bounds"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="out-of-bounds"):
         from_tflite(tflite_model)
 
 
@@ -10629,7 +10644,7 @@ def test_stablehlo_cbrt():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_remainder():
@@ -10654,7 +10669,7 @@ def test_stablehlo_remainder():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _build_stablehlo_dynamic_update_slice_model(start_vals, dynamic_starts=False):
@@ -10724,7 +10739,7 @@ def test_stablehlo_dynamic_update_slice():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_dynamic_update_slice_dynamic_starts():
@@ -10767,7 +10782,7 @@ def test_stablehlo_dynamic_update_slice_dynamic_starts():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_dynamic_update_slice_out_of_bounds_unsupported():
@@ -10778,7 +10793,7 @@ def test_stablehlo_dynamic_update_slice_out_of_bounds_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="out-of-bounds"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="out-of-bounds"):
         from_tflite(tflite_model)
 
 
@@ -10867,7 +10882,7 @@ def test_stablehlo_dot_general():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_dot_general_noncanonical_unsupported():
@@ -10878,7 +10893,7 @@ def test_stablehlo_dot_general_noncanonical_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="contracting"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="contracting"):
         from_tflite(tflite_model)
 
 
@@ -11009,7 +11024,7 @@ def test_stablehlo_convolution():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_convolution_feature_group_unsupported():
@@ -11020,7 +11035,7 @@ def test_stablehlo_convolution_feature_group_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="feature_group_count"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="feature_group_count"):
         from_tflite(tflite_model)
 
 
@@ -11032,7 +11047,7 @@ def test_stablehlo_convolution_dimension_numbers_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="dimension numbers"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="dimension numbers"):
         from_tflite(tflite_model)
 
 
@@ -11152,7 +11167,7 @@ def test_quantize_op_uses_relax_quantize():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantize_op_requantize_uses_dq_q():
@@ -11239,7 +11254,7 @@ def test_quantize_op_requantize_uses_dq_q():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_dequantize_op_uses_relax_dequantize():
@@ -11300,7 +11315,7 @@ def test_dequantize_op_uses_relax_dequantize():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_dequantize_float16_uses_astype():
@@ -11349,7 +11364,7 @@ def test_dequantize_float16_uses_astype():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantized_avg_pool2d_uses_astype():
@@ -11451,7 +11466,7 @@ def test_quantized_avg_pool2d_uses_astype():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantized_conv2d_per_tensor_uses_qdq():
@@ -11575,7 +11590,7 @@ def test_quantized_conv2d_per_tensor_uses_qdq():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantized_conv2d_per_channel_weight_uses_remapped_axis():
@@ -11699,7 +11714,7 @@ def test_quantized_conv2d_per_channel_weight_uses_remapped_axis():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantized_concat_uses_qdq():
@@ -11789,7 +11804,7 @@ def test_quantized_concat_uses_qdq():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantized_concat_fused_relu_uses_quantized_clip():
@@ -11874,7 +11889,7 @@ def test_quantized_concat_fused_relu_uses_quantized_clip():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantized_add_uses_qdq():
@@ -11958,7 +11973,7 @@ def test_quantized_add_uses_qdq():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantized_add_fused_relu6_uses_float_clip_before_quantize():
@@ -12043,7 +12058,7 @@ def test_quantized_add_fused_relu6_uses_float_clip_before_quantize():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantized_add_without_output_qparams_invalid():
@@ -12090,7 +12105,7 @@ def test_quantized_add_without_output_qparams_invalid():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpAttributeInvalid, match="output must have quantization"):
+    with pytest.raises(tvm_tirx.error.OpAttributeInvalid, match="output must have quantization"):
         from_tflite(tflite_model)
 
 
@@ -12124,7 +12139,7 @@ def test_quantized_square_unsupported():
         buffers=[_build_buffer(builder)] * 2,
     )
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="SQUARE"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="SQUARE"):
         _load_model_from_buffer(buf)
 
 
@@ -12254,7 +12269,7 @@ def test_quantized_conv2d_with_int32_bias_dequantizes_bias():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantized_conv2d_per_channel_weight_with_int32_bias_dequantizes_bias():
@@ -12375,7 +12390,7 @@ def test_quantized_conv2d_per_channel_weight_with_int32_bias_dequantizes_bias():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_per_channel_depthwise_conv_dequantizes_before_reshape():
@@ -12450,9 +12465,9 @@ def test_per_channel_depthwise_conv_dequantizes_before_reshape():
     reshape_calls = []
 
     def _visit(expr):
-        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.dequantize"):
+        if isinstance(expr, relax.Call) and expr.op == tvm_tirx.ir.Op.get("relax.dequantize"):
             dequantize_calls.append(expr)
-        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.reshape"):
+        if isinstance(expr, relax.Call) and expr.op == tvm_tirx.ir.Op.get("relax.reshape"):
             reshape_calls.append(expr)
 
     relax.analysis.post_order_visit(mod["main"].body, _visit)
@@ -12552,7 +12567,7 @@ def test_uint8_reshape_requantize_uses_dq_reshape_q():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_transpose_conv_with_int32_bias_dequantizes_bias():
@@ -12689,7 +12704,7 @@ def test_transpose_conv_with_int32_bias_dequantizes_bias():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantized_fully_connected_with_int32_bias_dequantizes_bias():
@@ -12803,7 +12818,7 @@ def test_quantized_fully_connected_with_int32_bias_dequantizes_bias():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _build_csr_sparsity(
@@ -13098,7 +13113,7 @@ def test_densify():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_densify_with_add():
@@ -13115,7 +13130,7 @@ def test_densify_with_add():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_densify_with_conv2d():
@@ -13148,7 +13163,7 @@ def test_densify_with_conv2d():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_densify_with_fully_connected():
@@ -13172,7 +13187,7 @@ def test_densify_with_fully_connected():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _build_dilate_only_case(
@@ -13280,7 +13295,7 @@ def test_dilate():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_dilate_dynamic_dilations():
@@ -13395,7 +13410,7 @@ def test_dilate_dynamic_dilations():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 # ── LSTM ──────────────────────────────────────────────────────────────────────
@@ -13663,7 +13678,7 @@ def test_lstm_none_activation():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_lstm_tanh_activation():
@@ -13757,7 +13772,7 @@ def test_lstm_tanh_activation():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_lstm_rejects_unsupported_features():
@@ -13769,7 +13784,7 @@ def test_lstm_rejects_unsupported_features():
     zeros_r = np.zeros((num_units, num_units), dtype=np.float32)
     zeros_b = np.zeros(num_units, dtype=np.float32)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="not supported yet"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="not supported yet"):
         _load_model_from_buffer(
             _build_lstm_model(
                 batch,
@@ -13903,15 +13918,15 @@ def test_svdf_none_activation():
 
     fn = mod["main"]
     assert len(fn.params) == 2, f"expected 2 params (input, state), got {len(fn.params)}"
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.params[0].ty,
         relax.TensorType((batch, input_size), "float32"),
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.params[1].ty,
         relax.TensorType((batch, num_filters * memory_size), "float32"),
     )
-    tvm.ir.assert_structural_equal(fn.ret_ty, relax.TensorType((batch, num_units), "float32"))
+    tvm_tirx.ir.assert_structural_equal(fn.ret_ty, relax.TensorType((batch, num_units), "float32"))
 
 
 def _build_two_step_shared_state_svdf_model(
@@ -14091,7 +14106,7 @@ def test_svdf_shared_state_updates_exp_tab():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 # ── UNIDIRECTIONAL_SEQUENCE_LSTM ─────────────────────────────────────────────
@@ -14288,11 +14303,11 @@ def test_unidirectional_sequence_lstm_none_activation():
     )
 
     fn = mod["main"]
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.params[0].ty,
         relax.TensorType((batch, time, input_size), "float32"),
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.ret_ty,
         relax.TensorType((batch, time, num_units), "float32"),
     )
@@ -14333,11 +14348,11 @@ def test_unidirectional_sequence_lstm_tanh_activation():
     )
 
     fn = mod["main"]
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.params[0].ty,
         relax.TensorType((batch, time, input_size), "float32"),
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.ret_ty,
         relax.TensorType((batch, time, num_units), "float32"),
     )
@@ -14373,11 +14388,11 @@ def test_unidirectional_sequence_lstm_time_major():
     )
 
     fn = mod["main"]
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.params[0].ty,
         relax.TensorType((time, batch, input_size), "float32"),
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.ret_ty,
         relax.TensorType((time, batch, num_units), "float32"),
     )
@@ -14392,7 +14407,7 @@ def test_unidirectional_sequence_lstm_rejects_projection():
     recurrent = np.eye(num_units, dtype=np.float32)
     bias = np.zeros(num_units, dtype=np.float32)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="projection LSTM"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="projection LSTM"):
         _load_model_from_buffer(
             _build_unidirectional_sequence_lstm_model(
                 batch,
@@ -14617,7 +14632,7 @@ def test_bidirectional_sequence_rnn_none_activation():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_bidirectional_sequence_rnn_time_major():
@@ -14647,11 +14662,11 @@ def test_bidirectional_sequence_rnn_time_major():
     )
 
     fn = mod["main"]
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.params[0].ty,
         relax.TensorType((time, batch, input_size), "float32"),
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.ret_ty,
         relax.TensorType((time, batch, num_units * 2), "float32"),
     )
@@ -14666,7 +14681,7 @@ def test_bidirectional_sequence_rnn_rejects_aux_input():
     recurrent = np.eye(num_units, dtype=np.float32)
     bias = np.zeros(num_units, dtype=np.float32)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="aux input"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="aux input"):
         _load_model_from_buffer(
             _build_bidirectional_sequence_rnn_model(
                 batch,
@@ -14906,11 +14921,11 @@ def test_bidirectional_sequence_lstm_none_activation():
     )
 
     fn = mod["main"]
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.params[0].ty,
         relax.TensorType((batch, time, input_size), "float32"),
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.ret_ty,
         relax.TensorType((batch, time, num_units * 2), "float32"),
     )
@@ -14955,11 +14970,11 @@ def test_bidirectional_sequence_lstm_time_major():
     )
 
     fn = mod["main"]
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.params[0].ty,
         relax.TensorType((time, batch, input_size), "float32"),
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.ret_ty,
         relax.TensorType((time, batch, num_units * 2), "float32"),
     )
@@ -14974,7 +14989,7 @@ def test_bidirectional_sequence_lstm_rejects_aux_input():
     recurrent = np.eye(num_units, dtype=np.float32)
     bias = np.zeros(num_units, dtype=np.float32)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="aux input"):
+    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="aux input"):
         _load_model_from_buffer(
             _build_bidirectional_sequence_lstm_model(
                 batch,
@@ -15143,7 +15158,7 @@ def test_unidirectional_sequence_rnn_none_activation():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_unidirectional_sequence_rnn_relu_activation():
@@ -15171,11 +15186,11 @@ def test_unidirectional_sequence_rnn_relu_activation():
 
     fn = mod["main"]
     assert len(fn.params) == 1, "only the sequence input should be a graph input"
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.params[0].ty,
         relax.TensorType((batch, time, input_size), "float32"),
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.ret_ty,
         relax.TensorType((batch, time, num_units), "float32"),
     )
@@ -15207,12 +15222,12 @@ def test_unidirectional_sequence_rnn_time_major():
 
     fn = mod["main"]
     # Input to the graph is the raw time-major tensor [time, batch, input_size].
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.params[0].ty,
         relax.TensorType((time, batch, input_size), "float32"),
     )
     # Output is always batch-major [batch, time, num_units].
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         fn.ret_ty,
         relax.TensorType((batch, time, num_units), "float32"),
     )

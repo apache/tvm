@@ -23,14 +23,15 @@ import pytest
 from tvm_ffi import structural_walk
 
 import tvm
-import tvm.testing
-from tvm import tirx
-from tvm.ir import IRModule
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import SBlockDependenceInfo
+from tvm.s_tir import script as Ts
 from tvm.s_tir.sblock_scope import DepKind
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.tirx import Function
+from tvm_tirx import tirx
+from tvm_tirx.ir import IRModule
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import Function
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -152,4 +153,4 @@ def test_RAW_and_WAW_dependences():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

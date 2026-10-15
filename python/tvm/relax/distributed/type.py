@@ -21,10 +21,10 @@ import enum
 
 import tvm_ffi
 
-from tvm.ir import Location
-from tvm.ir.location import UNKNOWN_LOC
 from tvm.relax.type import TensorType, Type
-from tvm.runtime import Object
+from tvm_tirx.ir import Location
+from tvm_tirx.ir.location import UNKNOWN_LOC
+from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 from .global_info import DeviceMesh

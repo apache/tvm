@@ -18,21 +18,21 @@
 
 import tvm_ffi
 
-import tvm
-import tvm.script
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax
-from tvm.ir.base import assert_structural_equal
+from tvm.relax import script as R
 from tvm.relax import transform
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir.base import assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def _check_equal(x, y):
-    tvm.ir.assert_structural_equal(x, y)
-    tvm.ir.assert_structural_equal(y, x)
+    tvm_tirx.ir.assert_structural_equal(x, y)
+    tvm_tirx.ir.assert_structural_equal(y, x)
 
     xhash = tvm_ffi.structural_hash(x, map_free_vars=True)
     yhash = tvm_ffi.structural_hash(y, map_free_vars=True)
@@ -40,7 +40,7 @@ def _check_equal(x, y):
 
 
 def _check_save_roundtrip(x):
-    y = tvm.ir.load_json(tvm.ir.save_json(x))
+    y = tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(x))
     _check_equal(x, y)
 
 
@@ -119,11 +119,11 @@ def test_input_module_is_unmodified():
             return res
 
     before = Before
-    copy_of_before = tvm.ir.load_json(tvm.ir.save_json(before))
+    copy_of_before = tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(before))
 
     transform.LambdaLift()(before)
 
-    tvm.ir.assert_structural_equal(before, copy_of_before)
+    tvm_tirx.ir.assert_structural_equal(before, copy_of_before)
 
 
 def test_closure():
@@ -554,4 +554,4 @@ def test_symbolic_variable_defined_by_outer_func():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

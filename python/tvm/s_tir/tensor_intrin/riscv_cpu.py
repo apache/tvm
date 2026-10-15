@@ -21,11 +21,11 @@ import logging
 
 import tvm_ffi
 
-from tvm.codegen import llvm_get_vector_width, target_has_features
-from tvm.runtime import DataType
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx.codegen import llvm_get_vector_width, target_has_features
+from tvm_tirx.runtime import DataType
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 from .. import TensorIntrin
 

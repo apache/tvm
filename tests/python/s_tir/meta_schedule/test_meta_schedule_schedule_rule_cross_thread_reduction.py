@@ -16,20 +16,20 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
-import tvm
+import tvm_tirx
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
 from tvm.te import create_function
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Softmax_mn_after_inline:
     @Ts.function
     def main(

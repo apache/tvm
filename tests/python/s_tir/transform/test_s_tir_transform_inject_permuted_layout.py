@@ -17,9 +17,10 @@
 import pytest
 
 import tvm
-import tvm.testing
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 
 @pytest.mark.parametrize("columns", [32, 64])
@@ -59,11 +60,13 @@ def test_permute_shared_tensor_accesses(columns, scope, annotation):
                 Ts.writes(B[vi, vj])
                 B[vi, vj] = shared[vi, permuted_column(vi, vj)]
 
-    result = tvm.s_tir.transform.InjectPermutedLayout()(tvm.IRModule.from_expr(before))["before"]
-    tvm.ir.assert_structural_equal(
+    result = tvm.s_tir.transform.InjectPermutedLayout()(tvm_tirx.IRModule.from_expr(before))[
+        "before"
+    ]
+    tvm_tirx.ir.assert_structural_equal(
         result.without_attr("global_symbol"), expected.without_attr("global_symbol")
     )
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -20,12 +20,12 @@ from typing import cast
 
 import tvm_ffi
 
-from tvm import DataType
-from tvm.ir import Attrs, is_prim_expr
-from tvm.ir import Call as _Call
-from tvm.ir import PrimType as _PrimType
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx import DataType
+from tvm_tirx.ir import Attrs, is_prim_expr
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir import PrimType as _PrimType
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ...expr import Expr, ShapeExpr
 

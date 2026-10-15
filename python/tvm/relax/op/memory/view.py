@@ -28,11 +28,11 @@ while keeping the same underlying data.
 
 from collections.abc import Sequence
 
-from tvm.ir import Call as _Call
-from tvm.ir import DataTypeImm, GenericConst
-from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.relax import Expr, ShapeExpr, Tuple
 from tvm.relax.expr import prim_value
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir import DataTypeImm, GenericConst
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..base import null_value
 

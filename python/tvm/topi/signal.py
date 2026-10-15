@@ -19,9 +19,10 @@
 
 from math import pi
 
-from tvm import ir, te, tirx
-from tvm.script.ir_builder import IRBuilder
-from tvm.tirx.script import ir_builder as T
+from tvm import te
+from tvm_tirx import ir, tirx
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx.script import ir_builder as T
 
 
 def stft(

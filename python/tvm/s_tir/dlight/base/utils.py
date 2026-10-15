@@ -17,10 +17,11 @@
 # pylint: disable=missing-docstring
 """Utility methods for generic GPU."""
 
-import tvm
-from tvm import DataType, s_tir, tirx
-from tvm.ir import PrimType
-from tvm.target import Target
+import tvm_tirx
+from tvm import s_tir
+from tvm_tirx import DataType, tirx
+from tvm_tirx.ir import PrimType
+from tvm_tirx.target import Target
 
 
 def get_bytes(dtype: DataType | PrimType | str) -> int:
@@ -32,7 +33,7 @@ def get_bytes(dtype: DataType | PrimType | str) -> int:
 
 
 def get_extent(sch: s_tir.Schedule, loop_rv: s_tir.schedule.LoopRV):
-    loop: tvm.ir.For = sch.get(loop_rv)
+    loop: tvm_tirx.ir.For = sch.get(loop_rv)
     return loop.extent.value if isinstance(loop.extent, tirx.IntImm) else loop.extent
 
 
@@ -69,7 +70,7 @@ def max_threads_per_block(target: Target) -> int:
 
 def suggest_threads_per_block(
     target: Target,
-    loops: list[tvm.ir.For],
+    loops: list[tvm_tirx.ir.For],
     max_threads_for_dynamic_loop: int = 32,
 ) -> list[int]:
     if target.kind.name == "cuda":

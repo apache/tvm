@@ -22,20 +22,22 @@ import pytest
 
 import tvm
 import tvm.contrib.cblas
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax as rx
-from tvm import te, tirx, topi
-from tvm.ir.base import assert_structural_equal
+from tvm import te, topi
 from tvm.relax import ExternFunc
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
-from tvm.tirx.function import Function
+from tvm.relax import script as R
+from tvm_tirx import tirx
+from tvm_tirx.ir.base import assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx.function import Function
 
 
 @pytest.fixture(scope="module")
 def register_nop():
-    @tvm.register_global_func("test.blockbuilder.nop")
+    @tvm_tirx.register_global_func("test.blockbuilder.nop")
     def nop():
         pass
 
@@ -328,18 +330,18 @@ def test_tuple_indexing():
     # TupleGetItem will initialize type from the
     # TupleType, if present.
     x = relax_tuple[0]
-    tvm.ir.assert_structural_equal(x.ty, shape_x)
+    tvm_tirx.ir.assert_structural_equal(x.ty, shape_x)
 
     y = relax_tuple[1]
-    tvm.ir.assert_structural_equal(y.ty, shape_y)
+    tvm_tirx.ir.assert_structural_equal(y.ty, shape_y)
 
     with pytest.raises(IndexError, match="Index out of bounds"):
         relax_tuple[2]
 
     # Tuple unpacking produces TupleGetItem structs
     x_unpack, y_unpack = relax_tuple
-    tvm.ir.assert_structural_equal(x, x_unpack)
-    tvm.ir.assert_structural_equal(y, y_unpack)
+    tvm_tirx.ir.assert_structural_equal(x, x_unpack)
+    tvm_tirx.ir.assert_structural_equal(y, y_unpack)
 
     # When TupleType is available, tuple unpacking fails immediately
     # for incorrect number of arguments.
@@ -389,8 +391,8 @@ def test_call_te_unique_tensor_name():
     param_A = f_matmul.params[0]
     param_B = f_matmul.params[1]
     assert param_A.name != param_B.name
-    assert tvm.tirx.is_tensor_var(param_A)
-    assert tvm.tirx.is_tensor_var(param_B)
+    assert tvm_tirx.tirx.is_tensor_var(param_A)
+    assert tvm_tirx.tirx.is_tensor_var(param_B)
     assert not param_A.same_as(param_B)
 
 
@@ -645,8 +647,8 @@ def test_emit_nested_tuple(emit_nested_tuple):
 
         n_sym = tirx.Var("n", "int64")
         m_sym = tirx.Var("m", "int64")
-        n = rx.Var("n", tvm.ir.PrimType("int64"))
-        m = rx.Var("m", tvm.ir.PrimType("int64"))
+        n = rx.Var("n", tvm_tirx.ir.PrimType("int64"))
+        m = rx.Var("m", tvm_tirx.ir.PrimType("int64"))
         x = rx.Var("x", rx.TensorType([n_sym, m_sym], "float32"))
         y = rx.Var("y", rx.TensorType([m_sym, n_sym], "float32"))
 
@@ -692,7 +694,7 @@ def test_emit_nested_tuple(emit_nested_tuple):
     expected = make_expected(emit_nested_tuple)
     actual = make_function(emit_nested_tuple)
 
-    tvm.ir.assert_structural_equal(expected, actual)
+    tvm_tirx.ir.assert_structural_equal(expected, actual)
 
 
 @pytest.mark.skip_well_formed_check_before_transform
@@ -768,7 +770,7 @@ def test_emit_nested_seqexpr_in_binding_block():
         f = R.add(d, e)
         return f
 
-    tvm.ir.assert_structural_equal(expected, output)
+    tvm_tirx.ir.assert_structural_equal(expected, output)
 
 
 def test_emit_nested_dataflow_seqexpr_in_dataflow_block():
@@ -806,7 +808,7 @@ def test_emit_nested_dataflow_seqexpr_in_dataflow_block():
             R.output(c, f)
         return f
 
-    tvm.ir.assert_structural_equal(expected, output)
+    tvm_tirx.ir.assert_structural_equal(expected, output)
 
 
 def test_emit_ill_formed_nested_seqexpr_in_dataflow_block():
@@ -843,7 +845,7 @@ def test_emit_ill_formed_nested_seqexpr_in_dataflow_block():
 
     output = bb.finalize()["func"]
 
-    assert not rx.analysis.check_well_formed(tvm.ir.IRModule.from_expr(output))
+    assert not rx.analysis.check_well_formed(tvm_tirx.ir.IRModule.from_expr(output))
 
 
 def test_emit_well_formed_nested_seqexpr_in_dataflow_block():
@@ -880,7 +882,7 @@ def test_emit_well_formed_nested_seqexpr_in_dataflow_block():
 
     output = bb.finalize()["func"]
 
-    rx.analysis.well_formed(tvm.ir.IRModule.from_expr(output))
+    rx.analysis.well_formed(tvm_tirx.ir.IRModule.from_expr(output))
 
     @R.function(private=True)
     def expected() -> R.Tensor((), dtype="int64"):
@@ -896,7 +898,7 @@ def test_emit_well_formed_nested_seqexpr_in_dataflow_block():
             R.output(f)
         return f
 
-    tvm.ir.assert_structural_equal(expected, output)
+    tvm_tirx.ir.assert_structural_equal(expected, output)
 
 
 def test_error_when_unwrapping_dataflowvar():
@@ -967,7 +969,7 @@ def test_deduplication_when_input_contains_duplicates():
     # This test case is only valid when the two subroutines are
     # structurally equal, and therefore allowed to be de-duplicated by
     # the BlockBuilder.
-    tvm.ir.assert_structural_equal(Module["subroutine_a"], Module["subroutine_b"])
+    tvm_tirx.ir.assert_structural_equal(Module["subroutine_a"], Module["subroutine_b"])
 
     gvar_a = Module.get_global_var("subroutine_a")
     gvar_b = Module.get_global_var("subroutine_b")
@@ -994,4 +996,4 @@ def test_deduplication_when_input_contains_duplicates():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

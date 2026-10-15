@@ -26,23 +26,23 @@ import numpy as _np  # type: ignore
 import tvm_ffi
 from tvm_ffi.core import String
 
-import tvm.ir
+import tvm
 import tvm.relax
-import tvm.runtime
-from tvm import DataType
-from tvm.ir import Scriptable
-from tvm.ir.location import UNKNOWN_LOC, UnknownLoc
+import tvm_tirx.ir
+import tvm_tirx.runtime
+from tvm_tirx import DataType
+from tvm_tirx.ir import BaseFunc, Location, Node, Scriptable
+from tvm_tirx.ir.expr import _CallableExprWithOp
+from tvm_tirx.ir.location import UNKNOWN_LOC, UnknownLoc
 
-from ..ir import BaseFunc, Location, Node
-from ..ir.expr import _CallableExprWithOp
 from . import _ffi_api
 
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
 # This feature is not supported until python 3.10:
 # https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
-Expr = tvm.ir.Expr
-Type = tvm.ir.Type  # pylint: disable=invalid-name
-GlobalVar = tvm.ir.GlobalVar
+Expr = tvm_tirx.ir.Expr
+Type = tvm_tirx.ir.Type  # pylint: disable=invalid-name
+GlobalVar = tvm_tirx.ir.GlobalVar
 
 
 def prim_value(value: Expr | int | float, dtype: str | None = None) -> Expr:
@@ -71,16 +71,16 @@ def prim_value(value: Expr | int | float, dtype: str | None = None) -> Expr:
     it uses bool, int64, or float64. The script alias ``R.prim_value`` retains
     these programmatic conversion semantics.
     """
-    if tvm.ir.is_prim_expr(value):
+    if tvm_tirx.ir.is_prim_expr(value):
         return value
     if isinstance(value, bool | _np.bool_):
-        return tvm.tirx.IntImm(dtype or "bool", int(value))
+        return tvm_tirx.tirx.IntImm(dtype or "bool", int(value))
     if isinstance(value, Integral):
-        return tvm.tirx.IntImm(dtype or "int64", int(value))
+        return tvm_tirx.tirx.IntImm(dtype or "int64", int(value))
     if isinstance(value, Real):
-        return tvm.tirx.FloatImm(dtype or "float64", float(value))
+        return tvm_tirx.tirx.FloatImm(dtype or "float64", float(value))
     tvm_value = tvm_ffi.convert(value)
-    if tvm.ir.is_prim_expr(tvm_value):
+    if tvm_tirx.ir.is_prim_expr(tvm_value):
         return tvm_value
     raise TypeError(f"Cannot convert {value} with type {type(value)} to `Expr`")
 
@@ -98,7 +98,7 @@ Type.is_base_of = _relax_type_is_base_of  # type: ignore[attr-defined]
 
 
 def _is_tensor_or_missing_type(ty: Type) -> bool:
-    return isinstance(ty, tvm.relax.TensorType | tvm.ir.MissingType)
+    return isinstance(ty, tvm.relax.TensorType | tvm_tirx.ir.MissingType)
 
 
 def _binary_op_helper(lhs: Expr, rhs: Expr, op: Callable):
@@ -160,8 +160,8 @@ class IfExpr(_CallableExprWithOp):
 
 
 # Compatibility aliases. Tuple expressions are owned by the common IR.
-Tuple = tvm.ir.Tuple
-TupleGetItem = tvm.ir.TupleGetItem
+Tuple = tvm_tirx.ir.Tuple
+TupleGetItem = tvm_tirx.ir.TupleGetItem
 
 
 @tvm_ffi.register_object("relax.expr.ShapeExpr")
@@ -209,7 +209,7 @@ def make_shape(shape: list[Any] | tuple[Any, ...]) -> ShapeExpr:
 
 
 # Ordinary Relax bindings use the canonical IR Var directly.
-Var = tvm.ir.Var
+Var = tvm_tirx.ir.Var
 
 
 @tvm_ffi.register_object("relax.expr.DataflowVar")
@@ -250,7 +250,7 @@ class DataflowVar(Var):
             raise TypeError("name must be a str")
 
         if ty is not None:
-            ty = tvm.runtime.convert(ty)
+            ty = tvm_tirx.runtime.convert(ty)
             if not isinstance(ty, Type):
                 raise TypeError(
                     "ty needs to be an instance of Type. "
@@ -372,7 +372,7 @@ class Function(BaseFunc, Scriptable):
     body: Expr
     ret_ty: Type
     is_pure: bool
-    attrs: tvm.ir.DictAttrs
+    attrs: tvm_tirx.ir.DictAttrs
     loc: Location
 
     def __init__(
@@ -381,11 +381,11 @@ class Function(BaseFunc, Scriptable):
         body: Expr,
         ret_ty: Type | None = None,
         is_pure: bool | None = True,
-        attrs: tvm.ir.DictAttrs | None = None,
+        attrs: tvm_tirx.ir.DictAttrs | None = None,
         loc: Location = UNKNOWN_LOC,
     ) -> None:
         if attrs is None:
-            attrs = tvm.ir.DictAttrs({})
+            attrs = tvm_tirx.ir.DictAttrs({})
         self.__init_handle_by_constructor__(
             _ffi_api.Function,
             params,
@@ -401,12 +401,12 @@ class Function(BaseFunc, Scriptable):
         params: list[Var],
         ret_ty: Type,
         is_pure: bool | None = True,
-        attrs: tvm.ir.DictAttrs | None = None,
+        attrs: tvm_tirx.ir.DictAttrs | None = None,
         loc: Location = UNKNOWN_LOC,
     ):
         """Construct a relax.Function but without body"""
         if attrs is None:
-            attrs = tvm.ir.DictAttrs({})
+            attrs = tvm_tirx.ir.DictAttrs({})
         return _ffi_api.FunctionCreateEmpty(params, ret_ty, is_pure, attrs, loc)  # type: ignore
 
     def __call__(self, *args):
@@ -417,14 +417,14 @@ class Function(BaseFunc, Scriptable):
         args: List[relax.Expr]
             Arguments.
         """
-        return tvm.ir.Call(self, args, None, None)
+        return tvm_tirx.ir.Call(self, args, None, None)
 
-    def bind_symbolic_vars(self, binding_map: Mapping[str | tvm.tirx.Var, Expr]) -> "Function":
+    def bind_symbolic_vars(self, binding_map: Mapping[str | tvm_tirx.tirx.Var, Expr]) -> "Function":
         """Return a new function with updated symbolic variable
 
         Parameters
         ----------
-        binding_map: Mapping[str | tvm.tirx.Var, Expr]
+        binding_map: Mapping[str | tvm_tirx.tirx.Var, Expr]
 
             The mapping of values to be replaced.  Keys may be either
             a `tirx.Var` or a string name of the variable.  If the
@@ -441,7 +441,7 @@ class Function(BaseFunc, Scriptable):
         # Relax uses int64 for symbolic variables, but the FFI
         # converts python integers into int32.
         binding_map = {
-            key: tvm.tirx.const(value, "int64") if isinstance(value, int) else value
+            key: tvm_tirx.tirx.const(value, "int64") if isinstance(value, int) else value
             for key, value in binding_map.items()
         }
 
@@ -451,7 +451,7 @@ class Function(BaseFunc, Scriptable):
         self,
         binding_map: Mapping[
             str | Var,
-            int | float | Expr | tvm.runtime.Tensor | _np.ndarray,
+            int | float | Expr | tvm_tirx.runtime.Tensor | _np.ndarray,
         ],
     ) -> "Function":
         """Return a new function with updated symbolic variable
@@ -460,7 +460,7 @@ class Function(BaseFunc, Scriptable):
         ----------
         binding_map: Mapping[
                 str | Var,
-                int | float | Expr | tvm.runtime.Tensor | _np.ndarray,
+                int | float | Expr | tvm_tirx.runtime.Tensor | _np.ndarray,
         ]
 
             The mapping of values to be replaced.
@@ -487,8 +487,8 @@ class Function(BaseFunc, Scriptable):
             if isinstance(value, int):
                 # Relax uses int64 for symbolic variables, but the FFI
                 # converts python integers into int32.
-                return tvm.tirx.const(value, "int64")
-            elif isinstance(value, _np.ndarray | tvm.runtime.Tensor):
+                return tvm_tirx.tirx.const(value, "int64")
+            elif isinstance(value, _np.ndarray | tvm_tirx.runtime.Tensor):
                 return tvm.relax.const(value)
             else:
                 return value
@@ -498,7 +498,7 @@ class Function(BaseFunc, Scriptable):
         return _ffi_api.FunctionBindParams(self, binding_map)  # type: ignore
 
     def inline_functions(
-        self, function_map: Mapping[str | tvm.ir.GlobalVar, "Function"]
+        self, function_map: Mapping[str | tvm_tirx.ir.GlobalVar, "Function"]
     ) -> "Function":
         return _ffi_api.FunctionInlineFunctions(self, function_map)  # type: ignore
 
@@ -530,13 +530,13 @@ def extern(name: str, ty: Type | None = None, loc: Location = UNKNOWN_LOC):
 
 
 def const(
-    value: bool | int | float | _np.ndarray | tvm.runtime.Tensor, dtype: str | None = None
-) -> tvm.ir.GenericConst:
+    value: bool | int | float | _np.ndarray | tvm_tirx.runtime.Tensor, dtype: str | None = None
+) -> tvm_tirx.ir.GenericConst:
     """Create a constant value.
 
     Parameters
     ----------
-    value: bool | int | float | numpy.ndarray | tvm.runtime.Tensor
+    value: bool | int | float | numpy.ndarray | tvm_tirx.runtime.Tensor
         The constant value.
 
     dtype: Optional[str]
@@ -554,7 +554,7 @@ def const(
     # Needed for bf16 and fp8 support (does not come with numpy)
     import ml_dtypes  # pylint: disable=unused-import,import-outside-toplevel
 
-    if isinstance(dtype, tvm.ir.PrimType):
+    if isinstance(dtype, tvm_tirx.ir.PrimType):
         dtype = dtype.dtype
 
     if isinstance(value, Number | (bool | list)):
@@ -573,9 +573,9 @@ def const(
     if isinstance(value, _np.ndarray | _np.generic):
         if dtype is not None:
             value = value.astype(dtype)
-        value = tvm.runtime.tensor(value)
+        value = tvm_tirx.runtime.tensor(value)
 
-    if not isinstance(value, tvm.runtime.Tensor):
+    if not isinstance(value, tvm_tirx.runtime.Tensor):
         raise ValueError("value has to be scalar or Tensor")
 
     return _ffi_api.MakeTensorConst(value, None, UNKNOWN_LOC)
@@ -588,7 +588,7 @@ class TEPlaceholderOp(tvm.te.tensor.Operation):
 
 def te_tensor(
     value: Expr,
-    tir_var_map: dict[tvm.ir.Var, tvm.tirx.Expr],
+    tir_var_map: dict[tvm_tirx.ir.Var, tvm_tirx.tirx.Expr],
     name: str = "rxplaceholder",
 ):
     """Create a TE tensor from a Relax expression, with primitive variables
@@ -599,7 +599,7 @@ def te_tensor(
     value : Expr
         The relax expression, which is required to have TensorType.
 
-    tir_var_map : Dict[tvm.ir.Var, tvm.tirx.Expr]
+    tir_var_map : Dict[tvm_tirx.ir.Var, tvm_tirx.tirx.Expr]
         The exact-identity mapping used to refresh canonical primitive Vars
         that appear in the input shape.
 

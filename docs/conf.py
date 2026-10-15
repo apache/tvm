@@ -51,6 +51,7 @@ else:
     tvm_path = Path(os.pardir)
 
 sys.path.insert(0, str(tvm_path.resolve() / "python"))
+sys.path.insert(0, str(tvm_path.resolve() / "tirx" / "python"))
 sys.path.insert(0, str(tvm_path.resolve() / "docs"))
 
 # -- General configuration ------------------------------------------------
@@ -315,7 +316,7 @@ language = None
 # directories to ignore when looking for source files.
 exclude_patterns = ["_build", "_staging"]
 
-# The TIRx API pages autodoc modules (tvm.tirx, tvm.backend.cuda) that re-export
+# The TIRx API pages autodoc modules (tvm_tirx.tirx, tvm_tirx.backend.cuda) that re-export
 # common IR types (PrimExpr, Op, ...) from several modules, which makes a handful
 # of autodoc'd cross references ambiguous. Silence that specific, benign category.
 suppress_warnings = ["ref.python"]
@@ -549,8 +550,8 @@ autodoc_default_options = {
 # Maps the original namespace to list of potential modules
 # that we can import alias from.
 tvm_alias_check_map = {
-    "tvm.te": ["tvm.tirx"],
-    "tvm.tirx": ["tvm.ir", "tvm.runtime"],
+    "tvm.te": ["tvm_tirx.tirx"],
+    "tvm_tirx.tirx": ["tvm_tirx.ir", "tvm_tirx.runtime"],
 }
 
 
@@ -594,15 +595,15 @@ def update_alias_docstring(name, obj, lines):
 
 
 tvm_class_name_rewrite_map = {
-    "tvm.tirx": ["Var", "Call"],
+    "tvm_tirx.tirx": ["Var", "Call"],
     "tvm.relax": ["Var", "Call", "StringImm"],
     "tvm.relax.frontend.nn": ["Module"],
 }
 
 # When documenting modules under these prefixes, prefer types from the mapped module
-# to resolve ambiguous cross-references (e.g. Var exists in both tvm.tirx and tvm.relax).
+# to resolve ambiguous cross-references (e.g. Var exists in both tvm_tirx.tirx and tvm.relax).
 tvm_module_type_preference = {
-    "tvm.s_tir": "tvm.tirx",
+    "tvm.s_tir": "tvm_tirx.tirx",
 }
 
 
@@ -715,7 +716,7 @@ def _patch_python_domain_find_obj():
                     return best_matches
 
             # Check module type preference for cross-module resolution
-            # (e.g. tvm.s_tir.analysis uses types from tvm.tirx).
+            # (e.g. tvm.s_tir.analysis uses types from tvm_tirx.tirx).
             for prefix, preferred_mod in tvm_module_type_preference.items():
                 if modname.startswith(prefix):
                     preferred = [m for m in matches if m[0].startswith(preferred_mod + ".")]

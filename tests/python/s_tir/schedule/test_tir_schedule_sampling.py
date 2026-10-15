@@ -21,11 +21,12 @@ from collections import defaultdict
 import numpy
 import pytest
 
-import tvm.testing
-from tvm import tirx
+import tvm
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import verify_trace_roundtrip
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -179,7 +180,7 @@ def test_sample_perfect_tile_composite():
     verify_trace_roundtrip(sch, mod=elementwise)
 
 
-use_sugared_block = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+use_sugared_block = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
 
 def test_sample_compute_location(use_sugared_block):
@@ -241,4 +242,4 @@ def test_sample_perfect_tile_on_dynamic_loops():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

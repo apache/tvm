@@ -23,16 +23,18 @@ import pytest
 from tvm_ffi.access_path import AccessPath
 
 import tvm
-import tvm.testing
-from tvm import IRModule, s_tir, tirx
-from tvm.ir import Range, TensorRegion, TensorRegionType
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import s_tir
+from tvm.s_tir import script as Ts
 from tvm.s_tir.script.ir_builder import function as build_function
-from tvm.script import ir as I
-from tvm.script import ir_builder as IB
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.script.ir_builder import IRBuilder
-from tvm.tirx.script import ir_builder as TB
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.ir import Range, TensorRegion, TensorRegionType
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import ir_builder as IB
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx.script import ir_builder as TB
 
 
 def _assert_print(obj, expected):
@@ -44,7 +46,7 @@ def test_function_symbolic_tensor_param_roundtrip():
     n = tirx.Var("n", "int32")
     A = tirx.decl_tensor(shape=[n + 1, n], dtype="float32", name="A", layout=None)
     func = (
-        tirx.Function(params=[A], body=tvm.ir.Evaluate(n))
+        tirx.Function(params=[A], body=tvm_tirx.ir.Evaluate(n))
         .with_attr("global_symbol", "main")
         .with_attr({"s_tir": True, "script.namespace": "s_tir"})
     )
@@ -52,9 +54,10 @@ def test_function_symbolic_tensor_param_roundtrip():
     source = func.script()
     assert "T.Tensor((n + 1, n)" in source
     assert source.index("def main[n](") < source.index("T.evaluate(n)")
-    tvm.ir.assert_structural_equal(
-        tvm.script.from_source(
-            source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+    tvm_tirx.ir.assert_structural_equal(
+        tvm_tirx.script.from_source(
+            source,
+            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
         ),
         func,
     )
@@ -65,7 +68,7 @@ def test_function_compound_tensor_shape_first_use_roundtrip():
     n = tirx.Var("n", "int32")
     A = tirx.decl_tensor(shape=[tirx.max(n, 1)], dtype="float32", name="A", layout=None)
     func = (
-        tirx.Function(params=[A], body=tvm.ir.Evaluate(n))
+        tirx.Function(params=[A], body=tvm_tirx.ir.Evaluate(n))
         .with_attr("global_symbol", "main")
         .with_attr({"s_tir": True, "script.namespace": "s_tir"})
     )
@@ -73,9 +76,10 @@ def test_function_compound_tensor_shape_first_use_roundtrip():
     source = func.script()
     assert "T.Tensor((T.max(n, 1),)" in source
     assert source.index("def main[n](") < source.index("T.evaluate(n)")
-    tvm.ir.assert_structural_equal(
-        tvm.script.from_source(
-            source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+    tvm_tirx.ir.assert_structural_equal(
+        tvm_tirx.script.from_source(
+            source,
+            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
         ),
         func,
     )
@@ -86,29 +90,29 @@ def test_function_symbolic_alloc_tensor_roundtrip():
     buf = tirx.decl_tensor(shape=[size], dtype="float32", name="buf", layout=None)
     func = tirx.Function(
         params=[],
-        body=tvm.ir.SeqStmt(
+        body=tvm_tirx.ir.SeqStmt(
             [
-                tvm.ir.Bind(
+                tvm_tirx.ir.Bind(
                     buf,
-                    tvm.ir.Call(
+                    tvm_tirx.ir.Call(
                         "tirx.alloc_tensor",
                         [],
-                        attrs=tvm.ir.DictAttrs({}),
+                        attrs=tvm_tirx.ir.DictAttrs({}),
                         ty_args=[buf.ty],
                     ),
                 ),
-                tvm.ir.Evaluate(tirx.TensorLoad(buf, [0])),
+                tvm_tirx.ir.Evaluate(tirx.TensorLoad(buf, [0])),
             ]
         ),
     ).with_attr({"s_tir": True, "script.namespace": "s_tir"})
 
     source = func.script()
     assert "T.alloc_tensor(ty_args=[T.Tensor((size,), T.float32)])" in source
-    tvm.ir.assert_structural_equal(
-        tvm.script.from_source(
+    tvm_tirx.ir.assert_structural_equal(
+        tvm_tirx.script.from_source(
             source,
             check_well_formed=False,
-            extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
         ),
         func,
     )
@@ -121,7 +125,7 @@ def test_function():
         tirx.Function(
             params=[A, B],
             ret_type=None,
-            body=tvm.ir.Evaluate(0),
+            body=tvm_tirx.ir.Evaluate(0),
         )
         .with_attr("global_symbol", "main")
         .with_attr({"s_tir": True, "script.namespace": "s_tir"})
@@ -131,8 +135,8 @@ def test_function():
         expected="""
 from __future__ import annotations
 
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def main(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
@@ -148,7 +152,7 @@ def test_function_tensor_data_use():
         tirx.Function(
             params=[A, B],
             ret_type=None,
-            body=tvm.ir.Evaluate(A.data),
+            body=tvm_tirx.ir.Evaluate(A.data),
         )
         .with_attr("global_symbol", "main")
         .with_attr({"s_tir": True, "script.namespace": "s_tir"})
@@ -158,8 +162,8 @@ def test_function_tensor_data_use():
         expected="""
 from __future__ import annotations
 
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def main(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
@@ -177,7 +181,7 @@ def test_function_tensor_data_argument_is_scope_hint():
         tirx.Function(
             params=[A, B],
             ret_type=None,
-            body=tvm.ir.Evaluate(0),
+            body=tvm_tirx.ir.Evaluate(0),
         )
         .with_attr("global_symbol", "main")
         .with_attr({"s_tir": True, "script.namespace": "s_tir"})
@@ -187,8 +191,8 @@ def test_function_tensor_data_argument_is_scope_hint():
         expected="""
 from __future__ import annotations
 
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def main(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
@@ -285,8 +289,8 @@ def test_bind():
     _assert_print(
         obj,
         """
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function(private=True)
 def main():
@@ -298,7 +302,7 @@ def main():
 
 
 def test_remap():
-    from tvm.script import tirx as TB
+    from tvm_tirx.script import tirx as TB
 
     @Ts.function
     def block_with_remap_implicitly():
@@ -321,8 +325,8 @@ def test_remap():
                 v4, v5 = Ts.axis.remap("RS", [i4, i5])
 
     expected_output = """
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def main():
@@ -351,7 +355,7 @@ def main():
 
 
 def test_root_block():
-    from tvm.script import tirx as TB
+    from tvm_tirx.script import tirx as TB
 
     @Ts.function
     def root_block_implicitly():
@@ -369,8 +373,8 @@ def test_root_block():
                     TB.evaluate(0)
 
     expected_output = """
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def main():
@@ -395,15 +399,15 @@ def test_private_function():
     func = tirx.Function(
         params=[A, B],
         ret_type=None,
-        body=tvm.ir.Evaluate(0),
+        body=tvm_tirx.ir.Evaluate(0),
     ).with_attr({"s_tir": True, "script.namespace": "s_tir"})
     _assert_print(
         func,
         expected="""
 from __future__ import annotations
 
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function(private=True)
 def main(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
@@ -413,7 +417,7 @@ def main(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32))
 
 
 def test_function_different_symbol():
-    from tvm.script import tirx as TB
+    from tvm_tirx.script import tirx as TB
 
     @Ts.function
     def main(A: TB.Tensor((128, 128), "float32"), B: TB.Tensor((256, 256), "float32")):
@@ -423,8 +427,8 @@ def test_function_different_symbol():
     expected_output = """
 from __future__ import annotations
 
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def func(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
@@ -434,15 +438,15 @@ def func(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32))
 
 
 def test_return_statement():
-    from tvm.script import tirx as TB
+    from tvm_tirx.script import tirx as TB
 
     @Ts.function
     def func():
         return TB.int32(5)
 
     expected_output = """
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def func():
@@ -473,15 +477,15 @@ CUSTOM_FLOAT_DTYPES = [
 
 @pytest.mark.parametrize("dtype", CUSTOM_FLOAT_DTYPES)
 def test_custom_float_types(dtype):
-    from tvm.script import tirx as TB
+    from tvm_tirx.script import tirx as TB
 
     @Ts.function
     def func():
         TB.evaluate(getattr(TB, dtype)(0.0))
 
     expected_output = f"""
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def func():
@@ -492,7 +496,7 @@ def func():
 
 
 def test_predicated_load_store():
-    from tvm.script import tirx as TB
+    from tvm_tirx.script import tirx as TB
 
     @Ts.function
     def main(A: TB.Tensor((128, 128), "float32"), B: TB.Tensor((256, 256), "float32")):
@@ -522,8 +526,8 @@ def test_predicated_load_store():
     expected_output = """
 from __future__ import annotations
 
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def func(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
@@ -549,7 +553,7 @@ def test_predicated_tensor_load_store():
         tirx.Ramp(0, 4, 4),
         tirx.Broadcast(tirx.IntImm("bool", 0), 4),
     )
-    body = tvm.ir.Evaluate(
+    body = tvm_tirx.ir.Evaluate(
         tirx.call_intrin(
             "void",
             "tirx.masked_store",
@@ -569,8 +573,8 @@ def test_predicated_tensor_load_store():
     expected_output = """
 from __future__ import annotations
 
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function(private=True)
 def main(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
@@ -581,7 +585,7 @@ def main(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32))
 
 
 def test_predicated_scalable_load_store():
-    from tvm.script import tirx as TB
+    from tvm_tirx.script import tirx as TB
 
     @Ts.function
     def main(A: TB.Tensor((128, 128), "float32"), B: TB.Tensor((256, 256), "float32")):
@@ -606,8 +610,8 @@ def test_predicated_scalable_load_store():
     expected_output = """
 from __future__ import annotations
 
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def func(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
@@ -620,7 +624,7 @@ def func(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32))
 
 
 def test_masked_load_prevents_scalar_allocation_init_fusion():
-    from tvm.script import tirx as TB
+    from tvm_tirx.script import tirx as TB
 
     @Ts.function
     def main():
@@ -630,16 +634,17 @@ def test_masked_load_prevents_scalar_allocation_init_fusion():
     source = main.script()
     assert "A = T.alloc_tensor" in source
     assert "A[0] = T.masked_load" in source
-    tvm.ir.assert_structural_equal(
-        tvm.script.from_source(
-            source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+    tvm_tirx.ir.assert_structural_equal(
+        tvm_tirx.script.from_source(
+            source,
+            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
         ),
         main,
     )
 
 
 def test_vload_with_explicit_scalable_data_type():
-    from tvm.script import tirx as TB
+    from tvm_tirx.script import tirx as TB
 
     @Ts.function
     def main(A: TB.Tensor((128,), "float32"), B: TB.Tensor((128,), "float32")):
@@ -648,8 +653,8 @@ def test_vload_with_explicit_scalable_data_type():
     expected_output = """
 from __future__ import annotations
 
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def main(A: T.Tensor((128,), T.float32), B: T.Tensor((128,), T.float32)):
@@ -660,7 +665,7 @@ def main(A: T.Tensor((128,), T.float32), B: T.Tensor((128,), T.float32)):
 
 
 def test_vectorize_llvm_pure_intrin():
-    from tvm.script import tirx as TB
+    from tvm_tirx.script import tirx as TB
 
     @Ts.function
     def main(A: TB.Tensor((4,), "float32"), B: TB.Tensor((4,), "float32")):
@@ -671,8 +676,8 @@ def test_vectorize_llvm_pure_intrin():
     expected_output = """
 from __future__ import annotations
 
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def main(A: T.Tensor((4,), T.float32), B: T.Tensor((4,), T.float32)):
@@ -683,7 +688,7 @@ def main(A: T.Tensor((4,), T.float32), B: T.Tensor((4,), T.float32)):
 
 
 def test_func_with_loop_jumps():
-    from tvm.script import tirx as TB
+    from tvm_tirx.script import tirx as TB
 
     @Ts.function
     def main(A: TB.Tensor((4,), "float32"), B: TB.Tensor((4,), "float32")):
@@ -697,8 +702,8 @@ def test_func_with_loop_jumps():
     expected_output = """
 from __future__ import annotations
 
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def main(A: T.Tensor((4,), T.float32), B: T.Tensor((4,), T.float32)):
@@ -716,7 +721,7 @@ def main(A: T.Tensor((4,), T.float32), B: T.Tensor((4,), T.float32)):
 def opt_gemm_lower():
     """Representative vector GEMM lowering with base and offset MAC accesses."""
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def mmult(
@@ -1266,16 +1271,16 @@ def var_with_same_name():
 def test_same_name_var():
     func = var_with_same_name()
     out_str = func.script()
-    rt_func = tvm.script.from_source(
+    rt_func = tvm_tirx.script.from_source(
         out_str,
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(func, rt_func)
+    tvm_tirx.ir.assert_structural_equal(func, rt_func)
     assert out_str.count("for i in range(16):\n            for j in range(16):") == 1
     assert out_str.count("for i_1 in range(16):\n            for j_1 in range(16):") == 1
     assert out_str.find("i_2") == -1
@@ -1451,21 +1456,21 @@ def func_div_mod():
 
 def test_div_mod():
     func = func_div_mod()
-    rt_func = tvm.script.from_source(
+    rt_func = tvm_tirx.script.from_source(
         func.script(),
         check_well_formed=False,
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(func, rt_func, True)
+    tvm_tirx.ir.assert_structural_equal(func, rt_func, True)
 
-    assert isinstance(func.body[0].value, tvm.tirx.FloorDiv)
-    assert isinstance(func.body[1].value, tvm.tirx.FloorMod)
-    assert isinstance(func.body[2].value, tvm.tirx.Mod)
+    assert isinstance(func.body[0].value, tvm_tirx.tirx.FloorDiv)
+    assert isinstance(func.body[1].value, tvm_tirx.tirx.FloorMod)
+    assert isinstance(func.body[2].value, tvm_tirx.tirx.Mod)
 
 
 def func_with_target_spec_by_config():
@@ -1686,19 +1691,19 @@ def test_void_ptr_vs_handle():
     def handle(out_ret_value: T.handle):
         T.evaluate(out_ret_value)
 
-    tvm.ir.assert_structural_equal(void_ptr.params[0].ty, handle.params[0].ty)
+    tvm_tirx.ir.assert_structural_equal(void_ptr.params[0].ty, handle.params[0].ty)
     script = void_ptr.script()
     assert "out_ret_value: T.Ptr(T.void)" in script
     assert 'T.handle("void")' not in script
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         void_ptr,
-        tvm.script.from_source(
+        tvm_tirx.script.from_source(
             script,
             extra_vars={
-                "I": tvm.script.ir,
-                "T": tvm.script.tirx,
-                "Ts": tvm.script.s_tir,
-                "R": tvm.script.relax,
+                "I": tvm_tirx.script.ir,
+                "T": tvm_tirx.script.tirx,
+                "Ts": tvm.s_tir.script,
+                "R": tvm.relax.script,
             },
         ),
     )
@@ -1710,15 +1715,15 @@ def test_void_ptr_vs_handle():
     scoped_script = scoped_void_ptr.script()
     assert 'out_ret_value: T.Ptr(T.void, "shared")' in scoped_script
     assert 'T.handle("void"' not in scoped_script
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         scoped_void_ptr,
-        tvm.script.from_source(
+        tvm_tirx.script.from_source(
             scoped_script,
             extra_vars={
-                "I": tvm.script.ir,
-                "T": tvm.script.tirx,
-                "Ts": tvm.script.s_tir,
-                "R": tvm.script.relax,
+                "I": tvm_tirx.script.ir,
+                "T": tvm_tirx.script.tirx,
+                "Ts": tvm.s_tir.script,
+                "R": tvm.relax.script,
             },
         ),
     )
@@ -1869,7 +1874,7 @@ def multi_env_threads():
             C[i] = B[i] + 2.0
 
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(
-        tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+        tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     )
     return mod["main"]
 
@@ -1940,8 +1945,8 @@ def make_packed_api_result():
         bx = T.launch_thread("blockIdx.x", 64)
         T.evaluate(A[bx])
 
-    mod = tvm.IRModule.from_expr(func)
-    return tvm.tirx.transform.MakePackedAPI()(mod)
+    mod = tvm_tirx.IRModule.from_expr(func)
+    return tvm_tirx.tirx.transform.MakePackedAPI()(mod)
 
 
 def tvm_struct_set_generated_in_cpp():
@@ -1971,7 +1976,7 @@ def tvm_struct_set_generated_in_cpp():
                     )
                 )
 
-    return tvm.tirx.transform.LowerTVMBuiltin()(Module)
+    return tvm_tirx.tirx.transform.LowerTVMBuiltin()(Module)
 
 
 def undefined_data_ptr_in_decl_tensor():
@@ -2071,8 +2076,8 @@ def test_annotation_multi_access_paths():
     )
     assert (
         result
-        == """# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+        == """# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def main():
@@ -2099,8 +2104,8 @@ def test_annotate_from_multi_obj():
     )
     assert (
         result
-        == """# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+        == """# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def main():
@@ -2132,8 +2137,8 @@ def test_disable_concise_scoping_when_scope_annotated():
     )
     assert (
         result
-        == """# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+        == """# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @Ts.function
 def main():
@@ -2162,8 +2167,8 @@ def test_ir_module():
     _assert_module_representations(
         mod,
         """
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm.s_tir import script as Ts
+# from tvm_tirx.script import tirx as T
 
 @T.ir_module
 class Module:
@@ -2177,7 +2182,9 @@ class Module:
 def test_str_metadata():
     # This test is to check we reuse the existing metadata element for the same metadata-backed GenericConst
     # So metadata["ir.GenericConst"][0] will occur in the printed script for three times
-    str_imm = tvm.ir.GenericConst(tvm.runtime.convert(["aaa\nbbb\n"]), tvm.ir.AnyType())
+    str_imm = tvm_tirx.ir.GenericConst(
+        tvm_tirx.runtime.convert(["aaa\nbbb\n"]), tvm_tirx.ir.AnyType()
+    )
 
     @I.ir_module
     class Module:
@@ -2216,17 +2223,17 @@ def test_str_metadata():
 )
 def test_roundtrip_lowered(ir_generator):
     original = ir_generator()
-    after_roundtrip = tvm.script.from_source(
+    after_roundtrip = tvm_tirx.script.from_source(
         original.script(show_meta=True),
         check_well_formed=False,
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
 
 
 @pytest.mark.parametrize(
@@ -2251,17 +2258,17 @@ def test_roundtrip_lowered(ir_generator):
 )
 def test_roundtrip_expressions(ir_generator):
     original = ir_generator()
-    after_roundtrip = tvm.script.from_source(
+    after_roundtrip = tvm_tirx.script.from_source(
         original.script(show_meta=True),
         check_well_formed=False,
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
 
 
 @pytest.mark.parametrize(
@@ -2284,17 +2291,17 @@ def test_roundtrip_expressions(ir_generator):
 )
 def test_roundtrip_tensors(ir_generator):
     original = ir_generator()
-    after_roundtrip = tvm.script.from_source(
+    after_roundtrip = tvm_tirx.script.from_source(
         original.script(show_meta=True),
         check_well_formed=False,
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
 
 
 @pytest.mark.parametrize(
@@ -2309,17 +2316,17 @@ def test_roundtrip_tensors(ir_generator):
 )
 def test_roundtrip_metadata(ir_generator):
     original = ir_generator()
-    after_roundtrip = tvm.script.from_source(
+    after_roundtrip = tvm_tirx.script.from_source(
         original.script(show_meta=True),
         check_well_formed=False,
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
 
 
 # Import-time construction also checks the annotated S-TIR API.
@@ -2360,4 +2367,4 @@ def lowered_loop_split(
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

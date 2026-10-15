@@ -17,13 +17,13 @@
 # pylint: disable=missing-docstring,line-too-long,invalid-name,too-few-public-methods,too-many-locals
 # ruff: noqa: E501, F841
 
-import tvm.testing
-from tvm.ir import assert_structural_equal
+import tvm_tirx.testing
 from tvm.s_tir import dlight as dl
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def test_decode_gemv_1():
@@ -1335,4 +1335,4 @@ def test_no_reduction_loop_check():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

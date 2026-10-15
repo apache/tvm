@@ -21,20 +21,21 @@ import pytest
 
 import tvm
 import tvm.s_tir
-import tvm.testing
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 
 def _check(original, transformed):
-    mod = tvm.IRModule.from_expr(original.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(original.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LowerMatchTensor()(mod)
     mod = tvm.s_tir.transform.StmtSimplify()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
 def _check_fail(original):
-    mod = tvm.IRModule.from_expr(original)
+    mod = tvm_tirx.IRModule.from_expr(original)
     with pytest.raises(RuntimeError):
         mod = tvm.s_tir.transform.LowerMatchTensor()(mod)
 
@@ -612,10 +613,10 @@ def masked_match_tensor(A: T.Tensor((8,), "float32")) -> None:
 
 
 def test_masked_match_tensor_fails_explicitly():
-    mod = tvm.IRModule.from_expr(masked_match_tensor)
+    mod = tvm_tirx.IRModule.from_expr(masked_match_tensor)
     with pytest.raises(RuntimeError, match="Predicated tensor access is not currently supported"):
         tvm.s_tir.transform.LowerMatchTensor()(mod)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

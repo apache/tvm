@@ -21,14 +21,15 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from tvm import s_tir, tirx
-from tvm.ir import Range
+from tvm import s_tir
 from tvm.s_tir import IterVar
 from tvm.s_tir.schedule.schedule import SBlockRV
-from tvm.script import tirx as T
-from tvm.target import Target
-from tvm.tirx import Expr, Var
-from tvm.tirx.analysis import undefined_vars
+from tvm_tirx import tirx
+from tvm_tirx.ir import Range
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
+from tvm_tirx.tirx import Expr, Var
+from tvm_tirx.tirx.analysis import undefined_vars
 
 from ..analysis import IterInfo, SBlockInfo, get_root_block
 from .base import GPUScheduleRule

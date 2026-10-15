@@ -19,8 +19,8 @@
 
 import tvm_ffi
 
-from tvm.ir import Location, Type
-from tvm.ir.location import UNKNOWN_LOC
+from tvm_tirx.ir import Location, Type
+from tvm_tirx.ir.location import UNKNOWN_LOC
 
 from . import _ffi_api
 

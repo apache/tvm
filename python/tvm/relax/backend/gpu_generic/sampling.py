@@ -20,10 +20,10 @@
 import math
 from collections.abc import Callable
 
-import tvm
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.tirx import Function
+import tvm_tirx
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import Function
 
 
 def _is_power_of_two(n: int):
@@ -72,7 +72,7 @@ def gpu_multinomial_from_uniform(
         The generated function
     """
 
-    target = tvm.target.Target.current()
+    target = tvm_tirx.target.Target.current()
     target_dtype = "int32" if "webgpu" in str(target) else "int64"
 
     TX = T.int64(tx_len)  # threadIdx.x

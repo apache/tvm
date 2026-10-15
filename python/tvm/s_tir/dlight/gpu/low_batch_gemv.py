@@ -22,9 +22,10 @@ from typing import Literal
 
 import tvm_ffi
 
-import tvm
-from tvm import s_tir, sym, tirx
-from tvm.target import Target
+import tvm_tirx
+from tvm import s_tir
+from tvm_tirx import sym, tirx
+from tvm_tirx.target import Target
 
 from ..analysis import (
     SBlockInfo,
@@ -44,7 +45,7 @@ def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     if len(block.body) != 1:
         return None
     tensor_store = block.body[0]
-    if not isinstance(tensor_store, tvm.ir.TensorStore):
+    if not isinstance(tensor_store, tvm_tirx.ir.TensorStore):
         return None
     if not isinstance(tensor_store.value, tirx.Add):
         return None
@@ -399,7 +400,7 @@ class LowBatchGEMV(GPUScheduleRule):
                 V_shared = sch.cache_read(rf, read_tensor_index=0, storage_scope="shared")
                 sch.compute_at(V_shared, tr, preserve_unit_loops=True)
                 l = sch.get_loops(block=V_shared)[-1]
-                loop: tvm.ir.For = sch.get(l)
+                loop: tvm_tirx.ir.For = sch.get(l)
                 if isinstance(loop.extent, tirx.IntImm):
                     # avoid introducing predicates when vector length is too large
                     vec_length = max(

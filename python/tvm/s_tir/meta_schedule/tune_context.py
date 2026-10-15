@@ -26,11 +26,11 @@ from tvm_ffi import register_object, register_global_func
 
 # isort: on
 
-from tvm import IRModule
-from tvm.runtime import Object
 from tvm.s_tir import Schedule
-from tvm.target import Target
-from tvm.tirx import Function
+from tvm_tirx import IRModule
+from tvm_tirx.runtime import Object
+from tvm_tirx.target import Target
+from tvm_tirx.tirx import Function
 
 from . import _ffi_api
 from .logging import Logger, get_logger, get_logging_func

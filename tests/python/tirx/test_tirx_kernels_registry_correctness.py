@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-from tvm.testing import env
+from tvm_tirx.testing import env
 
 _WORKSPACE_TIRX_KERNELS = Path(__file__).resolve().parents[4] / "tirx-kernels"
 if _WORKSPACE_TIRX_KERNELS.exists():

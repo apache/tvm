@@ -17,8 +17,9 @@
 import pytest
 
 import tvm
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 
 @Ts.function
@@ -51,28 +52,28 @@ def unknown_bounds(A: T.Tensor((2, 3), "float32"), B: T.Tensor((3, 2), "float32"
 
 def test_oob_load():
     with pytest.raises(tvm.s_tir.ScheduleError) as err:
-        tvm.s_tir.analysis.OOBChecker()(tvm.IRModule.from_expr(bad_load))
+        tvm.s_tir.analysis.OOBChecker()(tvm_tirx.IRModule.from_expr(bad_load))
     assert "tensor A" in err.value.args[0]
 
     with pytest.raises(tvm.s_tir.ScheduleError) as err:
-        tvm.s_tir.analysis.OOBChecker()(tvm.IRModule.from_expr(bad_load_loop))
+        tvm.s_tir.analysis.OOBChecker()(tvm_tirx.IRModule.from_expr(bad_load_loop))
     assert "tensor A" in err.value.args[0]
 
 
 def test_oob_store():
     with pytest.raises(tvm.s_tir.ScheduleError) as err:
-        tvm.s_tir.analysis.OOBChecker()(tvm.IRModule.from_expr(bad_store))
+        tvm.s_tir.analysis.OOBChecker()(tvm_tirx.IRModule.from_expr(bad_store))
     assert "tensor B" in err.value.args[0]
 
     with pytest.raises(tvm.s_tir.ScheduleError) as err:
-        tvm.s_tir.analysis.OOBChecker()(tvm.IRModule.from_expr(bad_store_loop))
+        tvm.s_tir.analysis.OOBChecker()(tvm_tirx.IRModule.from_expr(bad_store_loop))
     assert "tensor B" in err.value.args[0]
 
 
 def test_unknown_bounds():
     # This should not return an error as we can't probe that N goes out of bounds
-    tvm.s_tir.analysis.OOBChecker()(tvm.IRModule.from_expr(unknown_bounds))
+    tvm.s_tir.analysis.OOBChecker()(tvm_tirx.IRModule.from_expr(unknown_bounds))
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

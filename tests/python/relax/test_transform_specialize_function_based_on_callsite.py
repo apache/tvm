@@ -19,16 +19,17 @@
 from __future__ import annotations
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.ir import TupleType as _TupleType
-from tvm.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
-from tvm.script import s_tir as Ts
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 @visitor
@@ -49,9 +50,9 @@ class ValidateBufferScopes(PyExprVisitor):  # pylint: disable=abstract-method
             if not self.is_matched:
                 # All scopes should be global in before pass
                 for buf in pfunc.params:
-                    if not tvm.tirx.is_tensor_var(buf):
+                    if not tvm_tirx.tirx.is_tensor_var(buf):
                         continue
-                    assert tvm.runtime.MemoryScope("global") == buf.data.ty.scope, (
+                    assert tvm_tirx.runtime.MemoryScope("global") == buf.data.ty.scope, (
                         f"expected to be global scoped, but got {val.data.ty.scope}"
                     )
             else:
@@ -373,4 +374,4 @@ def test_multi_arg_return():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

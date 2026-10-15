@@ -19,12 +19,12 @@
 
 from unittest import mock
 
-import tvm.testing
+import tvm_tirx.testing
 from tvm.s_tir import dlight as dl
+from tvm.s_tir import script as Ts
 from tvm.s_tir.dlight.gpu import low_batch_gemv
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def test_batch_decode_gemv():
@@ -147,10 +147,10 @@ def test_batch_decode_gemv():
                                 NT_matmul_intermediate[v0, T.int64(0), v1] = NT_matmul_intermediate_pad_local[v0, T.int64(0), v1]
 
     # fmt: on
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("metal"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_batch_gemv():
@@ -251,10 +251,10 @@ def test_batch_gemv():
                                 Ts.writes(NT_matmul[v0, T.int64(0), v1])
                                 NT_matmul[v0, T.int64(0), v1] = NT_matmul_pad_local[v0, T.int64(0), v1]
     # fmt: on
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("metal"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_reduction_symbolic_var():
@@ -275,10 +275,10 @@ def test_reduction_symbolic_var():
                     matmul[v_i0, v_i1, v_i2, v_i3] = T.float32(0)
                 matmul[v_i0, v_i1, v_i2, v_i3] = matmul[v_i0, v_i1, v_i2, v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
     # fmt: on
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("metal"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
-    tvm.ir.assert_structural_equal(mod["main"], before)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], before)
 
 
 def test_small_spatial_axis():
@@ -385,10 +385,10 @@ def test_small_spatial_axis():
                                 C[v0, v1] = C_pad_local[v0, v1]
     # fmt: on
 
-    mod = tvm.IRModule({"main": func})
+    mod = tvm_tirx.IRModule({"main": func})
     with Target("cuda"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_outer_reduction():
@@ -531,10 +531,10 @@ def test_outer_reduction():
                             Ts.writes(C[v0, 0, v1])
                             C[v0, 0, v1] = C_pad_local[v0, 0, v1]
     # fmt: on
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("metal"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)  # pylint: disable=not-callable
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
@@ -558,7 +558,7 @@ def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
     target = Target({"kind": "cuda", "max_num_threads": 1024})
     assert target.attrs.get("max_shared_memory_per_block", None) is None
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with target:
         mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
     assert mod["main"].attrs["tirx.is_scheduled"] == 1
@@ -625,7 +625,7 @@ def test_low_batch_gemv_broadcast_epilogue():
                 )
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with mock.patch.object(low_batch_gemv, "is_broadcast_epilogue", return_value=True) as check:
         with Target("nvidia/geforce-rtx-3090-ti"):
             mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
@@ -635,4 +635,4 @@ def test_low_batch_gemv_broadcast_epilogue():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

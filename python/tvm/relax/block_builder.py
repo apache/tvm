@@ -23,11 +23,11 @@ from typing import Any, Optional
 
 import tvm_ffi
 
-import tvm
+import tvm_tirx
 from tvm import relax as rx
-from tvm import tirx
-from tvm.ir.module import IRModule
-from tvm.runtime import Object
+from tvm_tirx import tirx
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 from .expr import BaseFunc, Binding, BindingBlock, Expr, GlobalVar, Tuple, Var
@@ -87,7 +87,7 @@ class TestingScope:
         self._bb = block_builder
         shape_vars = []
         for var in def_vars:
-            if isinstance(var, tvm.ir.Var):
+            if isinstance(var, tvm_tirx.ir.Var):
                 shape_vars.append(var)
             else:
                 raise ValueError("def_vars can only contain Vars")
@@ -479,7 +479,7 @@ class BlockBuilder(Object):
             m = T.dynamic("m", "int64")
             n = T.dynamic("n", "int64")
 
-            @tvm.script.ir_module
+            @tvm_tirx.script.ir_module
             class Module:
                 @Ts.function
                 def te_func(
@@ -530,7 +530,7 @@ class BlockBuilder(Object):
             m = T.dynamic("m", "int64")
             n = T.dynamic("n", "int64")
 
-            @tvm.script.ir_module
+            @tvm_tirx.script.ir_module
             class Module:
                 @Ts.function
                 def te_func(
@@ -621,7 +621,7 @@ class BlockBuilder(Object):
 
         Returns
         -------
-        gvar: tvm.ir.GlobalVar
+        gvar: tvm_tirx.ir.GlobalVar
 
             A GlobalVar representing the function
         """
@@ -685,18 +685,18 @@ class BlockBuilder(Object):
         """
         return _ffi_api.BlockBuilderNormalize(self, expr)  # type: ignore
 
-    def get(self) -> tvm.IRModule:
+    def get(self) -> tvm_tirx.IRModule:
         """Return intermediate IRModule. For the situation where the IRModule is needed in the
         middle of a building process.
 
         Returns
         -------
-        ret : tvm.IRModule
+        ret : tvm_tirx.IRModule
             An IRModule with Relax and TIR functions being built.
         """
         return _ffi_api.BlockBuilderGetContextIRModule(self)  # type: ignore
 
-    def finalize(self) -> tvm.IRModule:
+    def finalize(self) -> tvm_tirx.IRModule:
         """Finalize the building process and return the result IRModule.
 
         Possibly rename GlobalVars in the IRModule to ensure name uniqueness and the invariant:
@@ -708,7 +708,7 @@ class BlockBuilder(Object):
 
         Returns
         -------
-        ret : tvm.IRModule
+        ret : tvm_tirx.IRModule
             An IRModule with Relax and TIR functions being built.
         """
         return _ffi_api.BlockBuilderFinalize(self)  # type: ignore

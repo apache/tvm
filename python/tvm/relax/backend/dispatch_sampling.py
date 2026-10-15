@@ -18,10 +18,10 @@
 """Dispatch sampling operators to platform dependent implementation."""
 
 from tvm import relax
-from tvm.ir import Op
-from tvm.ir.module import IRModule
-from tvm.ir.transform import PassContext, module_pass
 from tvm.relax import expr_functor
+from tvm_tirx.ir import Op
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.ir.transform import PassContext, module_pass
 
 from .utils import BackendDispatcher
 

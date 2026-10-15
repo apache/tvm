@@ -17,8 +17,8 @@
 # pylint: disable=invalid-name
 """searchsorted operator"""
 
-from tvm.script.ir_builder import IRBuilder
-from tvm.tirx.script import ir_builder as T
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx.script import ir_builder as T
 
 from . import te, utils
 from .math import cast

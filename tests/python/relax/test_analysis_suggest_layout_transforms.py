@@ -18,10 +18,12 @@
 
 import pytest
 
-import tvm.testing
-from tvm import relax, s_tir, tirx
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm
+import tvm_tirx.testing
+from tvm import relax, s_tir
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 
 def apply_transformations(func, suggested_transfoms, print_transformation=False):
@@ -197,7 +199,7 @@ def test_unpacked_iter_used_in_read_access():
         func=before, write_tensor_transforms=[lambda a, b: a * 8 + b]
     )
     after = apply_transformations(before, suggested_transforms)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_invalid_index_map():
@@ -254,7 +256,7 @@ def test_SRSR_block():
         func=before, write_tensor_transforms=[lambda n, c: (n, c // 4, c % 4)]
     )
     after = apply_transformations(before, suggested_transforms)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_op_elemwise_symbolic():
@@ -291,7 +293,7 @@ def test_op_elemwise_symbolic():
         func=before, write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c)]
     )
     after = apply_transformations(before, suggested_transforms)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_op_elemwise():
@@ -323,7 +325,7 @@ def test_op_elemwise():
         func=before, write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c)]
     )
     after = apply_transformations(before, suggested_transforms)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_op_pool_nchw_nhwc():
@@ -383,7 +385,7 @@ def test_op_pool_nchw_nhwc():
         write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c)],
     )
     after = apply_transformations(before, suggested_transforms)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_op_pool_nchw16c_nhwc():
@@ -436,7 +438,7 @@ def test_op_pool_nchw16c_nhwc():
         write_tensor_transforms=[lambda n, C, h, w, c: (n, h, w, C * 16 + c)],
     )
     after = apply_transformations(before, suggested_transforms)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_op_reduce():
@@ -472,7 +474,7 @@ def test_op_reduce():
         func=before, write_tensor_transforms=[lambda n, c: (n, c // 16, c % 16)]
     )
     after = apply_transformations(before, suggested_transforms)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_op_upsampling():
@@ -564,7 +566,7 @@ def test_op_upsampling():
         func=before, write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c)]
     )
     after = apply_transformations(before, suggested_transforms)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_op_strided_slice():
@@ -611,7 +613,7 @@ def test_op_strided_slice():
         func=before, write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c // 4, c % 4)]
     )
     after = apply_transformations(before, suggested_transforms)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_op_binary_broadcast():
@@ -654,7 +656,7 @@ def test_op_binary_broadcast():
         func=before, write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c // 4, c % 4)]
     )
     after = apply_transformations(before, suggested_transforms)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_op_transpose():
@@ -686,7 +688,7 @@ def test_op_transpose():
         func=before, write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c)]
     )
     after = apply_transformations(before, suggested_transforms)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_op_pad():
@@ -726,7 +728,7 @@ def test_op_pad():
         func=before, write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c // 4, c % 4)]
     )
     after = apply_transformations(before, suggested_transforms)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_op_split():
@@ -773,7 +775,7 @@ def test_op_split():
         write_tensor_transforms=[lambda n, c, h, w: (n, h, w, c), lambda n, c, h, w: (n, h, w, c)],
     )
     after = apply_transformations(before, suggested_transforms)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 @pytest.mark.skip("temp disable, due to minor sym regression")
@@ -825,8 +827,8 @@ def test_op_split_tiling_split_dim():
         ],
     )
     after = apply_transformations(before, suggested_transforms)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

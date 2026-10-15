@@ -16,11 +16,12 @@
 # under the License.
 
 import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_prim_value_in_assert_condition():
@@ -40,7 +41,7 @@ def test_prim_value_in_assert_condition():
         @R.function(pure=False)
         def main(A: R.Tensor([N])):
             condition: T.bool = R.call_pure_packed(
-                tvm.ir.Op.get("relax.call_tir_packed"),
+                tvm_tirx.ir.Op.get("relax.call_tir_packed"),
                 Expected.compute_symbolic_expr,
                 (R.prim_value(N),),
             )
@@ -53,7 +54,7 @@ def test_prim_value_in_assert_condition():
             return N % 16 == 0
 
     After = tvm.relax.transform.ComputePrimValue()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_prim_value_in_branch_condition():
@@ -76,7 +77,7 @@ def test_prim_value_in_branch_condition():
         @R.function(pure=False)
         def main(A: R.Tensor([N])):
             condition: T.bool = R.call_pure_packed(
-                tvm.ir.Op.get("relax.call_tir_packed"),
+                tvm_tirx.ir.Op.get("relax.call_tir_packed"),
                 Expected.compute_symbolic_expr,
                 (R.prim_value(N),),
             )
@@ -92,8 +93,8 @@ def test_prim_value_in_branch_condition():
             return N % 16 == 0
 
     After = tvm.relax.transform.ComputePrimValue()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

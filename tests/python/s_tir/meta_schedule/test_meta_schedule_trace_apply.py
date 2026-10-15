@@ -19,18 +19,19 @@ import pytest
 
 import tvm
 import tvm.s_tir.meta_schedule as ms
-import tvm.testing
-from tvm.codegen import llvm_lookup_intrinsic_id
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import Schedule
+from tvm.s_tir import script as Ts
 from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
-from tvm.tirx import floordiv, floormod
+from tvm_tirx.codegen import llvm_lookup_intrinsic_id
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
+from tvm_tirx.tirx import floordiv, floormod
 
 
 # fmt: off
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Dense:
     @Ts.function
     def main(
@@ -52,7 +53,7 @@ class Dense:
                     T_matmul_NT[i, j] = T.float32(0)
                 T_matmul_NT[i, j] = T_matmul_NT[i, j] + p0[i, k] * p1[j, k]
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class DenseAdd:
     @Ts.function
     def main(
@@ -87,7 +88,7 @@ class DenseAdd:
                 Ts.writes(T_add[ax0, ax1])
                 T_add[ax0, ax1] = T_matmul_NT[ax0, ax1] + compile_engine_const[()]
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class DenseAdd_scheduled_cpu:
     @Ts.function
     def main(
@@ -169,7 +170,7 @@ class DenseAdd_scheduled_cpu:
                         Ts.writes(T_add[v0, v1])
                         T_add[v0, v1] = T_matmul_NT_global[v0, v1] + T.float32(1)
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class DenseAdd_cpu_no_write_cache:
     @Ts.function
     def main(p0: T.Tensor((128, 128), "float32"), p1: T.Tensor((128, 128), "float32"), T_add: T.Tensor((128, 128), "float32")) -> None:
@@ -214,7 +215,7 @@ class DenseAdd_cpu_no_write_cache:
                 Ts.writes(T_add[ax0, ax1])
                 T_add[ax0, ax1] = T_matmul_NT[ax0, ax1] + T.float32(1)
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class DenseAdd_scheduled_gpu:
     @Ts.function
     def main(
@@ -363,7 +364,7 @@ class DenseAdd_scheduled_gpu:
                             Ts.writes(T_add[v0, v1])
                             T_add[v0, v1] = T_matmul_NT_local[v0, v1] + T.float32(1)
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dInt8:
     @Ts.function
     def main(p0: T.Tensor((16, 56, 56, 64), "int8"), p1: T.Tensor((256, 1, 1, 64), "int8"), p2: T.Tensor((1, 1, 1, 256), "int32"), p3: T.Tensor((1, 1, 1, 256), "int32"), p4: T.Tensor((1, 1, 1, 256), "int64"), p5: T.Tensor((1, 1, 1, 256), "int64"), p6: T.Tensor((1, 1, 1, 256), "int64"), p7: T.Tensor((), "int32"), p8: T.Tensor(1, "int32"), compute: T.Tensor((16, 56, 56, 256), "int32")) -> None:
@@ -478,7 +479,7 @@ class Conv2dInt8:
                 Ts.writes(compute[i0_7, i1_7, i2_7, i3_7])
                 compute[i0_7, i1_7, i2_7, i3_7] = T.Cast(T.shift_right(T.Cast(T_subtract_1[i0_7, i1_7, i2_7, i3_7], "int64") * T.Cast(1963325822, "int64"), (31) - (1)), "int32")
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dInt8_target:
     @Ts.function
     def main(p0: T.Tensor((16, 56, 56, 64), "int8"), p1: T.Tensor((256, 1, 1, 64), "int8"), p2: T.Tensor((1, 1, 1, 256), "int32"), p3: T.Tensor((1, 1, 1, 256), "int32"), p4: T.Tensor((1, 1, 1, 256), "int64"), p5: T.Tensor((1, 1, 1, 256), "int64"), p6: T.Tensor((1, 1, 1, 256), "int64"), p7: T.Tensor((), "int32"), p8: T.Tensor(1, "int32"), p9: T.Tensor((16, 56, 56, 256), "int32"), compute: T.Tensor((16, 56, 56, 256), "uint8")) -> None:
@@ -643,7 +644,7 @@ C_3_s0 = T.dynamic("C_3_s0", "int32")
 C_3_s1 = T.dynamic("C_3_s1", "int32")
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dInt8_NCHWc:
     @Ts.function
     def main(p0: T.Tensor((1, 32, 7, 7, 16), "uint8"), p1: T.Tensor((128, 32, 1, 1, 4, 16, 4), "int8"), p2: T.Tensor((1, 128, 1, 1, 16), "int32"), p3: T.Tensor((1, 128, 1, 1, 16), "float32"), p4: T.Tensor(1, "float32"), p5: T.Tensor((1, 128, 7, 7, 16), "int32"), compute: T.Tensor((1, 128, 7, 7, 16), "uint8")) -> None:
@@ -805,7 +806,7 @@ class Conv2dInt8_NCHWc:
                 Ts.writes(compute[i0_5, i1_5, i2_5, i3_5, i4_5])
                 compute[i0_5, i1_5, i2_5, i3_5, i4_5] = T.max(T.min(T_cast_5[i0_5, i1_5, i2_5, i3_5, i4_5], T.uint8(255)), T.uint8(0))
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dInt8_NCHWc_target:
     @Ts.function
     def main(p0: T.Tensor((1, 32, 7, 7, 16), "uint8"), p1: T.Tensor((128, 32, 1, 1, 4, 16, 4), "int8"), p2: T.Tensor((1, 128, 1, 1, 16), "int32"), p3: T.Tensor((1, 128, 1, 1, 16), "float32"), p4: T.Tensor(1, "float32"), p5: T.Tensor((1, 128, 7, 7, 16), "uint8"), T_cast: T.Tensor((1, 128, 7, 7, 16), "int32")) -> None:
@@ -1022,7 +1023,7 @@ class Conv2dInt8_NCHWc_target:
                 T_cast[ax0, ax1, ax2, ax3, ax4] = T.cast(compute_2[ax0, ax1, ax2, ax3, ax4], "int32")
 
 def get_conv2d_vnni_mod(intrin_id):
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv2dInt8_NCHWc_scheduled:
         @Ts.function
         def main(p0: T.Tensor((1, 32, 7, 7, 16), "uint8"), p1: T.Tensor((128, 32, 1, 1, 4, 16, 4), "int8"), p2: T.Tensor((1, 128, 1, 1, 16), "int32"), p3: T.Tensor((1, 128, 1, 1, 16), "float32"), p4: T.Tensor(1, "float32"), p5: T.Tensor((1, 128, 7, 7, 16), "uint8"), T_cast: T.Tensor((1, 128, 7, 7, 16), "int32")) -> None:
@@ -1089,7 +1090,7 @@ def get_conv2d_vnni_mod(intrin_id):
 
     return Conv2dInt8_NCHWc_scheduled
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dWinogradAddRelu:
     @Ts.function
     def main(p0: T.Tensor((1, 56, 56, 64), "float32"), p1: T.Tensor((6, 6, 64, 64), "float32"), p2: T.Tensor((1, 1, 1, 64), "float32"), T_relu: T.Tensor((1, 56, 56, 64), "float32")) -> None:
@@ -1180,7 +1181,7 @@ class Conv2dWinogradAddRelu:
                 Ts.writes(T_relu[ax0, ax1, ax2, ax3])
                 T_relu[ax0, ax1, ax2, ax3] = T.max(T_add[ax0, ax1, ax2, ax3], T.float32(0))
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dWinogradAddResidualRelu:
     @Ts.function
     def main(p0: T.Tensor((1, 56, 56, 64), "float32"), p1: T.Tensor((6, 6, 64, 64), "float32"), p2: T.Tensor((1, 1, 1, 64), "float32"), p3: T.Tensor((1, 56, 56, 64), "float32"), T_relu: T.Tensor((1, 56, 56, 64), "float32")) -> None:
@@ -1278,7 +1279,7 @@ class Conv2dWinogradAddResidualRelu:
                 Ts.writes(T_relu[ax0, ax1, ax2, ax3])
                 T_relu[ax0, ax1, ax2, ax3] = T.max(T_add_1[ax0, ax1, ax2, ax3], T.float32(0))
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dWinogradAddResidualRelu_scheduled:
     @Ts.function
     def main(p0: T.Tensor((1, 56, 56, 64), "float32"), p1: T.Tensor((6, 6, 64, 64), "float32"), p2: T.Tensor((1, 1, 1, 64), "float32"), p3: T.Tensor((1, 56, 56, 64), "float32"), T_relu: T.Tensor((1, 56, 56, 64), "float32")) -> None:
@@ -1417,7 +1418,7 @@ class Conv2dWinogradAddResidualRelu_scheduled:
                     Ts.writes(T_relu[n, h, w, co])
                     T_relu[n, h, w, co] = T.max(inverse[h % 4, w % 4, n * 196 + h // 4 * 14 + w // 4, co] + p2[n, 0, 0, co] + p3[n, h, w, co], T.float32(0))
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dInt8_with_predicate:
     @Ts.function
     def main(p0: T.Tensor((16, 56, 56, 64), "int8"), p1: T.Tensor((256, 1, 1, 64), "int8"), p2: T.Tensor((1, 1, 1, 256), "int32"), p3: T.Tensor((1, 1, 1, 256), "int32"), p4: T.Tensor(256, "int32"), p5: T.Tensor(256, "int32"), p6: T.Tensor(256, "int32"), p7: T.Tensor((), "int32"), p8: T.Tensor(1, "int32"), compute: T.Tensor((16, 56, 56, 256), "int32")) -> None:
@@ -1490,7 +1491,7 @@ class Conv2dInt8_with_predicate:
                 Ts.writes(compute[i0_8, i1_8, i2_8, i3_8])
                 compute[i0_8, i1_8, i2_8, i3_8] = T.Cast(T.shift_right(T.Cast(T_subtract_1[i0_8, i1_8, i2_8, i3_8], "int64") * T.Cast(1963325822, "int64"), (31) - (1)), "int32")
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dInt8_with_predicate_target:
     @Ts.function
     def main(p0: T.Tensor((16, 56, 56, 64), "int8"), p1: T.Tensor((256, 1, 1, 64), "int8"), p2: T.Tensor((1, 1, 1, 256), "int32"), p3: T.Tensor((1, 1, 1, 256), "int32"), p4: T.Tensor(256, "int32"), p5: T.Tensor(256, "int32"), p6: T.Tensor(256, "int32"), p7: T.Tensor((), "int32"), p8: T.Tensor(1, "int32"), p9: T.Tensor((16, 56, 56, 256), "int32"), compute: T.Tensor((16, 56, 56, 256), "int32")) -> None:
@@ -1584,7 +1585,7 @@ class Conv2dInt8_with_predicate_target:
                 Ts.writes(compute[i0_13, i1_13, i2_13, i3_13])
                 compute[i0_13, i1_13, i2_13, i3_13] = T.max(T.min(T_add_2[i0_13, i1_13, i2_13, i3_13], 255), 0)
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dInt8_with_predicate_scheduled:
     @Ts.function
     def main(p0: T.Tensor((16, 56, 56, 64), "int8"), p1: T.Tensor((256, 1, 1, 64), "int8"), p2: T.Tensor((1, 1, 1, 256), "int32"), p3: T.Tensor((1, 1, 1, 256), "int32"), p4: T.Tensor((256,), "int32"), p5: T.Tensor((256,), "int32"), p6: T.Tensor((256,), "int32"), p7: T.Tensor((), "int32"), p8: T.Tensor((1,), "int32"), p9: T.Tensor((16, 56, 56, 256), "int32"), compute: T.Tensor((16, 56, 56, 256), "int32")):
@@ -1705,7 +1706,7 @@ def verify(anchor_mod, anchor_trace_fun, target_mod, target, ref):
 
     ms.trace_apply.schedule_using_anchor_trace(sch, anchor_trace, Target(target))
 
-    tvm.ir.assert_structural_equal(ref, sch.mod)
+    tvm_tirx.ir.assert_structural_equal(ref, sch.mod)
 
 
 def test_dense_add_cpu():
@@ -1759,7 +1760,7 @@ def test_dense_add_cpu():
         sch.transform_layout(
             block=b58,
             tensor=("read", 2),
-            index_map=tvm.tirx.IndexMap.from_func(
+            index_map=tvm_tirx.tirx.IndexMap.from_func(
                 lambda i0, i1: (
                     floordiv(i0, 64),
                     i1,
@@ -1826,7 +1827,7 @@ def test_dense_add_cpu_no_write_cache():
         sch.transform_layout(
             block=b49,
             tensor=("read", 2),
-            index_map=tvm.tirx.IndexMap.from_func(
+            index_map=tvm_tirx.tirx.IndexMap.from_func(
                 lambda i0, i1: (
                     floordiv(i1, 16),
                     floordiv(i0, 32),
@@ -2815,4 +2816,4 @@ def test_inline_order():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

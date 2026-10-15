@@ -17,10 +17,11 @@
 # pylint: disable=invalid-name
 """scatter_elements related operators"""
 
-import tvm
-from tvm import te, tirx
-from tvm.script.ir_builder import IRBuilder
-from tvm.tirx.script import ir_builder as T
+import tvm_tirx
+from tvm import te
+from tvm_tirx import tirx
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx.script import ir_builder as T
 
 from .. import utils
 from ..math import cast
@@ -66,7 +67,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         updates = updates_ptr
         out = out_ptr
 
-        max_threads = int(tvm.target.Target.current(allow_none=False).attrs["max_num_threads"])
+        max_threads = int(tvm_tirx.target.Target.current(allow_none=False).attrs["max_num_threads"])
 
         with IRBuilder() as ib:
             # Init

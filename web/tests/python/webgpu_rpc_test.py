@@ -23,33 +23,34 @@ Connect javascript end to the websocket port and connect to the RPC.
 import numpy as np
 
 import tvm
+import tvm_tirx
 from tvm import rpc, te
 from tvm.contrib import emcc
-from tvm.support import utils
+from tvm_tirx.support import utils
 
 proxy_host = "127.0.0.1"
 proxy_port = 9090
 
 
 def test_rpc():
-    if not tvm.runtime.enabled("rpc"):
+    if not tvm_tirx.runtime.enabled("rpc"):
         return
     # generate the wasm library
-    target = tvm.target.Target(
+    target = tvm_tirx.target.Target(
         "webgpu", host={"kind": "llvm", "mtriple": "wasm32-unknown-unknown-wasm"}
     )
 
     n = te.var("n")
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: te.log(te.abs(A(*i) + 1)), name="B")
-    mod = tvm.IRModule.from_expr(te.create_function([A, B]))
+    mod = tvm_tirx.IRModule.from_expr(te.create_function([A, B]))
     sch = tvm.s_tir.Schedule(mod)
     (i,) = sch.get_loops(block=sch.get_sblock("B"))
     i0, i1 = sch.split(i, [None, 32])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")
 
-    fadd = tvm.tirx.compile(sch.mod.with_attr("system_lib_prefix", ""), target=target).mod
+    fadd = tvm_tirx.tirx.compile(sch.mod.with_attr("system_lib_prefix", ""), target=target).mod
     temp = utils.tempdir()
 
     wasm_path = temp.relpath("addone_gpu.wasm")
@@ -74,7 +75,9 @@ def test_rpc():
         f1 = remote.system_lib()
         addone = f1.get_function("main")
         addone(a, b)
-        tvm.testing.assert_allclose(b.numpy(), np.log(np.abs(a.numpy()) + 1), atol=1e-5, rtol=1e-5)
+        tvm_tirx.testing.assert_allclose(
+            b.numpy(), np.log(np.abs(a.numpy()) + 1), atol=1e-5, rtol=1e-5
+        )
         print("Test pass..")
 
     check(remote, 71821 * 32)
