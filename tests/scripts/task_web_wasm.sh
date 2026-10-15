@@ -18,7 +18,7 @@
 
 set -euxo pipefail
 
-export PYTHONPATH=`pwd`/python
+export PYTHONPATH="$(pwd)/tirx/python:$(pwd)/python"
 
 # setup tvm-ffi into python folder
 uv pip install -v --target=python ./3rdparty/tvm-ffi/

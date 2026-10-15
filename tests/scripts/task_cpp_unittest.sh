@@ -35,4 +35,5 @@ export OMP_NUM_THREADS=1
 pushd "${BUILD_DIR}"
 # run cpp test executable
 ./cpptest
+./tirx_cpptest
 popd

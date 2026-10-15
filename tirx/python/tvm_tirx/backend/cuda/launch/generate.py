@@ -318,7 +318,7 @@ def main():
         DIRECTORY / "_generated.py": python_api(),
         ROOT / "src/backend/cuda/launch/launch_fields.h": native_fields(),
         ROOT / "src/backend/cuda/launch/launch_attributes.h": native_attributes(),
-        ROOT / "docs/tirx/api/cuda_launch.rst": documentation(),
+        ROOT.parent / "docs/tirx/api/cuda_launch.rst": documentation(),
     }
     for path in list(outputs):
         outputs[path] = format_output(path, outputs[path])

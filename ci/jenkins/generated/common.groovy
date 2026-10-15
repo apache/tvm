@@ -298,6 +298,7 @@ def make_cpp_tests(image, build_dir) {
         --sccache-bucket tvm-sccache-prod \
         --sccache-region us-west-2 \
         --cmake-target cpptest \
+        --cmake-target tirx_cpptest \
         --build-dir ${build_dir}
       """,
     label: 'Make C++ tests',

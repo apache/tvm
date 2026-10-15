@@ -18,7 +18,7 @@
 
 set -euxo pipefail
 
-export PYTHONPATH="$(pwd)/python"
+export PYTHONPATH="$(pwd)/tirx/python:$(pwd)/python"
 
 # to avoid CI CPU thread throttling.
 export TVM_BIND_THREADS=0
@@ -137,7 +137,7 @@ uv pip install --no-deps apache-tvm-ffi-orcjit==0.1.2
 
 
 cd docs
-PYTHONPATH=$(pwd)/../python make htmldepoly SPHINXOPTS='-j auto' |& tee /tmp/$$.log.txt
+PYTHONPATH=$(pwd)/../tirx/python:$(pwd)/../python make htmldepoly SPHINXOPTS='-j auto' |& tee /tmp/$$.log.txt
 if grep -E "failed to execute|Segmentation fault" < /tmp/$$.log.txt; then
     echo "Some of sphinx-gallery item example failed to execute."
     exit 1

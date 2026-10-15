@@ -32,12 +32,18 @@ import sys
 
 files_to_stash = {
     # Executables and build files needed to run c++ tests
-    "cpptest": ["build/cpptest", "build/build.ninja", "build/CMakeFiles/rules.ninja"],
+    "cpptest": [
+        "build/cpptest",
+        "build/tirx_cpptest",
+        "build/build.ninja",
+        "build/CMakeFiles/rules.ninja",
+    ],
     # runtime files
     "tvm_runtime": ["build/lib/libtvm_runtime.so", "build/config.cmake"],
     # compiler files
     "tvm_lib": [
         "build/lib/libtvm_compiler.so",
+        "build/lib/libtvm_tirx.so",
         "build/lib/libtvm_runtime.so",
         "build/lib/libtvm_ffi.so",
         "build/lib/libtvm_runtime_cuda.so",
