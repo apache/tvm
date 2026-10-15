@@ -21,7 +21,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from tvm_tirx import libinfo
+from tvm import libinfo
 
 
 def find_wasm_lib(name, optional=False):
