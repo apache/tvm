@@ -615,13 +615,12 @@ class SocketSession(Session):
         host: str,
         port: int,
     ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.SocketSession,  # type: ignore # pylint: disable=no-member
-            num_nodes,
-            num_workers_per_node,
-            num_groups,
-            host,
-            port,
+        # Connecting remote nodes can block. A regular FFI call releases the GIL
+        # so another Python thread can launch them; constructor calls retain it.
+        self.__move_handle_from__(
+            _ffi_api.SocketSession(  # type: ignore # pylint: disable=no-member
+                num_nodes, num_workers_per_node, num_groups, host, port
+            )
         )
 
 
