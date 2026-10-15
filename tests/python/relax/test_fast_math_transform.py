@@ -19,12 +19,12 @@
 
 import pytest
 
-import tvm.testing
+import tvm_tirx.testing, tvm
 from tvm import relax, topi
-from tvm.ir.base import assert_structural_equal
+from tvm_tirx.ir.base import assert_structural_equal
 from tvm.relax.transform import FastMathTransform
-from tvm.script import ir as I
-from tvm.script import relax as R
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
 
 
 def _run_pass_compare_output(Before, Expected):
@@ -59,4 +59,4 @@ def test_optimize_transform_layout_pass_one_arg():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

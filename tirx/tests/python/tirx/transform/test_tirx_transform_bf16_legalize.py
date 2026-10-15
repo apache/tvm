@@ -15,17 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-import tvm.script
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.target import Target
-from tvm.tirx.transform.transform import BindTarget
+import tvm_tirx
+import tvm_tirx.script
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
+from tvm_tirx.tirx.transform.transform import BindTarget
 
 
 def u16tof32(v):
     uint32_v = v.astype("uint32")
-    uint32_v = uint32_v << tvm.tirx.const(16, "uint32")
+    uint32_v = uint32_v << tvm_tirx.tirx.const(16, "uint32")
     return T.reinterpret(uint32_v, ty="float32")
 
 
@@ -35,10 +35,10 @@ def bf16tof32(v):
 
 def f32tou16(v):
     uint32_v = T.reinterpret(v, ty="uint32")
-    rounding_bias = (uint32_v >> tvm.tirx.const(16, "uint32")) & tvm.tirx.const(1, "uint32")
-    rounding_bias += tvm.tirx.const(0x7FFF, "uint32")
+    rounding_bias = (uint32_v >> tvm_tirx.tirx.const(16, "uint32")) & tvm_tirx.tirx.const(1, "uint32")
+    rounding_bias += tvm_tirx.tirx.const(0x7FFF, "uint32")
     uint32_v = uint32_v + rounding_bias
-    return (uint32_v >> tvm.tirx.const(16, "uint32")).astype("uint16")
+    return (uint32_v >> tvm_tirx.tirx.const(16, "uint32")).astype("uint16")
 
 
 def f32tobf16(v):
@@ -47,7 +47,7 @@ def f32tobf16(v):
 
 def test_bf16_simple_store_will_legalize():
     def get_before():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class Before:
             @T.function
             def main(
@@ -65,7 +65,7 @@ def test_bf16_simple_store_will_legalize():
         return Before
 
     def after_compute_legalize():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class After:
             @T.function
             def main(
@@ -83,7 +83,7 @@ def test_bf16_simple_store_will_legalize():
         return After
 
     def after_storage_legalize():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class After:
             @T.function
             def main(
@@ -102,15 +102,15 @@ def test_bf16_simple_store_will_legalize():
 
     target = Target("nvidia/geforce-rtx-2080-ti")
     before = BindTarget(target)(get_before())
-    after_compute = tvm.tirx.transform.BF16ComputeLegalize()(before)
-    after_storage = tvm.tirx.transform.BF16StorageLegalize()(after_compute)
-    tvm.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
-    tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
+    after_compute = tvm_tirx.tirx.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm_tirx.tirx.transform.BF16StorageLegalize()(after_compute)
+    tvm_tirx.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
+    tvm_tirx.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
 
 
 def test_bf16_masked_load_store_will_legalize():
     def get_before():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class Before:
             @T.function
             def main(Aptr: T.handle("bfloat16"), Cptr: T.handle("bfloat16")):
@@ -149,8 +149,8 @@ def test_bf16_masked_load_store_will_legalize():
 
     target = Target("nvidia/geforce-rtx-2080-ti")
     before = BindTarget(target)(get_before())
-    after_compute = tvm.tirx.transform.BF16ComputeLegalize()(before)
-    after_storage = tvm.tirx.transform.BF16StorageLegalize()(after_compute)
+    after_compute = tvm_tirx.tirx.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm_tirx.tirx.transform.BF16StorageLegalize()(after_compute)
 
     @I.ir_module
     class ExpectedCompute:
@@ -199,7 +199,7 @@ def test_bf16_masked_load_store_will_legalize():
                 mask[0],
             )
 
-    tvm.ir.assert_structural_equal(after_compute, ExpectedCompute)
+    tvm_tirx.ir.assert_structural_equal(after_compute, ExpectedCompute)
 
     @I.ir_module
     class ExpectedStorage:
@@ -240,12 +240,12 @@ def test_bf16_masked_load_store_will_legalize():
                 mask[0],
             )
 
-    tvm.ir.assert_structural_equal(after_storage, ExpectedStorage)
+    tvm_tirx.ir.assert_structural_equal(after_storage, ExpectedStorage)
 
 
 def test_bf16_storage_compute_scope_will_legalize():
     def get_before():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class Before:
             @T.function
             def main(
@@ -265,7 +265,7 @@ def test_bf16_storage_compute_scope_will_legalize():
         return Before
 
     def after_compute_legalize():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class After:
             @T.function
             def main(
@@ -285,7 +285,7 @@ def test_bf16_storage_compute_scope_will_legalize():
         return After
 
     def after_storage_legalize():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class After:
             @T.function
             def main(
@@ -306,15 +306,15 @@ def test_bf16_storage_compute_scope_will_legalize():
 
     target = Target("nvidia/geforce-rtx-2080-ti")
     before = BindTarget(target)(get_before())
-    after_compute = tvm.tirx.transform.BF16ComputeLegalize()(before)
-    after_storage = tvm.tirx.transform.BF16StorageLegalize()(after_compute)
-    tvm.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
-    tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
+    after_compute = tvm_tirx.tirx.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm_tirx.tirx.transform.BF16StorageLegalize()(after_compute)
+    tvm_tirx.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
+    tvm_tirx.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
 
 
 def test_bf16_storage_compute_scope_wont_legalize():
     def get_before():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class Before:
             @T.function
             def main(
@@ -334,7 +334,7 @@ def test_bf16_storage_compute_scope_wont_legalize():
         return Before
 
     def after_compute_legalize():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class After:
             @T.function
             def main(
@@ -354,7 +354,7 @@ def test_bf16_storage_compute_scope_wont_legalize():
         return After
 
     def after_storage_legalize():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class After:
             @T.function
             def main(
@@ -375,15 +375,15 @@ def test_bf16_storage_compute_scope_wont_legalize():
 
     target = Target("nvidia/geforce-rtx-3090-ti")
     before = BindTarget(target)(get_before())
-    after_compute = tvm.tirx.transform.BF16ComputeLegalize()(before)
-    after_storage = tvm.tirx.transform.BF16StorageLegalize()(after_compute)
-    tvm.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
-    tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
+    after_compute = tvm_tirx.tirx.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm_tirx.tirx.transform.BF16StorageLegalize()(after_compute)
+    tvm_tirx.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
+    tvm_tirx.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
 
 
 def test_bf16_reduce_will_legalize():
     def get_before():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class Before:
             @T.function(private=True)
             def main(
@@ -408,7 +408,7 @@ def test_bf16_reduce_will_legalize():
         return Before
 
     def after_compute_legalize():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class After:
             @T.function(private=True)
             def main(
@@ -441,7 +441,7 @@ def test_bf16_reduce_will_legalize():
         return After
 
     def after_storage_legalize():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class After:
             @T.function(private=True)
             def main(
@@ -475,15 +475,15 @@ def test_bf16_reduce_will_legalize():
 
     target = Target("nvidia/geforce-rtx-2080-ti")
     before = BindTarget(target)(get_before())
-    after_compute = tvm.tirx.transform.BF16ComputeLegalize()(before)
-    after_storage = tvm.tirx.transform.BF16StorageLegalize()(after_compute)
-    tvm.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
-    tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
+    after_compute = tvm_tirx.tirx.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm_tirx.tirx.transform.BF16StorageLegalize()(after_compute)
+    tvm_tirx.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
+    tvm_tirx.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
 
 
 def test_bf16_reduce_wont_legalize():
     def get_before():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class Before:
             @T.function(private=True)
             def main(
@@ -508,7 +508,7 @@ def test_bf16_reduce_wont_legalize():
         return Before
 
     def after_compute_legalize():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class After:
             @T.function(private=True)
             def main(
@@ -533,7 +533,7 @@ def test_bf16_reduce_wont_legalize():
         return After
 
     def after_storage_legalize():
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class After:
             @T.function(private=True)
             def main(
@@ -559,10 +559,10 @@ def test_bf16_reduce_wont_legalize():
 
     target = Target("nvidia/geforce-rtx-3090-ti")
     before = BindTarget(target)(get_before())
-    after_compute = tvm.tirx.transform.BF16ComputeLegalize()(before)
-    after_storage = tvm.tirx.transform.BF16StorageLegalize()(after_compute)
-    tvm.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
-    tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
+    after_compute = tvm_tirx.tirx.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm_tirx.tirx.transform.BF16StorageLegalize()(after_compute)
+    tvm_tirx.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
+    tvm_tirx.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
 
 
 if __name__ == "__main__":

@@ -98,7 +98,7 @@ def normalize_file_list_by_unpacking_tars(temp, file_list):
 
     Parameters
     ----------
-    temp: tvm.support.utils.TempDirectory
+    temp: tvm_tirx.support.utils.TempDirectory
         A temp dir to hold the untared files.
 
     file_list: List[str]

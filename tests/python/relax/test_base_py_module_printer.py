@@ -19,13 +19,13 @@
 
 import pytest
 
-import tvm
-from tvm.ir import StringImm
+import tvm, tvm_tirx
+from tvm_tirx.ir import StringImm
 from tvm.relax.base_py_module import BasePyModule
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 @R.py_module
@@ -412,7 +412,7 @@ def test_simple_pyfunc_module_creation():
     """Test that SimplePyFuncModule can be created."""
     # Get the IRModule instance from the TVMScript decorated class
     ir_mod = SimplePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
 
     # Create BasePyModule instance
     module = BasePyModule(ir_mod, device)
@@ -436,7 +436,7 @@ def test_simple_pyfunc_module_creation():
 def test_complex_pyfunc_module_creation():
     """Test that ComplexPyFuncModule can be created."""
     ir_mod = ComplexPyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
 
     module = BasePyModule(ir_mod, device)
     assert isinstance(module, BasePyModule)
@@ -456,7 +456,7 @@ def test_complex_pyfunc_module_creation():
 def test_edge_case_pyfunc_module_creation():
     """Test that EdgeCasePyFuncModule can be created."""
     ir_mod = EdgeCasePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
 
     module = BasePyModule(ir_mod, device)
     assert isinstance(module, BasePyModule)
@@ -475,7 +475,7 @@ def test_edge_case_pyfunc_module_creation():
 def test_performance_pyfunc_module_creation():
     """Test that PerformancePyFuncModule can be created."""
     ir_mod = PerformancePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
 
     module = BasePyModule(ir_mod, device)
     assert isinstance(module, BasePyModule)
@@ -493,7 +493,7 @@ def test_performance_pyfunc_module_creation():
 def test_integration_pyfunc_module_creation():
     """Test that IntegrationPyFuncModule can be created."""
     ir_mod = IntegrationPyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
 
     module = BasePyModule(ir_mod, device)
     assert isinstance(module, BasePyModule)
@@ -510,7 +510,7 @@ def test_integration_pyfunc_module_creation():
 def test_error_handling_pyfunc_module_creation():
     """Test that ErrorHandlingPyFuncModule can be created."""
     ir_mod = ErrorHandlingPyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
 
     module = BasePyModule(ir_mod, device)
     assert isinstance(module, BasePyModule)
@@ -535,7 +535,7 @@ def test_all_modules_inherit_from_base():
         ErrorHandlingPyFuncModule,
     ]
 
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     for ir_mod in modules:
         module = BasePyModule(ir_mod, device)
         assert isinstance(module, BasePyModule)
@@ -546,7 +546,7 @@ def test_all_modules_inherit_from_base():
 def test_pyfunc_decorators():
     """Test that all @I.pyfunc decorated functions are present."""
     ir_mod = SimplePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = BasePyModule(ir_mod, device)
 
     # Check that the functions exist in pyfuncs
@@ -575,7 +575,7 @@ def test_pyfunc_decorators():
 def test_tir_functions():
     """Test that TIR functions are properly defined."""
     ir_mod = SimplePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = BasePyModule(ir_mod, device)
 
     # Check TIR function attributes
@@ -590,7 +590,7 @@ def test_tir_functions():
 def test_relax_functions():
     """Test that Relax functions are properly defined."""
     ir_mod = SimplePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = BasePyModule(ir_mod, device)
 
     # Note: This particular TVMScript is for testing purpose only, and cannot compile
@@ -620,7 +620,7 @@ def test_module_docstrings():
         assert callable(module_class)
         # We can't directly instantiate TVMScript decorated classes
         # but we can create BasePyModule instances with them
-        device = tvm.cpu()
+        device = tvm_tirx.cpu()
         instance = BasePyModule(module_class, device)
         assert isinstance(instance, BasePyModule)
 
@@ -628,7 +628,7 @@ def test_module_docstrings():
 def test_python_function_complexity():
     """Test that complex Python functions have the expected structure."""
     ir_mod = ComplexPyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = BasePyModule(ir_mod, device)
 
     # Check that complex functions exist in pyfuncs
@@ -657,7 +657,7 @@ def test_python_function_complexity():
 def test_script_and_show_methods():
     """Test that script() and show() methods work correctly."""
     ir_mod = SimplePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = BasePyModule(ir_mod, device)
 
     # Test script() method
@@ -678,7 +678,7 @@ def test_script_and_show_methods():
 def test_python_functions_in_irmodule():
     """Test that Python functions are properly stored in IRModule pyfuncs."""
     ir_mod = SimplePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = BasePyModule(ir_mod, device)
 
     # Check that pyfuncs attribute exists and contains our functions
@@ -736,7 +736,7 @@ def test_call_py_func_with_base_py_module():
             result = R.call_py_func("non_existent_func", (x,), ty_args=[R.Tensor((5,), "float32")])
             return result
 
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = ValidationTestModule(device)
 
     x = torch.randn(5, dtype=torch.float32)
@@ -765,7 +765,7 @@ def test_call_py_func_with_base_py_module():
             )
             return final_result
 
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = RelaxCallPyFuncModule(device)
 
     x = torch.randn(10, dtype=torch.float32)
@@ -776,7 +776,7 @@ def test_call_py_func_with_base_py_module():
     final_result = module.call_py_func("torch_softmax", [relu_result])
 
     # Convert to numpy for comparison
-    if isinstance(final_result, tvm.runtime.Tensor):
+    if isinstance(final_result, tvm_tirx.runtime.Tensor):
         final_result_np = final_result.numpy()
     else:
         final_result_np = final_result
@@ -787,8 +787,8 @@ def test_call_py_func_with_base_py_module():
         expected_np = expected
 
     # Use numpy for comparison since we have numpy arrays
-    tvm.testing.assert_allclose(final_result_np, expected_np, rtol=1e-5, atol=1e-5)
+    tvm_tirx.testing.assert_allclose(final_result_np, expected_np, rtol=1e-5, atol=1e-5)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

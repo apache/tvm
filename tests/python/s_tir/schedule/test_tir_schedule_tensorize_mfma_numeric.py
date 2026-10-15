@@ -19,8 +19,8 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import te
 from tvm.s_tir.tensor_intrin.rocm import (
     ROCM_MFMA_f16f16f32_INTRIN,
@@ -43,7 +43,7 @@ from tvm.s_tir.tensor_intrin.rocm import (
     shared_16x16_to_local_64x4_layout_C,
 )
 from tvm.s_tir.testing.tir import mfma_schedule
-from tvm.testing import env
+from tvm_tirx.testing import env
 
 M = 1024
 N = 1024
@@ -60,7 +60,7 @@ def matmul(m, n, k, in_dtype, out_dtype, b_transposed):
 
     def maybe_cast(v):
         if in_dtype != out_dtype:
-            return tvm.tirx.Cast(v, out_dtype)
+            return tvm_tirx.tirx.Cast(v, out_dtype)
         return v
 
     def maybe_swap(i, j):
@@ -148,18 +148,18 @@ def run_test(
             c_np = np.dot(a_np.astype("float32"), b_np.astype("float32")).astype("int32")
 
     def run_and_check(measure=False):
-        dev = tvm.rocm(0)
-        a = tvm.runtime.tensor(a_np, dev)
-        b = tvm.runtime.tensor(b_np, dev)
-        c = tvm.runtime.tensor(np.zeros((M, N), dtype=out_dtype), dev)
+        dev = tvm_tirx.rocm(0)
+        a = tvm_tirx.runtime.tensor(a_np, dev)
+        b = tvm_tirx.runtime.tensor(b_np, dev)
+        c = tvm_tirx.runtime.tensor(np.zeros((M, N), dtype=out_dtype), dev)
         if measure:
             return f.time_evaluator(f.entry_name, dev, number=500)(a, b, c)
         f(a, b, c)
         dev.sync()
-        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-2, atol=1e-2)
+        tvm_tirx.testing.assert_allclose(c.numpy(), c_np, rtol=1e-2, atol=1e-2)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
-    return lambda: tvm.testing.run_with_gpu_lock(run_and_check, True)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
+    return lambda: tvm_tirx.testing.run_with_gpu_lock(run_and_check, True)
 
 
 @pytest.mark.gpu
@@ -392,12 +392,12 @@ def test_mfma_per_lane_storage(k_inner, in_dtype, out_dtype, load_a, load_b, mfm
     accesses = []
 
     def check(node):
-        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, tvm.tirx.TensorType):
+        if isinstance(node, tvm_tirx.ir.Bind) and isinstance(node.var.ty, tvm_tirx.tirx.TensorType):
             assert str(node.var.ty.scope) != "warp"
             if str(node.var.ty.scope) == "local":
                 allocations.append(tuple(int(extent) for extent in node.var.ty.shape))
-        if isinstance(node, tvm.ir.TensorLoad | tvm.ir.TensorStore):
-            tensor = node.source if isinstance(node, tvm.ir.TensorLoad) else node.dest
+        if isinstance(node, tvm_tirx.ir.TensorLoad | tvm_tirx.ir.TensorStore):
+            tensor = node.source if isinstance(node, tvm_tirx.ir.TensorLoad) else node.dest
             if str(tensor.ty.scope) == "local":
                 accesses.append(node)
                 # All load/fill/MFMA/store operations address this lane's fragment.
@@ -412,4 +412,4 @@ def test_mfma_per_lane_storage(k_inner, in_dtype, out_dtype, load_a, load_b, mfm
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

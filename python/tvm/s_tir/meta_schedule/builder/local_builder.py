@@ -24,12 +24,12 @@ from typing import Optional, Union
 
 from tvm_ffi import register_global_func
 
-from tvm.ir import IRModule
-from tvm.runtime import Module, Tensor
+from tvm_tirx.ir import IRModule
+from tvm_tirx.runtime import Module, Tensor
 from tvm.runtime.vm import load_param_dict, save_param_dict
 from tvm.s_tir.utils import derived_object
-from tvm.support.popen_pool import MapResult, PopenPoolExecutor, StatusKind
-from tvm.target import Target
+from tvm_tirx.support.popen_pool import MapResult, PopenPoolExecutor, StatusKind
+from tvm_tirx.target import Target
 
 from ..logging import get_logger
 from ..utils import cpu_count, get_global_func_with_default_on_worker
@@ -261,7 +261,7 @@ def default_build(mod: IRModule, target: Target, _params: dict[str, Tensor] | No
     # pylint: disable=import-outside-toplevel
     import tvm.s_tir.tensor_intrin  # pylint: disable=unused-import
     from tvm.s_tir.transform import RemoveWeightLayoutRewriteBlock
-    from tvm.tirx import compile as tirx_compile
+    from tvm_tirx.tirx import compile as tirx_compile
 
     # pylint: enable=import-outside-toplevel
     mod = RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite=True)(mod)
@@ -282,7 +282,7 @@ def default_export(mod: Module) -> str:
     artifact_path : str
         The path to the exported Module.
     """
-    from tvm.support.tar import tar  # pylint: disable=import-outside-toplevel
+    from tvm_tirx.support.tar import tar  # pylint: disable=import-outside-toplevel
 
     artifact_path = os.path.join(tempfile.mkdtemp(), "tvm_tmp_mod." + tar.output_format)
     mod.export_library(artifact_path, fcompile=tar)

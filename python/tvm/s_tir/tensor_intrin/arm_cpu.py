@@ -18,12 +18,12 @@
 # ruff: noqa: E501, F401
 """Intrinsics for ARM tensorization."""
 
-from tvm import tirx
-from tvm.codegen import llvm_version_major
+from tvm_tirx import tirx
+from tvm_tirx.codegen import llvm_version_major
 from tvm.s_tir.script.ir_builder import function as build_function
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.script.ir_builder import IRBuilder
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.ir_builder import IRBuilder
 
 from .. import TensorIntrin
 from .dot_product_common import (
@@ -178,7 +178,7 @@ def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
 
     Parameters
     ----------
-    tensor : tvm.ir.Var
+    tensor : tvm_tirx.ir.Var
         The tensor the tensor access will be performed on.
     relative_offsets : Tuple[Expr, Expr]
         The vertical and horizontal offsets into the accumulator tile.

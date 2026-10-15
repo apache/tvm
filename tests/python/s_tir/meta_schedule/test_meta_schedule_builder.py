@@ -24,18 +24,18 @@ import time
 import pytest
 from tvm_ffi import register_global_func
 
-import tvm.testing
-from tvm import script
-from tvm.runtime import Module
+import tvm_tirx.testing, tvm
+from tvm_tirx import script
+from tvm_tirx.runtime import Module
 from tvm.s_tir.meta_schedule.builder import (
     BuilderInput,
     BuilderResult,
     LocalBuilder,
     PyBuilder,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 
@@ -234,4 +234,4 @@ def test_meta_schedule_missing_build_func():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

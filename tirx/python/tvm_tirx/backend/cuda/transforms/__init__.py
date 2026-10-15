@@ -24,15 +24,15 @@ from tvm_ffi import get_global_func
 def LowerIket():
     """Lower frontend-only NVIDIA IKET annotations.
 
-    This pass must run after ``tvm.tirx.transform.SplitHostDevice`` and before
-    ``tvm.tirx.transform.MakePackedAPI``.  It strips annotations for regular
+    This pass must run after ``tvm_tirx.tirx.transform.SplitHostDevice`` and before
+    ``tvm_tirx.tirx.transform.MakePackedAPI``.  It strips annotations for regular
     compilation and emits NVIDIA IKET metadata and NativeDump placeholders
     when the IRModule is explicitly IKET-enabled.  Trace collection and
     postprocessing are owned by the external ``run-iket`` process.
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass.
     """
     return get_global_func("tirx.backend.cuda.transforms.LowerIket")()

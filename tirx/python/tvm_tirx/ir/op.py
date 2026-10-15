@@ -24,7 +24,7 @@ from types import ModuleType, SimpleNamespace
 
 import tvm_ffi
 
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from . import _ffi_api
 from .expr import Expr
@@ -63,7 +63,7 @@ def _make_op_api(op, module_name):
                 raise TypeError(f"{op.name}: cannot mix attrs with attribute keywords")
             attrs = make_node(op.attrs_type_key, **kwargs)
         if is_region:
-            from tvm.script.ir_builder.stmt import region
+            from tvm_tirx.script.ir_builder.stmt import region
 
             if (
                 ty is not None

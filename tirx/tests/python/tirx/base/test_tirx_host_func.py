@@ -14,9 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,missing-class-docstring,missing-function-docstring
 # fmt: off
@@ -33,7 +33,7 @@ class Module:
         T.func_attr(
             {
                 "global_symbol": "test",
-                "target": tvm.target.Target("llvm", host="llvm"),
+                "target": tvm_tirx.target.Target("llvm", host="llvm"),
                 "tirx.noalias": True,
             }
         )
@@ -49,9 +49,9 @@ class Module:
 def test_host_func():
     """Test that host functions are not split."""
     func = Module["main"].without_attr("target")
-    mod = tvm.ir.IRModule({"main": func})
-    target = tvm.target.Target("cuda")
-    mod = tvm.tirx.transform.Apply(
+    mod = tvm_tirx.ir.IRModule({"main": func})
+    target = tvm_tirx.target.Target("cuda")
+    mod = tvm_tirx.tirx.transform.Apply(
         lambda f: f.with_attr(
             {
                 "global_symbol": "test",
@@ -59,8 +59,8 @@ def test_host_func():
             }
         )
     )(mod)
-    mod = tvm.tirx.transform.BindTarget(target)(mod)
-    tvm.ir.assert_structural_equal(mod, Module)
+    mod = tvm_tirx.tirx.transform.BindTarget(target)(mod)
+    tvm_tirx.ir.assert_structural_equal(mod, Module)
     assert "tirx.is_host_func" not in mod["main"].attrs, (
         """Target and is_host_func attributes should be mutually exclusive"""
     )

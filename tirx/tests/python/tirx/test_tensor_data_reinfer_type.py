@@ -17,8 +17,8 @@
 
 import pytest
 
-import tvm
-from tvm import ir, tirx
+import tvm_tirx
+from tvm_tirx import ir, tirx
 
 
 def test_tensor_data_reinfer_type_from_rewritten_argument():
@@ -36,4 +36,4 @@ def test_tensor_data_reinfer_type_from_rewritten_argument():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

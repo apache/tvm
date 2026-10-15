@@ -16,14 +16,14 @@
 # under the License.
 """Apple Metal GPU target tags."""
 
-from tvm.target import register_tag
+from tvm_tirx.target import register_tag
 
 _METAL_HOST_TRIPLE = "arm64-apple-macos"
 
 
 def _register_metal_tag(name, max_threads, shared_mem, warp_size, mcpu):
     try:
-        from tvm.codegen import llvm_is_valid_cpu
+        from tvm_tirx.codegen import llvm_is_valid_cpu
 
         if not llvm_is_valid_cpu(mcpu, _METAL_HOST_TRIPLE):
             return

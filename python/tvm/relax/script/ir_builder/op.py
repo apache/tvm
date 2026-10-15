@@ -24,13 +24,13 @@ import numbers as _numbers
 from types import SimpleNamespace as _Namespace
 from typing import Any
 
-import tvm
-from tvm import ir as _ir
+import tvm, tvm_tirx
+from tvm_tirx import ir as _ir
 from tvm import relax as _relax
-from tvm import tirx as _tir
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.ir.op import _init_op_api
-from tvm.ir.prim import _ffi_api as _prim_ffi
+from tvm_tirx import tirx as _tir
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.op import _init_op_api
+from tvm_tirx.ir.prim import _ffi_api as _prim_ffi
 from tvm.relax import Call, Expr, ExternFunc
 from tvm.relax.global_info import VDevice
 from tvm.relax.op import (
@@ -234,8 +234,8 @@ from tvm.relax.op import to_vdevice as _to_vdevice
 from tvm.relax.op.builtin import stop_lift_params
 from tvm.relax.type import Type
 from tvm.relax.utils import convert_to_expr
-from tvm.script.ir_builder import base as _base
-from tvm.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
+from tvm_tirx.script.ir_builder import base as _base
+from tvm_tirx.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
 
 from . import distributed as dist  # noqa: F401
 from .ir import _value, lookup_vdevice
@@ -321,7 +321,7 @@ def call_packed(
         is_default = True
     attrs = None
     if kwargs or not is_default:
-        attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
+        attrs = tvm_tirx.ir.attrs.make_node(attrs_type_key, **kwargs)
 
     return Call(op, args, attrs=attrs, ty_args=ty_args)
 
@@ -475,7 +475,7 @@ def select(condition, true_value, false_value):
 
 
 def if_then_else_(condition: Any, true_value: Any, false_value: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.if_then_else_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.if_then_else_`."""
     if hasattr(condition, "__tvm_ffi_object__"):
         condition = condition.__tvm_ffi_object__()
     if not isinstance(condition, _ir.Expr):
@@ -499,22 +499,22 @@ def if_then_else_(condition: Any, true_value: Any, false_value: Any) -> Any:
 
 
 def and_(*values: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.and_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.and_`."""
     return logical_and(*values)
 
 
 def or_(*values: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.or_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.or_`."""
     return logical_or(*values)
 
 
 def not_(value: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.not_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.not_`."""
     return logical_not(value)
 
 
 def lt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.lt_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.lt_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
@@ -524,7 +524,7 @@ def lt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
 
 
 def le_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.le_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.le_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
@@ -534,7 +534,7 @@ def le_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
 
 
 def gt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.gt_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.gt_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
@@ -544,7 +544,7 @@ def gt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
 
 
 def ge_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.ge_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.ge_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
@@ -554,7 +554,7 @@ def ge_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
 
 
 def eq_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.eq_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.eq_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
@@ -564,7 +564,7 @@ def eq_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
 
 
 def ne_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.ne_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.ne_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs

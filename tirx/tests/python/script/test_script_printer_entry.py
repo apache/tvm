@@ -22,8 +22,8 @@ import pytest
 import tvm_ffi
 from tvm_ffi.access_path import AccessPath
 
-import tvm
-from tvm.script.printer.scriptable import PrinterConfig, _script
+import tvm_tirx
+from tvm_tirx.script.printer.scriptable import PrinterConfig, _script
 
 
 @pytest.mark.parametrize(
@@ -33,9 +33,9 @@ from tvm.script.printer.scriptable import PrinterConfig, _script
 def test_script_entry_points(entry):
     render = tvm_ffi.get_global_func(entry)
     config = PrinterConfig(extra_config={"tirx.prefix": "IR"})
-    assert render(tvm.ir.Range(0, 4), config) == "IR.Range(0, 4)"
+    assert render(tvm_tirx.ir.Range(0, 4), config) == "IR.Range(0, 4)"
     fallback_config = PrinterConfig(path_to_underline=[AccessPath.root().attr("missing")])
-    assert render(tvm.runtime.ShapeTuple([1, 2]), fallback_config) == (
+    assert render(tvm_tirx.runtime.ShapeTuple([1, 2]), fallback_config) == (
         "Access path: <root>.missing\n"
         "Note: No visible object for this path is rendered in TVMScript.\n\n"
         "Shape(1, 2)"
@@ -46,7 +46,7 @@ def test_script_entry_points(entry):
     "diagnostic", ["path_to_underline", "obj_to_underline", "path_to_annotate", "obj_to_annotate"]
 )
 def test_diagnostics_without_invisible_path_info(diagnostic):
-    value = tvm.ir.PrimType("int32")
+    value = tvm_tirx.ir.PrimType("int32")
     target = AccessPath.root() if diagnostic.startswith("path") else value
     annotated = diagnostic.endswith("annotate")
     config = PrinterConfig(
@@ -60,7 +60,7 @@ def test_diagnostics_without_invisible_path_info(diagnostic):
 
 
 def test_plain_render_without_path_mapping():
-    mod = tvm.IRModule(attrs={"constant": tvm.runtime.tensor([1, 2, 3])})
+    mod = tvm_tirx.IRModule(attrs={"constant": tvm_tirx.runtime.tensor([1, 2, 3])})
     options = {"tirx.prefix": "IR", "ir.module_name": "Example"}
     expected = mod.script(show_meta=True, extra_config=options)
     actual = mod.script(
@@ -68,11 +68,11 @@ def test_plain_render_without_path_mapping():
     )
     assert actual == expected
     assert "load_json" in actual
-    assert "from tvm.script import tirx as IR" in actual
+    assert "from tvm_tirx.script import tirx as IR" in actual
 
 
 def test_redirected_repr_translation_failure():
-    value = tvm.ir.For(tvm.tirx.Var("i", "int32"), 0, 1, 99, tvm.ir.Evaluate(0))
+    value = tvm_tirx.ir.For(tvm_tirx.tirx.Var("i", "int32"), 0, 1, 99, tvm_tirx.ir.Evaluate(0))
     with pytest.raises(TypeError, match="unknown loop kind"):
         value.script()
     assert re.fullmatch(r"ir\.For\((?:0x)?[0-9a-fA-F]+\)", repr(value))

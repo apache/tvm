@@ -17,13 +17,13 @@
 
 """TIRx script printer highlight."""
 
-import tvm
-import tvm.testing
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import tirx as T
 
 
 def test_highlight_script():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @T.function
         def main(  # type: ignore

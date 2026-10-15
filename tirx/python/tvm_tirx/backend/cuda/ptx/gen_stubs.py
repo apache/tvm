@@ -18,9 +18,9 @@
 
 Run manually (never at import time)::
 
-    python -m tvm.backend.cuda.ptx.gen_stubs -o python/tvm/script/tirx.pyi
+    python -m tvm_tirx.backend.cuda.ptx.gen_stubs -o python/tvm/script/tirx.pyi
 
-The output is a *module stub for* ``tvm.script.tirx``: that module is
+The output is a *module stub for* ``tvm_tirx.script.tirx``: that module is
 virtual at runtime (dialect-registry ``__getattr__``), but a ``.pyi`` file
 at ``python/tvm/script/tirx.pyi`` makes Pyright/Pylance resolve it — giving
 VS Code completion for ``T.ptx.`` chains. All other members fall back to
@@ -157,7 +157,7 @@ def generate() -> str:
         '"""Generated stub for T.ptx — do not edit.',
         "",
         "Regenerate:",
-        "  python -m tvm.backend.cuda.ptx.gen_stubs -o python/tvm/script/tirx.pyi",
+        "  python -m tvm_tirx.backend.cuda.ptx.gen_stubs -o python/tvm/script/tirx.pyi",
         '"""',
         "",
         "from typing import Any",
@@ -179,7 +179,7 @@ def generate() -> str:
     out.append("")
     out.append("ptx: _PTX")
     out.append("")
-    out.append("# Every other tvm.script.tirx member stays dynamically typed, as before.")
+    out.append("# Every other tvm_tirx.script.tirx member stays dynamically typed, as before.")
     out.append("def __getattr__(name: str) -> Any: ...")
     # No formatter pass: every line above is emitted in the shape ruff format
     # produces, so this is byte-stable on a machine that has no ruff at all.

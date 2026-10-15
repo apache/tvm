@@ -22,14 +22,14 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-import tvm
-from tvm.backend.cuda.axis import laneid
-from tvm.backend.cuda.ptx import instruction_name
-from tvm.ir import Var, assert_structural_equal
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.layout import S, TileLayout
-from tvm.tirx.tile.dispatch import run_dispatch
+import tvm_tirx
+from tvm_tirx.backend.cuda.axis import laneid
+from tvm_tirx.backend.cuda.ptx import instruction_name
+from tvm_tirx.ir import Var, assert_structural_equal
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx.layout import S, TileLayout
+from tvm_tirx.tirx.tile.dispatch import run_dispatch
 
 LD = "ld.global.v4.b32"
 LDMATRIX = "ldmatrix.sync.aligned.m8n8.x2.shared.b16"
@@ -92,18 +92,18 @@ def matrix_kernel(partial=False, block=32):
 
 
 def compile_kernel(kernel):
-    target = tvm.target.Target(
+    target = tvm_tirx.target.Target(
         {"kind": "cuda", "backend_config": {"cuda": {"target_format": "ptx"}}}
     )
     with target:
-        return tvm.tirx.compile(kernel, target=target, pipeline="tirx")
+        return tvm_tirx.tirx.compile(kernel, target=target, pipeline="tirx")
 
 
 @pytest.mark.parametrize("factory", [global_kernel, matrix_kernel])
 def test_roundtrip(factory):
     kernel = factory()
-    assert_structural_equal(kernel, tvm.ir.load_json(tvm.ir.save_json(kernel)))
-    reparsed = tvm.script.from_source(kernel.script(), extra_vars={"T": T})
+    assert_structural_equal(kernel, tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(kernel)))
+    reparsed = tvm_tirx.script.from_source(kernel.script(), extra_vars={"T": T})
     assert_structural_equal(kernel, reparsed)
 
 
@@ -143,7 +143,7 @@ def _dispatch(
         T.Tensor(dst_shape, "uint32", scope="local", layout=dst_layout or TileLayout(S[dst_shape])),
     )
     ctx = SimpleNamespace(
-        target=tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}),
+        target=tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"}),
         scope_kind=scope,
         launch_params={},
         var_range_map={},
@@ -194,8 +194,8 @@ def test_global_gpu(gapped):
     ptx = compiled.mod.imports[0].inspect_source("ptx")
     assert ptx.count("ld.global.v4.b32") == 105
     a = np.arange(420, dtype="float32").reshape(15, 2, 7, 2) + 0.25
-    out = tvm.runtime.tensor(np.zeros(420, dtype="float32"), tvm.cuda())
-    compiled(tvm.runtime.tensor(a, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros(420, dtype="float32"), tvm_tirx.cuda())
+    compiled(tvm_tirx.runtime.tensor(a, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), a.ravel())
 
 
@@ -212,17 +212,17 @@ def test_matrix_gpu():
         for k in range(2):
             for m in range(2):
                 expected[lane, 8 * k + 2 * m] = a[2 * (lane // 4) + m, lane % 4, k]
-    out = tvm.runtime.tensor(np.zeros_like(expected), tvm.cuda())
-    compiled(tvm.runtime.tensor(a, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros_like(expected), tvm_tirx.cuda())
+    compiled(tvm_tirx.runtime.tensor(a, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), expected)
 
 
 @pytest.mark.parametrize("block,partial", [(32, True), (1, False), (16, False), (31, False)])
 def test_partial_warp_rejected_in_pipeline(block, partial):
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target, pytest.raises((RuntimeError, ValueError), match="all 32 lanes"):
-        tvm.tirx.transform.TileDispatch()(
-            tvm.IRModule({"main": matrix_kernel(partial=partial, block=block)})
+        tvm_tirx.tirx.transform.TileDispatch()(
+            tvm_tirx.IRModule({"main": matrix_kernel(partial=partial, block=block)})
         )
 
 
@@ -251,8 +251,8 @@ def test_region_starts_and_element_offsets_gpu():
     expected = np.full(32, 777, dtype="uint32")
     expected[14:18] = a[8:12]
     expected[22:26] = a[16:20]
-    out = tvm.runtime.tensor(np.zeros_like(expected), tvm.cuda())
-    compiled(tvm.runtime.tensor(a, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros_like(expected), tvm_tirx.cuda())
+    compiled(tvm_tirx.runtime.tensor(a, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), expected)
 
 
@@ -297,8 +297,8 @@ def test_matrix_modes(count, transpose, store):
     f = compile_kernel(kernel)
     x = np.arange(count * 64, dtype="uint16").reshape(count, 8, 8)
     words = x.view("uint32")
-    out = tvm.runtime.tensor(np.zeros_like(words), tvm.cuda())
-    f(tvm.runtime.tensor(words, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros_like(words), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(words, tvm_tirx.cuda()), out)
     expected = x.transpose(0, 2, 1) if transpose else x
     np.testing.assert_array_equal(out.numpy().view("uint16"), expected)
 
@@ -318,9 +318,9 @@ def test_tma_rejects_under_aligned_shared_atom():
             mbar=barrier.ptr_to([0]),
         )
 
-    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+    with tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"}):
         with pytest.raises(RuntimeError, match="known 128-byte-aligned base"):
-            tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": kernel}))
+            tvm_tirx.tirx.transform.TileDispatch()(tvm_tirx.IRModule({"main": kernel}))
 
 
 def test_cluster_pattern_requires_launch_cluster():
@@ -330,14 +330,14 @@ def test_cluster_pattern_requires_launch_cluster():
         r = T.alloc_local((2, 1, 32, 4), "uint32", layout="default")
         T.cuda.tile.apply(T.ptx[LD], r, A, scope="cluster")
 
-    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+    with tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"}):
         with pytest.raises(RuntimeError, match="explicit LaunchConfig.cluster"):
-            tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": kernel}))
+            tvm_tirx.tirx.transform.TileDispatch()(tvm_tirx.IRModule({"main": kernel}))
 
 
 def test_swizzled_tmem_copy_rejects_gapped_words():
-    from tvm.backend.cuda.axis import TCol, TLane
-    from tvm.tirx.layout import ComposeLayout
+    from tvm_tirx.backend.cuda.axis import TCol, TLane
+    from tvm_tirx.tirx.layout import ComposeLayout
 
     shared_layout = ComposeLayout(2, 3, 3, TileLayout(S[(128, 2, 4) : (32, 8, 1)]))
     tmem_layout = TileLayout(S[(128, 8) : (1 @ TLane, 1 @ TCol)])
@@ -357,9 +357,9 @@ def test_swizzled_tmem_copy_rejects_gapped_words():
             src,
         )
 
-    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+    with tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"}):
         with pytest.raises(RuntimeError, match="descriptor address walk"):
-            tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": kernel}))
+            tvm_tirx.tirx.transform.TileDispatch()(tvm_tirx.IRModule({"main": kernel}))
 
 
 @pytest.mark.parametrize(
@@ -385,9 +385,9 @@ def test_cuda_index_region_bounds(index, block, size, offset):
         start = index() + offset
         T.cuda.tile.apply(T.ptx["ld.global.f32"], r, A[start : start + 1])
 
-    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+    with tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"}):
         if offset == 0:
-            tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": kernel}))
+            tvm_tirx.tirx.transform.TileDispatch()(tvm_tirx.IRModule({"main": kernel}))
         else:
             with pytest.raises(RuntimeError, match="in bounds|exceeds tensor shape"):
-                tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": kernel}))
+                tvm_tirx.tirx.transform.TileDispatch()(tvm_tirx.IRModule({"main": kernel}))

@@ -14,29 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
+import tvm_tirx
 
 
 def test_equal_expr():
-    x = tvm.ir.Var("x", tvm.ir.PrimType("int32"))
-    y = tvm.ir.Var("y", tvm.ir.PrimType("int32"))
+    x = tvm_tirx.ir.Var("x", tvm_tirx.ir.PrimType("int32"))
+    y = tvm_tirx.ir.Var("y", tvm_tirx.ir.PrimType("int32"))
 
     def func1():
         return x + y + 1
 
     def func2():
-        return tvm.ir.prim.truncdiv((x + y + 1) * y, 4)
+        return tvm_tirx.ir.prim.truncdiv((x + y + 1) * y, 4)
 
-    assert tvm.ir.prim.expr_deep_equal(func1(), func1())
-    assert tvm.ir.prim.expr_deep_equal(func2(), func2())
-    assert not tvm.ir.prim.expr_deep_equal(func2(), func1())
+    assert tvm_tirx.ir.prim.expr_deep_equal(func1(), func1())
+    assert tvm_tirx.ir.prim.expr_deep_equal(func2(), func2())
+    assert not tvm_tirx.ir.prim.expr_deep_equal(func2(), func1())
 
 
 def test_structural_equal_maps_free_variables():
-    x = tvm.ir.Var("x", tvm.ir.PrimType("int32"))
-    y = tvm.ir.Var("y", tvm.ir.PrimType("int32"))
-    tvm.ir.assert_structural_equal(x + 1, y + 1, map_free_vars=True)
-    assert not tvm.ir.prim.expr_deep_equal(x + 1, y + 1)
+    x = tvm_tirx.ir.Var("x", tvm_tirx.ir.PrimType("int32"))
+    y = tvm_tirx.ir.Var("y", tvm_tirx.ir.PrimType("int32"))
+    tvm_tirx.ir.assert_structural_equal(x + 1, y + 1, map_free_vars=True)
+    assert not tvm_tirx.ir.prim.expr_deep_equal(x + 1, y + 1)
 
 
 if __name__ == "__main__":

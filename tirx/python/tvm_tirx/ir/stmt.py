@@ -22,9 +22,9 @@ from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import DictAttrs, Expr, Location, Op, Scriptable, StringImm, Var, make_node
-from tvm.ir.location import UNKNOWN_LOC
-from tvm.runtime import Object
+from tvm_tirx.ir import DictAttrs, Expr, Location, Op, Scriptable, StringImm, Var, make_node
+from tvm_tirx.ir.location import UNKNOWN_LOC
+from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 

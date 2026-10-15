@@ -20,15 +20,15 @@
 import pytest
 from tvm_ffi.access_path import AccessPath
 
-import tvm
-from tvm.ir import assert_structural_equal
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_prim_type_hidden_path_exact_message():
     with pytest.raises(ValueError) as exc_info:
-        assert_structural_equal(tvm.ir.PrimType("int32"), tvm.ir.PrimType("float32"))
+        assert_structural_equal(tvm_tirx.ir.PrimType("int32"), tvm_tirx.ir.PrimType("float32"))
 
     assert str(exc_info.value) == (
         "StructuralEqual check failed, caused by lhs at <root>.dtype:\n"

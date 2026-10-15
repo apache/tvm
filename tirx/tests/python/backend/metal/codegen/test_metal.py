@@ -17,11 +17,11 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 @pytest.mark.gpu
@@ -41,15 +41,15 @@ def test_metal_inf_nan():
                 with T.launch_thread("threadIdx.x", 1) as i:
                     C[i] = T.Cast(value, dtype)
 
-        fun = tvm.tirx.compile(Module, target=target)
+        fun = tvm_tirx.tirx.compile(Module, target=target)
 
         def run_and_check():
-            dev = tvm.metal(0)
-            a = tvm.runtime.empty((n,), dtype, dev)
-            c = tvm.runtime.empty((n,), dtype, dev)
+            dev = tvm_tirx.metal(0)
+            a = tvm_tirx.runtime.empty((n,), dtype, dev)
+            c = tvm_tirx.runtime.empty((n,), dtype, dev)
             fun(a, c)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
     check_inf_nan(1, -float("inf"), "float32")
     check_inf_nan(1, -float("inf"), "float16")
@@ -62,7 +62,7 @@ def test_metal_inf_nan():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_unaligned_vectorize():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class IRModule:
         @T.function
         def main(A: T.Tensor((2, 3), "float32"), B: T.Tensor((6,), "float32")):
@@ -73,16 +73,16 @@ def test_unaligned_vectorize():
 
     target = "metal"
     a = (np.arange(6).reshape(2, 3)).astype("float32")
-    f = tvm.tirx.compile(IRModule, target=target)
+    f = tvm_tirx.tirx.compile(IRModule, target=target)
 
     def run_and_check():
-        dev = tvm.metal()
-        a_nd = tvm.runtime.tensor(a, dev)
-        b_nd = tvm.runtime.empty((6,), "float32", dev)
+        dev = tvm_tirx.metal()
+        a_nd = tvm_tirx.runtime.tensor(a, dev)
+        b_nd = tvm_tirx.runtime.empty((6,), "float32", dev)
         f(a_nd, b_nd)
-        tvm.testing.assert_allclose(b_nd.numpy(), a.reshape(6), atol=1e-5, rtol=1e-5)
+        tvm_tirx.testing.assert_allclose(b_nd.numpy(), a.reshape(6), atol=1e-5, rtol=1e-5)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -102,15 +102,15 @@ def test_metal_erf():
                 with T.launch_thread("threadIdx.x", 1) as i0:
                     C[i0] = T.erf(A[i0])
 
-        fun = tvm.tirx.compile(Module, target=target)
+        fun = tvm_tirx.tirx.compile(Module, target=target)
 
         def run_and_check():
-            dev = tvm.metal(0)
-            a = tvm.runtime.empty((n,), dtype, dev)
-            c = tvm.runtime.empty((n,), dtype, dev)
+            dev = tvm_tirx.metal(0)
+            a = tvm_tirx.runtime.empty((n,), dtype, dev)
+            c = tvm_tirx.runtime.empty((n,), dtype, dev)
             fun(a, c)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
     check_erf(1, "float32")
     check_erf(1, "float16")
@@ -121,7 +121,7 @@ def test_metal_erf():
 def test_ramp():
     target = "metal"
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class IRModule:
         @T.function
         def main(A: T.Tensor((1, 2), "int32")):
@@ -130,21 +130,21 @@ def test_ramp():
                 r: T.let = T.ramp(i, 3, 2)
                 A[0, T.ramp(0, 1, 2)] = r
 
-    f = tvm.tirx.compile(IRModule, target=target)
+    f = tvm_tirx.tirx.compile(IRModule, target=target)
 
     def run_and_check():
-        dev = tvm.metal()
-        a_nd = tvm.runtime.empty((1, 2), "int32", dev)
+        dev = tvm_tirx.metal()
+        a_nd = tvm_tirx.runtime.empty((1, 2), "int32", dev)
         f(a_nd)
         assert tuple(a_nd.numpy()[0, :]) == (0, 3)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_select_vectorize():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class IRModule:
         @T.function
         def main(A: T.Tensor((6), "float32"), B: T.Tensor((6,), "float32")):
@@ -157,17 +157,17 @@ def test_select_vectorize():
 
     target = "metal"
     a = np.arange(6).astype("float32")
-    f = tvm.tirx.compile(IRModule, target=target)
+    f = tvm_tirx.tirx.compile(IRModule, target=target)
     a.reshape(3, 2)[:, 1] = 0
 
     def run_and_check():
-        dev = tvm.metal()
-        a_nd = tvm.runtime.tensor(a, dev)
-        b_nd = tvm.runtime.empty((6,), "float32", dev)
+        dev = tvm_tirx.metal()
+        a_nd = tvm_tirx.runtime.tensor(a, dev)
+        b_nd = tvm_tirx.runtime.empty((6,), "float32", dev)
         f(a_nd, b_nd)
-        tvm.testing.assert_allclose(b_nd.numpy(), a, atol=1e-5, rtol=1e-5)
+        tvm_tirx.testing.assert_allclose(b_nd.numpy(), a, atol=1e-5, rtol=1e-5)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -180,35 +180,35 @@ def test_vectorized_uint8():
                 B[i * 4 + j] = T.Cast(A[i * 4 + j], "float32")
 
     a = np.arange(16).astype("uint8")
-    f = tvm.tirx.compile(func, target="metal")
+    f = tvm_tirx.tirx.compile(func, target="metal")
 
     def run_and_check():
-        dev = tvm.metal()
-        a_nd = tvm.runtime.tensor(a, dev)
-        b_nd = tvm.runtime.empty((16,), "float32", dev)
+        dev = tvm_tirx.metal()
+        a_nd = tvm_tirx.runtime.tensor(a, dev)
+        b_nd = tvm_tirx.runtime.empty((16,), "float32", dev)
         f(a_nd, b_nd)
-        tvm.testing.assert_allclose(b_nd.numpy(), a.astype("float32"), atol=1e-5, rtol=1e-5)
+        tvm_tirx.testing.assert_allclose(b_nd.numpy(), a.astype("float32"), atol=1e-5, rtol=1e-5)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_func_with_trailing_pod_params():
-    from tvm.support import xcode  # pylint: disable=import-outside-toplevel
+    from tvm_tirx.support import xcode  # pylint: disable=import-outside-toplevel
 
     @T.function
     def func(A: T.Tensor((16), "float32"), B: T.Tensor((16), "float32"), x: T.float32):
         with T.launch_thread("threadIdx.x", 16) as i:
             B[i] = A[i] + x
 
-    @tvm.register_global_func("tvm_callback_metal_compile")
+    @tvm_tirx.register_global_func("tvm_callback_metal_compile")
     def compile_metal(src, target):
         return xcode.compile_metal(src)
 
-    mod = tvm.IRModule({"main": func})
+    mod = tvm_tirx.IRModule({"main": func})
 
-    f = tvm.tirx.compile(mod, target="metal").mod
+    f = tvm_tirx.tirx.compile(mod, target="metal").mod
     src: str = f.imports[0].inspect_source()
     occurrences = src.count("struct func_kernel_args_t")
     assert occurrences == 1, occurrences
@@ -239,8 +239,8 @@ def test_codegen_simdgroup_buffer_data():
                 C_frag.data, 0, A_frag.data, 0, B_frag.data, 0, C_frag.data, 0
             )
 
-    metal_codegen = tvm.get_global_func("target.build.metal")
-    module = metal_codegen(Module, tvm.target.Target("metal"))
+    metal_codegen = tvm_tirx.get_global_func("target.build.metal")
+    module = metal_codegen(Module, tvm_tirx.target.Target("metal"))
     source = module.inspect_source()
 
     assert "make_filled_simdgroup_matrix<half, 8, 8>" in source
@@ -250,8 +250,8 @@ def test_codegen_simdgroup_buffer_data():
 
 
 def _build_metal(mod):
-    build = tvm.get_global_func("target.build.metal")
-    return build(mod, tvm.target.Target("metal"))
+    build = tvm_tirx.get_global_func("target.build.metal")
+    return build(mod, tvm_tirx.target.Target("metal"))
 
 
 def test_bounded_symbolic_stack_allocation():
@@ -305,7 +305,7 @@ def test_bound_symbolic_stack_allocation(bounded):
         assert "thread float scratch[128]" in source
     else:
         with pytest.raises(
-            tvm.error.InternalError,
+            tvm_tirx.error.InternalError,
             match="Metal allocation extent requires a finite compile-time upper bound",
         ):
             _build_metal(Module)
@@ -352,7 +352,7 @@ def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
         assert "scratch[31] =" in source
     else:
         with pytest.raises(
-            tvm.error.InternalError,
+            tvm_tirx.error.InternalError,
             match="Metal allocation extent requires a finite compile-time upper bound",
         ):
             _build_metal(Module)
@@ -400,7 +400,7 @@ def test_unbounded_symbolic_stack_allocation_rejected():
             T.evaluate(scratch[0])
 
     with pytest.raises(
-        tvm.error.InternalError,
+        tvm_tirx.error.InternalError,
         match="Metal allocation extent requires a finite compile-time upper bound",
     ):
         _build_metal(Module)
@@ -425,7 +425,7 @@ def test_unbounded_uint64_symbolic_stack_allocation_rejected():
             T.evaluate(scratch[0])
 
     with pytest.raises(
-        tvm.error.InternalError,
+        tvm_tirx.error.InternalError,
         match="Metal allocation extent requires a finite compile-time upper bound",
     ):
         _build_metal(Module)
@@ -450,7 +450,7 @@ def test_nonpositive_stack_allocation_rejected(extent):
             T.evaluate(scratch.data)
 
     with pytest.raises(
-        tvm.error.InternalError,
+        tvm_tirx.error.InternalError,
         match="Metal allocation extent requires a positive compile-time upper bound",
     ):
         _build_metal(Module)
@@ -482,7 +482,7 @@ def test_stack_allocation_element_count_overflow_rejected():
             T.evaluate(scratch.data)
 
     with pytest.raises(
-        tvm.error.InternalError, match="Metal allocation element count is too large to represent"
+        tvm_tirx.error.InternalError, match="Metal allocation element count is too large to represent"
     ):
         _build_metal(Module)
 
@@ -513,8 +513,8 @@ def test_codegen_pointer_byte_offsets_preserve_storage_scope():
             typed_buffer[0] = T.float16(1)
             void_buffer[0] = T.float16(2)
 
-    metal_codegen = tvm.get_global_func("target.build.metal")
-    module = metal_codegen(Module, tvm.target.Target("metal"))
+    metal_codegen = tvm_tirx.get_global_func("target.build.metal")
+    module = metal_codegen(Module, tvm_tirx.target.Target("metal"))
     source = module.inspect_source()
 
     assert "threadgroup half* typed_alias" in source
@@ -549,7 +549,7 @@ def test_pointer_byte_offsets_execute_in_threadgroup_memory():
                     B[1] = typed_buffer[0]
                     B[2] = void_buffer[0]
 
-    executable = tvm.tirx.compile(Module, target="metal")
+    executable = tvm_tirx.tirx.compile(Module, target="metal")
     source = executable.mod.imports[0].inspect_source()
 
     assert "threadgroup float shared[16]" in source
@@ -558,15 +558,15 @@ def test_pointer_byte_offsets_execute_in_threadgroup_memory():
     assert source.count("threadgroup char*") == 2
 
     def run_and_check():
-        dev = tvm.metal(0)
+        dev = tvm_tirx.metal(0)
         host_input = np.arange(16, dtype="float32") + 10
-        input_tensor = tvm.runtime.tensor(host_input, dev)
-        output_tensor = tvm.runtime.tensor(np.zeros(16, dtype="float32"), dev)
+        input_tensor = tvm_tirx.runtime.tensor(host_input, dev)
+        output_tensor = tvm_tirx.runtime.tensor(np.zeros(16, dtype="float32"), dev)
         executable(input_tensor, output_tensor)
-        tvm.testing.assert_allclose(output_tensor.numpy()[:3], host_input[:3])
+        tvm_tirx.testing.assert_allclose(output_tensor.numpy()[:3], host_input[:3])
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

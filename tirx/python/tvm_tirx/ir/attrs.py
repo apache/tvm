@@ -19,7 +19,7 @@
 import tvm_ffi
 import tvm_ffi._ffi_api as _tvm_ffi_api
 
-from tvm.runtime import Object
+from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 
@@ -155,10 +155,10 @@ def make_node(type_key, **kwargs):
 
     .. code-block:: python
 
-       x = tvm.ir.make_node(
-           "ir.IntImm", ty=tvm.ir.PrimType("int32"), value=10, loc=tvm.ir.UnknownLoc()
+       x = tvm_tirx.ir.make_node(
+           "ir.IntImm", ty=tvm_tirx.ir.PrimType("int32"), value=10, loc=tvm_tirx.ir.UnknownLoc()
        )
-       assert isinstance(x, tvm.ir.prim.IntImm)
+       assert isinstance(x, tvm_tirx.ir.prim.IntImm)
        assert x.value == 10
     """
     if type_key == "ir.DictAttrs":

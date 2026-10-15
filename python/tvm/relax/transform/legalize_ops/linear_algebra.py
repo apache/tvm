@@ -17,8 +17,9 @@
 # pylint: disable=invalid-name
 """Default legalization function for linear algebra operators."""
 
-from tvm import DataTypeCode, relax, te, tirx, topi
-from tvm.ir import Call
+from tvm_tirx import DataTypeCode, tirx
+from tvm import relax, te, topi
+from tvm_tirx.ir import Call
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr, Tuple, TupleGetItem, Var

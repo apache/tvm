@@ -23,10 +23,10 @@ import re
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.codegen import llvm_version_major
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.codegen import llvm_version_major
+from tvm_tirx.script import tirx as T
 
 
 @pytest.mark.skipif(
@@ -46,17 +46,17 @@ from tvm.script import tirx as T
     ],
 )
 def test_codegen_vscale(target):
-    if not tvm.testing.device_enabled(target):
+    if not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
-    vscale = tvm.tirx.vscale()
+    vscale = tvm_tirx.tirx.vscale()
 
     @T.function
     def main(A: T.Tensor((5,), "int32")):
         for i in range(5):
             A[i] = 2 * vscale
 
-    with tvm.target.Target(target):
-        build_mod = tvm.tirx.compile(main).mod
+    with tvm_tirx.target.Target(target):
+        build_mod = tvm_tirx.tirx.compile(main).mod
 
     llvm = build_mod.inspect_source()
     assert re.findall(r"llvm.vscale.i32", llvm), "No vscale in generated LLVM."
@@ -79,7 +79,7 @@ def test_codegen_vscale(target):
     ],
 )
 def test_scalable_buffer_load_store(target):
-    if not tvm.testing.device_enabled(target):
+    if not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     @T.function
@@ -87,8 +87,8 @@ def test_scalable_buffer_load_store(target):
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
         B[T.ramp(0, 1, 4 * T.vscale())] = A[T.ramp(0, 1, 4 * T.vscale())]
 
-    with tvm.target.Target(target):
-        mod = tvm.tirx.compile(my_func).mod
+    with tvm_tirx.target.Target(target):
+        mod = tvm_tirx.tirx.compile(my_func).mod
 
     llvm = mod.inspect_source("ll")
     assert re.findall(r"load <vscale x 4 x float>", llvm), "No scalable load in generated LLVM."
@@ -112,7 +112,7 @@ def test_scalable_buffer_load_store(target):
     ],
 )
 def test_scalable_broadcast(target):
-    if not tvm.testing.device_enabled(target):
+    if not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     @T.function
@@ -120,8 +120,8 @@ def test_scalable_broadcast(target):
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
         A[T.ramp(0, 1, 4 * T.vscale())] = T.broadcast(1, 4 * T.vscale())
 
-    with tvm.target.Target(target):
-        mod = tvm.tirx.compile(my_func).mod
+    with tvm_tirx.target.Target(target):
+        mod = tvm_tirx.tirx.compile(my_func).mod
 
     llvm = mod.inspect_source("ll")
     # Older LLVM versions print the broadcast as a shufflevector of an insertelement,
@@ -150,7 +150,7 @@ def test_scalable_broadcast(target):
     ],
 )
 def test_get_active_lane_mask(target):
-    if not tvm.testing.device_enabled(target):
+    if not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     @T.function
@@ -158,8 +158,8 @@ def test_get_active_lane_mask(target):
         for i in range(T.ceildiv(30, T.vscale() * 4)):
             A[i : i + T.vscale() * 4] = T.get_active_lane_mask(i, 30, ty="uint1xvscalex4")
 
-    with tvm.target.Target(target):
-        out = tvm.tirx.compile(before).mod
+    with tvm_tirx.target.Target(target):
+        out = tvm_tirx.tirx.compile(before).mod
 
     ll = out.inspect_source("ll")
     assert "get.active.lane.mask" in ll
@@ -182,7 +182,7 @@ def test_get_active_lane_mask(target):
     ],
 )
 def test_predicated_scalable_buffer(target):
-    if not tvm.testing.device_enabled(target):
+    if not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     @T.function
@@ -193,8 +193,8 @@ def test_predicated_scalable_buffer(target):
                 if i_0 * 4 * T.vscale() + i_1 < 14:
                     B[i_0 * 4 * T.vscale() + i_1] = A[i_0 * 4 * T.vscale() + i_1] + 1.0
 
-    with tvm.target.Target(target):
-        out = tvm.tirx.compile(before).mod
+    with tvm_tirx.target.Target(target):
+        out = tvm_tirx.tirx.compile(before).mod
 
     ll = out.inspect_source("ll")
     assert "get.active.lane.mask" in ll
@@ -203,4 +203,4 @@ def test_predicated_scalable_buffer(target):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

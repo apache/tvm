@@ -18,11 +18,11 @@
 
 from collections.abc import Callable
 
-import tvm
+import tvm, tvm_tirx
 from tvm import te
-from tvm.ir import Call, GenericConst
-from tvm.runtime import DataTypeCode
-from tvm.tirx import FloatImm, IntImm
+from tvm_tirx.ir import Call, GenericConst
+from tvm_tirx.runtime import DataTypeCode
+from tvm_tirx.tirx import FloatImm, IntImm
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr
@@ -41,7 +41,7 @@ LegalizeFunc = Callable[[BlockBuilder, Call], Expr]
 
 
 def _is_relax_expr(expr: object) -> bool:
-    return isinstance(expr, Expr) and not tvm.ir.is_prim_expr(expr)
+    return isinstance(expr, Expr) and not tvm_tirx.ir.is_prim_expr(expr)
 
 
 def _try_convert_to_scalar_const(
@@ -70,7 +70,7 @@ def _try_convert_to_scalar_const(
     """
     if (
         isinstance(expr, GenericConst)
-        and isinstance(expr.value, tvm.runtime.Tensor)
+        and isinstance(expr.value, tvm_tirx.runtime.Tensor)
         and expr.ty.ndim == 0
     ):
         # get the value of the scalar constant
@@ -81,9 +81,9 @@ def _try_convert_to_scalar_const(
             return value
         # preserve the data type of the constant
         if dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
-            return tvm.tirx.FloatImm(dtype_str, value)
+            return tvm_tirx.tirx.FloatImm(dtype_str, value)
         elif dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT, DataTypeCode.BOOL):
-            return tvm.tirx.IntImm(dtype_str, value)
+            return tvm_tirx.tirx.IntImm(dtype_str, value)
     return expr
 
 
@@ -126,4 +126,4 @@ def register_legalize(op_name: str, legal_func: LegalizeFunc = None):
     legal_func: function (bb: BlockBuilder, call: Call) -> new_expr: Expr
         The function for transforming an expr to another expr.
     """
-    return tvm.ir.register_op_attr(op_name, _LEGALIZE_ATTR_NAME, legal_func)
+    return tvm_tirx.ir.register_op_attr(op_name, _LEGALIZE_ATTR_NAME, legal_func)

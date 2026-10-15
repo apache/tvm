@@ -16,17 +16,17 @@
 # under the License.
 # ruff: noqa: E501, F841
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def test_reshape_expand_dims():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def reshape(
@@ -77,7 +77,7 @@ def test_reshape_expand_dims():
                 R.output(z)
             return z
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def reshape(
@@ -132,12 +132,12 @@ def test_reshape_expand_dims():
 
     assert relax.analysis.has_reshape_pattern(Module["expand_dims"])
     mod = relax.transform.RewriteDataflowReshape()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_reshape_pattern_detect():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def reshape(rxplaceholder: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float32"), T_reshape: T.Tensor((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32")):
@@ -183,7 +183,7 @@ def test_reshape_pattern_detect():
                 R.output(z)
             return z
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def expand_dims(rxplaceholder: T.Tensor((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32"), expand_dims_1: T.Tensor((T.int64(2), T.int64(1), T.int64(4096), T.int64(1), T.int64(5), T.int64(64)), "float32")):
@@ -222,13 +222,13 @@ def test_reshape_pattern_detect():
 
     assert relax.analysis.has_reshape_pattern(Module["reshape"])
     mod = relax.transform.RewriteDataflowReshape()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_reshape_dynamic_shape():
     n = T.dynamic("n", "int32")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function(private=True)
         def reshape(
@@ -276,7 +276,7 @@ def test_reshape_dynamic_shape():
 
     n = T.dynamic("n", "int32")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def reshape(
@@ -323,11 +323,11 @@ def test_reshape_dynamic_shape():
 
     assert relax.analysis.has_reshape_pattern(Module["reshape"])
     mod = relax.transform.RewriteDataflowReshape()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_reshape_non_dataflow():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def reshape(
@@ -358,11 +358,11 @@ def test_reshape_non_dataflow():
     assert relax.analysis.has_reshape_pattern(Module["reshape"])
     # The binding var of the call_tir is not a DataflowVar. So the pass does no change.
     mod = relax.transform.RewriteDataflowReshape()(Module)
-    tvm.ir.assert_structural_equal(mod, Module)
+    tvm_tirx.ir.assert_structural_equal(mod, Module)
 
 
 def test_tuple_get_reshape():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def fused_reshape5(
@@ -423,7 +423,7 @@ def test_tuple_get_reshape():
                 R.output(out)
             return out
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def fused_reshape5(
@@ -482,11 +482,11 @@ def test_tuple_get_reshape():
             return out
 
     rewritten = relax.transform.RewriteDataflowReshape()(Module)
-    tvm.ir.assert_structural_equal(rewritten, Expected)
+    tvm_tirx.ir.assert_structural_equal(rewritten, Expected)
 
 
 def test_invalid_reshape():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         # The strided_slice op has the reshape pattern, but it can take only a part of the input.
         # It can't be replaced with the reshape op because reshape expects to preserve the "volume"
@@ -529,11 +529,11 @@ def test_invalid_reshape():
 
     assert relax.analysis.has_reshape_pattern(Module["strided_slice"])
     rewritten = relax.transform.RewriteDataflowReshape()(Module)
-    tvm.ir.assert_structural_equal(rewritten, Module)
+    tvm_tirx.ir.assert_structural_equal(rewritten, Module)
 
 
 def test_reshape_detect_nop():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @R.function
         def main(x: R.Tensor((8, 8), dtype="float16")) -> R.Tensor((8, 8), dtype="float16"):
@@ -546,11 +546,11 @@ def test_reshape_detect_nop():
             return out
 
     rewritten = relax.transform.RewriteDataflowReshape()(Module)
-    tvm.ir.assert_structural_equal(rewritten, Module)
+    tvm_tirx.ir.assert_structural_equal(rewritten, Module)
 
 
 def test_reshape_scalar():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @R.function
         def main(x: R.Tensor((), dtype="float32")) -> R.Tensor((1,), dtype="float32"):
@@ -560,7 +560,7 @@ def test_reshape_scalar():
                 R.output(lv2)
             return lv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def add(
@@ -600,7 +600,7 @@ def test_reshape_scalar():
     mod = Module
     mod = relax.transform.LegalizeOps()(mod)
     rewritten = relax.transform.RewriteDataflowReshape()(mod)
-    tvm.ir.assert_structural_equal(rewritten, Expected)
+    tvm_tirx.ir.assert_structural_equal(rewritten, Expected)
 
 
 def test_rewrite_static_reshape():
@@ -639,7 +639,7 @@ def test_rewrite_static_reshape():
                     i, j = Ts.axis.remap("SS", iters)
                     z[i, j] = y1[i, j] + y2[i, j]
 
-    After = tvm.ir.transform.Sequential(
+    After = tvm_tirx.ir.transform.Sequential(
         [
             # Lower both R.reshape and R.add from Relax to TIR
             relax.transform.LegalizeOps(),
@@ -652,7 +652,7 @@ def test_rewrite_static_reshape():
         ]
     )(Before)
 
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 # def test_rewrite_dynamic_reshape():
@@ -763,7 +763,7 @@ def test_rewrite_dynamic_reshape():
                     i, j = Ts.axis.remap("SS", iters)
                     z[i, j] = y1[i, j] + y2[i, j]
 
-    After = tvm.ir.transform.Sequential(
+    After = tvm_tirx.ir.transform.Sequential(
         [
             # Lower both R.reshape and R.add from Relax to TIR
             relax.transform.LegalizeOps(),
@@ -775,8 +775,8 @@ def test_rewrite_dynamic_reshape():
             relax.transform.DeadCodeElimination(),
         ]
     )(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

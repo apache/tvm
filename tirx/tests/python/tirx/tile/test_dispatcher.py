@@ -19,13 +19,13 @@ from types import SimpleNamespace
 
 import pytest
 
-import tvm
-from tvm.ir import Call, Evaluate, Op, PrimType, Return, const, make_node, register_op_attr
-from tvm.script import tirx as T
-from tvm.tirx import Function, decl_tensor
-from tvm.tirx.tile import DispatchContext
-from tvm.tirx.tile.dispatch import run_dispatch
-from tvm.tirx.tile.instruction import SPECS
+import tvm_tirx
+from tvm_tirx.ir import Call, Evaluate, Op, PrimType, Return, const, make_node, register_op_attr
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import Function, decl_tensor
+from tvm_tirx.tirx.tile import DispatchContext
+from tvm_tirx.tirx.tile.dispatch import run_dispatch
+from tvm_tirx.tirx.tile.instruction import SPECS
 
 
 def test_selected_lowerer_reports_context_and_cause(monkeypatch):
@@ -36,7 +36,7 @@ def test_selected_lowerer_reports_context_and_cause(monkeypatch):
         raise ValueError("unsupported layout")
 
     monkeypatch.setattr(SPECS[call.op.name], "lower", failing)
-    context = SimpleNamespace(target=tvm.target.Target("cuda"), scope_kind="thread")
+    context = SimpleNamespace(target=tvm_tirx.target.Target("cuda"), scope_kind="thread")
     with pytest.raises(
         RuntimeError, match="op=tirx.cuda.tile.apply target=cuda scope=thread"
     ) as error:
@@ -69,16 +69,16 @@ def test_instruction_scope_contract(backend, scope):
     # Registered scope enums still obey the instruction's allowed scope set.
     call = instruction(tensor, tensor, tensor)
     if scope == "kernel":
-        attrs = tvm.ir.make_node(
+        attrs = tvm_tirx.ir.make_node(
             "tirx.tensor." + SPECS[call.op.name].schema,
             scope=T.ThreadScope(f"{backend}.kernel"),
         )
-        raw = tvm.ir.Call(call.op, call.args, attrs=attrs, ty=call.ty)
+        raw = tvm_tirx.ir.Call(call.op, call.args, attrs=attrs, ty=call.ty)
         with pytest.raises(ValueError, match=f"unsupported scope '{scope}'"):
             raw.validate()
     else:
         with pytest.raises(ValueError):
-            tvm.ir.make_node(
+            tvm_tirx.ir.make_node(
                 "tirx.tensor." + SPECS[call.op.name].schema, scope=f"{backend}.{scope}"
             )
 
@@ -98,8 +98,8 @@ def _custom_call(name):
 
 
 def _lower(body):
-    func = Function([], body).with_attr("target", tvm.target.Target("cuda"))
-    return tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": func}))["main"]
+    func = Function([], body).with_attr("target", tvm_tirx.target.Target("cuda"))
+    return tvm_tirx.tirx.transform.TileDispatch()(tvm_tirx.IRModule({"main": func}))["main"]
 
 
 def test_op_attribute_dispatches_without_python_instruction_spec():
@@ -157,7 +157,7 @@ def test_residual_tile_call_is_rejected():
         call.op.name, "FTileOpDispatch", lambda call, context: Function([], Evaluate(0))
     )
     # Dispatch expands statement-boundary Calls; other positions must be rejected.
-    with pytest.raises(tvm.error.InternalError, match="Failed to lower the TIRx program"):
+    with pytest.raises(tvm_tirx.error.InternalError, match="Failed to lower the TIRx program"):
         _lower(Return(call))
 
 

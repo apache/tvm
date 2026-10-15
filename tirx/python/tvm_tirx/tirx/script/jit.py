@@ -24,9 +24,9 @@ from collections.abc import Callable, Mapping
 from types import FunctionType
 from typing import Any
 
-from tvm.script.ir_builder.ir import constexpr
-from tvm.script.parser import protocol_registry
-from tvm.tirx import Function
+from tvm_tirx.script.ir_builder.ir import constexpr
+from tvm_tirx.script.parser import protocol_registry
+from tvm_tirx.tirx import Function
 
 
 class OptionalAnnotation:
@@ -73,7 +73,7 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
         compile-time parameters annotated with ``T.constexpr`` or runtime
         parameters that may be removed with ``T.Optional``. The resulting object
         exposes ``.specialize(**const_args)``, which returns a
-        ``tvm.tirx.Function``.
+        ``tvm_tirx.tirx.Function``.
 
         Parameters
         ----------
@@ -109,7 +109,7 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
 
             from __future__ import annotations
 
-            from tvm.script import tirx as T
+            from tvm_tirx.script import tirx as T
 
             @T.jit
             def add(
@@ -138,7 +138,7 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
         """
 
         def apply(function: FunctionType) -> TIRJit:
-            from tvm.script.parser.inspect_source import (
+            from tvm_tirx.script.parser.inspect_source import (
                 capture_definition_scope,
                 require_definition_site,
             )
@@ -172,7 +172,7 @@ class TIRJit:
 
     Parses the function body lazily: parsing is deferred until ``.specialize()``
     supplies concrete values for the params annotated as ``T.constexpr``. The
-    return type of ``.specialize()`` is a ``tvm.tirx.Function``, identical in
+    return type of ``.specialize()`` is a ``tvm_tirx.tirx.Function``, identical in
     type to what ``@T.function`` produces today.
 
     Constexpr params are removed from the resulting Function's parameter list;
@@ -217,7 +217,7 @@ class TIRJit:
         SyntaxError
             If the function's source cannot be parsed.
         """
-        from tvm.script.parser.inspect_source import (
+        from tvm_tirx.script.parser.inspect_source import (
             capture_annotation_bindings,
             capture_lexical_bindings,
         )
@@ -242,7 +242,7 @@ class TIRJit:
         raw_anns = getattr(func, "__annotations__", {}) or {}
         annotation_scope = {**func.__globals__, **self._closure_vars, **self._definition_scope}
 
-        from tvm.script.parser.prescan import resolve_namespace_key, resolve_namespace_value
+        from tvm_tirx.script.parser.prescan import resolve_namespace_key, resolve_namespace_value
 
         sig = inspect.signature(func)
         constexpr_names: set[str] = set()
@@ -314,7 +314,7 @@ class TIRJit:
         no constexpr defaults exist. Selected None optional values omit parameters
         and skip their annotations. Source and builder exceptions propagate unchanged.
         """
-        from tvm.script.parser.entry import parse
+        from tvm_tirx.script.parser.entry import parse
 
         specializable_names = self.constexpr_names | self.optional_names
         extra = const_args.keys() - specializable_names

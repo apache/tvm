@@ -22,16 +22,16 @@ import tempfile
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import relax
-from tvm.runtime import cpu as tvm_cpu
-from tvm.runtime import tensor as tvm_tensor
+from tvm_tirx.runtime import cpu as tvm_cpu
+from tvm_tirx.runtime import tensor as tvm_tensor
 from tvm.runtime.vm import VirtualMachine
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import tirx as T
 
 
 # fmt: off
@@ -91,7 +91,7 @@ def test_compile_relax_with_database():
     """
     pytest.importorskip("cloudpickle")  # needed by meta_schedule popen workers
 
-    target = tvm.target.Target({"kind": "llvm", "num-cores": 1})
+    target = tvm_tirx.target.Target({"kind": "llvm", "num-cores": 1})
 
     # Prepare the fused module whose TIR keys will populate the database.
     fused_mod = Module0
@@ -126,4 +126,4 @@ def test_compile_relax_with_database():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

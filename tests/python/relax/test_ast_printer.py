@@ -20,16 +20,16 @@ from functools import partial
 
 import numpy as np
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import relax as rx
-from tvm import tirx
+from tvm_tirx import tirx
 from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.testing import dump_ast
 from tvm.relax.testing.ast_printer import ASTPrinter
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 # Overload dump_ast to test both type and type annotations
 dump_ast = partial(dump_ast, include_ty_annotations=True)
@@ -53,7 +53,7 @@ def normalize(func: rx.Function) -> rx.Function:
     class DefaultMutator(rx.PyExprMutator):
         pass
 
-    mod = tvm.IRModule()
+    mod = tvm_tirx.IRModule()
     mod["main"] = func
     mut = DefaultMutator(mod)
     mod["main"] = mut.visit_expr(func)
@@ -291,7 +291,7 @@ def test_ty():
 
     assert printer.visit_ty_(rx.AnyType()) == "AnyType()"
 
-    assert printer.visit_ty_(tvm.ir.PrimType("int32")) == "PrimType(dtype=int32)"
+    assert printer.visit_ty_(tvm_tirx.ir.PrimType("int32")) == "PrimType(dtype=int32)"
 
     # empty shape
     empty_ssi = rx.ShapeType()
@@ -423,8 +423,8 @@ def test_call_packed():
 def test_op_attrs():
     x = rx.Var("x", R.Tensor((10,), "float32"))
     # Manually create a Call with attributes to test printer support for Op attributes
-    op = tvm.ir.Op.get("relax.add")
-    attrs = tvm.ir.make_node("ir.DictAttrs", my_attr="my_value")
+    op = tvm_tirx.ir.Op.get("relax.add")
+    attrs = tvm_tirx.ir.make_node("ir.DictAttrs", my_attr="my_value")
     call_node = rx.Call(op, [x, x], attrs=attrs)
 
     call_str = dump_ast(call_node, include_call_attrs=True)
@@ -445,7 +445,7 @@ def test_call_tir():
     m_foo = T.dynamic("m", "int64")
     n_foo = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TestCallTIR:
         @Ts.function
         def addone(
@@ -673,7 +673,7 @@ def test_prim_value():
 
 
 def test_string_imm():
-    string_imm = tvm.ir.StringImm("test")
+    string_imm = tvm_tirx.ir.StringImm("test")
     str_str = strip_whitespace(dump_ast(string_imm))
     assert str_str == strip_whitespace(
         """
@@ -686,7 +686,7 @@ def test_string_imm():
 
 
 def test_datatype_imm():
-    data_type_imm = tvm.ir.DataTypeImm(tvm.DataType("int32"))
+    data_type_imm = tvm_tirx.ir.DataTypeImm(tvm_tirx.DataType("int32"))
     data_type_str = strip_whitespace(dump_ast(data_type_imm))
     assert data_type_str == strip_whitespace(
         """
@@ -699,4 +699,4 @@ def test_datatype_imm():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

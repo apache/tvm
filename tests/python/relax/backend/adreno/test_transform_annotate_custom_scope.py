@@ -16,16 +16,16 @@
 # under the License.
 # ruff: noqa: F401, F841
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import relax
-from tvm.ir.module import IRModule
+from tvm_tirx.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
-from tvm.runtime import MemoryScope
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 @visitor
@@ -81,7 +81,7 @@ class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
 
 
 def verify(mod, expected):
-    tgt = tvm.target.Target({"kind": "opencl", "device": "adreno"}, host="llvm")
+    tgt = tvm_tirx.target.Target({"kind": "opencl", "device": "adreno"}, host="llvm")
     skip_ops = [
         "relax.nn.conv2d",
         "relax.nn.max_pool2d",
@@ -89,7 +89,7 @@ def verify(mod, expected):
         # "relax.nn.layer_norm",
     ]
     with tgt:
-        mod = tvm.tirx.transform.BindTarget(tvm.target.Target.current(allow_none=False))(mod)
+        mod = tvm_tirx.tirx.transform.BindTarget(tvm_tirx.target.Target.current(allow_none=False))(mod)
         mod = tvm.relax.transform.DecomposeOpsForInference()(mod)
         mod = tvm.relax.transform.FoldConstant()(mod)
         desired_layouts = {"relax.nn.conv2d": ["NCHW4c", "OIHW4o", "NCHW4c"]}
@@ -1220,4 +1220,4 @@ def test_injective_nwo_inputs2():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

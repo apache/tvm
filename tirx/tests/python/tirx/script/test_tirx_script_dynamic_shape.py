@@ -23,10 +23,10 @@ import sys
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_tir_bound_prim_param_reused_in_dependent_annotations():
@@ -138,15 +138,15 @@ def test_type_vars_roundtrip():
     assert "def main[M](" in script
     assert "T.Tensor((M, M * 2), T.float32)" in script
     assert "M = T.int32()" not in script
-    typed = tvm.script.from_source(
+    typed = tvm_tirx.script.from_source(
         """
 @T.function(private=True)
 def func[M: int](A: T.Tensor((M, M * 2), T.float32)):
     A[0, 0] = T.float32(1)
 """,
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx},
     )
-    tvm.ir.assert_structural_equal(func, typed)
+    tvm_tirx.ir.assert_structural_equal(func, typed)
     assert 'M = T.dynamic("M", dtype="int32")' not in script
 
     repeated = func.script()
@@ -158,12 +158,12 @@ def func[M: int](A: T.Tensor((M, M * 2), T.float32)):
     assert len(func.params) == 1
     assert not hasattr(func, "type_params")
     assert func.attrs.get("tirx.type_vars") is None
-    tvm.ir.assert_structural_equal(
-        func, tvm.script.from_source(script, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+    tvm_tirx.ir.assert_structural_equal(
+        func, tvm_tirx.script.from_source(script, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         func,
-        tvm.script.from_source(repeated, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}),
+        tvm_tirx.script.from_source(repeated, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}),
     )
 
 
@@ -180,12 +180,12 @@ def test_dynamic_int32_roundtrip():
     assert 'n = T.dynamic("n", dtype="int32")' not in source
     repeated = func.script()
     assert "def main[n](" in repeated
-    tvm.ir.assert_structural_equal(
-        func, tvm.script.from_source(source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+    tvm_tirx.ir.assert_structural_equal(
+        func, tvm_tirx.script.from_source(source, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         func,
-        tvm.script.from_source(repeated, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}),
+        tvm_tirx.script.from_source(repeated, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}),
     )
 
 
@@ -205,14 +205,14 @@ def test_dynamic_module_body_identity():
 
     source = mod.script()
     assert source.count('T.dynamic("n", dtype="int32")') == 2
-    restored = tvm.script.from_source(
-        source, check_well_formed=False, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    restored = tvm_tirx.script.from_source(
+        source, check_well_formed=False, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
     shared = restored["first"].body[0].value
     summed = restored["second"].body[0].value
     assert shared.same_as(summed.a)
     assert not shared.same_as(summed.b)
-    tvm.ir.assert_structural_equal(mod, restored, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(mod, restored, map_free_vars=True)
 
 
 def test_captured_shape_requires_concrete_symbols():

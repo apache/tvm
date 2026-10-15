@@ -20,7 +20,7 @@ import tvm_ffi
 from tvm_ffi import Map
 from tvm_ffi.core import String
 
-from tvm.runtime import Device, Object, convert, device
+from tvm_tirx.runtime import Device, Object, convert, device
 
 from . import _ffi_api
 
@@ -234,7 +234,7 @@ def device_from_target(target, index=None):
 
     Parameters
     ----------
-    target : str or dict or tvm.target.Target
+    target : str or dict or tvm_tirx.target.Target
         The compilation target whose device type should be used.
 
     index : int, optional

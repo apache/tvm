@@ -22,13 +22,13 @@ from __future__ import annotations
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.script
-import tvm.testing
-from tvm import ir, tirx
-from tvm.ir import PrimType, PtrType, assert_structural_equal
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
+from tvm_tirx import ir, tirx
+from tvm_tirx.ir import PrimType, PtrType, assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_native_concise_scopes_unwind_with_their_parent():
@@ -48,7 +48,7 @@ def test_native_concise_scopes_unwind_with_their_parent():
 
     bx, tx = variables
     body = main.body[0]
-    assert isinstance(body, tvm.ir.RegionStmt) and isinstance(body.body[0], tvm.ir.RegionStmt)
+    assert isinstance(body, tvm_tirx.ir.RegionStmt) and isinstance(body.body[0], tvm_tirx.ir.RegionStmt)
     assert body.body_params[0].same_as(bx) and body.body[0].body_params[0].same_as(tx)
     assert body.body[0].body[0].value.a.same_as(bx) and body.body[0].body[0].value.b.same_as(tx)
 
@@ -75,7 +75,7 @@ def test_tir_ptr_proxy():
         isinstance(ptr_0, tirx.Var)
         and isinstance(ptr_0.ty, ir.PtrType)
         and ptr_0.ty.element_type == ir.PrimType("int32")
-        and ptr_0.ty.scope == tvm.runtime.MemoryScope("global")
+        and ptr_0.ty.scope == tvm_tirx.runtime.MemoryScope("global")
     )
 
     ptr_1 = T.handle("float32", "shared")
@@ -83,7 +83,7 @@ def test_tir_ptr_proxy():
         isinstance(ptr_1, tirx.Var)
         and isinstance(ptr_1.ty, ir.PtrType)
         and ptr_1.ty.element_type == ir.PrimType("float32")
-        and ptr_1.ty.scope == tvm.runtime.MemoryScope("shared")
+        and ptr_1.ty.scope == tvm_tirx.runtime.MemoryScope("shared")
     )
 
 
@@ -101,7 +101,7 @@ def test_grid():
 
 
 def from_source(code):
-    return tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+    return tvm_tirx.script.from_source(code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
 
 
 def test_range():
@@ -120,7 +120,7 @@ def test_range():
     print(code)
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
-    tvm.ir.assert_structural_equal(test, expected)
+    tvm_tirx.ir.assert_structural_equal(test, expected)
 
 
 def test_scalar_annotation_syntax():
@@ -186,13 +186,13 @@ def test_tuple_let_binding_and_traversal():
     def tuple_value(func):
         visited = []
         tvm_ffi.structural_walk(func.body, visited.append)
-        bind = next(node for node in visited if isinstance(node, tvm.ir.Bind))
+        bind = next(node for node in visited if isinstance(node, tvm_tirx.ir.Bind))
         return bind.value
 
     list_value = tuple_value(from_list)
     tuple_value = tuple_value(from_tuple)
-    assert isinstance(list_value, tvm.ir.Tuple)
-    assert isinstance(list_value.fields[1], tvm.ir.Tuple)
+    assert isinstance(list_value, tvm_tirx.ir.Tuple)
+    assert isinstance(list_value.fields[1], tvm_tirx.ir.Tuple)
     assert_structural_equal(list_value, tuple_value, map_free_vars=True)
 
     code = from_list.script()
@@ -220,23 +220,23 @@ def test_annotation_syntax_comprehensive():
 
     # 2. Banned: handle as scalar annotation
     src_handle = """
-from tvm.script import tirx as T
+from tvm_tirx.script import tirx as T
 @T.function
 def func():
     x: T.handle = T.int64(0)
 """
-    with pytest.raises(tvm.error.InternalError):
+    with pytest.raises(tvm_tirx.error.InternalError):
         from_source(src_handle)
 
     # 3. Banned: non-PrimType annotation without T.let
     src_ptr = """
-from tvm.script import tirx as T
-from tvm.ir import PtrType, PrimType
+from tvm_tirx.script import tirx as T
+from tvm_tirx.ir import PtrType, PrimType
 @T.function
 def func():
     x: T.Var(name="x", ty=PtrType(PrimType("float16"))) = T.int64(0)
 """
-    with pytest.raises(tvm.error.InternalError):
+    with pytest.raises(tvm_tirx.error.InternalError):
         from_source(src_ptr)
 
     # 4. An explicit mutable scalar declaration retains updates — round-trip
@@ -266,7 +266,7 @@ def test_pointer_expression_assignment_uses_bind():
     binds = []
 
     def collect_pointer_bind(node):
-        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PtrType):
+        if isinstance(node, tvm_tirx.ir.Bind) and isinstance(node.var.ty, PtrType):
             binds.append(node)
 
     tvm_ffi.structural_walk(func.body, collect_pointer_bind)
@@ -297,9 +297,9 @@ def test_pointer_expression_rebinding_creates_distinct_native_bindings():
     bindings, uses = [], []
 
     def collect(node):
-        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PtrType):
+        if isinstance(node, tvm_tirx.ir.Bind) and isinstance(node.var.ty, PtrType):
             bindings.append(node)
-        elif isinstance(node, tvm.ir.Evaluate):
+        elif isinstance(node, tvm_tirx.ir.Evaluate):
             uses.append(node)
 
     tvm_ffi.structural_walk(func.body, collect)
@@ -321,12 +321,12 @@ def func() -> None:
     view = T.decl_tensor(ptr, ty_args=[T.Tensor((3,), T.uint32, scope="shared")])
     view[0] = T.uint32(0)
 """
-    func = tvm.script.from_source(source, extra_vars={"T": T, "ptr": object()})
+    func = tvm_tirx.script.from_source(source, extra_vars={"T": T, "ptr": object()})
 
     binds = []
 
     def collect_pointer_bind(node):
-        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PtrType):
+        if isinstance(node, tvm_tirx.ir.Bind) and isinstance(node.var.ty, PtrType):
             binds.append(node)
 
     tvm_ffi.structural_walk(func.body, collect_pointer_bind)
@@ -534,8 +534,8 @@ def test_empty_module():
 def test_module_string_constants_keep_common_constructor_values():
     # Literal strings passed to common IR constructors must remain concrete values
     # when a real module definition is parsed.
-    from tvm import ir
-    from tvm.script import ir as I
+    from tvm_tirx import ir
+    from tvm_tirx.script import ir as I
 
     @I.ir_module
     class Module:
@@ -556,21 +556,21 @@ def test_thread_return_is_distinct_from_function_return():
     def function_exit():
         return 0
 
-    assert isinstance(thread_exit.body[0], tvm.ir.Evaluate)
+    assert isinstance(thread_exit.body[0], tvm_tirx.ir.Evaluate)
     assert thread_exit.body[0].value.op.name == "tirx.gpu_thread_return"
-    assert isinstance(function_exit.body[0], tvm.ir.Return)
+    assert isinstance(function_exit.body[0], tvm_tirx.ir.Return)
     assert isinstance(function_exit.body[0].value, tirx.IntImm)
     assert function_exit.body[0].value.value == 0
 
 
 def test_loop_control_validation_preserves_valid_and_unchecked_ir():
     # Invalid loop placement must be rejected, while disabled checks preserve the original IR.
-    from tvm import error, ir, tirx
+    from tvm_tirx import error, ir, tirx
 
-    invalid = tirx.Function(params=[], body=tvm.ir.Break())
+    invalid = tirx.Function(params=[], body=tvm_tirx.ir.Break())
 
     # Direct construction retains the native statement for an explicit verifier pass.
-    ir.assert_structural_equal(invalid.body, tvm.ir.SeqStmt([tvm.ir.Break()]))
+    ir.assert_structural_equal(invalid.body, tvm_tirx.ir.SeqStmt([tvm_tirx.ir.Break()]))
     assert not tirx.analysis.verify_well_formed(invalid, assert_mode=False)
     with pytest.raises(error.InternalError, match="requires an enclosing loop"):
         tirx.analysis.verify_well_formed(invalid)
@@ -580,7 +580,7 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
         for i in range(2):
             break
 
-    assert isinstance(valid.body[0], tvm.ir.For)
+    assert isinstance(valid.body[0], tvm_tirx.ir.For)
     ir.assert_structural_equal(valid.body[0].body, invalid.body)
 
     @I.ir_module(check_well_formed=False, extra_vars={"invalid": invalid})
@@ -949,13 +949,13 @@ def test_loop_var_dtype_rejects_unsupported(dtype):
 
 def test_hand_built_for_promotes_int_literal_bounds_to_uint32():
     """The For constructor retypes literal bounds to the loop var's dtype."""
-    loop_var = tvm.tirx.Var("i", "uint32")
-    loop = tvm.ir.For(loop_var, 0, 128, tvm.ir.ForKind.DEFAULT, tvm.ir.Evaluate(0))
+    loop_var = tvm_tirx.tirx.Var("i", "uint32")
+    loop = tvm_tirx.ir.For(loop_var, 0, 128, tvm_tirx.ir.ForKind.DEFAULT, tvm_tirx.ir.Evaluate(0))
     assert loop.min.ty == PrimType("uint32")
     assert loop.extent.ty == PrimType("uint32")
 
 
 def test_hand_built_for_rejects_negative_literal_for_uint32():
-    loop_var = tvm.tirx.Var("i", "uint32")
+    loop_var = tvm_tirx.tirx.Var("i", "uint32")
     with pytest.raises(Exception, match="not representable"):
-        tvm.ir.For(loop_var, -1, 128, tvm.ir.ForKind.DEFAULT, tvm.ir.Evaluate(0))
+        tvm_tirx.ir.For(loop_var, -1, 128, tvm_tirx.ir.ForKind.DEFAULT, tvm_tirx.ir.Evaluate(0))

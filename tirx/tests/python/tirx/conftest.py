@@ -21,7 +21,7 @@ import re
 
 import pytest
 
-from tvm.testing import env
+from tvm_tirx.testing import env
 
 _CUDA_ARCH_PATTERN = re.compile(r"sm_[1-9][0-9]*(?:a|f)?\Z")
 _XDIST_CUDA_DEVICE = None

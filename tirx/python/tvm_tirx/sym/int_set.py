@@ -18,7 +18,7 @@
 
 import tvm_ffi
 
-from tvm.runtime import Object
+from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 
@@ -94,13 +94,13 @@ def estimate_region_lower_bound(region, var_dom, predicate, analyzer=None):
     region : List[Range]
         The region to be analyzed.
 
-    var_dom : Dict[tvm.ir.Var, Range]
+    var_dom : Dict[tvm_tirx.ir.Var, Range]
         The ranges of the variables
 
     predicate : Expr
         The predicate for the affine map
 
-    analyzer : Optional[tvm.sym.Analyzer]
+    analyzer : Optional[tvm_tirx.sym.Analyzer]
         The analyzer to use.  When provided, its accumulated bindings and
         constraints are reused; otherwise a fresh analyzer is created.
 
@@ -121,13 +121,13 @@ def estimate_region_strict_bound(region, var_dom, predicate, analyzer=None):
     region : List[Range]
         The region to be analyzed.
 
-    var_dom : Dict[tvm.ir.Var, Range]
+    var_dom : Dict[tvm_tirx.ir.Var, Range]
         The ranges of the variables
 
     predicate : Expr
         The predicate for the affine map
 
-    analyzer : Optional[tvm.sym.Analyzer]
+    analyzer : Optional[tvm_tirx.sym.Analyzer]
         The analyzer to use.  When provided, its accumulated bindings and
         constraints are reused; otherwise a fresh analyzer is created.
 
@@ -149,13 +149,13 @@ def estimate_region_upper_bound(region, var_dom, predicate, analyzer=None):
     region : List[Range]
         The region to be analyzed.
 
-    var_dom : Dict[tvm.ir.Var, Range]
+    var_dom : Dict[tvm_tirx.ir.Var, Range]
         The ranges of the variables
 
     predicate : Expr
         The predicate for the affine map
 
-    analyzer : Optional[tvm.sym.Analyzer]
+    analyzer : Optional[tvm_tirx.sym.Analyzer]
         The analyzer to use.  When provided, its accumulated bindings and
         constraints are reused; otherwise a fresh analyzer is created.
 
@@ -172,7 +172,7 @@ def pos_inf():
 
     Returns
     ----------
-    pos_inf : tvm.ir.Var
+    pos_inf : tvm_tirx.ir.Var
         A symbolic var that indicates positive infinity
     """
     return _ffi_api.PosInf()
@@ -183,7 +183,7 @@ def neg_inf():
 
     Returns
     ----------
-    neg_inf : tvm.ir.Var
+    neg_inf : tvm_tirx.ir.Var
         A symbolic var that indicates positive infinity
     """
     return _ffi_api.NegInf()

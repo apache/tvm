@@ -18,8 +18,8 @@
 
 from tvm_ffi import get_global_func, register_object
 
-from tvm.base import _RUNTIME_ONLY
-from tvm.runtime import Object
+from tvm_tirx.base import _RUNTIME_ONLY
+from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 

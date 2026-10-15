@@ -23,8 +23,8 @@ converter registered under the same name (the converters are keyed by
 out of the module and annotates them for the ``tensorrt`` codegen.
 """
 
-from tvm import tirx
-from tvm.ir import IRModule
+from tvm_tirx import tirx
+from tvm_tirx.ir import IRModule
 from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.expr import ShapeExpr
 from tvm.relax.transform import (
@@ -193,14 +193,14 @@ def partition_for_tensorrt(mod: IRModule) -> IRModule:
 
     Parameters
     ----------
-    mod : tvm.ir.IRModule
+    mod : tvm_tirx.ir.IRModule
         The module to partition. Bind model parameters (e.g. via
         ``relax.transform.BindParams``) before calling this so that weights are
         available to TensorRT as constants.
 
     Returns
     -------
-    mod : tvm.ir.IRModule
+    mod : tvm_tirx.ir.IRModule
         The module with TensorRT-supported subgraphs grouped into composite
         functions annotated for the ``tensorrt`` codegen.
 
@@ -229,12 +229,12 @@ def partition_for_tensorrt(mod: IRModule) -> IRModule:
     After binding model weights as constants, partition and generate code on the
     compilation GPU before exporting::
 
-        import tvm
+        import tvm, tvm_tirx
         from tvm import relax
         from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
 
         partitioned = partition_for_tensorrt(mod)
-        with tvm.ir.transform.PassContext(
+        with tvm_tirx.ir.transform.PassContext(
             config={
                 "relax.ext.tensorrt.options": {
                     "build_at_compile_time": True,
@@ -247,11 +247,11 @@ def partition_for_tensorrt(mod: IRModule) -> IRModule:
 
     Load the library and run inference in a new process on the deployment GPU::
 
-        import tvm
+        import tvm, tvm_tirx
         from tvm import relax
 
-        executable = tvm.runtime.load_module("model.so")
-        vm = relax.VirtualMachine(executable, tvm.cuda(0))
+        executable = tvm_tirx.runtime.load_module("model.so")
+        vm = relax.VirtualMachine(executable, tvm_tirx.cuda(0))
         result = vm["main"](*inputs)
     """
     patterns = get_patterns_with_prefix("tensorrt")

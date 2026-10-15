@@ -17,12 +17,12 @@
 # pylint: disable=missing-docstring, unused-variable, invalid-name
 # ruff: noqa: E501
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm.s_tir import dlight as dl
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def test_matmul_tensorize_too_small():
@@ -115,10 +115,10 @@ def test_matmul_tensorize_too_small():
                                             compute[v1, v2] = compute_reindex_pad_local[v0, v1, v2]
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-rtx-2080-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_matmul_metal():
@@ -270,10 +270,10 @@ def test_matmul_metal():
                                             C[v1, 0, v2] = C_reindex_pad_shared[v0, v1, v2]
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("metal"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_matmul_metal_int4_quant():
@@ -435,11 +435,11 @@ def test_matmul_metal_int4_quant():
                                             C[v1, 0, v2] = C_reindex_pad_shared[v0, v1, v2]
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("metal"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

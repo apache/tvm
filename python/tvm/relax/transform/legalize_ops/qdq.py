@@ -17,10 +17,11 @@
 # pylint: disable=invalid-name
 """Default legalization function for quantize/dequantize operators."""
 
-import tvm
-from tvm import te, tirx
-from tvm.ir import Call
-from tvm.runtime import DataTypeCode
+import tvm, tvm_tirx
+from tvm_tirx import tirx
+from tvm import te
+from tvm_tirx.ir import Call
+from tvm_tirx.runtime import DataTypeCode
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr
@@ -28,13 +29,13 @@ from .common import _try_convert_to_scalar_const, register_legalize
 
 
 def clip_cast(val, dtype):
-    const_min = tvm.tirx.min_value(dtype)
-    const_max = tvm.tirx.max_value(dtype)
+    const_min = tvm_tirx.tirx.min_value(dtype)
+    const_max = tvm_tirx.tirx.max_value(dtype)
     return te.max(te.min(val, const_max), const_min).astype(dtype)
 
 
 def is_const_scalar(x):
-    return isinstance(x, tvm.tirx.IntImm | tvm.tirx.FloatImm)
+    return isinstance(x, tvm_tirx.tirx.IntImm | tvm_tirx.tirx.FloatImm)
 
 
 def _is_singleton_qparam(qparam: te.Tensor) -> bool:

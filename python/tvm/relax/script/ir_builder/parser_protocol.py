@@ -19,7 +19,7 @@
 Hooks normalize syntax operands and construct native builder frames and IR directly.
 For example, generated ``X.if_(condition)`` creates the native conditional frame;
 ``X.then_()`` and ``X.else_()`` enter its branches. See the corresponding shared
-``tvm.script.ir_builder.parser_protocol`` hooks for operand and loc contracts.
+``tvm_tirx.script.ir_builder.parser_protocol`` hooks for operand and loc contracts.
 """
 
 from __future__ import annotations
@@ -30,16 +30,16 @@ from typing import Any, NoReturn
 
 import tvm_ffi as _ffi
 
-from tvm import ir as _ir
+from tvm_tirx import ir as _ir
 from tvm import relax as _relax
-from tvm.ir.location import UnknownLoc
+from tvm_tirx.ir.location import UnknownLoc
 from tvm.relax import Call, Expr, Var, VarBinding
 from tvm.relax.type import Type
 from tvm.relax.utils import gen_call_tir_inputs
-from tvm.runtime import Object as tvm_Object
-from tvm.script.ir_builder import base as _base
-from tvm.script.ir_builder.base import IRBuilder as _IRBuilder
-from tvm.script.ir_builder.parser_protocol import decl_function
+from tvm_tirx.runtime import Object as tvm_Object
+from tvm_tirx.script.ir_builder import base as _base
+from tvm_tirx.script.ir_builder.base import IRBuilder as _IRBuilder
+from tvm_tirx.script.ir_builder.parser_protocol import decl_function
 
 from . import _ffi_api
 from . import frame as _frame
@@ -83,7 +83,7 @@ def function_(
     reference: _ir.Var | None = None,
     loc: _Loc = None,
 ) -> _frame.FunctionFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.function_`.
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.function_`.
 
     Public pure/private options pass to native purity and visibility controls.
     Local function bodies require their previously declared reference.
@@ -106,7 +106,7 @@ def arg_(name: str, ty: Any, *, loc: _Loc = None) -> _ir.Var:
         Source parameter name.
     ty : Type, Var, or callable
         Parameter annotation; corresponds to ``annotation`` in the shared
-        :func:`tvm.script.ir_builder.parser_protocol.arg_` contract. Primitive
+        :func:`tvm_tirx.script.ir_builder.parser_protocol.arg_` contract. Primitive
         annotations create a fresh parameter; an existing variable retains
         its identity.
     loc : LocationEntry, Location or None, optional
@@ -125,7 +125,7 @@ def arg_(name: str, ty: Any, *, loc: _Loc = None) -> _ir.Var:
 
 
 def func_name_(name: str) -> None:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.func_name_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.func_name_`."""
     return _ffi_api.FuncName(name)
 
 
@@ -141,7 +141,7 @@ def func_attr(attrs: dict[str, tvm_Object]) -> None:
 
 
 def func_ret_type_(annotation: Any, *, loc: _Loc = None) -> None:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.func_ret_type_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.func_ret_type_`."""
     return _ffi_api.FuncRetType(_native._type(_base._return_annotation(annotation)))
 
 
@@ -160,7 +160,7 @@ def check_well_formed_(function: _relax.Function) -> None:
 
     Notes
     -----
-    See :func:`tvm.script.ir_builder.parser_protocol.check_well_formed_`
+    See :func:`tvm_tirx.script.ir_builder.parser_protocol.check_well_formed_`
     for the shared whole-module validation coordinator.
 
     Validate the completed Relax function. Whole-module cross-function
@@ -195,7 +195,7 @@ def _check_module_well_formed(module: _ir.IRModule) -> None:
 
 
 def call_global_var_(function: _ir.GlobalVar, args: Sequence[Any]) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.call_global_var_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.call_global_var_`."""
     return _relax.Call(function, [_relax.utils.convert_to_expr(value) for value in args])
 
 
@@ -247,7 +247,7 @@ def bind_(
     name_loc: _Loc = None,
     frame_value: bool = False,
 ) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.bind_`.
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.bind_`.
 
     Relax values emit a binding or MatchCast; value_loc belongs to the actual
     RHS and loc to the binding target. Metadata passes through unchanged.
@@ -311,7 +311,7 @@ def decl_mutable_cell_(
     loc: _Loc = None,
     name_loc: _Loc = None,
 ) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.decl_mutable_cell_`.
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.decl_mutable_cell_`.
 
     Relax has immutable bindings and rejects mutable storage declarations.
     """
@@ -319,7 +319,7 @@ def decl_mutable_cell_(
 
 
 def set_mutable_cell_(target: Any, value: Any, *, loc: _Loc = None) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.set_mutable_cell_`.
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.set_mutable_cell_`.
 
     Relax has immutable bindings and rejects mutable storage updates.
     """
@@ -327,7 +327,7 @@ def set_mutable_cell_(target: Any, value: Any, *, loc: _Loc = None) -> NoReturn:
 
 
 def unpack_(value: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.unpack_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.unpack_`."""
     if isinstance(value, _relax.Tuple):
         return _python.tuple(value.fields)
     if isinstance(value, _relax.Expr) and isinstance(value.ty, _ir.TupleType):
@@ -420,7 +420,7 @@ def emit_var_binding(value: VarBinding) -> Var:
 
 
 def emit_(value: Any, *, loc: _Loc = None) -> None:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.emit_`.
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.emit_`.
 
     Only void expressions may be discarded. Receipts and None emit nothing;
     non-void expressions raise ValueError and unsupported host values raise TypeError.
@@ -443,12 +443,12 @@ def emit_(value: Any, *, loc: _Loc = None) -> None:
 
 
 def setitem_(target: Any, key: Any, value: Any, *, loc: _Loc = None) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.setitem_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.setitem_`."""
     raise TypeError("Relax does not support indexed assignment")
 
 
 def setattr_(target: Any, name: str, value: Any, *, loc: _Loc = None) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.setattr_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.setattr_`."""
     raise TypeError("Relax does not support attribute assignment")
 
 
@@ -466,24 +466,24 @@ def setattr_(target: Any, name: str, value: Any, *, loc: _Loc = None) -> NoRetur
 
 
 def if_(condition: Any, *, loc: _Loc = None) -> _frame.IfFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.if_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.if_`."""
     if not isinstance(condition, _relax.Expr):
         condition = _relax.prim_value(condition)
     return _base.at_(loc, _ffi_api.If(condition))
 
 
 def then_(*, loc: _Loc = None) -> _frame.ThenFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.then_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.then_`."""
     return _base.at_(loc, _ffi_api.Then())
 
 
 def else_(*, loc: _Loc = None) -> _frame.ElseFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.else_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.else_`."""
     return _base.at_(loc, _ffi_api.Else())
 
 
 def for_(iterable: Any, *, names: str | Sequence[str] | None = None, loc: _Loc = None) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.for_`.
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.for_`.
 
     Relax rejects source loops; use supported functional control flow.
     """
@@ -491,17 +491,17 @@ def for_(iterable: Any, *, names: str | Sequence[str] | None = None, loc: _Loc =
 
 
 def while_(condition: Any, *, loc: _Loc = None) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.while_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.while_`."""
     raise TypeError("Relax does not support imperative while loops")
 
 
 def range_(*args: Any, annotations: dict[str, Any] | None = None) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.range_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.range_`."""
     raise TypeError("Relax does not support imperative for loops")
 
 
 def break_(*, loc: _Loc = None) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.break_`.
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.break_`.
 
     Relax rejects loop-control statements.
     """
@@ -509,7 +509,7 @@ def break_(*, loc: _Loc = None) -> NoReturn:
 
 
 def continue_(*, loc: _Loc = None) -> NoReturn:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.continue_`.
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.continue_`.
 
     Relax rejects loop-control statements.
     """
@@ -528,7 +528,7 @@ def func_ret_value(value: Expr) -> None:
 
 
 def return_(value: Any = None, *, loc: _Loc = None) -> None:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.return_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.return_`."""
     if value is None:
         value = _relax.Tuple([])
     # Normalization may emit bindings, but an existing result keeps its own loc.
@@ -541,7 +541,7 @@ def assert_(
     *,
     loc: _Loc = None,
 ) -> None:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.assert_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.assert_`."""
     if not isinstance(message, _python.str):
         raise TypeError("An assertion message must be construction-time text")
     emit_(_base.at_(loc, _op.assert_op(condition, message)), loc=loc)

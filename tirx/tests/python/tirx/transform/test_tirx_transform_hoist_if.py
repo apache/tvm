@@ -16,10 +16,10 @@
 # under the License.
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_outermost_independent_loop():
@@ -49,8 +49,8 @@ def test_outermost_independent_loop():
                         for k in T.serial(4):
                             A[i, j, k] = 2
 
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_multiple_loop_dependencies():
@@ -74,8 +74,8 @@ def test_multiple_loop_dependencies():
                         for k in T.serial(4):
                             A[i, j, k] = 1
 
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_nested_conditions():
@@ -101,10 +101,10 @@ def test_nested_conditions():
 
     # One-sided conditions must not clone the loop before cleanup: a chain of
     # such conditions would otherwise produce exponentially many loop copies.
-    inserted = tvm.tirx.transform.HoistIf().passes[0](Before)
+    inserted = tvm_tirx.tirx.transform.HoistIf().passes[0](Before)
     assert inserted["main"].body[0].else_case is None
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_dependent_condition():
@@ -117,8 +117,8 @@ def test_dependent_condition():
                     A[i] = 1
 
     Expected = Before
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_sibling_statements():
@@ -142,8 +142,8 @@ def test_sibling_statements():
                     for j in T.serial(4):
                         A[i, j] = 1
 
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_binding_scope():
@@ -167,8 +167,8 @@ def test_binding_scope():
                     for j in T.serial(4):
                         A[i, j] = 1
 
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_memory_condition():
@@ -181,8 +181,8 @@ def test_memory_condition():
                     A[i] = 1
 
     Expected = Before
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_effectful_condition():
@@ -195,8 +195,8 @@ def test_effectful_condition():
                     A[i] = 1
 
     Expected = Before
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_thread_region_boundary():
@@ -211,8 +211,8 @@ def test_thread_region_boundary():
                             A[i, tx] = j
 
     Expected = Before
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_guarded_division():
@@ -226,8 +226,8 @@ def test_guarded_division():
                         A[i] = 1
 
     Expected = Before
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_zero_trip_division():
@@ -240,8 +240,8 @@ def test_zero_trip_division():
                     A[i] = 1
 
     Expected = Before
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_enclosing_else_is_preserved():
@@ -271,8 +271,8 @@ def test_enclosing_else_is_preserved():
                     if not i < 2:
                         A[i] = 2
 
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_effectful_enclosing_condition():
@@ -286,13 +286,13 @@ def test_effectful_enclosing_condition():
                         A[i] = 1
 
     Expected = Before
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 @pytest.mark.parametrize("field", ["min", "extent", "step"])
 def test_effectful_loop_header(field):
-    value = tvm.tirx.call_extern("int32", "loop_header")
+    value = tvm_tirx.tirx.call_extern("int32", "loop_header")
     start = value if field == "min" else 0
     stop = value if field == "extent" else 4
     step = value if field == "step" else 1
@@ -306,8 +306,8 @@ def test_effectful_loop_header(field):
                     A[i] = 1
 
     Expected = Before
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 @pytest.mark.parametrize("loop", [T.parallel, T.vectorized, T.unroll])
@@ -332,8 +332,8 @@ def test_non_default_loop_boundary(loop):
                         for k in T.serial(4):
                             A[i, j, k] = 1
 
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_nested_else_splits_once():
@@ -364,8 +364,8 @@ def test_nested_else_splits_once():
                 for i in T.serial(4):
                     A[i] = 3
 
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_nested_loop_splits_once():
@@ -400,8 +400,8 @@ def test_nested_loop_splits_once():
                             else:
                                 A[i, j, k] = 3
 
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_thread_binding_boundary():
@@ -415,9 +415,9 @@ def test_thread_binding_boundary():
                         A[tx, i] = 1
 
     Expected = Before
-    After = tvm.tirx.transform.HoistIf()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.HoistIf()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

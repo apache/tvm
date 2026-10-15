@@ -31,9 +31,9 @@ Contents:
 import math
 from typing import Any
 
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 from ._kernel_common import (
     _get_kv_chunk_len,

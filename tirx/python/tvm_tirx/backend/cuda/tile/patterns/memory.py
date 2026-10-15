@@ -26,7 +26,7 @@ Parameters: dst, src, scope; pred=None, preserve_dst=False, and cache_policy
 scalar storage elements; vector alignment counts bytes.
 """
 
-from tvm.backend.cuda.ptx import PTXNamespace
+from tvm_tirx.backend.cuda.ptx import PTXNamespace
 
 from .common import Context
 

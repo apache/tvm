@@ -17,8 +17,9 @@
 # pylint: disable=invalid-name
 """Default legalization function for image operators."""
 
-from tvm import tirx, topi
-from tvm.ir import Call
+from tvm_tirx import tirx
+from tvm import topi
+from tvm_tirx.ir import Call
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr

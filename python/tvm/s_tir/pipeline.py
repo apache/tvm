@@ -20,9 +20,10 @@
 
 import tvm_ffi
 
-import tvm
-from tvm import s_tir, tirx
-from tvm.tirx import compilation_pipeline as tir_pipeline
+import tvm, tvm_tirx
+from tvm_tirx import tirx
+from tvm import s_tir
+from tvm_tirx.tirx import compilation_pipeline as tir_pipeline
 
 tir = tirx  # alias for backward compat
 
@@ -58,13 +59,13 @@ def _lower_s_tir(*, adreno=False):
             s_tir.transform.LowerThreadBinding(),
         ]
     )
-    return tvm.ir.transform.Sequential(passes)
+    return tvm_tirx.ir.transform.Sequential(passes)
 
 
 def _lower_s_tir_tail(*, adreno=False):
-    @tvm.ir.transform.module_pass(opt_level=0)
+    @tvm_tirx.ir.transform.module_pass(opt_level=0)
     def _pipeline(mod, _ctx):
-        config = tvm.ir.transform.PassContext.current().config
+        config = tvm_tirx.ir.transform.PassContext.current().config
         passes = []
         if adreno:
             passes.append(s_tir.backend.adreno.transform.InjectTextureAlloc())
@@ -115,7 +116,7 @@ def _lower_s_tir_tail(*, adreno=False):
             passes.append(s_tir.transform.InjectPTXAsyncCopy())
         passes.append(s_tir.transform.LowerSynchronization())
         passes.append(s_tir.transform.MergeSharedMemoryAllocations())
-        return tvm.ir.transform.Sequential(passes)(mod)
+        return tvm_tirx.ir.transform.Sequential(passes)(mod)
 
     return _pipeline
 
@@ -130,11 +131,11 @@ def _partition_dialects(mod):
 
 
 def _submodule(mod, functions):
-    return tvm.IRModule(functions, attrs=mod.attrs, global_infos=mod.global_infos)
+    return tvm_tirx.IRModule(functions, attrs=mod.attrs, global_infos=mod.global_infos)
 
 
 def _s_tir_pipeline(*, prepare_only=False, target=None, adreno=False):
-    @tvm.ir.transform.module_pass(opt_level=0)
+    @tvm_tirx.ir.transform.module_pass(opt_level=0)
     def _pipeline(mod, _ctx):
         scheduled, native = _partition_dialects(mod)
         prepared = _submodule(mod, {})
@@ -158,7 +159,7 @@ def _s_tir_pipeline(*, prepare_only=False, target=None, adreno=False):
             return lowered
         if native:
             return tir_pipeline.finalize_tir_pipeline()(lowered)
-        return tvm.ir.transform.Sequential(
+        return tvm_tirx.ir.transform.Sequential(
             [
                 tirx.transform.AnnotateEntryFunc(),
                 tirx.transform.SplitHostDevice(),
@@ -198,7 +199,7 @@ def _prepare_legacy_target_binding(mod):
         in_device_region = previous
 
     def visit_call(call, visitor):
-        if in_binding and not in_device_region and isinstance(call.op, tvm.ir.GlobalVar):
+        if in_binding and not in_device_region and isinstance(call.op, tvm_tirx.ir.GlobalVar):
             raise ValueError(
                 "A custom pipeline with calls inside S-TIR thread bindings must accept "
                 "an explicit target keyword and bind it after LowerThreadBinding. "
@@ -211,9 +212,9 @@ def _prepare_legacy_target_binding(mod):
         tvm_ffi.structural_visit(
             func.body,
             [
-                (tvm.ir.For, visit_loop),
-                (tvm.ir.RegionStmt, visit_region),
-                (tvm.ir.Call, visit_call),
+                (tvm_tirx.ir.For, visit_loop),
+                (tvm_tirx.ir.RegionStmt, visit_region),
+                (tvm_tirx.ir.Call, visit_call),
             ],
         )
     return mod
@@ -225,7 +226,7 @@ def finalize_host_passes():  # pylint: disable=unused-argument
         tirx.transform.LowerTVMBuiltin(),
         tirx.transform.LowerIntrin(),
     ]
-    return tvm.ir.transform.Sequential(host_pass_list)
+    return tvm_tirx.ir.transform.Sequential(host_pass_list)
 
 
 def finalize_device_passes():  # pylint: disable=unused-argument
@@ -234,7 +235,7 @@ def finalize_device_passes():  # pylint: disable=unused-argument
         tirx.transform.StmtSimplify(),
         tirx.transform.LowerIntrin(),
     ]
-    return tvm.ir.transform.Sequential(device_pass_list)
+    return tvm_tirx.ir.transform.Sequential(device_pass_list)
 
 
 tir_pipeline.PIPELINE_MAP["s_tir"] = default_s_tir_pipeline

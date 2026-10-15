@@ -23,21 +23,21 @@ import operator
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tirx.layout_fixtures import scale_factor_tmem_layout, tcgen05_register_layout
-from tvm.backend.cuda.axis import TCol, TLane
-from tvm.backend.cuda.axis import tid_in_wg as axis_tid_in_wg
-from tvm.backend.cuda.layout import (
+from tvm_tirx.backend.cuda.axis import TCol, TLane
+from tvm_tirx.backend.cuda.axis import tid_in_wg as axis_tid_in_wg
+from tvm_tirx.backend.cuda.layout import (
     mma_atom_layout,
     mma_atom_shape,
     mma_shared_layout,
     tmem_datapath_layout,
 )
-from tvm.ir import PrimType, PtrType
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.layout import R, S, TileLayout
+from tvm_tirx.ir import PrimType, PtrType
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx.layout import R, S, TileLayout
 
 try:
     import ml_dtypes
@@ -75,9 +75,9 @@ def test_gemm_tcgen05_cta_group_1(task):
     assert C_shape[0] == 128
     assert C_region[0] == (0, 128)
     assert len(C_shape) == 2
-    A_elem_bytes = tvm.runtime.DataType(A_dtype).bits // 8
-    B_elem_bytes = tvm.runtime.DataType(B_dtype).bits // 8
-    C_elem_bytes = tvm.runtime.DataType(C_dtype).bits // 8
+    A_elem_bytes = tvm_tirx.runtime.DataType(A_dtype).bits // 8
+    B_elem_bytes = tvm_tirx.runtime.DataType(B_dtype).bits // 8
+    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
     A_layout = mma_shared_layout(A_dtype, A_swizzle_mode, A_shape)
@@ -230,11 +230,11 @@ def test_gemm_tcgen05_cta_group_1(task):
 
     np.random.seed(0)
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.IRModule({"main": gemm_async})
+        mod = tvm_tirx.IRModule({"main": gemm_async})
         # mod.show()
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
         # print(mod.mod.imports[0].inspect_source())
 
         A_np = np.random.randn(*A_shape).astype(A_dtype)
@@ -246,14 +246,14 @@ def test_gemm_tcgen05_cta_group_1(task):
         C_ref[tuple(r_tmem_C)] = A_ref @ B_ref
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A_tvm = tvm.runtime.tensor(A_np, dev)
-            B_tvm = tvm.runtime.tensor(B_np, dev)
-            C_tvm = tvm.runtime.tensor(C_np, dev)
+            dev = tvm_tirx.cuda(0)
+            A_tvm = tvm_tirx.runtime.tensor(A_np, dev)
+            B_tvm = tvm_tirx.runtime.tensor(B_np, dev)
+            C_tvm = tvm_tirx.runtime.tensor(C_np, dev)
             mod["main"](A_tvm, B_tvm, C_tvm)
             np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -266,7 +266,7 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
     A_layout = mma_shared_layout(A_dtype, 3, A_shape)
     B_layout = mma_shared_layout(B_dtype, 3, B_shape)
 
-    from tvm.backend.cuda.layout import tmem_datapath_layout
+    from tvm_tirx.backend.cuda.layout import tmem_datapath_layout
 
     c_layout = tmem_datapath_layout("F", 64, N)
 
@@ -405,10 +405,10 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(64))
 
     np.random.seed(0)
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.tirx.compile(
-            tvm.IRModule({"main": gemm_layout_f}), target=target, pipeline="tirx"
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": gemm_layout_f}), target=target, pipeline="tirx"
         )
 
     A_np = np.random.randn(*A_shape).astype(A_dtype)
@@ -417,14 +417,14 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
     C_ref = A_np.astype(np.float32) @ B_np.astype(np.float32).T
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A_tvm = tvm.runtime.tensor(A_np, dev)
-        B_tvm = tvm.runtime.tensor(B_np, dev)
-        C_tvm = tvm.runtime.tensor(C_np, dev)
+        dev = tvm_tirx.cuda(0)
+        A_tvm = tvm_tirx.runtime.tensor(A_np, dev)
+        B_tvm = tvm_tirx.runtime.tensor(B_np, dev)
+        C_tvm = tvm_tirx.runtime.tensor(C_np, dev)
         mod["main"](A_tvm, B_tvm, C_tvm)
         np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-2, rtol=1e-2)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 def _mapa(ptr, rank):
@@ -466,9 +466,9 @@ def test_gemm_tcgen05_cta_group_2(task):
     assert C_shape[0] == 256
     assert C_region[0] == (0, 128)
     assert len(C_shape) == 2
-    A_elem_bytes = tvm.runtime.DataType(A_dtype).bits // 8
-    B_elem_bytes = tvm.runtime.DataType(B_dtype).bits // 8
-    C_elem_bytes = tvm.runtime.DataType(C_dtype).bits // 8
+    A_elem_bytes = tvm_tirx.runtime.DataType(A_dtype).bits // 8
+    B_elem_bytes = tvm_tirx.runtime.DataType(B_dtype).bits // 8
+    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
 
@@ -645,10 +645,10 @@ def test_gemm_tcgen05_cta_group_2(task):
 
     np.random.seed(0)
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.IRModule({"main": gemm_async})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": gemm_async})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
         # print(mod.mod.imports[0].inspect_source())
 
         A_np = np.random.randn(*A_shape).astype(A_dtype)
@@ -662,14 +662,14 @@ def test_gemm_tcgen05_cta_group_2(task):
         C_ref[:, C_region[1][0] : C_region[1][0] + width] = A_ref @ B_ref
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A_tvm = tvm.runtime.tensor(A_np, dev)
-            B_tvm = tvm.runtime.tensor(B_np, dev)
-            C_tvm = tvm.runtime.tensor(C_np, dev)
+            dev = tvm_tirx.cuda(0)
+            A_tvm = tvm_tirx.runtime.tensor(A_np, dev)
+            B_tvm = tvm_tirx.runtime.tensor(B_np, dev)
+            C_tvm = tvm_tirx.runtime.tensor(C_np, dev)
             mod["main"](A_tvm, B_tvm, C_tvm)
             np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -693,9 +693,9 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
     B_shape = (N_half, K)  # per CTA: N_logical // cta_group
     C_shape = (M_per_cta * 2, N_logical)  # global output
 
-    A_elem_bytes = tvm.runtime.DataType(A_dtype).bits // 8
-    B_elem_bytes = tvm.runtime.DataType(B_dtype).bits // 8
-    C_elem_32b = 4 // (tvm.runtime.DataType(C_dtype).bits // 8)
+    A_elem_bytes = tvm_tirx.runtime.DataType(A_dtype).bits // 8
+    B_elem_bytes = tvm_tirx.runtime.DataType(B_dtype).bits // 8
+    C_elem_32b = 4 // (tvm_tirx.runtime.DataType(C_dtype).bits // 8)
     cols_alloc = max(32, next_power_of_2(N_half // C_elem_32b))
 
     A_layout = mma_shared_layout(A_dtype, swizzle_mode, A_shape)
@@ -881,10 +881,10 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
 
     np.random.seed(0)
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.IRModule({"main": gemm_async})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": gemm_async})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 
         A_np = np.random.randn(M_per_cta * 2, K).astype(A_dtype)
         B_np = np.random.randn(N_logical, K).astype(B_dtype)
@@ -893,14 +893,14 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
         C_ref = A_np.astype(np.float32) @ B_np.astype(np.float32).T
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A_tvm = tvm.runtime.tensor(A_np, dev)
-            B_tvm = tvm.runtime.tensor(B_np, dev)
-            C_tvm = tvm.runtime.tensor(C_np, dev)
+            dev = tvm_tirx.cuda(0)
+            A_tvm = tvm_tirx.runtime.tensor(A_np, dev)
+            B_tvm = tvm_tirx.runtime.tensor(B_np, dev)
+            C_tvm = tvm_tirx.runtime.tensor(C_np, dev)
             mod["main"](A_tvm, B_tvm, C_tvm)
             np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1043,9 +1043,9 @@ def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__2.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__2.sync.aligned.b32(tmem_addr[0], T.uint32(n_per_cta))
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.tirx.compile(tvm.IRModule({"main": gemm_async}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": gemm_async}), target=target, pipeline="tirx")
 
     np.random.seed(0)
     a_np = np.random.randn(m_per_cta * 2, k).astype(input_dtype)
@@ -1054,14 +1054,14 @@ def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
     c_ref = a_np.astype(a_dtype).astype(np.float32) @ b_np.astype(b_dtype).astype(np.float32).T
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        a_tvm = tvm.runtime.tensor(a_np, dev)
-        b_tvm = tvm.runtime.tensor(b_np, dev)
-        c_tvm = tvm.runtime.tensor(c_np, dev)
+        dev = tvm_tirx.cuda(0)
+        a_tvm = tvm_tirx.runtime.tensor(a_np, dev)
+        b_tvm = tvm_tirx.runtime.tensor(b_np, dev)
+        c_tvm = tvm_tirx.runtime.tensor(c_np, dev)
         mod["main"](a_tvm, b_tvm, c_tvm)
         np.testing.assert_allclose(c_tvm.numpy(), c_ref, atol=1e-3, rtol=1e-3)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 def per_row_quantize_fp8(mat):
@@ -1122,9 +1122,9 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
     assert C_region[0] == (0, 128)
     assert len(C_shape) == 2
 
-    A_elem_bytes = max(1, tvm.runtime.DataType(A_dtype).bits // 8)
-    B_elem_bytes = max(1, tvm.runtime.DataType(B_dtype).bits // 8)
-    C_elem_bytes = tvm.runtime.DataType(C_dtype).bits // 8
+    A_elem_bytes = max(1, tvm_tirx.runtime.DataType(A_dtype).bits // 8)
+    B_elem_bytes = max(1, tvm_tirx.runtime.DataType(B_dtype).bits // 8)
+    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
 
@@ -1145,7 +1145,7 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
     sf_mma_k = 1  # fp8: 1 scale factor per MMA iteration
     sfa_layout = scale_factor_tmem_layout(M, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
     sfb_layout = scale_factor_tmem_layout(N, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
-    sf_epc = 32 // tvm.runtime.DataType(SF_dtype).bits
+    sf_epc = 32 // tvm_tirx.runtime.DataType(SF_dtype).bits
     SFA_TMEM_SPACING = (int(sfa_layout.span("TCol")) + sf_epc - 1) // sf_epc
     SFA_TMEM_START = width
     SFB_TMEM_START = SFA_TMEM_START + SFA_TMEM_SPACING
@@ -1367,10 +1367,10 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
 
     np.random.seed(0)
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.IRModule({"main": gemm_async_fn})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": gemm_async_fn})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 
         # Generate random float32 data and quantize per-row
         A_f32 = np.random.randn(*A_shape).astype(np.float32)
@@ -1389,16 +1389,16 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
         C_ref[tuple(r_tmem_C)] = A_dq @ B_dq.T
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A_tvm = tvm.runtime.tensor(A_fp8, dev)
-            B_tvm = tvm.runtime.tensor(B_fp8, dev)
-            C_tvm = tvm.runtime.tensor(C_np, dev)
-            sfa_tvm = tvm.runtime.tensor(sfa_packed, dev)
-            sfb_tvm = tvm.runtime.tensor(sfb_packed, dev)
+            dev = tvm_tirx.cuda(0)
+            A_tvm = tvm_tirx.runtime.tensor(A_fp8, dev)
+            B_tvm = tvm_tirx.runtime.tensor(B_fp8, dev)
+            C_tvm = tvm_tirx.runtime.tensor(C_np, dev)
+            sfa_tvm = tvm_tirx.runtime.tensor(sfa_packed, dev)
+            sfb_tvm = tvm_tirx.runtime.tensor(sfb_packed, dev)
             mod["main"](A_tvm, B_tvm, C_tvm, sfa_tvm, sfb_tvm)
             np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1443,9 +1443,9 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
     assert C_region[0] == (0, 128)
     assert len(C_shape) == 2
 
-    A_elem_bytes = max(1, tvm.runtime.DataType(A_dtype).bits // 8)
-    B_elem_bytes = max(1, tvm.runtime.DataType(B_dtype).bits // 8)
-    C_elem_bytes = tvm.runtime.DataType(C_dtype).bits // 8
+    A_elem_bytes = max(1, tvm_tirx.runtime.DataType(A_dtype).bits // 8)
+    B_elem_bytes = max(1, tvm_tirx.runtime.DataType(B_dtype).bits // 8)
+    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
 
@@ -1467,7 +1467,7 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
 
     sf_mma_k = 1  # fp8: 1 scale factor per MMA iteration
     sf_layout = scale_factor_tmem_layout(128, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
-    sf_epc = 32 // tvm.runtime.DataType(SF_dtype).bits
+    sf_epc = 32 // tvm_tirx.runtime.DataType(SF_dtype).bits
     SF_TMEM_SPACING = (int(sf_layout.span("TCol")) + sf_epc - 1) // sf_epc
     N_cols = C_region[1][1] - C_region[1][0]
     SFA_TMEM_START = N_cols
@@ -1727,10 +1727,10 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
 
     np.random.seed(0)
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.IRModule({"main": gemm_async_fn})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": gemm_async_fn})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 
         # Generate random float32 data and quantize
         A_f32 = np.random.randn(*A_shape).astype(np.float32)
@@ -1766,16 +1766,16 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
         C_ref[:, C_region[1][0] : C_region[1][0] + width] = A_dq @ B_dq.T
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A_tvm = tvm.runtime.tensor(A_fp8, dev)
-            B_tvm = tvm.runtime.tensor(B_fp8, dev)
-            C_tvm = tvm.runtime.tensor(C_np, dev)
-            sfa_tvm = tvm.runtime.tensor(sfa_packed, dev)
-            sfb_tvm = tvm.runtime.tensor(sfb_packed, dev)
+            dev = tvm_tirx.cuda(0)
+            A_tvm = tvm_tirx.runtime.tensor(A_fp8, dev)
+            B_tvm = tvm_tirx.runtime.tensor(B_fp8, dev)
+            C_tvm = tvm_tirx.runtime.tensor(C_np, dev)
+            sfa_tvm = tvm_tirx.runtime.tensor(sfa_packed, dev)
+            sfb_tvm = tvm_tirx.runtime.tensor(sfb_packed, dev)
             mod["main"](A_tvm, B_tvm, C_tvm, sfa_tvm, sfb_tvm)
             np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 def per_row_quantize_nvfp4(mat):
@@ -1827,7 +1827,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
     A_fp4_shape = (M, K)
     B_fp4_shape = (N, K)
 
-    C_elem_bytes = tvm.runtime.DataType(C_dtype).bits // 8
+    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
 
@@ -1841,7 +1841,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
     sf_mma_k = 4  # nvfp4: 4 scale factors per MMA iteration (MMA_K=64, SF_VEC=16)
     sfa_layout = scale_factor_tmem_layout(M, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
     sfb_layout = scale_factor_tmem_layout(N, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
-    sf_epc = 32 // tvm.runtime.DataType(SF_dtype).bits
+    sf_epc = 32 // tvm_tirx.runtime.DataType(SF_dtype).bits
     SFA_TMEM_SPACING = (int(sfa_layout.span("TCol")) + sf_epc - 1) // sf_epc
     SFA_TMEM_START = width
     SFB_TMEM_START = SFA_TMEM_START + SFA_TMEM_SPACING
@@ -2083,10 +2083,10 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
 
     np.random.seed(0)
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.IRModule({"main": gemm_async_fn})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": gemm_async_fn})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 
         # Generate random float32 data and quantize per-row
         A_f32 = np.random.randn(M, K).astype(np.float32)
@@ -2109,16 +2109,16 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
         C_ref[0:128, 0:N] = A_dq @ B_dq.T
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A_tvm = tvm.runtime.tensor(A_packed, dev)
-            B_tvm = tvm.runtime.tensor(B_packed, dev)
-            C_tvm = tvm.runtime.tensor(C_np, dev)
-            sfa_tvm = tvm.runtime.tensor(sfa_packed, dev)
-            sfb_tvm = tvm.runtime.tensor(sfb_packed, dev)
+            dev = tvm_tirx.cuda(0)
+            A_tvm = tvm_tirx.runtime.tensor(A_packed, dev)
+            B_tvm = tvm_tirx.runtime.tensor(B_packed, dev)
+            C_tvm = tvm_tirx.runtime.tensor(C_np, dev)
+            sfa_tvm = tvm_tirx.runtime.tensor(sfa_packed, dev)
+            sfb_tvm = tvm_tirx.runtime.tensor(sfb_packed, dev)
             mod["main"](A_tvm, B_tvm, C_tvm, sfa_tvm, sfb_tvm)
             np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -2150,7 +2150,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
     A_packed_shape = (M_total, K // 2)  # (256, 128)
     B_packed_shape = (N_total, K // 2)  # (64, 128)
 
-    C_elem_bytes = tvm.runtime.DataType(C_dtype).bits // 8
+    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
 
@@ -2164,7 +2164,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
     sf_mma_k = 4  # nvfp4: 4 scale factors per MMA iteration
     sfa_layout = scale_factor_tmem_layout(M_per_cta, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
     sfb_layout = scale_factor_tmem_layout(N_total, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
-    sf_epc = 32 // tvm.runtime.DataType(SF_dtype).bits
+    sf_epc = 32 // tvm_tirx.runtime.DataType(SF_dtype).bits
     SFA_TMEM_SPACING = (int(sfa_layout.span("TCol")) + sf_epc - 1) // sf_epc
     (int(sfb_layout.span("TCol")) + sf_epc - 1) // sf_epc
     SFA_TMEM_START = width
@@ -2440,10 +2440,10 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
 
     np.random.seed(0)
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.IRModule({"main": gemm_async_fn})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": gemm_async_fn})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 
         # Generate random float32 data
         A_f32 = np.random.randn(M_total, K).astype(np.float32)
@@ -2478,16 +2478,16 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
         C_ref[0:M_total, 0:N_total] = A_dq @ B_dq.T
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A_tvm = tvm.runtime.tensor(A_packed, dev)
-            B_tvm = tvm.runtime.tensor(B_packed, dev)
-            C_tvm = tvm.runtime.tensor(C_np, dev)
-            sfa_tvm = tvm.runtime.tensor(sfa_packed, dev)
-            sfb_tvm = tvm.runtime.tensor(sfb_packed, dev)
+            dev = tvm_tirx.cuda(0)
+            A_tvm = tvm_tirx.runtime.tensor(A_packed, dev)
+            B_tvm = tvm_tirx.runtime.tensor(B_packed, dev)
+            C_tvm = tvm_tirx.runtime.tensor(C_np, dev)
+            sfa_tvm = tvm_tirx.runtime.tensor(sfa_packed, dev)
+            sfb_tvm = tvm_tirx.runtime.tensor(sfb_packed, dev)
             mod["main"](A_tvm, B_tvm, C_tvm, sfa_tvm, sfb_tvm)
             np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -2515,9 +2515,9 @@ def test_gemm_block_scaled_fp8_sf_id():
     A_shape = (M, K)
     B_shape = (N, K)
 
-    A_elem_bytes = max(1, tvm.runtime.DataType(A_dtype).bits // 8)
-    B_elem_bytes = max(1, tvm.runtime.DataType(B_dtype).bits // 8)
-    C_elem_bytes = tvm.runtime.DataType(C_dtype).bits // 8
+    A_elem_bytes = max(1, tvm_tirx.runtime.DataType(A_dtype).bits // 8)
+    B_elem_bytes = max(1, tvm_tirx.runtime.DataType(B_dtype).bits // 8)
+    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
 
@@ -2533,7 +2533,7 @@ def test_gemm_block_scaled_fp8_sf_id():
     num_ki = K // MMA_K  # 4: distinct SF positions per call
     sfa_layout = scale_factor_tmem_layout(M, SF_K=sf_mma_k * num_ki, sf_per_mma=sf_mma_k)
     sfb_layout = scale_factor_tmem_layout(N, SF_K=sf_mma_k * num_ki, sf_per_mma=sf_mma_k)
-    sf_epc = 32 // tvm.runtime.DataType(SF_dtype).bits
+    sf_epc = 32 // tvm_tirx.runtime.DataType(SF_dtype).bits
     SFA_TMEM_SPACING = (int(sfa_layout.span("TCol")) + sf_epc - 1) // sf_epc
     SFA_TMEM_START = N
     SFB_TMEM_START = SFA_TMEM_START + SFA_TMEM_SPACING
@@ -2761,10 +2761,10 @@ def test_gemm_block_scaled_fp8_sf_id():
 
     np.random.seed(42)
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.IRModule({"main": gemm_async_fn})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": gemm_async_fn})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 
         # Create data with very different per-block ranges to ensure sf_id matters
         A_f32 = np.random.randn(M, K).astype(np.float32)
@@ -2806,16 +2806,16 @@ def test_gemm_block_scaled_fp8_sf_id():
             C_ref[:M, :N] += A_block @ B_block.T
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A_tvm = tvm.runtime.tensor(A_fp8, dev)
-            B_tvm = tvm.runtime.tensor(B_fp8, dev)
-            C_tvm = tvm.runtime.tensor(C_np, dev)
-            sfa_tvm = tvm.runtime.tensor(sfa_packed, dev)
-            sfb_tvm = tvm.runtime.tensor(sfb_packed, dev)
+            dev = tvm_tirx.cuda(0)
+            A_tvm = tvm_tirx.runtime.tensor(A_fp8, dev)
+            B_tvm = tvm_tirx.runtime.tensor(B_fp8, dev)
+            C_tvm = tvm_tirx.runtime.tensor(C_np, dev)
+            sfa_tvm = tvm_tirx.runtime.tensor(sfa_packed, dev)
+            sfb_tvm = tvm_tirx.runtime.tensor(sfb_packed, dev)
             mod["main"](A_tvm, B_tvm, C_tvm, sfa_tvm, sfb_tvm)
             np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
         # Sanity: blocks must have different scales (test is meaningless if uniform)
         for i in range(1, num_blocks):
@@ -2839,7 +2839,7 @@ def _mn_major_layout(dtype, swizzle_mode, shape):
     MN-major swaps this: atom becomes [T*s, 8] with M contiguous.
     This is achieved by composing the swizzle with a stride-reversed TileLayout.
     """
-    from tvm.tirx.layout import ComposeLayout
+    from tvm_tirx.tirx.layout import ComposeLayout
 
     swizzle_atom = mma_atom_layout(dtype, swizzle_mode)
     base_shape = mma_atom_shape(dtype, swizzle_mode)  # 2D: [8, T*s]
@@ -3042,11 +3042,11 @@ def test_gemm_tcgen05_arbitrary_tiles(task, copy_perm, a_major, b_major):
     B_ref_perm = B_spec[5] if len(B_spec) > 5 else None
     M = C_region[0][1] - C_region[0][0]
     N = C_region[1][1] - C_region[1][0]
-    C_elem_bytes = tvm.runtime.DataType(C_dtype).bits // 8
+    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
-    A_elem_bytes = tvm.runtime.DataType(A_dtype).bits // 8
-    B_elem_bytes = tvm.runtime.DataType(B_dtype).bits // 8
+    A_elem_bytes = tvm_tirx.runtime.DataType(A_dtype).bits // 8
+    B_elem_bytes = tvm_tirx.runtime.DataType(B_dtype).bits // 8
     # Accept either swizzle mode (int) or pre-built layout
     A_layout = (
         A_swizzle_mode
@@ -3240,10 +3240,10 @@ def test_gemm_tcgen05_arbitrary_tiles(task, copy_perm, a_major, b_major):
 
     np.random.seed(0)
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.IRModule({"main": gemm_async})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": gemm_async})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 
         A_np = np.random.randn(*A_shape).astype(A_dtype)
         B_np = np.random.randn(*B_shape).astype(B_dtype)
@@ -3271,14 +3271,14 @@ def test_gemm_tcgen05_arbitrary_tiles(task, copy_perm, a_major, b_major):
         C_ref[tuple(r_tmem_C)] = A_ref @ B_ref
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A_tvm = tvm.runtime.tensor(A_np, dev)
-            B_tvm = tvm.runtime.tensor(B_np, dev)
-            C_tvm = tvm.runtime.tensor(C_np, dev)
+            dev = tvm_tirx.cuda(0)
+            A_tvm = tvm_tirx.runtime.tensor(A_np, dev)
+            B_tvm = tvm_tirx.runtime.tensor(B_np, dev)
+            C_tvm = tvm_tirx.runtime.tensor(C_np, dev)
             mod["main"](A_tvm, B_tvm, C_tvm)
             np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -3400,9 +3400,9 @@ def test_gemm_tcgen05_contiguous_kslice_partial_k(k_lo, k_hi):
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(128))
 
     np.random.seed(0)
-    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
-        mod = tvm.tirx.compile(
-            tvm.IRModule({"main": gemm_async}),
+    with tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": gemm_async}),
             target={"kind": "cuda", "arch": "sm_100a"},
             pipeline="tirx",
         )
@@ -3413,12 +3413,12 @@ def test_gemm_tcgen05_contiguous_kslice_partial_k(k_lo, k_hi):
     C_ref = A_np[:, k_lo:k_hi].astype("float32") @ B_np[:, k_lo:k_hi].astype("float32").T
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A_t, B_t, C_t = (tvm.runtime.tensor(x, dev) for x in (A_np, B_np, C_np))
+        dev = tvm_tirx.cuda(0)
+        A_t, B_t, C_t = (tvm_tirx.runtime.tensor(x, dev) for x in (A_np, B_np, C_np))
         mod["main"](A_t, B_t, C_t)
         np.testing.assert_allclose(C_t.numpy(), C_ref, atol=1e-2, rtol=1e-2)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -3453,11 +3453,11 @@ def _run_dense_gemm(
     A_swizzle, B_swizzle = 3, 3
     A_layout = mma_shared_layout(A_dtype, A_swizzle, A_shape)
     B_layout = mma_shared_layout(B_dtype, B_swizzle, B_shape)
-    C_elem_32b = 4 // (tvm.runtime.DataType(C_dtype).bits // 8)
+    C_elem_32b = 4 // (tvm_tirx.runtime.DataType(C_dtype).bits // 8)
     cols_alloc = max(32, next_power_of_2(N // C_elem_32b))
     total_bytes = functools.reduce(operator.mul, A_shape, 1) * (
-        tvm.runtime.DataType(A_dtype).bits // 8
-    ) + functools.reduce(operator.mul, B_shape, 1) * (tvm.runtime.DataType(B_dtype).bits // 8)
+        tvm_tirx.runtime.DataType(A_dtype).bits // 8
+    ) + functools.reduce(operator.mul, B_shape, 1) * (tvm_tirx.runtime.DataType(B_dtype).bits // 8)
     instruction_k = 8 if is_AB_tf32 else 32
     kind = "tf32" if is_AB_tf32 else "f8f6f4"
     atom_width = 32 if is_AB_tf32 else 128
@@ -3569,11 +3569,11 @@ def _run_dense_gemm(
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(cols_alloc))
 
-    dev = tvm.cuda(0)
+    dev = tvm_tirx.cuda(0)
     np.random.seed(0)
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.tirx.compile(tvm.IRModule({"main": gemm_async}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": gemm_async}), target=target, pipeline="tirx")
 
     def _rand(shape, dtype):
         f = np.random.randn(*shape).astype("float32")
@@ -3582,7 +3582,7 @@ def _run_dense_gemm(
     A_np = _rand(A_shape, A_dtype)
     B_np = _rand(B_shape, B_dtype)
     C_np = np.zeros(C_shape, dtype=C_dtype)
-    A_t, B_t, C_t = (tvm.runtime.tensor(x, dev) for x in (A_np, B_np, C_np))
+    A_t, B_t, C_t = (tvm_tirx.runtime.tensor(x, dev) for x in (A_np, B_np, C_np))
     mod["main"](A_t, B_t, C_t)
     C_ref = A_np.astype("float32") @ B_np.astype("float32").T
     np.testing.assert_allclose(C_t.numpy().astype("float32"), C_ref, atol=atol, rtol=rtol)
@@ -3705,9 +3705,9 @@ def test_gemm_tcgen05_no_swizzle_col_major_a_ws_local_idesc():
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(128))
 
-    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
-        mod = tvm.tirx.compile(
-            tvm.IRModule({"main": gemm_ws}),
+    with tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": gemm_ws}),
             target={"kind": "cuda", "arch": "sm_100a"},
             pipeline="tirx",
         )
@@ -3721,12 +3721,12 @@ def test_gemm_tcgen05_no_swizzle_col_major_a_ws_local_idesc():
     assert str(0x04410490) in src, "expected K-major (bit15=0) idesc literal"
     assert str(0x04418490) not in src, "MN-major idesc (bit15=1) mis-pairs the K-major descA"
 
-    dev = tvm.cuda(0)
+    dev = tvm_tirx.cuda(0)
     np.random.seed(0)
     A_np = np.random.randn(M, K).astype(ml_dtypes.bfloat16)
     B_np = np.random.randn(K, N).astype(ml_dtypes.bfloat16)
     C_np = np.zeros((128, N // 2), "float32")
-    A_t, B_t, C_t = (tvm.runtime.tensor(x, dev) for x in (A_np, B_np, C_np))
+    A_t, B_t, C_t = (tvm_tirx.runtime.tensor(x, dev) for x in (A_np, B_np, C_np))
     mod["main"](A_t, B_t, C_t)
     C_ref = A_np.astype("float32") @ B_np.astype("float32")
     C_out = C_t.numpy()

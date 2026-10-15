@@ -17,12 +17,12 @@
 
 """Implementation of BinaryReduce dispatch."""
 
-from tvm.ir import TensorRegion
-from tvm.script import tirx as T
-from tvm.tirx import Function
-from tvm.tirx.tile import DispatchContext
-from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.views import BinaryReduce
+from tvm_tirx.ir import TensorRegion
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import Function
+from tvm_tirx.tirx.tile import DispatchContext
+from tvm_tirx.tirx.tile.instruction import TensorCall
+from tvm_tirx.tirx.tile.views import BinaryReduce
 
 from ..binary.utils import InstType, try_find_inst_nary
 from ..common import init_analyzer, nki_dim

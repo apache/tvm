@@ -18,11 +18,11 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 @pytest.mark.gpu
@@ -47,20 +47,20 @@ def test_metal_compile_callback_source_passthrough():
         seen["src"] = src
         return (src, "metal")
 
-    tvm.register_global_func("tvm_callback_metal_compile", inspect_callback, override=True)
+    tvm_tirx.register_global_func("tvm_callback_metal_compile", inspect_callback, override=True)
     try:
-        f = tvm.tirx.compile(Module, target="metal")
-        dev = tvm.metal()
+        f = tvm_tirx.tirx.compile(Module, target="metal")
+        dev = tvm_tirx.metal()
         a = np.random.rand(n).astype("float32")
-        a_nd = tvm.runtime.tensor(a, dev)
-        b_nd = tvm.runtime.empty((n,), "float32", dev)
+        a_nd = tvm_tirx.runtime.tensor(a, dev)
+        b_nd = tvm_tirx.runtime.empty((n,), "float32", dev)
         f(a_nd, b_nd)
         dev.sync()
     finally:
         tvm_ffi.registry.remove_global_func("tvm_callback_metal_compile")
 
     assert "src" in seen and len(seen["src"]) > 0
-    tvm.testing.assert_allclose(b_nd.numpy(), a + 1.0, atol=1e-5, rtol=1e-5)
+    tvm_tirx.testing.assert_allclose(b_nd.numpy(), a + 1.0, atol=1e-5, rtol=1e-5)
 
 
 @pytest.mark.gpu
@@ -96,13 +96,13 @@ def test_metal_compile_callback_mixed_formats_rejected():
         # Second kernel declares textual MSL, contradicting the metallib above.
         return (src, "metal")
 
-    tvm.register_global_func("tvm_callback_metal_compile", mixed_callback, override=True)
+    tvm_tirx.register_global_func("tvm_callback_metal_compile", mixed_callback, override=True)
     try:
         with pytest.raises(Exception, match="inconsistent formats"):
-            tvm.tirx.compile(Module, target="metal")
+            tvm_tirx.tirx.compile(Module, target="metal")
     finally:
         tvm_ffi.registry.remove_global_func("tvm_callback_metal_compile")
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

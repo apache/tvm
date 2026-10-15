@@ -17,8 +17,8 @@
 
 """Common utilities for TRN operator scheduling."""
 
-from tvm.sym.analyzer import Analyzer
-from tvm.tirx.tile import DispatchContext
+from tvm_tirx.sym.analyzer import Analyzer
+from tvm_tirx.tirx.tile import DispatchContext
 
 # Used to generate the correct [:, None] for mask/predicate
 nki_dim = "nki_dim"

@@ -28,16 +28,16 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm.backend.cuda.layout import mma_atom_layout, mma_atom_shape, mma_shared_layout
-from tvm.ir import PrimType, PtrType, Range, TensorRegion, TensorRegionType
-from tvm.script import tirx as T
-from tvm.sym import Analyzer
-from tvm.tirx import IntImm, Var
-from tvm.tirx.layout import ComposeLayout, S, TileLayout
-from tvm.tirx.thread_scope import ThreadScope
-from tvm.tirx.tile.dispatch import DispatchContext, run_dispatch
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.cuda.layout import mma_atom_layout, mma_atom_shape, mma_shared_layout
+from tvm_tirx.ir import PrimType, PtrType, Range, TensorRegion, TensorRegionType
+from tvm_tirx.script import tirx as T
+from tvm_tirx.sym import Analyzer
+from tvm_tirx.tirx import IntImm, Var
+from tvm_tirx.tirx.layout import ComposeLayout, S, TileLayout
+from tvm_tirx.tirx.thread_scope import ThreadScope
+from tvm_tirx.tirx.tile.dispatch import DispatchContext, run_dispatch
 
 _TMA_OPS = {
     "tirx.ptx.cp_async_bulk_tensor_g2s_cta",
@@ -54,7 +54,7 @@ def _ptx_call_parts(call):
     the operand positions follow the table's layout for the call's tokens, so
     tests name operands instead of hard-coding argument indices.
     """
-    from tvm.backend.cuda.ptx.table import TABLE, mods, operand_layout
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, mods, operand_layout
 
     entry = TABLE[call.op.name.removeprefix("tirx.ptx.")]
     n_slots = len(entry.slots)
@@ -68,7 +68,7 @@ def _ptx_call_parts(call):
 
 def _unwrap_shared_addr(value):
     """Peel the dialect's generic-pointer -> shared-window conversion."""
-    if isinstance(value, tvm.ir.Call) and value.op.name == "tirx.cuda.cvta_generic_to_shared":
+    if isinstance(value, tvm_tirx.ir.Call) and value.op.name == "tirx.cuda.cvta_generic_to_shared":
         return value.args[0]
     return value
 
@@ -86,7 +86,7 @@ class _TMACounter:
         self.loop_extents.pop()
 
     def _visit_evaluate(self, op, visitor):
-        if isinstance(op.value, tvm.ir.Call) and op.value.op.name in _TMA_OPS:
+        if isinstance(op.value, tvm_tirx.ir.Call) and op.value.op.name in _TMA_OPS:
             multiplier = reduce(mul, (int(extent) for extent in self.loop_extents), 1)
             self.total += multiplier
             self.calls.append(op.value)
@@ -96,7 +96,7 @@ class _TMACounter:
     def visit_stmt(self, stmt):
         tvm_ffi.structural_visit(
             stmt,
-            [(tvm.ir.For, self._visit_for), (tvm.ir.Evaluate, self._visit_evaluate)],
+            [(tvm_tirx.ir.For, self._visit_for), (tvm_tirx.ir.Evaluate, self._visit_evaluate)],
         )
 
 
@@ -105,11 +105,11 @@ class _EncodeCollector:
         self.calls = []
 
     def _visit_call(self, op):
-        if isinstance(op.op, tvm.ir.Op) and op.op.name == "tirx.cuda.tensormap_encode_tiled":
+        if isinstance(op.op, tvm_tirx.ir.Op) and op.op.name == "tirx.cuda.tensormap_encode_tiled":
             self.calls.append(op)
 
     def visit_stmt(self, stmt):
-        tvm_ffi.structural_walk(stmt, (tvm.ir.Call, self._visit_call), order="post")
+        tvm_ffi.structural_walk(stmt, (tvm_tirx.ir.Call, self._visit_call), order="post")
 
 
 class _SelectCollector:
@@ -120,7 +120,7 @@ class _SelectCollector:
         self.nodes.append(op)
 
     def visit_stmt(self, stmt):
-        tvm_ffi.structural_walk(stmt, (tvm.tirx.Select, self._visit_select), order="post")
+        tvm_ffi.structural_walk(stmt, (tvm_tirx.tirx.Select, self._visit_select), order="post")
 
 
 class _PrefetchCollector:
@@ -128,21 +128,21 @@ class _PrefetchCollector:
         self.names = []
 
     def _visit_call(self, op):
-        if isinstance(op.op, tvm.ir.Op) and op.op.name == "tirx.ptx.prefetch":
+        if isinstance(op.op, tvm_tirx.ir.Op) and op.op.name == "tirx.ptx.prefetch":
             addr = op.args[0]
             # A tensormap address arrives as a u64 handle, so the dialect
             # coerces it with an explicit reinterpret before the call.
-            if isinstance(addr, tvm.ir.Call) and addr.op.name == "tirx.reinterpret":
+            if isinstance(addr, tvm_tirx.ir.Call) and addr.op.name == "tirx.reinterpret":
                 addr = addr.args[0]
             if (
-                isinstance(addr, tvm.ir.Call)
+                isinstance(addr, tvm_tirx.ir.Call)
                 and addr.op.name == "tirx.address_of"
                 and isinstance(addr.args[0], Var)
             ):
                 self.names.append(addr.args[0].name)
 
     def visit_stmt(self, stmt):
-        tvm_ffi.structural_walk(stmt, (tvm.ir.Call, self._visit_call), order="post")
+        tvm_ffi.structural_walk(stmt, (tvm_tirx.ir.Call, self._visit_call), order="post")
 
 
 def _plain_layout(shape, strides=None):
@@ -158,7 +158,7 @@ def _ranges(region):
 
 def _count_tma(stmt):
     counter = _TMACounter()
-    counter.visit_stmt(stmt.body if isinstance(stmt, tvm.tirx.Function) else stmt)
+    counter.visit_stmt(stmt.body if isinstance(stmt, tvm_tirx.tirx.Function) else stmt)
     return counter
 
 
@@ -744,7 +744,7 @@ def _region(tensor, ranges=None):
 
 def _context(arch="sm_100a", ranges=None):
     return DispatchContext(
-        tvm.target.Target({"kind": "cuda", "arch": arch}),
+        tvm_tirx.target.Target({"kind": "cuda", "arch": arch}),
         ThreadScope("cuda.thread"),
         {},
         ranges or {},
@@ -797,7 +797,7 @@ def _address_array(layout, shape, ranges, elem_offset=0):
             return int(expr)
         if isinstance(expr, Var):
             return values[expr]
-        if isinstance(expr, tvm.tirx.Cast):
+        if isinstance(expr, tvm_tirx.tirx.Cast):
             return evaluate(expr.value)
         ops = {
             "Add": np.add,
@@ -812,7 +812,7 @@ def _address_array(layout, shape, ranges, elem_offset=0):
         }
         if type(expr).__name__ in ops:
             return ops[type(expr).__name__](evaluate(expr.a), evaluate(expr.b))
-        if isinstance(expr, tvm.ir.Call):
+        if isinstance(expr, tvm_tirx.ir.Call):
             calls = {
                 "tirx.bitwise_xor": np.bitwise_xor,
                 "tirx.bitwise_and": np.bitwise_and,
@@ -842,17 +842,17 @@ def _original_addresses(kwargs):
 def _recipe_views(kwargs, recipe):
     """Declare the caller's explicit zero-copy aliases on the original storage."""
     dtype = kwargs.get("dtype", "float16")
-    bits = tvm.DataType(recipe.dtype).bits
-    original_bits = tvm.DataType(dtype).bits
+    bits = tvm_tirx.DataType(recipe.dtype).bits
+    original_bits = tvm_tirx.DataType(dtype).bits
     ga, sa = _original_addresses(kwargs)
     shape = tuple(reversed(recipe.dims))
     strides = tuple(reversed((1, *(s * 8 // bits for s in recipe.strides))))
     box = tuple(reversed(recipe.boxes))
-    g = tvm.tirx.decl_tensor(
+    g = tvm_tirx.tirx.decl_tensor(
         kwargs["g_shape"], dtype, "global_storage", layout=kwargs.get("g_layout")
     )
     sshape = kwargs.get("s_shape", kwargs["g_shape"])
-    s = tvm.tirx.decl_tensor(
+    s = tvm_tirx.tirx.decl_tensor(
         sshape,
         dtype,
         "shared_storage",
@@ -860,7 +860,7 @@ def _recipe_views(kwargs, recipe):
         layout=kwargs.get("s_layout"),
         data_alignment=1024,
     )
-    gv = tvm.tirx.decl_tensor(
+    gv = tvm_tirx.tirx.decl_tensor(
         shape, recipe.dtype, "global_view", data=g.data, layout=_plain_layout(shape, strides)
     )
     assert int(sa.min()) * original_bits % bits == 0
@@ -868,7 +868,7 @@ def _recipe_views(kwargs, recipe):
     layout = _plain_layout(box)
     if recipe.enums[1]:
         layout = ComposeLayout(7 - int(math.log2(bits)), recipe.enums[1], 3, layout)
-    sv = tvm.tirx.decl_tensor(
+    sv = tvm_tirx.tirx.decl_tensor(
         box,
         recipe.dtype,
         "shared_view",
@@ -946,10 +946,10 @@ def _direct(
     **fields,
 ):
     s_shape = s_shape or g_shape
-    g = tvm.tirx.decl_tensor(
+    g = tvm_tirx.tirx.decl_tensor(
         g_shape, dtype, "A", layout=g_layout or _plain_layout(g_shape), elem_offset=g_elem_offset
     )
-    s = tvm.tirx.decl_tensor(
+    s = tvm_tirx.tirx.decl_tensor(
         s_shape,
         dtype,
         "A_smem",
@@ -994,7 +994,7 @@ def test_explicit_rejects_unknown_or_nonunit_implicit_inner_stride(stride):
 def test_explicit_view_base_offset_is_encoded_without_coordinate_rewrite():
     _, host, _ = _direct(_load(2), g_shape=(64, 64), g_elem_offset=8)
     signature = _encode_signature(_collect_encodes(host)[0])
-    assert isinstance(signature["base"], tvm.ir.Call)
+    assert isinstance(signature["base"], tvm_tirx.ir.Call)
     assert signature["base"].op.name == "tirx.address_of"
     base = signature["base"].args[0]
     assert int(base.source.ty.elem_offset) * 2 == 16
@@ -1054,14 +1054,14 @@ def test_explicit_allows_different_operand_ranks_with_equal_payload_bytes():
 
 
 def _lower_module(func, arch="sm_100a"):
-    target = tvm.target.Target({"kind": "cuda", "arch": arch})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": arch})
     with target:
-        return tvm.tirx.transform.LowerTIRx()(tvm.IRModule({"main": func}))
+        return tvm_tirx.tirx.transform.LowerTIRx()(tvm_tirx.IRModule({"main": func}))
 
 
 def _compile_module(func, arch="sm_100a"):
-    target = tvm.target.Target({"kind": "cuda", "arch": arch})
-    return tvm.tirx.compile(tvm.IRModule({"main": func}), target=target, pipeline="tirx")
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": arch})
+    return tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": func}), target=target, pipeline="tirx")
 
 
 # These recipes retain the old coordinate-only dimensions, split storage axes,
@@ -1187,8 +1187,8 @@ def test_caller_descriptor_view_preserves_original_addresses(kwargs, recipe):
 def test_caller_explicit_issue_coordinates_and_pointer():
     # Original shape/layout retained, now explicitly ask for 512 one-row boxes.
     shape = (512, 64)
-    g = tvm.tirx.decl_tensor(shape, "float16", "A", layout="default")
-    s = tvm.tirx.decl_tensor(
+    g = tvm_tirx.tirx.decl_tensor(shape, "float16", "A", layout="default")
+    s = tvm_tirx.tirx.decl_tensor(
         (512, 1, 64), "float16", "S", scope="shared", layout="default", data_alignment=128
     )
     impl, host, _ = _emit(_load(2), g, s, box=(1, 64), coords=(0, 0), coord_steps=((1, 0),))
@@ -1222,7 +1222,7 @@ def test_dynamic_global_dimension_and_coordinates_remain_runtime_values():
     sig = _encode_signature(_collect_encodes(host)[0])
     assert Analyzer().can_prove_equal(sig["dims"][1], seq_len * T.uint32(64))
     _, operands = _ptx_call_parts(_count_tma(impl).calls[0])
-    tvm.ir.assert_structural_equal(operands["coords"][1], T.cast(row, "int32"))
+    tvm_tirx.ir.assert_structural_equal(operands["coords"][1], T.cast(row, "int32"))
 
 
 @pytest.mark.parametrize(
@@ -1299,8 +1299,8 @@ def test_symbolic_stride_gpu(stride):
 
     f = _compile_module(kernel)
     x = np.arange(8 * stride, dtype="float16").reshape(8, stride)
-    out = tvm.runtime.tensor(np.zeros((8, 64), "float16"), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out, stride)
+    out = tvm_tirx.runtime.tensor(np.zeros((8, 64), "float16"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out, stride)
     np.testing.assert_array_equal(out.numpy(), x[:, :64])
 
 
@@ -1344,8 +1344,8 @@ def test_element_strides_gpu(step, swizzle):
 
     f = _compile_module(kernel)
     x = np.arange(8 * cols, dtype="uint32").reshape(8, cols)
-    out = tvm.runtime.tensor(np.zeros((rows, cols), "uint32"), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros((rows, cols), "uint32"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), x[::step])
 
 
@@ -1383,7 +1383,7 @@ def selector_gather(
 
 
 def _from_source(source):
-    return tvm.script.from_source(source, {"T": T})
+    return tvm_tirx.script.from_source(source, {"T": T})
 
 
 def test_explicit_gather_selector_encodes_each_map_selects_address_and_issues_once():
@@ -1417,7 +1417,7 @@ def test_explicit_gather_selector_encodes_each_map_selects_address_and_issues_on
 def test_nested_selector_parser_printer_roundtrip_and_lowering_remap():
     func = _from_source(_SELECTOR_SOURCE)
     reparsed = _from_source(func.script(extra_config={"tirx.prefix": "T"}))
-    tvm.ir.assert_structural_equal(func, reparsed, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(func, reparsed, map_free_vars=True)
     lowered = _lower_module(reparsed)
     assert len(_collect_encodes([lowered["main"].body])) == 2
     assert _count_tma(lowered["main"]).total == 1
@@ -1473,8 +1473,8 @@ def test_explicit_gather_selector_gpu_roundtrip(subview):
     rng = np.random.default_rng(0)
     a_np = rng.standard_normal((256, 64)).astype("float16")
     b_np = rng.standard_normal((512, 80) if subview else (256, 64)).astype("float16")
-    a, b = (tvm.runtime.tensor(x, tvm.cuda()) for x in (a_np, b_np))
-    out = tvm.runtime.tensor(np.zeros((4, 64), "float16"), tvm.cuda())
+    a, b = (tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()) for x in (a_np, b_np))
+    out = tvm_tirx.runtime.tensor(np.zeros((4, 64), "float16"), tvm_tirx.cuda())
     indices = [1, 2, 3, 4] if subview else [7, 3, 19, 5]
     for flag in (0, 1, -1):
         f(a, b, out, flag)
@@ -1491,10 +1491,10 @@ def test_caller_dynamic_stage_coordinates_and_pointer():
             stage: Range.from_min_extent(0, 3),
         }
     )
-    gv = tvm.tirx.decl_tensor(
+    gv = tvm_tirx.tirx.decl_tensor(
         (32, 4096, 64), "float16", "G", layout=_plain_layout((32, 4096, 64), (64, 2048, 1))
     )
-    sv = tvm.tirx.decl_tensor(
+    sv = tvm_tirx.tirx.decl_tensor(
         (3, 2, 128, 64), "float16", "S", scope="shared", layout="default", data_alignment=128
     )
     impl, host, _ = _emit(
@@ -1576,7 +1576,7 @@ def test_dispatch_propagates_flat_bind_to_explicit_coordinates():
     # inline a runtime load during dispatch.
     assert str(args["coords"][2]) == "d_n // 64"
     bindings = []
-    tvm_ffi.structural_walk(lowered["main"].body, (tvm.ir.Bind, lambda bind: bindings.append(bind)))
+    tvm_ffi.structural_walk(lowered["main"].body, (tvm_tirx.ir.Bind, lambda bind: bindings.append(bind)))
     assert any(
         bind.var.name == "d_n" and str(bind.value) == "tile_index[0] * 128" for bind in bindings
     )
@@ -1762,11 +1762,11 @@ def test_explicit_gather_uses_extracted_swizzled_slice_pointer():
     _, args = _ptx_call_parts(_count_tma(impl).calls[0])
     pointer = args["dst_mem"][0]
     calls = []
-    tvm_ffi.structural_walk(pointer, (tvm.ir.Call, lambda c: calls.append(c)))
+    tvm_ffi.structural_walk(pointer, (tvm_tirx.ir.Call, lambda c: calls.append(c)))
     physical = next(c for c in calls if c.op.name == "tirx.cuda.cvta_generic_to_shared")
     # Row 4 has physical byte offset 576; the instruction must start at 512.
     concrete = tvm_ffi.structural_map(
-        pointer, (tvm.ir.Call, lambda c: T.uint32(576) if c.same_as(physical) else c), order="post"
+        pointer, (tvm_tirx.ir.Call, lambda c: T.uint32(576) if c.same_as(physical) else c), order="post"
     )
     assert int(Analyzer().simplify(concrete)) == 512
 
@@ -1812,8 +1812,8 @@ def test_gather_swizzled_subregion_gpu(swizzle, start):
 
     f = _compile_module(kernel)
     x = np.arange(8 * cols, dtype="float16").reshape(8, cols)
-    out = tvm.runtime.tensor(np.zeros_like(x), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros_like(x), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     expected = np.full_like(x, -9)
     expected[start : start + 4] = x[[7, 3, 1, 5]]
     np.testing.assert_array_equal(out.numpy(), expected)
@@ -1887,8 +1887,8 @@ def test_caller_tiles_nested_shared_layout(case_id):
     f = _compile_module(kernel)
     rng = np.random.default_rng(17)
     values = rng.standard_normal(shape if is_load else (32, 512)).astype("float16")
-    g = tvm.runtime.tensor(values if is_load else np.full(shape, -9, "float16"), tvm.cuda())
-    a = tvm.runtime.tensor(np.zeros((32, 512), "float16") if is_load else values, tvm.cuda())
+    g = tvm_tirx.runtime.tensor(values if is_load else np.full(shape, -9, "float16"), tvm_tirx.cuda())
+    a = tvm_tirx.runtime.tensor(np.zeros((32, 512), "float16") if is_load else values, tvm_tirx.cuda())
     f(g, a)
     if is_load:
         np.testing.assert_array_equal(a.numpy(), values if rank == 2 else values[0])
@@ -1900,8 +1900,8 @@ def test_caller_tiles_nested_shared_layout(case_id):
 
 def test_caller_explicit_strided_outer_issues():
     kwargs = next(p.values[1] for p in TMA_CASES if p.values[0] == "g2s-3d-stride-gap-outer")
-    g = tvm.tirx.decl_tensor(kwargs["g_shape"], "float16", "A", layout=kwargs["g_layout"])
-    s = tvm.tirx.decl_tensor(
+    g = tvm_tirx.tirx.decl_tensor(kwargs["g_shape"], "float16", "A", layout=kwargs["g_layout"])
+    s = tvm_tirx.tirx.decl_tensor(
         (8, 1, 32, 64),
         "float16",
         "S",
@@ -1942,8 +1942,8 @@ def test_descriptor_cache_distinguishes_explicit_dtype_views():
     data = Var("A", PtrType(PrimType("uint8"), "global"))
     sctx = _context()
     for dtype in ("uint8", "uint16"):
-        g = tvm.tirx.decl_tensor((256,), dtype, "A_view", data=data, layout="default")
-        s = tvm.tirx.decl_tensor(
+        g = tvm_tirx.tirx.decl_tensor((256,), dtype, "A_view", data=data, layout="default")
+        s = tvm_tirx.tirx.decl_tensor(
             (256,), dtype, "S", scope="shared", layout="default", data_alignment=128
         )
         _emit(_load(1), g, s, box=(256,), coords=(0,), sctx=sctx)
@@ -1992,7 +1992,7 @@ def test_unknown_descriptor_constraints_are_checked_by_runtime_encode():
         _load(2), g_shape=(dim, 16), s_shape=(4, 16), g_layout=_plain_layout((dim, 16), (stride, 1))
     )
     sig = _encode_signature(_collect_encodes(host)[0])
-    tvm.ir.assert_structural_equal(sig["dims"][1], dim)
+    tvm_tirx.ir.assert_structural_equal(sig["dims"][1], dim)
     assert Analyzer().can_prove_equal(sig["strides"][0], stride * 2)
 
 
@@ -2110,8 +2110,8 @@ def test_caller_stages_unaligned_shared_region(warp_offset):
 
     f = _compile_module(kernel)
     x = np.arange(128, dtype="float16").reshape(2, 64)
-    out = tvm.runtime.tensor(np.zeros(512, "float16"), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros(512, "float16"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     expected = np.full(512, -9, "float16")
     start = 32 + warp_offset * 64 + 128
     expected[start : start + 128] = x.reshape(-1)
@@ -2129,8 +2129,8 @@ def test_caller_descriptor_selection_uses_first_true():
     rng = np.random.default_rng(23)
     a_np = rng.standard_normal((256, 64)).astype("float16")
     b_np = rng.standard_normal((512, 80)).astype("float16")
-    a, b = (tvm.runtime.tensor(x, tvm.cuda()) for x in (a_np, b_np))
-    out = tvm.runtime.tensor(np.zeros((4, 64), "float16"), tvm.cuda())
+    a, b = (tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()) for x in (a_np, b_np))
+    out = tvm_tirx.runtime.tensor(np.zeros((4, 64), "float16"), tvm_tirx.cuda())
     for flag in (0, 1, 2, -1):
         f(a, b, out, flag)
         expected = a_np if flag > 0 else b_np[16:512, 8:72]
@@ -2188,8 +2188,8 @@ def test_packed_fp4_payload_gpu(swizzle, gather):
 
     f = _compile_module(kernel)
     x = np.random.default_rng(5).integers(0, 256, (8, 64), dtype="uint8")
-    out = tvm.runtime.tensor(np.zeros((4, 64), "uint8"), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros((4, 64), "uint8"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), x[[7, 3, 1, 5]] if gather else x[:4])
 
 
@@ -2275,9 +2275,9 @@ def test_interleaved_tma_roundtrip_gpu(rank, interleave, channel_step, width_ste
     assert expected_tile.shape == s_shape
     expected_out = np.full(physical, 65535, "uint16")
     expected_out[slices] = expected_tile
-    out = tvm.runtime.tensor(np.full(size, 65535, "uint16"), tvm.cuda())
-    got = tvm.runtime.tensor(np.zeros(count, "uint16"), tvm.cuda())
-    f(tvm.runtime.tensor(x.reshape(-1), tvm.cuda()), out, got)
+    out = tvm_tirx.runtime.tensor(np.full(size, 65535, "uint16"), tvm_tirx.cuda())
+    got = tvm_tirx.runtime.tensor(np.zeros(count, "uint16"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x.reshape(-1), tvm_tirx.cuda()), out, got)
     np.testing.assert_array_equal(got.numpy(), expected_tile.reshape(-1))
     np.testing.assert_array_equal(out.numpy(), expected_out.reshape(-1))
 
@@ -2367,8 +2367,8 @@ def test_caller_splits_oversized_box():
     assert _count_tma(_lower_module(kernel)["main"]).total == 16
     f = _compile_module(kernel)
     x = np.random.default_rng(31).integers(0, 256, 4096, dtype="uint8")
-    out = tvm.runtime.tensor(np.zeros(4096, "uint8"), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros(4096, "uint8"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), x)
 
 
@@ -2426,8 +2426,8 @@ def test_caller_stages_old_incomplete_chain(rows, start):
 
     f = _compile_module(kernel)
     x = np.random.default_rng(37).standard_normal((rows, 64)).astype("float16")
-    out = tvm.runtime.tensor(np.zeros(1536, "float16"), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros(1536, "float16"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     expected = x[start : start + 24].reshape(shape).transpose(0, 2, 1).reshape(-1)
     np.testing.assert_array_equal(out.numpy(), expected)
 
@@ -2510,8 +2510,8 @@ def test_interleaved_channel_repeats_gpu(interleave, swizzle):
             "descriptor encoding and compilation are still checked"
         )
     x = np.arange(math.prod(physical), dtype="uint16").reshape(physical)
-    out = tvm.runtime.tensor(np.zeros(count, "uint16"), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros(count, "uint16"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), x[1, 1:4, 2:10, :].reshape(-1))
 
 

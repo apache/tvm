@@ -16,8 +16,8 @@
 # under the License.
 import pytest
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 
 
 def check_throws(f):
@@ -31,12 +31,12 @@ def check_throws(f):
 
 def test_const_fold():
     def check(f, *args):
-        x = f(*[tvm.tirx.const(x, "int32") for x in args])
+        x = f(*[tvm_tirx.tirx.const(x, "int32") for x in args])
         y = f(*args)
-        if not isinstance(x, tvm.tirx.IntImm) or x.value != int(y):
+        if not isinstance(x, tvm_tirx.tirx.IntImm) or x.value != int(y):
             raise ValueError(f"check error: {x} vs {y} ")
 
-    tmod = tvm.tirx.truncmod
+    tmod = tvm_tirx.tirx.truncmod
     check(lambda x, y: x + y, 3, 4)
     check(lambda x, y: x * y, 3, 12)
     check(lambda x, y: x * y - 10, 3, 12)
@@ -51,68 +51,68 @@ def test_const_fold():
 
 
 def test_const_fold2():
-    x = tvm.tirx.Var("x", "int32")
-    tmod = tvm.tirx.truncmod
-    tdiv = tvm.tirx.truncdiv
+    x = tvm_tirx.tirx.Var("x", "int32")
+    tmod = tvm_tirx.tirx.truncmod
+    tdiv = tvm_tirx.tirx.truncdiv
     assert (x + 0).same_as(x)
     assert (0 + x).same_as(x)
     assert (x - 0).same_as(x)
     assert tmod(x, 1).value == 0
     assert (x * 1).same_as(x)
     assert (1 * x).same_as(x)
-    assert isinstance(tdiv(1, x), tvm.tirx.Div)
+    assert isinstance(tdiv(1, x), tvm_tirx.tirx.Div)
 
 
 def test_const_fold3():
     # Test that using ints with logic operations is forbidden
-    x = tvm.tirx.Var("x", "int32")
+    x = tvm_tirx.tirx.Var("x", "int32")
     for val in [0, 1]:
-        for func in [tvm.tirx.all, tvm.tirx.any]:
-            check_throws(lambda: func(tvm.tirx.const(val, "bool"), x))
-            check_throws(lambda: func(x, tvm.tirx.const(val, "bool")))
+        for func in [tvm_tirx.tirx.all, tvm_tirx.tirx.any]:
+            check_throws(lambda: func(tvm_tirx.tirx.const(val, "bool"), x))
+            check_throws(lambda: func(x, tvm_tirx.tirx.const(val, "bool")))
 
     # Test const folding when both arguments are const
     for tvm_func, py_func in [
-        (tvm.tirx.all, lambda a, b: a and b),
-        (tvm.tirx.any, lambda a, b: a or b),
+        (tvm_tirx.tirx.all, lambda a, b: a and b),
+        (tvm_tirx.tirx.any, lambda a, b: a or b),
     ]:
         for v1 in [0, 1]:
             for v2 in [0, 1]:
-                tvm.ir.assert_structural_equal(
-                    tvm_func(tvm.tirx.const(v1, "bool"), tvm.tirx.const(v2, "bool")),
-                    tvm.tirx.const(py_func(v1, v2), "bool"),
+                tvm_tirx.ir.assert_structural_equal(
+                    tvm_func(tvm_tirx.tirx.const(v1, "bool"), tvm_tirx.tirx.const(v2, "bool")),
+                    tvm_tirx.tirx.const(py_func(v1, v2), "bool"),
                 )
 
-    x = tvm.tirx.Var("x", "bool")
-    true = tvm.tirx.const(1, "bool")
-    false = tvm.tirx.const(0, "bool")
+    x = tvm_tirx.tirx.Var("x", "bool")
+    true = tvm_tirx.tirx.const(1, "bool")
+    false = tvm_tirx.tirx.const(0, "bool")
 
-    assert tvm.tirx.all(x, true).same_as(x)
-    assert tvm.tirx.all(true, x).same_as(x)
-    assert tvm.tirx.any(x, false).same_as(x)
-    assert tvm.tirx.any(false, x).same_as(x)
+    assert tvm_tirx.tirx.all(x, true).same_as(x)
+    assert tvm_tirx.tirx.all(true, x).same_as(x)
+    assert tvm_tirx.tirx.any(x, false).same_as(x)
+    assert tvm_tirx.tirx.any(false, x).same_as(x)
 
-    assert tvm.tirx.all(x, false).same_as(false)
-    assert tvm.tirx.all(false, x).same_as(false)
-    assert tvm.tirx.any(x, true).same_as(true)
-    assert tvm.tirx.any(true, x).same_as(true)
+    assert tvm_tirx.tirx.all(x, false).same_as(false)
+    assert tvm_tirx.tirx.all(false, x).same_as(false)
+    assert tvm_tirx.tirx.any(x, true).same_as(true)
+    assert tvm_tirx.tirx.any(true, x).same_as(true)
 
 
 def test_const_fold4():
-    x1 = tvm.tirx.const(4, "int32")
+    x1 = tvm_tirx.tirx.const(4, "int32")
     x2 = x1 + 5
-    tdiv = tvm.tirx.truncdiv
-    assert isinstance(x2, tvm.tirx.IntImm) and x2.value == 9
+    tdiv = tvm_tirx.tirx.truncdiv
+    assert isinstance(x2, tvm_tirx.tirx.IntImm) and x2.value == 9
     x3 = tdiv(x2, 3)
-    assert isinstance(x3, tvm.tirx.IntImm) and x3.value == 3
+    assert isinstance(x3, tvm_tirx.tirx.IntImm) and x3.value == 3
     x4 = x3 + 0.55
-    assert isinstance(x4, tvm.tirx.FloatImm) and abs(x4.value - 3.55) < 1e-6
-    x5 = tvm.tirx.ceil(x4)
-    assert isinstance(x5, tvm.tirx.FloatImm) and x5.value == 4
+    assert isinstance(x4, tvm_tirx.tirx.FloatImm) and abs(x4.value - 3.55) < 1e-6
+    x5 = tvm_tirx.tirx.ceil(x4)
+    assert isinstance(x5, tvm_tirx.tirx.FloatImm) and x5.value == 4
     x6 = x5.astype("int")
-    assert isinstance(x6, tvm.tirx.IntImm) and x6.value == 4, f"x6={x6}"
-    y = (tvm.tirx.round((tvm.tirx.const(6.5, "float32") - 1) / 1.5) + 2).astype("int")
-    assert isinstance(y, tvm.tirx.IntImm) and y.value == 6
+    assert isinstance(x6, tvm_tirx.tirx.IntImm) and x6.value == 4, f"x6={x6}"
+    y = (tvm_tirx.tirx.round((tvm_tirx.tirx.const(6.5, "float32") - 1) / 1.5) + 2).astype("int")
+    assert isinstance(y, tvm_tirx.tirx.IntImm) and y.value == 6
 
 
 def test_binary_dtype_match():
@@ -125,8 +125,8 @@ def test_binary_dtype_match():
             [("uint32", "int32"), "uint32"],
         ]
         for (lhs_dtype, rhs_dtype), out_dtype in rules:
-            lhs = tvm.tirx.Var("lhs", lhs_dtype)
-            rhs = tvm.tirx.Var("rhs", rhs_dtype)
+            lhs = tvm_tirx.tirx.Var("lhs", lhs_dtype)
+            rhs = tvm_tirx.tirx.Var("rhs", rhs_dtype)
             out = f(lhs, rhs)
             if not is_conditional:
                 assert out.ty.dtype == out_dtype
@@ -145,8 +145,8 @@ def test_binary_dtype_match():
     def verify_callop_float_only(f):
         for lhs_dtype in ["int32", "float32", "float64"]:
             for rhs_dtype in ["int32", "float32", "float64"]:
-                lhs = tvm.tirx.Var("lhs", lhs_dtype)
-                rhs = tvm.tirx.Var("rhs", rhs_dtype)
+                lhs = tvm_tirx.tirx.Var("lhs", lhs_dtype)
+                rhs = tvm_tirx.tirx.Var("rhs", rhs_dtype)
                 if "float" not in lhs_dtype and "float" not in rhs_dtype:
                     check_throws(lambda: f(lhs, rhs))
                 elif "float" in lhs_dtype:
@@ -175,42 +175,42 @@ def test_binary_dtype_match():
     verify_general_dtype_support(lambda a, b: a * b)
     verify_general_dtype_support(lambda a, b: a >= b, is_conditional=True)
     verify_general_dtype_support(lambda a, b: a <= b, is_conditional=True)
-    verify_callop_float_only(lambda a, b: tvm.tirx.power(a, b))
+    verify_callop_float_only(lambda a, b: tvm_tirx.tirx.power(a, b))
 
     # verify bool & int32 constant folding
-    assert tvm.tirx.const(1) == tvm.tirx.const(True)
-    assert tvm.tirx.const(2) != tvm.tirx.const(True)
+    assert tvm_tirx.tirx.const(1) == tvm_tirx.tirx.const(True)
+    assert tvm_tirx.tirx.const(2) != tvm_tirx.tirx.const(True)
 
 
 def test_if_then_else():
     cases = [
-        [(tvm.tirx.Var("cond", "bool"), "bool", "int32"), "int32"],
+        [(tvm_tirx.tirx.Var("cond", "bool"), "bool", "int32"), "int32"],
         [(True, "int32", "float32"), "float32"],
         [(False, "int32", "int64"), "int64"],
-        [(tvm.tirx.Var("cond", "bool"), "uint32", "int32"), "uint32"],
-        [(tvm.tirx.Var("cond", "int32"), "uint32", "int32"), "uint32"],
+        [(tvm_tirx.tirx.Var("cond", "bool"), "uint32", "int32"), "uint32"],
+        [(tvm_tirx.tirx.Var("cond", "int32"), "uint32", "int32"), "uint32"],
     ]
     for (cond, lhs_dtype, rhs_dtype), out_dtype in cases:
-        lhs = tvm.tirx.Var("lhs", lhs_dtype)
-        rhs = tvm.tirx.Var("rhs", rhs_dtype)
+        lhs = tvm_tirx.tirx.Var("lhs", lhs_dtype)
+        rhs = tvm_tirx.tirx.Var("rhs", rhs_dtype)
         if cond is True or cond is False:
-            out = tvm.tirx.if_then_else(cond, lhs, rhs)
-            out2 = tvm.tirx.if_then_else(not cond, rhs, lhs)
-            out3 = tvm.tirx.if_then_else(not cond, lhs, rhs)
-            tvm.ir.assert_structural_equal(out, out2) == 1
+            out = tvm_tirx.tirx.if_then_else(cond, lhs, rhs)
+            out2 = tvm_tirx.tirx.if_then_else(not cond, rhs, lhs)
+            out3 = tvm_tirx.tirx.if_then_else(not cond, lhs, rhs)
+            tvm_tirx.ir.assert_structural_equal(out, out2) == 1
             if cond:
-                tvm.ir.assert_structural_equal(out, lhs.astype(out_dtype)) == 1
-                tvm.ir.assert_structural_equal(out3, rhs.astype(out_dtype)) == 1
+                tvm_tirx.ir.assert_structural_equal(out, lhs.astype(out_dtype)) == 1
+                tvm_tirx.ir.assert_structural_equal(out3, rhs.astype(out_dtype)) == 1
             else:
-                tvm.ir.assert_structural_equal(out, rhs.astype(out_dtype)) == 1
-                tvm.ir.assert_structural_equal(out3, lhs.astype(out_dtype)) == 1
+                tvm_tirx.ir.assert_structural_equal(out, rhs.astype(out_dtype)) == 1
+                tvm_tirx.ir.assert_structural_equal(out3, lhs.astype(out_dtype)) == 1
         elif cond.ty.dtype == "bool":
-            out = tvm.tirx.if_then_else(cond, lhs, rhs)
+            out = tvm_tirx.tirx.if_then_else(cond, lhs, rhs)
             assert out.ty.dtype == out_dtype
             assert out.args[1].ty.dtype == out_dtype
             assert out.args[2].ty.dtype == out_dtype
         elif cond.ty.dtype != "bool":
-            check_throws(lambda: tvm.tirx.if_then_else(cond, lhs, rhs))
+            check_throws(lambda: tvm_tirx.tirx.if_then_else(cond, lhs, rhs))
         else:
             raise ValueError("Unknown combinations")
 
@@ -235,10 +235,10 @@ def test_comm_reducer(num_args):
 
 def test_llvm_intrin():
     with pytest.raises(ValueError, match=r"Unknown llvm intrinsic function llvm.dummy"):
-        a = tvm.tirx.call_llvm_intrin("int32x4", "llvm.dummy")
+        a = tvm_tirx.tirx.call_llvm_intrin("int32x4", "llvm.dummy")
     with pytest.raises(ValueError, match=r"Unknown llvm intrinsic function llvm.dummy"):
-        a = tvm.tirx.call_llvm_pure_intrin("int32x4", "llvm.dummy")
+        a = tvm_tirx.tirx.call_llvm_pure_intrin("int32x4", "llvm.dummy")
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

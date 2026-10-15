@@ -26,7 +26,8 @@ import typing
 
 import tvm_ffi
 
-from tvm import ir, relax
+from tvm_tirx import ir
+from tvm import relax
 from tvm.relax.frontend import nn
 
 

@@ -20,12 +20,12 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import tirx as T
 
 
-@pytest.mark.skipif(not tvm.runtime.enabled("llvm"), reason="LLVM is not enabled")
+@pytest.mark.skipif(not tvm_tirx.runtime.enabled("llvm"), reason="LLVM is not enabled")
 @pytest.mark.parametrize("pipeline", [None, "default", "tirx"])
 def test_default_pipeline_allocations(pipeline):
     @T.function
@@ -36,13 +36,13 @@ def test_default_pipeline_allocations(pipeline):
         for i in range(16):
             B[i] = temp[i]
 
-    module = tvm.tirx.compile(add_one, target="llvm", pipeline=pipeline)
+    module = tvm_tirx.tirx.compile(add_one, target="llvm", pipeline=pipeline)
     source = np.arange(16, dtype="float32")
-    a = tvm.runtime.tensor(source)
-    b = tvm.runtime.tensor(np.zeros(16, dtype="float32"))
+    a = tvm_tirx.runtime.tensor(source)
+    b = tvm_tirx.runtime.tensor(np.zeros(16, dtype="float32"))
     module(a, b)
     np.testing.assert_equal(b.numpy(), source + 1)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

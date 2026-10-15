@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Tests for the thin ``tvm.testing.env`` capability probes."""
+"""Tests for the thin ``tvm_tirx.testing.env`` capability probes."""
 
 import subprocess
 import sys
@@ -23,9 +23,9 @@ from types import SimpleNamespace
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.testing import env
 
 # Probes that take no arguments and must return a plain bool without raising.
 _BOOL_PROBES = [
@@ -67,7 +67,7 @@ def test_probe_returns_bool(probe):
 def test_has_cuda_implies_device():
     """has_cuda() requires a device (it also requires the kind to be enabled)."""
     if env.has_cuda():
-        assert tvm.cuda().exist
+        assert tvm_tirx.cuda().exist
 
 
 def test_has_gpu_is_raw_any_device():
@@ -141,7 +141,7 @@ def test_cuda_arch_uses_requested_device(monkeypatch):
         return Device()
 
     env.cuda_arch.cache_clear()
-    monkeypatch.setattr(tvm, "cuda", cuda)
+    monkeypatch.setattr(tvm_tirx, "cuda", cuda)
     try:
         assert env.cuda_arch(7) == "sm_103a"
         assert requested == [7]
@@ -191,27 +191,27 @@ def clear_env_cache():
 
 def test_unavailable_selected_target_does_not_enable_llvm(monkeypatch, clear_env_cache):
     monkeypatch.setenv("TVM_TEST_TARGETS", "cuda")
-    monkeypatch.setattr(tvm.runtime, "enabled", lambda kind: kind == "llvm")
+    monkeypatch.setattr(tvm_tirx.runtime, "enabled", lambda kind: kind == "llvm")
 
     def unexpected_device_lookup(target):
         pytest.fail(f"Excluded or unavailable target was probed: {target}")
 
-    monkeypatch.setattr(tvm, "device_from_target", unexpected_device_lookup)
-    assert not tvm.testing.device_enabled("cuda")
-    assert not tvm.testing.device_enabled("llvm")
+    monkeypatch.setattr(tvm_tirx, "device_from_target", unexpected_device_lookup)
+    assert not tvm_tirx.testing.device_enabled("cuda")
+    assert not tvm_tirx.testing.device_enabled("llvm")
 
 
 @pytest.mark.parametrize("target_form", ["string", "dict", "target"])
 def test_device_enabled_accepts_target_forms(monkeypatch, clear_env_cache, target_form):
     monkeypatch.setenv("TVM_TEST_TARGETS", '{"kind": "llvm"};cuda')
-    monkeypatch.setattr(tvm.runtime, "enabled", lambda kind: kind == "llvm")
-    monkeypatch.setattr(tvm, "device_from_target", lambda target: SimpleNamespace(exist=True))
+    monkeypatch.setattr(tvm_tirx.runtime, "enabled", lambda kind: kind == "llvm")
+    monkeypatch.setattr(tvm_tirx, "device_from_target", lambda target: SimpleNamespace(exist=True))
     target = {
         "string": "llvm -num-cores=2",
         "dict": {"kind": "llvm", "num-cores": 2},
-        "target": tvm.target.Target({"kind": "llvm", "num-cores": 2}),
+        "target": tvm_tirx.target.Target({"kind": "llvm", "num-cores": 2}),
     }[target_form]
-    assert tvm.testing.device_enabled(target)
+    assert tvm_tirx.testing.device_enabled(target)
 
 
 @pytest.mark.parametrize("kind", ["llvm", "cuda"])
@@ -224,22 +224,22 @@ def test_device_enabled_requires_runtime_and_device(
 ):
     # In particular, the CPU can exist even when LLVM was not built.
     monkeypatch.setenv("TVM_TEST_TARGETS", kind)
-    monkeypatch.setattr(tvm.runtime, "enabled", lambda target: runtime_enabled)
+    monkeypatch.setattr(tvm_tirx.runtime, "enabled", lambda target: runtime_enabled)
     monkeypatch.setattr(
-        tvm, "device_from_target", lambda target: SimpleNamespace(exist=device_exists)
+        tvm_tirx, "device_from_target", lambda target: SimpleNamespace(exist=device_exists)
     )
-    assert tvm.testing.device_enabled(kind) is expected
+    assert tvm_tirx.testing.device_enabled(kind) is expected
 
 
 @pytest.mark.parametrize("cudnn_available", [None, False, True])
 def test_device_enabled_cudnn_runtime_probe(monkeypatch, clear_env_cache, cudnn_available):
     monkeypatch.setenv("TVM_TEST_TARGETS", '{"kind": "cuda", "libs": ["cudnn"]}')
-    monkeypatch.setattr(tvm.runtime, "enabled", lambda kind: True)
-    monkeypatch.setattr(tvm, "device", lambda *args: SimpleNamespace(exist=True))
-    monkeypatch.setattr(tvm.support, "libinfo", lambda: {"USE_CUDNN": "ON"})
+    monkeypatch.setattr(tvm_tirx.runtime, "enabled", lambda kind: True)
+    monkeypatch.setattr(tvm_tirx, "device", lambda *args: SimpleNamespace(exist=True))
+    monkeypatch.setattr(tvm_tirx.support, "libinfo", lambda: {"USE_CUDNN": "ON"})
     exists = None if cudnn_available is None else lambda: cudnn_available
-    monkeypatch.setattr(tvm, "get_global_func", lambda name, allow_missing: exists)
-    assert tvm.testing.device_enabled("cuda") is (cudnn_available is True)
+    monkeypatch.setattr(tvm_tirx, "get_global_func", lambda name, allow_missing: exists)
+    assert tvm_tirx.testing.device_enabled("cuda") is (cudnn_available is True)
 
 
 @pytest.mark.parametrize(
@@ -266,11 +266,11 @@ def test_hexagon_environment_requirements(
         else:
             monkeypatch.delenv(variable, raising=False)
     monkeypatch.setattr(
-        tvm.runtime,
+        tvm_tirx.runtime,
         "enabled",
         lambda kind: runtime if kind == "hexagon" else llvm_target is not None,
     )
-    monkeypatch.setattr(tvm.codegen, "llvm_get_targets", lambda: ["hexagon"] if llvm_target else [])
+    monkeypatch.setattr(tvm_tirx.codegen, "llvm_get_targets", lambda: ["hexagon"] if llvm_target else [])
     assert env.has_hexagon_toolchain() is can_compile
     assert env.has_hexagon() is can_run
 
@@ -281,29 +281,29 @@ def test_core_testing_imports_without_domain_modules():
         """
         import os
         import sys
-        import tvm
+        import tvm_tirx
 
         for module in list(sys.modules):
-            if module == "tvm.testing" or module.startswith("tvm.testing."):
+            if module == "tvm_tirx.testing" or module.startswith("tvm_tirx.testing."):
                 del sys.modules[module]
-        if hasattr(tvm, "testing"):
-            del tvm.testing
+        if hasattr(tvm_tirx, "testing"):
+            del tvm_tirx.testing
 
         for name in ("te", "contrib", "s_tir"):
-            prefix = "tvm." + name
+            prefix = "tvm_tirx." + name
             for module in list(sys.modules):
                 if module == prefix or module.startswith(prefix + "."):
                     sys.modules[module] = None
             sys.modules[prefix] = None
-            if hasattr(tvm, name):
-                delattr(tvm, name)
+            if hasattr(tvm_tirx, name):
+                delattr(tvm_tirx, name)
 
-        import tvm.testing
-        from tvm.testing import env
+        import tvm_tirx.testing
+        from tvm_tirx.testing import env
 
-        tvm.testing.assert_allclose([1], [1])
-        tvm.runtime.enabled = lambda kind: True
-        tvm.codegen.llvm_get_targets = lambda: ["hexagon"]
+        tvm_tirx.testing.assert_allclose([1], [1])
+        tvm_tirx.runtime.enabled = lambda kind: True
+        tvm_tirx.codegen.llvm_get_targets = lambda: ["hexagon"]
         os.environ["HEXAGON_TOOLCHAIN"] = "test-toolchain"
         os.environ["ANDROID_SERIAL_NUMBER"] = "test-device"
         assert env.has_hexagon_toolchain()
@@ -322,9 +322,9 @@ def test_core_testing_imports_without_domain_modules():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_thin_cuda_idiom():
-    dev = tvm.cuda()
+    dev = tvm_tirx.cuda()
     assert dev.exist
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

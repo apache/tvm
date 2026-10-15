@@ -19,13 +19,13 @@
 
 from functools import cache
 
-from tvm.backend.trn.layout import is_trainium_layout
-from tvm.ir import TensorRegion
-from tvm.runtime import MemoryScope
-from tvm.script import tirx as T
-from tvm.sym.analyzer import Analyzer
-from tvm.tirx import FloatImm
-from tvm.tirx.tile.common import MapOpType
+from tvm_tirx.backend.trn.layout import is_trainium_layout
+from tvm_tirx.ir import TensorRegion
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.script import tirx as T
+from tvm_tirx.sym.analyzer import Analyzer
+from tvm_tirx.tirx import FloatImm
+from tvm_tirx.tirx.tile.common import MapOpType
 
 from ..common import nki_dim
 from ..dim_utils import get_ewise_dim_map
@@ -113,7 +113,7 @@ def get_const_bias_tensor(bias, shape, dtype, workspace, sctx):
     """Create or retrieve a constant bias tensor."""
     if "const_bias" not in workspace:
         assert sctx.alloc_only, (
-            "Constant bias tensor must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateTensorAlloc first."  # noqa: E501
+            "Constant bias tensor must be specified in workspace. Run tvm_tirx.tirx.trn.transform.TrnPrivateTensorAlloc first."  # noqa: E501
         )
         # Create new bias tensor
         bias_tensor = T.Var("const_bias", T.Tensor(shape, dtype, scope="trn.sbuf"))

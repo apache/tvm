@@ -20,18 +20,18 @@ from collections.abc import Callable
 
 import pytest
 
-import tvm
-import tvm.script
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.script, tvm
+import tvm_tirx.testing, tvm
 from tvm import topi
 from tvm.relax.transform import LegalizeOps
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import tirx as T
 
 
 def _test_static_shape(name: str, relax_op: Callable, te_func: Callable, dtype: str):
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(x: R.Tensor((2, 3), dtype)):
@@ -39,7 +39,7 @@ def _test_static_shape(name: str, relax_op: Callable, te_func: Callable, dtype: 
             gv = relax_op(x)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), dtype)):
@@ -48,14 +48,14 @@ def _test_static_shape(name: str, relax_op: Callable, te_func: Callable, dtype: 
             return gv
 
     mod = LegalizeOps()(Before)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def _test_symbolic_shape(name: str, relax_op: Callable, te_func: Callable, dtype: str):
     m = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(x: R.Tensor((m, n), dtype)):
@@ -66,7 +66,7 @@ def _test_symbolic_shape(name: str, relax_op: Callable, te_func: Callable, dtype
     m = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m, n), dtype)):
@@ -75,7 +75,7 @@ def _test_symbolic_shape(name: str, relax_op: Callable, te_func: Callable, dtype
             return gv
 
     mod = LegalizeOps()(Before)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 @pytest.mark.parametrize(
@@ -121,4 +121,4 @@ def test_unary_ops(name: str, relax_op: Callable, te_func: Callable, dtype: str)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

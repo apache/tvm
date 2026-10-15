@@ -16,8 +16,8 @@
 # under the License.
 """Utility helpers for TIR IRBuilder."""
 
-from tvm.script.ir_builder.stmt import frame_scope as frame_scope
-from tvm.tirx import Var
+from tvm_tirx.script.ir_builder.stmt import frame_scope as frame_scope
+from tvm_tirx.tirx import Var
 
 
 def tensor_indices(tensor: Var, index):

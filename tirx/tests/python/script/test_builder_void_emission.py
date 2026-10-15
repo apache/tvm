@@ -19,10 +19,10 @@
 import pytest
 import tvm_ffi
 
-from tvm import backend, ir, tirx
-from tvm.script import ir_builder as I
-from tvm.script import tirx as T
-from tvm.script.ir_builder.base import AlreadyEmitted
+from tvm_tirx import backend, ir, tirx
+from tvm_tirx.script import ir_builder as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.ir_builder.base import AlreadyEmitted
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -62,8 +62,8 @@ def test_parser_emits_once_with_source_locations():
 
 
 def test_raw_construction_and_codegen_do_not_emit():
-    from tvm.backend.cuda.codegen.registry import CODEGEN_REGISTRY
-    from tvm.backend.cuda.ptx import PTXNamespace
+    from tvm_tirx.backend.cuda.codegen.registry import CODEGEN_REGISTRY
+    from tvm_tirx.backend.cuda.ptx import PTXNamespace
 
     ptx = T.ptx.barrier.sync.aligned(0)
     assert isinstance(ptx, ir.Call)

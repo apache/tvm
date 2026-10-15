@@ -16,7 +16,7 @@
 # under the License.
 """Target dependent intrinsic registration."""
 
-from tvm.tirx import call_pure_extern, register_intrin_lowering
+from tvm_tirx.tirx import call_pure_extern, register_intrin_lowering
 
 
 def _rule_float_suffix(op):

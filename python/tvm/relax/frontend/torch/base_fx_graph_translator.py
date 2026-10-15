@@ -28,10 +28,11 @@ from functools import reduce
 
 import tvm_ffi
 
-import tvm
-from tvm import relax, tirx
-from tvm.ir import PrimType
-from tvm.runtime import DataTypeCode
+import tvm, tvm_tirx
+from tvm_tirx import tirx
+from tvm import relax
+from tvm_tirx.ir import PrimType
+from tvm_tirx.runtime import DataTypeCode
 
 
 def _diagonal_einsum_subscripts(ndim: int, dim1: int, dim2: int) -> str:
@@ -720,13 +721,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
             lhs, rhs = self.retrieve_args(node)
 
-            if (isinstance(lhs, tvm.ir.Var) and isinstance(lhs.ty, relax.TensorType)) or (
-                isinstance(rhs, tvm.ir.Var) and isinstance(rhs.ty, relax.TensorType)
+            if (isinstance(lhs, tvm_tirx.ir.Var) and isinstance(lhs.ty, relax.TensorType)) or (
+                isinstance(rhs, tvm_tirx.ir.Var) and isinstance(rhs.ty, relax.TensorType)
             ):
                 return call_binary_op(relax_op, lhs, rhs)
-            elif isinstance(lhs, tvm.ir.GenericConst) and not isinstance(rhs, tvm.ir.GenericConst):
+            elif isinstance(lhs, tvm_tirx.ir.GenericConst) and not isinstance(rhs, tvm_tirx.ir.GenericConst):
                 return call_binary_op(relax_op, lhs, relax.const(rhs, dtype=lhs.ty.dtype))
-            elif isinstance(rhs, tvm.ir.GenericConst) and not isinstance(lhs, tvm.ir.GenericConst):
+            elif isinstance(rhs, tvm_tirx.ir.GenericConst) and not isinstance(lhs, tvm_tirx.ir.GenericConst):
                 return call_binary_op(relax_op, relax.const(lhs, dtype=rhs.ty.dtype), rhs)
             return intrinsic_op(lhs, rhs)
 
@@ -2434,18 +2435,18 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                         return input_shape[axis]
                 return val
 
-            if tvm.ir.is_prim_expr(bound):
+            if tvm_tirx.ir.is_prim_expr(bound):
                 value = _adjust(bound)
                 return relax.prim_value(value)
 
             bound = _adjust(bound)
-            if not tvm.ir.is_prim_expr(bound):
+            if not tvm_tirx.ir.is_prim_expr(bound):
                 bound = relax.prim_value(bound)
             return bound
 
         start = _normalize_bound(start)
         end = _normalize_bound(end)
-        if not tvm.ir.is_prim_expr(step):
+        if not tvm_tirx.ir.is_prim_expr(step):
             step = relax.prim_value(step)
 
         return self.block_builder.emit(
@@ -2954,9 +2955,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if tensor_meta is not None and len(tensor_meta.shape) == 1:
             num_selected = tensor_meta.shape[0]
             if not isinstance(num_selected, int):
-                num_selected = tvm.ir.Var(str(num_selected), "int64")
+                num_selected = tvm_tirx.ir.Var(str(num_selected), "int64")
         else:
-            num_selected = tvm.ir.Var(f"{node.name}_num_selected", "int64")
+            num_selected = tvm_tirx.ir.Var(f"{node.name}_num_selected", "int64")
         indices = self.block_builder.match_cast(
             indices, relax.TensorType([1, num_selected], "int64")
         )
@@ -3045,7 +3046,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         if isinstance(x, list | tuple | relax.ShapeExpr | relax.Tuple):
             return x[node.args[1]]
-        elif isinstance(x, tvm.ir.Var) and isinstance(x.ty, relax.TupleType | relax.TensorType):
+        elif isinstance(x, tvm_tirx.ir.Var) and isinstance(x.ty, relax.TupleType | relax.TensorType):
             if isinstance(x.ty, relax.TupleType):
                 return self.block_builder.emit(relax.TupleGetItem(x, node.args[1]))
 
@@ -3120,7 +3121,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             for i in expand_dim:
                 sliced_shape.insert(i, 1)
             return self.block_builder.emit(relax.op.reshape(sliced, sliced_shape))
-        elif isinstance(x, tvm.ir.GenericConst):
+        elif isinstance(x, tvm_tirx.ir.GenericConst):
             dtype = x.ty.dtype
             return relax.const(x.value.numpy()[node.args[1]], dtype)
         else:
@@ -3130,7 +3131,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         shape = self.shape_of(x)
         dtype = x.ty.dtype
-        analyzer = tvm.sym.Analyzer()
+        analyzer = tvm_tirx.sym.Analyzer()
         has_single_element = shape is not None and all(
             analyzer.can_prove_equal(dim, 1) for dim in shape
         )

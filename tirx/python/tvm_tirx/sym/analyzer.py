@@ -22,9 +22,9 @@ from contextlib import contextmanager
 
 import tvm_ffi
 
-from tvm import ir
-from tvm.runtime import Object
-from tvm.sym import IntSet
+from tvm_tirx import ir
+from tvm_tirx.runtime import Object
+from tvm_tirx.sym import IntSet
 
 from . import _ffi_api
 
@@ -221,7 +221,7 @@ class Analyzer(Object):
 
         Parameters
         ----------
-        var : tvm.ir.Var
+        var : tvm_tirx.ir.Var
             The variable.
 
         Returns
@@ -329,7 +329,7 @@ class Analyzer(Object):
         expr : Expr
             The expression.
 
-        dom_map : Optional[Dict[tvm.ir.Var, tvm.sym.IntSet]]
+        dom_map : Optional[Dict[tvm_tirx.ir.Var, tvm_tirx.sym.IntSet]]
             The domain for variables to be relaxed.  When omitted, the analyzer
             uses the domains of the variables already bound to it.
 
@@ -385,7 +385,7 @@ class Analyzer(Object):
 
         Parameters
         ----------
-        var : tvm.ir.Var
+        var : tvm_tirx.ir.Var
             The variable.
 
         expr : Union[ir.Expr, ir.Range]
@@ -414,7 +414,7 @@ class Analyzer(Object):
         .. code-block:: python
 
           x = te.var("x")
-          analyzer = tvm.sym.Analyzer()
+          analyzer = tvm_tirx.sym.Analyzer()
           with analyzer.constraint_scope(x % 3 == 0):
               # constraint in effect
               assert analyzer.modular_set(x).coeff == 3
@@ -434,7 +434,7 @@ class Analyzer(Object):
 
         Parameters
         ----------
-        var : tvm.ir.Var
+        var : tvm_tirx.ir.Var
             The variable.
 
         info : Union[ConstIntBound, ModularSet, IntSet]

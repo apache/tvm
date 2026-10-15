@@ -16,7 +16,7 @@
 # under the License.
 """Qualcomm Adreno GPU target tags."""
 
-from tvm.target import register_tag
+from tvm_tirx.target import register_tag
 
 register_tag(
     "qcom/adreno-opencl",

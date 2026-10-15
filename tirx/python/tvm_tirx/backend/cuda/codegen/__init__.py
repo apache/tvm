@@ -17,8 +17,8 @@
 # pylint: disable=unused-import
 """Shared machinery behind every CUDA device-intrinsic codegen.
 
-Both dialects build on this layer: :mod:`tvm.backend.cuda.ptx` renders PTX
-instructions from a table, and :mod:`tvm.backend.cuda.cpp` registers
+Both dialects build on this layer: :mod:`tvm_tirx.backend.cuda.ptx` renders PTX
+instructions from a table, and :mod:`tvm_tirx.backend.cuda.cpp` registers
 hand-written CUDA C++ device helpers.
 
 - ``registry`` — the op-name → codegen map C++ queries during codegen.

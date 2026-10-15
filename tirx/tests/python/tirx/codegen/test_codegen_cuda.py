@@ -21,21 +21,21 @@ import re
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.backend.config import merge_backend_configs
-from tvm.backend.cuda.lang.clc import query_cancel_first_ctaid_x
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.config import merge_backend_configs
+from tvm_tirx.backend.cuda.lang.clc import query_cancel_first_ctaid_x
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 def _get_source(
-    func: tvm.tirx.Function, target=None, backend_config=None
-) -> tuple[str, tvm.IRModule]:
+    func: tvm_tirx.tirx.Function, target=None, backend_config=None
+) -> tuple[str, tvm_tirx.IRModule]:
     if target is None:
         target = {"kind": "cuda", "arch": "sm_100a"}
-    target = tvm.target.Target(target)
-    target = tvm.target.Target(
+    target = tvm_tirx.target.Target(target)
+    target = tvm_tirx.target.Target(
         {
             **target.export(),
             "backend_config": merge_backend_configs(
@@ -43,9 +43,9 @@ def _get_source(
             ),
         }
     )
-    mod = tvm.IRModule({"main": func})
+    mod = tvm_tirx.IRModule({"main": func})
     with target:
-        mod = tvm.tirx.compile(
+        mod = tvm_tirx.tirx.compile(
             mod,
             target=target,
             pipeline="tirx",
@@ -88,7 +88,7 @@ def test_cuda_ndarray_destructor_preserves_current_device():
     original_device = torch.cuda.current_device()
     try:
         torch.cuda.set_device(0)
-        data = tvm.runtime.tensor(np.zeros(1, dtype="int32"), device=tvm.cuda(0))
+        data = tvm_tirx.runtime.tensor(np.zeros(1, dtype="int32"), device=tvm_tirx.cuda(0))
 
         torch.cuda.set_device(1)
         del data
@@ -108,16 +108,16 @@ def test_cuda_stream_free_preserves_current_device():
     stream = None
     try:
         torch.cuda.set_device(0)
-        stream = tvm.cuda(0).create_raw_stream()
+        stream = tvm_tirx.cuda(0).create_raw_stream()
 
         torch.cuda.set_device(1)
-        tvm.cuda(0).free_raw_stream(stream)
+        tvm_tirx.cuda(0).free_raw_stream(stream)
         stream = None
 
         assert torch.cuda.current_device() == 1
     finally:
         if stream is not None:
-            tvm.cuda(0).free_raw_stream(stream)
+            tvm_tirx.cuda(0).free_raw_stream(stream)
         torch.cuda.set_device(original_device)
 
 
@@ -137,9 +137,9 @@ def test_cuda_module_destructor_preserves_current_device():
     original_device = torch.cuda.current_device()
     try:
         torch.cuda.set_device(0)
-        data = tvm.runtime.tensor(np.zeros(1, dtype="int32"), device=tvm.cuda(0))
+        data = tvm_tirx.runtime.tensor(np.zeros(1, dtype="int32"), device=tvm_tirx.cuda(0))
         mod["main"](data)
-        tvm.cuda(0).sync()
+        tvm_tirx.cuda(0).sync()
         del data
         gc.collect()
 
@@ -156,9 +156,9 @@ def test_cuda_module_destructor_preserves_current_device():
     "op_name", ["ptx_legacy.mma", "ptx_legacy.ldmatrix", "cuda.mma_store", "cuda.mma_fill"]
 )
 def test_legacy_tensorcore_ops_require_downstream_codegen(op_name):
-    from tvm.backend.cuda import op as cuda_op
+    from tvm_tirx.backend.cuda import op as cuda_op
 
-    data = tvm.tirx.Var("data", tvm.ir.PtrType("float16", "global"))
+    data = tvm_tirx.tirx.Var("data", tvm_tirx.ir.PtrType("float16", "global"))
     calls = {
         "ptx_legacy.mma": lambda: cuda_op.ptx_legacy_mma(
             "m16n8k16",
@@ -183,12 +183,12 @@ def test_legacy_tensorcore_ops_require_downstream_codegen(op_name):
     }
     call = calls[op_name]()
     assert call.op.name == "tirx." + op_name
-    func = tvm.tirx.Function([data], tvm.ir.Evaluate(call)).with_attr("global_symbol", "main")
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
+    func = tvm_tirx.tirx.Function([data], tvm_tirx.ir.Evaluate(call)).with_attr("global_symbol", "main")
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_80"})
     with pytest.raises(
-        tvm.error.InternalError, match="Unresolved call.*" + re.escape(call.op.name)
+        tvm_tirx.error.InternalError, match="Unresolved call.*" + re.escape(call.op.name)
     ):
-        tvm.get_global_func("target.build.cuda")(tvm.IRModule.from_expr(func), target)
+        tvm_tirx.get_global_func("target.build.cuda")(tvm_tirx.IRModule.from_expr(func), target)
 
 
 @pytest.mark.parametrize("target_kind", ["cuda", "opencl"])
@@ -201,9 +201,9 @@ def test_warp_storage_requires_explicit_local_layout(target_kind):
         fragment[0] = 1.0
         output[0] = fragment[0]
 
-    target = tvm.target.Target(target_kind)
-    with pytest.raises(tvm.error.InternalError, match="warp storage is unsupported"):
-        tvm.get_global_func("target.build." + target_kind)(tvm.IRModule.from_expr(main), target)
+    target = tvm_tirx.target.Target(target_kind)
+    with pytest.raises(tvm_tirx.error.InternalError, match="warp storage is unsupported"):
+        tvm_tirx.get_global_func("target.build." + target_kind)(tvm_tirx.IRModule.from_expr(main), target)
 
 
 def test_typed_buffer_bindings(monkeypatch):
@@ -223,9 +223,9 @@ def test_typed_buffer_bindings(monkeypatch):
         storage[0] = T.uint32(0)
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
-    source = tvm.get_global_func("target.build.cuda")(
-        tvm.IRModule.from_expr(main), target
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_80"})
+    source = tvm_tirx.get_global_func("target.build.cuda")(
+        tvm_tirx.IRModule.from_expr(main), target
     ).inspect_source()
     assert "float* data, void* output" in source
     assert "float* B = ((float*)output);" in source
@@ -240,32 +240,32 @@ def test_typed_buffer_bindings(monkeypatch):
 
 
 def test_vector_pointer_preserves_packed_offset(monkeypatch):
-    tensor = tvm.tirx.decl_tensor((8,), "int4x4", name="A")
-    data = tvm.tirx.Var("A_data", tensor.data.ty)
-    pointer = tvm.tirx.ptr_byte_offset(tensor.data, 4, ty=tensor.data.ty)
-    body = tvm.ir.SeqStmt(
+    tensor = tvm_tirx.tirx.decl_tensor((8,), "int4x4", name="A")
+    data = tvm_tirx.tirx.Var("A_data", tensor.data.ty)
+    pointer = tvm_tirx.tirx.ptr_byte_offset(tensor.data, 4, ty=tensor.data.ty)
+    body = tvm_tirx.ir.SeqStmt(
         [
-            tvm.ir.Bind(
+            tvm_tirx.ir.Bind(
                 tensor,
-                tvm.ir.Call(
+                tvm_tirx.ir.Call(
                     "tirx.decl_tensor",
                     [data],
                     ty_args=[tensor.ty],
                 ),
             ),
-            tvm.ir.Evaluate(tvm.tirx.call_extern("void", "consume", pointer)),
+            tvm_tirx.ir.Evaluate(tvm_tirx.tirx.call_extern("void", "consume", pointer)),
         ]
     )
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_80"})
     func = (
-        tvm.tirx.Function([data], body)
+        tvm_tirx.tirx.Function([data], body)
         .with_attr("global_symbol", "main")
         .with_attr("target", target)
     )
-    lowered = tvm.tirx.transform.LowerIntrin()(tvm.IRModule.from_expr(func))
+    lowered = tvm_tirx.tirx.transform.LowerIntrin()(tvm_tirx.IRModule.from_expr(func))
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
-    source = tvm.get_global_func("target.build.cuda")(lowered, target).inspect_source()
+    source = tvm_tirx.get_global_func("target.build.cuda")(lowered, target).inspect_source()
     call = next(line.strip() for line in source.splitlines() if line.strip().startswith("consume("))
 
     assert "make_int4" not in call
@@ -508,14 +508,14 @@ def test_cuda_atomic_add():
     B_np = np.zeros(1, dtype="float32")
 
     def run_and_check():
-        dev = tvm.cuda()
-        A_tvm = tvm.runtime.tensor(A_np, device=dev)
-        B_tvm = tvm.runtime.tensor(B_np, device=dev)
+        dev = tvm_tirx.cuda()
+        A_tvm = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B_tvm = tvm_tirx.runtime.tensor(B_np, device=dev)
         mod["main"](A_tvm, B_tvm)
         np.testing.assert_allclose(A_tvm.numpy(), 1)
         np.testing.assert_allclose(B_tvm.numpy(), 1.0)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_ptx_ld_acquire_and_volatile_codegen():
@@ -765,9 +765,9 @@ def test_ptx_sync_and_clc_codegen():
             A[0] = nxt
             T.ptx.griddepcontrol.launch_dependents()
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.tirx.compile(tvm.IRModule({"main": main}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": main}), target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     assert "cp.async.mbarrier.arrive.shared.b64" in src
     assert "cp.async.mbarrier.arrive.noinc.shared::cta.b64" in src
@@ -820,9 +820,9 @@ def test_ptx_mbarrier_arrive_new_forms_codegen():
                 state, bar.ptr_to([5]), T.uint32(3), pred=Pred[0]
             )
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.tirx.compile(tvm.IRModule({"main": main}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": main}), target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     assert "mbarrier.arrive.relaxed.cta.shared::cta.b64 _, [%0];" in src
     assert "mbarrier.arrive.relaxed.cluster.shared::cluster.b64 _, [%0];" in src
@@ -968,13 +968,13 @@ __device__ int32_t add_one(int32_t a) {
         B = np.zeros((16, 16), dtype="int32")
 
         def run_and_check():
-            dev = tvm.cuda()
-            A_tvm = tvm.runtime.tensor(A, device=dev)
-            B_tvm = tvm.runtime.tensor(B, device=dev)
+            dev = tvm_tirx.cuda()
+            A_tvm = tvm_tirx.runtime.tensor(A, device=dev)
+            B_tvm = tvm_tirx.runtime.tensor(B, device=dev)
             mod["main"](A_tvm, B_tvm)
             np.testing.assert_allclose(B_tvm.numpy(), A + 1)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
         print(src)
 
     test_add_one()
@@ -999,12 +999,12 @@ __device__ void print(int32_t a) {
         A = np.random.randint(0, 10, (16, 16)).astype("int32")
 
         def run_and_check():
-            dev = tvm.cuda()
-            A_tvm = tvm.runtime.tensor(A, device=dev)
+            dev = tvm_tirx.cuda()
+            A_tvm = tvm_tirx.runtime.tensor(A, device=dev)
             mod["main"](A_tvm)
             dev.sync()
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
         print(src)
 
     test_print()
@@ -1034,20 +1034,20 @@ def test_warp_shuffle_xor_sync():
         A[lane_id] = A_local[0]
         # fmt: on
 
-    target = tvm.target.Target("cuda")
-    mod = tvm.IRModule({"main": func})
-    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+    target = tvm_tirx.target.Target("cuda")
+    mod = tvm_tirx.IRModule({"main": func})
+    mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
     A_np = np.zeros(32, dtype="float32")
     assert "__shfl_xor_sync" in mod.mod.imports[0].inspect_source()
     A_ref = np.ones(32, dtype="float32") * 496
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, device=dev)
+        dev = tvm_tirx.cuda(0)
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
         mod(A)
         np.testing.assert_allclose(A.numpy(), A_ref)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1071,7 +1071,7 @@ def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
     has_pred = not (isinstance(predicate, int) and predicate == -1)
     src_size = None
     if fill_mode == "zero":
-        from tvm.tirx.op import if_then_else
+        from tvm_tirx.tirx.op import if_then_else
 
         src_size = T.cast(if_then_else(predicate != 0, cp_size, 0), "uint32")
 
@@ -1107,12 +1107,12 @@ def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
             A_ref = np.ones(N, dtype="float16") * 6
 
     def run_and_check():
-        dev = tvm.cuda()
-        A = tvm.runtime.tensor(A_np, device=dev)
+        dev = tvm_tirx.cuda()
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
         mod(A)
         np.testing.assert_allclose(A.numpy(), A_ref)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
     print(src)
 
 
@@ -1188,13 +1188,13 @@ def test_ptx_ldmatrix(trans, num):
         B_ref[8:16, 8:16] = A_np[8:16, 8:16] if not trans else A_np[8:16, 8:16].T
 
     def run_and_check():
-        dev = tvm.cuda()
-        A = tvm.runtime.tensor(A_np, device=dev)
-        B = tvm.runtime.tensor(B_np, device=dev)
+        dev = tvm_tirx.cuda()
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B = tvm_tirx.runtime.tensor(B_np, device=dev)
         mod(A, B)
         np.testing.assert_allclose(B.numpy(), B_ref)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_uint32_loop_var_and_scope_id_emit_unsigned():
@@ -1233,14 +1233,14 @@ def test_uint32_loop_var_runs_correctly():
     B_ref = A_np * 4 + (0 + 1 + 2 + 3)
 
     def run_and_check():
-        dev = tvm.cuda()
-        A = tvm.runtime.tensor(A_np, device=dev)
-        B = tvm.runtime.tensor(np.zeros(128, dtype="int32"), device=dev)
+        dev = tvm_tirx.cuda()
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B = tvm_tirx.runtime.tensor(np.zeros(128, dtype="int32"), device=dev)
         mod(A, B)
         np.testing.assert_allclose(B.numpy(), B_ref)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

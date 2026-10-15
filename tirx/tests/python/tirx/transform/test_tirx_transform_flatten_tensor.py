@@ -18,18 +18,18 @@ from __future__ import annotations
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.tirx.transform import FlattenTensor
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx.transform import FlattenTensor
 
 
 def _transform():
-    return tvm.ir.transform.Sequential(
+    return tvm_tirx.ir.transform.Sequential(
         [
-            tvm.tirx.transform.FlattenTensor(),
-            tvm.tirx.transform.StmtSimplify(),
+            tvm_tirx.tirx.transform.FlattenTensor(),
+            tvm_tirx.tirx.transform.StmtSimplify(),
         ]
     )
 
@@ -66,7 +66,7 @@ def test_elementwise():
                     C_1[((i * 16) + j)] = B_new[j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_elementwise_without_decl_tensor():
@@ -115,7 +115,7 @@ def test_elementwise_without_decl_tensor():
                     C[((i * 16) + j)] = B_new[j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_gpu():
@@ -155,7 +155,7 @@ def test_gpu():
                 C_1[i0 * 64 + i1 * 32 + i2 * 16 + j] = B[j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_symbolic():
@@ -201,7 +201,7 @@ def test_symbolic():
                     C_1[i * m + j] = B[j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_fused_symbolic():
@@ -241,7 +241,7 @@ def test_fused_symbolic():
                 B[i] = A[i]
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_fused_symbolic_with_predicate():
@@ -289,7 +289,7 @@ def test_fused_symbolic_with_predicate():
                     B[bx * 64 + tx] = A[bx * 64 + tx]
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_multi_alloc():
@@ -325,7 +325,7 @@ def test_multi_alloc():
                 D_1[i * 32 + j] = C[i * 32 + j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_strided():
@@ -368,7 +368,7 @@ def test_strided():
                         C_1[i0 * 64 + i1 * 16 + j] = B_1[i1 * 17 + j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_boolean():
@@ -396,7 +396,7 @@ def test_boolean():
                 B[i0] = A[i0]
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_flatten_inside_block():
@@ -419,7 +419,7 @@ def test_flatten_inside_block():
                 T.evaluate(A[i * 32 + j])
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 @pytest.mark.parametrize("value", [None, True, False])
@@ -447,8 +447,8 @@ def test_build_with_optional_unroll_explicit(value):
                     B_1[ax0 * 30 + ax1 * 6 + ax2] = A_1[ax0 * 30 + ax1 * 6 + ax2]
 
     After = FlattenTensor()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-    tvm.tirx.compile(Before, target="llvm").mod
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.tirx.compile(Before, target="llvm").mod
 
 
 def test_flatten_remaps_loads_in_view_shape():
@@ -475,10 +475,10 @@ def test_flatten_remaps_loads_in_view_shape():
             view[0] = T.float16(0)
 
     After = FlattenTensor()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
     body = After["main"].body
     assert body[3].var.shape[0].source.same_as(body[0].var)
-    assert not tvm.tirx.analysis.undefined_vars(body, [])
+    assert not tvm_tirx.tirx.analysis.undefined_vars(body, [])
 
 
 def test_flatten_remaps_loads_in_folded_elem_offset():
@@ -510,10 +510,10 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
             mbar[n[0]] = T.uint64(1)
 
     After = FlattenTensor()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
     body = After["main"].body
     assert body[-1].indices[0].source.same_as(body[0].var)
-    assert not tvm.tirx.analysis.undefined_vars(body, [])
+    assert not tvm_tirx.tirx.analysis.undefined_vars(body, [])
 
 
 def test_flatten_keeps_identity_of_already_flat_tensors():
@@ -526,7 +526,7 @@ def test_flatten_keeps_identity_of_already_flat_tensors():
 
     Expected = Before
     After = FlattenTensor()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
     assert After["main"].body[0].var.same_as(Before["main"].body[0].var)
 
 
@@ -550,7 +550,7 @@ def test_tensor_flatten_offset():
             T.evaluate(flat[n * 2 + 103])
 
     After = FlattenTensor()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 @pytest.mark.parametrize(
@@ -573,7 +573,7 @@ def test_tensor_flatten(shape, strides, span):
             T.evaluate(flat[0])
 
     After = FlattenTensor()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
     source = After["main"].params[0]
     flat = After["main"].body[0].var
     assert not source.same_as(flat)
@@ -642,7 +642,7 @@ def test_tensor_index_merge_mult_mod(pattern):
             T.evaluate(flat[expected_index(k0, k1, s, n)])
 
     After = FlattenTensor()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 @pytest.mark.parametrize("factored", [False, True], ids=["linear", "factored"])
@@ -668,8 +668,8 @@ def test_tensor_index_merge_rank_four(factored):
             T.evaluate(flat[i * 50176 + j * 28672 + k])
 
     After = FlattenTensor()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

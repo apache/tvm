@@ -23,17 +23,18 @@ import sys
 
 import pytest
 
-import tvm
-import tvm.script
-import tvm.testing
-from tvm import IRModule, relax, tirx, topi
-from tvm.ir import TupleType as _TupleType
+import tvm, tvm_tirx
+import tvm_tirx.script, tvm
+import tvm_tirx.testing, tvm
+from tvm_tirx import IRModule, tirx
+from tvm import relax, topi
+from tvm_tirx.ir import TupleType as _TupleType
 from tvm.relax import DummyGlobalInfo, VDevice
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def _check(
@@ -41,21 +42,21 @@ def _check(
     expect: relax.Function | IRModule | None = None,
 ):
     test = parsed.script(show_meta=True)
-    roundtrip_mod = tvm.script.from_source(
+    roundtrip_mod = tvm_tirx.script.from_source(
         test,
         extra_vars={
-            "I": tvm.script.ir,
-            "R": tvm.script.relax,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
+            "I": tvm_tirx.script.ir,
+            "R": tvm_tirx.script.relax,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm_tirx.script.s_tir,
         },
     )
-    tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
+    tvm_tirx.ir.assert_structural_equal(parsed, roundtrip_mod)
     if isinstance(parsed, IRModule) and isinstance(roundtrip_mod, IRModule):
         relax.analysis.well_formed(parsed)
         relax.analysis.well_formed(roundtrip_mod)
     if expect:
-        tvm.ir.assert_structural_equal(parsed, expect)
+        tvm_tirx.ir.assert_structural_equal(parsed, expect)
 
 
 def test_simple_func():
@@ -636,8 +637,8 @@ def test_annotation():
         return o
 
     def _check_ty(binding, expected_ty):
-        tvm.ir.assert_structural_equal(binding.var.ty, expected_ty)
-        tvm.ir.assert_structural_equal(binding.value.ty, expected_ty)
+        tvm_tirx.ir.assert_structural_equal(binding.var.ty, expected_ty)
+        tvm_tirx.ir.assert_structural_equal(binding.value.ty, expected_ty)
 
     # Cannot use block builder here because we need to check the annotated type,
     # which may be inconsistent with deduced type.
@@ -706,7 +707,7 @@ def test_call_tir_with_grad():
 
 
 def test_call_tir_inplace():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def copy(
@@ -767,7 +768,7 @@ def test_if_branch():
             assert call.op.name == op
         else:
             assert call.op == op
-        tvm.ir.assert_structural_equal(call.args, args)
+        tvm_tirx.ir.assert_structural_equal(call.args, args)
 
     w_bind = ite.true_branch.blocks[0].bindings[0]
     # the seq exprts in the branches are normalized to bind any call
@@ -797,7 +798,7 @@ def test_scalar_tensor_as_branch_condition():
 
     if_else = func.body.blocks[0].bindings[0].value
     assert isinstance(if_else.cond, relax.Var)
-    tvm.ir.assert_structural_equal(if_else.cond.ty, R.Tensor([], "bool"))
+    tvm_tirx.ir.assert_structural_equal(if_else.cond.ty, R.Tensor([], "bool"))
 
 
 def test_prim_value_as_branch_condition():
@@ -813,7 +814,7 @@ def test_prim_value_as_branch_condition():
 
     if_else = func.body.blocks[0].bindings[0].value
     assert isinstance(if_else.cond, relax.Var)
-    tvm.ir.assert_structural_equal(if_else.cond.ty, tvm.ir.PrimType("bool"))
+    tvm_tirx.ir.assert_structural_equal(if_else.cond.ty, tvm_tirx.ir.PrimType("bool"))
 
 
 def test_computed_prim_value_as_branch_condition():
@@ -831,9 +832,9 @@ def test_computed_prim_value_as_branch_condition():
 
     N = func.params[0].ty.shape[0]
     if_else = func.body.blocks[0].bindings[0].value
-    assert tvm.ir.is_prim_expr(if_else.cond)
-    tvm.ir.assert_structural_equal(N % 16 == 0, if_else.cond)
-    tvm.ir.assert_structural_equal(if_else.cond.ty, tvm.ir.PrimType("bool"))
+    assert tvm_tirx.ir.is_prim_expr(if_else.cond)
+    tvm_tirx.ir.assert_structural_equal(N % 16 == 0, if_else.cond)
+    tvm_tirx.ir.assert_structural_equal(if_else.cond.ty, tvm_tirx.ir.PrimType("bool"))
 
 
 def test_tir_expr_as_branch_condition():
@@ -859,7 +860,7 @@ def test_tir_expr_as_branch_condition():
             out = R.call_pure_packed("slow_non_vectorized_impl", x, ty_args=[x.ty])
         return out
 
-    tvm.ir.assert_structural_equal(unsugared, sugared)
+    tvm_tirx.ir.assert_structural_equal(unsugared, sugared)
 
 
 def test_scalar_tensor_as_assert_condition():
@@ -874,7 +875,7 @@ def test_scalar_tensor_as_assert_condition():
     assert_op = func.body.blocks[0].bindings[0].value
     condition = assert_op.args[0]
     assert isinstance(condition, relax.Var)
-    tvm.ir.assert_structural_equal(condition.ty, R.Tensor([], "bool"))
+    tvm_tirx.ir.assert_structural_equal(condition.ty, R.Tensor([], "bool"))
 
 
 def test_prim_value_as_assert_condition():
@@ -889,7 +890,7 @@ def test_prim_value_as_assert_condition():
     assert_op = func.body.blocks[0].bindings[0].value
     condition = assert_op.args[0]
     assert isinstance(condition, relax.Var)
-    tvm.ir.assert_structural_equal(condition.ty, tvm.ir.PrimType("bool"))
+    tvm_tirx.ir.assert_structural_equal(condition.ty, tvm_tirx.ir.PrimType("bool"))
 
 
 def test_computed_prim_value_as_assert_condition():
@@ -906,9 +907,9 @@ def test_computed_prim_value_as_assert_condition():
     N = func.params[0].ty.shape[0]
     assert_op = func.body.blocks[0].bindings[0].value
     condition = assert_op.args[0]
-    assert tvm.ir.is_prim_expr(condition)
-    tvm.ir.assert_structural_equal(N % 16 == 0, condition)
-    tvm.ir.assert_structural_equal(condition.ty, tvm.ir.PrimType("bool"))
+    assert tvm_tirx.ir.is_prim_expr(condition)
+    tvm_tirx.ir.assert_structural_equal(N % 16 == 0, condition)
+    tvm_tirx.ir.assert_structural_equal(condition.ty, tvm_tirx.ir.PrimType("bool"))
 
 
 def test_tir_expr_as_assert_condition():
@@ -930,7 +931,7 @@ def test_tir_expr_as_assert_condition():
         out = R.call_packed("fast_vectorized_impl", x, ty_args=[x.ty])
         return out
 
-    tvm.ir.assert_structural_equal(unsugared, sugared)
+    tvm_tirx.ir.assert_structural_equal(unsugared, sugared)
 
 
 def test_empty_tuple():
@@ -1079,7 +1080,7 @@ def test_datatype_imm():
 
 
 def test_function_void_return_type():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Foo:
         @R.function
         def main(x: R.Tensor((3, 3), dtype="float32")):
@@ -1097,7 +1098,7 @@ def test_function_void_return_type():
     assert isinstance(Foo["main"].ret_ty, relax.AnyType)
     assert isinstance(Foo["mul"].ret_ty, relax.TensorType)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Bar:
         @R.function
         def main(x1: R.Tensor((3, 3), dtype="float32")):
@@ -1112,8 +1113,8 @@ def test_function_void_return_type():
     # Since the return type of function `mul` is not annotated,
     # the function `main` regards it as a generic return type.
     _check(Bar)
-    tvm.ir.assert_structural_equal(Bar["main"].ret_ty, relax.TupleType([]))
-    tvm.ir.assert_structural_equal(Bar["mul"].ret_ty, relax.TupleType([]))
+    tvm_tirx.ir.assert_structural_equal(Bar["main"].ret_ty, relax.TupleType([]))
+    tvm_tirx.ir.assert_structural_equal(Bar["mul"].ret_ty, relax.TupleType([]))
 
 
 def test_unit_tuple_on_rhs_of_assign():
@@ -1150,8 +1151,8 @@ def test_global_var_ty():
         (R.Tensor((128, 128), dtype="float32"),), R.Tensor((128, 128), dtype="float32")
     )
     gv = Module.get_global_var("foo")
-    tvm.ir.assert_structural_equal(gv.ty, target_ty)
-    tvm.ir.assert_structural_equal(Module["foo"].ty, target_ty)
+    tvm_tirx.ir.assert_structural_equal(gv.ty, target_ty)
+    tvm_tirx.ir.assert_structural_equal(Module["foo"].ty, target_ty)
     _check(Module)
 
 
@@ -1278,7 +1279,7 @@ def test_function_with_void_return_type_may_be_used_as_statements():
             R.assert_op(R.const(False, dtype="bool"), "x: {}", x)
             return x
 
-    tvm.ir.assert_structural_equal(Unsugared, Sugared)
+    tvm_tirx.ir.assert_structural_equal(Unsugared, Sugared)
 
 
 def test_function_with_void_return_type_in_if_else():
@@ -1414,10 +1415,10 @@ def test_primitive_assignments_emit_fresh_bindings():
         (floating, "float32"),
         (boolean, "bool"),
     ]:
-        assert isinstance(binding.var.ty, tvm.ir.PrimType)
+        assert isinstance(binding.var.ty, tvm_tirx.ir.PrimType)
         assert binding.var.ty.dtype == dtype
-        assert tvm.ir.is_prim_expr(binding.value)
-        assert not isinstance(binding.value, tvm.ir.GenericConst)
+        assert tvm_tirx.ir.is_prim_expr(binding.value)
+        assert not isinstance(binding.value, tvm_tirx.ir.GenericConst)
 
     source = func.script(show_all_ty=False)
     assert "R.prim_value" not in source
@@ -1445,7 +1446,7 @@ def test_primitive_if_emits_fresh_result():
     outer_binding = func.body.blocks[0].bindings[0]
     assert isinstance(outer_binding, relax.VarBinding)
     assert isinstance(outer_binding.value, relax.IfExpr)
-    assert isinstance(outer_binding.var.ty, tvm.ir.PrimType)
+    assert isinstance(outer_binding.var.ty, tvm_tirx.ir.PrimType)
     assert not outer_binding.var.same_as(func.params[1])
     assert not outer_binding.var.same_as(func.params[2])
     for branch, param in [
@@ -1489,7 +1490,7 @@ def test_return_from_dataflow_block():
             C = R.multiply(B, B)
             return C
 
-    tvm.ir.assert_structural_equal(output_then_return, return_inside_dataflow)
+    tvm_tirx.ir.assert_structural_equal(output_then_return, return_inside_dataflow)
 
 
 def relax_match_cast_ty_proxy():
@@ -1543,17 +1544,17 @@ def relax_float_symbolic_var():
 )
 def test_roundtrip_basic_usage(ir_generator):
     original = ir_generator()
-    after_roundtrip = tvm.script.from_source(
+    after_roundtrip = tvm_tirx.script.from_source(
         original.script(show_meta=True),
         check_well_formed=False,
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm_tirx.script.s_tir,
+            "R": tvm_tirx.script.relax,
         },
     )
-    tvm.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
 
 
 def test_tuple_literals_preserve_expression_structure():
@@ -1571,12 +1572,12 @@ def test_tuple_literals_preserve_expression_structure():
         nested = R.tuple(empty, singleton)
         return nested
 
-    tvm.ir.assert_structural_equal(literal, constructed)
+    tvm_tirx.ir.assert_structural_equal(literal, constructed)
     for show_all_ty in [False, True]:
         source = literal.script(show_all_ty=show_all_ty)
         assert "R.tuple" not in source
-        tvm.ir.assert_structural_equal(
-            literal, tvm.script.from_source(source, extra_vars={"I": I, "R": R, "T": T})
+        tvm_tirx.ir.assert_structural_equal(
+            literal, tvm_tirx.script.from_source(source, extra_vars={"I": I, "R": R, "T": T})
         )
 
 
@@ -1601,4 +1602,4 @@ def test_primitive_scalar_conversion_depends_on_context():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

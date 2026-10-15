@@ -21,16 +21,16 @@ import sys
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm import tirx
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
@@ -172,7 +172,7 @@ def two_elementwise_unit_dim(A: T.Tensor((1, 128), "float32"), C: T.Tensor((1, 1
 # pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 # fmt: on
 
-use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
 
 def test_two_elementwise_transform_intermediate_tensor(use_block_name):
@@ -296,15 +296,15 @@ def test_simplify():
                         # Ts.reads(B[vi // 16 + vi_o, vj // 16 + vj_o, vi % 16, vj % 16])
                         # C[...] = B[vi // 16 + vi_o, vj // 16 + vj_o, vi % 16, vj % 16] + T.float32(1)
 
-    expected = tvm.tirx.Function(
-        [param for param in ref.params if tvm.tirx.is_tensor_var(param)], ref.body[0].block.body
+    expected = tvm_tirx.tirx.Function(
+        [param for param in ref.params if tvm_tirx.tirx.is_tensor_var(param)], ref.body[0].block.body
     )
     actual_block = sch.get(block_outer)
-    actual = tvm.tirx.Function(
+    actual = tvm_tirx.tirx.Function(
         [actual_block.reads[0].source, actual_block.writes[0].source],
         sch.get(sch.get_loops(block_outer)[0]),
     )
-    tvm.ir.assert_structural_equal(expected, actual)
+    tvm_tirx.ir.assert_structural_equal(expected, actual)
 
 
 def test_var_args_sugar():
@@ -486,7 +486,7 @@ def test_no_padding(pad_value):
         pad_value=pad_value,
     )
     After = sch.mod
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 @pytest.mark.parametrize("pad_value", [None, 42])
@@ -538,7 +538,7 @@ def test_no_padding_multiple_usage(pad_value):
         pad_value=pad_value,
     )
     After = sch.mod
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 @pytest.mark.parametrize("pad_value", [None, 42])
@@ -574,7 +574,7 @@ def test_no_padding_opaque_block(pad_value):
         pad_value=pad_value,
     )
     After = sch.mod
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_error_if_padding_forbidden():
@@ -634,7 +634,7 @@ def test_implicit_padding_assume_injective():
         assume_injective_transform=True,
     )
     After = sch.mod
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_error_on_wrong_padding_type():
@@ -713,8 +713,8 @@ def test_padded_transform_if_then_else(dtype):
                 vi, vj = Ts.axis.remap("SS", [i, j])
                 B[vi, vj] = T.if_then_else(vi == 3 and 2 <= vj, pad_value_imm, A[vi * 4 + vj])
 
-    Before = tvm.IRModule({"main": before_func})
-    Expected = tvm.IRModule({"main": expected_func})
+    Before = tvm_tirx.IRModule({"main": before_func})
+    Expected = tvm_tirx.IRModule({"main": expected_func})
 
     sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
@@ -724,7 +724,7 @@ def test_padded_transform_if_then_else(dtype):
         pad_value=0,
     )
     After = sch.mod
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_padded_transform_without_loop():
@@ -765,7 +765,7 @@ def test_padded_transform_without_loop():
         pad_value=0,
     )
     After = sch.mod
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_padded_transform_if_then_else_reduction():
@@ -805,7 +805,7 @@ def test_padded_transform_if_then_else_reduction():
         pad_value=0,
     )
     After = sch.mod
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_padded_transform_if_then_else_reduction_opaque():
@@ -841,7 +841,7 @@ def test_padded_transform_if_then_else_reduction_opaque():
         pad_value=0,
     )
     After = sch.mod
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_padded_transform_post_proc_if_required_due_to_side_effects():
@@ -890,7 +890,7 @@ def test_padded_transform_post_proc_if_required_due_to_side_effects():
         pad_value=0,
     )
     After = sch.mod
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_padded_transform_of_input_creates_assumption():
@@ -927,7 +927,7 @@ def test_padded_transform_of_input_creates_assumption():
         pad_value=42,
     )
     After = sch.mod
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_padded_transform_non_constant_value():
@@ -965,7 +965,7 @@ def test_padded_transform_non_constant_value():
         pad_value=lambda i, j: i + j,
     )
     After = sch.mod
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 @pytest.mark.xfail(reason="Not yet implemented")
@@ -1017,7 +1017,7 @@ def test_padded_transform_repeated_tensor_element():
         pad_value=lambda i, j: A[(4 * i + j) % 14],
     )
     After = sch.mod
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_pad_value_may_not_reference_other_tensor():
@@ -1091,7 +1091,7 @@ def test_transform_layout_with_var():
         pad_value=0,
     )
     After = sch.mod
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_index_map_dtype_legalize():
@@ -1196,7 +1196,7 @@ def test_transform_layout_with_symbolic_bound():
         assume_injective_transform=True,
     )
     # pylint: enable=invalid-name
-    tvm.ir.assert_structural_equal(after, sch.mod["main"])
+    tvm_tirx.ir.assert_structural_equal(after, sch.mod["main"])
 
 
 def test_transform_block_layout_with_symbolic_bound():
@@ -1245,8 +1245,8 @@ def test_transform_block_layout_with_symbolic_bound():
         ),
     )
     # pylint: enable=invalid-name
-    tvm.ir.assert_structural_equal(after, sch.mod["main"])
+    tvm_tirx.ir.assert_structural_equal(after, sch.mod["main"])
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

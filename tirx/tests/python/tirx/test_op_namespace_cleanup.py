@@ -23,10 +23,10 @@ import types
 import pytest
 import tvm_ffi
 
-import tvm
-from tvm.ir import Op, assert_structural_equal
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm_tirx.ir import Op, assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def _tile_calls(func):
@@ -34,7 +34,7 @@ def _tile_calls(func):
 
     def visit(stmt):
         if (
-            isinstance(stmt, tvm.ir.Call)
+            isinstance(stmt, tvm_tirx.ir.Call)
             and isinstance(stmt.op, Op)
             and stmt.op.get_attr("FTileOpDispatch") is not None
         ):
@@ -48,7 +48,7 @@ def _expr_calls(func):
     calls = []
 
     def visit(node):
-        if isinstance(node, tvm.ir.Call):
+        if isinstance(node, tvm_tirx.ir.Call):
             calls.append(node)
 
     tvm_ffi.structural_walk(func.body, visit)
@@ -69,11 +69,11 @@ def _has_path(root, path):
 
 
 def test_builtin_expression_ops_are_not_tile_ops():
-    x = tvm.tirx.Var("x", "int32")
-    y = tvm.tirx.Var("y", "float32")
+    x = tvm_tirx.tirx.Var("x", "int32")
+    y = tvm_tirx.tirx.Var("y", "float32")
 
     cast = T.cast(x, "float32")
-    assert isinstance(cast, tvm.tirx.Cast)
+    assert isinstance(cast, tvm_tirx.tirx.Cast)
     assert cast.ty.dtype == "float32"
 
     sqrt = T.sqrt(y)
@@ -109,7 +109,7 @@ def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
     assert call.attrs.interleave == call.attrs.l2_promotion == call.attrs.oob_fill == 0
     assert call.attrs.force_cu_dtype == -1
     call.validate()
-    reparsed = tvm.script.from_source(encode.script(), extra_vars={"I": I, "T": T})
+    reparsed = tvm_tirx.script.from_source(encode.script(), extra_vars={"I": I, "T": T})
     assert_structural_equal(encode, reparsed)
 
 
@@ -132,21 +132,21 @@ def test_kernel_replace_point_is_builtin_marker_not_tile_op():
     assert "kernel_replace_point" in code
     assert "T.tile.kernel_replace_point" not in code
     assert "Tx.kernel_replace_point" not in code
-    reparsed = tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+    reparsed = tvm_tirx.script.from_source(code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
     assert_structural_equal(marker, reparsed)
 
 
 def test_device_intrinsic_namespaces_are_canonical_and_classified():
-    cuda_script = importlib.import_module("tvm.backend.cuda.script")
-    from tvm.backend.cuda.script import (
+    cuda_script = importlib.import_module("tvm_tirx.backend.cuda.script")
+    from tvm_tirx.backend.cuda.script import (
         NVSHMEMNamespace as BackendNVSHMEMNamespace,
     )
-    from tvm.backend.cuda.script import (
+    from tvm_tirx.backend.cuda.script import (
         STIRNamespace as BackendSTIRNamespace,
     )
-    from tvm.backend.metal.script import MetalNamespace as BackendMetalNamespace
-    from tvm.backend.trn.script import NKINamespace as BackendNKINamespace
-    from tvm.tirx.script.ir_builder import op as builder_op
+    from tvm_tirx.backend.metal.script import MetalNamespace as BackendMetalNamespace
+    from tvm_tirx.backend.trn.script import NKINamespace as BackendNKINamespace
+    from tvm_tirx.tirx.script.ir_builder import op as builder_op
 
     assert builder_op.cuda is cuda_script
     assert isinstance(builder_op.s_tir, BackendSTIRNamespace)
@@ -159,7 +159,7 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
     assert T.metal is builder_op.metal
     assert T.nki is builder_op.nki
 
-    tensor = tvm.tirx.decl_tensor((1,), "float32")
+    tensor = tvm_tirx.tirx.decl_tensor((1,), "float32")
     calls = [
         T.cuda.elect_sync(),
         T.cuda.thread_fence(),
@@ -179,9 +179,9 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
 
 
 def test_backend_specific_wrappers_are_not_root_exports():
-    from tvm.tirx.cuda import op as cuda_op
-    from tvm.tirx.metal import op as metal_op
-    from tvm.tirx.trn import op as trn_op
+    from tvm_tirx.tirx.cuda import op as cuda_op
+    from tvm_tirx.tirx.metal import op as metal_op
+    from tvm_tirx.tirx.trn import op as trn_op
 
     backend_only_names = [
         "ptx_legacy_mma",
@@ -193,8 +193,8 @@ def test_backend_specific_wrappers_are_not_root_exports():
         "nki_load",
     ]
     for name in backend_only_names:
-        assert not hasattr(tvm.tirx.op, name)
-        assert not hasattr(tvm.tirx, name)
+        assert not hasattr(tvm_tirx.tirx.op, name)
+        assert not hasattr(tvm_tirx.tirx, name)
         assert not hasattr(T, name)
 
     assert cuda_op.ptx_legacy_mma
@@ -212,13 +212,13 @@ def test_backend_specific_wrappers_are_not_root_exports():
 
 
 def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
-    from tvm.script.parser import tirx as parser
-    from tvm.tirx.script import ir_builder as builder
-    from tvm.tirx.script.ir_builder import op as builder_op
+    from tvm_tirx.script.parser import tirx as parser
+    from tvm_tirx.tirx.script import ir_builder as builder
+    from tvm_tirx.tirx.script.ir_builder import op as builder_op
 
     backend_name = "unit_test_backend"
-    backend_module_name = f"tvm.backend.{backend_name}"
-    public_module_name = f"tvm.tirx.{backend_name}"
+    backend_module_name = f"tvm_tirx.backend.{backend_name}"
+    public_module_name = f"tvm_tirx.tirx.{backend_name}"
     public_op_module_name = f"{public_module_name}.op"
     namespace_name = "unit_test_backend_ns"
     register_calls = []
@@ -241,19 +241,19 @@ def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
     monkeypatch.setitem(sys.modules, op_module.__name__, op_module)
     sys.modules.pop(public_module_name, None)
     sys.modules.pop(public_op_module_name, None)
-    tvm.backend.loader._LOADED_BACKENDS.pop(backend_name, None)
-    if hasattr(tvm.tirx, backend_name):
-        delattr(tvm.tirx, backend_name)
+    tvm_tirx.backend.loader._LOADED_BACKENDS.pop(backend_name, None)
+    if hasattr(tvm_tirx.tirx, backend_name):
+        delattr(tvm_tirx.tirx, backend_name)
 
     with pytest.raises(ModuleNotFoundError):
         importlib.import_module(public_op_module_name)
 
     try:
-        assert tvm.backend.load(backend_name) is None
-        assert tvm.backend.load(backend_name) is None
+        assert tvm_tirx.backend.load(backend_name) is None
+        assert tvm_tirx.backend.load(backend_name) is None
         assert register_calls == [True]
-        assert tvm.backend.is_loaded(backend_name)
-        assert getattr(tvm.tirx, backend_name) is module
+        assert tvm_tirx.backend.is_loaded(backend_name)
+        assert getattr(tvm_tirx.tirx, backend_name) is module
         assert sys.modules[public_module_name] is module
         public_op_module = importlib.import_module(public_op_module_name)
         assert public_op_module.__tvm_backend_module__ is op_module
@@ -265,9 +265,9 @@ def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
         assert getattr(parser, namespace_name) is namespace
         assert getattr(T, namespace_name) is namespace
     finally:
-        tvm.backend.loader._LOADED_BACKENDS.pop(backend_name, None)
-        if hasattr(tvm.tirx, backend_name):
-            delattr(tvm.tirx, backend_name)
+        tvm_tirx.backend.loader._LOADED_BACKENDS.pop(backend_name, None)
+        if hasattr(tvm_tirx.tirx, backend_name):
+            delattr(tvm_tirx.tirx, backend_name)
         sys.modules.pop(public_module_name, None)
         sys.modules.pop(public_op_module_name, None)
 
@@ -303,13 +303,13 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
     assert "T.metal.simd_shuffle_up(" in code
     assert "T.metal.simd_shuffle_down(" in code
     assert "T.tirx." not in code
-    reparsed = tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+    reparsed = tvm_tirx.script.from_source(code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
     assert reparsed.script() == code
     assert_structural_equal(device_namespaces, reparsed)
 
 
 def test_registered_tirx_ops_use_dispatch_attributes():
-    from tvm.backend.cuda.ptx.table import TABLE, escape_token
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, escape_token
 
     assert not Op.get("prim.sqrt").has_attr("TIRxOpCategory")
     device_namespaces = {
@@ -375,8 +375,8 @@ def test_tile_helpers_are_separate_from_backend_instructions():
     assert T.tile.DispatchContext
     assert T.tile.Instruction
     assert not hasattr(T.tile, "copy")
-    assert not hasattr(tvm.tirx, "TilePrimitiveCall")
-    assert not hasattr(tvm.tirx, "TileOpCall")
+    assert not hasattr(tvm_tirx.tirx, "TilePrimitiveCall")
+    assert not hasattr(tvm_tirx.tirx, "TileOpCall")
     assert not any(name.startswith("tirx.tile.") for name in Op.list_op_names())
     for name in (
         "copy",

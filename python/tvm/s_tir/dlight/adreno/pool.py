@@ -18,8 +18,9 @@
 # ruff: noqa: F841
 """Pool schedule rule for Adreno operators."""
 
-from tvm import s_tir, tirx
-from tvm.target import Target
+from tvm_tirx import tirx
+from tvm import s_tir
+from tvm_tirx.target import Target
 
 from .. import analysis
 from .base import AdrenoScheduleRule

@@ -18,11 +18,11 @@ import itertools
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 def test_nested_byte_pointer_offset():
@@ -37,10 +37,10 @@ def test_nested_byte_pointer_offset():
                 ty="void",
             )
 
-    After = tvm.tirx.transform.LowerIntrin()(Before)
-    tvm.ir.assert_structural_equal(After, Before)
+    After = tvm_tirx.tirx.transform.LowerIntrin()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Before)
     for target in ["c"] + (["llvm"] if env.has_llvm() else []):
-        tvm.tirx.compile(Before, target=target).mod
+        tvm_tirx.tirx.compile(Before, target=target).mod
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -55,9 +55,9 @@ def test_vector_byte_pointer_offset(dtype, byte_offset):
                 "consume", T.ptr_byte_offset(A.data, byte_offset, ty=A.data.ty), ty="void"
             )
 
-    After = tvm.tirx.transform.LowerIntrin()(Before)
-    tvm.ir.assert_structural_equal(After, Before)
-    tvm.tirx.compile(Before, target="llvm").mod
+    After = tvm_tirx.tirx.transform.LowerIntrin()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Before)
+    tvm_tirx.tirx.compile(Before, target="llvm").mod
 
 
 @pytest.mark.parametrize("shape, indices", [((), []), ((16,), [3]), ((2, 4), [1, 2])])
@@ -76,8 +76,8 @@ def test_logical_pointer_preserves_tensor_identity(shape, indices):
             T.func_attr({"target": T.target("llvm")})
             T.evaluate(T.address_of(A[tuple(indices)]))
 
-    After = tvm.tirx.transform.LowerIntrin()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.LowerIntrin()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
     assert After["main"].body[0].value.args[0].source.same_as(Before["main"].params[0])
 
 
@@ -164,11 +164,11 @@ def test_lower_floordiv_and_floormod(dtype, kind, variant):
             T.func_attr({"target": T.target("llvm")})
             return _divmod_expression(x, y, dtype, kind, variant, True)
 
-    After = tvm.ir.transform.Sequential(
-        [tvm.tirx.transform.StmtSimplify(), tvm.tirx.transform.LowerIntrin()]
+    After = tvm_tirx.ir.transform.Sequential(
+        [tvm_tirx.tirx.transform.StmtSimplify(), tvm_tirx.tirx.transform.LowerIntrin()]
     )(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-    compiled = tvm.compile(After, "llvm")
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
+    compiled = tvm_tirx.compile(After, "llvm")
     data = itertools.product(range(-10, 10), [y for y in range(-10, 10) if y])
     for x, y in data:
         if (variant == "pow2" and y != 8) or (variant == "offset" and y != 5):
@@ -222,15 +222,15 @@ def test_lower_floordiv_overflow_checks(dtype, clamp, data):
             T.func_attr({"target": T.target("llvm")})
             return corrected(x)
 
-    After = tvm.ir.transform.Sequential(
-        [tvm.tirx.transform.StmtSimplify(), tvm.tirx.transform.LowerIntrin()]
+    After = tvm_tirx.ir.transform.Sequential(
+        [tvm_tirx.tirx.transform.StmtSimplify(), tvm_tirx.tirx.transform.LowerIntrin()]
     )(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-    compiled = tvm.compile(After, "llvm")
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
+    compiled = tvm_tirx.compile(After, "llvm")
     for value in data:
         expected = min(max(value, -10), 32758) if clamp else value
         assert compiled(value) == expected // 3
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

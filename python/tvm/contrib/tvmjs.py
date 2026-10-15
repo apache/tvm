@@ -36,8 +36,8 @@ try:
 except ImportError:
     ml_dtypes = None
 
-import tvm
-from tvm.runtime import DataType
+import tvm, tvm_tirx
+from tvm_tirx.runtime import DataType
 
 from .emcc import create_wasm as create_tvmjs_wasm
 from .emcc import find_wasm_lib
@@ -202,8 +202,8 @@ class TensorCacheShardingManager:
 
 
 def dump_tensor_cache(
-    params: Mapping[str, np.ndarray | tvm.runtime.Tensor]
-    | Iterator[tuple[str, np.ndarray | tvm.runtime.Tensor]],
+    params: Mapping[str, np.ndarray | tvm_tirx.runtime.Tensor]
+    | Iterator[tuple[str, np.ndarray | tvm_tirx.runtime.Tensor]],
     cache_dir: str,
     encode_format: str | Mapping[str, str] = "f32-to-bf16",
     meta_data=None,
@@ -216,8 +216,8 @@ def dump_tensor_cache(
     Parameters
     ----------
     params: Union[
-        Mapping[str, Union[np.ndarray, tvm.runtime.Tensor]],
-        Iterator[Tuple[str, Union[np.ndarray, tvm.runtime.Tensor]]],
+        Mapping[str, Union[np.ndarray, tvm_tirx.runtime.Tensor]],
+        Iterator[Tuple[str, Union[np.ndarray, tvm_tirx.runtime.Tensor]]],
     ]
         The parameter dictionary or generator
 
@@ -295,7 +295,7 @@ def dump_tensor_cache(
             v = v.numpy()
 
         # prefer to preserve original dtype, especially if the format was bfloat16
-        dtype = origin_v.dtype if isinstance(origin_v, tvm.runtime.Tensor) else v.dtype
+        dtype = origin_v.dtype if isinstance(origin_v, tvm_tirx.runtime.Tensor) else v.dtype
 
         if dtype in DataType._NUMPY_DTYPE_TO_STR:
             dtype = DataType._NUMPY_DTYPE_TO_STR[dtype]
@@ -356,7 +356,7 @@ def dump_tensor_cache(
         os.remove(b16_nd_cache_json)
 
 
-def load_tensor_cache(cachepath: str, device: tvm.runtime.Device):
+def load_tensor_cache(cachepath: str, device: tvm_tirx.runtime.Device):
     """Load the tensor cache from the directory or json.
 
 
@@ -365,7 +365,7 @@ def load_tensor_cache(cachepath: str, device: tvm.runtime.Device):
     cachepath: str
         Path to the location or json file.
 
-    device: tvm.runtime.Device
+    device: tvm_tirx.runtime.Device
         The device we would like to load the data from.
     """
     if not cachepath.endswith(".json"):
@@ -390,7 +390,7 @@ def load_tensor_cache(cachepath: str, device: tvm.runtime.Device):
             offset = rec["byteOffset"]
             nbytes = rec["nbytes"]
 
-            arr = tvm.runtime.empty(shape, dtype, device=device)
+            arr = tvm_tirx.runtime.empty(shape, dtype, device=device)
             assert offset + nbytes <= len(raw_data)
             buffer_source = raw_data[offset : offset + nbytes]
             if dtype == "float8_e4m3fn":

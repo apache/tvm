@@ -18,13 +18,14 @@
 # ruff: noqa: RUF005
 """Default legalization function for manipulate operators."""
 
-import tvm
-from tvm import DataTypeCode, relax, te, tirx, topi
-from tvm.ir import Call
+import tvm, tvm_tirx
+from tvm_tirx import DataTypeCode, tirx
+from tvm import relax, te, topi
+from tvm_tirx.ir import Call
 from tvm.relax.op.base import call_tir
 from tvm.relax.type import TensorType
 from tvm.relax.utils import gen_call_tir_inputs
-from tvm.tirx.expr import IntImm
+from tvm_tirx.tirx.expr import IntImm
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr, ShapeExpr, Tuple, TupleGetItem, Var
@@ -78,7 +79,7 @@ def _concat(bb: BlockBuilder, call: Call) -> Expr:
 def _expand_dims(bb: BlockBuilder, call: Call) -> Expr:
     def te_expand_dims(data, axis):
         data_relax = relax.Var("data", relax.TensorType(data.shape))
-        output_ty = tvm.ir.reinfer_type(relax.op.expand_dims(data_relax, axis))
+        output_ty = tvm_tirx.ir.reinfer_type(relax.op.expand_dims(data_relax, axis))
         output_shape = output_ty.shape
         output_ndim = len(output_shape)
 
@@ -249,7 +250,7 @@ def _meshgrid(bb: BlockBuilder, call: Call) -> Expr:
 
 
 def _is_gpu_target():
-    target = tvm.target.Target.current(allow_none=True)
+    target = tvm_tirx.target.Target.current(allow_none=True)
     return target is not None and "gpu" in target.keys
 
 
@@ -301,7 +302,7 @@ def _slice_scatter(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.one_hot")
 def _one_hot(bb: BlockBuilder, call: Call) -> Expr:
     indices, on_value, off_value = call.args
-    if not (tvm.ir.is_prim_expr(on_value) and tvm.ir.is_prim_expr(off_value)):
+    if not (tvm_tirx.ir.is_prim_expr(on_value) and tvm_tirx.ir.is_prim_expr(off_value)):
         raise ValueError("on_value and off_value must be Expr")
     if on_value.ty != off_value.ty:
         raise ValueError("on_value and off_value must have the same dtype")
@@ -329,7 +330,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
             name=name,
         )
 
-    index_map: tvm.tirx.IndexMap = call.attrs.index_map
+    index_map: tvm_tirx.tirx.IndexMap = call.attrs.index_map
     pad_value = call.attrs.pad_value
     if pad_value is not None:
         pad_value = pad_value.value
@@ -341,7 +342,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
 
     function_name = "te_layout_transform"
     _, padding_predicate = index_map.non_surjective_inverse(call.args[0].ty.shape)
-    if not isinstance(padding_predicate, tvm.tirx.expr.IntImm):
+    if not isinstance(padding_predicate, tvm_tirx.tirx.expr.IntImm):
         function_name += "_with_pad"
     tir_func, call_args, _ = gen_call_tir_inputs(te_layout_transform, call.args[0], function_name)
     # Create a TIR schedule to apply the layout change.

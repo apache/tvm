@@ -17,10 +17,10 @@
 # ruff: noqa: F841
 import pytest
 
-import tvm
-from tvm import codegen
-from tvm.codegen import target_has_features
-from tvm.target import Target
+import tvm_tirx
+from tvm_tirx import codegen
+from tvm_tirx.codegen import target_has_features
+from tvm_tirx.target import Target
 
 LLVM_VERSION = codegen.llvm_version_major()
 
@@ -197,7 +197,7 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
     try:
         assert target_has_features(x86_feature) == is_supported
         assert False
-    except tvm.error.InternalError as e:
+    except tvm_tirx.error.InternalError as e:
         msg = str(e)
         assert msg.find("Check failed: (allow_not_defined) is false: Target context required") != -1
 
@@ -205,10 +205,10 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
         # check for feature via the ffi llvm api (no explicit target, no context target)
         try:
             assert (
-                tvm.get_global_func("codegen.target_has_feature")(x86_feature, None) == is_supported
+                tvm_tirx.get_global_func("codegen.target_has_feature")(x86_feature, None) == is_supported
             )
             assert False
-        except tvm.error.InternalError as e:
+        except tvm_tirx.error.InternalError as e:
             msg = str(e)
             assert (
                 msg.find("Check failed: (allow_not_defined) is false: Target context required")
@@ -228,7 +228,7 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
     if isinstance(x86_feature, str):
         # check for feature via the ffi llvm api (with explicit target, no context target)
         assert (
-            tvm.get_global_func("codegen.target_has_feature")(x86_feature, Target(tvm_target))
+            tvm_tirx.get_global_func("codegen.target_has_feature")(x86_feature, Target(tvm_target))
             == is_supported
         )
 
@@ -245,7 +245,7 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
         # check for feature via the ffi llvm api (current context target)
         (
             sum(
-                tvm.get_global_func("codegen.target_has_feature")(feat, None)
+                tvm_tirx.get_global_func("codegen.target_has_feature")(feat, None)
                 for feat in x86_feature
             )
             > 0

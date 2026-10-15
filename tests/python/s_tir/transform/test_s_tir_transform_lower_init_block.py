@@ -15,15 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F401, F821
-import tvm
+import tvm, tvm_tirx
 from tvm import s_tir
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-self-argument
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class WithInit:
     @Ts.function
     def main(A: T.Tensor([64, 64, 64], "float32"), B: T.Tensor([64], "float32")) -> None:
@@ -36,7 +36,7 @@ class WithInit:
                     B[i] += A[i, j, k]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class WithBranch:
     @Ts.function
     def main(A: T.Tensor([64, 64, 64], "float32"), B: T.Tensor([64], "float32")) -> None:
@@ -51,7 +51,7 @@ class WithBranch:
                     B[i] += A[i, j, k]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class InitWithMatchTensor:
     @Ts.function
     def main(A: T.Tensor([64, 64, 64], "float32"), B: T.Tensor([64], "float32")) -> None:
@@ -66,7 +66,7 @@ class InitWithMatchTensor:
                     BB[()] += AA[j, k]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class BranchWithMatchTensor:
     @Ts.function
     def main(A: T.Tensor([64, 64, 64], "float32"), B: T.Tensor([64], "float32")) -> None:
@@ -86,13 +86,13 @@ class BranchWithMatchTensor:
 def test_lower_reduction():
     origin_mod = WithInit
     mod = tvm.s_tir.transform.LowerInitBlock()(origin_mod)
-    tvm.ir.assert_structural_equal(mod, WithBranch, True)
+    tvm_tirx.ir.assert_structural_equal(mod, WithBranch, True)
 
 
 def test_lower_match_tensor():
     origin_mod = InitWithMatchTensor
     mod = tvm.s_tir.transform.LowerInitBlock()(origin_mod)
-    tvm.ir.assert_structural_equal(mod, BranchWithMatchTensor, True)
+    tvm_tirx.ir.assert_structural_equal(mod, BranchWithMatchTensor, True)
 
 
 if __name__ == "__main__":

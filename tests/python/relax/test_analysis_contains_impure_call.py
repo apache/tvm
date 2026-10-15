@@ -16,15 +16,15 @@
 # under the License.
 # ruff: noqa: F841
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import relax as rx
 from tvm.relax.analysis import contains_impure_call
-from tvm.script import relax as R
+from tvm_tirx.script import relax as R
 
 
 def test_simple_pure_case():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class PureTest:
         @R.function
         def pure_func(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
@@ -36,7 +36,7 @@ def test_simple_pure_case():
 
 
 def test_simple_impure_case():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class ImpureTest:
         @R.function(pure=False)
         def impure_func() -> R.Any:
@@ -47,7 +47,7 @@ def test_simple_impure_case():
 
 
 def test_nested_function():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class NestedTest:
         @R.function
         def pure_with_impure_nested() -> R.Tensor((), "int32"):
@@ -70,7 +70,7 @@ def test_ignoring_recursive_call():
     # Ignoring a recursive call. This can be useful if some transformation
     # removes an impure operation and the compiler needs to check if the impure
     # function has become pure
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class RecursiveTest:
         @R.function(pure=False)
         def recursive_impure() -> R.Any:
@@ -103,4 +103,4 @@ def test_ignoring_recursive_call():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

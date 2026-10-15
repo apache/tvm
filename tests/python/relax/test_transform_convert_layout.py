@@ -16,12 +16,12 @@
 # under the License.
 # ruff: noqa: E501, F841
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm.relax.transform import ConvertLayout, Normalize
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def verify(input, expected, extra_ops={}, cb=None):
@@ -29,7 +29,7 @@ def verify(input, expected, extra_ops={}, cb=None):
     desired_layouts.update(extra_ops)
     mod = ConvertLayout(desired_layouts, cb)(input)
     mod = Normalize()(mod)
-    tvm.ir.assert_structural_equal(mod, expected)
+    tvm_tirx.ir.assert_structural_equal(mod, expected)
 
 
 def test_conv2d():
@@ -286,7 +286,7 @@ def test_relu_conv2d_relu():
                 R.output(gv2)
             return gv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -1529,7 +1529,7 @@ def test_conv2d_unknown_bias_dim():
                 R.output(gv2)
             return gv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -1577,7 +1577,7 @@ def test_binary_broadcast():
                 R.output(gv2)
             return gv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -2359,7 +2359,7 @@ def test_relu_conv2d_relu_sub_indexed():
                 R.output(gv2)
             return gv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected_NCHW4c:
         @R.function
         def main(
@@ -2398,7 +2398,7 @@ def test_relu_conv2d_relu_sub_indexed():
                 R.output(gv2)
             return gv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected_NHWC4c:
         @R.function
         def main(
@@ -4434,7 +4434,7 @@ def test_conv2d_unknown_bias_dim_sub_indexed():
                 R.output(gv2)
             return gv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected_NCHW4c:
         @R.function
         def main(
@@ -4491,7 +4491,7 @@ def test_binary_broadcast_sub_indexed():
                 R.output(gv2)
             return gv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected_NCHW4c:
         @R.function
         def main(
@@ -5584,4 +5584,4 @@ def test_layout_cb():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

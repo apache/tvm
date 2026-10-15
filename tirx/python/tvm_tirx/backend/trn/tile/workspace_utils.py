@@ -19,8 +19,8 @@
 
 from functools import cache
 
-from tvm.runtime import MemoryScope
-from tvm.tirx import Var
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.tirx import Var
 
 
 @cache

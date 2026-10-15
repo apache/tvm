@@ -22,17 +22,17 @@ import sys
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm.s_tir.meta_schedule import TuneContext
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Matmul:
     @Ts.function
     def main(
@@ -63,4 +63,4 @@ def test_tune_context_create():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

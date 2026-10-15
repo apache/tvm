@@ -30,14 +30,14 @@ caller's destination. The protocols exercised are the shapes real kernels use.
 
 import pytest
 
-import tvm
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm_tirx.script import tirx as T
 
 
 def build(func):
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.tirx.compile(tvm.IRModule({"main": func}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": func}), target=target, pipeline="tirx")
     return getattr(mod, "mod", mod).imports[0].inspect_source("")
 
 
@@ -276,7 +276,7 @@ def test_a_wait_rejects_attributes_it_cannot_mean(kwargs, error, message):
     spelling keep compiling while meaning something else.
     """
 
-    from tvm.backend.cuda.op import cuda_wait_until
+    from tvm_tirx.backend.cuda.op import cuda_wait_until
 
     with pytest.raises(error, match=message):
         cuda_wait_until(None, None, None, **kwargs)

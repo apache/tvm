@@ -18,19 +18,19 @@
 
 import tvm_ffi
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import s_tir
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def _is_tensor_binding(node, *op_names):
     return (
-        isinstance(node, tvm.ir.Bind)
-        and isinstance(node.value, tvm.ir.Call)
-        and isinstance(node.value.op, tvm.ir.Op)
+        isinstance(node, tvm_tirx.ir.Bind)
+        and isinstance(node.value, tvm_tirx.ir.Call)
+        and isinstance(node.value.op, tvm_tirx.ir.Op)
         and node.value.op.name in op_names
     )
 
@@ -48,11 +48,11 @@ def _has_volatile_alloc_tensor(mod):
 
 
 def test_basic():
-    transform = tvm.transform.Sequential(
+    transform = tvm_tirx.transform.Sequential(
         [
             tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.s_tir.transform.LowerThreadBinding(),
-            tvm.tirx.transform.LowerThreadAllreduce(),
+            tvm_tirx.tirx.transform.LowerThreadAllreduce(),
         ]
     )
 
@@ -92,11 +92,11 @@ def test_basic():
 
 
 def test_basic_with_decl_tensor():
-    transform = tvm.transform.Sequential(
+    transform = tvm_tirx.transform.Sequential(
         [
             tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.s_tir.transform.LowerThreadBinding(),
-            tvm.tirx.transform.LowerThreadAllreduce(),
+            tvm_tirx.tirx.transform.LowerThreadAllreduce(),
         ]
     )
 
@@ -125,17 +125,17 @@ def test_basic_with_decl_tensor():
 
     After = transform(Before)
     assert After is not None
-    assert tvm.tirx.analysis.verify_well_formed(After)
+    assert tvm_tirx.tirx.analysis.verify_well_formed(After)
     After_script = After.script()
     assert "gpu_warp_shuffle" in After_script
 
 
 def test_reduce_summation():
-    transform = tvm.transform.Sequential(
+    transform = tvm_tirx.transform.Sequential(
         [
             tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.s_tir.transform.LowerThreadBinding(),
-            tvm.tirx.transform.LowerThreadAllreduce(),
+            tvm_tirx.tirx.transform.LowerThreadAllreduce(),
         ]
     )
 
@@ -184,11 +184,11 @@ def test_reduce_summation():
 
 
 def test_multi_group_reduction():
-    transform = tvm.transform.Sequential(
+    transform = tvm_tirx.transform.Sequential(
         [
             tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.s_tir.transform.LowerThreadBinding(),
-            tvm.tirx.transform.LowerThreadAllreduce(),
+            tvm_tirx.tirx.transform.LowerThreadAllreduce(),
         ]
     )
 
@@ -223,11 +223,11 @@ def test_multi_group_reduction():
 
 
 def test_multi_group_reduction_consumed_through_alias():
-    transform = tvm.transform.Sequential(
+    transform = tvm_tirx.transform.Sequential(
         [
             tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.s_tir.transform.LowerThreadBinding(),
-            tvm.tirx.transform.LowerThreadAllreduce(),
+            tvm_tirx.tirx.transform.LowerThreadAllreduce(),
         ]
     )
 
@@ -257,7 +257,7 @@ def test_multi_group_reduction_consumed_through_alias():
                 B_flat[threadIdx_y] = cross_thread_B_alias[0]
 
     After = transform(Before)
-    assert tvm.tirx.analysis.verify_well_formed(After)
+    assert tvm_tirx.tirx.analysis.verify_well_formed(After)
     After_script = After.script()
     assert "red_result[threadIdx_y] = red_result[threadIdx_y]" in After_script
     assert "B_flat[threadIdx_y] = red_result[threadIdx_y]" in After_script
@@ -267,11 +267,11 @@ def test_multi_group_reduction_consumed_through_alias():
 
 
 def test_multi_group_reduction_with_alias_declared_after_allreduce():
-    transform = tvm.transform.Sequential(
+    transform = tvm_tirx.transform.Sequential(
         [
             tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.s_tir.transform.LowerThreadBinding(),
-            tvm.tirx.transform.LowerThreadAllreduce(),
+            tvm_tirx.tirx.transform.LowerThreadAllreduce(),
         ]
     )
 
@@ -301,7 +301,7 @@ def test_multi_group_reduction_with_alias_declared_after_allreduce():
                 B_flat[threadIdx_y] = cross_thread_B_alias[0]
 
     After = transform(Before)
-    assert tvm.tirx.analysis.verify_well_formed(After)
+    assert tvm_tirx.tirx.analysis.verify_well_formed(After)
     After_script = After.script()
     assert "red_result[threadIdx_y] = red_result[threadIdx_y]" in After_script
     assert "B_flat[threadIdx_y] = red_result[threadIdx_y]" in After_script
@@ -311,11 +311,11 @@ def test_multi_group_reduction_with_alias_declared_after_allreduce():
 
 
 def test_multi_group_mask1():
-    transform = tvm.transform.Sequential(
+    transform = tvm_tirx.transform.Sequential(
         [
             tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.s_tir.transform.LowerThreadBinding(),
-            tvm.tirx.transform.LowerThreadAllreduce(),
+            tvm_tirx.tirx.transform.LowerThreadAllreduce(),
         ]
     )
 
@@ -350,11 +350,11 @@ def test_multi_group_mask1():
 
 
 def test_multi_warp_reduce1():
-    transform = tvm.transform.Sequential(
+    transform = tvm_tirx.transform.Sequential(
         [
             tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.s_tir.transform.LowerThreadBinding(),
-            tvm.tirx.transform.LowerThreadAllreduce(),
+            tvm_tirx.tirx.transform.LowerThreadAllreduce(),
         ]
     )
 
@@ -390,11 +390,11 @@ def test_multi_warp_reduce1():
 
 
 def test_multi_warp_reduce2():
-    transform = tvm.transform.Sequential(
+    transform = tvm_tirx.transform.Sequential(
         [
             tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.s_tir.transform.LowerThreadBinding(),
-            tvm.tirx.transform.LowerThreadAllreduce(),
+            tvm_tirx.tirx.transform.LowerThreadAllreduce(),
         ]
     )
 
@@ -429,11 +429,11 @@ def test_multi_warp_reduce2():
 
 
 def test_multi_group_multi_warp_reduction():
-    transform = tvm.transform.Sequential(
+    transform = tvm_tirx.transform.Sequential(
         [
             tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.s_tir.transform.LowerThreadBinding(),
-            tvm.tirx.transform.LowerThreadAllreduce(),
+            tvm_tirx.tirx.transform.LowerThreadAllreduce(),
         ]
     )
 
@@ -469,11 +469,11 @@ def test_multi_group_multi_warp_reduction():
 
 
 def test_multi_group_multi_warp_predicated_reduction():
-    transform = tvm.transform.Sequential(
+    transform = tvm_tirx.transform.Sequential(
         [
             tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.s_tir.transform.LowerThreadBinding(),
-            tvm.tirx.transform.LowerThreadAllreduce(),
+            tvm_tirx.tirx.transform.LowerThreadAllreduce(),
         ]
     )
 
@@ -516,11 +516,11 @@ def test_multi_group_multi_warp_predicated_reduction():
 
 
 def test_metal_no_mask():
-    transform = tvm.transform.Sequential(
+    transform = tvm_tirx.transform.Sequential(
         [
             tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.s_tir.transform.LowerThreadBinding(),
-            tvm.tirx.transform.LowerThreadAllreduce(),
+            tvm_tirx.tirx.transform.LowerThreadAllreduce(),
         ]
     )
 
@@ -570,11 +570,11 @@ def test_metal_no_mask():
 
 
 def test_webgpu_warp_reduce():
-    transform = tvm.transform.Sequential(
+    transform = tvm_tirx.transform.Sequential(
         [
             tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.s_tir.transform.LowerThreadBinding(),
-            tvm.tirx.transform.LowerThreadAllreduce(),
+            tvm_tirx.tirx.transform.LowerThreadAllreduce(),
         ]
     )
 
@@ -619,7 +619,7 @@ def test_webgpu_warp_reduce():
 
     After = transform(Before)
     assert After is not None
-    assert tvm.tirx.analysis.verify_well_formed(After)
+    assert tvm_tirx.tirx.analysis.verify_well_formed(After)
     After_script = After.script()
     assert "gpu_warp_shuffle_down" in After_script
     assert "gpu_warp_shuffle(" in After_script
@@ -628,11 +628,11 @@ def test_webgpu_warp_reduce():
 
 
 def test_webgpu_multi_warp_reduce():
-    transform = tvm.transform.Sequential(
+    transform = tvm_tirx.transform.Sequential(
         [
             tvm.s_tir.transform.LowerOpaqueBlock(),
             tvm.s_tir.transform.LowerThreadBinding(),
-            tvm.tirx.transform.LowerThreadAllreduce(),
+            tvm_tirx.tirx.transform.LowerThreadAllreduce(),
         ]
     )
 
@@ -683,4 +683,4 @@ def test_webgpu_multi_warp_reduce():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

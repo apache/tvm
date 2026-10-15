@@ -22,17 +22,17 @@ import pytest
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 import tvm.topi.testing
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import tirx as T
 
 
 def test_basic():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -46,7 +46,7 @@ def test_basic():
             expr = R.add(expr, c)
             return expr
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -63,7 +63,7 @@ def test_basic():
 
     mod = Before
     after = relax.transform.BundleModelParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_no_model_params():
@@ -75,7 +75,7 @@ def test_no_model_params():
     transformation returns an empty tuple.
     """
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -89,7 +89,7 @@ def test_no_model_params():
             expr = R.add(expr, c)
             return expr
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -106,13 +106,13 @@ def test_no_model_params():
 
     mod = Before
     after = relax.transform.BundleModelParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_dataflow():
     """Parameters can be substituted into a dataflow block"""
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -128,7 +128,7 @@ def test_dataflow():
                 R.output(expr)
             return expr
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -147,7 +147,7 @@ def test_dataflow():
 
     mod = Before
     after = relax.transform.BundleModelParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_variable_names():
@@ -160,7 +160,7 @@ def test_variable_names():
     variables.
     """
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -174,7 +174,7 @@ def test_variable_names():
             expr = R.add(expr, c)
             return expr
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -191,7 +191,7 @@ def test_variable_names():
 
     mod = Before
     after = relax.transform.BundleModelParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
     for binding, expected_binding in zip(
         after["main"].body.blocks[0].bindings,
@@ -203,7 +203,7 @@ def test_variable_names():
 def test_bundled_param_name():
     """The tuple parameter can have an explicit name"""
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -217,7 +217,7 @@ def test_bundled_param_name():
             expr = R.add(expr, c)
             return expr
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -234,14 +234,14 @@ def test_bundled_param_name():
 
     mod = Before
     after = relax.transform.BundleModelParams("custom_tuple_name")(mod)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
     for param, expected_param in zip(after["main"].params, Expected["main"].params):
         assert param.name == expected_param.name
 
 
 def test_nested_function_preserves_outer_rewrite_context():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -295,7 +295,7 @@ def test_bundled_tensor_preserves_retained_shape_dependency():
 
 
 def test_primitive_model_param_is_materialized_outside_if_branches():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -316,7 +316,7 @@ def test_primitive_model_param_is_materialized_outside_if_branches():
     func = after["main"]
     extent_binding = func.body.blocks[0].bindings[0]
     assert isinstance(extent_binding, relax.VarBinding)
-    assert tvm.ir.is_prim_var(extent_binding.var)
+    assert tvm_tirx.ir.is_prim_var(extent_binding.var)
     if_expr = next(
         binding.value
         for block in func.body.blocks
@@ -334,7 +334,7 @@ def test_primitive_model_param_is_materialized_outside_if_branches():
 
 
 def test_primitive_model_param_remains_linked_to_dependent_tensor():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -353,7 +353,7 @@ def test_primitive_model_param_remains_linked_to_dependent_tensor():
     func = after["main"]
     bundled_ty = func.params[1].ty
     assert isinstance(bundled_ty, relax.TupleType)
-    assert isinstance(bundled_ty.fields[0], tvm.ir.PrimType)
+    assert isinstance(bundled_ty.fields[0], tvm_tirx.ir.PrimType)
     assert isinstance(bundled_ty.fields[1], relax.TensorType)
     assert bundled_ty.fields[1].shape is None
     assert bundled_ty.fields[1].ndim == 1
@@ -362,7 +362,7 @@ def test_primitive_model_param_remains_linked_to_dependent_tensor():
     extent_index = next(
         i
         for i, binding in enumerate(bindings)
-        if isinstance(binding, relax.VarBinding) and tvm.ir.is_prim_var(binding.var)
+        if isinstance(binding, relax.VarBinding) and tvm_tirx.ir.is_prim_var(binding.var)
     )
     match_cast_index = next(
         i for i, binding in enumerate(bindings) if isinstance(binding, relax.MatchCast)
@@ -380,4 +380,4 @@ def test_primitive_model_param_remains_linked_to_dependent_tensor():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

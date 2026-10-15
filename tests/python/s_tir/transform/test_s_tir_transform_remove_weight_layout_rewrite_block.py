@@ -17,11 +17,11 @@
 # ruff: noqa: F401
 import sys
 
-import tvm
-from tvm.ir.module import IRModule
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.tirx.function import Function
+import tvm, tvm_tirx
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx.function import Function
 
 
 def _check(before, expect):
@@ -31,7 +31,7 @@ def _check(before, expect):
         expect = IRModule({"main": expect.with_attr("global_symbol", "main")})
 
     mod = tvm.s_tir.transform.RemoveWeightLayoutRewriteBlock()(before)
-    tvm.ir.assert_structural_equal(mod, expect)
+    tvm_tirx.ir.assert_structural_equal(mod, expect)
 
 
 def test_matmul():

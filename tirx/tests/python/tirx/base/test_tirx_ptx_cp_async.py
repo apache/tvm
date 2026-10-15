@@ -18,10 +18,10 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 @T.function
@@ -53,18 +53,18 @@ def ptx_cp_async(A: T.Tensor((32, 128), "float16"), B: T.Tensor((32, 128), "floa
 def test_ptx_cp_async():
     f = ptx_cp_async
 
-    mod = tvm.tirx.compile(f, target="cuda")
+    mod = tvm_tirx.tirx.compile(f, target="cuda")
     A_np = np.random.rand(32, 128).astype("float16")
     B_np = np.zeros((32, 128)).astype("float16")
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A_nd = tvm.runtime.tensor(A_np, device=dev)
-        B_nd = tvm.runtime.tensor(B_np, device=dev)
+        dev = tvm_tirx.cuda(0)
+        A_nd = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B_nd = tvm_tirx.runtime.tensor(B_np, device=dev)
         mod(A_nd, B_nd)
-        tvm.testing.assert_allclose(B_nd.numpy(), A_np)
+        tvm_tirx.testing.assert_allclose(B_nd.numpy(), A_np)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 # Note: tests for the indexed barrier API (`create_barriers`,

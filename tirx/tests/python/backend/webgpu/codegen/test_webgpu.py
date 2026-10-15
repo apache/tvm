@@ -19,10 +19,10 @@ import re
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_codegen_buffer_access_modes():
@@ -35,7 +35,7 @@ def test_codegen_buffer_access_modes():
             with T.launch_thread("threadIdx.x", 8) as tx:
                 B[tx] = A[tx]
 
-    executable = tvm.tirx.compile(Module, target="webgpu")
+    executable = tvm_tirx.tirx.compile(Module, target="webgpu")
     source = executable.mod.imports[0].inspect_source("wgsl")
 
     assert "var<storage, read> A_ptr" in source
@@ -43,8 +43,8 @@ def test_codegen_buffer_access_modes():
 
 
 def _build_webgpu(mod, target="webgpu"):
-    build = tvm.get_global_func("target.build.webgpu")
-    return build(mod, tvm.target.Target(target))
+    build = tvm_tirx.get_global_func("target.build.webgpu")
+    return build(mod, tvm_tirx.target.Target(target))
 
 
 def test_bounded_symbolic_stack_allocation():
@@ -100,7 +100,7 @@ def test_bound_symbolic_allocation(scope, bounded):
         assert len(re.findall(declaration + r"\s+\w+\s*:\s*array<f32,\s*128>;", source)) == 2
     else:
         with pytest.raises(
-            tvm.error.InternalError,
+            tvm_tirx.error.InternalError,
             match="WebGPU allocation extent requires a finite compile-time upper bound",
         ):
             _build_webgpu(Module)
@@ -146,7 +146,7 @@ def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
         assert "scratch[31" in source
     else:
         with pytest.raises(
-            tvm.error.InternalError,
+            tvm_tirx.error.InternalError,
             match="WebGPU allocation extent requires a finite compile-time upper bound",
         ):
             _build_webgpu(Module)
@@ -177,7 +177,7 @@ def test_bound_symbolic_workgroup_allocation_respects_target_limit(target_limit)
         assert re.search(r"var<workgroup>\s+\w+\s*:\s*array<f32,\s*128>;", source)
     else:
         with pytest.raises(
-            tvm.error.InternalError,
+            tvm_tirx.error.InternalError,
             match=r"WebGPU workgroup allocations use 512 bytes, .* supports only 496 bytes",
         ):
             _build_webgpu(Module, target)
@@ -201,7 +201,7 @@ def test_unbounded_symbolic_stack_allocation_rejected():
             T.evaluate(scratch[0])
 
     with pytest.raises(
-        tvm.error.InternalError,
+        tvm_tirx.error.InternalError,
         match="WebGPU allocation extent requires a finite compile-time upper bound",
     ):
         _build_webgpu(Module)
@@ -225,7 +225,7 @@ def test_nonpositive_stack_allocation_rejected(extent):
             T.evaluate(scratch.data)
 
     with pytest.raises(
-        tvm.error.InternalError,
+        tvm_tirx.error.InternalError,
         match="WebGPU allocation extent requires a positive compile-time upper bound",
     ):
         _build_webgpu(Module)
@@ -256,7 +256,7 @@ def test_stack_allocation_element_count_overflow_rejected():
             T.evaluate(scratch.data)
 
     with pytest.raises(
-        tvm.error.InternalError, match="WebGPU allocation element count is too large to represent"
+        tvm_tirx.error.InternalError, match="WebGPU allocation element count is too large to represent"
     ):
         _build_webgpu(Module)
 
@@ -282,7 +282,7 @@ def test_stack_allocation_byte_size_overflow_rejected():
             T.evaluate(scratch.data)
 
     with pytest.raises(
-        tvm.error.InternalError, match="WebGPU allocation byte size is too large to represent"
+        tvm_tirx.error.InternalError, match="WebGPU allocation byte size is too large to represent"
     ):
         _build_webgpu(Module)
 
@@ -326,7 +326,7 @@ def test_total_workgroup_allocation_above_target_limit_rejected():
             second[0] = 2.0
 
     with pytest.raises(
-        tvm.error.InternalError,
+        tvm_tirx.error.InternalError,
         match=r"WebGPU workgroup allocations use 32784 bytes, .* supports only 32768 bytes",
     ):
         _build_webgpu(Module)
@@ -351,7 +351,7 @@ def test_workgroup_allocation_accounts_for_declaration_alignment():
             second[0] = 2.0
 
     with pytest.raises(
-        tvm.error.InternalError,
+        tvm_tirx.error.InternalError,
         match=r"WebGPU workgroup allocations use 32 bytes, .* supports only 16 bytes",
     ):
         _build_webgpu(Module, {"kind": "webgpu", "max_shared_memory_per_block": 16})
@@ -387,10 +387,10 @@ def test_grid_pack_guard_rejects_id_equal_to_workgroup_count():
                 with T.launch_thread("threadIdx.x", 1) as j:  # noqa: F841
                     B[i] = i
 
-    executable = tvm.tirx.compile(Module, target="webgpu")
+    executable = tvm_tirx.tirx.compile(Module, target="webgpu")
     source = executable.mod.imports[0].inspect_source("wgsl")
     assert re.search(r"blockIdx\.x >= \w+\.packGridDimX\) \{ return; \}", source)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

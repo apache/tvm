@@ -39,15 +39,15 @@ per-instruction generated or hand-written code:
 
 from tvm_ffi import get_global_func, register_global_func, structural_equal
 
-from tvm.backend.cuda.codegen.registry import register_codegen
-from tvm.backend.cuda.codegen.utils import parse_str
-from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
-from tvm.ir import Call, Op, StringImm, TensorLoad, const
-from tvm.ir.op import register_op_attr
-from tvm.ir.type import PrimType, PtrType
-from tvm.runtime import MemoryScope
-from tvm.tirx.expr import CallEffectKind, IntImm
-from tvm.tirx.op import call_intrin, reinterpret
+from tvm_tirx.backend.cuda.codegen.registry import register_codegen
+from tvm_tirx.backend.cuda.codegen.utils import parse_str
+from tvm_tirx.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
+from tvm_tirx.ir import Call, Op, StringImm, TensorLoad, const
+from tvm_tirx.ir.op import register_op_attr
+from tvm_tirx.ir.type import PrimType, PtrType
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.tirx.expr import CallEffectKind, IntImm
+from tvm_tirx.tirx.op import call_intrin, reinterpret
 
 from .render import render_variant
 from .table import (

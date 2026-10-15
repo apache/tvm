@@ -33,16 +33,16 @@ def DecorateDeviceScope():
 def Apply(ftransform):
     """Apply ftransform to each function in the Module.
 
-    This function is a thin wrapper around tvm.tirx.transform.function_pass
+    This function is a thin wrapper around tvm_tirx.tirx.transform.function_pass
 
     Parameters
     ----------
-    ftransform: tvm.tirx.Function -> tvm.tirx.Function
+    ftransform: tvm_tirx.tirx.Function -> tvm_tirx.tirx.Function
        The transformation pass.
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
 
@@ -69,7 +69,7 @@ def VectorizeLoop(enable_vectorize: bool = True):
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.VectorizeLoop(enable_vectorize)  # type: ignore
@@ -84,7 +84,7 @@ def StorageRewrite():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.StorageRewrite()  # type: ignore
@@ -98,7 +98,7 @@ def PointerValueTypeRewrite():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.PointerValueTypeRewrite()  # type: ignore
@@ -116,7 +116,7 @@ def UnrollLoop():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.UnrollLoop()  # type: ignore
@@ -132,7 +132,7 @@ def RemoveNoOp():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.RemoveNoOp()  # type: ignore
@@ -143,7 +143,7 @@ def HoistIf():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass.
     """
     return _ffi_api.HoistIf()
@@ -154,7 +154,7 @@ def BF16ComputeLegalize():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.BF16ComputeLegalize()  # type: ignore
@@ -170,7 +170,7 @@ def FP8ComputeLegalize(promote_dtype: str = "float32"):
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.FP8ComputeLegalize(promote_dtype)  # type: ignore
@@ -181,7 +181,7 @@ def BF16StorageLegalize():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.BF16StorageLegalize()  # type: ignore
@@ -192,7 +192,7 @@ def FP8StorageLegalize():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.FP8StorageLegalize()  # type: ignore
@@ -203,7 +203,7 @@ def CommonSubexprElim():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.CommonSubexprElim()  # type: ignore
@@ -214,7 +214,7 @@ def RenormalizeSplitPattern():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.RenormalizeSplitPattern()  # type: ignore
@@ -225,7 +225,7 @@ def StmtSimplify():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.StmtSimplify()  # type: ignore
@@ -236,7 +236,7 @@ def LowerThreadAllreduce():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass.
     """
     return _ffi_api.LowerThreadAllreduce()
@@ -253,7 +253,7 @@ def ConvertSSA():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
 
     """
@@ -270,7 +270,7 @@ def MakePackedAPI():
     For static shapes, the `TensorType::shape`, `TensorType::strides`,
     and `TensorType::elem_offset` fields are used to
     generate runtime checks on the corresponding member variables in
-    the user-provided `DLTensor*` or `tvm.runtime.tensor` argument.  (e.g. A
+    the user-provided `DLTensor*` or `tvm_tirx.runtime.tensor` argument.  (e.g. A
     Function that accepts a tensor of shape `[16,32]` validates that
     the `DLTensor::shape` array is `[16,32]`.)
 
@@ -284,7 +284,7 @@ def MakePackedAPI():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.MakePackedAPI()  # type: ignore
@@ -299,7 +299,7 @@ def SplitHostDevice():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.SplitHostDevice()  # type: ignore
@@ -310,7 +310,7 @@ def SkipAssert():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.SkipAssert()  # type: ignore
@@ -321,7 +321,7 @@ def LowerTVMBuiltin():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.LowerTVMBuiltin()  # type: ignore
@@ -332,7 +332,7 @@ def LowerIntrin():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.LowerIntrin()  # type: ignore
@@ -348,7 +348,7 @@ def NarrowDataType(target_bits: int):
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
 
     Note
@@ -365,7 +365,7 @@ def ForceNarrowIndexToInt32():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
 
     Note
@@ -380,7 +380,7 @@ def VerifyMemory():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.VerifyMemory()  # type: ignore
@@ -392,7 +392,7 @@ def FlattenTensor():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.FlattenTensor()  # type: ignore
@@ -406,12 +406,12 @@ def BindTarget(target):
 
     Parameters
     -------
-    target : tvm.target.Target
+    target : tvm_tirx.target.Target
         target
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.BindTarget(target)  # type: ignore
@@ -422,7 +422,7 @@ def AnnotateEntryFunc():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.AnnotateEntryFunc()  # type: ignore
@@ -434,7 +434,7 @@ def Filter(fcond: Callable):
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.Filter(fcond)  # type: ignore
@@ -445,7 +445,7 @@ def TileDispatch():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.TileDispatch()  # type: ignore
@@ -456,7 +456,7 @@ def LowerTIRx():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.LowerTIRx()  # type: ignore

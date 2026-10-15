@@ -19,13 +19,13 @@
 
 from functools import cache
 
-from tvm.backend.trn.layout import is_trainium_layout
-from tvm.runtime import MemoryScope
-from tvm.script import tirx as T
-from tvm.tirx import Function
-from tvm.tirx.tile import DispatchContext, fail
-from tvm.tirx.tile.common import ReduceOpType
-from tvm.tirx.tile.instruction import TensorCall
+from tvm_tirx.backend.trn.layout import is_trainium_layout
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import Function
+from tvm_tirx.tirx.tile import DispatchContext, fail
+from tvm_tirx.tirx.tile.common import ReduceOpType
+from tvm_tirx.tirx.tile.instruction import TensorCall
 
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_reduction_dim_map
@@ -61,7 +61,7 @@ def generate_intermediate_tensor(
         check_workspace_tensor(intermediate_tensor, intermediate_shape, "trn.sbuf")
     else:
         assert sctx.alloc_only, (
-            "Partial reduce tensor must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateTensorAlloc first."  # noqa: E501
+            "Partial reduce tensor must be specified in workspace. Run tvm_tirx.tirx.trn.transform.TrnPrivateTensorAlloc first."  # noqa: E501
         )
         intermediate_tensor = T.Var(
             "partial_reduce",

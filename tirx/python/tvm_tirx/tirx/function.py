@@ -24,11 +24,11 @@ from typing import Optional
 
 import tvm_ffi
 
-import tvm
-import tvm.runtime
-from tvm.ir import BaseFunc, Range, Scriptable, SeqStmt, Stmt, Var
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.runtime import Object
+import tvm_tirx
+import tvm_tirx.runtime
+from tvm_tirx.ir import BaseFunc, Range, Scriptable, SeqStmt, Stmt, Var
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.runtime import Object
 
 from ..runtime._tensor import Tensor
 from . import _ffi_api
@@ -41,13 +41,13 @@ class Function(BaseFunc, Scriptable):
 
     Parameters
     ----------
-    params: List[Union[tvm.tirx.Var, tvm.tirx.Var]]
+    params: List[Union[tvm_tirx.tirx.Var, tvm_tirx.tirx.Var]]
         List of input parameters to the function.
 
     body: Stmt | Sequence[Stmt] | None
         The body of the function, or None for a declaration.
 
-    ret_type: tvm.ir.Type
+    ret_type: tvm_tirx.ir.Type
         The return type annotation of the function.
 
     attrs: Optional[tvm.Attrs]
@@ -68,16 +68,16 @@ class Function(BaseFunc, Scriptable):
         loc: Location = UNKNOWN_LOC,
     ):
         if ret_type is None:
-            ret_type = tvm.ir.Type.missing()
+            ret_type = tvm_tirx.ir.Type.missing()
         param_list = []
         for x in params:
-            x = tvm.runtime.convert(x) if not isinstance(x, Object) else x
+            x = tvm_tirx.runtime.convert(x) if not isinstance(x, Object) else x
             if not isinstance(x, Var):
                 raise TypeError("params can only contain Var or Var")
             param_list.append(x)
 
         if attrs is None:
-            attrs = tvm.ir.make_node("ir.DictAttrs")
+            attrs = tvm_tirx.ir.make_node("ir.DictAttrs")
 
         self.__init_handle_by_constructor__(
             _ffi_api.Function,
@@ -277,13 +277,13 @@ class IndexMap(Object):
                 inspect.Parameter.POSITIONAL_ONLY,
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
             ]:
-                args.append(tvm.tirx.Var(name, index_dtype))
+                args.append(tvm_tirx.tirx.Var(name, index_dtype))
 
             elif param.kind == inspect.Parameter.VAR_POSITIONAL:
                 var_arg_name = name
 
             elif param.kind == inspect.Parameter.KEYWORD_ONLY:
-                kwargs[name] = tvm.tirx.Var(name, index_dtype)
+                kwargs[name] = tvm_tirx.tirx.Var(name, index_dtype)
 
             else:
                 raise ValueError("transform_layout mapping may not have *args")
@@ -295,7 +295,7 @@ class IndexMap(Object):
             assert ndim is not None, "ndim must be specified when *args is used"
             num_var_args = ndim - len(args) - len(kwargs)
             for i in range(num_var_args):
-                args.append(tvm.tirx.Var(f"{var_arg_name}_{i}", index_dtype))
+                args.append(tvm_tirx.tirx.Var(f"{var_arg_name}_{i}", index_dtype))
 
         mapping = mapping_function(*args, **kwargs)
 
@@ -303,7 +303,7 @@ class IndexMap(Object):
 
         final_indices = []
 
-        if tvm.ir.is_prim_expr(mapping):
+        if tvm_tirx.ir.is_prim_expr(mapping):
             is_iterable = False
         else:
             try:
@@ -314,12 +314,12 @@ class IndexMap(Object):
 
         if is_iterable:
             for val in mapping:
-                if tvm.ir.is_prim_expr(val):
+                if tvm_tirx.ir.is_prim_expr(val):
                     final_indices.append(val)
                 else:
                     raise TypeError(
-                        "Expected mapping function to return tvm.ir.Expr "
-                        "or a list of tvm.ir.Expr.  "
+                        "Expected mapping function to return tvm_tirx.ir.Expr "
+                        "or a list of tvm_tirx.ir.Expr.  "
                         f"Instead received {val} of type {type(val)}."
                     )
         else:
@@ -336,7 +336,7 @@ class IndexMap(Object):
 
             The IndexMap to which the comparison should be made.
 
-        analyzer : Optional[tvm.sym.Analyzer]
+        analyzer : Optional[tvm_tirx.sym.Analyzer]
 
             The analyzer to use while comparing the mapped indices.  When
             provided, its accumulated bindings and constraints are reused so
@@ -356,7 +356,7 @@ class IndexMap(Object):
             return False
 
         if analyzer is None:
-            analyzer = tvm.sym.Analyzer()
+            analyzer = tvm_tirx.sym.Analyzer()
 
         mapped_other_final_indices = other_map.map_indices(self.initial_indices, analyzer=analyzer)
         for self_index, other_index in zip(self.final_indices, mapped_other_final_indices):
@@ -372,7 +372,7 @@ class IndexMap(Object):
         ----------
         indices : List[Expr]
             The indices to be mapped
-        analyzer : Optional[tvm.sym.Analyzer]
+        analyzer : Optional[tvm_tirx.sym.Analyzer]
             The analyzer to use while simplifying mapped indices.
 
         Returns
@@ -389,7 +389,7 @@ class IndexMap(Object):
         ----------
         shape : List[Expr]
             The tensor shape to be mapped
-        analyzer : Optional[tvm.sym.Analyzer]
+        analyzer : Optional[tvm_tirx.sym.Analyzer]
             The analyzer to use while simplifying mapped shape expressions.
 
         Returns
@@ -426,7 +426,7 @@ class IndexMap(Object):
             The region over which the inverse should be determined.
             Used for validating that the mapping is bijective over
             this range.
-        analyzer : Optional[tvm.sym.Analyzer]
+        analyzer : Optional[tvm_tirx.sym.Analyzer]
             The analyzer to use while deriving and validating the inverse.
 
         Returns
@@ -452,7 +452,7 @@ class IndexMap(Object):
 
             The region over which the inverse should be determined.
             Used for determining the predicate.
-        analyzer : Optional[tvm.sym.Analyzer]
+        analyzer : Optional[tvm_tirx.sym.Analyzer]
             The analyzer to use while deriving the inverse and padding predicate.
 
         Returns

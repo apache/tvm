@@ -28,10 +28,10 @@ import pytest
 # ruff: noqa: F841
 from minilang import Value
 
-from tvm import ir
-from tvm.ir import prim
-from tvm.script import ir as I
-from tvm.script.parser import entry
+from tvm_tirx import ir
+from tvm_tirx.ir import prim
+from tvm_tirx.script import ir as I
+from tvm_tirx.script.parser import entry
 
 
 def test_missing_parameter_annotation_keeps_source_range(language):

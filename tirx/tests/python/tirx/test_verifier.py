@@ -16,8 +16,8 @@
 # under the License.
 import pytest
 
-from tvm.script import tirx as T
-from tvm.tirx.analysis import verify_well_formed as verify
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx.analysis import verify_well_formed as verify
 
 
 def test_root_scope():
@@ -200,7 +200,7 @@ def test_invalid_launch_geometry(grid, cluster):
 def test_tuple_indices_use_separate_binds():
     import tvm_ffi
 
-    import tvm
+    import tvm_tirx
 
     @T.function
     def kernel():
@@ -210,7 +210,7 @@ def test_tuple_indices_use_separate_binds():
 
     binds = []
     tvm_ffi.structural_walk(
-        kernel.body, lambda node: binds.append(node) if isinstance(node, tvm.ir.Bind) else None
+        kernel.body, lambda node: binds.append(node) if isinstance(node, tvm_tirx.ir.Bind) else None
     )
     assert [bind.var.name for bind in binds] == ["bx", "by", "bz"]
     assert [bind.value.args[0].value for bind in binds] == ["x", "y", "z"]
@@ -218,6 +218,6 @@ def test_tuple_indices_use_separate_binds():
 
 
 if __name__ == "__main__":
-    import tvm.testing
+    import tvm_tirx.testing
 
-    tvm.testing.main()
+    tvm_tirx.testing.main()

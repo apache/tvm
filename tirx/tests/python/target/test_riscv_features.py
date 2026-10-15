@@ -17,10 +17,10 @@
 # ruff: noqa: E501, F401
 import pytest
 
-import tvm
-from tvm import codegen
-from tvm.codegen import llvm_get_vector_width, target_has_features
-from tvm.target import Target
+import tvm_tirx
+from tvm_tirx import codegen
+from tvm_tirx.codegen import llvm_get_vector_width, target_has_features
+from tvm_tirx.target import Target
 
 LLVM_VERSION = codegen.llvm_version_major()
 

@@ -18,7 +18,7 @@
 
 """CUDA thread-scope lookup."""
 
-from tvm.tirx.thread_scope import ThreadScope as _ThreadScope
+from tvm_tirx.tirx.thread_scope import ThreadScope as _ThreadScope
 
 
 def ThreadScope(name: str) -> _ThreadScope:

@@ -23,8 +23,8 @@ from typing import Any
 
 from tvm_ffi import Function
 
-import tvm
-from tvm.support import utils as _utils
+import tvm_tirx
+from tvm_tirx.support import utils as _utils
 
 from . import Module
 
@@ -76,7 +76,7 @@ class Executable:
 
         Returns
         -------
-        rt_mod: tvm.runtime.Module
+        rt_mod: tvm_tirx.runtime.Module
             A runnable runtime module that can be passed to VirtualMachine.
 
         Examples
@@ -111,7 +111,7 @@ class Executable:
         workspace_dir = _utils.tempdir()
         dso_path = workspace_dir.relpath("exported.so")
         self.export_library(dso_path, fcompile=fcompile, addons=addons, **kwargs)
-        self._jitted_mod = tvm.runtime.load_module(dso_path)
+        self._jitted_mod = tvm_tirx.runtime.load_module(dso_path)
         return self._jitted_mod
 
     def export_library(

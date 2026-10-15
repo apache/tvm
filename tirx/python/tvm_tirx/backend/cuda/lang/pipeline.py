@@ -20,8 +20,8 @@ These classes emit TIR via @T.inline. Decorate with @T.meta_class so that
 instances are automatically treated as meta values inside @T.function.
 """
 
-from tvm.script import tirx as T
-from tvm.tirx import IntImm as _IntImm
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import IntImm as _IntImm
 
 
 def _tcgen05_commit_is_unicast(cta_mask):
@@ -109,8 +109,8 @@ def _map_buffer_into_cta(ptr, rank, depth):
     and reinterprets the result. Callers that only need an address should use
     ``_map_addr_into_cta``, which is a register cheaper.
     """
-    from tvm.ir import PrimType, PtrType  # pylint: disable=import-outside-toplevel
-    from tvm.tirx import Var as TIRVar  # pylint: disable=import-outside-toplevel
+    from tvm_tirx.ir import PrimType, PtrType  # pylint: disable=import-outside-toplevel
+    from tvm_tirx.tirx import Var as TIRVar  # pylint: disable=import-outside-toplevel
 
     ptr_ty = PtrType(PrimType("uint64"), "shared")
     mapped = T.alloc_local([1], "uint64")

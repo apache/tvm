@@ -17,9 +17,10 @@
 # pylint: disable=invalid-name
 """Default legalization function for index operators."""
 
-import tvm
-from tvm import te, tirx, topi
-from tvm.ir import Call, PrimType
+import tvm, tvm_tirx
+from tvm_tirx import tirx
+from tvm import te, topi
+from tvm_tirx.ir import Call, PrimType
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr, Tuple
@@ -41,7 +42,7 @@ def _strided_slice(bb: BlockBuilder, call: Call) -> Expr:
         if isinstance(relax_tuple, Tuple):
             output = []
             for field in relax_tuple.fields:
-                assert tvm.ir.is_prim_expr(field)
+                assert tvm_tirx.ir.is_prim_expr(field)
                 output.append(field)
             return output
 

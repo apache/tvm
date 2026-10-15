@@ -20,12 +20,12 @@
 import numpy as np
 import pytest
 
-import tvm
-from tvm.backend.cuda.axis import TCol, TLane, tid_in_wg
-from tvm.backend.cuda.layout import mma_shared_layout
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.layout import S, TileLayout
+import tvm_tirx
+from tvm_tirx.backend.cuda.axis import TCol, TLane, tid_in_wg
+from tvm_tirx.backend.cuda.layout import mma_shared_layout
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx.layout import S, TileLayout
 
 
 @pytest.mark.gpu
@@ -120,7 +120,7 @@ def test_gemm_tcgen05_explicit_mma_tile_preserves_ws_datapath():
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(address[0], T.uint32(512))
 
-    f = tvm.tirx.compile(kernel, target={"kind": "cuda", "arch": "sm_100a"}, pipeline="tirx")
+    f = tvm_tirx.tirx.compile(kernel, target={"kind": "cuda", "arch": "sm_100a"}, pipeline="tirx")
     calls = [
         line
         for line in f.mod.imports[0].inspect_source().splitlines()
@@ -130,8 +130,8 @@ def test_gemm_tcgen05_explicit_mma_tile_preserves_ws_datapath():
     rng = np.random.default_rng(2026)
     a = rng.uniform(-1, 1, (2, M, K)).astype(ml_dtypes.bfloat16)
     b = rng.uniform(-1, 1, (N, K)).astype(ml_dtypes.bfloat16)
-    result = tvm.runtime.tensor(np.zeros((M, N), "float32"), tvm.cuda())
-    f(tvm.runtime.tensor(a, tvm.cuda()), tvm.runtime.tensor(b, tvm.cuda()), result)
+    result = tvm_tirx.runtime.tensor(np.zeros((M, N), "float32"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(a, tvm_tirx.cuda()), tvm_tirx.runtime.tensor(b, tvm_tirx.cuda()), result)
     ref = np.concatenate(
         [
             a[bank].astype("float32") @ b[bank * 64 : (bank + 1) * 64].astype("float32").T

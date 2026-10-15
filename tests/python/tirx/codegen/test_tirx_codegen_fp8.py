@@ -17,15 +17,15 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 @pytest.mark.parametrize("dtype", ["float8_e3m4", "float8_e4m3", "float8_e4m3fn", "float8_e5m2"])
 def test_fp8_float32_roundtrip(dtype):
-    if not tvm.testing.device_enabled("llvm"):
+    if not tvm_tirx.testing.device_enabled("llvm"):
         pytest.skip("LLVM is not enabled")
     ml_dtypes = pytest.importorskip("ml_dtypes")
     if not hasattr(ml_dtypes, dtype):
@@ -46,9 +46,9 @@ def test_fp8_float32_roundtrip(dtype):
 
     source = np.random.default_rng(0).standard_normal(128).astype(np_dtype)
     tensors = [
-        tvm.runtime.tensor(source),
-        tvm.runtime.tensor(np.zeros(128, dtype="float32")),
-        tvm.runtime.tensor(np.zeros(128, dtype=np_dtype)),
+        tvm_tirx.runtime.tensor(source),
+        tvm_tirx.runtime.tensor(np.zeros(128, dtype="float32")),
+        tvm_tirx.runtime.tensor(np.zeros(128, dtype=np_dtype)),
     ]
     tvm.compile(roundtrip, target="llvm")(*tensors)
     np.testing.assert_equal(tensors[2].numpy(), source.astype("float32").astype(np_dtype))

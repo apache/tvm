@@ -28,13 +28,13 @@ from collections.abc import Sequence
 from functools import partial as _partial
 from typing import Any
 
-import tvm
-from tvm import ir as _ir
-from tvm.ir import Expr, TensorRegion, Type, Var
-from tvm.ir import StringImm as _StringImm
-from tvm.ir.prim import IntImm
-from tvm.script.ir_builder import base as _base
-from tvm.script.ir_builder.base import AlreadyEmitted
+import tvm_tirx
+from tvm_tirx import ir as _ir
+from tvm_tirx.ir import Expr, TensorRegion, Type, Var
+from tvm_tirx.ir import StringImm as _StringImm
+from tvm_tirx.ir.prim import IntImm
+from tvm_tirx.script.ir_builder import base as _base
+from tvm_tirx.script.ir_builder.base import AlreadyEmitted
 
 from . import _ffi_api, frame
 
@@ -61,7 +61,7 @@ def _enter_concise(frame: _base.IRBuilderFrame) -> Any:
 
 
 def unpack_(value: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.unpack_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.unpack_`."""
     if isinstance(value, _ir.Tuple):
         return _python.tuple(value.fields)
     if isinstance(value, _ir.Expr) and isinstance(value.ty, _ir.TupleType):
@@ -105,8 +105,8 @@ def bind(  # pylint: disable=invalid-name
 
 
 def evaluate(
-    value: Expr | AlreadyEmitted[tvm.ir.Call] | AlreadyEmitted[tvm.ir.Stmt],
-) -> AlreadyEmitted[tvm.ir.Call] | AlreadyEmitted[tvm.ir.Stmt]:
+    value: Expr | AlreadyEmitted[tvm_tirx.ir.Call] | AlreadyEmitted[tvm_tirx.ir.Stmt],
+) -> AlreadyEmitted[tvm_tirx.ir.Call] | AlreadyEmitted[tvm_tirx.ir.Stmt]:
     """Emit an expression, or pass through a call or statement emission receipt.
 
     Parameters
@@ -135,53 +135,53 @@ def evaluate(
     return AlreadyEmitted(_ffi_api.Evaluate(value))  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def add_to_parent(stmt: tvm.ir.Stmt) -> None:
+def add_to_parent(stmt: tvm_tirx.ir.Stmt) -> None:
     """Add a statement to the parent frame."""
     _ffi_api.AddToParent(stmt)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def if_(condition: Any, *, loc: _Loc = None) -> frame.IfFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.if_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.if_`."""
     if isinstance(condition, _python.bool):
         condition = IntImm("bool", condition)
     return _base.at_(loc, _ffi_api.If(condition))
 
 
 def then_(*, loc: _Loc = None) -> frame.ThenFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.then_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.then_`."""
     return _base.at_(loc, _ffi_api.Then())
 
 
 def else_(*, loc: _Loc = None) -> frame.ElseFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.else_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.else_`."""
     return _base.at_(loc, _ffi_api.Else())
 
 
 def while_(condition: Any, *, loc: _Loc = None) -> frame.WhileFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.while_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.while_`."""
     if isinstance(condition, _python.bool):
         condition = IntImm("bool", condition)
     return _base.at_(loc, _ffi_api.While(condition))
 
 
-def break_(*, loc: _Loc = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.break_`.
+def break_(*, loc: _Loc = None) -> _base.AlreadyEmitted[tvm_tirx.ir.Stmt]:
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.break_`.
 
     Legality is checked on the completed function, across loop and function boundaries.
     """
     return _base.with_at_group_(loc, lambda: _base.AlreadyEmitted(_ffi_api.Break()))
 
 
-def continue_(*, loc: _Loc = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.continue_`.
+def continue_(*, loc: _Loc = None) -> _base.AlreadyEmitted[tvm_tirx.ir.Stmt]:
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.continue_`.
 
     Legality is checked on the completed function, across loop and function boundaries.
     """
     return _base.with_at_group_(loc, lambda: _base.AlreadyEmitted(_ffi_api.Continue()))
 
 
-def return_(value: Any = None, *, loc: _Loc = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.return_`."""
+def return_(value: Any = None, *, loc: _Loc = None) -> _base.AlreadyEmitted[tvm_tirx.ir.Stmt]:
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.return_`."""
     if value is None:
         raise TypeError("A primitive function return requires an expression")
     return _base.with_at_group_(loc, lambda: _base.AlreadyEmitted(_ffi_api.Return(_as_expr(value))))
@@ -193,7 +193,7 @@ def assert_(
     *,
     loc: _Loc = None,
 ) -> None:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.assert_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.assert_`."""
     kind = "RuntimeError"
     if isinstance(message, tuple):
         if len(message) != 2 or not isinstance(message[0], str):
@@ -262,7 +262,7 @@ def region(
 
     Operands and attributes belong to the enclosing scope. Entering the frame
     returns one parameter directly, or a sequence for zero or multiple parameters.
-    Result variables are supported by direct ``tvm.ir.RegionStmt`` construction;
+    Result variables are supported by direct ``tvm_tirx.ir.RegionStmt`` construction;
     outward-result script syntax is not supported.
     """
     if isinstance(op, str):

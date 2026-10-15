@@ -17,14 +17,14 @@
 
 import pytest
 
-import tvm
-import tvm.script
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.script, tvm
+import tvm_tirx.testing, tvm
 from tvm import relax
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import tirx as T
 
 
 def test_bind_tensors():
@@ -35,7 +35,7 @@ def test_bind_tensors():
     k = T.dynamic("k", "int64")
     m = T.dynamic("m", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -78,7 +78,7 @@ def test_bind_tensors():
                 R.output(out)
             return out
 
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_bind_shape():
@@ -89,7 +89,7 @@ def test_bind_shape():
     k = T.dynamic("k", "int64")
     m = T.dynamic("m", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -124,7 +124,7 @@ def test_bind_shape():
                 R.output(out)
             return out
 
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_arith():
@@ -135,7 +135,7 @@ def test_arith():
     n = T.dynamic("n", "int64")
     k = T.dynamic("k", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -181,7 +181,7 @@ def test_arith():
                 R.output(out)
             return out
 
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_bind_multiple_variables_by_name():
@@ -192,7 +192,7 @@ def test_bind_multiple_variables_by_name():
     m_main_2 = T.dynamic("m", "int64")
     n_main_2 = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main_1(x: R.Tensor((m_main_1, n_main_1), dtype="float32")):
@@ -205,7 +205,7 @@ def test_bind_multiple_variables_by_name():
     m_main_1 = T.dynamic("m", "int64")
     m_main_2 = T.dynamic("m", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main_1(x: R.Tensor((m_main_1, 16), dtype="float32")):
@@ -216,7 +216,7 @@ def test_bind_multiple_variables_by_name():
             return x
 
     After = relax.transform.BindSymbolicVars({"n": 16})(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_bind_single_variable_by_identity():
@@ -227,7 +227,7 @@ def test_bind_single_variable_by_identity():
     m_main_2 = T.dynamic("m", "int64")
     n_main_2 = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main_1(x: R.Tensor((m_main_1, n_main_1), dtype="float32")):
@@ -241,7 +241,7 @@ def test_bind_single_variable_by_identity():
     m_main_2 = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main_1(x: R.Tensor((m_main_1, 16), dtype="float32")):
@@ -253,7 +253,7 @@ def test_bind_single_variable_by_identity():
 
     main_1_n = Before["main_1"].params[0].ty.shape[1]
     After = relax.transform.BindSymbolicVars({main_1_n: 16})(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_bind_single_variable_by_function_name():
@@ -264,7 +264,7 @@ def test_bind_single_variable_by_function_name():
     m_main_2 = T.dynamic("m", "int64")
     n_main_2 = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main_1(x: R.Tensor((m_main_1, n_main_1), dtype="float32")):
@@ -278,7 +278,7 @@ def test_bind_single_variable_by_function_name():
     m_main_2 = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main_1(x: R.Tensor((m_main_1, 16), dtype="float32")):
@@ -289,7 +289,7 @@ def test_bind_single_variable_by_function_name():
             return x
 
     After = relax.transform.BindSymbolicVars({"n": 16}, "main_1")(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_error_for_unused_replacement():
@@ -298,7 +298,7 @@ def test_error_for_unused_replacement():
     m = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(x: R.Tensor((m, n), dtype="float32")):
@@ -309,4 +309,4 @@ def test_error_for_unused_replacement():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

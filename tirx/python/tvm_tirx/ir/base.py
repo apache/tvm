@@ -20,7 +20,7 @@ import tvm_ffi
 from tvm_ffi import register_object
 from tvm_ffi.serialization import from_json_graph_str, to_json_graph_str
 
-from tvm.runtime import Object
+from tvm_tirx.runtime import Object
 
 from ..libinfo import __version__
 from . import _ffi_api, json_compact

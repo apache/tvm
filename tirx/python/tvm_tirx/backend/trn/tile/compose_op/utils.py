@@ -17,7 +17,7 @@
 
 """Shared helpers for compose operator dispatches."""
 
-from tvm.tirx.tile.common import ReduceOpType
+from tvm_tirx.tirx.tile.common import ReduceOpType
 
 # Operation code mappings
 opcode_table = {

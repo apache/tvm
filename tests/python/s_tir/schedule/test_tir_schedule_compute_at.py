@@ -20,15 +20,16 @@ from __future__ import annotations
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import te, tirx
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
+from tvm import te
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
@@ -1050,7 +1051,7 @@ def static_bound_after_compute_at(A: T.Tensor((32, 1), "float32"), C: T.Tensor((
 # pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 # fmt: on
 
-use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
 
 def test_compute_at_two_elementwise(use_block_name):
@@ -1307,7 +1308,7 @@ def test_compute_at_simplify_static_bound(use_block_name):
 
 
 def test_compute_at_simplify_symbolic_predicate():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @Ts.function
         def main(
@@ -1320,7 +1321,7 @@ def test_compute_at_simplify_symbolic_predicate():
                     vi, vk = Ts.axis.remap("SS", [i, k])
                     Y[vi, vk] = X[vi, vk]
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class After:
         @Ts.function
         def main(
@@ -1348,7 +1349,7 @@ def test_compute_at_simplify_symbolic_predicate():
     ko, ki = sch.split(k, [None, 32])
     XX = sch.cache_read(block, 0, "global")
     sch.compute_at(XX, ko)
-    tvm.ir.assert_structural_equal(sch.mod, After)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, After)
 
 
 def test_compute_at_non_perfect_channel_group(use_block_name):
@@ -1767,7 +1768,7 @@ def test_shape_var_as_bound():
     block = sch.get_sblock("NT_matmul")
     loop, _, _ = sch.get_loops(sch.get_sblock("NT_matmul_rf"))
     sch.reverse_compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.mod["main"], expected.with_attr("global_symbol", "main"), True
     )
 
@@ -1847,4 +1848,4 @@ def test_compute_at_sliced_concatenate():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

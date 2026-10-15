@@ -21,8 +21,8 @@ from pathlib import Path
 
 import tvm_ffi
 
-from tvm.ir import StringImm
-from tvm.support import cc
+from tvm_tirx.ir import StringImm
+from tvm_tirx.support import cc
 
 HEXAGON_TOOLCHAIN = os.environ.get("HEXAGON_TOOLCHAIN", "")
 HEXAGON_LINK_MAIN = Path(HEXAGON_TOOLCHAIN) / "bin" / "hexagon-link"
@@ -47,7 +47,7 @@ def link_shared(so_name, objs, extra_args=None):
     ----------
     so_name : str
         Name of the shared library file.
-    objs : list[str, tvm.ir.StringImm]
+    objs : list[str, tvm_tirx.ir.StringImm]
     extra_args : dict (str->str) or Map<String,String>
         Additional arguments:
             'hex_arch' - Hexagon architecture, e.g. v68

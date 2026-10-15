@@ -24,12 +24,12 @@ import shutil
 import numpy as np
 import pytest
 
-import tvm
-from tvm.ir import Op
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+from tvm_tirx.ir import Op
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
-TARGET = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
+TARGET = tvm_tirx.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
 
 
 requires_nvcc = pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc not available")
@@ -37,7 +37,7 @@ requires_nvcc = pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc no
 
 def _cuda_source(func, target=TARGET) -> str:
     with target:
-        mod = tvm.tirx.compile(tvm.IRModule({"main": func}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": func}), target=target, pipeline="tirx")
     return mod.mod.imports[0].inspect_source("cuda")
 
 
@@ -50,7 +50,7 @@ PTX_ARCH = os.environ.get("PTX_ARCH", "sm_90")
 
 def _assert_ptxas_ok(src: str, rdc: bool = False, arch: str = PTX_ARCH) -> None:
     """Assemble through ptxas (cubin) — `-ptx` alone never validates inline asm."""
-    from tvm.support import nvcc
+    from tvm_tirx.support import nvcc
 
     options = ["--use_fast_math"] + (["-rdc=true"] if rdc else [])
     nvcc.compile_cuda(
@@ -64,8 +64,8 @@ def _assert_ptxas_ok(src: str, rdc: bool = False, arch: str = PTX_ARCH) -> None:
 
 
 def test_ptx_registration():
-    from tvm.backend.cuda.codegen.registry import CODEGEN_REGISTRY
-    from tvm.backend.cuda.ptx.table import TABLE, escape_token
+    from tvm_tirx.backend.cuda.codegen.registry import CODEGEN_REGISTRY
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, escape_token
 
     assert hasattr(T, "ptx")
     for entry in TABLE.values():
@@ -221,10 +221,10 @@ def test_ptx_red_vector_codegen_and_roundtrip():
     ) in src
     assert "red.global.add.v4.f32 [%0], {%1, %2, %3, %4};" in src
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
     with pytest.raises(ValueError, match="already a 32-bit pair"):
 
@@ -271,10 +271,10 @@ def test_ptx_atom_bitbucket_codegen_and_roundtrip():
         assert text in src, text
     assert "atom.global.add.v2.f32 {_," not in src
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
 
 @requires_nvcc
@@ -329,13 +329,13 @@ def test_ptx_string_form_matches_chain():
 
         return kernel
 
-    tvm.ir.assert_structural_equal(make(chain_call), make(string_call))
+    tvm_tirx.ir.assert_structural_equal(make(chain_call), make(string_call))
 
 
 def test_ptx_92_cp_bulk_exact_renderings():
     """PTX 9.2 bulk-copy and non-tensor reduction forms render exactly."""
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, tokens_for
 
     cases = (
         (
@@ -393,8 +393,8 @@ def test_ptx_92_cp_bulk_exact_renderings():
 
 def test_ptx_93_sm103a_exact_renderings():
     """Representative PTX 9.3 forms keep their documented operand shapes."""
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, tokens_for
 
     cases = (
         (
@@ -535,9 +535,9 @@ def test_ptx_93_sm103a_exact_renderings():
 
 
 def test_ptx_92_cp_reduce_negative_grids():
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
-    from tvm.ir.type import PrimType, PtrType
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, tokens_for
+    from tvm_tirx.ir.type import PrimType, PtrType
 
     shared_reduce = TABLE["cp_reduce_async_bulk_s2c"]
     with pytest.raises(ValueError, match=r"\.add to \.shared::cluster takes"):
@@ -567,9 +567,9 @@ def test_ptx_92_cp_reduce_negative_grids():
             type="f16",
         )
 
-    shared_ptr = tvm.tirx.Var("shared_ptr", PtrType(PrimType("uint32"), "shared"))
-    global_ptr = tvm.tirx.Var("global_ptr", PtrType(PrimType("uint32"), "global"))
-    size = tvm.tirx.Var("size", "uint32")
+    shared_ptr = tvm_tirx.tirx.Var("shared_ptr", PtrType(PrimType("uint32"), "shared"))
+    global_ptr = tvm_tirx.tirx.Var("global_ptr", PtrType(PrimType("uint32"), "global"))
+    size = tvm_tirx.tirx.Var("size", "uint32")
     with pytest.raises(ValueError, match=r"\.add to \.shared::cluster takes"):
         T.ptx[
             "cp.reduce.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes.add.b32"
@@ -647,10 +647,10 @@ def test_ptx_92_cp_bulk_roundtrip():
             dst.ptr_to([0]), smem.ptr_to([0]), T.uint32(16)
         )
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
 
 def test_ptx_trace_time_errors():
@@ -857,10 +857,10 @@ def test_ptx_optional_operand_arity_dispatch():
     # The predicated no-count arrive survives a print/parse round trip as
     # itself -- the pred marker is what stops the count entry from absorbing
     # the predicate as a count.
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
 
 def test_ptx_mbarrier_92_shapes_render_and_roundtrip():
@@ -885,8 +885,8 @@ def test_ptx_mbarrier_92_shapes_render_and_roundtrip():
         )
         out[tx % 4] = pending + wait_complete
 
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE
 
     selected = (
         ("mbarrier_init", ("init", "", "shared", "b64"), False),
@@ -921,14 +921,14 @@ def test_ptx_mbarrier_92_shapes_render_and_roundtrip():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
 
 def test_ptx_mbarrier_92_state_carriers():
-    from tvm.backend.cuda.ptx.table import TABLE, mods, operand_dtypes, variants
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, mods, operand_dtypes, variants
 
     pending = TABLE["mbarrier_pending_count"]
     for tokens in variants(pending):
@@ -974,8 +974,8 @@ def test_ptx_bit_width_axis():
     # parameter would have been a numeric conversion, not a bit pun.
     assert "cvt." not in src
     # The canonical dtype keeps the unsuffixed name it had before the axis.
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, tokens_for
 
     ld = TABLE["ld"]
     tokens = tokens_for(ld, space="global", type="b32")
@@ -1026,7 +1026,7 @@ def test_ptx_relaxed_load_store_typing():
 
 def test_ptx_st_vec_f64_cuda_13_4_carrier_gap():
     """Keep CUDA 13.4's st.v2.f64 carrier gap (ptxas C7907) local to that source-operand shape."""
-    from tvm.backend.cuda.ptx.table import TABLE, dtype_combos, tokens_for
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, dtype_combos, tokens_for
 
     st_vec_tokens = tokens_for(TABLE["st_vec"], vec="v2", type="f64")
     assert dtype_combos(TABLE["st_vec"], st_vec_tokens) == (
@@ -1047,8 +1047,8 @@ def test_ptx_st_vec_f64_cuda_13_4_carrier_gap():
 
 def test_ptx_vec256_cache_policy():
     """Pin the PTX 9.2 256-bit cache-policy arity and exact-width carriers."""
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, mods, operand_dtypes, tokens_for
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, mods, operand_dtypes, tokens_for
 
     ld256 = TABLE["ld_vec256"]
     ld_tokens = tokens_for(ld256, space="global", cache="L2::cache_hint", vec="v8", type="b32")
@@ -1086,10 +1086,10 @@ def test_ptx_vec256_cache_policy():
             A.ptr_to([0]), x0, x1, x2, x3, x4, x5, x6, x7, policy
         )
 
-    reparsed = tvm.script.from_source(
-        vec256_calls.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        vec256_calls.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(vec256_calls, reparsed)
+    tvm_tirx.ir.assert_structural_equal(vec256_calls, reparsed)
 
 
 @requires_nvcc
@@ -1099,8 +1099,8 @@ def test_ptx_vec256_cache_policy():
 )
 def test_ptx_st_bulk_size_carriers_and_st_async_byte_bridge():
     """st.bulk takes 32/64-bit sizes; st.async stages one private .b8 register."""
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, dtype_combos, tokens_for
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, dtype_combos, tokens_for
 
     bulk = TABLE["st_bulk"]
     bulk_tokens = tokens_for(bulk, space="shared::cta")
@@ -1143,10 +1143,10 @@ def test_ptx_st_bulk_size_carriers_and_st_async_byte_bridge():
         T.ptx.st_async.release.sys.global_.u8(A.ptr_to([4]), T.uint8(0xFF))
         T.ptx.st_async.release.sys.global_.s8(A.ptr_to([5]), T.int8(-1))
 
-    reparsed = tvm.script.from_source(
-        carrier_calls.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        carrier_calls.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(carrier_calls, reparsed)
+    tvm_tirx.ir.assert_structural_equal(carrier_calls, reparsed)
     _assert_ptxas_ok(_cuda_source(carrier_calls), arch="sm_100")
 
 
@@ -1158,7 +1158,7 @@ def test_ptx_u64_address_handle_is_reinterpreted():
     both to the same "l" register, so the conversion must exist in the IR
     rather than being punned inside the helper.
     """
-    handle = tvm.tirx.Var("h", "uint64")
+    handle = tvm_tirx.tirx.Var("h", "uint64")
     call = T.ptx.prefetch.tensormap(handle)
     addr = call.args[0]
     assert addr.op.name == "tirx.reinterpret", addr
@@ -1205,10 +1205,10 @@ def test_ptx_integer_arithmetic_dispatch():
     assert "popc.b32 %0, %1;" in src
     assert "dp4a.s32.s32 %0, %1, %2, %3;" in src
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
     # A derived dtype is enforced at trace time like any other: `.wide.s32`
     # writes 64 bits, so a 32-bit destination is rejected before codegen.
@@ -1311,10 +1311,10 @@ def test_ptx_floating_point_dispatch():
     # selp, with the real .pred register living inside the asm block.
     assert ".reg .pred pd0; testp.notanumber.f32 pd0, %1; selp.b32 %0, 1, 0, pd0;" in src
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
     # sqrt has no f64 approximation at any spelling, unlike rcp (9.7.3.14).
     with pytest.raises(ValueError, match="only on the .f32 line"):
@@ -1387,10 +1387,10 @@ def test_ptx_half_precision_dispatch():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
     # The `.oob` line spells neither .ftz nor .sat beside it.
     with pytest.raises(ValueError, match="oob line spells no"):
@@ -1462,10 +1462,10 @@ def test_ptx_mixed_precision_dispatch():
     # Two carriers in one helper: the converted source is 16-bit, the rest f32.
     assert '"=f"(__d) : "h"(__a), "f"(__b)' in src
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
     # The mixed line spells no .ftz, unlike the .f32 line it shares an entry with.
     with pytest.raises(ValueError, match="takes no .ftz"):
@@ -1537,10 +1537,10 @@ def test_ptx_comparison_selection_dispatch():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
     # Each source type takes its own operator set, and ptxas agrees with every
     # rejection below (probed at sm_90 before they were written into the check).
@@ -1597,7 +1597,7 @@ def test_ptx_comparison_selection_dispatch():
 
 def test_ptx_slct_relaxed_value_dtype_domain():
     """The ptxas-proven d/a/b carrier product is complete and native-first."""
-    from tvm.backend.cuda.ptx.table import (
+    from tvm_tirx.backend.cuda.ptx.table import (
         PTX_TYPE_DTYPES,
         TABLE,
         dtype_combos,
@@ -1678,10 +1678,10 @@ def test_ptx_half_comparison_dispatch():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
     # Every rejection below was probed against ptxas before being written into
     # the check. The (dtype, stype) grid: a packed source needs a 32-bit answer.
@@ -1798,8 +1798,8 @@ def test_ptx_logic_shift_dispatch():
     # The load-bearing one: `and`/`or`/`not` have to survive being printed.
     script = kernel.script()
     assert "T.ptx.and_(" in script and "T.ptx.not_(" in script
-    reparsed = tvm.script.from_source(script, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    reparsed = tvm_tirx.script.from_source(script, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
     # cnot has no predicate line -- ptxas: "Unexpected instruction types
     # specified for 'cnot'" -- so the token is not in its slot at all.
@@ -1838,7 +1838,7 @@ def test_ptx_logic_shift_dispatch():
             d = T.local_scalar("uint32")
             T.ptx.lop3.b32(d, A[0], A[0], A[0], A[0])
 
-    with pytest.raises((ValueError, tvm.error.InternalError), match="compile-time constants"):
+    with pytest.raises((ValueError, tvm_tirx.error.InternalError), match="compile-time constants"):
         _cuda_source(lut_runtime)
 
     @T.function
@@ -1964,10 +1964,10 @@ def test_ptx_data_movement_dispatch():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
     # Every rejection below was probed against ptxas before it was written into
     # a check. multimem pairs an ordering semantic with a scope ...
@@ -2078,10 +2078,10 @@ def test_ptx_parallel_sync_dispatch():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
     # Every rejection below was probed against ptxas first. redux pairs the
     # arithmetic ops with a signed type and the bitwise ones with the untyped
@@ -2162,10 +2162,10 @@ def test_ptx_parser_roundtrip():
         T.cuda.cta_sync()
         B[tx] = smem[tx % 4]
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
 
 def test_ptx_pred_operand_roundtrip():
@@ -2192,10 +2192,10 @@ def test_ptx_pred_operand_roundtrip():
             )
         A[tx] = A[tx]
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
 
 def test_ptx_wgmma_scale_d_runtime_predicate_roundtrip():
@@ -2215,19 +2215,19 @@ def test_ptx_wgmma_scale_d_runtime_predicate_roundtrip():
         )
         Out[tx] = d0 + d1 + d2 + d3
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_90a"})
     with target:
-        mod = tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
     assert "wgmma.mma_async.sync.aligned.m64n8k32.s32.s8.s8" in src
     assert ".reg .pred ps0;" in src
     assert "setp.ne.b32 ps0," in src
     assert "}, %4, %5, ps0;" in src
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
     # There is deliberately no compatibility overload for the old integer
     # immediate spelling. A bool already identifies a predicate; a runtime
@@ -2248,8 +2248,8 @@ def test_ptx_wgmma_scale_d_runtime_predicate_roundtrip():
 
 def test_ptx_wgmma_integer_shape_domains_follow_concrete_syntax():
     """s8/u8 stop at N=224, while the b1 syntax includes N=240/256."""
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, lanes_of, mods, tokens_for
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, lanes_of, mods, tokens_for
 
     for form in ("ss", "rs"):
         entry = TABLE[f"wgmma_int_{form}"]
@@ -2301,13 +2301,13 @@ def test_ptx_tcgen05_mma_ws_collector_dispatch(form, collector):
             T.uint64(0),
         )
 
-    src = _cuda_source(kernel, tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}))
+    src = _cuda_source(kernel, tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"}))
     a_operand = "%1" if form == "ss" else "[%1]"
     assert f"{opcode} [%0], {a_operand}, %2, %3, ps0, %5;" in src
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         kernel,
-        tvm.script.from_source(
-            kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+        tvm_tirx.script.from_source(
+            kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
         ),
     )
 
@@ -2315,8 +2315,8 @@ def test_ptx_tcgen05_mma_ws_collector_dispatch(form, collector):
 @requires_nvcc
 def test_ptx_tcgen05_mma_ws_collectors_certify_sm100a():
     """All WS kinds, B tensors/operations, and predication assemble on SM100a."""
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, renderings
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, renderings
 
     by_arch = {}
     for form in ("ss", "ts"):
@@ -2332,8 +2332,8 @@ def test_ptx_codegen_rejects_stale_table_layout(mismatch):
     """A traced call must not silently feed modifier strings to an old helper."""
     from dataclasses import replace
 
-    from tvm.backend.cuda.ptx.engine import PTXNamespace, _make_codegen
-    from tvm.backend.cuda.ptx.table import TABLE, ModifierSlot, OperandSlot
+    from tvm_tirx.backend.cuda.ptx.engine import PTXNamespace, _make_codegen
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, ModifierSlot, OperandSlot
 
     entry = TABLE["tcgen05_mma_ws_ss"]
     if mismatch == "modifier":
@@ -2424,7 +2424,7 @@ def test_ptx_tcgen05_mma_block_size_collector_form():
         A[tx] = A[tx]
 
     collector_src = _cuda_source(
-        sm107_collector_kernel, tvm.target.Target({"kind": "cuda", "arch": "sm_107f"})
+        sm107_collector_kernel, tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_107f"})
     )
     ss_collector_opcode = (
         "tcgen05.mma.cta_group::1.kind::mxf4nvf4.block_scale.block16"
@@ -2468,7 +2468,7 @@ def test_ptx_tcgen05_mma_block_scale_collector_a_without_block_size():
 
 
 def test_ptx_tcgen05_mma_block_size_collector_legality():
-    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, tokens_for
 
     kind_blocks = (
         ("kind::mxf8f6f4", "block32"),
@@ -2508,8 +2508,8 @@ def test_ptx_tcgen05_mma_block_size_collector_legality():
 @requires_nvcc
 def test_ptx_tcgen05_mma_block_size_no_b_certifies_at_sm100f():
     """No-collector and collector-A-only forms retain their documented lower floor."""
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, tokens_for
 
     kind_blocks = (
         ("kind::mxf8f6f4", "block32"),
@@ -2595,10 +2595,10 @@ def test_ptx_sink_lane_codegen_and_roundtrip():
     src = _cuda_source(kernel)
     assert "mov.b64 {_, %0}, %1;" in src
     assert "_sink_d0" in src
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
 
 def test_ptx_sink_rejected_where_the_isa_has_no_underscore():
@@ -2650,8 +2650,8 @@ def test_ptx_printer_form():
 # ---------------------------------------------------------------------------
 def test_ptx_94_sm107_helpers_render():
     """Representative SM107 forms preserve PTX 9.4 modifier order and shape."""
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, escape_token, tokens_for, unescape_token
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, escape_token, tokens_for, unescape_token
 
     cases = (
         (
@@ -2836,8 +2836,8 @@ def test_ptx_94_sm107_helpers_render():
 
 def test_ptx_94_cp_bulk_semantic_renderings():
     """Report and mask-width siblings retain every non-tensor semantic line."""
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, tokens_for
 
     cases = (
         (
@@ -2984,15 +2984,15 @@ def test_ptx_94_cp_bulk_semantics_roundtrip():
             T.uint32(1),
         )
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
 
 def test_ptx_94_cp_bulk_semantic_negative_grids():
     """The widened siblings reject malformed strong semantics and report/OOB pairs."""
-    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, tokens_for
 
     multicast = TABLE["cp_async_bulk_g2s_cluster_multicast32"]
     required = dict(
@@ -3024,7 +3024,7 @@ def test_ptx_94_cp_bulk_semantic_negative_grids():
 
 def test_ptx_94_sm107_arch_floors_and_delta():
     """Entries owning SM107 variants certify at 107f and remain in the 9.4 delta."""
-    from tvm.backend.cuda.ptx.table import _PTX_94_ENTRIES, TABLE
+    from tvm_tirx.backend.cuda.ptx.table import _PTX_94_ENTRIES, TABLE
 
     sm107_entries = {
         "add_mixed_vec_up",
@@ -3061,8 +3061,8 @@ def test_ptx_94_sm107_arch_floors_and_delta():
 
 def test_ptx_tcgen05_mapa_address_rendering():
     """Optional state spaces select generic versus shared address carriers."""
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, tokens_for, variants
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, tokens_for, variants
 
     def render(name, **by_name):
         entry = TABLE[name]
@@ -3141,16 +3141,16 @@ def test_ptx_tcgen05_mapa_address_rendering():
 
 def test_ptx_tcgen05_mapa_address_coercion():
     """Bare forms preserve generic pointers; explicit shared forms coerce only addresses."""
-    from tvm.ir.type import PrimType, PtrType
+    from tvm_tirx.ir.type import PrimType, PtrType
 
-    generic_ptr = tvm.tirx.Var("g", PtrType(PrimType("uint64"), "global"))
-    shared_ptr = tvm.tirx.Var("s", PtrType(PrimType("uint64"), "shared"))
-    raw_u32 = tvm.tirx.Var("a32", "uint32")
-    raw_u64 = tvm.tirx.Var("a64", "uint64")
-    ncols = tvm.tirx.Var("n", "uint32")
-    mask = tvm.tirx.Var("mask", "uint16")
-    out32 = tvm.tirx.decl_tensor((1,), "uint32", name="out32", scope="local")
-    out64 = tvm.tirx.decl_tensor((1,), "uint64", name="out64", scope="local")
+    generic_ptr = tvm_tirx.tirx.Var("g", PtrType(PrimType("uint64"), "global"))
+    shared_ptr = tvm_tirx.tirx.Var("s", PtrType(PrimType("uint64"), "shared"))
+    raw_u32 = tvm_tirx.tirx.Var("a32", "uint32")
+    raw_u64 = tvm_tirx.tirx.Var("a64", "uint64")
+    ncols = tvm_tirx.tirx.Var("n", "uint32")
+    mask = tvm_tirx.tirx.Var("mask", "uint16")
+    out32 = tvm_tirx.tirx.decl_tensor((1,), "uint32", name="out32", scope="local")
+    out64 = tvm_tirx.tirx.decl_tensor((1,), "uint64", name="out64", scope="local")
 
     bare_alloc = T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.b32(generic_ptr, ncols)
     assert bare_alloc.args[0].same_as(generic_ptr)
@@ -3208,16 +3208,16 @@ def test_ptx_tcgen05_mapa_address_roundtrip():
         T.ptx.mapa.shared__cluster.u64(mapped64, window64, T.uint32(1))
         T.ptx.mapa.shared__cluster.u32(mapped32, T.uint32(0), T.uint32(1))
 
-    reparsed = tvm.script.from_source(
-        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    reparsed = tvm_tirx.script.from_source(
+        kernel.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
     )
-    tvm.ir.assert_structural_equal(kernel, reparsed)
+    tvm_tirx.ir.assert_structural_equal(kernel, reparsed)
 
 
 def test_ptx_helper_source_golden():
     """Exact generated helper source, one per family (executable documentation)."""
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, tokens_for
 
     def render(name, predicated=False, dtypes=None, imms=None, **by_name):
         entry = TABLE[name]
@@ -3759,12 +3759,12 @@ def test_ptx_helper_source_golden():
 
 def test_ptx_coercion_ir_forms():
     """The trace-time addr coercion, written down as IR-level assertions."""
-    from tvm.ir.type import PrimType, PtrType
+    from tvm_tirx.ir.type import PrimType, PtrType
 
-    shared_ptr = tvm.tirx.Var("p", PtrType(PrimType("uint32"), "shared"))
-    global_ptr = tvm.tirx.Var("g", PtrType(PrimType("uint32"), "global"))
-    raw_u32 = tvm.tirx.Var("a", "uint32")
-    val = tvm.tirx.Var("v", "uint32")
+    shared_ptr = tvm_tirx.tirx.Var("p", PtrType(PrimType("uint32"), "shared"))
+    global_ptr = tvm_tirx.tirx.Var("g", PtrType(PrimType("uint32"), "global"))
+    raw_u32 = tvm_tirx.tirx.Var("a", "uint32")
+    val = tvm_tirx.tirx.Var("v", "uint32")
 
     # Shared slot + shared pointer: engine wraps with an explicit cvta call node.
     call = T.ptx.st.shared__cta.b32(shared_ptr, val)
@@ -3803,11 +3803,11 @@ def test_ptx_coercion_ir_forms():
 
     # Predication: pred rides after the operands (codegen derives the
     # predicated form from the arg count).
-    flag = tvm.tirx.Var("f", "uint32")
+    flag = tvm_tirx.tirx.Var("f", "uint32")
     call = T.ptx.st.release.gpu.global_.b32(global_ptr, val, pred=flag)
     assert call.args[2].same_as(flag)
     assert len(call.args) == 2 + 1 + 8 + 1  # operands + pred + slot tokens + marker
-    out = tvm.tirx.decl_tensor((1,), "uint32", name="out", scope="local")
+    out = tvm_tirx.tirx.decl_tensor((1,), "uint32", name="out", scope="local")
     call = T.ptx.ld.global_.b32(out[0], global_ptr, pred=flag)
     assert str(call.args[-1]).strip('"') == "pred"
     call = T.ptx.ld.global_.b32(out[0], global_ptr, pred=flag, preserve_dst=True)
@@ -3982,7 +3982,7 @@ def _as_render_args(rendering):
 
 def _addr_offset_samples(entry):
     """Small certification axis for address immediates, separate from modifier products."""
-    from tvm.backend.cuda.ptx.table import renderings
+    from tvm_tirx.backend.cuda.ptx.table import renderings
 
     enabled = [
         logical_slot
@@ -4046,8 +4046,8 @@ def test_ptx_single_instruction_invariant():
     asserting that it equals the table's ``raw_render`` entries means a new one
     cannot be added without editing this test.
     """
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, renderings
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, renderings
 
     # Empty, and it should stay that way: the one shape that used to need a
     # hand-written body (`.e2m1x2`'s .b8 operand) turned out to be a dtype with
@@ -4132,8 +4132,8 @@ def test_ptx_single_instruction_invariant_detects_violations():
 
 def test_ptx_all_variants_render_unique():
     """Every legal variant renders; helper names (incl. @p twins) are unique."""
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, renderings, variants
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, renderings, variants
 
     names = set()
     total = 0
@@ -4170,8 +4170,8 @@ def test_ptx_no_instruction_registered_twice():
     Strip only helper and parameter *names*; the remaining C types, asm text,
     and constraints form the identity whose duplication would be ambiguous.
     """
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, renderings
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, renderings
 
     owners = {}
     for entry in TABLE.values():
@@ -4194,7 +4194,7 @@ def test_ptx_dispatch_unambiguous():
     rendering check above — two entries can emit different assembly and still
     leave a call with nothing to choose between them.
     """
-    from tvm.backend.cuda.ptx.table import (
+    from tvm_tirx.backend.cuda.ptx.table import (
         TABLE,
         mods,
         operand_dtypes,
@@ -4248,7 +4248,7 @@ def test_ptx_dispatch_model_detects_a_collapsed_class():
     indistinguishable, which is the defect this guard exists to catch. A guard
     that has only ever been seen to pass proves nothing.
     """
-    from tvm.backend.cuda.ptx.table import (
+    from tvm_tirx.backend.cuda.ptx.table import (
         TABLE,
         mods,
         operand_dtypes,
@@ -4288,13 +4288,13 @@ def test_ptx_dispatch_model_detects_a_collapsed_class():
 
 
 def test_ptx_stub_up_to_date():
-    """The checked-in tvm.script.tirx stub must match the generator."""
-    from tvm.backend.cuda.ptx import gen_stubs
+    """The checked-in tvm_tirx.script.tirx stub must match the generator."""
+    from tvm_tirx.backend.cuda.ptx import gen_stubs
 
     stub = gen_stubs.STUB_PATH
     assert stub.read_text(encoding="utf-8") == gen_stubs.generate(), (
         "python/tvm/script/tirx.pyi is stale; regenerate with "
-        "`python -m tvm.backend.cuda.ptx.gen_stubs -o python/tvm/script/tirx.pyi`"
+        "`python -m tvm_tirx.backend.cuda.ptx.gen_stubs -o python/tvm/script/tirx.pyi`"
     )
 
 
@@ -4313,7 +4313,7 @@ def test_ptxas_gate_rejects_invalid():
 
 def test_ptx_vec256_wide_carriers_not_registered():
     """PTX documents wider carriers; CUDA 13.4 ptxas does not compile the axis uniformly (C7907)."""
-    from tvm.backend.cuda.ptx.table import TABLE, dtype_combos, tokens_for
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, dtype_combos, tokens_for
 
     expected = (
         ("uint32", "uint64"),
@@ -4373,7 +4373,7 @@ _PTX_93_SM103A_PHASE_ENTRIES = frozenset(
 
 def _ptx_93_sm103a_manifest():
     """Yield every rendering introduced or extended by PTX 9.3 for SM103a."""
-    from tvm.backend.cuda.ptx.table import _PTX_94_ENTRIES, TABLE, mods, renderings
+    from tvm_tirx.backend.cuda.ptx.table import _PTX_94_ENTRIES, TABLE, mods, renderings
 
     ptx94 = {entry.name for entry in _PTX_94_ENTRIES}
     for name, entry in TABLE.items():
@@ -4405,7 +4405,7 @@ def _ptx_93_sm103a_manifest():
 @requires_nvcc
 def test_ptx_93_sm103a_helpers_certify():
     """Every PTX 9.3 addition assembles as a production-shaped SM103a caller."""
-    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
 
     by_arch = {}
     covered = 0
@@ -4427,8 +4427,8 @@ def test_ptx_sampled_helpers_assemble():
     """Fast tier: production-shaped calls to a seeded sample assemble."""
     import random
 
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, renderings
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, renderings
 
     rng = random.Random(20260802)
     by_arch = {}
@@ -4484,8 +4484,8 @@ def test_ptx_all_helpers_certify(shard):
     pytest shard is further split by source size to avoid oversized compiler
     translation units.
     """
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, renderings
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, renderings
 
     by_arch = {}
     covered = 0
@@ -4540,18 +4540,18 @@ def test_ptx_ld_st_gpu_roundtrip():
         T.ptx.st.release.gpu.global_.b32(B.ptr_to([tx]), val)
 
     with TARGET:
-        mod = tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=TARGET, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": kernel}), target=TARGET, pipeline="tirx")
 
     def run_and_check():
-        dev = tvm.cuda(0)
+        dev = tvm_tirx.cuda(0)
         a_np = np.arange(32, dtype=np.uint32) + 100
         b_np = np.zeros(32, dtype=np.uint32)
-        a = tvm.runtime.tensor(a_np, device=dev)
-        b = tvm.runtime.tensor(b_np, device=dev)
+        a = tvm_tirx.runtime.tensor(a_np, device=dev)
+        b = tvm_tirx.runtime.tensor(b_np, device=dev)
         mod(a, b)
         np.testing.assert_array_equal(b.numpy(), a_np)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_ptx_tcgen05_ld_red_binds_redval_as_output():
@@ -4559,8 +4559,8 @@ def test_ptx_tcgen05_ld_red_binds_redval_as_output():
     `redval`. The helper must bind it with an output constraint; an input binding compiles but
     the kernel never observes the hardware max (measured on GB300: the probe's redval stayed at
     its initial value until the binding was fixed)."""
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, tokens_for
 
     for name, modifiers, binding in (
         (
@@ -4601,4 +4601,4 @@ def test_ptx_tcgen05_ld_red_binds_redval_as_output():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

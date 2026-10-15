@@ -18,10 +18,10 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 def gen_2in4_mask(m: int, n: int):
@@ -262,8 +262,8 @@ def test_mma_sp_m16n8k16_f16():
 
     for out_dtype in ["float16", "float32"]:
         func = mma_sp_m16n8k16_f16f16f16 if out_dtype == "float16" else mma_sp_m16n8k16_f16f16f32
-        mod = tvm.IRModule.from_expr(func)
-        cuda_mod = tvm.tirx.compile(mod, target="cuda")
+        mod = tvm_tirx.IRModule.from_expr(func)
+        cuda_mod = tvm_tirx.tirx.compile(mod, target="cuda")
 
         A_np = np.random.uniform(-1, 1, [16, 8]).astype("float16")
         B_np = np.random.uniform(-1, 1, [16, 8]).astype("float16")
@@ -273,15 +273,15 @@ def test_mma_sp_m16n8k16_f16():
         meta = get_meta_m16n8k16_half(mask)
 
         def run_and_check():
-            ctx = tvm.cuda()
-            A_tvm = tvm.runtime.tensor(A_np, ctx)
-            B_tvm = tvm.runtime.tensor(B_np, ctx)
-            C_tvm = tvm.runtime.tensor(np.zeros_like(C_np), ctx)
-            meta_tvm = tvm.runtime.tensor(meta, ctx)
+            ctx = tvm_tirx.cuda()
+            A_tvm = tvm_tirx.runtime.tensor(A_np, ctx)
+            B_tvm = tvm_tirx.runtime.tensor(B_np, ctx)
+            C_tvm = tvm_tirx.runtime.tensor(np.zeros_like(C_np), ctx)
+            meta_tvm = tvm_tirx.runtime.tensor(meta, ctx)
             cuda_mod(A_tvm, B_tvm, C_tvm, meta_tvm)
-            tvm.testing.assert_allclose(C_tvm.numpy(), C_np, atol=1e-3, rtol=1e-3)
+            tvm_tirx.testing.assert_allclose(C_tvm.numpy(), C_np, atol=1e-3, rtol=1e-3)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -304,8 +304,8 @@ def test_mma_sp_m16n8k32_f16():
 
     for out_dtype in ["float16", "float32"]:
         func = mma_sp_m16n8k32_f16f16f16 if out_dtype == "float16" else mma_sp_m16n8k32_f16f16f32
-        mod = tvm.IRModule.from_expr(func)
-        cuda_mod = tvm.tirx.compile(mod, target="cuda")
+        mod = tvm_tirx.IRModule.from_expr(func)
+        cuda_mod = tvm_tirx.tirx.compile(mod, target="cuda")
 
         A_np = np.random.uniform(-1, 1, [16, 16]).astype("float16")
         B_np = np.random.uniform(-1, 1, [32, 8]).astype("float16")
@@ -315,15 +315,15 @@ def test_mma_sp_m16n8k32_f16():
         meta = get_meta_m16n8k32_half(mask)
 
         def run_and_check():
-            ctx = tvm.cuda()
-            A_tvm = tvm.runtime.tensor(A_np, ctx)
-            B_tvm = tvm.runtime.tensor(B_np, ctx)
-            C_tvm = tvm.runtime.tensor(np.zeros_like(C_np), ctx)
-            meta_tvm = tvm.runtime.tensor(meta, ctx)
+            ctx = tvm_tirx.cuda()
+            A_tvm = tvm_tirx.runtime.tensor(A_np, ctx)
+            B_tvm = tvm_tirx.runtime.tensor(B_np, ctx)
+            C_tvm = tvm_tirx.runtime.tensor(np.zeros_like(C_np), ctx)
+            meta_tvm = tvm_tirx.runtime.tensor(meta, ctx)
             cuda_mod(A_tvm, B_tvm, C_tvm, meta_tvm)
-            tvm.testing.assert_allclose(C_tvm.numpy(), C_np, atol=1e-3, rtol=1e-3)
+            tvm_tirx.testing.assert_allclose(C_tvm.numpy(), C_np, atol=1e-3, rtol=1e-3)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

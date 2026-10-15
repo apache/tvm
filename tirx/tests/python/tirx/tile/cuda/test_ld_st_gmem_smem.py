@@ -26,12 +26,12 @@ import math
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.backend.cuda.axis import tx
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.layout import ComposeLayout, S, TileLayout
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.cuda.axis import tx
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx.layout import ComposeLayout, S, TileLayout
 
 
 def _build_kernel(scope, n_threads, shape, dtype):
@@ -77,23 +77,23 @@ TASKS = [
 def test_gmem_smem_roundtrip(scope, n_threads, shape, dtype):
     kernel = _build_kernel(scope, n_threads, shape, dtype)
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
-        mod = tvm.IRModule({"main": kernel})
-        compiled = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": kernel})
+        compiled = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 
-    np_dtype = tvm.testing.np_dtype_from_str(dtype)
-    A_np = tvm.testing.generate_random_array(dtype, shape)
+    np_dtype = tvm_tirx.testing.np_dtype_from_str(dtype)
+    A_np = tvm_tirx.testing.generate_random_array(dtype, shape)
     B_np = np.zeros(shape, dtype=np_dtype)
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
+        dev = tvm_tirx.cuda(0)
+        A = tvm_tirx.runtime.tensor(A_np, dev)
+        B = tvm_tirx.runtime.tensor(B_np, dev)
         compiled(A, B)
         np.testing.assert_array_equal(B.numpy(), A_np)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 # ----------------------------------------------------------------------------
@@ -197,27 +197,27 @@ def test_copy_g2s_s2g(task, dtype, scope):
                     index // s_shape[1], index % s_shape[1]
                 ]
 
-    np_dtype = tvm.testing.np_dtype_from_str(dtype)
-    target = tvm.target.Target("cuda")
+    np_dtype = tvm_tirx.testing.np_dtype_from_str(dtype)
+    target = tvm_tirx.target.Target("cuda")
     with target:
-        mod = tvm.IRModule({"main": copy_sync})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": copy_sync})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 
         np.random.seed(0)
-        A_np = tvm.testing.generate_random_array(dtype, g_shape)
+        A_np = tvm_tirx.testing.generate_random_array(dtype, g_shape)
         B_np = np.zeros(g_shape, dtype=np_dtype)
 
         B_ref = B_np.copy()
         B_ref[r_gmem] = A_np[r_gmem]
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A = tvm.runtime.tensor(A_np, dev)
-            B = tvm.runtime.tensor(B_np, dev)
+            dev = tvm_tirx.cuda(0)
+            A = tvm_tirx.runtime.tensor(A_np, dev)
+            B = tvm_tirx.runtime.tensor(B_np, dev)
             mod(A, B)
             np.testing.assert_allclose(B_ref, B.numpy())
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_swizzled_smem_emit_must_be_swizzle_aware():
@@ -225,9 +225,9 @@ def test_swizzled_smem_emit_must_be_swizzle_aware():
     gl = TileLayout(S[shape])
     sl = ComposeLayout(3, 3, 3, TileLayout(S[shape]))
     kernel = _explicit_staging_kernel(shape, shape, gl, sl, 0, "uint32", 4)
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_90"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_90"})
     with target:
-        ex = tvm.tirx.compile(kernel, target=target)
+        ex = tvm_tirx.tirx.compile(kernel, target=target)
     source = ex.mod.imports[0].inspect_source()
     assert "^" in source
     assert "st.shared.v4.b32" in source
@@ -243,7 +243,7 @@ def _explicit_staging_kernel(g_shape, s_shape, g_layout, s_layout, start, word_d
     rows, cols = s_shape
     lanes = min(rows, 32)
     reg_layout = TileLayout(S[s_shape : (1 @ tx, 1)])
-    bits = tvm.DataType(word_dtype).bits
+    bits = tvm_tirx.DataType(word_dtype).bits
     suffix = f"v{words}.b{bits}" if words > 1 else f"b{bits}"
     load, store = "ld.global." + suffix, "st.shared." + suffix
     # The raw argument includes gaps in the original global layout.
@@ -276,9 +276,9 @@ def _check_explicit_staging(g_shape, s_shape, g_layout, s_layout, start, word_dt
     kernel = _explicit_staging_kernel(
         g_shape, s_shape, g_layout, s_layout, start, word_dtype, words
     )
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
-        ex = tvm.tirx.compile(kernel, target=target)
+        ex = tvm_tirx.tirx.compile(kernel, target=target)
     size = int(g_layout.span())
     source = (np.arange(size, dtype="float32") % 113 + 0.5).astype("float16")
     expected = np.empty(s_shape, "float16")
@@ -286,8 +286,8 @@ def _check_explicit_staging(g_shape, s_shape, g_layout, s_layout, start, word_dt
         for col in range(s_shape[1]):
             offset = int(g_layout.apply(row, col + start, shape=g_shape)["m"])
             expected[row, col] = source[offset]
-    out = tvm.runtime.tensor(np.zeros(s_shape, "float16"), tvm.cuda())
-    ex(tvm.runtime.tensor(source, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros(s_shape, "float16"), tvm_tirx.cuda())
+    ex(tvm_tirx.runtime.tensor(source, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), expected)
     return ex
 
@@ -296,9 +296,9 @@ def _reject_explicit_staging(g_shape, s_shape, g_layout, s_layout, start, word_d
     kernel = _explicit_staging_kernel(
         g_shape, s_shape, g_layout, s_layout, start, word_dtype, words
     )
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target, pytest.raises(RuntimeError, match="consecutive elements|byte.aligned"):
-        tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": kernel}))
+        tvm_tirx.tirx.transform.TileDispatch()(tvm_tirx.IRModule({"main": kernel}))
 
 
 @pytest.mark.gpu
@@ -351,4 +351,4 @@ def test_layout_permute_copy_preserves_smem_strides():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

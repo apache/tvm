@@ -16,15 +16,15 @@
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
 # ruff: noqa: E501, F401
-import tvm
-import tvm.testing
-from tvm import tirx
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def test_annotate_read_tensor_access():
@@ -331,4 +331,4 @@ def test_annotate_tensor_access_with_compute_at_for_resize():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -17,11 +17,11 @@
 
 """Implementation of binary operator dispatches."""
 
-from tvm.script import tirx as T
-from tvm.tirx import FloatImm, Function
-from tvm.tirx.tile import DispatchContext, fail
-from tvm.tirx.tile.common import MapOpType
-from tvm.tirx.tile.instruction import TensorCall
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import FloatImm, Function
+from tvm_tirx.tirx.tile import DispatchContext, fail
+from tvm_tirx.tirx.tile.common import MapOpType
+from tvm_tirx.tirx.tile.instruction import TensorCall
 
 from ..common import init_analyzer, nki_dim
 from ..instruction_generator import InstructionGenerator

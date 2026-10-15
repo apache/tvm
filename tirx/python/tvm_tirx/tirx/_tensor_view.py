@@ -23,8 +23,8 @@ import re
 from numbers import Integral
 from typing import TYPE_CHECKING
 
-import tvm
-from tvm.runtime import MemoryScope
+import tvm_tirx
+from tvm_tirx.runtime import MemoryScope
 
 
 @functools.cache
@@ -41,7 +41,7 @@ def _is_tmem_scope(scope):
 
 
 if TYPE_CHECKING:
-    from tvm.ir import Var
+    from tvm_tirx.ir import Var
 
 
 def _redecl(
@@ -54,27 +54,27 @@ def _redecl(
     ``data``/``strides``/``elem_offset`` through.
     """
     if _is_tmem_scope(buf.scope()):
-        from tvm.backend.cuda.op import _tmem_address  # pylint: disable=import-outside-toplevel
-        from tvm.tirx.script.ir_builder.parser_protocol import (
+        from tvm_tirx.backend.cuda.op import _tmem_address  # pylint: disable=import-outside-toplevel
+        from tvm_tirx.tirx.script.ir_builder.parser_protocol import (
             bind_,  # pylint: disable=import-outside-toplevel
         )
 
         addr = _tmem_address(buf)
         if addr_offset is not None:
             addr = addr + addr_offset
-        ty = tvm.tirx.script.ir_builder.Tensor(
+        ty = tvm_tirx.tirx.script.ir_builder.Tensor(
             shape,
             buf.dtype if dtype is None else dtype,
             scope="tmem",
             align=buf.data_alignment,
             layout=layout,
         )
-        return bind_(tvm.ir.Call("tirx.cuda.decl_tmem", [addr], ty_args=[ty]))
-    from tvm.tirx.script.ir_builder.parser_protocol import (  # pylint: disable=import-outside-toplevel
+        return bind_(tvm_tirx.ir.Call("tirx.cuda.decl_tmem", [addr], ty_args=[ty]))
+    from tvm_tirx.tirx.script.ir_builder.parser_protocol import (  # pylint: disable=import-outside-toplevel
         bind_,
     )
 
-    tensor_type = tvm.tirx.script.ir_builder.Tensor(
+    tensor_type = tvm_tirx.tirx.script.ir_builder.Tensor(
         shape,
         buf.dtype if dtype is None else dtype,
         strides=buf.strides if strides is None else strides,
@@ -84,18 +84,18 @@ def _redecl(
         offset_factor=buf.offset_factor,
         layout=layout,
     )
-    return bind_(tvm.tirx.script.ir_builder.decl_tensor(buf.data, ty_args=[tensor_type]))
+    return bind_(tvm_tirx.tirx.script.ir_builder.decl_tensor(buf.data, ty_args=[tensor_type]))
 
 
 def _strides(buf):
     if buf.strides:
         return list(buf.strides)
-    return tvm.tirx.layout.Layout._get_default_strides(list(buf.shape), 1)
+    return tvm_tirx.tirx.layout.Layout._get_default_strides(list(buf.shape), 1)
 
 
 def _reshape_strides(buf, shape):
     """Reshape contiguous stride groups without changing their storage addresses."""
-    analyzer = tvm.sym.Analyzer()
+    analyzer = tvm_tirx.sym.Analyzer()
     old_shape, old_strides = list(buf.shape), _strides(buf)
     if not analyzer.can_prove_equal(
         functools.reduce(lambda a, b: a * b, old_shape, 1),
@@ -162,9 +162,9 @@ def view(buf: Var, *args, **kwargs) -> Var:
                 )
         return shape
 
-    if len(args) == 1 and isinstance(args[0], str | tvm.DataType) and not kwargs:
-        cast_dtype = tvm.DataType(args[0])
-        cur_dtype = tvm.DataType(buf.dtype)
+    if len(args) == 1 and isinstance(args[0], str | tvm_tirx.DataType) and not kwargs:
+        cast_dtype = tvm_tirx.DataType(args[0])
+        cur_dtype = tvm_tirx.DataType(buf.dtype)
         storage_axis = "TCol" if _is_tmem_scope(buf.scope()) else "m"
         if cast_dtype.bits > cur_dtype.bits:
             assert cast_dtype.bits % cur_dtype.bits == 0
@@ -180,7 +180,7 @@ def view(buf: Var, *args, **kwargs) -> Var:
             new_elem_offset = buf.elem_offset * ratio
         strides = None
         if buf.layout is None:
-            analyzer = tvm.sym.Analyzer()
+            analyzer = tvm_tirx.sym.Analyzer()
             source_strides = _strides(buf)
             if not analyzer.can_prove_equal(source_strides[-1], 1):
                 raise ValueError("view(dtype): the last dimension must have unit stride")
@@ -203,7 +203,7 @@ def view(buf: Var, *args, **kwargs) -> Var:
 
     shape = args
     assert all(
-        isinstance(arg, int) or (tvm.ir.is_prim_expr(arg) and arg.ty.dtype in ["int32", "int64"])
+        isinstance(arg, int) or (tvm_tirx.ir.is_prim_expr(arg) and arg.ty.dtype in ["int32", "int64"])
         for arg in shape
     ), "shape must be a list of integers or Exprs with dtype int32 or int64"
     layout = kwargs.get("layout", None)
@@ -253,7 +253,7 @@ def rearrange(buf: Var, pattern: str, /, **sizes) -> Var:
             f"{len(buf.shape)} dims (pattern {pattern!r}, shape {list(buf.shape)})"
         )
     axis_size: dict = {}
-    analyzer = tvm.sym.Analyzer()
+    analyzer = tvm_tirx.sym.Analyzer()
     for group, dim in zip(lhs_groups, buf.shape):
         dim_c = int(analyzer.simplify(dim))
         known = {axis: int(sizes[axis]) for axis in group if axis in sizes}
@@ -313,7 +313,7 @@ def _concrete_int(value):
         return None
     if isinstance(value, Integral):
         return int(value)
-    if isinstance(value, tvm.tirx.IntImm):
+    if isinstance(value, tvm_tirx.tirx.IntImm):
         return int(value)
     return None
 
@@ -322,7 +322,7 @@ def _surgery_parts(buf: Var):
     """Split a layout into its inner tile layout and optional swizzle params."""
     layout = buf.layout
     swizzle = None
-    if isinstance(layout, tvm.tirx.layout.ComposeLayout):
+    if isinstance(layout, tvm_tirx.tirx.layout.ComposeLayout):
         swizzle = (
             layout.per_element,
             layout.swizzle_len,
@@ -333,14 +333,14 @@ def _surgery_parts(buf: Var):
         # A bare swizzle describes its period, rather than the tensor extent.
         # Expand the swizzle period to the tensor domain before permuting axes.
         if layout.is_trivial():
-            layout = tvm.tirx.layout.TileLayout(tvm.tirx.layout.S[tuple(buf.shape)])
+            layout = tvm_tirx.tirx.layout.TileLayout(tvm_tirx.tirx.layout.S[tuple(buf.shape)])
     return layout, swizzle
 
 
 def _rewrap_swizzle(layout, swizzle):
     if swizzle is not None:
         per_element, swizzle_len, atom_len, swizzle_inner = swizzle
-        return tvm.tirx.layout.ComposeLayout(
+        return tvm_tirx.tirx.layout.ComposeLayout(
             per_element, swizzle_len, atom_len, layout, swizzle_inner
         )
     return layout
@@ -353,7 +353,7 @@ def _dim_group_offset(group, index):
     extents = []
     for iterator in group[1:]:
         extent = iterator.extent
-        if not isinstance(extent, tvm.tirx.IntImm):
+        if not isinstance(extent, tvm_tirx.tirx.IntImm):
             raise ValueError(
                 "select/narrow: dim with multiple layout iters requires concrete iter extents"
             )
@@ -368,8 +368,8 @@ def _dim_group_offset(group, index):
             coord = remaining // inner
             remaining = remaining % inner
         else:
-            coord = tvm.tirx.floordiv(remaining, inner)
-            remaining = tvm.tirx.floormod(remaining, inner)
+            coord = tvm_tirx.tirx.floordiv(remaining, inner)
+            remaining = tvm_tirx.tirx.floormod(remaining, inner)
         term = coord * iterator.stride
         offset = term if offset is None else offset + term
     return offset
@@ -388,7 +388,7 @@ def _swizzle_offset_commutes(swizzle, extra_offset):
         return offset_c % period == 0
     from ..sym import Analyzer  # pylint: disable=import-outside-toplevel
 
-    return Analyzer().can_prove_equal(tvm.tirx.floormod(extra_offset, period), 0)
+    return Analyzer().can_prove_equal(tvm_tirx.tirx.floormod(extra_offset, period), 0)
 
 
 def _rebuild_view(buf: Var, new_shape, new_shard, grouped, swizzle, extra_offset):
@@ -400,11 +400,11 @@ def _rebuild_view(buf: Var, new_shape, new_shard, grouped, swizzle, extra_offset
         and extra_offset is not None
         and not _swizzle_offset_commutes(swizzle, extra_offset)
     ):
-        m_axis = tvm.tirx.layout.Axis.get("m")
+        m_axis = tvm_tirx.tirx.layout.Axis.get("m")
         previous = offset_map.get(m_axis)
         offset_map[m_axis] = extra_offset if previous is None else previous + extra_offset
         extra_offset = None
-    new_layout = tvm.tirx.layout.TileLayout.from_iters(new_shard, list(grouped.replica), offset_map)
+    new_layout = tvm_tirx.tirx.layout.TileLayout.from_iters(new_shard, list(grouped.replica), offset_map)
     new_layout = _rewrap_swizzle(new_layout, swizzle)
     if is_tmem:
         addr_offset = _tmem_element_offset_to_column_offset(buf, extra_offset)
@@ -420,7 +420,7 @@ def _tmem_element_offset_to_column_offset(buf: Var, element_offset):
     if element_offset is None:
         return None
 
-    bits = tvm.DataType(buf.dtype).bits
+    bits = tvm_tirx.DataType(buf.dtype).bits
     bit_offset = element_offset * bits
     bit_offset_c = _concrete_int(bit_offset)
     if bit_offset_c is not None:
@@ -434,12 +434,12 @@ def _tmem_element_offset_to_column_offset(buf: Var, element_offset):
     from ..sym import Analyzer  # pylint: disable=import-outside-toplevel
 
     analyzer = Analyzer()
-    if not analyzer.can_prove_equal(tvm.tirx.floormod(bit_offset, 32), 0):
+    if not analyzer.can_prove_equal(tvm_tirx.tirx.floormod(bit_offset, 32), 0):
         raise ValueError(
             "sub: tmem TCol offset must be provably aligned to a physical "
             f"32-bit column; got {element_offset} elements of {buf.dtype}"
         )
-    return analyzer.simplify(tvm.tirx.floordiv(bit_offset, 32))
+    return analyzer.simplify(tvm_tirx.tirx.floordiv(bit_offset, 32))
 
 
 def _tmem_offset_axis_check(buf: Var, group_iters, start_c, what):
@@ -491,7 +491,7 @@ def _view_drop(buf: Var, dim, index):
 def _view_narrow(buf: Var, dim, start, length):
     """Narrow one logical dimension while preserving its storage offset."""
     dim = _normalized_dim(buf, dim, "index")
-    analyzer = tvm.sym.Analyzer()
+    analyzer = tvm_tirx.sym.Analyzer()
     start, length = analyzer.simplify(start), analyzer.simplify(length)
     start_c = _concrete_int(start)
     length_c = _concrete_int(length)
@@ -523,7 +523,7 @@ def _view_narrow(buf: Var, dim, start, length):
     iters = list(grouped.shard)
     lo, hi = seps[dim], seps[dim + 1]
     group = iters[lo:hi]
-    iter_type = tvm.tirx.layout.Iter
+    iter_type = tvm_tirx.tirx.layout.Iter
     if len(group) == 1:
         iterator = group[0]
         _tmem_offset_axis_check(buf, [iterator], start_c, "narrow")
@@ -533,7 +533,7 @@ def _view_narrow(buf: Var, dim, start, length):
         inner = 1
         for iterator in group[1:]:
             extent = iterator.extent
-            if not isinstance(extent, tvm.tirx.IntImm):
+            if not isinstance(extent, tvm_tirx.tirx.IntImm):
                 raise ValueError(
                     "sub: dim with multiple layout iters requires concrete iter extents"
                 )
@@ -586,7 +586,7 @@ class SubIndexer:
                     if item.stop is not None:
                         raise ValueError("sub: a stop bound with a step is not supported")
                     extent = buf.shape[dim]
-                    if not isinstance(extent, tvm.tirx.IntImm):
+                    if not isinstance(extent, tvm_tirx.tirx.IntImm):
                         raise ValueError("sub: a stepped slice requires a concrete dim extent")
                     extent = int(extent)
                     if extent % step != 0:

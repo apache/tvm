@@ -20,11 +20,11 @@
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.script
-import tvm.testing
-from tvm.ir import PrimType, assert_structural_equal
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
+from tvm_tirx.ir import PrimType, assert_structural_equal
+from tvm_tirx.script import tirx as T
 
 
 def test_roundtrip_scopeid1():
@@ -47,7 +47,7 @@ def test_roundtrip_scopeid1():
 
 
 def from_source(code):
-    return tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+    return tvm_tirx.script.from_source(code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
 
 
 def test_roundtrip_scopeid2():
@@ -595,7 +595,7 @@ def test_scope_id_dtype_uint32():
     scope_defs = []
     tvm_ffi.structural_walk(
         func.body,
-        lambda s: scope_defs.append(s) if isinstance(s, tvm.ir.Bind) else None,
+        lambda s: scope_defs.append(s) if isinstance(s, tvm_tirx.ir.Bind) else None,
     )
     dtypes = {str(d.var.ty) for d in scope_defs}
     assert dtypes == {"int32", "uint32"}
@@ -671,7 +671,7 @@ def test_scope_id_dtype_uint32_deferred_extent():
     scope_defs = []
     tvm_ffi.structural_walk(
         func.body,
-        lambda s: scope_defs.append(s) if isinstance(s, tvm.ir.Bind) else None,
+        lambda s: scope_defs.append(s) if isinstance(s, tvm_tirx.ir.Bind) else None,
     )
     lane = next(bind for bind in scope_defs if bind.var.name == "lane")
     assert lane.var.ty == PrimType("uint32")

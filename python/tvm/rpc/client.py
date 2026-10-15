@@ -27,8 +27,8 @@ import time
 import tvm_ffi
 from tvm_ffi import DLDeviceType
 
-import tvm.runtime
-from tvm.support import utils
+import tvm_tirx.runtime, tvm
+from tvm_tirx.support import utils
 
 from . import _ffi_api, base, server
 
@@ -54,7 +54,7 @@ class RPCSession:
 
         See Also
         --------
-        tvm.runtime.system_lib
+        tvm_tirx.runtime.system_lib
         """
         return self.get_function("ffi.SystemLib")()
 
@@ -87,7 +87,7 @@ class RPCSession:
         dev: RemoteDevice
             The session-owned device.
         """
-        return _ffi_api.RemoteDevice(self._sess, tvm.runtime.device(dev_type, dev_id))
+        return _ffi_api.RemoteDevice(self._sess, tvm_tirx.runtime.device(dev_type, dev_id))
 
     def close(self):
         """Close this session; existing remote values reject further operations."""

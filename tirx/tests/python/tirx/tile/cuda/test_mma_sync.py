@@ -32,12 +32,12 @@ import numpy as np
 import pytest
 from tvm_ffi import structural_walk
 
-import tvm
-import tvm.testing
-from tvm.backend.cuda.axis import laneid
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.layout import S, TileLayout
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.cuda.axis import laneid
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx.layout import S, TileLayout
 
 _PTX_TYPE = {"float16": "f16", "bfloat16": "bf16", "float32": "f32", "int8": "s8", "int32": "s32"}
 
@@ -58,7 +58,7 @@ def _mma_views(dst, a, b, initial, kinst, *, transpose_A=False, transpose_B=Fals
     b_view = b.rearrange("(n i) (k j) -> n k i j", i=8, j=kinst).view("uint32")
     c_view = (
         initial.rearrange("(m i) (n j) -> m n i j", i=16, j=8)
-        if isinstance(initial, tvm.ir.Var)
+        if isinstance(initial, tvm_tirx.ir.Var)
         else initial
     )
     return d_view, a_view, b_view, c_view
@@ -443,12 +443,12 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
 
 
 def _lower(func):
-    with tvm.target.Target("cuda"):
-        return tvm.tirx.transform.LowerTIRx()(tvm.IRModule({"main": func}))
+    with tvm_tirx.target.Target("cuda"):
+        return tvm_tirx.tirx.transform.LowerTIRx()(tvm_tirx.IRModule({"main": func}))
 
 
 def test_cuda_mma_sync_is_a_registered_instruction():
-    op = tvm.ir.Op.get("tirx.cuda.tile.apply")
+    op = tvm_tirx.ir.Op.get("tirx.cuda.tile.apply")
     assert callable(op.get_attr("FTileOpDispatch"))
     assert op.get_attr("TCallEffectKind") == 3
 
@@ -459,27 +459,27 @@ def test_cuda_gemm_mma_lowers_to_mma_sync(dtype):
     """The chosen native instruction receives the original per-lane slots."""
     function = _lower(_build_gemm(beta=0, dtype=dtype))["main"]
     calls = []
-    structural_walk(function.body, [(tvm.ir.Call, calls.append)])
-    mma_calls = [c for c in calls if isinstance(c.op, tvm.ir.Op) and c.op.name == "tirx.ptx.mma"]
+    structural_walk(function.body, [(tvm_tirx.ir.Call, calls.append)])
+    mma_calls = [c for c in calls if isinstance(c.op, tvm_tirx.ir.Op) and c.op.name == "tirx.ptx.mma"]
     assert len(mma_calls) == 1
     operands = mma_calls[0].args
-    assert any(isinstance(a, tvm.ir.StringImm) and a.value == "m16n8k16" for a in operands)
+    assert any(isinstance(a, tvm_tirx.ir.StringImm) and a.value == "m16n8k16" for a in operands)
     for fragment, word in [
         (operands[:4], "float32"),
         (operands[4:8], "uint32"),
         (operands[8:10], "uint32"),
     ]:
         for r, load in enumerate(fragment):
-            assert isinstance(load, tvm.ir.TensorLoad)
+            assert isinstance(load, tvm_tirx.ir.TensorLoad)
             assert load.source.same_as(fragment[0].source)
             assert load.ty.dtype == word
             assert len(load.indices) == 1 and int(load.indices[0]) == r
     # Zero is supplied directly as C; no hidden accumulator initialization.
     for dst, value in zip(operands[:4], operands[10:14]):
-        assert isinstance(value, tvm.ir.Call) and value.op.name.endswith("if_then_else")
+        assert isinstance(value, tvm_tirx.ir.Call) and value.op.name.endswith("if_then_else")
         initial, previous = value.args[1:]
-        assert isinstance(initial, tvm.ir.prim.FloatImm) and initial.value == 0
-        tvm.ir.assert_structural_equal(dst, previous)
+        assert isinstance(initial, tvm_tirx.ir.prim.FloatImm) and initial.value == 0
+        tvm_tirx.ir.assert_structural_equal(dst, previous)
 
 
 @pytest.mark.gpu
@@ -487,15 +487,15 @@ def test_cuda_gemm_mma_accumulates_c_when_beta_one():
     """The first instruction reads the explicitly supplied C fragment."""
     function = _lower(_build_gemm(beta=1))["main"]
     calls = []
-    structural_walk(function.body, [(tvm.ir.Call, calls.append)])
-    mma = next(c for c in calls if isinstance(c.op, tvm.ir.Op) and c.op.name == "tirx.ptx.mma")
+    structural_walk(function.body, [(tvm_tirx.ir.Call, calls.append)])
+    mma = next(c for c in calls if isinstance(c.op, tvm_tirx.ir.Op) and c.op.name == "tirx.ptx.mma")
     for dst, selected in zip(mma.args[:4], mma.args[10:14]):
-        assert isinstance(selected, tvm.ir.Call) and selected.op.name.endswith("if_then_else")
+        assert isinstance(selected, tvm_tirx.ir.Call) and selected.op.name.endswith("if_then_else")
         initial, previous = selected.args[1:]
-        tvm.ir.assert_structural_equal(dst, previous)
-        assert isinstance(initial, tvm.ir.TensorLoad)
+        tvm_tirx.ir.assert_structural_equal(dst, previous)
+        assert isinstance(initial, tvm_tirx.ir.TensorLoad)
         assert not dst.source.same_as(initial.source)
-        tvm.ir.assert_structural_equal(dst.indices, initial.indices)
+        tvm_tirx.ir.assert_structural_equal(dst.indices, initial.indices)
 
 
 def test_cuda_gemm_mma_nonunit_alpha_at_call_site():
@@ -576,8 +576,8 @@ def test_cuda_gemm_mma_numerical(dtype):
             rM = s // 2
             D_g[lane // 4 + 8 * rM, 2 * (lane % 4) + rN] = D_reg[s]
 
-    with tvm.target.Target("cuda"):
-        mod = tvm.tirx.compile(tvm.IRModule({"main": gemm}), target="cuda", pipeline="tirx")
+    with tvm_tirx.target.Target("cuda"):
+        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": gemm}), target="cuda", pipeline="tirx")
 
     np.random.seed(0)
     A_np = np.random.uniform(-1, 1, (16, 16)).astype(np.float32)
@@ -585,14 +585,14 @@ def test_cuda_gemm_mma_numerical(dtype):
     golden = A_np @ B_np
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A_dev = tvm.runtime.tensor(A_np.astype(np_dtype), dev)
-        B_dev = tvm.runtime.tensor(B_np.astype(np_dtype), dev)
-        D_dev = tvm.runtime.tensor(np.zeros((16, 8), np.float32), dev)
+        dev = tvm_tirx.cuda(0)
+        A_dev = tvm_tirx.runtime.tensor(A_np.astype(np_dtype), dev)
+        B_dev = tvm_tirx.runtime.tensor(B_np.astype(np_dtype), dev)
+        D_dev = tvm_tirx.runtime.tensor(np.zeros((16, 8), np.float32), dev)
         mod(A_dev, B_dev, D_dev)
-        tvm.testing.assert_allclose(golden, D_dev.numpy(), atol=1e-2, rtol=1e-2)
+        tvm_tirx.testing.assert_allclose(golden, D_dev.numpy(), atol=1e-2, rtol=1e-2)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 # (Mt, Nt, Kt, kinst) tilings: single tile, each dim multi-tiled, fully tiled,
@@ -635,8 +635,8 @@ def test_cuda_gemm_mma_numerical_tiled(dtype, beta, Mt, Nt, Kt, kinst):
         np_dtype = np.float16
 
     func, M, N, K = _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype)
-    with tvm.target.Target("cuda"):
-        mod = tvm.tirx.compile(tvm.IRModule({"main": func}), target="cuda", pipeline="tirx")
+    with tvm_tirx.target.Target("cuda"):
+        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": func}), target="cuda", pipeline="tirx")
 
     np.random.seed(0)
     A_np = np.random.uniform(-1, 1, (M, K)).astype(np.float32)
@@ -645,15 +645,15 @@ def test_cuda_gemm_mma_numerical_tiled(dtype, beta, Mt, Nt, Kt, kinst):
     golden = A_np @ B_np + (C_np if beta == 1.0 else 0.0)
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A_dev = tvm.runtime.tensor(A_np.astype(np_dtype), dev)
-        B_dev = tvm.runtime.tensor(B_np.astype(np_dtype), dev)
-        C_dev = tvm.runtime.tensor(C_np, dev)
-        D_dev = tvm.runtime.tensor(np.zeros((M, N), np.float32), dev)
+        dev = tvm_tirx.cuda(0)
+        A_dev = tvm_tirx.runtime.tensor(A_np.astype(np_dtype), dev)
+        B_dev = tvm_tirx.runtime.tensor(B_np.astype(np_dtype), dev)
+        C_dev = tvm_tirx.runtime.tensor(C_np, dev)
+        D_dev = tvm_tirx.runtime.tensor(np.zeros((M, N), np.float32), dev)
         mod(A_dev, B_dev, C_dev, D_dev)
-        tvm.testing.assert_allclose(golden, D_dev.numpy(), atol=2e-2, rtol=2e-2)
+        tvm_tirx.testing.assert_allclose(golden, D_dev.numpy(), atol=2e-2, rtol=2e-2)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -675,8 +675,8 @@ def test_cuda_gemm_mma_numerical_transpose(transpose_A, transpose_B, dtype):
         np_dtype = np.float16
 
     func = _build_transpose_numeric(transpose_A, transpose_B, dtype)
-    with tvm.target.Target("cuda"):
-        mod = tvm.tirx.compile(tvm.IRModule({"main": func}), target="cuda", pipeline="tirx")
+    with tvm_tirx.target.Target("cuda"):
+        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": func}), target="cuda", pipeline="tirx")
 
     np.random.seed(0)
     A_log = np.random.uniform(-1, 1, (16, 16)).astype(np.float32)  # logical A[M, K]
@@ -686,14 +686,14 @@ def test_cuda_gemm_mma_numerical_transpose(transpose_A, transpose_B, dtype):
     golden = A_log @ B_log
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A_dev = tvm.runtime.tensor(A_buf, dev)
-        B_dev = tvm.runtime.tensor(B_buf, dev)
-        D_dev = tvm.runtime.tensor(np.zeros((16, 8), np.float32), dev)
+        dev = tvm_tirx.cuda(0)
+        A_dev = tvm_tirx.runtime.tensor(A_buf, dev)
+        B_dev = tvm_tirx.runtime.tensor(B_buf, dev)
+        D_dev = tvm_tirx.runtime.tensor(np.zeros((16, 8), np.float32), dev)
         mod(A_dev, B_dev, D_dev)
-        tvm.testing.assert_allclose(golden, D_dev.numpy(), atol=2e-2, rtol=2e-2)
+        tvm_tirx.testing.assert_allclose(golden, D_dev.numpy(), atol=2e-2, rtol=2e-2)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize(
@@ -737,10 +737,10 @@ def test_cuda_gemm_mma_lowers_tiled(Mt, Nt, Kt, kinst):
 def test_cuda_gemm_mma_codegen_issue_count(Mt, Nt, Kt, kinst):
     """Full pipeline (UnrollLoop + CUDA codegen) emits one mma per (Mt, Nt, Kt)
     tile; K-tiles accumulate in place, so D is cleared once per output tile."""
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_80"})
     with target:
-        mod = tvm.tirx.compile(
-            tvm.IRModule({"main": _build_tiled(Mt, Nt, Kt, kinst, store=True)}),
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": _build_tiled(Mt, Nt, Kt, kinst, store=True)}),
             target=target,
             pipeline="tirx",
         )
@@ -772,10 +772,10 @@ def test_cuda_gemm_mma_lowers_transpose(transpose_A, transpose_B):
 )
 def test_cuda_gemm_mma_codegen_transpose(transpose_A, transpose_B):
     """Every orientation codegens to a valid m16n8k16 kernel."""
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_80"})
     with target:
-        mod = tvm.tirx.compile(
-            tvm.IRModule({"main": _build_transpose(transpose_A, transpose_B, store=True)}),
+        mod = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": _build_transpose(transpose_A, transpose_B, store=True)}),
             target=target,
             pipeline="tirx",
         )
@@ -848,10 +848,10 @@ def _check_scaled_mma(alpha, beta):
     a = rng.uniform(-1, 1, (16, 16)).astype("float16")
     b = rng.uniform(-1, 1, (16, 8)).astype("float16")
     c = rng.uniform(-1, 1, (16, 8)).astype("float32")
-    f = tvm.tirx.compile(kernel, target="cuda", pipeline="tirx")
+    f = tvm_tirx.tirx.compile(kernel, target="cuda", pipeline="tirx")
 
     def check():
-        values = [tvm.runtime.tensor(v, tvm.cuda()) for v in (a, b, c, np.zeros_like(c))]
+        values = [tvm_tirx.runtime.tensor(v, tvm_tirx.cuda()) for v in (a, b, c, np.zeros_like(c))]
         f(*values)
         np.testing.assert_allclose(
             values[-1].numpy(),
@@ -860,8 +860,8 @@ def _check_scaled_mma(alpha, beta):
             rtol=1e-5,
         )
 
-    tvm.testing.run_with_gpu_lock(check)
+    tvm_tirx.testing.run_with_gpu_lock(check)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

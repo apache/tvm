@@ -27,7 +27,7 @@ from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.database import TuningRecord, Workload
 from tvm.s_tir.meta_schedule.utils import remove_build_dir
-from tvm.target import Target
+from tvm_tirx.target import Target
 
 from .utils import write_file
 

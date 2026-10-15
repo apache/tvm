@@ -40,24 +40,24 @@ The ``gpu`` marker only controls which testing node a test runs on; it
 does not check whether the required hardware or libraries are actually
 present.  To gate a test on a specific capability, combine the marker
 with a ``skipif`` that consults the memoized environment probes in
-:py:mod:`tvm.testing.env`:
+:py:mod:`tvm_tirx.testing.env`:
 
 .. code-block:: python
 
     @pytest.mark.gpu
-    @pytest.mark.skipif(not tvm.testing.env.has_cuda(), reason="need cuda")
+    @pytest.mark.skipif(not tvm_tirx.testing.env.has_cuda(), reason="need cuda")
     def test_cuda_vectorize_add():
         ...
 
 There is one ``has_*`` (or ``is_*``) probe per capability -- for example
-:py:func:`tvm.testing.env.has_gpu`, :py:func:`tvm.testing.env.has_cuda`,
-and :py:func:`tvm.testing.env.has_vulkan`.  For optional Python packages,
+:py:func:`tvm_tirx.testing.env.has_gpu`, :py:func:`tvm_tirx.testing.env.has_cuda`,
+and :py:func:`tvm_tirx.testing.env.has_vulkan`.  For optional Python packages,
 prefer ``pytest.importorskip("pkg_name")`` instead of a ``skipif``.
 
 To run a test against a variety of targets, parametrize over ``target`` with
 ``@pytest.mark.parametrize("target", [...])`` -- tag GPU targets with
 ``pytest.mark.gpu`` so the CI routes them to GPU nodes, and skip an unavailable
-target with ``pytest.mark.skipif(not tvm.testing.device_enabled(target))``.  The
+target with ``pytest.mark.skipif(not tvm_tirx.testing.device_enabled(target))``.  The
 set of enabled targets is controlled by the ``TVM_TEST_TARGETS`` environment
 variable, so the CI can run different targets on different testing nodes.
 
@@ -72,7 +72,7 @@ import ml_dtypes
 import numpy as np
 import pytest
 
-import tvm
+import tvm_tirx
 
 from . import env
 
@@ -97,7 +97,7 @@ def device_enabled(target):
     """Check if a target should be used when testing.
 
     Gate a device-specific test on this with
-    ``@pytest.mark.skipif(not tvm.testing.device_enabled(target))``.
+    ``@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(target))``.
 
     This allows the user to control which devices they are testing against. In
     tests, this should be used to check if a device should be used when said
@@ -105,7 +105,7 @@ def device_enabled(target):
 
     Parameters
     ----------
-    target : str or Dict[str, Any] or tvm.target.Target
+    target : str or Dict[str, Any] or tvm_tirx.target.Target
         Target string to check against
 
     Returns
@@ -142,11 +142,11 @@ def device_enabled(target):
             return env._runtime_enabled("hexagon") and "ANDROID_SERIAL_NUMBER" in os.environ
         if not env._runtime_enabled(kind):
             continue
-        if kind == "cuda" and "cudnn" in tvm.target.Target(candidate).attrs.get("libs", []):
-            exists = tvm.get_global_func("tvm.contrib.cudnn.exists", allow_missing=True)
+        if kind == "cuda" and "cudnn" in tvm_tirx.target.Target(candidate).attrs.get("libs", []):
+            exists = tvm_tirx.get_global_func("tvm.contrib.cudnn.exists", allow_missing=True)
             if env.has_cudnn() and exists is not None and exists():
                 return True
-        elif tvm.device_from_target(candidate).exist:
+        elif tvm_tirx.device_from_target(candidate).exist:
             return True
     return False
 
@@ -160,7 +160,7 @@ slow = pytest.mark.skipif(
 def parameter(*values, ids=None, by_dict=None):
     """Convenience function to define pytest parametrized fixtures.
 
-    Declaring a variable using ``tvm.testing.parameter`` will define a
+    Declaring a variable using ``tvm_tirx.testing.parameter`` will define a
     parametrized pytest fixture that can be used by test
     functions. This is intended for cases that have no setup cost,
     such as strings, integers, tuples, etc.  For cases that have a
@@ -168,7 +168,7 @@ def parameter(*values, ids=None, by_dict=None):
     instead.
 
     If a test function accepts multiple parameters defined using
-    ``tvm.testing.parameter``, then the test will be run using every
+    ``tvm_tirx.testing.parameter``, then the test will be run using every
     combination of those parameters.
 
     The parameter definition applies to all tests in a module.  If a
@@ -201,19 +201,19 @@ def parameter(*values, ids=None, by_dict=None):
 
     Example
     -------
-    >>> size = tvm.testing.parameter(1, 10, 100)
+    >>> size = tvm_tirx.testing.parameter(1, 10, 100)
     >>> def test_using_size(size):
     >>>     ... # Test code here
 
     Or
 
-    >>> shape = tvm.testing.parameter((5,10), (512,1024), ids=['small','large'])
+    >>> shape = tvm_tirx.testing.parameter((5,10), (512,1024), ids=['small','large'])
     >>> def test_using_size(shape):
     >>>     ... # Test code here
 
     Or
 
-    >>> shape = tvm.testing.parameter(by_dict={'small': (5,10), 'large': (512,1024)})
+    >>> shape = tvm_tirx.testing.parameter(by_dict={'small': (5,10), 'large': (512,1024)})
     >>> def test_using_size(shape):
     >>>     ... # Test code here
 

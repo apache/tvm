@@ -21,13 +21,13 @@ from pathlib import Path
 
 from tvm_ffi.libinfo import load_lib_ctypes
 
-from tvm.base import _LOADED_LIBS
+from tvm_tirx.base import _LOADED_LIBS
 
 _LAZY_SUBMODULES = {"op", "script", "target_tags"}
 
 
 def _detect_target_from_device(dev):
-    from tvm.target import Target  # pylint: disable=import-outside-toplevel
+    from tvm_tirx.target import Target  # pylint: disable=import-outside-toplevel
 
     return Target(
         {
@@ -41,8 +41,8 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register Metal-owned Python semantics."""
-    from tvm.target.detect_target import register_device_target_detector
-    from tvm.tirx.script.ir_builder import (
+    from tvm_tirx.target.detect_target import register_device_target_detector
+    from tvm_tirx.tirx.script.ir_builder import (
         op as builder_op,  # pylint: disable=import-outside-toplevel
     )
 

@@ -26,9 +26,9 @@ from typing import Any
 import tvm_ffi
 from tvm_ffi import Array
 
-import tvm
-from tvm import tirx
-from tvm.ir import (
+import tvm_tirx
+from tvm_tirx import tirx
+from tvm_tirx.ir import (
     Call,
     Expr,
     ExprWithOp,
@@ -39,75 +39,75 @@ from tvm.ir import (
     Var,
     const,
 )
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.ir.prim import clz as clz
-from tvm.ir.prim import max_value as max_value
-from tvm.ir.prim import min_value as min_value
-from tvm.ir.prim.op import abs as abs
-from tvm.ir.prim.op import acos as acos
-from tvm.ir.prim.op import acosh as acosh
-from tvm.ir.prim.op import all as all
-from tvm.ir.prim.op import any as any
-from tvm.ir.prim.op import asin as asin
-from tvm.ir.prim.op import asinh as asinh
-from tvm.ir.prim.op import assume as assume
-from tvm.ir.prim.op import atan as atan
-from tvm.ir.prim.op import atan2 as atan2
-from tvm.ir.prim.op import atanh as atanh
-from tvm.ir.prim.op import bitwise_and as bitwise_and
-from tvm.ir.prim.op import bitwise_not as bitwise_not
-from tvm.ir.prim.op import bitwise_or as bitwise_or
-from tvm.ir.prim.op import bitwise_xor as bitwise_xor
-from tvm.ir.prim.op import ceil as ceil
-from tvm.ir.prim.op import ceildiv as ceildiv
-from tvm.ir.prim.op import copysign as copysign
-from tvm.ir.prim.op import cos as cos
-from tvm.ir.prim.op import cosh as cosh
-from tvm.ir.prim.op import div as div
-from tvm.ir.prim.op import erf as erf
-from tvm.ir.prim.op import exp as exp
-from tvm.ir.prim.op import exp2 as exp2
-from tvm.ir.prim.op import exp10 as exp10
-from tvm.ir.prim.op import floor as floor
-from tvm.ir.prim.op import floordiv as floordiv
-from tvm.ir.prim.op import floormod as floormod
-from tvm.ir.prim.op import fma as fma
-from tvm.ir.prim.op import fmod as fmod
-from tvm.ir.prim.op import hypot as hypot
-from tvm.ir.prim.op import if_then_else as if_then_else
-from tvm.ir.prim.op import indexdiv as indexdiv
-from tvm.ir.prim.op import indexmod as indexmod
-from tvm.ir.prim.op import infinity as infinity
-from tvm.ir.prim.op import isfinite as isfinite
-from tvm.ir.prim.op import isinf as isinf
-from tvm.ir.prim.op import isnan as isnan
-from tvm.ir.prim.op import ldexp as ldexp
-from tvm.ir.prim.op import likely as likely
-from tvm.ir.prim.op import log as log
-from tvm.ir.prim.op import log1p as log1p
-from tvm.ir.prim.op import log2 as log2
-from tvm.ir.prim.op import log10 as log10
-from tvm.ir.prim.op import max as max
-from tvm.ir.prim.op import min as min
-from tvm.ir.prim.op import nearbyint as nearbyint
-from tvm.ir.prim.op import nextafter as nextafter
-from tvm.ir.prim.op import popcount as popcount
-from tvm.ir.prim.op import pow as pow
-from tvm.ir.prim.op import power as power
-from tvm.ir.prim.op import round as round
-from tvm.ir.prim.op import rsqrt as rsqrt
-from tvm.ir.prim.op import shift_left as shift_left
-from tvm.ir.prim.op import shift_right as shift_right
-from tvm.ir.prim.op import sigmoid as sigmoid
-from tvm.ir.prim.op import sin as sin
-from tvm.ir.prim.op import sinh as sinh
-from tvm.ir.prim.op import sqrt as sqrt
-from tvm.ir.prim.op import tan as tan
-from tvm.ir.prim.op import tanh as tanh
-from tvm.ir.prim.op import trunc as trunc
-from tvm.ir.prim.op import truncdiv as truncdiv
-from tvm.ir.prim.op import truncmod as truncmod
-from tvm.ir.prim.op import vscale as vscale
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.prim import clz as clz
+from tvm_tirx.ir.prim import max_value as max_value
+from tvm_tirx.ir.prim import min_value as min_value
+from tvm_tirx.ir.prim.op import abs as abs
+from tvm_tirx.ir.prim.op import acos as acos
+from tvm_tirx.ir.prim.op import acosh as acosh
+from tvm_tirx.ir.prim.op import all as all
+from tvm_tirx.ir.prim.op import any as any
+from tvm_tirx.ir.prim.op import asin as asin
+from tvm_tirx.ir.prim.op import asinh as asinh
+from tvm_tirx.ir.prim.op import assume as assume
+from tvm_tirx.ir.prim.op import atan as atan
+from tvm_tirx.ir.prim.op import atan2 as atan2
+from tvm_tirx.ir.prim.op import atanh as atanh
+from tvm_tirx.ir.prim.op import bitwise_and as bitwise_and
+from tvm_tirx.ir.prim.op import bitwise_not as bitwise_not
+from tvm_tirx.ir.prim.op import bitwise_or as bitwise_or
+from tvm_tirx.ir.prim.op import bitwise_xor as bitwise_xor
+from tvm_tirx.ir.prim.op import ceil as ceil
+from tvm_tirx.ir.prim.op import ceildiv as ceildiv
+from tvm_tirx.ir.prim.op import copysign as copysign
+from tvm_tirx.ir.prim.op import cos as cos
+from tvm_tirx.ir.prim.op import cosh as cosh
+from tvm_tirx.ir.prim.op import div as div
+from tvm_tirx.ir.prim.op import erf as erf
+from tvm_tirx.ir.prim.op import exp as exp
+from tvm_tirx.ir.prim.op import exp2 as exp2
+from tvm_tirx.ir.prim.op import exp10 as exp10
+from tvm_tirx.ir.prim.op import floor as floor
+from tvm_tirx.ir.prim.op import floordiv as floordiv
+from tvm_tirx.ir.prim.op import floormod as floormod
+from tvm_tirx.ir.prim.op import fma as fma
+from tvm_tirx.ir.prim.op import fmod as fmod
+from tvm_tirx.ir.prim.op import hypot as hypot
+from tvm_tirx.ir.prim.op import if_then_else as if_then_else
+from tvm_tirx.ir.prim.op import indexdiv as indexdiv
+from tvm_tirx.ir.prim.op import indexmod as indexmod
+from tvm_tirx.ir.prim.op import infinity as infinity
+from tvm_tirx.ir.prim.op import isfinite as isfinite
+from tvm_tirx.ir.prim.op import isinf as isinf
+from tvm_tirx.ir.prim.op import isnan as isnan
+from tvm_tirx.ir.prim.op import ldexp as ldexp
+from tvm_tirx.ir.prim.op import likely as likely
+from tvm_tirx.ir.prim.op import log as log
+from tvm_tirx.ir.prim.op import log1p as log1p
+from tvm_tirx.ir.prim.op import log2 as log2
+from tvm_tirx.ir.prim.op import log10 as log10
+from tvm_tirx.ir.prim.op import max as max
+from tvm_tirx.ir.prim.op import min as min
+from tvm_tirx.ir.prim.op import nearbyint as nearbyint
+from tvm_tirx.ir.prim.op import nextafter as nextafter
+from tvm_tirx.ir.prim.op import popcount as popcount
+from tvm_tirx.ir.prim.op import pow as pow
+from tvm_tirx.ir.prim.op import power as power
+from tvm_tirx.ir.prim.op import round as round
+from tvm_tirx.ir.prim.op import rsqrt as rsqrt
+from tvm_tirx.ir.prim.op import shift_left as shift_left
+from tvm_tirx.ir.prim.op import shift_right as shift_right
+from tvm_tirx.ir.prim.op import sigmoid as sigmoid
+from tvm_tirx.ir.prim.op import sin as sin
+from tvm_tirx.ir.prim.op import sinh as sinh
+from tvm_tirx.ir.prim.op import sqrt as sqrt
+from tvm_tirx.ir.prim.op import tan as tan
+from tvm_tirx.ir.prim.op import tanh as tanh
+from tvm_tirx.ir.prim.op import trunc as trunc
+from tvm_tirx.ir.prim.op import truncdiv as truncdiv
+from tvm_tirx.ir.prim.op import truncmod as truncmod
+from tvm_tirx.ir.prim.op import vscale as vscale
 
 from .. import _ffi_api
 from ..expr import ExprOp, IntImm
@@ -161,7 +161,7 @@ def register_intrin_lowering(
 
     def _register(f):
         """internal register function"""
-        tvm.ir.register_op_attr(op_name, target + ".FLowerIntrinsic", f, override)
+        tvm_tirx.ir.register_op_attr(op_name, target + ".FLowerIntrinsic", f, override)
         return f
 
     return _register(f) if f is not None else _register
@@ -193,10 +193,10 @@ def _reject_tensor_region(value, api_name):
 
 def _primexpr_ty(expr):
     """Return the runtime primitive type of an expression."""
-    if isinstance(expr, tvm.ir.PrimType):
+    if isinstance(expr, tvm_tirx.ir.PrimType):
         return expr
     ty = getattr(expr, "ty", None)
-    if isinstance(ty, tvm.ir.PrimType):
+    if isinstance(ty, tvm_tirx.ir.PrimType):
         return ty
     if isinstance(expr, ExprOp):
         return expr.expr_ty()
@@ -206,7 +206,7 @@ def _primexpr_ty(expr):
 def _primexpr_dtype(expr):
     """Return the runtime dtype of a primitive expression without using Expr.dtype."""
     ty = _primexpr_ty(expr)
-    if not isinstance(ty, tvm.ir.PrimType):
+    if not isinstance(ty, tvm_tirx.ir.PrimType):
         raise TypeError(f"Expected PrimType for {type(expr).__name__}, but got {ty}")
     return ty.dtype
 
@@ -217,14 +217,14 @@ def _pack_tensor(buf, loc: Location = UNKNOWN_LOC):
         "tirx.stack_make_shape",
         buf.ty.shape,
         loc=loc,
-        ty=PtrType(tvm.ir.PrimType("int64")),
+        ty=PtrType(tvm_tirx.ir.PrimType("int64")),
     )
     strides = (
         Call(
             "tirx.stack_make_shape",
             buf.ty.strides,
             loc=loc,
-            ty=PtrType(tvm.ir.PrimType("int64")),
+            ty=PtrType(tvm_tirx.ir.PrimType("int64")),
         )
         if buf.ty.strides
         else 0
@@ -346,7 +346,7 @@ def call_packed(*args, loc: Location = UNKNOWN_LOC, ty=None):
 
 
 @tvm_ffi.register_object("tirx.CallFFIKernelAttr")
-class CallFFIKernelAttr(tvm.ir.Attrs):
+class CallFFIKernelAttr(tvm_tirx.ir.Attrs):
     """Ordered launch tags for an explicit FFI kernel call."""
 
     launch_params: list[str]
@@ -374,7 +374,7 @@ def call_ffi_kernel(
     if launch is not None:
         if launch_params is not None:
             raise TypeError("call_ffi_kernel cannot mix launch and legacy launch_params")
-        from tvm.backend.cuda.launch._impl import pack_launch
+        from tvm_tirx.backend.cuda.launch._impl import pack_launch
 
         names, values = pack_launch(launch)
         attrs = CallFFIKernelAttr(launch_fields=names, num_kernel_args=len(args) - 1)
@@ -423,7 +423,7 @@ def call_cpacked(*args, loc: Location = UNKNOWN_LOC, ty=None):
 
 
 def call_intrin(
-    dtype: str | tvm.ir.Type, func_name, *args, attrs=None, loc: Location = UNKNOWN_LOC
+    dtype: str | tvm_tirx.ir.Type, func_name, *args, attrs=None, loc: Location = UNKNOWN_LOC
 ):
     """Build expression by calling an intrinsic function.
 
@@ -432,7 +432,7 @@ def call_intrin(
 
     Parameters
     ----------
-    dtype : str or tvm.ir.Type
+    dtype : str or tvm_tirx.ir.Type
         The data type of the result.
 
     func_name: str
@@ -441,7 +441,7 @@ def call_intrin(
     args : list
         Positional arguments.
 
-    attrs : Optional[tvm.ir.Attrs or Dict[str, Object]]
+    attrs : Optional[tvm_tirx.ir.Attrs or Dict[str, Object]]
         Additional attributes for the call.
 
     loc : Location, optional
@@ -541,7 +541,7 @@ def call_llvm_intrin(dtype, name, *args, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
     # pylint: disable=import-outside-toplevel
-    from tvm import codegen
+    from tvm_tirx import codegen
 
     if isinstance(name, str):
         llvm_id = codegen.llvm_lookup_intrinsic_id(name)
@@ -556,7 +556,7 @@ def call_llvm_intrin(dtype, name, *args, loc: Location = UNKNOWN_LOC):
         "tirx.call_llvm_intrin",
         name
         if isinstance(name, IntImm)
-        else tvm.tirx.const(llvm_id, "int32" if isinstance(name, str) else "uint32"),
+        else tvm_tirx.tirx.const(llvm_id, "int32" if isinstance(name, str) else "uint32"),
         *args,
         loc=loc,
     )
@@ -585,7 +585,7 @@ def call_llvm_pure_intrin(dtype, name, *args, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
     # pylint: disable=import-outside-toplevel
-    from tvm import codegen
+    from tvm_tirx import codegen
 
     if isinstance(name, str):
         llvm_id = codegen.llvm_lookup_intrinsic_id(name)
@@ -600,7 +600,7 @@ def call_llvm_pure_intrin(dtype, name, *args, loc: Location = UNKNOWN_LOC):
         "tirx.call_llvm_pure_intrin",
         name
         if isinstance(name, IntImm)
-        else tvm.tirx.const(llvm_id, "int32" if isinstance(name, str) else "uint32"),
+        else tvm_tirx.tirx.const(llvm_id, "int32" if isinstance(name, str) else "uint32"),
         *args,
         loc=loc,
     )
@@ -679,7 +679,7 @@ def stack_make_dltensor(
     call : Expr
         The call expression.
     """
-    if isinstance(arr_dtype, str | tvm.DataType | tvm.ir.PrimType):
+    if isinstance(arr_dtype, str | tvm_tirx.DataType | tvm_tirx.ir.PrimType):
         arr_dtype = const(0, dtype=arr_dtype)
 
     return call_intrin(
@@ -812,7 +812,7 @@ def address_of(obj: Var | TensorLoad, loc: Location = UNKNOWN_LOC, *, ty=None) -
     elif isinstance(obj, Var):
         if _is_tensormap_var(obj):
             return call_intrin(ty, "tirx.address_of", obj, loc=loc)
-        if not isinstance(obj.ty, tvm.ir.PrimType):
+        if not isinstance(obj.ty, tvm_tirx.ir.PrimType):
             raise TypeError(f"address_of expects a scalar or TensorMap Var, but got {obj.ty}")
         return Call("tirx.address_of", [obj], ty=ty, loc=loc)
     elif isinstance(obj, TensorLoad):
@@ -836,7 +836,7 @@ def gpu_thread_allreduce(
 
     Parameters
     ----------
-    combine : tvm.ir.LambdaExpr
+    combine : tvm_tirx.ir.LambdaExpr
         Typed combining lambda with parameters ordered as all left-hand values
         followed by all right-hand values. Its body returns a scalar for one
         result or a Tuple of results.
@@ -859,7 +859,7 @@ def gpu_thread_allreduce(
     """
 
     def as_operand(value):
-        return tvm.ir.Tuple(value) if isinstance(value, list | tuple | Array) else value
+        return tvm_tirx.ir.Tuple(value) if isinstance(value, list | tuple | Array) else value
 
     return call_intrin(
         ty,
@@ -887,7 +887,7 @@ def gpu_thread_invariant(cond, *, ty=None, loc: Location = UNKNOWN_LOC):
     call : Expr
         The call expression.
     """
-    assert tvm.ir.is_prim_expr(cond)
+    assert tvm_tirx.ir.is_prim_expr(cond)
     return call_intrin(ty, "tirx.gpu_thread_invariant", cond, loc=loc)
 
 
@@ -898,9 +898,9 @@ def gpu_storage_sync(storage_scope, *, ty=None, loc: Location = UNKNOWN_LOC):
     ----------
     storage_scope : str
         The storage scope to synchronize.
-    ty : tvm.ir.Type or str, optional
+    ty : tvm_tirx.ir.Type or str, optional
         The result type. Inferred as void when omitted.
-    loc : tvm.ir.Location, optional
+    loc : tvm_tirx.ir.Location, optional
         The source location.
     """
     return call_intrin(ty, "tirx.gpu_storage_sync", storage_scope, loc=loc)
@@ -1182,7 +1182,7 @@ def reinterpret(dtype, value, loc: Location = UNKNOWN_LOC) -> Expr:
 
     Parameters
     ----------
-    dtype : str or tvm.ir.Type
+    dtype : str or tvm_tirx.ir.Type
         The data type.
 
     value : Expr
@@ -1197,7 +1197,7 @@ def reinterpret(dtype, value, loc: Location = UNKNOWN_LOC) -> Expr:
         The reinterpret cast value of dtype.
     """
     if isinstance(dtype, str):
-        dtype = PtrType(tvm.ir.PrimType("void")) if dtype == "handle" else tvm.ir.PrimType(dtype)
+        dtype = PtrType(tvm_tirx.ir.PrimType("void")) if dtype == "handle" else tvm_tirx.ir.PrimType(dtype)
     return _ffi_api.reinterpret(dtype, value, loc)  # type: ignore
 
 

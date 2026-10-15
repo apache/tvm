@@ -16,9 +16,9 @@
 # under the License.
 """Trainium tensor instructions with explicit NKI instruction identity."""
 
-from tvm.ir import Expr, LambdaExpr, PrimType, Tuple, const
-from tvm.runtime import MemoryScope
-from tvm.tirx.tile.instruction import Instruction, Operand, namespace
+from tvm_tirx.ir import Expr, LambdaExpr, PrimType, Tuple, const
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.tirx.tile.instruction import Instruction, Operand, namespace
 
 _SCOPE_GLOBAL = MemoryScope("global")
 
@@ -47,7 +47,7 @@ def _matmul(view, sctx):
 
 
 def _unary(view, sctx):
-    from tvm.tirx.tile.common import MapOpType
+    from tvm_tirx.tirx.tile.common import MapOpType
 
     from .unary.default import unary_trn
     from .unary.with_bias_scale import unary_with_bias_scale_trn
@@ -59,7 +59,7 @@ def _unary(view, sctx):
 
 
 def _binary(view, sctx):
-    from tvm.tirx.tile.common import MapOpType
+    from tvm_tirx.tirx.tile.common import MapOpType
 
     from .binary.default import binary_trn
 
@@ -67,7 +67,7 @@ def _binary(view, sctx):
 
 
 def _reduce(view, sctx):
-    from tvm.tirx.tile.common import ReduceOpType
+    from tvm_tirx.tirx.tile.common import ReduceOpType
 
     from .reduction.utils import reduction_trn
 
@@ -300,7 +300,7 @@ def make_namespace():
     original = ns.affine_select
 
     def affine_select(dst, true_value, false_value, pred, **kwargs):
-        from tvm.tirx.tile.instruction import _operand
+        from tvm_tirx.tirx.tile.instruction import _operand
 
         dst = _operand(dst, "region")
         if not isinstance(pred, Expr):

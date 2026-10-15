@@ -17,11 +17,11 @@
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 @pytest.mark.gpu
@@ -40,7 +40,7 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
                     B[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + 1.0
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
-    host_lib = tvm.tirx.compile(Module, target="vulkan")
+    host_lib = tvm_tirx.tirx.compile(Module, target="vulkan")
     monkeypatch.delenv("TVM_COMPILE_FORCE_FALLBACK")
 
     lib_path = str(tmp_path / "lib.so")
@@ -48,4 +48,4 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -62,9 +62,9 @@ def call_py_ffi(arg):
 
 
 def call_cpp_ffi(arg):
-    import tvm  # pylint: disable=import-outside-toplevel
+    import tvm_tirx  # pylint: disable=import-outside-toplevel
 
-    return tvm.testing.echo(arg)
+    return tvm_tirx.testing.echo(arg)
 
 
 def call_cpp_py_ffi(arg):

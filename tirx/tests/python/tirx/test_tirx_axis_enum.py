@@ -23,10 +23,10 @@ import sys
 import pytest
 from tvm_ffi.dataclasses import Enum
 
-import tvm
-from tvm.backend.cuda.axis import Axis as CUDAAxis
-from tvm.backend.cuda.axis import laneid
-from tvm.tirx.layout import Axis, S, TileLayout
+import tvm_tirx
+from tvm_tirx.backend.cuda.axis import Axis as CUDAAxis
+from tvm_tirx.backend.cuda.axis import laneid
+from tvm_tirx.tirx.layout import Axis, S, TileLayout
 
 
 def test_axis_enum_identity_and_attributes():
@@ -53,15 +53,15 @@ def test_axis_unknown_name_and_json_roundtrip():
         axis.is_thread()
     with pytest.raises(Exception, match="has no thread classification"):
         axis.is_memory()
-    assert tvm.ir.load_json(tvm.ir.save_json(axis)).same_as(axis)
-    assert tvm.ir.load_json(tvm.ir.save_json(CUDAAxis.laneid)).same_as(CUDAAxis.laneid)
+    assert tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(axis)).same_as(axis)
+    assert tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(CUDAAxis.laneid)).same_as(CUDAAxis.laneid)
 
 
 def test_axis_runtime_only_import():
     env = os.environ.copy()
     env["TVM_USE_RUNTIME_LIB"] = "1"
     subprocess.run(
-        [sys.executable, "-c", "import tvm; import tvm.tirx.layout; assert tvm.base._RUNTIME_ONLY"],
+        [sys.executable, "-c", "import tvm_tirx; import tvm_tirx.tirx.layout; assert tvm_tirx.base._RUNTIME_ONLY"],
         env=env,
         check=True,
     )

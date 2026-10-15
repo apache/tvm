@@ -20,9 +20,9 @@ import numpy as np
 import pytest
 from tvm_ffi import Shape
 
-import tvm
-import tvm.testing
-from tvm.runtime import Device
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx.runtime import Device
 from tvm.runtime import disco as di
 
 page_size = 4
@@ -54,7 +54,7 @@ def _run_rank_group_with_gpu_lock(test):
                 comm.Barrier()
 
         if rank == 0:
-            return tvm.testing.run_with_gpu_lock(run_and_check)
+            return tvm_tirx.testing.run_with_gpu_lock(run_and_check)
         return run_and_check()
 
     return wrapper
@@ -65,16 +65,16 @@ def _run_rank_group_with_gpu_lock(test):
 def test_kv_transfer_without_disco():
     comm, rank = get_comm_rank()
     layer_id = 1
-    dev = tvm.cuda(rank)
+    dev = tvm_tirx.cuda(rank)
     if rank == 0:
-        f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+        f_init_nvshmem_uid = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
         uid = f_init_nvshmem_uid()
     else:
         uid = None
     uid = comm.bcast(uid, root=0)
-    init_func = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem")
+    init_func = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem")
     init_func(uid, 2, rank)
-    empty_func = tvm.get_global_func("runtime.disco.nvshmem.empty")
+    empty_func = tvm_tirx.get_global_func("runtime.disco.nvshmem.empty")
     pages = empty_func(
         Shape((num_layers, num_pages, 2, num_kv_heads, page_size, head_dim)), "float16", dev
     )
@@ -83,13 +83,13 @@ def test_kv_transfer_without_disco():
     k_np = np.random.rand(ntokens, num_kv_heads, head_dim).astype(np.float16)
     v_np = np.random.rand(ntokens, num_kv_heads, head_dim).astype(np.float16)
     if rank == 0:
-        k = tvm.runtime.tensor(k_np, dev)
-        v = tvm.runtime.tensor(v_np, dev)
+        k = tvm_tirx.runtime.tensor(k_np, dev)
+        v = tvm_tirx.runtime.tensor(v_np, dev)
         remote_position_map_np = np.array(position_map_array, dtype=np.int32)
-        remote_position_map = tvm.runtime.tensor(remote_position_map_np, dev)
+        remote_position_map = tvm_tirx.runtime.tensor(remote_position_map_np, dev)
         remote_tp_group_pe_offset_np = np.array([1] * len(position_map_array), dtype=np.int32)
-        remote_tp_group_pe_offset = tvm.runtime.tensor(remote_tp_group_pe_offset_np, dev)
-        transfer_func = tvm.get_global_func("nvshmem.KVTransfer")
+        remote_tp_group_pe_offset = tvm_tirx.runtime.tensor(remote_tp_group_pe_offset_np, dev)
+        transfer_func = tvm_tirx.get_global_func("nvshmem.KVTransfer")
         layer_view = pages._create_view(
             [num_pages, 2, num_kv_heads, page_size, head_dim],
             "float16",
@@ -106,11 +106,11 @@ def test_kv_transfer_without_disco():
             offset_in_page = position % page_size
             original_k = k_np[i]
             transferred_k = pages_np[layer_id, page_id, 0, :, offset_in_page, :]
-            tvm.testing.assert_allclose(original_k, transferred_k)
+            tvm_tirx.testing.assert_allclose(original_k, transferred_k)
             original_v = v_np[i]
             transferred_v = pages_np[layer_id, page_id, 1, :, offset_in_page, :]
-            tvm.testing.assert_allclose(original_v, transferred_v)
-    finalize_func = tvm.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
+            tvm_tirx.testing.assert_allclose(original_v, transferred_v)
+    finalize_func = tvm_tirx.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
     finalize_func()
     comm.Barrier()
 
@@ -120,16 +120,16 @@ def test_kv_transfer_without_disco():
 def test_kv_transfer_page_to_page_without_disco():
     comm, rank = get_comm_rank()
     layer_id = 1
-    dev = tvm.cuda(rank)
+    dev = tvm_tirx.cuda(rank)
     if rank == 0:
-        f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+        f_init_nvshmem_uid = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
         uid = f_init_nvshmem_uid()
     else:
         uid = None
     uid = comm.bcast(uid, root=0)
-    init_func = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem")
+    init_func = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem")
     init_func(uid, 2, rank)
-    empty_func = tvm.get_global_func("runtime.disco.nvshmem.empty")
+    empty_func = tvm_tirx.get_global_func("runtime.disco.nvshmem.empty")
     pages = empty_func(
         Shape((num_layers, num_pages, 2, num_kv_heads, page_size, head_dim)), "float16", dev
     )
@@ -142,14 +142,14 @@ def test_kv_transfer_page_to_page_without_disco():
     if rank == 0:
         pages.copyfrom(pages_np)
         remote_position_map_np = np.array(rank_1_position_map_array, dtype=np.int32)
-        remote_position_map = tvm.runtime.tensor(remote_position_map_np, dev)
+        remote_position_map = tvm_tirx.runtime.tensor(remote_position_map_np, dev)
         local_position_map_np = np.array(rank_0_position_map_array, dtype=np.int32)
-        local_position_map = tvm.runtime.tensor(local_position_map_np, dev)
+        local_position_map = tvm_tirx.runtime.tensor(local_position_map_np, dev)
         remote_tp_group_pe_offset_np = np.array(
             [1] * len(rank_0_position_map_array), dtype=np.int32
         )
-        remote_tp_group_pe_offset = tvm.runtime.tensor(remote_tp_group_pe_offset_np, dev)
-        transfer_func = tvm.get_global_func("nvshmem.KVTransferPageToPage")
+        remote_tp_group_pe_offset = tvm_tirx.runtime.tensor(remote_tp_group_pe_offset_np, dev)
+        transfer_func = tvm_tirx.get_global_func("nvshmem.KVTransferPageToPage")
         layer_view = pages._create_view(
             [num_pages, 2, num_kv_heads, page_size, head_dim],
             "float16",
@@ -176,8 +176,8 @@ def test_kv_transfer_page_to_page_without_disco():
             rank_0_offset_in_page = rank_0_position % page_size
             rank_0_entry = pages_np[layer_id, rank_0_page_id, :, :, rank_0_offset_in_page, :]
             transferred_entry = new_pages_np[layer_id, page_id, :, :, offset_in_page, :]
-            tvm.testing.assert_allclose(rank_0_entry, transferred_entry)
-    finalize_func = tvm.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
+            tvm_tirx.testing.assert_allclose(rank_0_entry, transferred_entry)
+    finalize_func = tvm_tirx.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
     finalize_func()
     comm.Barrier()
 
@@ -188,7 +188,7 @@ def test_kv_transfer_with_disco():
     comm, rank = get_comm_rank()
     layer_id = 1
     if rank == 0:
-        f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+        f_init_nvshmem_uid = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
         uid = f_init_nvshmem_uid()
     else:
         uid = None
@@ -236,7 +236,7 @@ def test_kv_transfer_with_disco():
         for i in range(2):
             sess._sync_worker(i)
         for i in range(2):
-            tvm.cuda(i).sync()
+            tvm_tirx.cuda(i).sync()
         comm.Barrier()
     else:
         comm.Barrier()
@@ -246,20 +246,20 @@ def test_kv_transfer_with_disco():
             offset_in_page = position % page_size
             original_k = k_np_0[i]
             transferred_k = pages_np[layer_id, page_id, 0, :, offset_in_page, :]
-            tvm.testing.assert_allclose(original_k, transferred_k)
+            tvm_tirx.testing.assert_allclose(original_k, transferred_k)
             original_v = v_np_0[i]
             transferred_v = pages_np[layer_id, page_id, 1, :, offset_in_page, :]
-            tvm.testing.assert_allclose(original_v, transferred_v)
+            tvm_tirx.testing.assert_allclose(original_v, transferred_v)
         pages_np = pages.debug_get_from_remote(1).numpy()
         for i, position in enumerate(position_map_array):
             page_id = position // page_size
             offset_in_page = position % page_size
             original_k = k_np_1[i]
             transferred_k = pages_np[layer_id, page_id, 0, :, offset_in_page, :]
-            tvm.testing.assert_allclose(original_k, transferred_k)
+            tvm_tirx.testing.assert_allclose(original_k, transferred_k)
             original_v = v_np_1[i]
             transferred_v = pages_np[layer_id, page_id, 1, :, offset_in_page, :]
-            tvm.testing.assert_allclose(original_v, transferred_v)
+            tvm_tirx.testing.assert_allclose(original_v, transferred_v)
     finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
     finalize_dfunc()
     for i in range(2):
@@ -268,4 +268,4 @@ def test_kv_transfer_with_disco():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

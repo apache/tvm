@@ -18,13 +18,13 @@ import ctypes
 
 import numpy as np
 
-import tvm
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_static_init():
-    @tvm.register_global_func("test_static_callback")
+    @tvm_tirx.register_global_func("test_static_callback")
     def test_cb(sh, A):
         assert isinstance(sh, ctypes.c_void_p)
         return sh
@@ -44,8 +44,8 @@ def test_static_init():
             )
 
     mod = Module
-    f = tvm.tirx.compile(mod, target="llvm").mod
-    a = tvm.runtime.tensor(np.zeros(10, dtype="int64"))
+    f = tvm_tirx.tirx.compile(mod, target="llvm").mod
+    a = tvm_tirx.runtime.tensor(np.zeros(10, dtype="int64"))
     f(a)
 
 

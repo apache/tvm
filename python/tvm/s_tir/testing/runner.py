@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Literal, Optional, Union
 if TYPE_CHECKING:
     import numpy as np
 
-    from tvm.runtime import Device, Module, Tensor
+    from tvm_tirx.runtime import Device, Module, Tensor
     from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig
 
 # pylint: disable=import-outside-toplevel,protected-access
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 def _args_to_device(args, device, f_alloc=None):
     import numpy as np
 
-    from tvm.runtime import Tensor, empty
+    from tvm_tirx.runtime import Tensor, empty
 
     uploaded_args = []
     for arg in args:
@@ -52,7 +52,7 @@ def _args_to_device(args, device, f_alloc=None):
 
 def _args_to_numpy(args):
     from tvm.rpc import RemoteTensor
-    from tvm.runtime import Tensor
+    from tvm_tirx.runtime import Tensor
 
     downloaded_args = []
     for arg in args:
@@ -64,7 +64,7 @@ def _args_to_numpy(args):
 
 
 def _normalize_export_func(export_func, output_format) -> tuple[Callable, str]:
-    from tvm.support import ndk, tar
+    from tvm_tirx.support import ndk, tar
 
     def export_with(func):
         return lambda mod, path: mod.export_library(path, fcompile=func)
@@ -117,13 +117,13 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
     -------
     args : List[Union[np.ndarray, Tensor, int, float]]
         The results of running the module.
-    profile_result : tvm.runtime.BenchmarkResult
+    profile_result : tvm_tirx.runtime.BenchmarkResult
         The profiling result of running the module.
     """
     import os.path as osp
     import tempfile
 
-    from tvm.runtime import device, load_module
+    from tvm_tirx.runtime import device, load_module
     from tvm.s_tir.meta_schedule.runner import EvaluatorConfig
 
     evaluator_config = EvaluatorConfig._normalized(evaluator_config)
@@ -194,7 +194,7 @@ def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
     -------
     args : List[Union[np.ndarray, Tensor, int, float]]
         The results of running the module.
-    profile_result : tvm.runtime.BenchmarkResult
+    profile_result : tvm_tirx.runtime.BenchmarkResult
         The profiling result of running the module.
     """
 

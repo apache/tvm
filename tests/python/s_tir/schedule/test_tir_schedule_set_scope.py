@@ -18,15 +18,15 @@
 # ruff: noqa: E501, F401
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import tirx
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
@@ -89,8 +89,8 @@ def element_wise_subregion_match_set_scope(A: T.Tensor((128, 128), "float32"), C
 
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
-use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
-use_tensor_name = tvm.testing.parameter(by_dict={"tensor_index": False, "tensor_name": True})
+use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+use_tensor_name = tvm_tirx.testing.parameter(by_dict={"tensor_index": False, "tensor_name": True})
 
 def test_set_scope(use_block_name, use_tensor_name):
     func = element_wise
@@ -136,19 +136,19 @@ def test_set_scope_subregion():
 def test_memory_scope_enum_and_trace(scope_name, method):
     enum_schedule = tvm.s_tir.Schedule(element_wise, debug_mask="all")
     string_schedule = tvm.s_tir.Schedule(element_wise, debug_mask="all")
-    getattr(enum_schedule, method)("B", 0, tvm.runtime.MemoryScope(scope_name))
+    getattr(enum_schedule, method)("B", 0, tvm_tirx.runtime.MemoryScope(scope_name))
     getattr(string_schedule, method)("B", 0, scope_name)
-    tvm.ir.assert_structural_equal(enum_schedule.mod, string_schedule.mod)
+    tvm_tirx.ir.assert_structural_equal(enum_schedule.mod, string_schedule.mod)
     assert enum_schedule.trace.as_python() == string_schedule.trace.as_python()
     verify_trace_roundtrip(sch=enum_schedule, mod=element_wise)
 
 
 def test_thread_sync_accepts_memory_scope():
-    mod = tvm.IRModule({"main": element_wise})
-    enum_result = tvm.s_tir.transform.ThreadSync(tvm.runtime.MemoryScope("shared"))(mod)
+    mod = tvm_tirx.IRModule({"main": element_wise})
+    enum_result = tvm.s_tir.transform.ThreadSync(tvm_tirx.runtime.MemoryScope("shared"))(mod)
     string_result = tvm.s_tir.transform.ThreadSync("shared")(mod)
-    tvm.ir.assert_structural_equal(enum_result, string_result)
+    tvm_tirx.ir.assert_structural_equal(enum_result, string_result)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

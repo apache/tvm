@@ -20,10 +20,10 @@ import os
 import numpy as np
 import pytest
 
-import tvm
+import tvm, tvm_tirx
 from tvm import rpc, te
 from tvm.contrib import coreml_runtime
-from tvm.support import utils, xcode
+from tvm_tirx.support import utils, xcode
 
 proxy_host = os.environ.get("TVM_IOS_RPC_PROXY_HOST", "127.0.0.1")
 proxy_port = os.environ.get("TVM_IOS_RPC_PROXY_PORT", 9090)
@@ -76,7 +76,7 @@ def test_coreml_runtime():
         runtime = coreml_runtime.create("main", model_path, dev, session=session)
         for name in inputs:
             runtime.set_input(
-                name, dev.tensor(inputs[name]) if session else tvm.runtime.tensor(inputs[name], dev)
+                name, dev.tensor(inputs[name]) if session else tvm_tirx.runtime.tensor(inputs[name], dev)
             )
         runtime.invoke()
         tvm_outputs = [runtime.get_output(i).numpy() for i in range(runtime.get_num_outputs())]
@@ -98,7 +98,7 @@ def test_coreml_runtime():
     def check_local(coreml_model):
         temp = utils.tempdir()
         compiled_model = xcode.compile_coreml(coreml_model, out_dir=temp.temp_dir)
-        dev = tvm.cpu(0)
+        dev = tvm_tirx.cpu(0)
         verify(coreml_model, compiled_model, dev)
 
     coreml_model = create_coreml_model()

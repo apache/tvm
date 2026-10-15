@@ -18,36 +18,36 @@
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm.backend.trn.axis import F, P
-from tvm.backend.trn.tile.instruction_generator import InstructionGenerator
-from tvm.ir import assert_structural_equal as _assert_structural_equal
-from tvm.script import tirx as T
-from tvm.sym import Analyzer
-from tvm.tirx import decl_tensor
-from tvm.tirx.layout import S, TileLayout
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.trn.axis import F, P
+from tvm_tirx.backend.trn.tile.instruction_generator import InstructionGenerator
+from tvm_tirx.ir import assert_structural_equal as _assert_structural_equal
+from tvm_tirx.script import tirx as T
+from tvm_tirx.sym import Analyzer
+from tvm_tirx.tirx import decl_tensor
+from tvm_tirx.tirx.layout import S, TileLayout
 
-target = tvm.target.Target("aws/trn1/trn1.2xlarge")
+target = tvm_tirx.target.Target("aws/trn1/trn1.2xlarge")
 
 
 def _strip_thread_scope_stmt(stmt):
-    def _strip_region(node: tvm.ir.RegionStmt):
-        if node.op.same_as(tvm.ir.Op.get("tirx.device_entry")):
+    def _strip_region(node: tvm_tirx.ir.RegionStmt):
+        if node.op.same_as(tvm_tirx.ir.Op.get("tirx.device_entry")):
             return node.body
         return node
 
     return tvm_ffi.structural_map(
         stmt,
-        (tvm.ir.RegionStmt, _strip_region),
+        (tvm_tirx.ir.RegionStmt, _strip_region),
         order="post",
     )
 
 
 def assert_structural_equal(lhs, rhs, *args, **kwargs):
-    if isinstance(lhs, tvm.tirx.Function):
+    if isinstance(lhs, tvm_tirx.tirx.Function):
         lhs = lhs.with_body(_strip_thread_scope_stmt(lhs.body))
-    if isinstance(rhs, tvm.tirx.Function):
+    if isinstance(rhs, tvm_tirx.tirx.Function):
         rhs = rhs.with_body(_strip_thread_scope_stmt(rhs.body))
     _assert_structural_equal(lhs, rhs, *args, **kwargs)
 
@@ -90,8 +90,8 @@ def test_simple_copy():
                     T.nki.load(A_sbuf[p_loop, f_loop], A_1[p_loop * 512 + f_loop])
 
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -125,8 +125,8 @@ def test_simple_copy_2():
                     T.nki.load(A_sbuf[p_loop, b_loop], A_1[b_loop * 128 + p_loop])
 
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -162,8 +162,8 @@ def test_copy_in_a_loop():
                     )
 
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -208,8 +208,8 @@ def test_copy_in_a_loop_2():
                     )
 
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         mod.show()
         assert_structural_equal(mod["main"], expected)
 
@@ -249,8 +249,8 @@ def test_copy_different_f():
                     )
 
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -290,8 +290,8 @@ def test_copy_different_shape():
                     )
 
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -325,8 +325,8 @@ def test_copy_irregular_shape():
                     T.nki.store(A_1[p_loop * 10000 + i * 512 + f_loop], A_sbuf[p_loop, f_loop])
 
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -362,8 +362,8 @@ def test_copy_different_shape_dim():
                     T.nki.load(A_sbuf[p_loop, f_loop], A_1[i * 65536 + p_loop * 128 + f_loop])
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -400,8 +400,8 @@ def test_copy_with_offset():
                     )
 
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -438,8 +438,8 @@ def test_large_dma_copy():
                     )
 
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -478,8 +478,8 @@ def test_copy_with_inst_size_limit():
                     )
 
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -514,8 +514,8 @@ def test_copy_with_complex_index():
                     T.nki.load(A_sbuf[p_loop, b_loop * 2048 + f_loop + 16384], A_1[b_loop * 524288 + p_loop * 4096 + f_loop + 12584960])  # noqa: E501
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -551,8 +551,8 @@ def test_copy_with_complex_index_2():
             # fmt: on
 
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -590,9 +590,9 @@ def test_copy_with_guard():
                         T.nki.load(A_sbuf[p_loop, i * 512 + f_loop], A_1[i * 65536 + p_loop * 512 + f_loop])  # noqa: E501
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.StmtSimplify()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -630,9 +630,9 @@ def test_copy_with_guard_2():
                         T.nki.load(A_sbuf[p_loop, b_loop * 512 + f_loop], A_1[b_loop * 65536 + p_loop * 512 + f_loop])  # noqa: E501
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.StmtSimplify()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -680,13 +680,13 @@ def test_copy_with_specified_max_inst_size():
                     T.nki.tensor_copy(A_sbuf[p_loop, b_loop * 128 + f_loop], B_sbuf[p_loop, b_loop * 128 + f_loop])  # noqa: E501
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": copy})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()
 
 
 @pytest.mark.parametrize("columns", [128, 256])
@@ -729,16 +729,16 @@ def test_explicit_transpose_prepares_identity_and_psum(columns, copy_to_sbuf):
             if T.constexpr(copy_to_sbuf):
                 T.trn.tile.tensor_copy(result[block * 128 : (block + 1) * 128, :], accumulator)
 
-    mod = tvm.IRModule({"main": transpose})
+    mod = tvm_tirx.IRModule({"main": transpose})
     with target:
-        allocated = tvm.tirx.trn.transform.TrnPrivateTensorAlloc()(mod)
+        allocated = tvm_tirx.tirx.trn.transform.TrnPrivateTensorAlloc()(mod)
         # No hidden identity or PSUM workspace is needed by either instruction.
         _assert_structural_equal(mod, allocated)
-        lowered = tvm.backend.trn.transform.LowerTIRx()(allocated)
+        lowered = tvm_tirx.backend.trn.transform.LowerTIRx()(allocated)
     names = []
     tvm_ffi.structural_walk(
         lowered,
-        (tvm.ir.Call, lambda n: names.append(n.op.name) if isinstance(n.op, tvm.ir.Op) else None),
+        (tvm_tirx.ir.Call, lambda n: names.append(n.op.name) if isinstance(n.op, tvm_tirx.ir.Op) else None),
     )
     assert "tirx.nki.identity" in names
     assert "tirx.nki.matmul" in names
@@ -773,4 +773,4 @@ def test_tensor_copy_rejects_partition_transpose():
         T.trn.tile.tensor_copy(b, a)
 
     with target, pytest.raises(RuntimeError, match="identity|transpose"):
-        tvm.backend.trn.transform.LowerTIRx()(tvm.IRModule({"main": copy}))
+        tvm_tirx.backend.trn.transform.LowerTIRx()(tvm_tirx.IRModule({"main": copy}))

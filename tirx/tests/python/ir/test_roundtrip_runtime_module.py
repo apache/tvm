@@ -20,18 +20,18 @@
 
 import pytest
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 
 
 def test_csource_module():
-    mod = tvm.runtime._ffi_api.CSourceModuleCreate("", "cc", [], [])
+    mod = tvm_tirx.runtime._ffi_api.CSourceModuleCreate("", "cc", [], [])
     assert mod.kind == "c"
     assert mod.is_binary_serializable()
-    new_mod = tvm.ir.load_json(tvm.ir.save_json(mod))
+    new_mod = tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(mod))
     assert new_mod.kind == "c"
     assert new_mod.is_binary_serializable()
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -23,9 +23,10 @@ import numpy as np
 import pytest
 from tvm_ffi import Shape
 
-import tvm
-import tvm.testing
-from tvm.runtime import DataType, disco
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm.runtime import disco
+from tvm_tirx.runtime import DataType
 
 if disco is None:
     pytest.skip("disco runtime is not available", allow_module_level=True)
@@ -47,7 +48,7 @@ _strategies = [
     AllReduceStrategyType.AUTO,
 ]
 
-_compiled_ccl = tvm.get_global_func("runtime.disco.compiled_ccl", allow_missing=True)
+_compiled_ccl = tvm_tirx.get_global_func("runtime.disco.compiled_ccl", allow_missing=True)
 if _compiled_ccl is None:
     pytest.skip("Disco CCL is not enabled in this TVM build", allow_module_level=True)
 _ccl = [ccl for ccl in _compiled_ccl() if ccl == "nccl"]

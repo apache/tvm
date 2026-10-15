@@ -25,8 +25,8 @@ from pathlib import Path
 
 from tvm_ffi.libinfo import load_lib_ctypes
 
-from tvm.backend.loader import load
-from tvm.base import _LOADED_LIBS
+from tvm_tirx.backend.loader import load
+from tvm_tirx.base import _LOADED_LIBS
 
 _BUILTIN_BACKENDS = (
     "cuda",
@@ -72,7 +72,7 @@ def _autoload_backends() -> None:
     if os.environ.get("TVM_DEVICE_BACKEND_AUTOLOAD", "1") == "0":
         return
 
-    from tvm import _RUNTIME_ONLY  # pylint: disable=import-outside-toplevel
+    from tvm_tirx import _RUNTIME_ONLY  # pylint: disable=import-outside-toplevel
 
     if not _RUNTIME_ONLY:
         _load_builtin_backends()

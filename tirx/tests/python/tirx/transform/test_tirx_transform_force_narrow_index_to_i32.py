@@ -16,10 +16,10 @@
 # under the License.
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_thread_axis1():
@@ -44,8 +44,8 @@ def test_thread_axis1():
     class mod:
         main = before
 
-    func = tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
-    tvm.ir.assert_structural_equal(func, expected)
+    func = tvm_tirx.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
+    tvm_tirx.ir.assert_structural_equal(func, expected)
 
 
 def test_thread_axis2():
@@ -234,8 +234,8 @@ def test_thread_axis2():
     class mod:
         main = before
 
-    func = tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
-    tvm.ir.assert_structural_equal(func, expected)
+    func = tvm_tirx.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
+    tvm_tirx.ir.assert_structural_equal(func, expected)
 
 
 def test_block():
@@ -258,8 +258,8 @@ def test_block():
     class mod:
         main = before
 
-    func = tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
-    tvm.ir.assert_structural_equal(func, expected)
+    func = tvm_tirx.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
+    tvm_tirx.ir.assert_structural_equal(func, expected)
 
 
 def test_i16_tensor():
@@ -282,8 +282,8 @@ def test_i16_tensor():
     class mod:
         main = before
 
-    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
-    tvm.ir.assert_structural_equal(after, expected)
+    after = tvm_tirx.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_fail_on_tensor_param():
@@ -298,7 +298,7 @@ def test_fail_on_tensor_param():
         main = func
 
     with pytest.raises(RuntimeError):
-        tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
+        tvm_tirx.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
 
 
 def test_fail_on_internal_tensor():
@@ -317,11 +317,11 @@ def test_fail_on_internal_tensor():
         main = func
 
     with pytest.raises(RuntimeError):
-        tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
+        tvm_tirx.tirx.transform.ForceNarrowIndexToInt32()(mod)["main"]
 
 
 def test_pod_params_and_select():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(
@@ -330,7 +330,7 @@ def test_pod_params_and_select():
             for i in T.serial(T.int64(4)):
                 B[i] = T.Select(T.int64(1) <= i, A[i + n], T.Cast(i, "float32"))
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(
@@ -341,18 +341,18 @@ def test_pod_params_and_select():
             for i in range(4):
                 B[i] = T.Select(1 <= i, A[i + n], T.Cast(i, "float32"))
 
-    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
-    tvm.ir.assert_structural_equal(Expected, after)
+    after = tvm_tirx.tirx.transform.ForceNarrowIndexToInt32()(Before)
+    tvm_tirx.ir.assert_structural_equal(Expected, after)
 
 
 def test_if_then_else_index():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(A: T.Tensor((T.int64(4),), "float32"), B: T.Tensor((1,), "float32"), n: T.int64):
             B[0] = A[T.if_then_else(n < T.int64(0), n + T.int64(1), n)]
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(
@@ -362,12 +362,12 @@ def test_if_then_else_index():
         ):
             B[0] = A[T.if_then_else(n < 0, n + 1, n)]
 
-    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
-    tvm.ir.assert_structural_equal(Expected, after)
+    after = tvm_tirx.tirx.transform.ForceNarrowIndexToInt32()(Before)
+    tvm_tirx.ir.assert_structural_equal(Expected, after)
 
 
 def test_conditional_index_mixed_width_branches():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(A: T.Tensor((T.int64(4),), "float32"), B: T.Tensor((4,), "float32"), n: T.int64):
@@ -377,7 +377,7 @@ def test_conditional_index_mixed_width_branches():
             B[2] = A[T.Select(n < T.int64(0), opaque_index, n)]
             B[3] = A[T.Select(n < T.int64(0), n, opaque_index)]
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(
@@ -394,37 +394,37 @@ def test_conditional_index_mixed_width_branches():
             B[2] = A[T.Select(n < 0, opaque_index[0], T.Cast(n, "int64"))]
             B[3] = A[T.Select(n < 0, T.Cast(n, "int64"), opaque_index[0])]
 
-    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
-    tvm.ir.assert_structural_equal(Expected, after)
+    after = tvm_tirx.tirx.transform.ForceNarrowIndexToInt32()(Before)
+    tvm_tirx.ir.assert_structural_equal(Expected, after)
 
 
 def test_clz():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(B: T.Tensor((T.int64(4),), "int32")):
             for i in T.serial(T.int64(4)):
                 B[i] = T.clz(i)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(B: T.Tensor((4,), "int32", elem_offset=T.int32(0))):
             for i in range(4):
                 B[i] = T.clz(i) - 32 + 64
 
-    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
-    tvm.ir.assert_structural_equal(Expected, after)
+    after = tvm_tirx.tirx.transform.ForceNarrowIndexToInt32()(Before)
+    tvm_tirx.ir.assert_structural_equal(Expected, after)
 
 
 def test_right_shift_preserves_sign_extension_after_narrowing():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(A: T.Tensor((T.int64(6),), "float32"), B: T.Tensor((1,), "float32"), n: T.int64):
             B[0] = A[T.shift_right(T.truncmod(n - T.int64(8), T.int64(6)), T.int64(63))]
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(
@@ -437,12 +437,12 @@ def test_right_shift_preserves_sign_extension_after_narrowing():
     # ForceNarrowIndexToInt32 assumes that index values fit in int32.  Under
     # that precondition, shifting the original int64 value by 63 and shifting
     # the narrowed value by its sign-bit position have the same result.
-    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
-    tvm.ir.assert_structural_equal(Expected, after)
+    after = tvm_tirx.tirx.transform.ForceNarrowIndexToInt32()(Before)
+    tvm_tirx.ir.assert_structural_equal(Expected, after)
 
 
 def test_right_shift_dynamic_and_vector_amounts():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(
@@ -459,7 +459,7 @@ def test_right_shift_dynamic_and_vector_amounts():
                 )
             ]
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(
@@ -476,12 +476,12 @@ def test_right_shift_dynamic_and_vector_amounts():
                 )
             ]
 
-    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
-    tvm.ir.assert_structural_equal(Expected, after)
+    after = tvm_tirx.tirx.transform.ForceNarrowIndexToInt32()(Before)
+    tvm_tirx.ir.assert_structural_equal(Expected, after)
 
 
 def test_left_shift_dynamic_and_vector_amounts_remain_valid():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(
@@ -498,7 +498,7 @@ def test_left_shift_dynamic_and_vector_amounts_remain_valid():
                 )
             ]
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(
@@ -515,14 +515,14 @@ def test_left_shift_dynamic_and_vector_amounts_remain_valid():
                 )
             ]
 
-    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
-    tvm.ir.assert_structural_equal(Expected, after)
+    after = tvm_tirx.tirx.transform.ForceNarrowIndexToInt32()(Before)
+    tvm_tirx.ir.assert_structural_equal(Expected, after)
 
 
 def test_let_binding():
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(Buf: T.Tensor([n], "int32")):
@@ -532,7 +532,7 @@ def test_let_binding():
 
     n = T.dynamic("n", "int32")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(Buf: T.Tensor([n], "int32", elem_offset=T.int32(0))):
@@ -546,9 +546,9 @@ def test_let_binding():
             for i in range(T.Cast(ceil_log2[0], "int32")):
                 T.evaluate(0)
 
-    after = tvm.tirx.transform.ForceNarrowIndexToInt32()(Before)
-    tvm.ir.assert_structural_equal(Expected, after)
+    after = tvm_tirx.tirx.transform.ForceNarrowIndexToInt32()(Before)
+    tvm_tirx.ir.assert_structural_equal(Expected, after)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

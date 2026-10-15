@@ -30,10 +30,10 @@ scope; only split 16x32bx2 accepts and requires imm_half_splitoff. No pred.
 
 from tvm_ffi import structural_equal
 
-from tvm.backend.cuda.op import _tmem_address
-from tvm.backend.cuda.ptx import PTXNamespace
-from tvm.ir import Range, Var
-from tvm.script import tirx as T
+from tvm_tirx.backend.cuda.op import _tmem_address
+from tvm_tirx.backend.cuda.ptx import PTXNamespace
+from tvm_tirx.ir import Range, Var
+from tvm_tirx.script import tirx as T
 
 from .common import Context, scalar
 

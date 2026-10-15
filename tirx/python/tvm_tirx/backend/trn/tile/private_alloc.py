@@ -18,15 +18,15 @@
 from functools import cache
 from typing import Any
 
-from tvm.backend.trn.tile.common import nki_dim
-from tvm.ir import Bind, Call, DictAttrs, Stmt, Tuple
-from tvm.runtime import MemoryScope
-from tvm.script import tirx as T
-from tvm.tirx import FloatImm, IntImm, Var
-from tvm.tirx.tile import DispatchContext
-from tvm.tirx.tile.dispatch import run_dispatch
-from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.views import (
+from tvm_tirx.backend.trn.tile.common import nki_dim
+from tvm_tirx.ir import Bind, Call, DictAttrs, Stmt, Tuple
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import FloatImm, IntImm, Var
+from tvm_tirx.tirx.tile import DispatchContext
+from tvm_tirx.tirx.tile.dispatch import run_dispatch
+from tvm_tirx.tirx.tile.instruction import TensorCall
+from tvm_tirx.tirx.tile.views import (
     BinaryReduce,
     Exp,
     Gemm,

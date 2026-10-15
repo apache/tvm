@@ -21,7 +21,7 @@ Tests to verify Python interactions with Target Parsing
 
 import pytest
 
-from tvm.target import Target
+from tvm_tirx.target import Target
 
 
 @pytest.mark.parametrize(["cpu_target"], [["c"], ["llvm"]])
@@ -69,4 +69,4 @@ def test_target_parser_mprofile_mattr(cpu_target):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

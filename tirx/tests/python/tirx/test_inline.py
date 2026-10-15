@@ -16,8 +16,8 @@
 # under the License.
 """Tests for T.inline / T.inline with Python LEGB scoping semantics."""
 
-from tvm.ir import assert_structural_equal
-from tvm.script import tirx as T
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import tirx as T
 
 # Module-level constant for testing global visibility
 MODULE_CONST = 42

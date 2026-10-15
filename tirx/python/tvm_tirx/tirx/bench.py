@@ -35,9 +35,9 @@ import numpy as np
 import torch
 import triton.profiler as proton
 
-import tvm
-from tvm.backend.config import merge_backend_configs
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm_tirx.backend.config import merge_backend_configs
+from tvm_tirx.script import tirx as T
 
 _DISTRIBUTED_KINETO_WARMUP_ITERATIONS = 5
 _DISTRIBUTED_KINETO_REPEAT_ITERATIONS = 30
@@ -85,7 +85,7 @@ def setup():
     parser.add_argument("--compiler", choices=("nvcc", "nvrtc"))
     parser.add_argument("--target-format", choices=("ptx", "cubin", "fatbin"))
     parser.add_argument("--dump-source", action="store_true", help="Print generated source")
-    from tvm.backend.config import add_backend_config_argument
+    from tvm_tirx.backend.config import add_backend_config_argument
 
     add_backend_config_argument(parser)
     args = parser.parse_args()
@@ -925,8 +925,8 @@ class CudaProfiler:
         profiler_buffer: T.Tensor,
         write_stride: int,
         num_groups: int,
-        default_leader: None | tvm.tirx.Expr | bool = None,
-        profiler_enabled: bool | tvm.tirx.Expr = True,
+        default_leader: None | tvm_tirx.tirx.Expr | bool = None,
+        profiler_enabled: bool | tvm_tirx.tirx.Expr = True,
     ):
         self.buffer = profiler_buffer
         self.write_stride = write_stride
@@ -947,7 +947,7 @@ class CudaProfiler:
             T.alloc_tensor(ty_args=[T.Tensor([1], "uint32", scope="local", align=8)])
         )
 
-    def _leader(self, leader: None | tvm.tirx.Expr | bool):
+    def _leader(self, leader: None | tvm_tirx.tirx.Expr | bool):
         if leader is not None:
             if isinstance(leader, bool | np.bool_):
                 return T.bool(bool(leader))
@@ -957,7 +957,7 @@ class CudaProfiler:
         return T.bool(True)
 
     @T.inline
-    def init(self, group_id: tvm.tirx.Expr):
+    def init(self, group_id: tvm_tirx.tirx.Expr):
         if self.profiler_enabled:
             T.cuda.timer_init(
                 self.buffer.data,
@@ -968,7 +968,7 @@ class CudaProfiler:
             )
 
     @T.inline
-    def start(self, event_type: Enum, leader: None | tvm.tirx.Expr | bool = None):
+    def start(self, event_type: Enum, leader: None | tvm_tirx.tirx.Expr | bool = None):
         if self.profiler_enabled:
             T.cuda.timer_start(
                 event_type,
@@ -980,7 +980,7 @@ class CudaProfiler:
             )
 
     @T.inline
-    def end(self, event_type: Enum, leader: None | tvm.tirx.Expr | bool = None):
+    def end(self, event_type: Enum, leader: None | tvm_tirx.tirx.Expr | bool = None):
         if self.profiler_enabled:
             T.cuda.timer_end(
                 event_type,
@@ -992,7 +992,7 @@ class CudaProfiler:
             )
 
     @T.inline
-    def finalize(self, leader: None | tvm.tirx.Expr | bool = None):
+    def finalize(self, leader: None | tvm_tirx.tirx.Expr | bool = None):
         if self.profiler_enabled:
             T.cuda.timer_finalize(
                 self.buffer.data,

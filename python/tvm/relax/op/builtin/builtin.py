@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 """The builtin Relax operators."""
 
-from tvm.ir import Call, DataTypeImm, GenericConst, StringImm
-from tvm.ir import Call as _Call
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.runtime import MemoryScope
+from tvm_tirx.ir import Call, DataTypeImm, GenericConst, StringImm
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.runtime import MemoryScope
 
 from ...expr import Expr, prim_value
 from ...utils import convert_to_expr

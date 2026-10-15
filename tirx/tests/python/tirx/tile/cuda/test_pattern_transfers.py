@@ -20,15 +20,15 @@
 import numpy as np
 import pytest
 
-import tvm
-from tvm.backend.cuda.axis import TCol, TLane, laneid, wid_in_wg
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.layout import ComposeLayout, R, S, TileLayout
+import tvm_tirx
+from tvm_tirx.backend.cuda.axis import TCol, TLane, laneid, wid_in_wg
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx.layout import ComposeLayout, R, S, TileLayout
 
 
 def _build(f):
-    return tvm.tirx.compile(f, target="cuda", pipeline="tirx")
+    return tvm_tirx.tirx.compile(f, target="cuda", pipeline="tirx")
 
 
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="Blackwell required")
@@ -148,8 +148,8 @@ def test_tmem(shape, split_offset, count, store, packed):
 
     f = _build(kernel)
     x = (np.arange(128 * width, dtype="uint32") * 65539 + 0x12340000).reshape(128, width)
-    out = tvm.runtime.tensor(np.zeros_like(x), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros_like(x), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     actual = out.numpy()
     expected = x.copy() if store else np.zeros_like(x)
     mask = np.full_like(x, 0xFFFFFFFF)
@@ -261,8 +261,8 @@ def test_cp_async(ignore):
 
     f = _build(kernel)
     x = np.arange(12, dtype="uint32").reshape(3, 4)
-    out = tvm.runtime.tensor(np.zeros_like(x), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros_like(x), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), np.zeros_like(x) if ignore else x)
 
 
@@ -365,8 +365,8 @@ def test_tmem_copy(shape, multicast, swizzle):
 
     f = _build(kernel)
     x = np.arange(rows * cols, dtype="uint32").reshape(rows, cols)
-    output = tvm.runtime.tensor(np.zeros((128, cols), "uint32"), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), output)
+    output = tvm_tirx.runtime.tensor(np.zeros((128, cols), "uint32"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), output)
     actual = output.numpy()
     for r in range(rows):
         lanes = [32 * r] if rows == 4 else [r]
@@ -419,8 +419,8 @@ def test_tma(swizzle):
 
     f = _build(kernel)
     x = np.arange(16 * cols, dtype="uint32").reshape(16, cols)
-    output = tvm.runtime.tensor(np.zeros_like(x), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), output)
+    output = tvm_tirx.runtime.tensor(np.zeros_like(x), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), output)
     np.testing.assert_array_equal(output.numpy(), x)
 
 
@@ -452,8 +452,8 @@ def test_tma_store(reduce):
 
     f = _build(kernel)
     x = np.arange(256, dtype="float32").reshape(16, 16)
-    out = tvm.runtime.tensor(np.ones_like(x), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.ones_like(x), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), x + 1 if reduce else x)
 
 
@@ -486,8 +486,8 @@ def test_tma_gather4():
 
     f = _build(kernel)
     x = np.arange(1024, dtype="uint32").reshape(32, 32)
-    out = tvm.runtime.tensor(np.zeros((4, 32), "uint32"), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out, 5)
+    out = tvm_tirx.runtime.tensor(np.zeros((4, 32), "uint32"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out, 5)
     np.testing.assert_array_equal(out.numpy(), x[[5, 8, 12, 16]])
 
 
@@ -527,8 +527,8 @@ def test_dsmem_remote_addresses():
 
     f = _build(kernel)
     x = np.arange(24, dtype="uint32").reshape(3, 8)
-    out = tvm.runtime.tensor(np.zeros_like(x), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros_like(x), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), x)
 
 
@@ -571,6 +571,6 @@ def test_tma_rank_and_distinct_descriptors(rank):
     f = _build(kernel)
     a = np.arange(count, dtype="uint32").reshape(shape)
     b = (a * 3 + 7).copy()
-    out = tvm.runtime.tensor(np.zeros(count, "uint32"), tvm.cuda())
-    f(tvm.runtime.tensor(a, tvm.cuda()), tvm.runtime.tensor(b, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros(count, "uint32"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(a, tvm_tirx.cuda()), tvm_tirx.runtime.tensor(b, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), (a + b).reshape(-1))

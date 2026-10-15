@@ -20,10 +20,10 @@ from functools import cache
 
 import tvm_ffi
 
-from tvm.ir import Bind, Call, Op, Tuple, Var
-from tvm.runtime import MemoryScope
-from tvm.tirx import IntImm
-from tvm.tirx.transform.function_pass import function_pass
+from tvm_tirx.ir import Bind, Call, Op, Tuple, Var
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.tirx import IntImm
+from tvm_tirx.tirx.transform.function_pass import function_pass
 
 _SCOPE_SHARED = MemoryScope("shared")
 _SCOPE_SHARED_DYN = MemoryScope("shared.dyn")

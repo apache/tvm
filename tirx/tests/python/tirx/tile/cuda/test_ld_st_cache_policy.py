@@ -20,10 +20,10 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 def _build_g2l2g_kernel(n_elements, dtype, load, store):
@@ -54,19 +54,19 @@ def _build_g2s2g_kernel(n_elements, dtype, load, store):
 
 
 def _compile(kernel):
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
-        mod = tvm.IRModule({"main": kernel})
-        ex = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": kernel})
+        ex = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
     return ex, ex.mod.imports[0].inspect_source()
 
 
 def _run_roundtrip(ex, n_elements, dtype):
-    dev = tvm.cuda(0)
-    np_dtype = tvm.testing.np_dtype_from_str(dtype)
+    dev = tvm_tirx.cuda(0)
+    np_dtype = tvm_tirx.testing.np_dtype_from_str(dtype)
     a_np = np.arange(1, n_elements + 1, dtype=np_dtype) * 3
-    a = tvm.runtime.tensor(a_np, dev)
-    b = tvm.runtime.tensor(np.zeros((n_elements,), dtype=np_dtype), dev)
+    a = tvm_tirx.runtime.tensor(a_np, dev)
+    b = tvm_tirx.runtime.tensor(np.zeros((n_elements,), dtype=np_dtype), dev)
     ex(a, b)
     np.testing.assert_array_equal(b.numpy(), a_np)
 
@@ -135,12 +135,12 @@ def test_copy_vec_nc_rejects_non_global_src():
         T.cuda.tile.apply(T.ptx["ld.global.nc.v4.u32"], reg.view("uint32"), smem.view("uint32"))
         B[0] = reg[0]
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
-        mod = tvm.IRModule({"main": kernel})
+        mod = tvm_tirx.IRModule({"main": kernel})
         with pytest.raises(RuntimeError, match="expected storage scope.*global"):
-            tvm.tirx.compile(mod, target=target, pipeline="tirx")
+            tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

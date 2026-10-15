@@ -22,7 +22,7 @@ Calls retain the declared callee and the caller parameter identity.
 from __future__ import annotations
 
 # Script-local bindings and failing decorated definitions are intentionally observable in IR.
-from tvm.script import ir as I
+from tvm_tirx.script import ir as I
 
 
 def test_module_forward_reference(language):

@@ -43,7 +43,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from tvm.backend.cuda.op import cuda_func_call
+from tvm_tirx.backend.cuda.op import cuda_func_call
 
 from .registry import register_codegen
 

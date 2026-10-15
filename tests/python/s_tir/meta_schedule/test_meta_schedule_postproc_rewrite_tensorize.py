@@ -16,14 +16,14 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 # ruff: noqa: F401, F841
-import tvm
+import tvm, tvm_tirx
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.tensor_intrin import dot_product_common, x86
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dNCHWcVNNIModuleTiled:
     @Ts.function
     def main(
@@ -143,7 +143,7 @@ class Conv2dNCHWcVNNIModuleTiled:
                         )
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dNCHWcVNNIModuleTensorized:
     @Ts.function
     def main(
@@ -260,7 +260,7 @@ class Conv2dNCHWcVNNIModuleTensorized:
                     )
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class DenseDP4ATiled:
     @Ts.function
     def main(
@@ -350,7 +350,7 @@ class DenseDP4ATiled:
                             compute[v0, v1] = compute_local[v0, v1]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class DenseDP4ATensorized:
     @Ts.function
     def main(
@@ -489,7 +489,7 @@ def _create_context(mod, target, postprocs) -> ms.TuneContext:
 
 def test_rewrite_tensorize_conv2d_nchwc_vnni():
     mod = Conv2dNCHWcVNNIModuleTiled
-    target = tvm.target.Target({"kind": "llvm", "mcpu": "cascadelake", "num-cores": 4})
+    target = tvm_tirx.target.Target({"kind": "llvm", "mcpu": "cascadelake", "num-cores": 4})
     ctx = _create_context(
         mod,
         target,
@@ -504,12 +504,12 @@ def test_rewrite_tensorize_conv2d_nchwc_vnni():
     for proc in ctx.space_generator.postprocs:
         proc.apply(sch)
 
-    tvm.ir.assert_structural_equal(sch.mod, Conv2dNCHWcVNNIModuleTensorized)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, Conv2dNCHWcVNNIModuleTensorized)
 
 
 def test_rewrite_tensorize_dense_dp4a():
     mod = DenseDP4ATiled
-    target = tvm.target.Target("nvidia/geforce-rtx-3070")
+    target = tvm_tirx.target.Target("nvidia/geforce-rtx-3070")
     ctx = _create_context(
         mod,
         target,
@@ -525,7 +525,7 @@ def test_rewrite_tensorize_dense_dp4a():
     for proc in ctx.space_generator.postprocs:
         proc.apply(sch)
 
-    tvm.ir.assert_structural_equal(sch.mod, DenseDP4ATensorized)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, DenseDP4ATensorized)
 
 
 if __name__ == "__main__":

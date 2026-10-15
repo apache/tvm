@@ -18,10 +18,10 @@ from __future__ import annotations
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 @pytest.mark.parametrize("max_step,explicit", [(16, True), (15, True), (16, False)])
@@ -70,11 +70,11 @@ def test_unroll_loop(max_step, explicit):
                 Ab[T.Add(6, 1)] = Ab[n + T.int64(1)] + T.int64(1)
                 Ab[T.Add(7, 1)] = Ab[n + T.int64(1)] + T.int64(1)
 
-    with tvm.ir.transform.PassContext(
+    with tvm_tirx.ir.transform.PassContext(
         config={"tirx.UnrollLoop": {"auto_max_step": max_step, "explicit_unroll": explicit}}
     ):
-        After = tvm.tirx.transform.UnrollLoop()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+        After = tvm_tirx.tirx.transform.UnrollLoop()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_unroll_loop_annotation():
@@ -100,11 +100,11 @@ def test_unroll_loop_annotation():
                 for j in T.unroll(8):
                     Ab[j + 1] = Ab[i] + T.int64(1)
 
-    with tvm.ir.transform.PassContext(
+    with tvm_tirx.ir.transform.PassContext(
         config={"tirx.UnrollLoop": {"auto_max_depth": 8, "explicit_unroll": False}}
     ):
-        After = tvm.tirx.transform.UnrollLoop()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+        After = tvm_tirx.tirx.transform.UnrollLoop()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_unroll_fake_loop():
@@ -125,13 +125,13 @@ def test_unroll_fake_loop():
             for j in T.serial(10):
                 Ab[j + 1] = Ab[0] + 1
 
-    with tvm.ir.transform.PassContext(
+    with tvm_tirx.ir.transform.PassContext(
         config={
             "tirx.UnrollLoop": {"auto_max_depth": 8, "auto_max_extent": 1, "explicit_unroll": False}
         }
     ):
-        After = tvm.tirx.transform.UnrollLoop()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+        After = tvm_tirx.tirx.transform.UnrollLoop()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_unroll_allocations():
@@ -152,9 +152,9 @@ def test_unroll_allocations():
             buf2 = T.alloc_tensor(ty_args=[T.Tensor([16], "float32")])
             buf2[0] = 0.0
 
-    after = tvm.tirx.transform.UnrollLoop()(Before)
+    after = tvm_tirx.tirx.transform.UnrollLoop()(Before)
 
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_unroll_local_access():
@@ -180,7 +180,7 @@ def test_unroll_local_access():
                     A_local[2] = T.float32(2)
                     A_local[3] = T.float32(3)
 
-    with tvm.ir.transform.PassContext(
+    with tvm_tirx.ir.transform.PassContext(
         config={
             "tirx.UnrollLoop": {
                 "auto_max_depth": 0,
@@ -190,10 +190,10 @@ def test_unroll_local_access():
             }
         }
     ):
-        after = tvm.tirx.transform.UnrollLoop()(Before)
-        after = tvm.tirx.transform.StmtSimplify()(after)
+        after = tvm_tirx.tirx.transform.UnrollLoop()(Before)
+        after = tvm_tirx.tirx.transform.StmtSimplify()(after)
 
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_pass_config():
@@ -203,7 +203,7 @@ def test_pass_config():
         def main(A: T.Tensor((1,), "int32")):
             A[0] = 1
 
-    cfg = tvm.ir.transform.PassContext(
+    cfg = tvm_tirx.ir.transform.PassContext(
         opt_level=1,
         config={
             "tirx.UnrollLoop": {
@@ -218,21 +218,21 @@ def test_pass_config():
     assert cfg.config["tirx.UnrollLoop"].explicit_unroll
 
     with cfg:
-        After = tvm.tirx.transform.UnrollLoop()(Before)
-    tvm.ir.assert_structural_equal(After, Before)
+        After = tvm_tirx.tirx.transform.UnrollLoop()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Before)
 
     # schema checking for specific config key
     with pytest.raises(TypeError):
-        cfg = tvm.ir.transform.PassContext(config={"tirx.UnrollLoop": {"invalid": 1}})
+        cfg = tvm_tirx.ir.transform.PassContext(config={"tirx.UnrollLoop": {"invalid": 1}})
 
     # schema check for un-registered config
     with pytest.raises(AttributeError):
-        cfg = tvm.ir.transform.PassContext(config={"inavlid-opt": True})
+        cfg = tvm_tirx.ir.transform.PassContext(config={"inavlid-opt": True})
 
     # schema check for wrong type
     with pytest.raises(AttributeError):
-        cfg = tvm.ir.transform.PassContext(config={"tirx.UnrollLoop": 1})
+        cfg = tvm_tirx.ir.transform.PassContext(config={"tirx.UnrollLoop": 1})
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

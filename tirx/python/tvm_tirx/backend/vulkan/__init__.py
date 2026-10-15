@@ -20,11 +20,11 @@ from pathlib import Path
 
 from tvm_ffi.libinfo import load_lib_ctypes
 
-from tvm.base import _LOADED_LIBS
+from tvm_tirx.base import _LOADED_LIBS
 
 
 def _detect_target_from_device(dev):
-    from tvm.target import Target  # pylint: disable=import-outside-toplevel
+    from tvm_tirx.target import Target  # pylint: disable=import-outside-toplevel
 
     return Target(
         {
@@ -47,7 +47,7 @@ def _detect_target_from_device(dev):
 
 def register_backend():
     """Register Vulkan-owned Python semantics."""
-    from tvm.target.detect_target import register_device_target_detector
+    from tvm_tirx.target.detect_target import register_device_target_detector
 
     runtime_dir = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent
     try:

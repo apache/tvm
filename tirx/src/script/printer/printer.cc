@@ -411,7 +411,7 @@ ffi::String RenderScript(const ffi::ObjectRef& obj, const PrinterConfig& config)
       canonical.resize(canonical.size() - std::string(".prefix").size());
       if (!namespaces.count(canonical)) continue;
       ffi::String alias = config->GetExtraConfig<ffi::String>(key, fallback);
-      ffi::String import = "from tvm.script import " + canonical + " as " + std::string(alias);
+      ffi::String import = "from tvm_tirx.script import " + canonical + " as " + std::string(alias);
       if (config->GetExtraConfig<bool>("ir.comment_imports", false) && !config->show_meta) {
         header.push_back(CommentDoc(import));
       } else {

@@ -27,7 +27,7 @@ from typing import Literal
 
 from tvm_ffi import register_object
 
-from tvm.runtime import Object
+from tvm_tirx.runtime import Object
 
 from .. import _ffi_api
 from ..builder import BuilderResult

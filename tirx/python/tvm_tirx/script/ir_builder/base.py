@@ -25,9 +25,9 @@ from typing import Any, Generic, ParamSpec, TypeVar
 from tvm_ffi import register_object as _register_object
 from tvm_ffi.dataclasses import MISSING as MISSING
 
-from tvm import ir
-from tvm.ir.location import UnknownLoc
-from tvm.runtime import Object as _Object
+from tvm_tirx import ir
+from tvm_tirx.ir.location import UnknownLoc
+from tvm_tirx.runtime import Object as _Object
 
 from . import _ffi_api
 
@@ -142,7 +142,7 @@ class IRBuilder(_Object):
 
     .. code-block:: python
 
-        from tvm.script.ir_builder import IRBuilder
+        from tvm_tirx.script.ir_builder import IRBuilder
 
         def build(frame, emit_body):
             with IRBuilder() as builder:
@@ -165,7 +165,7 @@ class IRBuilder(_Object):
         --------
         .. code-block:: python
 
-            from tvm.script.ir_builder import IRBuilder
+            from tvm_tirx.script.ir_builder import IRBuilder
 
             with IRBuilder() as builder:
                 assert IRBuilder.current() == builder
@@ -227,7 +227,7 @@ class IRBuilder(_Object):
 
         Parameters
         ----------
-        loc : tvm.ir.Location
+        loc : tvm_tirx.ir.Location
             The frontend source range active in the nested scope.
         """
         _ffi_api.IRBuilderPushLoc(  # type: ignore[attr-defined] # pylint: disable=no-member

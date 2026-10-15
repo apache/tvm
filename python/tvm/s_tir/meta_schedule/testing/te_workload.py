@@ -19,8 +19,9 @@
 
 # pylint: disable=missing-docstring
 
-from tvm import te, tirx, topi
-from tvm.target import Target
+from tvm_tirx import tirx
+from tvm import te, topi
+from tvm_tirx.target import Target
 
 
 def batch_matmul_nkkm(  # pylint: disable=invalid-name,missing-docstring

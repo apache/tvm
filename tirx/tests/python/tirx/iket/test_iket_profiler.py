@@ -31,13 +31,13 @@ from types import SimpleNamespace
 
 import pytest
 
-import tvm
-from tvm.backend.cuda import transforms as cuda_transforms
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.cuda.iket import IketProfiler
+import tvm_tirx
+from tvm_tirx.backend.cuda import transforms as cuda_transforms
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx.cuda.iket import IketProfiler
 
-TARGET = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+TARGET = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
 ORACLE_PATH = Path(__file__).parent / "oracle" / "iket_official_cutlass_4_6_0_oracle.json"
 
 
@@ -186,14 +186,14 @@ def payload_bfloat16(out: T.Tensor((32,), "int32")):
 def payload_pointer(out: T.Tensor((32,), "int32")):
     T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
     tx = T.cuda.thread_idx("x")
-    T.evaluate(tvm.tirx.call_intrin("", "tirx.cuda.iket_mark", "bad", out.data))
+    T.evaluate(tvm_tirx.tirx.call_intrin("", "tirx.cuda.iket_mark", "bad", out.data))
     out[tx] = tx
 
 
 @T.function
 def payload_vector(out: T.Tensor((1,), "int32x4")):
     T.device_entry()
-    T.evaluate(tvm.tirx.call_intrin("", "tirx.cuda.iket_mark", "bad", out[0]))
+    T.evaluate(tvm_tirx.tirx.call_intrin("", "tirx.cuda.iket_mark", "bad", out[0]))
 
 
 @T.function
@@ -338,7 +338,7 @@ def main(out: T.Tensor((1,), "int32")):
 {marks}
     out[tx] = 1
 """
-    return tvm.script.from_source(source, {"T": T, "IketProfiler": IketProfiler})
+    return tvm_tirx.script.from_source(source, {"T": T, "IketProfiler": IketProfiler})
 
 
 def _packaged_nvdisasm():
@@ -354,7 +354,7 @@ def _has_packaged_nvdisasm():
 
 
 def _nvrtc_disassemble(source, tmp_path):
-    from tvm.support.nvcc import compile_cuda
+    from tvm_tirx.support.nvcc import compile_cuda
 
     tmp_path.mkdir(parents=True, exist_ok=True)
     cubin = compile_cuda(
@@ -377,15 +377,15 @@ def test_public_interface_is_official_only():
     profiler = IketProfiler()
     assert not hasattr(profiler, "capture")
     assert not hasattr(profiler, "export")
-    assert not hasattr(tvm.tirx.transform, "LowerIket")
+    assert not hasattr(tvm_tirx.tirx.transform, "LowerIket")
     assert callable(cuda_transforms.LowerIket)
 
     script = serial_a.script()
     assert 'T.cuda.iket_mark("a")' in script
     assert "T.tirx.iket" not in script
     assert (
-        tvm.script.from_source(
-            script, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+        tvm_tirx.script.from_source(
+            script, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
         ).script()
         == script
     )
@@ -395,8 +395,8 @@ def test_public_interface_is_official_only():
     assert 'T.cuda.iket_range_start("token_payload", -7)' in payload_script
     assert "T.cuda.iket_range_end(token[0], 9)" in payload_script
     assert (
-        tvm.script.from_source(
-            payload_script, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+        tvm_tirx.script.from_source(
+            payload_script, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
         ).script()
         == payload_script
     )
@@ -407,13 +407,13 @@ def test_public_interface_is_official_only():
     ("mark", "range_start", "range_end", "range_push", "range_pop", "sentinel_token"),
 )
 def test_annotation_ops_are_cuda_owned(name):
-    op = tvm.ir.Op.get(f"tirx.cuda.iket_{name}")
+    op = tvm_tirx.ir.Op.get(f"tirx.cuda.iket_{name}")
     assert op.get_attr("FTileOpDispatch") is None
     assert op.name.startswith("tirx.cuda.")
 
 
 def test_regular_lowering_strips_annotations_and_tokens():
-    stripped = cuda_transforms.LowerIket()(tvm.IRModule({"main": token_loop}))
+    stripped = cuda_transforms.LowerIket()(tvm_tirx.IRModule({"main": token_loop}))
     script = stripped.script()
     assert "cuda.iket" not in script
     assert "sentinel" not in script
@@ -433,8 +433,8 @@ def test_regular_lowering_strips_annotations_and_tokens():
 
     sources = []
     for with_annotation in (False, True):
-        executable = tvm.tirx.compile(
-            tvm.IRModule({"main": make_kernel(with_annotation)}),
+        executable = tvm_tirx.tirx.compile(
+            tvm_tirx.IRModule({"main": make_kernel(with_annotation)}),
             target=TARGET,
             pipeline="tirx",
         )
@@ -451,7 +451,7 @@ def test_verified_injected_child_automatically_enables_plain_jit(monkeypatch, co
     monkeypatch.delenv("TVM_IKET_OFFICIAL_PROFILE", raising=False)
     monkeypatch.setenv("CUDA_INJECTION64_PATH", "/verified/libsmodel_injection.so")
     monkeypatch.setenv(config_env, "/verified/config.json")
-    executable = tvm.tirx.compile(tvm.IRModule({"main": serial_a}), target=TARGET, pipeline="tirx")
+    executable = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": serial_a}), target=TARGET, pipeline="tirx")
     source = _cuda_source(executable)
     assert "__iket_evt_decl_a_1_attrs" in source
 
@@ -472,22 +472,22 @@ def test_injected_child_auto_enable_remains_fail_closed(monkeypatch, missing_env
     for name, value in values.items():
         monkeypatch.setenv(name, value)
     monkeypatch.delenv(config_env if missing_env == "config" else missing_env)
-    executable = tvm.tirx.compile(tvm.IRModule({"main": serial_a}), target=TARGET, pipeline="tirx")
+    executable = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": serial_a}), target=TARGET, pipeline="tirx")
     assert "iket" not in _cuda_source(executable).lower()
 
 
 @pytest.mark.parametrize(
     ("module_name", "factory_name"),
     [
-        ("tvm.tirx.compilation_pipeline", "default_tir_pipeline"),
-        ("tvm.tirx.compilation_pipeline", "tirx_pipeline"),
+        ("tvm_tirx.tirx.compilation_pipeline", "default_tir_pipeline"),
+        ("tvm_tirx.tirx.compilation_pipeline", "tirx_pipeline"),
     ],
 )
 def test_tirx_pipelines_immediately_lower_iket(module_name, factory_name):
     factory = getattr(importlib.import_module(module_name), factory_name)
     visited = []
 
-    @tvm.ir.transform.pass_instrument
+    @tvm_tirx.ir.transform.pass_instrument
     class RecordPasses:
         def run_before_pass(self, mod, info):
             visited.append(("before", info.name))
@@ -496,17 +496,17 @@ def test_tirx_pipelines_immediately_lower_iket(module_name, factory_name):
             visited.append(("after", info.name))
 
     pipeline, _, _ = factory()
-    with tvm.ir.transform.PassContext(instruments=[RecordPasses()]):
-        pipeline(tvm.IRModule())
+    with tvm_tirx.ir.transform.PassContext(instruments=[RecordPasses()]):
+        pipeline(tvm_tirx.IRModule())
 
-    split = visited.index(("after", tvm.tirx.transform.SplitHostDevice().info.name))
+    split = visited.index(("after", tvm_tirx.tirx.transform.SplitHostDevice().info.name))
     assert visited[split + 1] == ("before", cuda_transforms.LowerIket().info.name)
 
 
 @pytest.mark.parametrize(
     ("module_name", "factory_name"),
     [
-        ("tvm.backend.trn.pipeline", "trn_pipeline"),
+        ("tvm_tirx.backend.trn.pipeline", "trn_pipeline"),
     ],
 )
 def test_non_tirx_pipelines_do_not_lower_iket(module_name, factory_name):
@@ -663,13 +663,13 @@ def test_rejects_token_payload_schema_mismatch(kernel_func, message):
 def test_rejects_cross_kernel_payload_schema_conflicts():
     with pytest.raises(TypeError, match="changes payload type.*across kernels"):
         IketProfiler().compile(
-            tvm.IRModule({"i32": schema_i32, "u32": schema_u32}),
+            tvm_tirx.IRModule({"i32": schema_i32, "u32": schema_u32}),
             target=TARGET,
             tir_pipeline="tirx",
         )
     with pytest.raises(ValueError, match="changes payload presence.*across kernels"):
         IketProfiler().compile(
-            tvm.IRModule({"i32": schema_i32, "none": schema_no_payload}),
+            tvm_tirx.IRModule({"i32": schema_i32, "none": schema_no_payload}),
             target=TARGET,
             tir_pipeline="tirx",
         )
@@ -691,7 +691,7 @@ def test_native_extended_module_and_architecture_boundaries(capfd):
 
     source = _cuda_source(
         IketProfiler().compile(
-            tvm.IRModule({"marks_30": marks_30, "serial_a": serial_a}),
+            tvm_tirx.IRModule({"marks_30": marks_30, "serial_a": serial_a}),
             target=TARGET,
             tir_pipeline="tirx",
         )
@@ -700,7 +700,7 @@ def test_native_extended_module_and_architecture_boundaries(capfd):
         int.from_bytes(_official_global_bytes(source, "__iket_meta_info")[12:16], "little") == 4095
     )
     with pytest.raises(ValueError, match="requires SM90 or newer"):
-        _compile(serial_a, target=tvm.target.Target({"kind": "cuda", "arch": "sm_80"}))
+        _compile(serial_a, target=tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_80"}))
 
 
 def test_extended_declaration_limit(capfd):
@@ -715,8 +715,8 @@ def test_extended_declaration_limit(capfd):
 @pytest.mark.parametrize("arch", ("sm_90a", "sm_103a", "sm_110a", "sm_120a"))
 def test_extended_payload_compile_only_architectures(arch, capfd):
     executable = IketProfiler().compile(
-        tvm.IRModule({"marks": marks_31, "payload": payload_types}),
-        target=tvm.target.Target({"kind": "cuda", "arch": arch}),
+        tvm_tirx.IRModule({"marks": marks_31, "payload": payload_types}),
+        target=tvm_tirx.target.Target({"kind": "cuda", "arch": arch}),
         tir_pipeline="tirx",
     )
     capfd.readouterr()
@@ -753,7 +753,7 @@ def test_native_and_extended_payload_placeholder_sass(monkeypatch, tmp_path):
 
     extended_payload_source = _cuda_source(
         IketProfiler().compile(
-            tvm.IRModule({"marks": marks_31, "payload": payload_types}),
+            tvm_tirx.IRModule({"marks": marks_31, "payload": payload_types}),
             target=TARGET,
             tir_pipeline="tirx",
         )
@@ -771,7 +771,7 @@ def test_native_and_extended_payload_placeholder_sass(monkeypatch, tmp_path):
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_multi_kernel_module_has_no_tvm_control_plane():
     executable = IketProfiler().compile(
-        tvm.IRModule(
+        tvm_tirx.IRModule(
             {
                 "plain_entry": plain_entry,
                 "serial_a": serial_a,
@@ -795,7 +795,7 @@ def test_multi_kernel_module_has_no_tvm_control_plane():
 
 
 def test_proxy_fails_closed_and_forbids_export(tmp_path, monkeypatch):
-    from tvm.tirx.cuda import iket as _iket_official
+    from tvm_tirx.tirx.cuda import iket as _iket_official
 
     executable = _compile(serial_a)
     with pytest.raises(RuntimeError, match="cannot be exported"):
@@ -809,7 +809,7 @@ def test_proxy_fails_closed_and_forbids_export(tmp_path, monkeypatch):
 
 
 def test_environment_validation_is_not_process_cached(tmp_path, monkeypatch):
-    from tvm.tirx.cuda import iket as _iket_official
+    from tvm_tirx.tirx.cuda import iket as _iket_official
 
     monkeypatch.setattr(_iket_official, "_validate_run_iket_entrypoint", lambda: None)
     monkeypatch.setattr(_iket_official, "_validate_nvrtc_available", lambda: None)
@@ -829,7 +829,7 @@ def test_environment_validation_is_not_process_cached(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("version", ("4.5.0", "4.6.0", "4.6.2", "5.0.0.dev1"))
 def test_installation_ignores_package_versions(tmp_path, monkeypatch, version):
-    from tvm.tirx.cuda import iket as _iket_official
+    from tvm_tirx.tirx.cuda import iket as _iket_official
 
     executable = tmp_path / "run-iket"
     executable.write_text("#!/bin/sh\n")
@@ -851,7 +851,7 @@ def test_installation_ignores_package_versions(tmp_path, monkeypatch, version):
 
 @pytest.mark.parametrize("version", ((12, 9), (13, 2), (13, 4), (14, 0)))
 def test_nvrtc_version_unrestricted(monkeypatch, version):
-    from tvm.tirx.cuda import iket as _iket_official
+    from tvm_tirx.tirx.cuda import iket as _iket_official
 
     nvrtc = SimpleNamespace(nvrtcVersion=lambda: (0, *version))
     monkeypatch.setitem(sys.modules, "cuda.bindings", SimpleNamespace(nvrtc=nvrtc))
@@ -859,7 +859,7 @@ def test_nvrtc_version_unrestricted(monkeypatch, version):
 
 
 def test_nvrtc_error_status(monkeypatch):
-    from tvm.tirx.cuda import iket as _iket_official
+    from tvm_tirx.tirx.cuda import iket as _iket_official
 
     nvrtc = SimpleNamespace(nvrtcVersion=lambda: (1, 0, 0))
     monkeypatch.setitem(sys.modules, "cuda.bindings", SimpleNamespace(nvrtc=nvrtc))
@@ -869,7 +869,7 @@ def test_nvrtc_error_status(monkeypatch):
 
 @pytest.mark.parametrize("error_type", (ImportError, OSError, RuntimeError))
 def test_nvrtc_load_error(monkeypatch, error_type):
-    from tvm.tirx.cuda import iket as _iket_official
+    from tvm_tirx.tirx.cuda import iket as _iket_official
 
     def unavailable_nvrtc():
         raise error_type("NVRTC could not be loaded")
@@ -882,7 +882,7 @@ def test_nvrtc_load_error(monkeypatch, error_type):
 
 @pytest.mark.parametrize("config_env", ["IKET_INJECTION_CONFIG", "SMODEL_INJECTION_CONFIG"])
 def test_injection_environment_accepts_run_iket_two_passes(tmp_path, monkeypatch, config_env):
-    from tvm.tirx.cuda import iket as _iket_official
+    from tvm_tirx.tirx.cuda import iket as _iket_official
 
     monkeypatch.delenv("IKET_INJECTION_CONFIG", raising=False)
     monkeypatch.delenv("SMODEL_INJECTION_CONFIG", raising=False)
@@ -913,7 +913,7 @@ def test_injection_environment_accepts_run_iket_two_passes(tmp_path, monkeypatch
 
 
 def test_injection_environment_prefers_current_config(tmp_path, monkeypatch):
-    from tvm.tirx.cuda import iket as _iket_official
+    from tvm_tirx.tirx.cuda import iket as _iket_official
 
     injection = tmp_path / "libiket_injection.so"
     injection.touch()

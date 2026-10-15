@@ -19,16 +19,16 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import relax as R
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx.script import relax as R
 
-pytestmark = pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+pytestmark = pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
 
 
 def test_pass_tensor_to_function():
     target = "llvm"
-    dev = tvm.cpu()
+    dev = tvm_tirx.cpu()
 
     @R.function
     def relax_func(
@@ -40,7 +40,7 @@ def test_pass_tensor_to_function():
         return ()
 
     ex = tvm.relax.build(
-        tvm.IRModule.from_expr(relax_func),
+        tvm_tirx.IRModule.from_expr(relax_func),
         target=target,
     )
     vm = tvm.relax.VirtualMachine(ex, dev)
@@ -52,7 +52,7 @@ def test_pass_tensor_to_function():
         from_callback = arr
 
     np_A = np.arange(16, dtype="int32")
-    tvm_A = tvm.runtime.tensor(np_A)
+    tvm_A = tvm_tirx.runtime.tensor(np_A)
 
     vm["relax_func"](tvm_A, custom_callback)
 
@@ -62,7 +62,7 @@ def test_pass_tensor_to_function():
 
 def test_generate_tensor_in_function():
     target = "llvm"
-    dev = tvm.cpu()
+    dev = tvm_tirx.cpu()
 
     @R.function
     def relax_func(
@@ -73,7 +73,7 @@ def test_generate_tensor_in_function():
         return B
 
     ex = tvm.relax.build(
-        tvm.IRModule.from_expr(relax_func),
+        tvm_tirx.IRModule.from_expr(relax_func),
         target=target,
     )
     vm = tvm.relax.VirtualMachine(ex, dev)
@@ -81,7 +81,7 @@ def test_generate_tensor_in_function():
     np_A = np.arange(16, dtype="int32")
 
     def custom_callback():
-        return tvm.runtime.tensor(np_A)
+        return tvm_tirx.runtime.tensor(np_A)
 
     output = vm["relax_func"](custom_callback)
 
@@ -90,7 +90,7 @@ def test_generate_tensor_in_function():
 
 def test_catch_exception_with_full_stack_trace():
     target = "llvm"
-    dev = tvm.cpu()
+    dev = tvm_tirx.cpu()
 
     @R.function
     def relax_func(
@@ -100,7 +100,7 @@ def test_catch_exception_with_full_stack_trace():
         return A
 
     ex = tvm.relax.build(
-        tvm.IRModule.from_expr(relax_func),
+        tvm_tirx.IRModule.from_expr(relax_func),
         target=target,
     )
     vm = tvm.relax.VirtualMachine(ex, dev)
@@ -126,4 +126,4 @@ def test_catch_exception_with_full_stack_trace():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

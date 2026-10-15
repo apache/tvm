@@ -18,13 +18,13 @@
 # pylint: disable=unused-import, redefined-builtin
 """Namespace for Tensor-level IR"""
 
-import tvm.script
+import tvm_tirx.script
 
-tvm.script.register_dialect("tirx", "tvm.tirx.script", builder_path="tvm.tirx.script.ir_builder")
+tvm_tirx.script.register_dialect("tirx", "tvm_tirx.tirx.script", builder_path="tvm_tirx.tirx.script.ir_builder")
 
 
-from tvm.ir import Expr
-from tvm.ir import const
+from tvm_tirx.ir import Expr
+from tvm_tirx.ir import const
 
 from .tensor import (
     TensorType,
@@ -87,7 +87,7 @@ from . import backend
 # Compiler-only submodules. Skip under `TVM_USE_RUNTIME_LIB=1` since they
 # perform compiler-side FFI at module load (schema engine looks up
 # `ir.RegisterOp`; codegen registry hooks the build pipeline).
-from tvm.base import _RUNTIME_ONLY as _RUNTIME_ONLY_TIRX  # pylint: disable=wrong-import-position
+from tvm_tirx.base import _RUNTIME_ONLY as _RUNTIME_ONLY_TIRX  # pylint: disable=wrong-import-position
 
 if not _RUNTIME_ONLY_TIRX:
     from ._compile import compile
@@ -97,19 +97,19 @@ if not _RUNTIME_ONLY_TIRX:
         register_tir_pipeline,
     )
 
-import tvm.script
+import tvm_tirx.script
 
-tvm.script.register_dialect("tirx", "tvm.tirx.script", builder_path="tvm.tirx.script.ir_builder")
+tvm_tirx.script.register_dialect("tirx", "tvm_tirx.tirx.script", builder_path="tvm_tirx.tirx.script.ir_builder")
 
 
-def _check_script_module(module: "tvm.ir.IRModule") -> None:
+def _check_script_module(module: "tvm_tirx.ir.IRModule") -> None:
     # Delay builder imports until validation, keeping dialect/runtime bootstrap safe.
-    from tvm.tirx.script.ir_builder.parser_protocol import _check_module_well_formed
+    from tvm_tirx.tirx.script.ir_builder.parser_protocol import _check_module_well_formed
 
     _check_module_well_formed(module)
 
 
-tvm.script.register_module_validator(_check_script_module)
+tvm_tirx.script.register_module_validator(_check_script_module)
 
 
 def _initialize_script_namespace() -> None:
@@ -118,7 +118,7 @@ def _initialize_script_namespace() -> None:
     script._initialize()
 
 
-from tvm.script.parser import register_namespace_initializer as _register_namespace_initializer
+from tvm_tirx.script.parser import register_namespace_initializer as _register_namespace_initializer
 
 _register_namespace_initializer(_initialize_script_namespace, aliases=("tirx", "Tx", "Axis"))
 

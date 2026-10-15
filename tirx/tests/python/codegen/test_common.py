@@ -18,9 +18,9 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import tirx as T
 
 
 def test_tensor_store_predicate_not_supported():
@@ -41,8 +41,8 @@ def test_tensor_store_predicate_not_supported():
 
     err_msg = "Predicated buffer store is not supported."
     with pytest.raises(RuntimeError, match=err_msg):
-        with tvm.target.Target(target):
-            tvm.tirx.compile(func)
+        with tvm_tirx.target.Target(target):
+            tvm_tirx.tirx.compile(func)
 
 
 @pytest.mark.parametrize(
@@ -56,7 +56,7 @@ def test_tensor_store_predicate_not_supported():
     ],
 )
 def test_tensor_store_predicate_not_supported_gpu(target):
-    if not tvm.testing.device_enabled(target):
+    if not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     @T.function
@@ -76,8 +76,8 @@ def test_tensor_store_predicate_not_supported_gpu(target):
 
     err_msg = "Predicated buffer store is not supported."
     with pytest.raises(RuntimeError, match=err_msg):
-        with tvm.target.Target(target):
-            tvm.tirx.compile(func)
+        with tvm_tirx.target.Target(target):
+            tvm_tirx.tirx.compile(func)
 
 
 def test_buffer_load_predicate_not_supported():
@@ -96,8 +96,8 @@ def test_buffer_load_predicate_not_supported():
 
     err_msg = "Predicated buffer load is not supported."
     with pytest.raises(RuntimeError, match=err_msg):
-        with tvm.target.Target(target):
-            tvm.tirx.compile(func)
+        with tvm_tirx.target.Target(target):
+            tvm_tirx.tirx.compile(func)
 
 
 @pytest.mark.parametrize(
@@ -111,7 +111,7 @@ def test_buffer_load_predicate_not_supported():
     ],
 )
 def test_buffer_load_predicate_not_supported_gpu(target):
-    if not tvm.testing.device_enabled(target):
+    if not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     @T.function
@@ -127,8 +127,8 @@ def test_buffer_load_predicate_not_supported_gpu(target):
 
     err_msg = "Predicated buffer load is not supported."
     with pytest.raises(RuntimeError, match=err_msg):
-        with tvm.target.Target(target):
-            tvm.tirx.compile(func)
+        with tvm_tirx.target.Target(target):
+            tvm_tirx.tirx.compile(func)
 
 
 @pytest.mark.parametrize(
@@ -152,16 +152,16 @@ def test_decl_buffer_offset_preserves_storage_scope(target, qualifier):
         )
         B[0] = T.float32(1)
 
-    mod = tvm.IRModule({"kernel": kernel})
-    build = tvm.get_global_func(f"target.build.{target}")
-    source = build(mod, tvm.target.Target(target)).inspect_source()
+    mod = tvm_tirx.IRModule({"kernel": kernel})
+    build = tvm_tirx.get_global_func(f"target.build.{target}")
+    source = build(mod, tvm_tirx.target.Target(target)).inspect_source()
     assert f"{qualifier}float* B" in source
     assert f"(({qualifier}float*)" in source
 
 
 @pytest.mark.parametrize("target", ["c", "llvm"])
 def test_codegen_loop_step(target):
-    if target != "c" and not tvm.testing.device_enabled(target):
+    if target != "c" and not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     @T.function
@@ -173,19 +173,19 @@ def test_codegen_loop_step(target):
         for i in T.serial(3, 1024, step=96):
             C[i] = A[i] + B[i]
 
-    lib = tvm.tirx.compile(test_loop_step, target=target)
+    lib = tvm_tirx.tirx.compile(test_loop_step, target=target)
 
     src = lib.mod.inspect_source()
     if target == "c":
         assert src.find("for (int32_t i = 3; i < 1024; i += 96)") >= 0
 
-    dev = tvm.cpu()
+    dev = tvm_tirx.cpu()
     a_np = np.random.rand(1024).astype("float32")
     b_np = np.random.rand(1024).astype("float32")
     c_np = np.zeros(1024, dtype="float32")
-    a_tvm = tvm.runtime.tensor(a_np, dev)
-    b_tvm = tvm.runtime.tensor(b_np, dev)
-    c_tvm = tvm.runtime.tensor(c_np, dev)
+    a_tvm = tvm_tirx.runtime.tensor(a_np, dev)
+    b_tvm = tvm_tirx.runtime.tensor(b_np, dev)
+    c_tvm = tvm_tirx.runtime.tensor(c_np, dev)
 
     lib(a_tvm, b_tvm, c_tvm)
 
@@ -193,7 +193,7 @@ def test_codegen_loop_step(target):
 
     # Check that the loop executes at positions 3, 99, 195, 291, 387, 483, 579, 675, 771, 867, 963
     for i in range(3, 1024, 96):
-        tvm.testing.assert_allclose(c_result[i], a_np[i] + b_np[i], rtol=1e-5)
+        tvm_tirx.testing.assert_allclose(c_result[i], a_np[i] + b_np[i], rtol=1e-5)
 
     # Assert non-touched positions remain zero
     for i in range(0, 3):
@@ -204,4 +204,4 @@ def test_codegen_loop_step(target):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

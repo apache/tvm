@@ -29,10 +29,10 @@ from tvm_ffi import register_global_func
 
 pytest.importorskip("tornado")  # tvm.rpc.tracker (LocalRPC) requires tornado
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm.rpc import RPCSession
-from tvm.runtime import Device, Module
+from tvm_tirx.runtime import Device, Module
 from tvm.s_tir.meta_schedule.arg_info import TensorInfo
 from tvm.s_tir.meta_schedule.builder import BuilderInput, LocalBuilder
 from tvm.s_tir.meta_schedule.runner import (
@@ -59,10 +59,10 @@ from tvm.s_tir.meta_schedule.utils import (
     get_global_func_with_default_on_worker,
 )
 from tvm.s_tir.utils import derived_object
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
-from tvm.tirx import FloatImm
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
+from tvm_tirx.tirx import FloatImm
 
 MATMUL_N = 16
 MATMUL_M = 32
@@ -70,7 +70,7 @@ MATMUL_M = 32
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring,unbalanced-tuple-unpacking
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MatmulModule:
     @Ts.function
     def main(
@@ -88,7 +88,7 @@ class MatmulModule:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MatmulReluModule:
     @Ts.function
     def main(
@@ -111,7 +111,7 @@ class MatmulReluModule:
                 D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class BatchMatmulModule:
     @Ts.function
     def main(
@@ -129,7 +129,7 @@ class BatchMatmulModule:
                 C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class AddModule:
     @Ts.function
     def main(
@@ -144,7 +144,7 @@ class AddModule:
 
 
 # A huge matmul that must cause timeout in the timeout test below.
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MatmulHugeModule:
     @Ts.function
     def main(
@@ -625,7 +625,7 @@ def test_meta_schedule_runner_matmul_test():
         c_before = np.matmul(a_before, b_before)
         assert (a_before == a_after).all()
         assert (b_before == b_after).all()
-        tvm.testing.assert_allclose(c_before, c_after, rtol=1e-5)
+        tvm_tirx.testing.assert_allclose(c_before, c_after, rtol=1e-5)
 
     def test_alloc_argument(
         session: RPCSession,
@@ -932,4 +932,4 @@ def test_meta_schedule_local_runner_add_test():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

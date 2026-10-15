@@ -60,7 +60,7 @@ def prepare_target(target, mod=None):
     """Resolve the build target, including architectures supplied by CUDA entries."""
     import tvm_ffi
 
-    from tvm.target import Target
+    from tvm_tirx.target import Target
 
     active = Target.current() if target is None else target
     if isinstance(active, Target) and active.kind.name == "cuda" and "arch" not in active.attrs:
@@ -77,7 +77,7 @@ def prepare_target(target, mod=None):
     )
     entries = []
     if mod is not None:
-        from tvm.ir import RegionStmt
+        from tvm_tirx.ir import RegionStmt
 
         def visit(node):
             if isinstance(node, RegionStmt) and node.op.name == "tirx.device_entry":

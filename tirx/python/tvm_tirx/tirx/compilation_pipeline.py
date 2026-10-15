@@ -20,9 +20,9 @@
 
 import inspect
 
-import tvm
-from tvm import tirx
-from tvm.backend.cuda import transforms as cuda_transforms
+import tvm_tirx
+from tvm_tirx import tirx
+from tvm_tirx.backend.cuda import transforms as cuda_transforms
 
 
 def default_tir_pipeline(*, target=None):
@@ -31,13 +31,13 @@ def default_tir_pipeline(*, target=None):
 
 
 def tirx_pipeline(*, prepare_only=False, target=None):
-    """The TIRX pipeline used in tvm.tirx.compile"""
+    """The TIRX pipeline used in tvm_tirx.tirx.compile"""
 
-    @tvm.ir.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.ir.transform.PassContext) -> tvm.ir.IRModule:
+    @tvm_tirx.ir.transform.module_pass(opt_level=0)
+    def _pipeline(mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext) -> tvm_tirx.ir.IRModule:
         """The default lowering passes for TIR backend."""
         mod = _bind_target(mod, target)
-        pass_ctx = tvm.ir.transform.PassContext.current()
+        pass_ctx = tvm_tirx.ir.transform.PassContext.current()
         config = pass_ctx.config
         passes = [
             tirx.transform.LowerTIRx(),
@@ -56,7 +56,7 @@ def tirx_pipeline(*, prepare_only=False, target=None):
                 tirx.transform.LowerThreadAllreduce(),
             ]
         )
-        mod = tvm.ir.transform.Sequential(passes)(mod)
+        mod = tvm_tirx.ir.transform.Sequential(passes)(mod)
         return mod if prepare_only else finalize_tir_pipeline()(mod)
 
     return _pipeline, finalize_host_passes, finalize_device_passes
@@ -65,7 +65,7 @@ def tirx_pipeline(*, prepare_only=False, target=None):
 def _bind_target(mod, target):
     if target is None:
         return mod
-    return tvm.ir.transform.Sequential(
+    return tvm_tirx.ir.transform.Sequential(
         [
             tirx.transform.BindTarget(target),
             cuda_transforms.BindBackendConfig(),
@@ -92,7 +92,7 @@ def _with_target_binding(pipeline, target, *, original_mod=None, prepared_mod=No
         else ()
     )
 
-    @tvm.ir.transform.module_pass(opt_level=0)
+    @tvm_tirx.ir.transform.module_pass(opt_level=0)
     def _pipeline(mod, _ctx):
         if (
             prepared_mod is not None
@@ -105,7 +105,7 @@ def _with_target_binding(pipeline, target, *, original_mod=None, prepared_mod=No
             )
         ):
             # Custom module passes may update their input container in place.
-            mod = tvm.IRModule(
+            mod = tvm_tirx.IRModule(
                 prepared_mod.functions,
                 attrs=prepared_mod.attrs,
                 global_infos=prepared_mod.global_infos,
@@ -119,7 +119,7 @@ def _with_target_binding(pipeline, target, *, original_mod=None, prepared_mod=No
 
 def finalize_tir_pipeline():
     """Lower module-wide calling conventions after all dialects are prepared."""
-    return tvm.ir.transform.Sequential(
+    return tvm_tirx.ir.transform.Sequential(
         [
             tirx.transform.AnnotateEntryFunc(),
             tirx.transform.SplitHostDevice(),
@@ -140,7 +140,7 @@ def finalize_host_passes():  # pylint: disable=unused-argument
         tirx.transform.LowerTVMBuiltin(),
         tirx.transform.LowerIntrin(),
     ]
-    return tvm.ir.transform.Sequential(host_pass_list)
+    return tvm_tirx.ir.transform.Sequential(host_pass_list)
 
 
 def finalize_device_passes():  # pylint: disable=unused-argument
@@ -149,13 +149,13 @@ def finalize_device_passes():  # pylint: disable=unused-argument
         tirx.transform.StmtSimplify(),
         tirx.transform.LowerIntrin(),
     ]
-    return tvm.ir.transform.Sequential(device_pass_list)
+    return tvm_tirx.ir.transform.Sequential(device_pass_list)
 
 
 def finalize_device_passes_tirx():  # pylint: disable=unused-argument
     """The TIRx finalization passes for TIR backend."""
     device_pass_list = [tirx.transform.LowerIntrin()]
-    return tvm.ir.transform.Sequential(device_pass_list)
+    return tvm_tirx.ir.transform.Sequential(device_pass_list)
 
 
 # global map of pre-built pipelines
@@ -182,7 +182,7 @@ def get_tir_pipeline(name: str | None = None, *, target=None, **kwargs):
     name : Optional[str]
         Name of the pipeline
 
-    target : Optional[tvm.target.Target]
+    target : Optional[tvm_tirx.target.Target]
         Target to bind during lowering, after thread launches become explicit.
     """
     if name is None:
@@ -214,10 +214,10 @@ def register_default_tir_pipeline_selector(selector) -> None:
 
 
 def get_default_tir_pipeline(
-    target: tvm.target.Target | None,
-    mod: tvm.ir.IRModule | None = None,
+    target: tvm_tirx.target.Target | None,
+    mod: tvm_tirx.ir.IRModule | None = None,
     *,
-    target_to_bind: tvm.target.Target | None = None,
+    target_to_bind: tvm_tirx.target.Target | None = None,
 ):
     """Get the default pipeline for the input module and target."""
     original_mod = mod

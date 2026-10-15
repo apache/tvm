@@ -14,9 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-import tvm.testing
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import tirx as T
 
 
 def test_texture_scope():
@@ -43,9 +43,9 @@ def test_texture_scope():
             )
         )
 
-    target = tvm.target.Target({"kind": "opencl", "keys": ["adreno"]})
-    mod = tvm.IRModule.from_expr(texture_kernel.with_attr("target", target))
-    source = tvm.get_global_func("target.build.opencl")(mod, target).inspect_source()
+    target = tvm_tirx.target.Target({"kind": "opencl", "keys": ["adreno"]})
+    mod = tvm_tirx.IRModule.from_expr(texture_kernel.with_attr("target", target))
+    source = tvm_tirx.get_global_func("target.build.opencl")(mod, target).inspect_source()
     assert "__read_only image2d_array_t" in source
     assert "__write_only image2d_array_t" in source
     assert "READ_IMAGEF" in source
@@ -53,4 +53,4 @@ def test_texture_scope():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

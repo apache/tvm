@@ -35,10 +35,10 @@ opaque TensorMap and packed/interleaved representations.
 from itertools import product
 from math import prod
 
-from tvm.backend.cuda.ptx import PTXNamespace
-from tvm.ir import Range, TensorRegion, Tuple, Var
-from tvm.runtime import DataType, MemoryScope
-from tvm.script import tirx as T
+from tvm_tirx.backend.cuda.ptx import PTXNamespace
+from tvm_tirx.ir import Range, TensorRegion, Tuple, Var
+from tvm_tirx.runtime import DataType, MemoryScope
+from tvm_tirx.script import tirx as T
 
 from .common import Context, scalar
 from .descriptors import swizzle_bytes

@@ -18,16 +18,16 @@
 # ruff: noqa: E501, E741, F401
 import pytest
 
-import tvm
+import tvm, tvm_tirx
 import tvm.s_tir.tensor_intrin
-import tvm.testing
-from tvm import tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -754,7 +754,7 @@ def elementwise_predicate_producer_inlined(
 
 
 # fmt: off
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dInt8_TensorCore_with_predicate_before:
     @Ts.function
     def main(p0: T.Tensor((16, 56, 56, 64), "int8"), p1: T.Tensor((256, 1, 1, 64), "int8"), p2: T.Tensor((1, 1, 1, 256), "int32"), p3: T.Tensor((1, 1, 1, 256), "int32"), p4: T.Tensor(256, "int32"), p5: T.Tensor(256, "int32"), p6: T.Tensor(256, "int32"), p7: T.Tensor((), "int32"), p8: T.Tensor(1, "int32"), p9: T.Tensor((16, 56, 56, 256), "int32"), compute: T.Tensor((16, 56, 56, 256), "int32")):
@@ -875,7 +875,7 @@ class Conv2dInt8_TensorCore_with_predicate_before:
                     Ts.writes(compute[i0_13, i1_13, i2_13, i3_13])
                     compute[i0_13, i1_13, i2_13, i3_13] = T.max(T.min(compute_3[i0_13, i1_13, i2_13, i3_13] + T.Cast(T.shift_right(T.Cast(p9[i0_13, i1_13, i2_13, i3_13], "int64") * T.Cast(2101000910, "int64"), (31) - (0)), "int32"), 255), 0)
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dInt8_TensorCore_with_predicate_after:
     @Ts.function
     def main(p0: T.Tensor((16, 56, 56, 64), "int8"), p1: T.Tensor((256, 1, 1, 64), "int8"), p2: T.Tensor((1, 1, 1, 256), "int32"), p3: T.Tensor((1, 1, 1, 256), "int32"), p4: T.Tensor((256,), "int32"), p5: T.Tensor((256,), "int32"), p6: T.Tensor((256,), "int32"), p7: T.Tensor((), "int32"), p8: T.Tensor((1,), "int32"), p9: T.Tensor((16, 56, 56, 256), "int32"), compute: T.Tensor((16, 56, 56, 256), "int32")):
@@ -990,7 +990,7 @@ class Conv2dInt8_TensorCore_with_predicate_after:
 
 # pylint: enable=no-member,invalid-name,unused-variable
 
-use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
 
 def test_compute_inline_elementwise(use_block_name):
@@ -1595,4 +1595,4 @@ def test_inline_with_reduction():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

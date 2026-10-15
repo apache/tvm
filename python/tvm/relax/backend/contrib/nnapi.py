@@ -19,7 +19,7 @@
 
 from collections.abc import Mapping
 
-from tvm.ir import IRModule
+from tvm_tirx.ir import IRModule
 from tvm.relax.dpl.pattern import (
     DFPattern,
     is_op,
@@ -303,14 +303,14 @@ def partition_for_nnapi(mod: IRModule, feature_level: int | None = None) -> IRMo
 
     Parameters
     ----------
-    mod : tvm.ir.IRModule
+    mod : tvm_tirx.ir.IRModule
         The module to run passes on.
     feature_level : Optional[int]
         The maximum NNAPI feature level.
 
     Returns
     -------
-    mod : tvm.ir.IRModule
+    mod : tvm_tirx.ir.IRModule
         Annotated and partitioned module.
     """
     patterns = get_patterns_with_prefix("nnapi")

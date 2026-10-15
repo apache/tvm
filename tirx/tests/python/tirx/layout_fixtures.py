@@ -16,9 +16,9 @@
 # under the License.
 """Operand layouts shared by CUDA kernel tests; not part of the public API."""
 
-import tvm
-from tvm.backend.cuda.axis import Axis as CUDAAxis
-from tvm.tirx.layout import Iter, R, S, TileLayout
+import tvm_tirx
+from tvm_tirx.backend.cuda.axis import Axis as CUDAAxis
+from tvm_tirx.tirx.layout import Iter, R, S, TileLayout
 
 # Per-warp fp32-column factor for each instr_shape. For .16x*b atoms the
 # warpgroup fragment is 64 rows x (factor * rep) fp32 cols; for .32x32b the
@@ -28,7 +28,7 @@ _TCGEN05_COL_FACTOR_FP32 = {"32x32b": 1, "16x64b": 2, "16x128b": 4, "16x256b": 8
 
 def tcgen05_register_layout(instr_shape, tensor_shape, dtype):
     """Build the logical register image exercised by TCGEN05 readback tests."""
-    bits = tvm.runtime.DataType(dtype).bits
+    bits = tvm_tirx.runtime.DataType(dtype).bits
     rows, cols = tensor_shape
 
     if instr_shape == "32x32b" and rows == 64:

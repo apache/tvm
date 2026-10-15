@@ -16,18 +16,18 @@
 # under the License.
 """Trainium TIRX pipeline entrypoints."""
 
-import tvm
-from tvm import tirx
-from tvm.tirx.compilation_pipeline import _bind_target, finalize_host_passes
+import tvm_tirx
+from tvm_tirx import tirx
+from tvm_tirx.tirx.compilation_pipeline import _bind_target, finalize_host_passes
 
 from . import transform as trn_transform
 
 
 def trn_pipeline(*, target=None):
-    """The Trainium pipeline used in tvm.tirx.compile."""
+    """The Trainium pipeline used in tvm_tirx.tirx.compile."""
 
-    @tvm.ir.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.ir.transform.PassContext) -> tvm.ir.IRModule:
+    @tvm_tirx.ir.transform.module_pass(opt_level=0)
+    def _pipeline(mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext) -> tvm_tirx.ir.IRModule:
         """Lower TIRx for the Trainium backend."""
         mod = _bind_target(mod, target)
         passes = [
@@ -44,14 +44,14 @@ def trn_pipeline(*, target=None):
             tirx.transform.SplitHostDevice(),
             tirx.transform.MakePackedAPI(),
         ]
-        return tvm.ir.transform.Sequential(passes)(mod)
+        return tvm_tirx.ir.transform.Sequential(passes)(mod)
 
     return _pipeline, finalize_host_passes, finalize_device_passes_trn
 
 
 def finalize_device_passes_trn():  # pylint: disable=unused-argument
     """The finalization passes for the Trainium backend."""
-    return tvm.ir.transform.Sequential([tirx.transform.StmtSimplify()])
+    return tvm_tirx.ir.transform.Sequential([tirx.transform.StmtSimplify()])
 
 
 __all__ = ["finalize_device_passes_trn", "trn_pipeline"]

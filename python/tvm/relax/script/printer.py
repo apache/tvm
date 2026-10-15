@@ -19,9 +19,9 @@
 import tvm_ffi
 from tvm_ffi.access_path import AccessPath
 
-from tvm.ir.base import register_dialect_script_method
-from tvm.runtime import Object
-from tvm.script.printer import PrinterConfig
+from tvm_tirx.ir.base import register_dialect_script_method
+from tvm_tirx.runtime import Object
+from tvm_tirx.script.printer import PrinterConfig
 
 
 def _relax_script(

@@ -37,12 +37,13 @@ import enum
 import math
 from typing import Any
 
-import tvm
-from tvm import s_tir, tirx
-from tvm.runtime import DataType
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+import tvm, tvm_tirx
+from tvm_tirx import tirx
+from tvm import s_tir
+from tvm_tirx.runtime import DataType
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 from .position_embedding import switch_rope_freq_func
 

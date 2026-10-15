@@ -20,7 +20,7 @@
 import logging
 import time
 
-import tvm
+import tvm, tvm_tirx
 from tvm import rpc
 
 
@@ -33,7 +33,7 @@ def check_server_drop():
         # pylint: disable=import-outside-toplevel
         from tvm.rpc.base import TrackerCode
 
-        @tvm.register_global_func("rpc.test2.addone")
+        @tvm_tirx.register_global_func("rpc.test2.addone")
         def addone(x):
             return x + 1
 

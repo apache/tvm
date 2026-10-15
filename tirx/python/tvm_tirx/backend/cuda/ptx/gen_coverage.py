@@ -18,7 +18,7 @@
 
 Run manually::
 
-    python -m tvm.backend.cuda.ptx.gen_coverage
+    python -m tvm_tirx.backend.cuda.ptx.gen_coverage
 
 Only imports :mod:`.table` (tvm-free).
 """

@@ -20,8 +20,8 @@
 import re
 from pathlib import Path
 
-import tvm
-from tvm.target import Target
+import tvm, tvm_tirx
+from tvm_tirx.target import Target
 
 
 def _rename_exported_func_names(source_paths: list[Path], prefix: str):
@@ -48,9 +48,9 @@ def _rename_exported_func_names(source_paths: list[Path], prefix: str):
             source_path.write_text("".join(lines), encoding="utf-8")
 
 
-def _load_flashinfer_modules(object_files: list[Path]) -> list[tvm.runtime.Module]:
+def _load_flashinfer_modules(object_files: list[Path]) -> list[tvm_tirx.runtime.Module]:
     return [
-        tvm.runtime.load_static_library(str(obj_path.absolute()), func_names=[])
+        tvm_tirx.runtime.load_static_library(str(obj_path.absolute()), func_names=[])
         for obj_path in object_files
     ]
 
@@ -63,7 +63,7 @@ def gen_flashinfer_prefill_module(
     v_head_dim: int,
     enable_inline_rope: bool,
     return_static_libs: bool = False,
-) -> list[tvm.runtime.Module]:
+) -> list[tvm_tirx.runtime.Module]:
     """Generate a FlashInfer module for prefill.
 
     Parameters
@@ -158,7 +158,7 @@ def gen_flashinfer_decode_module(
     v_head_dim: int,
     enable_inline_rope: bool,
     return_static_libs: bool = False,
-) -> list[tvm.runtime.Module]:
+) -> list[tvm_tirx.runtime.Module]:
     """Generate a FlashInfer module for decode.
 
     Parameters
@@ -236,7 +236,7 @@ def gen_flashinfer_mla_module(
     head_dim_ckv: int,
     head_dim_kpe: int,
     return_static_libs: bool = False,
-) -> list[tvm.runtime.Module]:
+) -> list[tvm_tirx.runtime.Module]:
     """Generate a FlashInfer module for MLA.
 
     Parameters
@@ -300,7 +300,7 @@ def gen_flashinfer_mla_module(
 
 def gen_grouped_gemm_module(
     target: Target, return_static_libs: bool = False
-) -> list[tvm.runtime.Module]:
+) -> list[tvm_tirx.runtime.Module]:
     """Generate a FlashInfer module for FP8 grouped GEMM.
 
     Parameters
@@ -314,7 +314,7 @@ def gen_grouped_gemm_module(
 
     Returns
     -------
-    List[tvm.runtime.Module]
+    List[tvm_tirx.runtime.Module]
         A list of compiled static library modules for FlashInfer FP8 grouped GEMM kernels.
 
     Note
@@ -334,7 +334,7 @@ def gen_grouped_gemm_module(
             "in https://docs.flashinfer.ai to install FlashInfer."
         )
 
-    compute_version = "".join(tvm.support.nvcc.get_target_compute_version(target).split("."))
+    compute_version = "".join(tvm_tirx.support.nvcc.get_target_compute_version(target).split("."))
     if compute_version == "100":
         jit_spec = gen_gemm_sm100_module()
     else:

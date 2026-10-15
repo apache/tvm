@@ -15,17 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E501, F401
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import s_tir
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MatmulBefore:
     @Ts.function
     def main(A: T.Tensor((1024, 1024), "float32"), B: T.Tensor((1024, 1024), "float32"), C: T.Tensor((1024, 1024), "float32")) -> None:
@@ -66,7 +66,7 @@ class MatmulBefore:
                                         C[blockIdx_y * 32 + threadIdx_y * 16 + i_2, blockIdx_x * 32 + threadIdx_x * 16 + j_2] = C[blockIdx_y * 32 + threadIdx_y * 16 + i_2, blockIdx_x * 32 + threadIdx_x * 16 + j_2] + A_shared[blockIdx_y * 32 + threadIdx_y * 16 + i_2, k_0 * 32 + k_1 * 16 + k_2] * B_shared[k_0 * 32 + k_1 * 16 + k_2, blockIdx_x * 32 + threadIdx_x * 16 + j_2]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MatmulAfter:
     @Ts.function
     def main(A: T.Tensor((1024, 1024), "float32"), B: T.Tensor((1024, 1024), "float32"), C: T.Tensor((1024, 1024), "float32")) -> None:
@@ -125,7 +125,7 @@ class MatmulAfter:
 
 def _check(before, expected):
     after = tvm.s_tir.transform.ManifestSharedMemoryLocalStage()(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_transform_matmul():
@@ -133,4 +133,4 @@ def test_transform_matmul():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

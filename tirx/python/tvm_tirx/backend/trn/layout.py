@@ -18,7 +18,7 @@
 
 from __future__ import annotations
 
-from tvm.tirx.layout import Layout, TileLayout
+from tvm_tirx.tirx.layout import Layout, TileLayout
 
 _TRN_MEMORY_AXES = {"F", "P", "Bank"}
 

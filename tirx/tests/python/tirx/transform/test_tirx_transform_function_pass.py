@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-import tvm.testing
-from tvm.ir.transform.instrument import PrintAfterAll, PrintBeforeAll
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.ir.transform.instrument import PrintAfterAll, PrintBeforeAll
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_function_pass(capsys):
@@ -35,7 +35,7 @@ def test_function_pass(capsys):
         def main(x: T.int32, y: T.int32, B: T.Tensor((16,), "float32")):
             T.evaluate(0)
 
-    @tvm.tirx.transform.function_pass(opt_level=1)
+    @tvm_tirx.tirx.transform.function_pass(opt_level=1)
     class TestReplaceFunc:
         def __init__(self, new_func):
             self.new_func = new_func
@@ -43,13 +43,13 @@ def test_function_pass(capsys):
         def transform_function(self, func, mod, ctx):
             return self.new_func
 
-    with tvm.ir.transform.PassContext(instruments=[PrintBeforeAll(), PrintAfterAll()]):
+    with tvm_tirx.ir.transform.PassContext(instruments=[PrintBeforeAll(), PrintAfterAll()]):
         After = TestReplaceFunc(Expected["main"])(Before)
     output = capsys.readouterr().out
     assert "Before Running Pass:" in output
     assert "After Running Pass:" in output
     assert 'name="TestReplaceFunc"' in output
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_cow_pass():
@@ -68,18 +68,18 @@ def test_cow_pass():
             T.evaluate(x)
 
     def fapply(func):
-        assert tvm.testing.object_use_count(func) == 1
+        assert tvm_tirx.testing.object_use_count(func) == 1
         return func
 
     func_hash = hash(Before["main"])
     mod_hash = hash(Before)
-    After = tvm.ir.transform.Sequential(
-        [tvm.tirx.transform.Apply(fapply), tvm.tirx.transform.NarrowDataType(32)]
+    After = tvm_tirx.ir.transform.Sequential(
+        [tvm_tirx.tirx.transform.Apply(fapply), tvm_tirx.tirx.transform.NarrowDataType(32)]
     )(Before._move())
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
     assert mod_hash == hash(After)
     assert func_hash == hash(After["main"])
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

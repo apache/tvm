@@ -22,15 +22,15 @@ from collections.abc import Callable
 
 import tvm_ffi
 
-from tvm.ir.transform import Pass, PassInfo
+from tvm_tirx.ir.transform import Pass, PassInfo
 
 from . import _ffi_api
 
 
 @tvm_ffi.register_object("tirx.FunctionPass")
 class FunctionPass(Pass):
-    """A pass that works on each :py:func:`tvm.tirx.Function` in a module. A function
-    pass class should be created through py:func:`tvm.tirx.transform.function_pass`.
+    """A pass that works on each :py:func:`tvm_tirx.tirx.Function` in a module. A function
+    pass class should be created through py:func:`tvm_tirx.tirx.transform.function_pass`.
     """
 
 
@@ -80,7 +80,7 @@ def function_pass(
 
     Parameters
     ----------
-    pass_func : Optional[Callable[(tvm.tirx.Function, IRModule, PassContext) -> tvm.tirx.Function]]
+    pass_func : Optional[Callable[(tvm_tirx.tirx.Function, IRModule, PassContext) -> tvm_tirx.tirx.Function]]
         The transformation function or class.
 
     opt_level : int
@@ -106,7 +106,7 @@ def function_pass(
 
     .. code-block:: python
 
-        @tvm.tirx.transform.function_pass(opt_level=1)
+        @tvm_tirx.tirx.transform.function_pass(opt_level=1)
         class TestReplaceFunc:
             def __init__(self, new_func):
                 self.new_func = new_func
@@ -121,7 +121,7 @@ def function_pass(
 
     .. code-block:: python
 
-        @tvm.tirx.transform.function_pass(opt_level=2)
+        @tvm_tirx.tirx.transform.function_pass(opt_level=2)
         def transform(func, mod, ctx):
             # my transformations here.
             return func

@@ -17,11 +17,11 @@
 # pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name
 """S-TIR construction and validation over shared TIRx syntax."""
 
-from tvm import ir as _ir
-from tvm import tirx as _tir
-from tvm.script.ir_builder import base as _base
-from tvm.tirx.script.ir_builder.parser_protocol import arg_ as _shared_arg
-from tvm.tirx.script.ir_builder.parser_protocol import bind_ as _shared_bind
+from tvm_tirx import ir as _ir
+from tvm_tirx import tirx as _tir
+from tvm_tirx.script.ir_builder import base as _base
+from tvm_tirx.tirx.script.ir_builder.parser_protocol import arg_ as _shared_arg
+from tvm_tirx.tirx.script.ir_builder.parser_protocol import bind_ as _shared_bind
 
 from . import _ffi_api
 from .frame import BlockInitFrame, SBlockFrame

@@ -17,8 +17,8 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm.relax.frontend.nn.llm._prefill_kernels import (
     _attention_prefill,
     _attention_prefill_ragged,
@@ -31,12 +31,12 @@ from tvm.relax.frontend.nn.llm._prefill_parallel import (
 
 @pytest.mark.parametrize("layout", ["ragged", "paged", "sliding"])
 def test_webgpu_parallel_prefill_compiles(layout):
-    target = tvm.target.Target("webgpu")
+    target = tvm_tirx.target.Target("webgpu")
     if layout == "ragged":
         func = _attention_prefill_ragged(1, 8, 512, 512, "float32", {}, target)
     else:
         func = _attention_prefill(1, 8, 512, "float32", layout == "sliding", {}, target)
-    compiled = tvm.tirx.compile(func.with_attr("global_symbol", "main"), target=target)
+    compiled = tvm_tirx.tirx.compile(func.with_attr("global_symbol", "main"), target=target)
     assert compiled.mod.imports[0].inspect_source()
 
 
@@ -54,10 +54,10 @@ def rope(values, positions):
 @pytest.mark.parametrize("causal", [0, 1])
 @pytest.mark.parametrize("first_kv_length", [1, 23])
 def test_parallel_prefill(device_type, layout, rotary, causal, first_kv_length):
-    if not tvm.testing.device_enabled(device_type):
+    if not tvm_tirx.testing.device_enabled(device_type):
         pytest.skip(f"{device_type} not enabled")
-    device = tvm.device(device_type)
-    target = tvm.target.Target.from_device(device)
+    device = tvm_tirx.device(device_type)
+    target = tvm_tirx.target.Target.from_device(device)
     rng = np.random.default_rng(127)
     lengths = [(7, first_kv_length), (17, 513)]
     qi = np.array([0, 7, 24], dtype="int32")
@@ -100,11 +100,11 @@ def test_parallel_prefill(device_type, layout, rotary, causal, first_kv_length):
                 "hk,khd->hd", weights / denominator, values[mask[row]]
             )
             reference_lse[qi[b] + row] = ((maximum + np.log(denominator)) / np.log(2))[:, 0]
-    output = tvm.runtime.empty(q.shape, "float32", device)
-    lse = tvm.runtime.empty(reference_lse.shape, "float32", device)
+    output = tvm_tirx.runtime.empty(q.shape, "float32", device)
+    lse = tvm_tirx.runtime.empty(reference_lse.shape, "float32", device)
 
     def tensor(value):
-        return tvm.runtime.tensor(value, device)
+        return tvm_tirx.runtime.tensor(value, device)
 
     if layout == "ragged":
         func = _attention_prefill_ragged_parallel(2, 8, {})
@@ -140,12 +140,12 @@ def test_parallel_prefill(device_type, layout, rotary, causal, first_kv_length):
             tensor(qp),
         ]
     module = tvm.compile(
-        tvm.IRModule({"main": func.with_attr("global_symbol", "main")}), target=target
+        tvm_tirx.IRModule({"main": func.with_attr("global_symbol", "main")}), target=target
     )
     module(*args, output, lse, causal, rotary, 1.0, 10000.0, scale)
-    tvm.testing.assert_allclose(output.numpy(), reference, rtol=2e-4, atol=2e-5)
-    tvm.testing.assert_allclose(lse.numpy(), reference_lse, rtol=2e-5, atol=2e-5)
+    tvm_tirx.testing.assert_allclose(output.numpy(), reference, rtol=2e-4, atol=2e-5)
+    tvm_tirx.testing.assert_allclose(lse.numpy(), reference_lse, rtol=2e-5, atol=2e-5)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

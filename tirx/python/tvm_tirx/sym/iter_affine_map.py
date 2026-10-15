@@ -20,8 +20,8 @@ from enum import IntEnum
 
 import tvm_ffi
 
-from tvm.ir import Expr
-from tvm.runtime import Object
+from tvm_tirx.ir import Expr
+from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 
@@ -138,7 +138,7 @@ def detect_iter_map(
     indices : List[Expr]
         The input indices
 
-    input_iters : Map[tvm.ir.Var, Range]
+    input_iters : Map[tvm_tirx.ir.Var, Range]
         The domain of each input iterators.
 
     predicate : Expr
@@ -151,7 +151,7 @@ def detect_iter_map(
         If true, iterators with extent of 1 will be replaced with a
         constant value.
 
-    analyzer : Optional[tvm.sym.Analyzer]
+    analyzer : Optional[tvm_tirx.sym.Analyzer]
         The analyzer to use.  When provided, its accumulated bindings and
         constraints are reused; otherwise a fresh analyzer is created.
 
@@ -183,10 +183,10 @@ def normalize_to_iter_sum(index, input_iters, analyzer=None):
     index : Expr
         The input index
 
-    input_iters : Map[tvm.ir.Var, Range]
+    input_iters : Map[tvm_tirx.ir.Var, Range]
         The domain of each input iterators.
 
-    analyzer : Optional[tvm.sym.Analyzer]
+    analyzer : Optional[tvm_tirx.sym.Analyzer]
         The analyzer to use.  When provided, its accumulated bindings and
         constraints are reused; otherwise a fresh analyzer is created.
 
@@ -221,7 +221,7 @@ def iter_map_simplify(
     indices : List[Expr]
         The input indices
 
-    input_iters : Map[tvm.ir.Var, Range]
+    input_iters : Map[tvm_tirx.ir.Var, Range]
         The domain of each input iterators.
 
     predicate : Expr
@@ -234,7 +234,7 @@ def iter_map_simplify(
         If true, iterators with extent of 1 will be replaced with a
         constant value.
 
-    analyzer : Optional[tvm.sym.Analyzer]
+    analyzer : Optional[tvm_tirx.sym.Analyzer]
         The analyzer to use.  When provided, its accumulated bindings and
         constraints are reused; otherwise a fresh analyzer is created.
 
@@ -304,10 +304,10 @@ def subspace_divide(
     bindings : List[Expr]
         The input bindings
 
-    input_iters : Map[tvm.ir.Var, Range]
+    input_iters : Map[tvm_tirx.ir.Var, Range]
         The domain of input iterator, which is the basis of the whole space
 
-    sub_iters : Array[tvm.ir.Var]
+    sub_iters : Array[tvm_tirx.ir.Var]
         The subset of input_iters, which is the basis of the subspace
 
     predicate : Expr
@@ -320,7 +320,7 @@ def subspace_divide(
         If true, iterators with extent of 1 will be replaced with a
         constant value.
 
-    analyzer : Optional[tvm.sym.Analyzer]
+    analyzer : Optional[tvm_tirx.sym.Analyzer]
         The analyzer to use.  When provided, its accumulated bindings and
         constraints are reused; otherwise a fresh analyzer is created.
 
@@ -369,7 +369,7 @@ def inverse_affine_iter_map(iter_map, outputs):
 
     Returns
     -------
-    results : Map[tvm.ir.Var, Expr]
+    results : Map[tvm_tirx.ir.Var, Expr]
         The map from the input to the transformed result.
     """
     return _ffi_api.InverseAffineIterMap(iter_map, outputs)

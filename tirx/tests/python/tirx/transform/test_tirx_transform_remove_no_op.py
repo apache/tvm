@@ -16,10 +16,10 @@
 # under the License.
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 @pytest.mark.parametrize("case", ["empty_nest", "side_effect", "zero_extent"])
@@ -53,8 +53,8 @@ def test_remove_no_op(case):
             else:
                 T.evaluate(0)
 
-    After = tvm.tirx.transform.RemoveNoOp()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.RemoveNoOp()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_remove_no_op_with_invalid_extent():
@@ -72,8 +72,8 @@ def test_remove_no_op_with_invalid_extent():
         def main(A: T.Tensor((16,), "int32"), B: T.Tensor((16,), "int32")):
             T.evaluate(0)
 
-    After = tvm.tirx.transform.RemoveNoOp()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.RemoveNoOp()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def _apply_remove_no_op(func, max_simplification_steps=0):
@@ -88,8 +88,8 @@ def _apply_remove_no_op(func, max_simplification_steps=0):
             "max_simplification_steps": max_simplification_steps,
         }
     }
-    with tvm.ir.transform.PassContext(config=config):
-        mod = tvm.tirx.transform.RemoveNoOp()(Before)
+    with tvm_tirx.ir.transform.PassContext(config=config):
+        mod = tvm_tirx.tirx.transform.RemoveNoOp()(Before)
     return mod["main"]
 
 
@@ -106,7 +106,7 @@ def test_remove_empty_for_loop():
         T.evaluate(0)
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_remove_zero_extent_loop():
@@ -122,7 +122,7 @@ def test_remove_zero_extent_loop():
         T.evaluate(0)
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_remove_unused_let():
@@ -145,7 +145,7 @@ def test_remove_unused_let():
             A[i] = 0
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_remove_let_used_only_in_no_op():
@@ -167,7 +167,7 @@ def test_remove_let_used_only_in_no_op():
         T.evaluate(0)
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_keep_side_effects_of_let():
@@ -184,7 +184,7 @@ def test_keep_side_effects_of_let():
         T.evaluate(0)
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_remove_empty_then_case():
@@ -205,7 +205,7 @@ def test_remove_empty_then_case():
                 A[i] = 42
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_remove_empty_else_case():
@@ -226,7 +226,7 @@ def test_remove_empty_else_case():
                 A[i] = 42
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_suppress_removal_of_unused_write():
@@ -242,7 +242,7 @@ def test_suppress_removal_of_unused_write():
             A[i] = 42
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, before)
+    tvm_tirx.ir.assert_structural_equal(after, before)
 
 
 def test_keep_first_write_when_used():
@@ -255,7 +255,7 @@ def test_keep_first_write_when_used():
             A[i] = A[i] + 1
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, before)
+    tvm_tirx.ir.assert_structural_equal(after, before)
 
 
 def test_keep_partially_overwritten_loop():
@@ -275,7 +275,7 @@ def test_keep_partially_overwritten_loop():
                 A[i] = 42
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, before)
+    tvm_tirx.ir.assert_structural_equal(after, before)
 
 
 def test_remove_read_write():
@@ -290,7 +290,7 @@ def test_remove_read_write():
         T.evaluate(0)
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_keep_read_write_to_different_indices():
@@ -302,7 +302,7 @@ def test_keep_read_write_to_different_indices():
             A[i] = A[i + 1]
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, before)
+    tvm_tirx.ir.assert_structural_equal(after, before)
 
 
 def test_remove_read_write_same_index_different_expression():
@@ -327,7 +327,7 @@ def test_remove_read_write_same_index_different_expression():
                 i: T.let[T.int32] = 4 * io + ii
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_remove_read_write_same_index_using_constraint():
@@ -353,7 +353,7 @@ def test_remove_read_write_same_index_using_constraint():
                 A[i] = A[i - 1]
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 @pytest.mark.xfail(reason="Dead alloc removal not yet implemented for flat AllocTensor")
@@ -370,7 +370,7 @@ def test_remove_empty_temporary():
         T.evaluate(0)
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 @pytest.mark.xfail(reason="Dead alloc removal not yet implemented for flat AllocTensor")
@@ -392,7 +392,7 @@ def test_remove_empty_temporary_with_decl_tensor():
         T.evaluate(0)
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 @pytest.mark.xfail(reason="Not implemented yet")
@@ -411,7 +411,7 @@ def test_remove_unused_temporary():
             A[i] = 1
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 @pytest.mark.xfail(reason="Not implemented yet")
@@ -429,7 +429,7 @@ def test_remove_unused_write_into_temporary():
         T.evaluate(0)
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_keep_used_write_into_temporary():
@@ -445,7 +445,7 @@ def test_keep_used_write_into_temporary():
             B[i] = A[i]
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, before)
+    tvm_tirx.ir.assert_structural_equal(after, before)
 
 
 @pytest.mark.xfail(reason="Not implemented yet")
@@ -476,7 +476,7 @@ def test_remove_write_into_temporary():
             C[0] = C[0] + B[i]
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_certain_condition():
@@ -495,8 +495,8 @@ def test_certain_condition():
         T.evaluate(0)
 
     after = _apply_remove_no_op(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

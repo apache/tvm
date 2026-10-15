@@ -39,8 +39,8 @@ from tvm_ffi import (
     system_lib,
 )
 
-import tvm.libinfo
-from tvm.base import _RUNTIME_ONLY
+import tvm_tirx.libinfo
+from tvm_tirx.base import _RUNTIME_ONLY
 
 from . import _ffi_api
 
@@ -215,9 +215,9 @@ class Module(_Module):
         # Extra dependencies during runtime.
         from pathlib import Path
 
-        from tvm.support import cc as _cc
-        from tvm.support import tar as _tar
-        from tvm.support import utils as _utils
+        from tvm_tirx.support import cc as _cc
+        from tvm_tirx.support import tar as _tar
+        from tvm_tirx.support import utils as _utils
 
         if isinstance(file_name, Path):
             file_name = str(file_name)
@@ -311,7 +311,7 @@ class Module(_Module):
                 opts = kwargs["options"]
                 options = opts if isinstance(opts, list | tuple) else [opts]
             default_include_paths = [
-                tvm.libinfo.find_include_path(),
+                tvm_tirx.libinfo.find_include_path(),
                 tvm_ffi_libinfo.find_include_path(),
                 tvm_ffi_libinfo.find_dlpack_include_path(),
             ]
@@ -442,15 +442,15 @@ def load_module(path):
     # We support this to be consistent with RPC module load.
     if path.endswith(".o"):
         # Extra dependencies during runtime.
-        from tvm.support import cc as _cc
+        from tvm_tirx.support import cc as _cc
 
         _cc.create_shared(path + ".so", path)
         path += ".so"
     elif path.endswith(".tar"):
         # Extra dependencies during runtime.
-        from tvm.support import cc as _cc
-        from tvm.support import tar as _tar
-        from tvm.support import utils as _utils
+        from tvm_tirx.support import cc as _cc
+        from tvm_tirx.support import tar as _tar
+        from tvm_tirx.support import utils as _utils
 
         tar_temp = _utils.tempdir(custom_path=path.replace(".tar", ""))
         _tar.untar(path, tar_temp.temp_dir)
@@ -473,7 +473,7 @@ def enabled(target):
 
     Parameters
     ----------
-    target : str or Dict[str, Any] or tvm.target.Target
+    target : str or Dict[str, Any] or tvm_tirx.target.Target
         The target device type.
 
     Returns
@@ -485,7 +485,7 @@ def enabled(target):
     --------
     The following code checks if gpu is enabled.
 
-    >>> tvm.runtime.enabled("gpu")
+    >>> tvm_tirx.runtime.enabled("gpu")
     """
     if isinstance(target, dict):
         target = target.get("kind", "")

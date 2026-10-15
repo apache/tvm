@@ -16,14 +16,14 @@
 # under the License.
 import hashlib
 
-import tvm
-import tvm.testing
-from tvm.ir.base import save_json
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.ir.base import save_json
+from tvm_tirx.script import tirx as T
 
 
 def test_basic():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(B: T.Tensor((50,), "int32"), i1: T.int32, i2: T.int32, z3: T.int32):
@@ -36,7 +36,7 @@ def test_basic():
             b = T.bind((x + y) + z3)
             B[i2] = a + b
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(B: T.Tensor((50,), "int32"), i1: T.int32, i2: T.int32, z3: T.int32):
@@ -51,12 +51,12 @@ def test_basic():
             b = T.bind(cse_v2 + z3)
             B[i2] = a + b
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_if_single_branch():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(
@@ -74,7 +74,7 @@ def test_if_single_branch():
             else:
                 B[i3] = y
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(
@@ -93,12 +93,12 @@ def test_if_single_branch():
             else:
                 B[i3] = y
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_if_both_branches():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(
@@ -116,7 +116,7 @@ def test_if_both_branches():
             else:
                 B[i3] = y + z
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(
@@ -135,12 +135,12 @@ def test_if_both_branches():
             else:
                 B[i3] = cse_v1
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_cascade():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(
@@ -156,7 +156,7 @@ def test_cascade():
             B[i2] = (x + y) + z
             B[i3] = x + y
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(
@@ -174,12 +174,12 @@ def test_cascade():
             B[i2] = cse_v1
             B[i3] = cse_v2
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_no_duplication():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(x: T.int32, y: T.int32, z: T.int32):
@@ -188,12 +188,12 @@ def test_no_duplication():
 
     Expected = Before
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_deterministic():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(B: T.Tensor((4,), "int32"), x: T.int32):
@@ -202,7 +202,7 @@ def test_deterministic():
             B[2] = x + 1
             B[3] = x + 2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(B: T.Tensor((4,), "int32"), x: T.int32):
@@ -215,14 +215,14 @@ def test_deterministic():
 
     hashes = set()
     for _ in range(10):
-        After = tvm.tirx.transform.CommonSubexprElim()(Before)
-        tvm.ir.assert_structural_equal(After, Expected)
+        After = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+        tvm_tirx.ir.assert_structural_equal(After, Expected)
         hashes.add(hashlib.sha256(save_json(After).encode()).hexdigest())
     assert len(hashes) == 1
 
 
 def test_for_loop():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
@@ -230,7 +230,7 @@ def test_for_loop():
                 B[i] = y + z
                 B[i + 10] = y + z
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
@@ -239,12 +239,12 @@ def test_for_loop():
                 B[i] = cse_v1
                 B[i + 10] = cse_v1
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_for_hoist():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
@@ -252,7 +252,7 @@ def test_for_hoist():
             for i in range(10):
                 B[i + 1] = y + z
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
@@ -261,12 +261,12 @@ def test_for_hoist():
             for i in range(10):
                 B[i + 1] = cse_v1
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_cannot_lift_tensorload():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(A: T.Tensor((50,), "int32"), B: T.Tensor((50,), "int32")):
@@ -275,12 +275,12 @@ def test_cannot_lift_tensorload():
 
     Expected = Before
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_nested_if():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(
@@ -298,7 +298,7 @@ def test_nested_if():
             else:
                 B[2] = y
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(
@@ -317,12 +317,12 @@ def test_nested_if():
             else:
                 B[2] = y
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_multi_independent():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(
@@ -337,7 +337,7 @@ def test_multi_independent():
             B[2] = a + b
             B[3] = c + d
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(
@@ -354,19 +354,19 @@ def test_multi_independent():
             B[2] = cse_v1
             B[3] = cse_v2
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_if_condition():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
             if y + z > 0:
                 B[0] = y + z
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
@@ -374,12 +374,12 @@ def test_if_condition():
             if cse_v1 > 0:
                 B[0] = cse_v1
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_cannot_lift_call():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(B: T.Tensor((50,), "int32"), x: T.int32):
@@ -388,12 +388,12 @@ def test_cannot_lift_call():
 
     Expected = Before
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_no_single_use_binding():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(
@@ -405,7 +405,7 @@ def test_no_single_use_binding():
             B[0] = (x + y) + z
             B[1] = (x + y) + z
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(
@@ -418,19 +418,19 @@ def test_no_single_use_binding():
             B[0] = cse_v1
             B[1] = cse_v1
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_for_extent_lift():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
             for i in range(y + z):
                 B[i] = y + z
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
@@ -438,12 +438,12 @@ def test_for_extent_lift():
             for i in range(cse_v1):
                 B[i] = cse_v1
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_loop_var_expr_stays_inside():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(
@@ -453,7 +453,7 @@ def test_loop_var_expr_stays_inside():
             for i in range(10):
                 A[i * 4] = B[i * 4]
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(
@@ -464,35 +464,35 @@ def test_loop_var_expr_stays_inside():
                 cse_v1 = T.bind(i * 4)
                 A[cse_v1] = B[cse_v1]
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_let_body_no_extraction():
     x = T.dynamic("x", "int32")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(B: T.Tensor((10,), "int32"), y: T.int32):
             for i in range(10):
                 B[i] = T.Let((x + y) + (x + y), where={x: 1})
 
-    After = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(After, Before)
+    After = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Before)
 
 
 def test_let_value_cse():
     x = T.dynamic("x", "int32")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(B: T.Tensor((10,), "int32"), y: T.int32, z: T.int32):
             for i in range(10):
                 B[i] = (y + z) + T.Let(x + 1, where={x: y + z})
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(B: T.Tensor((10,), "int32"), y: T.int32, z: T.int32):
@@ -500,23 +500,23 @@ def test_let_value_cse():
                 cse_v1 = T.bind(y + z)
                 B[i] = cse_v1 + T.Let(x + 1, where={x: cse_v1})
 
-    After = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_nested_let_no_extraction():
     x = T.dynamic("x", "int32")
     y = T.dynamic("y", "int32")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(B: T.Tensor((10,), "int32"), z: T.int32):
             for i in range(10):
                 B[i] = T.Let(T.Let((x + y + z) + (x + y + z), where={y: 2}), where={x: 1})
 
-    After = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(After, Before)
+    After = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Before)
 
 
 def test_let_floordiv_pattern():
@@ -525,7 +525,7 @@ def test_let_floordiv_pattern():
     rmod = T.dynamic("rmod", "int32")
     rdiv = T.dynamic("rdiv", "int32")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(
@@ -548,12 +548,12 @@ def test_let_floordiv_pattern():
                     where={x: A[i]},
                 )
 
-    After = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(After, Before)
+    After = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Before)
 
 
 def test_no_lift_bool_predicate():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(B: T.Tensor((50,), "int32"), n: T.int32, x: T.int32):
@@ -563,13 +563,13 @@ def test_no_lift_bool_predicate():
                 if i < n:
                     B[i] = x + 1
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Before)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Before)
     assert "cse_v" not in after["main"].script()
 
 
 def test_no_lift_bool_logical():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(B: T.Tensor((50,), "int32"), a: T.bool, b: T.bool, x: T.int32):
@@ -578,15 +578,15 @@ def test_no_lift_bool_logical():
             if T.And(a, b):
                 B[1] = x + 1
 
-    after = tvm.tirx.transform.CommonSubexprElim()(Before)
-    tvm.ir.assert_structural_equal(after, Before)
+    after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Before)
     assert "cse_v" not in after["main"].script()
 
 
 # T24: Shared subtree stays SSA. UnrollLoop reuses one Stmt object across
 # positions; the identity-keyed rewriter must bind fresh cse vars per occurrence.
 def test_shared_subtree_stays_ssa():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(B: T.Tensor((50,), "int32"), i1: T.int32, i2: T.int32):
@@ -594,7 +594,7 @@ def test_shared_subtree_stays_ssa():
                 B[i1] = (i1 + i2) * 2
                 B[i2] = (i1 + i2) * 3
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(B: T.Tensor((50,), "int32"), i1: T.int32, i2: T.int32):
@@ -609,14 +609,14 @@ def test_shared_subtree_stays_ssa():
             thrice2 = T.bind(value * 3)
             B[i2] = thrice2
 
-    unrolled = tvm.tirx.transform.UnrollLoop()(Before)
+    unrolled = tvm_tirx.tirx.transform.UnrollLoop()(Before)
     body = unrolled["main"].body
     assert body[0].same_as(body[2])
     assert body[1].same_as(body[3])
-    After = tvm.tirx.transform.CommonSubexprElim()(unrolled)
-    tvm.ir.assert_structural_equal(After, Expected)
-    assert tvm.tirx.analysis.verify_well_formed(After["main"])
+    After = tvm_tirx.tirx.transform.CommonSubexprElim()(unrolled)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
+    assert tvm_tirx.tirx.analysis.verify_well_formed(After["main"])
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

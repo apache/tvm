@@ -28,16 +28,16 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm.backend.cuda.lang import SMEMPool
-from tvm.ir import TensorRegion, TensorRegionType
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx import IntImm, Var
-from tvm.tirx.layout import S, TileLayout
-from tvm.tirx.thread_scope import ThreadScope
-from tvm.tirx.tile.dispatch import DispatchContext, run_dispatch
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.cuda.lang import SMEMPool
+from tvm_tirx.ir import TensorRegion, TensorRegionType
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx import IntImm, Var
+from tvm_tirx.tirx.layout import S, TileLayout
+from tvm_tirx.tirx.thread_scope import ThreadScope
+from tvm_tirx.tirx.tile.dispatch import DispatchContext, run_dispatch
 
 BULK = "cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"
 
@@ -46,13 +46,13 @@ def _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout, chunks=1):
     # Each test explicitly chooses its number of bulk chunks. Keep both
     # original physical maps; flattening only changes the logical shape.
     canonical = (math.prod(shape),) if chunks == 1 else shape
-    chunk_bytes = math.prod(shape) * tvm.DataType(dtype).bits // 8 // chunks
-    src = tvm.tirx.decl_tensor(canonical, dtype, "A", scope="shared.dyn", layout=src_layout)
-    dst = tvm.tirx.decl_tensor(canonical, dtype, "B", scope="shared.dyn", layout=dst_layout)
+    chunk_bytes = math.prod(shape) * tvm_tirx.DataType(dtype).bits // 8 // chunks
+    src = tvm_tirx.tirx.decl_tensor(canonical, dtype, "A", scope="shared.dyn", layout=src_layout)
+    dst = tvm_tirx.tirx.decl_tensor(canonical, dtype, "B", scope="shared.dyn", layout=dst_layout)
     op_call = T.cuda.tile.apply(
         T.ptx[BULK], dst, src, chunk_bytes=chunk_bytes, mbar=Var("mbar", "handle"), remote_cta_id=1
     )
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_90a"})
     sctx = DispatchContext(target, ThreadScope("cuda.thread"), {}, {})
     return run_dispatch(op_call, sctx)
 
@@ -69,7 +69,7 @@ def _count_s2c_ops(impl):
 
     def visit_evaluate(op, visitor):
         nonlocal total
-        if isinstance(op.value, tvm.ir.Call):
+        if isinstance(op.value, tvm_tirx.ir.Call):
             if op.value.op.name == "tirx.ptx.cp_async_bulk_s2c":
                 n = 1
                 for e in loop_extents:
@@ -79,7 +79,7 @@ def _count_s2c_ops(impl):
 
     tvm_ffi.structural_visit(
         impl.body,
-        [(tvm.ir.For, visit_for), (tvm.ir.Evaluate, visit_evaluate)],
+        [(tvm_tirx.ir.For, visit_for), (tvm_tirx.ir.Evaluate, visit_evaluate)],
     )
     return total
 
@@ -133,7 +133,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
     Valid cases also run a two-CTA cluster kernel with the original source
     and destination layouts and compare the copied payload on the host.
     """
-    from tvm.backend.cuda.lang.pipeline import MBarrier
+    from tvm_tirx.backend.cuda.lang.pipeline import MBarrier
 
     src_layout = TileLayout(src_spec)
     dst_layout = TileLayout(dst_spec)
@@ -154,7 +154,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
 
     CLUSTER_N = 2
     n_elements = functools.reduce(lambda a, b: a * b, shape, 1)
-    copy_bytes = n_elements * tvm.DataType(dtype).bits // 8
+    copy_bytes = n_elements * tvm_tirx.DataType(dtype).bits // 8
     canonical = (n_elements,) if expected == 1 else shape
     src_phys = _layout_physical_elements(src_layout)
     dst_phys = _layout_physical_elements(dst_layout)
@@ -281,37 +281,37 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
                         )
                         copy_dst_tensor_2[copy_dst_index_2] = copy_value_2
 
-    np_dtype = tvm.testing.np_dtype_from_str(dtype)
-    target = tvm.target.Target("cuda")
+    np_dtype = tvm_tirx.testing.np_dtype_from_str(dtype)
+    target = tvm_tirx.target.Target("cuda")
     with target:
-        mod = tvm.IRModule({"main": dsmem_copy})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": dsmem_copy})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 
         cuda_src = mod.mod.imports[0].inspect_source()
         assert "cp.async.bulk.shared::cluster.shared::cta" in cuda_src
 
         np.random.seed(0)
-        A_np = tvm.testing.generate_random_array(dtype, shape)
+        A_np = tvm_tirx.testing.generate_random_array(dtype, shape)
         B_np = np.zeros(shape, dtype=np_dtype)
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A_tvm = tvm.runtime.tensor(A_np, dev)
-        B_tvm = tvm.runtime.tensor(B_np, dev)
+        dev = tvm_tirx.cuda(0)
+        A_tvm = tvm_tirx.runtime.tensor(A_np, dev)
+        B_tvm = tvm_tirx.runtime.tensor(B_np, dev)
         mod(A_tvm, B_tvm)
         np.testing.assert_allclose(A_np, B_tvm.numpy())
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_dsmem_dispatch_missing_config():
     """Dispatch fails when required config keys are missing."""
-    from tvm.ir import Range
+    from tvm_tirx.ir import Range
 
     layout = TileLayout(S[64])
-    buf = tvm.tirx.decl_tensor((64,), "float16", "A", scope="shared.dyn", layout=layout)
+    buf = tvm_tirx.tirx.decl_tensor((64,), "float16", "A", scope="shared.dyn", layout=layout)
     br = TensorRegion(buf, [Range.from_min_extent(0, 64)], ty=TensorRegionType())
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_90a"})
     sctx = DispatchContext(target, ThreadScope("cuda.thread"), {}, {})
 
     with pytest.raises(RuntimeError, match="remote_cta_id"):
@@ -328,4 +328,4 @@ def test_dsmem_dispatch_missing_config():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

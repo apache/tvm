@@ -16,17 +16,17 @@
 # under the License.
 
 
-import tvm
-import tvm.testing
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import tirx as T
 
-target = tvm.target.Target("aws/trn1/trn1.2xlarge")
+target = tvm_tirx.target.Target("aws/trn1/trn1.2xlarge")
 
 
 def lower_and_get_source(func):
     with target:
-        mod = tvm.IRModule({"main": func})
-        mod = tvm.tirx.compile(mod, pipeline="trn")
+        mod = tvm_tirx.IRModule({"main": func})
+        mod = tvm_tirx.tirx.compile(mod, pipeline="trn")
         src = mod.mod.imports[0].inspect_source()
         return src
 
@@ -341,4 +341,4 @@ def func_kernel(lhsT_ptr, rhs_ptr, result_ptr: nt.mutable_tensor, ):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

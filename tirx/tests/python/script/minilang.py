@@ -28,10 +28,10 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 
-from tvm.script.ir_builder import IRBuilder, resolve_global_info_args
-from tvm.script.ir_builder.base import MISSING, AlreadyEmitted
-from tvm.script.ir_builder.ir import constexpr
-from tvm.script.parser import entry, protocol_registry
+from tvm_tirx.script.ir_builder import IRBuilder, resolve_global_info_args
+from tvm_tirx.script.ir_builder.base import MISSING, AlreadyEmitted
+from tvm_tirx.script.ir_builder.ir import constexpr
+from tvm_tirx.script.parser import entry, protocol_registry
 
 
 @dataclass(eq=False)

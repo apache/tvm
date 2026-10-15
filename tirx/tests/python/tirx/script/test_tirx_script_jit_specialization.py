@@ -18,8 +18,8 @@
 
 from __future__ import annotations
 
-from tvm.ir import assert_structural_equal
-from tvm.script import tirx as T
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import tirx as T
 
 
 def test_jit_tensor_annotation():

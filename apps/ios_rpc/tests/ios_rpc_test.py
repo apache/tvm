@@ -24,9 +24,9 @@ import argparse
 
 import numpy as np
 
-import tvm
+import tvm, tvm_tirx
 from tvm import rpc, te
-from tvm.support import utils, xcode
+from tvm_tirx.support import utils, xcode
 
 # Change target configuration, this is setting for iphone6s
 arch = "arm64"
@@ -37,18 +37,18 @@ MODES = {"proxy": rpc.connect, "tracker": rpc.connect_tracker, "standalone": rpc
 
 
 # override metal compiler to compile to iphone
-@tvm.register_global_func("tvm_callback_metal_compile")
+@tvm_tirx.register_global_func("tvm_callback_metal_compile")
 def compile_metal(src, target):
     return xcode.compile_metal(src, sdk=sdk)
 
 
 def test_rpc_module(host, port, key, mode):
     # graph
-    n = tvm.runtime.convert(1024)
+    n = tvm_tirx.runtime.convert(1024)
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     temp = utils.tempdir()
-    mod = tvm.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "myadd"))
+    mod = tvm_tirx.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "myadd"))
     sch = tvm.s_tir.Schedule(mod)
     (i,) = sch.get_loops(block=sch.get_sblock("B"))
     i0, i1 = sch.split(i, [None, 32])
@@ -57,7 +57,7 @@ def test_rpc_module(host, port, key, mode):
 
     # Build the dynamic lib.
     # If we don't want to do metal and only use cpu, just set target to be target
-    f = tvm.compile(sch.mod, target=tvm.target.Target("metal", host=target))
+    f = tvm.compile(sch.mod, target=tvm_tirx.target.Target("metal", host=target))
     path_dso1 = temp.relpath("dev_lib.dylib")
     f.export_library(path_dso1, fcompile=xcode.create_dylib, arch=arch, sdk=sdk)
 

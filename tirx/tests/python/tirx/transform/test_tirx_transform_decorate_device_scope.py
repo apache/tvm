@@ -14,10 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_decorate_device():
@@ -34,9 +34,9 @@ def test_decorate_device():
             with T.region("tirx.device_scope", []):
                 T.evaluate(x)
 
-    After = tvm.tirx.transform.DecorateDeviceScope()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.DecorateDeviceScope()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

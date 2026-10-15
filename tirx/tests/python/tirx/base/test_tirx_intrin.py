@@ -25,12 +25,12 @@ pytest.importorskip("scipy")
 
 import scipy
 
-import tvm
-import tvm.testing
-from tvm import tirx
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.support import clang, utils
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx import tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.support import clang, utils
 
 
 def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):
@@ -66,12 +66,12 @@ def _binary_kernel(op, rhs_dtype="float32"):
 
 
 def test_nearbyint():
-    func = tvm.tirx.compile(_unary_kernel(tvm.tirx.nearbyint), target="llvm")
+    func = tvm_tirx.tirx.compile(_unary_kernel(tvm_tirx.tirx.nearbyint), target="llvm")
 
-    dev = tvm.cpu(0)
+    dev = tvm_tirx.cpu(0)
     n = 10
-    a = tvm.runtime.tensor(np.random.uniform(high=100, size=n).astype("float32"), dev)
-    a_rounded = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+    a = tvm_tirx.runtime.tensor(np.random.uniform(high=100, size=n).astype("float32"), dev)
+    a_rounded = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
     func(a, a_rounded)
     # Note that numpys rint rounds to nearest integer with
     # ties to halfway is broken by rounding to even.
@@ -79,7 +79,7 @@ def test_nearbyint():
     # This is the default rounding mode with libc as well.
     # However one can set a different rounding mode and in that
     # case numpy result might differ.
-    tvm.testing.assert_allclose(a_rounded.numpy(), np.rint(a.numpy()))
+    tvm_tirx.testing.assert_allclose(a_rounded.numpy(), np.rint(a.numpy()))
 
 
 # Covers the host targets the regression can recur on: the C host lowers
@@ -89,59 +89,59 @@ def test_nearbyint():
 @pytest.mark.parametrize("target", ["c", "llvm"])
 def test_round_ties_to_even(target):
     """Test that tirx.round uses ties-to-even (banker's rounding) semantics."""
-    if target != "c" and not tvm.testing.device_enabled(target):
+    if target != "c" and not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    func = tvm.tirx.compile(_unary_kernel(tvm.tirx.round), target=target)
+    func = tvm_tirx.tirx.compile(_unary_kernel(tvm_tirx.tirx.round), target=target)
 
-    dev = tvm.cpu(0)
+    dev = tvm_tirx.cpu(0)
     # Midpoint values where ties-to-even and ties-away differ
     test_values = np.array([0.5, 1.5, 2.5, 3.5, -0.5, -1.5, -2.5, -3.5], dtype="float32")
     expected = np.array([0.0, 2.0, 2.0, 4.0, 0.0, -2.0, -2.0, -4.0], dtype="float32")
 
-    a = tvm.runtime.tensor(test_values, dev)
-    a_rounded = tvm.runtime.tensor(np.zeros(len(test_values), dtype="float32"), dev)
+    a = tvm_tirx.runtime.tensor(test_values, dev)
+    a_rounded = tvm_tirx.runtime.tensor(np.zeros(len(test_values), dtype="float32"), dev)
     func(a, a_rounded)
-    tvm.testing.assert_allclose(a_rounded.numpy(), expected)
+    tvm_tirx.testing.assert_allclose(a_rounded.numpy(), expected)
 
 
 def test_round_intrinsics_on_int():
-    i = tvm.tirx.Var("i", "int32")
-    for op in [tvm.tirx.round, tvm.tirx.trunc, tvm.tirx.ceil, tvm.tirx.floor, tvm.tirx.nearbyint]:
-        assert op(tvm.tirx.const(10, "int32")).value == 10
-        assert op(tvm.tirx.const(True, "bool")).value == True
+    i = tvm_tirx.tirx.Var("i", "int32")
+    for op in [tvm_tirx.tirx.round, tvm_tirx.tirx.trunc, tvm_tirx.tirx.ceil, tvm_tirx.tirx.floor, tvm_tirx.tirx.nearbyint]:
+        assert op(tvm_tirx.tirx.const(10, "int32")).value == 10
+        assert op(tvm_tirx.tirx.const(True, "bool")).value == True
         assert op(i).same_as(i)
 
-    assert tvm.tirx.isnan(tvm.tirx.const(10, "int32")).op.name == "prim.isnan"
+    assert tvm_tirx.tirx.isnan(tvm_tirx.tirx.const(10, "int32")).op.name == "prim.isnan"
 
 
 def test_unary_intrin():
     test_funcs = [
-        (tvm.tirx.exp, lambda x: np.exp(x)),
-        (tvm.tirx.exp10, lambda x: np.power(10, x)),
-        (tvm.tirx.log2, lambda x: np.log2(x)),
-        (tvm.tirx.log10, lambda x: np.log10(x)),
-        (tvm.tirx.sinh, lambda x: np.sinh(x)),
-        (tvm.tirx.cosh, lambda x: np.cosh(x)),
-        (tvm.tirx.log1p, lambda x: np.log1p(x)),
-        (tvm.tirx.asin, lambda x: np.arcsin(x)),
-        (tvm.tirx.acos, lambda x: np.arccos(x)),
-        (tvm.tirx.atan, lambda x: np.arctan(x)),
-        (tvm.tirx.asinh, lambda x: np.arcsinh(x)),
-        (tvm.tirx.acosh, lambda x: np.arccosh(x)),
-        (tvm.tirx.atanh, lambda x: np.arctanh(x)),
-        (tvm.tirx.erf, lambda x: scipy.special.erf(x)),
+        (tvm_tirx.tirx.exp, lambda x: np.exp(x)),
+        (tvm_tirx.tirx.exp10, lambda x: np.power(10, x)),
+        (tvm_tirx.tirx.log2, lambda x: np.log2(x)),
+        (tvm_tirx.tirx.log10, lambda x: np.log10(x)),
+        (tvm_tirx.tirx.sinh, lambda x: np.sinh(x)),
+        (tvm_tirx.tirx.cosh, lambda x: np.cosh(x)),
+        (tvm_tirx.tirx.log1p, lambda x: np.log1p(x)),
+        (tvm_tirx.tirx.asin, lambda x: np.arcsin(x)),
+        (tvm_tirx.tirx.acos, lambda x: np.arccos(x)),
+        (tvm_tirx.tirx.atan, lambda x: np.arctan(x)),
+        (tvm_tirx.tirx.asinh, lambda x: np.arcsinh(x)),
+        (tvm_tirx.tirx.acosh, lambda x: np.arccosh(x)),
+        (tvm_tirx.tirx.atanh, lambda x: np.arctanh(x)),
+        (tvm_tirx.tirx.erf, lambda x: scipy.special.erf(x)),
     ]
 
     def run_test(tvm_intrin, np_func, atol=1e-5, rtol=1e-5):
-        func = tvm.tirx.compile(_unary_kernel(tvm_intrin), target="llvm")
+        func = tvm_tirx.tirx.compile(_unary_kernel(tvm_intrin), target="llvm")
 
-        dev = tvm.cpu(0)
+        dev = tvm_tirx.cpu(0)
         n = 10
-        a = tvm.runtime.tensor(np.random.uniform(0.1, 0.5, size=n).astype("float32"), dev)
-        b = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+        a = tvm_tirx.runtime.tensor(np.random.uniform(0.1, 0.5, size=n).astype("float32"), dev)
+        b = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
         func(a, b)
-        tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=atol, rtol=rtol)
+        tvm_tirx.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=atol, rtol=rtol)
 
         # Out-of-bounds test for asin/acos
         name = tvm_intrin.__name__
@@ -154,21 +154,21 @@ def test_unary_intrin():
                     np.random.uniform(-2.0, -1.1, size=n // 2),
                 ]
             ).astype("float32")
-            a2 = tvm.runtime.tensor(out_np, dev)
-            b2 = tvm.runtime.tensor(np.empty_like(out_np), dev)
+            a2 = tvm_tirx.runtime.tensor(out_np, dev)
+            b2 = tvm_tirx.runtime.tensor(np.empty_like(out_np), dev)
             func(a2, b2)
             # all outputs should be NaN
             assert np.all(np.isnan(b2.numpy()))
         if name == "exp":
             n = 8
             out_np = np.random.randint(-20, 20, size=n).astype("float32")
-            a2 = tvm.runtime.tensor(out_np, dev)
-            b2 = tvm.runtime.tensor(np.empty_like(out_np), dev)
+            a2 = tvm_tirx.runtime.tensor(out_np, dev)
+            b2 = tvm_tirx.runtime.tensor(np.empty_like(out_np), dev)
             func(a2, b2)
             assert b2.numpy().dtype == np.float32
             # Verify correctness against NumPy exp
             expected = np.exp(out_np.astype(np.float32))
-            tvm.testing.assert_allclose(b2.numpy(), expected, rtol=1e-5, atol=1e-5)
+            tvm_tirx.testing.assert_allclose(b2.numpy(), expected, rtol=1e-5, atol=1e-5)
 
     for func in test_funcs:
         atol = rtol = 1e-3 if func[0].__name__ in ["asin", "acos", "atan"] else 1e-5
@@ -178,42 +178,42 @@ def test_unary_intrin():
 def test_asin_acos_boundary_values():
     """Test asin and acos with boundary values and threshold switching."""
     test_funcs = [
-        (tvm.tirx.asin, lambda x: np.arcsin(x)),
-        (tvm.tirx.acos, lambda x: np.arccos(x)),
+        (tvm_tirx.tirx.asin, lambda x: np.arcsin(x)),
+        (tvm_tirx.tirx.acos, lambda x: np.arccos(x)),
     ]
 
     def run_test(tvm_intrin, np_func):
-        func = tvm.tirx.compile(_unary_kernel(tvm_intrin), target="llvm")
+        func = tvm_tirx.tirx.compile(_unary_kernel(tvm_intrin), target="llvm")
 
-        dev = tvm.cpu(0)
+        dev = tvm_tirx.cpu(0)
 
         # Test boundary values: ±1.0 (should use system library)
         boundary_values = np.array([1.0, -1.0], dtype=np.float32)
-        a1 = tvm.runtime.tensor(boundary_values, dev)
-        b1 = tvm.runtime.tensor(np.empty_like(boundary_values), dev)
+        a1 = tvm_tirx.runtime.tensor(boundary_values, dev)
+        b1 = tvm_tirx.runtime.tensor(np.empty_like(boundary_values), dev)
         func(a1, b1)
-        tvm.testing.assert_allclose(b1.numpy(), np_func(boundary_values), atol=1e-5, rtol=1e-5)
+        tvm_tirx.testing.assert_allclose(b1.numpy(), np_func(boundary_values), atol=1e-5, rtol=1e-5)
 
         # Test values at threshold: ±0.5 (should use system library)
         threshold_values = np.array([0.5, -0.5], dtype=np.float32)
-        a2 = tvm.runtime.tensor(threshold_values, dev)
-        b2 = tvm.runtime.tensor(np.empty_like(threshold_values), dev)
+        a2 = tvm_tirx.runtime.tensor(threshold_values, dev)
+        b2 = tvm_tirx.runtime.tensor(np.empty_like(threshold_values), dev)
         func(a2, b2)
-        tvm.testing.assert_allclose(b2.numpy(), np_func(threshold_values), atol=1e-4, rtol=1e-4)
+        tvm_tirx.testing.assert_allclose(b2.numpy(), np_func(threshold_values), atol=1e-4, rtol=1e-4)
 
         # Test values just below threshold: ±0.49 (should use Taylor series)
         below_threshold_values = np.array([0.49, -0.49, 0.3, -0.3, 0.0], dtype=np.float32)
-        a3 = tvm.runtime.tensor(below_threshold_values, dev)
-        b3 = tvm.runtime.tensor(np.empty_like(below_threshold_values), dev)
+        a3 = tvm_tirx.runtime.tensor(below_threshold_values, dev)
+        b3 = tvm_tirx.runtime.tensor(np.empty_like(below_threshold_values), dev)
         func(a3, b3)
-        tvm.testing.assert_allclose(
+        tvm_tirx.testing.assert_allclose(
             b3.numpy(), np_func(below_threshold_values), atol=1e-3, rtol=1e-3
         )
 
         # Test out-of-domain values: should return NaN
         out_of_domain = np.array([1.1, -1.1, 2.0, -2.0], dtype=np.float32)
-        a4 = tvm.runtime.tensor(out_of_domain, dev)
-        b4 = tvm.runtime.tensor(np.empty_like(out_of_domain), dev)
+        a4 = tvm_tirx.runtime.tensor(out_of_domain, dev)
+        b4 = tvm_tirx.runtime.tensor(np.empty_like(out_of_domain), dev)
         func(a4, b4)
         assert np.all(np.isnan(b4.numpy())), "Out-of-domain inputs should return NaN"
 
@@ -223,40 +223,40 @@ def test_asin_acos_boundary_values():
 
 def test_binary_intrin():
     test_funcs = [
-        (tvm.tirx.atan2, lambda x1, x2: np.arctan2(x1, x2)),
-        (tvm.tirx.nextafter, lambda x1, x2: np.nextafter(x1, x2)),
-        (tvm.tirx.copysign, lambda x1, x2: np.copysign(x1, x2)),
-        (tvm.tirx.hypot, lambda x1, x2: np.hypot(x1, x2)),
+        (tvm_tirx.tirx.atan2, lambda x1, x2: np.arctan2(x1, x2)),
+        (tvm_tirx.tirx.nextafter, lambda x1, x2: np.nextafter(x1, x2)),
+        (tvm_tirx.tirx.copysign, lambda x1, x2: np.copysign(x1, x2)),
+        (tvm_tirx.tirx.hypot, lambda x1, x2: np.hypot(x1, x2)),
     ]
 
     def run_test(tvm_intrin, np_func):
-        func = tvm.tirx.compile(_binary_kernel(tvm_intrin), target="llvm")
+        func = tvm_tirx.tirx.compile(_binary_kernel(tvm_intrin), target="llvm")
 
-        dev = tvm.cpu(0)
+        dev = tvm_tirx.cpu(0)
         n = 10
-        a = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype("float32"), dev)
-        b = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype("float32"), dev)
-        c = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+        a = tvm_tirx.runtime.tensor(np.random.uniform(0, 1, size=n).astype("float32"), dev)
+        b = tvm_tirx.runtime.tensor(np.random.uniform(0, 1, size=n).astype("float32"), dev)
+        c = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
         func(a, b, c)
-        tvm.testing.assert_allclose(c.numpy(), np_func(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5)
+        tvm_tirx.testing.assert_allclose(c.numpy(), np_func(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5)
 
     for func in test_funcs:
         run_test(*func)
 
 
 def test_ldexp():
-    func = tvm.tirx.compile(_binary_kernel(tvm.tirx.ldexp, rhs_dtype="int32"), target="llvm")
+    func = tvm_tirx.tirx.compile(_binary_kernel(tvm_tirx.tirx.ldexp, rhs_dtype="int32"), target="llvm")
 
-    dev = tvm.cpu(0)
+    dev = tvm_tirx.cpu(0)
     n = 10
-    a = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype("float32"), dev)
-    b = tvm.runtime.tensor(np.random.randint(0, 5, size=n).astype("int32"), dev)
-    c = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+    a = tvm_tirx.runtime.tensor(np.random.uniform(0, 1, size=n).astype("float32"), dev)
+    b = tvm_tirx.runtime.tensor(np.random.randint(0, 5, size=n).astype("int32"), dev)
+    c = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
     func(a, b, c)
-    tvm.testing.assert_allclose(c.numpy(), np.ldexp(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5)
+    tvm_tirx.testing.assert_allclose(c.numpy(), np.ldexp(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5)
 
 
-dtype = tvm.testing.parameter("int32", "int64")
+dtype = tvm_tirx.testing.parameter("int32", "int64")
 
 
 @pytest.mark.parametrize(
@@ -264,9 +264,9 @@ dtype = tvm.testing.parameter("int32", "int64")
     ["llvm", pytest.param({"kind": "vulkan", "from_device": 0}, marks=pytest.mark.gpu)],
 )
 def test_clz(target, dtype):
-    if not tvm.testing.device_enabled(target):
+    if not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
-    target = tvm.target.Target(target)
+    target = tvm_tirx.target.Target(target)
     if (
         target.kind.name == "vulkan"
         and dtype == "int64"
@@ -281,12 +281,12 @@ def test_clz(target, dtype):
         clz[np.bitwise_and(x, x - 1) == 0] -= 1
         return clz
 
-    func = tvm.tirx.compile(
-        _unary_kernel(tvm.tirx.clz, dtype, "int32", gpu=target.kind.name == "vulkan"), target=target
+    func = tvm_tirx.tirx.compile(
+        _unary_kernel(tvm_tirx.tirx.clz, dtype, "int32", gpu=target.kind.name == "vulkan"), target=target
     )
 
     def run_and_check():
-        dev = tvm.device_from_target(target)
+        dev = tvm_tirx.device_from_target(target)
         n = 10
         highs = [10, 100, 1000, 10000, 100000, 1000000]
 
@@ -295,8 +295,8 @@ def test_clz(target, dtype):
 
         for high in highs:
             a_np = np.random.randint(1, high=high, size=(n,), dtype=dtype)
-            a = tvm.runtime.tensor(a_np, dev)
-            b = tvm.runtime.tensor(np.zeros((n,)).astype("int32"), dev)
+            a = tvm_tirx.runtime.tensor(a_np, dev)
+            b = tvm_tirx.runtime.tensor(np.zeros((n,)).astype("int32"), dev)
             func(a, b)
             ref = clz_np(a_np, dtype)
             np.testing.assert_equal(b.numpy(), ref)
@@ -304,7 +304,7 @@ def test_clz(target, dtype):
     if target.kind.name == "llvm":
         run_and_check()
     else:
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 n = T.dynamic("n", "int32")
@@ -314,7 +314,7 @@ stride_2 = T.dynamic("stride_2", "int32")
 stride_3 = T.dynamic("stride_3", "int32")
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Module:
     @T.function
     def test_tir_fma(
@@ -332,10 +332,10 @@ class Module:
 
 
 def test_fma():
-    opt = tvm.ir.transform.Sequential(
+    opt = tvm_tirx.ir.transform.Sequential(
         [
-            tvm.tirx.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target("llvm"))),
-            tvm.tirx.transform.LowerIntrin(),
+            tvm_tirx.tirx.transform.Apply(lambda f: f.with_attr("target", tvm_tirx.target.Target("llvm"))),
+            tvm_tirx.tirx.transform.LowerIntrin(),
         ]
     )
     mod = opt(Module)

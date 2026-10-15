@@ -21,27 +21,27 @@ from __future__ import annotations
 import functools
 from typing import Any
 
-from tvm import ir
-from tvm import ir as _ir
-from tvm import tirx as _tir
-from tvm import tirx as tir
+from tvm_tirx import ir
+from tvm_tirx import ir as _ir
+from tvm_tirx import tirx as _tir
+from tvm_tirx import tirx as tir
 
 # pylint: disable=unused-import
-from tvm.codegen import llvm_lookup_intrinsic_id
-from tvm.ir import Call, Var
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.ir.prim import _ffi_api as _prim_ffi
-from tvm.ir.prim import _ffi_api as _prim_ffi_api
-from tvm.script.ir_builder import base as _base
-from tvm.script.ir_builder.base import IRBuilder
-from tvm.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
-from tvm.script.ir_builder.frame import IRModuleFrame
-from tvm.script.ir_builder.stmt import _as_expr as _as_expr
-from tvm.tirx import Expr, is_tensor_var
-from tvm.tirx import op as _tir_op
+from tvm_tirx.codegen import llvm_lookup_intrinsic_id
+from tvm_tirx.ir import Call, Var
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.prim import _ffi_api as _prim_ffi
+from tvm_tirx.ir.prim import _ffi_api as _prim_ffi_api
+from tvm_tirx.script.ir_builder import base as _base
+from tvm_tirx.script.ir_builder.base import IRBuilder
+from tvm_tirx.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
+from tvm_tirx.script.ir_builder.frame import IRModuleFrame
+from tvm_tirx.script.ir_builder.stmt import _as_expr as _as_expr
+from tvm_tirx.tirx import Expr, is_tensor_var
+from tvm_tirx.tirx import op as _tir_op
 
 # import tirx.expr for direct ir construction to pass structural_equal comparison
-from tvm.tirx.expr import (
+from tvm_tirx.tirx.expr import (
     EQ,
     GE,
     GT,
@@ -73,7 +73,7 @@ from tvm.tirx.expr import (
     Shuffle,
     Sub,
 )
-from tvm.tirx.op import CallFFIKernelAttr
+from tvm_tirx.tirx.op import CallFFIKernelAttr
 
 from . import _ffi_api
 from .external_kernel import call_kernel as _call_kernel
@@ -233,9 +233,9 @@ def register_script_namespace(name: str, namespace: object) -> object:
     import sys  # pylint: disable=import-outside-toplevel
 
     for module_name in [
-        "tvm.tirx.script.ir_builder",
-        "tvm.tirx.script",
-        "tvm.script.tirx",
+        "tvm_tirx.tirx.script.ir_builder",
+        "tvm_tirx.tirx.script",
+        "tvm_tirx.script.tirx",
     ]:
         module = sys.modules.get(module_name)
         if module is None:
@@ -910,57 +910,57 @@ _Loc = _base.LocationEntry | _ir.Location | None
 
 
 def if_then_else_(condition: Any, true_value: Any, false_value: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.if_then_else_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.if_then_else_`."""
     return select(condition, true_value, false_value)
 
 
 def and_(*values: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.and_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.and_`."""
     return logical_and(*values)
 
 
 def or_(*values: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.or_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.or_`."""
     return logical_or(*values)
 
 
 def not_(value: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.not_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.not_`."""
     return logical_not(value)
 
 
 def lt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.lt_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.lt_`."""
     loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpLT(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
 def le_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.le_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.le_`."""
     loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpLE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
 def gt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.gt_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.gt_`."""
     loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpGT(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
 def ge_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.ge_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.ge_`."""
     loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpGE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
 def eq_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.eq_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.eq_`."""
     loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpEQ(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
 def ne_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.ne_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.ne_`."""
     loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpNE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 

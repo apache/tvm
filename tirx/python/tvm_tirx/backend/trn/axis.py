@@ -20,7 +20,7 @@
 
 import tvm_ffi
 
-from tvm.tirx.layout import Axis as _Axis
+from tvm_tirx.tirx.layout import Axis as _Axis
 
 _NAMES = ("P", "F", "Bank")
 

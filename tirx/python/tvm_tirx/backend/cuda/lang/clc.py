@@ -21,7 +21,7 @@ scheduled CTA id out of it takes three instructions (load, test, extract) plus
 a proxy fence, which is why it lives here rather than at every call site.
 """
 
-from tvm.script import tirx as T
+from tvm_tirx.script import tirx as T
 
 
 @T.inline

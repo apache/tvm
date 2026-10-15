@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-import tvm.testing
-from tvm.backend.trn.axis import F, P
-from tvm.backend.trn.transform import TrnNaiveAllocator
-from tvm.ir import assert_structural_equal
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.tirx.layout import S, TileLayout
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.trn.axis import F, P
+from tvm_tirx.backend.trn.transform import TrnNaiveAllocator
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx.layout import S, TileLayout
 
 
 def test_one_alloc():
@@ -276,4 +276,4 @@ def test_tensor_views():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

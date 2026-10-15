@@ -14,19 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-import tvm.script
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.target import Target
-from tvm.tirx.transform.transform import BindTarget
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
+from tvm_tirx.tirx.transform.transform import BindTarget
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
 def get_before(dtype: str):
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(Aptr: T.handle(dtype), Bptr: T.handle(dtype), Dptr: T.handle(dtype)):
@@ -51,7 +51,7 @@ def cast_to_f8(f8_dtype: str, promote_dtype: str, v):
 
 
 def get_after_compute_legalize(dtype: str, promote_dtype: str):
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class After:
         @T.function
         def main(Aptr: T.handle(dtype), Bptr: T.handle(dtype), Dptr: T.handle(dtype)):
@@ -184,7 +184,7 @@ def cast_to_uint8(f8_dtype: str, promote_dtype: str, v):
 
 
 def get_after_storage_legalize(dtype: str, promote_dtype: str):
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class After:
         @T.function
         def main(Aptr: T.handle("uint8"), Bptr: T.handle("uint8"), Dptr: T.handle("uint8")):
@@ -202,8 +202,8 @@ def get_after_storage_legalize(dtype: str, promote_dtype: str):
     return After
 
 
-dtype = tvm.testing.parameter("float8_e4m3fn", "float8_e5m2")
-promote_dtype = tvm.testing.parameter("float16", "float32")
+dtype = tvm_tirx.testing.parameter("float8_e4m3fn", "float8_e5m2")
+promote_dtype = tvm_tirx.testing.parameter("float16", "float32")
 
 
 def test_fp8_compute_legalize(dtype, promote_dtype):
@@ -212,9 +212,9 @@ def test_fp8_compute_legalize(dtype, promote_dtype):
     expected = BindTarget(target)(get_after_compute_legalize(dtype, promote_dtype))
     # run the transform twice to ensure we can afford to deal
     # with this repeative optimizations
-    after = tvm.tirx.transform.FP8ComputeLegalize(promote_dtype)(before)
-    after = tvm.tirx.transform.FP8ComputeLegalize(promote_dtype)(after)
-    tvm.ir.assert_structural_equal(after, expected)
+    after = tvm_tirx.tirx.transform.FP8ComputeLegalize(promote_dtype)(before)
+    after = tvm_tirx.tirx.transform.FP8ComputeLegalize(promote_dtype)(after)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_fp8_compute_legalize_preserves_opaque_tensor_access(dtype, promote_dtype):
@@ -230,17 +230,17 @@ def test_fp8_compute_legalize_preserves_opaque_tensor_access(dtype, promote_dtyp
         main = input_func
 
     before_mod = InputModule
-    after = tvm.tirx.transform.FP8ComputeLegalize(promote_dtype)(before_mod)
-    tvm.ir.assert_structural_equal(after, before_mod)
+    after = tvm_tirx.tirx.transform.FP8ComputeLegalize(promote_dtype)(before_mod)
+    tvm_tirx.ir.assert_structural_equal(after, before_mod)
 
 
 def test_fp8_storage_legalize(dtype, promote_dtype):
     target = Target("nvidia/nvidia-a100")
     before = BindTarget(target)(get_after_compute_legalize(dtype, promote_dtype))
-    after = tvm.tirx.transform.FP8StorageLegalize()(before)
+    after = tvm_tirx.tirx.transform.FP8StorageLegalize()(before)
     expected = BindTarget(target)(get_after_storage_legalize(dtype, promote_dtype))
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

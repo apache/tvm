@@ -294,7 +294,7 @@ def cross_compiler(
     --------
     .. code-block:: python
 
-       from tvm.support import cc, ndk
+       from tvm_tirx.support import cc, ndk
        # export using arm gcc
        mod = build_runtime_module()
        mod.export_library(path_dso,

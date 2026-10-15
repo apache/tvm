@@ -18,14 +18,15 @@
 
 import pytest
 
-import tvm
-import tvm.script
-from tvm import relax, tirx
-from tvm.ir import assert_structural_equal
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm, tvm_tirx
+import tvm_tirx.script, tvm
+from tvm_tirx import tirx
+from tvm import relax
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def test_basic():
@@ -36,7 +37,7 @@ def test_basic():
     n_main = T.dynamic("n", "int64")
     k_main = T.dynamic("k", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @Ts.function
         def tir_matmul(
@@ -67,7 +68,7 @@ def test_basic():
     n_main = T.dynamic("n", "int64")
     k_main = T.dynamic("k", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def tir_matmul(
@@ -100,7 +101,7 @@ def test_basic():
 
 
 def test_system_lib_prefix():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         I.module_attrs({"system_lib_prefix": "hello_"})
 
@@ -113,7 +114,7 @@ def test_system_lib_prefix():
             gv0 = R.call_tir(Before.tir_zeros, (), ty_args=[R.Tensor((2,), dtype="float32")])
             return gv0
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         I.module_attrs({"system_lib_prefix": "hello_"})
 

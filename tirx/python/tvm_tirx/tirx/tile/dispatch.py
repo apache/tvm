@@ -22,9 +22,9 @@ Mirrors the C++ header ``include/tvm/tirx/tile/context.h``.
 
 from tvm_ffi import register_object
 
-from tvm.ir import Expr, Range, Scriptable, Stmt, Var
-from tvm.runtime import Object
-from tvm.target import Target
+from tvm_tirx.ir import Expr, Range, Scriptable, Stmt, Var
+from tvm_tirx.runtime import Object
+from tvm_tirx.target import Target
 
 from .. import _ffi_api
 from ..thread_scope import ThreadScope
@@ -231,7 +231,7 @@ def fail(reason):
 
 
 def run_dispatch(call, sctx):
-    from tvm.tirx.tile.instruction import TensorCall
+    from tvm_tirx.tirx.tile.instruction import TensorCall
 
     view = TensorCall.decode(call)
     view.call.validate()

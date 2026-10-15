@@ -17,19 +17,19 @@
 
 from __future__ import annotations
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import relax, topi
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def _check(mod_before, mod_expected):
     mod_after = relax.transform.FuseTIR()(mod_before)
-    tvm.ir.assert_structural_equal(mod_expected, mod_after)
+    tvm_tirx.ir.assert_structural_equal(mod_expected, mod_after)
 
 
 def test_simple():
@@ -511,12 +511,12 @@ def test_fuse_return_partial_result():
         from tvm import te
 
         def f_combine(x, y):
-            lhs = tvm.tirx.Select((x[1] >= y[1]), x[0], y[0])
-            rhs = tvm.tirx.Select((x[1] >= y[1]), x[1], y[1])
+            lhs = tvm_tirx.tirx.Select((x[1] >= y[1]), x[0], y[0])
+            rhs = tvm_tirx.tirx.Select((x[1] >= y[1]), x[1], y[1])
             return lhs, rhs
 
-        def f_identity(dtype0: tvm.DataType, dtype1: tvm.DataType):
-            return tvm.tirx.const(-1, dtype0), tvm.te.min_value(dtype1)
+        def f_identity(dtype0: tvm_tirx.DataType, dtype1: tvm_tirx.DataType):
+            return tvm_tirx.tirx.const(-1, dtype0), tvm.te.min_value(dtype1)
 
         argmax = te.comm_reducer(f_combine, f_identity, name="argmax")
         m, n = val.shape
@@ -2476,4 +2476,4 @@ def test_inplace_argument_after_primitive_scalar():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

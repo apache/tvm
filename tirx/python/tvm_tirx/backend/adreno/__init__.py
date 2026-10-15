@@ -23,7 +23,7 @@ _LAZY_SUBMODULES = {"target_tags"}
 
 def register_backend():
     """Register Adreno-owned Python semantics."""
-    import tvm.backend as backend  # pylint: disable=import-outside-toplevel
+    import tvm_tirx.backend as backend  # pylint: disable=import-outside-toplevel
 
     backend.load("opencl")
     backend.load("vulkan")

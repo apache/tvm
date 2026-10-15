@@ -20,12 +20,12 @@ import re
 
 import pytest
 
-import tvm
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
-llvm_version = tvm.codegen.llvm_version_major()
+llvm_version = tvm_tirx.codegen.llvm_version_major()
 machine = platform.machine()
 
 if machine not in ["x86_64", "AMD64", "amd64"]:
@@ -50,7 +50,7 @@ def test_fp16_to_fp32():
                     for i1 in T.vectorized(width):
                         B[i0, i1] = T.Cast(A[i0, i1], "float32")
 
-        f = tvm.tirx.compile(Module, target=target).mod
+        f = tvm_tirx.tirx.compile(Module, target=target).mod
 
         assembly = f.inspect_source("asm").splitlines()
         if match:

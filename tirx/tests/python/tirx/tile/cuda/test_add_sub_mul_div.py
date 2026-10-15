@@ -24,14 +24,14 @@ import struct
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tirx.layout_fixtures import tcgen05_register_layout
-from tvm.backend.cuda.axis import Axis as CUDAAxis
-from tvm.backend.cuda.axis import laneid, warpid, wid_in_wg
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.layout import S, TileLayout
+from tvm_tirx.backend.cuda.axis import Axis as CUDAAxis
+from tvm_tirx.backend.cuda.axis import laneid, warpid, wid_in_wg
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx.layout import S, TileLayout
 
 
 @T.function(private=True)
@@ -41,17 +41,17 @@ def half_divide(a: T.float16, b: T.float16) -> T.float16:
 
 
 def _run(kernel, arrays, expected, output=0, atol=1e-3, target="cuda", opcode=None):
-    with tvm.target.Target(target):
-        mod = tvm.tirx.compile(kernel, target=target, pipeline="tirx")
+    with tvm_tirx.target.Target(target):
+        mod = tvm_tirx.tirx.compile(kernel, target=target, pipeline="tirx")
     if opcode is not None:
         assert opcode in mod.mod.imports[0].inspect_source()
 
     def check():
-        args = [tvm.runtime.tensor(a, tvm.cuda()) for a in arrays]
+        args = [tvm_tirx.runtime.tensor(a, tvm_tirx.cuda()) for a in arrays]
         mod(*args)
-        tvm.testing.assert_allclose(args[output].numpy(), expected, atol=atol)
+        tvm_tirx.testing.assert_allclose(args[output].numpy(), expected, atol=atol)
 
-    tvm.testing.run_with_gpu_lock(check)
+    tvm_tirx.testing.run_with_gpu_lock(check)
     return mod
 
 
@@ -311,7 +311,7 @@ def test_binary_op_local_subcta_trivial(thread_scope, rhs_kind, op_type):
             T.ptx[f"{op_type}.rn.f16"],
             dst.view("uint16").view(m, n, 1),
             lhs.view("uint16").view(m, n, 1),
-            rhs.view("uint16").view(m, n, 1) if isinstance(rhs, tvm.ir.Var) else T.uint16(0x3D00),
+            rhs.view("uint16").view(m, n, 1) if isinstance(rhs, tvm_tirx.ir.Var) else T.uint16(0x3D00),
         )
 
     tid_in_scope_fn = {
@@ -376,14 +376,14 @@ def test_binary_op_local_subcta_trivial(thread_scope, rhs_kind, op_type):
                 for j in T.serial(n):
                     C[tid_in_scope, i, j] = C_local[i, j]
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
         np.random.seed(0)
         A_np = np.random.rand(*a_shape).astype(dtype)
         B_np = np.random.rand(*b_shape).astype(dtype)
         C_np = np.zeros(c_shape, dtype=dtype)
-        mod = tvm.IRModule({"main": kernel})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": kernel})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
         np_op = {"add": np.add, "sub": np.subtract, "mul": np.multiply, "fdiv": np.divide}[op_type]
         if rhs_kind == "region":
             C_ref = np_op(A_np, B_np)
@@ -394,14 +394,14 @@ def test_binary_op_local_subcta_trivial(thread_scope, rhs_kind, op_type):
         atol = 1e-2 if op_type == "fdiv" else 1e-3
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A = tvm.runtime.tensor(A_np, dev)
-            B = tvm.runtime.tensor(B_np, dev)
-            C = tvm.runtime.tensor(C_np, dev)
+            dev = tvm_tirx.cuda(0)
+            A = tvm_tirx.runtime.tensor(A_np, dev)
+            B = tvm_tirx.runtime.tensor(B_np, dev)
+            C = tvm_tirx.runtime.tensor(C_np, dev)
             mod(A, B, C)
-            tvm.testing.assert_allclose(C_ref, C.numpy(), atol=atol)
+            tvm_tirx.testing.assert_allclose(C_ref, C.numpy(), atol=atol)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize(
@@ -522,7 +522,7 @@ def test_binary_op_vectorized(input, storage_scope, thread_scope, op_type, dtype
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("op_type", ["add", "sub", "mul"])
 def test_binary_op_packed_f32x2_explicit(op_type):
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     arch = target.arch if hasattr(target, "arch") else ""
     if not arch.startswith("sm_"):
         pytest.skip(f"unknown target arch: {arch}")
@@ -591,8 +591,8 @@ def test_binary_op_packed_f32x2_explicit(op_type):
         np.random.seed(0)
         A_np = np.random.rand(*a_shape).astype(dtype)
         B_np = np.random.rand(*b_shape).astype(dtype)
-        mod = tvm.IRModule({"main": test_func})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": test_func})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
         ptx_pat = {
             "add": r"add\.[a-z]+\.ftz\.f32x2",
@@ -608,13 +608,13 @@ def test_binary_op_packed_f32x2_explicit(op_type):
             A_ref = A_np * B_np
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A = tvm.runtime.tensor(A_np, dev)
-            B = tvm.runtime.tensor(B_np, dev)
+            dev = tvm_tirx.cuda(0)
+            A = tvm_tirx.runtime.tensor(A_np, dev)
+            B = tvm_tirx.runtime.tensor(B_np, dev)
             mod(A, B)
-            tvm.testing.assert_allclose(A_ref, A.numpy(), atol=1e-3)
+            tvm_tirx.testing.assert_allclose(A_ref, A.numpy(), atol=1e-3)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -623,7 +623,7 @@ def test_binary_op_packed_f32x2_explicit(op_type):
 def test_binary_op_warpgroup_thread_row_layout(op_name):
     dtype = "float32"
     rows, cols = 128, 16
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
 
     @T.function
     def test_func(
@@ -707,8 +707,8 @@ def test_binary_op_warpgroup_thread_row_layout(op_name):
         B_np = np.random.rand(rows, cols).astype(dtype)
         C_np = np.zeros((rows, cols), dtype=dtype)
 
-        mod = tvm.IRModule({"main": test_func})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": test_func})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
         if op_name == "add":
             C_ref = A_np + B_np
         elif op_name == "sub":
@@ -717,20 +717,20 @@ def test_binary_op_warpgroup_thread_row_layout(op_name):
             C_ref = A_np * B_np
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A = tvm.runtime.tensor(A_np, dev)
-            B = tvm.runtime.tensor(B_np, dev)
-            C = tvm.runtime.tensor(C_np, dev)
+            dev = tvm_tirx.cuda(0)
+            A = tvm_tirx.runtime.tensor(A_np, dev)
+            B = tvm_tirx.runtime.tensor(B_np, dev)
+            C = tvm_tirx.runtime.tensor(C_np, dev)
             mod(A, B, C)
-            tvm.testing.assert_allclose(C_ref, C.numpy(), atol=1e-5)
+            tvm_tirx.testing.assert_allclose(C_ref, C.numpy(), atol=1e-5)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("op_name,ptx_op", [("add", "add"), ("sub", "sub"), ("mul", "mul")])
 def test_binary_op_warpgroup_wg_local_emits_packed_f32x2(op_name, ptx_op):
     """The explicit packed instruction survives a warpgroup-local row view."""
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     arch = target.arch if hasattr(target, "arch") else ""
     if not arch.startswith("sm_"):
         pytest.skip(f"unknown target arch: {arch}")
@@ -818,8 +818,8 @@ def test_binary_op_warpgroup_wg_local_emits_packed_f32x2(op_name, ptx_op):
             C[tid, i] = out_row_1[i]
 
     with target:
-        mod = tvm.IRModule({"main": test_func})
-        ex = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": test_func})
+        ex = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
     # Codegen must use the packed f32x2 path, not scalar fallback.
@@ -830,7 +830,7 @@ def test_binary_op_warpgroup_wg_local_emits_packed_f32x2(op_name, ptx_op):
 
 def test_fma_warpgroup_wg_local_emits_packed_f32x2():
     """The packed FMA consumes explicit splatted b64 coefficients."""
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     arch = target.arch if hasattr(target, "arch") else ""
     if not arch.startswith("sm_"):
         pytest.skip(f"unknown target arch: {arch}")
@@ -877,8 +877,8 @@ def test_fma_warpgroup_wg_local_emits_packed_f32x2():
             C[tid, i] = buf_row_1[i]
 
     with target:
-        mod = tvm.IRModule({"main": test_func})
-        ex = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": test_func})
+        ex = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
     assert re.search(r"fma\.[a-z]+\.ftz\.f32x2", src), (
@@ -926,10 +926,10 @@ def test_binary_add_f32_sm100_packed_f32x2_dispatch():
             ra.view("uint32").view(-1, 4),
         )
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.IRModule({"main": k})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": k})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
     assert re.search(r"add\.[a-z]+\.ftz\.f32x2", src), (
         f"expected packed add_f32x2; got:\n{src[:2000]}"
@@ -954,21 +954,21 @@ def test_binary_maximum_reg():
         T.cuda.tile.apply(T.ptx["max.f32"], a_reg[:], a_reg[:], b_reg[:])
         T.cuda.tile.apply(T.ptx["st.global.f32"], C[tid : tid + 1], a_reg[:])
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
-        mod = tvm.tirx.compile(tvm.IRModule({"main": relu_max}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": relu_max}), target=target, pipeline="tirx")
     np.random.seed(0)
     a = np.random.randn(N).astype("float32")
     b = np.random.randn(N).astype("float32")
     c = np.zeros(N, dtype="float32")
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        a_t, b_t, c_t = (tvm.runtime.tensor(x, dev) for x in (a, b, c))
+        dev = tvm_tirx.cuda(0)
+        a_t, b_t, c_t = (tvm_tirx.runtime.tensor(x, dev) for x in (a, b, c))
         mod["main"](a_t, b_t, c_t)
         np.testing.assert_allclose(c_t.numpy(), np.maximum(a, b), atol=0, rtol=0)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_binary_add_f16_scalar_fallback_dispatch():
@@ -1011,10 +1011,10 @@ def test_binary_add_f16_scalar_fallback_dispatch():
             ra.view("uint32").view(-1, 4),
         )
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_80"})
     with target:
-        mod = tvm.IRModule({"main": k})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": k})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
     assert "add.rn.f16" in src, f"expected scalar half add; got:\n{src[:2000]}"
     assert not re.search(r"add\.[a-z]+\.ftz\.f(32|16)x2", src), (
@@ -1062,9 +1062,9 @@ def test_mul_tcgen05_16x256b_atom_warpgroup_dispatch():
         for i in T.serial(regs_per_thread):
             B[tid, i] = dst_local[i]
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
-        mod = tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
     assert re.search(r"mul\.[a-z]+\.ftz\.f32x2", src), (
         f"expected packed mul_f32x2 for tcgen05 atom; got:\n{src[:2000]}"
@@ -1078,7 +1078,7 @@ def test_mul_tcgen05_16x256b_atom_warpgroup_dispatch():
 
 def _splat_f32(value):
     """Prepare the two equal f32 fields of a native b64 packed operand."""
-    if isinstance(value, tvm.ir.prim.FloatImm):
+    if isinstance(value, tvm_tirx.ir.prim.FloatImm):
         bits = struct.unpack("I", struct.pack("f", value.value))[0]
         return T.uint64(bits) | (T.uint64(bits) << T.uint64(32))
     bits = T.cast(T.reinterpret(value, ty="uint32"), "uint64")
@@ -1086,7 +1086,7 @@ def _splat_f32(value):
 
 
 def _get_sm_version():
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     arch = target.arch if hasattr(target, "arch") else ""
     if not arch.startswith("sm_"):
         return 0
@@ -1103,7 +1103,7 @@ def test_mul_scalar_broadcast():
 
     N = 16
     dtype = "float32"
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
 
     @T.function
     def test_func(
@@ -1132,18 +1132,18 @@ def test_mul_scalar_broadcast():
     with target:
         A_np = np.random.rand(N).astype(dtype)
         S_np = np.array([2.5], dtype=dtype)
-        mod = tvm.IRModule({"main": test_func})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": test_func})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A_dev = tvm.runtime.tensor(A_np, dev)
-            S_dev = tvm.runtime.tensor(S_np, dev)
+            dev = tvm_tirx.cuda(0)
+            A_dev = tvm_tirx.runtime.tensor(A_np, dev)
+            S_dev = tvm_tirx.runtime.tensor(S_np, dev)
             mod(A_dev, S_dev)
             expected = A_np * S_np[0]
-            tvm.testing.assert_allclose(expected, A_dev.numpy(), atol=1e-3)
+            tvm_tirx.testing.assert_allclose(expected, A_dev.numpy(), atol=1e-3)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1155,7 +1155,7 @@ def test_add_rounding_mode():
 
     N = 2
     dtype = "float32"
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
 
     round_const = float(2**23 + 2**22)
 
@@ -1178,8 +1178,8 @@ def test_add_rounding_mode():
 
     with target:
         A_np = np.array([1.3, 2.7], dtype=dtype)
-        mod = tvm.IRModule({"main": test_func})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": test_func})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
         # Check that the PTX uses the rounding mode
         src = mod.mod.imports[0].inspect_source()
         assert re.search(r"add\.rm\.ftz\.f32x2", src), (
@@ -1187,14 +1187,14 @@ def test_add_rounding_mode():
         )
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A_dev = tvm.runtime.tensor(A_np, dev)
+            dev = tvm_tirx.cuda(0)
+            A_dev = tvm_tirx.runtime.tensor(A_np, dev)
             mod(A_dev)
             # Both exact sums lie above these integers; rm rounds down.
             expected = np.array([round_const + 1, round_const + 2], dtype="float32")
             np.testing.assert_array_equal(expected, A_dev.numpy())
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1206,7 +1206,7 @@ def test_sub_tensor_tensor_rounding():
 
     N = 2
     dtype = "float32"
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
 
     @T.function
     def test_func(
@@ -1235,23 +1235,23 @@ def test_sub_tensor_tensor_rounding():
     with target:
         A_np = np.array([3.14, 2.71], dtype=dtype)
         B_np = np.array([1.41, 0.57], dtype=dtype)
-        mod = tvm.IRModule({"main": test_func})
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": test_func})
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
         assert re.search(r"sub\.rn\.ftz\.f32x2", src), (
             f"Expected packed sub with rn rounding in PTX:\n{src}"
         )
 
         def run_and_check():
-            dev = tvm.cuda(0)
-            A_dev = tvm.runtime.tensor(A_np, dev)
-            B_dev = tvm.runtime.tensor(B_np, dev)
+            dev = tvm_tirx.cuda(0)
+            A_dev = tvm_tirx.runtime.tensor(A_np, dev)
+            B_dev = tvm_tirx.runtime.tensor(B_np, dev)
             mod(A_dev, B_dev)
             expected = A_np - B_np
-            tvm.testing.assert_allclose(expected, A_dev.numpy(), atol=1e-6)
+            tvm_tirx.testing.assert_allclose(expected, A_dev.numpy(), atol=1e-6)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

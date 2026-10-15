@@ -28,9 +28,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from tvm import ir
-from tvm.script import ir as I
-from tvm.script.parser import entry
+from tvm_tirx import ir
+from tvm_tirx.script import ir as I
+from tvm_tirx.script.parser import entry
 
 EXTENT = 11
 VALUE = 1

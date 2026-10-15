@@ -18,7 +18,8 @@
 # ruff: noqa: E731
 """General LSTM implementation using TE scan."""
 
-from tvm import te, tirx
+from tvm_tirx import tirx
+from tvm import te
 from tvm.topi import tag
 
 

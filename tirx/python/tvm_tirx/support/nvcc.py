@@ -25,9 +25,9 @@ import warnings
 
 import tvm_ffi
 
-import tvm
-from tvm.backend.config import parse_backend_config
-from tvm.target import Target
+import tvm_tirx
+from tvm_tirx.backend.config import parse_backend_config
+from tvm_tirx.target import Target
 
 from . import utils
 
@@ -36,9 +36,9 @@ def compile_cuda(code, *, backend_config=None, path_target=None):
     """Compile source using the nested backend_config mapping and return its bytes.
 
     For the binary format and resolved configuration, use
-    :func:`tvm.backend.cuda.compiler.compile_source` directly.
+    :func:`tvm_tirx.backend.cuda.compiler.compile_source` directly.
     """
-    from tvm.backend.cuda.compiler import compile_source
+    from tvm_tirx.backend.cuda.compiler import compile_source
 
     result = compile_source(code, backend_config)
     if path_target:
@@ -762,7 +762,7 @@ def find_nvshmem_paths() -> tuple[str, str]:
 @tvm_ffi.register_global_func
 def tvm_callback_cuda_compile(code, config_json):
     """Compile one device group using its serialized, resolved configuration."""
-    from tvm.backend.cuda.compiler import compile_source
+    from tvm_tirx.backend.cuda.compiler import compile_source
 
     config = parse_backend_config(config_json)
     arch = config.get("cuda", {}).get("arch")
@@ -847,7 +847,7 @@ def get_target_compute_version(target=None):
 
     Parameters
     ----------
-    target : tvm.target.Target, optional
+    target : tvm_tirx.target.Target, optional
         The compilation target
 
     Returns
@@ -872,8 +872,8 @@ def get_target_compute_version(target=None):
         return arch[:-1] + "." + arch[-1]
 
     # 3. GPU compute version
-    if tvm.cuda(0).exist:
-        cv = tvm.cuda(0).compute_version
+    if tvm_tirx.cuda(0).exist:
+        cv = tvm_tirx.cuda(0).compute_version
         # Append 'a' suffix for SM 9.0+ (Hopper, Blackwell) which need
         # architecture-specific instructions (wgmma, tcgen05, etc.).
         major_minor = cv.split(".")
@@ -956,13 +956,13 @@ def have_tensorcore(compute_version=None, target=None):
     compute_version : str, optional
         compute capability of a GPU (e.g. "7.0").
 
-    target : tvm.target.Target, optional
+    target : tvm_tirx.target.Target, optional
         The compilation target, will be used to determine arch if compute_version
         isn't specified.
     """
     if compute_version is None:
-        if tvm.cuda(0).exist:
-            compute_version = tvm.cuda(0).compute_version
+        if tvm_tirx.cuda(0).exist:
+            compute_version = tvm_tirx.cuda(0).compute_version
         else:
             if target is None or "arch" not in target.attrs:
                 warnings.warn(

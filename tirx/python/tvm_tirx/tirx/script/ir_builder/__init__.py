@@ -16,9 +16,9 @@
 # under the License.
 """Concrete TIRx construction operations over the shared native IRBuilder stack."""
 
-from tvm.ir.type import _init_type_api
-from tvm.script.ir_builder import *
-from tvm.script.ir_builder import __all__ as _shared_exports
+from tvm_tirx.ir.type import _init_type_api
+from tvm_tirx.script.ir_builder import *
+from tvm_tirx.script.ir_builder import __all__ as _shared_exports
 
 from . import ir as _native
 from .ir import *

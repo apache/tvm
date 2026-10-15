@@ -19,18 +19,18 @@
 import pytest
 import tvm_ffi
 
-import tvm
-from tvm.ir import Call, Op, const
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.expr import Broadcast, CallEffectKind
+import tvm_tirx
+from tvm_tirx.ir import Call, Op, const
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx.expr import Broadcast, CallEffectKind
 
-TARGET = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
+TARGET = tvm_tirx.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
 
 
 def _cuda_source(func) -> str:
     with TARGET:
-        mod = tvm.tirx.compile(tvm.IRModule({"main": func}), target=TARGET, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": func}), target=TARGET, pipeline="tirx")
     return mod.mod.imports[0].inspect_source("cuda")
 
 
@@ -46,8 +46,8 @@ def _calls(func, op_name):
 
 
 def test_ptx_addr_registration_and_table_capabilities():
-    from tvm.backend.cuda.codegen.registry import CODEGEN_REGISTRY
-    from tvm.backend.cuda.ptx.table import TABLE
+    from tvm_tirx.backend.cuda.codegen.registry import CODEGEN_REGISTRY
+    from tvm_tirx.backend.cuda.ptx.table import TABLE
 
     op = Op.get("tirx.ptx.addr")
     assert int(op.get_attr("TCallEffectKind")) == CallEffectKind.Pure.value
@@ -61,7 +61,7 @@ def test_ptx_addr_registration_and_table_capabilities():
 
 
 def test_ptx_addr_table_validation_rejects_wrong_operand_classes():
-    from tvm.backend.cuda.ptx.table import (
+    from tvm_tirx.backend.cuda.ptx.table import (
         InstructionEntry,
         OperandSlot,
         _validate_imm_offset_slots,
@@ -149,8 +149,8 @@ def test_ptx_addr_scalar_vector_cache_predicate_and_multi_address_codegen():
 
 
 def test_ptx_addr_zero_sign_boundaries_and_helper_names():
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, tokens_for
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, tokens_for
 
     entry = TABLE["ld"]
     tokens = tokens_for(entry, space="global", type="b32")
@@ -170,7 +170,7 @@ def test_ptx_addr_zero_sign_boundaries_and_helper_names():
     assert "[%1+-2147483648]" in low[2]
     assert "[%1+2147483647]" in high[2]
 
-    from tvm.backend.cuda.ptx.table import renderings
+    from tvm_tirx.backend.cuda.ptx.table import renderings
 
     cp_entry = TABLE["cp_async_ca"]
     cp_tokens, cp_dtypes, cp_predicated, cp_imms, cp_sinks = next(iter(renderings(cp_entry)))
@@ -224,7 +224,7 @@ def test_ptx_addr_unrolled_expression_and_dynamic_rejection():
 
     for func in (thread_dynamic, loop_dynamic):
         with pytest.raises(
-            (ValueError, tvm.error.InternalError), match="must become a compile-time"
+            (ValueError, tvm_tirx.error.InternalError), match="must become a compile-time"
         ):
             _cuda_source(func)
 
@@ -278,8 +278,8 @@ def test_ptx_addr_tma_tmem_and_independent_immediate_rejections():
             value = T.local_scalar("uint32")
             T.ptx["tcgen05.ld.sync.aligned.32x32b.x1.b32"](value, T.ptx.addr(raw, 16))
 
-    from tvm.backend.cuda.ptx.render import render_variant
-    from tvm.backend.cuda.ptx.table import TABLE, variants
+    from tvm_tirx.backend.cuda.ptx.render import render_variant
+    from tvm_tirx.backend.cuda.ptx.table import TABLE, variants
 
     entry = TABLE["tcgen05_ld_split"]
     tokens = variants(entry)[0]
@@ -300,11 +300,11 @@ def test_ptx_addr_printer_script_and_json_roundtrip():
 
     script = kernel.script()
     assert script.count("T.ptx.addr(") == 2
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         kernel,
-        tvm.script.from_source(script, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}),
+        tvm_tirx.script.from_source(script, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}),
     )
-    tvm.ir.assert_structural_equal(kernel, tvm.ir.load_json(tvm.ir.save_json(kernel)))
+    tvm_tirx.ir.assert_structural_equal(kernel, tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(kernel)))
 
 
 def test_ptx_addr_legacy_positional_offsets_rejected():
@@ -340,7 +340,7 @@ def test_ptx_addr_legacy_positional_offsets_rejected():
 
 
 def test_ptx_addr_unconsumed_codegen_diagnostic():
-    from tvm.backend.cuda.codegen.registry import CODEGEN_REGISTRY
+    from tvm_tirx.backend.cuda.codegen.registry import CODEGEN_REGISTRY
 
     with pytest.raises(ValueError, match="must be consumed by a PTX address operand"):
         CODEGEN_REGISTRY["tirx.ptx.addr"]([const(0, "uint64"), const(16, "int32")])

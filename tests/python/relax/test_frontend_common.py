@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import relax
 from tvm.relax.frontend import detach_params
 from tvm.relax.frontend.common import autopad
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.script.parser import relax as R
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.parser import relax as R
 
 
 def test_detach_params():
@@ -30,16 +30,16 @@ def test_detach_params():
     def func(x: R.Tensor((2, 3), "float32")):
         return x
 
-    param = tvm.runtime.empty((3,), "float32")
-    mod = tvm.IRModule({"func": func.with_attr("params", [param])})
+    param = tvm_tirx.runtime.empty((3,), "float32")
+    mod = tvm_tirx.IRModule({"func": func.with_attr("params", [param])})
     detached_mod, detached_params = detach_params(mod)
 
-    tvm.ir.assert_structural_equal(detached_mod, tvm.IRModule({"func": func}))
+    tvm_tirx.ir.assert_structural_equal(detached_mod, tvm_tirx.IRModule({"func": func}))
     assert len(detached_params) == 1
     assert "func" in detached_params
     assert isinstance(detached_params["func"], list)
     assert len(detached_params["func"]) == 1
-    tvm.testing.assert_allclose(detached_params["func"][0].numpy(), param.numpy())
+    tvm_tirx.testing.assert_allclose(detached_params["func"][0].numpy(), param.numpy())
 
 
 class TestAutopad:
@@ -64,7 +64,7 @@ class TestAutopad:
                 out = bb.emit_output(result)
             bb.emit_func_output(out)
 
-        tvm.ir.assert_structural_equal(bb.get(), expected)
+        tvm_tirx.ir.assert_structural_equal(bb.get(), expected)
 
     def test_constant(self):
         @I.ir_module
@@ -197,4 +197,4 @@ class TestAutopad:
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -16,12 +16,12 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 # ruff: noqa: E501, F401, F841
-import tvm
-import tvm.testing
-from tvm import tirx
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def _create_context(mod, target) -> ms.TuneContext:
@@ -41,7 +41,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 # fmt: off
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dNCHWcVTCM:
     @Ts.function
     def main(p0: T.Tensor((T.int64(1), T.int64(2), T.int64(56), T.int64(56), T.int64(32)), "uint8"), p1: T.Tensor((T.int64(2), T.int64(2), T.int64(3), T.int64(3), T.int64(8), T.int64(32), T.int64(4)), "uint8"), conv2d_NCHWc_int8: T.Tensor((T.int64(1), T.int64(2), T.int64(54), T.int64(54), T.int64(32)), "int32")):
@@ -113,13 +113,13 @@ class Conv2dNCHWcVTCM:
 
 def test_conv2d_vtcm():
     def get_target(vtcm_cap):
-        target = tvm.target.Target({
+        target = tvm_tirx.target.Target({
             "kind": "hexagon", "mtriple": "hexagon", "mcpu": "hexagonv68",
             "mattr": ["+hvxv68", "+hvx-length128b", "+hvx-qfloat", "-hvx-ieee-fp"],
             "num-cores": 4, "vtcm-capacity": vtcm_cap,
             "llvm-options": ["-force-hvx-float"],
         })
-        return tvm.target.Target(target, host=target)
+        return tvm_tirx.target.Target(target, host=target)
 
     sch = tvm.s_tir.Schedule(Conv2dNCHWcVTCM, debug_mask="all")
 
@@ -131,4 +131,4 @@ def test_conv2d_vtcm():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

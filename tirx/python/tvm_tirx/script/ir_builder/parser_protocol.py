@@ -33,8 +33,8 @@ import re as _re
 from collections.abc import Sequence
 from typing import Any
 
-from tvm import ir as _ir
-from tvm.ir import BaseFunc, GlobalVar
+from tvm_tirx import ir as _ir
+from tvm_tirx.ir import BaseFunc, GlobalVar
 
 from . import _ffi_api
 from .base import MISSING, AlreadyEmitted, IRBuilderFrame, LocationEntry
@@ -108,7 +108,7 @@ def function_(*, decl: bool = False, loc: _Loc = None, **options: Any) -> IRBuil
         Language variant options: primitive function ``private`` and ``persistent``
         default to False. Relax ``pure`` defaults to True and ``private``/``local``
         to False; ``local=True`` requires a declared reference when building its
-        body. See :func:`tvm.tirx.script.ir_builder.function_` and
+        body. See :func:`tvm_tirx.tirx.script.ir_builder.function_` and
         :func:`tvm.relax.script.ir_builder.function_` for their concrete options.
 
     Returns
@@ -263,7 +263,7 @@ def check_well_formed_(module: _ir.IRModule) -> None:
     -----
     Requires completed IR, with no active construction frame. Root coordination
     invokes opaque whole-module hooks supplied by language variant initialization through
-    tvm.script.register_module_validator. Each hook owns concrete types, eligibility
+    tvm_tirx.script.register_module_validator. Each hook owns concrete types, eligibility
     and cross-function validation, including captured/preexisting members. No source
     decorator inventory selects the hooks. Validator exceptions propagate unchanged;
     an empty hook list raises RuntimeError instead of establishing validity.
@@ -278,7 +278,7 @@ def check_well_formed_(module: _ir.IRModule) -> None:
         # Generated builder, after module frame exit
         I.check_well_formed_(module)
     """
-    from tvm.script import _MODULE_VALIDATORS
+    from tvm_tirx.script import _MODULE_VALIDATORS
 
     validators = tuple(_MODULE_VALIDATORS)
     if not validators:
@@ -311,7 +311,7 @@ def resolve_global_info_(content: str) -> _ir.GlobalInfo:
     Resolution uses the nearest active native module frame. Missing
     context or malformed selectors raise ValueError; missing names and indices
     propagate KeyError and IndexError. Non-string inputs raise TypeError.
-    :func:`tvm.script.ir_builder.resolve_global_info_args` invokes this hook
+    :func:`tvm_tirx.script.ir_builder.resolve_global_info_args` invokes this hook
     only for string arguments and preserves concrete constructor inputs.
 
     .. code:: python
@@ -398,7 +398,7 @@ def module_member_(name: str, value: Any) -> Any:
         # Generated builder, inside I.ir_module
         helper = I.module_member_("helper", existing_function)
     """
-    from tvm.ir import BaseFunc
+    from tvm_tirx.ir import BaseFunc
 
     if isinstance(value, BaseFunc):
         return decl_function(name, value)

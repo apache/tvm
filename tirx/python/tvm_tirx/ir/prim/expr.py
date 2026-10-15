@@ -18,7 +18,7 @@
 
 import tvm_ffi
 
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from .. import _ffi_api as _ir_ffi_api
 from ..expr import Constant, Expr, ExprWithOp, Var
@@ -631,7 +631,7 @@ class Select(ExprWithOp):
     Note
     ----
     Select may compute both true_value and false_value.
-    Use :py:func:`tvm.ir.prim.if_then_else` instead if you want to
+    Use :py:func:`tvm_tirx.ir.prim.if_then_else` instead if you want to
     get a conditional expression that only evaluates
     the correct branch.
 

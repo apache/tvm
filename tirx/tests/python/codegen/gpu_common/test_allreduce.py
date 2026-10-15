@@ -19,11 +19,11 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 def _reduce_module(d1, d2, d3, is_max=False):
@@ -73,7 +73,7 @@ def generate_param_sets():
                     yield (d1, d2, d3)
 
 
-dims = tvm.testing.parameter(*generate_param_sets())
+dims = tvm_tirx.testing.parameter(*generate_param_sets())
 
 
 @pytest.mark.parametrize(
@@ -84,39 +84,39 @@ dims = tvm.testing.parameter(*generate_param_sets())
     ],
 )
 def test_allreduce_sum(dims, target):
-    if not tvm.testing.device_enabled(target):
+    if not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
     d1, d2, d3 = dims
     mod = _reduce_sum_module(d1, d2, d3)
-    f = tvm.tirx.compile(mod, target=target)
+    f = tvm_tirx.tirx.compile(mod, target=target)
 
     # prepare input and output array
     a_np = np.random.rand(1, d1, d2, d3).astype("float32")
     b_np = a_np.sum(axis=-1).astype("float32")
 
     def run_and_check():
-        dev = tvm.device_from_target(target)
-        a = tvm.runtime.tensor(a_np, dev)
-        b = tvm.runtime.tensor(np.zeros_like(b_np), dev)
+        dev = tvm_tirx.device_from_target(target)
+        a = tvm_tirx.runtime.tensor(a_np, dev)
+        b = tvm_tirx.runtime.tensor(np.zeros_like(b_np), dev)
         f(a, b)
-        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-6, atol=1e-6)
+        tvm_tirx.testing.assert_allclose(b.numpy(), b_np, rtol=1e-6, atol=1e-6)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
-define_metal_compile_callback = tvm.testing.parameter(True, False)
+define_metal_compile_callback = tvm_tirx.testing.parameter(True, False)
 
 
 @pytest.fixture
 def optional_metal_compile_callback(define_metal_compile_callback):
     name = "tvm_callback_metal_compile"
-    cached = tvm.get_global_func(name, allow_missing=True)
+    cached = tvm_tirx.get_global_func(name, allow_missing=True)
 
     if define_metal_compile_callback:
 
-        @tvm.register_global_func(name, override=True)
+        @tvm_tirx.register_global_func(name, override=True)
         def compile_metal(src, target):
-            from tvm.support.xcode import compile_metal  # pylint: disable=import-outside-toplevel
+            from tvm_tirx.support.xcode import compile_metal  # pylint: disable=import-outside-toplevel
 
             return compile_metal(src, sdk="macosx")
 
@@ -126,7 +126,7 @@ def optional_metal_compile_callback(define_metal_compile_callback):
         if cached is None:
             tvm_ffi.registry.remove_global_func(name)
         else:
-            tvm.register_global_func(name, cached, override=True)
+            tvm_tirx.register_global_func(name, cached, override=True)
 
 
 @pytest.mark.gpu
@@ -138,7 +138,7 @@ def test_allreduce_sum_compile(optional_metal_compile_callback):
 
     d1, d2, d3 = dims
     mod = _reduce_sum_module(d1, d2, d3)
-    tvm.tirx.compile(mod, target=target)
+    tvm_tirx.tirx.compile(mod, target=target)
 
 
 @pytest.mark.parametrize(
@@ -149,25 +149,25 @@ def test_allreduce_sum_compile(optional_metal_compile_callback):
     ],
 )
 def test_allreduce_max(dims, target):
-    if not tvm.testing.device_enabled(target):
+    if not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
     d1, d2, d3 = dims
     mod = _reduce_max_module(d1, d2, d3)
-    f = tvm.tirx.compile(mod, target=target)
+    f = tvm_tirx.tirx.compile(mod, target=target)
 
     # prepare input and output array
     a_np = -np.random.rand(1, d1, d2, d3).astype("float32")
     b_np = a_np.max(axis=-1).astype("float32")
 
     def run_and_check():
-        dev = tvm.device_from_target(target)
-        a = tvm.runtime.tensor(a_np, dev)
-        b = tvm.runtime.tensor(np.zeros_like(b_np), dev)
+        dev = tvm_tirx.device_from_target(target)
+        a = tvm_tirx.runtime.tensor(a_np, dev)
+        b = tvm_tirx.runtime.tensor(np.zeros_like(b_np), dev)
         f(a, b)
-        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-6, atol=1e-6)
+        tvm_tirx.testing.assert_allclose(b.numpy(), b_np, rtol=1e-6, atol=1e-6)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

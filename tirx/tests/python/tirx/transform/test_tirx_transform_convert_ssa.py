@@ -16,11 +16,11 @@
 # under the License.
 # ruff: noqa: F401
 
-import tvm
-import tvm.testing
-from tvm import ir, tirx
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx import ir, tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_reuse_in_sequential_bind():
@@ -46,8 +46,8 @@ def test_reuse_in_sequential_bind():
         var2 = T.bind(T.int32(32))
         T.evaluate(var2)
 
-    After = tvm.tirx.transform.ConvertSSA()(Before)
-    tvm.ir.assert_structural_equal(After["main"], expected)
+    After = tvm_tirx.tirx.transform.ConvertSSA()(Before)
+    tvm_tirx.ir.assert_structural_equal(After["main"], expected)
 
 
 def test_reuse_in_nested_bind():
@@ -75,8 +75,8 @@ def test_reuse_in_nested_bind():
             T.evaluate(var2)
 
     assert Before["main"].body[0].var.same_as(Before["main"].body[2].var)
-    After = tvm.tirx.transform.ConvertSSA()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.ConvertSSA()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_reused_var_across_module():
@@ -106,8 +106,8 @@ def test_reused_var_across_module():
             var: T.let = T.int32(10)
             T.evaluate(var)
 
-    after = tvm.tirx.transform.ConvertSSA()(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    after = tvm_tirx.tirx.transform.ConvertSSA()(before)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_reused_parameter():
@@ -138,8 +138,8 @@ def test_reused_parameter():
         def func_b(n: T.int32):
             T.evaluate(n)
 
-    after = tvm.tirx.transform.ConvertSSA()(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    after = tvm_tirx.tirx.transform.ConvertSSA()(before)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_reused_tensor_obj():
@@ -169,8 +169,8 @@ def test_reused_tensor_obj():
             A = T.decl_tensor(a, ty_args=[T.Tensor(1, "float32", data=a)])
             T.evaluate(A[0])
 
-    after = tvm.tirx.transform.ConvertSSA()(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    after = tvm_tirx.tirx.transform.ConvertSSA()(before)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_reused_tensor_parameter():
@@ -197,8 +197,8 @@ def test_reused_tensor_parameter():
         def func_b(A: T.Tensor(1, "float32")):
             T.evaluate(A[0])
 
-    after = tvm.tirx.transform.ConvertSSA()(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    after = tvm_tirx.tirx.transform.ConvertSSA()(before)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_reused_compound_tensor_shape_var():
@@ -229,8 +229,8 @@ def test_reused_compound_tensor_shape_var():
         def func_b(A: T.Tensor((T.max(n_b, 1),), "float32", layout=None)):
             T.evaluate(n_b)
 
-    after = tvm.tirx.transform.ConvertSSA()(before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.ConvertSSA()(before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
     func_a = after["func_a"]
     func_b = after["func_b"]
     n_a = func_a.params[0].shape[0].a
@@ -249,8 +249,8 @@ def test_no_change_if_already_ssa():
         def func(A: T.Tensor(1, "float32")):
             T.evaluate(A[0])
 
-    after = tvm.tirx.transform.ConvertSSA()(before)
-    tvm.ir.assert_structural_equal(before, after)
+    after = tvm_tirx.tirx.transform.ConvertSSA()(before)
+    tvm_tirx.ir.assert_structural_equal(before, after)
     assert before.same_as(after)
 
 
@@ -267,8 +267,8 @@ def test_keep_duplicate_thread_idx_in_same_function():
             with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
                 A[threadIdx_x] = A[threadIdx_x] + 2.0
 
-    after = tvm.tirx.transform.ConvertSSA()(before)
-    tvm.ir.assert_structural_equal(after, before)
+    after = tvm_tirx.tirx.transform.ConvertSSA()(before)
+    tvm_tirx.ir.assert_structural_equal(after, before)
 
 
 def test_de_duplicate_thread_idx_across_multiple_functions():
@@ -323,8 +323,8 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
             )
             A[kernel_2_threadIdx_x] = A[kernel_2_threadIdx_x] + T.float32(1)
 
-    after = tvm.tirx.transform.ConvertSSA()(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    after = tvm_tirx.tirx.transform.ConvertSSA()(before)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_thread_idx_reused_within_and_across_functions():
@@ -385,8 +385,8 @@ def test_thread_idx_reused_within_and_across_functions():
             with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
                 A[threadIdx_x] = A[threadIdx_x] + 2.0
 
-    after = tvm.tirx.transform.ConvertSSA()(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    after = tvm_tirx.tirx.transform.ConvertSSA()(before)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_shared_shape_var_in_tensor_params_and_alloc_tensor():
@@ -407,8 +407,8 @@ def test_shared_shape_var_in_tensor_params_and_alloc_tensor():
             C = T.alloc_tensor(ty_args=[T.Tensor((n,), "float32")])
             T.evaluate(1)
 
-    After = tvm.tirx.transform.ConvertSSA()(Before)
-    tvm.ir.assert_structural_equal(After, Before)
+    After = tvm_tirx.tirx.transform.ConvertSSA()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Before)
     assert After.same_as(Before)
 
 
@@ -474,10 +474,10 @@ def test_reused_loop_var_in_decl_tensor_elem_offset():
 
     assert Before["main"].body[0].same_as(Before["main"].body[1])
     assert Before["main"].body[1].same_as(Before["main"].body[2])
-    After = tvm.tirx.transform.ConvertSSA()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-    tvm.tirx.analysis.verify_well_formed(After["main"], assert_mode=True)
+    After = tvm_tirx.tirx.transform.ConvertSSA()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.tirx.analysis.verify_well_formed(After["main"], assert_mode=True)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

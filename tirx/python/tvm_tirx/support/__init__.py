@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""tvm.support — Python helpers that integrate TVM with external CLIs
+"""tvm_tirx.support — Python helpers that integrate TVM with external CLIs
 and host-side tools (compilers, archivers, subprocess pools, build-info
 queries). Distinct from `tvm.contrib`, which is reserved for optional
 vendor SDK integrations and experimental features."""
@@ -27,7 +27,7 @@ import textwrap
 
 import tvm_ffi
 
-import tvm
+import tvm_tirx
 
 tvm_ffi.init_ffi_api("support", __name__)
 
@@ -45,7 +45,7 @@ def describe():
     uname = platform.uname()
     uname = f"{uname.system} {uname.release} {uname.version} {uname.machine}"
     lines = [
-        f"TVM version    = {tvm.__version__}",
+        f"TVM version    = {tvm_tirx.__version__}",
         f"Python version = {sys_version} ({sys.maxsize.bit_length() + 1} bit)",
         f"uname          = {uname}",
     ]

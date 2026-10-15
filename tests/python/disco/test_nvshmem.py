@@ -29,15 +29,15 @@ import numpy as np
 import pytest
 from tvm_ffi import Shape
 
-import tvm
-import tvm.testing
-from tvm.ir import TupleType as _TupleType
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx.ir import TupleType as _TupleType
 from tvm.runtime import disco as di
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.testing import env
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 if di is None:
     pytest.skip("disco runtime is not available", allow_module_level=True)
@@ -169,18 +169,18 @@ def _run_in_fresh_process(target, *args):
             )
         assert proc.exitcode == 0, f"{target.__name__}{args} failed with exit code {proc.exitcode}"
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 def _require_cuda_devices(num_workers):
     # Each nvshmem worker binds its own CUDA device (cudaSetDevice(worker_id)).
-    if not all(tvm.cuda(i).exist for i in range(num_workers)):
+    if not all(tvm_tirx.cuda(i).exist for i in range(num_workers)):
         pytest.skip(f"Requires {num_workers} CUDA devices")
 
 
 def _init_finalize(session_kind, num_workers):
     sess = session_kind(num_workers=num_workers)
-    f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+    f_init_nvshmem_uid = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
     uid = f_init_nvshmem_uid()
     init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
     init_dfunc(uid, num_workers, 0)
@@ -191,9 +191,9 @@ def _init_finalize(session_kind, num_workers):
 
 
 def _empty(session_kind, num_workers):
-    device = tvm.cuda()
+    device = tvm_tirx.cuda()
     sess = session_kind(num_workers=num_workers)
-    f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+    f_init_nvshmem_uid = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
     uid = f_init_nvshmem_uid()
     init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
     init_dfunc(uid, num_workers, 0)
@@ -225,7 +225,7 @@ def _compile():
     num_workers = 2
     sess = di.ProcessSession(num_workers=num_workers)
 
-    f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+    f_init_nvshmem_uid = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
     uid = f_init_nvshmem_uid()
     init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
     init_dfunc(uid, num_workers, 0)
@@ -251,7 +251,7 @@ def _compile():
         B_array = sess.empty(B_np.shape, "float32")
         A_array.debug_copy_from(0, A_np)
 
-        target = tvm.target.Target("cuda")
+        target = tvm_tirx.target.Target("cuda")
         tvm.compile(main, target=target).export_library(path)
         mod = sess.load_vm_module(path)
         mod["main"](A_array, B_array)
@@ -294,7 +294,7 @@ def _kernel_compile(compile_mode):
     num_workers = 2
     sess = di.ProcessSession(num_workers=num_workers)
 
-    f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+    f_init_nvshmem_uid = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
     uid = f_init_nvshmem_uid()
     init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
     init_dfunc(uid, num_workers, 0)
@@ -337,10 +337,10 @@ def _kernel_compile(compile_mode):
         try:
             path = tmpdir + "/test_nvshmem_kernel.so"
 
-            target = tvm.target.Target("cuda")
+            target = tvm_tirx.target.Target("cuda")
             tvm.compile(
                 NvshmemQueryModule,
-                target={**tvm.target.Target(target).export(), "backend_config": backend_config},
+                target={**tvm_tirx.target.Target(target).export(), "backend_config": backend_config},
             ).export_library(path)
             mod = sess.load_vm_module(path)
             result = mod["main"]()
@@ -387,4 +387,4 @@ def test_nvshmem_kernel_compile_nvrtc():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

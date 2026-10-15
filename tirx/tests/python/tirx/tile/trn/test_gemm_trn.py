@@ -17,34 +17,34 @@
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm.backend.trn.axis import Bank, F, P
-from tvm.backend.trn.transform import TrnPrivateTensorAlloc
-from tvm.ir import assert_structural_equal as _assert_structural_equal
-from tvm.script import tirx as T
-from tvm.tirx.layout import S, TileLayout
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.trn.axis import Bank, F, P
+from tvm_tirx.backend.trn.transform import TrnPrivateTensorAlloc
+from tvm_tirx.ir import assert_structural_equal as _assert_structural_equal
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx.layout import S, TileLayout
 
-target = tvm.target.Target("aws/trn1/trn1.2xlarge")
+target = tvm_tirx.target.Target("aws/trn1/trn1.2xlarge")
 
 
 def _strip_thread_scope_stmt(stmt):
-    def _strip_region(node: tvm.ir.RegionStmt):
-        if node.op.same_as(tvm.ir.Op.get("tirx.device_entry")):
+    def _strip_region(node: tvm_tirx.ir.RegionStmt):
+        if node.op.same_as(tvm_tirx.ir.Op.get("tirx.device_entry")):
             return node.body
         return node
 
     return tvm_ffi.structural_map(
         stmt,
-        (tvm.ir.RegionStmt, _strip_region),
+        (tvm_tirx.ir.RegionStmt, _strip_region),
         order="post",
     )
 
 
 def assert_structural_equal(lhs, rhs, *args, **kwargs):
-    if isinstance(lhs, tvm.tirx.Function):
+    if isinstance(lhs, tvm_tirx.tirx.Function):
         lhs = lhs.with_body(_strip_thread_scope_stmt(lhs.body))
-    if isinstance(rhs, tvm.tirx.Function):
+    if isinstance(rhs, tvm_tirx.tirx.Function):
         rhs = rhs.with_body(_strip_thread_scope_stmt(rhs.body))
     _assert_structural_equal(lhs, rhs, *args, **kwargs)
 
@@ -84,8 +84,8 @@ def test_simple_gemm():
                     T.nki.matmul(C_psum[0, lhs_f_loop, rhs_f_loop], A_sbuf[p_loop, lhs_f_loop], B_sbuf[p_loop, rhs_f_loop], True)  # noqa: E501
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": gemm})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": gemm})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -124,8 +124,8 @@ def test_larger_gemm():
                     T.nki.matmul(C_psum[0, lhs_f_loop, lhs_b_loop * 256 + rhs_f_loop], A_sbuf[p_loop, lhs_b_loop * 512 + reduction_b_loop * 128 + lhs_f_loop], B_sbuf[p_loop, reduction_b_loop * 256 + rhs_f_loop], True)  # noqa: E501
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": gemm})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": gemm})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -171,8 +171,8 @@ def test_gemm_in_a_loop():
                     T.nki.matmul(C_psum[i, lhs_f_loop, lhs_b_loop * 256 + rhs_f_loop], A_sbuf[p_loop, i * 2048 + lhs_b_loop * 1024 + k * 512 + reduction_b_loop * 128 + lhs_f_loop], B_sbuf[p_loop, k * 1024 + reduction_b_loop * 256 + rhs_f_loop], True)  # noqa: E501
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": gemm})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": gemm})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -219,8 +219,8 @@ def test_gemm_with_stride():
             # fmt: on
 
     with target:
-        mod = tvm.IRModule({"main": gemm})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": gemm})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -266,8 +266,8 @@ def test_gemm_swap_lhs_rhs():
                     T.nki.matmul(C_psum[i, lhs_f_loop, rhs_b_loop * 256 + lhs_b_loop * 128 + rhs_f_loop], B_sbuf[p_loop, k * 1024 + reduction_b_loop * 256 + lhs_b_loop * 128 + lhs_f_loop], A_sbuf[p_loop, i * 2048 + rhs_b_loop * 1024 + k * 512 + reduction_b_loop * 128 + rhs_f_loop], True)  # noqa: E501
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": gemm})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": gemm})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -321,10 +321,10 @@ def test_gemm_with_sbuf_output():
                 T.nki.tensor_copy(C_sbuf[lhs_f_loop, i * 512 + rhs_b_loop * 256 + lhs_b_loop * 128 + rhs_f_loop], tensor[lhs_b_loop * 2 + rhs_b_loop, lhs_f_loop, rhs_f_loop])  # noqa: E501
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": gemm})
+        mod = tvm_tirx.IRModule({"main": gemm})
         mod = TrnPrivateTensorAlloc()(mod)
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.StmtSimplify()(mod)
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -370,8 +370,8 @@ def test_gemm_different_shape():
                     T.nki.matmul(C_psum[i, lhs_f_loop, rhs_b_loop * 256 + lhs_b_loop * 128 + rhs_f_loop], B_sbuf[p_loop, k * 1024 + reduction_b_loop * 256 + lhs_b_loop * 128 + lhs_f_loop], A_sbuf[p_loop, i * 2048 + rhs_b_loop * 1024 + k * 512 + reduction_b_loop * 128 + rhs_f_loop + 4096], True)  # noqa: E501
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": gemm})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": gemm})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -410,8 +410,8 @@ def test_gemm_too_large_f_size():
                     T.nki.matmul(C_psum[lhs_b_loop * 2 + rhs_b_loop, lhs_f_loop, rhs_f_loop], A_sbuf[p_loop, lhs_b_loop * 128 + lhs_f_loop], B_sbuf[p_loop, rhs_b_loop * 512 + rhs_f_loop], True)  # noqa: E501
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": gemm})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": gemm})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -469,9 +469,9 @@ def test_gemm_sbuf_output_with_workspace():
                 T.nki.tensor_copy(C_sbuf[lhs_f_loop, i * 512 + rhs_b_loop * 256 + lhs_b_loop * 128 + rhs_f_loop], C_psum[0, lhs_f_loop, rhs_f_loop])  # noqa: E501
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": gemm})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.StmtSimplify()(mod)
+        mod = tvm_tirx.IRModule({"main": gemm})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -505,8 +505,8 @@ def test_gemm_pf_mismatch_fail():
         # fmt: on
     with pytest.raises(Exception):
         with target:
-            mod = tvm.IRModule({"main": gemm})
-            mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+            mod = tvm_tirx.IRModule({"main": gemm})
+            mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
 
 
 def test_gemm_transpose_AB():
@@ -554,8 +554,8 @@ def test_gemm_transpose_AB():
 
             #fmt: off
     with target:
-        mod = tvm.IRModule({"main": gemm})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": gemm})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -612,10 +612,10 @@ def test_gemm_guard():
                     T.nki.tensor_copy(C_sbuf[lhs_f_loop, rhs_b_loop * 256 + lhs_b_loop * 128 + rhs_f_loop], acc_psum[lhs_b_loop * 2 + rhs_b_loop, lhs_f_loop, rhs_f_loop])  # noqa: E501
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": gemm})
+        mod = tvm_tirx.IRModule({"main": gemm})
         mod = TrnPrivateTensorAlloc()(mod)
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.StmtSimplify()(mod)
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -663,11 +663,11 @@ def test_gemm_guard2():
                         T.nki.matmul(C_psum[i, lhs_f_loop, lhs_b_loop * 256 + rhs_f_loop], A_sbuf[p_loop, i * 2048 + lhs_b_loop * 1024 + k * 512 + reduction_b_loop * 128 + lhs_f_loop], B_sbuf[p_loop, k * 1024 + reduction_b_loop * 256 + rhs_f_loop], True)  # noqa: E501
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": gemm})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.StmtSimplify()(mod)
+        mod = tvm_tirx.IRModule({"main": gemm})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

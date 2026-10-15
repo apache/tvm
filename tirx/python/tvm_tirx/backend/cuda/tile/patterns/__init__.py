@@ -17,9 +17,9 @@
 
 """Explicit CUDA instruction patterns over ordinary IR Calls."""
 
-from tvm.backend.cuda.ptx import instruction_forms, instruction_name
-from tvm.ir import StringImm, Tuple
-from tvm.tirx.tile.instruction import Instruction, Operand
+from tvm_tirx.backend.cuda.ptx import instruction_forms, instruction_name
+from tvm_tirx.ir import StringImm, Tuple
+from tvm_tirx.tirx.tile.instruction import Instruction, Operand
 
 from . import async_copy, ldmatrix, memory, mma, register, tcgen05_mma, tma, tmem, tmem_copy
 from .ewise import ewise

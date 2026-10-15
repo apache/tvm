@@ -20,16 +20,17 @@ from __future__ import annotations
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import te, tirx
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
+from tvm import te
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.tirx.expr import IntImm
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx.expr import IntImm
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -462,4 +463,4 @@ def test_partition_fail_with_thread_binding():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

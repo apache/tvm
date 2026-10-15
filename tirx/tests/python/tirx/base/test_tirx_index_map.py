@@ -19,11 +19,11 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm.ir import assert_structural_equal, const
-from tvm.script import tirx as T
-from tvm.tirx import IndexMap, IntImm, Var, floordiv, floormod
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.ir import assert_structural_equal, const
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import IndexMap, IntImm, Var, floordiv, floormod
 
 
 def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
@@ -31,7 +31,7 @@ def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
     iters_2 = map2.final_indices
     assert len(iters_1) == len(iters_2)
 
-    analyzer = tvm.sym.Analyzer()
+    analyzer = tvm_tirx.sym.Analyzer()
     for iter1, iter2 in zip(iters_1, iters_2):
         assert analyzer.can_prove_equal(iter1, iter2)
 
@@ -47,9 +47,9 @@ def test_index_mapping():
 
 
 def test_map_indices_accepts_external_analyzer():
-    tile = tvm.tirx.Var("tile", "int32")
+    tile = tvm_tirx.tirx.Var("tile", "int32")
     index_map = IndexMap.from_func(lambda i: [i // tile], index_dtype="int32")
-    analyzer = tvm.sym.Analyzer()
+    analyzer = tvm_tirx.sym.Analyzer()
 
     unsimplified = index_map.map_indices([T.int32(32)])[0]
     analyzer.bind(tile, T.int32(16))
@@ -60,9 +60,9 @@ def test_map_indices_accepts_external_analyzer():
 
 
 def test_map_shape_accepts_external_analyzer():
-    tile = tvm.tirx.Var("tile", "int32")
+    tile = tvm_tirx.tirx.Var("tile", "int32")
     index_map = IndexMap.from_func(lambda i: [i // tile, i % tile], index_dtype="int32")
-    analyzer = tvm.sym.Analyzer()
+    analyzer = tvm_tirx.sym.Analyzer()
 
     analyzer.bind(tile, T.int32(16))
     mapped_shape = index_map.map_shape([T.int32(32)], analyzer=analyzer)
@@ -71,14 +71,14 @@ def test_map_shape_accepts_external_analyzer():
 
 
 def test_is_equivalent_to_accepts_external_analyzer():
-    tile = tvm.tirx.Var("tile", "int32")
+    tile = tvm_tirx.tirx.Var("tile", "int32")
     concrete = IndexMap.from_func(lambda i: [i // 4, i % 4], index_dtype="int32")
     symbolic = IndexMap.from_func(lambda i: [i // tile, i % tile], index_dtype="int32")
 
     # Without binding `tile`, the symbolic map cannot be proven equivalent.
     assert not concrete.is_equivalent_to(symbolic)
 
-    analyzer = tvm.sym.Analyzer()
+    analyzer = tvm_tirx.sym.Analyzer()
     analyzer.bind(tile, T.int32(4))
     assert concrete.is_equivalent_to(symbolic, analyzer=analyzer)
 
@@ -108,9 +108,9 @@ def test_inverse_preserves_passthrough_var_names():
 
 
 def test_inverse_accepts_external_analyzer():
-    tile = tvm.tirx.Var("tile", "int32")
+    tile = tvm_tirx.tirx.Var("tile", "int32")
     index_map = IndexMap.from_func(lambda i: [i // tile, i % tile], index_dtype="int32")
-    analyzer = tvm.sym.Analyzer()
+    analyzer = tvm_tirx.sym.Analyzer()
 
     analyzer.bind(tile, T.int32(16))
     inverse = index_map.inverse([T.int32(32)], analyzer=analyzer)
@@ -126,38 +126,38 @@ def test_nonbijective_inverse_gives_error():
         index_map.inverse([14])
 
 
-dynamic_N = tvm.tirx.Var("N", "int32")
-padding_test_case = tvm.testing.parameter(
+dynamic_N = tvm_tirx.tirx.Var("N", "int32")
+padding_test_case = tvm_tirx.testing.parameter(
     by_dict={
         "no_padding": dict(
             forward=lambda i: [i // 4, i % 4],
             inverse=lambda i, j: [4 * i + j],
             pre_shape=[16],
             post_shape=[T.int32(4), T.int32(4)],
-            padding=lambda i, j: tvm.runtime.convert(False),
+            padding=lambda i, j: tvm_tirx.runtime.convert(False),
         ),
         "right_padding": dict(
             forward=lambda i: [i // 4, i % 4],
             inverse=lambda i, j: [4 * i + j],
             pre_shape=[15],
             post_shape=[T.int32(4), T.int32(4)],
-            padding=lambda i, j: tvm.tirx.And(i == 3, tvm.runtime.convert(3) == j),
+            padding=lambda i, j: tvm_tirx.tirx.And(i == 3, tvm_tirx.runtime.convert(3) == j),
         ),
         "left_padding": dict(
             forward=lambda i: [(i + 1) // 4, (i + 1) % 4],
             inverse=lambda i, j: [4 * i + j - 1],
             pre_shape=[15],
             post_shape=[T.int32(4), T.int32(4)],
-            padding=lambda i, j: tvm.tirx.And(i == 0, j < 1),
+            padding=lambda i, j: tvm_tirx.tirx.And(i == 0, j < 1),
         ),
         "left_and_right_padding": dict(
             forward=lambda i: [(i + 1) // 4, (i + 1) % 4],
             inverse=lambda i, j: [4 * i + j - 1],
             pre_shape=[14],
             post_shape=[T.int32(4), T.int32(4)],
-            padding=lambda i, j: tvm.tirx.Or(
-                tvm.tirx.And(i == 0, j < 1),
-                tvm.tirx.And(i == 3, tvm.runtime.convert(3) == j),
+            padding=lambda i, j: tvm_tirx.tirx.Or(
+                tvm_tirx.tirx.And(i == 0, j < 1),
+                tvm_tirx.tirx.And(i == 3, tvm_tirx.runtime.convert(3) == j),
             ),
         ),
         "dynamic_size": dict(
@@ -165,9 +165,9 @@ padding_test_case = tvm.testing.parameter(
             inverse=lambda i, j: [4 * i + j],
             pre_shape=[dynamic_N],
             post_shape=[(dynamic_N - dynamic_N % (-4)) // 4, T.int32(4)],
-            padding=lambda i, j: tvm.tirx.And(
+            padding=lambda i, j: tvm_tirx.tirx.And(
                 dynamic_N % (-4) != 0,
-                tvm.tirx.And(i == dynamic_N // 4, j >= dynamic_N % 4),
+                tvm_tirx.tirx.And(i == dynamic_N // 4, j >= dynamic_N % 4),
             ),
         ),
         "2d_padding": dict(
@@ -183,14 +183,14 @@ padding_test_case = tvm.testing.parameter(
                 T.int32(4),  # Range of iter%4
                 T.int32(8),  # Range of iter%8
             ],
-            padding=lambda i_outer, j_outer, i_inner, j_inner: tvm.tirx.Or(
-                tvm.tirx.Or(
-                    tvm.tirx.And(i_outer == 0, i_inner < 1),
-                    tvm.tirx.And(i_outer == 3, tvm.runtime.convert(3) == i_inner),
+            padding=lambda i_outer, j_outer, i_inner, j_inner: tvm_tirx.tirx.Or(
+                tvm_tirx.tirx.Or(
+                    tvm_tirx.tirx.And(i_outer == 0, i_inner < 1),
+                    tvm_tirx.tirx.And(i_outer == 3, tvm_tirx.runtime.convert(3) == i_inner),
                 ),
-                tvm.tirx.Or(
-                    tvm.tirx.And(j_outer == 0, j_inner < 5),
-                    tvm.tirx.And(j_outer == 4, j_inner >= 4),
+                tvm_tirx.tirx.Or(
+                    tvm_tirx.tirx.And(j_outer == 0, j_inner < 5),
+                    tvm_tirx.tirx.And(j_outer == 4, j_inner >= 4),
                 ),
             ),
         ),
@@ -199,35 +199,35 @@ padding_test_case = tvm.testing.parameter(
             inverse=lambda i, j, k: [32 * i + 4 * j + k],
             pre_shape=[116],
             post_shape=[T.int32(4), T.int32(8), T.int32(4)],
-            padding=lambda i, j, k: tvm.tirx.And(i == 3, 4 * j + k >= 20),
+            padding=lambda i, j, k: tvm_tirx.tirx.And(i == 3, 4 * j + k >= 20),
         ),
         "multiple_right_padding_transpose": dict(
             forward=lambda i: [(i // 4) % 8, i // 32, i % 4],
             inverse=lambda j, i, k: [32 * i + 4 * j + k],
             pre_shape=[116],
             post_shape=[T.int32(8), T.int32(4), T.int32(4)],
-            padding=lambda j, i, k: tvm.tirx.And(i == 3, 4 * j + k >= 20),
+            padding=lambda j, i, k: tvm_tirx.tirx.And(i == 3, 4 * j + k >= 20),
         ),
         "multiple_left_padding": dict(
             forward=lambda i: [(i + 5) // 32, ((i + 5) // 4) % 8, (i + 5) % 4],
             inverse=lambda i, j, k: [32 * i + 4 * j + k - 5],
             pre_shape=[123],
             post_shape=[T.int32(4), T.int32(8), T.int32(4)],
-            padding=lambda i, j, k: tvm.tirx.And(i == 0, j * 4 + k < 5),
+            padding=lambda i, j, k: tvm_tirx.tirx.And(i == 0, j * 4 + k < 5),
         ),
         "multiple_left_padding_with_transpose": dict(
             forward=lambda i: [((i + 5) // 4) % 8, (i + 5) // 32, (i + 5) % 4],
             inverse=lambda j, i, k: [32 * i + 4 * j + k - 5],
             pre_shape=[123],
             post_shape=[T.int32(8), T.int32(4), T.int32(4)],
-            padding=lambda j, i, k: tvm.tirx.And(i == 0, j * 4 + k < 5),
+            padding=lambda j, i, k: tvm_tirx.tirx.And(i == 0, j * 4 + k < 5),
         ),
         "outer_loop_extent_one": dict(
             forward=lambda i: [i // 4, i % 4],
             inverse=lambda i, j: [i * 4 + j],
             pre_shape=[3],
             post_shape=[T.int32(1), T.int32(4)],
-            padding=lambda i, j: tvm.runtime.convert(3) == j,
+            padding=lambda i, j: tvm_tirx.runtime.convert(3) == j,
         ),
     }
 )
@@ -241,22 +241,22 @@ def test_nonsurjective_inverse(padding_test_case):
     assert inverse.is_equivalent_to(expected_inverse)
 
     post_shape = index_map.map_shape(padding_test_case["pre_shape"])
-    tvm.ir.assert_structural_equal(post_shape, padding_test_case["post_shape"])
+    tvm_tirx.ir.assert_structural_equal(post_shape, padding_test_case["post_shape"])
 
     expected_predicate = padding_test_case["padding"](*inverse.initial_indices)
 
     # Can't use analyzer.can_prove_equal, because it can't simplify
     # expressions like `(4*i+j >= 14) - (4*i+j >= 14)`.
-    analyzer = tvm.sym.Analyzer()
+    analyzer = tvm_tirx.sym.Analyzer()
     expected_predicate = analyzer.simplify(expected_predicate)
     padding_predicate = analyzer.simplify(padding_predicate)
-    tvm.ir.assert_structural_equal(padding_predicate, expected_predicate)
+    tvm_tirx.ir.assert_structural_equal(padding_predicate, expected_predicate)
 
 
 def test_non_surjective_inverse_accepts_external_analyzer():
-    tile = tvm.tirx.Var("tile", "int32")
+    tile = tvm_tirx.tirx.Var("tile", "int32")
     index_map = IndexMap.from_func(lambda i: [i // tile, i % tile], index_dtype="int32")
-    analyzer = tvm.sym.Analyzer()
+    analyzer = tvm_tirx.sym.Analyzer()
 
     analyzer.bind(tile, T.int32(16))
     inverse, padding_predicate = index_map.non_surjective_inverse([T.int32(31)], analyzer=analyzer)
@@ -287,9 +287,9 @@ def test_non_surjective_inverse_accepts_external_analyzer():
 
 
 def test_non_surjective_inverse_does_not_bind_output_vars_to_external_analyzer():
-    tile = tvm.tirx.Var("tile", "int32")
+    tile = tvm_tirx.tirx.Var("tile", "int32")
     index_map = IndexMap.from_func(lambda i: [i // tile, i % tile], index_dtype="int32")
-    analyzer = tvm.sym.Analyzer()
+    analyzer = tvm_tirx.sym.Analyzer()
 
     analyzer.bind(tile, T.int32(16))
     inverse, _ = index_map.non_surjective_inverse([T.int32(31)], analyzer=analyzer)
@@ -320,7 +320,7 @@ def test_map_tensor():
 
     inp = np.arange(16).astype("int8")
 
-    out = index_map.map_tensor(tvm.runtime.tensor(inp)).numpy()
+    out = index_map.map_tensor(tvm_tirx.runtime.tensor(inp)).numpy()
 
     ref = np.zeros(out.shape).astype("int8")
 
@@ -333,7 +333,7 @@ def test_map_tensor():
 
     inp = np.random.randn(10, 10, 10, 10).astype("float16")
 
-    out = index_map.map_tensor(tvm.runtime.tensor(inp)).numpy()
+    out = index_map.map_tensor(tvm_tirx.runtime.tensor(inp)).numpy()
 
     ref = np.transpose(inp, (3, 0, 1, 2))
 
@@ -355,7 +355,7 @@ def test_map_tensor():
     I = 64
     O = 64
     inp = np.random.randn(kH, kW, I, O).astype("float32")
-    arr = tvm.runtime.tensor(inp)
+    arr = tvm_tirx.runtime.tensor(inp)
     out = index_map.map_tensor(arr).numpy()
 
     ref = np.zeros(out.shape).astype("float32")
@@ -374,4 +374,4 @@ def test_map_tensor():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

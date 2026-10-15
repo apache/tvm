@@ -16,9 +16,9 @@
 # under the License.
 import pytest
 
-import tvm
-from tvm.ir.supply import UniqueNameSupply
-from tvm.ir.transform.instrument import PrintAfterAll, PrintBeforeAll
+import tvm_tirx
+from tvm_tirx.ir.supply import UniqueNameSupply
+from tvm_tirx.ir.transform.instrument import PrintAfterAll, PrintBeforeAll
 
 
 @pytest.mark.parametrize(
@@ -31,12 +31,12 @@ def test_fresh_name_empty_string(prefix, add_prefix, expected):
 
 
 def test_module_pass_print_instruments(capsys):
-    @tvm.ir.transform.module_pass(opt_level=0, name="IdentityModule")
+    @tvm_tirx.ir.transform.module_pass(opt_level=0, name="IdentityModule")
     def identity(mod, ctx):
         return mod
 
-    mod = tvm.IRModule()
-    with tvm.ir.transform.PassContext(instruments=[PrintBeforeAll(), PrintAfterAll()]):
+    mod = tvm_tirx.IRModule()
+    with tvm_tirx.ir.transform.PassContext(instruments=[PrintBeforeAll(), PrintAfterAll()]):
         result = identity(mod)
     assert result.same_as(mod)
     output = capsys.readouterr().out

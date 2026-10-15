@@ -17,10 +17,10 @@
 
 import pytest
 
-import tvm
-from tvm import tirx
-from tvm.codegen import llvm_version_major
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm_tirx import tirx
+from tvm_tirx.codegen import llvm_version_major
+from tvm_tirx.script import tirx as T
 
 """
 Tests for scalable data types.
@@ -28,7 +28,7 @@ Tests for scalable data types.
 
 
 def test_create_scalable_data_type_python_api():
-    dtype = tvm.DataType("float32xvscalex4")
+    dtype = tvm_tirx.DataType("float32xvscalex4")
     assert str(dtype) == "float32xvscalex4"
 
 
@@ -63,8 +63,8 @@ def test_tvm_script_create_scalable_tir_intrin():
 
 def test_invalid_data_type():
     with pytest.raises(ValueError):
-        tvm.DataType("float32x4xvscale")
+        tvm_tirx.DataType("float32x4xvscale")
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

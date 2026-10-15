@@ -17,14 +17,14 @@
 # pylint: disable=invalid-name, missing-docstring
 
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_rewrite_to_shuffle_0():
-    transform = tvm.tirx.transform.PointerValueTypeRewrite()
+    transform = tvm_tirx.tirx.transform.PointerValueTypeRewrite()
 
     @I.ir_module
     class Before:
@@ -54,11 +54,11 @@ def test_rewrite_to_shuffle_0():
                 )
 
     After = transform(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_rewrite_to_shuffle_1():
-    transform = tvm.tirx.transform.PointerValueTypeRewrite()
+    transform = tvm_tirx.tirx.transform.PointerValueTypeRewrite()
 
     @I.ir_module
     class Before:
@@ -99,11 +99,11 @@ def test_rewrite_to_shuffle_1():
             )
 
     After = transform(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_address_of():
-    transform = tvm.tirx.transform.PointerValueTypeRewrite()
+    transform = tvm_tirx.tirx.transform.PointerValueTypeRewrite()
 
     @I.ir_module
     class Before:
@@ -122,11 +122,11 @@ def test_address_of():
                 B[T.Div(i * 4, 4)] = A[T.ramp(i * 4, 1, 4)]
 
     After = transform(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_scalar_read_without_write():
-    transform = tvm.tirx.transform.PointerValueTypeRewrite()
+    transform = tvm_tirx.tirx.transform.PointerValueTypeRewrite()
 
     @I.ir_module
     class Before:
@@ -144,11 +144,11 @@ def test_scalar_read_without_write():
                 T.evaluate(A[i * 4])
 
     After = transform(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_decl_tensor_alias_chain_uses_flat_root_map():
-    transform = tvm.tirx.transform.PointerValueTypeRewrite()
+    transform = tvm_tirx.tirx.transform.PointerValueTypeRewrite()
 
     @I.ir_module
     class Before:
@@ -171,9 +171,9 @@ def test_decl_tensor_alias_chain_uses_flat_root_map():
                 A_view_2[T.Div(i * 4, 4)] = T.Broadcast(T.float32(1.0), 4)
 
     After = transform(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-    assert tvm.tirx.analysis.verify_well_formed(After)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
+    assert tvm_tirx.tirx.analysis.verify_well_formed(After)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

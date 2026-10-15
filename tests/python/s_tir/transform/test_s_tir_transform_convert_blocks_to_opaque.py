@@ -17,20 +17,21 @@
 # ruff: noqa: F401
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import s_tir, te, tirx
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
+from tvm import s_tir, te
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def _check(original, transformed):
     func = original
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.ConvertBlocksToOpaque()(mod)
     mod = tvm.s_tir.transform.StmtSimplify()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
 @Ts.function
@@ -93,4 +94,4 @@ def test_error_if_predicate_uses_block_variables():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

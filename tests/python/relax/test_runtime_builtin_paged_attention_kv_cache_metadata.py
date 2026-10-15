@@ -20,9 +20,9 @@ import pytest
 import tvm_ffi
 from tvm_ffi import Shape
 
-import tvm
-import tvm.testing
-from tvm.error import InternalError
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx.error import InternalError
 from tvm.relax.frontend.nn.llm.kv_cache import AttnKind, RopeMode
 
 reserved_nseq = 4
@@ -35,7 +35,7 @@ num_kv_heads = 4
 head_dim = 64
 rope_scale = 1.0
 rope_theta = 1e4
-device = tvm.cpu()
+device = tvm_tirx.cpu()
 
 
 def _nop(*args):
@@ -57,8 +57,8 @@ def create_kv_cache(
     prefill_chunk_size_value=prefill_chunk_size,
     rope_ext_factors=None,
 ):
-    fcreate = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_create")
-    dummy_func = tvm.runtime.convert(_nop)
+    fcreate = tvm_tirx.get_global_func("vm.builtin.paged_attention_kv_cache_create")
+    dummy_func = tvm_tirx.runtime.convert(_nop)
     return fcreate(
         tvm_ffi.Shape(
             [
@@ -80,7 +80,7 @@ def create_kv_cache(
         rope_scale,
         rope_theta,
         rope_ext_factors,
-        tvm.runtime.empty((), dtype, device=device),
+        tvm_tirx.runtime.empty((), dtype, device=device),
         dummy_func,  # f_transpose_append_mha
         None,  # f_transpose_append_mla
         [],  # f_attention_prefill_ragged
@@ -100,24 +100,24 @@ def create_kv_cache(
 
 
 def append_tokens(kv_cache, seq_id=0, append_length=page_size + 1):
-    fadd_sequence = tvm.get_global_func("vm.builtin.kv_state_add_sequence")
-    fbegin_forward = tvm.get_global_func("vm.builtin.kv_state_begin_forward")
-    fend_forward = tvm.get_global_func("vm.builtin.kv_state_end_forward")
+    fadd_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_add_sequence")
+    fbegin_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_begin_forward")
+    fend_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_end_forward")
     fadd_sequence(kv_cache, seq_id)
     fbegin_forward(kv_cache, Shape([seq_id]), Shape([append_length]), None)
     fend_forward(kv_cache)
 
 
 def test_checkpoint_metadata_reports_layout_pages_and_groups():
-    fget_checkpoint_metadata = tvm.get_global_func(
+    fget_checkpoint_metadata = tvm_tirx.get_global_func(
         "vm.builtin.attention_kv_cache_get_checkpoint_metadata"
     )
-    fget_layout_hash = tvm.get_global_func("vm.builtin.attention_kv_cache_get_layout_hash")
-    fexport_page_group = tvm.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
-    fprepare_import = tvm.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
-    fimport_page_group = tvm.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
-    ffinish_import = tvm.get_global_func("vm.builtin.attention_kv_cache_finish_import")
-    fget_sequence_length = tvm.get_global_func("vm.builtin.attention_kv_cache_get_sequence_length")
+    fget_layout_hash = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_get_layout_hash")
+    fexport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
+    fprepare_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
+    fimport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
+    ffinish_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_finish_import")
+    fget_sequence_length = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_get_sequence_length")
 
     kv_cache = create_kv_cache()
     append_tokens(kv_cache)
@@ -158,7 +158,7 @@ def test_checkpoint_metadata_reports_layout_pages_and_groups():
 
     exported_groups = []
     for group_metadata in metadata["groups"]:
-        group = tvm.runtime.empty(tuple(group_metadata["shape"]), "float16", device=device)
+        group = tvm_tirx.runtime.empty(tuple(group_metadata["shape"]), "float16", device=device)
         fexport_page_group(kv_cache, 0, group_metadata["group_index"], group)
         exported_groups.append(group)
 
@@ -177,7 +177,7 @@ def test_checkpoint_metadata_reports_layout_pages_and_groups():
 
 
 def test_checkpoint_layout_hash_is_stable_and_layout_sensitive():
-    fget_layout_hash = tvm.get_global_func("vm.builtin.attention_kv_cache_get_layout_hash")
+    fget_layout_hash = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_get_layout_hash")
 
     kv_cache = create_kv_cache()
     same_layout = create_kv_cache()
@@ -204,20 +204,20 @@ def test_checkpoint_layout_hash_is_stable_and_layout_sensitive():
 
 
 def test_checkpoint_metadata_rejects_unsupported_layouts_and_sequence_ids():
-    fget_checkpoint_metadata = tvm.get_global_func(
+    fget_checkpoint_metadata = tvm_tirx.get_global_func(
         "vm.builtin.attention_kv_cache_get_checkpoint_metadata"
     )
-    fget_layout_hash = tvm.get_global_func("vm.builtin.attention_kv_cache_get_layout_hash")
-    fexport_page_group = tvm.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
+    fget_layout_hash = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_get_layout_hash")
+    fexport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
 
     sliding_cache = create_kv_cache(support_sliding_window=True)
     append_tokens(sliding_cache)
     mla_cache = create_kv_cache(attn_kind=AttnKind.MLA)
     asymmetric_cache = create_kv_cache(v_head_dim_value=head_dim // 2)
     rope_ext_cache = create_kv_cache(
-        rope_ext_factors=tvm.runtime.empty((head_dim // 2,), "float32", device=device)
+        rope_ext_factors=tvm_tirx.runtime.empty((head_dim // 2,), "float32", device=device)
     )
-    dst = tvm.runtime.empty((1, 1, 2, num_kv_heads, page_size, head_dim), "float16", device=device)
+    dst = tvm_tirx.runtime.empty((1, 1, 2, num_kv_heads, page_size, head_dim), "float16", device=device)
 
     with pytest.raises(InternalError, match="sliding-window"):
         fget_layout_hash(sliding_cache)
@@ -237,8 +237,8 @@ def test_checkpoint_metadata_rejects_unsupported_layouts_and_sequence_ids():
         fget_layout_hash(rope_ext_cache)
 
     tree_cache = create_kv_cache()
-    tvm.get_global_func("vm.builtin.kv_state_add_sequence")(tree_cache, 0)
-    tvm.get_global_func("vm.builtin.kv_state_begin_forward")(
+    tvm_tirx.get_global_func("vm.builtin.kv_state_add_sequence")(tree_cache, 0)
+    tvm_tirx.get_global_func("vm.builtin.kv_state_begin_forward")(
         tree_cache, Shape([0]), Shape([2]), Shape([-1, 0])
     )
     with pytest.raises(InternalError, match="committed token-chain state"):
@@ -246,10 +246,10 @@ def test_checkpoint_metadata_rejects_unsupported_layouts_and_sequence_ids():
 
 
 def test_checkpoint_export_page_group_validates_group_shape():
-    fget_checkpoint_metadata = tvm.get_global_func(
+    fget_checkpoint_metadata = tvm_tirx.get_global_func(
         "vm.builtin.attention_kv_cache_get_checkpoint_metadata"
     )
-    fexport_page_group = tvm.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
+    fexport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
 
     kv_cache = create_kv_cache()
     append_tokens(kv_cache)
@@ -261,7 +261,7 @@ def test_checkpoint_export_page_group_validates_group_shape():
             kv_cache,
             0,
             num_layers,
-            tvm.runtime.empty(tuple(shape), "float16", device=device),
+            tvm_tirx.runtime.empty(tuple(shape), "float16", device=device),
         )
 
     bad_shape = shape.copy()
@@ -271,7 +271,7 @@ def test_checkpoint_export_page_group_validates_group_shape():
             kv_cache,
             0,
             0,
-            tvm.runtime.empty(tuple(bad_shape), "float16", device=device),
+            tvm_tirx.runtime.empty(tuple(bad_shape), "float16", device=device),
         )
 
     with pytest.raises(InternalError, match="dtype mismatches"):
@@ -279,15 +279,15 @@ def test_checkpoint_export_page_group_validates_group_shape():
             kv_cache,
             0,
             0,
-            tvm.runtime.empty(tuple(shape), "float32", device=device),
+            tvm_tirx.runtime.empty(tuple(shape), "float32", device=device),
         )
 
 
 def test_checkpoint_prepare_import_validates_metadata():
-    fget_checkpoint_metadata = tvm.get_global_func(
+    fget_checkpoint_metadata = tvm_tirx.get_global_func(
         "vm.builtin.attention_kv_cache_get_checkpoint_metadata"
     )
-    fprepare_import = tvm.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
+    fprepare_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
 
     kv_cache = create_kv_cache()
     append_tokens(kv_cache)
@@ -333,11 +333,11 @@ def test_checkpoint_prepare_import_validates_metadata():
 
 
 def test_checkpoint_import_page_group_validates_group_shape():
-    fget_checkpoint_metadata = tvm.get_global_func(
+    fget_checkpoint_metadata = tvm_tirx.get_global_func(
         "vm.builtin.attention_kv_cache_get_checkpoint_metadata"
     )
-    fprepare_import = tvm.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
-    fimport_page_group = tvm.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
+    fprepare_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
+    fimport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
 
     kv_cache = create_kv_cache()
     append_tokens(kv_cache)
@@ -353,7 +353,7 @@ def test_checkpoint_import_page_group_validates_group_shape():
             import_cache,
             0,
             num_layers,
-            tvm.runtime.empty(tuple(shape), "float16", device=device),
+            tvm_tirx.runtime.empty(tuple(shape), "float16", device=device),
         )
 
     bad_shape = shape.copy()
@@ -363,7 +363,7 @@ def test_checkpoint_import_page_group_validates_group_shape():
             import_cache,
             0,
             0,
-            tvm.runtime.empty(tuple(bad_shape), "float16", device=device),
+            tvm_tirx.runtime.empty(tuple(bad_shape), "float16", device=device),
         )
 
     with pytest.raises(InternalError, match="dtype mismatches"):
@@ -371,19 +371,19 @@ def test_checkpoint_import_page_group_validates_group_shape():
             import_cache,
             0,
             0,
-            tvm.runtime.empty(tuple(shape), "float32", device=device),
+            tvm_tirx.runtime.empty(tuple(shape), "float32", device=device),
         )
 
 
 def test_checkpoint_import_requires_all_groups_and_explicit_finish():
-    fget_checkpoint_metadata = tvm.get_global_func(
+    fget_checkpoint_metadata = tvm_tirx.get_global_func(
         "vm.builtin.attention_kv_cache_get_checkpoint_metadata"
     )
-    fexport_page_group = tvm.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
-    fprepare_import = tvm.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
-    fimport_page_group = tvm.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
-    ffinish_import = tvm.get_global_func("vm.builtin.attention_kv_cache_finish_import")
-    fbegin_forward = tvm.get_global_func("vm.builtin.kv_state_begin_forward")
+    fexport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
+    fprepare_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
+    fimport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
+    ffinish_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_finish_import")
+    fbegin_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_begin_forward")
 
     source_cache = create_kv_cache()
     append_tokens(source_cache)
@@ -391,7 +391,7 @@ def test_checkpoint_import_requires_all_groups_and_explicit_finish():
     metadata = json.loads(metadata_json)
     groups = []
     for group_metadata in metadata["groups"]:
-        group = tvm.runtime.empty(tuple(group_metadata["shape"]), "float16", device=device)
+        group = tvm_tirx.runtime.empty(tuple(group_metadata["shape"]), "float16", device=device)
         fexport_page_group(source_cache, 0, group_metadata["group_index"], group)
         groups.append(group)
 
@@ -414,4 +414,4 @@ def test_checkpoint_import_requires_all_groups_and_explicit_finish():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

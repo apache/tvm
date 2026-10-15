@@ -25,12 +25,12 @@ import pytest
 
 pytest.importorskip("cloudpickle")  # PopenWorker.send requires cloudpickle
 
-from tvm.support.popen_pool import PopenPoolExecutor, PopenWorker
-from tvm.testing import (
+from tvm_tirx.support.popen_pool import PopenPoolExecutor, PopenWorker
+from tvm_tirx.testing import (
     identity_after,
     terminate_self,
 )
-from tvm.testing.popen_pool import (
+from tvm_tirx.testing.popen_pool import (
     after_initializer,
     call_cpp_ffi,
     call_cpp_py_ffi,
@@ -88,7 +88,7 @@ def test_popen_worker_recycles():
 def test_popen_pool_executor():
     import tvm_ffi
 
-    import tvm
+    import tvm_tirx
 
     pool = PopenPoolExecutor(max_workers=2, timeout=0.015)
     value1 = pool.submit(identity_after, 1, 100)

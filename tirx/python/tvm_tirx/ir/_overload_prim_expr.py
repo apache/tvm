@@ -16,7 +16,7 @@
 # under the License.
 """Primitive-expression overloads for shared IR expressions."""
 
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..runtime import DataTypeCode
 from ._constant import const
@@ -202,8 +202,8 @@ class ExprOp:
 
     def __nonzero__(self):
         raise ValueError(
-            "Cannot use and / or / not operator to Expr, hint: use tvm.ir.prim.all / "
-            "tvm.ir.prim.any, if it is None checking, use node is not None"
+            "Cannot use and / or / not operator to Expr, hint: use tvm_tirx.ir.prim.all / "
+            "tvm_tirx.ir.prim.any, if it is None checking, use node is not None"
         )
 
     def __bool__(self) -> bool:

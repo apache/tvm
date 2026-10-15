@@ -22,8 +22,8 @@ import tempfile
 
 import pytest
 
-import tvm
-from tvm.support.cc import _is_linux_like, _is_windows_like, create_executable, create_shared
+import tvm_tirx
+from tvm_tirx.support.cc import _is_linux_like, _is_windows_like, create_executable, create_shared
 
 
 def _src_gen(text):
@@ -77,4 +77,4 @@ def test_executable():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

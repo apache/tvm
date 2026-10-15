@@ -33,19 +33,19 @@ zero_column_mask=0 or disable_output_lane=(0,)*(4*cta_group). Shared matrix
 descriptors are extracted; their byte strides are not call parameters.
 """
 
-from tvm.backend.cuda.cpp.descriptors import (
+from tvm_tirx.backend.cuda.cpp.descriptors import (
     _get_tcgen05_mma_kind,
     _get_tcgen05_mma_scale_vec_size,
     encode_instr_descriptor_block_scaled_uint32,
     encode_instr_descriptor_dense_uint32,
 )
-from tvm.backend.cuda.layout import tmem_mma_operand_layout
-from tvm.backend.cuda.op import _tmem_address
-from tvm.backend.cuda.ptx import PTXNamespace
-from tvm.ir import Range, Var
-from tvm.ir.prim import Or
-from tvm.runtime import MemoryScope
-from tvm.script import tirx as T
+from tvm_tirx.backend.cuda.layout import tmem_mma_operand_layout
+from tvm_tirx.backend.cuda.op import _tmem_address
+from tvm_tirx.backend.cuda.ptx import PTXNamespace
+from tvm_tirx.ir import Range, Var
+from tvm_tirx.ir.prim import Or
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.script import tirx as T
 
 from .common import Context, scalar
 from .descriptors import matrix_descriptor

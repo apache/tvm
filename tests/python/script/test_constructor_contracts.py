@@ -21,12 +21,13 @@ import linecache
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import ir, relax, tirx
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import ir, tirx
+from tvm import relax
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import tirx as T
 
 
 def test_call_type_and_validation_contract():
@@ -164,4 +165,4 @@ def test_tuple_numeric_conversion_depends_on_context(value, constructor_dtype, p
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -18,7 +18,7 @@
 
 import tvm_ffi
 
-from tvm import Object
+from tvm_tirx import Object
 
 from . import _ffi_api
 

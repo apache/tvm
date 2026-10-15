@@ -20,6 +20,6 @@ This package provides a set of APIs to print supported TVM IR into TVMScript
 in a roundtrippable way.
 """
 
-from tvm.ir.base import Scriptable as Scriptable
+from tvm_tirx.ir.base import Scriptable as Scriptable
 
 from .scriptable import PrinterConfig

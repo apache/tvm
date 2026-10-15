@@ -19,11 +19,11 @@ import re
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 target = "opencl"
 
@@ -45,15 +45,15 @@ def test_opencl_ternary_expression():
                         ),
                     )
 
-        fun = tvm.tirx.compile(Module, target=target).mod
+        fun = tvm_tirx.tirx.compile(Module, target=target).mod
 
         def run_and_check():
-            dev = tvm.opencl(0)
-            a = tvm.runtime.empty((n,), dtype, dev)
-            c = tvm.runtime.empty((n,), dtype, dev)
+            dev = tvm_tirx.opencl(0)
+            a = tvm_tirx.runtime.empty((n,), dtype, dev)
+            c = tvm_tirx.runtime.empty((n,), dtype, dev)
             fun(a, c)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
     def check_select(n, dtype):
         @I.ir_module
@@ -67,15 +67,15 @@ def test_opencl_ternary_expression():
                         T.Select(0 < T.Cast(A[0], "int32"), T.Cast(1, dtype), T.Cast(3, dtype)),
                     )
 
-        fun = tvm.tirx.compile(Module, target=target).mod
+        fun = tvm_tirx.tirx.compile(Module, target=target).mod
 
         def run_and_check():
-            dev = tvm.opencl(0)
-            a = tvm.runtime.empty((n,), dtype, dev)
-            c = tvm.runtime.empty((n,), dtype, dev)
+            dev = tvm_tirx.opencl(0)
+            a = tvm_tirx.runtime.empty((n,), dtype, dev)
+            c = tvm_tirx.runtime.empty((n,), dtype, dev)
             fun(a, c)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
     check_if_then_else(1, "int8")
     check_if_then_else(1, "uint8")
@@ -99,15 +99,15 @@ def test_opencl_inf_nan():
                 with T.launch_thread("threadIdx.x", 1) as i:
                     C[i] = T.Cast(value, dtype)
 
-        fun = tvm.tirx.compile(Module, target=target).mod
+        fun = tvm_tirx.tirx.compile(Module, target=target).mod
 
         def run_and_check():
-            dev = tvm.opencl(0)
-            a = tvm.runtime.empty((n,), dtype, dev)
-            c = tvm.runtime.empty((n,), dtype, dev)
+            dev = tvm_tirx.opencl(0)
+            a = tvm_tirx.runtime.empty((n,), dtype, dev)
+            c = tvm_tirx.runtime.empty((n,), dtype, dev)
             fun(a, c)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
     check_inf_nan(1, -float("inf"), "float32")
     check_inf_nan(1, -float("inf"), "float64")
@@ -129,15 +129,15 @@ def test_opencl_max():
                 with T.launch_thread("threadIdx.x", 1) as i:
                     C[i] = T.max(A[0] + T.Cast(1, dtype), T.Cast(0, dtype))
 
-        fun = tvm.tirx.compile(Module, target=target).mod
+        fun = tvm_tirx.tirx.compile(Module, target=target).mod
 
         def run_and_check():
-            dev = tvm.opencl(0)
-            a = tvm.runtime.empty((n,), dtype, dev)
-            c = tvm.runtime.empty((n,), dtype, dev)
+            dev = tvm_tirx.opencl(0)
+            a = tvm_tirx.runtime.empty((n,), dtype, dev)
+            c = tvm_tirx.runtime.empty((n,), dtype, dev)
             fun(a, c)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
     check_max(1, "int8")
     check_max(1, "uint8")
@@ -157,7 +157,7 @@ def test_opencl_erf():
                 with T.launch_thread("threadIdx.x", 1) as i0:
                     C[i0] = T.erf(A[i0])
 
-        fun = tvm.tirx.compile(Module, target=target).mod
+        fun = tvm_tirx.tirx.compile(Module, target=target).mod
 
         source_str = fun.imports[0].inspect_source()
         matches = re.findall("erf", source_str)
@@ -185,7 +185,7 @@ def test_opencl_type_casting():
                     )
 
     def check_type_casting(n, dtype):
-        fun = tvm.tirx.compile(Module, target=target).mod
+        fun = tvm_tirx.tirx.compile(Module, target=target).mod
         assembly = fun.imports[0].inspect_source()
         lcond = "convert_int4(((convert_uint4(((uint4)(((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3)))))"
         rcond = "(convert_uint4(((((int4)(((convert_int(get_local_id(0))))+(1*0), ((convert_int(get_local_id(0))))+(1*1), ((convert_int(get_local_id(0))))+(1*2), ((convert_int(get_local_id(0))))+(1*3))) % ((int4)(3, 3, 3, 3))) == ((int4)(1, 1, 1, 1))))))))"
@@ -193,11 +193,11 @@ def test_opencl_type_casting():
         assert assembly.count(pattern_cond) != 0
 
         def run_and_check():
-            dev = tvm.opencl(0)
-            c = tvm.runtime.empty((n,), dtype, dev)
+            dev = tvm_tirx.opencl(0)
+            c = tvm_tirx.runtime.empty((n,), dtype, dev)
             fun(c)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
     check_type_casting(32, "float32")
     # fp16 is not yet supported in ci
@@ -214,11 +214,11 @@ def test_opencl_type_casting():
     ],
 )
 def test_opencl_ceil_log2(target):
-    if not tvm.testing.device_enabled(target):
+    if not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     def _check(target, n, dtype):
-        target_obj = tvm.target.Target(target)
+        target_obj = tvm_tirx.target.Target(target)
         is_adreno = "adreno" in target_obj.attrs.get("device", "")
         inter_dtype = "float32" if is_adreno else "float64"
 
@@ -230,7 +230,7 @@ def test_opencl_ceil_log2(target):
                 with T.launch_thread("threadIdx.x", n) as i:
                     C[i] = T.Cast(T.ceil(T.log2(T.Cast(i, inter_dtype))), "int32")
 
-        fun = tvm.tirx.compile(Module, target=target).mod
+        fun = tvm_tirx.tirx.compile(Module, target=target).mod
         assembly = fun.imports[0].inspect_source()
         if is_adreno:
             pattern = "convert_float"
@@ -257,4 +257,4 @@ def _get_maximum_kernel_args(source):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

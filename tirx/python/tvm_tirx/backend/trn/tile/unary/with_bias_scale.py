@@ -17,11 +17,11 @@
 
 """Implementation of unary with bias and scale operator dispatches."""
 
-from tvm.ir import TensorRegion
-from tvm.tirx import Function
-from tvm.tirx.tile import DispatchContext, fail
-from tvm.tirx.tile.common import MapOpType
-from tvm.tirx.tile.instruction import TensorCall
+from tvm_tirx.ir import TensorRegion
+from tvm_tirx.tirx import Function
+from tvm_tirx.tirx.tile import DispatchContext, fail
+from tvm_tirx.tirx.tile.common import MapOpType
+from tvm_tirx.tirx.tile.instruction import TensorCall
 
 from ..binary import try_find_inst_nary
 from ..common import init_analyzer

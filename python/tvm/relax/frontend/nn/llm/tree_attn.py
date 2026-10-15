@@ -22,10 +22,11 @@
 import math
 from typing import Any
 
-from tvm import s_tir, tirx
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx import tirx
+from tvm import s_tir
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 # The helpers below are shared with the main KV-cache kernels. They live in
 # ``_kernel_common`` so that ``kv_cache.py``, this file, and the split kernel
@@ -83,7 +84,7 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any]):
 
     Returns
     -------
-    mod : tvm.IRModule
+    mod : tvm_tirx.IRModule
         The generated IR module.
     """
     group_size = h_q // h_kv
@@ -262,7 +263,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
 
     Returns
     -------
-    mod : tvm.IRModule
+    mod : tvm_tirx.IRModule
         The generated IR module.
     """
     # pylint: disable=invalid-name,line-too-long
@@ -573,7 +574,7 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
 
     Returns
     -------
-    mod : tvm.IRModule
+    mod : tvm_tirx.IRModule
         The generated IR module.
     """
     global_symbol = "tree_attn_paged_kv_cpu"
@@ -745,7 +746,7 @@ def tree_attn_with_paged_kv_cache(
 
     Returns
     -------
-    mod : tvm.IRModule
+    mod : tvm_tirx.IRModule
         The generated IR module.
     """
     # pylint: disable=invalid-name, line-too-long

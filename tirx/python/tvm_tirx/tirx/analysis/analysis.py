@@ -18,8 +18,8 @@
 
 # pylint: disable=invalid-name
 
-from tvm.ir import Expr, IRModule, Stmt
-from tvm.tirx.expr import Var
+from tvm_tirx.ir import Expr, IRModule, Stmt
+from tvm_tirx.tirx.expr import Var
 
 from ..function import Function
 from . import _ffi_api
@@ -30,7 +30,7 @@ def verify_memory(func: Function) -> bool:
 
     Parameters
     ----------
-    func: tvm.tirx.Function
+    func: tvm_tirx.tirx.Function
         The module to be verified.
 
     Returns
@@ -68,7 +68,7 @@ def verify_well_formed(obj: Function | IRModule, assert_mode: bool = True) -> bo
 
     Parameters
     ----------
-    obj: Union[tvm.tirx.Function, tvm.ir.IRModule]
+    obj: Union[tvm_tirx.tirx.Function, tvm_tirx.ir.IRModule]
         The function or module to be verified.
 
     assert_mode: bool

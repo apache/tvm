@@ -20,12 +20,12 @@
 import numpy as np
 import pytest
 
-import tvm
-from tvm.backend.cuda.axis import laneid
-from tvm.backend.cuda.layout import tmem_mma_operand_layout
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.layout import ComposeLayout, S, TileLayout
+import tvm_tirx
+from tvm_tirx.backend.cuda.axis import laneid
+from tvm_tirx.backend.cuda.layout import tmem_mma_operand_layout
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx.layout import ComposeLayout, S, TileLayout
 
 
 @pytest.mark.skipif(not env.has_cuda_compute(8), reason="Ampere required")
@@ -66,14 +66,14 @@ def test_mma(k, dtype, initial):
                 (m * N + n) * 4 + r
             ]
 
-    f = tvm.tirx.compile(kernel, target="cuda", pipeline="tirx")
+    f = tvm_tirx.tirx.compile(kernel, target="cuda", pipeline="tirx")
     rng = np.random.default_rng(7)
     a = rng.uniform(-1, 1, (M * 16, K * k)).astype(dtype)
     b = rng.uniform(-1, 1, (N * 8, K * k)).astype(dtype)
     aa = np.ascontiguousarray(a.reshape(M, 16, K, k).transpose(0, 2, 1, 3)).view(np.uint32)
     bb = np.ascontiguousarray(b.reshape(N, 8, K, k).transpose(0, 2, 1, 3)).view(np.uint32)
-    output = tvm.runtime.tensor(np.zeros((M * 16, N * 8), "float32"), tvm.cuda())
-    f(tvm.runtime.tensor(aa, tvm.cuda()), tvm.runtime.tensor(bb, tvm.cuda()), output)
+    output = tvm_tirx.runtime.tensor(np.zeros((M * 16, N * 8), "float32"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(aa, tvm_tirx.cuda()), tvm_tirx.runtime.tensor(bb, tvm_tirx.cuda()), output)
     np.testing.assert_allclose(
         output.numpy(), a.astype("float32") @ b.astype("float32").T + initial, rtol=2e-4, atol=2e-4
     )
@@ -97,8 +97,8 @@ def test_tcgen05_mma(m, ws, dtype, k, kind, acc_dtype, major, swizzle=3):
     if major == "mn" and kind == "tf32" and swizzle != 4:
         pytest.skip("TF32 MN-major uses the separately tested 32B-atomicity descriptor")
     n, nk = 64, 3
-    packed = 32 // tvm.DataType(acc_dtype).bits
-    bits = tvm.DataType(dtype).bits
+    packed = 32 // tvm_tirx.DataType(acc_dtype).bits
+    bits = tvm_tirx.DataType(dtype).bits
     row_bytes = 128 if swizzle == 4 else 16 << swizzle
     swizzle_len = 2 if swizzle == 4 else swizzle
     atom_len = 2 if swizzle == 4 else 3
@@ -235,15 +235,15 @@ def test_tcgen05_mma(m, ws, dtype, k, kind, acc_dtype, major, swizzle=3):
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(address[0], T.uint32(n))
 
-    f = tvm.tirx.compile(kernel, target="cuda", pipeline="tirx")
+    f = tvm_tirx.tirx.compile(kernel, target="cuda", pipeline="tirx")
     rng = np.random.default_rng(4)
     a = (rng.integers(-4, 5, (m, nk * k)) / 4).astype(dtype)
     b = (rng.integers(-4, 5, (n, nk * k)) / 4).astype(dtype)
     if kind == "i8":
         a = rng.integers(-4, 5, (m, nk * k)).astype(dtype)
         b = rng.integers(-4, 5, (n, nk * k)).astype(dtype)
-    out = tvm.runtime.tensor(np.zeros((128, n), "uint32"), tvm.cuda())
-    f(tvm.runtime.tensor(a, tvm.cuda()), tvm.runtime.tensor(b, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros((128, n), "uint32"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(a, tvm_tirx.cuda()), tvm_tirx.runtime.tensor(b, tvm_tirx.cuda()), out)
     actual = out.numpy().view(acc_dtype)[:, ::packed]
     ref = a.astype("float32") @ b.astype("float32").T
     for i in range(m):
@@ -259,8 +259,8 @@ def test_tcgen05_mma(m, ws, dtype, k, kind, acc_dtype, major, swizzle=3):
 
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="Blackwell required")
 def test_tcgen05_block_scale_repeated_k():
-    from tvm.backend.cuda.axis import TCol, TLane
-    from tvm.tirx.layout import R
+    from tvm_tirx.backend.cuda.axis import TCol, TLane
+    from tvm_tirx.tirx.layout import R
 
     m, n, k, nk = 128, 64, 32, 4
     dtype = "float8_e4m3fn"
@@ -350,12 +350,12 @@ def test_tcgen05_block_scale_repeated_k():
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(address[0], T.uint32(128))
 
-    f = tvm.tirx.compile(kernel, target="cuda", pipeline="tirx")
+    f = tvm_tirx.tirx.compile(kernel, target="cuda", pipeline="tirx")
     rng = np.random.default_rng(5)
     a = rng.uniform(-1, 1, (m, nk * k)).astype(dtype)
     b = rng.uniform(-1, 1, (n, nk * k)).astype(dtype)
-    out = tvm.runtime.tensor(np.zeros((m, n), "float32"), tvm.cuda())
-    f(tvm.runtime.tensor(a, tvm.cuda()), tvm.runtime.tensor(b, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros((m, n), "float32"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(a, tvm_tirx.cuda()), tvm_tirx.runtime.tensor(b, tvm_tirx.cuda()), out)
     af = a.astype("float32")
     for ki in range(nk):
         af[:, ki * k : (ki + 1) * k] *= 2**ki
@@ -431,12 +431,12 @@ def test_tcgen05_mma_cta_pair(m):
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__2.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__2.sync.aligned.b32(address[0], T.uint32(128))
 
-    f = tvm.tirx.compile(kernel, target="cuda", pipeline="tirx")
+    f = tvm_tirx.tirx.compile(kernel, target="cuda", pipeline="tirx")
     rng = np.random.default_rng(12)
     a = rng.uniform(-1, 1, (m, k)).astype("float16")
     b = rng.uniform(-1, 1, (n, k)).astype("float16")
-    out = tvm.runtime.tensor(np.zeros((m, n), "float32"), tvm.cuda())
-    f(tvm.runtime.tensor(a, tvm.cuda()), tvm.runtime.tensor(b, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros((m, n), "float32"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(a, tvm_tirx.cuda()), tvm_tirx.runtime.tensor(b, tvm_tirx.cuda()), out)
     np.testing.assert_allclose(
         out.numpy(), a.astype("float32") @ b.astype("float32").T, rtol=2e-4, atol=2e-4
     )
@@ -445,7 +445,7 @@ def test_tcgen05_mma_cta_pair(m):
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="Blackwell required")
 def test_tcgen05_tmem_a_repeated_mnk():
     """TMEM A and D occupy separate column ranges, with independent M/N/K repeats."""
-    from tvm.backend.cuda.axis import TCol, TLane
+    from tvm_tirx.backend.cuda.axis import TCol, TLane
 
     mr, nr, kr, m, n, k = 2, 2, 2, 128, 64, 16
     al = TileLayout(S[(mr, kr, m, k) : (kr * k @ TCol, k @ TCol, 1 @ TLane, 1 @ TCol)])
@@ -517,14 +517,14 @@ def test_tcgen05_tmem_a_repeated_mnk():
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(address[0], T.uint32(512))
 
-    f = tvm.tirx.compile(kernel, target="cuda", pipeline="tirx")
+    f = tvm_tirx.tirx.compile(kernel, target="cuda", pipeline="tirx")
     rng = np.random.default_rng(21)
     a = rng.uniform(-1, 1, (mr * m, kr * k)).astype("float16")
     b = rng.uniform(-1, 1, (nr * n, kr * k)).astype("float16")
     aa = np.ascontiguousarray(a.reshape(mr, m, kr, k).transpose(0, 2, 1, 3)).view("uint32")
     bb = np.ascontiguousarray(b.reshape(nr, n, kr, k).transpose(0, 2, 1, 3))
-    out = tvm.runtime.tensor(np.zeros((mr * m, nr * n), "float32"), tvm.cuda())
-    f(tvm.runtime.tensor(aa, tvm.cuda()), tvm.runtime.tensor(bb, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros((mr * m, nr * n), "float32"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(aa, tvm_tirx.cuda()), tvm_tirx.runtime.tensor(bb, tvm_tirx.cuda()), out)
     np.testing.assert_allclose(
         out.numpy(), a.astype("float32") @ b.astype("float32").T, rtol=2e-4, atol=2e-4
     )
@@ -536,8 +536,8 @@ def test_tcgen05_tmem_a_repeated_mnk():
     "scale_format,vec,kind", [("float8_e4m3fn", 4, "mxf4nvf4"), ("float8_e8m0fnu", 2, "mxf4")]
 )
 def test_tcgen05_fp4_scale_vectors(cta_group, scale_format, vec, kind):
-    from tvm.backend.cuda.axis import TCol, TLane
-    from tvm.tirx.layout import R
+    from tvm_tirx.backend.cuda.axis import TCol, TLane
+    from tvm_tirx.tirx.layout import R
 
     rows, cols, k, kr = 128, 64, 64, 2
     m, n = rows * cta_group, cols * cta_group
@@ -666,7 +666,7 @@ def test_tcgen05_fp4_scale_vectors(cta_group, scale_format, vec, kind):
                 address[0], T.uint32(256)
             )
 
-    f = tvm.tirx.compile(kernel, target="cuda", pipeline="tirx")
+    f = tvm_tirx.tirx.compile(kernel, target="cuda", pipeline="tirx")
     rng = np.random.default_rng(22)
     a = rng.uniform(-4, 4, (m, kr * k)).astype("float4_e2m1fn")
     b = rng.uniform(-4, 4, (n, kr * k)).astype("float4_e2m1fn")
@@ -680,11 +680,11 @@ def test_tcgen05_fp4_scale_vectors(cta_group, scale_format, vec, kind):
     raw_scale = np.zeros((kr, 4), "uint8")
     raw_scale[:, :vec] = scale.astype(scale_format).view("uint8")
     scale = raw_scale[:, :vec].copy().view(scale_format).astype("float32")
-    out = tvm.runtime.tensor(np.zeros((m, n), "float32"), tvm.cuda())
+    out = tvm_tirx.runtime.tensor(np.zeros((m, n), "float32"), tvm_tirx.cuda())
     f(
-        tvm.runtime.tensor(pack(a), tvm.cuda()),
-        tvm.runtime.tensor(pack(b), tvm.cuda()),
-        tvm.runtime.tensor(raw_scale.copy().view("uint32").reshape(kr), tvm.cuda()),
+        tvm_tirx.runtime.tensor(pack(a), tvm_tirx.cuda()),
+        tvm_tirx.runtime.tensor(pack(b), tvm_tirx.cuda()),
+        tvm_tirx.runtime.tensor(raw_scale.copy().view("uint32").reshape(kr), tvm_tirx.cuda()),
         out,
     )
     scale = np.repeat(scale, k // vec, axis=1).reshape(kr * k)

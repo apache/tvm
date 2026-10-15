@@ -21,25 +21,25 @@ import re
 
 import pytest
 
-import tvm
+import tvm_tirx
 from tirx.layout_fixtures import scale_factor_tmem_layout
-from tvm.backend.cuda.axis import TCol, TLane
-from tvm.backend.cuda.layout import mma_shared_layout, tmem_datapath_layout
-from tvm.script import tirx as T
-from tvm.tirx.layout import ComposeLayout, R, S, TileLayout
+from tvm_tirx.backend.cuda.axis import TCol, TLane
+from tvm_tirx.backend.cuda.layout import mma_shared_layout, tmem_datapath_layout
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx.layout import ComposeLayout, R, S, TileLayout
 
 
 def _compile(func):
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
         return (
-            tvm.tirx.compile(func, target=target, pipeline="tirx").mod.imports[0].inspect_source()
+            tvm_tirx.tirx.compile(func, target=target, pipeline="tirx").mod.imports[0].inspect_source()
         )
 
 
 def _lower(func):
-    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
-        return tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": func}))["main"]
+    with tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+        return tvm_tirx.tirx.transform.TileDispatch()(tvm_tirx.IRModule({"main": func}))["main"]
 
 
 def _calls(src, ws=False, cta=1):
@@ -384,7 +384,7 @@ def test_gemm_tcgen05_explicit_mma_m_is_cluster_total_for_cta_group_2(rows, inst
 def _packed_fixture(a_form="packed", dtype="bfloat16", M=64, cta=2):
     """The old column-major alias is explicitly unfolded to packed 16B lines."""
     N, K = 256, 64
-    e16 = 128 // tvm.DataType(dtype).bits
+    e16 = 128 // tvm_tirx.DataType(dtype).bits
     a_layout = (
         TileLayout(S[(M, K) : (1, M)])
         if a_form == "column_major"

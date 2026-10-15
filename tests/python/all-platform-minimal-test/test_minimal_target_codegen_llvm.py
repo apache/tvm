@@ -24,18 +24,18 @@ import re
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import te, topi
-from tvm.support import utils
-from tvm.testing import env
+from tvm_tirx.support import utils
+from tvm_tirx.testing import env
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_add_pipeline():
     """all-platform-minimal-test: Check LLVM enablement."""
     nn = 128
-    n = tvm.runtime.convert(nn)
+    n = tvm_tirx.runtime.convert(nn)
     A = te.placeholder((n,), name="A")
     B = te.placeholder((n,), name="B")
     AA = te.compute((n,), lambda *i: A(*i), name="A")
@@ -51,13 +51,13 @@ def test_llvm_add_pipeline():
     def check_llvm():
         # BUILD and invoke the kernel.
         f = tvm.compile(sch.mod, target="llvm")
-        dev = tvm.cpu(0)
+        dev = tvm_tirx.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype.dtype), dev)
-        b = tvm.runtime.tensor(np.random.uniform(size=n).astype(B.dtype.dtype), dev)
-        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype.dtype), dev)
+        a = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype(A.dtype.dtype), dev)
+        b = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype(B.dtype.dtype), dev)
+        c = tvm_tirx.runtime.tensor(np.zeros(n, dtype=C.dtype.dtype), dev)
         f(a, b, c)
-        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
+        tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     check_llvm()

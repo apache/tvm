@@ -29,7 +29,7 @@ inline asm; anything that needs a hand-written PTX body lives in
 * thread queries, scheduling hints, and the CUDA-side sync helpers
 """
 
-from tvm.backend.cuda.op import cuda_func_call
+from tvm_tirx.backend.cuda.op import cuda_func_call
 
 from ..codegen.registry import register_codegen
 from ..codegen.schema import device_intrinsic

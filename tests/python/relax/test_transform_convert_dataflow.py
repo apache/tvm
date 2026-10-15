@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F841
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import relax as R
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
 
 
 # functions that will not change
@@ -67,7 +67,7 @@ def test_trivial():
     Expected = Before
 
     After = relax.transform.ConvertToDataflow()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_basic():
@@ -92,7 +92,7 @@ def test_basic():
             return v
 
     After = relax.transform.ConvertToDataflow()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_multiple_blocks():
@@ -129,7 +129,7 @@ def test_multiple_blocks():
             return d
 
     After = relax.transform.ConvertToDataflow()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_extract_inside_branches():
@@ -186,7 +186,7 @@ def test_extract_inside_branches():
             return f
 
     After = relax.transform.ConvertToDataflow()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_treat_non_call_as_pure():
@@ -261,7 +261,7 @@ def test_treat_non_call_as_pure():
             return w
 
     After = relax.transform.ConvertToDataflow()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_impure_inner_function():
@@ -323,7 +323,7 @@ def test_impure_inner_function():
             return c
 
     After = relax.transform.ConvertToDataflow()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_pure_inner_function():
@@ -367,7 +367,7 @@ def test_pure_inner_function():
             return q
 
     After = relax.transform.ConvertToDataflow()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_impure_external_function():
@@ -410,7 +410,7 @@ def test_impure_external_function():
             return q
 
     After = relax.transform.ConvertToDataflow()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_pure_external_function():
@@ -451,7 +451,7 @@ def test_pure_external_function():
             return q
 
     After = relax.transform.ConvertToDataflow()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_merge_with_preceding_dataflow_block():
@@ -483,7 +483,7 @@ def test_merge_with_preceding_dataflow_block():
             return v
 
     After = relax.transform.ConvertToDataflow()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_merge_with_next_dataflow_block():
@@ -516,7 +516,7 @@ def test_merge_with_next_dataflow_block():
             return v
 
     After = relax.transform.ConvertToDataflow()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_preserve_existing_dataflow_blocks_at_beginning():
@@ -572,7 +572,7 @@ def test_preserve_existing_dataflow_blocks_at_beginning():
             return (A1, B3)
 
     After = relax.transform.ConvertToDataflow()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_preserve_existing_dataflow_blocks_at_end():
@@ -628,8 +628,8 @@ def test_preserve_existing_dataflow_blocks_at_end():
             return (A1, B3)
 
     After = relax.transform.ConvertToDataflow()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

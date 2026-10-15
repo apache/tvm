@@ -76,7 +76,7 @@ def _require_constexpr_arg(value: _Value, name: str) -> _Value:
     TypeError
         If value is the MISSING sentinel and no constexpr binding was selected.
     """
-    from tvm.script.ir_builder.base import MISSING
+    from tvm_tirx.script.ir_builder.base import MISSING
 
     if value is MISSING:
         raise TypeError(f"constexpr parameter {name!r} requires a specialization binding")

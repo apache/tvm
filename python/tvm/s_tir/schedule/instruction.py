@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 from tvm_ffi import register_object as _register_object
 
-from tvm.runtime import Object
+from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 
@@ -44,7 +44,7 @@ class InstructionKind(Object):
     4) A functor that serialize its attributes to JSON
     5) A functor that deserialize its attributes from JSON
 
-    Unlike `tvm.ir.op`, `InstructionKind` doesn't support unstructured properties,
+    Unlike `tvm_tirx.ir.op`, `InstructionKind` doesn't support unstructured properties,
     mainly because there is no such usecase yet to add any other property.
 
     Attributes

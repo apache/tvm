@@ -18,7 +18,7 @@
 """Hand-written CUDA C++ device helpers.
 
 The CUDA backend emits device intrinsics two ways. A single PTX instruction is
-a row in the :mod:`tvm.backend.cuda.ptx` table, rendered by a generic engine.
+a row in the :mod:`tvm_tirx.backend.cuda.ptx` table, rendered by a generic engine.
 Everything else -- anything needing a hand-written ``__device__`` function body
 -- is registered here, grouped by why it needs one:
 
@@ -32,7 +32,7 @@ Everything else -- anything needing a hand-written ``__device__`` function body
 
 Importing this package is what registers those codegens; the shared registry,
 ``device_intrinsic`` schema, and header generator live in
-:mod:`tvm.backend.cuda.codegen`.
+:mod:`tvm_tirx.backend.cuda.codegen`.
 """
 
 # Import op modules to register their codegen functions.

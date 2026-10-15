@@ -20,16 +20,16 @@ import sys
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import tirx
-from tvm.ir import IRModule
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
+from tvm_tirx.ir import IRModule
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -114,7 +114,7 @@ def matmul_relu_ann2(
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class ModuleWithMultipleFuncs:
     @Ts.function
     def vector_add(
@@ -171,7 +171,7 @@ def tuple_reduction(data: T.Tensor((4, 32), "float32"), T_add: T.Tensor((4,), "f
 
 # pylint: enable=no-member,invalid-name,unused-variable
 
-use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
 
 def test_tir_schedule_creation():
@@ -300,7 +300,7 @@ def test_get_producers(use_block_name):
     sch = tvm.s_tir.Schedule(mod=matmul_relu, debug_mask="all")
     block = "relu" if use_block_name else sch.get_sblock("relu")
     (producer,) = sch.get_producers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(producer).stmt,
         sch.get_sref(sch.get_sblock("matmul")).stmt,
     )
@@ -311,7 +311,7 @@ def test_get_producers_multiple_tensor_depdencies(use_block_name):
     sch = tvm.s_tir.Schedule(mod=tuple_reduction, debug_mask="all")
     block = "T_add" if use_block_name else sch.get_sblock("T_add")
     (producer,) = sch.get_producers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(producer).stmt,
         sch.get_sref(sch.get_sblock("data_red_temp")).stmt,
     )
@@ -321,7 +321,7 @@ def test_get_consumers(use_block_name):
     sch = tvm.s_tir.Schedule(mod=matmul_relu, debug_mask="all")
     block = "matmul" if use_block_name else sch.get_sblock("matmul")
     (consumer,) = sch.get_consumers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(consumer).stmt,
         sch.get_sref(sch.get_sblock("relu")).stmt,
     )
@@ -332,7 +332,7 @@ def test_get_consumers_multiple_tensor_depdencies(use_block_name):
     sch = tvm.s_tir.Schedule(mod=tuple_reduction, debug_mask="all")
     block = "data_red_temp" if use_block_name else sch.get_sblock("data_red_temp")
     (consumer,) = sch.get_consumers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(consumer).stmt,
         sch.get_sref(sch.get_sblock("T_add")).stmt,
     )
@@ -432,4 +432,4 @@ def test_get_output_blocks_nested():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

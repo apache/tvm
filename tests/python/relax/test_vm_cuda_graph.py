@@ -22,14 +22,14 @@ import ctypes.util
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.testing import env
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 # fmt: off
 
@@ -103,19 +103,19 @@ def codegen(mod, target):
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_vm_run():
     mod = Module
-    target = tvm.target.Target("cuda", host="llvm")
+    target = tvm_tirx.target.Target("cuda", host="llvm")
     ex = codegen(mod, target)
     x_np = np.random.uniform(size=(16, 16)).astype("float32")
     y_np = x_np + 1.0 + 1.0 + 1.0 + 1.0
 
     def run_and_check():
-        dev = tvm.cuda(0)
+        dev = tvm_tirx.cuda(0)
         vm = relax.VirtualMachine(ex, dev)
-        x = tvm.runtime.tensor(x_np, dev)
+        x = tvm_tirx.runtime.tensor(x_np, dev)
         y = vm["main"](x)
-        tvm.testing.assert_allclose(y.numpy(), y_np, rtol=1e-5, atol=1e-5)
+        tvm_tirx.testing.assert_allclose(y.numpy(), y_np, rtol=1e-5, atol=1e-5)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -138,7 +138,7 @@ def test_capture_error_is_recoverable():
 
     """
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
 
     @I.ir_module
     class Module:
@@ -153,8 +153,8 @@ def test_capture_error_is_recoverable():
             D = R.add(C, C)
             return D
 
-    with target, tvm.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
-        Module = tvm.ir.transform.Sequential(
+    with target, tvm_tirx.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
+        Module = tvm_tirx.ir.transform.Sequential(
             [
                 tvm.relax.transform.LegalizeOps(),
                 tvm.s_tir.transform.DefaultGPUSchedule(),
@@ -173,7 +173,7 @@ def test_capture_error_is_recoverable():
     built = tvm.compile(Module, target=target)
 
     def run_and_check():
-        dev = tvm.cuda()
+        dev = tvm_tirx.cuda()
         cudart_path = ctypes.util.find_library("cudart")
         assert cudart_path is not None, "Unable to locate the CUDA runtime library"
         cudart = ctypes.CDLL(cudart_path)
@@ -181,17 +181,17 @@ def test_capture_error_is_recoverable():
         cudart.cudaGetLastError.restype = ctypes.c_int
         cudart.cudaGetLastError()
 
-        @tvm.register_global_func("test_vm_cuda_graph.invalid_impl_for_cudagraph", override=True)
+        @tvm_tirx.register_global_func("test_vm_cuda_graph.invalid_impl_for_cudagraph", override=True)
         def invalid_impl_for_cudagraph(arg_tensor):
             # Memory allocation/deallocation may not be performed while
             # capturing a cudaGraph.  This passes the warm-up run
             # performed by "vm.builtin.cuda_graph.run_or_capture", but
             # throws an exception when the cudaGraph is being captured.
-            _dummy_workspace = tvm.runtime.empty([16], "float16", dev)
+            _dummy_workspace = tvm_tirx.runtime.empty([16], "float16", dev)
             return arg_tensor
 
         vm = tvm.relax.VirtualMachine(built, dev)
-        arg = tvm.runtime.tensor(np.arange(16).astype("float16"), dev)
+        arg = tvm_tirx.runtime.tensor(np.arange(16).astype("float16"), dev)
 
         with pytest.raises(RuntimeError):
             vm["main"](arg)
@@ -203,8 +203,8 @@ def test_capture_error_is_recoverable():
             f"CUDA error state was not cleared after failed graph capture: {cuda_error}"
         )
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

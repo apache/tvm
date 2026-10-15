@@ -19,9 +19,9 @@
 
 from collections import namedtuple
 
-from tvm.ir import TensorRegion
-from tvm.script import tirx as T
-from tvm.sym.analyzer import Analyzer
+from tvm_tirx.ir import TensorRegion
+from tvm_tirx.script import tirx as T
+from tvm_tirx.sym.analyzer import Analyzer
 
 # Represents the part of data iter covered by the tensor region
 RangeInfo = namedtuple(

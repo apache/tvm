@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from tvm.tirx.cuda import iket
+from tvm_tirx.tirx.cuda import iket
 
 
 def _write_artifacts(output_dir: Path, postprocess: str, *, count: int = 1) -> None:
@@ -55,7 +55,7 @@ def _fake_profile_process(captured, *, artifact_count: int = 1):
 
 def test_public_namespace_and_old_bench_path_is_absent():
     pytest.importorskip("triton")  # tvm.tirx.bench pulls in the triton harness
-    import tvm.tirx.bench as bench
+    import tvm_tirx.tirx.bench as bench
 
     assert iket.__all__ == [
         "IketProfileError",

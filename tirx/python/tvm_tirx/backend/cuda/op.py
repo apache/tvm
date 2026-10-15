@@ -24,13 +24,13 @@ from functools import cache
 
 import tvm_ffi
 
-from tvm import DataType, tirx
-from tvm.ir import Attrs, Call, Op, StringImm, const
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.ir.op import _init_op_api, _make_op_api
-from tvm.ir.type import PrimType, PtrType
-from tvm.runtime import MemoryScope
-from tvm.tirx.op import bitwise_and, call_intrin, ptr_byte_offset
+from tvm_tirx import DataType, tirx
+from tvm_tirx.ir import Attrs, Call, Op, StringImm, const
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.op import _init_op_api, _make_op_api
+from tvm_tirx.ir.type import PrimType, PtrType
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.tirx.op import bitwise_and, call_intrin, ptr_byte_offset
 
 
 @cache

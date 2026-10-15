@@ -26,9 +26,9 @@ preserve_dst=False. A scalar read input broadcasts; every tensor ends in its
 PTX register-group count, including an extent-one axis for a scalar register.
 """
 
-from tvm.backend.cuda.ptx import PTXNamespace
-from tvm.backend.cuda.ptx.table import operand_layout
-from tvm.ir import TensorRegion
+from tvm_tirx.backend.cuda.ptx import PTXNamespace
+from tvm_tirx.backend.cuda.ptx.table import operand_layout
+from tvm_tirx.ir import TensorRegion
 
 from .common import Context
 

@@ -22,24 +22,24 @@ import math
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.backend.cuda.axis import laneid, warpid, wid_in_wg
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.layout import S, TileLayout
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.cuda.axis import laneid, warpid, wid_in_wg
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx.layout import S, TileLayout
 
 
 def _run(kernel, arrays, expected, output=0, atol=1e-3, rtol=1e-7, target="cuda"):
-    with tvm.target.Target(target):
-        module = tvm.tirx.compile(kernel, target=target, pipeline="tirx")
+    with tvm_tirx.target.Target(target):
+        module = tvm_tirx.tirx.compile(kernel, target=target, pipeline="tirx")
 
     def check():
-        args = [tvm.runtime.tensor(a, tvm.cuda()) for a in arrays]
+        args = [tvm_tirx.runtime.tensor(a, tvm_tirx.cuda()) for a in arrays]
         module(*args)
-        tvm.testing.assert_allclose(args[output].numpy(), expected, atol=atol, rtol=rtol)
+        tvm_tirx.testing.assert_allclose(args[output].numpy(), expected, atol=atol, rtol=rtol)
 
-    tvm.testing.run_with_gpu_lock(check)
+    tvm_tirx.testing.run_with_gpu_lock(check)
     return module
 
 
@@ -141,17 +141,17 @@ def test_mov_handles_scalar_regions():
         T.cuda.tile.apply(T.ptx["mov.b32"], dst[2:3], src[:])
         B[0] = dst[2]
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
-        mod = tvm.IRModule({"main": kernel})
-        ex = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.IRModule({"main": kernel})
+        ex = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
     assert "mov.b32" in src
-    out = tvm.runtime.tensor(np.zeros(1, "float32"), tvm.cuda())
+    out = tvm_tirx.runtime.tensor(np.zeros(1, "float32"), tvm_tirx.cuda())
     ex(out)
     np.testing.assert_array_equal(out.numpy(), [7])
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

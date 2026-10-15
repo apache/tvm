@@ -27,9 +27,9 @@ the PTX text, or the offset-scaling ``cp.async`` form the legacy
 
 import re
 
-from tvm import ir
-from tvm.backend.cuda.op import cuda_func_call
-from tvm.runtime import MemoryScope
+from tvm_tirx import ir
+from tvm_tirx.backend.cuda.op import cuda_func_call
+from tvm_tirx.runtime import MemoryScope
 
 from ..codegen.registry import CODEGEN_REGISTRY, register_codegen
 from ..codegen.schema import device_intrinsic
@@ -447,7 +447,7 @@ def codegen_s_tir_cp_async_raw(*args):
         # PTX plain form for both .ca and .cg is just
         # ``cp.async.<v>.shared.global [dst], [src], cp_size;`` — three
         # operands, no trailing src-size / cache-policy.
-        from tvm import DataType
+        from tvm_tirx import DataType
 
         dst_ptr_in, dst_offset, src_ptr_in, src_offset, cp_size = args[:5]
         predicate = args[5] if len(args) == 6 else -1

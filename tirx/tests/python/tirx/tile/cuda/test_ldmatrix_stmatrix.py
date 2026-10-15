@@ -35,20 +35,20 @@ num=1, which gets an extent-1 placeholder for the num atom).
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tirx.layout_fixtures import tcgen05_register_layout
-from tvm.backend.cuda.axis import laneid, tid_in_wg, tx
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.layout import ComposeLayout, S, TileLayout
+from tvm_tirx.backend.cuda.axis import laneid, tid_in_wg, tx
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx.layout import ComposeLayout, S, TileLayout
 
 
 def _compile_src(kernel):
-    target = tvm.target.Target("cuda")
-    mod = tvm.IRModule({"main": kernel})
+    target = tvm_tirx.target.Target("cuda")
+    mod = tvm_tirx.IRModule({"main": kernel})
     with target:
-        compiled = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        compiled = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
     return compiled, compiled.mod.imports[0].inspect_source()
 
 
@@ -397,13 +397,13 @@ def test_ldstmatrix(scope, trans, direction, num):
     B_np = np.zeros((M, N), dtype="float16")
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, device=dev)
-        B = tvm.runtime.tensor(B_np, device=dev)
+        dev = tvm_tirx.cuda(0)
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B = tvm_tirx.runtime.tensor(B_np, device=dev)
         compiled(A, B)
         np.testing.assert_allclose(B.numpy(), A_np)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 # ---------------------------------------------------------------------------
@@ -430,13 +430,13 @@ def test_ldstmatrix_swizzle(scope, trans, direction, num):
     B_np = np.zeros((M, N), dtype="float16")
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, device=dev)
-        B = tvm.runtime.tensor(B_np, device=dev)
+        dev = tvm_tirx.cuda(0)
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B = tvm_tirx.runtime.tensor(B_np, device=dev)
         compiled(A, B)
         np.testing.assert_allclose(B.numpy(), A_np)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 # ---------------------------------------------------------------------------
@@ -505,13 +505,13 @@ def test_ldstmatrix_swizzle_multi_iter_pow2():
     B_np = np.zeros(shape, dtype="float16")
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, device=dev)
-        B = tvm.runtime.tensor(B_np, device=dev)
+        dev = tvm_tirx.cuda(0)
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B = tvm_tirx.runtime.tensor(B_np, device=dev)
         compiled(A, B)
         np.testing.assert_allclose(B.numpy(), A_np)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -521,7 +521,7 @@ def test_ldstmatrix_tcgen05_warpgroup_atom_emits_ldmatrix():
     Preserve the original split lane and warp ownership through both the
     logical rearrangement and the bf16-to-b32 view.
     """
-    from tvm.backend.cuda.layout import mma_shared_layout
+    from tvm_tirx.backend.cuda.layout import mma_shared_layout
 
     m, k = 64, 64
     # bf16 payload carrying the *fp32* atom layout (mirrors the tf32-prenorm
@@ -571,10 +571,10 @@ def test_ldstmatrix_swizzle_multi_iter_linear():
     B_np = np.zeros(shape, dtype="float16")
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, device=dev)
-        B = tvm.runtime.tensor(B_np, device=dev)
+        dev = tvm_tirx.cuda(0)
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B = tvm_tirx.runtime.tensor(B_np, device=dev)
         compiled(A, B)
         np.testing.assert_allclose(B.numpy(), A_np)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)

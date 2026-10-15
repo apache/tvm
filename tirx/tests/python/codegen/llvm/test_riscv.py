@@ -20,11 +20,11 @@ import re
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.codegen import target_has_features
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.codegen import target_has_features
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 @pytest.mark.skipif(not env.has_llvm_min_version(14), reason="need llvm >= 14")
@@ -62,7 +62,7 @@ from tvm.testing import env
     ],
 )
 def test_rvv(target):
-    if not tvm.testing.device_enabled(target):
+    if not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     def check_rvv_presence(N, extent):
@@ -71,7 +71,7 @@ def test_rvv(target):
             for j in T.vectorized(0, extent):
                 A[j] = 1
 
-        f = tvm.tirx.compile(load_vec, target).mod
+        f = tvm_tirx.tirx.compile(load_vec, target).mod
         # Check RVV `vsetvli` prensence
         assembly = f.inspect_source("asm")
         if target_has_features("v"):
@@ -79,7 +79,7 @@ def test_rvv(target):
         else:
             assert "vsetvli" not in assembly
 
-    with tvm.target.Target(target):
+    with tvm_tirx.target.Target(target):
         check_rvv_presence(16, 32)
 
 
@@ -104,7 +104,7 @@ def test_rvv(target):
     ],
 )
 def test_rvv_vscale_llvm_dbginfo(target):
-    if not tvm.testing.device_enabled(target):
+    if not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     # fmt: off
@@ -119,8 +119,8 @@ def test_rvv_vscale_llvm_dbginfo(target):
     # fmt: on
 
     # tvm.error.InternalError: Can't fetch the lanes of a scalable vector at a compile time.
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(rvv_with_vscale, target).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(rvv_with_vscale, target).mod
 
 
 @pytest.mark.skipif(not env.has_llvm_min_version(14), reason="need llvm >= 14")
@@ -140,7 +140,7 @@ def test_rvv_fixed_width_vectorized_loop_uses_scalable_chunks():
         for wi in T.vectorized(T.int64(0), T.int64(16)):
             B[wi] = T.float32(0) - A[wi]
 
-    target = tvm.target.Target(
+    target = tvm_tirx.target.Target(
         {
             "kind": "llvm",
             "device": "riscv_cpu",
@@ -152,7 +152,7 @@ def test_rvv_fixed_width_vectorized_loop_uses_scalable_chunks():
 
     def check_codegen(func):
         with target:
-            f = tvm.tirx.compile(func, target).mod
+            f = tvm_tirx.tirx.compile(func, target).mod
 
         assembly = f.inspect_source("asm")
         assert "vle32.v" in assembly
@@ -172,7 +172,7 @@ def test_rvv_scalable_ramp_expression():
         for i in T.vectorized(16):
             B[i] = T.Select(i * 3 + 5 < 29, i * 3 + 5, -1)
 
-    target = tvm.target.Target(
+    target = tvm_tirx.target.Target(
         {
             "kind": "llvm",
             "device": "riscv_cpu",
@@ -183,7 +183,7 @@ def test_rvv_scalable_ramp_expression():
     )
 
     with target:
-        f = tvm.tirx.compile(ramp_compare, target).mod
+        f = tvm_tirx.tirx.compile(ramp_compare, target).mod
 
     assembly = f.inspect_source("asm")
     assert "vid.v" in assembly
@@ -192,4 +192,4 @@ def test_rvv_scalable_ramp_expression():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

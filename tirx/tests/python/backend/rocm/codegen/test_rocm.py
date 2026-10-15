@@ -18,11 +18,11 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 @pytest.mark.gpu
@@ -39,15 +39,15 @@ def test_rocm_inf_nan():
                         if i_0 * 128 + i_1 < 1:
                             C[i_0 * 128 + i_1] = T.Cast(value, dtype)
 
-        fun = tvm.tirx.compile(Module, "rocm")
+        fun = tvm_tirx.tirx.compile(Module, "rocm")
 
         def run_and_check():
-            dev = tvm.rocm(0)
-            a = tvm.runtime.empty((n,), dtype, dev)
-            c = tvm.runtime.empty((n,), dtype, dev)
+            dev = tvm_tirx.rocm(0)
+            a = tvm_tirx.runtime.empty((n,), dtype, dev)
+            c = tvm_tirx.runtime.empty((n,), dtype, dev)
             fun(a, c)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
     check_inf_nan(1, -float("inf"), "float32")
     check_inf_nan(1, -float("inf"), "float64")
@@ -62,14 +62,14 @@ def test_rocm_inf_nan():
 def test_rocm_copy():
     def check_rocm(dtype, n):
         def run_and_check():
-            dev = tvm.rocm(0)
+            dev = tvm_tirx.rocm(0)
             a_np = np.random.uniform(size=(n,)).astype(dtype)
-            a = tvm.runtime.empty((n,), dtype, dev).copyfrom(a_np)
+            a = tvm_tirx.runtime.empty((n,), dtype, dev).copyfrom(a_np)
             b_np = a.numpy()
-            tvm.testing.assert_allclose(a_np, b_np)
-            tvm.testing.assert_allclose(a_np, a.numpy())
+            tvm_tirx.testing.assert_allclose(a_np, b_np)
+            tvm_tirx.testing.assert_allclose(a_np, a.numpy())
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
     for _ in range(100):
         dtype = np.random.choice(["float32", "float16", "int8", "int32"])
@@ -94,16 +94,16 @@ def test_rocm_vectorize_add():
                     with T.launch_thread("threadIdx.x", 4) as i_1:
                         B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + T.Broadcast(T.Cast(1, dtype), lanes)
 
-        fun = tvm.tirx.compile(Module, target="rocm")
+        fun = tvm_tirx.tirx.compile(Module, target="rocm")
 
         def run_and_check():
-            dev = tvm.rocm(0)
-            a = tvm.runtime.empty((n,), vec_dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
-            c = tvm.runtime.empty((n,), vec_dtype, dev)
+            dev = tvm_tirx.rocm(0)
+            a = tvm_tirx.runtime.empty((n,), vec_dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
+            c = tvm_tirx.runtime.empty((n,), vec_dtype, dev)
             fun(a, c)
-            tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
+            tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
     check_rocm("float32", 64, 2)
     check_rocm("float16", 64, 2)
@@ -125,15 +125,15 @@ def test_rocm_warp_shuffle():
                 A_local[0] = T.gpu_warp_shuffle(mask[0], A_local[0], 0, 32, 32)
                 A[tx] = A_local[0]
 
-    mod = tvm.tirx.compile(func, target="rocm")
+    mod = tvm_tirx.tirx.compile(func, target="rocm")
 
     def run_and_check():
-        dev = tvm.rocm(0)
-        a = tvm.runtime.tensor(np.random.uniform(size=(32,)).astype("float32"), dev)
+        dev = tvm_tirx.rocm(0)
+        a = tvm_tirx.runtime.tensor(np.random.uniform(size=(32,)).astype("float32"), dev)
         mod(a)
-        tvm.testing.assert_allclose(a.numpy(), np.ones((32,)) * a.numpy()[0])
+        tvm_tirx.testing.assert_allclose(a.numpy(), np.ones((32,)) * a.numpy()[0])
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -149,17 +149,17 @@ def test_rocm_vectorized_exp():
                 for i in T.vectorized(0, 4):
                     B[i] = T.exp2(A[i])
 
-    mod = tvm.tirx.compile(func, target="rocm")
+    mod = tvm_tirx.tirx.compile(func, target="rocm")
 
     def run_and_check():
-        dev = tvm.rocm(0)
-        a = tvm.runtime.tensor(np.ones((4,)).astype("float32"), dev)
-        b = tvm.runtime.tensor(np.zeros((4,)).astype("float32"), dev)
+        dev = tvm_tirx.rocm(0)
+        a = tvm_tirx.runtime.tensor(np.ones((4,)).astype("float32"), dev)
+        b = tvm_tirx.runtime.tensor(np.zeros((4,)).astype("float32"), dev)
         mod(a, b)
-        tvm.testing.assert_allclose(b.numpy(), np.exp2(a.numpy()))
+        tvm_tirx.testing.assert_allclose(b.numpy(), np.exp2(a.numpy()))
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -16,7 +16,7 @@
 # under the License.
 """Construction of primitive IR constants."""
 
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from . import _ffi_api
 

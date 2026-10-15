@@ -20,7 +20,7 @@
 
 from tvm_ffi.dataclasses import Enum
 
-from tvm.ir import Scriptable
+from tvm_tirx.ir import Scriptable
 
 from . import _ffi_api
 

@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from tvm.testing import env
+from tvm_tirx.testing import env
 
 
 @pytest.fixture(autouse=True)

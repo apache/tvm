@@ -22,13 +22,13 @@ import inspect
 
 import tvm_ffi
 
-import tvm.runtime
+import tvm_tirx.runtime
 
 from . import _ffi_transform_api
 
 
 @tvm_ffi.register_object("transform.PassInfo")
-class PassInfo(tvm.runtime.Object):
+class PassInfo(tvm_tirx.runtime.Object):
     """The class contains the meta data required by a pass. It is the
     container of information needed by running an optimization or analysis.
     This class can be extended by adding new members when more meta data is
@@ -48,7 +48,7 @@ class PassInfo(tvm.runtime.Object):
 
 
 @tvm_ffi.register_object("transform.PassInstrument")
-class PassInstrument(tvm.runtime.Object):
+class PassInstrument(tvm_tirx.runtime.Object):
     """A pass instrument implementation.
 
     To use, a user class can either subclass from PassInstrument
@@ -110,11 +110,11 @@ class PassInstrument(tvm.runtime.Object):
 
         Parameters
         ----------
-        mod : tvm.ir.module.IRModule
+        mod : tvm_tirx.ir.module.IRModule
 
             The module on which an optimization pass is being run.
 
-        info : tvm.ir.transform.PassInfo
+        info : tvm_tirx.ir.transform.PassInfo
 
             The pass information.
 
@@ -133,11 +133,11 @@ class PassInstrument(tvm.runtime.Object):
 
         Parameters
         ----------
-        mod : tvm.ir.module.IRModule
+        mod : tvm_tirx.ir.module.IRModule
 
             The module on which an optimization pass is being run.
 
-        info : tvm.ir.transform.PassInfo
+        info : tvm_tirx.ir.transform.PassInfo
 
             The pass information.
 
@@ -154,11 +154,11 @@ class PassInstrument(tvm.runtime.Object):
 
         Parameters
         ----------
-        mod : tvm.ir.module.IRModule
+        mod : tvm_tirx.ir.module.IRModule
 
             The module on which an optimization pass is being run.
 
-        info : tvm.ir.transform.PassInfo
+        info : tvm_tirx.ir.transform.PassInfo
 
             The pass information.
 
@@ -204,7 +204,7 @@ def pass_instrument(pi_cls=None):
 
     .. code-block:: python
 
-        @tvm.ir.transform.pass_instrument
+        @tvm_tirx.ir.transform.pass_instrument
         class SkipPass:
             def __init__(self, skip_pass_name):
                 self.skip_pass_name = skip_pass_name
@@ -232,7 +232,7 @@ def pass_instrument(pi_cls=None):
             #    pass
 
         skip_annotate = SkipPass("AnnotateSpans")
-        with tvm.ir.transform.PassContext(instruments=[skip_annotate]):
+        with tvm_tirx.ir.transform.PassContext(instruments=[skip_annotate]):
             tvm.compile(mod, "llvm")
     """
 
@@ -248,7 +248,7 @@ def pass_instrument(pi_cls=None):
 
 
 @tvm_ffi.register_object("transform.PassContext")
-class PassContext(tvm.runtime.Object):
+class PassContext(tvm_tirx.runtime.Object):
     """The basis where a TVM optimization/analysis runs on.
     Each pass context contains a number of auxiliary information that is used
     to help an optimization pass. Such information includes the error reporter
@@ -336,7 +336,7 @@ class PassContext(tvm.runtime.Object):
 
 
 @tvm_ffi.register_object("transform.Pass")
-class Pass(tvm.runtime.Object):
+class Pass(tvm_tirx.runtime.Object):
     """The base class of all passes. All methods here are just simple wrappers
     that are implemented in the backend. They are defined for users to
     conveniently interact with the base class.
@@ -354,12 +354,12 @@ class Pass(tvm.runtime.Object):
 
         Parameters
         ----------
-        mod : tvm.IRModule
+        mod : tvm_tirx.IRModule
             The module that a certain optimization is performed on.
 
         Returns
         -------
-        mod : tvm.IRModule
+        mod : tvm_tirx.IRModule
             The updated module after applying this pass.
         """
         return _ffi_transform_api.RunPass(self, mod)
@@ -367,7 +367,7 @@ class Pass(tvm.runtime.Object):
 
 @tvm_ffi.register_object("transform.ModulePass")
 class ModulePass(Pass):
-    """A pass that works on tvm.IRModule. Users don't need to interact with
+    """A pass that works on tvm_tirx.IRModule. Users don't need to interact with
     this class directly. Instead, a module pass should be created through
     `module_pass`, because the design of the `module_pass` API is flexible
     enough to handle the creation of a module pass in different manners. In
@@ -474,7 +474,7 @@ def module_pass(pass_func=None, opt_level=None, name=None):
 
     .. code-block:: python
 
-        @tvm.ir.transform.module_pass
+        @tvm_tirx.ir.transform.module_pass
         class CustomPipeline:
             def __init__(self, enable_fold):
                 self.enable_fold = enable_fold
@@ -496,7 +496,7 @@ def module_pass(pass_func=None, opt_level=None, name=None):
 
     .. code-block:: python
 
-        @tvm.ir.transform.module_pass(opt_level=2)
+        @tvm_tirx.ir.transform.module_pass(opt_level=2)
         def transform(mod, ctx):
             return relax.transform.FoldConstant(mod)
 

@@ -20,8 +20,8 @@ from typing import Optional
 
 import tvm_ffi
 
-from tvm.runtime import Object
-from tvm.tirx.function import Function
+from tvm_tirx.runtime import Object
+from tvm_tirx.tirx.function import Function
 
 from . import _ffi_api
 

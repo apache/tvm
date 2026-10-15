@@ -107,7 +107,7 @@ def default_backend_config():
 
 def resolve_backend_config(config=None, target=None):
     """Resolve one CUDA configuration after applying target/tag defaults."""
-    from tvm.target import Target
+    from tvm_tirx.target import Target
 
     from ..config import copy_backend_config
 
@@ -149,7 +149,7 @@ def compiler_options(config):
 
 @tvm_ffi.register_global_func("cuda.resolve_backend_config")
 def _resolve_entry(local, defaults, target):
-    from tvm.target import Target
+    from tvm_tirx.target import Target
 
     from ..config import backend_config_json, merge_backend_configs, parse_backend_config
 

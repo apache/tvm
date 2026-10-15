@@ -16,13 +16,13 @@
 # under the License.
 # pylint: disable=missing-docstring
 # ruff: noqa: E501, F401
-import tvm
-from tvm.ir import IRModule, assert_structural_equal
+import tvm, tvm_tirx
+from tvm_tirx.ir import IRModule, assert_structural_equal
 from tvm.s_tir import dlight as dl
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def _check(mod_before: IRModule, mod_after: IRModule):

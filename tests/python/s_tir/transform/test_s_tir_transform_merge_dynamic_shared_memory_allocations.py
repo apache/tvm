@@ -17,12 +17,12 @@
 # ruff: noqa: F401, F841
 import numpy as np
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import s_tir
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 from tvm.topi.math import cast
 
 
@@ -390,13 +390,13 @@ def test_multi_thread_extent_blocks():
     # End-to-end: post-merge IR must remain well-formed through
     # the host/device split — this is the exact ordering from
     # PR #19605 that triggers the scoping bug.
-    target = tvm.target.Target("llvm")
-    mod_with_target = tvm.IRModule({"main": After["main"].with_attr({"target": target})})
-    split = tvm.tirx.transform.SplitHostDevice()
+    target = tvm_tirx.target.Target("llvm")
+    mod_with_target = tvm_tirx.IRModule({"main": After["main"].with_attr({"target": target})})
+    split = tvm_tirx.tirx.transform.SplitHostDevice()
     # If kernel #1 referenced an undefined buf_dyn_shmem, this
     # would raise during well-formedness checking inside SplitHostDevice.
     split(mod_with_target)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

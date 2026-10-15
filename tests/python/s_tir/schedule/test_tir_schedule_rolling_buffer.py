@@ -18,15 +18,16 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import s_tir, tirx
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
+from tvm import s_tir
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def check_rolling_buffer(
@@ -40,14 +41,14 @@ def check_rolling_buffer(
         out_tensor = origin.params[1]
         in_shape = [int(_) for _ in in_tensor.shape]
         out_shape = [int(_) for _ in out_tensor.shape]
-        x = tvm.runtime.tensor(np.random.uniform(0, 64, in_shape).astype(in_tensor.dtype))
-        y0 = tvm.runtime.tensor(np.zeros(out_shape).astype(out_tensor.dtype))
-        y1 = tvm.runtime.tensor(np.zeros(out_shape).astype(out_tensor.dtype))
+        x = tvm_tirx.runtime.tensor(np.random.uniform(0, 64, in_shape).astype(in_tensor.dtype))
+        y0 = tvm_tirx.runtime.tensor(np.zeros(out_shape).astype(out_tensor.dtype))
+        y1 = tvm_tirx.runtime.tensor(np.zeros(out_shape).astype(out_tensor.dtype))
         f_origin = tvm.compile(origin)
         f_scheduled = tvm.compile(scheduled)
         f_origin(x, y0)
         f_scheduled(x, y1)
-        tvm.testing.assert_allclose(y0.numpy(), y1.numpy())
+        tvm_tirx.testing.assert_allclose(y0.numpy(), y1.numpy())
 
 
 def _tile_nd(s, tile, block_name):
@@ -575,4 +576,4 @@ def test_fail_rolling_buffer_injection_invalid():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

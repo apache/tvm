@@ -24,7 +24,7 @@ import pytest
 
 # Script-local bindings are observed through the constructed IR.
 # ruff: noqa: F821
-from tvm.script.parser import entry
+from tvm_tirx.script.parser import entry
 
 
 def test_signature_symbols_cross_nested_calls_parameters_return_and_body(language):

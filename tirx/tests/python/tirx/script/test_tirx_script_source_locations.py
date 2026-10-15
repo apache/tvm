@@ -26,14 +26,14 @@ import pytest
 import tvm_ffi
 from tvm_ffi import structural_walk
 
-import tvm
-import tvm.testing
-from tvm import ir, tirx
-from tvm.ir import Call, CallSiteLoc, TensorLoad, assert_structural_equal, prim
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.script.ir_builder.base import AlreadyEmitted
-from tvm.script.parser.inspect_source import Source
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx import ir, tirx
+from tvm_tirx.ir import Call, CallSiteLoc, TensorLoad, assert_structural_equal, prim
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.ir_builder.base import AlreadyEmitted
+from tvm_tirx.script.parser.inspect_source import Source
 
 
 def test_parser_attaches_loc_to_direct_call():
@@ -162,8 +162,8 @@ def test_parser_attaches_loc_to_tile_op_call():
     func = tile_call
     call = _find_ir_node(
         func,
-        lambda node: isinstance(node, tvm.ir.Call)
-        and isinstance(node.op, tvm.ir.Op)
+        lambda node: isinstance(node, tvm_tirx.ir.Call)
+        and isinstance(node.op, tvm_tirx.ir.Op)
         and node.op.name == "tirx.cuda.tile.apply",
     )
 
@@ -174,8 +174,8 @@ def test_parser_locs_do_not_affect_structural_identity():
     source_a = """@T.function\ndef f():\n    T.evaluate(1)\n"""
     source_b = """\n\n@T.function\ndef f():\n    T.evaluate(1)\n"""
 
-    func_a = tvm.script.from_source(source_a, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
-    func_b = tvm.script.from_source(source_b, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+    func_a = tvm_tirx.script.from_source(source_a, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
+    func_b = tvm_tirx.script.from_source(source_b, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
 
     assert _loc_range(func_a.body[0].loc) == ("<str>", 3, 5, 3, 18)
     assert _loc_range(func_b.body[0].loc) == ("<str>", 5, 5, 5, 18)
@@ -210,7 +210,7 @@ def test_statement_receipts_keep_emitted_nodes_and_locs():
 
 def test_native_bind_keeps_returned_and_stored_variable_identity():
     # Aliases of an explicitly produced native variable must not rename, reloc or bind it again.
-    from tvm import ir
+    from tvm_tirx import ir
 
     loc = ir.SourceLoc(ir.SourceName("producer.py"), 7, 2, 7, 19)
     produced = ir.Var("producer_name", "int32", loc)
@@ -236,7 +236,7 @@ def test_native_bind_keeps_returned_and_stored_variable_identity():
         T.evaluate(called)
 
     binding, use = main.body.seq
-    assert isinstance(binding, tvm.ir.Bind) and isinstance(use, tvm.ir.Evaluate)
+    assert isinstance(binding, tvm_tirx.ir.Bind) and isinstance(use, tvm_tirx.ir.Evaluate)
     assert binding.var.same_as(produced) and use.value.same_as(produced)
     assert len(observed) == 3 and len(calls) == 2
     assert calls[0].same_as(main.params[0]) and calls[1].same_as(produced)
@@ -246,10 +246,10 @@ def test_native_view_keeps_producer_identity_name_and_loc(monkeypatch):
     # A native view must preserve its producer name/loc and declare its storage exactly once.
     from functools import wraps
 
-    from tvm import ir
-    from tvm.script.ir_builder import base
+    from tvm_tirx import ir
+    from tvm_tirx.script.ir_builder import base
 
-    original = tvm.tirx.TensorType.view
+    original = tvm_tirx.tirx.TensorType.view
     seen, produced, observed = [], [], []
     loc = ir.SourceLoc(ir.SourceName("producer.py"), 7, 2, 7, 19)
 
@@ -267,7 +267,7 @@ def test_native_view_keeps_producer_identity_name_and_loc(monkeypatch):
     def observe(value):
         observed.append((value, value.loc))
 
-    monkeypatch.setattr(tvm.tirx.TensorType, "view", view)
+    monkeypatch.setattr(tvm_tirx.tirx.TensorType, "view", view)
 
     @T.function
     def main(A: T.Tensor((4, 4), "float32")):
@@ -287,8 +287,8 @@ def test_native_view_keeps_producer_identity_name_and_loc(monkeypatch):
         item.same_as(value) and location.same_as(produced_loc) for item, location in observed
     )
     nodes = list(main.body.seq)
-    assert len(nodes) == 3 and isinstance(nodes[0], tvm.ir.Bind)
-    assert isinstance(nodes[1], tvm.ir.TensorStore) and isinstance(nodes[2], tvm.ir.Bind)
+    assert len(nodes) == 3 and isinstance(nodes[0], tvm_tirx.ir.Bind)
+    assert isinstance(nodes[1], tvm_tirx.ir.TensorStore) and isinstance(nodes[2], tvm_tirx.ir.Bind)
     assert nodes[0].var.same_as(value) and nodes[1].dest.same_as(value)
     assert nodes[2].var.same_as(produced[1][0])
     ir.assert_structural_equal(nodes[0].value.args[0], captured.data)
@@ -298,8 +298,8 @@ def test_native_view_keeps_producer_identity_name_and_loc(monkeypatch):
 def test_native_binding_preserves_metadata_but_binds_tensor_expressions():
     # Inert metadata must retain resource identity; a non-Var tensor expression still needs a
     # located binding.
-    from tvm import ir
-    from tvm.script.ir_builder import base
+    from tvm_tirx import ir
+    from tvm_tirx.script.ir_builder import base
 
     producer_loc = ir.SourceLoc(ir.SourceName("producer.py"), 7, 2, 7, 19)
     layout = T.TileLayout(T.S[4])
@@ -342,7 +342,7 @@ def test_native_binding_preserves_metadata_but_binds_tensor_expressions():
     assert observed[1] is holder and holder.resource.same_as(tensor)
     assert all(tensor.loc.same_as(loc) for loc in relocs)
     binding = main.body[0]
-    assert isinstance(binding, tvm.ir.Bind) and binding.value.same_as(projection)
+    assert isinstance(binding, tvm_tirx.ir.Bind) and binding.value.same_as(projection)
     assert binding.var.name == "bound"
     assert tirx.is_tensor_var(binding.var)
     assert not isinstance(projection, ir.Var)
@@ -428,7 +428,7 @@ def _loc_position(loc):
 
 
 def test_eager_and_deferred_nodes_keep_nested_locations_and_receipts():
-    from tvm.script.ir_builder.base import at
+    from tvm_tirx.script.ir_builder.base import at
 
     caller = ir.SourceLoc(ir.SourceName("caller.py"), 2, 1, 2, 20)
     callee = ir.SourceLoc(ir.SourceName("definition.py"), 3, 1, 3, 20)

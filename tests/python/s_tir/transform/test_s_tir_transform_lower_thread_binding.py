@@ -19,30 +19,30 @@ import sys
 
 import pytest
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import s_tir
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def _check(original, transformed):
-    mod = tvm.IRModule.from_expr(original.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(original.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
     mod = tvm.s_tir.transform.StmtSimplify()(mod)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         mod["main"], transformed.with_attr("global_symbol", "main"), True
     )
 
 
 def _check_fail(original):
-    mod = tvm.IRModule.from_expr(
-        original.with_attr("target", tvm.target.Target("cuda", host="llvm"))
+    mod = tvm_tirx.IRModule.from_expr(
+        original.with_attr("target", tvm_tirx.target.Target("cuda", host="llvm"))
     )
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
     mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
     with pytest.raises(ValueError, match="Incompatible launch extents for threadIdx.x"):
-        tvm.tirx.transform.SplitHostDevice()(mod)
+        tvm_tirx.tirx.transform.SplitHostDevice()(mod)
 
 
 @Ts.function
@@ -308,4 +308,4 @@ def test_inner_binding_with_annotation():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

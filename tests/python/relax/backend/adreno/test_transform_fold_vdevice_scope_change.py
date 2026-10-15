@@ -18,19 +18,19 @@
 
 from __future__ import annotations
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import relax
-from tvm.ir.module import IRModule
-from tvm.script import s_tir as Ts
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def verify(input, expected):
     mod = tvm.relax.backend.adreno.transform.FoldVDeviceScopeChange()(input)
-    tvm.ir.assert_structural_equal(mod, expected)
+    tvm_tirx.ir.assert_structural_equal(mod, expected)
 
 
 def test_maxpool2d_scope_folding():
@@ -297,4 +297,4 @@ def test_maxpool2d_scope_folding():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

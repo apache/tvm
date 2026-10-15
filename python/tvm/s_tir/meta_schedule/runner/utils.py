@@ -20,9 +20,9 @@ import itertools
 from collections.abc import Callable
 from typing import Any
 
-import tvm.runtime
+import tvm_tirx.runtime, tvm
 
-from ....runtime import Device, Module
+from tvm_tirx.runtime import Device, Module
 from .config import EvaluatorConfig
 
 T_ARG_INFO_JSON_OBJ = list[Any]  # pylint: disable=invalid-name
@@ -57,11 +57,11 @@ def alloc_argument_common(
         The allocation args
     """
 
-    def alloc_tensor(_, dtype, shape) -> tvm.runtime.Tensor:
+    def alloc_tensor(_, dtype, shape) -> tvm_tirx.runtime.Tensor:
         arg = (
             f_alloc(shape, dtype)
             if f_alloc is not None
-            else tvm.runtime.empty(shape=shape, dtype=dtype, device=device)
+            else tvm_tirx.runtime.empty(shape=shape, dtype=dtype, device=device)
         )
         f_random_fill(arg)
         return arg

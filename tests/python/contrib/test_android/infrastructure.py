@@ -20,7 +20,7 @@
 
 import os
 
-import tvm
+import tvm, tvm_tirx
 from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig, RPCRunner
 
 
@@ -51,8 +51,8 @@ def get_rpc_runner() -> tvm.s_tir.meta_schedule.runner.RPCRunner:
     return RPCRunner(rpc_config, evaluator_config)
 
 
-def get_android_gpu_target() -> tvm.target.Target:
+def get_android_gpu_target() -> tvm_tirx.target.Target:
     """Creates a Android GPU target"""
     target_c = "opencl"
     target_h = {"kind": "llvm", "mtriple": "arm64-linux-android"}
-    return tvm.target.Target(target_c, host=target_h)
+    return tvm_tirx.target.Target(target_c, host=target_h)

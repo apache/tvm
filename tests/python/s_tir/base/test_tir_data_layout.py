@@ -18,9 +18,9 @@
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.error import InternalError
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx.error import InternalError
 from tvm.topi.utils import get_const_tuple
 
 
@@ -173,4 +173,4 @@ def test_bilayout_index():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

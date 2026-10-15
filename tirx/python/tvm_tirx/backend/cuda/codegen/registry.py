@@ -16,7 +16,7 @@
 # under the License.
 """Codegen registry for CUDA HW ops.
 
-User-facing Python wrappers are hand-written in :mod:`tvm.tirx.op` so that
+User-facing Python wrappers are hand-written in :mod:`tvm_tirx.tirx.op` so that
 editors / static analyzers (Cursor, Pyright) can see their signatures. This
 module only handles the backend codegen side.
 """

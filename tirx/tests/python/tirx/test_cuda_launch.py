@@ -25,18 +25,18 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm.backend.cuda.launch import (
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.cuda.launch import (
     AccessPolicyWindow,
     KernelAttributes,
     LaunchConfig,
     ProgrammaticEvent,
 )
-from tvm.backend.cuda.launch._impl import pack_kernel_attrs, pack_launch
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
+from tvm_tirx.backend.cuda.launch._impl import pack_kernel_attrs, pack_launch
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 @pytest.mark.parametrize(
@@ -122,14 +122,14 @@ def test_launch_region_roundtrip_and_host_only_operands():
         bx, tx = T.cuda.block_idx("x"), T.cuda.thread_idx("x")
         A[bx * 32 + tx] = bx
 
-    parsed = tvm.script.from_source(kernel.script(), extra_vars={"I": I, "T": T})
-    tvm.ir.assert_structural_equal(kernel, parsed)
-    target = tvm.target.Target("cuda", host="llvm")
+    parsed = tvm_tirx.script.from_source(kernel.script(), extra_vars={"I": I, "T": T})
+    tvm_tirx.ir.assert_structural_equal(kernel, parsed)
+    target = tvm_tirx.target.Target("cuda", host="llvm")
     with target:
-        mod = tvm.tirx.transform.LowerTIRx()(
-            tvm.IRModule({"main": kernel.with_attr("target", target)})
+        mod = tvm_tirx.tirx.transform.LowerTIRx()(
+            tvm_tirx.IRModule({"main": kernel.with_attr("target", target)})
         )
-        mod = tvm.tirx.transform.SplitHostDevice()(mod)
+        mod = tvm_tirx.tirx.transform.SplitHostDevice()(mod)
     devices = [f for f in mod.functions.values() if f.attrs and f.attrs.get("calling_conv") == 2]
     assert len(devices) == 1
     assert len(devices[0].params) == 1
@@ -139,7 +139,7 @@ def test_launch_region_roundtrip_and_host_only_operands():
         mod["main"],
         lambda node: (
             calls.append(node)
-            if isinstance(node, tvm.ir.Call)
+            if isinstance(node, tvm_tirx.ir.Call)
             and getattr(node.op, "name", "") == "tirx.call_ffi_kernel"
             else None
         ),
@@ -150,11 +150,11 @@ def test_launch_region_roundtrip_and_host_only_operands():
 
 
 def _compile(kernel, host, tmp_path):
-    from tvm.backend.cuda import export_cuda_host
+    from tvm_tirx.backend.cuda import export_cuda_host
 
     arch = env.cuda_arch(0)
-    target = tvm.target.Target({"kind": "cuda", "arch": arch}, host=host)
-    built = tvm.tirx.compile(kernel, target=target).mod
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": arch}, host=host)
+    built = tvm_tirx.tirx.compile(kernel, target=target).mod
     if host == "llvm":
         return built, None
     import tvm_ffi.cpp
@@ -174,7 +174,7 @@ def _compile(kernel, host, tmp_path):
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm.cuda().exist, reason="requires CUDA")
+@pytest.mark.skipif(not tvm_tirx.cuda().exist, reason="requires CUDA")
 @pytest.mark.parametrize("host", ["llvm", "cuda_host"])
 def test_multidimensional_indices_and_ffi_only_export(host, tmp_path):
     @T.function
@@ -192,7 +192,7 @@ def test_multidimensional_indices_and_ffi_only_export(host, tmp_path):
     module, library = _compile(coordinates, host, tmp_path)
 
     def check():
-        out = tvm.runtime.empty((8, 64, 4), "int32", tvm.cuda(0))
+        out = tvm_tirx.runtime.empty((8, 64, 4), "int32", tvm_tirx.cuda(0))
         module["coordinates"](out)
         values = np.arange(64, dtype="int32")
         expected = np.stack((values, values % 32, values // 32, np.full(64, 4)), axis=-1)
@@ -206,14 +206,14 @@ def test_multidimensional_indices_and_ffi_only_export(host, tmp_path):
 import sys
 import torch
 import tvm_ffi
-assert "tvm" not in sys.modules
+assert "tvm_tirx" not in sys.modules
 m = tvm_ffi.load_module(sys.argv[1])
 a = torch.empty((8, 64, 4), dtype=torch.int32, device="cuda")
 m["coordinates"](a)
 v = torch.arange(64, dtype=torch.int32, device="cuda")
 expected = torch.stack((v, v % 32, v // 32, torch.full_like(v, 4)), -1)
 assert torch.equal(a, expected.expand(8, 64, 4))
-assert "tvm" not in sys.modules
+assert "tvm_tirx" not in sys.modules
 """,
                     str(library),
                 ],
@@ -223,7 +223,7 @@ assert "tvm" not in sys.modules
                 env=os.environ.copy(),
             )
 
-    tvm.testing.run_with_gpu_lock(check)
+    tvm_tirx.testing.run_with_gpu_lock(check)
 
 
 @pytest.mark.gpu
@@ -249,12 +249,12 @@ def test_cluster_launch_and_required_block_dimensions(host, required, tmp_path):
     module, _ = _compile(clusters, host, tmp_path)
 
     def check():
-        out = tvm.runtime.empty((8, 3), "int32", tvm.cuda(0))
+        out = tvm_tirx.runtime.empty((8, 3), "int32", tvm_tirx.cuda(0))
         module["clusters"](out)
         x = np.arange(8) % 4
         np.testing.assert_array_equal(out.numpy(), np.stack((x // 2, x % 2, np.full(8, 2)), -1))
 
-    tvm.testing.run_with_gpu_lock(check)
+    tvm_tirx.testing.run_with_gpu_lock(check)
 
 
 @pytest.mark.gpu
@@ -278,7 +278,7 @@ def test_preferred_cluster_keeps_actual_hardware_coordinates(host, tmp_path):
     module, _ = _compile(preferred, host, tmp_path)
 
     def check():
-        out = tvm.runtime.empty((16, 5), "int32", tvm.cuda(0))
+        out = tvm_tirx.runtime.empty((16, 5), "int32", tvm_tirx.cuda(0))
         module["preferred"](out)
         values = out.numpy()
         for index, (cx, cy, sx, sy, pair) in enumerate(values):
@@ -287,11 +287,11 @@ def test_preferred_cluster_keeps_actual_hardware_coordinates(host, tmp_path):
             assert cy == index // 4 % sy
             assert pair == (cx + sx * cy) % 2
 
-    tvm.testing.run_with_gpu_lock(check)
+    tvm_tirx.testing.run_with_gpu_lock(check)
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm.cuda().exist, reason="requires CUDA")
+@pytest.mark.skipif(not tvm_tirx.cuda().exist, reason="requires CUDA")
 @pytest.mark.parametrize("host", ["llvm", "cuda_host"])
 def test_increasing_dynamic_shared_memory(host, tmp_path):
     import torch
@@ -307,7 +307,7 @@ def test_increasing_dynamic_shared_memory(host, tmp_path):
     module, _ = _compile(shared, host, tmp_path)
 
     def check():
-        out = tvm.runtime.empty((1,), "int32", tvm.cuda(0))
+        out = tvm_tirx.runtime.empty((1,), "int32", tvm_tirx.cuda(0))
         limit = torch.cuda.get_device_properties(0).shared_memory_per_block_optin
         max_n = min(32768, limit // 4)
         for n in (256, max_n // 2, max_n, 256):
@@ -316,7 +316,7 @@ def test_increasing_dynamic_shared_memory(host, tmp_path):
         with pytest.raises(Exception, match="smaller than"):
             module["shared"](out, 32, 64)
 
-    tvm.testing.run_with_gpu_lock(check)
+    tvm_tirx.testing.run_with_gpu_lock(check)
 
 
 def test_static_shared_memory_override_cannot_shrink_allocation():
@@ -327,6 +327,6 @@ def test_static_shared_memory_override_cannot_shrink_allocation():
         scratch[0] = T.cuda.thread_idx("x")
 
     with pytest.raises(ValueError, match="smaller than"):
-        tvm.tirx.compile(
+        tvm_tirx.tirx.compile(
             kernel, target={"kind": "cuda", "backend_config": {"cuda": {"arch": "sm_80"}}}
         )

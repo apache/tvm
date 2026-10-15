@@ -23,11 +23,11 @@ from typing import TYPE_CHECKING, Any
 from tvm_ffi import Array, Map
 from tvm_ffi import register_object as _register_object
 
-from tvm.runtime import Object
-from tvm.tirx.expr import FloatImm, IntImm
-from tvm.tirx.function import IndexMap
+from tvm_tirx.runtime import Object
+from tvm_tirx.tirx.expr import FloatImm, IntImm
+from tvm_tirx.tirx.function import IndexMap
 
-from ...ir import save_json
+from tvm_tirx.ir import save_json
 from . import _ffi_api
 from .instruction import ATTR_TYPE, INPUT_RV_TYPE, Instruction
 
@@ -278,7 +278,7 @@ class Trace(Object):
         style : str, optional
 
             Pygmentize printing style, auto-detected if None.  See
-            `tvm.script.printer.highlight.cprint` for more details.
+            `tvm_tirx.script.printer.highlight.cprint` for more details.
 
         black_format: bool
 
@@ -286,7 +286,7 @@ class Trace(Object):
             If None, determine based on the "TVM_BLACK_FORMAT" environment
             variable.
         """
-        from tvm.script.printer.highlight import (  # pylint: disable=import-outside-toplevel
+        from tvm_tirx.script.printer.highlight import (  # pylint: disable=import-outside-toplevel
             cprint,
         )
 

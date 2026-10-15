@@ -20,7 +20,7 @@ import json
 
 from tvm_ffi import Module
 
-from tvm.backend.config import parse_backend_config
+from tvm_tirx.backend.config import parse_backend_config
 
 
 def export_cuda_host(mod: Module) -> str:

@@ -19,17 +19,17 @@ import tempfile
 
 import pytest
 
-import tvm
+import tvm, tvm_tirx
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.schedule import Schedule
 from tvm.s_tir.utils import derived_object
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,
 # fmt: off
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Matmul:
     @Ts.function
     def main(
@@ -62,7 +62,7 @@ def test_meta_schedule_measure_callback():
             runner_results: list[ms.runner.RunnerResult],
         ) -> None:
             assert len(measure_candidates) == 1
-            tvm.ir.assert_structural_equal(measure_candidates[0].sch.mod, Matmul)
+            tvm_tirx.ir.assert_structural_equal(measure_candidates[0].sch.mod, Matmul)
             assert (
                 len(builder_results) == 1
                 and builder_results[0].error_msg is None

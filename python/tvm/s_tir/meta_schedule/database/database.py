@@ -27,10 +27,10 @@ from typing import Literal
 
 from tvm_ffi import register_object
 
-from tvm.ir.module import IRModule
-from tvm.runtime import Object
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.runtime import Object
 from tvm.s_tir.schedule import Schedule, Trace
-from tvm.target import Target
+from tvm_tirx.target import Target
 
 from .. import _ffi_api
 from ..arg_info import ArgInfo
@@ -89,7 +89,7 @@ class TuningRecord(Object):
 
     Parameters
     ----------
-    trace : tvm.ir.Trace
+    trace : tvm_tirx.ir.Trace
         The trace of the tuning record.
     workload : Workload
         The workload of the tuning record.

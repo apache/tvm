@@ -21,17 +21,17 @@ from pathlib import Path
 import pytest
 from tvm_ffi import register_global_func
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 @pytest.fixture(autouse=True)
 def register_linker():
     name = "tvm.contrib.hexagon.link_shared"
-    original_linker = tvm.get_global_func(name)
+    original_linker = tvm_tirx.get_global_func(name)
 
     def link_shared(so_name, _objs, _extra_args=None):
         # Codegen retains the output bytes, but these tests only inspect the
@@ -48,7 +48,7 @@ def register_linker():
 
 @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_basic():
-    target = tvm.target.Target("qcom/hexagon-v66")
+    target = tvm_tirx.target.Target("qcom/hexagon-v66")
 
     @I.ir_module
     class Module:
@@ -62,7 +62,7 @@ def test_basic():
             for i in range(128):
                 C[i] = A[i] + A_1[i]
 
-    hexm = tvm.tirx.compile(Module, target=tvm.target.Target(target, target))
+    hexm = tvm_tirx.tirx.compile(Module, target=tvm_tirx.target.Target(target, target))
     asm = hexm.mod.imports[0].inspect_source("s")
     vadds = re.findall(r"v[0-9]+.b = vadd\(v[0-9]+.b,v[0-9]+.b\)", asm)
     assert vadds, asm
@@ -70,7 +70,7 @@ def test_basic():
 
 @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_llvm_target_features():
-    target = tvm.target.Target("qcom/hexagon-v66")
+    target = tvm_tirx.target.Target("qcom/hexagon-v66")
 
     @I.ir_module
     class Module:
@@ -80,7 +80,7 @@ def test_llvm_target_features():
             for i in range(128):
                 C[i] = T.Cast(A[i], "int32") + 1
 
-    m = tvm.tirx.compile(Module, target=tvm.target.Target(target, target))
+    m = tvm_tirx.tirx.compile(Module, target=tvm_tirx.target.Target(target, target))
     llvm_ir = m.mod.imports[0].inspect_source("ll")
     # Make sure we find +hvx-length128b in "attributes".
     fs = re.findall(r"attributes.*\+hvx-length128b", llvm_ir)
@@ -89,7 +89,7 @@ def test_llvm_target_features():
 
 @pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
 def test_llvm_options():
-    target = tvm.target.Target(
+    target = tvm_tirx.target.Target(
         {
             "kind": "hexagon",
             "mtriple": "hexagon",
@@ -111,9 +111,9 @@ def test_llvm_options():
 
     # Check that BuildHexagon hasn't crashed because of target attribute
     # type mismatch.
-    tvm.tirx.compile(Module, target=tvm.target.Target(target, target))
+    tvm_tirx.tirx.compile(Module, target=tvm_tirx.target.Target(target, target))
     assert re.search("-hexagon-noopt", str(target))
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

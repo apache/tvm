@@ -19,16 +19,16 @@
 
 from tvm_ffi.access_path import AccessPath
 
-import tvm
-import tvm.testing
-from tvm.script.printer.scriptable import PrinterConfig, _script
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script.printer.scriptable import PrinterConfig, _script
 
 
 def test_render_invisible_path_info_defaults_to_true():
     config = PrinterConfig()
     assert config.render_invisible_path_info is True
 
-    result = tvm.ir.PrimType("int32").script(path_to_underline=[AccessPath.root().attr("dtype")])
+    result = tvm_tirx.ir.PrimType("int32").script(path_to_underline=[AccessPath.root().attr("dtype")])
     assert result == (
         "Access path: <root>.dtype\n"
         "Note: The underlined object is the nearest visible parent of this path.\n\n"
@@ -38,11 +38,11 @@ def test_render_invisible_path_info_defaults_to_true():
 
 
 def test_render_invisible_path_info_without_target_path_is_unchanged():
-    assert tvm.ir.PrimType("int32").script() == "T.int32"
+    assert tvm_tirx.ir.PrimType("int32").script() == "T.int32"
 
 
 def test_render_invisible_path_info_explicit_false_uses_legacy_output():
-    result = tvm.ir.PrimType("int32").script(
+    result = tvm_tirx.ir.PrimType("int32").script(
         path_to_underline=[AccessPath.root().attr("dtype")],
         extra_config={"render_invisible_path_info": False},
     )
@@ -50,13 +50,13 @@ def test_render_invisible_path_info_explicit_false_uses_legacy_output():
 
 
 def test_render_invisible_path_info_exact_visible_path_omits_note():
-    result = tvm.ir.PrimType("int32").script(path_to_underline=[AccessPath.root()])
+    result = tvm_tirx.ir.PrimType("int32").script(path_to_underline=[AccessPath.root()])
     assert result == "Access path: <root>\n\nT.int32\n^^^^^^^"
 
 
 def test_render_invisible_path_info_without_visible_path():
     result = _script(
-        tvm.runtime.ShapeTuple([1, 2]),
+        tvm_tirx.runtime.ShapeTuple([1, 2]),
         PrinterConfig(path_to_underline=[AccessPath.root().attr("missing")]),
     )
     assert result == (

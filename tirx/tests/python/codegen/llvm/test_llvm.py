@@ -23,13 +23,13 @@ import re
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.codegen import llvm_get_intrinsic_name, llvm_lookup_intrinsic_id
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.support import utils
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.codegen import llvm_get_intrinsic_name, llvm_lookup_intrinsic_id
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.support import utils
+from tvm_tirx.testing import env
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -47,9 +47,9 @@ def test_duplicate_function_global_symbol_diagnostic():
             A[0] = T.float32(2)
 
     with pytest.raises(
-        tvm.error.InternalError, match="Duplicate Function global_symbol 'dup_symbol'"
+        tvm_tirx.error.InternalError, match="Duplicate Function global_symbol 'dup_symbol'"
     ) as err:
-        tvm.tirx.compile(Module, target="llvm")
+        tvm_tirx.tirx.compile(Module, target="llvm")
     assert "first_unique_key" in str(err.value)
     assert "second_unique_key" in str(err.value)
 
@@ -68,7 +68,7 @@ def test_unique_function_global_symbols_compile():
             T.func_attr({"global_symbol": "dup_symbol_b", "tirx.noalias": True})
             A[0] = T.float32(2)
 
-    tvm.tirx.compile(Module, target="llvm")
+    tvm_tirx.tirx.compile(Module, target="llvm")
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -80,7 +80,7 @@ def test_llvm_intrin():
             A_buf = T.decl_tensor(A, ty_args=[T.Tensor((4,), "float32", data=A)])
             T.evaluate(T.Call("tirx.prefetch", [T.address_of(A_buf[0]), 0, 3, 1], ty="void"))
 
-    fcode = tvm.tirx.compile(Module)
+    fcode = tvm_tirx.tirx.compile(Module)
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -92,7 +92,7 @@ def test_llvm_void_intrin():
             # Create an intrinsic that returns void.
             T.call_llvm_intrin("llvm.assume", T.bool(True), ty="void")
 
-    fcode = tvm.tirx.compile(Module)
+    fcode = tvm_tirx.tirx.compile(Module)
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -107,11 +107,11 @@ def test_llvm_intrinsic_id():
 def test_llvm_overloaded_intrin():
     # Name lookup for overloaded intrinsics in LLVM 4- requires a name
     # that includes the overloaded types.
-    if tvm.codegen.llvm_version_major() < 5:
+    if tvm_tirx.codegen.llvm_version_major() < 5:
         return
 
     # int1 is the type for the is_zero_undef parameter
-    int1_zero = tvm.tirx.const(0, "int1")
+    int1_zero = tvm_tirx.tirx.const(0, "int1")
 
     @I.ir_module
     class Module:
@@ -119,7 +119,7 @@ def test_llvm_overloaded_intrin():
         def main(A: T.Tensor((1, 1), "int32"), C: T.Tensor((1, 1), "int32")):
             C[0, 0] = T.call_llvm_pure_intrin("llvm.ctlz", A[0, 0], int1_zero, ty="int32")
 
-    f = tvm.tirx.compile(Module, target="llvm")
+    f = tvm_tirx.tirx.compile(Module, target="llvm")
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -131,13 +131,13 @@ def test_llvm_lookup_intrin():
             A_buf = T.decl_tensor(A, ty_args=[T.Tensor((1,), "uint8x8", data=A)])
             T.evaluate(T.call_llvm_pure_intrin("llvm.ctpop.v8i8", A_buf[0], ty="uint8x8"))
 
-    fcode = tvm.tirx.compile(Module, None)
+    fcode = tvm_tirx.tirx.compile(Module, None)
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_large_uintimm():
     value = (1 << 63) + 123
-    large_val = tvm.tirx.const(value, "uint64")
+    large_val = tvm_tirx.tirx.const(value, "uint64")
 
     @I.ir_module
     class Module:
@@ -146,9 +146,9 @@ def test_llvm_large_uintimm():
             T.func_attr({"tirx.noalias": True})
             A[()] = large_val + T.uint64(3)
 
-    f = tvm.tirx.compile(Module, target="llvm")
-    dev = tvm.cpu(0)
-    a = tvm.runtime.empty((), dtype="uint64", device=dev)
+    f = tvm_tirx.tirx.compile(Module, target="llvm")
+    dev = tvm_tirx.cpu(0)
+    a = tvm_tirx.runtime.empty((), dtype="uint64", device=dev)
     f(a)
     assert a.numpy() == value + 3
 
@@ -171,12 +171,12 @@ def test_llvm_multi_parallel():
                         ) * T.float32(2.0) + T.float32(2.0)
 
     n = 128
-    f = tvm.tirx.compile(Module, target="llvm")
-    dev = tvm.cpu(0)
-    a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
-    c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+    f = tvm_tirx.tirx.compile(Module, target="llvm")
+    dev = tvm_tirx.cpu(0)
+    a = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+    c = tvm_tirx.runtime.tensor(np.zeros(n, dtype="float32"), dev)
     f(a, c)
-    tvm.testing.assert_allclose(c.numpy(), np.sqrt(a.numpy() + 1) * 2 + 2, rtol=1e-5)
+    tvm_tirx.testing.assert_allclose(c.numpy(), np.sqrt(a.numpy() + 1) * 2 + 2, rtol=1e-5)
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -192,12 +192,12 @@ def test_llvm_flip_pipeline():
                         if i_0 * 4 + i_1 < nn:
                             C[i_0 * 4 + i_1] = A[nn + base - 1 - (i_0 * 4 + i_1)]
 
-        f = tvm.tirx.compile(Module, target="llvm")
-        dev = tvm.cpu(0)
-        a = tvm.runtime.tensor(np.random.uniform(size=(nn + base)).astype("float32"), dev)
-        c = tvm.runtime.tensor(np.zeros(nn, dtype="float32"), dev)
+        f = tvm_tirx.tirx.compile(Module, target="llvm")
+        dev = tvm_tirx.cpu(0)
+        a = tvm_tirx.runtime.tensor(np.random.uniform(size=(nn + base)).astype("float32"), dev)
+        c = tvm_tirx.runtime.tensor(np.zeros(nn, dtype="float32"), dev)
         f(a, c)
-        tvm.testing.assert_allclose(c.numpy(), a.numpy()[::-1][:nn])
+        tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy()[::-1][:nn])
 
     check_llvm(4, 0)
     check_llvm(128, 8)
@@ -222,14 +222,14 @@ def test_llvm_vadd_pipeline():
                     if i_0 * 4 + i_1 < n:
                         C[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + B[i_0 * 4 + i_1]
 
-    f = tvm.tirx.compile(Module, target="llvm")
-    dev = tvm.cpu(0)
+    f = tvm_tirx.tirx.compile(Module, target="llvm")
+    dev = tvm_tirx.cpu(0)
     n = 128
-    a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
-    b = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
-    c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+    a = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+    b = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+    c = tvm_tirx.runtime.tensor(np.zeros(n, dtype="float32"), dev)
     f(a, b, c)
-    tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
+    tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -249,17 +249,17 @@ def test_llvm_madd_pipeline():
                             if i_0 * 4 + i_1 < nn:
                                 C[i_0 * 4 + i_1, j] = A[i_0 * 4 + i_1 + base, j] + T.float32(1.0)
 
-        f = tvm.tirx.compile(Module, target="llvm")
-        dev = tvm.cpu(0)
-        a = tvm.runtime.tensor(np.random.uniform(size=(nn + base, stride)).astype("float32"), dev)
-        c = tvm.runtime.tensor(np.zeros((nn, stride), dtype="float32"), dev)
+        f = tvm_tirx.tirx.compile(Module, target="llvm")
+        dev = tvm_tirx.cpu(0)
+        a = tvm_tirx.runtime.tensor(np.random.uniform(size=(nn + base, stride)).astype("float32"), dev)
+        c = tvm_tirx.runtime.tensor(np.zeros((nn, stride), dtype="float32"), dev)
         f(a, c)
-        tvm.testing.assert_allclose(c.numpy(), a.numpy()[base:] + 1)
+        tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy()[base:] + 1)
 
     check_llvm(64, 0, 2)
     check_llvm(4, 0, 1)
 
-    with tvm.ir.transform.PassContext(config={"tirx.noalias": False}):
+    with tvm_tirx.ir.transform.PassContext(config={"tirx.noalias": False}):
         check_llvm(4, 0, 3)
 
 
@@ -277,12 +277,12 @@ def test_llvm_temp_space():
                 C[i] = B[i] + T.float32(1.0)
 
     nn = 1024
-    f = tvm.tirx.compile(Module, target="llvm")
-    dev = tvm.cpu(0)
-    a = tvm.runtime.tensor(np.random.uniform(size=nn).astype("float32"), dev)
-    c = tvm.runtime.tensor(np.zeros(nn, dtype="float32"), dev)
+    f = tvm_tirx.tirx.compile(Module, target="llvm")
+    dev = tvm_tirx.cpu(0)
+    a = tvm_tirx.runtime.tensor(np.random.uniform(size=nn).astype("float32"), dev)
+    c = tvm_tirx.runtime.tensor(np.zeros(nn, dtype="float32"), dev)
     f(a, c)
-    tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1 + 1)
+    tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy() + 1 + 1)
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -314,17 +314,17 @@ def test_multiple_func():
             for i in range(fadd2_n):
                 C[i] = A[i] + B[i]
 
-    f = tvm.tirx.compile(Module, target="llvm")
-    dev = tvm.cpu(0)
+    f = tvm_tirx.tirx.compile(Module, target="llvm")
+    dev = tvm_tirx.cpu(0)
     n = 10
-    a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
-    b = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
-    c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+    a = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+    b = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+    c = tvm_tirx.runtime.tensor(np.zeros(n, dtype="float32"), dev)
 
     f["fadd1"](a, b, c)
-    tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
+    tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
     f["fadd2"](a, b, c)
-    tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
+    tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -339,14 +339,14 @@ def test_llvm_condition():
 
     n = 64
     offset = 8
-    f = tvm.tirx.compile(Module, target="llvm")
-    dev = tvm.cpu(0)
-    a = tvm.runtime.tensor(np.random.uniform(size=(n,)).astype("float32"), dev)
-    c = tvm.runtime.empty((n,), "float32", dev)
+    f = tvm_tirx.tirx.compile(Module, target="llvm")
+    dev = tvm_tirx.cpu(0)
+    a = tvm_tirx.runtime.tensor(np.random.uniform(size=(n,)).astype("float32"), dev)
+    c = tvm_tirx.runtime.empty((n,), "float32", dev)
     f(a, c)
     c_np = a.numpy()
     c_np[:offset] = 0
-    tvm.testing.assert_allclose(c.numpy(), c_np)
+    tvm_tirx.testing.assert_allclose(c.numpy(), c_np)
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -360,13 +360,13 @@ def test_llvm_bool():
                 C[i] = T.Cast(A[i] == 1, "float32")
 
     n = 64
-    f = tvm.tirx.compile(Module, target="llvm")
-    dev = tvm.cpu(0)
-    a = tvm.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype("int32"), dev)
-    c = tvm.runtime.empty((n,), "float32", dev)
+    f = tvm_tirx.tirx.compile(Module, target="llvm")
+    dev = tvm_tirx.cpu(0)
+    a = tvm_tirx.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype("int32"), dev)
+    c = tvm_tirx.runtime.empty((n,), "float32", dev)
     f(a, c)
     c_np = a.numpy() == 1
-    tvm.testing.assert_allclose(c.numpy(), c_np)
+    tvm_tirx.testing.assert_allclose(c.numpy(), c_np)
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -380,13 +380,13 @@ def test_llvm_cast_float_to_bool():
                 C[i] = T.Cast(A[i], "bool")
 
     n = 4
-    f = tvm.tirx.compile(Module, target="llvm")
-    dev = tvm.cpu(0)
-    a = tvm.runtime.tensor(np.array([0.0, 1.0, np.nan, np.inf], dtype="float32"), dev)
-    c = tvm.runtime.empty((n,), dtype="bool", device=dev)
+    f = tvm_tirx.tirx.compile(Module, target="llvm")
+    dev = tvm_tirx.cpu(0)
+    a = tvm_tirx.runtime.tensor(np.array([0.0, 1.0, np.nan, np.inf], dtype="float32"), dev)
+    c = tvm_tirx.runtime.empty((n,), dtype="bool", device=dev)
     f(a, c)
     c_np = np.array([False, True, True, True], dtype="bool")
-    tvm.testing.assert_allclose(c.numpy(), c_np)
+    tvm_tirx.testing.assert_allclose(c.numpy(), c_np)
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -407,14 +407,14 @@ def test_rank_zero():
             compute[()] = C[()] + T.float32(1.0)
 
     n = 64
-    f = tvm.tirx.compile(Module, target="llvm")
-    dev = tvm.cpu(0)
-    a = tvm.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype("float32"), dev)
-    sc = tvm.runtime.tensor(np.random.randint(0, 2, size=()).astype("float32"), dev)
-    d = tvm.runtime.empty((), "float32", dev)
+    f = tvm_tirx.tirx.compile(Module, target="llvm")
+    dev = tvm_tirx.cpu(0)
+    a = tvm_tirx.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype("float32"), dev)
+    sc = tvm_tirx.runtime.tensor(np.random.randint(0, 2, size=()).astype("float32"), dev)
+    d = tvm_tirx.runtime.empty((), "float32", dev)
     f(a, sc, d)
     d_np = np.sum(a.numpy()) * sc.numpy() + 1
-    tvm.testing.assert_allclose(d.numpy(), d_np)
+    tvm_tirx.testing.assert_allclose(d.numpy(), d_np)
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -428,7 +428,7 @@ def test_alignment():
                 for i_1 in T.vectorized(8):
                     B[i_0 * 8 + i_1] = A[i_0 * 8 + i_1] * T.float32(3.0)
 
-    f = tvm.tirx.compile(Module, target="llvm").mod
+    f = tvm_tirx.tirx.compile(Module, target="llvm").mod
 
     lines = f.inspect_source().split("\n")
 
@@ -446,7 +446,7 @@ def test_alignment():
                 return True
         return False
 
-    if tvm.codegen.llvm_version_major() >= 5:
+    if tvm_tirx.codegen.llvm_version_major() >= 5:
         assert has_param_alignment()
 
     # Check for assume intrinsics. This isn't 100% accurate, since it just
@@ -535,14 +535,14 @@ def test_llvm_div(start, end, dstart, dend, dtype, floor_div):
         a_size = end - start + 1
         b_size = dend - dstart + 1
 
-        div_fn = tvm.tirx.floordiv if floor_div else tvm.tirx.truncdiv
-        mod_fn = tvm.tirx.floormod if floor_div else tvm.tirx.truncmod
+        div_fn = tvm_tirx.tirx.floordiv if floor_div else tvm_tirx.tirx.truncdiv
+        mod_fn = tvm_tirx.tirx.floormod if floor_div else tvm_tirx.tirx.truncmod
 
         # Build clipping helpers — capture TIR const values from env
-        _start = tvm.tirx.const(start, dtype)
-        _end = tvm.tirx.const(end, dtype)
-        _dstart = tvm.tirx.const(dstart, dtype)
-        _dend = tvm.tirx.const(dend, dtype)
+        _start = tvm_tirx.tirx.const(start, dtype)
+        _end = tvm_tirx.tirx.const(end, dtype)
+        _dstart = tvm_tirx.tirx.const(dstart, dtype)
+        _dend = tvm_tirx.tirx.const(dend, dtype)
 
         if start == end:
             clipa = lambda x: _start
@@ -568,19 +568,19 @@ def test_llvm_div(start, end, dstart, dend, dtype, floor_div):
                     D[i, j] = div_fn(clipa(A[i]), clipb(B[j]))
                     M[i, j] = mod_fn(clipa(A[i]), clipb(B[j]))
 
-        f = tvm.tirx.compile(Module, target="llvm")
+        f = tvm_tirx.tirx.compile(Module, target="llvm")
 
         # Fill input arrays with values
-        A_arr = tvm.runtime.empty((a_size,), dtype)
-        B_arr = tvm.runtime.empty((b_size,), dtype)
+        A_arr = tvm_tirx.runtime.empty((a_size,), dtype)
+        B_arr = tvm_tirx.runtime.empty((b_size,), dtype)
         A_arr.copyfrom(np.arange(start, end + 1, dtype=dtype))
         B_np = np.arange(dstart, dend + 1, dtype=dtype)
         # If the range of the divisor contains 0, replace it with 1 to avoid division by zero
         if dend >= 0 and dstart <= 0:
             B_np[-dstart] = 1
         B_arr.copyfrom(B_np)
-        D_arr = tvm.runtime.empty((a_size, b_size), dtype)
-        M_arr = tvm.runtime.empty((a_size, b_size), dtype)
+        D_arr = tvm_tirx.runtime.empty((a_size, b_size), dtype)
+        M_arr = tvm_tirx.runtime.empty((a_size, b_size), dtype)
 
         # Run the function and convert the results to numpy
         f(A_arr, B_arr, D_arr, M_arr)
@@ -635,13 +635,13 @@ def test_llvm_fp_math():
             for i in range(n):
                 B[i] = T.float32(1.0) / (T.float32(1e37) * A[i])
 
-    f_recip = tvm.tirx.compile(RecipModule, target="llvm")
+    f_recip = tvm_tirx.tirx.compile(RecipModule, target="llvm")
 
     for n in [4, 8, 16]:
-        a = tvm.runtime.tensor(np.full((n,), 100, "float32"))
-        b = tvm.runtime.empty((n,), "float32")
+        a = tvm_tirx.runtime.tensor(np.full((n,), 100, "float32"))
+        b = tvm_tirx.runtime.empty((n,), "float32")
         f_recip(a, b)
-        tvm.testing.assert_allclose(b.numpy(), np.zeros((n,), "float32"))
+        tvm_tirx.testing.assert_allclose(b.numpy(), np.zeros((n,), "float32"))
 
     n = T.dynamic("n", "int32")
 
@@ -654,13 +654,13 @@ def test_llvm_fp_math():
             for i in range(n):
                 B[i] = T.sigmoid(A[i])
 
-    f_sigmoid = tvm.tirx.compile(SigmoidModule, target="llvm")
+    f_sigmoid = tvm_tirx.tirx.compile(SigmoidModule, target="llvm")
 
     for n in [4, 8, 16]:
-        a = tvm.runtime.tensor(np.full((n,), -1000, "float32"))
-        b = tvm.runtime.empty((n,), "float32")
+        a = tvm_tirx.runtime.tensor(np.full((n,), -1000, "float32"))
+        b = tvm_tirx.runtime.empty((n,), "float32")
         f_sigmoid(a, b)
-        tvm.testing.assert_allclose(b.numpy(), np.zeros((n,), "float32"))
+        tvm_tirx.testing.assert_allclose(b.numpy(), np.zeros((n,), "float32"))
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -679,18 +679,18 @@ def test_dwarf_debug_information():
                     C[i0_0 * 4 + i0_1] = A[i0_0 * 4 + i0_1] + B[i0_0 * 4 + i0_1]
 
     def check_llvm_object():
-        if tvm.codegen.llvm_version_major() < 5:
+        if tvm_tirx.codegen.llvm_version_major() < 5:
             return
-        if tvm.codegen.llvm_version_major() > 6:
+        if tvm_tirx.codegen.llvm_version_major() > 6:
             return
         # build two functions
-        mod = tvm.IRModule(
+        mod = tvm_tirx.IRModule(
             {
                 "fadd1": Module["main"].with_attr("global_symbol", "fadd1"),
                 "fadd2": Module["main"].with_attr("global_symbol", "fadd2"),
             }
         )
-        m = tvm.tirx.compile(mod, target="llvm")
+        m = tvm_tirx.tirx.compile(mod, target="llvm")
         temp = utils.tempdir()
         o_path = temp.relpath("temp.o")
         m.write_to_file(o_path)
@@ -717,18 +717,18 @@ def test_dwarf_debug_information():
             assert re.search(r"""DW_AT_name.*fadd2""", str(output))
 
     def check_llvm_ir():
-        if tvm.codegen.llvm_version_major() < 5:
+        if tvm_tirx.codegen.llvm_version_major() < 5:
             return
-        if tvm.codegen.llvm_version_major() > 6:
+        if tvm_tirx.codegen.llvm_version_major() > 6:
             return
         # build two functions
-        mod = tvm.IRModule(
+        mod = tvm_tirx.IRModule(
             {
                 "fadd1": Module["main"].with_attr("global_symbol", "fadd1"),
                 "fadd2": Module["main"].with_attr("global_symbol", "fadd2"),
             }
         )
-        m = tvm.tirx.compile(mod, target={"kind": "llvm", "mtriple": "aarch64-linux-gnu"}).mod
+        m = tvm_tirx.tirx.compile(mod, target={"kind": "llvm", "mtriple": "aarch64-linux-gnu"}).mod
         ll = m.inspect_source("ll")
 
         # On non-Darwin OS, don't explicitly specify DWARF version.
@@ -738,7 +738,7 @@ def test_dwarf_debug_information():
         assert re.search(r"""llvm.dbg.value""", ll)
 
         # Try Darwin, require DWARF-2
-        m = tvm.tirx.compile(
+        m = tvm_tirx.tirx.compile(
             mod, target={"kind": "llvm", "mtriple": "x86_64-apple-darwin-macho"}
         ).mod
         ll = m.inspect_source("ll")
@@ -767,17 +767,17 @@ def test_llvm_bf16():
                     D[x] = A[x] + B[x]
 
         np.random.seed(122)
-        module = tvm.tirx.compile(Module, target="llvm")
+        module = tvm_tirx.tirx.compile(Module, target="llvm")
         npa = np.random.rand(32).astype("bfloat16")
         npb = np.random.rand(32).astype("bfloat16")
         res = npa + npb
-        a_ = tvm.runtime.tensor(npa)
-        b_ = tvm.runtime.tensor(npb)
-        c_ = tvm.runtime.empty((32,), "bfloat16")
+        a_ = tvm_tirx.runtime.tensor(npa)
+        b_ = tvm_tirx.runtime.tensor(npb)
+        c_ = tvm_tirx.runtime.empty((32,), "bfloat16")
         module(a_, b_, c_)
         # Note: directly compare without casting to float32 should work with the
         # latest numpy version.
-        tvm.testing.assert_allclose(c_.numpy().astype("float32"), res.astype("float32"))
+        tvm_tirx.testing.assert_allclose(c_.numpy().astype("float32"), res.astype("float32"))
 
     dotest(True)
     dotest(False)
@@ -797,9 +797,9 @@ def test_llvm_crt_static_lib():
             for x in range(32):
                 C[x] = A[x] + B[x]
 
-    module = tvm.tirx.compile(
+    module = tvm_tirx.tirx.compile(
         Module.with_attr("system_lib_prefix", ""),
-        target=tvm.target.Target("llvm"),
+        target=tvm_tirx.target.Target("llvm"),
     ).mod
     module.inspect_source()
     with utils.tempdir() as temp:
@@ -826,7 +826,7 @@ def test_llvm_order_functions():
         def Kirby(v: T.float32) -> T.float32:
             return T.call_extern("Fred", v, ty="float32")
 
-    ir_text = tvm.tirx.compile(Module, target="llvm").mod.inspect_source("ll")
+    ir_text = tvm_tirx.tirx.compile(Module, target="llvm").mod.inspect_source("ll")
     # Skip functions whose names start with _.
     matches = re.findall(r"^define[^@]*@([a-zA-Z][a-zA-Z0-9_]*)", ir_text, re.MULTILINE)
     assert matches == sorted(matches)
@@ -843,7 +843,7 @@ def test_llvm_large_stack_allocation_uses_64bit_extent(extent):
         )
         A[0] = B[extent - 1]
 
-    module = tvm.tirx.compile(
+    module = tvm_tirx.tirx.compile(
         main,
         target={"kind": "llvm", "opt-level": 0},
         pipeline="tirx",
@@ -863,8 +863,8 @@ def test_llvm_scalar_concat():
 
     # This will crash in LLVM codegen if CodeGenLLVM::CreateVecConcat doesn't convert
     # scalars to single-lane LLVM vectors.
-    with tvm.ir.transform.PassContext(config={"tirx.disable_assert": True}):
-        m = tvm.tirx.compile(Module, target="llvm")
+    with tvm_tirx.ir.transform.PassContext(config={"tirx.disable_assert": True}):
+        m = tvm_tirx.tirx.compile(Module, target="llvm")
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -879,7 +879,7 @@ def test_raise_exception_during_codegen():
                     B[i, j] = A[i, j] * 2.0
 
     with pytest.raises(RuntimeError) as e:
-        tvm.tirx.compile(Module, target="llvm")
+        tvm_tirx.tirx.compile(Module, target="llvm")
     msg = str(e)
     assert msg.find("Nested parallel loop is not supported") != -1
 
@@ -916,8 +916,8 @@ def test_llvm_target_attributes():
         "mcpu": "skylake",
         "mattr": ["+avx512f"],
     }
-    target = tvm.target.Target(target_llvm, host=target_llvm)
-    module = tvm.tirx.compile(Module, target=target).mod
+    target = tvm_tirx.target.Target(target_llvm, host=target_llvm)
+    module = tvm_tirx.tirx.compile(Module, target=target).mod
 
     llvm_ir = module.inspect_source()
     llvm_ir_lines = llvm_ir.split("\n")
@@ -967,7 +967,7 @@ def test_llvm_assume():
                 B_1 = T.decl_tensor(B.data, ty_args=[T.Tensor((14,), "int32", data=B.data)])
                 B_1[i] = A_1[i] * 2
 
-    m = tvm.tirx.compile(Module, target="llvm")
+    m = tvm_tirx.tirx.compile(Module, target="llvm")
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -989,7 +989,7 @@ def test_debug_symbol_for_float64():
             for i in range(n):
                 B[i] = A[i]
 
-    tvm.tirx.compile(Module, target="llvm")
+    tvm_tirx.tirx.compile(Module, target="llvm")
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -1005,7 +1005,7 @@ def test_debug_symbol_for_buffer_var():
                 C[i] = A[i]
                 B[i] = C[i]
 
-    tvm.tirx.compile(Module, target="llvm")
+    tvm_tirx.tirx.compile(Module, target="llvm")
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -1025,11 +1025,11 @@ def test_subroutine_call():
             A[0] = 42.0
 
     target = "llvm"
-    dev = tvm.cpu()
+    dev = tvm_tirx.cpu()
 
-    built = tvm.tirx.compile(Module)
+    built = tvm_tirx.tirx.compile(Module)
 
-    arr = tvm.runtime.tensor(np.zeros([1], "float32"), device=dev)
+    arr = tvm_tirx.runtime.tensor(np.zeros([1], "float32"), device=dev)
     built["main"](arr)
     assert arr.numpy()[0] == 42.0
 
@@ -1055,14 +1055,14 @@ def test_call_packed_returning_void():
         @T.function
         def main():
             T.Call(
-                tvm.ir.Op.get("tirx.call_packed"),
+                tvm_tirx.ir.Op.get("tirx.call_packed"),
                 ["dummy_function_name"],
                 ty="void",
             )
 
     # Error occurred during build, as part of
     # CodeGenCPU::MakeCallPackedLowered.
-    built = tvm.tirx.compile(Module, target="llvm")
+    built = tvm_tirx.tirx.compile(Module, target="llvm")
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -1079,10 +1079,10 @@ def test_call_packed_without_string_arg():
     class Module:
         @T.function
         def main(A: T.Tensor(1, "float32")):
-            T.Call(tvm.ir.Op.get("tirx.call_packed"), [A.data], ty="int32")
+            T.Call(tvm_tirx.ir.Op.get("tirx.call_packed"), [A.data], ty="int32")
 
     with pytest.raises(RuntimeError):
-        built = tvm.tirx.compile(Module, target="llvm")
+        built = tvm_tirx.tirx.compile(Module, target="llvm")
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -1093,9 +1093,9 @@ def test_call_extern_returning_void():
     class Module:
         @T.function
         def main():
-            T.Call(tvm.ir.Op.get("tirx.call_extern"), ["dummy_function_name"], ty="void")
+            T.Call(tvm_tirx.ir.Op.get("tirx.call_extern"), ["dummy_function_name"], ty="void")
 
-    built = tvm.tirx.compile(Module, target="llvm")
+    built = tvm_tirx.tirx.compile(Module, target="llvm")
 
 
 def test_invalid_volatile_masked_buffer_load():
@@ -1112,8 +1112,8 @@ def test_invalid_volatile_masked_buffer_load():
 
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
     with pytest.raises(RuntimeError, match=err_msg):
-        with tvm.target.Target("llvm"):
-            tvm.tirx.compile(Module)
+        with tvm_tirx.target.Target("llvm"):
+            tvm_tirx.tirx.compile(Module)
 
 
 def test_invalid_volatile_masked_decl_buffer_load():
@@ -1135,8 +1135,8 @@ def test_invalid_volatile_masked_decl_buffer_load():
 
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
     with pytest.raises(RuntimeError, match=err_msg):
-        with tvm.target.Target("llvm"):
-            tvm.tirx.compile(Module)
+        with tvm_tirx.target.Target("llvm"):
+            tvm_tirx.tirx.compile(Module)
 
 
 def test_invalid_volatile_masked_tensor_store():
@@ -1160,8 +1160,8 @@ def test_invalid_volatile_masked_tensor_store():
 
     err_msg = "The masked store intrinsic does not support declaring store as volatile."
     with pytest.raises(RuntimeError, match=err_msg):
-        with tvm.target.Target("llvm"):
-            tvm.tirx.compile(Module)
+        with tvm_tirx.target.Target("llvm"):
+            tvm_tirx.tirx.compile(Module)
 
 
 def test_int_parameter():
@@ -1177,7 +1177,7 @@ def test_int_parameter():
             else:
                 return 20
 
-    built = tvm.tirx.compile(Module)
+    built = tvm_tirx.tirx.compile(Module)
     output = built(True)
     assert output == 10
 
@@ -1198,7 +1198,7 @@ def test_bool_parameter():
             else:
                 return 20
 
-    built = tvm.tirx.compile(Module)
+    built = tvm_tirx.tirx.compile(Module)
     output = built(1)
     assert output == 10
 
@@ -1219,7 +1219,7 @@ def test_bool_return_value():
             T.func_attr({"target": T.target("llvm")})
             return value < 10
 
-    built = tvm.tirx.compile(Module)
+    built = tvm_tirx.tirx.compile(Module)
     assert isinstance(built(0), bool)
     assert built(0)
 
@@ -1234,7 +1234,7 @@ def test_llvm_module_properties_and_formats(tmp_path):
         for i in range(9):
             A[i + 1] = A[i] + T.int64(1)
 
-    module = tvm.tirx.compile(main, target="llvm").mod
+    module = tvm_tirx.tirx.compile(main, target="llvm").mod
     assert not module.is_binary_serializable()
     assert module.is_runnable()
     assert module.is_compilation_exportable()
@@ -1243,11 +1243,11 @@ def test_llvm_module_properties_and_formats(tmp_path):
         module.write_to_file(str(path))
         assert path.is_file()
         if extension == "ll":
-            loaded = tvm.runtime.load_module(str(path))
-            data = tvm.runtime.tensor(np.zeros(10, dtype="int64"))
+            loaded = tvm_tirx.runtime.load_module(str(path))
+            data = tvm_tirx.runtime.tensor(np.zeros(10, dtype="int64"))
             loaded(data)
             np.testing.assert_equal(data.numpy(), np.arange(10))
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

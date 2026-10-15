@@ -30,9 +30,9 @@ Parameters: D, A, B, C, scope; no instruction keywords. C may be a scalar.
 Each batch/M/N/K repeat emits one selected instruction, accumulating through K.
 """
 
-from tvm.backend.cuda.ptx import PTXNamespace
-from tvm.ir import Range, TensorRegion, Var
-from tvm.script import tirx as T
+from tvm_tirx.backend.cuda.ptx import PTXNamespace
+from tvm_tirx.ir import Range, TensorRegion, Var
+from tvm_tirx.script import tirx as T
 
 from .common import Context
 

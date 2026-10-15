@@ -19,11 +19,11 @@
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 @Ts.function
@@ -58,9 +58,9 @@ def main(p0: T.Tensor((), "int32"), T_stack: T.Tensor((T.int64(3),), "int32")):
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_normalize_function_with_scalar():
     sch = tvm.s_tir.Schedule(main)
-    f_normalize_function = tvm.get_global_func("s_tir.schedule.NormalizeFunction")
+    f_normalize_function = tvm_tirx.get_global_func("s_tir.schedule.NormalizeFunction")
     assert f_normalize_function(sch)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

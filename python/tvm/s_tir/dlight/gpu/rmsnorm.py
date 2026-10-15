@@ -17,12 +17,12 @@
 # pylint: disable=missing-docstring
 """A RMS norm schedule rule for GPU operators."""
 
-import tvm
-from tvm import tirx
-from tvm.ir import Call, TensorLoad, TensorStore
+import tvm, tvm_tirx
+from tvm_tirx import tirx
+from tvm_tirx.ir import Call, TensorLoad, TensorStore
 from tvm.s_tir import SBlock
-from tvm.target import Target
-from tvm.tirx.expr import Cast
+from tvm_tirx.target import Target
+from tvm_tirx.tirx.expr import Cast
 
 from ..base import ScheduleRule
 
@@ -69,7 +69,7 @@ def identify_rsqrt_block(block: SBlock) -> bool:
     call = store.value
     op = call.op
 
-    return op == tvm.ir.op.Op.get("prim.rsqrt")
+    return op == tvm_tirx.ir.op.Op.get("prim.rsqrt")
 
 
 class RMSNorm(ScheduleRule):

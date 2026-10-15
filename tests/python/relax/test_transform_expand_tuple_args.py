@@ -16,11 +16,11 @@
 # under the License.
 # ruff: noqa: F401
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import tirx as T
 
 
 def test_simple():
@@ -45,7 +45,7 @@ def test_simple():
             return A
 
     After = tvm.relax.transform.ExpandTupleArguments()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_nested():
@@ -77,8 +77,8 @@ def test_nested():
             return B
 
     After = tvm.relax.transform.ExpandTupleArguments()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

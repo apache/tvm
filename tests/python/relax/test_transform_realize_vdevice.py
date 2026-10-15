@@ -19,17 +19,17 @@
 
 from __future__ import annotations
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm.relax import VDevice
 from tvm.relax.transform import RealizeVDevice
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def verify(input, expected):
-    tvm.ir.assert_structural_equal(RealizeVDevice()(input), expected)
+    tvm_tirx.ir.assert_structural_equal(RealizeVDevice()(input), expected)
 
 
 vdevices = [
@@ -414,8 +414,8 @@ def test_input_module_is_unmodified():
     expected = make_module()
 
     RealizeVDevice()(original)
-    tvm.ir.assert_structural_equal(original, expected)
+    tvm_tirx.ir.assert_structural_equal(original, expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

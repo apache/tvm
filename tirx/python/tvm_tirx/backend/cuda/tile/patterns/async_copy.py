@@ -28,10 +28,10 @@ cache_policy. DSMEM instead requires mbar and remote_cta_id, both interpreted
 before mapa. Layout strides are elements; chunk_bytes and src_size are bytes.
 """
 
-from tvm.backend.cuda.ptx import PTXNamespace
-from tvm.ir import Bind, Evaluate, Var
-from tvm.runtime import DataType
-from tvm.script import tirx as T
+from tvm_tirx.backend.cuda.ptx import PTXNamespace
+from tvm_tirx.ir import Bind, Evaluate, Var
+from tvm_tirx.runtime import DataType
+from tvm_tirx.script import tirx as T
 
 from .common import Context, scalar
 

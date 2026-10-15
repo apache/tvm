@@ -17,9 +17,9 @@
 # pylint: disable=invalid-name, unused-argument, redefined-argument-from-local
 """Relax Use Fast Math pass."""
 
-import tvm
+import tvm, tvm_tirx
 from tvm import topi
-from tvm.ir.module import IRModule
+from tvm_tirx.ir.module import IRModule
 from tvm.relax import Call, Expr, PyExprMutator, expr_functor
 
 
@@ -50,13 +50,13 @@ class FastMathCodeGenerator(PyExprMutator):
         return super().visit_call_(call)
 
 
-@tvm.ir.transform.module_pass(opt_level=0, name="FastMathTransform")
+@tvm_tirx.ir.transform.module_pass(opt_level=0, name="FastMathTransform")
 class FastMathTransform:
     """
     Pass to convert the expensive non linear functions to their fast but approximate counterparts.
     """
 
-    def transform_module(self, mod: IRModule, ctx: tvm.ir.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, ctx: tvm_tirx.ir.transform.PassContext) -> IRModule:
         fast_math_codegen = FastMathCodeGenerator(mod)
         for gv, func in mod.functions_items():
             if isinstance(func, tvm.relax.Function):

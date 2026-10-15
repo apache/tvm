@@ -18,9 +18,9 @@
 
 from __future__ import annotations
 
-from tvm import ir as _ir
-from tvm.backend.cuda import op as _cuda_op
-from tvm.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
+from tvm_tirx import ir as _ir
+from tvm_tirx.backend.cuda import op as _cuda_op
+from tvm_tirx.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
 
 from . import layout as layout
 from .axis import Axis as Axis

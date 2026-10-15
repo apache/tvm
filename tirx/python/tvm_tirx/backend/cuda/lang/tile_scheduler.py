@@ -20,9 +20,9 @@ These classes emit TIR via @T.inline. Decorate with @T.meta_class so that
 instances are automatically treated as meta values inside @T.function.
 """
 
-from tvm.backend.cuda.lang.clc import query_cancel_first_ctaid_x
-from tvm.backend.cuda.lang.pipeline import Pipeline, PipelineState
-from tvm.script import tirx as T
+from tvm_tirx.backend.cuda.lang.clc import query_cancel_first_ctaid_x
+from tvm_tirx.backend.cuda.lang.pipeline import Pipeline, PipelineState
+from tvm_tirx.script import tirx as T
 
 
 @T.meta_class

@@ -20,12 +20,12 @@ import sys
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import tirx
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
 from tvm.s_tir.schedule.testing import verify_trace_roundtrip
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -440,7 +440,7 @@ def test_basic_cache_index():
     sch = tvm.s_tir.Schedule(resize, debug_mask="all")
     block = sch.get_sblock("A")
     sch.cache_index(block, "global")
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         resize_cache_index, sch.mod["main"].with_attr("global_symbol", "resize_cache_index")
     )
     verify_trace_roundtrip(sch=sch, mod=resize)
@@ -450,11 +450,11 @@ def test_resize_bilinear_cache_index():
     sch = tvm.s_tir.Schedule(bilinear_resize, debug_mask="all")
     block = sch.get_sblock("resize")
     sch.cache_index(block, "global", 4)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.mod["main"], cached_bilinear_resize.with_attr("global_symbol", "bilinear_resize")
     )
     verify_trace_roundtrip(sch=sch, mod=bilinear_resize)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

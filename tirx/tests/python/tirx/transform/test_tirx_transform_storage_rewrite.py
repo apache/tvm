@@ -18,20 +18,20 @@ import uuid
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 for _scope_name in ("local.L0A", "local.L0A2"):
-    _scope = tvm.runtime.MemoryScope.register(_scope_name)
-    tvm.runtime.MemoryScope.def_attr("runtime.memory_alloc_property")[_scope] = 1
+    _scope = tvm_tirx.runtime.MemoryScope.register(_scope_name)
+    tvm_tirx.runtime.MemoryScope.def_attr("runtime.memory_alloc_property")[_scope] = 1
 
 
 def _scope_with_property(value):
-    scope = tvm.runtime.MemoryScope.register("test.storage_rewrite." + uuid.uuid4().hex)
+    scope = tvm_tirx.runtime.MemoryScope.register("test.storage_rewrite." + uuid.uuid4().hex)
     if value != "absent":
-        tvm.runtime.MemoryScope.def_attr("runtime.memory_alloc_property")[scope] = value
+        tvm_tirx.runtime.MemoryScope.def_attr("runtime.memory_alloc_property")[scope] = value
     return scope
 
 
@@ -40,7 +40,7 @@ def _rewrite(func):
     class Before:
         main = func
 
-    return tvm.tirx.transform.StorageRewrite()(Before)["main"]
+    return tvm_tirx.tirx.transform.StorageRewrite()(Before)["main"]
 
 
 @pytest.mark.parametrize("property_value", ["absent", None, False, True, 0, 1, 2, 99])
@@ -79,7 +79,7 @@ def test_allocation_property_controls_reuse(property_value):
             _rewrite(func)
     else:
         expected = Expected["func"] if property_value != 2 else func
-        tvm.ir.assert_structural_equal(_rewrite(func), expected)
+        tvm_tirx.ir.assert_structural_equal(_rewrite(func), expected)
 
 
 @pytest.mark.parametrize("property_value", [0, 1, 2])
@@ -108,12 +108,12 @@ def test_allocation_property_controls_packing(property_value):
             output[0] = A_1[127] + A_2[255]
 
     expected = Expected["func"] if property_value == 1 else func
-    tvm.ir.assert_structural_equal(_rewrite(func), expected)
+    tvm_tirx.ir.assert_structural_equal(_rewrite(func), expected)
 
 
 @pytest.mark.parametrize("scope_name", [None, "shared.dyn"])
 def test_single_allocation_symbolic_layout_is_deferred(scope_name):
-    scope = tvm.runtime.MemoryScope(scope_name) if scope_name else _scope_with_property(1)
+    scope = tvm_tirx.runtime.MemoryScope(scope_name) if scope_name else _scope_with_property(1)
 
     @T.function
     def func(n: T.int32, output: T.Tensor((1,), "float32")):
@@ -124,7 +124,7 @@ def test_single_allocation_symbolic_layout_is_deferred(scope_name):
             B[i] = T.float32(i + 1)
         output[0] = A[n - 1] + B[n - 1]
 
-    tvm.ir.assert_structural_equal(_rewrite(func), func)
+    tvm_tirx.ir.assert_structural_equal(_rewrite(func), func)
 
 
 def test_single_allocation_preserves_exact_metadata():
@@ -156,7 +156,7 @@ def test_single_allocation_preserves_exact_metadata():
             output[0] = A[127] + B[127]
 
     after = _rewrite(func)
-    tvm.ir.assert_structural_equal(after, Expected["func"])
+    tvm_tirx.ir.assert_structural_equal(after, Expected["func"])
 
 
 @pytest.mark.parametrize("property_value", [0, 1])
@@ -194,7 +194,7 @@ def test_allocation_constraints_prevent_lifetime_reuse(property_value, stride, o
                 B[i_1] = T.Cast(i_1 + 1, "float32")
             output[1] = B[127]
 
-    tvm.ir.assert_structural_equal(_rewrite(func), Expected["func"])
+    tvm_tirx.ir.assert_structural_equal(_rewrite(func), Expected["func"])
 
 
 @pytest.mark.parametrize("property_value", [0, 1])
@@ -233,7 +233,7 @@ def test_lifetime_reuse_preserves_alignment(property_value):
             output[1] = A_2[255]
 
     after = _rewrite(func)
-    tvm.ir.assert_structural_equal(after, Expected["func"])
+    tvm_tirx.ir.assert_structural_equal(after, Expected["func"])
 
 
 def test_packing_preserves_different_alignment_contracts():
@@ -274,7 +274,7 @@ def test_packing_preserves_different_alignment_contracts():
             output[1] = A_2[144]
 
     after = _rewrite(func)
-    tvm.ir.assert_structural_equal(after, Expected["func"])
+    tvm_tirx.ir.assert_structural_equal(after, Expected["func"])
 
 
 def test_packing_widens_large_combined_extent():
@@ -300,7 +300,7 @@ def test_packing_widens_large_combined_extent():
             output[0] = A_1[0] + A_2[1073741824]
 
     after = _rewrite(func)
-    tvm.ir.assert_structural_equal(after, Expected["func"])
+    tvm_tirx.ir.assert_structural_equal(after, Expected["func"])
 
 
 def test_alloc_seq():
@@ -331,7 +331,7 @@ def test_alloc_seq():
                     A_1[j_1] = T.float32(1.3)
 
     after = _rewrite(func)
-    tvm.ir.assert_structural_equal(after, Expected["func"])
+    tvm_tirx.ir.assert_structural_equal(after, Expected["func"])
 
 
 @pytest.mark.parametrize(
@@ -393,7 +393,7 @@ def test_alloc_different_dtypes(first_dtype, last_dtype, size, offsets):
                     + T.Cast(D[offsets[2] + j], "int8")
                 )
 
-    tvm.ir.assert_structural_equal(_rewrite(before), Expected["before"])
+    tvm_tirx.ir.assert_structural_equal(_rewrite(before), Expected["before"])
 
 
 def test_address_of():
@@ -463,7 +463,7 @@ def test_address_of():
                 )
 
     after = _rewrite(before)
-    tvm.ir.assert_structural_equal(after, Expected["main"])
+    tvm_tirx.ir.assert_structural_equal(after, Expected["main"])
 
 
 def test_parallel_alloc():
@@ -503,8 +503,8 @@ def test_parallel_alloc():
                         for j in range(10):
                             A[j] = A[j] + T.float32(2.0)
 
-    tvm.ir.assert_structural_equal(_rewrite(func1), ExpectedWorker["func1"])
-    tvm.ir.assert_structural_equal(_rewrite(func2), ExpectedLaunch["func2"])
+    tvm_tirx.ir.assert_structural_equal(_rewrite(func1), ExpectedWorker["func1"])
+    tvm_tirx.ir.assert_structural_equal(_rewrite(func2), ExpectedLaunch["func2"])
 
 
 @pytest.mark.parametrize("parallel", [False, True])
@@ -537,7 +537,7 @@ def test_while_alloc(parallel):
                     A[j[0]] = A[j[0]] + T.float32(2)
                     j[0] = j[0] + j[0] + 1
 
-    tvm.ir.assert_structural_equal(_rewrite(before), Expected["before"])
+    tvm_tirx.ir.assert_structural_equal(_rewrite(before), Expected["before"])
 
 
 @pytest.mark.parametrize("alignment,expected_size", [(4, 500), (64, 528)])
@@ -631,7 +631,7 @@ def test_alloc_seq_type(alignment, expected_size):
                     )
                     A_6[j] = A_1[j]
 
-    tvm.ir.assert_structural_equal(_rewrite(func), Expected["func"])
+    tvm_tirx.ir.assert_structural_equal(_rewrite(func), Expected["func"])
 
 
 def test_alloc_seq_type2():
@@ -673,7 +673,7 @@ def test_alloc_seq_type2():
                     A_3[j_2] = T.float32(1.2)
 
     after = _rewrite(func)
-    tvm.ir.assert_structural_equal(after, Expected["func"])
+    tvm_tirx.ir.assert_structural_equal(after, Expected["func"])
 
 
 @pytest.mark.parametrize("alignment,expected_size", [(4, 800), (64, 832)])
@@ -763,7 +763,7 @@ def test_reuse_small_tensor(alignment, expected_size):
                     )
                     A_6[j] = A_4[j]
 
-    tvm.ir.assert_structural_equal(_rewrite(func), Expected["func"])
+    tvm_tirx.ir.assert_structural_equal(_rewrite(func), Expected["func"])
 
 
 def test_access_in_let_value():
@@ -783,7 +783,7 @@ def test_access_in_let_value():
             x: T.let[T.float32] = T.exp(B[0])
             A[i] = (x + 1.0) / (x - 1.0)
 
-    tvm.ir.assert_structural_equal(_rewrite(func), func_rewritten)
+    tvm_tirx.ir.assert_structural_equal(_rewrite(func), func_rewritten)
 
 
 def test_decl_tensor_is_not_vectorized():
@@ -801,8 +801,8 @@ def test_decl_tensor_is_not_vectorized():
             A = T.decl_tensor(A_data, ty_args=[T.Tensor([8], "int32", data=A_data)])
             A[T.ramp(0, 1, 8)] = T.broadcast(42, 8)
 
-    After = tvm.tirx.transform.StorageRewrite()(Before)
-    tvm.ir.assert_structural_equal(After, Before)
+    After = tvm_tirx.tirx.transform.StorageRewrite()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Before)
 
 
 def test_rewrite_decl_tensor():
@@ -840,9 +840,9 @@ def test_rewrite_decl_tensor():
             for i in range(16):
                 D[i] = C[i]
 
-    After = tvm.tirx.transform.StorageRewrite()(Before)
-    assert tvm.tirx.analysis.verify_well_formed(After)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.StorageRewrite()(Before)
+    assert tvm_tirx.tirx.analysis.verify_well_formed(After)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_decl_tensor_alias_chain_uses_flat_root():
@@ -868,9 +868,9 @@ def test_decl_tensor_alias_chain_uses_flat_root():
             A[0] = 1.0
             D[0] = C[0]
 
-    After = tvm.tirx.transform.StorageRewrite()(Before)
-    assert tvm.tirx.analysis.verify_well_formed(After)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.StorageRewrite()(Before)
+    assert tvm_tirx.tirx.analysis.verify_well_formed(After)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_decl_tensor_alias_extends_source_lifetime():
@@ -898,7 +898,7 @@ def test_decl_tensor_alias_extends_source_lifetime():
             D[0] = A_1[0] + C[0]
 
     after = _rewrite(func)
-    tvm.ir.assert_structural_equal(after, Expected["func"])
+    tvm_tirx.ir.assert_structural_equal(after, Expected["func"])
 
 
 def test_no_orphaned_decl_tensor():
@@ -942,9 +942,9 @@ def test_no_orphaned_decl_tensor():
             for i in range(16):
                 D[i] = C[i]
 
-    After = tvm.tirx.transform.StorageRewrite()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.StorageRewrite()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

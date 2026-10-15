@@ -19,24 +19,24 @@ import itertools
 
 import pytest
 
-import tvm
-from tvm.backend.cuda.axis import Axis as CUDAAxis
-from tvm.backend.cuda.axis import TCol, TLane, laneid, tid_in_wg, tx, warpid, wgid, wid_in_wg
-from tvm.backend.cuda.lang import SMEMPool
-from tvm.backend.cuda.layout import (
+import tvm_tirx
+from tvm_tirx.backend.cuda.axis import Axis as CUDAAxis
+from tvm_tirx.backend.cuda.axis import TCol, TLane, laneid, tid_in_wg, tx, warpid, wgid, wid_in_wg
+from tvm_tirx.backend.cuda.lang import SMEMPool
+from tvm_tirx.backend.cuda.layout import (
     SwizzleMode,
     mma_shared_layout,
     tmem_datapath_layout,
     tmem_mma_operand_layout,
 )
-from tvm.backend.trn.axis import Axis as TRNAxis
-from tvm.backend.trn.axis import Bank, F, P
-from tvm.ir import assert_structural_equal
-from tvm.ir.type import PrimType, PtrType
-from tvm.script.ir_builder import IRBuilder
-from tvm.tirx import Var
-from tvm.tirx.layout import Axis, ComposeLayout, Iter, R, S, TileLayout, m
-from tvm.tirx.script import ir_builder as Tx_builder
+from tvm_tirx.backend.trn.axis import Axis as TRNAxis
+from tvm_tirx.backend.trn.axis import Bank, F, P
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.ir.type import PrimType, PtrType
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx import Var
+from tvm_tirx.tirx.layout import Axis, ComposeLayout, Iter, R, S, TileLayout, m
+from tvm_tirx.tirx.script import ir_builder as Tx_builder
 
 
 def test_axis():
@@ -432,7 +432,7 @@ def test_normalize_tile_layout():
     unit_layout_case1()
 
     def case_fuse_axis():
-        with tvm.target.Target("cuda"):
+        with tvm_tirx.target.Target("cuda"):
             layout = TileLayout(S[(2, 8, 2, 4) : (2 @ warpid, 4 @ laneid, 1 @ warpid, 1 @ laneid)])
             layout_expected = TileLayout(S[(2, 8, 2, 4) : (64 @ tx, 4 @ tx, 32 @ tx, 1 @ tx)])
             assert layout.verify_well_formed()
@@ -840,7 +840,7 @@ def test_apply():
 
     def test_tile_layout_4():
         layout = TileLayout(S[(8, 8) : (8, 1)])
-        v = tvm.tirx.Var("v", ty="int32")
+        v = tvm_tirx.tirx.Var("v", ty="int32")
         res = layout.apply(v)
         assert res["m"] == v
 
@@ -1390,8 +1390,8 @@ def test_compose_structured_apply_splits_one_cross_atom_term():
 def test_compose_structured_apply_handles_uint32_casts_per_term():
     x = Var("x", ty="int32")
     y = Var("y", ty="int32")
-    x_u32 = tvm.tirx.Cast(x, "uint32")
-    y_u32 = tvm.tirx.Cast(y, "uint32")
+    x_u32 = tvm_tirx.tirx.Cast(x, "uint32")
+    y_u32 = tvm_tirx.tirx.Cast(y, "uint32")
     layout = ComposeLayout(3, 3, 3, TileLayout(S[(8, 8) : (64, 1)] + 72))
 
     actual = layout.apply(x_u32, y_u32, shape=(8, 8))["m"]
@@ -1466,7 +1466,7 @@ def test_compose_structured_apply_falls_back_to_full_swizzle(case):
     quotient = actual.body
     assert type(quotient).__name__ == "Let"
     assert_structural_equal(quotient.value, actual.var // 8)
-    body_vars = tvm.tirx.analysis.undefined_vars(quotient.body)
+    body_vars = tvm_tirx.tirx.analysis.undefined_vars(quotient.body)
     assert all(var.same_as(actual.var) or var.same_as(quotient.var) for var in body_vars)
 
     for xv, yv, vv in itertools.product(range(3), range(8), [-3, 0, 5, 64]):
@@ -1510,4 +1510,4 @@ def test_compose_structured_apply_emits_shared_base_address_chain():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

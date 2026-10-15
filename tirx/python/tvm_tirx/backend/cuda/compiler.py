@@ -36,7 +36,7 @@ def compile_source(source: str, backend_config=None, *, target=None) -> Compilat
     When target is omitted, use the current CUDA Target or detect the device.
     Compiler logs are reported on failure and are not part of the artifact.
     """
-    from tvm.support import nvcc
+    from tvm_tirx.support import nvcc
 
     config = resolve_backend_config(copy_backend_config(backend_config).get("cuda"), target)
     use_nvshmem = "#include <nvshmem.h>" in source or "#include <nvshmemx.h>" in source

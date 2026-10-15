@@ -20,8 +20,8 @@ import os
 
 import pytest
 
-import tvm.testing
-from tvm.support import nvcc
+import tvm_tirx.testing
+from tvm_tirx.support import nvcc
 
 
 def _make_cuda_root(root, triples):
@@ -60,4 +60,4 @@ def test_find_cuda_target_include_absent(tmp_path, monkeypatch):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

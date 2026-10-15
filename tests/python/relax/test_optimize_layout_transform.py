@@ -20,18 +20,18 @@
 import numpy as np
 import pytest
 
-import tvm.testing
+import tvm_tirx.testing, tvm
 from tvm import relax
-from tvm.ir.base import assert_structural_equal
+from tvm_tirx.ir.base import assert_structural_equal
 from tvm.relax.transform import DeadCodeElimination, FuseTIR, OptimizeLayoutTransform
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def _run_pass_compare_output(Before, Expected):
-    After = tvm.ir.transform.Sequential(
+    After = tvm_tirx.ir.transform.Sequential(
         [
             OptimizeLayoutTransform(),
             DeadCodeElimination(),
@@ -39,7 +39,7 @@ def _run_pass_compare_output(Before, Expected):
         ]
     )(Before)
 
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_optimize_transform_layout_pass_one_arg():
@@ -406,4 +406,4 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -17,12 +17,12 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 # ruff: noqa: E501, F401
 
-import tvm
-from tvm import tirx
+import tvm, tvm_tirx
+from tvm_tirx import tirx
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def _target() -> Target:
@@ -48,7 +48,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Matmul_before_rewrite:
     @Ts.function
     def main(A: T.Tensor([512, 512], dtype='float32'), B: T.Tensor([512, 512], dtype='float32'), C: T.Tensor([512, 512], dtype='float32')) -> None:
@@ -97,7 +97,7 @@ class Matmul_before_rewrite:
                             Ts.writes([C[v0, v1]])
                             C[v0, v1] = C_local[v0, v1]
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Matmul_after_rewrite:
     @Ts.function
     def main(A: T.Tensor([512, 512], dtype='float32'), B: T.Tensor([512, 512], dtype='float32'), C: T.Tensor([512, 512], dtype='float32')) -> None:
@@ -151,7 +151,7 @@ class Matmul_after_rewrite:
                             Ts.writes([C[v0, v1]])
                             C[v0, v1] = C_local[v0, v1]
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Softmax_cross_thread_reduction:
     @Ts.function
     def main(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
@@ -199,7 +199,7 @@ def test_rewrite_tiled_matmul():
     sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
-    tvm.ir.assert_structural_equal(sch.mod, Matmul_after_rewrite)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, Matmul_after_rewrite)
 
 
 def test_rewrite_softmax():
@@ -210,7 +210,7 @@ def test_rewrite_softmax():
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
     # The module should not be rewritten
-    tvm.ir.assert_structural_equal(sch.mod, Softmax_cross_thread_reduction)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, Softmax_cross_thread_reduction)
 
 
 if __name__ == "__main__":

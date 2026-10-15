@@ -26,26 +26,26 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm.backend.config import (
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.config import (
     backend_config_json,
     copy_backend_config,
     merge_backend_configs,
     parse_backend_config,
 )
-from tvm.backend.cuda import BackendConfig
-from tvm.backend.cuda.backend_config import compiler_options, resolve_backend_config
-from tvm.backend.cuda.transforms import BindBackendConfig
-from tvm.script import tirx as T
-from tvm.testing import env
+from tvm_tirx.backend.cuda import BackendConfig
+from tvm_tirx.backend.cuda.backend_config import compiler_options, resolve_backend_config
+from tvm_tirx.backend.cuda.transforms import BindBackendConfig
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 def _require_compiler(compiler):
     if compiler == "nvcc":
         if shutil.which("nvcc") is None:
             pytest.skip("NVCC is not installed")
-        from tvm.support.nvcc import get_cuda_version
+        from tvm_tirx.support.nvcc import get_cuda_version
 
         version = get_cuda_version()
     else:
@@ -58,7 +58,7 @@ def _require_compiler(compiler):
 
 
 def test_defaults_overrides_snapshot_and_roundtrip():
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"})
     defaults = resolve_backend_config(target=target)
     assert defaults["compiler"] == "nvrtc"
     assert defaults["nvcc"] == defaults["nvrtc"] == ["--use_fast_math"]
@@ -121,8 +121,8 @@ def test_managed_routing_flags(name, option):
 
 @pytest.mark.parametrize("compiler,format", [("nvrtc", "cubin"), ("nvcc", "fatbin")])
 def test_native_flags_and_default_format(monkeypatch, compiler, format):
-    from tvm.backend.cuda.compiler import compile_source
-    from tvm.support import nvcc
+    from tvm_tirx.backend.cuda.compiler import compile_source
+    from tvm_tirx.support import nvcc
 
     calls = []
 
@@ -153,7 +153,7 @@ def test_native_flags_and_default_format(monkeypatch, compiler, format):
 @pytest.mark.parametrize("tag_target", ["name", "dict", "export"])
 def test_target_tag_defaults_and_precedence(tag_target):
     name = "test/backend-config"
-    tvm.target.tag.register_tag(
+    tvm_tirx.target.tag.register_tag(
         name,
         {
             "kind": "cuda",
@@ -162,9 +162,9 @@ def test_target_tag_defaults_and_precedence(tag_target):
         },
         override=True,
     )
-    target = tvm.target.Target(name if tag_target == "name" else {"tag": name})
+    target = tvm_tirx.target.Target(name if tag_target == "name" else {"tag": name})
     if tag_target == "export":
-        target = tvm.target.Target(target.export())
+        target = tvm_tirx.target.Target(target.export())
     resolved = resolve_backend_config(target=target)
     assert resolved["compiler"] == "nvcc" and resolved["nvcc"] == ["-O1"]
     assert resolved["ptxas"][-1] == "--register-usage-level=10"
@@ -188,11 +188,11 @@ def test_entry_ir_roundtrip_and_resolution():
         )
         A[T.cuda.thread_idx("x")] = T.float32(1)
 
-    tvm.ir.assert_structural_equal(
-        kernel, tvm.script.from_source(kernel.script(), extra_vars={"T": T})
+    tvm_tirx.ir.assert_structural_equal(
+        kernel, tvm_tirx.script.from_source(kernel.script(), extra_vars={"T": T})
     )
-    tvm.ir.assert_structural_equal(kernel, tvm.ir.load_json(tvm.ir.save_json(kernel)))
-    target = tvm.target.Target(
+    tvm_tirx.ir.assert_structural_equal(kernel, tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(kernel)))
+    target = tvm_tirx.target.Target(
         {
             "kind": "cuda",
             "arch": "sm_100a",
@@ -205,14 +205,14 @@ def test_entry_ir_roundtrip_and_resolution():
         },
         host="llvm",
     )
-    mod = tvm.tirx.transform.BindTarget(target)(tvm.IRModule({"main": kernel}))
+    mod = tvm_tirx.tirx.transform.BindTarget(target)(tvm_tirx.IRModule({"main": kernel}))
     mod = BindBackendConfig()(mod)
     entries = []
     tvm_ffi.structural_walk(
         mod,
         lambda node: (
             entries.append(node)
-            if isinstance(node, tvm.ir.RegionStmt) and node.op.name == "tirx.device_entry"
+            if isinstance(node, tvm_tirx.ir.RegionStmt) and node.op.name == "tirx.device_entry"
             else None
         ),
     )
@@ -225,7 +225,7 @@ def test_entry_ir_roundtrip_and_resolution():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm.cuda().exist, reason="requires CUDA")
+@pytest.mark.skipif(not tvm_tirx.cuda().exist, reason="requires CUDA")
 @pytest.mark.parametrize("compiler", ["nvrtc", "nvcc"])
 def test_backend_config_controls_actual_ftz(compiler):
     _require_compiler(compiler)
@@ -238,10 +238,10 @@ def test_backend_config_controls_actual_ftz(compiler):
 
     arch = env.cuda_arch(0)
     inp = np.full(32, np.finfo(np.float32).tiny, dtype="float32")
-    a = tvm.runtime.tensor(inp, tvm.cuda())
+    a = tvm_tirx.runtime.tensor(inp, tvm_tirx.cuda())
     outputs = []
     for ftz in (False, True):
-        module = tvm.tirx.compile(
+        module = tvm_tirx.tirx.compile(
             kernel,
             target={
                 "kind": "cuda",
@@ -255,7 +255,7 @@ def test_backend_config_controls_actual_ftz(compiler):
                 },
             },
         )
-        b = tvm.runtime.empty((32,), "float32", tvm.cuda())
+        b = tvm_tirx.runtime.empty((32,), "float32", tvm_tirx.cuda())
         module.mod["kernel"](a, b)
         outputs.append(b.numpy())
         metadata = parse_backend_config(module.mod.imports[0].inspect_source("backend_config"))
@@ -266,7 +266,7 @@ def test_backend_config_controls_actual_ftz(compiler):
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm.cuda().exist, reason="requires CUDA")
+@pytest.mark.skipif(not tvm_tirx.cuda().exist, reason="requires CUDA")
 def test_two_entries_keep_compilers_math_and_order():
     _require_compiler("nvrtc")
     _require_compiler("nvcc")
@@ -301,16 +301,16 @@ def test_two_entries_keep_compilers_math_and_order():
             C[y] = B[y] * T.float32(0.5)
 
     arch = env.cuda_arch(0)
-    module = tvm.tirx.compile(
+    module = tvm_tirx.tirx.compile(
         kernel, target={"kind": "cuda", "backend_config": {"cuda": {"arch": arch}}}
     )
     assert len(module.mod.imports) == 2
     configs = [parse_backend_config(m.inspect_source("backend_config")) for m in module.mod.imports]
     assert {c["cuda"]["compiler"] for c in configs} == {"nvcc", "nvrtc"}
     inp = np.full(32, np.finfo(np.float32).tiny, dtype="float32")
-    a = tvm.runtime.tensor(inp, tvm.cuda())
-    b = tvm.runtime.empty((32,), "float32", tvm.cuda())
-    c = tvm.runtime.empty((32,), "float32", tvm.cuda())
+    a = tvm_tirx.runtime.tensor(inp, tvm_tirx.cuda())
+    b = tvm_tirx.runtime.empty((32,), "float32", tvm_tirx.cuda())
+    c = tvm_tirx.runtime.empty((32,), "float32", tvm_tirx.cuda())
     module.mod["kernel"](a, b, c)
     np.testing.assert_array_equal(b.numpy(), inp * np.float32(0.5))
     np.testing.assert_array_equal(c.numpy(), np.zeros_like(inp))
@@ -319,7 +319,7 @@ def test_two_entries_keep_compilers_math_and_order():
 @pytest.mark.parametrize("compiler", ["nvrtc", "nvcc"])
 def test_concurrent_source_compilation(compiler):
     _require_compiler(compiler)
-    from tvm.backend.cuda.compiler import compile_source
+    from tvm_tirx.backend.cuda.compiler import compile_source
 
     source = 'extern "C" __global__ void half_value(float* x) { x[0] = x[0] * 0.5f; }'
     base = {"cuda": {"arch": "sm_100a", "compiler": compiler, "target_format": "ptx"}}
@@ -346,7 +346,7 @@ def test_concurrent_source_compilation(compiler):
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm.cuda().exist, reason="requires CUDA")
+@pytest.mark.skipif(not tvm_tirx.cuda().exist, reason="requires CUDA")
 @pytest.mark.parametrize("fallback", [False, True])
 @pytest.mark.parametrize("load_target", ["llvm", "cuda"])
 def test_serialized_config_replays_in_fresh_process(tmp_path, monkeypatch, fallback, load_target):
@@ -366,23 +366,23 @@ def test_serialized_config_replays_in_fresh_process(tmp_path, monkeypatch, fallb
             "nvrtc": ["--use_fast_math", "--ftz=false", "--generate-line-info"],
         }
     }
-    module = tvm.tirx.compile(main, target={"kind": "cuda", "backend_config": config})
+    module = tvm_tirx.tirx.compile(main, target={"kind": "cuda", "backend_config": config})
     library = str(tmp_path / "replay.so")
     module.export_library(library)
     script = """
 import sys
 import numpy as np
-import tvm
+import tvm_tirx
 # The loader's Target may describe unrelated work or provide incompatible
 # defaults. Source replay must use the configuration saved in the artifact.
-with tvm.target.Target(LOAD_TARGET):
-    module = tvm.runtime.load_module(sys.argv[1])
-from tvm.backend.config import parse_backend_config
+with tvm_tirx.target.Target(LOAD_TARGET):
+    module = tvm_tirx.runtime.load_module(sys.argv[1])
+from tvm_tirx.backend.config import parse_backend_config
 config = parse_backend_config(module.imports[0].inspect_source("backend_config"))["cuda"]
 assert "--ftz=false" in config["nvrtc"] and "--generate-line-info" in config["nvrtc"]
 x = np.full(32, np.finfo(np.float32).tiny, dtype="float32")
-a = tvm.runtime.tensor(x, tvm.cuda())
-b = tvm.runtime.empty((32,), "float32", tvm.cuda())
+a = tvm_tirx.runtime.tensor(x, tvm_tirx.cuda())
+b = tvm_tirx.runtime.empty((32,), "float32", tvm_tirx.cuda())
 module["main"](a, b)
 np.testing.assert_array_equal(b.numpy(), x * np.float32(0.5))
 """
@@ -405,8 +405,8 @@ np.testing.assert_array_equal(b.numpy(), x * np.float32(0.5))
 
 def test_device_helpers_are_cloned_per_configuration():
     _require_compiler("nvrtc")
-    from tvm.backend.cuda.transforms import SpecializeDeviceHelpers
-    from tvm.script import ir as I
+    from tvm_tirx.backend.cuda.transforms import SpecializeDeviceHelpers
+    from tvm_tirx.script import ir as I
 
     @I.ir_module
     class Module:
@@ -445,11 +445,11 @@ def test_device_helpers_are_cloned_per_configuration():
                 y = T.cuda.thread_idx("x")
                 B[y] = Module.helper(B[y])
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}, host="llvm")
-    mod = tvm.tirx.transform.BindTarget(target)(Module)
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"}, host="llvm")
+    mod = tvm_tirx.tirx.transform.BindTarget(target)(Module)
     mod = BindBackendConfig()(mod)
-    mod = tvm.tirx.transform.LowerTIRx()(mod)
-    mod = tvm.tirx.transform.SplitHostDevice()(mod)
+    mod = tvm_tirx.tirx.transform.LowerTIRx()(mod)
+    mod = tvm_tirx.tirx.transform.SplitHostDevice()(mod)
     mod = SpecializeDeviceHelpers()(mod)
     groups = {}
     for gv, fn in mod.functions.items():
@@ -464,7 +464,7 @@ def test_device_helpers_are_cloned_per_configuration():
     assert set(groups[("sm_90a", False)]).isdisjoint(groups[("sm_100a", True)])
     dispatched = set()
 
-    @tvm.ir.transform.pass_instrument
+    @tvm_tirx.ir.transform.pass_instrument
     class CheckHelperTargets:
         def run_before_pass(self, lowered, info):
             if info.name == "tirx.TileDispatch":
@@ -473,8 +473,8 @@ def test_device_helpers_are_cloned_per_configuration():
                         dispatched.add(fn.attrs["target"].arch)
                         assert gv.name_hint not in ("helper", "leaf")
 
-    with tvm.ir.transform.PassContext(instruments=[CheckHelperTargets()]):
-        built = tvm.tirx.compile(Module)
+    with tvm_tirx.ir.transform.PassContext(instruments=[CheckHelperTargets()]):
+        built = tvm_tirx.tirx.compile(Module)
     assert dispatched == {"sm_90a", "sm_100a"}
     assert len(built.mod.imports) == 2
     assert {
@@ -484,7 +484,7 @@ def test_device_helpers_are_cloned_per_configuration():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm.cuda().exist, reason="requires CUDA")
+@pytest.mark.skipif(not tvm_tirx.cuda().exist, reason="requires CUDA")
 @pytest.mark.parametrize("fallback", [False, True])
 def test_cuda_host_embeds_independent_binaries_in_plain_cpp(tmp_path, monkeypatch, fallback):
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1" if fallback else "0")
@@ -492,8 +492,8 @@ def test_cuda_host_embeds_independent_binaries_in_plain_cpp(tmp_path, monkeypatc
     _require_compiler("nvcc")
     import tvm_ffi.cpp
 
-    from tvm.backend.cuda.host import export_cuda_host
-    from tvm.support.nvcc import find_cuda_path
+    from tvm_tirx.backend.cuda.host import export_cuda_host
+    from tvm_tirx.support.nvcc import find_cuda_path
 
     @T.function
     def main(
@@ -528,9 +528,9 @@ def test_cuda_host_embeds_independent_binaries_in_plain_cpp(tmp_path, monkeypatc
             y = T.cuda.thread_idx("x")
             C[y] = B[y] * T.Cast(other, "float32")
 
-    target = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch(0)}, host="cuda_host")
-    module = tvm.tirx.compile(main, target=target)
-    with tvm.target.Target("llvm"):
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": env.cuda_arch(0)}, host="cuda_host")
+    module = tvm_tirx.tirx.compile(main, target=target)
+    with tvm_tirx.target.Target("llvm"):
         source = export_cuda_host(module.mod)
     assert "__global__" not in source
     cuda = find_cuda_path()
@@ -546,7 +546,7 @@ def test_cuda_host_embeds_independent_binaries_in_plain_cpp(tmp_path, monkeypatc
 import sys
 import torch
 import tvm_ffi
-assert 'tvm' not in sys.modules
+assert 'tvm_tirx' not in sys.modules
 module = tvm_ffi.load_module(sys.argv[1])
 a = torch.full((32,), torch.finfo(torch.float32).tiny, device='cuda')
 a[1::2] = 2.0
@@ -556,7 +556,7 @@ assert torch.equal(b, a * 0.5)
 expected = torch.zeros_like(c)
 expected[1::2] = 0.5
 assert torch.equal(c, expected)
-assert 'tvm' not in sys.modules
+assert 'tvm_tirx' not in sys.modules
 """
     result = subprocess.run([sys.executable, "-c", script, library], text=True, capture_output=True)
     assert result.returncode == 0, result.stdout + result.stderr
@@ -565,7 +565,7 @@ assert 'tvm' not in sys.modules
 def test_legacy_payloads():
     import struct
 
-    load = tvm.get_global_func("ffi.Module.load_from_bytes.cuda", allow_missing=True)
+    load = tvm_tirx.get_global_func("ffi.Module.load_from_bytes.cuda", allow_missing=True)
     if load is None:
         pytest.skip("CUDA runtime module loader is not linked")
 
@@ -577,7 +577,7 @@ def test_legacy_payloads():
     module = load(old_binary)
     assert module["__tvm_cuda_binary"]()[0] == code
     old_source = string(b"cuda") + struct.pack("<Q", 0) + string(b"// legacy source")
-    from tvm.support.nvcc import tvm_callback_cuda_compile
+    from tvm_tirx.support.nvcc import tvm_callback_cuda_compile
 
     seen = []
     try:
@@ -597,22 +597,22 @@ def test_legacy_payloads():
     current = old_binary + string(snapshot.encode())
     assert load(current).inspect_source("backend_config") == snapshot
     for malformed in (old_binary + b"x", current[:-1], current + b"x"):
-        with pytest.raises(tvm.error.InternalError):
+        with pytest.raises(tvm_tirx.error.InternalError):
             load(malformed)
 
 
 def test_generic_cuda_target_without_gpu(tmp_path):
     script = """
-import tvm
-import tvm.testing
-from tvm.backend.cuda import BackendConfig
-from tvm.backend.config import prepare_target
-from tvm.backend.cuda.transforms import BindBackendConfig
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.cuda import BackendConfig
+from tvm_tirx.backend.config import prepare_target
+from tvm_tirx.backend.cuda.transforms import BindBackendConfig
+from tvm_tirx.script import tirx as T
 
-target = tvm.target.Target("cuda", host="llvm")
+target = tvm_tirx.target.Target("cuda", host="llvm")
 assert "arch" not in target.attrs
-assert not tvm.testing.device_enabled("cuda")
+assert not tvm_tirx.testing.device_enabled("cuda")
 resolved = prepare_target({
     **target.export(), "backend_config": {"cuda": BackendConfig(arch="sm_100a")}
 })
@@ -624,7 +624,7 @@ def main(A: T.Tensor((32,), "float32")):
     T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32))
     A[T.cuda.thread_idx("x")] = T.float32(1)
 
-mod = tvm.tirx.transform.BindTarget(target)(tvm.IRModule({"main": main}))
+mod = tvm_tirx.tirx.transform.BindTarget(target)(tvm_tirx.IRModule({"main": main}))
 try:
     BindBackendConfig()(mod)
 except ValueError as error:
@@ -645,9 +645,9 @@ else:
 def test_entry_architectures_compile_without_gpu_detection(tmp_path, target):
     _require_compiler("nvcc")
     script = """
-import tvm
-from tvm.script import tirx as T
-from tvm.backend.cuda import BackendConfig
+import tvm_tirx
+from tvm_tirx.script import tirx as T
+from tvm_tirx.backend.cuda import BackendConfig
 @T.function
 def main(A: T.Tensor((32,), "float32")):
     T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32),
@@ -655,12 +655,12 @@ def main(A: T.Tensor((32,), "float32")):
     A[T.cuda.thread_idx("x")] = T.float32(1)
 target = TARGET
 if target == "target_object":
-    target = tvm.target.Target("cuda", host="llvm")
-module = tvm.compile(main, target=target)
+    target = tvm_tirx.target.Target("cuda", host="llvm")
+module = tvm_tirx.compile(main, target=target)
 metadata = module.mod.imports[0].inspect_source("backend_config")
-from tvm.backend.config import parse_backend_config
+from tvm_tirx.backend.config import parse_backend_config
 assert parse_backend_config(metadata)["cuda"]["arch"] == "sm_100a"
-assert "arch" not in tvm.target.Target("cuda").attrs
+assert "arch" not in tvm_tirx.target.Target("cuda").attrs
 """
     # Use a source file because the TIRx construction decorator reads its definition.
     path = tmp_path / "offline.py"
@@ -673,7 +673,7 @@ assert "arch" not in tvm.target.Target("cuda").attrs
 
 
 def test_source_fallback_does_not_invoke_compiler(monkeypatch):
-    from tvm.support import nvcc
+    from tvm_tirx.support import nvcc
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
 
@@ -688,7 +688,7 @@ def test_source_fallback_does_not_invoke_compiler(monkeypatch):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32))
         A[T.cuda.thread_idx("x")] = T.float32(1)
 
-    module = tvm.tirx.compile(
+    module = tvm_tirx.tirx.compile(
         main, target={"kind": "cuda", "backend_config": {"cuda": {"arch": "sm_100a"}}}
     )
     assert "__global__" in module.mod.imports[0].inspect_source("cuda")
@@ -710,7 +710,7 @@ def test_identical_entries_share_one_module(monkeypatch):
             A[T.cuda.thread_idx("x")] = T.float32(2)
 
     config["cuda"]["nvrtc"].clear()
-    module = tvm.tirx.compile(
+    module = tvm_tirx.tirx.compile(
         main, target={"kind": "cuda", "backend_config": {"cuda": {"arch": "sm_100a"}}}
     )
     assert len(module.mod.imports) == 1
@@ -727,13 +727,13 @@ def test_build_snapshots_config_before_passes(monkeypatch):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32))
         A[T.cuda.thread_idx("x")] = T.float32(1)
 
-    @tvm.ir.transform.pass_instrument
+    @tvm_tirx.ir.transform.pass_instrument
     class ChangeCallerConfig:
         def run_before_pass(self, mod, info):
             config["cuda"]["nvrtc"] = ["--ftz=true"]
 
-    with tvm.ir.transform.PassContext(instruments=[ChangeCallerConfig()]):
-        module = tvm.tirx.compile(main, target={"kind": "cuda", "backend_config": config})
+    with tvm_tirx.ir.transform.PassContext(instruments=[ChangeCallerConfig()]):
+        module = tvm_tirx.tirx.compile(main, target={"kind": "cuda", "backend_config": config})
     resolved = parse_backend_config(module.mod.imports[0].inspect_source("backend_config"))
     assert config["cuda"]["nvrtc"] == ["--ftz=true"]
     assert resolved["cuda"]["nvrtc"] == ["--ftz=false"]

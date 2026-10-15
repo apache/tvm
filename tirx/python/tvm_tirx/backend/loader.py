@@ -71,18 +71,18 @@ class _AliasLoader:
 
 
 def _redirect_tirx_backend_alias(fullname: str) -> str | None:
-    prefix = "tvm.tirx."
+    prefix = "tvm_tirx.tirx."
     if not fullname.startswith(prefix):
         return None
     rest = fullname[len(prefix) :]
     backend_name, sep, tail = rest.partition(".")
     if not sep or backend_name not in _LOADED_BACKENDS:
         return None
-    return f"tvm.backend.{backend_name}.{tail}"
+    return f"tvm_tirx.backend.{backend_name}.{tail}"
 
 
 class _BackendAliasFinder:
-    """Redirect ``tvm.tirx.<backend>.*`` imports to ``tvm.backend.<backend>.*``."""
+    """Redirect ``tvm_tirx.tirx.<backend>.*`` imports to ``tvm_tirx.backend.<backend>.*``."""
 
     @classmethod
     def find_spec(cls, fullname, path, target=None):
@@ -124,8 +124,8 @@ def _set_module_alias(alias: str, module, *, direct: bool = False) -> None:
 
 
 def _alias_loaded_backend_modules(name: str) -> None:
-    backend_prefix = f"tvm.backend.{name}"
-    public_prefix = f"tvm.tirx.{name}"
+    backend_prefix = f"tvm_tirx.backend.{name}"
+    public_prefix = f"tvm_tirx.tirx.{name}"
     for module_name, module in sorted(list(sys.modules.items())):
         if module_name == backend_prefix or module_name.startswith(f"{backend_prefix}."):
             public_name = f"{public_prefix}{module_name[len(backend_prefix) :]}"
@@ -133,7 +133,7 @@ def _alias_loaded_backend_modules(name: str) -> None:
 
 
 def _import_backend(name: str):
-    module_name = f"tvm.backend.{name}"
+    module_name = f"tvm_tirx.backend.{name}"
     try:
         return importlib.import_module(module_name)
     except ModuleNotFoundError as err:
@@ -148,7 +148,7 @@ def _import_backend(name: str):
 def load(name: str) -> None:
     """Load a backend's Python registration hooks.
 
-    Loading is idempotent.  A backend package must live at ``tvm.backend.<name>``
+    Loading is idempotent.  A backend package must live at ``tvm_tirx.backend.<name>``
     and expose ``register_backend()``.
     """
 
@@ -158,12 +158,12 @@ def load(name: str) -> None:
     module = _import_backend(name)
     register_backend = getattr(module, "register_backend", None)
     if register_backend is None:
-        raise AttributeError(f"Backend package 'tvm.backend.{name}' has no register_backend()")
+        raise AttributeError(f"Backend package 'tvm_tirx.backend.{name}' has no register_backend()")
 
-    import tvm.tirx as tirx  # pylint: disable=import-outside-toplevel
+    import tvm_tirx.tirx as tirx  # pylint: disable=import-outside-toplevel
 
     setattr(tirx, name, module)
-    sys.modules[f"tvm.tirx.{name}"] = module
+    sys.modules[f"tvm_tirx.tirx.{name}"] = module
     _LOADED_BACKENDS[name] = module
     try:
         register_backend()
@@ -172,8 +172,8 @@ def load(name: str) -> None:
         _LOADED_BACKENDS.pop(name, None)
         if getattr(tirx, name, None) is module:
             delattr(tirx, name)
-        if sys.modules.get(f"tvm.tirx.{name}") is module:
-            sys.modules.pop(f"tvm.tirx.{name}", None)
+        if sys.modules.get(f"tvm_tirx.tirx.{name}") is module:
+            sys.modules.pop(f"tvm_tirx.tirx.{name}", None)
         raise
     return None
 

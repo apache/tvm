@@ -28,11 +28,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from tvm.ir import assert_structural_equal
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.script.ir_builder import IRBuilder
-from tvm.tirx.script.jit import make_jit
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx.script.jit import make_jit
 
 
 @pytest.fixture

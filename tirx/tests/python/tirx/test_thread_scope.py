@@ -23,13 +23,13 @@ import pytest
 import tvm_ffi
 from tvm_ffi.dataclasses import Enum
 
-import tvm
-from tvm.ir import Call, Evaluate, make_node
-from tvm.script import tirx as T
-from tvm.tirx import Function, decl_tensor
-from tvm.tirx.thread_scope import ThreadScope
-from tvm.tirx.tile import DispatchContext
-from tvm.tirx.tile.instruction import TensorCall
+import tvm_tirx
+from tvm_tirx.ir import Call, Evaluate, make_node
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import Function, decl_tensor
+from tvm_tirx.tirx.thread_scope import ThreadScope
+from tvm_tirx.tirx.tile import DispatchContext
+from tvm_tirx.tirx.tile.instruction import TensorCall
 
 
 @pytest.mark.parametrize(
@@ -70,7 +70,7 @@ def test_hierarchy_comparison_and_lookup_errors():
 @pytest.mark.parametrize("name", ["cuda.kernel", "cuda.warp", "trn.thread"])
 def test_scope_roundtrips_keep_singleton(name):
     scope = ThreadScope(name)
-    assert tvm.ir.load_json(tvm.ir.save_json(scope)).same_as(scope)
+    assert tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(scope)).same_as(scope)
     assert pickle.loads(pickle.dumps(scope)).same_as(scope)
     text = scope.script()
     assert f'T.ThreadScope("{name}")' in text
@@ -86,11 +86,11 @@ def test_instruction_normalizes_scope_before_constructing_call(scope):
     assert TensorCall.decode(call).scope.same_as(tag)
     default = T.cuda.tile.apply(T.ptx["sqrt.rn.f32"], tensor, tensor)
     assert default.attrs.scope.same_as(ThreadScope("cuda.thread"))
-    context = DispatchContext(tvm.target.Target("cuda"), tag, {}, {})
+    context = DispatchContext(tvm_tirx.target.Target("cuda"), tag, {}, {})
     assert context.thread_scope.same_as(tag)
     assert context.scope_kind == "warp"
     with pytest.raises(ValueError, match="scope_kind"):
-        DispatchContext(tvm.target.Target("cuda"), tag, {}, {}, scope_kind="thread")
+        DispatchContext(tvm_tirx.target.Target("cuda"), tag, {}, {}, scope_kind="thread")
 
 
 def test_raw_scope_attrs_are_required_and_typed():
@@ -102,7 +102,7 @@ def test_raw_scope_attrs_are_required_and_typed():
                 make_node(f"tirx.tensor.{schema}", scope=invalid)
         attrs = make_node(f"tirx.tensor.{schema}", scope="cuda.thread")
         assert attrs.scope.same_as(ThreadScope("cuda.thread"))
-        assert tvm.ir.load_json(tvm.ir.save_json(attrs)).scope.same_as(attrs.scope)
+        assert tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(attrs)).scope.same_as(attrs.scope)
 
 
 def test_cross_backend_scopes_are_rejected_at_each_boundary():
@@ -117,12 +117,12 @@ def test_cross_backend_scopes_are_rejected_at_each_boundary():
     with pytest.raises(ValueError, match="belongs to trn"):
         raw.validate()
     with pytest.raises(ValueError, match="does not match target"):
-        DispatchContext(tvm.target.Target("cuda"), trn_scope, {}, {})
+        DispatchContext(tvm_tirx.target.Target("cuda"), trn_scope, {}, {})
     trn_tensor = decl_tensor((16,), "float32", scope="trn.sbuf", layout="default")
     trn_call = T.trn.tile.tensortensor(trn_tensor, trn_tensor, trn_tensor)
-    func = Function([], Evaluate(trn_call)).with_attr("target", tvm.target.Target("cuda"))
+    func = Function([], Evaluate(trn_call)).with_attr("target", tvm_tirx.target.Target("cuda"))
     with pytest.raises(ValueError, match="does not match target"):
-        tvm.tirx.transform.TileDispatch()(tvm.IRModule({"main": func}))
+        tvm_tirx.tirx.transform.TileDispatch()(tvm_tirx.IRModule({"main": func}))
 
 
 def test_runtime_only_import_and_removed_interfaces():
@@ -132,12 +132,12 @@ def test_runtime_only_import_and_removed_interfaces():
         [
             sys.executable,
             "-c",
-            "import tvm; from tvm.tirx.thread_scope import ThreadScope; "
-            "assert tvm.base._RUNTIME_ONLY",
+            "import tvm_tirx; from tvm_tirx.tirx.thread_scope import ThreadScope; "
+            "assert tvm_tirx.base._RUNTIME_ONLY",
         ],
         env=env,
         check=True,
     )
-    assert not hasattr(tvm.tirx, "ExecScope")
+    assert not hasattr(tvm_tirx.tirx, "ExecScope")
     assert not hasattr(T.cuda, "ExecScope")
     assert tvm_ffi.get_global_func("tirx.RegisterExecScope", allow_missing=True) is None

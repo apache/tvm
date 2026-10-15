@@ -19,12 +19,12 @@ from functools import partial
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.support import cc, popen_pool, utils
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.support import cc, popen_pool, utils
+from tvm_tirx.testing import env
 
 
 @pytest.mark.gpu
@@ -40,7 +40,7 @@ from tvm.testing import env
 )
 @pytest.mark.parametrize("dtype", ["int32", "uint32", "int64", "uint64"])
 def test_int_intrin(target, dtype):
-    if not tvm.testing.device_enabled(target):
+    if not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
     test_funcs = [
         (T.clz, lambda x, dtype: int(dtype[-2:]) - (len(bin(x)) - 2)),
@@ -60,17 +60,17 @@ def test_int_intrin(target, dtype):
                 with T.launch_thread("threadIdx.x", n) as i0:
                     B[i0] = tvm_intrin(A[i0])
 
-        f = tvm.tirx.compile(Module, target=target)
+        f = tvm_tirx.tirx.compile(Module, target=target)
 
         def run_and_check():
-            dev = tvm.device_from_target(target)
-            a = tvm.runtime.tensor(np.random.randint(0, 100000, size=n).astype(dtype), dev)
-            b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(dtype), dev)
+            dev = tvm_tirx.device_from_target(target)
+            a = tvm_tirx.runtime.tensor(np.random.randint(0, 100000, size=n).astype(dtype), dev)
+            b = tvm_tirx.runtime.tensor(np.zeros(shape=(n,)).astype(dtype), dev)
             f(a, b)
             ref = np.vectorize(partial(np_func, dtype=dtype))(a.numpy())
-            tvm.testing.assert_allclose(b.numpy(), ref)
+            tvm_tirx.testing.assert_allclose(b.numpy(), ref)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -85,25 +85,25 @@ def test_device_module_dump():
                 B[bx * 8 + tx] = A[bx * 8 + tx] + T.float32(1)
 
     def check_device(device):
-        if not tvm.testing.device_enabled(device):
+        if not tvm_tirx.testing.device_enabled(device):
             print(f"Skip because {device} is not enabled")
             return
         temp = utils.tempdir()
-        f = tvm.tirx.compile(main, target=device)
+        f = tvm_tirx.tirx.compile(main, target=device)
 
         path_dso = temp.relpath("dev_lib.so")
         # test cross compiler function
         f.export_library(path_dso, fcompile=cc.cross_compiler("g++"))
 
         def run_and_check():
-            dev = tvm.device(device, 0)
+            dev = tvm_tirx.device(device, 0)
 
             def popen_check():
-                import tvm
+                import tvm_tirx
 
-                f1 = tvm.runtime.load_module(path_dso)
-                a = tvm.runtime.tensor(np.random.uniform(size=1024).astype("float32"), dev)
-                b = tvm.runtime.tensor(np.zeros(1024, dtype="float32"), dev)
+                f1 = tvm_tirx.runtime.load_module(path_dso)
+                a = tvm_tirx.runtime.tensor(np.random.uniform(size=1024).astype("float32"), dev)
+                b = tvm_tirx.runtime.tensor(np.zeros(1024, dtype="float32"), dev)
                 f1(a, b)
                 np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
@@ -114,22 +114,22 @@ def test_device_module_dump():
             finally:
                 worker.kill()
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
     def check_c(device):
-        if not tvm.testing.device_enabled(device):
+        if not tvm_tirx.testing.device_enabled(device):
             print(f"Skip because {device} is not enabled")
             return
-        f = tvm.tirx.compile(main, target=tvm.target.Target(device, host="c"))
+        f = tvm_tirx.tirx.compile(main, target=tvm_tirx.target.Target(device, host="c"))
 
         def run_and_check():
-            dev = tvm.device(device, 0)
-            a = tvm.runtime.tensor(np.random.uniform(size=1024).astype("float32"), dev)
-            b = tvm.runtime.tensor(np.zeros(1024, dtype="float32"), dev)
+            dev = tvm_tirx.device(device, 0)
+            a = tvm_tirx.runtime.tensor(np.random.uniform(size=1024).astype("float32"), dev)
+            b = tvm_tirx.runtime.tensor(np.zeros(1024, dtype="float32"), dev)
             f["main"](a, b)
             np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
     for device in ["cuda", "vulkan", "opencl", "metal"]:
         check_device(device)
@@ -137,4 +137,4 @@ def test_device_module_dump():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

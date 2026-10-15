@@ -18,7 +18,7 @@
 
 from __future__ import annotations
 
-from tvm.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
+from tvm_tirx.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
 
 from . import op as _trn_op
 
@@ -47,7 +47,7 @@ class NKINamespace:
     @staticmethod
     def tensorized_instruction():
         """Tensorize the NKI instructions in the region body."""
-        from tvm.tirx.script.ir_builder import (
+        from tvm_tirx.tirx.script.ir_builder import (
             region,  # pylint: disable=import-outside-toplevel
         )
 

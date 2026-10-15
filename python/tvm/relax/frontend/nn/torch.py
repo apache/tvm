@@ -23,7 +23,7 @@ from typing import Any
 import torch
 from tvm_ffi import Array, Shape
 
-from tvm.runtime import Tensor, _tensor
+from tvm_tirx.runtime import Tensor, _tensor
 from tvm.runtime.vm import VirtualMachine
 
 from . import core

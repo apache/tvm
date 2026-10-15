@@ -22,15 +22,15 @@ from typing import TYPE_CHECKING
 import tvm_ffi
 from tvm_ffi import Array
 
-import tvm
-from tvm import ir
-from tvm import tirx as tir
-from tvm.ir import Expr, Scriptable, Var, const
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.ir.prim import _ffi_api as _prim_ffi_api
-from tvm.ir.prim import max_value, min_value
-from tvm.runtime import Object
-from tvm.tirx.op import _primexpr_dtype
+import tvm, tvm_tirx
+from tvm_tirx import ir
+from tvm_tirx import tirx as tir
+from tvm_tirx.ir import Expr, Scriptable, Var, const
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.prim import _ffi_api as _prim_ffi_api
+from tvm_tirx.ir.prim import max_value, min_value
+from tvm_tirx.runtime import Object
+from tvm_tirx.tirx.op import _primexpr_dtype
 
 from . import _ffi_api
 
@@ -175,7 +175,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         n = te.var("n")
         m = te.var("m")
         mysum = te.comm_reducer(lambda x, y: x+y,
-            lambda t: tvm.tirx.const(0, dtype=t), name="mysum")
+            lambda t: tvm_tirx.tirx.const(0, dtype=t), name="mysum")
         A = te.placeholder((n, m), name="A")
         k = te.reduce_axis((0, m), name="k")
         B = te.compute((n,), lambda i: mysum(A[i, k], axis=k), name="B")
@@ -214,7 +214,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             result = fcombine(lhs, rhs)
             id_elem = fidentity(*dtypes)
         else:
-            assert tvm.ir.is_prim_expr(expr)
+            assert tvm_tirx.ir.is_prim_expr(expr)
             size = 1
             dtype = _primexpr_dtype(expr)
             lvar = Var(code.co_varnames[0], dtype)
@@ -227,7 +227,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             if init is not None:
                 init = [init]
         combiner = CommReducer(lhs, rhs, result, id_elem)
-        if not isinstance(axis, list | tuple | tvm.ir.Array):
+        if not isinstance(axis, list | tuple | tvm_tirx.ir.Array):
             axis = [axis]
         if where is None:
             where = tir.convert(True)

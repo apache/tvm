@@ -23,9 +23,9 @@ from typing import Union
 import tvm_ffi
 from tvm_ffi.dataclasses import Enum
 
-import tvm
-from tvm.runtime import Object
-from tvm.tirx.expr import Expr
+import tvm_tirx
+from tvm_tirx.runtime import Object
+from tvm_tirx.tirx.expr import Expr
 
 from . import _ffi_api
 from .thread_scope import ThreadScope
@@ -143,14 +143,14 @@ class Layout(Object):
         # produce for int64-shaped tensors (otherwise the last stride stays a
         # Python ``int`` -> int32 IntImm and breaks structural-equal).
         for t in data:
-            if tvm.ir.is_prim_expr(t) and t.ty.dtype != "int32":
+            if tvm_tirx.ir.is_prim_expr(t) and t.ty.dtype != "int32":
                 from .expr import IntImm  # pylint: disable=import-outside-toplevel
 
                 stride = IntImm(t.ty, stride)
                 break
         res = list()
         for t in reversed(data):
-            assert isinstance(t, int) or tvm.ir.is_prim_expr(t), (
+            assert isinstance(t, int) or tvm_tirx.ir.is_prim_expr(t), (
                 f"data must be int or Expr, but got {t}"
             )
             res.append(stride)
@@ -225,7 +225,7 @@ class Layout(Object):
                 and inner_iter.extent % num == 0
                 and inner_iter.axis.name == axis
             ), f"Layout {self} can not be packed into {num} elements"
-            analyzer = tvm.sym.Analyzer()
+            analyzer = tvm_tirx.sym.Analyzer()
 
             def scale(iter):
                 stride = iter.stride

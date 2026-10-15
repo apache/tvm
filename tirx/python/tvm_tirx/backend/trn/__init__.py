@@ -36,8 +36,8 @@ def register_backend():
     from . import axis
 
     axis.register()
-    from tvm.tirx import compilation_pipeline  # pylint: disable=import-outside-toplevel
-    from tvm.tirx.script.ir_builder import (
+    from tvm_tirx.tirx import compilation_pipeline  # pylint: disable=import-outside-toplevel
+    from tvm_tirx.tirx.script.ir_builder import (
         op as builder_op,  # pylint: disable=import-outside-toplevel
     )
 

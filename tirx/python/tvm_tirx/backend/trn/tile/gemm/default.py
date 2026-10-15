@@ -21,14 +21,14 @@ import functools
 import operator
 from functools import cache
 
-from tvm.backend.trn.layout import is_trainium_layout
-from tvm.ir import TensorRegion, assert_structural_equal
-from tvm.runtime import MemoryScope
-from tvm.script import tirx as T
-from tvm.sym.analyzer import Analyzer
-from tvm.tirx import Function
-from tvm.tirx.tile import DispatchContext, fail
-from tvm.tirx.tile.instruction import TensorCall
+from tvm_tirx.backend.trn.layout import is_trainium_layout
+from tvm_tirx.ir import TensorRegion, assert_structural_equal
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.script import tirx as T
+from tvm_tirx.sym.analyzer import Analyzer
+from tvm_tirx.tirx import Function
+from tvm_tirx.tirx.tile import DispatchContext, fail
+from tvm_tirx.tirx.tile.instruction import TensorCall
 
 from ..common import init_analyzer
 from ..dim_utils import normalize_and_group
@@ -264,7 +264,7 @@ def matmul_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
 
     acc_psum_shape = (max_psum_banks, p_size, largest_psum_per_bank)
     if "acc_psum" not in op.workspaces:
-        assert sctx.alloc_only, "Accumulation psum tensor must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateTensorAlloc first."  # noqa: E501
+        assert sctx.alloc_only, "Accumulation psum tensor must be specified in workspace. Run tvm_tirx.tirx.trn.transform.TrnPrivateTensorAlloc first."  # noqa: E501
         acc_psum = T.Var(
             "acc_psum",
             T.Tensor(acc_psum_shape, "float32", scope="trn.psum"),

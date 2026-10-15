@@ -16,21 +16,21 @@
 # under the License.
 from __future__ import annotations
 
-import tvm
+import tvm, tvm_tirx
 import tvm.s_tir
-import tvm.testing
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx.testing, tvm
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def _check(original, transformed):
     func = original
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
     # These expected fixtures include the subsequent lowering of thread loops.
     mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
-    mod = tvm.tirx.transform.StmtSimplify()(mod)
-    tvm.ir.assert_structural_equal(
+    mod = tvm_tirx.tirx.transform.StmtSimplify()(mod)
+    tvm_tirx.ir.assert_structural_equal(
         mod["main"], transformed.with_attr("global_symbol", "main"), True
     )
 
@@ -357,9 +357,9 @@ def test_preserved_annotations():
         for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
             B[i] = A[i] + 1.0
 
-    mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(before.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
 
 
 def test_preserved_none_pragma_annotation():
@@ -374,9 +374,9 @@ def test_preserved_none_pragma_annotation():
         for i in T.serial(8, annotations={"unroll_explicit": None}):
             B[i] = A[i] + 1.0
 
-    mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(before.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         mod["main"],
         after.with_attr("global_symbol", "main"),
     )
@@ -387,4 +387,4 @@ def test_boolean_handling():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

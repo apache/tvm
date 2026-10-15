@@ -20,11 +20,11 @@ from itertools import product
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 try:
     from ml_dtypes import float4_e2m1fn
@@ -59,7 +59,7 @@ def test_e2m1_vector_conversions(promoted_dtype):
                     )
 
     target = "cuda"
-    fadd = tvm.tirx.compile(Module, target=target)
+    fadd = tvm_tirx.tirx.compile(Module, target=target)
 
     if "x" in native_dtype:
         lanes = int(native_dtype.split("x")[-1])
@@ -85,12 +85,12 @@ def test_e2m1_vector_conversions(promoted_dtype):
         b_np = np.random.choice(valid_fp4_values, size=np_shape).astype(np.int8)
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        a = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+        dev = tvm_tirx.cuda(0)
+        a = tvm_tirx.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
         a.copyfrom(a_np)
-        b = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+        b = tvm_tirx.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
         b.copyfrom(b_np)
-        c = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+        c = tvm_tirx.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
         fadd(a, b, c)
         # For the comparison, we will convert result to the promoted dtype and compare
         # Note: When ml_dtypes is not available, we skip the numpy-level computation comparison
@@ -99,14 +99,14 @@ def test_e2m1_vector_conversions(promoted_dtype):
         if ML_DTYPES_AVAILABLE:
             # Full comparison when ml_dtypes is available
             expected = (a_np + b_np).astype(promoted_base_dtype)
-            tvm.testing.assert_allclose(c_result, expected)
+            tvm_tirx.testing.assert_allclose(c_result, expected)
         else:
             # When ml_dtypes is not available, we just verify the comparison ran successfully
             # by checking that we got a result with the expected shape and dtype
             assert c_result.shape == np_shape
             assert c_result.dtype == promoted_base_dtype
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storage):
@@ -195,8 +195,8 @@ def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storag
 def test_e2m1_dequantize():
     n = 128
 
-    dev = tvm.cuda(0)
-    target = tvm.target.Target.from_device(dev)
+    dev = tvm_tirx.cuda(0)
+    target = tvm_tirx.target.Target.from_device(dev)
     num_elem_per_storage = 32 // 4
 
     # We only test the whether the code can be compiled.
@@ -212,7 +212,7 @@ def test_e2m1_dequantize():
         else:
             mod = _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storage)
 
-        tvm.tirx.compile(mod, target=target)
+        tvm_tirx.tirx.compile(mod, target=target)
 
 
 @pytest.mark.gpu
@@ -240,7 +240,7 @@ def test_e2m1_scalar_buffer_offset():
                 B[bx * 32 + tx] = T.Cast(A[bx * 32 + tx], "float16")
 
     target = "cuda"
-    fadd = tvm.tirx.compile(func, target=target)
+    fadd = tvm_tirx.tirx.compile(func, target=target)
 
     # float4_e2m1fn: 4-bit values 0..15, two packed per byte.
     # Encoding (sign | exp1 | man1 man0):
@@ -261,15 +261,15 @@ def test_e2m1_scalar_buffer_offset():
     expected = fp4_to_fp16[fp4_elements]
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        a = tvm.runtime.empty(shape=(n // 2,), dtype="uint8", device=dev)
+        dev = tvm_tirx.cuda(0)
+        a = tvm_tirx.runtime.empty(shape=(n // 2,), dtype="uint8", device=dev)
         a.copyfrom(packed)
-        b = tvm.runtime.empty(shape=(n,), dtype="float16", device=dev)
+        b = tvm_tirx.runtime.empty(shape=(n,), dtype="float16", device=dev)
         fadd(a, b)
-        tvm.testing.assert_allclose(b.numpy(), expected)
+        tvm_tirx.testing.assert_allclose(b.numpy(), expected)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

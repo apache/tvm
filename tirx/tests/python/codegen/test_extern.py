@@ -18,10 +18,10 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 @pytest.mark.gpu
@@ -50,24 +50,24 @@ def test_add_pipeline():
                 C[T.Ramp(idx * 2, 1, 2)] = A[T.Ramp(idx * 2, 1, 2)] + T.Broadcast(T.float32(1), 2)
 
     def check_target(target):
-        if not tvm.testing.device_enabled(target):
+        if not tvm_tirx.testing.device_enabled(target):
             return
         mod = ModuleGPU if target in ["opencl", "cuda"] else ModuleCPU
         # build and invoke the kernel.
-        f = tvm.tirx.compile(mod, target=target)
+        f = tvm_tirx.tirx.compile(mod, target=target)
         n = nn
 
         def run_and_check():
-            dev = tvm.device_from_target(target, 0)
-            a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
-            c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+            dev = tvm_tirx.device_from_target(target, 0)
+            a = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+            c = tvm_tirx.runtime.tensor(np.zeros(n, dtype="float32"), dev)
             f(a, c)
-            tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
+            tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
         if target == "llvm":
             run_and_check()
         else:
-            tvm.testing.run_with_gpu_lock(run_and_check)
+            tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
     check_target("llvm")
     check_target("opencl")
@@ -84,26 +84,26 @@ def test_pack_buffer_simple():
         def main(A: T.Tensor((1024,), "float32"), C: T.Tensor((1024,), "float32")):
             T.evaluate(T.call_packed("my_extern_array_func1", A, C))
 
-    @tvm.register_global_func
+    @tvm_tirx.register_global_func
     def my_extern_array_func1(aa, bb):
         aa.copyto(bb)
 
     def check_target(target):
-        if not tvm.testing.device_enabled(target):
+        if not tvm_tirx.testing.device_enabled(target):
             return
         # build and invoke the kernel.
-        f = tvm.tirx.compile(Module, target=target)
-        dev = tvm.cpu(0)
+        f = tvm_tirx.tirx.compile(Module, target=target)
+        dev = tvm_tirx.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
-        c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+        a = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+        c = tvm_tirx.runtime.tensor(np.zeros(n, dtype="float32"), dev)
 
         f(a, c)
-        tvm.testing.assert_allclose(c.numpy(), a.numpy())
+        tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy())
 
     check_target("llvm")
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

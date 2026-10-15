@@ -20,20 +20,20 @@
 import numpy as np
 import pytest
 
-import tvm
-from tvm.backend.cuda.axis import laneid, warpid
-from tvm.ir import assert_structural_equal
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.layout import S, TileLayout
+import tvm_tirx
+from tvm_tirx.backend.cuda.axis import laneid, warpid
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx.layout import S, TileLayout
 
 
 def build(func):
-    target = tvm.target.Target(
+    target = tvm_tirx.target.Target(
         {"kind": "cuda", "backend_config": {"cuda": {"target_format": "ptx"}}}
     )
-    return tvm.tirx.compile(func, target=target, pipeline="tirx")
+    return tvm_tirx.tirx.compile(func, target=target, pipeline="tirx")
 
 
 @T.function(private=True)
@@ -62,8 +62,8 @@ def group_kernel(ewise=False):
 @pytest.mark.parametrize("ewise", [False, True])
 def test_group_roundtrip(ewise):
     f = group_kernel(ewise)
-    assert_structural_equal(f, tvm.ir.load_json(tvm.ir.save_json(f)))
-    assert_structural_equal(f, tvm.script.from_source(f.script(), extra_vars={"T": T, "I": I}))
+    assert_structural_equal(f, tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(f)))
+    assert_structural_equal(f, tvm_tirx.script.from_source(f.script(), extra_vars={"T": T, "I": I}))
 
 
 @pytest.mark.skipif(not env.has_cuda_compute(8), reason="CUDA required")
@@ -74,8 +74,8 @@ def test_group_gpu(ewise):
     assert ptx.count("ld.global.v4.b32") == 3
     assert ptx.count("st.global.v4.b32") == 3
     x = np.arange(768, dtype="float32").reshape(2, 32, 3, 4)
-    out = tvm.runtime.tensor(np.zeros_like(x), tvm.cuda())
-    kernel(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros_like(x), tvm_tirx.cuda())
+    kernel(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), x * 2 + 1 if ewise else x)
 
 
@@ -91,8 +91,8 @@ def test_explicit_scalar_instruction():
 
     f = build(kernel)
     x = np.arange(8, dtype="float32").reshape(8, 1)
-    out = tvm.runtime.tensor(np.zeros_like(x), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros_like(x), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), x + 3)
 
 
@@ -133,8 +133,8 @@ def test_explicit_memory_width(bits, count, shared):
 
     f = build(kernel)
     x = np.arange(3 * count, dtype=dtype).reshape(3, count)
-    out = tvm.runtime.tensor(np.zeros_like(x), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros_like(x), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), x)
 
 
@@ -152,14 +152,14 @@ def test_predicated_vector_load(enabled):
 
     f = build(kernel)
     x = np.arange(4, dtype="uint32")
-    out = tvm.runtime.tensor(np.zeros_like(x), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out, int(enabled))
+    out = tvm_tirx.runtime.tensor(np.zeros_like(x), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out, int(enabled))
     np.testing.assert_array_equal(out.numpy(), x if enabled else np.full_like(x, 7))
 
 
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="Hopper clusters required")
 def test_cluster_group_axis():
-    from tvm.backend.cuda.axis import cbx
+    from tvm_tirx.backend.cuda.axis import cbx
 
     layout = TileLayout(S[(2, 1, 32, 4) : (1 @ cbx, 1 @ warpid, 1 @ laneid, 1)])
 
@@ -174,8 +174,8 @@ def test_cluster_group_axis():
 
     f = build(kernel)
     x = np.arange(256, dtype="uint32").reshape(2, 1, 32, 4)
-    out = tvm.runtime.tensor(np.zeros_like(x), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros_like(x), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), x)
 
 
@@ -204,6 +204,6 @@ def test_k_tiled_shared_strides():
 
     f = build(kernel)
     x = np.arange(4096, dtype="uint32").reshape(4, 32, 8, 4)
-    out = tvm.runtime.tensor(np.zeros(4096, "uint32"), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros(4096, "uint32"), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), x.transpose(2, 0, 1, 3).reshape(-1))

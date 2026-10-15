@@ -23,12 +23,12 @@ from numbers import Integral as _Integral
 
 from tvm_ffi import Array
 
-import tvm.sym._ffi_api
-import tvm.tirx
-import tvm.tirx._ffi_api
-from tvm.ir import is_prim_expr
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.runtime import convert
+import tvm_tirx.sym._ffi_api, tvm
+import tvm_tirx.tirx, tvm
+import tvm_tirx.tirx._ffi_api, tvm
+from tvm_tirx.ir import is_prim_expr
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.runtime import convert
 
 from . import _ffi_api
 from . import tag as _tag
@@ -94,7 +94,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=N
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
         tag = _tag.TagScope.get_current().tag
-    shape = (shape,) if tvm.ir.is_prim_expr(shape) else shape
+    shape = (shape,) if tvm_tirx.ir.is_prim_expr(shape) else shape
     # for python3
     shape = tuple([int(s) if isinstance(s, float) else s for s in shape])
     out_ndim = len(shape)
@@ -237,12 +237,12 @@ def extern(
         .. note::
              **Parameters**
 
-             - **ins** (list of :any:`tvm.ir.Var`) - Placeholder for each inputs
-             - **outs** (list of :any:`tvm.ir.Var`) - Placeholder for each outputs
+             - **ins** (list of :any:`tvm_tirx.ir.Var`) - Placeholder for each inputs
+             - **outs** (list of :any:`tvm_tirx.ir.Var`) - Placeholder for each outputs
 
              **Returns**
 
-             - **stmt** (:any:`tvm.ir.Stmt` or a sequence of statements) -
+             - **stmt** (:any:`tvm_tirx.ir.Stmt` or a sequence of statements) -
                The body that carries out array computation.
 
     name: str, optional
@@ -252,10 +252,10 @@ def extern(
         The data types of outputs,
         by default dtype will be same as inputs.
 
-    in_tensors: tvm.ir.Var or list of tvm.ir.Var, optional
+    in_tensors: tvm_tirx.ir.Var or list of tvm_tirx.ir.Var, optional
         Input tensors.
 
-    out_tensors: tvm.ir.Var or list of tvm.ir.Var, optional
+    out_tensors: tvm_tirx.ir.Var or list of tvm_tirx.ir.Var, optional
         Output tensors.
 
 
@@ -280,7 +280,7 @@ def extern(
         A = te.placeholder((n, l), name="A")
         B = te.placeholder((l, m), name="B")
         C = te.extern((n, m), [A, B],
-                       lambda ins, outs: tvm.tirx.call_packed(
+                       lambda ins, outs: tvm_tirx.tirx.call_packed(
                           "tvm.contrib.cblas.matmul",
                             ins[0], ins[1], outs[0], 0, 0), name="C")
     """
@@ -311,11 +311,11 @@ def extern(
             raise ValueError("expect inputs to be tensor")
         if in_tensors is None:
             input_placeholders.append(
-                tvm.tirx.decl_tensor(
+                tvm_tirx.tirx.decl_tensor(
                     t.shape,
                     t.dtype,
                     t.op.name,
-                    elem_offset=tvm.tirx.Var("elem_offset", "int32"),
+                    elem_offset=tvm_tirx.tirx.Var("elem_offset", "int32"),
                     layout=None,
                 )
             )
@@ -332,18 +332,18 @@ def extern(
 
         for shp, dt in zip(shape, dtype):
             output_placeholders.append(
-                tvm.tirx.decl_tensor(
+                tvm_tirx.tirx.decl_tensor(
                     shp,
                     dt,
                     name,
-                    elem_offset=tvm.tirx.Var("elem_offset", "int32"),
+                    elem_offset=tvm_tirx.tirx.Var("elem_offset", "int32"),
                     layout=None,
                 )
             )
     body = fcompute(input_placeholders, output_placeholders)
-    if tvm.ir.is_prim_expr(body):
-        body = tvm.ir.Evaluate(body)
-    if not isinstance(body, tvm.ir.Stmt | list | tuple | Array):
+    if tvm_tirx.ir.is_prim_expr(body):
+        body = tvm_tirx.ir.Evaluate(body)
+    if not isinstance(body, tvm_tirx.ir.Stmt | list | tuple | Array):
         raise ValueError(
             f"Function '{fcompute.__name__}' should return Expr, Stmt, or a sequence of Stmt, "
             "but it returned "
@@ -355,7 +355,7 @@ def extern(
     return res[0] if len(res) == 1 else res
 
 
-def extern_function(input_tensors: list[_tensor.Tensor], function: tvm.tirx.Function, **kwargs):
+def extern_function(input_tensors: list[_tensor.Tensor], function: tvm_tirx.tirx.Function, **kwargs):
     """Compute tensors via a schedulable TIR Function
 
     Parameters
@@ -395,7 +395,7 @@ def extern_function(input_tensors: list[_tensor.Tensor], function: tvm.tirx.Func
 
     # Preserve the function parameter order while selecting TensorType annotations.
     dt_access_map = tvm.s_tir._ffi_api.DomainTouchedAccessMap(function)
-    ordered_tensors = [param for param in function.params if tvm.tirx.is_tensor_var(param)]
+    ordered_tensors = [param for param in function.params if tvm_tirx.tirx.is_tensor_var(param)]
     in_tensors = [buf for buf in ordered_tensors if len(dt_access_map[buf][0])]
     out_tensors = [buf for buf in ordered_tensors if len(dt_access_map[buf][1])]
     assert in_tensors, "Function has no input tensors"
@@ -458,7 +458,7 @@ def var(name="tindex", dtype="int32", loc: Location = UNKNOWN_LOC):
     var : tirx.Var
         The result symbolic variable.
     """
-    return tvm.tirx.Var(name, dtype, loc)
+    return tvm_tirx.tirx.Var(name, dtype, loc)
 
 
 def const(value, dtype="int32", loc: Location = UNKNOWN_LOC):
@@ -466,7 +466,7 @@ def const(value, dtype="int32", loc: Location = UNKNOWN_LOC):
 
     Parameters
     ----------
-    value : Union[bool, int, float, numpy.ndarray, tvm.runtime.Tensor]
+    value : Union[bool, int, float, numpy.ndarray, tvm_tirx.runtime.Tensor]
         The constant value.
 
     dtype : str
@@ -480,7 +480,7 @@ def const(value, dtype="int32", loc: Location = UNKNOWN_LOC):
     const : Expr
         The result constant expr.
     """
-    return tvm.tirx.const(value, dtype, loc)
+    return tvm_tirx.tirx.const(value, dtype, loc)
 
 
 def thread_axis(dom=None, tag="", name="", loc: Location = UNKNOWN_LOC):
@@ -540,13 +540,13 @@ def reduce_axis(dom, name="rv", thread_tag="", loc: Location = UNKNOWN_LOC):
 
 
 def create_function(
-    ops: list[_tensor.Tensor | tvm.tirx.Var], index_dtype_override: str | None = None
-) -> tvm.tirx.Function:
+    ops: list[_tensor.Tensor | tvm_tirx.tirx.Var], index_dtype_override: str | None = None
+) -> tvm_tirx.tirx.Function:
     """Create a TensorIR Function from tensor expression
 
     Parameters
     ----------
-    ops : List[Union[_tensor.Tensor, tvm.tirx.Var]]
+    ops : List[Union[_tensor.Tensor, tvm_tirx.tirx.Var]]
         The source expression.
 
     Example
@@ -555,10 +555,10 @@ def create_function(
 
     .. code-block:: python
 
-        import tvm
+        import tvm, tvm_tirx
         from tvm import te
         from tvm.te import create_function
-        import tvm.script
+        import tvm_tirx.script
 
         A = te.placeholder((128, 128), name="A")
         B = te.placeholder((128, 128), name="B")

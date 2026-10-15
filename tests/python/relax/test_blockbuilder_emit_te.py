@@ -18,14 +18,14 @@
 
 # The tests here depend on tvmscript
 
-import tvm
+import tvm, tvm_tirx
 from tvm import relax as rx
 from tvm import te
-from tvm.ir.base import assert_structural_equal
-from tvm.script import s_tir as Ts
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm_tirx.ir.base import assert_structural_equal
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def test_emit_te_with_symbolic_arg():
@@ -84,7 +84,7 @@ def test_symbolic_shape_in_prim_value():
     def from_builder():
         bb = rx.BlockBuilder()
         A = rx.Var("A", R.Tensor([16, 16], "float32"))
-        relax_i = rx.Var("relax_i", tvm.ir.PrimType("int64"))
+        relax_i = rx.Var("relax_i", tvm_tirx.ir.PrimType("int64"))
 
         with bb.function("main", params=[A, relax_i]):
             A_sliced = bb.emit_te(te_slice, A, relax_i)
@@ -121,4 +121,4 @@ def test_symbolic_shape_in_prim_value():
             )
             return gv
 
-    tvm.ir.assert_structural_equal(from_builder(), Expected)
+    tvm_tirx.ir.assert_structural_equal(from_builder(), Expected)

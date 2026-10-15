@@ -26,8 +26,8 @@ from typing import Any
 import numpy as np  # type: ignore
 from tvm_ffi import Function, register_global_func
 
-import tvm
-from tvm.runtime import Device, Object
+import tvm, tvm_tirx
+from tvm_tirx.runtime import Device, Object
 
 
 class VMInstrumentReturnKind(IntEnum):
@@ -41,7 +41,7 @@ class VirtualMachine:
 
     def __init__(
         self,
-        rt_mod: tvm.runtime.Module | tvm.runtime.Executable,
+        rt_mod: tvm_tirx.runtime.Module | tvm_tirx.runtime.Executable,
         device: Device | list[Device],
     ) -> None:
         """
@@ -49,14 +49,14 @@ class VirtualMachine:
 
         Parameters
         ----------
-        rt_mod: Union[tvm.runtime.Module, tvm.runtime.Executable]
+        rt_mod: Union[tvm_tirx.runtime.Module, tvm_tirx.runtime.Executable]
             Runtime module exported by the result of build.
 
         device : Union[Device, List[Device]]
             The device to deploy the module.
         """
-        if not isinstance(rt_mod, tvm.runtime.Module):
-            if isinstance(rt_mod, tvm.runtime.Executable):
+        if not isinstance(rt_mod, tvm_tirx.runtime.Module):
+            if isinstance(rt_mod, tvm_tirx.runtime.Executable):
                 rt_mod = rt_mod.jit()
             else:
                 raise ValueError("Expect the rt_mod to be an runtime.Module")
@@ -77,13 +77,13 @@ class VirtualMachine:
         """Initialize devices and owning tensor pools."""
         devs = dev
         if not isinstance(dev, list | tuple):
-            if not isinstance(dev, tvm.runtime.Device):
+            if not isinstance(dev, tvm_tirx.runtime.Device):
                 raise TypeError("dev is expected to be Device or List[Device]")
             devs = [dev]
 
         # CPU is required for executing shape functions
-        if devs[-1].dlpack_device_type() != tvm.cpu().dlpack_device_type():
-            devs.append(tvm.cpu())
+        if devs[-1].dlpack_device_type() != tvm_tirx.cpu().dlpack_device_type():
+            devs.append(tvm_tirx.cpu())
 
         init_args = []
         for device in devs:
@@ -102,7 +102,7 @@ class VirtualMachine:
         closure : Object
             The VMClosure Object.
 
-        args : list[tvm.runtime.Tensor] or list[np.ndarray]
+        args : list[tvm_tirx.runtime.Tensor] or list[np.ndarray]
             The arguments to the closure.
 
         Returns
@@ -174,9 +174,9 @@ class VirtualMachine:
         if isinstance(arg, Object):
             cargs.append(arg)
         elif isinstance(arg, np.ndarray):
-            nd_arr = tvm.runtime.tensor(arg, device=tvm.cpu(0))
+            nd_arr = tvm_tirx.runtime.tensor(arg, device=tvm_tirx.cpu(0))
             cargs.append(nd_arr)
-        elif isinstance(arg, tvm.runtime.Tensor):
+        elif isinstance(arg, tvm_tirx.runtime.Tensor):
             cargs.append(arg)
         elif isinstance(arg, tuple | list):
             field_args: list[Any] = []
@@ -185,7 +185,7 @@ class VirtualMachine:
             cargs.append(tuple(field_args))
         elif isinstance(arg, Number | bool):
             dtype = _gettype(arg)
-            value = tvm.runtime.tensor(np.array(arg, dtype=dtype), device=tvm.cpu(0))
+            value = tvm_tirx.runtime.tensor(np.array(arg, dtype=dtype), device=tvm_tirx.cpu(0))
             cargs.append(value)
         elif isinstance(arg, str):
             cargs.append(arg)
@@ -231,9 +231,9 @@ class VirtualMachine:
         ----------
         func_name : str
             The name of the function.
-        args: List[tvm.runtime.Tensor] or List[np.ndarray]
+        args: List[tvm_tirx.runtime.Tensor] or List[np.ndarray]
             The arguments to the function.
-        kwargs: dict of str to tvm.runtime.Tensor or np.ndarray
+        kwargs: dict of str to tvm_tirx.runtime.Tensor or np.ndarray
             Named arguments to the function.
         """
         cargs: list[Any] = []
@@ -262,7 +262,7 @@ class VirtualMachine:
         """
         self._invoke_stateful(func_name)
 
-    def get_outputs(self, func_name: str) -> tvm.Object | tuple[Any]:
+    def get_outputs(self, func_name: str) -> tvm_tirx.Object | tuple[Any]:
         """
         Get the value output by the function by the given name
         after a call of `invoke_stateful`.
@@ -276,7 +276,7 @@ class VirtualMachine:
 
         Returns
         -------
-        ret: Union[tvm.Object, Tuple[Any]]
+        ret: Union[tvm_tirx.Object, Tuple[Any]]
             The result of the earlier call to the function via `invoke_stateful`.
             If the result is a tuple, it returns a list of the fields.
             The fields are potentially also tuples, so these can be arbitrily nested.
@@ -343,10 +343,10 @@ class VirtualMachine:
         cooldown_interval_ms: int = 0,
         repeats_to_cooldown: int = 1,
         f_preproc: str = "",
-    ) -> Callable[..., tvm.runtime.module.BenchmarkResult]:
+    ) -> Callable[..., tvm_tirx.runtime.module.BenchmarkResult]:
         """
         Returns an evaluator that times a function in the module.
-        This follows the same convention as time_evaluator in tvm.runtime.module.
+        This follows the same convention as time_evaluator in tvm_tirx.runtime.module.
         This can be used in combination with save_function() so that the
         timings avoid extra dictionary lookups.
 
@@ -398,31 +398,31 @@ class VirtualMachine:
 
         .. code-block:: python
 
-            target = tvm.target.Target("llvm", host="llvm")
+            target = tvm_tirx.target.Target("llvm", host="llvm")
             ex = tvm.compile(TestTimeEvaluator, target)
-            vm = relax.VirtualMachine(mod, tvm.cpu())
-            timing_res = vm.time_evaluator("func_name", tvm.cpu())(arg0, arg1, ..., argn)
+            vm = relax.VirtualMachine(mod, tvm_tirx.cpu())
+            timing_res = vm.time_evaluator("func_name", tvm_tirx.cpu())(arg0, arg1, ..., argn)
 
         Use with the stateful API:
 
         .. code-block:: python
 
-            target = tvm.target.Target("llvm", host="llvm")
+            target = tvm_tirx.target.Target("llvm", host="llvm")
             ex = tvm.compile(TestTimeEvaluator, target)
-            vm = relax.VirtualMachine(mod, tvm.cpu())
+            vm = relax.VirtualMachine(mod, tvm_tirx.cpu())
             vm.set_input("func_name", arg0, arg1, ..., argn)
-            timing_res = vm.time_evaluator("invoke_stateful", tvm.cpu())("func_name")
+            timing_res = vm.time_evaluator("invoke_stateful", tvm_tirx.cpu())("func_name")
 
         With saved closures via `save_function` (this results in
         fewer dictionary lookups in the timed portion):
 
         .. code-block:: python
 
-            target = tvm.target.Target("llvm", host="llvm")
+            target = tvm_tirx.target.Target("llvm", host="llvm")
             ex = tvm.compile(TestTimeEvaluator, target)
-            vm = relax.VirtualMachine(mod, tvm.cpu())
+            vm = relax.VirtualMachine(mod, tvm_tirx.cpu())
             vm.save_function("func_name", "func_name_saved", arg0, arg1, ..., argn)
-            timing_res = vm.time_evaluator("func_name_saved", tvm.cpu())()
+            timing_res = vm.time_evaluator("func_name_saved", tvm_tirx.cpu())()
 
         Returns
         -------

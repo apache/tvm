@@ -17,7 +17,7 @@
 # ruff: noqa: E741, F401, F841
 import json
 
-import tvm
+import tvm, tvm_tirx
 from tvm import te
 
 
@@ -59,7 +59,7 @@ def test_with():
     assert "hello" in C.op.attrs
     assert "xx" not in C.op.attrs
     assert C.op.attrs["hello"] == 1
-    CC = tvm.ir.load_json(tvm.ir.save_json(C))
+    CC = tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(C))
     assert CC.op.attrs["hello"] == 1
     assert len(CC.op.attrs["arr"]) == 2
     assert CC.op.attrs["arr"][0] == 10

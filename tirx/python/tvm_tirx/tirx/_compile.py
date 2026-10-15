@@ -20,12 +20,12 @@
 
 from tvm_ffi import DLDeviceType
 
-import tvm
-from tvm import ir
-from tvm.ir.module import IRModule
-from tvm.runtime import Executable
-from tvm.target import Target
-from tvm.tirx import Function
+import tvm_tirx
+from tvm_tirx import ir
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.runtime import Executable
+from tvm_tirx.target import Target
+from tvm_tirx.tirx import Function
 
 
 def _split_host_device_modules(
@@ -39,7 +39,7 @@ def _split_host_device_modules(
 
     Parameters
     ----------
-    mod : tvm.IRModule
+    mod : tvm_tirx.IRModule
         The input module to split.
         The module should contain functions with target attributes in their func_attr.
         Functions with "cpu" in their target string are considered host functions,
@@ -47,9 +47,9 @@ def _split_host_device_modules(
 
     Returns
     -------
-    host_mod : tvm.IRModule
+    host_mod : tvm_tirx.IRModule
         The module containing host functions (CPU-targeted functions)
-    device_mod_dict : Dict[Tuple[Target, str], tvm.IRModule]
+    device_mod_dict : Dict[Tuple[Target, str], tvm_tirx.IRModule]
         A dict mapping (target, serialized compile configuration) to device modules.
         Functions in each module share both target and compiler settings.
 
@@ -104,11 +104,11 @@ def _split_host_device_modules(
     """
 
     def is_host_function(f):
-        target = f.attrs.get("target", tvm.target.Target("llvm"))
+        target = f.attrs.get("target", tvm_tirx.target.Target("llvm"))
         return target.kind.name in ["llvm", "c", "cuda_host"]
 
-    host_mod = tvm.tirx.transform.Filter(is_host_function)(mod)
-    device_mod = tvm.tirx.transform.Filter(lambda f: not is_host_function(f))(mod)
+    host_mod = tvm_tirx.tirx.transform.Filter(is_host_function)(mod)
+    device_mod = tvm_tirx.tirx.transform.Filter(lambda f: not is_host_function(f))(mod)
     # Options participate in grouping even when two kernels share a Target.
     groups = {}
     for gv, func in device_mod.functions.items():
@@ -120,7 +120,7 @@ def _split_host_device_modules(
         groups[key][1][gv] = func
     device_mod_dict = {}
     for (_, config), (target, functions) in groups.items():
-        group = tvm.IRModule(
+        group = tvm_tirx.IRModule(
             functions, attrs=device_mod.attrs, global_infos=device_mod.global_infos
         )
         if config:
@@ -129,12 +129,12 @@ def _split_host_device_modules(
     return host_mod, device_mod_dict
 
 
-def _build_for_target(mod: IRModule, target: Target) -> tvm.runtime.Module:
+def _build_for_target(mod: IRModule, target: Target) -> tvm_tirx.runtime.Module:
     """Build a runtime module from an IRModule and a Target."""
-    if tvm.ir.transform.PassContext.current().config.get("tirx.disable_assert", False):
-        mod = tvm.tirx.transform.SkipAssert()(mod)
+    if tvm_tirx.ir.transform.PassContext.current().config.get("tirx.disable_assert", False):
+        mod = tvm_tirx.tirx.transform.SkipAssert()(mod)
     build_f_name = "target.build." + target.kind.name
-    bf = tvm.get_global_func(build_f_name)
+    bf = tvm_tirx.get_global_func(build_f_name)
     if bf is None:
         raise ValueError(f"{build_f_name} is not enabled")
     return bf(mod, target)
@@ -142,7 +142,7 @@ def _build_for_target(mod: IRModule, target: Target) -> tvm.runtime.Module:
 
 def _codegen_host_and_device(
     host_mod: IRModule, device_mod_dict: dict[tuple[Target, str], IRModule], target_host: Target
-) -> tvm.runtime.Module:
+) -> tvm_tirx.runtime.Module:
     """Compile each device group and attach it to the host runtime module."""
 
     # Get the first module to get the attributes
@@ -165,7 +165,7 @@ def _codegen_host_and_device(
 def compile(  # pylint: disable=redefined-builtin
     mod: Function | IRModule,
     target: str | Target | None = None,
-    pipeline: str | tvm.ir.transform.Pass | None = "default",
+    pipeline: str | tvm_tirx.ir.transform.Pass | None = "default",
 ) -> Executable:
     """Compile a function or module to an executable for the target.
 
@@ -175,21 +175,21 @@ def compile(  # pylint: disable=redefined-builtin
         The input to be compiled.
     target : Optional[Union[str, Target]]
         The target for compilation, including backend configuration defaults.
-    pipeline : Union[None, str, tvm.ir.transform.Pass]
+    pipeline : Union[None, str, tvm_tirx.ir.transform.Pass]
         The pipeline to use for compilation.
 
     Returns
     -------
-    tvm.runtime.Executable
+    tvm_tirx.runtime.Executable
         An executable combining both host and device code.
     """
     # Convert Function to IRModule
     if isinstance(mod, Function):
-        mod = tvm.IRModule.from_expr(mod)
+        mod = tvm_tirx.IRModule.from_expr(mod)
     else:
-        assert isinstance(mod, tvm.IRModule)
+        assert isinstance(mod, tvm_tirx.IRModule)
 
-    from tvm.backend.config import prepare_target
+    from tvm_tirx.backend.config import prepare_target
 
     target = prepare_target(target, mod)
 
@@ -213,7 +213,7 @@ def compile(  # pylint: disable=redefined-builtin
         target = Target(target)
 
     # Step 2: Determine the host target
-    target_host = "llvm" if tvm.runtime.enabled("llvm") else "c"
+    target_host = "llvm" if tvm_tirx.runtime.enabled("llvm") else "c"
     if target is not None:
         if target.host is not None:
             target_host = target.host
@@ -227,12 +227,12 @@ def compile(  # pylint: disable=redefined-builtin
     if pipeline not in (None, "default"):
         # custom pipeline
         assert isinstance(pipeline, str)
-        pipeline, finalize_host_passes, finalize_device_passes = tvm.tirx.get_tir_pipeline(
+        pipeline, finalize_host_passes, finalize_device_passes = tvm_tirx.tirx.get_tir_pipeline(
             pipeline, target=target_to_bind
         )
     else:
         # default pipeline depends on the target
-        pipeline, finalize_host_passes, finalize_device_passes = tvm.tirx.get_default_tir_pipeline(
+        pipeline, finalize_host_passes, finalize_device_passes = tvm_tirx.tirx.get_default_tir_pipeline(
             target, mod, target_to_bind=target_to_bind
         )
     mod = pipeline(mod)
@@ -252,4 +252,4 @@ def compile(  # pylint: disable=redefined-builtin
 
 
 # C++ compiler consumers link the generated runtime module directly.
-tvm.register_global_func("tirx.compile", lambda *args, **kwargs: compile(*args, **kwargs).mod)
+tvm_tirx.register_global_func("tirx.compile", lambda *args, **kwargs: compile(*args, **kwargs).mod)

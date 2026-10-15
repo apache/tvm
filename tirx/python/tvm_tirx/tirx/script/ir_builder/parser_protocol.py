@@ -19,7 +19,7 @@
 Hooks construct native frames and statements using this dialect's IR and operations.
 For example, generated ``X.if_(condition)`` creates the native conditional frame;
 ``X.then_()`` and ``X.else_()`` enter its branches. See the corresponding shared
-``tvm.script.ir_builder.parser_protocol`` hooks for operand and loc contracts.
+``tvm_tirx.script.ir_builder.parser_protocol`` hooks for operand and loc contracts.
 """
 
 from __future__ import annotations
@@ -28,64 +28,64 @@ import builtins as _python
 from collections.abc import Sequence
 from typing import Any
 
-import tvm
+import tvm_tirx
 
 # isort: off
 # isort: on
-from tvm import ir as _ir
-from tvm import tirx as _tir
-from tvm.ir import is_prim_expr
-from tvm.ir.type import _PrimTypeArrayAnnotation
-from tvm.script.ir_builder import base as _base
-from tvm.script.ir_builder.base import AlreadyEmitted
-from tvm.script.ir_builder.base import IRBuilder as _IRBuilder
-from tvm.script.ir_builder.stmt import (
+from tvm_tirx import ir as _ir
+from tvm_tirx import tirx as _tir
+from tvm_tirx.ir import is_prim_expr
+from tvm_tirx.ir.type import _PrimTypeArrayAnnotation
+from tvm_tirx.script.ir_builder import base as _base
+from tvm_tirx.script.ir_builder.base import AlreadyEmitted
+from tvm_tirx.script.ir_builder.base import IRBuilder as _IRBuilder
+from tvm_tirx.script.ir_builder.stmt import (
     _enter_concise as _enter_concise,
 )
-from tvm.script.ir_builder.stmt import (
+from tvm_tirx.script.ir_builder.stmt import (
     add_to_parent as add_to_parent,
 )
-from tvm.script.ir_builder.stmt import (
+from tvm_tirx.script.ir_builder.stmt import (
     assert_ as assert_,
 )
-from tvm.script.ir_builder.stmt import (
+from tvm_tirx.script.ir_builder.stmt import (
     bind as _bind,
 )
-from tvm.script.ir_builder.stmt import (
+from tvm_tirx.script.ir_builder.stmt import (
     break_ as break_,
 )
-from tvm.script.ir_builder.stmt import (
+from tvm_tirx.script.ir_builder.stmt import (
     continue_ as continue_,
 )
-from tvm.script.ir_builder.stmt import (
+from tvm_tirx.script.ir_builder.stmt import (
     else_ as else_,
 )
-from tvm.script.ir_builder.stmt import (
+from tvm_tirx.script.ir_builder.stmt import (
     evaluate as evaluate,
 )
-from tvm.script.ir_builder.stmt import (
+from tvm_tirx.script.ir_builder.stmt import (
     grid as grid,
 )
-from tvm.script.ir_builder.stmt import (
+from tvm_tirx.script.ir_builder.stmt import (
     if_ as if_,
 )
-from tvm.script.ir_builder.stmt import (
+from tvm_tirx.script.ir_builder.stmt import (
     region as region,
 )
-from tvm.script.ir_builder.stmt import (
+from tvm_tirx.script.ir_builder.stmt import (
     return_ as return_,
 )
-from tvm.script.ir_builder.stmt import (
+from tvm_tirx.script.ir_builder.stmt import (
     then_ as then_,
 )
-from tvm.script.ir_builder.stmt import (
+from tvm_tirx.script.ir_builder.stmt import (
     unpack_ as unpack_,
 )
-from tvm.script.ir_builder.stmt import (
+from tvm_tirx.script.ir_builder.stmt import (
     while_ as while_,
 )
-from tvm.tirx import Expr
-from tvm.tirx.expr import (
+from tvm_tirx.tirx import Expr
+from tvm_tirx.tirx.expr import (
     IntImm,
 )
 
@@ -144,7 +144,7 @@ def function_(
     decl: bool = False,
     loc: _Loc = None,
 ) -> frame.FunctionFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.function_`.
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.function_`.
 
     Private/persistent options pass to the native TIRx function frame.
     The same frame supports declaration and body entry.
@@ -158,7 +158,7 @@ def function_(
 
 
 def arg_(name: str, annotation: Any, *, loc: _Loc = None) -> _ir.Var:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.arg_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.arg_`."""
     if getattr(annotation, "__tvm_optional_annotation__", None) is not None:
         raise TypeError("T.Optional is only supported by @T.jit")
     if callable(annotation) and not isinstance(annotation, _ir.Expr | _ir.Type):
@@ -169,12 +169,12 @@ def arg_(name: str, annotation: Any, *, loc: _Loc = None) -> _ir.Var:
 
 
 def func_name_(name: str) -> None:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.func_name_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.func_name_`."""
     return _ffi_api.FuncName(name)
 
 
 def func_ret_type_(annotation: Any, *, loc: _Loc = None) -> None:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.func_ret_type_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.func_ret_type_`."""
     annotation = _base._return_annotation(annotation)
     if callable(annotation) and not isinstance(annotation, _ir.Expr | _ir.Type):
         annotation = annotation()
@@ -218,7 +218,7 @@ def _check_module_well_formed(module: _ir.IRModule) -> None:
 
 
 def resolve_global_info_(content: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.resolve_global_info_`.
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.resolve_global_info_`.
 
     TIRx does not define global-info selectors.
     """
@@ -226,7 +226,7 @@ def resolve_global_info_(content: Any) -> Any:
 
 
 def call_global_var_(function: _ir.GlobalVar, args: Sequence[Any]) -> _ir.Expr:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.call_global_var_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.call_global_var_`."""
     return _op._call_global(function, *args)
 
 
@@ -254,7 +254,7 @@ def bind_(
     name_loc: _Loc = None,
     frame_value: bool = False,
 ) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.bind_`.
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.bind_`.
 
     Returned Vars, including tensors, and metadata retain identity, names and locs.
     Other expressions create native Bind nodes; value_loc belongs to the RHS.
@@ -320,7 +320,7 @@ def decl_mutable_cell_(
     loc: _Loc = None,
     name_loc: _Loc = None,
 ) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.decl_mutable_cell_`.
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.decl_mutable_cell_`.
 
     Primitive annotations allocate scalar local storage; vector annotations
     allocate their declared shape. Var declaration producers retain their own effects.
@@ -355,8 +355,8 @@ def decl_mutable_cell_(
 
 def set_mutable_cell_(
     target: _ir.TensorLoad | _ir.Var, value: Any, *, loc: _Loc = None
-) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.set_mutable_cell_`.
+) -> _base.AlreadyEmitted[tvm_tirx.ir.Stmt]:
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.set_mutable_cell_`.
 
     Updates emit a scalar tensor store. Targets must denote scalar storage.
     """
@@ -374,7 +374,7 @@ def set_mutable_cell_(
 
 
 def emit_(value: Any, *, loc: _Loc = None) -> None:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.emit_`.
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.emit_`.
 
     Native statements emit once; receipts are already emitted. Vars, layouts
     and meta_class instances are inert. Sequences are consumed
@@ -399,7 +399,7 @@ def emit_(value: Any, *, loc: _Loc = None) -> None:
     elif hasattr(value, "frames"):
         for frame in value.frames:
             _enter_concise(_base.at_(loc, frame))
-    elif isinstance(value, tvm.ir.Stmt):
+    elif isinstance(value, tvm_tirx.ir.Stmt):
         add_to_parent(_base.at_(loc, value))
     else:
         # Native conversion owns Python literals; annotate the exact expression
@@ -411,15 +411,15 @@ def emit_(value: Any, *, loc: _Loc = None) -> None:
 
 def setitem_(
     target: Any, key: Any, value: Any, *, loc: _Loc = None
-) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.setitem_`."""
+) -> _base.AlreadyEmitted[tvm_tirx.ir.Stmt]:
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.setitem_`."""
     return _base.at_(loc, tensor_store(target, key, value))
 
 
 def setattr_(
     target: Any, name: str, value: Any, *, loc: _Loc = None
-) -> _base.AlreadyEmitted[tvm.ir.Stmt] | None:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.setattr_`."""
+) -> _base.AlreadyEmitted[tvm_tirx.ir.Stmt] | None:
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.setattr_`."""
     previous = getattr(target, name, _base.MISSING)
     tensor = previous.source if isinstance(previous, _ir.TensorLoad) else previous
     if _tir.is_tensor_var(tensor):
@@ -433,7 +433,7 @@ def tensor_store(
     dest: Expr,
     indices: list[Expr | slice],
     value: Expr,
-) -> AlreadyEmitted[tvm.ir.Stmt]:
+) -> AlreadyEmitted[tvm_tirx.ir.Stmt]:
     """Emit a tensor store and return a receipt for the stored statement.
 
     Parameters
@@ -453,7 +453,7 @@ def tensor_store(
         Receipt for the exact stored statement; consuming it does not emit again.
 
     """
-    from tvm.sym import Analyzer  # pylint: disable=import-outside-toplevel
+    from tvm_tirx.sym import Analyzer  # pylint: disable=import-outside-toplevel
 
     if not isinstance(indices, list | tuple | _ir.Array):
         indices = [indices]
@@ -490,7 +490,7 @@ def tensor_store(
 def for_(
     iterable: Any, *, names: str | Sequence[str] | None = None, loc: _Loc = None
 ) -> frame.ForFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.for_`.
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.for_`.
 
     A single native loop returns its scalar Var; multiple loops return their
     sequence. frame.vars remains the stable sequence for source unpacking.
@@ -504,7 +504,7 @@ def for_(
 
 
 def range_(*args: Any, annotations: dict[str, Any] | None = None) -> frame.ForFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.range_`."""
+    """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.range_`."""
     if len(args) == 1:
         # serial constructs the omitted zero in the stop expression's dtype.
         # A Python zero would promote narrow typed bounds to int32.
@@ -726,7 +726,7 @@ def device_entry(
         raise ValueError("device_entry launch cannot be combined with canonical operands or attrs")
     attributes = dict(attrs) if attrs is not None else {}
     if backend_config is not None:
-        from tvm.backend.config import backend_config_json
+        from tvm_tirx.backend.config import backend_config_json
 
         if "backend_config" in attributes:
             raise ValueError("device_entry backend_config cannot duplicate canonical attrs")
@@ -735,7 +735,7 @@ def device_entry(
         if kernel_attrs is not None:
             raise ValueError("device_entry kernel_attrs require a launch configuration")
         return region("tirx.device_entry", launch_values, attrs=attributes, body_params=body_params)
-    from tvm.backend.cuda.launch._impl import pack_kernel_attrs, pack_launch
+    from tvm_tirx.backend.cuda.launch._impl import pack_kernel_attrs, pack_launch
 
     names, values = pack_launch(launch)
     attributes.update(

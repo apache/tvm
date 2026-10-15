@@ -24,7 +24,7 @@ tiling, and fusion strategies.
 
 from typing import ClassVar
 
-from tvm.ir import Op
+from tvm_tirx.ir import Op
 from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.transform import PatternCheckContext
 

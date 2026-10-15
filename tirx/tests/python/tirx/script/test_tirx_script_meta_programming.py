@@ -21,12 +21,12 @@ from __future__ import annotations
 
 import pytest
 
-import tvm
-import tvm.script
-import tvm.testing
-from tvm.ir import assert_structural_equal
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_meta_class_constructor_rejects_unowned_resource():
@@ -87,7 +87,7 @@ def test_meta_class_multiple_instances_preserve_owned_resources():
 
 
 def from_source(code):
-    return tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+    return tvm_tirx.script.from_source(code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
 
 
 def test_macro():
@@ -167,9 +167,9 @@ def test_list_comprehension():
         acc = T.alloc_local([10], "bool")
         regs = T.meta_var([acc[_] for _ in range(10)])
         T.evaluate(regs[0])
-        T.evaluate(tvm.tirx.all(*regs))
-        T.evaluate(tvm.tirx.all(*[acc[_] for _ in range(10)]))
-        T.evaluate(tvm.tirx.all(*([acc[_] for _ in range(2, 4)] + [acc[_] for _ in range(6, 8)])))
+        T.evaluate(tvm_tirx.tirx.all(*regs))
+        T.evaluate(tvm_tirx.tirx.all(*[acc[_] for _ in range(10)]))
+        T.evaluate(tvm_tirx.tirx.all(*([acc[_] for _ in range(2, 4)] + [acc[_] for _ in range(6, 8)])))
 
     @T.function(private=True)
     def expected():
@@ -268,8 +268,8 @@ def test_function_closure_shape():
     def expected_32(A: T.Tensor((32,), "float32")):
         T.evaluate(0)
 
-    tvm.ir.assert_structural_equal(_normalize(f(16)), _normalize(expected_16))
-    tvm.ir.assert_structural_equal(_normalize(f(32)), _normalize(expected_32))
+    tvm_tirx.ir.assert_structural_equal(_normalize(f(16)), _normalize(expected_16))
+    tvm_tirx.ir.assert_structural_equal(_normalize(f(32)), _normalize(expected_32))
 
 
 def _normalize(func):
@@ -295,8 +295,8 @@ def test_function_closure_dtype():
     def expected_f16(A: T.Tensor((16,), "float16")):
         T.evaluate(0)
 
-    tvm.ir.assert_structural_equal(_normalize(f("float32")), _normalize(expected_f32))
-    tvm.ir.assert_structural_equal(_normalize(f("float16")), _normalize(expected_f16))
+    tvm_tirx.ir.assert_structural_equal(_normalize(f("float32")), _normalize(expected_f32))
+    tvm_tirx.ir.assert_structural_equal(_normalize(f("float16")), _normalize(expected_f16))
 
 
 def test_function_nested_closure():
@@ -326,8 +326,8 @@ def test_function_nested_closure():
     def expected_32_8(A: T.Tensor((32, 8), "float32")):
         T.evaluate(0)
 
-    tvm.ir.assert_structural_equal(_normalize(outer(16)), _normalize(expected_16_8))
-    tvm.ir.assert_structural_equal(_normalize(outer(32)), _normalize(expected_32_8))
+    tvm_tirx.ir.assert_structural_equal(_normalize(outer(16)), _normalize(expected_16_8))
+    tvm_tirx.ir.assert_structural_equal(_normalize(outer(32)), _normalize(expected_32_8))
 
 
 def test_ir_module_closure():
@@ -350,8 +350,8 @@ def test_ir_module_closure():
     def expected_32(A: T.Tensor((32,), "float32")):
         T.evaluate(0)
 
-    tvm.ir.assert_structural_equal(_normalize(f(16)["main"]), _normalize(expected_16))
-    tvm.ir.assert_structural_equal(_normalize(f(32)["main"]), _normalize(expected_32))
+    tvm_tirx.ir.assert_structural_equal(_normalize(f(16)["main"]), _normalize(expected_16))
+    tvm_tirx.ir.assert_structural_equal(_normalize(f(32)["main"]), _normalize(expected_32))
 
 
 def test_mixed_closure_usage():
@@ -372,5 +372,5 @@ def test_mixed_closure_usage():
     def expected_32(A: T.Tensor((32,), "float32")):
         T.evaluate(32)
 
-    tvm.ir.assert_structural_equal(_normalize(f(16)), _normalize(expected_16))
-    tvm.ir.assert_structural_equal(_normalize(f(32)), _normalize(expected_32))
+    tvm_tirx.ir.assert_structural_equal(_normalize(f(16)), _normalize(expected_16))
+    tvm_tirx.ir.assert_structural_equal(_normalize(f(32)), _normalize(expected_32))

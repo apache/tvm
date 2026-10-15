@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from tvm.testing import env
+from tvm_tirx.testing import env
 
 
 def pytest_collection_modifyitems(items):

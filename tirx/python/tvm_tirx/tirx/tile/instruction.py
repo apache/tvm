@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Named tensor instruction contracts over ordinary :class:`tvm.ir.Call`.
+"""Named tensor instruction contracts over ordinary :class:`tvm_tirx.ir.Call`.
 
 The Python views below are transient lowering helpers, not IR nodes. Every
 expression, including optional workspace, remains in the Call's argument list.
@@ -27,7 +27,7 @@ from typing import ClassVar
 
 import tvm_ffi
 
-from tvm.ir import (
+from tvm_tirx.ir import (
     Attrs,
     Call,
     Expr,
@@ -41,10 +41,10 @@ from tvm.ir import (
     const,
     make_node,
 )
-from tvm.ir.location import UNKNOWN_LOC
-from tvm.ir.op import register_op_attr
-from tvm.tirx.expr import IntImm
-from tvm.tirx.thread_scope import ThreadScope
+from tvm_tirx.ir.location import UNKNOWN_LOC
+from tvm_tirx.ir.op import register_op_attr
+from tvm_tirx.tirx.expr import IntImm
+from tvm_tirx.tirx.thread_scope import ThreadScope
 
 _REQUIRED = object()
 SPECS = {}
@@ -188,17 +188,17 @@ class Instruction:
             if arg.role == "region":
                 _region(value)
             elif arg.role == "tensor":
-                from tvm.tirx import is_tensor_var
+                from tvm_tirx.tirx import is_tensor_var
 
                 if not is_tensor_var(value):
                     raise TypeError(f"{arg.name} must be a tensor variable")
             elif arg.role == "address":
-                from tvm.ir import is_prim_expr
+                from tvm_tirx.ir import is_prim_expr
 
                 if not isinstance(value.ty, PtrType) and not is_prim_expr(value):
                     raise TypeError(f"{arg.name} must be a pointer or shared address")
             elif arg.role == "scalar":
-                from tvm.ir import is_prim_expr
+                from tvm_tirx.ir import is_prim_expr
 
                 if not is_prim_expr(value):
                     raise TypeError(f"{arg.name} must be a scalar expression")
@@ -235,7 +235,7 @@ def _static(value):
 
 
 def _region(value):
-    from tvm.tirx import is_tensor_var
+    from tvm_tirx.tirx import is_tensor_var
 
     if is_tensor_var(value):
         return value[tuple(slice(None) for _ in value.ty.shape)]
@@ -251,7 +251,7 @@ def _is_absent(value):
 
 
 def _operand(value, role="expr"):
-    from tvm.tirx import is_tensor_var
+    from tvm_tirx.tirx import is_tensor_var
 
     if value is None or _is_absent(value) or (isinstance(value, tuple | list) and not value):
         return Tuple([])

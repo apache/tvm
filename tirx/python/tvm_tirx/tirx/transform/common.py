@@ -18,9 +18,9 @@
 
 import tvm_ffi
 
-from tvm.ir import Call, Evaluate, Op, Stmt, Var
-from tvm.tirx import Expr, decl_tensor, is_tensor_var
-from tvm.tirx.layout import Iter, TileLayout
+from tvm_tirx.ir import Call, Evaluate, Op, Stmt, Var
+from tvm_tirx.tirx import Expr, decl_tensor, is_tensor_var
+from tvm_tirx.tirx.layout import Iter, TileLayout
 
 
 class TensorReplacer:

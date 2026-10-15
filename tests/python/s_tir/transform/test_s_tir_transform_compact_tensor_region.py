@@ -17,11 +17,12 @@
 # ruff: noqa: E501
 from __future__ import annotations
 
-import tvm
-import tvm.testing
-from tvm import s_tir, tirx
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
+from tvm import s_tir
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 class BaseCompactTest:
@@ -37,17 +38,17 @@ class BaseCompactTest:
         is_lower_order_free = getattr(self, "is_lower_order_free", True)
         is_strict = getattr(self, "is_strict_mode", True)
 
-        before = tvm.IRModule.from_expr(self.before.with_attr("global_symbol", "main"))
-        expected = tvm.IRModule.from_expr(self.expected.with_attr("global_symbol", "main"))
-        simplify = tvm.ir.transform.Sequential(
+        before = tvm_tirx.IRModule.from_expr(self.before.with_attr("global_symbol", "main"))
+        expected = tvm_tirx.IRModule.from_expr(self.expected.with_attr("global_symbol", "main"))
+        simplify = tvm_tirx.ir.transform.Sequential(
             [s_tir.transform.StmtSimplify(), tirx.transform.RemoveNoOp()]
         )
         after = simplify(s_tir.transform.CompactTensorAllocation(is_strict=is_strict)(before))
         expected = simplify(expected)
         try:
-            tvm.ir.assert_structural_equal(after, expected)
+            tvm_tirx.ir.assert_structural_equal(after, expected)
         except ValueError as err:
-            script = tvm.IRModule(
+            script = tvm_tirx.IRModule(
                 {"expected": expected["main"], "after": after["main"], "before": before["main"]}
             ).script()
             raise ValueError(
@@ -64,9 +65,9 @@ class BaseCompactTest:
         lower_after_compact = s_tir.transform.LowerOpaqueBlock()(after)
         lower_after_compact = simplify(lower_after_compact)
         try:
-            tvm.ir.assert_structural_equal(lower_before_compact, lower_after_compact)
+            tvm_tirx.ir.assert_structural_equal(lower_before_compact, lower_after_compact)
         except ValueError as err:
-            script = tvm.IRModule(
+            script = tvm_tirx.IRModule(
                 {
                     "lower_before_compact": lower_before_compact["main"],
                     "lower_after_compact": lower_after_compact["main"],
@@ -1030,8 +1031,8 @@ class TestTileAwareCompaction(BaseCompactTest):
                             C[i_0 * 26 + ax0, j_0 * 26 + ax1] = C_local[ax0, ax1]
 
         # Get partitioned workload to compact
-        mod = tvm.IRModule.from_expr(main)
-        with tvm.ir.transform.PassContext(
+        mod = tvm_tirx.IRModule.from_expr(main)
+        with tvm_tirx.ir.transform.PassContext(
             config={"s_tir.LoopPartition": {"partition_const_loop": True}}
         ):
             mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
@@ -1270,7 +1271,7 @@ def test_loop_var_does_not_escape_compacted_tensor_extent():
             for j in range(length):
                 tmp[j] = A[j]
 
-    after = s_tir.transform.CompactTensorAllocation()(tvm.IRModule.from_expr(before))
+    after = s_tir.transform.CompactTensorAllocation()(tvm_tirx.IRModule.from_expr(before))
     assert s_tir.analysis.verify_well_formed(after)
 
 
@@ -1408,4 +1409,4 @@ class TestSymbolicDiagMaskCase:
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

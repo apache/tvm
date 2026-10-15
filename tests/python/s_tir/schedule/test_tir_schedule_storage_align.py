@@ -18,15 +18,15 @@
 # ruff: noqa: F401
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import tirx
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name
@@ -108,7 +108,7 @@ def element_wise_invalid_annotation(
                     Ts.writes([C[vi_1, vj_1]])
                     C[vi_1, vj_1] = B[vi_1, vj_1] + T.float32(1)
 
-use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
 def test_storage_align(use_block_name):
     func = element_wise
@@ -170,4 +170,4 @@ def test_storage_align_invalid_annotation():
         s.storage_align(B, 0, axis=2, factor=128, offset=127)
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -17,19 +17,20 @@
 # ruff: noqa: F401
 import numpy as np
 
-import tvm
-import tvm.testing
-from tvm import s_tir, tirx
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
+from tvm import s_tir
 from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def _check(original, transformed):
     func = original
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.PlanAndUpdateTensorAllocationLocation()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
 @Ts.function
@@ -453,4 +454,4 @@ def test_reduce_tensor_dominate_reduce_loops():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

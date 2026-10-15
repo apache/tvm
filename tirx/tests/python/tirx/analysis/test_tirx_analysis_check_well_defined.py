@@ -22,10 +22,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_pass_simple():
@@ -40,8 +40,8 @@ def test_pass_simple():
         for i, j in T.grid(128, 128):
             C[i, j] = B[i, j] * 2.0
 
-    assert tvm.tirx.analysis.verify_well_formed(element_wise)
-    assert tvm.tirx.analysis.verify_well_formed(tvm.IRModule.from_expr(element_wise))
+    assert tvm_tirx.tirx.analysis.verify_well_formed(element_wise)
+    assert tvm_tirx.tirx.analysis.verify_well_formed(tvm_tirx.IRModule.from_expr(element_wise))
 
 
 def test_error_for_out_of_scope_usage():
@@ -52,24 +52,24 @@ def test_error_for_out_of_scope_usage():
     the Bind is inside a child scope (e.g., ForNode body) and the
     variable is used outside that scope.
     """
-    i = tvm.tirx.Var("i", "int32")
+    i = tvm_tirx.tirx.Var("i", "int32")
     # Bind i inside a For loop body
-    for_stmt = tvm.ir.For(
-        tvm.tirx.Var("j", "int32"),
+    for_stmt = tvm_tirx.ir.For(
+        tvm_tirx.tirx.Var("j", "int32"),
         0,
         1,
-        tvm.ir.ForKind.DEFAULT,
-        tvm.ir.SeqStmt([tvm.ir.Bind(i, 42), tvm.ir.Evaluate(i)]),
+        tvm_tirx.ir.ForKind.DEFAULT,
+        tvm_tirx.ir.SeqStmt([tvm_tirx.ir.Bind(i, 42), tvm_tirx.ir.Evaluate(i)]),
     )
     # Use i outside the For loop — this is out of scope
-    body = tvm.ir.SeqStmt([for_stmt, tvm.ir.Evaluate(i)])
-    func = tvm.tirx.Function([], body)
+    body = tvm_tirx.ir.SeqStmt([for_stmt, tvm_tirx.ir.Evaluate(i)])
+    func = tvm_tirx.tirx.Function([], body)
 
     with pytest.raises(
-        (ValueError, tvm.error.InternalError),
+        (ValueError, tvm_tirx.error.InternalError),
         match="Invalid use of undefined variable i at .* no longer in-scope.",
     ):
-        tvm.tirx.analysis.verify_well_formed(func)
+        tvm_tirx.tirx.analysis.verify_well_formed(func)
 
 
 def test_error_for_nested_rebind_usage():
@@ -84,10 +84,10 @@ def test_error_for_nested_rebind_usage():
         T.evaluate(i)
 
     with pytest.raises(
-        (ValueError, tvm.error.InternalError),
+        (ValueError, tvm_tirx.error.InternalError),
         match="ill-formed, due to multiple nested definitions of variable i",
     ):
-        tvm.tirx.analysis.verify_well_formed(func)
+        tvm_tirx.tirx.analysis.verify_well_formed(func)
 
 
 def test_error_for_repeated_binding():
@@ -108,9 +108,9 @@ def test_error_for_repeated_binding():
         T.evaluate(i)
 
     with pytest.raises(
-        (ValueError, tvm.error.InternalError), match="multiple nested definitions of variable i"
+        (ValueError, tvm_tirx.error.InternalError), match="multiple nested definitions of variable i"
     ):
-        tvm.tirx.analysis.verify_well_formed(func)
+        tvm_tirx.tirx.analysis.verify_well_formed(func)
 
 
 def test_error_for_cross_function_reuse():
@@ -131,9 +131,9 @@ def test_error_for_cross_function_reuse():
             T.evaluate(i)
 
     with pytest.raises(
-        (ValueError, tvm.error.InternalError), match="multiple definitions of variable i"
+        (ValueError, tvm_tirx.error.InternalError), match="multiple definitions of variable i"
     ):
-        tvm.tirx.analysis.verify_well_formed(mod)
+        tvm_tirx.tirx.analysis.verify_well_formed(mod)
 
 
 def test_sibling_launch_bindings_are_well_formed():
@@ -147,7 +147,7 @@ def test_sibling_launch_bindings_are_well_formed():
         with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
             A[threadIdx_x] = A[threadIdx_x] + 2.0
 
-    tvm.tirx.analysis.verify_well_formed(func)
+    tvm_tirx.tirx.analysis.verify_well_formed(func)
 
 
 def test_reuse_of_region_parameter_across_functions_is_ill_formed():
@@ -161,7 +161,7 @@ def test_reuse_of_region_parameter_across_functions_is_ill_formed():
         def kernel_1(A: T.Tensor([256], "float32")):
             T.region(
                 "tirx.launch_thread",
-                [tvm.ir.StringImm("threadIdx.x"), 256],
+                [tvm_tirx.ir.StringImm("threadIdx.x"), 256],
                 body_params=[threadIdx_x],
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
@@ -170,15 +170,15 @@ def test_reuse_of_region_parameter_across_functions_is_ill_formed():
         def kernel_2(A: T.Tensor([256], "float32")):
             T.region(
                 "tirx.launch_thread",
-                [tvm.ir.StringImm("threadIdx.x"), 256],
+                [tvm_tirx.ir.StringImm("threadIdx.x"), 256],
                 body_params=[threadIdx_x],
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
     with pytest.raises(
-        (ValueError, tvm.error.InternalError), match="multiple definitions of variable threadIdx_x"
+        (ValueError, tvm_tirx.error.InternalError), match="multiple definitions of variable threadIdx_x"
     ):
-        tvm.tirx.analysis.verify_well_formed(mod)
+        tvm_tirx.tirx.analysis.verify_well_formed(mod)
 
 
 def test_multiple_tensor_arguments_may_share_allocation():
@@ -195,7 +195,7 @@ def test_multiple_tensor_arguments_may_share_allocation():
         def func(A: T.Tensor([256], "float32"), B: T.Tensor([256], "float32", data=A.data)):  # noqa: F821
             pass
 
-    tvm.tirx.analysis.verify_well_formed(mod)
+    tvm_tirx.tirx.analysis.verify_well_formed(mod)
 
 
 def test_error_message_without_previous_definition_location():
@@ -220,8 +220,8 @@ def test_error_message_without_previous_definition_location():
         T.bind(99, var=x)  # This should trigger the error
         T.evaluate(x)
 
-    with pytest.raises((ValueError, tvm.error.InternalError)) as exc_info:
-        tvm.tirx.analysis.verify_well_formed(func, assert_mode=True)
+    with pytest.raises((ValueError, tvm_tirx.error.InternalError)) as exc_info:
+        tvm_tirx.tirx.analysis.verify_well_formed(func, assert_mode=True)
 
     error_msg = str(exc_info.value)
 
@@ -245,8 +245,8 @@ def test_error_message_with_previous_definition_location():
         T.bind(99, var=x)  # This should trigger the error
         T.evaluate(x)
 
-    with pytest.raises((ValueError, tvm.error.InternalError)) as exc_info:
-        tvm.tirx.analysis.verify_well_formed(func, assert_mode=True)
+    with pytest.raises((ValueError, tvm_tirx.error.InternalError)) as exc_info:
+        tvm_tirx.tirx.analysis.verify_well_formed(func, assert_mode=True)
 
     error_msg = str(exc_info.value)
 
@@ -276,8 +276,8 @@ def test_sequential_redefinition_with_location():
         T.bind(2, var=x)  # This should trigger the error
         T.evaluate(x)
 
-    with pytest.raises((ValueError, tvm.error.InternalError)) as exc_info:
-        tvm.tirx.analysis.verify_well_formed(func, assert_mode=True)
+    with pytest.raises((ValueError, tvm_tirx.error.InternalError)) as exc_info:
+        tvm_tirx.tirx.analysis.verify_well_formed(func, assert_mode=True)
 
     error_msg = str(exc_info.value)
 
@@ -295,7 +295,7 @@ def test_tensor_param_is_well_formed():
         for i in T.grid(128):
             B[i] = A[i] * 2.0
 
-    tvm.tirx.analysis.verify_well_formed(func)
+    tvm_tirx.tirx.analysis.verify_well_formed(func)
 
 
 def test_decl_tensor_is_well_formed():
@@ -307,7 +307,7 @@ def test_decl_tensor_is_well_formed():
         for i in T.grid(128):
             B[i] = A[i] * 2.0
 
-    tvm.tirx.analysis.verify_well_formed(func)
+    tvm_tirx.tirx.analysis.verify_well_formed(func)
 
 
 def test_alloc_tensor_is_well_formed():
@@ -321,7 +321,7 @@ def test_alloc_tensor_is_well_formed():
             for i in T.grid(128):
                 B[i] = A[i] * 2.0
 
-    tvm.tirx.analysis.verify_well_formed(mod)
+    tvm_tirx.tirx.analysis.verify_well_formed(mod)
 
 
 def test_tensor_load_asserted_type_matches_source_and_indices():
@@ -330,11 +330,11 @@ def test_tensor_load_asserted_type_matches_source_and_indices():
         tensor = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32")])
         T.evaluate(tensor[0])
 
-    serialized = tvm.ir.save_json(func)
-    round_tripped = tvm.ir.load_json(serialized)
-    assert tvm.tirx.analysis.verify_well_formed(round_tripped, assert_mode=False)
+    serialized = tvm_tirx.ir.save_json(func)
+    round_tripped = tvm_tirx.ir.load_json(serialized)
+    assert tvm_tirx.tirx.analysis.verify_well_formed(round_tripped, assert_mode=False)
     with ThreadPoolExecutor(max_workers=1) as executor:
-        assert executor.submit(tvm.tirx.analysis.verify_well_formed, func, False).result()
+        assert executor.submit(tvm_tirx.tirx.analysis.verify_well_formed, func, False).result()
 
     graph = json.loads(serialized)
     load = next(node for node in graph["nodes"] if node["type"] == "ir.TensorLoad")
@@ -344,63 +344,63 @@ def test_tensor_load_asserted_type_matches_source_and_indices():
         if node["type"] == "ir.PrimType" and node["data"]["dtype"] == "int32"
     )
     load["data"]["ty"] = int32_type_index
-    malformed = tvm.ir.load_json(json.dumps(graph))
+    malformed = tvm_tirx.ir.load_json(json.dumps(graph))
 
-    assert not tvm.tirx.analysis.verify_well_formed(malformed, assert_mode=False)
-    with pytest.raises(tvm.error.InternalError, match="asserts result type"):
-        tvm.tirx.analysis.verify_well_formed(malformed)
+    assert not tvm_tirx.tirx.analysis.verify_well_formed(malformed, assert_mode=False)
+    with pytest.raises(tvm_tirx.error.InternalError, match="asserts result type"):
+        tvm_tirx.tirx.analysis.verify_well_formed(malformed)
 
 
 def test_tensor_load_malformed_indices_return_false_without_asserting():
-    tensor = tvm.tirx.decl_tensor((4, 4), "float32")
-    vector_index = tvm.tirx.Ramp(0, 1, 4)
-    load = tvm.tirx.TensorLoad(tensor, [0, vector_index])
-    func = tvm.tirx.Function([tensor], tvm.ir.Evaluate(load))
+    tensor = tvm_tirx.tirx.decl_tensor((4, 4), "float32")
+    vector_index = tvm_tirx.tirx.Ramp(0, 1, 4)
+    load = tvm_tirx.tirx.TensorLoad(tensor, [0, vector_index])
+    func = tvm_tirx.tirx.Function([tensor], tvm_tirx.ir.Evaluate(load))
 
-    graph = json.loads(tvm.ir.save_json(func))
+    graph = json.loads(tvm_tirx.ir.save_json(func))
     load_node = next(node for node in graph["nodes"] if node["type"] == "ir.TensorLoad")
     indices = graph["nodes"][load_node["data"]["indices"]]["data"]
 
     rank_mismatch_graph = json.loads(json.dumps(graph))
     rank_mismatch_indices = rank_mismatch_graph["nodes"][load_node["data"]["indices"]]["data"]
     rank_mismatch_indices.pop()
-    rank_mismatch = tvm.ir.load_json(json.dumps(rank_mismatch_graph))
-    assert not tvm.tirx.analysis.verify_well_formed(rank_mismatch, assert_mode=False)
-    with pytest.raises(tvm.error.InternalError, match="indexes 2-dimensional tensor"):
-        tvm.tirx.analysis.verify_well_formed(rank_mismatch)
+    rank_mismatch = tvm_tirx.ir.load_json(json.dumps(rank_mismatch_graph))
+    assert not tvm_tirx.tirx.analysis.verify_well_formed(rank_mismatch, assert_mode=False)
+    with pytest.raises(tvm_tirx.error.InternalError, match="indexes 2-dimensional tensor"):
+        tvm_tirx.tirx.analysis.verify_well_formed(rank_mismatch)
 
     indices[0], indices[1] = indices[1], indices[0]
-    non_final_vector = tvm.ir.load_json(json.dumps(graph))
-    assert not tvm.tirx.analysis.verify_well_formed(non_final_vector, assert_mode=False)
-    with pytest.raises(tvm.error.InternalError, match="only the final index"):
-        tvm.tirx.analysis.verify_well_formed(non_final_vector)
+    non_final_vector = tvm_tirx.ir.load_json(json.dumps(graph))
+    assert not tvm_tirx.tirx.analysis.verify_well_formed(non_final_vector, assert_mode=False)
+    with pytest.raises(tvm_tirx.error.InternalError, match="only the final index"):
+        tvm_tirx.tirx.analysis.verify_well_formed(non_final_vector)
 
 
 def test_verify_unique_definitions():
-    x = tvm.tirx.Var("x", "int32")
-    y = tvm.tirx.Var("tindex", "int32")
-    z = tvm.ir.Evaluate(x + y)
-    assert tvm.tirx.analysis.verify_well_formed(tvm.tirx.Function([x, y], z))
+    x = tvm_tirx.tirx.Var("x", "int32")
+    y = tvm_tirx.tirx.Var("tindex", "int32")
+    z = tvm_tirx.ir.Evaluate(x + y)
+    assert tvm_tirx.tirx.analysis.verify_well_formed(tvm_tirx.tirx.Function([x, y], z))
 
-    assert not tvm.tirx.analysis.verify_well_formed(
-        tvm.tirx.Function([x, y], tvm.ir.SeqStmt([tvm.ir.Bind(x, 1), z])),
+    assert not tvm_tirx.tirx.analysis.verify_well_formed(
+        tvm_tirx.tirx.Function([x, y], tvm_tirx.ir.SeqStmt([tvm_tirx.ir.Bind(x, 1), z])),
         assert_mode=False,
     )
 
 
 def test_verify_repeated_let_definitions():
-    x = tvm.tirx.Var("x", "int32")
-    z1 = tvm.tirx.Let(x, 1, x + 1)
-    z2 = tvm.tirx.Let(x, 2, x + 2)
+    x = tvm_tirx.tirx.Var("x", "int32")
+    z1 = tvm_tirx.tirx.Let(x, 1, x + 1)
+    z2 = tvm_tirx.tirx.Let(x, 2, x + 2)
 
     # Each occurrence must define a distinct variable, even for a shared Let.
-    assert not tvm.tirx.analysis.verify_well_formed(
-        tvm.tirx.Function([], tvm.ir.Evaluate(z1 + z1)), assert_mode=False
+    assert not tvm_tirx.tirx.analysis.verify_well_formed(
+        tvm_tirx.tirx.Function([], tvm_tirx.ir.Evaluate(z1 + z1)), assert_mode=False
     )
-    assert not tvm.tirx.analysis.verify_well_formed(
-        tvm.tirx.Function([], tvm.ir.Evaluate(z1 * z2)), assert_mode=False
+    assert not tvm_tirx.tirx.analysis.verify_well_formed(
+        tvm_tirx.tirx.Function([], tvm_tirx.ir.Evaluate(z1 * z2)), assert_mode=False
     )
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

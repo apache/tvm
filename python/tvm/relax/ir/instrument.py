@@ -16,11 +16,11 @@
 # under the License.
 """Common relax pass instrumentation across IR variants."""
 
-import tvm
+import tvm, tvm_tirx
 from tvm import relax
 
 
-@tvm.ir.transform.pass_instrument
+@tvm_tirx.ir.transform.pass_instrument
 class WellFormedInstrument:
     """An instrument that checks the input/output IRModule of the Pass
     is well formed. It will skip specific passes, like Normalize.

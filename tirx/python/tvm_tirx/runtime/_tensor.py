@@ -32,7 +32,7 @@ except ImportError:
 import tvm_ffi
 from tvm_ffi import DLDeviceType, device
 
-from tvm.runtime import Device
+from tvm_tirx.runtime import Device
 
 from . import _ffi_api
 
@@ -153,7 +153,7 @@ class Tensor(tvm_ffi.core.Tensor):
         # exception safety handling for chandle=None
         if self.__chandle__() == 0:
             return type(self).__name__ + "(chandle=None)"
-        res = f"<tvm.runtime.Tensor shape={self.shape}, {self.device}>\n"
+        res = f"<tvm_tirx.runtime.Tensor shape={self.shape}, {self.device}>\n"
         res += self.numpy().__repr__()
         return res
 
@@ -228,7 +228,7 @@ class Tensor(tvm_ffi.core.Tensor):
         target : Tensor
             The target array to be copied, must have same shape as this array.
 
-        mem_scope : Optional[str or tvm.runtime.MemoryScope]
+        mem_scope : Optional[str or tvm_tirx.runtime.MemoryScope]
             The memory scope of the array.
         """
         if isinstance(target, Tensor):
@@ -305,12 +305,12 @@ def empty(shape, dtype="float32", device=None, mem_scope=None):
     device : Device
         The device of the array.
 
-    mem_scope : Optional[str or tvm.runtime.MemoryScope]
+    mem_scope : Optional[str or tvm_tirx.runtime.MemoryScope]
         The memory scope of the array.
 
     Returns
     -------
-    arr : tvm.runtime.Tensor
+    arr : tvm_tirx.runtime.Tensor
         The array tvm supported.
     """
     device = device or cpu()
@@ -332,7 +332,7 @@ def tensor(arr, device=None, mem_scope=None):
     device : Device, optional
         The device to create the array
 
-    mem_scope : Optional[str or tvm.runtime.MemoryScope]
+    mem_scope : Optional[str or tvm_tirx.runtime.MemoryScope]
         The memory scope of the array
 
     Returns

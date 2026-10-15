@@ -17,7 +17,7 @@
 # ruff: noqa: F821
 """Adding member operators to nn.Tensor."""
 
-from tvm import tirx
+from tvm_tirx import tirx
 
 
 def _op():

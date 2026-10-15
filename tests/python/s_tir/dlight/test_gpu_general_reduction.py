@@ -17,14 +17,14 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: E501, F841
 
-import tvm
-import tvm.testing
-from tvm.ir import IRModule, assert_structural_equal
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx.ir import IRModule, assert_structural_equal
 from tvm.s_tir import dlight as dl
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def _check(mod_before: IRModule, mod_after: IRModule):
@@ -85,8 +85,8 @@ def test_scalar_argmin_reduction_value_scope():
             )(_make_scalar_argmin(length))
 
         index_temp, value_temp = mod["main"].body[0].block.alloc_tensors
-        assert index_temp.scope() == tvm.runtime.MemoryScope("global")
-        assert value_temp.scope() == tvm.runtime.MemoryScope(expected_scope)
+        assert index_temp.scope() == tvm_tirx.runtime.MemoryScope("global")
+        assert value_temp.scope() == tvm_tirx.runtime.MemoryScope(expected_scope)
 
 
 def test_softmax_1():
@@ -761,4 +761,4 @@ def test_logsumexp():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

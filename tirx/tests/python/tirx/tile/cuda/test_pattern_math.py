@@ -20,11 +20,11 @@
 import numpy as np
 import pytest
 
-import tvm
-from tvm.backend.cuda.axis import laneid, warpid
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.layout import S, TileLayout
+import tvm_tirx
+from tvm_tirx.backend.cuda.axis import laneid, warpid
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx.layout import S, TileLayout
 
 
 @pytest.mark.skipif(not env.has_cuda(), reason="CUDA required")
@@ -55,10 +55,10 @@ def test_ewise_composite(operation):
         T.cuda.tile.ewise(scalar, r, r, T.float32(2), T.float32(3), scope="cta")
         T.cuda.tile.apply(T.ptx["st.global.f32"], Output, r, scope="cta")
 
-    f = tvm.tirx.compile(kernel, target="cuda", pipeline="tirx")
+    f = tvm_tirx.tirx.compile(kernel, target="cuda", pipeline="tirx")
     x = np.linspace(0.1, 2, 448, dtype="float32").reshape(2, 32, 7, 1)
-    out = tvm.runtime.tensor(np.zeros_like(x), tvm.cuda())
-    f(tvm.runtime.tensor(x, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros_like(x), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(x, tvm_tirx.cuda()), out)
     operation = {
         "exp": np.exp,
         "silu": lambda x: x / (1 + np.exp(-x)),
@@ -75,7 +75,7 @@ def test_ewise_composite(operation):
 )
 @pytest.mark.parametrize("opcode,kind", [("add", "binary"), ("mul", "binary"), ("fma", "ternary")])
 def test_native_packed(dtype, suffix, opcode, kind):
-    bits = tvm.DataType(dtype).bits * 2
+    bits = tvm_tirx.DataType(dtype).bits * 2
     storage = "uint" + str(bits)
     instruction = f"{opcode}.rn.{suffix}"
 
@@ -96,13 +96,13 @@ def test_native_packed(dtype, suffix, opcode, kind):
             T.cuda.tile.apply(T.ptx[instruction], a, a, b)
         T.cuda.tile.apply(T.ptx[f"st.global.b{bits}"], Output, a)
 
-    f = tvm.tirx.compile(kernel, target="cuda", pipeline="tirx")
+    f = tvm_tirx.tirx.compile(kernel, target="cuda", pipeline="tirx")
     x = np.arange(16, dtype="float32").reshape(8, 2).astype(dtype)
     y = np.full((8, 2), 2, dtype=dtype)
     a = np.ascontiguousarray(x).view(storage)
     b = np.ascontiguousarray(y).view(storage)
-    out = tvm.runtime.tensor(np.zeros_like(a), tvm.cuda())
-    f(tvm.runtime.tensor(a, tvm.cuda()), tvm.runtime.tensor(b, tvm.cuda()), out)
+    out = tvm_tirx.runtime.tensor(np.zeros_like(a), tvm_tirx.cuda())
+    f(tvm_tirx.runtime.tensor(a, tvm_tirx.cuda()), tvm_tirx.runtime.tensor(b, tvm_tirx.cuda()), out)
     expected = (
         x.astype("float32") + 2
         if opcode == "add"

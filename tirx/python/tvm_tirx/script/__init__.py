@@ -16,7 +16,7 @@
 # under the License.
 """TVMScript public namespace and registered language variant exports.
 
-All source parsing uses :mod:`tvm.script.parser`; language variant packages expose source
+All source parsing uses :mod:`tvm_tirx.script.parser`; language variant packages expose source
 constructors and concrete builders from the same canonical implementation.
 The registry permits out-of-tree language variants to expose the same public spellings.
 """
@@ -36,8 +36,8 @@ _MODULE_VALIDATORS: list[Callable[[Any], None]] = []
 
 # Public parser and builder compatibility paths consume dialect-owned registrations.
 _REDIRECTED_SUBPACKAGES = {
-    "tvm.script.parser": _DIALECT_REGISTRY,
-    "tvm.script.ir_builder": _DIALECT_BUILDER_REGISTRY,
+    "tvm_tirx.script.parser": _DIALECT_REGISTRY,
+    "tvm_tirx.script.ir_builder": _DIALECT_BUILDER_REGISTRY,
 }
 
 
@@ -77,17 +77,17 @@ def register_dialect(name: str, module_path: str, *, builder_path: str | None = 
     """Register a dialect's script namespace and canonical builder package.
 
     Registration is lazy: it records paths without importing either package.
-    ``tvm.script.<name>`` and ``tvm.script.parser.<name>`` expose ``module_path``;
-    ``tvm.script.ir_builder.<name>`` exposes ``builder_path``. Deep imports under
+    ``tvm_tirx.script.<name>`` and ``tvm_tirx.script.parser.<name>`` expose ``module_path``;
+    ``tvm_tirx.script.ir_builder.<name>`` exposes ``builder_path``. Deep imports under
     these compatibility paths resolve to the same canonical modules, preserving
     their identity and avoiding repeated initialization. Existing physical
-    out-of-tree packages under ``tvm.script.ir_builder`` retain normal package
+    out-of-tree packages under ``tvm_tirx.script.ir_builder`` retain normal package
     lookup precedence.
 
     Each dialect registers from its own package initialization::
 
-        import tvm.script
-        tvm.script.register_dialect(
+        import tvm_tirx.script
+        tvm_tirx.script.register_dialect(
             "example", "example.script", builder_path="example.script.ir_builder"
         )
 
@@ -97,7 +97,7 @@ def register_dialect(name: str, module_path: str, *, builder_path: str | None = 
     Parameters
     ----------
     name : str
-        Short name exposed under ``tvm.script.<name>``.
+        Short name exposed under ``tvm_tirx.script.<name>``.
     module_path : str
         Full dotted path of the dialect's script package, which owns its public
         construction namespace.
@@ -114,13 +114,13 @@ def register_dialect(name: str, module_path: str, *, builder_path: str | None = 
 
 
 def _redirect_target(fullname: str) -> str | None:
-    """Return the target module path for a redirected ``tvm.script[...]`` name.
+    """Return the target module path for a redirected ``tvm_tirx.script[...]`` name.
 
     Returns ``None`` if ``fullname`` is not a redirected name.
     """
-    if fullname.startswith("tvm.script."):
+    if fullname.startswith("tvm_tirx.script."):
         # tvm.script.<language variant>[.subpath]
-        rest = fullname[len("tvm.script.") :]
+        rest = fullname[len("tvm_tirx.script.") :]
         head, _, tail = rest.partition(".")
         if head in _DIALECT_REGISTRY and "." not in head:
             target = _DIALECT_REGISTRY[head]
@@ -138,20 +138,20 @@ def _redirect_target(fullname: str) -> str | None:
 
 
 class _DialectRedirectFinder:
-    """``sys.meta_path`` finder that redirects ``tvm.script.<language variant>`` import paths.
+    """``sys.meta_path`` finder that redirects ``tvm_tirx.script.<language variant>`` import paths.
 
     PEP 562 ``__getattr__`` only handles one-level attribute lookups
-    (``from tvm.script import tirx``).  It cannot intercept deep
+    (``from tvm_tirx.script import tirx``).  It cannot intercept deep
     statement-form imports such as::
 
-        import tvm.script.tirx.ir_builder
-        import tvm.script.ir_builder.relax.ir
+        import tvm_tirx.script.tirx.ir_builder
+        import tvm_tirx.script.ir_builder.relax.ir
 
     This finder is installed on ``sys.meta_path`` to cover those cases.
     When the import machinery asks for a module whose full name starts with
-    ``tvm.script.<language variant>`` (or ``tvm.script.parser.<language variant>``, etc.) and
+    ``tvm_tirx.script.<language variant>`` (or ``tvm_tirx.script.parser.<language variant>``, etc.) and
     that language variant is in ``_DIALECT_REGISTRY``, :meth:`find_spec` imports the
-    real target module (e.g. ``tvm.tirx.script.ir_builder``) and returns an
+    real target module (e.g. ``tvm_tirx.tirx.script.ir_builder``) and returns an
     alias spec whose loader hands back that module, so the import machinery
     registers it in ``sys.modules`` under the public alias and all subsequent
     imports and attribute walks resolve without going through the redirect
@@ -161,10 +161,10 @@ class _DialectRedirectFinder:
     @classmethod
     def find_spec(cls, fullname, path, target=None):
         # Preserve real external builder packages before the registered fallback.
-        prefix = "tvm.script.ir_builder."
+        prefix = "tvm_tirx.script.ir_builder."
         if fullname.startswith(prefix):
             package_name = prefix + fullname[len(prefix) :].partition(".")[0]
-            parent_path = sys.modules["tvm.script.ir_builder"].__path__
+            parent_path = sys.modules["tvm_tirx.script.ir_builder"].__path__
             if importlib.machinery.PathFinder.find_spec(package_name, parent_path) is not None:
                 return None
         redirected = _redirect_target(fullname)
@@ -224,7 +224,7 @@ def __getattr__(name: str) -> Any:
         # IR is foundational — its parser is a real submodule under
         # tvm.script.parser.ir, exposed here as `tvm.script.ir` for the
         # legacy `from tvm.script import ir as I` pattern.
-        ir_parser = importlib.import_module("tvm.script.parser.ir")
+        ir_parser = importlib.import_module("tvm_tirx.script.parser.ir")
         globals()["ir"] = ir_parser
         return ir_parser
     if name in ("from_source", "parse"):
@@ -237,11 +237,11 @@ def __getattr__(name: str) -> Any:
         # ir_module lives in the IR parser at tvm.script.parser.ir; the IR
         # layer is foundational, so we resolve it directly rather than via
         # the language variant registry.
-        ir_parser = importlib.import_module("tvm.script.parser.ir")
+        ir_parser = importlib.import_module("tvm_tirx.script.parser.ir")
         ir_module_value = ir_parser.ir_module
         globals()["ir_module"] = ir_module_value
         return ir_module_value
-    raise AttributeError(f"module 'tvm.script' has no attribute {name!r}")
+    raise AttributeError(f"module 'tvm_tirx.script' has no attribute {name!r}")
 
 
 # Shared source entry points participate in the same opaque namespace boundary.

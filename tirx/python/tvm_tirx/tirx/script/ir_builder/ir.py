@@ -23,34 +23,34 @@ import threading
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from tvm import DataType, ir
-from tvm import ir as _ir
-from tvm import tirx as tir
-from tvm.ir import Range, TensorRegion, Type
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.ir.type import _init_type_api, _normalize_type
-from tvm.runtime import MemoryScope
-from tvm.script.ir_builder.base import MISSING, AlreadyEmitted, IRBuilder
-from tvm.script.ir_builder.ir import Lambda, meta_var
-from tvm.script.parser.protocol_registry import (
+from tvm_tirx import DataType, ir
+from tvm_tirx import ir as _ir
+from tvm_tirx import tirx as tir
+from tvm_tirx.ir import Range, TensorRegion, Type
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.type import _init_type_api, _normalize_type
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.script.ir_builder.base import MISSING, AlreadyEmitted, IRBuilder
+from tvm_tirx.script.ir_builder.ir import Lambda, meta_var
+from tvm_tirx.script.parser.protocol_registry import (
     register_mutable_decl as _register_mutable_decl,
 )
-from tvm.script.parser.protocol_registry import (
+from tvm_tirx.script.parser.protocol_registry import (
     register_scalar_annotation as _register_scalar_annotation,
 )
-from tvm.target import Target
+from tvm_tirx.target import Target
 
 # pylint: disable=unused-import
-from tvm.tirx import Expr, IndexMap, Var, is_tensor_var, tile
+from tvm_tirx.tirx import Expr, IndexMap, Var, is_tensor_var, tile
 
 # import tirx.expr for direct ir construction to pass structural_equal comparison
-from tvm.tirx.expr import (
+from tvm_tirx.tirx.expr import (
     FloatImm,
     IntImm,
     TensorLoad,
 )
-from tvm.tirx.layout import Axis, ComposeLayout, Iter, Layout, R, S, TileLayout
-from tvm.tirx.thread_scope import ThreadScope
+from tvm_tirx.tirx.layout import Axis, ComposeLayout, Iter, Layout, R, S, TileLayout
+from tvm_tirx.tirx.thread_scope import ThreadScope
 
 from . import _ffi_api
 
@@ -253,7 +253,7 @@ def alloc_tensor(
 
 
 def _bind_tensor(value):
-    from tvm.script.ir_builder.stmt import bind  # pylint: disable=import-outside-toplevel
+    from tvm_tirx.script.ir_builder.stmt import bind  # pylint: disable=import-outside-toplevel
 
     tensor = bind(value)
     _record_meta_resource(tensor, skip_frames=2)

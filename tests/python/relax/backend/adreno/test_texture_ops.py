@@ -18,21 +18,21 @@
 import pytest
 from utils import skip_unless_adreno_opencl_vulkan, verify_results
 
-import tvm
-import tvm.testing
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
 
 TARGETS = [
-    tvm.target.Target("qcom/adreno-opencl-texture"),
+    tvm_tirx.target.Target("qcom/adreno-opencl-texture"),
     #    tvm.target.Target("qcom/adreno-vulkan-texture"),
 ]
-ref_target = tvm.target.Target("llvm")
+ref_target = tvm_tirx.target.Target("llvm")
 
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d():
     target = TARGETS[0]
 
@@ -52,7 +52,7 @@ def test_conv2d():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_relu():
     target = TARGETS[0]
 
@@ -73,7 +73,7 @@ def test_conv2d_relu():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_relu_conv2d_relu():
     target = TARGETS[0]
 
@@ -95,7 +95,7 @@ def test_relu_conv2d_relu():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_relu_tanh():
     target = TARGETS[0]
 
@@ -117,7 +117,7 @@ def test_conv2d_relu_tanh():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_add():
     target = TARGETS[0]
 
@@ -140,7 +140,7 @@ def test_conv2d_add():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_sum():
     target = TARGETS[0]
 
@@ -161,7 +161,7 @@ def test_conv2d_sum():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_sum_keepdims():
     target = TARGETS[0]
 
@@ -182,7 +182,7 @@ def test_conv2d_sum_keepdims():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_sum_reduce():
     target = TARGETS[0]
 
@@ -203,7 +203,7 @@ def test_conv2d_sum_reduce():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_transpose():
     target = TARGETS[0]
 
@@ -224,7 +224,7 @@ def test_conv2d_transpose():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_expand_dims():
     target = TARGETS[0]
 
@@ -245,7 +245,7 @@ def test_conv2d_expand_dims():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_squeeze():
     target = TARGETS[0]
 
@@ -266,7 +266,7 @@ def test_conv2d_squeeze():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_strided_slice():
     target = TARGETS[0]
 
@@ -289,7 +289,7 @@ def test_conv2d_strided_slice():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_relu_concat():
     target = TARGETS[0]
 
@@ -311,7 +311,7 @@ def test_conv2d_relu_concat():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_relu_concat_split():
     target = TARGETS[0]
 
@@ -334,7 +334,7 @@ def test_conv2d_relu_concat_split():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_relu_concat_split_transpose_concat():
     target = TARGETS[0]
 
@@ -359,7 +359,7 @@ def test_conv2d_relu_concat_split_transpose_concat():
 @pytest.mark.skip(reason="Known failure: numerical mismatch in texture lowering")
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_maxpool2d():
     target = TARGETS[0]
 
@@ -388,7 +388,7 @@ def test_conv2d_maxpool2d():
 @pytest.mark.skip(reason="Known failure: numerical mismatch in texture lowering")
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_avgpool2d():
     target = TARGETS[0]
 
@@ -409,7 +409,7 @@ def test_conv2d_avgpool2d():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_softmax():
     target = TARGETS[0]
 
@@ -430,7 +430,7 @@ def test_conv2d_softmax():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_layernorm():
     target = TARGETS[0]
 
@@ -456,7 +456,7 @@ def test_conv2d_layernorm():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_binary_broadcast():
     target = TARGETS[0]
 
@@ -479,7 +479,7 @@ def test_binary_broadcast():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_binary_ewise_scalar():
     target = TARGETS[0]
 
@@ -500,7 +500,7 @@ def test_binary_ewise_scalar():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_residual_block():
     target = TARGETS[0]
     r"""
@@ -550,7 +550,7 @@ def test_residual_block():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_conv2d_fallback_to_buffer_conv2d():
     target = TARGETS[0]
     r"""
@@ -591,7 +591,7 @@ def test_conv2d_conv2d_fallback_to_buffer_conv2d():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_conv2d_conv2d_conv2d_concat():
     target = TARGETS[0]
     r"""
@@ -633,7 +633,7 @@ def test_conv2d_conv2d_conv2d_concat():
 @pytest.mark.skip(reason="Known failure: numerical mismatch in texture lowering")
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_pooling_branching_texture_params():
     target = TARGETS[0]
     r"""
@@ -686,7 +686,7 @@ def test_pooling_branching_texture_params():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_injective_inputs1():
     target = TARGETS[0]
     r"""
@@ -737,7 +737,7 @@ def test_injective_inputs1():
 
 @pytest.mark.gpu
 @skip_unless_adreno_opencl_vulkan
-@pytest.mark.skipif(not tvm.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_injective_nwo_inputs2():
     target = TARGETS[0]
     r"""
@@ -789,4 +789,4 @@ def test_injective_nwo_inputs2():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

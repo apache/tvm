@@ -17,18 +17,18 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_large_uint_imm():
     value = (1 << 63) + 123
-    value_const = tvm.tirx.const(value, "uint64")
+    value_const = tvm_tirx.tirx.const(value, "uint64")
 
     @I.ir_module
     class Module:
@@ -41,17 +41,17 @@ def test_large_uint_imm():
 
     def check_target(target):
         target_kind = target["kind"] if isinstance(target, dict) else target
-        if not tvm.testing.device_enabled(target_kind):
+        if not tvm_tirx.testing.device_enabled(target_kind):
             return
-        f = tvm.tirx.compile(Module, target=target)
+        f = tvm_tirx.tirx.compile(Module, target=target)
 
         def run_and_check():
-            dev = tvm.device(target_kind, 0)
-            a = tvm.runtime.empty((12,), dtype="uint64", device=dev)
+            dev = tvm_tirx.device(target_kind, 0)
+            a = tvm_tirx.runtime.empty((12,), dtype="uint64", device=dev)
             f(a)
             assert a.numpy()[0] == value + 3
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
     check_target("cuda")
     check_target({"kind": "vulkan", "from_device": 0})
@@ -81,22 +81,22 @@ def test_add_pipeline():
                         D[i0_0 * 256 + i0_1] = C[i0_0 * 256 + i0_1] + T.float32(1.0)
 
     def check_target(device, host):
-        if not tvm.testing.device_enabled(device) or not tvm.testing.device_enabled(host):
+        if not tvm_tirx.testing.device_enabled(device) or not tvm_tirx.testing.device_enabled(host):
             return
-        target = tvm.target.Target(device, host)
-        mhost = tvm.tirx.compile(Module, target=target).mod
+        target = tvm_tirx.target.Target(device, host)
+        mhost = tvm_tirx.tirx.compile(Module, target=target).mod
         f = mhost.main
         n = 1027
 
         def run_and_check():
-            dev = tvm.device(device, 0)
-            a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
-            b = tvm.runtime.tensor(np.random.uniform(size=()).astype("float32"), dev)
-            d = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+            dev = tvm_tirx.device(device, 0)
+            a = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+            b = tvm_tirx.runtime.tensor(np.random.uniform(size=()).astype("float32"), dev)
+            d = tvm_tirx.runtime.tensor(np.zeros(n, dtype="float32"), dev)
             f(a, b, d)
-            tvm.testing.assert_allclose(d.numpy(), a.numpy() + b.numpy() + 1)
+            tvm_tirx.testing.assert_allclose(d.numpy(), a.numpy() + b.numpy() + 1)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
     check_target("cuda", host="llvm")
     # check_target("nvptx", host="llvm")  # nvptx kernel entry-point lookup not wired here

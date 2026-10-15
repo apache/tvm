@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
+import tvm, tvm_tirx
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule.transform import tile_with_tensor_intrin
 from tvm.s_tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN, VNNI_DOT_16x4_INTRIN
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class DenseTIRModule:
     @Ts.function
     def main(
@@ -46,7 +46,7 @@ class DenseTIRModule:
                     )
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class DenseTIRModuleTiled:
     @Ts.function
     def main(
@@ -72,7 +72,7 @@ class DenseTIRModuleTiled:
                 )
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dNCHWcTIRModule:
     @Ts.function
     def main(
@@ -113,7 +113,7 @@ class Conv2dNCHWcTIRModule:
                 )
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dNCHWcTIRModuleTiled:
     @Ts.function
     def main(
@@ -160,7 +160,7 @@ def test_tile_with_tensor_intrin_dense(intrin=VNNI_DOT_16x4_INTRIN):
     _, _, _, i1_1, _ = s.get_loops(block)
 
     assert s.get(tiled_loop) == s.get(i1_1)
-    tvm.ir.assert_structural_equal(s.mod, DenseTIRModuleTiled)
+    tvm_tirx.ir.assert_structural_equal(s.mod, DenseTIRModuleTiled)
 
 
 def test_tile_with_tensor_intrin_conv2d_nchwc(intrin=VNNI_DOT_16x4_INTRIN):
@@ -170,7 +170,7 @@ def test_tile_with_tensor_intrin_conv2d_nchwc(intrin=VNNI_DOT_16x4_INTRIN):
     tiled_loops = s.get_loops(block)
     assert len(tiled_loops) == 12
     assert s.get(tiled_loop) == s.get(tiled_loops[-2])
-    tvm.ir.assert_structural_equal(s.mod, Conv2dNCHWcTIRModuleTiled)
+    tvm_tirx.ir.assert_structural_equal(s.mod, Conv2dNCHWcTIRModuleTiled)
 
 
 if __name__ == "__main__":

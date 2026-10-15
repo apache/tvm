@@ -23,10 +23,10 @@ import re
 
 import pytest
 
-import tvm
-from tvm.codegen import llvm_version_major
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm_tirx.codegen import llvm_version_major
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 @pytest.mark.skipif(
@@ -54,8 +54,8 @@ def test_mul(dtype):
             for i in range(m):
                 C[i] = A[i] * B[i]
 
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(Module).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -92,8 +92,8 @@ def test_add(dtype):
             for i in range(m):
                 C[i] = A[i] + B[i]
 
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(Module).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -130,8 +130,8 @@ def test_sub(dtype):
             for i in range(m):
                 C[i] = A[i] - B[i]
 
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(Module).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -169,8 +169,8 @@ def test_muladd(dtype):
             for i in range(m):
                 D[i] = A[i] * B[i] + C[i]
 
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(Module).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -217,8 +217,8 @@ def test_max(dtype):
             for i in range(m):
                 C[i] = T.max(A[i], B[i])
 
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(Module).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -259,8 +259,8 @@ def test_min(dtype):
             for i in range(m):
                 C[i] = T.min(A[i], B[i])
 
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(Module).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -299,10 +299,10 @@ def test_div(dtype):
             T.func_attr({"tirx.noalias": True})
 
             for i in range(m):
-                C[i] = tvm.tirx.div(A[i], B[i])
+                C[i] = tvm_tirx.tirx.div(A[i], B[i])
 
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(Module).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -338,8 +338,8 @@ def test_mod(dtype):
             for i in range(m):
                 C[i] = T.floormod(A[i], B[i])
 
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(Module).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -376,8 +376,8 @@ def test_eq(dtype):
             for i in range(m):
                 C[i] = A[i] == B[i]
 
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(Module).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -417,8 +417,8 @@ def test_neq(dtype):
             for i in range(m):
                 C[i] = A[i] != B[i]
 
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(Module).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -457,8 +457,8 @@ def test_or(dtype):
             for i in range(m):
                 C[i] = A[i] | B[i]
 
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(Module).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -494,8 +494,8 @@ def test_and(dtype):
             for i in range(m):
                 C[i] = A[i] & B[i]
 
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(Module).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -527,8 +527,8 @@ def test_not(dtype):
             for i in range(m):
                 C[i] = ~A[i]
 
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(Module).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -568,8 +568,8 @@ def test_memcpy(dtype):
             for i in range(m):
                 C[i] = A[B[i]]
 
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(Module).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(Module).mod
 
     assembly = f.inspect_source("asm")
     loads = re.findall("ld1[whdb]	{ z", assembly)
@@ -607,8 +607,8 @@ def test_vscale_range_function_attribute(mattr, expect_attr):
             for i in range(m):
                 C[i] = A[i] + T.float32(1)
 
-    with tvm.target.Target(target):
-        f = tvm.tirx.compile(Module).mod
+    with tvm_tirx.target.Target(target):
+        f = tvm_tirx.tirx.compile(Module).mod
 
     # Check if the vscale_range() attribute exists
     ll = f.inspect_source("ll")
@@ -623,4 +623,4 @@ def test_vscale_range_function_attribute(mattr, expect_attr):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

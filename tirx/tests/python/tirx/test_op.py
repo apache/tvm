@@ -19,13 +19,13 @@ import pickle
 import pytest
 import tvm_ffi
 
-import tvm
-from tvm.ir import Call, Evaluate, assert_structural_equal, load_json, save_json
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.tirx import Var, decl_tensor
-from tvm.tirx.analysis import undefined_vars
-from tvm.tirx.transform.common import TensorReplacer
+import tvm_tirx
+from tvm_tirx.ir import Call, Evaluate, assert_structural_equal, load_json, save_json
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import Var, decl_tensor
+from tvm_tirx.tirx.analysis import undefined_vars
+from tvm_tirx.tirx.transform.common import TensorReplacer
 
 
 def test_instruction_is_a_void_call():
@@ -33,7 +33,7 @@ def test_instruction_is_a_void_call():
     dst = decl_tensor((16, 4), "float32", scope="local")
     call = T.cuda.tile.apply(T.ptx["ld.global.v4.b32"], dst, src, scope="warp")
     assert isinstance(call, Call)
-    assert call.ty == tvm.ir.PrimType("void")
+    assert call.ty == tvm_tirx.ir.PrimType("void")
     assert call.op.get_attr("TCallEffectKind") == 3
     assert callable(call.op.get_attr("FTileOpDispatch"))
     assert call.attrs.scope.same_as(T.cuda.ThreadScope("warp"))
@@ -61,7 +61,7 @@ def test_roundtrip_and_exactly_one_evaluate(composite):
     call = nodes[0].value
     assert callable(call.op.get_attr("FTileOpDispatch"))
     assert_structural_equal(
-        func, tvm.script.from_source(func.script(), extra_vars={"T": T, "I": I})
+        func, tvm_tirx.script.from_source(func.script(), extra_vars={"T": T, "I": I})
     )
     assert_structural_equal(func, load_json(save_json(func)))
     assert_structural_equal(call, pickle.loads(pickle.dumps(call)), map_free_vars=True)
@@ -99,7 +99,7 @@ def test_runtime_operands_are_seen_and_replaced():
 
 
 def test_workspace_is_an_optional_call_operand():
-    tvm.backend.load("trn")
+    tvm_tirx.backend.load("trn")
     a = decl_tensor((16, 16), "float32", scope="shared")
     acc = decl_tensor((16, 16), "float32", scope="trn.psum")
     call = T.trn.tile.matmul(a, a, a, acc_psum=acc)
@@ -130,6 +130,6 @@ def test_tensor_replacer_no_shared_default():
 def test_tensor_replacer_replaces_strides_and_elem_offset():
     n, m = Var("n", "int32"), Var("m", "int32")
     a = decl_tensor((64,), "float32", strides=[n], elem_offset=n)
-    new = TensorReplacer(var_map={n: m})(tvm.ir.TensorStore(a, [0], 1.0))
+    new = TensorReplacer(var_map={n: m})(tvm_tirx.ir.TensorStore(a, [0], 1.0))
     assert new.dest.strides[0].same_as(m)
     assert new.dest.elem_offset.same_as(m)

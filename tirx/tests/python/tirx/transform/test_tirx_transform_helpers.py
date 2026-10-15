@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_annotate_entry_func_single_function():
@@ -36,8 +36,8 @@ def test_annotate_entry_func_single_function():
             T.evaluate(0)
 
     assert "tirx.is_entry_func" not in (Before["main"].attrs or {})
-    After = tvm.tirx.transform.AnnotateEntryFunc()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.AnnotateEntryFunc()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_annotate_entry_func_multiple_function():
@@ -51,8 +51,8 @@ def test_annotate_entry_func_multiple_function():
         def func2():
             T.evaluate(0)
 
-    After = tvm.tirx.transform.AnnotateEntryFunc()(Before)
-    tvm.ir.assert_structural_equal(After, Before)
+    After = tvm_tirx.tirx.transform.AnnotateEntryFunc()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Before)
 
 
 def test_bind_target_adds_attribute():
@@ -71,8 +71,8 @@ def test_bind_target_adds_attribute():
             T.func_attr({"target": T.target("cuda")})
             T.evaluate(0)
 
-    After = tvm.tirx.transform.BindTarget(tvm.target.Target("cuda"))(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.BindTarget(tvm_tirx.target.Target("cuda"))(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_bind_target_with_host_to_exposed_function():
@@ -92,8 +92,8 @@ def test_bind_target_with_host_to_exposed_function():
             T.func_attr({"global_symbol": "main", "target": T.target("cuda", host="llvm")})
             T.evaluate(0)
 
-    After = tvm.tirx.transform.BindTarget(tvm.target.Target("cuda", host="llvm"))(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.BindTarget(tvm_tirx.target.Target("cuda", host="llvm"))(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_bind_target_with_host_to_internal_function():
@@ -119,8 +119,8 @@ def test_bind_target_with_host_to_internal_function():
             T.func_attr({"target": T.target("cuda")})
             T.evaluate(0)
 
-    After = tvm.tirx.transform.BindTarget(tvm.target.Target("cuda", host="llvm"))(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.BindTarget(tvm_tirx.target.Target("cuda", host="llvm"))(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_bind_target_ignores_existing():
@@ -135,8 +135,8 @@ def test_bind_target_ignores_existing():
 
     Expected = Before
 
-    After = tvm.tirx.transform.BindTarget(tvm.target.Target("cuda"))(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.BindTarget(tvm_tirx.target.Target("cuda"))(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_bind_target_updates_host():
@@ -161,10 +161,10 @@ def test_bind_target_updates_host():
             )
             T.evaluate(0)
 
-    After = tvm.tirx.transform.BindTarget(
-        tvm.target.Target("cuda", host={"kind": "llvm", "opt-level": 0})
+    After = tvm_tirx.tirx.transform.BindTarget(
+        tvm_tirx.target.Target("cuda", host={"kind": "llvm", "opt-level": 0})
     )(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_bind_target_multiple_functions():
@@ -193,8 +193,8 @@ def test_bind_target_multiple_functions():
             T.evaluate(0)
 
     assert all("target" not in (func.attrs or {}) for func in Before.functions.values())
-    After = tvm.tirx.transform.BindTarget(tvm.target.Target("cuda"))(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.BindTarget(tvm_tirx.target.Target("cuda"))(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_bind_target_with_device_host_call_same_func():
@@ -247,10 +247,10 @@ def test_bind_target_with_device_host_call_same_func():
                 with T.launch_thread("threadIdx.x", length) as tx:
                     C[bx, tx] = Expected.add(A[bx, tx], B[bx, tx])  # Call from device
 
-    After = tvm.tirx.transform.BindTarget(
-        tvm.target.Target("cuda", host={"kind": "llvm", "opt-level": 0})
+    After = tvm_tirx.tirx.transform.BindTarget(
+        tvm_tirx.target.Target("cuda", host={"kind": "llvm", "opt-level": 0})
     )(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_bind_target_with_tirx_device_entry():
@@ -301,11 +301,11 @@ def test_bind_target_with_tirx_device_entry():
             tx = T.cuda.thread_idx("x")
             A[tx] = Expected.add(host_value, 3)
 
-    target = tvm.target.Target(
+    target = tvm_tirx.target.Target(
         {"kind": "cuda", "arch": "sm_100a"}, host={"kind": "llvm", "opt-level": 0}
     )
-    After = tvm.tirx.transform.BindTarget(target)(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.BindTarget(target)(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_filter_function():
@@ -337,8 +337,8 @@ def test_filter_function():
         (lambda func: func.attrs["temp"] == "test1", One),
         (lambda func: "invalid_attr" in func.attrs, Empty),
     ]:
-        After = tvm.tirx.transform.Filter(predicate)(Before)
-        tvm.ir.assert_structural_equal(After, Expected)
+        After = tvm_tirx.tirx.transform.Filter(predicate)(Before)
+        tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_filter_removes_global_var_map():
@@ -360,9 +360,9 @@ def test_filter_removes_global_var_map():
     class Expected:
         pass
 
-    After = tvm.tirx.transform.Filter(lambda function: False)(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.Filter(lambda function: False)(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

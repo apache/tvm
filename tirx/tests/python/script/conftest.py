@@ -18,8 +18,8 @@
 
 import pytest
 
-from tvm.script.ir_builder import base
-from tvm.script.parser import entry
+from tvm_tirx.script.ir_builder import base
+from tvm_tirx.script.parser import entry
 
 
 @pytest.fixture
@@ -27,7 +27,7 @@ def language(monkeypatch):
     """Use the shared recording language without selecting a native dialect."""
     from minilang import Language, RecordingLocationEntry
 
-    from tvm.script.parser import entry
+    from tvm_tirx.script.parser import entry
 
     monkeypatch.setattr(
         entry,
@@ -54,7 +54,7 @@ def primitive_language(located_language):
     """Use native primitive operators for minilang expression examples."""
     from functools import reduce
 
-    from tvm.ir import UnknownLoc, prim
+    from tvm_tirx.ir import UnknownLoc, prim
 
     language = located_language
     for kind in ("LT", "LE", "GT", "GE", "EQ", "NE"):

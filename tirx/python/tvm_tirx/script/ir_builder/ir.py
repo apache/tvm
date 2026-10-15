@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package tvm.script.ir_builder.ir"""
+"""Package tvm_tirx.script.ir_builder.ir"""
 
 from typing import NoReturn, TypeVar
 
-from tvm import DataType
-from tvm.ir import DataTypeImm, GlobalInfo, LambdaExpr, Location, Var
-from tvm.ir.location import UNKNOWN_LOC
-from tvm.ir.type import _init_type_api
-from tvm.runtime import Object as tvm_Object
+from tvm_tirx import DataType
+from tvm_tirx.ir import DataTypeImm, GlobalInfo, LambdaExpr, Location, Var
+from tvm_tirx.ir.location import UNKNOWN_LOC
+from tvm_tirx.ir.type import _init_type_api
+from tvm_tirx.runtime import Object as tvm_Object
 
 from . import _ffi_api
 from .base import IRBuilder, LocationEntry
@@ -184,13 +184,13 @@ def _get_dialect_builder(name: str):
     import importlib
     import sys
 
-    from tvm.script import _DIALECT_REGISTRY
+    from tvm_tirx.script import _DIALECT_REGISTRY
 
     if name in _DIALECT_REGISTRY:
-        module = importlib.import_module(f"tvm.script.ir_builder.{name}")
-        setattr(sys.modules["tvm.script.ir_builder"], name, module)
+        module = importlib.import_module(f"tvm_tirx.script.ir_builder.{name}")
+        setattr(sys.modules["tvm_tirx.script.ir_builder"], name, module)
         return module
-    raise AttributeError(f"module 'tvm.script.ir_builder' has no attribute {name!r}")
+    raise AttributeError(f"module 'tvm_tirx.script.ir_builder' has no attribute {name!r}")
 
 
 def Lambda(parameter_types, function, *, ret_type=None):  # pylint: disable=invalid-name

@@ -23,8 +23,8 @@ from os.path import exists, join
 
 import tvm_ffi
 
-import tvm.runtime
-import tvm.target
+import tvm_tirx.runtime
+import tvm_tirx.target
 
 from . import utils
 
@@ -49,7 +49,7 @@ def find_lld(required=True):
     matches the major llvm version that built with tvm
     """
     lld_list = []
-    major = tvm.codegen.llvm_version_major(allow_none=True)
+    major = tvm_tirx.codegen.llvm_version_major(allow_none=True)
     if major is not None:
         lld_list += [f"ld.lld-{major}.0"]
         lld_list += [f"ld.lld-{major}"]
@@ -174,7 +174,7 @@ def callback_rocm_bitcode_path(rocdl_dir=None):
         elif "isa_version" not in n and n not in {"irif"}:
             raise RuntimeError("could not find bitcode " + n)
 
-    return tvm.runtime.convert(bitcode_files)
+    return tvm_tirx.runtime.convert(bitcode_files)
 
 
 def parse_compute_version(compute_version):
@@ -216,8 +216,8 @@ def have_matrixcore(compute_version=None):
         True if MatrixCore support is provided, False otherwise
     """
     if compute_version is None:
-        if tvm.rocm(0).exist:
-            compute_version = tvm.rocm(0).compute_version
+        if tvm_tirx.rocm(0).exist:
+            compute_version = tvm_tirx.rocm(0).compute_version
         else:
             raise RuntimeError("No ROCm runtime found")
     major, _ = parse_compute_version(compute_version)

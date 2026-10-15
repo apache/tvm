@@ -18,10 +18,10 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 @T.function
@@ -44,25 +44,25 @@ def ptx_scalar_f32_math(
 @pytest.mark.skipif(not env.has_cuda_compute(7), reason="need cuda compute >= 7.0")
 def test_ptx_scalar_f32_math():
     f = ptx_scalar_f32_math
-    mod = tvm.tirx.compile(f, target="cuda")
+    mod = tvm_tirx.tirx.compile(f, target="cuda")
     rng = np.random.default_rng(0)
     A_np = rng.standard_normal(32).astype("float32")
     B_np = rng.standard_normal(32).astype("float32")
     Z = np.zeros((32,), dtype="float32")
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A_nd = tvm.runtime.tensor(A_np, device=dev)
-        B_nd = tvm.runtime.tensor(B_np, device=dev)
-        Cadd = tvm.runtime.tensor(Z.copy(), device=dev)
-        Cmul = tvm.runtime.tensor(Z.copy(), device=dev)
-        Cmax = tvm.runtime.tensor(Z.copy(), device=dev)
+        dev = tvm_tirx.cuda(0)
+        A_nd = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B_nd = tvm_tirx.runtime.tensor(B_np, device=dev)
+        Cadd = tvm_tirx.runtime.tensor(Z.copy(), device=dev)
+        Cmul = tvm_tirx.runtime.tensor(Z.copy(), device=dev)
+        Cmax = tvm_tirx.runtime.tensor(Z.copy(), device=dev)
         mod(A_nd, B_nd, Cadd, Cmul, Cmax)
-        tvm.testing.assert_allclose(Cadd.numpy(), A_np + B_np, rtol=0, atol=0)
-        tvm.testing.assert_allclose(Cmul.numpy(), A_np * B_np, rtol=0, atol=0)
-        tvm.testing.assert_allclose(Cmax.numpy(), np.maximum(A_np, B_np), rtol=0, atol=0)
+        tvm_tirx.testing.assert_allclose(Cadd.numpy(), A_np + B_np, rtol=0, atol=0)
+        tvm_tirx.testing.assert_allclose(Cmul.numpy(), A_np * B_np, rtol=0, atol=0)
+        tvm_tirx.testing.assert_allclose(Cmax.numpy(), np.maximum(A_np, B_np), rtol=0, atol=0)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

@@ -35,9 +35,10 @@
 
 from functools import cache
 
-from tvm import s_tir, tirx
-from tvm.runtime import MemoryScope
-from tvm.target import Target
+from tvm_tirx import tirx
+from tvm import s_tir
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.target import Target
 
 from .. import analysis
 from .base import AdrenoScheduleRule

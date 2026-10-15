@@ -19,8 +19,8 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 
 
 @pytest.mark.parametrize(
@@ -33,7 +33,7 @@ import tvm.testing
 )
 def test_tensor_view(input_shape, view_shape, offset):
     values = np.arange(1024, dtype="int32").reshape(input_shape)
-    tensor = tvm.runtime.tensor(values)
+    tensor = tvm_tirx.runtime.tensor(values)
     view = tensor._create_view(view_shape, relative_byte_offset=offset * 4)
     expected = values.ravel()[offset : offset + np.prod(view_shape)].reshape(view_shape)
     np.testing.assert_equal(view.numpy(), expected)
@@ -43,7 +43,7 @@ def test_tensor_view(input_shape, view_shape, offset):
 @pytest.mark.parametrize("child_offset", [0, 256])
 def test_nested_view(parent_offset, child_offset):
     values = np.arange(1024, dtype="int32")
-    tensor = tvm.runtime.tensor(values)
+    tensor = tvm_tirx.runtime.tensor(values)
     parent = tensor._create_view((512,), relative_byte_offset=parent_offset * 4)
     child = parent._create_view((256,), relative_byte_offset=child_offset * 4)
     expected = values[parent_offset : parent_offset + 512][child_offset : child_offset + 256]
@@ -59,13 +59,13 @@ def test_nested_view(parent_offset, child_offset):
     ],
 )
 def test_view_bounds(size, offset, message):
-    tensor = tvm.runtime.tensor(np.arange(1024, dtype="int32"))
+    tensor = tvm_tirx.runtime.tensor(np.arange(1024, dtype="int32"))
     with pytest.raises(ValueError, match=message):
         tensor._create_view((size,), relative_byte_offset=offset * 4)
 
 
 def test_subview_must_be_in_range_of_immediate_parent():
-    tensor = tvm.runtime.tensor(np.arange(1024, dtype="int32"))
+    tensor = tvm_tirx.runtime.tensor(np.arange(1024, dtype="int32"))
     parent = tensor._create_view((512,))
     with pytest.raises(ValueError, match="would occupy bytes 2048 <= i_byte < 4096"):
         parent._create_view((512,), relative_byte_offset=512 * 4)
@@ -74,7 +74,7 @@ def test_subview_must_be_in_range_of_immediate_parent():
 def test_from_dlpack_shape_one():
     torch = pytest.importorskip("torch")
     values = torch.randn(1, 16)
-    tensor = tvm.runtime.from_dlpack(torch.utils.dlpack.to_dlpack(values))
+    tensor = tvm_tirx.runtime.from_dlpack(torch.utils.dlpack.to_dlpack(values))
     np.testing.assert_equal(tensor.numpy(), values.numpy())
     view = tensor._create_view((2, 8))
     np.testing.assert_equal(view.numpy(), values.numpy().reshape(2, 8))
@@ -99,21 +99,21 @@ def test_low_precision_numpy_roundtrip(dtype):
     if not hasattr(ml_dtypes, dtype):
         pytest.skip(f"ml_dtypes does not provide {dtype}")
     values = np.random.default_rng(0).random((8, 8)).astype(getattr(ml_dtypes, dtype))
-    tensor = tvm.runtime.tensor(values)
+    tensor = tvm_tirx.runtime.tensor(values)
     assert tensor.dtype == dtype
     np.testing.assert_equal(tensor.numpy(), values)
 
 
 @pytest.mark.parametrize("container", [False, True], ids=["tensor", "tensor-dict"])
 def test_tensor_json_roundtrip(container):
-    tensor = tvm.runtime.tensor(np.arange(4, dtype="float32"))
+    tensor = tvm_tirx.runtime.tensor(np.arange(4, dtype="float32"))
     value = (
-        {"key1": tensor, "key2": tvm.runtime.tensor(np.arange(4, dtype="float32") + 1)}
+        {"key1": tensor, "key2": tvm_tirx.runtime.tensor(np.arange(4, dtype="float32") + 1)}
         if container
         else tensor
     )
-    restored = tvm.ir.load_json(tvm.ir.save_json(value))
-    tvm.ir.assert_structural_equal(value, restored)
+    restored = tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(value))
+    tvm_tirx.ir.assert_structural_equal(value, restored)
     if container:
         for key in value:
             np.testing.assert_array_equal(value[key].numpy(), restored[key].numpy())
@@ -122,12 +122,12 @@ def test_tensor_json_roundtrip(container):
 
 
 def test_tensor_container_identity():
-    tensor = tvm.runtime.tensor([1, 2, 3])
-    values = tvm.runtime.convert([tensor, tensor])
+    tensor = tvm_tirx.runtime.tensor([1, 2, 3])
+    values = tvm_tirx.runtime.convert([tensor, tensor])
     assert values[0].same_as(tensor)
     assert values[1].same_as(tensor)
-    assert isinstance(values[0], tvm.runtime.Tensor)
+    assert isinstance(values[0], tvm_tirx.runtime.Tensor)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

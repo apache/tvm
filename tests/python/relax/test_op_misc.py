@@ -17,17 +17,17 @@
 # ruff: noqa: F841
 import tvm_ffi
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import relax as rx
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
-@tvm.register_global_func("test.op.identity", override=True)
+@tvm_tirx.register_global_func("test.op.identity", override=True)
 def identity_packed(a):
-    return tvm.runtime.tensor(a.numpy())
+    return tvm_tirx.runtime.tensor(a.numpy())
 
 
 @Ts.function
@@ -68,7 +68,7 @@ def test_call_tir_with_grad():
 
 
 def test_implicit_op():
-    m, n = tvm.tirx.Var("m", "int64"), tvm.tirx.Var("n", "int64")
+    m, n = tvm_tirx.tirx.Var("m", "int64"), tvm_tirx.tirx.Var("n", "int64")
     x = rx.Var("x", R.Tensor([m, n], "float32"))
     y = rx.Var("y", R.Tensor([m, n], "float32"))
     func = rx.Var(
@@ -86,7 +86,7 @@ def test_implicit_op():
         assert isinstance(expr, rx.Call)
         if not op_name.startswith("relax."):
             op_name = "relax." + op_name
-        op = tvm.ir.Op.get(op_name)
+        op = tvm_tirx.ir.Op.get(op_name)
         assert expr.op == op
 
     # Comparison operators
@@ -134,7 +134,7 @@ def test_vm_alloc_tensor():
     storage = rx.Var("storage", rx.TensorType(dtype="float32"))
     alloc = rx.op.vm.alloc_tensor(storage, offset=0, shape=rx.ShapeExpr([4, 5]), dtype="float32")
     alloc = bb.normalize(alloc)
-    tvm.ir.assert_structural_equal(alloc.ty, R.Tensor([4, 5], "float32"))
+    tvm_tirx.ir.assert_structural_equal(alloc.ty, R.Tensor([4, 5], "float32"))
 
 
 def test_vm_alloc_tensor_infer_ty():
@@ -143,7 +143,7 @@ def test_vm_alloc_tensor_infer_ty():
     storage = rx.Var("storage", rx.TensorType(dtype="float32"))
     alloc = rx.op.vm.alloc_tensor(storage, offset=0, shape=s1, dtype="float32")
     ret = bb.normalize(alloc)
-    tvm.ir.assert_structural_equal(ret.ty, R.Tensor(dtype="float32", ndim=3))
+    tvm_tirx.ir.assert_structural_equal(ret.ty, R.Tensor(dtype="float32", ndim=3))
 
 
 def test_vm_kill_object():
@@ -151,7 +151,7 @@ def test_vm_kill_object():
     storage = rx.Var("storage", rx.TensorType(dtype="float32"))
     kill = rx.op.vm.kill_object(storage)
     ret = bb.normalize(kill)
-    tvm.ir.assert_structural_equal(ret.ty, R.Tuple([]))
+    tvm_tirx.ir.assert_structural_equal(ret.ty, R.Tuple([]))
 
 
 def test_builtin_stop_lift_params():
@@ -159,8 +159,8 @@ def test_builtin_stop_lift_params():
     x = rx.Var("x", rx.TensorType(shape=[4, 5], dtype="float32"))
     x1 = rx.op.builtin.stop_lift_params(x)
     x1 = bb.normalize(x1)
-    tvm.ir.assert_structural_equal(x1.ty, R.Tensor([4, 5], "float32"))
+    tvm_tirx.ir.assert_structural_equal(x1.ty, R.Tensor([4, 5], "float32"))
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

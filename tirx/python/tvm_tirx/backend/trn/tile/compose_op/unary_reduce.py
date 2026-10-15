@@ -17,12 +17,12 @@
 
 """Implementation of UnaryReduce dispatch."""
 
-from tvm.ir import TensorRegion
-from tvm.script import tirx as T
-from tvm.tirx import Function
-from tvm.tirx.tile import DispatchContext
-from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.views import UnaryReduce
+from tvm_tirx.ir import TensorRegion
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import Function
+from tvm_tirx.tirx.tile import DispatchContext
+from tvm_tirx.tirx.tile.instruction import TensorCall
+from tvm_tirx.tirx.tile.views import UnaryReduce
 
 from ..binary.utils import try_find_inst_nary
 from ..common import init_analyzer, nki_dim
@@ -125,10 +125,10 @@ def unary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
                                     T.evaluate(T.nki.activation_reduce(dst2[tuple(dst_2_indices)], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_tensor[p_loop, f_loop], scale))  # noqa: E501
         # fmt: on
 
-        import tvm
+        import tvm_tirx
 
-        mod = tvm.IRModule({"main": impl})
-        mod = tvm.tirx.transform.StmtSimplify()(mod)
+        mod = tvm_tirx.IRModule({"main": impl})
+        mod = tvm_tirx.tirx.transform.StmtSimplify()(mod)
         return mod["main"]
     else:
         # fmt: off

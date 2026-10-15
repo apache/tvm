@@ -16,7 +16,7 @@
 # under the License.
 import tvm_ffi
 
-from tvm.ir import (
+from tvm_tirx.ir import (
     Bind,
     Call,
     For,
@@ -27,11 +27,11 @@ from tvm.ir import (
     Stmt,
     Var,
 )
-from tvm.target import Target
-from tvm.tirx.tile.dispatch import DispatchContext
-from tvm.tirx.tile.instruction import SPECS, TensorCall
-from tvm.tirx.transform.common import seek_kernel_replace_point
-from tvm.tirx.transform.function_pass import function_pass
+from tvm_tirx.target import Target
+from tvm_tirx.tirx.tile.dispatch import DispatchContext
+from tvm_tirx.tirx.tile.instruction import SPECS, TensorCall
+from tvm_tirx.tirx.transform.common import seek_kernel_replace_point
+from tvm_tirx.tirx.transform.function_pass import function_pass
 
 
 def _collect_private_allocations(stmt: Stmt, target: Target):

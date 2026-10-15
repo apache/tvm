@@ -254,7 +254,7 @@ from . import _op_gradient
 def _register_op_make():
     # pylint: disable=import-outside-toplevel
     from .. import expr
-    from tvm.ir import _tensor_expr_overload
+    from tvm_tirx.ir import _tensor_expr_overload
     from . import _ffi_api
 
     def _add(lhs, rhs):
@@ -274,10 +274,10 @@ def _register_op_make():
 
     def _call(func, *args, attrs=None):
         if not isinstance(
-            func.ty, expr.tvm.ir.FuncType | expr.tvm.relax.FuncType | expr.tvm.ir.MissingType
+            func.ty, expr.tvm_tirx.ir.FuncType | expr.tvm.relax.FuncType | expr.tvm_tirx.ir.MissingType
         ):
             return NotImplemented
-        return expr.tvm.ir.Call(func, args, attrs=attrs)
+        return expr.tvm_tirx.ir.Call(func, args, attrs=attrs)
 
     operators = {}
     operators["astype"] = (

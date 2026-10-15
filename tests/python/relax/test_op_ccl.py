@@ -17,11 +17,12 @@
 # ruff: noqa: F401
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import relax, tirx
-from tvm.ir import Op
-from tvm.script import relax as R
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
+from tvm import relax
+from tvm_tirx.ir import Op
+from tvm_tirx.script import relax as R
 
 
 def test_op_correctness():
@@ -33,7 +34,7 @@ def test_op_correctness():
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.Type):
     ret = bb.normalize(call)
-    tvm.ir.assert_structural_equal(ret.ty, expected_ty)
+    tvm_tirx.ir.assert_structural_equal(ret.ty, expected_ty)
 
 
 def test_allreduce_infer_ty():
@@ -256,4 +257,4 @@ def test_scatter_from_worker0_infer_ty_more_input_dtype():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

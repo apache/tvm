@@ -46,8 +46,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-import tvm
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm_tirx.script import tirx as T
 
 _INJECTED_CHILD_ENABLE_ENV = "TVM_IKET_INJECTED_CHILD_ENABLE"
 _POSTPROCESS_CHOICES = frozenset(("perfetto", "json", "html", "none", "all"))
@@ -148,8 +148,8 @@ class IketProfileResult:
 def _profile_error(message: str) -> IketProfileError:
     return IketProfileError(
         f"Official IKET profile validation failed: {message}. "
-        "Use tvm.tirx.cuda.iket.profile(command) or call "
-        "tvm.tirx.cuda.iket.run(main) from a replayable entry point."
+        "Use tvm_tirx.tirx.cuda.iket.profile(command) or call "
+        "tvm_tirx.tirx.cuda.iket.run(main) from a replayable entry point."
     )
 
 
@@ -291,7 +291,7 @@ class IketProfiler:
             return T.cuda.iket.range_start(name)
         return T.cuda.iket.range_start(name, payload)
 
-    def range_end(self, token: tvm.tirx.Expr, payload=None):
+    def range_end(self, token: tvm_tirx.tirx.Expr, payload=None):
         if payload is None:
             T.evaluate(T.cuda.iket.range_end(token))
         else:
@@ -311,12 +311,12 @@ class IketProfiler:
 
     def compile(self, mod, target=None, *, tir_pipeline="tirx"):
         """Compile official IKET metadata and NativeDump placeholders."""
-        if isinstance(mod, tvm.tirx.Function):
-            mod = tvm.IRModule.from_expr(mod)
-        if not isinstance(mod, tvm.IRModule):
+        if isinstance(mod, tvm_tirx.tirx.Function):
+            mod = tvm_tirx.IRModule.from_expr(mod)
+        if not isinstance(mod, tvm_tirx.IRModule):
             raise TypeError("IketProfiler.compile expects a TIRx Function or IRModule")
         enabled_mod = mod.with_attr("tirx.iket.enabled", True)
-        executable = tvm.tirx.compile(enabled_mod, target=target, pipeline=tir_pipeline)
+        executable = tvm_tirx.tirx.compile(enabled_mod, target=target, pipeline=tir_pipeline)
         return _OfficialIketExecutable(executable)
 
 

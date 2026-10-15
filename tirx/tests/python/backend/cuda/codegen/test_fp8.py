@@ -21,11 +21,11 @@ from itertools import product
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 try:
     import ml_dtypes
@@ -67,19 +67,19 @@ def test_fp8_conversions(input):
 
     mod = _create_mod(dtype)
     target = "cuda"
-    fadd = tvm.tirx.compile(mod, target=target).mod
+    fadd = tvm_tirx.tirx.compile(mod, target=target).mod
 
     cuda_src = fadd.imports[0].inspect_source()
     assert nv_dtype in cuda_src, f"{nv_dtype} datatype not found in generated CUDA"
 
-    dev = tvm.cuda(0)
+    dev = tvm_tirx.cuda(0)
 
-    a = tvm.runtime.tensor(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
-    b = tvm.runtime.tensor(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
-    c = tvm.runtime.tensor(np.zeros(64, dtype=dtype), dev)
+    a = tvm_tirx.runtime.tensor(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
+    b = tvm_tirx.runtime.tensor(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
+    c = tvm_tirx.runtime.tensor(np.zeros(64, dtype=dtype), dev)
     fadd(a, b, c)
 
-    tvm.testing.assert_allclose(
+    tvm_tirx.testing.assert_allclose(
         c.numpy().astype("float16"), (a.numpy() + b.numpy()).astype("float16")
     )
 
@@ -116,17 +116,17 @@ def test_fp8_packing(dtype):
 
     mod = _create_mod(native_dtype, packed_dtype, length)
     target = "cuda"
-    f = tvm.tirx.compile(mod, target=target)
-    dev = tvm.cuda(0)
+    f = tvm_tirx.tirx.compile(mod, target=target)
+    dev = tvm_tirx.cuda(0)
 
     np_shape = (length, vector_length)
     a_np = np.random.uniform(low=0, high=5, size=np_shape).astype(dtype)
-    a = tvm.runtime.empty(shape=(length,), dtype=native_dtype, device=dev)
-    r = tvm.runtime.empty(shape=(length,), dtype=packed_dtype, device=dev)
-    b = tvm.runtime.empty(shape=(length,), dtype=native_dtype, device=dev)
+    a = tvm_tirx.runtime.empty(shape=(length,), dtype=native_dtype, device=dev)
+    r = tvm_tirx.runtime.empty(shape=(length,), dtype=packed_dtype, device=dev)
+    b = tvm_tirx.runtime.empty(shape=(length,), dtype=native_dtype, device=dev)
     a.copyfrom(a_np)
     f(a, r, b)
-    tvm.testing.assert_allclose(a.numpy().astype("float16"), b.numpy().astype("float16"))
+    tvm_tirx.testing.assert_allclose(a.numpy().astype("float16"), b.numpy().astype("float16"))
 
 
 @pytest.mark.parametrize(
@@ -174,9 +174,9 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
 
     mod = _create_mod(native_dtype, promoted_dtype)
     target = "cuda"
-    fadd = tvm.tirx.compile(mod, target=target).mod
+    fadd = tvm_tirx.tirx.compile(mod, target=target).mod
     cuda_src = fadd.imports[0].inspect_source()
-    dev = tvm.cuda(0)
+    dev = tvm_tirx.cuda(0)
 
     if "x" in native_dtype:
         lanes = int(native_dtype.split("x")[-1])
@@ -190,20 +190,20 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
 
     np_shape = (vector_length, lanes) if lanes > 1 else (vector_length,)
     a_np = np.random.uniform(low=0, high=5, size=np_shape).astype(numpytype)
-    a = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+    a = tvm_tirx.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
     a.copyfrom(a_np)
     b_np = np.random.uniform(low=0, high=5, size=np_shape).astype(numpytype)
-    b = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+    b = tvm_tirx.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
     b.copyfrom(b_np)
-    c = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+    c = tvm_tirx.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
     fadd(a, b, c)
 
-    tvm.testing.assert_allclose(
+    tvm_tirx.testing.assert_allclose(
         c.numpy().astype(promoted_base_dtype), (a_np + b_np).astype(promoted_base_dtype)
     )
 
 
-bcast_length = tvm.testing.parameter(2, 4, 6, 8)
+bcast_length = tvm_tirx.testing.parameter(2, 4, 6, 8)
 
 
 @pytest.mark.gpu
@@ -224,21 +224,21 @@ def test_half_broadcast(bcast_length):
 
     mod = _create_mod(bcast_length, dtype)
     target = "cuda"
-    func = tvm.tirx.compile(mod, target=target)
-    dev = tvm.cuda(0)
+    func = tvm_tirx.tirx.compile(mod, target=target)
+    dev = tvm_tirx.cuda(0)
 
     a_np = np.random.uniform(low=0, high=4, size=()).astype(dtype)
-    a = tvm.runtime.tensor(a_np, device=dev)
-    b = tvm.runtime.empty((bcast_length,), dtype=dtype, device=dev)
+    a = tvm_tirx.runtime.tensor(a_np, device=dev)
+    b = tvm_tirx.runtime.empty((bcast_length,), dtype=dtype, device=dev)
 
     func(a, b)
 
     b_np = np.full((bcast_length,), a_np)
 
-    tvm.testing.assert_allclose(b.numpy(), b_np)
+    tvm_tirx.testing.assert_allclose(b.numpy(), b_np)
 
 
-vector_length = tvm.testing.parameter(2, 4)
+vector_length = tvm_tirx.testing.parameter(2, 4)
 
 
 @pytest.mark.gpu
@@ -258,13 +258,13 @@ def test_half_misaligned_vector_load(vector_length):
                 B[i] = A[vec_index]
 
     target = "cuda"
-    f = tvm.tirx.compile(vector_load, target=target)
+    f = tvm_tirx.tirx.compile(vector_load, target=target)
 
-    dev = tvm.cuda(0)
+    dev = tvm_tirx.cuda(0)
     a_np = np.random.uniform(low=0, high=1, size=(length,)).astype(dtype)
-    a = tvm.runtime.tensor(a_np, device=dev)
+    a = tvm_tirx.runtime.tensor(a_np, device=dev)
 
-    b = tvm.runtime.empty((length // vector_length,), dtype=vec_dtype, device=dev)
+    b = tvm_tirx.runtime.empty((length // vector_length,), dtype=vec_dtype, device=dev)
 
     f(a, b)
 
@@ -274,7 +274,7 @@ def test_half_misaligned_vector_load(vector_length):
         start_index = (i + 1) * vector_length - 1
         b_np[i, :] = a_np[start_index - vector_length + 1 : start_index + 1][::-1]
 
-    tvm.testing.assert_allclose(b.numpy(), b_np)
+    tvm_tirx.testing.assert_allclose(b.numpy(), b_np)
 
 
 @pytest.mark.gpu
@@ -299,20 +299,20 @@ def test_half4_vector_add():
                     C[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + B[i_0 * 32 + i_1]
 
     target = "cuda"
-    fadd = tvm.tirx.compile(Module, target=target)
-    dev = tvm.cuda(0)
+    fadd = tvm_tirx.tirx.compile(Module, target=target)
+    dev = tvm_tirx.cuda(0)
 
     a_np = np.random.uniform(-1, 1, (length, vector_length)).astype(dtype)
-    a = tvm.runtime.empty(shape=(length,), dtype=vec_dtype, device=dev)
+    a = tvm_tirx.runtime.empty(shape=(length,), dtype=vec_dtype, device=dev)
     a.copyfrom(a_np)
     b_np = np.random.uniform(-1, 1, (length, vector_length)).astype(dtype)
-    b = tvm.runtime.empty(shape=(length,), dtype=vec_dtype, device=dev)
+    b = tvm_tirx.runtime.empty(shape=(length,), dtype=vec_dtype, device=dev)
     b.copyfrom(b_np)
-    c = tvm.runtime.empty(shape=(length,), dtype=vec_dtype, device=dev)
+    c = tvm_tirx.runtime.empty(shape=(length,), dtype=vec_dtype, device=dev)
 
     fadd(a, b, c)
     c_expected = a_np + b_np
-    tvm.testing.assert_allclose(c.numpy(), c_expected, atol=1e-5, rtol=1e-5)
+    tvm_tirx.testing.assert_allclose(c.numpy(), c_expected, atol=1e-5, rtol=1e-5)
 
 
 class BaseFP8E4M3QuantScaleOnly:
@@ -378,17 +378,17 @@ class BaseFP8E4M3QuantScaleOnly:
                         T.reinterpret(packed[row, k], ty=vec_quantized_dtype), vec_model_dtype
                     ) * T.Broadcast(scale[row, k * 4 // group_size], 4)
 
-        quant_func = tvm.tirx.compile(quantize, target=target_str)
-        dequant_func = tvm.tirx.compile(dequantize, target=target_str)
+        quant_func = tvm_tirx.tirx.compile(quantize, target=target_str)
+        dequant_func = tvm_tirx.tirx.compile(dequantize, target=target_str)
 
         def quant(weight):
-            packed = tvm.runtime.empty(quant_weight_shape, storage_dtype, dev)
-            scales = tvm.runtime.empty(scales_shape, model_dtype, dev)
+            packed = tvm_tirx.runtime.empty(quant_weight_shape, storage_dtype, dev)
+            scales = tvm_tirx.runtime.empty(scales_shape, model_dtype, dev)
             quant_func(weight, packed, scales)
             return packed, scales
 
         def dequant(packed, scales):
-            output = tvm.runtime.empty(weight_shape, model_dtype, dev)
+            output = tvm_tirx.runtime.empty(weight_shape, model_dtype, dev)
             dequant_func(packed, scales, output)
             return output
 
@@ -397,7 +397,7 @@ class BaseFP8E4M3QuantScaleOnly:
 
 class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
     # weight_shape = tvm.testing.parameter((32000, 4096), (4096, 14336))
-    weight_shape = tvm.testing.parameter((128, 256), (128, 64))
+    weight_shape = tvm_tirx.testing.parameter((128, 256), (128, 64))
 
     @pytest.mark.gpu
     @pytest.mark.skipif(not env.has_cuda_compute(8, 9), reason="need cuda compute >= 8.9")
@@ -418,7 +418,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
             (d + num_el_per_storage - 1) // num_el_per_storage if axis == i else d
             for i, d in enumerate(weight_shape)
         ]
-        dev = tvm.cuda(0)
+        dev = tvm_tirx.cuda(0)
         quant, dequant = self.compile_quant_and_dequant_by_scale(
             weight_shape,
             scale_shape,
@@ -435,13 +435,13 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
         )
 
         weight_np = np.random.uniform(-100, 100, weight_shape).astype(model_dtype)
-        weight = tvm.runtime.tensor(weight_np, device=dev)
+        weight = tvm_tirx.runtime.tensor(weight_np, device=dev)
         quant_weight, scales = quant(weight)
         quant_weight_np, scales_np = quant_weight.numpy(), scales.numpy()
 
         dequant_weight = dequant(quant_weight, scales)
         dequant_weight_np = dequant_weight.numpy()
-        tvm.testing.assert_allclose(weight_np, dequant_weight_np, atol=10, rtol=5e-2)
+        tvm_tirx.testing.assert_allclose(weight_np, dequant_weight_np, atol=10, rtol=5e-2)
 
 
 @pytest.mark.gpu
@@ -456,8 +456,8 @@ def test_const(dtype):
                 A_local[i] = T.float32(1.0).astype(dtype)
             A[tx] = A_local[tx]
 
-    mod = tvm.IRModule({"main": func})
-    tvm.tirx.compile(mod, target="cuda")
+    mod = tvm_tirx.IRModule({"main": func})
+    tvm_tirx.tirx.compile(mod, target="cuda")
 
 
 @pytest.mark.gpu
@@ -486,8 +486,8 @@ def test_copy(dtype, vec_len):
             for i in T.vectorized(vec_len):
                 B[tx, i] = A[tx, i]
 
-    mod = tvm.IRModule({"main": func})
-    rtmod = tvm.tirx.compile(mod, target="cuda")
+    mod = tvm_tirx.IRModule({"main": func})
+    rtmod = tvm_tirx.tirx.compile(mod, target="cuda")
 
 
 num_experts = 8
@@ -537,7 +537,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
                         if reduction == 0:
                             output[expert, block * 4 + spatial] = reduced[0]
 
-    rt_mod = tvm.tirx.compile(moe_dequantize_gemv, target="cuda")
+    rt_mod = tvm_tirx.tirx.compile(moe_dequantize_gemv, target="cuda")
 
     x_data = np.zeros((1, reduce_size), dtype=np.float16)
     indptr_data = np.zeros((1, 2), dtype=np.int32)
@@ -545,18 +545,18 @@ def test_moe_gemv_shfl_down_illegal_instr():
     scale_data = np.zeros((1,), dtype=np.float32)
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        x = tvm.runtime.tensor(x_data, device=dev)
-        indptr = tvm.runtime.tensor(indptr_data, device=dev)
-        weight = tvm.runtime.tensor(weight_data, device=dev)
-        scale = tvm.runtime.tensor(scale_data, device=dev)
-        output = tvm.runtime.empty((2, spatial_size), "float16", dev)
+        dev = tvm_tirx.cuda(0)
+        x = tvm_tirx.runtime.tensor(x_data, device=dev)
+        indptr = tvm_tirx.runtime.tensor(indptr_data, device=dev)
+        weight = tvm_tirx.runtime.tensor(weight_data, device=dev)
+        scale = tvm_tirx.runtime.tensor(scale_data, device=dev)
+        output = tvm_tirx.runtime.empty((2, spatial_size), "float16", dev)
         # Exercise shuffle reduction with spatial/reduction thread extents 4 and 64.
         rt_mod(x, indptr, weight, scale, output)
-        tvm.testing.assert_allclose(output.numpy(), np.zeros((2, spatial_size)))
+        tvm_tirx.testing.assert_allclose(output.numpy(), np.zeros((2, spatial_size)))
         dev.sync()
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("vec_length", [2, 4])
@@ -584,26 +584,26 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
         return Module
 
     mod = _create_mod(vec_length, dtype)
-    target = tvm.target.Target.from_device(tvm.cuda())
-    f = tvm.tirx.compile(mod, target=target).mod
+    target = tvm_tirx.target.Target.from_device(tvm_tirx.cuda())
+    f = tvm_tirx.tirx.compile(mod, target=target).mod
 
     a_np = np.random.rand(128).astype("float8_e4m3fn")
     b_np = np.random.rand(128).astype(dtype)
     c_np = (a_np.astype(dtype) * b_np) + 3
 
     def run_and_check():
-        device = tvm.cuda()
-        a_tvm = tvm.runtime.tensor(a_np, device=device)
-        b_tvm = tvm.runtime.tensor(b_np, device=device)
-        c_tvm = tvm.runtime.empty((128,), dtype=dtype, device=device)
+        device = tvm_tirx.cuda()
+        a_tvm = tvm_tirx.runtime.tensor(a_np, device=device)
+        b_tvm = tvm_tirx.runtime.tensor(b_np, device=device)
+        c_tvm = tvm_tirx.runtime.empty((128,), dtype=dtype, device=device)
         f(a_tvm, b_tvm, c_tvm)
         actual = c_tvm.numpy()
-        tvm.testing.assert_allclose(
+        tvm_tirx.testing.assert_allclose(
             actual.astype(np.float32), c_np.astype(np.float32), atol=5e-1, rtol=1e-2
         )
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

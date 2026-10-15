@@ -24,10 +24,10 @@ that expression directly into each register store.
 
 import tvm_ffi
 
-from tvm.ir import Bind, If, LambdaExpr, PrimType, Return, TensorRegion, TensorStore, Tuple, Var
-from tvm.script import tirx as T
-from tvm.tirx import Function
-from tvm.tirx.tile.instruction import Instruction, Operand
+from tvm_tirx.ir import Bind, If, LambdaExpr, PrimType, Return, TensorRegion, TensorStore, Tuple, Var
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import Function
+from tvm_tirx.tirx.tile.instruction import Instruction, Operand
 
 from .common import Context
 

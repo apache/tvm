@@ -24,11 +24,11 @@ from contextlib import nullcontext
 import pytest
 from tvm_ffi import structural_walk
 
-import tvm
-from tvm import ir
-from tvm.script import tirx as T
-from tvm.script.ir_builder import AlreadyEmitted, IRBuilder
-from tvm.tirx.script import ir_builder as I
+import tvm_tirx
+from tvm_tirx import ir
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.ir_builder import AlreadyEmitted, IRBuilder
+from tvm_tirx.tirx.script import ir_builder as I
 
 
 def _calls(function):
@@ -83,8 +83,8 @@ def test_auto_emit_uses_current_builder_without_tracing():
 
 @pytest.mark.parametrize("trace", [False, True])
 def test_backend_tile_namespace_emits_once(trace):
-    from tvm.backend.cuda.tile.patterns import apply as raw_apply
-    from tvm.backend.cuda.tile.patterns.ewise import ewise as raw_ewise
+    from tvm_tirx.backend.cuda.tile.patterns import apply as raw_apply
+    from tvm_tirx.backend.cuda.tile.patterns.ewise import ewise as raw_ewise
 
     @T.function(private=True)
     def identity(value: T.float32) -> T.float32:
@@ -203,7 +203,7 @@ def _source_chain(loc):
 
 
 def test_trace_preserves_explicit_scopes_and_deferred_frames():
-    from tvm.script.ir_builder import at_
+    from tvm_tirx.script.ir_builder import at_
 
     caller = ir.SourceLoc(ir.SourceName("caller.py"), 2, 1, 2, 20)
     explicit = ir.SourceLoc(ir.SourceName("definition.py"), 3, 1, 3, 20)
@@ -256,7 +256,7 @@ def test_trace_preserves_explicit_scopes_and_deferred_frames():
 
 
 def test_nested_trace_callback_failure_restores_outer_scope(monkeypatch):
-    from tvm.script.ir_builder import _ffi_api
+    from tvm_tirx.script.ir_builder import _ffi_api
 
     original = _ffi_api.IRBuilderUpdateLoc
     fail = [False]
@@ -301,7 +301,7 @@ def test_shared_tensor_shapes_are_checked_by_compiled_host():
             I.arg_("x", T.Tensor((n,), T.float32))
             I.arg_("y", T.Tensor((n,), T.float32))
             I.return_(n)
-    compiled = tvm.compile(builder.get(), target="llvm", tir_pipeline="tirx")
+    compiled = tvm_tirx.compile(builder.get(), target="llvm", tir_pipeline="tirx")
     assert compiled(torch.zeros(3), torch.zeros(3)) == 3
     for other, error, message in (
         (torch.zeros(4), ValueError, "expected to match"),

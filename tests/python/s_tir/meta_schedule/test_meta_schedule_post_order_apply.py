@@ -24,18 +24,18 @@ import pytest
 import tvm_ffi
 from tvm_ffi import register_global_func
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import te
-from tvm.ir.module import IRModule
+from tvm_tirx.ir.module import IRModule
 from tvm.s_tir.meta_schedule import TuneContext
 from tvm.s_tir.meta_schedule.schedule_rule import PyScheduleRule
 from tvm.s_tir.meta_schedule.space_generator import PostOrderApply
 from tvm.s_tir.schedule import SBlockRV, Schedule
 from tvm.s_tir.utils import derived_object
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,
 # fmt: off
@@ -55,7 +55,7 @@ def get_matmul_packed(m, n, k, lhs_type="int8", rhs_dtype="int8", acc_dtype="int
     )
     return te.create_function([X, W, matmul])
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Matmul:
     @Ts.function
     def main(
@@ -72,7 +72,7 @@ class Matmul:
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class DuplicateMatmul:
     @Ts.function
     def main(
@@ -93,7 +93,7 @@ class DuplicateMatmul:
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class TrinityMatmul:
     @Ts.function
     def main(A: T.Tensor((1024, 1024), 'float32'), D: T.Tensor((1024, 1024), 'float32')) -> None:
@@ -115,7 +115,7 @@ class TrinityMatmul:
                 vi, vj = Ts.axis.remap("SS", [i, j])
                 D[vi, vj] = C[vi, vj] * 5.0
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class TrinityMatmulProcessedForReference:
     @Ts.function
     def main(
@@ -531,4 +531,4 @@ def test_meta_schedule_derived_object():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

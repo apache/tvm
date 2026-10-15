@@ -17,10 +17,10 @@
 # pylint: disable=redefined-builtin
 """Operators for distributed Relax."""
 
-from tvm.ir import Call, Op
-from tvm.ir.attrs import make_node
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.ir.op import _make_op_api
+from tvm_tirx.ir import Call, Op
+from tvm_tirx.ir.attrs import make_node
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.op import _make_op_api
 from tvm.relax.distributed import DeviceMesh, Placement
 
 from ...expr import Expr

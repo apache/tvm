@@ -20,25 +20,25 @@ import sys
 
 import pytest
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import s_tir
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
 def _check(original, transformed):
-    mod = tvm.IRModule.from_expr(original.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(original.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LowerCrossThreadReduction()(mod)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         mod["main"], transformed.with_attr("global_symbol", "main"), True
     )
 
 
 def _check_fail(original):
-    mod = tvm.IRModule.from_expr(original)
+    mod = tvm_tirx.IRModule.from_expr(original)
     with pytest.raises(ValueError):
         tvm.s_tir.transform.LowerCrossThreadReduction()(mod)
 
@@ -1860,11 +1860,11 @@ def test_thread_broadcast_rewrite_2():
 
 
 def test_thread_broadcast_rewrite_2_full_pipeline():
-    target_host = "llvm" if tvm.runtime.enabled("llvm") else "c"
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"}).with_host(target_host)
-    mod = tvm.IRModule.from_expr(thread_broadcast_2.with_attr("global_symbol", "main"))
-    mod = tvm.tirx.transform.BindTarget(target)(mod)
-    pipeline, _, _ = tvm.tirx.get_tir_pipeline("s_tir")
+    target_host = "llvm" if tvm_tirx.runtime.enabled("llvm") else "c"
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_80"}).with_host(target_host)
+    mod = tvm_tirx.IRModule.from_expr(thread_broadcast_2.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.tirx.transform.BindTarget(target)(mod)
+    pipeline, _, _ = tvm_tirx.tirx.get_tir_pipeline("s_tir")
     pipeline(mod)
 
 
@@ -1877,4 +1877,4 @@ def test_layer_norm_tuple_sum():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

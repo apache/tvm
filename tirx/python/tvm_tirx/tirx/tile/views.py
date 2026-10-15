@@ -17,8 +17,8 @@
 
 """Implementation of TIR operator."""
 
-from tvm.tirx import Expr
-from tvm.tirx.tile.instruction import TensorCall
+from tvm_tirx.tirx import Expr
+from tvm_tirx.tirx.tile.instruction import TensorCall
 
 
 class ArgProperty:

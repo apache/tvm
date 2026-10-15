@@ -16,9 +16,9 @@
 # under the License.
 import re
 
-import tvm
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_popcount():
@@ -38,7 +38,7 @@ def test_popcount():
                 for i in T.vectorized(elements):
                     B[i] = T.popcount(A[i])
 
-        f = tvm.tirx.compile(Module, target=target).mod
+        f = tvm_tirx.tirx.compile(Module, target=target).mod
         # Verify we see the correct number of vpaddl and vcnt instructions in the assembly
         assembly = f.inspect_source("asm")
         matches = re.findall("vpaddl", assembly)
@@ -77,7 +77,7 @@ def test_vmlal_s16():
                     for rv in range(K):
                         C[n] = C[n] + T.Cast(A[rv, n], "int32") * T.Cast(B[rv, n], "int32")
 
-        f = tvm.tirx.compile(Module, target=target).mod
+        f = tvm_tirx.tirx.compile(Module, target=target).mod
 
         # Verify we see the correct number of vmlal.s16 instructions
         assembly = f.inspect_source("asm")
@@ -105,7 +105,7 @@ def test_vmlal_s16():
                     for rv in range(K):
                         C[n] = C[n] + T.Cast(A[rv, n], "int32") * T.Cast(B[rv], "int32")
 
-        f = tvm.tirx.compile(Module, target=target).mod
+        f = tvm_tirx.tirx.compile(Module, target=target).mod
 
         # Verify we see the correct number of vmlal.s16 instructions
         assembly = f.inspect_source("asm")

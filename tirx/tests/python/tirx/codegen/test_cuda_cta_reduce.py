@@ -19,25 +19,25 @@
 import numpy as np
 import pytest
 
-import tvm
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
-TARGET = tvm.target.Target("cuda")
+TARGET = tvm_tirx.target.Target("cuda")
 
 
 def _build_and_run(func, n):
-    mod = tvm.IRModule({"main": func})
-    mod = tvm.tirx.compile(mod, target=TARGET, pipeline="tirx")
+    mod = tvm_tirx.IRModule({"main": func})
+    mod = tvm_tirx.tirx.compile(mod, target=TARGET, pipeline="tirx")
     out_np = np.zeros(n, dtype="float32")
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        out = tvm.runtime.tensor(out_np, device=dev)
+        dev = tvm_tirx.cuda(0)
+        out = tvm_tirx.runtime.tensor(out_np, device=dev)
         mod(out)
         return out.numpy()
 
-    return tvm.testing.run_with_gpu_lock(run_and_check), mod
+    return tvm_tirx.testing.run_with_gpu_lock(run_and_check), mod
 
 
 @pytest.mark.gpu

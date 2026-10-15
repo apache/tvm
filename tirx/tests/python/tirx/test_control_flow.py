@@ -17,25 +17,25 @@
 import numpy as np
 import pytest
 
-import tvm
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 def run_test_break_continue(func, shape, expected):
-    target = tvm.target.Target("cuda")
-    mod = tvm.IRModule({"main": func})
+    target = tvm_tirx.target.Target("cuda")
+    mod = tvm_tirx.IRModule({"main": func})
     with target:
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
     arr_np = np.zeros(shape, dtype="int32")
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        arr = tvm.runtime.tensor(arr_np, device=dev)
+        dev = tvm_tirx.cuda(0)
+        arr = tvm_tirx.runtime.tensor(arr_np, device=dev)
         mod(arr)
         np.testing.assert_allclose(arr.numpy(), expected)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu

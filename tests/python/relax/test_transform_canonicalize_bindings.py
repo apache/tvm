@@ -18,21 +18,21 @@
 
 import pytest
 
-import tvm
-import tvm.script
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.script, tvm
+import tvm_tirx.testing, tvm
 from tvm import relax
-from tvm.ir import TupleType as _TupleType
-from tvm.ir.base import assert_structural_equal
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.ir.base import assert_structural_equal
 from tvm.relax.transform.transform import CanonicalizeBindings
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def verify(input, expected):
-    tvm.ir.assert_structural_equal(CanonicalizeBindings()(input), expected)
+    tvm_tirx.ir.assert_structural_equal(CanonicalizeBindings()(input), expected)
 
 
 def test_simple_assignments():
@@ -1332,7 +1332,7 @@ def test_trivial_binding_of_replaced_non_dataflow_var():
             return C
 
     After = CanonicalizeBindings()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     def _get_binding_names(mod):
         return [binding.var.name for binding in mod["main"].body.blocks[0].bindings]
@@ -1371,7 +1371,7 @@ def test_trace_tuple_through_round_trip():
             return param_tuple
 
     After = CanonicalizeBindings()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_trace_partial_tuple_through_round_trip():
@@ -1391,11 +1391,11 @@ def test_trace_partial_tuple_through_round_trip():
     Expected = Before
 
     After = CanonicalizeBindings()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()
 
 
 def test_call_tir_out_ty_follows_arguments_when_match_cast_is_kept():
@@ -1467,7 +1467,7 @@ def test_call_tir_out_ty_follows_arguments_when_match_cast_is_kept():
     assert [int(dim) for dim in extra.shape] == [16]
     expected_vdevice = Before["main"].body.blocks[0].bindings[1].value.ty_args[0].fields[0].vdevice
     for output in (transposed, extra):
-        tvm.ir.assert_structural_equal(output.vdevice, expected_vdevice)
+        tvm_tirx.ir.assert_structural_equal(output.vdevice, expected_vdevice)
     relax.analysis.well_formed(after)
 
 
@@ -1508,7 +1508,7 @@ def test_call_tir_out_ty_follows_arguments_through_chained_match_casts():
     after = relax.transform.CanonicalizeBindings()(Before)
     for binding in after["main"].body.blocks[0].bindings:
         value = binding.value
-        if isinstance(value, relax.Call) and value.op == tvm.ir.Op.get("relax.call_tir"):
+        if isinstance(value, relax.Call) and value.op == tvm_tirx.ir.Op.get("relax.call_tir"):
             # Rebuilding the call re-runs the validator, so this passes only when the
             # out_ty agrees with the argument types.
             relax.Call(value.op, value.args, value.attrs, value.ty_args)

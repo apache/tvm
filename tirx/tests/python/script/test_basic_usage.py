@@ -27,12 +27,12 @@ import pytest
 # ruff: noqa: F841
 from minilang import Value
 
-import tvm
-from tvm import DataType, error, ir
-from tvm.ir import prim
-from tvm.ir._overload_prim_expr import EqualOp
-from tvm.script import ir as I
-from tvm.script.parser import entry
+import tvm_tirx
+from tvm_tirx import DataType, error, ir
+from tvm_tirx.ir import prim
+from tvm_tirx.ir._overload_prim_expr import EqualOp
+from tvm_tirx.script import ir as I
+from tvm_tirx.script.parser import entry
 
 
 def test_function(language):
@@ -260,7 +260,7 @@ def test_body_annotation_reads_a_preceding_ordinary_local(language):
 
 def test_native_concise_scopes_unwind_with_their_parent():
     # Nested concise thread scopes must preserve the original variables in the constructed IR.
-    from tvm.script import tirx as T
+    from tvm_tirx.script import tirx as T
 
     variables = []
 
@@ -276,18 +276,18 @@ def test_native_concise_scopes_unwind_with_their_parent():
 
     bx, tx = variables
     body = main.body[0]
-    assert isinstance(body, tvm.ir.RegionStmt) and isinstance(body.body[0], tvm.ir.RegionStmt)
+    assert isinstance(body, tvm_tirx.ir.RegionStmt) and isinstance(body.body[0], tvm_tirx.ir.RegionStmt)
     assert body.body_params[0].same_as(bx) and body.body[0].body_params[0].same_as(tx)
     assert body.body[0].body[0].value.a.same_as(bx) and body.body[0].body[0].value.b.same_as(tx)
 
 
 def test_loop_control_validation_preserves_valid_and_unchecked_ir():
     # Invalid loop placement must be rejected, while direct IR construction preserves the node.
-    from tvm import ir, tirx
-    from tvm.script import tirx as T
+    from tvm_tirx import ir, tirx
+    from tvm_tirx.script import tirx as T
 
-    invalid = tirx.Function(params=[], body=tvm.ir.Break())
-    ir.assert_structural_equal(invalid.body, tvm.ir.SeqStmt([tvm.ir.Break()]))
+    invalid = tirx.Function(params=[], body=tvm_tirx.ir.Break())
+    ir.assert_structural_equal(invalid.body, tvm_tirx.ir.SeqStmt([tvm_tirx.ir.Break()]))
     assert not tirx.analysis.verify_well_formed(invalid, assert_mode=False)
     with pytest.raises(error.InternalError, match="requires an enclosing loop"):
         tirx.analysis.verify_well_formed(invalid)
@@ -297,7 +297,7 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
         for i in range(2):
             break
 
-    assert isinstance(valid.body[0], tvm.ir.For)
+    assert isinstance(valid.body[0], tvm_tirx.ir.For)
     ir.assert_structural_equal(valid.body[0].body, invalid.body)
 
     @I.ir_module(check_well_formed=False, extra_vars={"invalid": invalid})
@@ -576,7 +576,7 @@ def test_datatype_value_roundtrip(language):
     # into a root-typed constant, and the shared printer reproduces that spelling.
     spelling = 'T.dtype("float32")'
     source = f"@M.function\ndef main():\n    M.record({spelling})\n"
-    value = entry.parse(source, extra_vars={"M": language.M, "T": tvm.script.tirx}).body[0][1]
+    value = entry.parse(source, extra_vars={"M": language.M, "T": tvm_tirx.script.tirx}).body[0][1]
     ir.assert_structural_equal(value, ir.DataTypeImm(DataType("float32")))
     printed = ir.IRModule(attrs={"dtype": value}).script()
     assert f'T.module_attrs({{"dtype": {spelling}}})' in printed

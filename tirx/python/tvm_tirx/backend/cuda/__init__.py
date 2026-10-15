@@ -21,7 +21,7 @@ from pathlib import Path
 
 from tvm_ffi.libinfo import load_lib_ctypes
 
-from tvm.base import _LOADED_LIBS
+from tvm_tirx.base import _LOADED_LIBS
 
 from .backend_config import BackendConfig
 from .host import export_cuda_host
@@ -45,7 +45,7 @@ _LAZY_SUBMODULES = {
 
 
 def _detect_target_from_device(dev):
-    from tvm.target import Target  # pylint: disable=import-outside-toplevel
+    from tvm_tirx.target import Target  # pylint: disable=import-outside-toplevel
 
     return Target(
         {
@@ -63,8 +63,8 @@ def register_backend():
     from . import axis
 
     axis.register()
-    from tvm.target.detect_target import register_device_target_detector
-    from tvm.tirx.script.ir_builder import (
+    from tvm_tirx.target.detect_target import register_device_target_detector
+    from tvm_tirx.tirx.script.ir_builder import (
         op as builder_op,  # pylint: disable=import-outside-toplevel
     )
 

@@ -20,10 +20,10 @@ from __future__ import annotations
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_ssa_across_entire_module():
@@ -43,7 +43,7 @@ def test_ssa_across_entire_module():
                 for j in range(16):
                     T.evaluate(i)
 
-    after = tvm.tirx.transform.SplitHostDevice()(before)
+    after = tvm_tirx.tirx.transform.SplitHostDevice()(before)
     loop_var = after["main"].body[0].loop_var
     param_var = after["main_kernel"].params[0]
 
@@ -71,7 +71,7 @@ def test_ssa_across_entire_module():
             for j in range(16):
                 T.evaluate(i)
 
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_split_host_device():
@@ -106,12 +106,12 @@ def test_split_host_device():
             )
             T.evaluate(n)
 
-    After = tvm.tirx.transform.SplitHostDevice()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.SplitHostDevice()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
-    assert hasattr(tvm.tirx.transform, "SplitHostDevice")
-    assert not hasattr(tvm.tirx.transform, "AnnotateDeviceRegions")
-    assert not hasattr(tvm.tirx.transform, "LowerDeviceKernelLaunch")
+    assert hasattr(tvm_tirx.tirx.transform, "SplitHostDevice")
+    assert not hasattr(tvm_tirx.tirx.transform, "AnnotateDeviceRegions")
+    assert not hasattr(tvm_tirx.tirx.transform, "LowerDeviceKernelLaunch")
 
 
 def test_split_host_device_on_cpu():
@@ -145,8 +145,8 @@ def test_split_host_device_on_cpu():
             T.evaluate(n)
             return 0
 
-    After = tvm.tirx.transform.SplitHostDevice()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.SplitHostDevice()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_device_kernel_nonzero_return_is_rejected():
@@ -169,8 +169,8 @@ def test_device_kernel_nonzero_return_is_rejected():
             )
             return 1
 
-    with pytest.raises(tvm.error.InternalError, match="successful return"):
-        tvm.tirx.transform.SplitHostDevice()(Before)
+    with pytest.raises(tvm_tirx.error.InternalError, match="successful return"):
+        tvm_tirx.tirx.transform.SplitHostDevice()(Before)
 
 
 def test_split_host_device_without_func_host_attribute():
@@ -209,8 +209,8 @@ def test_split_host_device_without_func_host_attribute():
             )
             T.evaluate(n)
 
-    After = tvm.tirx.transform.SplitHostDevice()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.SplitHostDevice()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_split_host_device_without_device_region():
@@ -234,8 +234,8 @@ def test_split_host_device_without_device_region():
     class InputModule:
         Before = input_func
 
-    After = tvm.tirx.transform.SplitHostDevice()(InputModule)
-    tvm.ir.assert_structural_equal(After["Before"], Expected)
+    After = tvm_tirx.tirx.transform.SplitHostDevice()(InputModule)
+    tvm_tirx.ir.assert_structural_equal(After["Before"], Expected)
 
 
 def test_split_host_device_name_collision():
@@ -285,8 +285,8 @@ def test_split_host_device_name_collision():
             T.func_attr({"target": T.target("llvm")})
             T.evaluate(0)
 
-    After = tvm.tirx.transform.SplitHostDevice()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.SplitHostDevice()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_dynamic_launch_thread():
@@ -359,10 +359,10 @@ def test_dynamic_launch_thread():
             if blockIdx_x * 128 + threadIdx_x < seq_len:
                 B[blockIdx_x * 128 + threadIdx_x] = A[blockIdx_x * 128 + threadIdx_x]
 
-    after = tvm.tirx.transform.SplitHostDevice()(before)
+    after = tvm_tirx.tirx.transform.SplitHostDevice()(before)
 
-    tvm.tirx.analysis.verify_well_formed(after)
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.tirx.analysis.verify_well_formed(after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_symbolic_var_parameter():
@@ -380,9 +380,9 @@ def test_symbolic_var_parameter():
             A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((m,), "float32", data=A.data)])
             B_1[blockIdx_x] = A_1[blockIdx_x]
 
-    after = tvm.tirx.transform.SplitHostDevice()(Module)
+    after = tvm_tirx.tirx.transform.SplitHostDevice()(Module)
     assert len(after["main_kernel"].params) == 3
-    assert isinstance(after["main_kernel"].params[2], tvm.tirx.Var)
+    assert isinstance(after["main_kernel"].params[2], tvm_tirx.tirx.Var)
 
     @I.ir_module
     class Expected:
@@ -409,7 +409,7 @@ def test_symbolic_var_parameter():
                 A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((m_1,), T.float32)])
                 B_1[blockIdx_x] = A_1[blockIdx_x]
 
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_tensor_used_only_through_data_projection():
@@ -421,9 +421,9 @@ def test_tensor_used_only_through_data_projection():
             with T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")}):
                 T.evaluate(T.call_extern("consume", A.data, ty="int32"))
 
-    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    after = tvm_tirx.tirx.transform.SplitHostDevice()(Before)
     kernel = after["main_kernel"]
-    assert not tvm.tirx.analysis.undefined_vars(kernel.body, kernel.params)
+    assert not tvm_tirx.tirx.analysis.undefined_vars(kernel.body, kernel.params)
 
     @I.ir_module
     class Expected:
@@ -446,7 +446,7 @@ def test_tensor_used_only_through_data_projection():
             A = T.decl_tensor(A_ptr, ty_args=[T.Tensor((16,), T.float32)])
             T.call_extern("consume", A.data, ty="int32")
 
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_thread_extent_region_extracted_as_device_kernel():
@@ -483,8 +483,8 @@ def test_thread_extent_region_extracted_as_device_kernel():
             i = T.launch_thread("threadIdx.x", 16)
             A[i] = 0.0
 
-    After = tvm.tirx.transform.SplitHostDevice()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.SplitHostDevice()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_cuda_launch_preserves_flag_metadata():
@@ -505,7 +505,7 @@ def test_cuda_launch_preserves_flag_metadata():
             tx = T.launch_thread("threadIdx.x", 16)
             A[tx] = 0.0
 
-    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    after = tvm_tirx.tirx.transform.SplitHostDevice()(Before)
     kernel = after["main_kernel"]
     assert list(kernel.attrs["tirx.kernel_launch_params"]) == [
         "threadIdx.x",
@@ -513,18 +513,18 @@ def test_cuda_launch_preserves_flag_metadata():
     ]
 
     launch = after["main"].body[0].value
-    assert isinstance(launch, tvm.ir.Call)
-    assert launch.op == tvm.ir.Op.get("tirx.call_ffi_kernel")
-    assert isinstance(launch.attrs, tvm.tirx.CallFFIKernelAttr)
+    assert isinstance(launch, tvm_tirx.ir.Call)
+    assert launch.op == tvm_tirx.ir.Op.get("tirx.call_ffi_kernel")
+    assert isinstance(launch.attrs, tvm_tirx.tirx.CallFFIKernelAttr)
     assert list(launch.attrs.launch_params) == list(kernel.attrs["tirx.kernel_launch_params"])
     # Programmatic launch is flag-only and therefore adds no packed operand.
     assert len(launch.args) == 3
     assert int(launch.args[-1]) == 16
-    tvm.ir.assert_structural_equal(after, tvm.ir.load_json(tvm.ir.save_json(after)))
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(after, tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(after)))
+    tvm_tirx.ir.assert_structural_equal(
         after,
-        tvm.script.from_source(
-            after.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+        tvm_tirx.script.from_source(
+            after.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
         ),
     )
 
@@ -566,7 +566,7 @@ def test_cuda_launch_preserves_flag_metadata():
             with T.launch_thread("threadIdx.x", 16) as tx:
                 A[tx] = T.float32(0.0)
 
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_cuda_required_block_size_coexists_with_launch_bounds():
@@ -584,9 +584,9 @@ def test_cuda_required_block_size_coexists_with_launch_bounds():
             if tx == 0:
                 A[bx] = 0.0
 
-    with tvm.target.Target("cuda"):
-        after = tvm.tirx.transform.LowerTIRx()(Before)
-        after = tvm.tirx.transform.SplitHostDevice()(after)
+    with tvm_tirx.target.Target("cuda"):
+        after = tvm_tirx.tirx.transform.LowerTIRx()(Before)
+        after = tvm_tirx.tirx.transform.SplitHostDevice()(after)
     kernel = after["main_kernel"]
     kernel_attrs = kernel.attrs["cuda.kernel_attrs"]
     assert kernel_attrs["required_block_size"] == 1
@@ -604,7 +604,7 @@ def test_cuda_required_block_size_coexists_with_launch_bounds():
     launches = []
 
     def collect_launch(node):
-        if isinstance(node, tvm.ir.Call) and getattr(node.op, "name", "") == "tirx.call_ffi_kernel":
+        if isinstance(node, tvm_tirx.ir.Call) and getattr(node.op, "name", "") == "tirx.call_ffi_kernel":
             launches.append(node)
 
     tvm_ffi.structural_walk(after["main"], collect_launch)
@@ -685,7 +685,7 @@ def test_cuda_required_block_size_coexists_with_launch_bounds():
             if tx == 0:
                 A[T.cuda.block_idx("x")] = T.float32(0.0)
 
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_cuda_launch_preserves_singleton_cluster_dimensions():
@@ -702,7 +702,7 @@ def test_cuda_launch_preserves_singleton_cluster_dimensions():
                 T.launch_thread("threadIdx.x", 32)
                 A[0] = 0.0
 
-    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    after = tvm_tirx.tirx.transform.SplitHostDevice()(Before)
     kernel = after["main_kernel"]
     assert list(kernel.attrs["tirx.kernel_launch_params"]) == [
         "blockIdx.x",
@@ -713,7 +713,7 @@ def test_cuda_launch_preserves_singleton_cluster_dimensions():
     ]
 
     launch = after["main"].body[0].value
-    assert isinstance(launch, tvm.ir.Call)
+    assert isinstance(launch, tvm_tirx.ir.Call)
     assert [int(arg) for arg in launch.args[-5:]] == [4, 1, 1, 1, 32]
 
     @I.ir_module
@@ -763,7 +763,7 @@ def test_cuda_launch_preserves_singleton_cluster_dimensions():
                             with T.launch_thread("threadIdx.x", 32) as v_4:
                                 A[0] = T.float32(0.0)
 
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_device_scope_region_extracted_as_device_kernel():
@@ -799,8 +799,8 @@ def test_device_scope_region_extracted_as_device_kernel():
             A = T.decl_tensor(A_data, ty_args=[T.Tensor(1, "float32", data=A_data)])
             A[0] = 0.0
 
-    After = tvm.tirx.transform.SplitHostDevice()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.SplitHostDevice()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_lower_device_kernel_launch():
@@ -840,8 +840,8 @@ def test_lower_device_kernel_launch():
             A = T.decl_tensor(A_data, ty_args=[T.Tensor(1, "float32", data=A_data)])
             A[0] = 0.0
 
-    After = tvm.tirx.transform.SplitHostDevice()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.SplitHostDevice()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_externally_visible_kernel_launch():
@@ -881,8 +881,8 @@ def test_externally_visible_kernel_launch():
             A = T.decl_tensor(A_data, ty_args=[T.Tensor(1, "float32", data=A_data)])
             A[0] = 0.0
 
-    After = tvm.tirx.transform.SplitHostDevice()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.SplitHostDevice()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_collect_launch_parameter():
@@ -929,8 +929,8 @@ def test_collect_launch_parameter():
             i = T.launch_thread("threadIdx.x", 16)
             A[i] = 0.0
 
-    After = tvm.tirx.transform.SplitHostDevice()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.SplitHostDevice()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_same_device_different_target():
@@ -968,8 +968,8 @@ def test_same_device_different_target():
             A = T.decl_tensor(A_data, ty_args=[T.Tensor(16, "float32", data=A_data)])
             A[0] = 0.0
 
-    After = tvm.tirx.transform.SplitHostDevice()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.SplitHostDevice()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_bind_before_thread_extent():
@@ -1013,9 +1013,9 @@ def test_bind_before_thread_extent():
             i = T.launch_thread("threadIdx.x", v)
             A[i] = 0.0
 
-    After = tvm.tirx.transform.SplitHostDevice()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.SplitHostDevice()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

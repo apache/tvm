@@ -32,16 +32,16 @@ with f32 accumulation the per-lane register counts are:
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
-def _get_source(func: tvm.tirx.Function):
-    target = tvm.target.Target("cuda")
-    mod = tvm.IRModule({"main": func})
-    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+def _get_source(func: tvm_tirx.tirx.Function):
+    target = tvm_tirx.target.Target("cuda")
+    mod = tvm_tirx.IRModule({"main": func})
+    mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     return src, mod
 
@@ -63,15 +63,15 @@ def _run_mma(mod, K, no_c_ptr, np_in):
         ref = ref + C_np
 
     def run_and_check():
-        dev = tvm.cuda()
-        D = tvm.runtime.tensor(np.zeros((16, 8), np.float32), device=dev)
-        A = tvm.runtime.tensor(A_np, device=dev)
-        B = tvm.runtime.tensor(B_np, device=dev)
-        C = tvm.runtime.tensor(C_np, device=dev)
+        dev = tvm_tirx.cuda()
+        D = tvm_tirx.runtime.tensor(np.zeros((16, 8), np.float32), device=dev)
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B = tvm_tirx.runtime.tensor(B_np, device=dev)
+        C = tvm_tirx.runtime.tensor(C_np, device=dev)
         mod(D, A, B, C)
         np.testing.assert_allclose(D.numpy(), ref, atol=1e-2, rtol=1e-2)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -228,4 +228,4 @@ def test_ptx_mma_m16n8k8(a_type, no_c_ptr):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

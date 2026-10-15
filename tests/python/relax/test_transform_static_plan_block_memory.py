@@ -18,18 +18,18 @@
 
 import pytest
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def test_basic():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def add(rxplaceholder: T.Tensor(T.int64(8), "float32"), rxplaceholder_1: T.Tensor((), "float32"), T_add: T.Tensor(T.int64(8), "float32")):
@@ -78,7 +78,7 @@ def test_basic():
             gv: R.Tensor((10,), dtype="float32") = alloc4
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def add(rxplaceholder: T.Tensor(T.int64(8), "float32"), rxplaceholder_1: T.Tensor((), "float32"), T_add: T.Tensor(T.int64(8), "float32")):
@@ -184,15 +184,15 @@ def test_basic():
     # fmt: on
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
     mod = relax.transform.LowerAllocTensor()(mod)
     mod = relax.transform.KillAfterLastUse()(mod)
     mod = relax.transform.LowerRuntimeBuiltin()(mod)
-    tvm.ir.assert_structural_equal(mod, ExpectedLowered)
+    tvm_tirx.ir.assert_structural_equal(mod, ExpectedLowered)
 
 
 def test_different_dtype():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def add(
@@ -228,7 +228,7 @@ def test_different_dtype():
             gv1: R.Tensor((2, 3), dtype="int32") = alloc1
             return x
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def add(
@@ -271,11 +271,11 @@ def test_different_dtype():
             return x
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_dtype_bool():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def add1(
@@ -296,7 +296,7 @@ def test_dtype_bool():
             gv1: R.Tensor((2, 3), dtype="bool") = alloc
             return y
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def add1(
@@ -321,11 +321,11 @@ def test_dtype_bool():
             return y
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_same_dtype():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def add(
@@ -353,7 +353,7 @@ def test_same_dtype():
             gv1: R.Tensor((2, 3), dtype="float32") = alloc1
             return x
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def add(
@@ -385,11 +385,11 @@ def test_same_dtype():
             return x
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_if_cond():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def all_less_than_zero(A: T.Tensor((2, 3), "float32"), B: T.Tensor((), "bool")):
@@ -421,11 +421,11 @@ def test_if_cond():
 
     # The pass does no change.
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Module)
+    tvm_tirx.ir.assert_structural_equal(mod, Module)
 
 
 def test_if_then_else():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
@@ -450,11 +450,11 @@ def test_if_then_else():
 
     # The pass does no change.
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Module)
+    tvm_tirx.ir.assert_structural_equal(mod, Module)
 
 
 def test_cross_block_use():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
@@ -489,11 +489,11 @@ def test_cross_block_use():
 
     # The pass does no change.
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Module)
+    tvm_tirx.ir.assert_structural_equal(mod, Module)
 
 
 def test_nested_tuple():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
@@ -549,7 +549,7 @@ def test_nested_tuple():
             z3: R.Tensor((2, 3), dtype="float32") = alloc5
             return x
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
@@ -618,11 +618,11 @@ def test_nested_tuple():
             return x
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_call_func_other_than_function():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")):
@@ -636,7 +636,7 @@ def test_call_func_other_than_function():
 
     # The pass does no change.
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Module)
+    tvm_tirx.ir.assert_structural_equal(mod, Module)
 
 
 def test_call_packed_external_func():
@@ -677,7 +677,7 @@ def test_call_packed_external_func():
             return z
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_symbolic_shape():
@@ -686,7 +686,7 @@ def test_symbolic_shape():
     m_main = T.dynamic("m", "int64")
     n_main = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def exp(A: T.Tensor((m_exp, n_exp), "float32"), B: T.Tensor((m_exp, n_exp), "float32")):
@@ -707,7 +707,7 @@ def test_symbolic_shape():
     m_main = T.dynamic("m", "int64")
     n_main = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def exp(A: T.Tensor((m_exp, n_exp), "float32"), B: T.Tensor((m_exp, n_exp), "float32")):
@@ -733,11 +733,11 @@ def test_symbolic_shape():
             return x
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_zero_reference():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")):
@@ -747,7 +747,7 @@ def test_zero_reference():
             )
             return x
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")):
@@ -761,11 +761,11 @@ def test_zero_reference():
             return x
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_reshape_param():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def add(
@@ -791,11 +791,11 @@ def test_reshape_param():
 
     # The pass does no change.
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Module)
+    tvm_tirx.ir.assert_structural_equal(mod, Module)
 
 
 def test_multiple_functions():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def add(
@@ -913,14 +913,14 @@ def test_multiple_functions():
             return x
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_tir_var_upper_bound():
     # fmt: off
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def add(rxplaceholder: T.handle, rxplaceholder_1: T.handle, T_add: T.handle):
@@ -1022,14 +1022,14 @@ def test_tir_var_upper_bound():
     # fmt: on
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_lower_bound_only():
     # fmt: off
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def add(rxplaceholder: T.handle, rxplaceholder_1: T.handle, T_add: T.handle):
@@ -1132,14 +1132,14 @@ def test_lower_bound_only():
     # fmt: on
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_upper_and_lower_bounds():
     # fmt: off
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def add(rxplaceholder: T.handle, rxplaceholder_1: T.handle, T_add: T.handle):
@@ -1241,13 +1241,13 @@ def test_upper_and_lower_bounds():
     # fmt: on
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_invalid_tir_var_upper_bound():
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @R.function
         def main(x: R.Tensor((2, n), dtype="float32")):
@@ -1261,7 +1261,7 @@ def test_invalid_tir_var_upper_bound():
 def test_invalid_tir_var_lower_bound():
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @R.function
         def main(x: R.Tensor((2, n), dtype="float32")):
@@ -1326,7 +1326,7 @@ def test_tir_var_decreasing_monotone():
     # fmt: on
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_call_tir_dyn():
@@ -1389,7 +1389,7 @@ def test_call_tir_dyn():
     # fmt: on
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_call_tir_dyn_plan_dynamic_func_output():
@@ -1453,7 +1453,7 @@ def test_call_tir_dyn_plan_dynamic_func_output():
     # fmt: on
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_call_tir_dyn_plan_partially_dynamic():
@@ -1525,12 +1525,12 @@ def test_call_tir_dyn_plan_partially_dynamic():
     # fmt: on
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_function_independence():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def exp(A: T.handle, B: T.handle):
@@ -1594,7 +1594,7 @@ def test_function_independence():
     # fmt: on
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_add():
@@ -1701,7 +1701,7 @@ def test_add():
             return lv1_1
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_view():
@@ -1756,7 +1756,7 @@ def test_view():
             return z
 
     after = relax.transform.StaticPlanBlockMemory()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_match_cast_preserves_storage_liveness():
@@ -1788,7 +1788,7 @@ def test_match_cast_preserves_storage_liveness():
             return alloc2
 
     after = relax.transform.StaticPlanBlockMemory()(Before)
-    alloc_storage_op = tvm.ir.Op.get("relax.memory.alloc_storage")
+    alloc_storage_op = tvm_tirx.ir.Op.get("relax.memory.alloc_storage")
     storage_allocations = []
 
     def collect_storage_allocations(expr):
@@ -1825,7 +1825,7 @@ def test_builtin_reshape_preserves_storage_liveness():
             return alloc2
 
     after = relax.transform.StaticPlanBlockMemory()(Before)
-    alloc_storage_op = tvm.ir.Op.get("relax.memory.alloc_storage")
+    alloc_storage_op = tvm_tirx.ir.Op.get("relax.memory.alloc_storage")
     storage_allocations = []
 
     def collect_storage_allocations(expr):
@@ -1851,7 +1851,7 @@ def test_with_dataflow():
                     R.shape([10]), R.dtype("float32"), runtime_device_index=0
                 )
                 _: R.Tuple() = R.call_pure_packed(
-                    tvm.ir.Op.get("relax.call_tir_packed"), cls.exp, (x, alloc)
+                    tvm_tirx.ir.Op.get("relax.call_tir_packed"), cls.exp, (x, alloc)
                 )
                 gv: R.Tensor((10,), dtype="float32") = alloc
                 R.output(gv)
@@ -1870,17 +1870,17 @@ def test_with_dataflow():
                 alloc: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(
                     R.shape([10]), R.dtype("float32"), R.prim_value(0), R.str("global")
                 )
-                R.call_pure_packed(tvm.ir.Op.get("relax.call_tir_packed"), cls.exp, (x, alloc))
+                R.call_pure_packed(tvm_tirx.ir.Op.get("relax.call_tir_packed"), cls.exp, (x, alloc))
                 gv: R.Tensor((10,), dtype="float32") = alloc
                 R.output(gv)
             return gv
 
     after = relax.transform.StaticPlanBlockMemory()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def _count_alloc_storage(func):
-    alloc_storage_op = tvm.ir.Op.get("relax.memory.alloc_storage")
+    alloc_storage_op = tvm_tirx.ir.Op.get("relax.memory.alloc_storage")
     count = 0
 
     def visit(expr):
@@ -1989,4 +1989,4 @@ def test_if_branches_share_storage_allocated_before_if():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

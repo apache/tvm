@@ -23,14 +23,14 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-import tvm.tirx as tirx
-from tvm.ir.module import IRModule
-from tvm.runtime.executable import Executable
-from tvm.script import tirx as T
-from tvm.support.nvcc import have_fp16
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+import tvm_tirx.tirx as tirx
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.runtime.executable import Executable
+from tvm_tirx.script import tirx as T
+from tvm_tirx.support.nvcc import have_fp16
+from tvm_tirx.testing import env
 
 VECTOR_N_INPUTS = 8
 
@@ -202,11 +202,11 @@ MATH_CASES = [
 
 def make_mod(
     dtype: str, case: MathCase, enable_fast_math: bool
-) -> tuple[tvm.target.Target, tvm.IRModule]:
+) -> tuple[tvm_tirx.target.Target, tvm_tirx.IRModule]:
     """Make a module for the given dtype and case."""
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     function = make_function(case.name, dtype, case.num_inputs, case.op)
-    return target, tvm.IRModule.from_expr(function.with_attr("target", target))
+    return target, tvm_tirx.IRModule.from_expr(function.with_attr("target", target))
 
 
 def expected_intrinsic(dtype: str, case: MathCase, enable_fast_math: bool) -> str:
@@ -225,11 +225,11 @@ def expected_intrinsic(dtype: str, case: MathCase, enable_fast_math: bool) -> st
 
 def check_lowered_ir(
     dtype: str, case: MathCase, enable_fast_math: bool
-) -> tuple[tvm.target.Target, IRModule]:
+) -> tuple[tvm_tirx.target.Target, IRModule]:
     """Check the lowered IR for the given dtype and case."""
     target, mod = make_mod(dtype, case, enable_fast_math)
-    with tvm.ir.transform.PassContext(config={"tirx.enable_fast_math": enable_fast_math}):
-        lowered_mod = tvm.tirx.transform.LowerIntrin()(mod)
+    with tvm_tirx.ir.transform.PassContext(config={"tirx.enable_fast_math": enable_fast_math}):
+        lowered_mod = tvm_tirx.tirx.transform.LowerIntrin()(mod)
     script = lowered_mod.script(show_meta=False)
     expected = expected_intrinsic(dtype, case, enable_fast_math)
     assert re.search(rf"""["']{re.escape(expected)}["']""", script)
@@ -237,15 +237,15 @@ def check_lowered_ir(
 
 
 def check_cuda_source(
-    target: tvm.target.Target,
+    target: tvm_tirx.target.Target,
     mod: IRModule,
     dtype: str,
     case: MathCase,
     enable_fast_math: bool,
 ) -> Executable:
     """Check the CUDA source for the given dtype and case."""
-    with tvm.ir.transform.PassContext(config={"tirx.enable_fast_math": enable_fast_math}):
-        executable = tvm.tirx.compile(mod, target=target)
+    with tvm_tirx.ir.transform.PassContext(config={"tirx.enable_fast_math": enable_fast_math}):
+        executable = tvm_tirx.tirx.compile(mod, target=target)
     source = executable.mod.imports[0].inspect_source()
     expected = expected_intrinsic(dtype, case, enable_fast_math)
     assert re.search(rf"(?<!_)\b{re.escape(expected)}\s*\(", source)
@@ -270,16 +270,16 @@ def check_runtime(dtype: str, case: MathCase, executable: Executable):
     expected = case.np_ref(*[arr.astype(dtype) for arr in np_inputs]).astype(dtype)
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        tvm_inputs = [tvm.runtime.tensor(arr, device=dev) for arr in np_inputs]
-        output = tvm.runtime.empty((VECTOR_N_INPUTS,), dtype, dev)
+        dev = tvm_tirx.cuda(0)
+        tvm_inputs = [tvm_tirx.runtime.tensor(arr, device=dev) for arr in np_inputs]
+        output = tvm_tirx.runtime.empty((VECTOR_N_INPUTS,), dtype, dev)
 
         executable(*tvm_inputs, output)
 
         actual = output.numpy()
         np.testing.assert_allclose(actual, expected, rtol=case.rtol, atol=case.atol)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("enable_fast_math", [False, True], ids=["default", "fast_math"])
@@ -296,7 +296,7 @@ def test_cuda_math_intrinsic_lowering_pass_context(enable_fast_math):
 @pytest.mark.parametrize("case", MATH_CASES, ids=lambda case: f"{case.name}")
 @pytest.mark.parametrize("enable_fast_math", [False, True], ids=["default", "fast_math"])
 def test_cuda_math_intrinsic_lowering_source_and_runtime(dtype, case, enable_fast_math):
-    if dtype == "float16" and not have_fp16(tvm.cuda(0).compute_version):
+    if dtype == "float16" and not have_fp16(tvm_tirx.cuda(0).compute_version):
         pytest.skip("GPU does not support float16")
     if dtype == "bfloat16" and case.name.startswith("pow_"):
         pytest.skip("pow_argnames=case is only supported for float")

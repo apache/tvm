@@ -17,33 +17,33 @@
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm.backend.trn.axis import F, P
-from tvm.ir import assert_structural_equal as _assert_structural_equal
-from tvm.script import tirx as T
-from tvm.tirx.layout import S, TileLayout
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.trn.axis import F, P
+from tvm_tirx.ir import assert_structural_equal as _assert_structural_equal
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx.layout import S, TileLayout
 
-target = tvm.target.Target("aws/trn1/trn1.2xlarge")
+target = tvm_tirx.target.Target("aws/trn1/trn1.2xlarge")
 
 
 def _strip_thread_scope_stmt(stmt):
-    def _strip_region(node: tvm.ir.RegionStmt):
-        if node.op.same_as(tvm.ir.Op.get("tirx.device_entry")):
+    def _strip_region(node: tvm_tirx.ir.RegionStmt):
+        if node.op.same_as(tvm_tirx.ir.Op.get("tirx.device_entry")):
             return node.body
         return node
 
     return tvm_ffi.structural_map(
         stmt,
-        (tvm.ir.RegionStmt, _strip_region),
+        (tvm_tirx.ir.RegionStmt, _strip_region),
         order="post",
     )
 
 
 def assert_structural_equal(lhs, rhs, *args, **kwargs):
-    if isinstance(lhs, tvm.tirx.Function):
+    if isinstance(lhs, tvm_tirx.tirx.Function):
         lhs = lhs.with_body(_strip_thread_scope_stmt(lhs.body))
-    if isinstance(rhs, tvm.tirx.Function):
+    if isinstance(rhs, tvm_tirx.tirx.Function):
         rhs = rhs.with_body(_strip_thread_scope_stmt(rhs.body))
     _assert_structural_equal(lhs, rhs, *args, **kwargs)
 
@@ -115,8 +115,8 @@ def test_simple_binary(op_type, operands_type):
                         T.nki.tensorscalar(C_sbuf[p_loop, f_loop], B_sbuf[p_loop, f_loop], A_sbuf[p_loop, 0], op_type, T.bool(True))  # noqa: E501
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": binary})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": binary})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -235,8 +235,8 @@ def test_binary_complex(op_type, operands_type):
             # fmt: on
 
     with target:
-        mod = tvm.IRModule({"main": binary})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": binary})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -277,8 +277,8 @@ def test_binary_broadcast1():
             # fmt: on
 
     with target:
-        mod = tvm.IRModule({"main": binary})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": binary})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -319,8 +319,8 @@ def test_binary_broadcast2():
             # fmt: on
 
     with target:
-        mod = tvm.IRModule({"main": binary})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": binary})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -361,8 +361,8 @@ def test_binary_broadcast3():
             # fmt: on
 
     with target:
-        mod = tvm.IRModule({"main": binary})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.IRModule({"main": binary})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
@@ -410,11 +410,11 @@ def test_binary_with_guard():
 
             # fmt: on
     with target:
-        mod = tvm.IRModule({"main": binary})
-        mod = tvm.backend.trn.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.StmtSimplify()(mod)
+        mod = tvm_tirx.IRModule({"main": binary})
+        mod = tvm_tirx.backend.trn.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

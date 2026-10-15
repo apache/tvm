@@ -23,8 +23,8 @@ from typing import ClassVar
 
 import tvm_ffi
 
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.runtime import MemoryScope
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.runtime import MemoryScope
 
 from . import _ffi_api
 from .base import Node, Scriptable
@@ -90,7 +90,7 @@ class AnyType(Type):
 
 @tvm_ffi.register_object("ir.TensorRegionType")
 class TensorRegionType(Type):
-    """The type of a multi-dimensional :class:`tvm.ir.TensorRegion`."""
+    """The type of a multi-dimensional :class:`tvm_tirx.ir.TensorRegion`."""
 
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.TensorRegionType)
@@ -186,10 +186,10 @@ class PtrType(Type):
 
     Parameters
     ----------
-    element_type : tvm.ir.Type
+    element_type : tvm_tirx.ir.Type
         The type of pointer's element.
 
-    scope : str or tvm.runtime.MemoryScope
+    scope : str or tvm_tirx.runtime.MemoryScope
         The storage scope into which the pointer addresses.
     """
 
@@ -197,7 +197,7 @@ class PtrType(Type):
         self.__init_handle_by_constructor__(_ffi_api.PtrType, _normalize_type(element_type), scope)
         if loc is not UNKNOWN_LOC:
             # Keep the script constructor's source-context behavior on the class alias.
-            from tvm.script.ir_builder.base import at  # pylint: disable=import-outside-toplevel
+            from tvm_tirx.script.ir_builder.base import at  # pylint: disable=import-outside-toplevel
 
             at(loc, self)
 
@@ -229,10 +229,10 @@ class FuncType(Type):
 
     Parameters
     ----------
-    arg_types : List[tvm.ir.Type]
+    arg_types : List[tvm_tirx.ir.Type]
         The argument types
 
-    ret_type : tvm.ir.Type
+    ret_type : tvm_tirx.ir.Type
         The return type.
     """
 

@@ -23,7 +23,7 @@ import math
 
 import numpy as np
 
-import tvm
+import tvm, tvm_tirx
 
 
 def _get_supported_layout(dims: int):

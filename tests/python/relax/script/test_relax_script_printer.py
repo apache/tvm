@@ -22,21 +22,22 @@ from __future__ import annotations
 import pytest
 from tvm_ffi.access_path import AccessPath
 
-import tvm
-import tvm.testing
-from tvm import IRModule, relax, tirx
-from tvm.ir import Range
-from tvm.ir import TupleType as _TupleType
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import IRModule, tirx
+from tvm import relax
+from tvm_tirx.ir import Range
+from tvm_tirx.ir import TupleType as _TupleType
 from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax import TensorType
 from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.script.printer.scriptable import PrinterConfig, _script
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.printer.scriptable import PrinterConfig, _script
 
-tvm.runtime.MemoryScope.register("global:workspace")
+tvm_tirx.runtime.MemoryScope.register("global:workspace")
 
 
 def _assert_print(obj, expected):
@@ -99,10 +100,10 @@ def test_vdevice_selector_preserves_registry_identity(memory_scope):
 
     script = Module.script()
     assert script.count('vdevice="cuda:1"') == 2
-    restored = tvm.script.from_source(script, extra_vars={"I": I, "R": R, "T": T})
-    tvm.ir.assert_structural_equal(Module, restored)
+    restored = tvm_tirx.script.from_source(script, extra_vars={"I": I, "R": R, "T": T})
+    tvm_tirx.ir.assert_structural_equal(Module, restored)
     selected = restored.global_infos["vdevice"][2]
-    assert selected.memory_scope == tvm.runtime.MemoryScope(memory_scope)
+    assert selected.memory_scope == tvm_tirx.runtime.MemoryScope(memory_scope)
     assert restored["main"].params[0].ty.vdevice.is_(selected)
     assert restored["main"].ret_ty.vdevice.is_(selected)
     assert not selected.is_(restored.global_infos["vdevice"][1])
@@ -115,8 +116,8 @@ def test_device_mesh_range_namespace_roundtrip():
     mod.update_global_info("mesh", [mesh])
     script = mod.script()
     assert "R.device_mesh((2, 2), T.Range(T.int32(0), T.int32(4)))" in script
-    tvm.ir.assert_structural_equal(
-        mod, tvm.script.from_source(script, extra_vars={"I": I, "R": R, "T": T})
+    tvm_tirx.ir.assert_structural_equal(
+        mod, tvm_tirx.script.from_source(script, extra_vars={"I": I, "R": R, "T": T})
     )
 
 
@@ -165,8 +166,8 @@ def test_func():
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
-# from tvm.script import tirx as T
+# from tvm_tirx.script import relax as R
+# from tvm_tirx.script import tirx as T
 
 @R.function
 def foo(x: R.DTensor((128, 128), "float32", R.device_mesh((2, 2), T.Range(0, 4)), "S[0], R")) -> R.DTensor((128, 128), "float32", R.device_mesh((2, 2), T.Range(0, 4)), "S[0], R"):
@@ -182,9 +183,9 @@ def test_module():
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm_tirx.script import relax as R
+# from tvm_tirx.script import s_tir as Ts
+# from tvm_tirx.script import tirx as T
 
 @T.ir_module
 class Module:
@@ -233,7 +234,7 @@ def test_function():
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
+# from tvm_tirx.script import relax as R
 
 @R.function
 def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
@@ -314,7 +315,7 @@ def test_lone_private_function():
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
+# from tvm_tirx.script import relax as R
 
 @R.function(private=True)
 def main(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
@@ -339,8 +340,8 @@ def test_extern_func():
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
-# from tvm.script import tirx as T
+# from tvm_tirx.script import relax as R
+# from tvm_tirx.script import tirx as T
 
 @T.ir_module
 class Module:
@@ -365,8 +366,8 @@ def test_extern_func_with_ty():
     _assert_print_lines(
         obj,
         """
-# from tvm.script import relax as R
-# from tvm.script import tirx as T
+# from tvm_tirx.script import relax as R
+# from tvm_tirx.script import tirx as T
 
 @T.ir_module
 class Module:
@@ -384,16 +385,16 @@ def test_extern_func_with_ty_roundtrip():
             ),
         }
     )
-    roundtrip = tvm.script.from_source(
+    roundtrip = tvm_tirx.script.from_source(
         mod.script(verbose_expr=True),
         extra_vars={
-            "I": tvm.script.ir,
-            "R": tvm.script.relax,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
+            "I": tvm_tirx.script.ir,
+            "R": tvm_tirx.script.relax,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm_tirx.script.s_tir,
         },
     )
-    tvm.ir.assert_structural_equal(mod, roundtrip)
+    tvm_tirx.ir.assert_structural_equal(mod, roundtrip)
 
 
 @pytest.mark.parametrize("relax_prefix", ["R", "CustomR"])
@@ -419,8 +420,8 @@ def test_nested_function(relax_prefix, comment_imports):
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
-# from tvm.script import tirx as T
+# from tvm_tirx.script import relax as R
+# from tvm_tirx.script import tirx as T
 
 @T.ir_module
 class Module:
@@ -436,8 +437,8 @@ class Module:
         .replace("relax as R", f"relax as {relax_prefix}")
         .replace("# from", "# from" if comment_imports else "from"),
     )
-    tvm.ir.assert_structural_equal(
-        NestedFunction, tvm.script.from_source(script, extra_vars={"I": I, "T": T, relax_prefix: R})
+    tvm_tirx.ir.assert_structural_equal(
+        NestedFunction, tvm_tirx.script.from_source(script, extra_vars={"I": I, "T": T, relax_prefix: R})
     )
 
 
@@ -491,7 +492,7 @@ def test_tuple_ty_empty():
 def test_tuple_ty():
     obj = relax.TupleType(
         [
-            tvm.ir.PrimType("float32"),
+            tvm_tirx.ir.PrimType("float32"),
             relax.AnyType(),
             relax.ShapeType([1, tirx.Var("a", "int64"), 3]),
         ]
@@ -507,10 +508,10 @@ T.Tuple(T.float32, T.Any(), R.Shape([1, a, 3]))
 def test_func_ty():
     obj = relax.FuncType(
         params=[
-            tvm.ir.PrimType("float32"),
+            tvm_tirx.ir.PrimType("float32"),
             relax.AnyType(),
             relax.ShapeType([1, tirx.Var("a", "int64"), 3]),
-            tvm.ir.PrimType("int64"),
+            tvm_tirx.ir.PrimType("int64"),
         ],
         ret=relax.TensorType(
             shape=relax.ShapeExpr([1, 2, 3]),
@@ -580,8 +581,8 @@ def test_prim_value():
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
-# from tvm.script import tirx as T
+# from tvm_tirx.script import relax as R
+# from tvm_tirx.script import tirx as T
 
 @R.function
 def func() -> T.int64:
@@ -595,14 +596,14 @@ def func() -> T.int64:
     float_script = float_func.script(verbose_expr=True)
     assert "R.prim_value" not in float_script
     assert "return T.float32(" in float_script
-    tvm.ir.assert_structural_equal(
-        tvm.script.from_source(
+    tvm_tirx.ir.assert_structural_equal(
+        tvm_tirx.script.from_source(
             float_script,
             extra_vars={
-                "I": tvm.script.ir,
-                "R": tvm.script.relax,
-                "T": tvm.script.tirx,
-                "Ts": tvm.script.s_tir,
+                "I": tvm_tirx.script.ir,
+                "R": tvm_tirx.script.relax,
+                "T": tvm_tirx.script.tirx,
+                "Ts": tvm_tirx.script.s_tir,
             },
         ),
         float_func,
@@ -621,14 +622,14 @@ def test_primitive_bindings_roundtrip_without_prim_value_marker():
         assert "R.prim_value" not in source
         assert "plus_one: T.int64" in source
         assert "alias: T.int64" in source
-        tvm.ir.assert_structural_equal(
-            tvm.script.from_source(
+        tvm_tirx.ir.assert_structural_equal(
+            tvm_tirx.script.from_source(
                 source,
                 extra_vars={
-                    "I": tvm.script.ir,
-                    "R": tvm.script.relax,
-                    "T": tvm.script.tirx,
-                    "Ts": tvm.script.s_tir,
+                    "I": tvm_tirx.script.ir,
+                    "R": tvm_tirx.script.relax,
+                    "T": tvm_tirx.script.tirx,
+                    "Ts": tvm_tirx.script.s_tir,
                 },
             ),
             func,
@@ -636,7 +637,7 @@ def test_primitive_bindings_roundtrip_without_prim_value_marker():
 
 
 def test_data_type_imm():
-    obj = tvm.ir.DataTypeImm(tvm.DataType("float32"))
+    obj = tvm_tirx.ir.DataTypeImm(tvm_tirx.DataType("float32"))
     _assert_print_lines(obj, 'T.dtype("float32")')
 
 
@@ -958,9 +959,9 @@ def test_module_cross_func_call():
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm_tirx.script import relax as R
+# from tvm_tirx.script import s_tir as Ts
+# from tvm_tirx.script import tirx as T
 
 @T.ir_module
 class Module:
@@ -982,9 +983,9 @@ class Module:
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
-# from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
+# from tvm_tirx.script import relax as R
+# from tvm_tirx.script import s_tir as Ts
+# from tvm_tirx.script import tirx as T
 
 @T.ir_module
 class Module:
@@ -1013,8 +1014,8 @@ def test_assert_op():
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
-# from tvm.script import tirx as T
+# from tvm_tirx.script import relax as R
+# from tvm_tirx.script import tirx as T
 
 @T.ir_module
 class Module:
@@ -1039,8 +1040,8 @@ def test_print():
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
-# from tvm.script import tirx as T
+# from tvm_tirx.script import relax as R
+# from tvm_tirx.script import tirx as T
 
 @T.ir_module
 class Module:
@@ -1065,8 +1066,8 @@ def test_private_function():
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
-# from tvm.script import tirx as T
+# from tvm_tirx.script import relax as R
+# from tvm_tirx.script import tirx as T
 
 @T.ir_module
 class Module:
@@ -1120,8 +1121,8 @@ def test_directly_construct_private_funcs():
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
-# from tvm.script import tirx as T
+# from tvm_tirx.script import relax as R
+# from tvm_tirx.script import tirx as T
 
 @T.ir_module
 class Module:
@@ -1167,7 +1168,7 @@ def test_reused_extern_func():
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
+# from tvm_tirx.script import relax as R
 
 @R.function
 def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
@@ -1197,7 +1198,7 @@ def test_inline_extern_func():
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
+# from tvm_tirx.script import relax as R
 
 @R.function
 def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
@@ -1247,7 +1248,7 @@ def test_hide_inferable_ty():
         """
 from __future__ import annotations
 
-# from tvm.script import relax as R
+# from tvm_tirx.script import relax as R
 
 @R.function
 def func(A: R.Tensor((10, 20), dtype="float32"), B: R.Tensor(dtype="float32", ndim=2)) -> R.Tensor((10, 20), dtype="float32"):
@@ -1280,20 +1281,20 @@ def relax_extern_func():
 @pytest.mark.parametrize("show_all_ty", [True, False], ids=["show_all_ty", "hide_inferable_ty"])
 def test_extern_func_roundtrip(show_all_ty):
     original = relax_extern_func()
-    after_roundtrip = tvm.script.from_source(
+    after_roundtrip = tvm_tirx.script.from_source(
         original.script(show_meta=True, show_all_ty=show_all_ty),
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm_tirx.script.s_tir,
+            "R": tvm_tirx.script.relax,
         },
     )
-    tvm.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
 
 
 def test_typed_add_binding_without_context_free_inference():
-    assert tvm.ir.Op.get("relax.add").get_attr("FInferType") is None
+    assert tvm_tirx.ir.Op.get("relax.add").get_attr("FInferType") is None
 
     @R.function
     def func(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")):
@@ -1305,12 +1306,12 @@ def test_typed_add_binding_without_context_free_inference():
         'lv: R.Tensor((2, 3), dtype="float32") = R.add(x, y, ty=R.Tensor((2, 3), dtype="float32"))'
         in source
     )
-    restored = tvm.script.from_source(source, extra_vars={"I": I, "R": R, "T": T})
+    restored = tvm_tirx.script.from_source(source, extra_vars={"I": I, "R": R, "T": T})
     binding = restored.body.blocks[0].bindings[0]
-    assert binding.value.op.same_as(tvm.ir.Op.get("relax.add"))
-    tvm.ir.assert_structural_equal(binding.var.ty, binding.value.ty)
-    tvm.ir.assert_structural_equal(func, restored)
+    assert binding.value.op.same_as(tvm_tirx.ir.Op.get("relax.add"))
+    tvm_tirx.ir.assert_structural_equal(binding.var.ty, binding.value.ty)
+    tvm_tirx.ir.assert_structural_equal(func, restored)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -21,22 +21,22 @@ import sys
 import pytest
 import tvm_ffi
 
-import tvm
+import tvm, tvm_tirx
 from tvm import s_tir
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def _is_tensor_binding(node, *op_names):
     return (
-        isinstance(node, tvm.ir.Bind)
-        and isinstance(node.value, tvm.ir.Call)
-        and isinstance(node.value.op, tvm.ir.Op)
+        isinstance(node, tvm_tirx.ir.Bind)
+        and isinstance(node.value, tvm_tirx.ir.Call)
+        and isinstance(node.value.op, tvm_tirx.ir.Op)
         and node.value.op.name in op_names
     )
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Transpose:
     @Ts.function
     def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
@@ -57,7 +57,7 @@ class Transpose:
                             B[ax1, ax0] = A_shared_dyn[ax1, ax0]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class GlobalToShared:
     @Ts.function
     def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
@@ -79,7 +79,7 @@ class GlobalToShared:
                                     B[bx * 128 + ax0, by * 128 + ax1] = A_shared_dyn[ax0, ax1]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class SharedToGlobal:
     @Ts.function
     def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
@@ -101,7 +101,7 @@ class SharedToGlobal:
                                     B[bx * 128 + ax0, by * 128 + ax1] = A_shared_dyn[ax1, ax0]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class GlobalToSharedWithLocalStage:
     @Ts.function
     def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
@@ -125,7 +125,7 @@ class GlobalToSharedWithLocalStage:
                                     B[bx * 128 + ax0, by * 128 + ax1] = A_shared_dyn[ax0, ax1]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class SharedToWmma:
     @Ts.function
     def main() -> None:
@@ -147,7 +147,7 @@ class SharedToWmma:
                                     A_wmma[ax0, ax1] = A_shared_dyn[ax0, ax1]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class WmmaToShared:
     @Ts.function
     def main() -> None:
@@ -169,7 +169,7 @@ class WmmaToShared:
                                     C_shared[ax0, ax1] = C_accum[ax0, ax1]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class WmmaToGlobal:
     @Ts.function
     def main(C: T.Tensor([1024, 1024], "float32")) -> None:
@@ -188,7 +188,7 @@ class WmmaToGlobal:
                                     C[bx * 128 + ax0, by * 128 + ax1] = C_accum[ax0, ax1]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class WmmaToGlobalWithFusion:
     @Ts.function
     def main(A: T.Tensor([1024], "float32"), C: T.Tensor([1024, 1024], "float32")) -> None:
@@ -209,7 +209,7 @@ class WmmaToGlobalWithFusion:
                                     )
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MmaToGlobal:
     @Ts.function
     def main(C: T.Tensor([1024, 1024], "float32")) -> None:
@@ -228,7 +228,7 @@ class MmaToGlobal:
                                     C[bx * 128 + ax0, by * 128 + ax1] = C_accum[ax0, ax1]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class TransformedGlobalToShared:
     @Ts.function
     def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
@@ -271,7 +271,7 @@ class TransformedGlobalToShared:
                                     B[bx * 128 + ax0, by * 128 + ax1] = A_shared_dyn[ax0, ax1]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class TransformedSharedToGlobal:
     @Ts.function
     def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
@@ -316,7 +316,7 @@ class TransformedSharedToGlobal:
                                                 ]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class TransformedGlobalToSharedWithLocalStage:
     @Ts.function
     def main(A: T.Tensor((1024, 1024), "float32"), B: T.Tensor((1024, 1024), "float32")):
@@ -426,7 +426,7 @@ s0 = T.dynamic("s0", "int32")
 s1 = T.dynamic("s1", "int32")
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class TransformedSharedToWmma:
     @Ts.function
     def main() -> None:
@@ -501,7 +501,7 @@ s0 = T.dynamic("s0", "int32")
 s1 = T.dynamic("s1", "int32")
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class TransformedWmmaToShared:
     @Ts.function
     def main() -> None:
@@ -576,7 +576,7 @@ s1 = T.dynamic("s1", "int32")
 s0 = T.dynamic("s0", "int32")
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class TransformedWmmaToGlobal:
     @Ts.function
     def main(C: T.Tensor((1024, 1024), "float32")):
@@ -775,7 +775,7 @@ s1_1 = T.dynamic("s1_1", "int32")
 s0_1 = T.dynamic("s0_1", "int32")
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class TransformedWmmaToGlobalWithFusion:
     @Ts.function
     def main(A: T.Tensor((1024,), "float32"), C: T.Tensor((1024, 1024), "float32")) -> None:
@@ -998,7 +998,7 @@ s1 = T.dynamic("s1", "int32")
 s0 = T.dynamic("s0", "int32")
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class TransformedMmaToGlobal:
     @Ts.function
     def main(C: T.Tensor((1024, 1024), "float32")):
@@ -1104,7 +1104,7 @@ class TransformedMmaToGlobal:
 
 def _check(original, transformed):
     mod = tvm.s_tir.transform.LowerAutoCopy()(original)
-    tvm.ir.assert_structural_equal(mod, transformed, True)
+    tvm_tirx.ir.assert_structural_equal(mod, transformed, True)
 
 
 def test_coalesce_vectorize():
@@ -1136,7 +1136,7 @@ def verify_single_allocation(stmt, alloc_size=None):
     alloc_extents = []
 
     def verify(n):
-        if _is_tensor_binding(n, "tirx.alloc_tensor") and n.var.scope() == tvm.runtime.MemoryScope(
+        if _is_tensor_binding(n, "tirx.alloc_tensor") and n.var.scope() == tvm_tirx.runtime.MemoryScope(
             "shared.dyn"
         ):
             num_alloc[0] += 1
@@ -1159,7 +1159,7 @@ def verify_single_allocation(stmt, alloc_size=None):
 def test_auto_padding():
     mod = tvm.s_tir.transform.LowerAutoCopy()(Transpose)
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    mod = tvm.tirx.transform.FlattenTensor()(mod)
+    mod = tvm_tirx.tirx.transform.FlattenTensor()(mod)
     verify_single_allocation(mod["main"].body, 16 * 130)
 
 

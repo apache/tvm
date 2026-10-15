@@ -16,12 +16,12 @@
 # under the License.
 # pylint: disable=missing-docstring
 # ruff: noqa: E501
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm.s_tir import dlight as dl
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def test_conv3d():
@@ -103,11 +103,11 @@ def test_conv3d():
                                             C[v1, v2, 0, 0, 0] = C_reindex_pad_local[v0, v1, v2]
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-gtx-1080-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -26,7 +26,7 @@ def build_module(mod, target):
 
     Parameters
     ----------
-    mod : tvm.IRModule
+    mod : tvm_tirx.IRModule
         The ir module.
 
     target : str

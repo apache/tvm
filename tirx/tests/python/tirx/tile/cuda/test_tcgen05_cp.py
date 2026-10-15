@@ -27,13 +27,13 @@ import itertools
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.backend.cuda.axis import TCol, TLane
-from tvm.backend.cuda.layout import SwizzleMode, mma_shared_layout
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.layout import ComposeLayout, R, S, TileLayout
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.cuda.axis import TCol, TLane
+from tvm_tirx.backend.cuda.layout import SwizzleMode, mma_shared_layout
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
+from tvm_tirx.tirx.layout import ComposeLayout, R, S, TileLayout
 
 # Multicast replica lane offsets: (extent, stride) pairs on TLane. These are
 # the warp-slab offsets receiving copies of the data (see module docstring).
@@ -97,7 +97,7 @@ def _emit_cp(dst, src, t_region, s_region, shape, opcode):
     operand's physical layout. Each region retains its original row/column start.
     """
     atom_rows, atom_bits = _shape_dims(shape)
-    bits = tvm.DataType(src.dtype).bits
+    bits = tvm_tirx.DataType(src.dtype).bits
     words = atom_bits // 32
     s_row, s_col = s_region
     t_row, t_col = t_region
@@ -266,7 +266,7 @@ def _build_case(
     instruction_shape=None,
 ):
     """Assemble (kernel, host-check closure) for one cp configuration."""
-    bits = tvm.runtime.DataType(dtype).bits
+    bits = tvm_tirx.runtime.DataType(dtype).bits
     rows, atom_bits = _shape_dims(shape)
     epa = atom_bits // bits  # elems per lane per cp instruction
     C = epa * n_mid  # copied cols (elems)
@@ -315,10 +315,10 @@ def _build_case(
     )
 
     def check(mod):
-        A_np = tvm.testing.generate_random_array(dtype, tuple(s_shape))
-        dev = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(np.zeros((128, W32), np.uint32), dev)
+        A_np = tvm_tirx.testing.generate_random_array(dtype, tuple(s_shape))
+        dev = tvm_tirx.cuda(0)
+        A = tvm_tirx.runtime.tensor(A_np, dev)
+        B = tvm_tirx.runtime.tensor(np.zeros((128, W32), np.uint32), dev)
         mod(A, B)
         B_out = B.numpy()
         A_bits = np.asarray(A_np).view(np.uint16 if bits == 16 else np.uint32)
@@ -331,9 +331,9 @@ def _build_case(
 
 
 def _compile(kernel):
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
-        return tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=target, pipeline="tirx")
+        return tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx")
 
 
 def _run_case(shape, multicast, sw, dtype, n_mid, s_row_off=0, t_col_off_e=0):
@@ -462,10 +462,10 @@ def test_cp_4x256b_lane_tiled_partial_window():
         pre_zero=True,
     )
     mod = _compile(kernel)
-    A_np = tvm.testing.generate_random_array(dtype, (64, C))
-    dev = tvm.cuda(0)
-    A = tvm.runtime.tensor(A_np, dev)
-    B = tvm.runtime.tensor(np.zeros((128, W32), np.uint32), dev)
+    A_np = tvm_tirx.testing.generate_random_array(dtype, (64, C))
+    dev = tvm_tirx.cuda(0)
+    A = tvm_tirx.runtime.tensor(A_np, dev)
+    B = tvm_tirx.runtime.tensor(np.zeros((128, W32), np.uint32), dev)
     mod(A, B)
     B_u16 = B.numpy().view(np.uint16).reshape(128, W32 * 2)
     A_u16 = np.asarray(A_np).view(np.uint16)
@@ -565,10 +565,10 @@ def _make_cp_kernel_cta2(s_full, s_shape, t_full, t_shape, dtype, cfg, W32, n_co
 def _run_cta2(s_full, s_shape, t_full, t_shape, cfg, W32):
     kernel = _make_cp_kernel_cta2(s_full, s_shape, t_full, t_shape, "bfloat16", cfg, W32, 32)
     mod = _compile(kernel)
-    A_np = tvm.testing.generate_random_array("bfloat16", (2, *s_shape))
-    dev = tvm.cuda(0)
-    A = tvm.runtime.tensor(A_np, dev)
-    B = tvm.runtime.tensor(np.zeros((256, W32), np.uint32), dev)
+    A_np = tvm_tirx.testing.generate_random_array("bfloat16", (2, *s_shape))
+    dev = tvm_tirx.cuda(0)
+    A = tvm_tirx.runtime.tensor(A_np, dev)
+    B = tvm_tirx.runtime.tensor(np.zeros((256, W32), np.uint32), dev)
     mod(A, B)
     B_u16 = B.numpy().view(np.uint16).reshape(2, 128, W32 * 2)
     A_u16 = np.asarray(A_np).view(np.uint16)
@@ -654,10 +654,10 @@ def test_cp_4x256b_lane_tiled_layout_f_scatter():
     src = mod.mod.imports[0].inspect_source()
     assert "tcgen05.cp.cta_group::1.4x256b" in src, f"expected 4x256b atoms; src=\n{src}"
 
-    A_np = tvm.testing.generate_random_array(dtype, (64, C))
-    dev = tvm.cuda(0)
-    A = tvm.runtime.tensor(A_np, dev)
-    B = tvm.runtime.tensor(np.zeros((128, W32), np.uint32), dev)
+    A_np = tvm_tirx.testing.generate_random_array(dtype, (64, C))
+    dev = tvm_tirx.cuda(0)
+    A = tvm_tirx.runtime.tensor(A_np, dev)
+    B = tvm_tirx.runtime.tensor(np.zeros((128, W32), np.uint32), dev)
     mod(A, B)
     B_out = B.numpy()
     A_bits = np.asarray(A_np).view(np.uint16)
@@ -727,10 +727,10 @@ def test_cp_explicit_32x128b_instruction_sequence():
 
 
 def _assert_compile_raises(kernel, fragment):
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
         with pytest.raises(Exception, match=fragment):
-            tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=target, pipeline="tirx")
+            tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": kernel}), target=target, pipeline="tirx")
 
 
 def test_cp_rejects_wrong_replica_for_multicast():
@@ -912,9 +912,9 @@ def test_cp_native_decompression(shape, multicast, sw, bits, cta_group):
             expanded[cta], s_region, t_layout, t_shape, t_region, multicast, 8, width32
         )
         expected.append(values)
-    out = tvm.runtime.tensor(np.zeros((cta_group * 128, width32), np.uint32), tvm.cuda())
+    out = tvm_tirx.runtime.tensor(np.zeros((cta_group * 128, width32), np.uint32), tvm_tirx.cuda())
     data = inputs[0] if cta_group == 1 else inputs
-    ex(tvm.runtime.tensor(data, tvm.cuda()), out)
+    ex(tvm_tirx.runtime.tensor(data, tvm_tirx.cuda()), out)
     np.testing.assert_array_equal(out.numpy(), np.concatenate(expected))
 
 
@@ -1195,10 +1195,10 @@ def _run_3d_4tile(s_full, t_full, s_full_shape, dtype, A_init, expected):
 
 def _execute(kernel, A_init, expected):
     mod = _compile(kernel)
-    dev = tvm.cuda(0)
-    A = tvm.runtime.tensor(A_init, dev)
+    dev = tvm_tirx.cuda(0)
+    A = tvm_tirx.runtime.tensor(A_init, dev)
     B_np = np.zeros((32, 16), dtype=A_init.dtype)
-    B = tvm.runtime.tensor(B_np, dev)
+    B = tvm_tirx.runtime.tensor(B_np, dev)
     mod(A, B)
     B_out = B.numpy()
     assert np.array_equal(B_out, expected), (
@@ -1511,10 +1511,10 @@ def _check_inferred_cp(source_layout, source_shape, row_start, shape):
         32,
         words,
     )
-    output = tvm.runtime.tensor(np.zeros((128, words), dtype="uint32"), tvm.cuda())
-    compiled(tvm.runtime.tensor(source, tvm.cuda()), output)
+    output = tvm_tirx.runtime.tensor(np.zeros((128, words), dtype="uint32"), tvm_tirx.cuda())
+    compiled(tvm_tirx.runtime.tensor(source, tvm_tirx.cuda()), output)
     np.testing.assert_array_equal(output.numpy(), np.where(mask, expected, 0))
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

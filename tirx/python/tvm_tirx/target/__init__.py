@@ -27,8 +27,8 @@ TVM uses JSON-based target configuration. Targets can be constructed via:
 Use ``target.attrs["key"]`` to access target attributes such as
 ``"arch"``, ``"max_num_threads"``, ``"mcpu"``, ``"libs"``, etc.
 
-Use :py:func:`tvm.target.list_tags` to list all available target tags,
-and :py:func:`tvm.target.register_tag` to register new tags.
+Use :py:func:`tvm_tirx.target.list_tags` to list all available target tags,
+and :py:func:`tvm_tirx.target.register_tag` to register new tags.
 """
 
 from .target import Target, TargetKind, device_from_target

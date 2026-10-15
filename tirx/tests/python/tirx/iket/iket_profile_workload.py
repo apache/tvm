@@ -29,9 +29,9 @@ from pathlib import Path
 
 import numpy as np
 
-import tvm
-from tvm.script import tirx as T
-from tvm.tirx.cuda import iket
+import tvm_tirx
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx.cuda import iket
 
 
 @T.function
@@ -143,7 +143,7 @@ def _injection_tool_name():
 def _profile_workload(args):
     if args.fail_capture and _injection_tool_name() == "iket":
         raise RuntimeError("intentional capture-only IKET workload failure")
-    target = tvm.target.Target({"kind": "cuda", "arch": args.arch})
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": args.arch})
     workloads = (
         (canonical_iket_workload, 1),
         (native_payload_workload, 2),
@@ -153,12 +153,12 @@ def _profile_workload(args):
     for workload, offset in workloads:
         # Plain JIT compilation is intentionally used here.  The validated
         # run-iket child enables LowerIket automatically for these modules.
-        executable = tvm.tirx.compile(workload, target=target, pipeline="tirx")
+        executable = tvm_tirx.tirx.compile(workload, target=target, pipeline="tirx")
         module = executable.jit()
-        out = tvm.runtime.empty((32,), "int32", device=tvm.cuda())
+        out = tvm_tirx.runtime.empty((32,), "int32", device=tvm_tirx.cuda())
         module.main(out)
         outputs.append((out, offset))
-    tvm.cuda().sync()
+    tvm_tirx.cuda().sync()
     for out, offset in outputs:
         np.testing.assert_array_equal(out.numpy(), np.arange(32, dtype=np.int32) + offset)
 

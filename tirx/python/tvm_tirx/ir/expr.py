@@ -23,8 +23,8 @@ from numbers import Number
 
 import tvm_ffi
 
-import tvm
-from tvm.ir.location import UNKNOWN_LOC, Location
+import tvm_tirx
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..runtime import Object
 from . import _ffi_api, _tensor_expr_overload
@@ -54,7 +54,7 @@ class Expr(Node):
     """Base class of all the expressions."""
 
     loc: Location
-    ty: "tvm.ir.Type"
+    ty: "tvm_tirx.ir.Type"
 
     def __getattr__(self, name):
         # Reflected fields are ordinary Python properties and have already had
@@ -106,7 +106,7 @@ class Expr(Node):
         return sorted(names)
 
     def __getitem__(self, index):
-        if isinstance(self.ty, tvm.ir.MissingType):
+        if isinstance(self.ty, tvm_tirx.ir.MissingType):
             # Preserve Relax's pre-normalization tuple access: operator calls
             # have a missing result type until the block builder infers it.
             return TupleGetItem(self, index)
@@ -129,7 +129,7 @@ class OpaqueExpr(Expr):
 
 def is_prim_expr(value: object) -> bool:
     """Return whether an expression has a primitive result type."""
-    return isinstance(value, Expr) and isinstance(value.ty, tvm.ir.PrimType)
+    return isinstance(value, Expr) and isinstance(value.ty, tvm_tirx.ir.PrimType)
 
 
 def is_prim_var(value: object) -> bool:
@@ -384,8 +384,8 @@ class ExprOperand:
 
     def __nonzero__(self):
         raise ValueError(
-            "Cannot use and / or / not operator to Expr, hint: use tvm.ir.prim.all / "
-            "tvm.ir.prim.any, if it is None checking, use node is not None"
+            "Cannot use and / or / not operator to Expr, hint: use tvm_tirx.ir.prim.all / "
+            "tvm_tirx.ir.prim.any, if it is None checking, use node is not None"
         )
 
     def __bool__(self):
@@ -454,7 +454,7 @@ class Tuple(_CallableExprWithOp):
     def __init__(self, fields: list[Expr] | tuple[Expr, ...], loc: Location = UNKNOWN_LOC):
         if isinstance(fields, Tuple):
             fields = fields.fields
-        elif isinstance(getattr(fields, "ty", None), tvm.ir.TupleType):
+        elif isinstance(getattr(fields, "ty", None), tvm_tirx.ir.TupleType):
             fields = [*fields]
 
         self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, loc)
@@ -517,7 +517,7 @@ class Constant(ExprWithOp):
 class GenericConst(_ExprCallable, Constant):
     """A literal payload with an explicit expression type."""
 
-    def __init__(self, value, ty: "tvm.ir.Type", loc: Location = UNKNOWN_LOC) -> None:
+    def __init__(self, value, ty: "tvm_tirx.ir.Type", loc: Location = UNKNOWN_LOC) -> None:
         self.__init_handle_by_constructor__(_ffi_api.GenericConst, value, ty, loc)
 
     def __bool__(self) -> bool:
@@ -530,15 +530,15 @@ class DataTypeImm(Constant):
 
     Parameters
     ----------
-    value : str or tvm.DataType
+    value : str or tvm_tirx.DataType
         The represented data type.
     loc : Location, optional
         The source location of the literal.
     """
 
-    value: tvm.DataType
+    value: tvm_tirx.DataType
 
-    def __init__(self, value: str | tvm.DataType, loc: Location = UNKNOWN_LOC) -> None:
+    def __init__(self, value: str | tvm_tirx.DataType, loc: Location = UNKNOWN_LOC) -> None:
         self.__init_handle_by_constructor__(_ffi_api.DataTypeImm, value, loc)
 
 
@@ -573,18 +573,18 @@ class Call(_CallableExprWithOp):
 
     op: Expr
     args: list[Expr]
-    attrs: "tvm.ir.Attrs | None"
-    ty_args: list["tvm.ir.Type"]
+    attrs: "tvm_tirx.ir.Attrs | None"
+    ty_args: list["tvm_tirx.ir.Type"]
     loc: Location
 
     def __init__(
         self,
         op: Expr | str,
         args: list[Expr] | tuple[Expr, ...],
-        attrs: "tvm.ir.Attrs | dict | None" = None,
-        ty_args: list["tvm.ir.Type"] | tuple["tvm.ir.Type", ...] | None = None,
+        attrs: "tvm_tirx.ir.Attrs | dict | None" = None,
+        ty_args: list["tvm_tirx.ir.Type"] | tuple["tvm_tirx.ir.Type", ...] | None = None,
         loc: Location = UNKNOWN_LOC,
-        ty: "tvm.ir.Type | str | None" = None,
+        ty: "tvm_tirx.ir.Type | str | None" = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.Call, *self._normalize_constructor_args(op, args, attrs, ty_args, loc, ty)
@@ -614,7 +614,7 @@ class Call(_CallableExprWithOp):
         _ffi_api.CallValidate(self)
 
 
-def reinfer_type(call: Call) -> "tvm.ir.Type":
+def reinfer_type(call: Call) -> "tvm_tirx.ir.Type":
     """Derive a Call's result type from its current inputs without changing the Call.
 
     The operator must register a fixed return type or a context-free inference
@@ -635,7 +635,7 @@ class TensorRegion(Expr, Scriptable):
     region : list[Range]
         The ranges describing the region.
 
-    ty : tvm.ir.Type
+    ty : tvm_tirx.ir.Type
         The result type, including any dialect-specific subscript semantics.
 
     loc : Location, optional
@@ -649,7 +649,7 @@ class TensorRegion(Expr, Scriptable):
         self,
         source: Expr,
         region: list["Range"],
-        ty: "tvm.ir.Type",
+        ty: "tvm_tirx.ir.Type",
         loc: Location = UNKNOWN_LOC,
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.TensorRegion, source, region, ty, loc)
@@ -678,7 +678,7 @@ class Var(_CallableExprWithOp):
     def __init__(
         self,
         name: str | None = None,
-        ty: "tvm.ir.Type | str | None" = None,
+        ty: "tvm_tirx.ir.Type | str | None" = None,
         loc: Location = UNKNOWN_LOC,
         *,
         name_hint: str | None = None,
@@ -696,7 +696,7 @@ class Var(_CallableExprWithOp):
         if isinstance(ty, str):
             ty = PtrType(PrimType("void")) if ty == "handle" else PrimType(ty)
         elif ty is not None:
-            ty = tvm.runtime.convert(ty)
+            ty = tvm_tirx.runtime.convert(ty)
             if not isinstance(ty, Type):
                 raise TypeError("ty must be a Type or primitive dtype string")
         self.__init_handle_by_constructor__(_ffi_api.Var, name, ty, loc)
@@ -704,17 +704,17 @@ class Var(_CallableExprWithOp):
 
 def _lambda_type(annotation):
     """Normalize explicit types and the script scalar constructor forms."""
-    if isinstance(annotation, tvm.ir.Type):
+    if isinstance(annotation, tvm_tirx.ir.Type):
         return annotation
     if isinstance(annotation, str):
         return Var("", annotation).ty
-    if isinstance(annotation, tvm.DataType):
-        return tvm.ir.PrimType(annotation)
+    if isinstance(annotation, tvm_tirx.DataType):
+        return tvm_tirx.ir.PrimType(annotation)
     if callable(annotation):
         value = annotation()
         if isinstance(value, Expr):
             return value.ty
-        if isinstance(value, tvm.ir.Type):
+        if isinstance(value, tvm_tirx.ir.Type):
             return value
     raise TypeError("Lambda parameter and return annotations must be explicit IR types")
 
@@ -727,7 +727,7 @@ def _lambda_result(value):
     elif isinstance(value, str):
         value = StringImm(value)
     else:
-        value = tvm.runtime.convert(value)
+        value = tvm_tirx.runtime.convert(value)
     if not isinstance(value, Expr):
         raise TypeError("Lambda body must be an Expr or a tuple/list of expressions")
     return value

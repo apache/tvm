@@ -18,7 +18,7 @@
 
 from tvm.s_tir import Schedule, Trace
 
-from ...target import Target
+from tvm_tirx.target import Target
 from . import _ffi_api
 
 
@@ -35,7 +35,7 @@ def schedule_using_anchor_trace(sch: Schedule, anchor_trace: Trace, target: Targ
         The target schedule
     anchor_trace: Trace
         The trace generated for other TIR module having the same anchor block
-    target : tvm.target.Target
+    target : tvm_tirx.target.Target
         The compilation target
     """
     _ffi_api.ScheduleUsingAnchorTrace(sch, anchor_trace, target)  # type: ignore

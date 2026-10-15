@@ -25,12 +25,12 @@ from operator import mul
 
 import tvm_ffi
 
-from tvm.backend.trn.layout import is_trainium_layout
-from tvm.ir import Range, TensorRegion, TensorRegionType
-from tvm.script import tirx as T
-from tvm.sym.analyzer import Analyzer
-from tvm.tirx import Expr, IntImm, Var, is_tensor_var
-from tvm.tirx.layout import Iter, TileLayout
+from tvm_tirx.backend.trn.layout import is_trainium_layout
+from tvm_tirx.ir import Range, TensorRegion, TensorRegionType
+from tvm_tirx.script import tirx as T
+from tvm_tirx.sym.analyzer import Analyzer
+from tvm_tirx.tirx import Expr, IntImm, Var, is_tensor_var
+from tvm_tirx.tirx.layout import Iter, TileLayout
 
 from .dim_utils import DimensionMapper, RangeInfo, normalize_and_group
 

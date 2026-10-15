@@ -20,51 +20,51 @@ import uuid
 
 import pytest
 
-import tvm
-from tvm.runtime import MemoryScope
+import tvm_tirx
+from tvm_tirx.runtime import MemoryScope
 
 
 def check_json_roundtrip(node):
-    json_str = tvm.ir.save_json(node)
-    back = tvm.ir.load_json(json_str)
-    tvm.ir.assert_structural_equal(back, node, map_free_vars=True)
+    json_str = tvm_tirx.ir.save_json(node)
+    back = tvm_tirx.ir.load_json(json_str)
+    tvm_tirx.ir.assert_structural_equal(back, node, map_free_vars=True)
 
 
 def test_missing_type():
-    missing = tvm.ir.Type.missing()
+    missing = tvm_tirx.ir.Type.missing()
 
-    assert isinstance(missing, tvm.ir.Type)
-    assert isinstance(missing, tvm.ir.MissingType)
+    assert isinstance(missing, tvm_tirx.ir.Type)
+    assert isinstance(missing, tvm_tirx.ir.MissingType)
 
 
 def test_prim_type():
-    x = tvm.ir.PrimType("int32")
-    assert isinstance(x, tvm.ir.PrimType)
+    x = tvm_tirx.ir.PrimType("int32")
+    assert isinstance(x, tvm_tirx.ir.PrimType)
     assert x.dtype == "int32"
     with pytest.raises(TypeError, match="PtrType::VoidPtrType"):
-        tvm.ir.PrimType("handle")
+        tvm_tirx.ir.PrimType("handle")
 
 
 def test_func_type():
-    arg_types = tvm.runtime.convert([])
-    ret_type = tvm.ir.PrimType("float32")
-    tf = tvm.ir.FuncType(arg_types, ret_type)
+    arg_types = tvm_tirx.runtime.convert([])
+    ret_type = tvm_tirx.ir.PrimType("float32")
+    tf = tvm_tirx.ir.FuncType(arg_types, ret_type)
     assert tf.arg_types == arg_types
     assert tf.ret_type == ret_type
-    assert isinstance(tf.loc, tvm.ir.UnknownLoc)
-    assert tf.loc.same_as(tvm.ir.UnknownLoc())
+    assert isinstance(tf.loc, tvm_tirx.ir.UnknownLoc)
+    assert tf.loc.same_as(tvm_tirx.ir.UnknownLoc())
     # TODO make sure we can set loc
     str(tf)
     check_json_roundtrip(tf)
 
 
 def test_tuple_type():
-    tf = tvm.ir.FuncType([], tvm.ir.TupleType([]))
-    tt = tvm.ir.PrimType("float32")
-    fields = tvm.runtime.convert([tf, tt])
+    tf = tvm_tirx.ir.FuncType([], tvm_tirx.ir.TupleType([]))
+    tt = tvm_tirx.ir.PrimType("float32")
+    fields = tvm_tirx.runtime.convert([tf, tt])
 
-    tup_ty = tvm.ir.TupleType(fields)
-    assert tup_ty.loc.same_as(tvm.ir.UnknownLoc())
+    tup_ty = tvm_tirx.ir.TupleType(fields)
+    assert tup_ty.loc.same_as(tvm_tirx.ir.UnknownLoc())
     assert tup_ty.fields == fields
     str(tup_ty)
     check_json_roundtrip(tup_ty)
@@ -73,7 +73,7 @@ def test_tuple_type():
 def test_memory_scope_json_roundtrip():
     custom = MemoryScope.register("test.ir.scope." + uuid.uuid4().hex)
     for scope in (MemoryScope("global"), MemoryScope("shared.dyn"), custom):
-        assert tvm.ir.load_json(tvm.ir.save_json(scope)).same_as(scope)
+        assert tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(scope)).same_as(scope)
 
 
 if __name__ == "__main__":

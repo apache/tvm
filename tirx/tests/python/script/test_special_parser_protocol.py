@@ -22,8 +22,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from tvm.script.ir_builder import resolve_global_info_args
-from tvm.script.parser import entry
+from tvm_tirx.script.ir_builder import resolve_global_info_args
+from tvm_tirx.script.parser import entry
 
 
 def test_constructor_policy_survives_a_failed_definition(language):
@@ -107,7 +107,7 @@ def test_ordinary_calls_preserve_literal_arguments(language):
 
 
 def test_initial_import_alias_and_symbolic_range():
-    source = """from tvm.script import tirx as Script
+    source = """from tvm_tirx.script import tirx as Script
 @Script.function
 def main(n: Script.int32):
     for i in range(n):

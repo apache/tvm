@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-from tvm.ir import assert_structural_equal
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import tirx as T
 
 
 def from_source(code):
-    return tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+    return tvm_tirx.script.from_source(code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx})
 
 
 def test_roundtrip_tir_namespaces_minimal():

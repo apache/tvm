@@ -27,13 +27,13 @@ def _integer(value):
     if isinstance(value, Integral):
         return int(value)
     # Avoid importing TVM while the generated configuration module is loaded.
-    from tvm.ir.prim import IntImm
+    from tvm_tirx.ir.prim import IntImm
 
     return int(value) if isinstance(value, IntImm) else None
 
 
 def _scalar(value, spec, name):
-    from tvm import ir
+    from tvm_tirx import ir
 
     if spec.kind == "enum" and isinstance(value, str):
         choices = dict(spec.enums)
@@ -206,7 +206,7 @@ def pack_launch(config):
     """Return the static field description and ordinary IR value operands."""
     if getattr(config, "_config_type", None) != "LaunchConfig":
         raise TypeError("launch must be a CUDA LaunchConfig")
-    from tvm.script.ir_builder.stmt import _as_expr
+    from tvm_tirx.script.ir_builder.stmt import _as_expr
 
     names, values = [], []
     for spec in LAUNCH_FIELDS:

@@ -18,7 +18,7 @@
 
 import tvm_ffi
 
-from tvm.runtime import Object
+from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 from . import expr as _expr
@@ -148,7 +148,7 @@ class IRModule(Node, Scriptable):
         var: GlobalVar
             The global variable.
 
-        func: tvm.ir.BaseFunc
+        func: tvm_tirx.ir.BaseFunc
             The function to be inserted.
         """
         return _ffi_api.Module_UpdateFunction(self, var, func)

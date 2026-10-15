@@ -17,10 +17,10 @@
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_stmt_simplify():
@@ -42,7 +42,7 @@ def test_stmt_simplify():
             A_ptr[i] = C_ptr[i]
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_thread_extent_simplify():
@@ -66,7 +66,7 @@ def test_thread_extent_simplify():
                 A_ptr[tx] = C_ptr[tx]
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_if_likely():
@@ -90,7 +90,7 @@ def test_if_likely():
                     A_ptr[tx] = C_ptr[tx * 32 + ty]
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_loop_body_knows_dynamic_extent_is_positive():
@@ -111,8 +111,8 @@ def test_loop_body_knows_dynamic_extent_is_positive():
     class InputModule:
         main = input_func
 
-    after = tvm.tirx.transform.StmtSimplify()(InputModule)["main"]
-    tvm.ir.assert_structural_equal(after, expected)
+    after = tvm_tirx.tirx.transform.StmtSimplify()(InputModule)["main"]
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def _apply_simplify(func):
@@ -123,7 +123,7 @@ def _apply_simplify(func):
     class InputModule:
         main = input_func
 
-    return tvm.tirx.transform.StmtSimplify()(InputModule)["main"]
+    return tvm_tirx.tirx.transform.StmtSimplify()(InputModule)["main"]
 
 
 def test_load_store_noop():
@@ -138,7 +138,7 @@ def test_load_store_noop():
         T.evaluate(0)
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_load_store_noop_after_simplify():
@@ -159,7 +159,7 @@ def test_load_store_noop_after_simplify():
         T.evaluate(0)
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_nested_condition():
@@ -184,7 +184,7 @@ def test_nested_condition():
                 A[i] = 0.0
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_nested_provable_condition():
@@ -208,7 +208,7 @@ def test_nested_provable_condition():
                 A[i] = 0.0
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_nested_var_condition():
@@ -232,7 +232,7 @@ def test_nested_var_condition():
                 A[i] = 0.0
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_altered_tensor_contents():
@@ -254,7 +254,7 @@ def test_altered_tensor_contents():
     expected = before
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_negation_of_condition():
@@ -280,7 +280,7 @@ def test_negation_of_condition():
                 A[i] = 1
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_negation_of_not_equal():
@@ -308,7 +308,7 @@ def test_negation_of_not_equal():
                 A[i] = 1
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_negation_of_var_condition():
@@ -334,7 +334,7 @@ def test_negation_of_var_condition():
                 A[i] = 1
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_literal_constraint_split_boolean_and():
@@ -360,7 +360,7 @@ def test_literal_constraint_split_boolean_and():
                 A[i, j] = 0
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_literal_constraint_split_boolean_or():
@@ -394,7 +394,7 @@ def test_literal_constraint_split_boolean_or():
                 A[i, j] = 2
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_prove_condition_using_let():
@@ -423,7 +423,7 @@ def test_prove_condition_using_let():
             A[i] = i < 3
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_prove_let_condition():
@@ -449,7 +449,7 @@ def test_prove_let_condition():
                 A[i] = T.bool(True)
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_prove_repeated_let_condition():
@@ -476,7 +476,7 @@ def test_prove_repeated_let_condition():
                 A[i] = T.bool(True)
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_if_then_else_expr():
@@ -493,7 +493,7 @@ def test_if_then_else_expr():
                 A[i] = 1.0
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_ceil_log2_int():
@@ -508,7 +508,7 @@ def test_ceil_log2_int():
         A[0] = 4
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_left_ceil_log2_lower_bound():
@@ -538,7 +538,7 @@ def test_left_ceil_log2_lower_bound():
             A[i] = T.float32(0)
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_left_shift_lower_bound():
@@ -561,7 +561,7 @@ def test_left_shift_lower_bound():
             A[i] = 0.0
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_left_shift_upper_bound():
@@ -584,7 +584,7 @@ def test_left_shift_upper_bound():
             A[i] = 0.0
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_left_shift_of_negative_value():
@@ -604,7 +604,7 @@ def test_left_shift_of_negative_value():
     expected = before
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_left_shift_by_negative_value():
@@ -624,7 +624,7 @@ def test_left_shift_by_negative_value():
     expected = before
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_conditional_floor_mod():
@@ -658,7 +658,7 @@ def test_conditional_floor_mod():
             A[0] = True
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_provable_condition_with_offset():
@@ -675,7 +675,7 @@ def test_provable_condition_with_offset():
             A[0] = True
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_most_restrictive_conditional():
@@ -714,7 +714,7 @@ def test_most_restrictive_conditional():
                 A[0] = expr_after
 
         after = _apply_simplify(before_func)
-        tvm.ir.assert_structural_equal(after, expected_func)
+        tvm_tirx.ir.assert_structural_equal(after, expected_func)
 
 
 def test_simplify_trivial_let_tensor_var():
@@ -729,7 +729,7 @@ def test_simplify_trivial_let_tensor_var():
     expected = before
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_simplify_trivial_let_elem_offset():
@@ -752,7 +752,7 @@ def test_simplify_trivial_let_elem_offset():
         A[0] = 42.0
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_simplify_trivial_let_shape():
@@ -771,7 +771,7 @@ def test_simplify_trivial_let_shape():
         A[0] = 42.0
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_simplify_trivial_let_stride():
@@ -794,7 +794,7 @@ def test_simplify_trivial_let_stride():
         A[0] = 42.0
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_simplify_tensor_identity_well_formed():
@@ -822,8 +822,8 @@ def test_simplify_tensor_identity_well_formed():
         B[0] = A[0]
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
-    tvm.tirx.analysis.verify_well_formed(after)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
+    tvm_tirx.tirx.analysis.verify_well_formed(after)
 
 
 def test_tensor_shape_constraint():
@@ -843,8 +843,8 @@ def test_tensor_shape_constraint():
         def main(A: T.Tensor((n * 32,), "float32")):
             A[T.int64(0)] = T.float32(0)
 
-    after = tvm.tirx.transform.StmtSimplify()(Before)
-    tvm.ir.assert_structural_equal(after["main"], Expected["main"])
+    after = tvm_tirx.tirx.transform.StmtSimplify()(Before)
+    tvm_tirx.ir.assert_structural_equal(after["main"], Expected["main"])
 
 
 def test_tensor_shape_constraint_with_offset():
@@ -864,8 +864,8 @@ def test_tensor_shape_constraint_with_offset():
         def main(A: T.Tensor((n * 32 + 1 - 2,), "float32")):
             A[T.int64(1)] = T.float32(0)
 
-    after = tvm.tirx.transform.StmtSimplify()(Before)
-    tvm.ir.assert_structural_equal(after["main"], Expected["main"])
+    after = tvm_tirx.tirx.transform.StmtSimplify()(Before)
+    tvm_tirx.ir.assert_structural_equal(after["main"], Expected["main"])
 
 
 def test_nested_if_elimination():
@@ -882,7 +882,7 @@ def test_nested_if_elimination():
             b[i0, j0] = T.if_then_else(i0 == 1 and 6 <= j0, 0, T.max(0, a[i0, j0]))
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 @pytest.mark.parametrize("else_branch", [False, True])
@@ -906,7 +906,7 @@ def test_mutable_branch_predicate_preserves_while_bound(else_branch, write_befor
                     x[0] = x[0] + 1
 
     after = _apply_simplify(before)
-    tvm.ir.assert_structural_equal(after, before)
+    tvm_tirx.ir.assert_structural_equal(after, before)
 
 
 def test_mutable_branch_predicate_preserves_later_load():
@@ -916,7 +916,7 @@ def test_mutable_branch_predicate_preserves_later_load():
             x[0] = x[0] + 1
             out[0] = T.Select(x[0] < 8, 1, 0)
 
-    tvm.ir.assert_structural_equal(_apply_simplify(before), before)
+    tvm_tirx.ir.assert_structural_equal(_apply_simplify(before), before)
 
 
 def test_mutable_assert_does_not_constrain_later_load():
@@ -926,8 +926,8 @@ def test_mutable_assert_does_not_constrain_later_load():
         x[0] = x[0] + 1
         out[0] = T.Select(x[0] < 8, 1, 0)
 
-    tvm.ir.assert_structural_equal(_apply_simplify(before), before)
+    tvm_tirx.ir.assert_structural_equal(_apply_simplify(before), before)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

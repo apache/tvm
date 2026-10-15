@@ -21,11 +21,11 @@ import sys
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import te
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 # TODO(csullivan): Additional tests cases needed:
 # - Function with 1 arg, inplace update
@@ -50,13 +50,13 @@ def func_1(A: T.Tensor((16,), "float32"), C: T.Tensor((1,), "float32")):
 def verify_func_1(module):
     a_np = np.random.randint(low=-128, high=127, size=(16,)).astype(np.float32)
     c_np = np.zeros((1,), dtype=np.float32)
-    a = tvm.runtime.tensor(a_np, device=tvm.cpu(0))
-    c = tvm.runtime.tensor(c_np, device=tvm.cpu(0))
+    a = tvm_tirx.runtime.tensor(a_np, device=tvm_tirx.cpu(0))
+    c = tvm_tirx.runtime.tensor(c_np, device=tvm_tirx.cpu(0))
 
     module(a, c)
-    tvm.testing.assert_allclose(c_np + np.sum(3 * a_np + 1), c.numpy(), rtol=1e-4)
+    tvm_tirx.testing.assert_allclose(c_np + np.sum(3 * a_np + 1), c.numpy(), rtol=1e-4)
     # also test in place update
-    tvm.testing.assert_allclose(a_np * 2 + 1, a.numpy(), rtol=1e-4)
+    tvm_tirx.testing.assert_allclose(a_np * 2 + 1, a.numpy(), rtol=1e-4)
 
 
 @Ts.function
@@ -80,13 +80,13 @@ def verify_func_2(module):
     a_np = np.random.randint(low=-128, high=127, size=(16,)).astype(np.float32)
     d_np = np.random.randint(low=-128, high=127, size=(2,)).astype(np.float32)
     c_np = np.zeros((1,), dtype=np.float32)
-    a = tvm.runtime.tensor(a_np, device=tvm.cpu(0))
-    d = tvm.runtime.tensor(d_np, device=tvm.cpu(0))
-    c = tvm.runtime.tensor(c_np, device=tvm.cpu(0))
+    a = tvm_tirx.runtime.tensor(a_np, device=tvm_tirx.cpu(0))
+    d = tvm_tirx.runtime.tensor(d_np, device=tvm_tirx.cpu(0))
+    c = tvm_tirx.runtime.tensor(c_np, device=tvm_tirx.cpu(0))
 
     module(c, a, d)
-    tvm.testing.assert_allclose(c_np + np.sum(3 * a_np + 1 + d_np[0]), c.numpy(), rtol=1e-4)
-    tvm.testing.assert_allclose(a_np * 2 + 1 + d_np[1], a.numpy(), rtol=1e-4)
+    tvm_tirx.testing.assert_allclose(c_np + np.sum(3 * a_np + 1 + d_np[0]), c.numpy(), rtol=1e-4)
+    tvm_tirx.testing.assert_allclose(a_np * 2 + 1 + d_np[1], a.numpy(), rtol=1e-4)
 
 
 @Ts.function
@@ -118,17 +118,17 @@ def verify_func_3(module):
     c_np = np.zeros((1,), dtype=np.float32)
     e_np = np.zeros((16,), dtype=np.float32)
     f_np = np.zeros((16,), dtype=np.float32)
-    a = tvm.runtime.tensor(a_np, device=tvm.cpu(0))
-    d = tvm.runtime.tensor(d_np, device=tvm.cpu(0))
-    c = tvm.runtime.tensor(c_np, device=tvm.cpu(0))
-    e = tvm.runtime.tensor(e_np, device=tvm.cpu(0))
-    f = tvm.runtime.tensor(f_np, device=tvm.cpu(0))
+    a = tvm_tirx.runtime.tensor(a_np, device=tvm_tirx.cpu(0))
+    d = tvm_tirx.runtime.tensor(d_np, device=tvm_tirx.cpu(0))
+    c = tvm_tirx.runtime.tensor(c_np, device=tvm_tirx.cpu(0))
+    e = tvm_tirx.runtime.tensor(e_np, device=tvm_tirx.cpu(0))
+    f = tvm_tirx.runtime.tensor(f_np, device=tvm_tirx.cpu(0))
 
     module(c, a, d, e, f)
-    tvm.testing.assert_allclose(c_np + np.sum(3 * a_np + 1 + d_np[0]), c.numpy(), rtol=1e-4)
-    tvm.testing.assert_allclose(a_np * 2 + 1 + d_np[1], a.numpy(), rtol=1e-4)
-    tvm.testing.assert_allclose(a_np, e.numpy(), rtol=1e-4)
-    tvm.testing.assert_allclose(a_np + 1, f.numpy(), rtol=1e-4)
+    tvm_tirx.testing.assert_allclose(c_np + np.sum(3 * a_np + 1 + d_np[0]), c.numpy(), rtol=1e-4)
+    tvm_tirx.testing.assert_allclose(a_np * 2 + 1 + d_np[1], a.numpy(), rtol=1e-4)
+    tvm_tirx.testing.assert_allclose(a_np, e.numpy(), rtol=1e-4)
+    tvm_tirx.testing.assert_allclose(a_np + 1, f.numpy(), rtol=1e-4)
 
 
 @Ts.function
@@ -160,17 +160,17 @@ def verify_func_4(module):
     c_np = np.zeros((1,), dtype=np.float32)
     e_np = np.zeros((16,), dtype=np.float32)
     f_np = np.zeros((16,), dtype=np.float32)
-    a = tvm.runtime.tensor(a_np, device=tvm.cpu(0))
-    d = tvm.runtime.tensor(d_np, device=tvm.cpu(0))
-    c = tvm.runtime.tensor(c_np, device=tvm.cpu(0))
-    e = tvm.runtime.tensor(e_np, device=tvm.cpu(0))
-    f = tvm.runtime.tensor(f_np, device=tvm.cpu(0))
+    a = tvm_tirx.runtime.tensor(a_np, device=tvm_tirx.cpu(0))
+    d = tvm_tirx.runtime.tensor(d_np, device=tvm_tirx.cpu(0))
+    c = tvm_tirx.runtime.tensor(c_np, device=tvm_tirx.cpu(0))
+    e = tvm_tirx.runtime.tensor(e_np, device=tvm_tirx.cpu(0))
+    f = tvm_tirx.runtime.tensor(f_np, device=tvm_tirx.cpu(0))
 
     module(c, a, f, d, e)
-    tvm.testing.assert_allclose(c_np + np.sum(3 * a_np + 1 + d_np[0]), c.numpy(), rtol=1e-4)
-    tvm.testing.assert_allclose(a_np * 2 + 1 + d_np[1], a.numpy(), rtol=1e-4)
-    tvm.testing.assert_allclose(a_np, e.numpy(), rtol=1e-4)
-    tvm.testing.assert_allclose(a_np + 1, f.numpy(), rtol=1e-4)
+    tvm_tirx.testing.assert_allclose(c_np + np.sum(3 * a_np + 1 + d_np[0]), c.numpy(), rtol=1e-4)
+    tvm_tirx.testing.assert_allclose(a_np * 2 + 1 + d_np[1], a.numpy(), rtol=1e-4)
+    tvm_tirx.testing.assert_allclose(a_np, e.numpy(), rtol=1e-4)
+    tvm_tirx.testing.assert_allclose(a_np + 1, f.numpy(), rtol=1e-4)
 
 
 _function_cases = [
@@ -184,21 +184,21 @@ _function_cases = [
 class TestFunctions:
     @pytest.mark.parametrize("func,verify", [(case[0], case[2]) for case in _function_cases])
     def test_function_call(self, func, verify):
-        target = tvm.target.Target("llvm")
+        target = tvm_tirx.target.Target("llvm")
         func = tvm.compile(func, target=target)
         verify(func)
 
     @pytest.mark.parametrize("func,params,verify", _function_cases)
     def test_te_extern_call(self, func, params, verify):
-        ir_mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+        ir_mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
         function = ir_mod["main"]
 
-        buf_name_map = {param.name: param for param in func.params if tvm.tirx.is_tensor_var(param)}
+        buf_name_map = {param.name: param for param in func.params if tvm_tirx.tirx.is_tensor_var(param)}
         input_tensors = [te.placeholder(buf_name_map[name].shape) for name in params]
         output = te.extern_function(input_tensors, function)
         rt_function = te.create_function(tensors_from_extern_op(output, function))
 
-        target = tvm.target.Target("llvm")
+        target = tvm_tirx.target.Target("llvm")
         func = tvm.compile(rt_function, target=target)
         verify(func)
 
@@ -220,10 +220,10 @@ def tensors_from_extern_op(extern, func):
     tir_to_te_tensor = {**input_binds, **output_binds}
     ordered_tensors = []
     for var in func.params:
-        if tvm.tirx.is_tensor_var(var):
+        if tvm_tirx.tirx.is_tensor_var(var):
             ordered_tensors.append(tir_to_te_tensor[var])
     return ordered_tensors
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

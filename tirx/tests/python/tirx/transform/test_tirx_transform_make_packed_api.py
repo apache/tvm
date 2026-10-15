@@ -23,17 +23,17 @@ Runtime error tests are in tests/python/codegen/test_argument_validation.py.
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def _is_tensor_binding(node, *op_names):
     return (
-        isinstance(node, tvm.ir.Bind)
-        and isinstance(node.value, tvm.ir.Call)
-        and isinstance(node.value.op, tvm.ir.Op)
+        isinstance(node, tvm_tirx.ir.Bind)
+        and isinstance(node.value, tvm_tirx.ir.Call)
+        and isinstance(node.value.op, tvm_tirx.ir.Op)
         and node.value.op.name in op_names
     )
 
@@ -42,8 +42,8 @@ def _find_compute_scope(func):
     result = None
 
     def _visitor(stmt):
-        if isinstance(stmt, tvm.ir.RegionStmt) and stmt.op.same_as(
-            tvm.ir.Op.get("tirx.compute_scope")
+        if isinstance(stmt, tvm_tirx.ir.RegionStmt) and stmt.op.same_as(
+            tvm_tirx.ir.Op.get("tirx.compute_scope")
         ):
             nonlocal result
             result = stmt
@@ -61,8 +61,8 @@ def test_no_op_when_global_symbol_is_absent():
             T.func_attr({"target": T.target("llvm", host="llvm")})
             T.evaluate(0)
 
-    After = tvm.tirx.transform.MakePackedAPI()(Before)
-    tvm.ir.assert_structural_equal(After, Before)
+    After = tvm_tirx.tirx.transform.MakePackedAPI()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Before)
 
 
 def test_target_host_removed():
@@ -73,7 +73,7 @@ def test_target_host_removed():
     only contain the host-side target.
     """
 
-    host = tvm.target.Target("llvm")
+    host = tvm_tirx.target.Target("llvm")
 
     @I.ir_module
     class before:
@@ -290,8 +290,8 @@ def test_target_host_removed():
                     pass
                 return 0
 
-    after = tvm.tirx.transform.MakePackedAPI()(before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.MakePackedAPI()(before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
     target_attr = after["main"].attrs["target"]
     assert str(host) == str(target_attr)
 
@@ -380,13 +380,13 @@ def test_internal_subroutine_call():
             T.func_attr({"target": T.target("llvm")})
             T.evaluate(A_data)
 
-    after = tvm.tirx.transform.MakePackedAPI()(before)
-    tvm.ir.assert_structural_equal(after, Expected)
-    tvm.ir.assert_structural_equal(before["subroutine"], after["subroutine"])
+    after = tvm_tirx.tirx.transform.MakePackedAPI()(before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(before["subroutine"], after["subroutine"])
 
     compute_scope = _find_compute_scope(after["main"])
     subroutine_call_op = compute_scope.body[0].value.op
-    assert isinstance(subroutine_call_op, tvm.ir.GlobalVar), (
+    assert isinstance(subroutine_call_op, tvm_tirx.ir.GlobalVar), (
         f"The main function's CallNode should use the subroutine's GlobalVar as the operation, "
         f"but instead has an operation of type {subroutine_call_op}"
     )
@@ -533,8 +533,8 @@ def test_subroutine_call_to_externally_visible_subroutine():
                 T.evaluate(A_data)
             return 0
 
-    after = tvm.tirx.transform.MakePackedAPI()(before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.MakePackedAPI()(before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
     main_compute_scope = _find_compute_scope(after["main"])
     assert main_compute_scope is not None
@@ -543,7 +543,7 @@ def test_subroutine_call_to_externally_visible_subroutine():
 
     subroutine_call_op = main_compute_scope.body[0].value.op
     assert (
-        isinstance(subroutine_call_op, tvm.ir.Op) and subroutine_call_op.name == "tirx.call_cpacked"
+        isinstance(subroutine_call_op, tvm_tirx.ir.Op) and subroutine_call_op.name == "tirx.call_cpacked"
     ), (
         f"The main function's CallNode should be lowered to the builtin 'tirx.call_cpacked', "
         f"but instead has an operation of type {subroutine_call_op}"
@@ -587,8 +587,8 @@ def test_zero_arg_function():
                 return 0
             return 0
 
-    After = tvm.tirx.transform.MakePackedAPI()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.MakePackedAPI()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_pointer_return():
@@ -664,16 +664,16 @@ def test_pointer_return():
                 return 0
             return 0
 
-    after = tvm.tirx.transform.MakePackedAPI()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.MakePackedAPI()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
     after = after["main"]
     return_type_indices = []
 
     def collect(node):
-        if not isinstance(node, tvm.ir.Call) or node.op.name != "tirx.abi_field_set":
+        if not isinstance(node, tvm_tirx.ir.Call) or node.op.name != "tirx.abi_field_set":
             return
         field = node.args[2]
-        if isinstance(field, tvm.tirx.IntImm) and int(field) == 13:
+        if isinstance(field, tvm_tirx.tirx.IntImm) and int(field) == 13:
             return_type_indices.append(int(node.args[3]))
 
     tvm_ffi.structural_walk(after.body, collect)
@@ -691,8 +691,8 @@ def test_return_from_parallel_scope_is_rejected():
             for i in T.parallel(2):
                 return i
 
-    with pytest.raises(tvm.error.InternalError, match="Return cannot be used in parallel scope"):
-        tvm.tirx.transform.MakePackedAPI()(Before)
+    with pytest.raises(tvm_tirx.error.InternalError, match="Return cannot be used in parallel scope"):
+        tvm_tirx.tirx.transform.MakePackedAPI()(Before)
 
 
 def test_int_parameter():
@@ -758,8 +758,8 @@ def test_int_parameter():
                     return 0
             return 0
 
-    After = tvm.tirx.transform.MakePackedAPI()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.MakePackedAPI()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_bool_parameter():
@@ -825,8 +825,8 @@ def test_bool_parameter():
                     return 0
             return 0
 
-    After = tvm.tirx.transform.MakePackedAPI()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.MakePackedAPI()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_float_parameter():
@@ -896,8 +896,8 @@ def test_float_parameter():
                     return 0
             return 0
 
-    After = tvm.tirx.transform.MakePackedAPI()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.MakePackedAPI()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_forward_reference_symbolic_variable():
@@ -1302,8 +1302,8 @@ def test_forward_reference_symbolic_variable():
                         B[i] = A[i] + A[i + T.int64(1)]
                 return 0
 
-    After = tvm.tirx.transform.MakePackedAPI()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.MakePackedAPI()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
     assert len(After["main"].params) == 4
 
 
@@ -1522,14 +1522,14 @@ def test_tensor_alignment_attached_to_tensor_var():
                     T.evaluate(A[0])
                 return 0
 
-    after = tvm.tirx.transform.MakePackedAPI()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    after = tvm_tirx.tirx.transform.MakePackedAPI()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
     after = after["main"]
     alignment_nodes = []
     declared_tensors = []
 
     def collect(node):
-        if isinstance(node, tvm.ir.Call) and node.op == tvm.ir.Op.get("tirx.assume_aligned"):
+        if isinstance(node, tvm_tirx.ir.Call) and node.op == tvm_tirx.ir.Op.get("tirx.assume_aligned"):
             alignment_nodes.append(node.args[0])
         if _is_tensor_binding(node, "tirx.decl_tensor"):
             declared_tensors.append(node.var)
@@ -1540,4 +1540,4 @@ def test_tensor_alignment_attached_to_tensor_var():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

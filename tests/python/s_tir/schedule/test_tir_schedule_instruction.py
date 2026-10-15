@@ -21,7 +21,7 @@ import sys
 
 import pytest
 
-import tvm.testing
+import tvm_tirx.testing, tvm
 from tvm.s_tir.schedule import Instruction, InstructionKind, LoopRV, SBlockRV
 
 
@@ -68,4 +68,4 @@ def test_inst_construct_2():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

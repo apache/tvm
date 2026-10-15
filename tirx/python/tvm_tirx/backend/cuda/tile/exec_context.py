@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from tvm.tirx.layout import Axis, Iter, TileLayout
+from tvm_tirx.tirx.layout import Axis, Iter, TileLayout
 
 WG_SIZE = 4
 

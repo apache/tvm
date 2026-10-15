@@ -23,9 +23,9 @@ from pathlib import Path
 import numpy as np
 import tvm_ffi
 
-import tvm
-import tvm.libinfo
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.libinfo, tvm
+import tvm_tirx.testing, tvm
 from tvm import relax
 from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.frontend import nn
@@ -61,8 +61,8 @@ def _infer_test_sym(a, b):  # pylint: disable=invalid-name
 
 def _test_scalar_add(func):
     # pylint: disable=invalid-name
-    x = tvm.runtime.tensor(np.array(1.0).astype("float32"))
-    y = tvm.runtime.tensor(np.array(3.0).astype("float32"))
+    x = tvm_tirx.runtime.tensor(np.array(1.0).astype("float32"))
+    y = tvm_tirx.runtime.tensor(np.array(3.0).astype("float32"))
     z = func(x, y).numpy()
     # pylint: enable=invalid-name
     assert z.ndim == 0
@@ -72,8 +72,8 @@ def _test_scalar_add(func):
 
 def _test_infer_sym(func, x, y, z):  # pylint: disable=invalid-name
     # pylint: disable=invalid-name
-    a = tvm.runtime.tensor(np.random.uniform(size=(x, y, 1)).astype("float32"))
-    b = tvm.runtime.tensor(np.random.uniform(size=(y, z, 5)).astype("float32"))
+    a = tvm_tirx.runtime.tensor(np.random.uniform(size=(x, y, 1)).astype("float32"))
+    b = tvm_tirx.runtime.tensor(np.random.uniform(size=(y, z, 5)).astype("float32"))
     c = func(a, b).numpy()
     # pylint: enable=invalid-name
     assert c.shape == (x, y, z, 9)
@@ -81,9 +81,9 @@ def _test_infer_sym(func, x, y, z):  # pylint: disable=invalid-name
 
 def _check_ir_equality(mod):
     # pylint: disable=import-outside-toplevel
-    from tvm.script import ir as I
-    from tvm.script import relax as R
-    from tvm.script import tirx as T
+    from tvm_tirx.script import ir as I
+    from tvm_tirx.script import relax as R
+    from tvm_tirx.script import tirx as T
 
     # pylint: enable=import-outside-toplevel
 
@@ -121,13 +121,13 @@ def _check_ir_equality(mod):
                 R.output(gv1)
             return gv1
 
-    tvm.ir.assert_structural_equal(ExpectedModule, mod)
+    tvm_tirx.ir.assert_structural_equal(ExpectedModule, mod)
 
 
 def _compile_cc(src: Path, dst: Path):
     cmd = ["g++", str(src)]
     default_include_paths = [
-        tvm.libinfo.find_include_path(),
+        tvm_tirx.libinfo.find_include_path(),
         tvm_ffi.libinfo.find_include_path(),
         tvm_ffi.libinfo.find_dlpack_include_path(),
     ]
@@ -196,7 +196,7 @@ def test_extern_object():
         mod = AttachExternModules(ext_mods)(mod)  # pylint: disable=not-callable
         compiled = tvm.runtime.vm.VirtualMachine(
             tvm.compile(mod, target="llvm"),
-            device=tvm.cpu(),
+            device=tvm_tirx.cpu(),
         )
         _test_scalar_add(compiled["scalar_add"])
         _test_infer_sym(compiled["test_sym"], x=3, y=4, z=2)
@@ -245,7 +245,7 @@ def test_extern_source():
     mod = AttachExternModules(ext_mods)(mod)  # pylint: disable=not-callable
     compiled = tvm.runtime.vm.VirtualMachine(
         tvm.compile(mod, target="llvm"),
-        device=tvm.cpu(),
+        device=tvm_tirx.cpu(),
     )
     _test_scalar_add(compiled["scalar_add"])
     _test_infer_sym(compiled["test_sym"], x=3, y=4, z=2)

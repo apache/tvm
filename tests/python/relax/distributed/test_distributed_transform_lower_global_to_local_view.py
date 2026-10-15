@@ -19,14 +19,14 @@
 #  type: ignore
 from __future__ import annotations
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import relax
-from tvm.ir import assert_structural_equal
-from tvm.script import s_tir as Ts
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def test_mlp():
@@ -231,7 +231,7 @@ def test_mlp():
     mod = MLP
     mod = relax.distributed.transform.LowerGlobalViewToLocalView()(mod)
     mod = relax.transform.DeadCodeElimination()(mod)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_llama_attention():
@@ -1579,7 +1579,7 @@ def test_llama_attention():
 
     mod = relax.distributed.transform.LowerGlobalViewToLocalView()(LlamaAttentionLayer)
     mod = relax.transform.DeadCodeElimination()(mod)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":

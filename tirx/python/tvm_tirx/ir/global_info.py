@@ -18,7 +18,7 @@
 
 import tvm_ffi
 
-from tvm.runtime import Object
+from tvm_tirx.runtime import Object
 
 
 @tvm_ffi.register_object("ir.GlobalInfo")

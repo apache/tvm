@@ -22,8 +22,8 @@ from collections.abc import Sequence
 from tvm_ffi import register_object
 from tvm_ffi.access_path import AccessPath
 
-from tvm.ir.base import register_script_printer
-from tvm.runtime import Object
+from tvm_tirx.ir.base import register_script_printer
+from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 
@@ -217,7 +217,7 @@ class _ScriptableMethods:
         ----------
         style : str, optional
             Pygmentize printing style, auto-detected if None.  See
-            `tvm.script.printer.highlight.cprint` for more details.
+            `tvm_tirx.script.printer.highlight.cprint` for more details.
 
         black_format: Optional[bool]
 
@@ -271,7 +271,7 @@ class _ScriptableMethods:
             Object to be annotated
 
         """
-        from tvm.script.printer.highlight import cprint  # pylint: disable=import-outside-toplevel
+        from tvm_tirx.script.printer.highlight import cprint  # pylint: disable=import-outside-toplevel
 
         if black_format is None:
             env = os.environ.get("TVM_BLACK_FORMAT")

@@ -21,10 +21,10 @@ current environment can run a given feature.  They are meant to be used
 with plain pytest markers and ``skipif``::
 
     import pytest
-    import tvm.testing
+    import tvm_tirx.testing
 
     @pytest.mark.gpu
-    @pytest.mark.skipif(not tvm.testing.env.has_cuda(), reason="need cuda")
+    @pytest.mark.skipif(not tvm_tirx.testing.env.has_cuda(), reason="need cuda")
     def test_my_cuda_kernel():
         ...
 
@@ -49,7 +49,7 @@ Three kinds of probe live here:
 import functools
 import os
 
-import tvm
+import tvm_tirx
 
 __all__ = [
     "build_flag_enabled",
@@ -90,9 +90,9 @@ __all__ = [
 
 @functools.cache
 def _device_exists(kind: str, index: int = 0) -> bool:
-    """Return whether ``tvm.device(kind, index)`` is present and usable."""
+    """Return whether ``tvm_tirx.device(kind, index)`` is present and usable."""
     try:
-        return bool(tvm.device(kind, index).exist)
+        return bool(tvm_tirx.device(kind, index).exist)
     except Exception:  # pylint: disable=broad-except
         # A missing backend / driver must skip the test, not crash collection.
         return False
@@ -107,7 +107,7 @@ def build_flag_enabled(flag: str) -> bool:
     Callers gate via ``@pytest.mark.skipif(not env.build_flag_enabled("USE_X"), ...)``.
     """
     try:
-        value = tvm.support.libinfo().get(flag, "OFF")
+        value = tvm_tirx.support.libinfo().get(flag, "OFF")
         return str(value).lower() not in ("off", "false", "0")
     except Exception:  # pylint: disable=broad-except
         return False
@@ -187,10 +187,10 @@ def _runtime_enabled(kind: str) -> bool:
 
     Used for kinds whose device existence does not imply the backend was
     compiled in -- notably ``llvm``, which maps to the always-present CPU
-    device, so ``tvm.device("llvm").exist`` is True even on ``USE_LLVM=OFF``.
+    device, so ``tvm_tirx.device("llvm").exist`` is True even on ``USE_LLVM=OFF``.
     """
     try:
-        return bool(tvm.runtime.enabled(kind))
+        return bool(tvm_tirx.runtime.enabled(kind))
     except Exception:  # pylint: disable=broad-except
         return False
 
@@ -240,7 +240,7 @@ def has_nvptx() -> bool:
 def has_llvm() -> bool:
     """True if the LLVM backend was built in and enabled in TVM_TEST_TARGETS.
 
-    Uses ``tvm.runtime.enabled`` rather than device existence: ``llvm`` maps to
+    Uses ``tvm_tirx.runtime.enabled`` rather than device existence: ``llvm`` maps to
     the CPU device, which exists even on a ``USE_LLVM=OFF`` build.
     """
     return _target_enabled("llvm") and _runtime_enabled("llvm")
@@ -301,7 +301,7 @@ def has_nvshmem() -> bool:
     """
     try:
         return has_cuda() and (
-            tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid", allow_missing=True)
+            tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid", allow_missing=True)
             is not None
         )
     except Exception:  # pylint: disable=broad-except
@@ -332,7 +332,7 @@ def cuda_arch(device_id: int = 0) -> str | None:
     them to a major compute-capability floor.
     """
     try:
-        device = tvm.cuda(device_id)
+        device = tvm_tirx.cuda(device_id)
         if not device.exist:
             return None
         return _cuda_arch_from_compute_version(device.compute_version)
@@ -350,7 +350,7 @@ def has_cuda_arch(*arches: str, device_id: int = 0) -> bool:
 def _cuda_compute_version() -> tuple:
     """Return the (major, minor) CUDA compute version, or (0, 0) if unknown."""
     try:
-        from tvm.support import nvcc  # pylint: disable=import-outside-toplevel
+        from tvm_tirx.support import nvcc  # pylint: disable=import-outside-toplevel
 
         arch = nvcc.get_target_compute_version()
         return nvcc.parse_compute_version(arch)
@@ -378,7 +378,7 @@ def has_cuda_compute(major: int, minor: int = 0, exact: bool = False) -> bool:
 def _nvcc_version() -> tuple:
     """Return the (major, minor, release) nvcc version, or (0, 0, 0)."""
     try:
-        from tvm.support import nvcc  # pylint: disable=import-outside-toplevel
+        from tvm_tirx.support import nvcc  # pylint: disable=import-outside-toplevel
 
         return nvcc.get_cuda_version()
     except Exception:  # pylint: disable=broad-except
@@ -389,7 +389,7 @@ def has_nvcc_version(major: int, minor: int = 0, release: int = 0) -> bool:
     """True if a CUDA device is present and nvcc is at least ``(major, minor, release)``.
 
     Returns False when no CUDA device is present, so it implies :func:`has_cuda`.
-    Gate a test with ``@pytest.mark.skipif(not tvm.testing.env.has_nvcc_version(11, 4),
+    Gate a test with ``@pytest.mark.skipif(not tvm_tirx.testing.env.has_nvcc_version(11, 4),
     reason="need nvcc >= 11.4")`` (add ``@pytest.mark.gpu`` for GPU selection).
     """
     return has_cuda() and _nvcc_version() >= (major, minor, release)
@@ -399,7 +399,7 @@ def has_nvcc_version(major: int, minor: int = 0, release: int = 0) -> bool:
 def _llvm_version_major() -> int:
     """Return the major LLVM version, or 0 if LLVM is unavailable."""
     try:
-        return int(tvm.codegen.llvm_version_major())
+        return int(tvm_tirx.codegen.llvm_version_major())
     except Exception:  # pylint: disable=broad-except
         return 0
 
@@ -413,9 +413,9 @@ def has_llvm_min_version(major: int) -> bool:
 def has_matrixcore() -> bool:
     """True if a ROCm device with Matrix Core support (compute >= 8) exists."""
     try:
-        from tvm.support import rocm  # pylint: disable=import-outside-toplevel
+        from tvm_tirx.support import rocm  # pylint: disable=import-outside-toplevel
 
-        return has_rocm() and bool(rocm.have_matrixcore(tvm.rocm().compute_version))
+        return has_rocm() and bool(rocm.have_matrixcore(tvm_tirx.rocm().compute_version))
     except Exception:  # pylint: disable=broad-except
         return False
 
@@ -426,11 +426,11 @@ def has_cudagraph() -> bool:
 
     Implies :func:`has_cuda`: ``nvcc.have_cudagraph()`` only checks the
     toolkit version, so the device guard must be explicit.  Gate a test with
-    ``@pytest.mark.skipif(not tvm.testing.env.has_cudagraph(), reason=...)``
+    ``@pytest.mark.skipif(not tvm_tirx.testing.env.has_cudagraph(), reason=...)``
     (add ``@pytest.mark.gpu`` for CI selection).
     """
     try:
-        from tvm.support import nvcc  # pylint: disable=import-outside-toplevel
+        from tvm_tirx.support import nvcc  # pylint: disable=import-outside-toplevel
 
         return has_cuda() and bool(nvcc.have_cudagraph())
     except Exception:  # pylint: disable=broad-except
@@ -446,7 +446,7 @@ def has_hexagon_toolchain() -> bool:
     try:
         return (
             _runtime_enabled("llvm")
-            and "hexagon" in tvm.codegen.llvm_get_targets()
+            and "hexagon" in tvm_tirx.codegen.llvm_get_targets()
             and "HEXAGON_TOOLCHAIN" in os.environ
         )
     except Exception:  # pylint: disable=broad-except
@@ -479,10 +479,10 @@ def has_adreno_opencl() -> bool:
 def _has_cpu_feature(features) -> bool:
     """True if the host CPU advertises the given LLVM target ``features``."""
     try:
-        codegen = tvm.codegen
+        codegen = tvm_tirx.codegen
         cpu = codegen.llvm_get_system_cpu()
         triple = codegen.llvm_get_system_triple()
-        target = tvm.target.Target({"kind": "llvm", "mtriple": triple, "mcpu": cpu})
+        target = tvm_tirx.target.Target({"kind": "llvm", "mtriple": triple, "mcpu": cpu})
         return bool(codegen.target_has_features(features, target))
     except Exception:  # pylint: disable=broad-except
         return False

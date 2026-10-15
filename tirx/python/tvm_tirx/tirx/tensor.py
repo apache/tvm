@@ -22,10 +22,10 @@ from typing import ClassVar
 
 import tvm_ffi
 
-import tvm
-from tvm.ir import Call, PrimType, PtrType, Type, Var
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.runtime import MemoryScope
+import tvm_tirx
+from tvm_tirx.ir import Call, PrimType, PtrType, Type, Var
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.runtime import MemoryScope
 
 from . import _ffi_api, _tensor_view
 
@@ -56,7 +56,7 @@ class TensorType(Type):
     scope: MemoryScope
     shape: list
     strides: list
-    elem_offset: tvm.ir.Expr
+    elem_offset: tvm_tirx.ir.Expr
     data_alignment: int
     offset_factor: int
     layout: object | None
@@ -85,12 +85,12 @@ class TensorType(Type):
         when the contract permits a variable starting position. ``align`` remains a
         compatibility spelling for ``data_alignment``.
         """
-        from tvm.ir.type import _normalize_type
-        from tvm.script.ir_builder.base import MISSING, at
+        from tvm_tirx.ir.type import _normalize_type
+        from tvm_tirx.script.ir_builder.base import MISSING, at
 
         from .layout import Layout, S, TileLayout
 
-        shape = (shape,) if tvm.ir.is_prim_expr(shape) or isinstance(shape, Integral) else shape
+        shape = (shape,) if tvm_tirx.ir.is_prim_expr(shape) or isinstance(shape, Integral) else shape
         shape = tuple(shape)
         dtype = _normalize_type(dtype)
         if not isinstance(dtype, PrimType):
@@ -98,13 +98,13 @@ class TensorType(Type):
         if elem_offset is not None and byte_offset is not None:
             raise ValueError("elem_offset and byte_offset cannot be set at the same time")
         if byte_offset is not None:
-            elem_offset = byte_offset * 8 // tvm.DataType(dtype.dtype).bits
+            elem_offset = byte_offset * 8 // tvm_tirx.DataType(dtype.dtype).bits
         if data_alignment is None:
             data_alignment = align
         elif align not in (0, data_alignment):
             raise ValueError("align and data_alignment must agree")
         if data is not None:
-            if not isinstance(data, tvm.ir.Expr) or not isinstance(data.ty, PtrType):
+            if not isinstance(data, tvm_tirx.ir.Expr) or not isinstance(data.ty, PtrType):
                 raise TypeError("Tensor data must be an Expr with PtrType")
             scope = data.ty.scope
         if layout is MISSING:
@@ -161,7 +161,7 @@ class TensorType(Type):
         if self.scope != _SCOPE_GLOBAL:
             raise ValueError(f"An explicit layout is required for {self.scope} tensors")
 
-        from tvm.sym import Analyzer
+        from tvm_tirx.sym import Analyzer
 
         from .layout import S, TileLayout
 
@@ -180,7 +180,7 @@ class TensorType(Type):
         """Return the storage scope associated with this tensor.
         Returns
         -------
-        scope : tvm.runtime.MemoryScope
+        scope : tvm_tirx.runtime.MemoryScope
             The storage scope associated with this tensor.
         """
         _check_tensor_receiver(self, expr)
@@ -211,14 +211,14 @@ class TensorType(Type):
         assert len(indices) == len(self.shape), (
             f"The number of indices {indices} does not match the shape of the tensor {self.shape}"
         )
-        return tvm.tirx.address_of(expr[tuple(indices)])
+        return tvm_tirx.tirx.address_of(expr[tuple(indices)])
 
     def view(self, expr, *args, **kwargs) -> "Var":
         """Creates a new view of the tensor. (used by parser)
 
         Supported signatures are ``view(*shape, layout=None)``, where shape can contain
         ``-1`` to indicate that the dimension size is auto-inferred, and
-        ``view(dtype: Union[str, tvm.DataType])``.
+        ``view(dtype: Union[str, tvm_tirx.DataType])``.
 
         Returns
         -------
@@ -282,7 +282,7 @@ class TensorType(Type):
 
     def _byte_offset(self, expr):
         _check_tensor_property_receiver(self, expr)
-        return self.elem_offset * tvm.DataType(self.dtype).bits // 8
+        return self.elem_offset * tvm_tirx.DataType(self.dtype).bits // 8
 
     def _sub(self, expr):
         _check_tensor_property_receiver(self, expr)
@@ -296,7 +296,7 @@ def is_tensor_var(value) -> bool:
     variables from scalar or pointer variables.
     """
 
-    return isinstance(value, tvm.ir.Var) and isinstance(value.ty, TensorType)
+    return isinstance(value, tvm_tirx.ir.Var) and isinstance(value.ty, TensorType)
 
 
 def _check_tensor_receiver(ty, expr):
@@ -328,7 +328,7 @@ def decl_tensor(
     # pylint: disable=import-outside-toplevel
     from .layout import S, TileLayout
 
-    shape = (shape,) if tvm.ir.is_prim_expr(shape) or isinstance(shape, Integral) else shape
+    shape = (shape,) if tvm_tirx.ir.is_prim_expr(shape) or isinstance(shape, Integral) else shape
     dtype = "float32" if dtype is None else dtype
     strides = () if strides is None else strides
 
@@ -336,7 +336,7 @@ def decl_tensor(
         layout = TileLayout(S[tuple(shape)]) if shape else None
 
     if data is not None:
-        if not isinstance(data, tvm.ir.Expr) or not isinstance(data.ty, PtrType):
+        if not isinstance(data, tvm_tirx.ir.Expr) or not isinstance(data.ty, PtrType):
             raise TypeError("Tensor data must be an Expr with PtrType")
         if not isinstance(data.ty.element_type, PrimType):
             raise TypeError("Tensor data must point to a primitive type")

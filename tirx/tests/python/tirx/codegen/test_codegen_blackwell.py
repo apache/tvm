@@ -21,27 +21,27 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm.backend.cuda.cpp.descriptors import _get_tcgen05_mma_kind
-from tvm.backend.cuda.lang import SMEMPool
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.cuda.cpp.descriptors import _get_tcgen05_mma_kind
+from tvm_tirx.backend.cuda.lang import SMEMPool
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 def _is_tensor_binding(node, *op_names):
     return (
-        isinstance(node, tvm.ir.Bind)
-        and isinstance(node.value, tvm.ir.Call)
-        and isinstance(node.value.op, tvm.ir.Op)
+        isinstance(node, tvm_tirx.ir.Bind)
+        and isinstance(node.value, tvm_tirx.ir.Call)
+        and isinstance(node.value.op, tvm_tirx.ir.Op)
         and node.value.op.name in op_names
     )
 
 
-def _get_source(func: tvm.tirx.Function) -> str:
-    target = tvm.target.Target("cuda")
-    mod = tvm.IRModule({"main": func})
-    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+def _get_source(func: tvm_tirx.tirx.Function) -> str:
+    target = tvm_tirx.target.Target("cuda")
+    mod = tvm_tirx.IRModule({"main": func})
+    mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     return src, mod
 
@@ -53,16 +53,16 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
     arrive_calls = []
 
     def visit(node):
-        if isinstance(node, tvm.ir.Bind) and node.var.name == "remote_mbar_ptr":
+        if isinstance(node, tvm_tirx.ir.Bind) and node.var.name == "remote_mbar_ptr":
             bindings.append(node)
         if (
             _is_tensor_binding(node, "tirx.decl_tensor")
             and getattr(node.value.args[0], "name", None) == "remote_mbar_ptr"
         ):
             tensors.append(node)
-        if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.ptx.mapa":
+        if isinstance(node, tvm_tirx.ir.Call) and node.op.name == "tirx.ptx.mapa":
             mapa_calls.append(node)
-        if isinstance(node, tvm.ir.Call) and node.op.name == arrive_op_name:
+        if isinstance(node, tvm_tirx.ir.Call) and node.op.name == arrive_op_name:
             arrive_calls.append(node)
 
     tvm_ffi.structural_walk(func.body, visit)
@@ -70,12 +70,12 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
     assert len(tensors) == 1
     assert len(mapa_calls) == 1
     assert arrive_calls
-    assert isinstance(bindings[0].var.ty, tvm.ir.PtrType)
-    assert bindings[0].var.ty.scope == tvm.runtime.MemoryScope("shared")
-    assert bindings[0].value.ty.scope == tvm.runtime.MemoryScope("shared")
+    assert isinstance(bindings[0].var.ty, tvm_tirx.ir.PtrType)
+    assert bindings[0].var.ty.scope == tvm_tirx.runtime.MemoryScope("shared")
+    assert bindings[0].value.ty.scope == tvm_tirx.runtime.MemoryScope("shared")
     assert tensors[0].value.args[0].same_as(bindings[0].var)
-    assert tensors[0].value.args[0].ty.scope == tvm.runtime.MemoryScope("shared")
-    assert tensors[0].var.scope() == tvm.runtime.MemoryScope("shared")
+    assert tensors[0].value.args[0].ty.scope == tvm_tirx.runtime.MemoryScope("shared")
+    assert tensors[0].var.scope() == tvm_tirx.runtime.MemoryScope("shared")
     # ptx operand order is the PTX operand order: mapa writes its result into
     # a destination the caller declared, so args are (d, a, b) and the arrive
     # reads the mapped address back out of that destination rather than
@@ -83,7 +83,7 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
     # instruction has no remote operand of its own, it just takes the mapped
     # address.
     mapped_dst, mapped_ptr, _rank = mapa_calls[0].args[:3]
-    assert isinstance(mapped_dst, tvm.ir.TensorLoad)
+    assert isinstance(mapped_dst, tvm_tirx.ir.TensorLoad)
     assert mapped_ptr is not None
     assert len(arrive_calls) == n_arrives
 
@@ -120,7 +120,7 @@ def test_tmem_alloc_dealloc_relinquish():
             )
     # fmt: on
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
         src, _ = _get_source(test_tmem)
         assert f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32" in src
@@ -146,7 +146,7 @@ def test_mbarrier_try_wait_once_codegen():
         )
     # fmt: on
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
         src, _ = _get_source(test_try_wait_once)
         assert "mbarrier.try_wait.parity.shared::cta.b64 pd0, [%1], %2, %3;" in src
@@ -157,7 +157,7 @@ def test_mbarrier_try_wait_once_codegen():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_mbarrier_remote_view_codegen():
-    from tvm.backend.cuda.lang.pipeline import MBarrier
+    from tvm_tirx.backend.cuda.lang.pipeline import MBarrier
 
     # fmt: off
     @T.function
@@ -177,7 +177,7 @@ def test_mbarrier_remote_view_codegen():
     # hence different entries.
     _assert_remote_mbarrier_ir(test_remote_view, "tirx.ptx.mbarrier_arrive_nocount")
     _assert_remote_mbarrier_ir(test_remote_view, "tirx.ptx.mbarrier_arrive")
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         src, _ = _get_source(test_remote_view)
         assert "tvm_builtin_ptx_mapa_u64" in src
         assert "tvm_builtin_ptx_mbarrier_arrive_nocount_arrive_shared__cluster_b64" in src
@@ -189,7 +189,7 @@ def test_mbarrier_remote_view_codegen():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_mbarrier_local_arrive_forwards_predicate_and_count():
-    from tvm.backend.cuda.lang.pipeline import MBarrier
+    from tvm_tirx.backend.cuda.lang.pipeline import MBarrier
 
     # fmt: off
     @T.function
@@ -205,7 +205,7 @@ def test_mbarrier_local_arrive_forwards_predicate_and_count():
     arrive_calls = []
 
     def visit(node):
-        if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.ptx.mbarrier_arrive":
+        if isinstance(node, tvm_tirx.ir.Call) and node.op.name == "tirx.ptx.mbarrier_arrive":
             arrive_calls.append(node)
 
     tvm_ffi.structural_walk(test_local_arrive.body, visit)
@@ -214,7 +214,7 @@ def test_mbarrier_local_arrive_forwards_predicate_and_count():
     assert call.args[1].value == 2
     assert call.args[-1].value == "pred"
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         src, _ = _get_source(test_local_arrive)
         assert "@p mbarrier.arrive.shared.b64 _, [%0], %1;" in src
 
@@ -222,7 +222,7 @@ def test_mbarrier_local_arrive_forwards_predicate_and_count():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_tma_mbarrier_remote_view_codegen():
-    from tvm.backend.cuda.lang.pipeline import TMABar
+    from tvm_tirx.backend.cuda.lang.pipeline import TMABar
 
     # fmt: off
     @T.function
@@ -236,7 +236,7 @@ def test_tma_mbarrier_remote_view_codegen():
     # fmt: on
 
     _assert_remote_mbarrier_ir(test_remote_view, "tirx.ptx.mbarrier_arrive_expect_tx")
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         src, _ = _get_source(test_remote_view)
         assert (
             "tvm_builtin_ptx_mbarrier_arrive_expect_tx_arrive_expect_tx_shared__cluster_b64" in src
@@ -246,7 +246,7 @@ def test_tma_mbarrier_remote_view_codegen():
 
 
 def test_mbarrier_remote_view_rejects_invalid_operations():
-    from tvm.backend.cuda.lang.pipeline import MBarrier, TMABar
+    from tvm_tirx.backend.cuda.lang.pipeline import MBarrier, TMABar
 
     with pytest.raises(ValueError, match=r"remote_view\(\) cannot be initialized"):
         # fmt: off
@@ -318,7 +318,7 @@ def test_fence_before_after_thread_sync():
         T.ptx.tcgen05.fence__after_thread_sync()
     # fmt: on
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
         src, _ = _get_source(test_fence)
         assert "tcgen05.fence::after_thread_sync" in src
@@ -381,29 +381,29 @@ def test_tcgen05_ld_st_roundtrip():
             )
     # fmt: on
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
         src, mod = _get_source(test_ld_st)
         assert "tcgen05.ld.sync.aligned.32x32b.x1.b32" in src
         assert "tcgen05.st.sync.aligned.32x32b.x1.b32" in src
 
     def run_and_check():
-        dev = tvm.cuda(0)
+        dev = tvm_tirx.cuda(0)
         A_np = np.random.randn(HEIGHT, WIDTH).astype("float32")
         B_np = np.zeros((HEIGHT, WIDTH), dtype="float32")
-        A = tvm.runtime.tensor(A_np, device=dev)
-        B = tvm.runtime.tensor(B_np, device=dev)
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B = tvm_tirx.runtime.tensor(B_np, device=dev)
         mod(A, B)
         np.testing.assert_allclose(A.numpy(), B.numpy())
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_tcgen05_cp_ld_roundtrip():
     dtype = "float32"
-    dtype_bits = tvm.DataType(dtype).bits
+    dtype_bits = tvm_tirx.DataType(dtype).bits
     HEIGHT = 128
     WIDTH = 64
     N_COLS = 512
@@ -503,22 +503,22 @@ def test_tcgen05_cp_ld_roundtrip():
             )
     # fmt: on
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
         src, mod = _get_source(test_cp_ld)
         assert "tcgen05.cp.cta_group::1.128x256b" in src
         assert "tcgen05.ld.sync.aligned.32x32b.x1.b32" in src
 
     def run_and_check():
-        dev = tvm.cuda(0)
+        dev = tvm_tirx.cuda(0)
         A_np = np.random.randn(HEIGHT, WIDTH).astype(dtype)
         B_np = np.zeros((HEIGHT, WIDTH), dtype=dtype)
-        A = tvm.runtime.tensor(A_np, device=dev)
-        B = tvm.runtime.tensor(B_np, device=dev)
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B = tvm_tirx.runtime.tensor(B_np, device=dev)
         mod(A, B)
         np.testing.assert_allclose(A.numpy(), B.numpy())
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("swizzle", [0, 1, 2, 3])
@@ -701,7 +701,7 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
     import torch
 
     torch.manual_seed(42)
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
         src, mod = _get_source(test_mma_ss_no_tma)
         print(src)
@@ -711,18 +711,18 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
         assert "tcgen05.wait::ld.sync.aligned" in src
 
     def run_and_check():
-        dev = tvm.cuda(0)
+        dev = tvm_tirx.cuda(0)
         A_torch = torch.rand((M, K), dtype=torch.float16)
         B_torch = torch.rand((N, K), dtype=torch.float16)
         C_torch = torch.zeros((M, N), dtype=torch.float32)
-        A = tvm.runtime.tensor(A_torch, device=dev)
-        B = tvm.runtime.tensor(B_torch, device=dev)
-        C = tvm.runtime.tensor(C_torch, device=dev)
+        A = tvm_tirx.runtime.tensor(A_torch, device=dev)
+        B = tvm_tirx.runtime.tensor(B_torch, device=dev)
+        C = tvm_tirx.runtime.tensor(C_torch, device=dev)
         mod(A, B, C)
         ref = torch.matmul(A_torch, B_torch.T)
         np.testing.assert_allclose(C.numpy(), ref.numpy(), rtol=1e-3, atol=1e-2)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -757,7 +757,7 @@ def test_tcgen05_mma_pred_codegen():
         )
     # fmt: on
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     with target:
         src, _ = _get_source(test_mma_pred)
         assert "tvm_builtin_ptx_tcgen05_mma_ss_mma_cta_group__1_kind__f16_pred" in src
@@ -768,4 +768,4 @@ def test_tcgen05_mma_pred_codegen():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

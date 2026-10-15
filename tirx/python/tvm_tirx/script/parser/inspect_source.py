@@ -37,7 +37,7 @@ from typing import Any
 
 from tvm_ffi.dataclasses import MISSING
 
-from tvm.ir import Location, SourceLoc, SourceName
+from tvm_tirx.ir import Location, SourceLoc, SourceName
 
 from . import protocol_registry
 from .prescan import collect_annotation_free_reads, resolve_namespace_key, resolve_namespace_value

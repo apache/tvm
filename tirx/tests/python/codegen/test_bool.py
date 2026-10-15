@@ -19,16 +19,16 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 @pytest.mark.gpu
 @pytest.mark.parametrize("target", ["llvm", "cuda", "rocm", "vulkan", "metal", "opencl"])
 def test_cmp_load_store(target):
-    if not tvm.testing.device_enabled(target):
+    if not tvm_tirx.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     @I.ir_module
@@ -62,19 +62,19 @@ def test_cmp_load_store(target):
                 D[i0] = T.Cast(C[i0] and T.float32(1.0) < A[i0], "float32")
 
     arr_size = 32
-    is_gpu = tvm.target.Target(target).kind.name != "llvm"
+    is_gpu = tvm_tirx.target.Target(target).kind.name != "llvm"
     mod = GPUModule if is_gpu else CPUModule
 
-    f = tvm.tirx.compile(mod, target=target)
+    f = tvm_tirx.tirx.compile(mod, target=target)
 
     a_np = np.random.uniform(size=arr_size).astype("float32")
     b_np = np.random.uniform(size=arr_size).astype("float32")
 
     def run_and_check():
-        dev = tvm.device_from_target(target)
-        a = tvm.runtime.tensor(a_np, dev)
-        b = tvm.runtime.tensor(b_np, dev)
-        d = tvm.runtime.tensor(np.zeros(arr_size, dtype="float32"), dev)
+        dev = tvm_tirx.device_from_target(target)
+        a = tvm_tirx.runtime.tensor(a_np, dev)
+        b = tvm_tirx.runtime.tensor(b_np, dev)
+        d = tvm_tirx.runtime.tensor(np.zeros(arr_size, dtype="float32"), dev)
         f(a, b, d)
         np.testing.assert_equal(
             d.numpy(),
@@ -82,7 +82,7 @@ def test_cmp_load_store(target):
         )
 
     if is_gpu:
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
     else:
         run_and_check()
 
@@ -93,16 +93,16 @@ def test_bitwise_not_c(tmp_path):
         for i in range(5):
             output[i] = T.bitwise_not(values[i] != 0)
 
-    built = tvm.tirx.compile(complement, target="c")
+    built = tvm_tirx.tirx.compile(complement, target="c")
     library = str(tmp_path / "complement.so")
     built.export_library(library)
-    built = tvm.runtime.load_module(library)
+    built = tvm_tirx.runtime.load_module(library)
 
     values = np.array([-3, -1, 0, 1, 2], dtype="int32")
-    output = tvm.runtime.tensor(np.zeros(5, dtype="bool"))
-    built(tvm.runtime.tensor(values), output)
+    output = tvm_tirx.runtime.tensor(np.zeros(5, dtype="bool"))
+    built(tvm_tirx.runtime.tensor(values), output)
     np.testing.assert_array_equal(output.numpy(), np.logical_not(values))
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

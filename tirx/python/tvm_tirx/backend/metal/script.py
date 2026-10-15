@@ -18,8 +18,8 @@
 
 from __future__ import annotations
 
-from tvm.backend.metal import op as _metal_op
-from tvm.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
+from tvm_tirx.backend.metal import op as _metal_op
+from tvm_tirx.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
 
 
 class MetalNamespace:

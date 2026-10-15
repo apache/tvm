@@ -27,7 +27,7 @@ or receiver inference.
 Tables retain static syntax facts only, never source functions, captures, frames
 or constructed results. Registration decorators return the same callable.
 Shared builder operations are documented in
-``tvm.script.ir_builder.parser_protocol``; concrete language variants own registration
+``tvm_tirx.script.ir_builder.parser_protocol``; concrete language variants own registration
 and namespace initialization.
 """
 

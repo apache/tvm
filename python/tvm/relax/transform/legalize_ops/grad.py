@@ -19,10 +19,11 @@
 
 import logging
 
-from tvm import te, tirx, topi
-from tvm.ir import Call
-from tvm.script.ir_builder import IRBuilder
-from tvm.tirx.script import ir_builder as T
+from tvm_tirx import tirx
+from tvm import te, topi
+from tvm_tirx.ir import Call
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx.script import ir_builder as T
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr

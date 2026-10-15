@@ -18,8 +18,8 @@
 
 from __future__ import annotations
 
-from tvm.ir import Call
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir import Call
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 
 def nki_load(res, data, *, ty=None, loc: Location = UNKNOWN_LOC):

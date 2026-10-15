@@ -19,7 +19,7 @@
 # pylint: disable=import-outside-toplevel, unused-argument, invalid-name, missing-function-docstring
 
 from tvm import s_tir
-from tvm.target import Target
+from tvm_tirx.target import Target
 
 from ..analysis import SBlockInfo
 

@@ -20,9 +20,10 @@
 
 import numpy as np
 
-import tvm
-from tvm import te, tirx, topi
-from tvm.ir import Call
+import tvm, tvm_tirx
+from tvm_tirx import tirx
+from tvm import te, topi
+from tvm_tirx.ir import Call
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr, ShapeExpr, const
@@ -117,7 +118,7 @@ register_legalize("relax.eye_like", _eye(is_like=True, function_name="eye_like")
 @register_legalize("relax.arange")
 def _arange(bb: BlockBuilder, call: Call) -> Expr:
     assert len(call.args) == 3
-    assert all(tvm.ir.is_prim_expr(x) for x in call.args)
+    assert all(tvm_tirx.ir.is_prim_expr(x) for x in call.args)
     start, end, step = call.args
     dtype = call.attrs.dtype
 

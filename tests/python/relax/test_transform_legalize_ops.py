@@ -20,20 +20,20 @@ from __future__ import annotations
 
 import pytest
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import relax
 from tvm.relax.transform import LegalizeOps
 from tvm.relax.transform.legalize_ops.common import register_legalize
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
 def test_customize_legalize():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Add:
         @R.function
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
@@ -41,7 +41,7 @@ def test_customize_legalize():
             return gv
 
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
@@ -66,12 +66,12 @@ def test_customize_legalize():
         return bb.call_te(topi.add, call.args[1], call.args[0])
 
     mod = LegalizeOps({"relax.add": customize_legalize_add})(Add)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_legalize_multiple_types_of_call():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def mul2(x: R.Tensor((3, 3), "float32")):
@@ -95,7 +95,7 @@ def test_legalize_multiple_types_of_call():
             gv2 = R.multiply(gv1, R.const(2.0, "float32"))
             return gv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def mul2(x: R.Tensor((3, 3), dtype="float32")) -> R.Tensor((3, 3), dtype="float32"):
@@ -132,17 +132,17 @@ def test_legalize_multiple_types_of_call():
     # fmt: on
 
     After = LegalizeOps()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_can_not_legalize():
     # case 1: does't have legalization
-    add_legalize = tvm.ir.Op.get("relax.add").get_attr("FLegalize")
+    add_legalize = tvm_tirx.ir.Op.get("relax.add").get_attr("FLegalize")
     # reset it for test
-    tvm.ir.Op.get("relax.add").reset_attr("FLegalize")
+    tvm_tirx.ir.Op.get("relax.add").reset_attr("FLegalize")
 
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before0:
         @R.function
         def main(x: R.Tensor((3, 3), "float32")):
@@ -150,7 +150,7 @@ def test_can_not_legalize():
             return gv
     # fmt: on
     After0 = LegalizeOps()(Before0)
-    tvm.ir.assert_structural_equal(After0, Before0)
+    tvm_tirx.ir.assert_structural_equal(After0, Before0)
 
     register_legalize("relax.add", add_legalize)
 
@@ -165,33 +165,33 @@ def test_can_not_legalize():
         bb.emit_func_output(gv)
     Before1 = bb.get()
     After1 = LegalizeOps()(Before1)
-    tvm.ir.assert_structural_equal(After1, Before1)
+    tvm_tirx.ir.assert_structural_equal(After1, Before1)
 
 
 def test_legalize_scalar_data_type_preserve():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before0:
         @R.function
         def main(x: R.Tensor((3, 3), "float16")):
             gv: R.Tensor((3, 3), "float16") = R.multiply(x, R.const(1.14514, "float16"))
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before1:
         @R.function
         def main(x: R.Tensor((3, 3), "uint8")):
             gv: R.Tensor((3, 3), "uint8") = R.multiply(x, R.const(2, "uint8"))
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before2:
         @R.function
         def main(x: R.Tensor((3, 3), "bool")):
             gv: R.Tensor((3, 3), "bool") = R.equal(x, R.const(True, "bool"))
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected0:
         @Ts.function(private=True)
         def multiply(
@@ -215,7 +215,7 @@ def test_legalize_scalar_data_type_preserve():
             gv = R.call_tir(cls.multiply, (x,), ty_args=[R.Tensor((3, 3), dtype="float16")])
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected1:
         @Ts.function(private=True)
         def multiply(
@@ -237,7 +237,7 @@ def test_legalize_scalar_data_type_preserve():
             gv = R.call_tir(cls.multiply, (x,), ty_args=[R.Tensor((3, 3), dtype="uint8")])
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected2:
         @Ts.function(private=True)
         def equal(
@@ -251,7 +251,7 @@ def test_legalize_scalar_data_type_preserve():
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
                     Ts.reads(rxplaceholder[v_ax0, v_ax1])
                     Ts.writes(T_equal[v_ax0, v_ax1])
-                    T_equal[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] == tvm.tirx.const(True, "bool")
+                    T_equal[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] == tvm_tirx.tirx.const(True, "bool")
 
         @R.function
         def main(x: R.Tensor((3, 3), dtype="bool")) -> R.Tensor((3, 3), dtype="bool"):
@@ -261,11 +261,11 @@ def test_legalize_scalar_data_type_preserve():
     # fmt: on
 
     After0 = LegalizeOps()(Before0)
-    tvm.ir.assert_structural_equal(After0, Expected0)
+    tvm_tirx.ir.assert_structural_equal(After0, Expected0)
     After1 = LegalizeOps()(Before1)
-    tvm.ir.assert_structural_equal(After1, Expected1)
+    tvm_tirx.ir.assert_structural_equal(After1, Expected1)
     After2 = LegalizeOps()(Before2)
-    tvm.ir.assert_structural_equal(After2, Expected2)
+    tvm_tirx.ir.assert_structural_equal(After2, Expected2)
 
 
 def test_matmul_legalization_requires_known_dtype():
@@ -288,7 +288,7 @@ def test_matmul_legalization_requires_known_dtype():
     assert err_message.startswith("To legalize R.matmul")
 
 
-emit_legalization_through_builder = tvm.testing.parameter(
+emit_legalization_through_builder = tvm_tirx.testing.parameter(
     by_dict={
         "return_relax_expr": False,
         "return_relax_var": True,
@@ -304,13 +304,13 @@ def custom_op(emit_legalization_through_builder):
         activations, weight, bias = call.args
 
         matmul_call = relax.op.matmul(activations, weight)
-        matmul_ty = tvm.ir.Op.get("relax.matmul").get_attr("relax.FInferTypeWithBuilder")(
+        matmul_ty = tvm_tirx.ir.Op.get("relax.matmul").get_attr("relax.FInferTypeWithBuilder")(
             matmul_call, context
         )
 
         matmul_var = relax.Var("dummy_var", matmul_ty)
         add_call = matmul_var + bias
-        add_ty = tvm.ir.Op.get("relax.add").get_attr("relax.FInferTypeWithBuilder")(
+        add_ty = tvm_tirx.ir.Op.get("relax.add").get_attr("relax.FInferTypeWithBuilder")(
             add_call, context
         )
 
@@ -330,9 +330,9 @@ def custom_op(emit_legalization_through_builder):
     }
 
     for key, value in op_attrs.items():
-        tvm.ir.register_op_attr(op_name, key, value)
+        tvm_tirx.ir.register_op_attr(op_name, key, value)
 
-    op = tvm.ir.Op.get(op_name)
+    op = tvm_tirx.ir.Op.get(op_name)
     yield op
 
     for key in op_attrs:
@@ -359,7 +359,7 @@ def test_recursive_legalization(custom_op):
     # `R.matmul` and `R.add`, which should in turn be replaced with
     # TIR implementations.  Therefore, the second application of
     # LegalizeOps() should be a no-op.
-    tvm.ir.assert_structural_equal(AfterFirstIter, AfterSecondIter)
+    tvm_tirx.ir.assert_structural_equal(AfterFirstIter, AfterSecondIter)
 
 
 def test_legalize_with_vdevice():
@@ -437,11 +437,11 @@ def test_legalize_with_vdevice():
                     ax0, ax1 = Ts.axis.remap("SS", iters)
                     C[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = tvm.relax.transform.LegalizeOps()(Before)
 
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

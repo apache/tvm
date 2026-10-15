@@ -20,8 +20,8 @@ import os
 
 import tvm_ffi
 
-from tvm import libinfo
-from tvm.support import cc
+from tvm_tirx import libinfo
+from tvm_tirx.support import cc
 
 
 def find_minrpc_server_libpath(server="posix_popen_server"):

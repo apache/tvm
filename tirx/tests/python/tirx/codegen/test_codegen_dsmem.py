@@ -19,26 +19,26 @@
 
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm.ir import PrimType, PtrType, assert_structural_equal
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.ir import PrimType, PtrType, assert_structural_equal
+from tvm_tirx.script import tirx as T
 
 
 def _is_tensor_binding(node, *op_names):
     return (
-        isinstance(node, tvm.ir.Bind)
-        and isinstance(node.value, tvm.ir.Call)
-        and isinstance(node.value.op, tvm.ir.Op)
+        isinstance(node, tvm_tirx.ir.Bind)
+        and isinstance(node.value, tvm_tirx.ir.Call)
+        and isinstance(node.value.op, tvm_tirx.ir.Op)
         and node.value.op.name in op_names
     )
 
 
-def _get_source(func: tvm.tirx.Function) -> str:
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
-    mod = tvm.IRModule({"main": func})
+def _get_source(func: tvm_tirx.tirx.Function) -> str:
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_90a"})
+    mod = tvm_tirx.IRModule({"main": func})
     with target:
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     return src
 
@@ -129,16 +129,16 @@ def test_mapa_pointer_bind_codegen():
     def collect(node):
         if _is_tensor_binding(node, "tirx.decl_tensor"):
             decl_tensors.append(node)
-        elif isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PtrType):
+        elif isinstance(node, tvm_tirx.ir.Bind) and isinstance(node.var.ty, PtrType):
             binds.append(node)
-        elif isinstance(node, tvm.ir.TensorLoad):
+        elif isinstance(node, tvm_tirx.ir.TensorLoad):
             loads.append(node)
 
     tvm_ffi.structural_walk(main.body, collect)
     assert len(binds) == 1
     assert isinstance(binds[0].var.ty, PtrType)
-    assert binds[0].var.ty.scope == tvm.runtime.MemoryScope("shared")
-    assert binds[0].value.ty.scope == tvm.runtime.MemoryScope("shared")
+    assert binds[0].var.ty.scope == tvm_tirx.runtime.MemoryScope("shared")
+    assert binds[0].value.ty.scope == tvm_tirx.runtime.MemoryScope("shared")
     assert_structural_equal(binds[0].var.ty, binds[0].value.ty)
     assert len(decl_tensors) == 1
     assert decl_tensors[0].value.args[0].same_as(binds[0].var)
@@ -146,8 +146,8 @@ def test_mapa_pointer_bind_codegen():
 
     assert_structural_equal(
         main,
-        tvm.script.from_source(
-            main.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+        tvm_tirx.script.from_source(
+            main.script(), extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
         ),
     )
     src = _get_source(main)

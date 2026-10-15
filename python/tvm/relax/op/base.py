@@ -21,13 +21,13 @@ from collections.abc import Callable
 
 import tvm_ffi
 
-import tvm
-import tvm.runtime
-from tvm.ir import Attrs, Call, Op
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.ir.op import _make_op_api
-from tvm.runtime import DataTypeCode, Object
+import tvm, tvm_tirx
+import tvm_tirx.runtime, tvm
+from tvm_tirx.ir import Attrs, Call, Op
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.op import _make_op_api
+from tvm_tirx.runtime import DataTypeCode, Object
 
 from ..expr import Expr, ExternFunc, GlobalVar, Var
 from ..type import Type
@@ -61,7 +61,7 @@ def register_gradient(
     result : callable
         The registered gradient, or a decorator if fgradient is not supplied.
     """
-    return tvm.ir.register_op_attr(op_name, "FPrimalGradient", fgradient, override)
+    return tvm_tirx.ir.register_op_attr(op_name, "FPrimalGradient", fgradient, override)
 
 
 def null_value(*, ty=None, loc: Location = UNKNOWN_LOC) -> Call:
@@ -86,7 +86,7 @@ def _wrap_inline_arg_tuple(args) -> Expr:
 
     """
     if isinstance(args, tuple | list):
-        return tvm.ir.Tuple([convert_to_expr(arg) for arg in args])
+        return tvm_tirx.ir.Tuple([convert_to_expr(arg) for arg in args])
     elif (
         isinstance(args, Expr)
         and not isinstance(args, tvm.relax.Tuple)
@@ -102,19 +102,19 @@ def _wrap_tir_arg_tuple(func, args) -> Expr:
     if not isinstance(args, tuple | list):
         return _wrap_inline_arg_tuple(args)
     signature = getattr(func, "ty", None)
-    arg_types = signature.arg_types if isinstance(signature, tvm.ir.FuncType) else ()
+    arg_types = signature.arg_types if isinstance(signature, tvm_tirx.ir.FuncType) else ()
     values = []
     for i, value in enumerate(args):
         ty = arg_types[i] if i < len(arg_types) else None
-        if isinstance(ty, tvm.ir.PrimType) and ty.dtype.lanes == 1:
+        if isinstance(ty, tvm_tirx.ir.PrimType) and ty.dtype.lanes == 1:
             if type(value) in (int, bool) and ty.matches_code(
                 DataTypeCode.INT, DataTypeCode.UINT, DataTypeCode.BOOL
             ):
-                value = tvm.tirx.IntImm(ty, value)
+                value = tvm_tirx.tirx.IntImm(ty, value)
             elif type(value) is float and ty.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
-                value = tvm.tirx.FloatImm(ty, value)
+                value = tvm_tirx.tirx.FloatImm(ty, value)
         values.append(convert_to_expr(value))
-    return tvm.ir.Tuple(values)
+    return tvm_tirx.ir.Tuple(values)
 
 
 _call_tir = _make_op_api(Op.get("relax.call_tir"), __name__)
@@ -160,7 +160,7 @@ def call_tir_packed(gvar: GlobalVar, args: Expr, *, ty=None, loc: Location = UNK
     ----------
     gvar : GlobalVar
         The GlobalVar referring to a TIRx Function with its native
-        ``tvm.ir.FuncType`` signature.
+        ``tvm_tirx.ir.FuncType`` signature.
 
     args : Expr
         The ordered arguments, supplied as an inline Relax tuple, a Python
@@ -206,7 +206,7 @@ def call_tir_packed(gvar: GlobalVar, args: Expr, *, ty=None, loc: Location = UNK
     A caller that knows the scalar function has no effects may assert purity::
 
         result = relax.call_pure_packed(
-            tvm.ir.Op.get("relax.call_tir_packed"), add_scalar, (a, b)
+            tvm_tirx.ir.Op.get("relax.call_tir_packed"), add_scalar, (a, b)
         )
 
     A native copy function with a void return writes to a caller-owned tensor::
@@ -426,13 +426,13 @@ def invoke_closure(
     )  # type: ignore
 
 
-def render_object(val: tvm.Object) -> str:
+def render_object(val: tvm_tirx.Object) -> str:
     """
     Given a TVM Object, renders it in string form. Used for Relax printing and assertions.
 
     Parameters
     ----------
-    val: tvm.Object
+    val: tvm_tirx.Object
         An object to render
 
     Returns
@@ -440,7 +440,7 @@ def render_object(val: tvm.Object) -> str:
     ret: str
         A string representing the value, ideally human-readable
     """
-    if isinstance(val, tvm.runtime.Tensor):
+    if isinstance(val, tvm_tirx.runtime.Tensor):
         return str(val)
     if isinstance(val, tvm_ffi.Array):
         fields = ", ".join([render_object(val[i]) for i in range(len(val))])
@@ -448,8 +448,8 @@ def render_object(val: tvm.Object) -> str:
     return str(val)
 
 
-@tvm.register_global_func("relax.run.shape_to_tensor")
-def relax_shape_to_tensor(shape_tuple: tvm_ffi.Shape) -> tvm.runtime.Tensor:
+@tvm_tirx.register_global_func("relax.run.shape_to_tensor")
+def relax_shape_to_tensor(shape_tuple: tvm_ffi.Shape) -> tvm_tirx.runtime.Tensor:
     """
     Takes a Shape and convert it to Tensor.
 
@@ -458,11 +458,11 @@ def relax_shape_to_tensor(shape_tuple: tvm_ffi.Shape) -> tvm.runtime.Tensor:
     shape_tuple: tvm_ffi.Shape
         Shape tuple that we want to convert to Tensor at runtime
     """
-    return tvm.runtime.tensor([int(v) for v in shape_tuple])
+    return tvm_tirx.runtime.tensor([int(v) for v in shape_tuple])
 
 
-@tvm.register_global_func("relax.run.print")
-def relax_print(format_str: str, *format_args: tvm.Object) -> None:
+@tvm_tirx.register_global_func("relax.run.print")
+def relax_print(format_str: str, *format_args: tvm_tirx.Object) -> None:
     """
     Takes a list of values to print, formats with the given format string.
     If the format string is empty, simply prints.
@@ -492,8 +492,8 @@ def print(format: str | Expr, *values: Expr, ty=None, loc: Location = UNKNOWN_LO
     return Call("relax.print", [format, *values], ty=ty, loc=loc)
 
 
-@tvm.register_global_func("relax.run.assert_op")
-def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Object) -> None:
+@tvm_tirx.register_global_func("relax.run.assert_op")
+def relax_assert_op(condition: tvm_tirx.Object, format_str: str, *format_args: tvm_tirx.Object) -> None:
     """
     A variadic function. The first value serves as the assertion condition:
     If the condition is true, then the operator does nothing.
@@ -507,13 +507,13 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
 
     Parameters
     ----------
-    condition: tvm.Object
+    condition: tvm_tirx.Object
         The assertion condition. Must be a boolean scalar.
 
     format_str: str
         A Python-style format string for the error message.
 
-    format_args: List[tvm.Object]
+    format_args: List[tvm_tirx.Object]
         Values used for formatting the string.
     """
     if not isinstance(format_str, str):
@@ -523,7 +523,7 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
 
     if isinstance(condition, bool | int):
         val = condition
-    elif isinstance(condition, tvm.runtime.Tensor):
+    elif isinstance(condition, tvm_tirx.runtime.Tensor):
         # may happen if the original program had unknown shape or dtype for the tensor's type
         dtype = condition.dtype
         if dtype != "bool":

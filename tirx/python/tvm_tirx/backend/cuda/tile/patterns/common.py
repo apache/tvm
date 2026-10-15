@@ -27,7 +27,7 @@ from math import prod
 
 import tvm_ffi
 
-from tvm.ir import (
+from tvm_tirx.ir import (
     Bind,
     Call,
     Evaluate,
@@ -40,12 +40,12 @@ from tvm.ir import (
     TensorRegion,
     Var,
 )
-from tvm.ir.prim import Let
-from tvm.runtime import DataType, MemoryScope
-from tvm.script import tirx as T
-from tvm.sym import Analyzer
-from tvm.tirx import Function, IntImm
-from tvm.tirx.layout import TileLayout
+from tvm_tirx.ir.prim import Let
+from tvm_tirx.runtime import DataType, MemoryScope
+from tvm_tirx.script import tirx as T
+from tvm_tirx.sym import Analyzer
+from tvm_tirx.tirx import Function, IntImm
+from tvm_tirx.tirx.layout import TileLayout
 
 
 def scalar(value):

@@ -21,8 +21,8 @@ from enum import IntEnum
 
 import tvm_ffi
 
-import tvm.runtime
-from tvm.runtime import Object
+import tvm_tirx.runtime
+from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 from .attrs import DictAttrs
@@ -75,14 +75,14 @@ class BaseFunc(_CallableExprWithOp):
                 new_value = _ffi_api.BaseFuncWithAttr(
                     new_value if new_value is self else new_value._move(),
                     key,
-                    tvm.runtime.convert(val),
+                    tvm_tirx.runtime.convert(val),
                 )
             return new_value
 
         return _ffi_api.BaseFuncWithAttr(
             new_value if new_value is self else new_value._move(),
             attr_key_or_dict,
-            tvm.runtime.convert(attr_value),
+            tvm_tirx.runtime.convert(attr_value),
         )
 
     def with_attrs(self, attr_map: DictAttrs | dict[str, Object]) -> "BaseFunc":
@@ -96,7 +96,7 @@ class BaseFunc(_CallableExprWithOp):
         func : BaseFunc
             A new copy of the function
         """
-        if isinstance(attr_map, tvm.ir.DictAttrs):
+        if isinstance(attr_map, tvm_tirx.ir.DictAttrs):
             attr_map = attr_map._dict()
 
         return _ffi_api.BaseFuncWithAttrs(self, attr_map)

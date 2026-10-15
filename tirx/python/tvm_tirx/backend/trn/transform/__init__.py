@@ -19,8 +19,8 @@
 
 from tvm_ffi import get_global_func
 
-import tvm
-from tvm import tirx
+import tvm_tirx
+from tvm_tirx import tirx
 
 _LAZY_TRANSFORMS = {
     "TrnNaiveAllocator": ".naive_allocator",
@@ -35,7 +35,7 @@ def LowerTrainiumLayout():
 
 def LowerTIRx():
     """Lower TIRx tile op calls for the Trainium backend."""
-    return tvm.ir.transform.Sequential(
+    return tvm_tirx.ir.transform.Sequential(
         [tirx.transform.TileDispatch(), LowerTrainiumLayout()],
         name="tirx.backend.trn.LowerTIRx",
     )

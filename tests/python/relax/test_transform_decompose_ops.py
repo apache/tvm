@@ -18,14 +18,15 @@
 
 from typing import Union
 
-import tvm
-import tvm.script
-import tvm.testing
-from tvm import IRModule, relax
+import tvm, tvm_tirx
+import tvm_tirx.script, tvm
+import tvm_tirx.testing, tvm
+from tvm_tirx import IRModule
+from tvm import relax
 from tvm.relax import Function
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import tirx as T
 
 
 def test_batch_norm_inference():
@@ -92,7 +93,7 @@ def test_batch_norm_inference():
             return gv
 
     After = relax.transform.DecomposeOpsForInference("main")(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_batch_norm_training():
@@ -177,7 +178,7 @@ def test_batch_norm_training():
             return (gv0, gv1, gv2)
 
     After = relax.transform.DecomposeOpsForTraining("main")(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_batch_norm_multiple_functions():
@@ -304,7 +305,7 @@ def test_batch_norm_multiple_functions():
             return gv
 
     After = relax.transform.DecomposeOpsForInference()(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_layer_norm():
@@ -356,7 +357,7 @@ def test_layer_norm():
             return ln
 
     After = relax.transform.DecomposeOpsForTraining()(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_op_tensor_to_shape():
@@ -383,8 +384,8 @@ def test_op_tensor_to_shape():
             return gv_1
 
     After = relax.transform.DecomposeOpsForInference()(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

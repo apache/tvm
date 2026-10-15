@@ -17,8 +17,8 @@
 # ruff: noqa: E741, F401, F821, F841
 import numpy as np
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm import te
 from tvm.topi.nn.pooling import pool2d
 
@@ -33,8 +33,8 @@ def test_tensor():
     print(T)
     print(T.op.body)
     assert tuple(T.shape) == (m, n, l)
-    assert isinstance(A, tvm.ir.OpaqueExpr)
-    assert isinstance(A.ty, tvm.ir.OpaqueType)
+    assert isinstance(A, tvm_tirx.ir.OpaqueExpr)
+    assert isinstance(A.ty, tvm_tirx.ir.OpaqueType)
     assert isinstance(A.op, tvm.te.PlaceholderOp)
     assert A == A
     assert T.op.output(0) == T
@@ -42,12 +42,12 @@ def test_tensor():
     d = {T.op.output(0): 1}
     assert d[T] == 1
     load = T[0][0][0].__tvm_ffi_object__()
-    assert isinstance(load, tvm.ir.Call)
-    assert load.op.same_as(tvm.ir.Op.get("te.tensor_load"))
+    assert isinstance(load, tvm_tirx.ir.Call)
+    assert load.op.same_as(tvm_tirx.ir.Op.get("te.tensor_load"))
     assert load.args[0].same_as(T)
     assert list(load.args[1:]) == [0, 0, 0]
     assert load.ty == T.dtype
-    assert load.astype("float16").ty == tvm.ir.PrimType("float16")
+    assert load.astype("float16").ty == tvm_tirx.ir.PrimType("float16")
 
 
 def test_rank_zero():
@@ -93,14 +93,14 @@ def test_tensor_comm_reducer():
     n = te.var("n")
     A = te.placeholder((m, n), name="A")
     k = te.reduce_axis((0, n), "k")
-    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm.tirx.const(0, dtype=t))
+    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm_tirx.tirx.const(0, dtype=t))
     C = te.compute((m,), lambda i: mysum(A[i, k], axis=k))
 
 
 def test_tensor_comm_reducer_overload():
     m = te.var("m")
     n = te.var("n")
-    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm.tirx.const(0, dtype=t))
+    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm_tirx.tirx.const(0, dtype=t))
     sum_res = mysum(m, n)
 
 
@@ -114,8 +114,8 @@ def test_tensor_reduce():
     rv = te.reduce_axis((0, A.shape[1]), "k")
     C = te.compute((m, n), lambda i, j: te.sum(T(i, j, rv + 1), axis=rv))
     # json load save
-    C_json = tvm.ir.save_json(C)
-    C_loaded = tvm.ir.load_json(C_json)
+    C_json = tvm_tirx.ir.save_json(C)
+    C_loaded = tvm_tirx.ir.load_json(C_json)
     assert isinstance(C_loaded, te.tensor.Tensor)
     assert str(C_loaded) == str(C)
 
@@ -125,7 +125,7 @@ def test_tensor_reduce_multiout_with_cond():
         return x[0] + y[0], x[1] + y[1]
 
     def fidentity(t0, t1):
-        return tvm.tirx.const(0, t0), tvm.tirx.const(1, t1)
+        return tvm_tirx.tirx.const(0, t0), tvm_tirx.tirx.const(1, t1)
 
     mysum = te.comm_reducer(fcombine, fidentity, name="mysum")
 
@@ -166,8 +166,8 @@ def test_scan_multi_out():
     r0, r1 = tvm.te.scan([s1_init, s2_init], [s1_update, s2_update], [s1, s2])
     assert r0.value_index == 0
     assert r1.value_index == 1
-    json_str = tvm.ir.save_json(r0.op)
-    zz = tvm.ir.load_json(json_str)
+    json_str = tvm_tirx.ir.save_json(r0.op)
+    zz = tvm_tirx.ir.load_json(json_str)
     assert isinstance(zz, tvm.te.ScanOp)
 
 
@@ -176,8 +176,8 @@ def test_extern():
     A = te.placeholder((m,), name="A")
 
     def extern_func(ins, outs):
-        assert tvm.tirx.is_tensor_var(ins[0])
-        return tvm.tirx.call_packed("myadd", ins[0].data, outs[0].data, m)
+        assert tvm_tirx.tirx.is_tensor_var(ins[0])
+        return tvm_tirx.tirx.call_packed("myadd", ins[0].data, outs[0].data, m)
 
     B = te.extern((m,), [A], extern_func)
     assert tuple(B.shape) == (m,)
@@ -189,8 +189,8 @@ def test_extern_multi_out():
     B = te.compute((m,), lambda i: A[i] * 10)
 
     def extern_func(ins, outs):
-        assert tvm.tirx.is_tensor_var(ins[0])
-        return tvm.tirx.call_packed("myadd", ins[0].data, outs[0].data, outs[1].data, m)
+        assert tvm_tirx.tirx.is_tensor_var(ins[0])
+        return tvm_tirx.tirx.call_packed("myadd", ins[0].data, outs[0].data, outs[1].data, m)
 
     res = te.extern([A.shape, A.shape], [A, B], extern_func)
     assert len(res) == 2
@@ -227,15 +227,15 @@ def test_make_sum():
     A = te.placeholder((2, 10), name="A")
     k = te.reduce_axis((0, 10), "k")
     B = te.compute((2,), lambda i: te.sum(A[i, k], axis=k), name="B")
-    json_str = tvm.ir.save_json(B)
-    BB = tvm.ir.load_json(json_str)
+    json_str = tvm_tirx.ir.save_json(B)
+    BB = tvm_tirx.ir.load_json(json_str)
     assert B.op.body[0].combiner is not None
     assert BB.op.body[0].combiner is not None
 
 
 def test_tensor_make_node():
     tensor = te.placeholder((10,), name="A")
-    restored = tvm.ir.make_node(
+    restored = tvm_tirx.ir.make_node(
         "te.Tensor",
         shape=tensor.shape,
         dtype=tensor.dtype,

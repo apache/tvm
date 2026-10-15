@@ -22,26 +22,26 @@ For example, you can use addexp.a to get the left operand of an Add node.
 
 .. code-block:: python
 
-  x = tvm.tirx.Var("n", "int32")
+  x = tvm_tirx.tirx.Var("n", "int32")
   y = x + 2
-  assert(isinstance(y, tvm.tirx.Add))
+  assert(isinstance(y, tvm_tirx.tirx.Add))
   assert(y.a == x)
 """
 
-from tvm import ir
-from tvm.ir import Expr
-from tvm.ir import const as const
-from tvm.ir._overload_prim_expr import (  # noqa: F401
+from tvm_tirx import ir
+from tvm_tirx.ir import Expr
+from tvm_tirx.ir import const as const
+from tvm_tirx.ir._overload_prim_expr import (  # noqa: F401
     EqualOp,
     ExprOp,
     NotEqualOp,
     div_ambiguity_error,
 )
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.ir.prim import convert as convert
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.prim import convert as convert
 
 # Retain historical imports as aliases of the canonical shared definitions.
-from tvm.ir.prim.expr import (  # noqa: F401
+from tvm_tirx.ir.prim.expr import (  # noqa: F401
     EQ,
     GE,
     GT,

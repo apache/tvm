@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-import tvm.testing
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import tirx as T
 
 
 def test_renormalize_split_pattern():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @T.function
         def main(A: T.Tensor((768,), "int32"), B: T.Tensor((96,), "int32")):
@@ -34,7 +34,7 @@ def test_renormalize_split_pattern():
                     )
                 B[T.ramp(i * 4, 1, 4)] = T.ramp(i * 128, 1, 4) % 256 // 8
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class After:
         @T.function
         def main(A: T.Tensor((768,), "int32"), B: T.Tensor((96,), "int32")):
@@ -47,7 +47,7 @@ def test_renormalize_split_pattern():
                     )
                 B[T.ramp(i * 4, 1, 4)] = T.ramp(i * 128, 1, 4) // 8 % 32
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class AfterSimplified:
         @T.function
         def main(A: T.Tensor((768,), "int32"), B: T.Tensor((96,), "int32")):
@@ -56,11 +56,11 @@ def test_renormalize_split_pattern():
                     A[i * 32 + j] = T.if_then_else(4 <= i and i < 20, i % 4, 0)
                 B[T.ramp(i * 4, 1, 4)] = T.broadcast(i % 2 * 16, 4)
 
-    after = tvm.tirx.transform.RenormalizeSplitPattern()(Before)
-    tvm.ir.assert_structural_equal(after, After)
-    after = tvm.tirx.transform.StmtSimplify()(after)
-    tvm.ir.assert_structural_equal(after, AfterSimplified)
+    after = tvm_tirx.tirx.transform.RenormalizeSplitPattern()(Before)
+    tvm_tirx.ir.assert_structural_equal(after, After)
+    after = tvm_tirx.tirx.transform.StmtSimplify()(after)
+    tvm_tirx.ir.assert_structural_equal(after, AfterSimplified)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

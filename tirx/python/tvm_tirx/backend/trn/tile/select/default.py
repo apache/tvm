@@ -19,14 +19,14 @@
 
 from functools import cache
 
-from tvm.backend.trn.layout import is_trainium_layout
-from tvm.ir import TensorRegion
-from tvm.runtime import MemoryScope
-from tvm.script import tirx as T
-from tvm.tirx import FloatImm, Function
-from tvm.tirx.tile import DispatchContext, fail
-from tvm.tirx.tile.instruction import TensorCall
-from tvm.tirx.tile.views import Select
+from tvm_tirx.backend.trn.layout import is_trainium_layout
+from tvm_tirx.ir import TensorRegion
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import FloatImm, Function
+from tvm_tirx.tirx.tile import DispatchContext, fail
+from tvm_tirx.tirx.tile.instruction import TensorCall
+from tvm_tirx.tirx.tile.views import Select
 
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_ewise_dim_map

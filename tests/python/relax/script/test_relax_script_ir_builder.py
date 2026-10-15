@@ -16,12 +16,13 @@
 # under the License.
 """Relax script ir builder."""
 
-import tvm
-import tvm.testing
-from tvm import relax, tirx
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
+from tvm_tirx import tirx
+from tvm import relax
 from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.script import ir_builder as R
-from tvm.script.ir_builder.base import IRBuilder
+from tvm_tirx.script.ir_builder.base import IRBuilder
 
 
 def test_function_simple():
@@ -76,7 +77,7 @@ def test_function_simple():
         bb.emit_func_output(out)
     mod = bb.get()
 
-    tvm.ir.assert_structural_equal(func, mod["foo"])
+    tvm_tirx.ir.assert_structural_equal(func, mod["foo"])
     # check names
     assert func.params[0].name == "x"
     assert func.body.body.name == "out"
@@ -128,7 +129,7 @@ def test_emits():
         bb.emit_func_output(relax.ShapeExpr([m, n * 2]))
     mod = bb.get()
 
-    tvm.ir.assert_structural_equal(func, mod["foo"])
+    tvm_tirx.ir.assert_structural_equal(func, mod["foo"])
 
 
 def test_dataflow_block():
@@ -178,7 +179,7 @@ def test_dataflow_block():
             gv = bb.emit_output(lv0)
         bb.emit_func_output(gv)
 
-    tvm.ir.assert_structural_equal(func, bb.get()["foo"])
+    tvm_tirx.ir.assert_structural_equal(func, bb.get()["foo"])
 
 
 def test_regression_py_print():
@@ -191,8 +192,8 @@ def test_regression_py_print():
 def test_function_subroutine_before_main():
     """The block builder can generate subroutines, and calls into subroutines"""
 
-    from tvm.script import ir as I
-    from tvm.script import relax as R
+    from tvm_tirx.script import ir as I
+    from tvm_tirx.script import relax as R
 
     # create with TVMScript
     @I.ir_module
@@ -227,14 +228,14 @@ def test_function_subroutine_before_main():
         bb.emit_func_output(out)
     actual = bb.get()
 
-    tvm.ir.assert_structural_equal(expected, actual)
+    tvm_tirx.ir.assert_structural_equal(expected, actual)
 
 
 def test_function_subroutine_during_main():
     """Subroutines may be generated as needed, pausing the main function collection"""
 
-    from tvm.script import ir as I
-    from tvm.script import relax as R
+    from tvm_tirx.script import ir as I
+    from tvm_tirx.script import relax as R
 
     # create with TVMScript
     @I.ir_module
@@ -269,8 +270,8 @@ def test_function_subroutine_during_main():
         bb.emit_func_output(out)
     actual = bb.get()
 
-    tvm.ir.assert_structural_equal(expected, actual)
+    tvm_tirx.ir.assert_structural_equal(expected, actual)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

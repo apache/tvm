@@ -21,16 +21,16 @@ from types import SimpleNamespace
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm.backend.cuda.axis import Axis as CUDAAxis
-from tvm.backend.cuda.axis import laneid, warpid
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.script.parser import register_namespace
-from tvm.script.parser.protocol_registry import register_mutable_decl
-from tvm.tirx.layout import S, TileLayout
-from tvm.tirx.transform import LowerTIRx, StmtSimplify
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.cuda.axis import Axis as CUDAAxis
+from tvm_tirx.backend.cuda.axis import laneid, warpid
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.parser import register_namespace
+from tvm_tirx.script.parser.protocol_registry import register_mutable_decl
+from tvm_tirx.tirx.layout import S, TileLayout
+from tvm_tirx.tirx.transform import LowerTIRx, StmtSimplify
 
 _CTA_LAUNCH_ATTRS = {
     "cuda.kernel_attrs": {},
@@ -72,9 +72,9 @@ _PREFERRED_CLUSTER_LAUNCH_ATTRS = {
 
 
 def compare(Before, Expected, transform):
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def _int_range(side, axis):
@@ -120,8 +120,8 @@ def test_unroll_loop_optional_annotations():
             for i in T.unroll(8):
                 B[i] = A[i] + 4.0
 
-    lowered = tvm.tirx.transform.UnrollLoop()(Before)
-    tvm.ir.assert_structural_equal(lowered, Expected)
+    lowered = tvm_tirx.tirx.transform.UnrollLoop()(Before)
+    tvm_tirx.ir.assert_structural_equal(lowered, Expected)
 
 
 def test_lower_view_get():
@@ -609,9 +609,9 @@ def test_lower_ordinary_cta_has_no_cluster_launch_tags():
             with T.device_scope(1, 1, 1, 32, 1, 1, attrs=_CTA_LAUNCH_ATTRS):
                 pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         after = LowerTIRx()(Before)["main"]
-    tvm.ir.assert_structural_equal(after, Expected["main"])
+    tvm_tirx.ir.assert_structural_equal(after, Expected["main"])
 
 
 def test_lower_explicit_singleton_cluster_launch_tags_survive_when_unused():
@@ -659,9 +659,9 @@ def test_lower_explicit_singleton_cluster_launch_tags_survive_when_unused():
                 unused_by: T.let[T.int32] = 0
                 unused_bz: T.let[T.int32] = 0
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         after = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_lower_multi_cta_cluster_launch_tags_remain_unchanged():
@@ -683,9 +683,9 @@ def test_lower_multi_cta_cluster_launch_tags_remain_unchanged():
                 unused_bx: T.let[T.int32] = T.cuda.block_idx("x")
                 unused_by: T.let[T.int32] = 0
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         after = LowerTIRx()(Before)["main"]
-    tvm.ir.assert_structural_equal(after, Expected["main"])
+    tvm_tirx.ir.assert_structural_equal(after, Expected["main"])
 
 
 def test_lower_singleton_cluster_preserves_preferred_cluster_tags():
@@ -713,9 +713,9 @@ def test_lower_singleton_cluster_preserves_preferred_cluster_tags():
                 unused_bx: T.let[T.int32] = T.cuda.block_idx("x")
                 unused_by: T.let[T.int32] = T.cuda.block_idx("y")
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         after = LowerTIRx()(Before)["main"]
-    tvm.ir.assert_structural_equal(after, Expected["main"])
+    tvm_tirx.ir.assert_structural_equal(after, Expected["main"])
 
 
 def test_lower_scope_id2():
@@ -895,7 +895,7 @@ def test_lower_layout():
 @pytest.mark.parametrize(
     "target,error,message",
     [
-        (None, tvm.error.InternalError, "Target context required"),
+        (None, tvm_tirx.error.InternalError, "Target context required"),
         ("cuda", RuntimeError, "An explicit layout is required for shared tensors"),
     ],
     ids=["missing-target", "missing-shared-layout"],
@@ -913,7 +913,7 @@ def test_lower_opcall_fail(target, error, message):
             T.cuda.tile.apply(T.ptx["ld.shared.b32"], local, shared, scope="cta")
 
     with (
-        tvm.target.Target(target) if target else nullcontext(),
+        tvm_tirx.target.Target(target) if target else nullcontext(),
         pytest.raises(error, match=message),
     ):
         LowerTIRx()(Before)
@@ -1046,9 +1046,9 @@ def test_lower_exec_context_infers_plain_predicate_for_dispatch():
                 if (warp_id == 0) & (lane_id == 0):
                     pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     assert len(seen) == 1
     assert seen[0]["scope_kind"] == "thread"
@@ -1102,9 +1102,9 @@ def test_lower_exec_context_tracks_let_aliases_and_hoists_warp_shuffle():
                     if alias_warp == 1:
                         pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         lowered = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(lowered, Expected)
+    tvm_tirx.ir.assert_structural_equal(lowered, Expected)
 
     assert len(seen) == 1
     assert _int_range(seen[0], "laneid") == (1, 0)
@@ -1152,9 +1152,9 @@ def test_lower_exec_context_respects_preferred_cluster_bounds():
                 if cby == 1:
                     pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     assert len(seen) == 1
     assert _int_range(seen[0], "cbx") == (2, 0)
@@ -1174,7 +1174,7 @@ def test_lower_exec_context_respects_preferred_cluster_bounds():
             )
             getattr(T.cuda.tile, variant)(B[0:1], A[0:1], scope="cluster")
 
-    with tvm.target.Target("cuda"), pytest.raises(ValueError, match="one static cluster shape"):
+    with tvm_tirx.target.Target("cuda"), pytest.raises(ValueError, match="one static cluster shape"):
         LowerTIRx()(fixed_shape_instruction)
 
 
@@ -1224,9 +1224,9 @@ def test_lower_exec_context_infers_warpgroup_range_predicate_for_dispatch():
                 if (0 <= wg_id) & (wg_id < 1):
                     pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     assert len(seen) == 3
     for item in seen:
@@ -1270,9 +1270,9 @@ def test_lower_exec_context_tracks_cta_thread_range_predicate_for_dispatch():
                 if (0 <= tid) & (tid < 128):
                     pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     assert len(seen) == 1
     assert seen[0]["scope_kind"] == "thread"
@@ -1315,9 +1315,9 @@ def test_lower_exec_context_tracks_cta_thread_single_warp_range_predicate():
                 if (34 <= tid) & (tid < 40):
                     pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     assert len(seen) == 1
     assert seen[0]["scope_kind"] == "thread"
@@ -1367,9 +1367,9 @@ def test_lower_exec_context_tracks_warpgroup_thread_range_predicate():
                     if (32 <= tid_in_wg) & (tid_in_wg < 64):
                         pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     assert len(seen) == 1
     assert seen[0]["scope_kind"] == "warpgroup"
@@ -1417,9 +1417,9 @@ def test_lower_exec_context_tracks_dependent_conjunctive_predicate():
                 if (32 <= tid_in_wg) & (tid_in_wg < 64) & (wg_id == 1):
                     pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     assert len(seen) == 1
     assert seen[0]["scope_kind"] == "warpgroup"
@@ -1454,9 +1454,9 @@ def test_lower_exec_context_keeps_plain_predicate_condition():
                 if wg_id == 0:
                     T.evaluate(A_1[0])
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         lowered = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(lowered, Expected)
+    tvm_tirx.ir.assert_structural_equal(lowered, Expected)
 
     script = lowered.script(extra_config={"tirx.prefix": "T"})
     assert "if wg_id == 0:" in script
@@ -1489,9 +1489,9 @@ def test_lower_exec_context_keeps_plain_scope_predicate_condition():
                 if wg_id == 0:
                     A_1[0] = T.float32(1.0)
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         lowered = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(lowered, Expected)
+    tvm_tirx.ir.assert_structural_equal(lowered, Expected)
 
     script = lowered.script(extra_config={"tirx.prefix": "T"})
     assert "if wg_id == 0:" in script
@@ -1541,11 +1541,11 @@ def test_simplify_uses_floor_div_scope_predicate_as_context_fact():
                 if warp_id_in_cta // 4 == 0:
                     A_1[warp_id_in_cta] = T.Cast(T.cuda.thread_idx("x") % 32, "float32")
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         lowered = LowerTIRx()(Before)
         simplified = StmtSimplify()(lowered)
-    tvm.ir.assert_structural_equal(lowered, Expected)
-    tvm.ir.assert_structural_equal(simplified, ExpectedSimplified)
+    tvm_tirx.ir.assert_structural_equal(lowered, Expected)
+    tvm_tirx.ir.assert_structural_equal(simplified, ExpectedSimplified)
 
     script = simplified.script(extra_config={"tirx.prefix": "T"})
     assert "if warp_id_in_cta // 4 == 0:" in script
@@ -1595,9 +1595,9 @@ def test_lower_exec_context_selector_filter_for_elect_sync():
                 if T.cuda.elect_sync():
                     pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     assert len(seen) == 3
     assert any(
@@ -1633,9 +1633,9 @@ def test_lower_cleanup_accepts_bool_elect_sync_else_path():
                 else:
                     A_1[T.cuda.thread_idx("x")] = 0
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         lowered = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(lowered, Expected)
+    tvm_tirx.ir.assert_structural_equal(lowered, Expected)
 
     script = lowered.script(extra_config={"tirx.prefix": "T"})
     assert "T.cuda.elect_sync() != T.uint32(0)" in script
@@ -1680,9 +1680,9 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
                 if T.Cast(warp_id == 0, "uint32") & T.cuda.elect_sync():
                     pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     assert len(seen) == 1
     assert _int_range(seen[0]["inter"], "warpid") == (1, 0)
@@ -1728,9 +1728,9 @@ def test_lower_exec_context_tracks_factorized_cta_predicate():
                 if cbx == 0:
                     pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     assert len(seen) == 1
     assert _int_range(seen[0], "cbx") == (1, 0)
@@ -1783,9 +1783,9 @@ def test_lower_exec_context_keeps_kernel_cta_predicate_out_of_cluster_active_set
                 if cbx == 0:
                     pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     assert set(seen) == {"kernel", "cluster"}
     assert _int_range(seen["kernel"], "cta_id") == (2, 0)
@@ -1826,9 +1826,9 @@ def test_lower_exec_context_tracks_cta_axis_modulo_predicate():
                 if cbx % 2 == 0:
                     pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     assert len(seen) == 1
     assert _int_range(seen[0], "cbx") == (2, 0, 2)
@@ -1879,9 +1879,9 @@ def test_lower_exec_context_tracks_cta_id_in_pair_predicate():
                 if cta_id_in_pair == 0:
                     pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         lowered = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(lowered, Expected)
+    tvm_tirx.ir.assert_structural_equal(lowered, Expected)
 
     assert len(seen) == 1
     assert _int_range(seen[0], "cbx") == (2, 0, 2)
@@ -1940,9 +1940,9 @@ def test_lower_exec_context_tracks_two_cta_pair_predicates():
                 if cta_id_in_pair == 1:
                     pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     assert set(seen) == {"zero", "one"}
     assert _int_range(seen["zero"], "cta_id") == (1, 0, 2)
@@ -1995,9 +1995,9 @@ def test_lower_exec_context_tracks_cta_id_in_pair_after_axis_predicate():
                     if cta_id_in_pair == 1:
                         pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     assert len(seen) == 1
     assert _int_range(seen[0], "cbx") == (1, 0)
@@ -2039,22 +2039,22 @@ def test_lower_remaps_tensor_memory_address_metadata(offset):
                 )
                 T.evaluate(tensor.data)
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         lowered = LowerTIRx()(Before)["main"]
-    tvm.ir.assert_structural_equal(lowered, Expected["main"])
-    assert not tvm.tirx.analysis.undefined_vars(lowered.body, lowered.params)
-    tvm.tirx.analysis.verify_well_formed(lowered)
+    tvm_tirx.ir.assert_structural_equal(lowered, Expected["main"])
+    assert not tvm_tirx.tirx.analysis.undefined_vars(lowered.body, lowered.params)
+    tvm_tirx.tirx.analysis.verify_well_formed(lowered)
     bindings = []
-    tvm_ffi.structural_walk(lowered.body, (tvm.ir.Bind, bindings.append))
+    tvm_ffi.structural_walk(lowered.body, (tvm_tirx.ir.Bind, bindings.append))
     address = next(
-        node.var for node in bindings if node.var.scope() == tvm.runtime.MemoryScope("shared")
+        node.var for node in bindings if node.var.scope() == tvm_tirx.runtime.MemoryScope("shared")
     )
-    tensor = next(node for node in bindings if node.var.scope() == tvm.runtime.MemoryScope("tmem"))
+    tensor = next(node for node in bindings if node.var.scope() == tvm_tirx.runtime.MemoryScope("tmem"))
     loads = []
-    tvm_ffi.structural_walk(tensor.value.args[0], (tvm.ir.TensorLoad, loads.append))
+    tvm_ffi.structural_walk(tensor.value.args[0], (tvm_tirx.ir.TensorLoad, loads.append))
     assert len(loads) == 1
     assert loads[0].source.same_as(address)
-    tvm.ir.assert_structural_equal(tensor.var.ty, tensor.value.ty)
+    tvm_tirx.ir.assert_structural_equal(tensor.var.ty, tensor.value.ty)
 
 
 def test_lower_tensor_offset():
@@ -2243,7 +2243,7 @@ def test_warp_indices_require_complete_warps():
             T.evaluate(T.cuda.warp_id())
 
     with pytest.raises(ValueError, match="divisible by 32"):
-        with tvm.target.Target("cuda"):
+        with tvm_tirx.target.Target("cuda"):
             LowerTIRx()(Before)
 
 
@@ -2264,9 +2264,9 @@ def test_launch_configuration_does_not_require_index_uses():
             with T.device_scope(32, 1, 1, 128, 1, 1, attrs=_CTA_LAUNCH_ATTRS):
                 pass
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         lowered = LowerTIRx()(Before)["main"]
-    tvm.ir.assert_structural_equal(lowered, Expected["main"])
+    tvm_tirx.ir.assert_structural_equal(lowered, Expected["main"])
 
 
 def test_lower_preferred_cluster():
@@ -2297,15 +2297,15 @@ def test_lower_preferred_cluster():
                 tx: T.let[T.int32] = T.cuda.thread_idx("x")
                 T.evaluate(bx + cbx + cby + tx)
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         after_mod = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(after_mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(after_mod, Expected)
     assert 'T.cuda.mov_sreg(32, "cluster_ctaid.y")' in after_mod.script()
 
 
 def _register_probe(name):
     """Register a test instruction whose lowerer inspects its execution context."""
-    from tvm.tirx.tile.instruction import Instruction, Operand
+    from tvm_tirx.tirx.tile.instruction import Instruction, Operand
 
     def decorate(lower):
         spec = Instruction(
@@ -2341,9 +2341,9 @@ def test_alloc_tensor_layout_span_without_threads(scope):
             A = T.alloc_tensor(ty_args=[T.Tensor((39,), "uint32", scope=scope, layout=None)])
             A[38] = T.uint32(7)
 
-    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+    with tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"}):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 @pytest.mark.parametrize("scope", ["local", "shared"])
@@ -2365,6 +2365,6 @@ def test_alloc_tensor_swizzle_storage_span(scope):
             A = T.alloc_tensor(ty_args=[T.Tensor((1024,), "uint32", scope=scope, layout=None)])
             A[1023] = T.uint32(7)
 
-    with tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}):
+    with tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"}):
         After = LowerTIRx()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)

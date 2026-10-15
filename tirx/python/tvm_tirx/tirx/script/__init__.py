@@ -31,8 +31,8 @@ def _initialize() -> None:
         return
     _initializing = True
     try:
-        from tvm.script.parser import entry, register_namespace
-        from tvm.tirx.layout import Axis
+        from tvm_tirx.script.parser import entry, register_namespace
+        from tvm_tirx.tirx.layout import Axis
 
         from . import ir_builder as builder
         from .jit import make_jit
@@ -70,7 +70,7 @@ def __getattr__(name: str) -> _Any:
     _initialize()
     if name in globals():
         return globals()[name]
-    return getattr(_importlib.import_module("tvm.tirx.script.ir_builder"), name)
+    return getattr(_importlib.import_module("tvm_tirx.tirx.script.ir_builder"), name)
 
 
 from .jit import OptionalAnnotation as Optional

@@ -16,11 +16,11 @@
 # under the License.
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 target = "opencl"
 
@@ -43,25 +43,25 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
                     B[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + 1.0
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
-    host_lib = tvm.tirx.compile(Module, target=target)
+    host_lib = tvm_tirx.tirx.compile(Module, target=target)
     monkeypatch.delenv("TVM_COMPILE_FORCE_FALLBACK")
 
     lib_path = str(tmp_path / "lib.so")
     host_lib.export_library(lib_path)
-    reloaded = tvm.runtime.load_module(lib_path)
+    reloaded = tvm_tirx.runtime.load_module(lib_path)
 
     a_np = np.random.uniform(size=(n,)).astype("float32")
     b_np = np.zeros((n,), dtype="float32")
 
     def run_and_check():
-        dev = tvm.opencl(0)
-        a = tvm.runtime.tensor(a_np, dev)
-        b = tvm.runtime.tensor(b_np, dev)
+        dev = tvm_tirx.opencl(0)
+        a = tvm_tirx.runtime.tensor(a_np, dev)
+        b = tvm_tirx.runtime.tensor(b_np, dev)
         reloaded["main"](a, b)
         np.testing.assert_allclose(b.numpy(), a_np + 1.0, rtol=1e-5)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

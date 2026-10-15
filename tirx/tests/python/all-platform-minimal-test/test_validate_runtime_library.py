@@ -33,7 +33,7 @@ from pathlib import Path
 
 import pytest
 
-import tvm
+import tvm_tirx
 
 
 def test_llvm_enabled():
@@ -42,14 +42,14 @@ def test_llvm_enabled():
     builds with LLVM off do not fail."""
     if os.environ.get("TVM_WHEEL_EXPECT_LLVM") != "1":
         pytest.skip("LLVM enablement only asserted during wheel validation")
-    assert tvm.runtime.enabled("llvm"), "wheel was not built with LLVM enabled"
+    assert tvm_tirx.runtime.enabled("llvm"), "wheel was not built with LLVM enabled"
 
 
 def test_cuda_runtime_present():
     """The bundled CUDA runtime library must be present in tvm/lib."""
     if os.environ.get("TVM_WHEEL_EXPECT_CUDA_RUNTIME") != "1":
         pytest.skip("CUDA runtime not expected in this wheel")
-    libdir = Path(tvm.__file__).resolve().parent / "lib"
+    libdir = Path(tvm_tirx.__file__).resolve().parent / "lib"
     present = glob.glob(str(libdir / "libtvm_runtime_cuda.*")) or glob.glob(
         str(libdir / "tvm_runtime_cuda.*")
     )

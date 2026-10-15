@@ -17,8 +17,8 @@
 
 import pytest
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm.relax.frontend.nn.llm._decode_kernels import _merge_state_inplace
 from tvm.relax.frontend.nn.llm._kernel_common import (
     _get_prefill_kernel_config,
@@ -33,7 +33,7 @@ from tvm.relax.frontend.nn.llm.tree_attn import tree_attn, tree_attn_with_paged_
 
 
 def _get_allocated_shared_memory(func):
-    mod = tvm.IRModule.from_expr(func)
+    mod = tvm_tirx.IRModule.from_expr(func)
     mod = tvm.s_tir.transform.ConvertBlocksToOpaque()(mod)
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
     allocated_bytes = tvm.s_tir.analysis.calculate_allocated_bytes(mod)
@@ -42,7 +42,7 @@ def _get_allocated_shared_memory(func):
 
 
 def test_wide_head_prefill_fits_metal_shared_memory():
-    target = tvm.target.Target("metal")
+    target = tvm_tirx.target.Target("metal")
     config = _get_prefill_kernel_config(
         h_kv=1,
         h_q=8,
@@ -60,18 +60,18 @@ def test_wide_head_prefill_fits_metal_shared_memory():
 
 @pytest.mark.parametrize("sliding_window", [False, True])
 def test_wide_fp32_head_prefill_fits_webgpu_shared_memory(sliding_window):
-    target = tvm.target.Target("webgpu")
+    target = tvm_tirx.target.Target("webgpu")
     config = _get_prefill_kernel_config(1, 8, 512, "float32", target)
     func = _attention_prefill(1, 8, 512, "float32", sliding_window, {}, target)
 
     assert config == (16, 2, 8, 16, 1, 4, 512, 4)
     assert _get_allocated_shared_memory(func) <= int(target.attrs["max_shared_memory_per_block"])
-    mod = tvm.tirx.compile(func.with_attr("global_symbol", "main"), target=target).mod
+    mod = tvm_tirx.tirx.compile(func.with_attr("global_symbol", "main"), target=target).mod
     assert mod.imports[0].inspect_source()
 
 
 def test_non_power_of_two_head_prefill_reduces_query_tile_for_metal():
-    target = tvm.target.Target("metal")
+    target = tvm_tirx.target.Target("metal")
     config = _get_prefill_kernel_config(
         h_kv=1,
         h_q=8,
@@ -85,11 +85,11 @@ def test_non_power_of_two_head_prefill_reduces_query_tile_for_metal():
     assert func.attrs["tirx.is_scheduled"]
     assert _get_allocated_shared_memory(func) == 18_784
     assert 18_784 <= int(target.attrs["max_shared_memory_per_block"])
-    assert tvm.tirx.compile(func, target=target).mod.imports[0].inspect_source()
+    assert tvm_tirx.tirx.compile(func, target=target).mod.imports[0].inspect_source()
 
 
 def test_reduced_query_tile_keeps_the_real_head_dimension():
-    target = tvm.target.Target("metal")
+    target = tvm_tirx.target.Target("metal")
     config = _get_prefill_kernel_config(
         h_kv=1,
         h_q=8,
@@ -103,11 +103,11 @@ def test_reduced_query_tile_keeps_the_real_head_dimension():
     assert func.attrs["tirx.is_scheduled"]
     assert _get_allocated_shared_memory(func) == 20_320
     assert 20_320 <= int(target.attrs["max_shared_memory_per_block"])
-    assert tvm.tirx.compile(func, target=target).mod.imports[0].inspect_source()
+    assert tvm_tirx.tirx.compile(func, target=target).mod.imports[0].inspect_source()
 
 
 def test_fallback_can_select_larger_nearby_query_tile():
-    target = tvm.target.Target("metal")
+    target = tvm_tirx.target.Target("metal")
     config = _get_prefill_kernel_config(
         h_kv=1,
         h_q=8,
@@ -121,7 +121,7 @@ def test_fallback_can_select_larger_nearby_query_tile():
     assert func.attrs["tirx.is_scheduled"]
     assert _get_allocated_shared_memory(func) == 31_072
     assert 31_072 <= int(target.attrs["max_shared_memory_per_block"])
-    assert tvm.tirx.compile(func, target=target).mod.imports[0].inspect_source()
+    assert tvm_tirx.tirx.compile(func, target=target).mod.imports[0].inspect_source()
 
 
 @pytest.mark.parametrize(
@@ -135,7 +135,7 @@ def test_fallback_can_select_larger_nearby_query_tile():
 def test_fallback_can_expand_key_tile_for_factorization(
     d, dtype, expected_config, expected_shared_memory
 ):
-    target = tvm.target.Target("metal")
+    target = tvm_tirx.target.Target("metal")
     config = _get_prefill_kernel_config(
         h_kv=1,
         h_q=8,
@@ -149,7 +149,7 @@ def test_fallback_can_expand_key_tile_for_factorization(
     assert func.attrs["tirx.is_scheduled"]
     assert _get_allocated_shared_memory(func) == expected_shared_memory
     assert expected_shared_memory <= int(target.attrs["max_shared_memory_per_block"])
-    assert tvm.tirx.compile(func, target=target).mod.imports[0].inspect_source()
+    assert tvm_tirx.tirx.compile(func, target=target).mod.imports[0].inspect_source()
 
 
 def test_normal_head_prefill_keeps_existing_metal_config():
@@ -158,7 +158,7 @@ def test_normal_head_prefill_keeps_existing_metal_config():
         h_q=8,
         d=256,
         dtype="float16",
-        target=tvm.target.Target("metal"),
+        target=tvm_tirx.target.Target("metal"),
     )
 
     assert config == (16, 4, 8, 32, 4, 16, 256, 16)
@@ -170,14 +170,14 @@ def test_wide_head_prefill_keeps_existing_webgpu_config():
         h_q=8,
         d=512,
         dtype="float16",
-        target=tvm.target.Target("webgpu"),
+        target=tvm_tirx.target.Target("webgpu"),
     )
 
     assert config == (16, 4, 8, 32, 2, 8, 512, 8)
 
 
 def test_wide_head_prefill_uses_target_shared_memory_limit():
-    target = tvm.target.Target({"kind": "metal", "max_shared_memory_per_block": 65_536})
+    target = tvm_tirx.target.Target({"kind": "metal", "max_shared_memory_per_block": 65_536})
     config = _get_prefill_kernel_config(
         h_kv=1,
         h_q=8,
@@ -192,7 +192,7 @@ def test_wide_head_prefill_uses_target_shared_memory_limit():
 
 
 def test_wide_head_prefill_rejects_unachievable_shared_memory_limit():
-    target = tvm.target.Target({"kind": "metal", "max_shared_memory_per_block": 1_024})
+    target = tvm_tirx.target.Target({"kind": "metal", "max_shared_memory_per_block": 1_024})
 
     with pytest.raises(ValueError, match="target allows 1024 bytes"):
         _get_prefill_kernel_config(
@@ -205,7 +205,7 @@ def test_wide_head_prefill_rejects_unachievable_shared_memory_limit():
 
 
 def test_ragged_prefill_accounts_for_wider_value_dimension():
-    target = tvm.target.Target("metal")
+    target = tvm_tirx.target.Target("metal")
     config = _get_prefill_kernel_config(
         h_kv=1,
         h_q=8,
@@ -223,7 +223,7 @@ def test_ragged_prefill_accounts_for_wider_value_dimension():
 
 
 def test_mla_prefill_accounts_for_merged_kv_buffer():
-    target = tvm.target.Target("metal")
+    target = tvm_tirx.target.Target("metal")
     config = _get_prefill_kernel_config(
         h_kv=1,
         h_q=8,
@@ -245,7 +245,7 @@ def test_mla_prefill_accounts_for_merged_kv_buffer():
 
 @pytest.mark.parametrize("kernel", [tree_attn, tree_attn_with_paged_kv_cache])
 def test_wide_head_tree_attention_has_legal_metal_schedule(kernel):
-    target = tvm.target.Target("metal")
+    target = tvm_tirx.target.Target("metal")
     func = kernel(1, 8, 512, "float16", {}, target)
 
     assert func.attrs["tirx.is_scheduled"]
@@ -263,11 +263,11 @@ def test_merge_state_waits_before_overwriting_the_shared_lse(head_dim):
     early overwrites S while another warp has yet to read it, and that warp then rescales its slice
     of V with an already merged LSE, corrupting whole warp-sized spans of the output.
     """
-    target = tvm.target.Target("metal")
+    target = tvm_tirx.target.Target("metal")
     func = _merge_state_inplace(8, head_dim, "float16", target, global_symbol="merge")
     lines = [
         line.strip()
-        for line in tvm.tirx.compile(func, target=target)
+        for line in tvm_tirx.tirx.compile(func, target=target)
         .mod.imports[0]
         .inspect_source()
         .splitlines()
@@ -287,4 +287,4 @@ def test_merge_state_waits_before_overwriting_the_shared_lse(head_dim):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

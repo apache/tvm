@@ -29,10 +29,10 @@ from functools import wraps
 from types import CodeType, FrameType, FunctionType
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from tvm.ir import SourceLoc, SourceName
-from tvm.script import ir_builder as builder_ir
-from tvm.script.ir_builder import base
-from tvm.script.ir_builder.base import LocationEntry
+from tvm_tirx.ir import SourceLoc, SourceName
+from tvm_tirx.script import ir_builder as builder_ir
+from tvm_tirx.script.ir_builder import base
+from tvm_tirx.script.ir_builder.base import LocationEntry
 
 from . import _NAMESPACES, _initialize, jit_support, protocol_registry
 from . import register_namespace as register_namespace
@@ -48,7 +48,7 @@ from .prescan import PrescanCollector
 from .transpile import FunctionContext, GeneratedBuilder, IRBuilderTranspiler, ModuleContext
 
 if TYPE_CHECKING:
-    from tvm.ir import IRModule
+    from tvm_tirx.ir import IRModule
 
 
 _Callable = TypeVar("_Callable", bound=Callable[..., Any])
@@ -332,14 +332,14 @@ def make_decorator(builder: object, *, namespace_path: str) -> Callable[..., Any
         persistent : bool, optional
             For ``T.function``, mark the resulting function as a persistent
             kernel. Defaults to False. See
-            :func:`tvm.tirx.script.ir_builder.function`.
+            :func:`tvm_tirx.tirx.script.ir_builder.function`.
         pure : bool, optional
             For ``R.function``, declare whether the function is pure, meaning
             that it has no observable side effects. Defaults to True. See
             :func:`tvm.relax.script.ir_builder.function_`.
         **options
             Keyword options are forwarded to the selected language variant's
-            :func:`~tvm.script.ir_builder.parser_protocol.function_` hook,
+            :func:`~tvm_tirx.script.ir_builder.parser_protocol.function_` hook,
             except ``check_well_formed``, which controls parser validation.
             Options supported by only one language variant are not shared
             between ``T.function`` and ``R.function``.
@@ -466,8 +466,8 @@ def make_macro_decorator(
         --------
         An inline helper can read values from its enclosing scope::
 
-            import tvm
-            from tvm.script import tirx as T
+            import tvm_tirx
+            from tvm_tirx.script import tirx as T
             x_value = 128
 
             @T.inline
@@ -570,7 +570,7 @@ def _prepare_transpiler(
     No builder frame or expression is created here.
     """
     namespace = {
-        "tvm": sys.modules.get("tvm"),
+        "tvm_tirx": sys.modules.get("tvm_tirx"),
         **_NAMESPACES,
         **environment,
     }

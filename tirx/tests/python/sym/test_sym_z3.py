@@ -21,10 +21,10 @@ import threading
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import tirx
-from tvm.sym import Analyzer, ProofStrength
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx import tirx
+from tvm_tirx.sym import Analyzer, ProofStrength
 
 # The Z3 prover is only consulted at the kSymbolicBound strength so the common
 # default path never pays the prover cost.
@@ -75,7 +75,7 @@ def test_z3_context_lifetime_outlives_worker_thread():
         try:
             analyzer = Analyzer()
             x = tirx.Var("x", "int32")
-            analyzer.bind(x, tvm.ir.Range(0, 16))
+            analyzer.bind(x, tvm_tirx.ir.Range(0, 16))
             assert analyzer.can_prove(x >= 0, SB)
             result_queue.put(("analyzer", analyzer))
         except BaseException as err:  # pylint: disable=broad-exception-caught
@@ -102,17 +102,17 @@ def test_z3_context_clone_lifetime():
     expr = ((b - a) // c) * c + a <= b
 
     analyzer = Analyzer()
-    analyzer.bind(a, tvm.ir.Range(1, 100000))
-    analyzer.bind(b, tvm.ir.Range(1, 100000))
-    analyzer.bind(c, tvm.ir.Range(1, 100000))
+    analyzer.bind(a, tvm_tirx.ir.Range(1, 100000))
+    analyzer.bind(b, tvm_tirx.ir.Range(1, 100000))
+    analyzer.bind(c, tvm_tirx.ir.Range(1, 100000))
     assert analyzer.can_prove(expr, SB)
 
     # Materialize a separate context before cloning. The clone must adopt the
     # source Analyzer's context before copying any Z3 handles.
     independent = Analyzer()
-    independent.bind(a, tvm.ir.Range(-100000, -1))
-    independent.bind(b, tvm.ir.Range(-100000, 100000))
-    independent.bind(c, tvm.ir.Range(1, 100000))
+    independent.bind(a, tvm_tirx.ir.Range(-100000, -1))
+    independent.bind(b, tvm_tirx.ir.Range(-100000, 100000))
+    independent.bind(c, tvm_tirx.ir.Range(1, 100000))
     assert independent.can_prove(expr, SB)
     assert independent.can_prove(a < 0, SB)
     cloned = analyzer.clone()
@@ -155,9 +155,9 @@ def test_z3_floor_division_identity_via_bind_range():
     b = tirx.Var("b", "int32")
     c = tirx.Var("c", "int32")
 
-    analyzer.bind(a, tvm.ir.Range(1, 100000))
-    analyzer.bind(b, tvm.ir.Range(1, 100000))
-    analyzer.bind(c, tvm.ir.Range(1, 100000))
+    analyzer.bind(a, tvm_tirx.ir.Range(1, 100000))
+    analyzer.bind(b, tvm_tirx.ir.Range(1, 100000))
+    analyzer.bind(c, tvm_tirx.ir.Range(1, 100000))
 
     expr = ((b - a) // c) * c + a <= b
     assert analyzer.can_prove(expr, SB)
@@ -378,7 +378,7 @@ def test_z3_symbolic_bind_range_with_constraint():
 
     x = tirx.Var("x", "int32")
     n = tirx.Var("n", "int32")
-    analyzer.bind(x, tvm.ir.Range(0, n))
+    analyzer.bind(x, tvm_tirx.ir.Range(0, n))
     with analyzer.constraint_scope(n <= 8):
         assert not analyzer.can_prove(x < 8)
         assert analyzer.can_prove(x < 8, SB)
@@ -497,7 +497,7 @@ def test_z3_bitwise_and_mask_bound():
     _require_z3(analyzer)
 
     x = tirx.Var("x", "int32")
-    analyzer.bind(x, tvm.ir.Range(0, 256))
+    analyzer.bind(x, tvm_tirx.ir.Range(0, 256))
     assert analyzer.can_prove(tirx.bitwise_and(x, tirx.IntImm("int32", 7)) < 8, SB)
 
 
@@ -507,8 +507,8 @@ def test_z3_bitwise_and_le_operand():
 
     x = tirx.Var("x", "int32")
     y = tirx.Var("y", "int32")
-    analyzer.bind(x, tvm.ir.Range(0, 256))
-    analyzer.bind(y, tvm.ir.Range(0, 256))
+    analyzer.bind(x, tvm_tirx.ir.Range(0, 256))
+    analyzer.bind(y, tvm_tirx.ir.Range(0, 256))
     # Bit-vector reasoning over two variables exceeds the default deterministic
     # rlimit; lift it (0 == unlimited, still deterministic) for this proof.
     analyzer.set_z3_rlimit(0)
@@ -521,8 +521,8 @@ def test_z3_bitwise_or_ge_operand():
 
     x = tirx.Var("x", "int32")
     y = tirx.Var("y", "int32")
-    analyzer.bind(x, tvm.ir.Range(0, 256))
-    analyzer.bind(y, tvm.ir.Range(0, 256))
+    analyzer.bind(x, tvm_tirx.ir.Range(0, 256))
+    analyzer.bind(y, tvm_tirx.ir.Range(0, 256))
     analyzer.set_z3_rlimit(0)
     assert analyzer.can_prove(tirx.bitwise_or(x, y) >= x, SB)
 
@@ -533,8 +533,8 @@ def test_z3_bitwise_xor_bound():
 
     x = tirx.Var("x", "int32")
     y = tirx.Var("y", "int32")
-    analyzer.bind(x, tvm.ir.Range(0, 256))
-    analyzer.bind(y, tvm.ir.Range(0, 256))
+    analyzer.bind(x, tvm_tirx.ir.Range(0, 256))
+    analyzer.bind(y, tvm_tirx.ir.Range(0, 256))
     analyzer.set_z3_rlimit(0)
     assert analyzer.can_prove(tirx.bitwise_xor(x, y) < 256, SB)
 
@@ -544,7 +544,7 @@ def test_z3_bitwise_not_identity():
     _require_z3(analyzer)
 
     x = tirx.Var("x", "int32")
-    analyzer.bind(x, tvm.ir.Range(0, 256))
+    analyzer.bind(x, tvm_tirx.ir.Range(0, 256))
     analyzer.set_z3_rlimit(0)
     # Two's complement: ~x == -x - 1.
     assert analyzer.can_prove(tirx.bitwise_not(x) == -x - 1, SB)
@@ -555,7 +555,7 @@ def test_z3_shift_right_halves():
     _require_z3(analyzer)
 
     x = tirx.Var("x", "int32")
-    analyzer.bind(x, tvm.ir.Range(0, 256))
+    analyzer.bind(x, tvm_tirx.ir.Range(0, 256))
     analyzer.set_z3_rlimit(0)
     # For non-negative x, (x >> 1) * 2 <= x.
     assert analyzer.can_prove(tirx.shift_right(x, tirx.IntImm("int32", 1)) * 2 <= x, SB)
@@ -569,8 +569,8 @@ def test_z3_shift_left_lower_bound():
     n = tirx.Var("n", "int32")
     # Keep operands small so the 32-bit left shift cannot overflow; then
     # x << n == x * 2 ** n >= x for x >= 1.
-    analyzer.bind(x, tvm.ir.Range(1, 16))
-    analyzer.bind(n, tvm.ir.Range(0, 4))
+    analyzer.bind(x, tvm_tirx.ir.Range(1, 16))
+    analyzer.bind(n, tvm_tirx.ir.Range(0, 4))
     # Bit-vector shift reasoning exceeds the default deterministic rlimit.
     analyzer.set_z3_rlimit(0)
     assert analyzer.can_prove(tirx.shift_left(x, n) >= x, SB)
@@ -698,9 +698,9 @@ def test_z3_memo_pool_reuse_survives_clone():
     a = tirx.Var("a", "int32")
     b = tirx.Var("b", "int32")
     c = tirx.Var("c", "int32")
-    analyzer.bind(a, tvm.ir.Range(1, 100000))
-    analyzer.bind(b, tvm.ir.Range(1, 100000))
-    analyzer.bind(c, tvm.ir.Range(1, 100000))
+    analyzer.bind(a, tvm_tirx.ir.Range(1, 100000))
+    analyzer.bind(b, tvm_tirx.ir.Range(1, 100000))
+    analyzer.bind(c, tvm_tirx.ir.Range(1, 100000))
     expr = ((b - a) // c) * c + a <= b
     assert analyzer.can_prove(expr, SB)
 
@@ -740,7 +740,7 @@ def test_z3_analyzers_are_isolated():
 
     analyzer_c = Analyzer()
     analyzer_d = Analyzer()
-    analyzer_c.bind(x, tvm.ir.Range(0, 10))
+    analyzer_c.bind(x, tvm_tirx.ir.Range(0, 10))
     assert analyzer_c.can_prove(x < 10, SB)
     assert not analyzer_d.can_prove(x < 10, SB)
 
@@ -754,7 +754,7 @@ def test_z3_repeated_can_prove_is_consistent():
     x = tirx.Var("x", "int32")
     assert analyzer.can_prove(x > 0, SB) == analyzer.can_prove(x > 0, SB)
 
-    analyzer.bind(x, tvm.ir.Range(5, 10))
+    analyzer.bind(x, tvm_tirx.ir.Range(5, 10))
     assert analyzer.can_prove(x >= 5, SB)
     assert analyzer.can_prove(x >= 5, SB)
 
@@ -811,4 +811,4 @@ def test_z3_smtlib2_roundtrip_with_timeout():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

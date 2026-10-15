@@ -16,15 +16,15 @@
 # under the License.
 import pytest
 
-import tvm
+import tvm, tvm_tirx
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import relax as R
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dReLUx2:
     @R.function
     def main(
@@ -76,7 +76,7 @@ class Conv2dReLUx2:
         return gv2
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dReLUx2_merged:
     @R.function
     def main(
@@ -140,7 +140,7 @@ class Conv2dReLUx2_merged:
         return gv3
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Diamond:
     @R.function
     def main(
@@ -205,7 +205,7 @@ class Diamond:
         return gv4
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Diamond_merged:
     @R.function
     def fused_relax_nn_conv2d_relax_nn_relu_relax_nn_gelu_relax_add_compiler_A(
@@ -302,7 +302,7 @@ class Diamond_merged:
         return gv5
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Diamond_cyclic_dep:
     @R.function
     def main(
@@ -367,7 +367,7 @@ class Diamond_cyclic_dep:
         return gv4
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Diamond_cyclic_dep_merged:
     @R.function
     def main(
@@ -472,7 +472,7 @@ class Diamond_cyclic_dep_merged:
         return gv6
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MultipleProducers:
     @R.function
     def main(
@@ -519,7 +519,7 @@ class MultipleProducers:
         return gv
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MultipleProducers_merged:
     @R.function
     def fused_relax_nn_relu_relax_nn_gelu_relax_nn_relu_relax_nn_gelu_relax_add_compiler_A(
@@ -585,7 +585,7 @@ class MultipleProducers_merged:
         return gv4
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MultipleProducersCyclic:
     @R.function
     def main(x1: R.Tensor((10,), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
@@ -629,7 +629,7 @@ class MultipleProducersCyclic:
         return gv
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MultipleProducersCyclic_merged:
     @R.function
     def main(x1: R.Tensor((10,), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
@@ -701,7 +701,7 @@ class MultipleProducersCyclic_merged:
         return gv5
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MergeCompilerRegionsExample:
     @R.function
     def main(
@@ -752,7 +752,7 @@ class MergeCompilerRegionsExample:
         return gv3
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MergeCompilerRegionsExampleRef:
     @R.function
     def fused_relax_add_relax_add_relax_nn_relu_compiler_A(
@@ -855,7 +855,7 @@ class MergeCompilerRegionsExampleRef:
         return gv6
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class ModuleWithNonComposite:
     @R.function
     def main(
@@ -885,7 +885,7 @@ class ModuleWithNonComposite:
         return gv
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class ModuleWithNonComposite_ref:
     @R.function
     def main(
@@ -929,7 +929,7 @@ class ModuleWithNonComposite_ref:
 
 def check(mod, expected):
     partitioned = relax.transform.MergeCompositeFunctions()(mod)
-    tvm.ir.assert_structural_equal(partitioned, expected)
+    tvm_tirx.ir.assert_structural_equal(partitioned, expected)
 
 
 def get_codegen_regions(mod):
@@ -1229,13 +1229,13 @@ def test_handle_existence_of_call_tir():
             return Output
 
     After = relax.transform.MergeCompositeFunctions()(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_tuple_projection_merging():
     """Merge projections without changing their indices; visit inline tuple arguments."""
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function(private=True)
         def split(
@@ -1298,7 +1298,7 @@ def test_tuple_projection_merging():
 def test_tuple_projection_preserves_real_cycle_boundary():
     """Transparent projections must not bridge a dependency through another codegen."""
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function(private=True)
         def split(
@@ -1346,7 +1346,7 @@ def test_tuple_projection_preserves_real_cycle_boundary():
 def test_tuple_projection_rejects_escaping_tuple():
     """Keep the projection outside when the complete tuple also crosses the region boundary."""
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function(private=True)
         def split(

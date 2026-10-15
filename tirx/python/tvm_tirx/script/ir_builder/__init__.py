@@ -16,7 +16,7 @@
 # under the License.
 """Shared TVMScript construction APIs and lazy language variant builders."""
 
-from tvm.ir import (
+from tvm_tirx.ir import (
     Call,
     DataTypeImm,
     FuncType,
@@ -34,7 +34,7 @@ from tvm.ir import (
     Var,
     make_node,
 )
-from tvm.ir.type import _init_type_api
+from tvm_tirx.ir.type import _init_type_api
 
 from .base import (
     MISSING,

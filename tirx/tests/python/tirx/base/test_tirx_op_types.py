@@ -17,10 +17,10 @@
 # pylint: disable=missing-docstring
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import tirx
-from tvm.backend.cuda import op as _cuda_op
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx import tirx
+from tvm_tirx.backend.cuda import op as _cuda_op
 
 
 def test_tir_op_tvm_struct_get():
@@ -50,13 +50,13 @@ def test_tir_op_address_of():
     tensor = tirx.decl_tensor((128), "float32")
     expr = tirx.address_of(tensor[0])
     assert expr.op.name == "tirx.address_of"
-    storage = tirx.Var("storage", tvm.ir.PtrType(tvm.ir.PrimType("uint8"), "shared.dyn"))
+    storage = tirx.Var("storage", tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("uint8"), "shared.dyn"))
     pooled_tensor = tirx.decl_tensor((128), "float32", data=storage, scope="shared.dyn")
-    expected_ty = tvm.ir.PtrType(tvm.ir.PrimType("float32"), "shared.dyn")
+    expected_ty = tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("float32"), "shared.dyn")
     assert tirx.address_of(pooled_tensor).ty == expected_ty
     assert tirx.address_of(pooled_tensor[0]).ty == expected_ty
     scalar_address = tirx.address_of(tirx.Var("value", "uint32"))
-    assert scalar_address.ty == tvm.ir.PtrType(tvm.ir.PrimType("uint32"))
+    assert scalar_address.ty == tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("uint32"))
 
 
 def test_tir_op_reinterpret():
@@ -66,7 +66,7 @@ def test_tir_op_reinterpret():
     with pytest.raises(TypeError, match="scalar 64-bit integer source"):
         tirx.reinterpret("handle", x)
     pointer = tirx.reinterpret("handle", tirx.Var("address", ty="uint64"))
-    assert pointer.ty == tvm.ir.PtrType(tvm.ir.PrimType("void"))
+    assert pointer.ty == tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("void"))
 
 
 def test_tir_op_isnullptr():
@@ -96,7 +96,7 @@ def test_tir_op_tvm_thread_allreduce():
     tensor = tirx.decl_tensor((128,), "float32")
     result = tirx.decl_tensor((1,), "float32")
     axis = tirx.Var("thread", "int32")
-    combine = tvm.ir.LambdaExpr(["float32", "float32"], lambda lhs, rhs: (lhs + rhs,))
+    combine = tvm_tirx.ir.LambdaExpr(["float32", "float32"], lambda lhs, rhs: (lhs + rhs,))
     expr = tirx.gpu_thread_allreduce(
         combine, (tirx.const(0, "float32"),), (tensor[0],), True, (result[0],), (axis,)
     )
@@ -105,7 +105,7 @@ def test_tir_op_tvm_thread_allreduce():
 
 def test_tir_op_ptr_byte_offset():
     tensor = tirx.decl_tensor((128,), "float32", scope="shared")
-    ty = tvm.ir.PtrType(tvm.ir.PrimType("uint8"), "shared")
+    ty = tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("uint8"), "shared")
     offset_expr = tirx.ptr_byte_offset(tensor.data, 16, ty=ty)
     assert offset_expr.op.name == "tirx.ptr_byte_offset"
     assert offset_expr.ty == ty
@@ -120,14 +120,14 @@ def test_tir_op_tvm_throw_last_error():
 def test_tir_op_tvm_load_matrix_sync():
     tensor = tirx.decl_tensor((16, 16), "float32")
     x = tirx.Var("x", "handle")
-    expr = tvm.tirx.gpu_load_matrix_sync(tensor.data, 16, 16, 16, 0, x, 128, "row_major")
+    expr = tvm_tirx.tirx.gpu_load_matrix_sync(tensor.data, 16, 16, 16, 0, x, 128, "row_major")
     assert expr.op.name == "tirx.gpu_load_matrix_sync"
 
 
 def test_tir_op_tvm_store_matrix_sync():
     tensor = tirx.decl_tensor((16, 16), "float32")
     x = tirx.Var("x", "handle")
-    expr = tvm.tirx.gpu_store_matrix_sync(tensor.data, 16, 16, 16, 0, x, 128, "row_major")
+    expr = tvm_tirx.tirx.gpu_store_matrix_sync(tensor.data, 16, 16, 16, 0, x, 128, "row_major")
     assert expr.op.name == "tirx.gpu_store_matrix_sync"
 
 
@@ -136,7 +136,7 @@ def test_tir_op_tvm_mma_sync():
     tensor_1 = tirx.decl_tensor((16, 16), "float32")
     tensor_2 = tirx.decl_tensor((16, 16), "float32")
     tensor_3 = tirx.decl_tensor((16, 16), "float32")
-    expr = tvm.tirx.gpu_mma_sync(
+    expr = tvm_tirx.tirx.gpu_mma_sync(
         tensor_0.data, 0, tensor_1.data, 0, tensor_2.data, 0, tensor_3.data, 0
     )
     assert expr.op.name == "tirx.gpu_mma_sync"
@@ -147,7 +147,7 @@ def test_tir_op_tvm_bmma_sync():
     tensor_1 = tirx.decl_tensor((16, 16), "float32")
     tensor_2 = tirx.decl_tensor((16, 16), "float32")
     tensor_3 = tirx.decl_tensor((16, 16), "float32")
-    expr = tvm.backend.cuda.op.bmma_sync(
+    expr = tvm_tirx.backend.cuda.op.bmma_sync(
         tensor_0.data, 0, tensor_1.data, 0, tensor_2.data, 0, tensor_3.data, 0
     )
     assert expr.op.name == "tirx.cuda.bmma_sync"
@@ -155,7 +155,7 @@ def test_tir_op_tvm_bmma_sync():
 
 def test_tir_op_tvm_fill_fragment():
     tensor = tirx.decl_tensor((16, 16), "float32")
-    expr = tvm.tirx.gpu_fill_fragment(tensor.data, 16, 16, 16, 0, 0)
+    expr = tvm_tirx.tirx.gpu_fill_fragment(tensor.data, 16, 16, 16, 0, 0)
     assert expr.op.name == "tirx.gpu_fill_fragment"
 
 
@@ -220,9 +220,9 @@ def test_op_ptx_cp_async():
         (expr.args[0], expr.args[2]), (inner_dst, inner_src), (6, 10)
     ):
         assert pointer.op.name == "tirx.ptr_byte_offset"
-        tvm.ir.assert_structural_equal(pointer.args[0], inner)
+        tvm_tirx.ir.assert_structural_equal(pointer.args[0], inner)
         assert pointer.ty == inner.ty
-        assert int(tvm.sym.Analyzer().simplify(pointer.args[1])) == expected_offset
+        assert int(tvm_tirx.sym.Analyzer().simplify(pointer.args[1])) == expected_offset
 
 
 def test_tir_op_vector_low():
@@ -293,14 +293,14 @@ def test_tir_op_TVMBackendFreeWorkspace():
 
 
 def test_ptx_ops_have_variadic_call_signature():
-    from tvm.backend.cuda.ptx import TABLE
+    from tvm_tirx.backend.cuda.ptx import TABLE
 
-    op = tvm.ir.Op.get(next(iter(TABLE.values())).op_name)
+    op = tvm_tirx.ir.Op.get(next(iter(TABLE.values())).op_name)
     assert not op.args_info
     assert op.var_args_info.name == "operands"
-    tvm.ir.Call(op, []).validate()
-    tvm.ir.Call(op, [tvm.ir.Var("x", tvm.ir.AnyType())]).validate()
+    tvm_tirx.ir.Call(op, []).validate()
+    tvm_tirx.ir.Call(op, [tvm_tirx.ir.Var("x", tvm_tirx.ir.AnyType())]).validate()
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

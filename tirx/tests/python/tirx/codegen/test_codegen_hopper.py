@@ -20,16 +20,16 @@ import math
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
-def _get_source(func: tvm.tirx.Function) -> tuple[str, tvm.IRModule]:
-    target = tvm.target.Target("cuda")
-    mod = tvm.IRModule({"main": func})
-    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+def _get_source(func: tvm_tirx.tirx.Function) -> tuple[str, tvm_tirx.IRModule]:
+    target = tvm_tirx.target.Target("cuda")
+    mod = tvm_tirx.IRModule({"main": func})
+    mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     return src, mod
 
@@ -48,14 +48,14 @@ def _run_tensormap_encode(shape, dtype, encode_args):
                 T.evaluate(blockIdx + threadIdx)
         # fmt: on
 
-    target = tvm.target.Target("cuda")
-    mod = tvm.IRModule({"main": main})
-    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+    target = tvm_tirx.target.Target("cuda")
+    mod = tvm_tirx.IRModule({"main": main})
+    mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
     def run_and_check():
-        A = tvm.runtime.tensor(np.zeros(shape, dtype=dtype), device=tvm.cuda(0))
+        A = tvm_tirx.runtime.tensor(np.zeros(shape, dtype=dtype), device=tvm_tirx.cuda(0))
         mod(A)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("inc", [False, True])
@@ -105,19 +105,19 @@ def test_stmatrix_sync_aligned(trans):
                 A[i, j] = A_smem[i, j]
         # fmt: on
 
-    target = tvm.target.Target("cuda")
-    mod = tvm.IRModule({"main": func})
+    target = tvm_tirx.target.Target("cuda")
+    mod = tvm_tirx.IRModule({"main": func})
     with target:
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
         if not trans:
             assert "stmatrix.sync.aligned.m8n8.x4.shared.b16" in src
         else:
             assert "stmatrix.sync.aligned.m8n8.x4.trans.shared.b16" in src
     def run_and_check():
-        dev = tvm.cuda(0)
+        dev = tvm_tirx.cuda(0)
         A_np = np.zeros((16, 16), dtype="float16")
-        A = tvm.runtime.tensor(A_np, device=dev)
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
         mod(A)
         A_ref = np.zeros((16, 16), dtype="float16")
         for tx in range(32):
@@ -143,7 +143,7 @@ def test_stmatrix_sync_aligned(trans):
                 A_ref[col + 9, row + 8] = tx * 8 + 7
         np.testing.assert_allclose(A.numpy(), A_ref)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("trans", [False, True])
@@ -178,10 +178,10 @@ def test_ptx_stmatrix(trans, num):
                 A[i, j] = A_shared[i, j]
         # fmt: on
 
-    target = tvm.target.Target("cuda")
-    mod = tvm.IRModule({"main": main})
+    target = tvm_tirx.target.Target("cuda")
+    mod = tvm_tirx.IRModule({"main": main})
     with target:
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
     A_np = np.zeros((16, 16), dtype="float16")
     A_ref = np.zeros((16, 16), dtype="float16")
@@ -204,11 +204,11 @@ def test_ptx_stmatrix(trans, num):
         A_ref[8:16, 8:16] = A_full[8:16, 8:16] if not trans else A_full[8:16, 8:16].T
 
     def run_and_check():
-        A = tvm.runtime.tensor(A_np, device=tvm.cuda(0))
+        A = tvm_tirx.runtime.tensor(A_np, device=tvm_tirx.cuda(0))
         mod(A)
         np.testing.assert_allclose(A.numpy(), A_ref)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("trans", [False, True])
@@ -254,10 +254,10 @@ def test_ptx_stmatrix_noncontiguous(trans, num):
                 A[i, j] = A_shared[i, j]
     # fmt: on
 
-    target = tvm.target.Target("cuda")
-    mod = tvm.IRModule({"main": main})
+    target = tvm_tirx.target.Target("cuda")
+    mod = tvm_tirx.IRModule({"main": main})
     with target:
-        mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
         trans_inst = ".trans" if trans else ""
         regs = ", ".join(f"%{i + 1}" for i in range(num))
@@ -282,11 +282,11 @@ def test_ptx_stmatrix_noncontiguous(trans, num):
         A_ref[8:16, 8:16] = A_full[8:16, 8:16] if not trans else A_full[8:16, 8:16].T
 
     def run_and_check():
-        A = tvm.runtime.tensor(A_np, device=tvm.cuda(0))
+        A = tvm_tirx.runtime.tensor(A_np, device=tvm_tirx.cuda(0))
         mod(A)
         np.testing.assert_allclose(A.numpy(), A_ref)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -427,7 +427,7 @@ def test_cp_async_bulk_tensor_global_to_shared_unicast(dtype, inputs):
     import ml_dtypes
 
     def get_ir(shape, tma_args):
-        t_dtype = tvm.DataType(dtype)
+        t_dtype = tvm_tirx.DataType(dtype)
         total_bytes = math.prod(shape) * t_dtype.bits // 8
         coord = [0 for _ in shape]
         tma_args_copy = tma_args.copy()
@@ -484,10 +484,10 @@ def test_cp_async_bulk_tensor_global_to_shared_unicast(dtype, inputs):
 
         return main
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     shape, tma_args = inputs
-    mod = tvm.IRModule({"main": get_ir(shape, tma_args)})
-    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+    mod = tvm_tirx.IRModule({"main": get_ir(shape, tma_args)})
+    mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     assert "const __grid_constant__ CUtensorMap" in src
 
@@ -504,13 +504,13 @@ def test_cp_async_bulk_tensor_global_to_shared_unicast(dtype, inputs):
     B_np = np.zeros(shape).astype(get_np_dtype(dtype))
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, device=dev)
-        B = tvm.runtime.tensor(B_np, device=dev)
+        dev = tvm_tirx.cuda(0)
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B = tvm_tirx.runtime.tensor(B_np, device=dev)
         mod(A, B)
         assert np.allclose(A.numpy().astype("float32"), B.numpy().astype("float32"))
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -608,7 +608,7 @@ def test_cp_async_bulk_tensor_global_to_shared_unicast(dtype, inputs):
     ],
 )
 def test_tensormap_encode_tiled_runtime_validation(shape, dtype, encode_args, error_msg):
-    with pytest.raises(tvm.error.InternalError, match=error_msg):
+    with pytest.raises(tvm_tirx.error.InternalError, match=error_msg):
         _run_tensormap_encode(shape, dtype, encode_args)
 
 
@@ -618,7 +618,7 @@ def test_tensormap_encode_tiled_runtime_validation(shape, dtype, encode_args, er
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_cp_async_bulk_tensor_global_to_shared_swizzle(swizzle, dtype):
     def get_ir(swizzle, dtype):
-        dtype = tvm.DataType(dtype)
+        dtype = tvm_tirx.DataType(dtype)
         elem_bytes = dtype.bits // 8
 
         shape = [16, 64]
@@ -688,10 +688,10 @@ def test_cp_async_bulk_tensor_global_to_shared_swizzle(swizzle, dtype):
 
         return main, shape
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     func, shape = get_ir(swizzle, dtype)
-    mod = tvm.IRModule({"main": func})
-    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+    mod = tvm_tirx.IRModule({"main": func})
+    mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     assert "const __grid_constant__ CUtensorMap" in src
 
@@ -699,7 +699,7 @@ def test_cp_async_bulk_tensor_global_to_shared_swizzle(swizzle, dtype):
     A_np = [i for i in range(total_elems)]
     A_np = np.array(A_np).astype(dtype)
     B_np = np.zeros((total_elems,)).astype(dtype)
-    dtype = tvm.DataType(dtype)
+    dtype = tvm_tirx.DataType(dtype)
     layout = T.ComposeLayout(
         int(math.log2(128 // dtype.bits)),
         swizzle,
@@ -708,16 +708,16 @@ def test_cp_async_bulk_tensor_global_to_shared_swizzle(swizzle, dtype):
     )
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, device=dev)
-        B = tvm.runtime.tensor(B_np, device=dev)
+        dev = tvm_tirx.cuda(0)
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B = tvm_tirx.runtime.tensor(B_np, device=dev)
         mod(A, B)
         B_result = B.numpy()
         B_swizzle = [B_result[int(layout.apply(i)["m"])] for i in range(total_elems)]
         B_swizzle = np.array(B_swizzle).astype(str(dtype))
         assert np.allclose(A.numpy(), B_swizzle)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize(
@@ -806,10 +806,10 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast1(inputs):
 
         return main
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     shape, tma_args = inputs
-    mod = tvm.IRModule({"main": get_ir(shape, tma_args)})
-    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+    mod = tvm_tirx.IRModule({"main": get_ir(shape, tma_args)})
+    mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     assert "const __grid_constant__ CUtensorMap" in src
 
@@ -818,12 +818,12 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast1(inputs):
     B_np = np.zeros(shape, dtype="float32")
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, device=dev)
-        B = tvm.runtime.tensor(B_np, device=dev)
+        dev = tvm_tirx.cuda(0)
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B = tvm_tirx.runtime.tensor(B_np, device=dev)
         mod(A, B)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize(
@@ -947,10 +947,10 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast2(inputs):
 
         return main
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     shape, tma_args = inputs
-    mod = tvm.IRModule({"main": get_ir(shape, tma_args)})
-    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+    mod = tvm_tirx.IRModule({"main": get_ir(shape, tma_args)})
+    mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     assert "const __grid_constant__ CUtensorMap" in src
 
@@ -959,13 +959,13 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast2(inputs):
     B_np = np.zeros(shape, dtype="float32")
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, device=dev)
-        B = tvm.runtime.tensor(B_np, device=dev)
+        dev = tvm_tirx.cuda(0)
+        A = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B = tvm_tirx.runtime.tensor(B_np, device=dev)
         mod(A, B)
         assert np.allclose(A.numpy(), B.numpy())
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize(
@@ -1011,10 +1011,10 @@ def test_cp_async_bulk_tensor_shared_to_global(inputs):
 
         return main
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     shape, tma_args = inputs
-    mod = tvm.IRModule({"main": get_ir(shape, tma_args)})
-    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+    mod = tvm_tirx.IRModule({"main": get_ir(shape, tma_args)})
+    mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     assert "const __grid_constant__ CUtensorMap" in src
 
@@ -1023,11 +1023,11 @@ def test_cp_async_bulk_tensor_shared_to_global(inputs):
     A_ref = np.array(A_ref, dtype="float32").reshape(shape)
 
     def run_and_check():
-        A = tvm.runtime.tensor(A_np, device=tvm.cuda(0))
+        A = tvm_tirx.runtime.tensor(A_np, device=tvm_tirx.cuda(0))
         mod(A)
         np.testing.assert_allclose(A.numpy(), A_ref)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1046,8 +1046,8 @@ def test_wgmma_ss_nt():
     ):
         coordA = [0 for _ in shapeA]
         coordB = [0 for _ in shapeB]
-        A_bytes = tvm.DataType(in_dtype).bits // 8 * math.prod(shapeA)
-        B_bytes = tvm.DataType(in_dtype).bits // 8 * math.prod(shapeB)
+        A_bytes = tvm_tirx.DataType(in_dtype).bits // 8 * math.prod(shapeA)
+        B_bytes = tvm_tirx.DataType(in_dtype).bits // 8 * math.prod(shapeB)
 
         C_elems = math.prod(shapeC) // 128
 
@@ -1163,10 +1163,10 @@ def test_wgmma_ss_nt():
     transA = transB = True
     swizzleA = swizzleB = 3
 
-    t_in_dtype = tvm.DataType(in_dtype)
+    t_in_dtype = tvm_tirx.DataType(in_dtype)
     elem_bytes = t_in_dtype.bits // 8
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     M = 64
     N = 64
     K = 256 // t_in_dtype.bits
@@ -1195,8 +1195,8 @@ def test_wgmma_ss_nt():
         A_encode_args,
         B_encode_args,
     )
-    mod = tvm.IRModule({"main": func})
-    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+    mod = tvm_tirx.IRModule({"main": func})
+    mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 
     np.random.seed(0)
     A_np = np.random.randn(*shapeA).astype(in_dtype)
@@ -1204,15 +1204,15 @@ def test_wgmma_ss_nt():
     C_np = np.zeros(shapeC).astype(out_dtype)
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A_tvm = tvm.runtime.tensor(A_np, device=dev)
-        B_tvm = tvm.runtime.tensor(B_np, device=dev)
-        C_tvm = tvm.runtime.tensor(C_np, device=dev)
+        dev = tvm_tirx.cuda(0)
+        A_tvm = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B_tvm = tvm_tirx.runtime.tensor(B_np, device=dev)
+        C_tvm = tvm_tirx.runtime.tensor(C_np, device=dev)
         mod(A_tvm, B_tvm, C_tvm)
         C_ref = np.dot(A_np.T, B_np).astype(out_dtype)
-        tvm.testing.assert_allclose(C_tvm.numpy(), C_ref, rtol=1e-3, atol=1e-3)
+        tvm_tirx.testing.assert_allclose(C_tvm.numpy(), C_ref, rtol=1e-3, atol=1e-3)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1222,7 +1222,7 @@ def test_wgmma_rs_nt():
         shapeA, shapeB, shapeC, B_tma_args, in_dtype, in_dtype_bits, out_dtype, B_encode_args
     ):
         coordB = [0 for _ in shapeB]
-        B_bytes = tvm.DataType(in_dtype).bits // 8 * math.prod(shapeB)
+        B_bytes = tvm_tirx.DataType(in_dtype).bits // 8 * math.prod(shapeB)
 
         A_elems = math.prod(shapeA) // 128
         C_elems = math.prod(shapeC) // 128
@@ -1350,10 +1350,10 @@ def test_wgmma_rs_nt():
     transB = True
     swizzleB = 3
 
-    t_in_dtype = tvm.DataType(in_dtype)
+    t_in_dtype = tvm_tirx.DataType(in_dtype)
     elem_bytes = t_in_dtype.bits // 8
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     M = 64
     N = 64
     K = 256 // t_in_dtype.bits
@@ -1370,8 +1370,8 @@ def test_wgmma_rs_nt():
     func = get_ir(
         shapeA, shapeB, shapeC, B_tma_args, in_dtype, in_dtype_bits, out_dtype, B_encode_args
     )
-    mod = tvm.IRModule({"main": func})
-    mod = tvm.tirx.compile(mod, target=target, pipeline="tirx")
+    mod = tvm_tirx.IRModule({"main": func})
+    mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 
     np.random.seed(0)
     A_np = np.random.randn(*shapeA).astype(in_dtype)
@@ -1385,14 +1385,14 @@ def test_wgmma_rs_nt():
     C_ref = np.dot(A_np, B_np).astype(out_dtype)
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        A_tvm = tvm.runtime.tensor(A_np, device=dev)
-        B_tvm = tvm.runtime.tensor(B_np, device=dev)
-        C_tvm = tvm.runtime.tensor(C_np, device=dev)
+        dev = tvm_tirx.cuda(0)
+        A_tvm = tvm_tirx.runtime.tensor(A_np, device=dev)
+        B_tvm = tvm_tirx.runtime.tensor(B_np, device=dev)
+        C_tvm = tvm_tirx.runtime.tensor(C_np, device=dev)
         mod(A_tvm, B_tvm, C_tvm)
-        tvm.testing.assert_allclose(C_tvm.numpy(), C_ref, rtol=1e-3, atol=1e-3)
+        tvm_tirx.testing.assert_allclose(C_tvm.numpy(), C_ref, rtol=1e-3, atol=1e-3)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1415,4 +1415,4 @@ def test_mapa():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

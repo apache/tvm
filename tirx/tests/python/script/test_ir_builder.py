@@ -18,10 +18,10 @@
 
 import pytest
 
-from tvm import ir
-from tvm.ir.base import assert_structural_equal
-from tvm.script import ir_builder as I
-from tvm.script.ir_builder import IRBuilder
+from tvm_tirx import ir
+from tvm_tirx.ir.base import assert_structural_equal
+from tvm_tirx.script import ir_builder as I
+from tvm_tirx.script.ir_builder import IRBuilder
 
 
 def test_ir_builder_multi_scope():
@@ -75,7 +75,7 @@ def test_attach_loc_normalizes_full_stack_and_preserves_identity():
 
 
 def test_attach_loc_preserves_shared_prefix_and_receipt_identity():
-    from tvm.script.ir_builder.base import AlreadyEmitted, at
+    from tvm_tirx.script.ir_builder.base import AlreadyEmitted, at
 
     caller = _source_loc("caller.py", 2)
     callee = _source_loc("definition.py", 3)
@@ -93,7 +93,7 @@ def test_attach_loc_preserves_shared_prefix_and_receipt_identity():
 
 
 def test_unknown_attachment_and_scope_exception_restore_context():
-    from tvm.script.ir_builder.base import at
+    from tvm_tirx.script.ir_builder.base import at
 
     caller = _source_loc("caller.py", 2)
     callee = _source_loc("definition.py", 3)

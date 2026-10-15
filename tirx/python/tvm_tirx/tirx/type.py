@@ -18,8 +18,8 @@
 
 import tvm_ffi
 
-from tvm.ir import Type
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir import Type
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from . import _ffi_api
 
@@ -30,7 +30,7 @@ class TensorMapType(Type):
 
     Parameters
     ----------
-    loc : tvm.ir.Location
+    loc : tvm_tirx.ir.Location
         The loc information.
     """
 

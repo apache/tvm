@@ -22,15 +22,15 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm
-from tvm.ir import assert_structural_equal, load_json, save_json
-from tvm.script import tirx as T
-from tvm.script.ir_builder import IRBuilder
-from tvm.testing import env
-from tvm.tirx import decl_tensor
-from tvm.tirx.layout import Axis, S, TileLayout
-from tvm.tirx.script import ir_builder as I
-from tvm.tirx.thread_scope import ThreadScope
+import tvm_tirx
+from tvm_tirx.ir import assert_structural_equal, load_json, save_json
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.testing import env
+from tvm_tirx.tirx import decl_tensor
+from tvm_tirx.tirx.layout import Axis, S, TileLayout
+from tvm_tirx.tirx.script import ir_builder as I
+from tvm_tirx.tirx.thread_scope import ThreadScope
 
 
 def test_generic_layout_without_backend_autoload():
@@ -40,20 +40,20 @@ def test_generic_layout_without_backend_autoload():
             "-c",
             """
 import sys
-import tvm
-from tvm.script import tirx as T
-from tvm.tirx import decl_tensor
-from tvm.tirx.layout import Axis, S, TileLayout
+import tvm_tirx
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import decl_tensor
+from tvm_tirx.tirx.layout import Axis, S, TileLayout
 assert Axis.m.backend is None
 assert T.Axis.m.same_as(Axis.m)
 assert TileLayout(S[8]).apply(3, shape=[8])["m"] == 3
 assert decl_tensor((8,), "float32").layout is None
 tensor_type = T.Tensor((8,), "float32")
 assert tensor_type.layout is None
-tvm.ir.assert_structural_equal(tensor_type.effective_layout(), TileLayout(S[8]))
+tvm_tirx.ir.assert_structural_equal(tensor_type.effective_layout(), TileLayout(S[8]))
 assert tensor_type.layout is None
-assert "tvm.backend.cuda.axis" not in sys.modules
-assert "tvm.backend.trn.axis" not in sys.modules
+assert "tvm_tirx.backend.cuda.axis" not in sys.modules
+assert "tvm_tirx.backend.trn.axis" not in sys.modules
 """,
         ],
         env={**os.environ, "TVM_DEVICE_BACKEND_AUTOLOAD": "0"},
@@ -196,7 +196,7 @@ def test_none_layout_dtype_views(dtype, new_dtype, old_shape, new_shape):
 def test_none_layout_dtype_view_accepts_symbolic_extent():
     with IRBuilder():
         with I.function():
-            size = tvm.tirx.Var("size", "int32")
+            size = tvm_tirx.tirx.Var("size", "int32")
             source = I.bind(I.decl_tensor(I.ptr("float32"), ty_args=[I.Tensor((size,), "float32")]))
             viewed = source.view("uint64")
             assert viewed.layout is None
@@ -225,7 +225,7 @@ def test_none_layout_script_roundtrip():
 
     assert kernel.params[0].ty.layout is None
     assert_structural_equal(
-        kernel, tvm.script.from_source(kernel.script(), extra_vars={"T": T, "I": tvm.script.ir})
+        kernel, tvm_tirx.script.from_source(kernel.script(), extra_vars={"T": T, "I": tvm_tirx.script.ir})
     )
 
 
@@ -245,19 +245,19 @@ def test_none_layout_views_execute_with_offsets_and_strides():
         for i, j in T.grid(2, 4):
             D[2, i * 4 + j] = window[i, j]
 
-    target = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch()})
-    compiled = tvm.tirx.compile(kernel, target=target, pipeline="tirx")
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": env.cuda_arch()})
+    compiled = tvm_tirx.tirx.compile(kernel, target=target, pipeline="tirx")
     data = np.arange(32, dtype="float32").reshape(4, 8)
     expected = np.stack([data.T[:4].flatten(), data[:, 1::2].flatten(), data[2:].flatten()])
     expected[2, :8] = data[1:3, 2:6].flatten()
 
     def run():
-        source = tvm.runtime.tensor(data, device=tvm.cuda(0))
-        output = tvm.runtime.tensor(np.zeros((3, 16), dtype="float32"), device=tvm.cuda(0))
+        source = tvm_tirx.runtime.tensor(data, device=tvm_tirx.cuda(0))
+        output = tvm_tirx.runtime.tensor(np.zeros((3, 16), dtype="float32"), device=tvm_tirx.cuda(0))
         compiled(source, output)
         np.testing.assert_array_equal(output.numpy(), expected)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm_tirx.testing.run_with_gpu_lock(run)
 
 
 @pytest.mark.skipif(not env.has_cuda(), reason="requires CUDA")
@@ -276,14 +276,14 @@ def test_tile_load_infers_full_global_layout_with_offset():
         T.cuda.tile.apply(T.ptx["st.global.v2.b32"], output_words, register_words)
 
     assert kernel.params[0].ty.layout is None
-    target = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch()})
-    compiled = tvm.tirx.compile(kernel, target=target, pipeline="tirx")
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": env.cuda_arch()})
+    compiled = tvm_tirx.tirx.compile(kernel, target=target, pipeline="tirx")
     data = np.arange(144, dtype="float32")
 
     def run():
-        source = tvm.runtime.tensor(data, device=tvm.cuda(0))
-        output = tvm.runtime.tensor(np.zeros((2, 4), dtype="float32"), device=tvm.cuda(0))
+        source = tvm_tirx.runtime.tensor(data, device=tvm_tirx.cuda(0))
+        output = tvm_tirx.runtime.tensor(np.zeros((2, 4), dtype="float32"), device=tvm_tirx.cuda(0))
         compiled(source, output)
         np.testing.assert_array_equal(output.numpy(), data[7:135].reshape(8, 16)[2:4, 3:7])
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm_tirx.testing.run_with_gpu_lock(run)

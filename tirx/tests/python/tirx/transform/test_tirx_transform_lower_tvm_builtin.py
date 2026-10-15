@@ -18,14 +18,14 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
-@tvm.register_global_func("tvm.test_matmul")
+@tvm_tirx.register_global_func("tvm.test_matmul")
 def my_matmul(a, b, c):
     c.copyfrom(np.dot(a.numpy(), b.numpy()))
 
@@ -39,7 +39,7 @@ def test_lower_call_packed():
             B: T.Tensor((64, 64), "float32"),
             C: T.Tensor((64, 64), "float32"),
         ):
-            T.func_attr({"target": tvm.target.Target("llvm")})
+            T.func_attr({"target": tvm_tirx.target.Target("llvm")})
             with T.device_context(1, 0):
                 T.call_packed("tvm.test_matmul", A, B, C)
 
@@ -51,7 +51,7 @@ def test_lower_call_packed():
             B: T.Tensor((64, 64), "float32"),
             C: T.Tensor((64, 64), "float32"),
         ):
-            T.func_attr({"target": tvm.target.Target("llvm")})
+            T.func_attr({"target": tvm_tirx.target.Target("llvm")})
             stack_ffi_any: T.let[T.handle] = T.stack_alloca("tvm_ffi_any", 4)
             stack_array: T.let[T.handle] = T.stack_alloca("array", 3)
             stack_shape = T.decl_tensor(
@@ -110,15 +110,15 @@ def test_lower_call_packed():
             T.abi_field_set(stack_ffi_any, 3, 15, T.int64(0))
             T.call_packed_lowered("tvm.test_matmul", stack_ffi_any, 0, 3)
 
-    After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.LowerTVMBuiltin()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
-@pytest.mark.parametrize("call", [tvm.tirx.call_packed, tvm.tirx.call_ffi_kernel])
+@pytest.mark.parametrize("call", [tvm_tirx.tirx.call_packed, tvm_tirx.tirx.call_ffi_kernel])
 def test_lower_call_packed_raw_string(call):
     def invoke(*args):
-        if call is tvm.tirx.call_ffi_kernel:
+        if call is tvm_tirx.tirx.call_ffi_kernel:
             return call(*args, launch_params=[])
         return call(*args)
 
@@ -126,14 +126,14 @@ def test_lower_call_packed_raw_string(call):
     class Before:
         @T.function
         def main():
-            T.func_attr({"target": tvm.target.Target("llvm")})
+            T.func_attr({"target": tvm_tirx.target.Target("llvm")})
             T.evaluate(invoke("testing.echo", "payload"))
 
     @I.ir_module
     class Expected:
         @T.function
         def main():
-            T.func_attr({"target": tvm.target.Target("llvm")})
+            T.func_attr({"target": tvm_tirx.target.Target("llvm")})
             stack_ffi_any: T.let[T.handle] = T.stack_alloca("tvm_ffi_any", 2)
             T.abi_field_set(stack_ffi_any, 0, 13, 8)
             T.abi_field_set(stack_ffi_any, 0, 14, 0)
@@ -143,11 +143,11 @@ def test_lower_call_packed_raw_string(call):
             T.abi_field_set(stack_ffi_any, 1, 15, T.int64(0))
             T.call_packed_lowered("testing.echo", stack_ffi_any, 0, 1)
 
-    After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.LowerTVMBuiltin()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
     # The typed pointer is required by the LLVM TVMFFIAny lowering.
-    tvm.tirx.compile(Before, target="llvm")
+    tvm_tirx.tirx.compile(Before, target="llvm")
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -191,12 +191,12 @@ def test_call_packed_return_non_i32():
             )
             A[1] = T.float32(1.3999999999999999)
 
-    After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-    f = tvm.tirx.compile(Before, "llvm")
-    a = tvm.runtime.tensor(np.zeros(2, dtype="float32"))
+    After = tvm_tirx.tirx.transform.LowerTVMBuiltin()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
+    f = tvm_tirx.tirx.compile(Before, "llvm")
+    a = tvm_tirx.runtime.tensor(np.zeros(2, dtype="float32"))
     f(a)
-    tvm.testing.assert_allclose(a.numpy(), expected_value)
+    tvm_tirx.testing.assert_allclose(a.numpy(), expected_value)
 
 
 def test_lower_overflow_int32():
@@ -258,9 +258,9 @@ def test_lower_overflow_int32():
             if T.free_workspace(1, 0, T_subtract.data) != 0:
                 T.throw_last_error(ty="int32")
 
-    After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-    tvm.tirx.compile(Before, target="llvm")
+    After = tvm_tirx.tirx.transform.LowerTVMBuiltin()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.tirx.compile(Before, target="llvm")
 
 
 def test_lower_device_allocate():
@@ -292,8 +292,8 @@ def test_lower_device_allocate():
             if T.free_workspace(2, 0, ptr.data) != 0:
                 T.throw_last_error(ty="int32")
 
-    After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.LowerTVMBuiltin()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_lower_cpu_allocation():
@@ -318,8 +318,8 @@ def test_lower_cpu_allocation():
             buf = T.decl_tensor(ptr.data, ty_args=[T.Tensor(16, "float32", data=ptr.data)])
             buf[0] = 0.0
 
-    After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.LowerTVMBuiltin()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_lower_allocate_requires_device_id():
@@ -335,7 +335,7 @@ def test_lower_allocate_requires_device_id():
             buf[0] = 0.0
 
     with pytest.raises(RuntimeError):
-        tvm.tirx.transform.LowerTVMBuiltin()(Before)
+        tvm_tirx.tirx.transform.LowerTVMBuiltin()(Before)
 
 
 def test_lower_allocate_requires_device_type():
@@ -358,7 +358,7 @@ def test_lower_allocate_requires_device_type():
             buf[0] = 0.0
 
     with pytest.raises(RuntimeError):
-        tvm.tirx.transform.LowerTVMBuiltin()(Before)
+        tvm_tirx.tirx.transform.LowerTVMBuiltin()(Before)
 
 
 def test_lower_cpu_alloc_with_function_attr():
@@ -382,9 +382,9 @@ def test_lower_cpu_alloc_with_function_attr():
     # Expected is same as before for this transform
     Expected = Before
 
-    After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = tvm_tirx.tirx.transform.LowerTVMBuiltin()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

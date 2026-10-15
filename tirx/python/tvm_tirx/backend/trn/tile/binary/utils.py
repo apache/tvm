@@ -20,12 +20,12 @@
 from enum import Enum
 from functools import cache
 
-from tvm.backend.trn.layout import is_trainium_layout
-from tvm.ir import TensorRegion
-from tvm.runtime import MemoryScope
-from tvm.sym.analyzer import Analyzer
-from tvm.tirx import FloatImm
-from tvm.tirx.tile.common import MapOpType
+from tvm_tirx.backend.trn.layout import is_trainium_layout
+from tvm_tirx.ir import TensorRegion
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.sym.analyzer import Analyzer
+from tvm_tirx.tirx import FloatImm
+from tvm_tirx.tirx.tile.common import MapOpType
 
 from ..dim_utils import get_ewise_dim_map
 from ..instruction_generator import InstructionGenerator

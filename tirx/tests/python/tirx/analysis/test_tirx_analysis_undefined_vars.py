@@ -16,9 +16,9 @@
 # under the License.
 """Tests for tirx.analysis.undefined_vars."""
 
-import tvm
-import tvm.testing
-from tvm import tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx import tirx
 
 
 def test_decl_tensor_data_is_use():
@@ -29,23 +29,23 @@ def test_decl_tensor_data_is_use():
     undefined list so that callers (e.g., CreateComputeScope) capture it.
     """
     n = tirx.Var("n", "int32")
-    from tvm.ir import PrimType, PtrType
+    from tvm_tirx.ir import PrimType, PtrType
 
     data_ptr = tirx.Var("buf_data", PtrType(PrimType("float32")))
     buf = tirx.decl_tensor((n,), "float32", "buf", data=data_ptr)
 
-    body = tvm.ir.Evaluate(tirx.TensorLoad(buf, [0]))
-    decl = tvm.ir.Bind(
+    body = tvm_tirx.ir.Evaluate(tirx.TensorLoad(buf, [0]))
+    decl = tvm_tirx.ir.Bind(
         buf,
-        tvm.ir.Call(
+        tvm_tirx.ir.Call(
             "tirx.decl_tensor",
             [data_ptr],
             ty_args=[buf.ty],
         ),
     )
-    stmt = tvm.ir.SeqStmt([decl, body])
+    stmt = tvm_tirx.ir.SeqStmt([decl, body])
 
-    undef = tvm.tirx.analysis.undefined_vars(stmt, [])
+    undef = tvm_tirx.tirx.analysis.undefined_vars(stmt, [])
     undef_names = {v.name for v in undef}
     # data_ptr must be undefined (it comes from outside the DeclTensor)
     assert "buf_data" in undef_names, f"Expected buf_data in undefined vars, got {undef_names}"
@@ -57,25 +57,25 @@ def test_decl_tensor_elem_offset_is_use():
     After FlattenTensor, DeclTensor nodes carry elem_offset vars from
     match_tensor entries.  These must appear in the undefined list.
     """
-    from tvm.ir import PrimType, PtrType
+    from tvm_tirx.ir import PrimType, PtrType
 
     n = tirx.Var("n", "int32")
     data_ptr = tirx.Var("buf_data", PtrType(PrimType("float32")))
     elem_off = tirx.Var("buf_elem_offset", "int32")
     buf = tirx.decl_tensor((n,), "float32", "buf", data=data_ptr, elem_offset=elem_off)
 
-    body = tvm.ir.Evaluate(tirx.TensorLoad(buf, [0]))
-    decl = tvm.ir.Bind(
+    body = tvm_tirx.ir.Evaluate(tirx.TensorLoad(buf, [0]))
+    decl = tvm_tirx.ir.Bind(
         buf,
-        tvm.ir.Call(
+        tvm_tirx.ir.Call(
             "tirx.decl_tensor",
             [data_ptr],
             ty_args=[buf.ty],
         ),
     )
-    stmt = tvm.ir.SeqStmt([decl, body])
+    stmt = tvm_tirx.ir.SeqStmt([decl, body])
 
-    undef = tvm.tirx.analysis.undefined_vars(stmt, [])
+    undef = tvm_tirx.tirx.analysis.undefined_vars(stmt, [])
     undef_names = {v.name for v in undef}
     assert "buf_data" in undef_names, f"Expected buf_data in undefined vars, got {undef_names}"
     assert "buf_elem_offset" in undef_names, (
@@ -92,19 +92,19 @@ def test_alloc_tensor_data_is_def():
     n = tirx.Var("n", "int32")
     buf = tirx.decl_tensor((n,), "float32", "buf")
 
-    body = tvm.ir.Evaluate(tirx.TensorLoad(buf, [0]))
-    alloc = tvm.ir.Bind(
+    body = tvm_tirx.ir.Evaluate(tirx.TensorLoad(buf, [0]))
+    alloc = tvm_tirx.ir.Bind(
         buf,
-        tvm.ir.Call(
+        tvm_tirx.ir.Call(
             "tirx.alloc_tensor",
             [],
-            attrs=tvm.ir.DictAttrs({}),
+            attrs=tvm_tirx.ir.DictAttrs({}),
             ty_args=[buf.ty],
         ),
     )
-    stmt = tvm.ir.SeqStmt([alloc, body])
+    stmt = tvm_tirx.ir.SeqStmt([alloc, body])
 
-    undef = tvm.tirx.analysis.undefined_vars(stmt, [])
+    undef = tvm_tirx.tirx.analysis.undefined_vars(stmt, [])
     undef_names = {v.name for v in undef}
     # The tensor Var itself is defined by AllocTensor.
     assert buf.name not in undef_names
@@ -115,12 +115,12 @@ def test_alloc_tensor_data_is_def():
 def test_tensor_data_projection_is_tensor_use():
     """An opaque data projection must retain the TensorVar identity."""
     buf = tirx.decl_tensor((16,), "float32", "buf")
-    stmt = tvm.ir.Evaluate(buf.data)
+    stmt = tvm_tirx.ir.Evaluate(buf.data)
 
-    undef = tvm.tirx.analysis.undefined_vars(stmt, [])
+    undef = tvm_tirx.tirx.analysis.undefined_vars(stmt, [])
     assert len(undef) == 1
     assert undef[0].same_as(buf)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

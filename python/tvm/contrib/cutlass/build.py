@@ -28,9 +28,10 @@ from functools import reduce
 
 from tvm_ffi import register_global_func
 
-import tvm
-from tvm import relax, runtime
-from tvm.support.nvcc import get_cuda_version
+import tvm, tvm_tirx
+from tvm_tirx import runtime
+from tvm import relax
+from tvm_tirx.support.nvcc import get_cuda_version
 from tvm.topi.utils import get_const_tuple
 
 from .gen_conv2d import CutlassConv2DProfiler
@@ -42,7 +43,7 @@ logger = logging.getLogger("cutlass")
 
 def has_cutlass():
     """Returns true if the CUTLASS custom codegen is available"""
-    return tvm.get_global_func("relax.ext.cutlass", True) is not None
+    return tvm_tirx.get_global_func("relax.ext.cutlass", True) is not None
 
 
 def _get_cutlass_path():
@@ -108,7 +109,7 @@ def select_gemm_kernel(
 ):
     """Run CUTLASS profiler to select the best kernel, or return the default one for dynamic
     workloads."""
-    if any(isinstance(s, tvm.tirx.Any) for s in [MM, KK, NN]):
+    if any(isinstance(s, tvm_tirx.tirx.Any) for s in [MM, KK, NN]):
         out = cutlass_profiler.get_default(
             op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32, batched=batched
         )
@@ -249,7 +250,7 @@ def handle_conv2d(
     else:
         conv_kind = ConvKind.Fprop
 
-    if any(isinstance(s, tvm.tirx.Any) for s in d_shape):
+    if any(isinstance(s, tvm_tirx.tirx.Any) for s in d_shape):
         out = cutlass_profiler.get_default(
             op_type, out_dtype, data_dtype, weight_dtype, use_3xtf32, conv_kind, strides
         )
@@ -399,14 +400,14 @@ def _extract_relax_function_signature(f):
 
 
 def _extract_arg_idx(pattern_name, f):
-    extract_func = tvm.get_global_func("relax.contrib.extract_arg_idx")
+    extract_func = tvm_tirx.get_global_func("relax.contrib.extract_arg_idx")
     arg_indices = extract_func(pattern_name, f)
     return {k: int(v) for k, v in arg_indices.items()}
 
 
 def is_shape_valid_for_cutlass_matmul(
-    lhs_shape: Sequence[tvm.ir.Expr],
-    rhs_shape: Sequence[tvm.ir.Expr],
+    lhs_shape: Sequence[tvm_tirx.ir.Expr],
+    rhs_shape: Sequence[tvm_tirx.ir.Expr],
 ) -> bool:
     """
     Check whether the shape of inputs can be handled by CUTLASS GEMM.
@@ -417,7 +418,7 @@ def is_shape_valid_for_cutlass_matmul(
     as well as ND x 2D and 2D x ND. For example, it cannot handle matmul with shape
     (2, 1, 4, 8) x (2, 3, 8, 16), because the batch stride of lhs is not constant.
     """
-    if not isinstance(lhs_shape[-1], tvm.tirx.expr.IntImm | int):
+    if not isinstance(lhs_shape[-1], tvm_tirx.tirx.expr.IntImm | int):
         # Reduction axis must be constant
         return False
 
@@ -427,7 +428,7 @@ def is_shape_valid_for_cutlass_matmul(
         # This could be regular matmul or batch matmul with shape ND x 2D or 2D x ND
         return True
 
-    analyzer = tvm.sym.Analyzer()
+    analyzer = tvm_tirx.sym.Analyzer()
     # If one side has less dimensions, use 1 to fill the gap
     batch_dim_pairs = list(
         itertools.zip_longest(
@@ -836,7 +837,7 @@ def profile_relax_function(functions, options):
 
     for f in functions:
         annotator = CutlassRelaxFunctionAnnotator(
-            tvm.IRModule.from_expr(f), conv2d_profiler, gemm_profiler, options
+            tvm_tirx.IRModule.from_expr(f), conv2d_profiler, gemm_profiler, options
         )
         annotated_functions.append(annotator.visit_expr(f))
 
@@ -876,7 +877,7 @@ def compile_cutlass_module(c_source_module, options):
     c_source_module.export_library(lib_path, workspace_dir=tmp_dir, **compile_options)
 
     # Recover static library
-    return tvm.runtime.load_static_library(lib_path, function_names)
+    return tvm_tirx.runtime.load_static_library(lib_path, function_names)
 
 
 def finalize_modules(lib, lib_path="compile.so", tmp_dir="./tmp"):

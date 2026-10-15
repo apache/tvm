@@ -29,8 +29,8 @@ Parameters: dst, src, scope; no instruction keywords. x1/x2/x4 and trans
 are opcode qualifiers. Storage strides count b32 words, not b16 halves.
 """
 
-from tvm.backend.cuda.ptx import PTXNamespace
-from tvm.script import tirx as T
+from tvm_tirx.backend.cuda.ptx import PTXNamespace
+from tvm_tirx.script import tirx as T
 
 from .common import Context
 

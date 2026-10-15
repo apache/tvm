@@ -23,10 +23,10 @@ import triton
 from packaging import version
 from triton.runtime.jit import type_canonicalisation_dict
 
-from tvm import tirx
-from tvm.ir import PrimType, PtrType, is_prim_expr
-from tvm.runtime import Module
-from tvm.sym.utils import get_const_int
+from tvm_tirx import tirx
+from tvm_tirx.ir import PrimType, PtrType, is_prim_expr
+from tvm_tirx.runtime import Module
+from tvm_tirx.sym.utils import get_const_int
 
 from .external_kernel import BaseKernel
 

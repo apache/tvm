@@ -23,8 +23,8 @@ below only cover contracts that the printed output cannot observe.
 import pytest
 from tvm_ffi.access_path import AccessPath
 
-import tvm
-from tvm.script.printer.doc import (
+import tvm_tirx
+from tvm_tirx.script.printer.doc import (
     AssertDoc,
     AssignDoc,
     CallDoc,
@@ -49,7 +49,7 @@ from tvm.script.printer.doc import (
     TupleDoc,
     WhileDoc,
 )
-from tvm.script.printer.doc_printer import to_python_script
+from tvm_tirx.script.printer.doc_printer import to_python_script
 
 
 def format_script(s: str) -> str:
@@ -811,4 +811,4 @@ def test_longer_prefix_must_win():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

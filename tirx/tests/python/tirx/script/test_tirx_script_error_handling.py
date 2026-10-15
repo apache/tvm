@@ -24,8 +24,8 @@ import traceback
 
 import pytest
 
-import tvm
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm_tirx.script import tirx as T
 
 
 def test_optional_annotation_requires_jit_at_the_source_parameter():
@@ -64,7 +64,7 @@ def test_scalar_assign_error_not_swallowed():
     swallowed and the assignment would silently fall through to eval_assign."""
     from unittest.mock import patch
 
-    original = tvm.tirx.script.ir_builder.parser_protocol.tensor_store
+    original = tvm_tirx.tirx.script.ir_builder.parser_protocol.tensor_store
 
     def bomb(*args, **kwargs):
         # Intercept only the scalar-assignment path (indices == [0])
@@ -74,7 +74,7 @@ def test_scalar_assign_error_not_swallowed():
 
     # The ValueError propagates unchanged. A broad ``except Exception`` here
     # previously swallowed it and fell through to eval_assign.
-    with patch("tvm.tirx.script.ir_builder.parser_protocol.tensor_store", side_effect=bomb):
+    with patch("tvm_tirx.tirx.script.ir_builder.parser_protocol.tensor_store", side_effect=bomb):
         try:
 
             @T.function

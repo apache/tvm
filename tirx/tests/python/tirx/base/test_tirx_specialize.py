@@ -21,14 +21,14 @@ from __future__ import annotations
 
 import pytest
 
-import tvm
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm_tirx.script import tirx as T
 
 m = T.dynamic("m", "int32")
 
 
 def assert_structural_equal_ignore_global_symbol(lhs, rhs):
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         lhs.without_attr("global_symbol"), rhs.without_attr("global_symbol")
     )
 
@@ -195,13 +195,13 @@ def test_specialize_nothing():
 def test_specialize_matmul():
     a, _, _, n = matmul.params
     # fully specialized
-    func = matmul.specialize({a: tvm.tirx.decl_tensor((128, 128))})
+    func = matmul.specialize({a: tvm_tirx.tirx.decl_tensor((128, 128))})
     assert_structural_equal_ignore_global_symbol(func, matmul_128)
     # partially specialized
     func = matmul.specialize({n: 128})
     assert_structural_equal_ignore_global_symbol(func, matmul_m_128)
     # symbolic specialized
-    func = matmul.specialize({n: tvm.tirx.Var("x", "int32") * 8})
+    func = matmul.specialize({n: tvm_tirx.tirx.Var("x", "int32") * 8})
     assert_structural_equal_ignore_global_symbol(func, matmul_m_8x)
 
 
@@ -209,10 +209,10 @@ def test_specialize_elemwise():
     a, c = element_wise.params
     C = c
     # fully specialized
-    func = element_wise.specialize({a: tvm.tirx.decl_tensor((128, 64))})
+    func = element_wise.specialize({a: tvm_tirx.tirx.decl_tensor((128, 64))})
     assert_structural_equal_ignore_global_symbol(func, element_wise_128_64)
     # partially specialized
-    func = element_wise.specialize({c: tvm.tirx.decl_tensor((128, C.ty.shape[1]))})
+    func = element_wise.specialize({c: tvm_tirx.tirx.decl_tensor((128, C.ty.shape[1]))})
     assert_structural_equal_ignore_global_symbol(func, element_wise_128_n)
 
 
@@ -220,7 +220,7 @@ def test_specialize_mem_copy():
     a, _, m, n, p, q = mem_copy.params
     # fully specialized
     func = mem_copy.specialize(
-        {a: tvm.tirx.decl_tensor((16, 16), strides=[8, 1], elem_offset=T.int32(4))}
+        {a: tvm_tirx.tirx.decl_tensor((16, 16), strides=[8, 1], elem_offset=T.int32(4))}
     )
     assert_structural_equal_ignore_global_symbol(func, mem_copy_16_16_8_4)
     func = mem_copy.specialize({n: 16, m: 16, p: 8, q: 4})
@@ -249,7 +249,7 @@ def test_specialize_with_const_folding():
             B[i] = A[i // 8, i % 8] + 714
 
     b = before.params[1]
-    after = before.specialize({b: tvm.tirx.decl_tensor([16], dtype="int32")})
+    after = before.specialize({b: tvm_tirx.tirx.decl_tensor([16], dtype="int32")})
     assert_structural_equal_ignore_global_symbol(expected, after)
 
 
@@ -271,7 +271,7 @@ def test_specialize_decl_tensor():
     param_map = {before.params[1]: T.int32(16)}
     after = before.specialize(param_map)
 
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_specialize_preserves_decl_tensor_alias():
@@ -289,7 +289,7 @@ def test_specialize_preserves_decl_tensor_alias():
 
     after = before.specialize({before.params[1]: 8})
 
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_specialize_tensor_var_to_var():
@@ -318,7 +318,7 @@ def test_specialize_tensor_var_to_var():
     param_map = {B_handle: A}
     after = before.specialize(param_map)
 
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_specialize_tensor_var_to_expr():
@@ -343,10 +343,10 @@ def test_specialize_tensor_var_to_expr():
     B_data = before.params[1]
     # body is a SeqStmt; the first statement is DeclTensor for A_buf
     A_buf = before.body[0].var
-    param_map = {B_data: tvm.tirx.address_of(A_buf[16])}
+    param_map = {B_data: tvm_tirx.tirx.address_of(A_buf[16])}
     after = before.specialize(param_map)
 
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_specialization_updates_ty():
@@ -363,19 +363,19 @@ def test_specialization_updates_ty():
     def expected() -> T.int32:
         return 50
 
-    ty_before = tvm.ir.FuncType([tvm.ir.PrimType("int32")], tvm.ir.PrimType("int32"))
-    tvm.ir.assert_structural_equal(before.ty, ty_before)
+    ty_before = tvm_tirx.ir.FuncType([tvm_tirx.ir.PrimType("int32")], tvm_tirx.ir.PrimType("int32"))
+    tvm_tirx.ir.assert_structural_equal(before.ty, ty_before)
 
-    ty_expected = tvm.ir.FuncType([], tvm.ir.PrimType("int32"))
-    tvm.ir.assert_structural_equal(expected.ty, ty_expected)
+    ty_expected = tvm_tirx.ir.FuncType([], tvm_tirx.ir.PrimType("int32"))
+    tvm_tirx.ir.assert_structural_equal(expected.ty, ty_expected)
 
     n = before.params[0]
     param_map = {n: 5}
     after = before.specialize(param_map)
 
-    tvm.ir.assert_structural_equal(after, expected)
-    tvm.ir.assert_structural_equal(after.ty, ty_expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after.ty, ty_expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

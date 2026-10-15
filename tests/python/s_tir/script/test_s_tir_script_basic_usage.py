@@ -21,14 +21,14 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
+import tvm, tvm_tirx
+import tvm_tirx.testing, tvm
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
-from tvm.script import from_source
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.testing import env
+from tvm_tirx.script import from_source
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import s_tir as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 @Ts.function
@@ -64,7 +64,7 @@ def get_valid_counts(
 
 def _check_get_valid_counts_with_numpy(f, dshape, score_threshold, id_index, score_index):
     dtype = "float32"
-    ctx = tvm.cpu()
+    ctx = tvm_tirx.cpu()
     batch_size, num_anchor, elem_length = dshape
     np_data = np.random.uniform(low=-2, high=2, size=dshape).astype(dtype)
     np_out1 = np.zeros(shape=(batch_size,), dtype="int32")
@@ -86,14 +86,14 @@ def _check_get_valid_counts_with_numpy(f, dshape, score_threshold, id_index, sco
                     np_out2[i, j, k] = -1.0
                 np_out3[i, j] = -1
 
-    in_data = tvm.runtime.tensor(np_data, ctx)
-    out1 = tvm.runtime.tensor(np_out1, ctx)
-    out2 = tvm.runtime.tensor(np_out2, ctx)
-    out3 = tvm.runtime.tensor(np_out3, ctx)
+    in_data = tvm_tirx.runtime.tensor(np_data, ctx)
+    out1 = tvm_tirx.runtime.tensor(np_out1, ctx)
+    out2 = tvm_tirx.runtime.tensor(np_out2, ctx)
+    out3 = tvm_tirx.runtime.tensor(np_out3, ctx)
     f(in_data, out1, out2, out3, score_threshold, id_index, score_index)
-    tvm.testing.assert_allclose(out1.numpy(), np_out1, rtol=1e-5)
-    tvm.testing.assert_allclose(out2.numpy(), np_out2, rtol=1e-5)
-    tvm.testing.assert_allclose(out3.numpy(), np_out3, rtol=1e-5)
+    tvm_tirx.testing.assert_allclose(out1.numpy(), np_out1, rtol=1e-5)
+    tvm_tirx.testing.assert_allclose(out2.numpy(), np_out2, rtol=1e-5)
+    tvm_tirx.testing.assert_allclose(out3.numpy(), np_out3, rtol=1e-5)
     print("test get_valid_counts end")
 
 
@@ -101,7 +101,7 @@ def test_get_valid_counts_script_func():
     device = "llvm"
     # check lowering
     print(get_valid_counts.script())
-    mod = tvm.ir.IRModule({"get_valid_counts": get_valid_counts})
+    mod = tvm_tirx.ir.IRModule({"get_valid_counts": get_valid_counts})
     print(mod.script())
     # check building
     f = tvm.compile(mod["get_valid_counts"], target=device)
@@ -117,10 +117,10 @@ def ceildiv_test(A: T.Tensor(16, "int32")):
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_ceildiv():
     f = tvm.compile(ceildiv_test, "llvm")
-    a = tvm.runtime.tensor(np.arange(16).astype("int32"))
+    a = tvm_tirx.runtime.tensor(np.arange(16).astype("int32"))
     f(a)
     ref = (np.arange(16) + 3) // 4
-    tvm.testing.assert_allclose(a.numpy(), ref)
+    tvm_tirx.testing.assert_allclose(a.numpy(), ref)
 
 
 def test_tir_func_name():
@@ -199,7 +199,7 @@ def test_tir_empty_tuple_index():
     def expected(A: T.Tensor((), "int32"), B: T.Tensor((), "int32")):
         T.evaluate(A[()])
 
-    tvm.ir.assert_structural_equal(func_with_empty_tuple, expected)
+    tvm_tirx.ir.assert_structural_equal(func_with_empty_tuple, expected)
 
 
 def test_thread_binding_dtype():
@@ -222,14 +222,14 @@ def test_inferred_ty_with_prim_args():
     def func(M: T.int32, N: T.int32) -> T.int32:
         return M * N
 
-    expected = tvm.ir.FuncType(
+    expected = tvm_tirx.ir.FuncType(
         [
-            tvm.ir.PrimType("int32"),
-            tvm.ir.PrimType("int32"),
+            tvm_tirx.ir.PrimType("int32"),
+            tvm_tirx.ir.PrimType("int32"),
         ],
-        tvm.ir.PrimType("int32"),
+        tvm_tirx.ir.PrimType("int32"),
     )
-    tvm.ir.assert_structural_equal(func.ty, expected)
+    tvm_tirx.ir.assert_structural_equal(func.ty, expected)
 
 
 def test_inferred_ty_with_tensor_args():
@@ -239,14 +239,14 @@ def test_inferred_ty_with_tensor_args():
     def func(A: T.Tensor([16, 16], "float32"), B: T.Tensor([256], "int32")) -> T.float32:
         return T.float32(42.0)
 
-    expected = tvm.ir.FuncType(
+    expected = tvm_tirx.ir.FuncType(
         [
-            tvm.tirx.decl_tensor([16, 16], "float32", layout=None).ty,
-            tvm.tirx.decl_tensor([256], "int32", layout=None).ty,
+            tvm_tirx.tirx.decl_tensor([16, 16], "float32", layout=None).ty,
+            tvm_tirx.tirx.decl_tensor([256], "int32", layout=None).ty,
         ],
-        tvm.ir.PrimType("float32"),
+        tvm_tirx.ir.PrimType("float32"),
     )
-    tvm.ir.assert_structural_equal(func.ty, expected)
+    tvm_tirx.ir.assert_structural_equal(func.ty, expected)
 
 
 def test_inferred_ty_with_internal_allocation():
@@ -261,13 +261,13 @@ def test_inferred_ty_with_internal_allocation():
 
         return Sum[()]
 
-    expected = tvm.ir.FuncType(
+    expected = tvm_tirx.ir.FuncType(
         [
-            tvm.tirx.decl_tensor([16, 16], "float32", layout=None).ty,
+            tvm_tirx.tirx.decl_tensor([16, 16], "float32", layout=None).ty,
         ],
-        tvm.ir.PrimType("float32"),
+        tvm_tirx.ir.PrimType("float32"),
     )
-    tvm.ir.assert_structural_equal(func.ty, expected)
+    tvm_tirx.ir.assert_structural_equal(func.ty, expected)
 
 
 def test_inferred_ty_with_output_tensor():
@@ -278,14 +278,14 @@ def test_inferred_ty_with_output_tensor():
         for i in range(16):
             B[i] = A[i]
 
-    expected = tvm.ir.FuncType(
+    expected = tvm_tirx.ir.FuncType(
         [
-            tvm.tirx.decl_tensor([16], "float32", layout=None).ty,
-            tvm.tirx.decl_tensor([16], "float32", layout=None).ty,
+            tvm_tirx.tirx.decl_tensor([16], "float32", layout=None).ty,
+            tvm_tirx.tirx.decl_tensor([16], "float32", layout=None).ty,
         ],
-        tvm.ir.TupleType([]),
+        tvm_tirx.ir.TupleType([]),
     )
-    tvm.ir.assert_structural_equal(func.ty, expected)
+    tvm_tirx.ir.assert_structural_equal(func.ty, expected)
 
 
 def test_reinterpret_preserves_explicit_call():
@@ -307,7 +307,7 @@ def test_reinterpret_preserves_explicit_call():
                 vi = Ts.axis.remap("S", [i])
                 B[vi] = I.Call("tirx.reinterpret", [A[vi]], ty="float32")
 
-    tvm.ir.assert_structural_equal(func, expected)
+    tvm_tirx.ir.assert_structural_equal(func, expected)
 
 
 def test_launch_thread_i64():
@@ -391,7 +391,7 @@ def test_alloc_inside_block():
                 B[j] = T.float32(j)
                 A[i] += B[j]
 
-    tvm.ir.assert_structural_equal(func, expected)
+    tvm_tirx.ir.assert_structural_equal(func, expected)
 
 
 def test_ifexp():
@@ -405,7 +405,7 @@ def test_ifexp():
         for i, j in T.grid(128, 128):
             A[i, j] = T.if_then_else(i < j, i, j)
 
-    tvm.ir.assert_structural_equal(func, expected)
+    tvm_tirx.ir.assert_structural_equal(func, expected)
 
 
 def test_sequence_compare():
@@ -425,7 +425,7 @@ def test_sequence_compare():
             else:
                 A[i, j] = 0
 
-    tvm.ir.assert_structural_equal(tir_func, expected)
+    tvm_tirx.ir.assert_structural_equal(tir_func, expected)
 
 
 def launch_env_thread():
@@ -469,22 +469,22 @@ def for_thread_binding():
 
 def test_for_thread_binding():
     func = for_thread_binding()
-    rt_func = tvm.script.from_source(
+    rt_func = tvm_tirx.script.from_source(
         func.script(),
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm_tirx.script.s_tir,
+            "R": tvm_tirx.script.relax,
         },
     )
-    tvm.ir.assert_structural_equal(func, rt_func)
+    tvm_tirx.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body[0], tvm.ir.For)
-    assert rt_func.body[0].kind == tvm.ir.ForKind.PARALLEL
+    assert isinstance(rt_func.body[0], tvm_tirx.ir.For)
+    assert rt_func.body[0].kind == tvm_tirx.ir.ForKind.PARALLEL
     assert rt_func.body[0].annotations.get("thread_binding") == "threadIdx.x"
-    assert isinstance(rt_func.body[0].body[0], tvm.ir.For)
-    assert rt_func.body[0].body[0].kind == tvm.ir.ForKind.PARALLEL
+    assert isinstance(rt_func.body[0].body[0], tvm_tirx.ir.For)
+    assert rt_func.body[0].body[0].kind == tvm_tirx.ir.ForKind.PARALLEL
     assert rt_func.body[0].body[0].annotations.get("thread_binding") == "threadIdx.y"
     assert rt_func.body[0].body[0].annotations["attr_key"] == "attr_value"
 
@@ -755,17 +755,17 @@ def test_assert_stmt_roundtrip(error_type, message_parts):
     def func(x: T.int32):
         assert x > 0, (error_type, message_parts)
 
-    roundtrip = tvm.script.from_source(
+    roundtrip = tvm_tirx.script.from_source(
         func.script(show_meta=True),
         check_well_formed=False,
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm_tirx.script.s_tir,
+            "R": tvm_tirx.script.relax,
         },
     )
-    tvm.ir.assert_structural_equal(func, roundtrip, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(func, roundtrip, map_free_vars=True)
 
 
 @Ts.function
@@ -956,15 +956,15 @@ def func():
         j{annotation} = i // 4
         T.evaluate(j)
 """,
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm_tirx.script.s_tir},
     )
     binding = func.body[0].body.seq[0]
     if mutable:
-        assert isinstance(binding, tvm.ir.Bind) and isinstance(binding.value, tvm.ir.Call)
+        assert isinstance(binding, tvm_tirx.ir.Bind) and isinstance(binding.value, tvm_tirx.ir.Call)
         assert binding.value.op.name == "tirx.alloc_tensor"
         var_name = binding.var.name
     else:
-        assert isinstance(binding, tvm.ir.Bind)
+        assert isinstance(binding, tvm_tirx.ir.Bind)
         var_name = binding.var.name
     assert var_name == "j"
 
@@ -1033,11 +1033,11 @@ def test_loop_jump_statement():
     tvm_ffi.structural_walk(
         implicit.body,
         lambda node: jumps.append(node)
-        if isinstance(node, tvm.ir.Break | tvm.ir.Continue)
+        if isinstance(node, tvm_tirx.ir.Break | tvm_tirx.ir.Continue)
         else None,
     )
-    assert sum(isinstance(node, tvm.ir.Break) for node in jumps) == 1
-    assert sum(isinstance(node, tvm.ir.Continue) for node in jumps) == 1
+    assert sum(isinstance(node, tvm_tirx.ir.Break) for node in jumps) == 1
+    assert sum(isinstance(node, tvm_tirx.ir.Continue) for node in jumps) == 1
 
 
 @pytest.mark.parametrize(
@@ -1070,17 +1070,17 @@ def test_loop_jump_statement():
 )
 def test_roundtrip_basic_usage(ir_generator):
     original = ir_generator()
-    after_roundtrip = tvm.script.from_source(
+    after_roundtrip = tvm_tirx.script.from_source(
         original.script(show_meta=True),
         check_well_formed=False,
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm_tirx.script.s_tir,
+            "R": tvm_tirx.script.relax,
         },
     )
-    tvm.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
 
 
 # Import-time construction also checks the annotated S-TIR API.
@@ -1109,4 +1109,4 @@ def element_wise_env_thread_x(
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -30,30 +30,30 @@ wrong, so these run both encoders on the same inputs and compare.
 import numpy as np
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.backend.cuda.cpp.descriptors import (
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.backend.cuda.cpp.descriptors import (
     encode_instr_descriptor_block_scaled_uint32,
     encode_smem_descriptor_base_uint64,
 )
-from tvm.script import tirx as T
-from tvm.testing import env
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
-TARGET = tvm.target.Target("cuda")
+TARGET = tvm_tirx.target.Target("cuda")
 
 
 def _compile_and_run(kernel, n_out):
     with TARGET:
-        mod = tvm.tirx.compile(tvm.IRModule({"main": kernel}), target=TARGET, pipeline="tirx")
+        mod = tvm_tirx.tirx.compile(tvm_tirx.IRModule({"main": kernel}), target=TARGET, pipeline="tirx")
     result = {}
 
     def go():
-        dev = tvm.cuda(0)
-        out = tvm.runtime.tensor(np.zeros(n_out, dtype="uint64"), device=dev)
+        dev = tvm_tirx.cuda(0)
+        out = tvm_tirx.runtime.tensor(np.zeros(n_out, dtype="uint64"), device=dev)
         mod(out)
         result["out"] = out.numpy()
 
-    tvm.testing.run_with_gpu_lock(go)
+    tvm_tirx.testing.run_with_gpu_lock(go)
     return result["out"]
 
 
@@ -182,4 +182,4 @@ def test_instr_descriptor_block_scaled_k96_validation_and_bit(cta_group, m):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

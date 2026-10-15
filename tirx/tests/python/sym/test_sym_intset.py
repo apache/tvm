@@ -15,15 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F841
-import tvm
-import tvm.testing
-from tvm import tirx
-from tvm.sym.analyzer import Analyzer
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx import tirx
+from tvm_tirx.sym.analyzer import Analyzer
 
 
 class IntSetChecker:
     def __init__(self):
-        self.analyzer = tvm.sym.Analyzer()
+        self.analyzer = tvm_tirx.sym.Analyzer()
 
     def verify(self, data, dmap, expected):
         res = self.analyzer.int_set(data, dmap)
@@ -36,11 +36,11 @@ class IntSetChecker:
 
 
 def test_basic():
-    s = tvm.sym.IntervalSet(2, 3)
+    s = tvm_tirx.sym.IntervalSet(2, 3)
     assert s.min_value.value == 2
     assert s.max_value.value == 3
 
-    s = tvm.sym.IntSet.single_point(2)
+    s = tvm_tirx.sym.IntSet.single_point(2)
     assert s.min_value.value == 2
     assert s.max_value.value == 2
 
@@ -49,92 +49,92 @@ def test_vector():
     base = 10
     stride = 3
     lanes = 2
-    s = tvm.sym.IntSet.vector(tvm.tirx.Ramp(base, stride, lanes))
+    s = tvm_tirx.sym.IntSet.vector(tvm_tirx.tirx.Ramp(base, stride, lanes))
     assert s.min_value.value == base
     assert s.max_value.value == base + stride * (lanes - 1)
 
 
 def test_scalable_vector():
     base = 5
-    s = tvm.sym.IntSet.vector(tvm.tirx.Ramp(base, 2, tvm.tirx.vscale() * 4))
+    s = tvm_tirx.sym.IntSet.vector(tvm_tirx.tirx.Ramp(base, 2, tvm_tirx.tirx.vscale() * 4))
 
-    assert s.min_value.same_as(tvm.sym.int_set.neg_inf())
-    assert s.max_value.same_as(tvm.sym.int_set.pos_inf())
+    assert s.min_value.same_as(tvm_tirx.sym.int_set.neg_inf())
+    assert s.max_value.same_as(tvm_tirx.sym.int_set.pos_inf())
 
 
 def test_add_sub():
     ck = IntSetChecker()
-    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
-    ck.verify(x + y, {x: tvm.sym.IntervalSet(0, 10)}, (y, 10 + y))
-    ck.verify(x + y, {x: tvm.sym.IntervalSet(0, 10), y: tvm.sym.IntervalSet(1, 11)}, (1, 21))
-    ck.verify(x - y, {x: tvm.sym.IntervalSet(0, 10), y: tvm.sym.IntervalSet(1, 11)}, (-11, 9))
+    x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
+    ck.verify(x + y, {x: tvm_tirx.sym.IntervalSet(0, 10)}, (y, 10 + y))
+    ck.verify(x + y, {x: tvm_tirx.sym.IntervalSet(0, 10), y: tvm_tirx.sym.IntervalSet(1, 11)}, (1, 21))
+    ck.verify(x - y, {x: tvm_tirx.sym.IntervalSet(0, 10), y: tvm_tirx.sym.IntervalSet(1, 11)}, (-11, 9))
 
 
 def test_mul_div():
     ck = IntSetChecker()
-    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
+    x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
 
-    tdiv = tvm.tirx.truncdiv
-    ck.analyzer.update(y, tvm.sym.ConstIntBound(1, 100), override=True)
-    ck.verify(x * y, {x: tvm.sym.IntervalSet(0, 10)}, (0, 10 * y))
-    ck.verify(x * 2, {x: tvm.sym.IntervalSet(1, 10)}, (2, 20))
-    ck.verify(x * -2, {x: tvm.sym.IntervalSet(1, 10)}, (-20, -2))
+    tdiv = tvm_tirx.tirx.truncdiv
+    ck.analyzer.update(y, tvm_tirx.sym.ConstIntBound(1, 100), override=True)
+    ck.verify(x * y, {x: tvm_tirx.sym.IntervalSet(0, 10)}, (0, 10 * y))
+    ck.verify(x * 2, {x: tvm_tirx.sym.IntervalSet(1, 10)}, (2, 20))
+    ck.verify(x * -2, {x: tvm_tirx.sym.IntervalSet(1, 10)}, (-20, -2))
 
-    ck.verify(tdiv(x, y), {x: tvm.sym.IntervalSet(0, 10)}, (0, tdiv(10, y)))
-    ck.verify(tdiv(x, 2), {x: tvm.sym.IntervalSet(1, 10)}, (0, 5))
+    ck.verify(tdiv(x, y), {x: tvm_tirx.sym.IntervalSet(0, 10)}, (0, tdiv(10, y)))
+    ck.verify(tdiv(x, 2), {x: tvm_tirx.sym.IntervalSet(1, 10)}, (0, 5))
 
-    fld = tvm.tirx.floordiv
-    ck.verify(fld(x, y), {x: tvm.sym.IntervalSet(0, 10)}, (0, fld(10, y)))
-    ck.verify(fld(x, 2), {x: tvm.sym.IntervalSet(-1, 10)}, (-1, 5))
+    fld = tvm_tirx.tirx.floordiv
+    ck.verify(fld(x, y), {x: tvm_tirx.sym.IntervalSet(0, 10)}, (0, fld(10, y)))
+    ck.verify(fld(x, 2), {x: tvm_tirx.sym.IntervalSet(-1, 10)}, (-1, 5))
 
 
 def test_mod():
     ck = IntSetChecker()
-    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
-    tmod = tvm.tirx.truncmod
-    ck.analyzer.update(y, tvm.sym.ConstIntBound(1, 100), override=True)
-    ck.verify(tmod(x, y), {x: tvm.sym.IntervalSet(0, 10)}, (0, y - 1))
-    ck.verify(tmod(x, 10), {x: tvm.sym.IntervalSet(1, 10)}, (0, 9))
+    x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
+    tmod = tvm_tirx.tirx.truncmod
+    ck.analyzer.update(y, tvm_tirx.sym.ConstIntBound(1, 100), override=True)
+    ck.verify(tmod(x, y), {x: tvm_tirx.sym.IntervalSet(0, 10)}, (0, y - 1))
+    ck.verify(tmod(x, 10), {x: tvm_tirx.sym.IntervalSet(1, 10)}, (0, 9))
 
-    flm = tvm.tirx.floormod
-    ck.verify(flm(x, 10), {x: tvm.sym.IntervalSet(-10, 10)}, (0, 9))
-    ck.verify(flm(x, 10), {x: tvm.sym.IntervalSet(3, 5)}, (3, 5))
-    ck.verify(flm(x, 10), {x: tvm.sym.IntervalSet(13, 15)}, (3, 5))
-    ck.verify(flm(x, 10), {x: tvm.sym.IntervalSet(3, 15)}, (0, 9))
-    ck.verify(flm(x, 10), {x: tvm.sym.IntervalSet(3, 11)}, (0, 9))
-    ck.verify(flm(x, 10), {x: tvm.sym.IntervalSet(1, 21)}, (0, 9))
+    flm = tvm_tirx.tirx.floormod
+    ck.verify(flm(x, 10), {x: tvm_tirx.sym.IntervalSet(-10, 10)}, (0, 9))
+    ck.verify(flm(x, 10), {x: tvm_tirx.sym.IntervalSet(3, 5)}, (3, 5))
+    ck.verify(flm(x, 10), {x: tvm_tirx.sym.IntervalSet(13, 15)}, (3, 5))
+    ck.verify(flm(x, 10), {x: tvm_tirx.sym.IntervalSet(3, 15)}, (0, 9))
+    ck.verify(flm(x, 10), {x: tvm_tirx.sym.IntervalSet(3, 11)}, (0, 9))
+    ck.verify(flm(x, 10), {x: tvm_tirx.sym.IntervalSet(1, 21)}, (0, 9))
 
-    fld = tvm.tirx.floordiv
-    z = tvm.tirx.Var("z", "int32")
-    ck.analyzer.bind(x, tvm.ir.Range.from_min_extent(0, 3))
+    fld = tvm_tirx.tirx.floordiv
+    z = tvm_tirx.tirx.Var("z", "int32")
+    ck.analyzer.bind(x, tvm_tirx.ir.Range.from_min_extent(0, 3))
     ck.verify(
         flm(y, 8),
-        {y: tvm.sym.IntervalSet(z * 8 + x * 4, z * 8 + x * 4 + 3)},
+        {y: tvm_tirx.sym.IntervalSet(z * 8 + x * 4, z * 8 + x * 4 + 3)},
         (
             z * 8 + x * 4 - 8 * fld(z * 8 + x * 4, 8),
             z * 8 + x * 4 + 3 - 8 * fld(z * 8 + x * 4, 8),
         ),
     )
     ck1 = IntSetChecker()
-    ck1.analyzer.bind(x, tvm.ir.Range.from_min_extent(0, 2))
+    ck1.analyzer.bind(x, tvm_tirx.ir.Range.from_min_extent(0, 2))
     ck1.verify(
-        flm(y, 8), {y: tvm.sym.IntervalSet(z * 8 + x * 4, z * 8 + x * 4 + 3)}, (x * 4, x * 4 + 3)
+        flm(y, 8), {y: tvm_tirx.sym.IntervalSet(z * 8 + x * 4, z * 8 + x * 4 + 3)}, (x * 4, x * 4 + 3)
     )
 
 
 def test_max_min():
     ck = IntSetChecker()
-    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
-    ck.verify(tvm.tirx.max(x, x + 1), {x: tvm.sym.IntervalSet(0, 10)}, (1, 11))
-    ck.verify(tvm.tirx.min(x - 1, x + 1), {x: tvm.sym.IntervalSet(0, 10)}, (-1, 9))
-    ck.verify(tvm.tirx.min(x, y), {}, (tvm.tirx.min(x, y), tvm.tirx.min(x, y)))
-    ck.verify(tvm.tirx.max(x, y), {}, (tvm.tirx.max(x, y), tvm.tirx.max(x, y)))
+    x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
+    ck.verify(tvm_tirx.tirx.max(x, x + 1), {x: tvm_tirx.sym.IntervalSet(0, 10)}, (1, 11))
+    ck.verify(tvm_tirx.tirx.min(x - 1, x + 1), {x: tvm_tirx.sym.IntervalSet(0, 10)}, (-1, 9))
+    ck.verify(tvm_tirx.tirx.min(x, y), {}, (tvm_tirx.tirx.min(x, y), tvm_tirx.tirx.min(x, y)))
+    ck.verify(tvm_tirx.tirx.max(x, y), {}, (tvm_tirx.tirx.max(x, y), tvm_tirx.tirx.max(x, y)))
 
 
 def test_select():
     ck = IntSetChecker()
-    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
-    ck.verify(tvm.tirx.Select(x > 0, x - 1, x + 1), {x: tvm.sym.IntervalSet(0, 10)}, (-1, 11))
+    x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
+    ck.verify(tvm_tirx.tirx.Select(x > 0, x - 1, x + 1), {x: tvm_tirx.sym.IntervalSet(0, 10)}, (-1, 11))
 
 
 def check_region_bound(expect_region, var_dom, mode, predicate=None):
@@ -156,24 +156,24 @@ def check_region_bound(expect_region, var_dom, mode, predicate=None):
         Extra predicate, defaults to True.
     """
     if predicate is None:
-        predicate = tvm.tirx.IntImm("bool", 1)
+        predicate = tvm_tirx.tirx.IntImm("bool", 1)
     region = []
     expect = []
     for k, v in expect_region.items():
         if not isinstance(k, tuple | list):
             k = (k, k + 1)
-        region.append(tvm.ir.Range.from_min_extent(k[0], Analyzer().simplify(k[1] - k[0])))
+        region.append(tvm_tirx.ir.Range.from_min_extent(k[0], Analyzer().simplify(k[1] - k[0])))
         expect.append(v)
     if mode == "lowerbound":
-        result = tvm.sym.estimate_region_lower_bound(
+        result = tvm_tirx.sym.estimate_region_lower_bound(
             region=region, var_dom=var_dom, predicate=predicate
         )
     elif mode == "upperbound":
-        result = tvm.sym.estimate_region_upper_bound(
+        result = tvm_tirx.sym.estimate_region_upper_bound(
             region=region, var_dom=var_dom, predicate=predicate
         )
     else:
-        result = tvm.sym.estimate_region_strict_bound(
+        result = tvm_tirx.sym.estimate_region_strict_bound(
             region=region, var_dom=var_dom, predicate=predicate
         )
     if result is None:
@@ -210,19 +210,19 @@ def check_region_bound(expect_region, var_dom, mode, predicate=None):
 
 def test_region_bound_not_independent():
     # (i, i+2) and (i+2, i+4) are dependent, this the lowerbound is not available
-    i = tvm.tirx.Var("i", "int32")
+    i = tvm_tirx.tirx.Var("i", "int32")
     var_dom = {
-        i: tvm.ir.Range(begin=0, end=64),
+        i: tvm_tirx.ir.Range(begin=0, end=64),
     }
     check_region_bound({(i, i + 2): None, (i + 2, i + 4): None}, var_dom, mode="lowerbound")
     check_region_bound({(i, i + 2): (0, 65), (i + 2, i + 4): (2, 67)}, var_dom, mode="upperbound")
 
     # when only a subset of access indices are affine
-    i, j, k = tvm.tirx.Var("i", "int32"), tvm.tirx.Var("j", "int32"), tvm.tirx.Var("k", "int32")
+    i, j, k = tvm_tirx.tirx.Var("i", "int32"), tvm_tirx.tirx.Var("j", "int32"), tvm_tirx.tirx.Var("k", "int32")
     var_dom = {
-        i: tvm.ir.Range(begin=0, end=16),
-        j: tvm.ir.Range(begin=0, end=16),
-        k: tvm.ir.Range(begin=0, end=16),
+        i: tvm_tirx.ir.Range(begin=0, end=16),
+        j: tvm_tirx.ir.Range(begin=0, end=16),
+        k: tvm_tirx.ir.Range(begin=0, end=16),
     }
     check_region_bound(
         {i // 4: None, j * 4 + i % 4: None, tirx.truncdiv(k, 2): None},
@@ -239,27 +239,27 @@ def test_region_bound_not_independent():
 
 
 def test_region_bound_stride_too_wide():
-    i = tvm.tirx.Var("i", "int32")
-    var_dom = {i: tvm.ir.Range(begin=0, end=64)}
+    i = tvm_tirx.tirx.Var("i", "int32")
+    var_dom = {i: tvm_tirx.ir.Range(begin=0, end=64)}
     check_region_bound({(i * 4, i * 4 + 2): None}, var_dom, mode="lowerbound")
     check_region_bound({(i * 4, i * 4 + 2): (0, 254)}, var_dom, mode="upperbound")
 
 
 def test_region_bound_small_stride():
-    i = tvm.tirx.Var("i", "int32")
+    i = tvm_tirx.tirx.Var("i", "int32")
     var_dom = {
-        i: tvm.ir.Range(begin=0, end=64),
+        i: tvm_tirx.ir.Range(begin=0, end=64),
     }
     check_region_bound({(i * 4, i * 4 + 8): (0, 260)}, var_dom, mode="lowerbound")
 
 
 def test_region_lower_bound_split_predicate():
-    x_o = tvm.tirx.Var("xo", "int32")
-    x_i = tvm.tirx.Var("xi", "int32")
+    x_o = tvm_tirx.tirx.Var("xo", "int32")
+    x_i = tvm_tirx.tirx.Var("xi", "int32")
     x = x_o * 4 + x_i
     var_dom = {
-        x_o: tvm.ir.Range(begin=0, end=16),
-        x_i: tvm.ir.Range(begin=0, end=4),
+        x_o: tvm_tirx.ir.Range(begin=0, end=16),
+        x_i: tvm_tirx.ir.Range(begin=0, end=4),
     }
     check_region_bound({(x * 4, x * 4 + 8): (0, 256)}, var_dom, predicate=x < 63, mode="lowerbound")
 
@@ -272,26 +272,26 @@ def test_region_lower_bound_split_predicate():
 
 
 def test_region_lower_bound_multiple_variables():
-    div = tvm.tirx.floordiv
-    mod = tvm.tirx.floormod
-    x = tvm.tirx.Var("x", "int32")
-    wid = tvm.tirx.Var("wid", "int32")
+    div = tvm_tirx.tirx.floordiv
+    mod = tvm_tirx.tirx.floormod
+    x = tvm_tirx.tirx.Var("x", "int32")
+    wid = tvm_tirx.tirx.Var("wid", "int32")
     i = div(x, 16)
     j = div(mod(x, 16), 4) * 8 + mod(x, 4) + div(wid, 32) * 4
     k = wid % 32
     var_dom = {
-        x: tvm.ir.Range(begin=0, end=32),
-        wid: tvm.ir.Range(begin=0, end=64),
+        x: tvm_tirx.ir.Range(begin=0, end=32),
+        wid: tvm_tirx.ir.Range(begin=0, end=64),
     }
     check_region_bound({i: (0, 2), j: (0, 32), k: (0, 32)}, var_dom, mode="lowerbound")
 
 
 def test_region_lower_bound_negative_scale():
-    i = tvm.tirx.Var("i", "int32")
-    j = tvm.tirx.Var("j", "int32")
+    i = tvm_tirx.tirx.Var("i", "int32")
+    j = tvm_tirx.tirx.Var("j", "int32")
     var_dom = {
-        i: tvm.ir.Range(begin=0, end=4),
-        j: tvm.ir.Range(begin=0, end=4),
+        i: tvm_tirx.ir.Range(begin=0, end=4),
+        j: tvm_tirx.ir.Range(begin=0, end=4),
     }
     check_region_bound(
         {(1 - i, 5 - i): (-2, 5), (20 - j * 4, 36 - j * 4): (8, 36)}, var_dom, mode="lowerbound"
@@ -299,20 +299,20 @@ def test_region_lower_bound_negative_scale():
 
 
 def test_region_lower_bound_for_non_perfect_tile():
-    h1 = tvm.tirx.Var("h1", "int32")
-    h2 = tvm.tirx.Var("h2", "int32")
-    h3 = tvm.tirx.Var("h3", "int32")
+    h1 = tvm_tirx.tirx.Var("h1", "int32")
+    h2 = tvm_tirx.tirx.Var("h2", "int32")
+    h3 = tvm_tirx.tirx.Var("h3", "int32")
 
     # non-uniform tiling, single inner variable
     var_dom = {
-        h2: tvm.ir.Range(begin=0, end=10),
+        h2: tvm_tirx.ir.Range(begin=0, end=10),
     }
     check_region_bound(
         {
             h3 * 8 + h2: {
                 (): (
-                    tvm.tirx.max(h3 * 8, 1),
-                    tvm.tirx.min(0, h3 * 8 - 214) + 224,
+                    tvm_tirx.tirx.max(h3 * 8, 1),
+                    tvm_tirx.tirx.min(0, h3 * 8 - 214) + 224,
                 ),
                 ((h3, 0),): (1, 10),  # h3 == 0: region is [1, 10)
                 ((h3, 10),): (h3 * 8, h3 * 8 + 10),  # 0 < h3 <= 26: region is [h3 * 8, h3 * 8 + 10)
@@ -320,21 +320,21 @@ def test_region_lower_bound_for_non_perfect_tile():
             }
         },
         var_dom,
-        predicate=tvm.tirx.all(1 <= h3 * 8 + h2, h3 * 8 + h2 < 224),
+        predicate=tvm_tirx.tirx.all(1 <= h3 * 8 + h2, h3 * 8 + h2 < 224),
         mode="lowerbound",
     )
 
     # non-uniform tiling, two inner variables
     var_dom = {
-        h1: tvm.ir.Range(begin=0, end=5),
-        h2: tvm.ir.Range(begin=0, end=2),
+        h1: tvm_tirx.ir.Range(begin=0, end=5),
+        h2: tvm_tirx.ir.Range(begin=0, end=2),
     }
     check_region_bound(
         {
             h3 * 8 + h2 * 5 + h1: {
                 (): (
-                    tvm.tirx.max(h3 * 8, 1),
-                    tvm.tirx.min(0, h3 * 8 - 214) + 224,
+                    tvm_tirx.tirx.max(h3 * 8, 1),
+                    tvm_tirx.tirx.min(0, h3 * 8 - 214) + 224,
                 ),
                 ((h3, 0),): (1, 10),
                 ((h3, 10),): (h3 * 8, h3 * 8 + 10),
@@ -342,7 +342,7 @@ def test_region_lower_bound_for_non_perfect_tile():
             }
         },
         var_dom,
-        predicate=tvm.tirx.all(1 <= h3 * 8 + h2 * 5 + h1, h3 * 8 + h2 * 5 + h1 < 224),
+        predicate=tvm_tirx.tirx.all(1 <= h3 * 8 + h2 * 5 + h1, h3 * 8 + h2 * 5 + h1 < 224),
         mode="lowerbound",
     )
 
@@ -350,46 +350,46 @@ def test_region_lower_bound_for_non_perfect_tile():
     check_region_bound(
         {h3 * 8 + h2 * 5 + h1: None},
         var_dom,
-        predicate=tvm.tirx.all(1 <= h3 * 8 + h2 * 5 + h1, h3 * 8 + h1 * 2 + h2 < 224),
+        predicate=tvm_tirx.tirx.all(1 <= h3 * 8 + h2 * 5 + h1, h3 * 8 + h1 * 2 + h2 < 224),
         mode="lowerbound",
     )
     check_region_bound(
         {h3 * 8 + h2 * 5 + h1: (h3 * 8, h3 * 8 + 10)},
         var_dom,
-        predicate=tvm.tirx.all(1 <= h3 * 8 + h2 * 5 + h1, h3 * 8 + h1 * 2 + h2 < 224),
+        predicate=tvm_tirx.tirx.all(1 <= h3 * 8 + h2 * 5 + h1, h3 * 8 + h1 * 2 + h2 < 224),
         mode="upperbound",
     )
 
 
 def test_region_lower_bound_unfusable():
     var_dom = {
-        tvm.tirx.Var("i", "int32"): tvm.ir.Range(8),
-        tvm.tirx.Var("j", "int32"): tvm.ir.Range(4),
+        tvm_tirx.tirx.Var("i", "int32"): tvm_tirx.ir.Range(8),
+        tvm_tirx.tirx.Var("j", "int32"): tvm_tirx.ir.Range(4),
     }
     i, j = var_dom
     check_region_bound({(i + j) // 2: (0, 6)}, var_dom, mode="lowerbound")
 
 
 def test_union_lower_bound():
-    neg_inf = tvm.sym.int_set.neg_inf()
-    pos_inf = tvm.sym.int_set.pos_inf()
-    set_0 = tvm.sym.IntervalSet(min_value=neg_inf, max_value=0)
-    set_1 = tvm.sym.IntervalSet(min_value=1, max_value=pos_inf)
-    result = tvm.sym.int_set.union_lower_bound([set_0, set_1])
+    neg_inf = tvm_tirx.sym.int_set.neg_inf()
+    pos_inf = tvm_tirx.sym.int_set.pos_inf()
+    set_0 = tvm_tirx.sym.IntervalSet(min_value=neg_inf, max_value=0)
+    set_1 = tvm_tirx.sym.IntervalSet(min_value=1, max_value=pos_inf)
+    result = tvm_tirx.sym.int_set.union_lower_bound([set_0, set_1])
     assert result.min_value.same_as(neg_inf)
     assert result.max_value.same_as(pos_inf)
-    set_2 = tvm.sym.IntervalSet(min_value=pos_inf, max_value=neg_inf)
-    result = tvm.sym.int_set.union_lower_bound([set_0, set_1, set_2])
+    set_2 = tvm_tirx.sym.IntervalSet(min_value=pos_inf, max_value=neg_inf)
+    result = tvm_tirx.sym.int_set.union_lower_bound([set_0, set_1, set_2])
     assert result.min_value.same_as(neg_inf)
     assert result.max_value.same_as(pos_inf)
 
 
 def test_modular_set():
     ck = IntSetChecker()
-    x = tvm.tirx.Var("x", "int32")
-    y = tvm.tirx.Var("y", "int32")
+    x = tvm_tirx.tirx.Var("x", "int32")
+    y = tvm_tirx.tirx.Var("y", "int32")
     expr = (x * 2048 + y * 16) % 7168
-    ck.verify(expr, {x: tvm.sym.IntervalSet(0, 128), y: tvm.sym.IntervalSet(0, 3584)}, (0, 7152))
+    ck.verify(expr, {x: tvm_tirx.sym.IntervalSet(0, 128), y: tvm_tirx.sym.IntervalSet(0, 3584)}, (0, 7152))
 
 
 def test_relax_deep_variable_dependency_chain():
@@ -404,42 +404,42 @@ def test_relax_deep_variable_dependency_chain():
     """
     ck = IntSetChecker()
     n = 64  # 2^64 expansions without memoization; trivially fast with it.
-    xs = [tvm.tirx.Var(f"x{i}", "int32") for i in range(n + 1)]
-    dmap = {xs[i]: tvm.sym.IntervalSet(xs[i + 1] - 1, xs[i + 1] + 1) for i in range(n)}
-    dmap[xs[n]] = tvm.sym.IntervalSet(0, 100)
+    xs = [tvm_tirx.tirx.Var(f"x{i}", "int32") for i in range(n + 1)]
+    dmap = {xs[i]: tvm_tirx.sym.IntervalSet(xs[i + 1] - 1, xs[i + 1] + 1) for i in range(n)}
+    dmap[xs[n]] = tvm_tirx.sym.IntervalSet(0, 100)
     # x0 relaxes through the whole chain: [0 - n, 100 + n].
     ck.verify(xs[0], dmap, (-n, 100 + n))
 
 
 def test_relax_cyclic_variable_dependency():
     """A cyclic variable dependency must terminate (and stay symbolic)."""
-    ana = tvm.sym.Analyzer()
-    x = tvm.tirx.Var("x", "int32")
-    y = tvm.tirx.Var("y", "int32")
+    ana = tvm_tirx.sym.Analyzer()
+    x = tvm_tirx.tirx.Var("x", "int32")
+    y = tvm_tirx.tirx.Var("y", "int32")
     # x depends on y and y depends on x: relaxation must not loop forever.
-    dmap = {x: tvm.sym.IntervalSet(y, y), y: tvm.sym.IntervalSet(x, x)}
+    dmap = {x: tvm_tirx.sym.IntervalSet(y, y), y: tvm_tirx.sym.IntervalSet(x, x)}
     res = ana.int_set(x, dmap)
     assert res is not None
 
 
 def test_estimate_region_accepts_external_analyzer():
-    i = tvm.tirx.Var("i", "int32")
-    tile = tvm.tirx.Var("tile", "int32")
-    region = [tvm.ir.Range.from_min_extent(i % tile, 1)]
-    dom = {i: tvm.ir.Range(0, 16)}
+    i = tvm_tirx.tirx.Var("i", "int32")
+    tile = tvm_tirx.tirx.Var("tile", "int32")
+    region = [tvm_tirx.ir.Range.from_min_extent(i % tile, 1)]
+    dom = {i: tvm_tirx.ir.Range(0, 16)}
 
     # Without knowing `tile`, the affine detection fails for exact bounds.
-    assert tvm.sym.estimate_region_lower_bound(region, dom, True) is None
-    assert tvm.sym.estimate_region_strict_bound(region, dom, True) is None
-    upper_without_analyzer = tvm.sym.estimate_region_upper_bound(region, dom, True)
+    assert tvm_tirx.sym.estimate_region_lower_bound(region, dom, True) is None
+    assert tvm_tirx.sym.estimate_region_strict_bound(region, dom, True) is None
+    upper_without_analyzer = tvm_tirx.sym.estimate_region_upper_bound(region, dom, True)
 
-    analyzer = tvm.sym.Analyzer()
-    analyzer.bind(tile, tvm.tirx.const(4, "int32"))
+    analyzer = tvm_tirx.sym.Analyzer()
+    analyzer.bind(tile, tvm_tirx.tirx.const(4, "int32"))
     # The external binding lets the affine detection succeed.
     for estimate_region in [
-        tvm.sym.estimate_region_lower_bound,
-        tvm.sym.estimate_region_strict_bound,
-        tvm.sym.estimate_region_upper_bound,
+        tvm_tirx.sym.estimate_region_lower_bound,
+        tvm_tirx.sym.estimate_region_strict_bound,
+        tvm_tirx.sym.estimate_region_upper_bound,
     ]:
         result = estimate_region(region, dom, True, analyzer=analyzer)
         assert result is not None
@@ -451,4 +451,4 @@ def test_estimate_region_accepts_external_analyzer():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

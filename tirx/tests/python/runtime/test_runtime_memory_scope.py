@@ -27,8 +27,8 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm
-from tvm.runtime import MemoryScope
+import tvm_tirx
+from tvm_tirx.runtime import MemoryScope
 
 
 def new_scope():
@@ -76,14 +76,14 @@ def test_shared_cpp_python_registry():
 def test_runtime_tensor_allocation():
     expected = np.arange(4, dtype="float32")
     for scope in (None, "global", MemoryScope("global")):
-        tensor = tvm.runtime.tensor(expected, tvm.cpu(), mem_scope=scope)
+        tensor = tvm_tirx.runtime.tensor(expected, tvm_tirx.cpu(), mem_scope=scope)
         np.testing.assert_array_equal(tensor.numpy(), expected)
-        np.testing.assert_array_equal(tensor.copyto(tvm.cpu(), mem_scope=scope).numpy(), expected)
+        np.testing.assert_array_equal(tensor.copyto(tvm_tirx.cpu(), mem_scope=scope).numpy(), expected)
     for scope in ("", "test.memory_scope.unregistered"):
         with pytest.raises(ValueError):
-            tvm.runtime.empty((4,), mem_scope=scope)
+            tvm_tirx.runtime.empty((4,), mem_scope=scope)
     with pytest.raises(ValueError, match="Unsupported memory scope"):
-        tvm.runtime.empty((4,), mem_scope=new_scope())
+        tvm_tirx.runtime.empty((4,), mem_scope=new_scope())
 
 
 def test_runtime_only_registration():
@@ -93,14 +93,14 @@ def test_runtime_only_registration():
             sys.executable,
             "-c",
             """
-import tvm
-from tvm.runtime import MemoryScope
-assert tvm.base._RUNTIME_ONLY
+import tvm_tirx
+from tvm_tirx.runtime import MemoryScope
+assert tvm_tirx.base._RUNTIME_ONLY
 for name in ("global", "shared", "shared.dyn", "warp", "local"):
     assert MemoryScope(name).name == name
 for name, allocator in (("nvshmem", "runtime.disco.nvshmem.empty"),
                         ("ipc_memory", "runtime.disco.cuda_ipc.empty")):
-    if tvm.get_global_func(allocator, allow_missing=True) is not None:
+    if tvm_tirx.get_global_func(allocator, allow_missing=True) is not None:
         assert MemoryScope(name).name == name
     else:
         try:
@@ -120,13 +120,13 @@ assert custom.same_as(MemoryScope(custom.name))
 
 @pytest.mark.parametrize("load_order", ["runtime_only", "runtime_first", "compiler_first"])
 def test_opencl_memory_scope_registration_load_order(load_order):
-    runtime_path = Path(tvm.base._LOADED_LIBS["tvm_runtime"]._name).resolve()
+    runtime_path = Path(tvm_tirx.base._LOADED_LIBS["tvm_runtime"]._name).resolve()
     opencl_path = runtime_path.with_name(
         runtime_path.name.replace("tvm_runtime", "tvm_runtime_opencl")
     )
     if not opencl_path.is_file():
         pytest.skip("OpenCL runtime sidecar is not built")
-    compiler = tvm.base._LOADED_LIBS.get("tvm_compiler")
+    compiler = tvm_tirx.base._LOADED_LIBS.get("tvm_compiler")
     if compiler is None and load_order != "runtime_only":
         pytest.skip("Compiler library is not available")
     env = {
@@ -151,10 +151,10 @@ if load_order == "runtime_first":
     handles.append(ctypes.CDLL(runtime_path, mode=ctypes.RTLD_GLOBAL))
     handles.append(ctypes.CDLL(opencl_path, mode=ctypes.RTLD_LOCAL))
 
-import tvm
-from tvm.runtime import MemoryScope
+import tvm_tirx
+from tvm_tirx.runtime import MemoryScope
 
-assert tvm.base._RUNTIME_ONLY == (load_order == "runtime_only")
+assert tvm_tirx.base._RUNTIME_ONLY == (load_order == "runtime_only")
 names = ("texture", "global.texture", "global.texture-1d", "global.texture-nchw",
          "global.texture-nhwc", "global.texture-weight")
 identities = None

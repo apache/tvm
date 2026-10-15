@@ -25,7 +25,7 @@ from __future__ import annotations
 import ast
 from textwrap import dedent
 
-from tvm.script.parser import entry
+from tvm_tirx.script.parser import entry
 
 
 def test_parse_string_returns_fresh_symbols(language):

@@ -18,7 +18,7 @@
 
 from typing import Any
 
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Call, Expr
 from . import _ffi_api
@@ -43,7 +43,7 @@ def min_value(dtype, loc: Location = UNKNOWN_LOC):
 
     Returns
     -------
-    value : tvm.ir.Expr
+    value : tvm_tirx.ir.Expr
         The minimum value of dtype.
     """
     return _ffi_api.min_value(dtype, loc)  # type: ignore
@@ -62,7 +62,7 @@ def max_value(dtype: str, loc: Location = UNKNOWN_LOC) -> Any:
 
     Returns
     -------
-    value : tvm.ir.Expr
+    value : tvm_tirx.ir.Expr
         The maximum value of dtype.
     """
     return _ffi_api.max_value(dtype, loc)  # type: ignore

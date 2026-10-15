@@ -31,9 +31,9 @@ Parameters: dst, src, scope; pred=None. Shared descriptor byte strides and
 swizzle are extracted from the operand image. One repeat emits one cp.
 """
 
-from tvm.backend.cuda.op import _tmem_address
-from tvm.backend.cuda.ptx import PTXNamespace
-from tvm.script import tirx as T
+from tvm_tirx.backend.cuda.op import _tmem_address
+from tvm_tirx.backend.cuda.ptx import PTXNamespace
+from tvm_tirx.script import tirx as T
 
 from .common import Context
 from .descriptors import matrix_descriptor

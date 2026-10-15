@@ -23,7 +23,7 @@ from pathlib import Path
 
 import tvm_ffi
 
-from tvm import ir
+from tvm_tirx import ir
 
 from . import _ffi_api
 from .base import IRBuilder

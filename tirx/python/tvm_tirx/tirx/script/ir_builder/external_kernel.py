@@ -24,11 +24,11 @@ from typing import Any
 
 import tvm_ffi
 
-from tvm import __version__ as tvm_version
-from tvm import libinfo, tirx
-from tvm.backend.config import backend_config_json, merge_backend_configs
-from tvm.ir import Expr, PtrType, const, is_prim_expr
-from tvm.runtime import Module
+from tvm_tirx import __version__ as tvm_version
+from tvm_tirx import libinfo, tirx
+from tvm_tirx.backend.config import backend_config_json, merge_backend_configs
+from tvm_tirx.ir import Expr, PtrType, const, is_prim_expr
+from tvm_tirx.runtime import Module
 
 
 class BaseKernel:  # pylint: disable=too-few-public-methods
@@ -165,7 +165,7 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
         except:  # pylint: disable=bare-except
             pass
 
-        from tvm.backend.cuda.compiler import compile_source
+        from tvm_tirx.backend.cuda.compiler import compile_source
 
         flags = ["--use_fast_math", "--std=c++17"]
         config = merge_backend_configs(
@@ -212,7 +212,7 @@ def call_kernel(
     kwargs : Dict[str, Any]
         Additional keyword arguments to pass to the kernel or compilation.
     """
-    from tvm.script.ir_builder.ir import (  # pylint: disable=import-outside-toplevel
+    from tvm_tirx.script.ir_builder.ir import (  # pylint: disable=import-outside-toplevel
         module_get_attr,
         module_set_attr,
     )
