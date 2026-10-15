@@ -25,7 +25,10 @@ if(USE_OPENCL)
       "src/backend/opencl/runtime/opencl_wrapper/opencl_wrapper.cc"
     )
     list(APPEND RUNTIME_OPENCL_SRCS ${OPENCL_WRAPPER_SRCS})
-    set(_opencl_include_dirs "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/OpenCL-Headers")
+    find_path(TVM_OPENCL_HEADERS_DIR CL/cl.h
+      HINTS "${TVM_OPENCL_HEADERS_ROOT}" ENV OPENCL_SDK
+      PATH_SUFFIXES include REQUIRED)
+    set(_opencl_include_dirs "${TVM_OPENCL_HEADERS_DIR}")
   else()
     find_opencl(${USE_OPENCL})
     if(NOT OpenCL_FOUND)
@@ -61,11 +64,7 @@ if(USE_OPENCL)
     "$<BUILD_INTERFACE:${_opencl_include_dirs}>")
   tvm_configure_target_library(tvm_runtime_opencl RUNTIME_MODULE)
 
-  if(USE_CLML_GRAPH_EXECUTOR)
-    # CLML calls both OpenCL SDK and TVM OpenCL runtime APIs directly.
-    target_link_libraries(tvm_clml_objs PRIVATE tvm_runtime_opencl)
-    target_link_libraries(tvm_runtime_extra PRIVATE tvm_runtime_opencl ${_opencl_libs})
-  endif()
+
 
   if(USE_OPENCL_ENABLE_HOST_PTR)
     target_compile_definitions(tvm_runtime_opencl_objs PRIVATE OPENCL_ENABLE_HOST_PTR)

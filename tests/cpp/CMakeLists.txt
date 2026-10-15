@@ -16,7 +16,7 @@
 # under the License.
 
 # Enable ctest if gtest is available
-if(USE_GTEST)
+if(USE_GTEST AND NOT BUILD_TESTING STREQUAL "OFF")
   # Check env var for backward compatibility. A better way to specify package
   # locations is to use CMAKE_PREFIX_PATH or other standard CMake mechanism
   # (see CMake documentation for `find_package`).

@@ -16,7 +16,7 @@
 # under the License.
 
 # CUDA Module
-find_cuda(${USE_CUDA} ${USE_CUDNN})
+find_cuda(${USE_CUDA} OFF)
 
 if(CUDA_FOUND)
   # always set the includedir when CUDA is available
@@ -70,9 +70,8 @@ if(USE_CUDA)
   endif()
 
   tvm_file_glob(GLOB RUNTIME_CUDA_SRCS src/backend/cuda/runtime/*.cc)
-  tvm_file_glob(GLOB VM_CUDA_BUILTIN_SRC_CC src/runtime/vm/cuda/*.cc)
 
-  add_library(tvm_runtime_cuda_objs OBJECT ${RUNTIME_CUDA_SRCS} ${VM_CUDA_BUILTIN_SRC_CC})
+  add_library(tvm_runtime_cuda_objs OBJECT ${RUNTIME_CUDA_SRCS})
   target_link_libraries(tvm_runtime_cuda_objs PUBLIC tvm_ffi_header)
   # These sources compile into tvm_runtime_cuda.dll, so their TVM_RUNTIME_DLL /
   # TVM_FFI_DLL symbols must be dllexport on MSVC (e.g. GetCudaDeviceCount in
@@ -92,71 +91,3 @@ if(USE_CUDA)
     target_link_libraries(tvm_runtime_cuda PRIVATE ${CUDA_NVTX_LIBRARY})
   endif()
 endif(USE_CUDA)
-
-# Contrib sources gated by USE_CUDA go into libtvm_runtime_extra.
-# See the RuntimeExtra assembly block in CMakeLists.txt.
-
-if(USE_CUDA AND USE_CUDNN)
-  message(STATUS "Build with cuDNN support")
-  include_directories(SYSTEM ${CUDA_CUDNN_INCLUDE_DIRS})
-  tvm_file_glob(GLOB CUDNN_RELAX_CONTRIB_SRC src/relax/backend/contrib/cudnn/*.cc)
-  list(APPEND COMPILER_SRCS ${CUDNN_RELAX_CONTRIB_SRC})
-  tvm_file_glob(GLOB CONTRIB_CUDNN_SRCS src/runtime/extra/contrib/cudnn/*.cc)
-  add_library(tvm_cudnn_objs OBJECT ${CONTRIB_CUDNN_SRCS})
-  target_link_libraries(tvm_cudnn_objs PRIVATE tvm_runtime_extra_defs)
-  target_link_libraries(tvm_runtime_extra PRIVATE tvm_cudnn_objs ${CUDA_CUDNN_LIBRARY})
-endif(USE_CUDA AND USE_CUDNN)
-
-if(USE_CUDA AND USE_CUDNN_FRONTEND)
-  message(STATUS "Build with cuDNN Frontend support")
-  if(IS_DIRECTORY ${USE_CUDNN_FRONTEND})
-    find_file(CUDNN_FRONTEND_HEADER cudnn_frontend.h HINTS ${USE_CUDNN_FRONTEND}/include)
-    include_directories(SYSTEM ${USE_CUDNN_FRONTEND}/include)
-  else()
-    find_file(CUDNN_FRONTEND_HEADER cudnn_frontend.h)
-  endif()
-  if(NOT CUDNN_FRONTEND_HEADER)
-    message(FATAL_ERROR "Cannot find cudnn_frontend.h, please set USE_CUDNN_FRONTEND to the path of the cuDNN frontend header")
-  endif()
-  tvm_file_glob(GLOB CONTRIB_CUDNN_FRONTEND_SRCS src/runtime/extra/contrib/cudnn/cudnn_frontend/*.cc)
-  set_source_files_properties(${CONTRIB_CUDNN_SRCS} PROPERTIES COMPILE_DEFINITIONS TVM_USE_CUDNN_FRONTEND=1)
-  add_library(tvm_cudnn_frontend_objs OBJECT ${CONTRIB_CUDNN_FRONTEND_SRCS})
-  target_link_libraries(tvm_cudnn_frontend_objs PRIVATE tvm_runtime_extra_defs)
-  target_link_libraries(tvm_runtime_extra PRIVATE tvm_cudnn_frontend_objs)
-endif(USE_CUDA AND USE_CUDNN_FRONTEND)
-
-if(USE_CUDA AND USE_CUBLAS)
-  message(STATUS "Build with cuBLAS support")
-  tvm_file_glob(GLOB CUBLAS_CONTRIB_SRC src/relax/backend/contrib/cublas/*.cc)
-  list(APPEND COMPILER_SRCS ${CUBLAS_CONTRIB_SRC})
-  tvm_file_glob(GLOB CONTRIB_CUBLAS_SRCS src/runtime/extra/contrib/cublas/*.cc)
-  add_library(tvm_cublas_objs OBJECT ${CONTRIB_CUBLAS_SRCS})
-  target_link_libraries(tvm_cublas_objs PRIVATE tvm_runtime_extra_defs)
-  target_link_libraries(tvm_runtime_extra PRIVATE tvm_cublas_objs ${CUDA_CUBLAS_LIBRARY})
-  if(NOT CUDA_CUBLASLT_LIBRARY STREQUAL "CUDA_CUBLASLT_LIBRARY-NOTFOUND")
-    target_link_libraries(tvm_runtime_extra PRIVATE ${CUDA_CUBLASLT_LIBRARY})
-  endif()
-endif(USE_CUDA AND USE_CUBLAS)
-
-if(USE_CUDA AND USE_THRUST)
-  message(STATUS "Build with Thrust support")
-  tvm_file_glob(GLOB CONTRIB_THRUST_SRC src/runtime/extra/contrib/thrust/*.cu)
-  add_library(tvm_thrust_objs OBJECT ${CONTRIB_THRUST_SRC})
-  target_link_libraries(tvm_thrust_objs PRIVATE tvm_runtime_extra_defs)
-  target_compile_options(tvm_thrust_objs PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>)
-  if(NOT USE_THRUST MATCHES ${IS_TRUE_PATTERN})
-    find_package(CCCL REQUIRED COMPONENTS Thrust)
-    target_link_libraries(tvm_thrust_objs PRIVATE CCCL::Thrust)
-  endif()
-  target_link_libraries(tvm_runtime_extra PRIVATE tvm_thrust_objs)
-endif(USE_CUDA AND USE_THRUST)
-
-if(USE_CUDA AND USE_CURAND)
-  message(STATUS "Build with cuRAND support")
-  message(STATUS "${CUDA_CURAND_LIBRARY}")
-  tvm_file_glob(GLOB CONTRIB_CURAND_SRC_CC src/runtime/extra/contrib/curand/*.cc)
-  tvm_file_glob(GLOB CONTRIB_CURAND_SRC_CU src/runtime/extra/contrib/curand/*.cu)
-  add_library(tvm_curand_objs OBJECT ${CONTRIB_CURAND_SRC_CC} ${CONTRIB_CURAND_SRC_CU})
-  target_link_libraries(tvm_curand_objs PRIVATE tvm_runtime_extra_defs)
-  target_link_libraries(tvm_runtime_extra PRIVATE tvm_curand_objs ${CUDA_CURAND_LIBRARY})
-endif(USE_CUDA AND USE_CURAND)

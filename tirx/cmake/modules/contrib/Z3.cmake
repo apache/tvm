@@ -95,3 +95,15 @@ endif()
 # Enable the real Z3 implementation inside the single src/sym/z3_prover.cc file.
 add_compile_definitions(TVM_USE_Z3)
 message(STATUS "Build with Z3 SMT solver support")
+
+if(TVM_BUILD_PYTHON_MODULE AND Z3_TARGET)
+  get_target_property(_z3_target_type ${Z3_TARGET} TYPE)
+  if(_z3_target_type STREQUAL "STATIC_LIBRARY" AND Python3_EXECUTABLE)
+    execute_process(COMMAND "${Python3_EXECUTABLE}" -c
+      "import importlib.util; from pathlib import Path; s=importlib.util.find_spec('mlc_z3_static'); print(Path(s.origin).parent / 'licenses/LICENSE-Z3.txt' if s else '')"
+      OUTPUT_VARIABLE _z3_license OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(EXISTS "${_z3_license}")
+      install(FILES "${_z3_license}" DESTINATION licenses)
+    endif()
+  endif()
+endif()
