@@ -45,7 +45,23 @@ Despite the historical directory name, these are native Groovy sources: edit
 and review them directly. `generated/common.groovy` shares preparation, checkout,
 Docker setup, artifacts and spot fallback policy. Platform commands and deployment
 stay visible in their respective job files. Image tags remain in
-`docker-images.ini`; artifact bundles remain in `data.py`.
+`docker-images.ini`; artifact bundles remain in `artifacts.py`. Bundle entries may
+contain repository-relative globs such as `build/dist/*.whl`. Upload expands
+patterns locally, sorts and deduplicates the paths, and keeps their relative
+paths under the S3 prefix. Unmatched patterns produce a warning; missing literal
+optional artifacts retain their warning-and-skip behavior. Directories keep
+recursive upload behavior. Download still copies the complete prefix without
+expanding local or remote globs.
+Use `s3.py --artifacts NAME...` to select registry entries or `--paths PATH...`
+to select raw paths; the selections are mutually exclusive. Existing Jenkinsfiles
+can keep `--bundle` and `--items`, which are aliases with the same semantics.
+The shared helper's legacy `upload(tag, options)` passes those options unchanged.
+`artifacts.py` exposes the declarative `ARTIFACTS` registry; there is no `data.py`
+compatibility module.
+
+The shared helper groups internal dependencies first, public entry points next,
+and retained legacy functions last. Existing function signatures, shared variables,
+startup and retry behavior remain available to the platform Jenkinsfiles.
 
 Host-side commands live in `scripts/`. GitHub bot and release API helpers live
 in `../github/`. The retained `determine_docker_images.py` supports both
@@ -54,23 +70,23 @@ and the standalone skip commands retain their command-line interfaces.
 
 ### Trust and rollout
 
-Each entry point first reads the shared helper with `readTrusted` at Jenkins'
-selected SCM revision. Trusted named branches retain their own helper. For PRs,
-Jenkins rejects an untrusted helper modification and may report a deleted helper
-as missing. These specific read failures recover by fetching `refs/heads/main`
-from the fixed `https://github.com/apache/tvm.git` URL into a fresh temporary bare
-repository on a small CPU node. The fetched commit is resolved and its helper
-blob is read directly, without checking out or evaluating PR-owned code. Recovery
-always uses latest upstream main, including for release-target PRs.
-
-Other read failures, cancellation, fallback fetch/read failures and helper
-evaluation errors propagate. Evaluation occurs outside the read-recovery block.
-The fallback requires no credentials or controller configuration changes.
+Each entry point evaluates the shared helper returned by `readTrusted` at
+Jenkins' selected SCM revision. Untrusted PRs that modify or delete the helper
+fail immediately, before node allocation, checkout, or credentials. Missing
+helpers, interrupted reads, and evaluation errors also propagate directly.
+No alternative helper is fetched or evaluated. Trusted named branches retain
+their selected helper revision.
 
 Cancellation runs once before preparation. During preparation, the normal source
 merge pins the PR target revision for subsequent stages, including release
 targets. Host scripts and artifact metadata follow that pinned target revision
 for PR authors outside `CONTRIBUTORS.md`.
+
+The pinned target must contain the coordinated `artifacts.py` and `s3.py` update.
+Before that update reaches a target, a Jenkins-trusted PR from an author outside
+its contributor list cannot restore the renamed registry, and that build fails.
+Use a trusted named branch for the transition; do not bypass the trusted-file
+checkout or mix the old target's script with a PR-owned registry.
 
 The obsolete `ci/scripts/` copies and old node-info path have been removed now
 that main's Jenkinsfiles use the canonical layout. The live `task_build.py`,
@@ -82,7 +98,7 @@ Before enabling the migration on production jobs, validate it with the existing
 Jenkins plugin versions and sandbox settings on a trusted branch: run all five
 entry points, suspend/resume across a node step, and exercise spot loss, a normal
 build-command failure, superseded builds, and a failed on-demand retry. Check
-trusted helper changes, untrusted PRs without helper changes, and recovery of
+trusted helper changes, untrusted PRs without helper changes, and refusal of
 untrusted modified/deleted helpers, including a release-target PR. Verify image
 overrides and disabled deployment gates before
 checking enabled docs/Docker deployment in the normal trusted deployment context.

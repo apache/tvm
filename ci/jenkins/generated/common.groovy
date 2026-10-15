@@ -82,7 +82,7 @@ def checkout_trusted_files() {
     // (especially those that access secrets) should be checked out here so
     // only trusted versions are used in CI
     sh(
-      script: "git checkout ${upstream_revision} ${jenkins_scripts_root}/. ci/jenkins/data.py",
+      script: "git checkout ${upstream_revision} ${jenkins_scripts_root}/. ci/jenkins/artifacts.py",
       label: 'Check out trusted files',
     )
   }

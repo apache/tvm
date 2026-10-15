@@ -30,19 +30,12 @@ class LoaderPipeline extends Script {
     return 'selected revision helper'
   }
   def node(String label, Closure body) {
-    assert label == 'CPU-SMALL'
-    state.nodes++
-    body()
+    throw new AssertionError('loader allocated a node')
   }
   def sh(Map options) {
-    state.fetches++
-    assert options.returnStdout
-    assert options.script.contains('https://github.com/apache/tvm.git')
-    assert options.script.contains('+refs/heads/main:refs/heads/trusted-main')
-    assert !options.script.contains('CHANGE_TARGET')
-    if (state.fetchFailure) throw state.fetchFailure
-    return 'latest main helper'
+    throw new AssertionError('loader ran a shell command')
   }
+
 }
 
 def loader = new GroovyClassLoader(getClass().classLoader)
@@ -54,20 +47,17 @@ def missing = { new FileNotFoundException(helper) }
 def cases = [
   [name: 'unchanged PR'],
   [name: 'trusted named branch', branch: true],
-  [name: 'modified PR', readFailure: modified(), fallback: true],
-  [name: 'deleted PR lightweight', readFailure: missing(), fallback: true],
-  [name: 'deleted PR heavyweight', readFailure: abort.newInstance("/workspace/trusted/${helper} not found".toString()), fallback: true],
-  [name: 'release target PR', readFailure: modified(), fallback: true, target: 'release'],
+  [name: 'modified PR', readFailure: modified()],
+  [name: 'deleted PR lightweight', readFailure: missing()],
+  [name: 'deleted PR heavyweight', readFailure: abort.newInstance("/workspace/trusted/${helper} not found".toString())],
+  [name: 'release target PR', readFailure: modified(), target: 'release'],
   [name: 'missing named branch', branch: true, readFailure: missing()],
   [name: 'rejected named branch', branch: true, readFailure: modified()],
   [name: 'unrelated abort', readFailure: abort.newInstance('controller offline')],
   [name: 'unrelated missing file', readFailure: new FileNotFoundException('other/file')],
   [name: 'read network failure', readFailure: new IOException('network')],
   [name: 'interrupted read', readFailure: new InterruptedException('cancelled')],
-  [name: 'fetch failure', readFailure: modified(), fallback: true, fetchFailure: new IOException('fetch failed')],
-  [name: 'missing main helper', readFailure: missing(), fallback: true, fetchFailure: abort.newInstance('main helper missing')],
   [name: 'selected evaluation error', evaluationFailure: new IllegalStateException('bad helper')],
-  [name: 'fallback evaluation error', readFailure: modified(), fallback: true, evaluationFailure: new IllegalStateException('bad main helper')],
 ]
 int count = 0
 args.each { filename ->
@@ -82,12 +72,12 @@ args.each { filename ->
     } catch (Throwable caught) {
       failure = caught
     }
-    def expected = scenario.fetchFailure ?: scenario.evaluationFailure ?: (scenario.fallback ? null : scenario.readFailure)
+    def expected = scenario.readFailure ?: scenario.evaluationFailure
     assert failure.is(expected): "${filename}: ${scenario.name}: ${failure} != ${expected}"
-    assert state.nodes == (scenario.fallback ? 1 : 0): scenario.name
-    assert state.fetches == (scenario.fallback ? 1 : 0): scenario.name
-    def shouldEvaluate = (!scenario.readFailure || scenario.fallback) && !scenario.fetchFailure
-    assert state.evaluated == (shouldEvaluate ? [scenario.fallback ? 'latest main helper' : 'selected revision helper'] : []): scenario.name
+    assert state.nodes == 0: scenario.name
+    assert state.fetches == 0: scenario.name
+    def shouldEvaluate = !scenario.readFailure
+    assert state.evaluated == (shouldEvaluate ? ['selected revision helper'] : []): scenario.name
     count++
   }
 }
