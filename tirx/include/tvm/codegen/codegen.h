@@ -41,7 +41,7 @@ namespace codegen {
  * \param target The target to be built.
  * \return The generated module.
  */
-TVM_DLL ffi::Module Build(IRModule mod, Target target);
+TVM_TIRX_DLL ffi::Module Build(IRModule mod, Target target);
 
 /*!
  * \brief Pack imported device library to a C file.
@@ -54,7 +54,7 @@ TVM_DLL ffi::Module Build(IRModule mod, Target target);
  * \param c_symbol_prefix Optional symbol prefix of the blob symbol.
  * \return cstr The C string representation of the file.
  */
-TVM_DLL std::string PackImportsToC(const ffi::Module& m, bool system_lib,
+TVM_TIRX_DLL std::string PackImportsToC(const ffi::Module& m, bool system_lib,
                                    const std::string& c_symbol_prefix = "");
 
 /*!
@@ -69,7 +69,7 @@ TVM_DLL std::string PackImportsToC(const ffi::Module& m, bool system_lib,
  * \param file_name Output path; its extension selects the object format.
  * \param c_symbol_prefix Optional blob symbol prefix, valid only for system libraries.
  */
-TVM_DLL void PackImportsToObjectFile(const ffi::Module& mod, bool system_lib,
+TVM_TIRX_DLL void PackImportsToObjectFile(const ffi::Module& mod, bool system_lib,
                                      const std::string& llvm_target_string,
                                      const std::string& file_name,
                                      const std::string& c_symbol_prefix = "");

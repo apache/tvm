@@ -35,21 +35,21 @@
 #include <cstring>
 #include <limits>
 
-#include "src/runtime/cpu_device_api.cc"
-#include "src/runtime/device_api.cc"
+#include "tirx/src/runtime/cpu_device_api.cc"
+#include "tirx/src/runtime/device_api.cc"
 #include "src/runtime/extra/contrib/sort/sort.cc"
-#include "src/runtime/logging.cc"
-#include "src/runtime/metadata.cc"
+#include "tirx/src/runtime/logging.cc"
+#include "tirx/src/runtime/metadata.cc"
 #include "src/runtime/rpc/rpc_channel.cc"
 #include "src/runtime/rpc/rpc_endpoint.cc"
 #include "src/runtime/rpc/rpc_event_impl.cc"
 #include "src/runtime/rpc/rpc_local_session.cc"
 #include "src/runtime/rpc/rpc_module.cc"
 #include "src/runtime/rpc/rpc_session.cc"
-#include "src/runtime/tensor.cc"
-#include "src/runtime/timer.cc"
+#include "tirx/src/runtime/tensor.cc"
+#include "tirx/src/runtime/timer.cc"
 #include "src/runtime/vm/params.cc"
-#include "src/runtime/workspace_pool.cc"
+#include "tirx/src/runtime/workspace_pool.cc"
 // relax setup
 #include "3rdparty/tvm-ffi/src/ffi/backtrace.cc"
 #include "3rdparty/tvm-ffi/src/ffi/container.cc"
@@ -69,7 +69,7 @@
 #include "3rdparty/tvm-ffi/src/ffi/tensor.cc"
 #include "3rdparty/tvm-ffi/src/ffi/testing/testing.cc"
 // Enum registration requires the FFI type-attribute registry above.
-#include "src/runtime/memory_scope.cc"
+#include "tirx/src/runtime/memory_scope.cc"
 #include "src/runtime/vm/attn_backend.cc"
 #include "src/runtime/vm/builtin.cc"
 #include "src/runtime/vm/bytecode.cc"

@@ -101,14 +101,14 @@ inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
  * The expansion clamps the input to [-4, 4] and evaluates numerator and
  * denominator polynomials using the input element width; other types are rejected.
  */
-TVM_DLL PrimExpr DispatchFastErf(const PrimExpr& e);
+TVM_TIRX_DLL PrimExpr DispatchFastErf(const PrimExpr& e);
 
 /*!
  * \brief Lower a unary floating-point tanh call using sign-dependent exponential formulas.
  * The expansion avoids the large-positive-input overflow of the symmetric formula;
  * accuracy follows the floating-point arithmetic and exponential lowering in use.
  */
-TVM_DLL PrimExpr DispatchNumericallyStableTanh(const PrimExpr& e);
+TVM_TIRX_DLL PrimExpr DispatchNumericallyStableTanh(const PrimExpr& e);
 
 }  // namespace intrin
 }  // namespace codegen

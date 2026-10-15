@@ -38,7 +38,7 @@
 #include <mutex>
 #include <string>
 
-#include "../../src/runtime/metadata.h"
+#include "../../tirx/src/runtime/metadata.h"
 
 namespace tvm {
 namespace runtime {
