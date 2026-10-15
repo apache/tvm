@@ -284,7 +284,12 @@ def has_cublas() -> bool:
 
 def has_nccl() -> bool:
     """True if NCCL was built in and a CUDA device is present."""
-    return has_cuda() and build_flag_enabled("USE_NCCL")
+    try:
+        return has_cuda() and (
+            tvm_tirx.get_global_func("runtime.disco.nccl.init_ccl", allow_missing=True) is not None
+        )
+    except Exception:  # pylint: disable=broad-except
+        return False
 
 
 def has_hipblas() -> bool:
