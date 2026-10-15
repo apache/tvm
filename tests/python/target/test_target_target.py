@@ -20,33 +20,34 @@ import pytest
 import tvm_ffi
 
 import tvm
-import tvm.testing
-from tvm.script import s_tir as Ts
-from tvm.target import Target
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
+from tvm_tirx.target import Target
+from tvm_tirx.testing import env
 
 
 def test_all_targets_device_type_verify():
     """Consistency verification for all targets' device type"""
-    for target_kind in tvm.target.Target.list_kinds():
+    for target_kind in tvm_tirx.target.Target.list_kinds():
         target = Target(target_kind)
-        device = tvm.device_from_target(target)
+        device = tvm_tirx.device_from_target(target)
 
         assert device.dlpack_device_type() == target.get_target_device_type()
 
 
 @pytest.mark.parametrize("target", ["llvm", {"kind": "llvm"}, Target("llvm")])
 def test_device_from_target_input_forms(target):
-    assert tvm.device_from_target(target) == tvm.cpu()
+    assert tvm_tirx.device_from_target(target) == tvm_tirx.cpu()
 
 
 def test_device_from_target_compiler_only_kind():
-    assert tvm.device_from_target("composite") == tvm.cpu()
+    assert tvm_tirx.device_from_target("composite") == tvm_tirx.cpu()
 
 
 def test_device_from_target_index():
-    assert tvm.device_from_target("llvm").index == 0
-    assert tvm.device_from_target("llvm", 3).index == 3
+    assert tvm_tirx.device_from_target("llvm").index == 0
+    assert tvm_tirx.device_from_target("llvm", 3).index == 3
 
 
 def test_device_from_target_override():
@@ -57,11 +58,13 @@ def test_device_from_target_override():
         }
     )
 
-    assert tvm.device_from_target(target).dlpack_device_type() == tvm_ffi.DLDeviceType.kDLCUDA
+    assert tvm_tirx.device_from_target(target).dlpack_device_type() == tvm_ffi.DLDeviceType.kDLCUDA
 
 
 def test_target_string_parse():
-    target = tvm.target.Target({"kind": "cuda", "model": "unknown", "libs": ["cublas", "cudnn"]})
+    target = tvm_tirx.target.Target(
+        {"kind": "cuda", "model": "unknown", "libs": ["cublas", "cudnn"]}
+    )
 
     assert target.kind.name == "cuda"
     assert target.attrs["model"] == "unknown"
@@ -77,20 +80,20 @@ def test_target_string_parse():
 
 
 def test_target_string_with_spaces():
-    target = tvm.target.Target(
+    target = tvm_tirx.target.Target(
         {"kind": "vulkan", "device_name": "Name of GPU with spaces", "device_type": "discrete"}
     )
     assert target.attrs["device_name"] == "Name of GPU with spaces"
     assert target.attrs["device_type"] == "discrete"
 
-    target = tvm.target.Target(str(target))
+    target = tvm_tirx.target.Target(str(target))
 
     assert target.attrs["device_name"] == "Name of GPU with spaces"
     assert target.attrs["device_type"] == "discrete"
 
 
 def test_target_llvm_options():
-    target = tvm.target.Target(
+    target = tvm_tirx.target.Target(
         {"kind": "llvm", "cl-opt": ["-unroll-threshold:uint=100", "-unroll-count:uint=3"]}
     )
     assert sorted(target.attrs["cl-opt"]) == sorted(
@@ -99,9 +102,9 @@ def test_target_llvm_options():
 
 
 def test_target_llvm_vector_width():
-    target = tvm.target.Target({"kind": "llvm", "vector-width": 256})
+    target = tvm_tirx.target.Target({"kind": "llvm", "vector-width": 256})
     assert target.attrs["vector-width"] == 256
-    target = tvm.target.Target({"kind": "llvm", "vector-width": 1024})
+    target = tvm_tirx.target.Target({"kind": "llvm", "vector-width": 1024})
     assert target.attrs["vector-width"] == 1024
 
 
@@ -121,7 +124,7 @@ def test_target_config():
     target_config_str = json.dumps(target_config)
     # Test both dictionary input and json string.
     for config in [target_config, target_config_str]:
-        target = tvm.target.Target(config)
+        target = tvm_tirx.target.Target(config)
         assert target.kind.name == "llvm"
         assert all([key in target.keys for key in ["arm_cpu", "cpu"]])
         assert target.attrs.get("device", "") == "arm_cpu"
@@ -137,11 +140,11 @@ def test_config_map():
     """
     target_config = {"kind": "llvm", "libs": {"a": "b", "c": "d"}}
     with pytest.raises(ValueError):
-        tvm.target.Target(target_config)
+        tvm_tirx.target.Target(target_config)
 
 
 def test_composite_target():
-    tgt = tvm.target.Target(
+    tgt = tvm_tirx.target.Target(
         {"kind": "composite", "host": {"kind": "llvm"}, "devices": ["cuda", "opencl"]}
     )
     assert tgt.kind.name == "composite"
@@ -153,7 +156,7 @@ def test_composite_target():
 
 
 def test_target_tag_0():
-    tgt = tvm.target.Target("nvidia/geforce-rtx-2080-ti")
+    tgt = tvm_tirx.target.Target("nvidia/geforce-rtx-2080-ti")
     assert tgt.kind.name == "cuda"
     assert tgt.attrs["arch"] == "sm_75"
     assert tgt.attrs["max_shared_memory_per_block"] == 49152
@@ -163,7 +166,7 @@ def test_target_tag_0():
 
 
 def test_target_tag_1():
-    tgt = tvm.target.Target("nvidia/jetson-nano")
+    tgt = tvm_tirx.target.Target("nvidia/jetson-nano")
     assert tgt.kind.name == "cuda"
     assert tgt.attrs["arch"] == "sm_53"
     assert tgt.attrs["max_shared_memory_per_block"] == 49152
@@ -173,7 +176,7 @@ def test_target_tag_1():
 
 
 def test_target_tag_jetson_agx_thor():
-    tgt = tvm.target.Target("nvidia/jetson-agx-thor")
+    tgt = tvm_tirx.target.Target("nvidia/jetson-agx-thor")
     assert tgt.kind.name == "cuda"
     assert tgt.attrs["arch"] == "sm_110a"
     assert tgt.attrs["max_shared_memory_per_block"] == 232448
@@ -189,7 +192,7 @@ def test_target_tag_jetson_agx_thor():
 
 def test_target_tag_override():
     """Test creating a target from a tag with attribute overrides."""
-    tgt = tvm.target.Target({"tag": "nvidia/nvidia-a100", "l2_cache_size_bytes": 12345})
+    tgt = tvm_tirx.target.Target({"tag": "nvidia/nvidia-a100", "l2_cache_size_bytes": 12345})
     assert tgt.kind.name == "cuda"
     assert tgt.attrs["arch"] == "sm_80"
     # Override should take effect
@@ -202,14 +205,14 @@ def test_target_tag_override():
 
 
 def test_list_kinds():
-    targets = tvm.target.Target.list_kinds()
+    targets = tvm_tirx.target.Target.list_kinds()
     assert len(targets) != 0
     assert "llvm" in targets
     assert all(isinstance(target_name, str) for target_name in targets)
 
 
 def test_target_host_tags():
-    tgt = tvm.target.Target("nvidia/jetson-nano", "nvidia/geforce-rtx-2080-ti")
+    tgt = tvm_tirx.target.Target("nvidia/jetson-nano", "nvidia/geforce-rtx-2080-ti")
     assert tgt.kind.name == "cuda"
     assert tgt.attrs["arch"] == "sm_53"
     assert tgt.attrs["max_shared_memory_per_block"] == 49152
@@ -225,7 +228,7 @@ def test_target_host_tags():
 
 
 def test_target_host_tag_dict():
-    tgt = tvm.target.Target("nvidia/jetson-nano", {"kind": "llvm"})
+    tgt = tvm_tirx.target.Target("nvidia/jetson-nano", {"kind": "llvm"})
     assert tgt.kind.name == "cuda"
     assert tgt.attrs["arch"] == "sm_53"
     assert tgt.attrs["max_shared_memory_per_block"] == 49152
@@ -236,7 +239,7 @@ def test_target_host_tag_dict():
 
 
 def test_target_host_single_dict():
-    tgt = tvm.target.Target({"kind": "llvm", "host": "nvidia/jetson-nano"})
+    tgt = tvm_tirx.target.Target({"kind": "llvm", "host": "nvidia/jetson-nano"})
     assert tgt.kind.name == "llvm"
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
@@ -247,13 +250,13 @@ def test_target_host_single_dict():
 
 
 def test_target_host_single_string():
-    tgt = tvm.target.Target({"kind": "cuda", "host": {"kind": "llvm"}})
+    tgt = tvm_tirx.target.Target({"kind": "cuda", "host": {"kind": "llvm"}})
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "llvm"
 
 
 def test_target_host_single_string_with_tag():
-    tgt = tvm.target.Target({"kind": "cuda", "host": "nvidia/jetson-nano"})
+    tgt = tvm_tirx.target.Target({"kind": "cuda", "host": "nvidia/jetson-nano"})
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
@@ -264,7 +267,9 @@ def test_target_host_single_string_with_tag():
 
 
 def test_target_host_merge_0():
-    tgt = tvm.target.Target(tvm.target.Target({"kind": "cuda", "host": "nvidia/jetson-nano"}), None)
+    tgt = tvm_tirx.target.Target(
+        tvm_tirx.target.Target({"kind": "cuda", "host": "nvidia/jetson-nano"}), None
+    )
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
@@ -275,17 +280,17 @@ def test_target_host_merge_0():
 
 
 def test_target_host_merge_1():
-    tgt = tvm.target.Target({"kind": "cuda", "host": {"kind": "llvm"}})
-    tgt = tvm.target.Target(tgt, tgt.host)
+    tgt = tvm_tirx.target.Target({"kind": "cuda", "host": {"kind": "llvm"}})
+    tgt = tvm_tirx.target.Target(tgt, tgt.host)
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "llvm"
 
 
 def test_target_host_merge_2():
     """Test picking the same host is ok."""
-    tgt = tvm.target.Target(
-        tvm.target.Target({"kind": "cuda", "host": {"kind": "llvm"}}),
-        tvm.target.Target("llvm"),
+    tgt = tvm_tirx.target.Target(
+        tvm_tirx.target.Target({"kind": "cuda", "host": {"kind": "llvm"}}),
+        tvm_tirx.target.Target("llvm"),
     )
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "llvm"
@@ -294,10 +299,10 @@ def test_target_host_merge_2():
 def test_target_tvm_object():
     """Test creating Target by using TVM Objects"""
     String = tvm_ffi.core.String
-    tgt = tvm.target.Target(target={"kind": "cuda", "host": {"kind": "llvm"}})
+    tgt = tvm_tirx.target.Target(target={"kind": "cuda", "host": {"kind": "llvm"}})
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "llvm"
-    tgt = tvm.target.Target(target=String("cuda"), host=String("llvm"))
+    tgt = tvm_tirx.target.Target(target=String("cuda"), host=String("llvm"))
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "llvm"
 
@@ -305,16 +310,18 @@ def test_target_tvm_object():
 @pytest.mark.skip(reason="Causing infinite loop because of pytest and handle issue")
 def test_target_host_merge_3():
     with pytest.raises(ValueError, match=r"target host has to be a string or dictionary."):
-        tvm.target.Target(tvm.target.Target({"kind": "cuda", "host": {"kind": "llvm"}}), 12.34)
+        tvm_tirx.target.Target(
+            tvm_tirx.target.Target({"kind": "cuda", "host": {"kind": "llvm"}}), 12.34
+        )
 
 
 def test_target_with_host():
-    tgt = tvm.target.Target("cuda")
-    llvm = tvm.target.Target("llvm")
+    tgt = tvm_tirx.target.Target("cuda")
+    llvm = tvm_tirx.target.Target("llvm")
     tgt = tgt.with_host(llvm)
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "llvm"
-    cuda_host = tvm.target.Target("nvidia/jetson-nano")
+    cuda_host = tvm_tirx.target.Target("nvidia/jetson-nano")
     tgt = tgt.with_host(cuda_host)
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
@@ -357,7 +364,7 @@ def test_target_features():
 @pytest.mark.parametrize("input_form", ["string", "device"])
 def test_target_from_device_cuda(input_form):
     def run_and_check():
-        dev = tvm.cuda()
+        dev = tvm_tirx.cuda()
         target = Target.from_device("cuda" if input_form == "string" else dev)
         assert target.kind.name == "cuda"
         assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
@@ -365,7 +372,7 @@ def test_target_from_device_cuda(input_form):
         assert int(target.attrs["thread_warp_size"]) == dev.warp_size
         assert str(target.attrs.get("arch", "")) == "sm_" + dev.compute_version.replace(".", "")
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -373,7 +380,7 @@ def test_target_from_device_cuda(input_form):
 @pytest.mark.parametrize("input_form", ["string", "device"])
 def test_target_from_device_rocm(input_form):
     def run_and_check():
-        dev = tvm.rocm()
+        dev = tvm_tirx.rocm()
         target = Target.from_device("rocm" if input_form == "string" else dev)
         assert target.kind.name == "rocm"
         assert target.attrs["mtriple"] == "amdgcn-and-amdhsa-hcc"
@@ -381,7 +388,7 @@ def test_target_from_device_rocm(input_form):
         assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
         assert int(target.attrs["thread_warp_size"]) == dev.warp_size
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -389,9 +396,9 @@ def test_target_from_device_rocm(input_form):
 @pytest.mark.parametrize("input_form", ["string", "device"])
 def test_target_from_device_vulkan(input_form):
     def run_and_check():
-        dev = tvm.vulkan()
+        dev = tvm_tirx.vulkan()
         target = Target.from_device("vulkan" if input_form == "string" else dev)
-        f_get_target_property = tvm.get_global_func("device_api.vulkan.get_target_property")
+        f_get_target_property = tvm_tirx.get_global_func("device_api.vulkan.get_target_property")
         assert target.kind.name == "vulkan"
         assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
         assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
@@ -403,7 +410,7 @@ def test_target_from_device_vulkan(input_form):
             dev, "supports_16bit_buffer"
         )
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -411,28 +418,28 @@ def test_target_from_device_vulkan(input_form):
 @pytest.mark.parametrize("input_form", ["string", "device"])
 def test_target_from_device_opencl(input_form):
     def run_and_check():
-        dev = tvm.opencl()
+        dev = tvm_tirx.opencl()
         target = Target.from_device("opencl" if input_form == "string" else dev)
         assert target.kind.name == "opencl"
         assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
         assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
         assert int(target.attrs["thread_warp_size"]) == dev.warp_size
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_module_dict_from_deserialized_targets():
     target = Target("llvm")
 
-    from tvm.script import tirx as T
+    from tvm_tirx.script import tirx as T
 
     @Ts.function
     def func():
         T.evaluate(0)
 
     func = func.with_attr("Target", target)
-    target2 = tvm.ir.load_json(tvm.ir.save_json(target))
-    mod = tvm.IRModule({"main": func})
+    target2 = tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(target))
+    mod = tvm_tirx.IRModule({"main": func})
     lib = tvm.compile(mod, target=target2)
     lib["func"]()
 
@@ -487,4 +494,4 @@ def test_webgpu_target_subgroup_attrs():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

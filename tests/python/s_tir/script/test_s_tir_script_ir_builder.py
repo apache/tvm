@@ -17,23 +17,24 @@
 # ruff: noqa: F841
 """S-TIR script ir builder."""
 
-import tvm
-import tvm.runtime
-import tvm.testing
-from tvm import s_tir, tirx
-from tvm.ir.base import assert_structural_equal
-from tvm.ir.location import SourceLoc, SourceName
+import tvm_tirx
+import tvm_tirx.runtime
+import tvm_tirx.testing
+from tvm import s_tir
+from tvm.s_tir import script as Ts
 from tvm.s_tir.script.ir_builder import function as build_function
-from tvm.script import s_tir as Ts
-from tvm.script.ir_builder import IRBuilder
-from tvm.tirx.script import ir_builder as T
+from tvm_tirx import tirx
+from tvm_tirx.ir.base import assert_structural_equal
+from tvm_tirx.ir.location import SourceLoc, SourceName
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx.script import ir_builder as T
 
 
 def _is_tensor_binding(node, *op_names):
     return (
-        isinstance(node, tvm.ir.Bind)
-        and isinstance(node.value, tvm.ir.Call)
-        and isinstance(node.value.op, tvm.ir.Op)
+        isinstance(node, tvm_tirx.ir.Bind)
+        and isinstance(node.value, tvm_tirx.ir.Call)
+        and isinstance(node.value.op, tvm_tirx.ir.Op)
         and node.value.op.name in op_names
     )
 
@@ -49,9 +50,9 @@ def test_ir_builder_tir_function_base():
     # the expected function
     function_expected = tirx.Function(
         params=[],
-        body=tvm.ir.Evaluate(0),
+        body=tvm_tirx.ir.Evaluate(0),
         ret_type=None,
-        attrs=tvm.ir.make_node("ir.DictAttrs", **{"s_tir": True, "script.namespace": "s_tir"}),
+        attrs=tvm_tirx.ir.make_node("ir.DictAttrs", **{"s_tir": True, "script.namespace": "s_tir"}),
     )
 
     # Check if the generated ir is expected
@@ -84,7 +85,7 @@ def test_ir_builder_tir_function_complete():
             tensor_d = T.arg_("d", T.Tensor((64, 64), "int64"))
             e = T.arg_("e", T.Tensor((1024,), "int8"))
             T.func_attr({"key": "value"})
-            T.func_ret(tvm.ir.PrimType("int64"))
+            T.func_ret(tvm_tirx.ir.PrimType("int64"))
 
             T.evaluate(0)
 
@@ -97,15 +98,15 @@ def test_ir_builder_tir_function_complete():
     e_tensor = tirx.decl_tensor((1024,), "int8", name="e", layout=None)
     function_expected = tirx.Function(
         params=[
-            tirx.Var("a", tvm.ir.PtrType(tvm.ir.PrimType("void"))),
+            tirx.Var("a", tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("void"))),
             tirx.Var("b", "int64"),
             c_tensor,
             d_tensor,
             e_tensor,
         ],
-        body=tvm.ir.Evaluate(0),
-        ret_type=tvm.ir.PrimType("int64"),
-        attrs=tvm.ir.make_node(
+        body=tvm_tirx.ir.Evaluate(0),
+        ret_type=tvm_tirx.ir.PrimType("int64"),
+        attrs=tvm_tirx.ir.make_node(
             "ir.DictAttrs", **{"key": "value", "s_tir": True, "script.namespace": "s_tir"}
         ),
     )
@@ -128,7 +129,7 @@ def test_ir_builder_tir_block_base():
         reads=[],
         writes=[],
         name_hint="block",
-        body=tvm.ir.Evaluate(0),
+        body=tvm_tirx.ir.Evaluate(0),
         alloc_tensors=None,
         match_tensors=None,
         annotations={"tirx.script_parsing_detect_access": 3},
@@ -176,7 +177,7 @@ def test_ir_builder_tir_block_complete():
         reads=[tensor_b[0:16, 0:16]],
         writes=[tensor_c[var_d:128, var_d:128]],
         name_hint="block",
-        body=tvm.ir.Evaluate(0),
+        body=tvm_tirx.ir.Evaluate(0),
         alloc_tensors=[tirx.decl_tensor((128, 128), "float32")],
         match_tensors=[
             s_tir.MatchTensorRegion(tirx.decl_tensor((32, 32), "float32"), tensor_e[0:32, 0:32])
@@ -224,7 +225,7 @@ def test_ir_builder_tir_axis():
         reads=[],
         writes=[],
         name_hint="block",
-        body=tvm.ir.Evaluate(0),
+        body=tvm_tirx.ir.Evaluate(0),
         annotations={"tirx.script_parsing_detect_access": 3},
     )
     block_realize_expected = s_tir.SBlockRealize(
@@ -248,12 +249,12 @@ def test_ir_builder_tir_thread():
 
     # the expected function
     thread_var = tirx.Var("v", "int32")
-    launch = tvm.ir.RegionStmt(
-        tvm.ir.Op.get("tirx.launch_thread"),
-        [tvm.ir.StringImm("blockIdx.y"), tirx.IntImm("int32", 1)],
+    launch = tvm_tirx.ir.RegionStmt(
+        tvm_tirx.ir.Op.get("tirx.launch_thread"),
+        [tvm_tirx.ir.StringImm("blockIdx.y"), tirx.IntImm("int32", 1)],
         [thread_var],
         {},
-        tvm.ir.Evaluate(0),
+        tvm_tirx.ir.Evaluate(0),
     )
     func = tirx.Function([], launch).with_attr({"s_tir": True, "script.namespace": "s_tir"})
 
@@ -273,10 +274,10 @@ def test_ir_builder_tir_allocate():
     body = ir_actual.body
 
     # AllocTensor is flat: body should be a SeqStmt with [AllocTensor, Evaluate(1)]
-    assert isinstance(body, tvm.ir.SeqStmt), f"Expected SeqStmt but got {type(body)}"
+    assert isinstance(body, tvm_tirx.ir.SeqStmt), f"Expected SeqStmt but got {type(body)}"
     assert len(body) == 2
     assert _is_tensor_binding(body[0], "tirx.alloc_tensor")
-    assert isinstance(body[1], tvm.ir.Evaluate)
+    assert isinstance(body[1], tvm_tirx.ir.Evaluate)
     assert body[1].value.value == 1
 
 
@@ -292,12 +293,12 @@ def test_ir_builder_tir_decl_tensor():
     body = ir_actual.body
 
     # decl_tensor without data emits AllocTensor (flat): body should be SeqStmt
-    assert isinstance(body, tvm.ir.SeqStmt), f"Expected SeqStmt but got {type(body)}"
+    assert isinstance(body, tvm_tirx.ir.SeqStmt), f"Expected SeqStmt but got {type(body)}"
     assert len(body) == 2
     assert _is_tensor_binding(body[0], "tirx.alloc_tensor")
-    assert isinstance(body[1], tvm.ir.Evaluate)
+    assert isinstance(body[1], tvm_tirx.ir.Evaluate)
     assert body[1].value.value == 1
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -20,20 +20,21 @@
 import pytest
 from tvm_ffi import get_global_func
 
-import tvm
-import tvm.script
-import tvm.testing
-from tvm import ir, s_tir, tirx
-from tvm import tirx as tir
-from tvm.ir import Range, TensorRegion, TensorRegionType, assert_structural_equal
-from tvm.script import ir as I
-from tvm.script import ir_builder as IB
-from tvm.script import tirx as T
-from tvm.script.ir_builder import IRBuilder
-from tvm.script.printer.scriptable import _script
-from tvm.tirx.cuda import op as cuda_op
-from tvm.tirx.script import ir_builder as TB
-from tvm.tirx.trn import op as trn_op
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
+from tvm import s_tir
+from tvm_tirx import ir, tirx
+from tvm_tirx import tirx as tir
+from tvm_tirx.ir import Range, TensorRegion, TensorRegionType, assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import ir_builder as IB
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.script.printer.scriptable import _script
+from tvm_tirx.tirx.cuda import op as cuda_op
+from tvm_tirx.tirx.script import ir_builder as TB
+from tvm_tirx.tirx.trn import op as trn_op
 
 
 def test_failed_invalid_prefix():
@@ -116,12 +117,12 @@ def test_ir_prefix_rendering_imports_and_reservations(config, alias, comment_imp
     assert var.script(verbose_expr=True, **config).strip() == (
         f'{alias}_1 = {alias}.dynamic("{alias}", dtype="int32")\n{alias}_1'
     )
-    mod = tvm.IRModule({})
+    mod = tvm_tirx.IRModule({})
     script = mod.script(**config)
-    import_line = f"from tvm.script import tirx as {alias}"
+    import_line = f"from tvm_tirx.script import tirx as {alias}"
     assert script.splitlines()[0] == ("# " if comment_imports else "") + import_line
     assert f"@{alias}.ir_module" in script
-    assert_structural_equal(mod, tvm.script.from_source(script, extra_vars={alias: I}))
+    assert_structural_equal(mod, tvm_tirx.script.from_source(script, extra_vars={alias: I}))
 
 
 def test_reflected_type_recursive_values(monkeypatch):
@@ -129,23 +130,25 @@ def test_reflected_type_recursive_values(monkeypatch):
     from tvm_ffi.dataclasses import py_class
 
     @py_class("tirx.PrinterValuesType")
-    class PrinterValuesType(tvm.ir.Type):
+    class PrinterValuesType(tvm_tirx.ir.Type):
         values: tvm_ffi.Array
 
     monkeypatch.setattr(T, "PrinterValues", PrinterValuesType, raising=False)
     value = PrinterValuesType(
-        tvm_ffi.convert([T.int32(128), {"nested": [T.float32(1.25), tvm.ir.PrimType("int32")]}])
+        tvm_ffi.convert(
+            [T.int32(128), {"nested": [T.float32(1.25), tvm_tirx.ir.PrimType("int32")]}]
+        )
     )
     source = value.script()
     assert source == 'T.PrinterValues([T.int32(128), {"nested": [T.float32(1.25), T.int32]}])'
     restored = eval(source, {"T": T})
-    tvm.ir.assert_structural_equal(value, restored)
+    tvm_tirx.ir.assert_structural_equal(value, restored)
     assert restored.script() == source
 
     tensor = T.Tensor((T.int64(128), 4), T.float32)
     source = tensor.script()
     assert source == "T.Tensor((T.int64(128), 4), T.float32)"
-    tvm.ir.assert_structural_equal(tensor, eval(source, {"T": T}))
+    tvm_tirx.ir.assert_structural_equal(tensor, eval(source, {"T": T}))
 
 
 def test_tensor():
@@ -447,7 +450,7 @@ Ts.iter_var(a, T.Range(0, 8), "DataPar", "")
 
 
 def test_string_imm():
-    s = tvm.ir.StringImm("str")
+    s = tvm_tirx.ir.StringImm("str")
     _assert_print(s, '"str"')
 
 
@@ -575,7 +578,7 @@ def test_select():
 
 
 @pytest.mark.parametrize(
-    "lanes, scripted_lanes", [(32, "32"), (tvm.tirx.vscale() * 8, "T.vscale() * 8")]
+    "lanes, scripted_lanes", [(32, "32"), (tvm_tirx.tirx.vscale() * 8, "T.vscale() * 8")]
 )
 def test_ramp(lanes, scripted_lanes):
     a = tirx.Var("a", "int32")
@@ -590,7 +593,7 @@ T.Ramp(a, 1, {scripted_lanes})
 
 
 @pytest.mark.parametrize(
-    "lanes, scripted_lanes", [(4, "4"), (tvm.tirx.vscale() * 4, "T.vscale() * 4")]
+    "lanes, scripted_lanes", [(4, "4"), (tvm_tirx.tirx.vscale() * 4, "T.vscale() * 4")]
 )
 def test_broadcast(lanes, scripted_lanes):
     obj = tirx.Broadcast(0, lanes)
@@ -690,22 +693,22 @@ def test_tuple_type():
 
 def test_nested_seqstmt_roundtrip():
     original = nested_seqstmt()
-    parsed = tvm.script.from_source(
+    parsed = tvm_tirx.script.from_source(
         original.script(show_meta=True),
         check_well_formed=False,
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx},
     )
-    tvm.ir.assert_structural_equal(original, parsed, True)
+    tvm_tirx.ir.assert_structural_equal(original, parsed, True)
 
 
 def nested_seqstmt():
     """Sequence construction flattens nested input and removes no-op statements."""
-    func = tvm.tirx.Function(
+    func = tvm_tirx.tirx.Function(
         params=[],
-        body=tvm.ir.SeqStmt(
+        body=tvm_tirx.ir.SeqStmt(
             [
-                tvm.ir.SeqStmt([tvm.ir.Evaluate(0), tvm.ir.Evaluate(1)]),
-                tvm.ir.Evaluate(2),
+                tvm_tirx.ir.SeqStmt([tvm_tirx.ir.Evaluate(0), tvm_tirx.ir.Evaluate(1)]),
+                tvm_tirx.ir.Evaluate(2),
             ]
         ),
     )
@@ -721,7 +724,7 @@ def test_print_kwargs_schedule_op_full_code():
         T.cuda.tile.apply(T.ptx['mov.b32'], A[0:16], T.float32(1.25), scope="warp")
     # fmt: on
 
-    expected = """# from tvm.script import tirx as T
+    expected = """# from tvm_tirx.script import tirx as T
 
 @T.function
 def test():
@@ -735,15 +738,17 @@ def test():
 
 
 def from_source(code):
-    return tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+    return tvm_tirx.script.from_source(
+        code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+    )
 
 
 def test_default_script_prefix_tirx_irmodule_non_main():
     """IRModule with non-main TIRx Function should default to T prefix."""
-    mod = tvm.IRModule({"foo": _make_minimal_tirx_function()})
+    mod = tvm_tirx.IRModule({"foo": _make_minimal_tirx_function()})
     code = mod.script()
-    assert "# from tvm.script import tirx as T" in code
-    assert "# from tvm.script import tir as T" not in code
+    assert "# from tvm_tirx.script import tirx as T" in code
+    assert "# from tvm_tirx.script import tir as T" not in code
     assert "@T.function" in code
     assert "def foo(" in code
     parsed = from_source(code)
@@ -752,7 +757,7 @@ def test_default_script_prefix_tirx_irmodule_non_main():
 
 
 def _make_minimal_tirx_function():
-    source = """# from tvm.script import tirx as T
+    source = """# from tvm_tirx.script import tirx as T
 
 @T.function()
 def f(A: T.Tensor((1,), T.float32)):
@@ -761,7 +766,7 @@ def f(A: T.Tensor((1,), T.float32)):
 
 
 def test_printer_cuda_namespace_printf():
-    node = tvm.ir.Evaluate(cuda_op.cuda_printf("x=%d", tir.IntImm("int32", 1)))
+    node = tvm_tirx.ir.Evaluate(cuda_op.cuda_printf("x=%d", tir.IntImm("int32", 1)))
     _assert_namespace_print(node, 'T.cuda.printf("x=%d", 1)')
 
 
@@ -772,19 +777,19 @@ def _assert_namespace_print(obj, expected):
 
 
 def test_printer_cuda_cluster_sync():
-    node = tvm.ir.Evaluate(cuda_op.cuda_cluster_sync())
+    node = tvm_tirx.ir.Evaluate(cuda_op.cuda_cluster_sync())
     _assert_namespace_print(node, "T.cuda.cluster_sync()")
 
 
 def test_printer_cuda_namespace_mbarrier_wait():
-    node = tvm.ir.Evaluate(
+    node = tvm_tirx.ir.Evaluate(
         cuda_op.cuda_mbarrier_wait(tir.IntImm("int32", 0), tir.IntImm("int32", 0))
     )
     _assert_namespace_print(node, "T.cuda.mbarrier_wait(0, 0)")
 
 
 def test_printer_nvshmem_namespace():
-    node = tvm.ir.Evaluate(cuda_op.nvshmem_fence())
+    node = tvm_tirx.ir.Evaluate(cuda_op.nvshmem_fence())
     _assert_namespace_print(node, "T.nvshmem.fence()")
 
 
@@ -905,7 +910,9 @@ def test_printer_cuda_low_level_warp_intrinsics_roundtrip():
     assert "T.cuda.__shfl_xor_sync(" in code
     assert "T.tirx." not in code
     assert (
-        tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}).script()
+        tvm_tirx.script.from_source(
+            code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+        ).script()
         == code
     )
 
@@ -923,7 +930,9 @@ def test_printer_webgpu_namespace_roundtrip():
     assert "T.webgpu.subgroup_shuffle_down(" in code
     assert "T.tirx." not in code
     assert (
-        tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}).script()
+        tvm_tirx.script.from_source(
+            code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+        ).script()
         == code
     )
 

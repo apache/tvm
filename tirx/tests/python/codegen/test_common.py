@@ -1,0 +1,207 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+import numpy as np
+import pytest
+
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import tirx as T
+
+
+def test_tensor_store_predicate_not_supported():
+    target = "c"
+
+    @T.function
+    def func(B: T.Tensor((8,), "float32")):
+        T.evaluate(
+            T.call_intrin(
+                "tirx.masked_store",
+                B,
+                T.Broadcast(1.0, 4),
+                T.Ramp(0, 2, 4),
+                T.Broadcast(T.bool(True), 4),
+                ty="void",
+            )
+        )
+
+    err_msg = "Predicated buffer store is not supported."
+    with pytest.raises(RuntimeError, match=err_msg):
+        with tvm_tirx.target.Target(target):
+            tvm_tirx.tirx.compile(func)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param("opencl", marks=pytest.mark.gpu),
+        pytest.param("metal", marks=pytest.mark.gpu),
+        pytest.param("rocm", marks=pytest.mark.gpu),
+        pytest.param({"kind": "vulkan", "from_device": 0}, marks=pytest.mark.gpu),
+    ],
+)
+def test_tensor_store_predicate_not_supported_gpu(target):
+    if not tvm_tirx.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+
+    @T.function
+    def func(A: T.Tensor((2, 3), "float32"), B: T.Tensor((6,), "float32")):
+        T.func_attr({"global_symbol": "main"})
+        with T.launch_thread("threadIdx.x", 3) as i_0:
+            T.evaluate(
+                T.call_intrin(
+                    "tirx.masked_store",
+                    B,
+                    T.Broadcast(1.0, 4),
+                    T.Ramp(i_0, 1, 4),
+                    T.Broadcast(T.bool(True), 4),
+                    ty="void",
+                )
+            )
+
+    err_msg = "Predicated buffer store is not supported."
+    with pytest.raises(RuntimeError, match=err_msg):
+        with tvm_tirx.target.Target(target):
+            tvm_tirx.tirx.compile(func)
+
+
+def test_buffer_load_predicate_not_supported():
+    target = "c"
+
+    @T.function
+    def func(A: T.Tensor((8,), "float32"), B: T.Tensor((8,), "float32")):
+        for i_0 in range(4):
+            B[T.Ramp(0, 2, 4)] = T.call_intrin(
+                "tirx.masked_load",
+                A,
+                T.Ramp(i_0, 1, 4),
+                T.Broadcast(T.bool(True), 4),
+                ty="float32x4",
+            )
+
+    err_msg = "Predicated buffer load is not supported."
+    with pytest.raises(RuntimeError, match=err_msg):
+        with tvm_tirx.target.Target(target):
+            tvm_tirx.tirx.compile(func)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param("opencl", marks=pytest.mark.gpu),
+        pytest.param("metal", marks=pytest.mark.gpu),
+        pytest.param("rocm", marks=pytest.mark.gpu),
+        pytest.param({"kind": "vulkan", "from_device": 0}, marks=pytest.mark.gpu),
+    ],
+)
+def test_buffer_load_predicate_not_supported_gpu(target):
+    if not tvm_tirx.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+
+    @T.function
+    def func(A: T.Tensor((8,), "float32"), B: T.Tensor((8,), "float32")):
+        with T.launch_thread("threadIdx.x", 3) as i_0:
+            B[T.Ramp(0, 2, 4)] = T.call_intrin(
+                "tirx.masked_load",
+                A,
+                T.Ramp(i_0, 1, 4),
+                T.Broadcast(T.bool(True), 4),
+                ty="float32x4",
+            )
+
+    err_msg = "Predicated buffer load is not supported."
+    with pytest.raises(RuntimeError, match=err_msg):
+        with tvm_tirx.target.Target(target):
+            tvm_tirx.tirx.compile(func)
+
+
+@pytest.mark.parametrize(
+    ("target", "qualifier"),
+    [("opencl", "__global "), ("metal", "device ")],
+)
+def test_decl_buffer_offset_preserves_storage_scope(target, qualifier):
+    @T.function
+    def kernel(A_ptr: T.handle("float32", "global")):
+        T.func_attr(
+            {
+                "calling_conv": 2,
+                "global_symbol": "kernel",
+                "tirx.kernel_launch_params": [],
+                "tirx.noalias": True,
+            }
+        )
+        A = T.decl_tensor(A_ptr, ty_args=[T.Tensor((8,), "float32", data=A_ptr)])
+        B = T.decl_tensor(
+            T.address_of(A[4]), ty_args=[T.Tensor((4,), "float32", data=T.address_of(A[4]))]
+        )
+        B[0] = T.float32(1)
+
+    mod = tvm_tirx.IRModule({"kernel": kernel})
+    build = tvm_tirx.get_global_func(f"target.build.{target}")
+    source = build(mod, tvm_tirx.target.Target(target)).inspect_source()
+    assert f"{qualifier}float* B" in source
+    assert f"(({qualifier}float*)" in source
+
+
+@pytest.mark.parametrize("target", ["c", "llvm"])
+def test_codegen_loop_step(target):
+    if target != "c" and not tvm_tirx.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+
+    @T.function
+    def test_loop_step(
+        A: T.Tensor((1024,), "float32"),
+        B: T.Tensor((1024,), "float32"),
+        C: T.Tensor((1024,), "float32"),
+    ):
+        for i in T.serial(3, 1024, step=96):
+            C[i] = A[i] + B[i]
+
+    lib = tvm_tirx.tirx.compile(test_loop_step, target=target)
+
+    src = lib.mod.inspect_source()
+    if target == "c":
+        assert src.find("for (int32_t i = 3; i < 1024; i += 96)") >= 0
+
+    dev = tvm_tirx.cpu()
+    a_np = np.random.rand(1024).astype("float32")
+    b_np = np.random.rand(1024).astype("float32")
+    c_np = np.zeros(1024, dtype="float32")
+    a_tvm = tvm_tirx.runtime.tensor(a_np, dev)
+    b_tvm = tvm_tirx.runtime.tensor(b_np, dev)
+    c_tvm = tvm_tirx.runtime.tensor(c_np, dev)
+
+    lib(a_tvm, b_tvm, c_tvm)
+
+    c_result = c_tvm.numpy()
+
+    # Check that the loop executes at positions 3, 99, 195, 291, 387, 483, 579, 675, 771, 867, 963
+    for i in range(3, 1024, 96):
+        tvm_tirx.testing.assert_allclose(c_result[i], a_np[i] + b_np[i], rtol=1e-5)
+
+    # Assert non-touched positions remain zero
+    for i in range(0, 3):
+        assert c_result[i] == 0.0
+    for i in range(4, 1024):
+        if (i - 3) % 96 != 0:
+            assert c_result[i] == 0.0
+
+
+if __name__ == "__main__":
+    tvm_tirx.testing.main()
