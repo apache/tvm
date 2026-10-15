@@ -146,7 +146,7 @@ def _codegen_host_and_device(
     """Compile each device group and attach it to the host runtime module."""
 
     # Get the first module to get the attributes
-    # necessary for tests/python/backend/cuda/test_cuda_module_export.py::test_cuda_multi_lib
+    # necessary for tirx/tests/python/backend/cuda/test_module_export.py::test_cuda_multi_lib
     mhost_all = ir.IRModule({}, attrs=host_mod.attrs)
 
     mhost_all.update(host_mod)

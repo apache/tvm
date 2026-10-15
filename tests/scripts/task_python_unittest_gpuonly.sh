@@ -35,5 +35,5 @@ export PYTHONPATH="$(pwd)/tirx/python:$(pwd)/python"
 export PYTEST_ADDOPTS="${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
 
 python3 -m pytest -vvs -n auto -m "${TVM_TEST_MARKER}" \
-    tirx/tests/python/backend/vulkan/codegen/test_vulkan.py \
-    tirx/tests/python/backend/vulkan/test_vulkan_module_export.py
+    tirx/tests/python/backend/vulkan/codegen/test_basic.py \
+    tirx/tests/python/backend/vulkan/test_module_export.py
