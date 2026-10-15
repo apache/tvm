@@ -25,9 +25,11 @@ from tvm import ir
 from tvm import tirx as tir
 from tvm.ir import TensorLoad, TensorRegion, is_prim_expr
 from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm.ir.type import _normalize_type
+from tvm.runtime import MemoryScope
 from tvm.s_tir.iter_var import IterVar
 from tvm.s_tir.op import comm_reducer
-from tvm.script.ir_builder.base import MISSING
+from tvm.script.ir_builder.base import MISSING, auto_emit_void_call
 from tvm.script.parser.protocol_registry import register_mutable_decl as _register_mutable_decl
 from tvm.te import CommReducer, Reduce
 from tvm.tirx import Expr, IntImm, Var
@@ -69,11 +71,13 @@ def async_copy_scope():
     return region("s_tir.async_copy_scope", [])
 
 
+@auto_emit_void_call
 def async_commit(queue_id, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Commit the preceding asynchronous copies to a queue."""
     return ir.Call("s_tir.async_commit", [queue_id], ty=ty, loc=loc)
 
 
+@auto_emit_void_call
 def async_wait(queue_id, inflight_count, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Wait until at most inflight_count committed groups remain in flight."""
     return ir.Call("s_tir.async_wait", [queue_id, inflight_count], ty=ty, loc=loc)
@@ -92,7 +96,7 @@ def match_tensor(
     data: Var = None,
     strides: list[Expr] | None = None,
     elem_offset: Expr = None,
-    scope: str = "global",
+    scope: str | MemoryScope = MemoryScope("global"),
     align: int = -1,
     offset_factor: int = 0,
     layout: str | Layout | None = MISSING,
@@ -123,7 +127,7 @@ def match_tensor(
     result = _ffi_api.MatchTensor(  # type: ignore[attr-defined] # pylint: disable=no-member
         param,
         shape,
-        dtype,
+        _normalize_type(dtype),
         data,
         strides,
         elem_offset,
@@ -240,7 +244,7 @@ def sblock_alloc_tensor(
     data: Var = None,
     strides: list[Expr] | None = None,
     elem_offset: Expr = None,
-    scope: str = "global",
+    scope: str | MemoryScope = MemoryScope("global"),
     align: int = -1,
     offset_factor: int = 0,
     layout: str | Layout | None = MISSING,
@@ -289,7 +293,7 @@ def sblock_alloc_tensor(
         allocated_addr = [allocated_addr]
     tensor = _ffi_api.SBlockAllocTensor(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
-        dtype,
+        _normalize_type(dtype),
         data,
         strides,
         elem_offset,

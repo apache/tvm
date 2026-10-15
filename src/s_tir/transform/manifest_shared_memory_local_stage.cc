@@ -31,6 +31,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -38,8 +39,8 @@
 
 #include <unordered_set>
 
-#include "../../runtime/thread_storage_scope.h"
 #include "../schedule/transform.h"
+#include "../tensor_region.h"
 #include "tvm/tirx/stmt.h"
 
 namespace tvm {
@@ -55,12 +56,14 @@ class IntermediateStageRewriter {
       : ancestor_loop_or_blocks_(ancestor_loop_or_blocks) {}
 
   std::tuple<TensorVar, TensorVar, SBlock, Stmt> Rewrite(const SBlockNode* block) {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
     const TensorStoreNode* store =
         block->body->size() == 1 ? block->body->seq[0].as<TensorStoreNode>() : nullptr;
     TVM_FFI_CHECK(
-        store != nullptr &&
-            runtime::StorageScope::Create(store->dest.as_or_throw<TensorVar>().scope()).rank ==
-                runtime::StorageRank::kShared,
+        store != nullptr && (store->dest.as_or_throw<TensorVar>().scope() == scope_shared ||
+                             store->dest.as_or_throw<TensorVar>().scope() == scope_shared_dyn),
         ValueError)
         << "Expect the body of the block to be TensorStore to shared memory.";
 
@@ -76,7 +79,7 @@ class IntermediateStageRewriter {
     Stmt local_stage = MakeLocalStage(block, new_tensor, tensor_indices, relaxed_loops, store);
 
     // Step 3: Create TensorLoad from the intermediate tensor
-    TensorLoad new_tensor_load = MakeTensorLoad(new_tensor, tensor_indices);
+    TensorLoad new_tensor_load = TensorLoad(new_tensor, tensor_indices);
     TensorStore new_tensor_store = ffi::GetRef<TensorStore>(store);
     new_tensor_store.CopyOnWrite()->value = new_tensor_load;
     SBlock new_block = ffi::GetRef<SBlock>(block);
@@ -135,7 +138,8 @@ class IntermediateStageRewriter {
     Stmt local_stage = TensorStore(new_tensor, local_stage_indices, store->value);
 
     // Step 1: Make block and block realize
-    TensorRegion write_tensor_region = TensorRegionFromPoint(new_tensor, local_stage_indices);
+    TensorRegion write_tensor_region =
+        s_tir::TensorRegionFromPoint(new_tensor, local_stage_indices);
     local_stage =
         SBlock(/*iter_vars=*/{}, /*reads=*/block->reads, /*writes=*/{write_tensor_region}, "",
                /*body=*/std::move(local_stage));
@@ -176,10 +180,11 @@ class IntermediateStageRewriter {
       tensor_indices.push_back(relaxed_loop->min + relaxed_loop->loop_var);
       new_tensor_shape.push_back(relaxed_loop->extent);
     }
-    TensorVar new_tensor = WithScope(tensor, "local");
-    ffi::ObjectPtr<TensorTypeNode> type = CopyTensorType(new_tensor);
+    static const auto scope_local = runtime::MemoryScope::Get("local");
+    TensorVar new_tensor = WithScope(tensor, scope_local);
+    ffi::ObjectPtr<TensorTypeNode> type = ffi::make_object<TensorTypeNode>(*new_tensor.ty().get());
     type->shape = new_tensor_shape;
-    new_tensor = RebuildTensorVar(new_tensor, std::move(type));
+    new_tensor = TensorVar(new_tensor->name, TensorType(std::move(type)), new_tensor->loc);
     return {new_tensor, tensor_indices};
   }
 

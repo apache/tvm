@@ -53,86 +53,64 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 }  // namespace
 
-ExprDoc AnyValue(DocTranslatorObj* d, ffi::AnyView value) {
-  if (value.type_index() == ffi::TypeIndex::kTVMFFINone) return LiteralDoc::None(std::nullopt);
-  if (value.as<ffi::Module>() || value.as<ffi::TensorObj>()) return AddMetadata(d, value);
-  if (auto array = value.as<ffi::Array<ffi::Any>>()) {
-    ffi::Array<ExprDoc> elements;
-    for (const auto& element : array.value()) elements.push_back(AnyValue(d, element));
-    return ListDoc(elements);
-  }
-  if (auto map = value.as<ffi::Map<ffi::Any, ffi::Any>>()) {
-    std::vector<std::pair<ffi::Any, ffi::Any>> entries(map->begin(), map->end());
-    if (std::all_of(entries.begin(), entries.end(), [](const auto& entry) {
-          return entry.first.template as<ffi::String>().has_value();
-        })) {
-      std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) {
-        return a.first.template as_or_throw<ffi::String>() <
-               b.first.template as_or_throw<ffi::String>();
+namespace {
+
+ffi::Optional<ExprDoc> ArrayDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                         const ffi::Object*) {
+  return d->WithExtraStateScope<bool>(
+      "ir.explicit_value_type", true, [&]() -> ffi::Optional<ExprDoc> {
+        ffi::Array<ExprDoc> elements;
+        for (const auto& element : input.cast<ffi::Array<ffi::Any>>()) {
+          elements.push_back(d->Translate(element).value());
+        }
+        return ListDoc(elements);
       });
-    }
-    ffi::Array<ExprDoc> keys;
-    ffi::Array<ExprDoc> values;
-    for (const auto& [key, item] : entries) {
-      keys.push_back(AnyValue(d, key));
-      values.push_back(AnyValue(d, item));
-    }
-    return DictDoc(keys, values);
-  }
-  if (auto string = value.as<ffi::String>()) {
-    return LiteralDoc::Str(string.value(), std::nullopt);
-  }
-  if (auto boolean = value.as<bool>()) {
-    return LiteralDoc::Boolean(boolean.value(), std::nullopt);
-  }
-  if (auto integer = value.as<int64_t>()) {
-    return LiteralDoc::Int(integer.value(), std::nullopt);
-  }
-  if (auto floating = value.as<double>()) {
-    return LiteralDoc::Float(floating.value(), std::nullopt);
-  }
-  if (auto dtype = value.as<DLDataType>()) {
-    return LiteralDoc::DataType(dtype.value(), std::nullopt);
-  }
-  if (const auto* dtype = value.as<DataTypeImmNode>()) {
-    return NamespaceDoc("ir")->Attr("dtype")->Call(
-        {LiteralDoc::DataType(dtype->value, std::nullopt)});
-  }
-  // Any-valued fields must retain IR objects; Expr-valued fields convert literals.
-  if (const auto* integer = value.as<IntImmNode>()) {
-    ExprDoc doc = NamespaceDoc("tirx")->Attr("IntImm")->Call(
-        {LiteralDoc::DataType(integer->ty.as_or_throw<PrimType>()->dtype, std::nullopt),
-         LiteralDoc::Int(ffi::GetRef<IntImm>(integer), std::nullopt)});
-    d->RecordOrigin(doc, ffi::GetRef<IntImm>(integer));
-    return doc;
-  }
-  if (const auto* floating = value.as<FloatImmNode>()) {
-    ExprDoc literal = LiteralDoc::Float(floating->value, std::nullopt);
-    if (floating->ty.as_or_throw<PrimType>()->dtype == (DLDataType{kDLFloat, 32, 1})) {
-      ExprDoc doc = NamespaceDoc("tirx")->Attr("float32")->Call({literal});
-      d->RecordOrigin(doc, ffi::GetRef<FloatImm>(floating));
-      return doc;
-    }
-    if (!std::isfinite(floating->value)) {
-      // Nonfinite literals render as strings; the scalar helper converts them to a number.
-      literal = NamespaceDoc("tirx")->Attr("float64")->Call({literal})->Attr("value");
-    }
-    ExprDoc doc =
-        NamespaceDoc("tirx")
-            ->Attr("FloatImm")
-            ->Call({LiteralDoc::DataType(floating->ty.as_or_throw<PrimType>()->dtype, std::nullopt),
-                    literal});
-    d->RecordOrigin(doc, ffi::GetRef<FloatImm>(floating));
-    return doc;
-  }
-  if (const auto* string = value.as<StringImmNode>()) {
-    ExprDoc doc =
-        NamespaceDoc("ir")->Attr("StringImm")->Call({LiteralDoc::Str(string->value, std::nullopt)});
-    d->RecordOrigin(doc, ffi::GetRef<StringImm>(string));
-    return doc;
-  }
-  return d->Translate(value).value();
 }
+
+ffi::Optional<ExprDoc> MapDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                       const ffi::Object*) {
+  return d->WithExtraStateScope<bool>(
+      "ir.explicit_value_type", true, [&]() -> ffi::Optional<ExprDoc> {
+        auto map = input.cast<ffi::Map<ffi::Any, ffi::Any>>();
+        std::vector<std::pair<ffi::Any, ffi::Any>> entries(map.begin(), map.end());
+        if (std::all_of(entries.begin(), entries.end(), [](const auto& entry) {
+              return entry.first.template as<ffi::String>().has_value();
+            })) {
+          std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) {
+            return a.first.template as_or_throw<ffi::String>() <
+                   b.first.template as_or_throw<ffi::String>();
+          });
+        }
+        ffi::Array<ExprDoc> keys;
+        ffi::Array<ExprDoc> values;
+        for (const auto& [key, item] : entries) {
+          keys.push_back(d->Translate(key).value());
+          values.push_back(d->Translate(item).value());
+        }
+        return DictDoc(keys, values);
+      });
+}
+
+ffi::Optional<ExprDoc> MetadataDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object*) {
+  return AddMetadata(d, input);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<ffi::ArrayObj>().attr(
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&ArrayDocTranslate>());
+  ffi::reflection::TypeAttrDef<ffi::MapObj>().attr(tvm::script::printer::type_attr::kDocTranslate,
+                                                   FDocTranslate::FromNative<&MapDocTranslate>());
+  ffi::reflection::TypeAttrDef<ffi::ModuleObj>().attr(
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&MetadataDocTranslate>());
+  ffi::reflection::TypeAttrDef<ffi::TensorObj>().attr(
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&MetadataDocTranslate>());
+}
+
+}  // namespace
 
 namespace {
 

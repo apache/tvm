@@ -727,7 +727,7 @@ def get_global_maxpool_expected_codegen(input_shape, pool_size, stride, padding,
 
 
 def get_dequant_matmul_module(K, N):
-    seq_len = T.dynamic("seq_len")
+    seq_len = T.dynamic("seq_len", "int64")
 
     @I.ir_module
     class DequantMatmul:
@@ -766,14 +766,14 @@ def get_dequant_matmul_module(K, N):
                     Ts.reads(lm_head_q_weight1[v_i0 // T.int64(8), v_i1])
                     Ts.writes(compute[v_i0, v_i1])
                     compute[v_i0, v_i1] = T.Cast(
-                        "float16",
                         T.bitwise_and(
                             T.shift_right(
                                 lm_head_q_weight1[v_i0 // T.int64(8), v_i1],
-                                T.Cast("uint32", v_i0 % T.int64(8) * T.int64(4)),
+                                T.Cast(v_i0 % T.int64(8) * T.int64(4), "uint32"),
                             ),
                             T.uint32(15),
                         ),
+                        "float16",
                     )
             for i0, i1 in T.grid(T.int64(K), T.int64(N)):
                 with Ts.sblock("dequantize"):
@@ -788,8 +788,8 @@ def get_dequant_matmul_module(K, N):
 
 
 def get_dequant_vec_matmul_module(K, N):
-    vocab_size_main = T.dynamic("vocab_size")
-    vocab_size_dequantize = T.dynamic("vocab_size")
+    vocab_size_main = T.dynamic("vocab_size", "int64")
+    vocab_size_dequantize = T.dynamic("vocab_size", "int64")
 
     @I.ir_module
     class DequantVecMatmul:
@@ -830,14 +830,14 @@ def get_dequant_vec_matmul_module(K, N):
                     Ts.reads(lm_head_q_weight1[v_i0 // T.int64(8), v_i1])
                     Ts.writes(compute[v_i0, v_i1])
                     compute[v_i0, v_i1] = T.Cast(
-                        "float16",
                         T.bitwise_and(
                             T.shift_right(
                                 lm_head_q_weight1[v_i0 // T.int64(8), v_i1],
-                                T.Cast("uint32", v_i0 % T.int64(8) * T.int64(4)),
+                                T.Cast(v_i0 % T.int64(8) * T.int64(4), "uint32"),
                             ),
                             T.uint32(15),
                         ),
+                        "float16",
                     )
             for i0, i1 in T.grid(T.int64(K), vocab_size_dequantize):
                 with Ts.sblock("dequantize"):

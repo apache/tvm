@@ -104,7 +104,7 @@ def test_conv1d_with_out_dtype():
                     Ts.writes(conv1d_ncw[v_nn, v_ff, v_yy])
                     with Ts.init():
                         conv1d_ncw[v_nn, v_ff, v_yy] = T.float16(0)
-                    conv1d_ncw[v_nn, v_ff, v_yy] = conv1d_ncw[v_nn, v_ff, v_yy] + T.Cast("float16", pad_temp[v_nn, v_rc, v_yy + v_ry]) * T.Cast("float16", rxplaceholder_1[v_ff, v_rc, v_ry])
+                    conv1d_ncw[v_nn, v_ff, v_yy] = conv1d_ncw[v_nn, v_ff, v_yy] + T.Cast(pad_temp[v_nn, v_rc, v_yy + v_ry], "float16") * T.Cast(rxplaceholder_1[v_ff, v_rc, v_ry], "float16")
     # fmt: on
 
     mod = LegalizeOps()(Conv1d)
@@ -154,11 +154,11 @@ def test_conv1d_nwc():
 
 def test_conv1d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    w = T.dynamic("w")
-    f = T.dynamic("f")
-    kw = T.dynamic("kw")
-    c = T.dynamic("c")
+    n = T.dynamic("n", "int64")
+    w = T.dynamic("w", "int64")
+    f = T.dynamic("f", "int64")
+    kw = T.dynamic("kw", "int64")
+    c = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Conv1d:
@@ -167,16 +167,16 @@ def test_conv1d_symbolic():
             gv: R.Tensor((n, f, w - kw + 1), "float32") = R.nn.conv1d(x, kernel)
             return gv
 
-    n_main = T.dynamic("n")
-    f_main = T.dynamic("f")
-    w_main = T.dynamic("w")
-    kw_main = T.dynamic("kw")
-    c_main = T.dynamic("c")
-    n_conv1d = T.dynamic("n")
-    c_conv1d = T.dynamic("c")
-    w_conv1d = T.dynamic("w")
-    f_conv1d = T.dynamic("f")
-    kw_conv1d = T.dynamic("kw")
+    n_main = T.dynamic("n", "int64")
+    f_main = T.dynamic("f", "int64")
+    w_main = T.dynamic("w", "int64")
+    kw_main = T.dynamic("kw", "int64")
+    c_main = T.dynamic("c", "int64")
+    n_conv1d = T.dynamic("n", "int64")
+    c_conv1d = T.dynamic("c", "int64")
+    w_conv1d = T.dynamic("w", "int64")
+    f_conv1d = T.dynamic("f", "int64")
+    kw_conv1d = T.dynamic("kw", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -186,7 +186,7 @@ def test_conv1d_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def conv1d(rxplaceholder: T.Tensor((n_conv1d, c_conv1d, w_conv1d)), rxplaceholder_1: T.Tensor((f_conv1d, c_conv1d, kw_conv1d)), conv1d_ncw: T.Tensor((n_conv1d, f_conv1d, w_conv1d + T.int64(1) - kw_conv1d))):
+        def conv1d(rxplaceholder: T.Tensor((n_conv1d, c_conv1d, w_conv1d), "float32"), rxplaceholder_1: T.Tensor((f_conv1d, c_conv1d, kw_conv1d), "float32"), conv1d_ncw: T.Tensor((n_conv1d, f_conv1d, w_conv1d + T.int64(1) - kw_conv1d), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -331,7 +331,7 @@ def test_conv2d_with_out_dtype():
                     Ts.writes(conv2d_nchw[nn, ff, yy, xx])
                     with Ts.init():
                         conv2d_nchw[nn, ff, yy, xx] = T.float16(0)
-                    conv2d_nchw[nn, ff, yy, xx] = conv2d_nchw[nn, ff, yy, xx] + T.Cast("float16", pad_temp[nn, rc, yy + ry, xx + rx]) * T.Cast("float16", rxplaceholder_1[ff, rc, ry, rx])
+                    conv2d_nchw[nn, ff, yy, xx] = conv2d_nchw[nn, ff, yy, xx] + T.Cast(pad_temp[nn, rc, yy + ry, xx + rx], "float16") * T.Cast(rxplaceholder_1[ff, rc, ry, rx], "float16")
     # fmt: on
 
     mod = LegalizeOps()(Conv2d)
@@ -380,13 +380,13 @@ def test_conv2d_nhwc():
 
 def test_conv2d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    f = T.dynamic("f")
-    kh = T.dynamic("kh")
-    kw = T.dynamic("kw")
-    c = T.dynamic("c")
+    n = T.dynamic("n", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    f = T.dynamic("f", "int64")
+    kh = T.dynamic("kh", "int64")
+    kw = T.dynamic("kw", "int64")
+    c = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Conv2d:
@@ -395,20 +395,20 @@ def test_conv2d_symbolic():
             gv: R.Tensor((n, f, h - kh + 1, w - kw + 1), "float32") = R.nn.conv2d(x, kernel)
             return gv
 
-    n_main = T.dynamic("n")
-    f_main = T.dynamic("f")
-    h_main = T.dynamic("h")
-    kh_main = T.dynamic("kh")
-    w_main = T.dynamic("w")
-    kw_main = T.dynamic("kw")
-    c_main = T.dynamic("c")
-    c_conv2d = T.dynamic("c")
-    f_conv2d = T.dynamic("f")
-    h_conv2d = T.dynamic("h")
-    kh_conv2d = T.dynamic("kh")
-    kw_conv2d = T.dynamic("kw")
-    n_conv2d = T.dynamic("n")
-    w_conv2d = T.dynamic("w")
+    n_main = T.dynamic("n", "int64")
+    f_main = T.dynamic("f", "int64")
+    h_main = T.dynamic("h", "int64")
+    kh_main = T.dynamic("kh", "int64")
+    w_main = T.dynamic("w", "int64")
+    kw_main = T.dynamic("kw", "int64")
+    c_main = T.dynamic("c", "int64")
+    c_conv2d = T.dynamic("c", "int64")
+    f_conv2d = T.dynamic("f", "int64")
+    h_conv2d = T.dynamic("h", "int64")
+    kh_conv2d = T.dynamic("kh", "int64")
+    kw_conv2d = T.dynamic("kw", "int64")
+    n_conv2d = T.dynamic("n", "int64")
+    w_conv2d = T.dynamic("w", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -444,10 +444,10 @@ def test_conv2d_symbolic():
 
 def test_conv2d_symbolic_group():
     # fmt: off
-    n = T.dynamic("n")
-    f = T.dynamic("f")
-    c = T.dynamic("c")
-    c_div_8 = T.dynamic("c_div_8")
+    n = T.dynamic("n", "int64")
+    f = T.dynamic("f", "int64")
+    c = T.dynamic("c", "int64")
+    c_div_8 = T.dynamic("c_div_8", "int64")
 
     @tvm.script.ir_module
     class Conv2d:
@@ -456,14 +456,14 @@ def test_conv2d_symbolic_group():
             gv: R.Tensor((n, f, 26, 26), "float32") = R.nn.conv2d(x, w, groups=8)
             return gv
 
-    n_main = T.dynamic("n")
-    f_main = T.dynamic("f")
-    c_main = T.dynamic("c")
-    c_div_8_main = T.dynamic("c_div_8")
-    n_conv2d = T.dynamic("n")
-    c_conv2d = T.dynamic("c")
-    f_conv2d = T.dynamic("f")
-    c_div_8_conv2d = T.dynamic("c_div_8")
+    n_main = T.dynamic("n", "int64")
+    f_main = T.dynamic("f", "int64")
+    c_main = T.dynamic("c", "int64")
+    c_div_8_main = T.dynamic("c_div_8", "int64")
+    n_conv2d = T.dynamic("n", "int64")
+    c_conv2d = T.dynamic("c", "int64")
+    f_conv2d = T.dynamic("f", "int64")
+    c_div_8_conv2d = T.dynamic("c_div_8", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -473,7 +473,7 @@ def test_conv2d_symbolic_group():
             return gv
 
         @Ts.function(private=True)
-        def conv2d(x: T.Tensor((n_conv2d, c_conv2d, T.int64(28), T.int64(28))), w: T.Tensor((f_conv2d, c_div_8_conv2d, T.int64(3), T.int64(3))), group_conv2d_nchw: T.Tensor((n_conv2d, f_conv2d, T.int64(26), T.int64(26)))):
+        def conv2d(x: T.Tensor((n_conv2d, c_conv2d, T.int64(28), T.int64(28)), "float32"), w: T.Tensor((f_conv2d, c_div_8_conv2d, T.int64(3), T.int64(3)), "float32"), group_conv2d_nchw: T.Tensor((n_conv2d, f_conv2d, T.int64(26), T.int64(26)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             pad_temp = Ts.sblock_alloc_tensor((n_conv2d, c_conv2d, T.int64(28), T.int64(28)))
@@ -653,7 +653,7 @@ def test_conv3d_transpose_with_out_dtype():
                     Ts.writes(compute[v_b, v_c, v_d, v_h, v_w])
                     with Ts.init():
                         compute[v_b, v_c, v_d, v_h, v_w] = T.float16(0.0)
-                    compute[v_b, v_c, v_d, v_h, v_w] = compute[v_b, v_c, v_d, v_h, v_w] + T.Cast("float16", data_pad[v_b, v_dc, v_d + v_dd, v_h + v_dh, v_w + v_dw]) * T.Cast("float16", kernel_transform[v_c, v_dc, v_dd, v_dh, v_dw])
+                    compute[v_b, v_c, v_d, v_h, v_w] = compute[v_b, v_c, v_d, v_h, v_w] + T.Cast(data_pad[v_b, v_dc, v_d + v_dd, v_h + v_dh, v_w + v_dw], "float16") * T.Cast(kernel_transform[v_c, v_dc, v_dd, v_dh, v_dw], "float16")
     # fmt: on
 
     mod = LegalizeOps()(Conv3dTranspose)
@@ -708,7 +708,7 @@ def test_conv2d_transpose_with_out_dtype():
                     Ts.writes(compute[v_b, v_c, v_h, v_w])
                     with Ts.init():
                         compute[v_b, v_c, v_h, v_w] = T.float16(0)
-                    compute[v_b, v_c, v_h, v_w] = compute[v_b, v_c, v_h, v_w] + T.Cast("float16", data_pad[v_b, v_dc, v_h + v_dh, v_w + v_dw]) * T.Cast("float16", kernel_transform[v_c, v_dc, v_dh, v_dw])
+                    compute[v_b, v_c, v_h, v_w] = compute[v_b, v_c, v_h, v_w] + T.Cast(data_pad[v_b, v_dc, v_h + v_dh, v_w + v_dw], "float16") * T.Cast(kernel_transform[v_c, v_dc, v_dh, v_dw], "float16")
     # fmt: on
 
     mod = LegalizeOps()(Conv2dTranspose)
@@ -717,13 +717,13 @@ def test_conv2d_transpose_with_out_dtype():
 
 def test_conv2d_transpose_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    f = T.dynamic("f")
-    kh = T.dynamic("kh")
-    kw = T.dynamic("kw")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    f = T.dynamic("f", "int64")
+    kh = T.dynamic("kh", "int64")
+    kw = T.dynamic("kw", "int64")
 
     @tvm.script.ir_module
     class Conv2dTranspose:
@@ -732,20 +732,20 @@ def test_conv2d_transpose_symbolic():
             gv = R.nn.conv2d_transpose(x, kernel, strides=(3, 3))
             return gv
 
-    n_main = T.dynamic("n")
-    c_main = T.dynamic("c")
-    h_main = T.dynamic("h")
-    kh_main = T.dynamic("kh")
-    w_main = T.dynamic("w")
-    kw_main = T.dynamic("kw")
-    f_main = T.dynamic("f")
-    n_conv2d_transpose = T.dynamic("n")
-    c_conv2d_transpose = T.dynamic("c")
-    h_conv2d_transpose = T.dynamic("h")
-    w_conv2d_transpose = T.dynamic("w")
-    f_conv2d_transpose = T.dynamic("f")
-    kh_conv2d_transpose = T.dynamic("kh")
-    kw_conv2d_transpose = T.dynamic("kw")
+    n_main = T.dynamic("n", "int64")
+    c_main = T.dynamic("c", "int64")
+    h_main = T.dynamic("h", "int64")
+    kh_main = T.dynamic("kh", "int64")
+    w_main = T.dynamic("w", "int64")
+    kw_main = T.dynamic("kw", "int64")
+    f_main = T.dynamic("f", "int64")
+    n_conv2d_transpose = T.dynamic("n", "int64")
+    c_conv2d_transpose = T.dynamic("c", "int64")
+    h_conv2d_transpose = T.dynamic("h", "int64")
+    w_conv2d_transpose = T.dynamic("w", "int64")
+    f_conv2d_transpose = T.dynamic("f", "int64")
+    kh_conv2d_transpose = T.dynamic("kh", "int64")
+    kw_conv2d_transpose = T.dynamic("kw", "int64")
 
     @I.ir_module
     class Expected:
@@ -755,7 +755,7 @@ def test_conv2d_transpose_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def conv2d_transpose(rxplaceholder: T.Tensor((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose, w_conv2d_transpose)), rxplaceholder_1: T.Tensor((f_conv2d_transpose, c_conv2d_transpose, kh_conv2d_transpose, kw_conv2d_transpose)), compute: T.Tensor((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose * T.int64(3) + kh_conv2d_transpose - T.int64(3), w_conv2d_transpose * T.int64(3) + kw_conv2d_transpose - T.int64(3)))):
+        def conv2d_transpose(rxplaceholder: T.Tensor((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose, w_conv2d_transpose), "float32"), rxplaceholder_1: T.Tensor((f_conv2d_transpose, c_conv2d_transpose, kh_conv2d_transpose, kw_conv2d_transpose), "float32"), compute: T.Tensor((n_conv2d_transpose, c_conv2d_transpose, h_conv2d_transpose * T.int64(3) + kh_conv2d_transpose - T.int64(3), w_conv2d_transpose * T.int64(3) + kw_conv2d_transpose - T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -965,12 +965,12 @@ def test_max_pool2d_ceil_mode():
 @pytest.mark.skip("TOPI pooling casts every shape value to i32.")
 def test_max_pool2d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    kh = T.dynamic("kh")
-    kw = T.dynamic("kw")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    kh = T.dynamic("kh", "int64")
+    kw = T.dynamic("kw", "int64")
 
     @tvm.script.ir_module
     class MaxPool2D:
@@ -1022,7 +1022,7 @@ def test_avg_pool2d():
                     Ts.reads(pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
                     Ts.writes(pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
                     Ts.sblock_attr({"schedule_rule": "meta_schedule.pool_avg"})
-                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast("float32", T.max((T.min(v_ax1 * T.int64(2) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax1 * T.int64(2), T.int64(0)) - v_ax1 * T.int64(2)) * (T.min(v_ax2 * T.int64(2) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax2 * T.int64(2), T.int64(0)) - v_ax2 * T.int64(2)), T.int64(1)))
+                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast(T.max((T.min(v_ax1 * T.int64(2) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax1 * T.int64(2), T.int64(0)) - v_ax1 * T.int64(2)) * (T.min(v_ax2 * T.int64(2) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax2 * T.int64(2), T.int64(0)) - v_ax2 * T.int64(2)), T.int64(1)), "float32")
 
         @R.function
         def main(x: R.Tensor((4, 112, 112, 6), dtype="float32")) -> R.Tensor((4, 56, 56, 6), dtype="float32"):
@@ -1064,7 +1064,7 @@ def test_avg_pool2d_NCHW16c():
                     Ts.reads(pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
                     Ts.writes(pool_avg[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
                     Ts.sblock_attr({"schedule_rule": "meta_schedule.pool_avg"})
-                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] / T.Cast("float32", T.max((T.min(T.int64(2), T.int64(111) - v_ax2) + T.int64(1) - T.max(T.int64(0) - v_ax2, T.int64(0))) * (T.min(T.int64(2), T.int64(111) - v_ax3) + T.int64(1) - T.max(T.int64(0) - v_ax3, T.int64(0))), T.int64(1)))
+                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] / T.Cast(T.max((T.min(T.int64(2), T.int64(111) - v_ax2) + T.int64(1) - T.max(T.int64(0) - v_ax2, T.int64(0))) * (T.min(T.int64(2), T.int64(111) - v_ax3) + T.int64(1) - T.max(T.int64(0) - v_ax3, T.int64(0))), T.int64(1)), "float32")
         @R.function
         def main(x: R.Tensor((4, 4, 112, 112, 16), dtype="float32")) -> R.Tensor((4, 4, 110, 110, 16), dtype="float32"):
             gv = R.call_tir(Expected.avg_pool2d, (x,), ty_args=[R.Tensor((4, 4, 110, 110, 16), dtype="float32")])
@@ -1112,7 +1112,7 @@ def test_avg_pool2d_ceil_mode():
                     Ts.reads(pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
                     Ts.writes(pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
                     Ts.sblock_attr({"schedule_rule": "meta_schedule.pool_avg"})
-                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast("float32", T.max((T.min(v_ax2 * T.int64(3) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax2 * T.int64(3), T.int64(0)) - v_ax2 * T.int64(3)) * (T.min(v_ax3 * T.int64(3) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax3 * T.int64(3), T.int64(0)) - v_ax3 * T.int64(3)), T.int64(1)))
+                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast(T.max((T.min(v_ax2 * T.int64(3) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax2 * T.int64(3), T.int64(0)) - v_ax2 * T.int64(3)) * (T.min(v_ax3 * T.int64(3) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax3 * T.int64(3), T.int64(0)) - v_ax3 * T.int64(3)), T.int64(1)), "float32")
 
         @R.function
         def main(x: R.Tensor((4, 6, 112, 112), dtype="float32")) -> R.Tensor((4, 6, 38, 38), dtype="float32"):
@@ -1128,12 +1128,12 @@ def test_avg_pool2d_ceil_mode():
 @pytest.mark.skip("TOPI pooling casts every shape value to i32.")
 def test_avg_pool2d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    kh = T.dynamic("kh")
-    kw = T.dynamic("kw")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    kh = T.dynamic("kh", "int64")
+    kw = T.dynamic("kw", "int64")
 
     @tvm.script.ir_module
     class AvgPool2D:
@@ -1233,12 +1233,12 @@ def test_adaptive_avg_pool2d_without_output_size():
 @pytest.mark.skip("TOPI pooling casts every shape value to i32.")
 def test_adaptive_avg_pool2d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    oh = T.dynamic("oh")
-    ow = T.dynamic("ow")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    oh = T.dynamic("oh", "int64")
+    ow = T.dynamic("ow", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
 
     @tvm.script.ir_module
     class AdaptiveAvgPool2D:
@@ -1285,8 +1285,8 @@ def test_relu():
 
 def test_relu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Relu:
@@ -1295,10 +1295,10 @@ def test_relu_symbolic():
             gv: R.Tensor((m, n), "float32") = R.nn.relu(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_relu = T.dynamic("m")
-    n_relu = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_relu = T.dynamic("m", "int64")
+    n_relu = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1356,8 +1356,8 @@ def test_leakyrelu():
 
 def test_leakyrelu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class LeakyRelu:
@@ -1366,10 +1366,10 @@ def test_leakyrelu_symbolic():
             gv: R.Tensor((m, n), "float32") = R.nn.leakyrelu(x, 0.03)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_leaky_relu = T.dynamic("m")
-    n_leaky_relu = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_leaky_relu = T.dynamic("m", "int64")
+    n_leaky_relu = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1379,7 +1379,7 @@ def test_leakyrelu_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def leaky_relu(x: T.Tensor((m_leaky_relu, n_leaky_relu)), compute: T.Tensor((m_leaky_relu, n_leaky_relu))):
+        def leaky_relu(x: T.Tensor((m_leaky_relu, n_leaky_relu), "float32"), compute: T.Tensor((m_leaky_relu, n_leaky_relu), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1 in T.grid(m_leaky_relu, n_leaky_relu):
@@ -1435,7 +1435,7 @@ def test_prelu():
 
 def test_prelu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class PRelu:
@@ -1444,8 +1444,8 @@ def test_prelu_symbolic():
             gv: R.Tensor((m, 7), "float32") = R.nn.prelu(x, y)
             return gv
 
-    m_main = T.dynamic("m")
-    m_prelu = T.dynamic("m")
+    m_main = T.dynamic("m", "int64")
+    m_prelu = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1455,7 +1455,7 @@ def test_prelu_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def prelu(x: T.Tensor((m_prelu, T.int64(7))), y: T.Tensor((T.int64(1),), "float32"), compute: T.Tensor((m_prelu, T.int64(7)))):
+        def prelu(x: T.Tensor((m_prelu, T.int64(7)), "float32"), y: T.Tensor((T.int64(1),), "float32"), compute: T.Tensor((m_prelu, T.int64(7)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1539,8 +1539,8 @@ def test_gelu():
 
 def test_gelu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Gelu:
@@ -1549,10 +1549,10 @@ def test_gelu_symbolic():
             gv: R.Tensor((m, n), "float32") = R.nn.gelu(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_gelu = T.dynamic("m")
-    n_gelu = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_gelu = T.dynamic("m", "int64")
+    n_gelu = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1562,7 +1562,7 @@ def test_gelu_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def gelu(x: T.Tensor((m_gelu, n_gelu)), T_multiply: T.Tensor((m_gelu, n_gelu))):
+        def gelu(x: T.Tensor((m_gelu, n_gelu), "float32"), T_multiply: T.Tensor((m_gelu, n_gelu), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             T_multiply_1 = Ts.sblock_alloc_tensor((m_gelu, n_gelu))
@@ -1693,8 +1693,8 @@ def test_gelu_tanh():
 
 def test_gelu_tanh_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class GeluTanh:
@@ -1703,10 +1703,10 @@ def test_gelu_tanh_symbolic():
             gv: R.Tensor((m, n), "float32") = R.nn.gelu_tanh(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_gelu_tanh = T.dynamic("m")
-    n_gelu_tanh = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_gelu_tanh = T.dynamic("m", "int64")
+    n_gelu_tanh = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1716,7 +1716,7 @@ def test_gelu_tanh_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def gelu_tanh(A: T.Tensor((m_gelu_tanh, n_gelu_tanh)), T_multiply: T.Tensor((m_gelu_tanh, n_gelu_tanh))):
+        def gelu_tanh(A: T.Tensor((m_gelu_tanh, n_gelu_tanh), "float32"), T_multiply: T.Tensor((m_gelu_tanh, n_gelu_tanh), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1827,8 +1827,8 @@ def test_silu():
 
 def test_silu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Silu:
@@ -1837,10 +1837,10 @@ def test_silu_symbolic():
             gv: R.Tensor((m, n), "float32") = R.nn.silu(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_silu = T.dynamic("m")
-    n_silu = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_silu = T.dynamic("m", "int64")
+    n_silu = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1931,9 +1931,9 @@ def test_softmax():
 
 def test_softmax_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Softmax:
@@ -1942,12 +1942,12 @@ def test_softmax_symbolic():
             gv: R.Tensor((a, b, c), "float32") = R.nn.softmax(x)
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    a_softmax = T.dynamic("a")
-    b_softmax = T.dynamic("b")
-    c_softmax = T.dynamic("c")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_softmax = T.dynamic("a", "int64")
+    b_softmax = T.dynamic("b", "int64")
+    c_softmax = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -2050,9 +2050,9 @@ def test_log_softmax():
 
 def test_log_softmax_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class LogSoftmax:
@@ -2061,12 +2061,12 @@ def test_log_softmax_symbolic():
             gv: R.Tensor((a, b, c), "float32") = R.nn.log_softmax(x)
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    a_log_softmax = T.dynamic("a")
-    b_log_softmax = T.dynamic("b")
-    c_log_softmax = T.dynamic("c")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_log_softmax = T.dynamic("a", "int64")
+    b_log_softmax = T.dynamic("b", "int64")
+    c_log_softmax = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -2211,8 +2211,8 @@ def test_cross_entropy_with_logits_batch():
 
 def test_cross_entropy_with_logits_batch_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class CrossEntropyWithLogits:
@@ -2221,10 +2221,10 @@ def test_cross_entropy_with_logits_batch_symbolic():
             gv: R.Tensor((), "float32") = R.nn.cross_entropy_with_logits(x, y)
             return gv
 
-    n_main = T.dynamic("n")
-    m_main = T.dynamic("m")
-    m_cross_entropy_with_logits = T.dynamic("m")
-    n_cross_entropy_with_logits = T.dynamic("n")
+    n_main = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
+    m_cross_entropy_with_logits = T.dynamic("m", "int64")
+    n_cross_entropy_with_logits = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -2234,7 +2234,7 @@ def test_cross_entropy_with_logits_batch_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def cross_entropy_with_logits(x: T.Tensor((n_cross_entropy_with_logits, m_cross_entropy_with_logits)), y: T.Tensor((n_cross_entropy_with_logits, m_cross_entropy_with_logits)), T_divide: T.Tensor((), "float32")):
+        def cross_entropy_with_logits(x: T.Tensor((n_cross_entropy_with_logits, m_cross_entropy_with_logits), "float32"), y: T.Tensor((n_cross_entropy_with_logits, m_cross_entropy_with_logits), "float32"), T_divide: T.Tensor((), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             T_multiply = Ts.sblock_alloc_tensor((n_cross_entropy_with_logits, m_cross_entropy_with_logits))
@@ -2263,7 +2263,7 @@ def test_cross_entropy_with_logits_batch_symbolic():
                 vi = Ts.axis.spatial(T.int64(1), T.int64(0))
                 Ts.reads(T_multiply_1[()])
                 Ts.writes(T_divide[()])
-                T_divide[()] = T_multiply_1[()] / T.Cast("float32", n_cross_entropy_with_logits)
+                T_divide[()] = T_multiply_1[()] / T.Cast(n_cross_entropy_with_logits, "float32")
     # fmt: on
 
     mod = LegalizeOps()(CrossEntropyWithLogits)
@@ -2282,7 +2282,7 @@ def test_batch_norm():
     @tvm.script.ir_module
     class Expected:
         @Ts.function(private=True)
-        def batch_norm(x: T.Tensor((T.int64(2), T.int64(3), T.int64(28), T.int64(28))), gamma: T.Tensor((T.int64(3),)), beta: T.Tensor((T.int64(3),)), moving_mean: T.Tensor((T.int64(3),)), moving_var: T.Tensor((T.int64(3),)), T_add: T.Tensor((T.int64(2), T.int64(3), T.int64(28), T.int64(28))), T_add_1: T.Tensor((T.int64(3),)), T_add_2: T.Tensor((T.int64(3),))):
+        def batch_norm(x: T.Tensor((T.int64(2), T.int64(3), T.int64(28), T.int64(28)), "float32"), gamma: T.Tensor((T.int64(3),), "float32"), beta: T.Tensor((T.int64(3),), "float32"), moving_mean: T.Tensor((T.int64(3),), "float32"), moving_var: T.Tensor((T.int64(3),), "float32"), T_add: T.Tensor((T.int64(2), T.int64(3), T.int64(28), T.int64(28)), "float32"), T_add_1: T.Tensor((T.int64(3),), "float32"), T_add_2: T.Tensor((T.int64(3),), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):
@@ -2554,10 +2554,10 @@ def test_batch_norm():
 
 def test_batch_norm_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    c = T.dynamic("c")
+    n = T.dynamic("n", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    c = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class BatchNorm:
@@ -2566,19 +2566,19 @@ def test_batch_norm_symbolic():
             gv: R.Tuple(R.Tensor((n, h, w, c), "float32"), R.Tensor((c,), "float32"), R.Tensor((c,), "float32")) = R.nn.batch_norm(x, gamma, beta, moving_mean, moving_var, axis=1)
             return gv
 
-    n_batch_norm = T.dynamic("n")
-    h_batch_norm = T.dynamic("h")
-    w_batch_norm = T.dynamic("w")
-    c_batch_norm = T.dynamic("c")
-    n_main = T.dynamic("n")
-    h_main = T.dynamic("h")
-    w_main = T.dynamic("w")
-    c_main = T.dynamic("c")
+    n_batch_norm = T.dynamic("n", "int64")
+    h_batch_norm = T.dynamic("h", "int64")
+    w_batch_norm = T.dynamic("w", "int64")
+    c_batch_norm = T.dynamic("c", "int64")
+    n_main = T.dynamic("n", "int64")
+    h_main = T.dynamic("h", "int64")
+    w_main = T.dynamic("w", "int64")
+    c_main = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @Ts.function(private=True)
-        def batch_norm(x: T.Tensor((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm)), gamma: T.Tensor((c_batch_norm,)), beta: T.Tensor((c_batch_norm,)), moving_mean: T.Tensor((c_batch_norm,)), moving_var: T.Tensor((c_batch_norm,)), T_add: T.Tensor((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm)), T_add_1: T.Tensor((T.max(c_batch_norm, h_batch_norm),)), T_add_2: T.Tensor((T.max(c_batch_norm, h_batch_norm),))):
+        def batch_norm(x: T.Tensor((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm), "float32"), gamma: T.Tensor((c_batch_norm,), "float32"), beta: T.Tensor((c_batch_norm,), "float32"), moving_mean: T.Tensor((c_batch_norm,), "float32"), moving_var: T.Tensor((c_batch_norm,), "float32"), T_add: T.Tensor((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm), "float32"), T_add_1: T.Tensor((T.max(c_batch_norm, h_batch_norm),), "float32"), T_add_2: T.Tensor((T.max(c_batch_norm, h_batch_norm),), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):
@@ -2623,7 +2623,7 @@ def test_batch_norm_symbolic():
                         v_ax0 = Ts.axis.spatial(h_batch_norm, ax0)
                         Ts.reads(x_red[v_ax0])
                         Ts.writes(T_divide[v_ax0])
-                        T_divide[v_ax0] = x_red[v_ax0] / T.Cast("float32", n_batch_norm * w_batch_norm * c_batch_norm)
+                        T_divide[v_ax0] = x_red[v_ax0] / T.Cast(n_batch_norm * w_batch_norm * c_batch_norm, "float32")
                 for ax0 in range(T.int64(1)):
                     for ax1 in range(h_batch_norm):
                         for ax2 in range(T.int64(1)):
@@ -2703,7 +2703,7 @@ def test_batch_norm_symbolic():
                         v_ax0 = Ts.axis.spatial(h_batch_norm, ax0)
                         Ts.reads(T_multiply_red[v_ax0])
                         Ts.writes(T_divide_1[v_ax0])
-                        T_divide_1[v_ax0] = T_multiply_red[v_ax0] / T.Cast("float32", n_batch_norm * w_batch_norm * c_batch_norm)
+                        T_divide_1[v_ax0] = T_multiply_red[v_ax0] / T.Cast(n_batch_norm * w_batch_norm * c_batch_norm, "float32")
                 for ax0 in range(T.int64(1)):
                     for ax1 in range(h_batch_norm):
                         for ax2 in range(T.int64(1)):
@@ -2997,7 +2997,7 @@ def test_layer_norm_fp16():
                     Ts.writes(x_sum[v_ax0, v_ax1])
                     with Ts.init():
                         x_sum[v_ax0, v_ax1] = T.float32(0.0)
-                    x_sum[v_ax0, v_ax1] = x_sum[v_ax0, v_ax1] + T.Cast("float32", x[v_ax0, v_ax1, v_k2, v_k3])
+                    x_sum[v_ax0, v_ax1] = x_sum[v_ax0, v_ax1] + T.Cast(x[v_ax0, v_ax1, v_k2, v_k3], "float32")
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("x_mean"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -3011,13 +3011,13 @@ def test_layer_norm_fp16():
                     Ts.writes(x_var_sum[v_ax0, v_ax1])
                     with Ts.init():
                         x_var_sum[v_ax0, v_ax1] = T.float32(0.0)
-                    x_var_sum[v_ax0, v_ax1] = x_var_sum[v_ax0, v_ax1] + (T.Cast("float32", x[v_ax0, v_ax1, v_k2, v_k3]) - x_mean[v_ax0, v_ax1]) * (T.Cast("float32", x[v_ax0, v_ax1, v_k2, v_k3]) - x_mean[v_ax0, v_ax1])
+                    x_var_sum[v_ax0, v_ax1] = x_var_sum[v_ax0, v_ax1] + (T.Cast(x[v_ax0, v_ax1, v_k2, v_k3], "float32") - x_mean[v_ax0, v_ax1]) * (T.Cast(x[v_ax0, v_ax1, v_k2, v_k3], "float32") - x_mean[v_ax0, v_ax1])
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with Ts.sblock("T_layer_norm"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     Ts.reads(x[v_ax0, v_ax1, v_ax2, v_ax3], x_mean[v_ax0, v_ax1], x_var_sum[v_ax0, v_ax1], gamma[v_ax2, v_ax3], beta[v_ax2, v_ax3])
                     Ts.writes(T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3] = T.Cast("float16", (T.Cast("float32", x[v_ax0, v_ax1, v_ax2, v_ax3]) - x_mean[v_ax0, v_ax1]) * T.rsqrt(x_var_sum[v_ax0, v_ax1] / T.float32(20.0) + T.float32(1.0000000000000001e-05))) * gamma[v_ax2, v_ax3] + beta[v_ax2, v_ax3]
+                    T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3] = T.Cast((T.Cast(x[v_ax0, v_ax1, v_ax2, v_ax3], "float32") - x_mean[v_ax0, v_ax1]) * T.rsqrt(x_var_sum[v_ax0, v_ax1] / T.float32(20.0) + T.float32(1.0000000000000001e-05)), "float16") * gamma[v_ax2, v_ax3] + beta[v_ax2, v_ax3]
 
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float16"), gamma: R.Tensor((4, 5), dtype="float16"), beta: R.Tensor((4, 5), dtype="float16")) -> R.Tensor((2, 3, 4, 5), dtype="float16"):
@@ -3030,9 +3030,9 @@ def test_layer_norm_fp16():
 
 def test_layer_norm_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    s = T.dynamic("s")
-    f = T.dynamic("f")
+    n = T.dynamic("n", "int64")
+    s = T.dynamic("s", "int64")
+    f = T.dynamic("f", "int64")
 
     @tvm.script.ir_module
     class LayerNorm:
@@ -3041,12 +3041,12 @@ def test_layer_norm_symbolic():
             gv: R.Tensor((n, s, f), "float32") = R.nn.layer_norm(x, gamma, beta, axes=[1, 2])
             return gv
 
-    n_main = T.dynamic("n")
-    s_main = T.dynamic("s")
-    f_main = T.dynamic("f")
-    n_layer_norm = T.dynamic("n")
-    s_layer_norm = T.dynamic("s")
-    f_layer_norm = T.dynamic("f")
+    n_main = T.dynamic("n", "int64")
+    s_main = T.dynamic("s", "int64")
+    f_main = T.dynamic("f", "int64")
+    n_layer_norm = T.dynamic("n", "int64")
+    s_layer_norm = T.dynamic("s", "int64")
+    f_layer_norm = T.dynamic("f", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -3056,7 +3056,7 @@ def test_layer_norm_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def layer_norm(x: T.Tensor((n_layer_norm, s_layer_norm, f_layer_norm)), gamma: T.Tensor((s_layer_norm, f_layer_norm)), beta: T.Tensor((s_layer_norm, f_layer_norm)), T_layer_norm: T.Tensor((n_layer_norm, s_layer_norm, f_layer_norm))):
+        def layer_norm(x: T.Tensor((n_layer_norm, s_layer_norm, f_layer_norm), "float32"), gamma: T.Tensor((s_layer_norm, f_layer_norm), "float32"), beta: T.Tensor((s_layer_norm, f_layer_norm), "float32"), T_layer_norm: T.Tensor((n_layer_norm, s_layer_norm, f_layer_norm), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -3076,7 +3076,7 @@ def test_layer_norm_symbolic():
                     v_ax0 = Ts.axis.spatial(n_layer_norm, ax0)
                     Ts.reads(x_sum[v_ax0])
                     Ts.writes(x_mean[v_ax0])
-                    x_mean[v_ax0] = x_sum[v_ax0] / (T.Cast("float32", s_layer_norm) * T.Cast("float32", f_layer_norm))
+                    x_mean[v_ax0] = x_sum[v_ax0] / (T.Cast(s_layer_norm, "float32") * T.Cast(f_layer_norm, "float32"))
             for ax0, k1, k2 in T.grid(n_layer_norm, s_layer_norm, f_layer_norm):
                 with Ts.sblock("x_var_sum"):
                     v_ax0, v_k1, v_k2 = Ts.axis.remap("SRR", [ax0, k1, k2])
@@ -3090,7 +3090,7 @@ def test_layer_norm_symbolic():
                     v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
                     Ts.reads(x[v_ax0, v_ax1, v_ax2], x_mean[v_ax0], x_var_sum[v_ax0], gamma[v_ax1, v_ax2], beta[v_ax1, v_ax2])
                     Ts.writes(T_layer_norm[v_ax0, v_ax1, v_ax2])
-                    T_layer_norm[v_ax0, v_ax1, v_ax2] = (x[v_ax0, v_ax1, v_ax2] - x_mean[v_ax0]) * T.rsqrt(x_var_sum[v_ax0] / (T.Cast("float32", s_layer_norm) * T.Cast("float32", f_layer_norm)) + T.float32(1.0000000000000001e-05)) * gamma[v_ax1, v_ax2] + beta[v_ax1, v_ax2]
+                    T_layer_norm[v_ax0, v_ax1, v_ax2] = (x[v_ax0, v_ax1, v_ax2] - x_mean[v_ax0]) * T.rsqrt(x_var_sum[v_ax0] / (T.Cast(s_layer_norm, "float32") * T.Cast(f_layer_norm, "float32")) + T.float32(1.0000000000000001e-05)) * gamma[v_ax1, v_ax2] + beta[v_ax1, v_ax2]
     # fmt: on
     mod = LegalizeOps()(LayerNorm)
     tvm.ir.assert_structural_equal(mod, Expected)
@@ -3206,7 +3206,7 @@ def test_group_norm_fp16():
                     v_ax0, v_ax1, v_ax2, v_ax3, v_ax4 = Ts.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
                     Ts.reads(T_reshape_1[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
                     Ts.writes(T_cast[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
-                    T_cast[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.Cast("float32", T_reshape_1[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
+                    T_cast[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.Cast(T_reshape_1[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4], "float32")
             for ax0, ax1, k2, k3, k4 in T.grid(T.int64(2), T.int64(2), T.int64(2), T.int64(4), T.int64(5)):
                 with Ts.sblock("rxplaceholder_red_temp"):
                     v_ax0, v_ax1, v_k2, v_k3, v_k4 = Ts.axis.remap("SSRRR", [ax0, ax1, k2, k3, k4])
@@ -3236,7 +3236,7 @@ def test_group_norm_fp16():
                     v_ax0, v_ax1, v_ax2, v_ax3, v_ax4 = Ts.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
                     Ts.reads(T_cast[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4], rxplaceholder_red_temp_v0[v_ax0, v_ax1], rxplaceholder_red_temp_v1[v_ax0, v_ax1], T_reshape_2[v_ax1, v_ax2], T_reshape_3[v_ax1, v_ax2])
                     Ts.writes(T_group_norm[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
-                    T_group_norm[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.Cast("float16", (T_cast[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / T.float32(40)) * T.rsqrt(rxplaceholder_red_temp_v1[v_ax0, v_ax1] / T.float32(40) - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / T.float32(40) * (rxplaceholder_red_temp_v0[v_ax0, v_ax1] / T.float32(40)) + T.float32(1.0000000000000001e-05))) * T_reshape_2[v_ax1, v_ax2] + T_reshape_3[v_ax1, v_ax2]
+                    T_group_norm[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.Cast((T_cast[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / T.float32(40)) * T.rsqrt(rxplaceholder_red_temp_v1[v_ax0, v_ax1] / T.float32(40) - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / T.float32(40) * (rxplaceholder_red_temp_v0[v_ax0, v_ax1] / T.float32(40)) + T.float32(1.0000000000000001e-05)), "float16") * T_reshape_2[v_ax1, v_ax2] + T_reshape_3[v_ax1, v_ax2]
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(4), T.int64(4), T.int64(5)):
                 with Ts.sblock("T_reshape_3"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -3251,10 +3251,10 @@ def test_group_norm_fp16():
 
 def test_group_norm_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
 
     @tvm.script.ir_module
     class GroupNorm:
@@ -3263,20 +3263,20 @@ def test_group_norm_symbolic():
             gv: R.Tensor((n, 4 * c, h, w), "float32") = R.nn.group_norm(x, gamma, beta, num_groups=4, channel_axis=1, axes=[2, 3])
             return gv
 
-    n_group_norm = T.dynamic("n")
-    h_group_norm = T.dynamic("h")
-    w_group_norm = T.dynamic("w")
-    n_main = T.dynamic("n")
-    c = T.dynamic("c")
-    h_main = T.dynamic("h")
-    w_main = T.dynamic("w")
+    n_group_norm = T.dynamic("n", "int64")
+    h_group_norm = T.dynamic("h", "int64")
+    w_group_norm = T.dynamic("w", "int64")
+    n_main = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    h_main = T.dynamic("h", "int64")
+    w_main = T.dynamic("w", "int64")
 
     @tvm.script.ir_module
     class Expected:
         group_norm_c = T.int64()
 
         @Ts.function(private=True)
-        def group_norm(rxplaceholder: T.Tensor((n_group_norm, T.int64(4) * group_norm_c, h_group_norm, w_group_norm)), rxplaceholder_1: T.Tensor((T.int64(4) * group_norm_c,)), rxplaceholder_2: T.Tensor((T.int64(4) * group_norm_c,)), c: group_norm_c, T_reshape: T.Tensor((n_group_norm, T.int64(4) * group_norm_c, h_group_norm, w_group_norm))):
+        def group_norm(rxplaceholder: T.Tensor((n_group_norm, T.int64(4) * group_norm_c, h_group_norm, w_group_norm), "float32"), rxplaceholder_1: T.Tensor((T.int64(4) * group_norm_c,), "float32"), rxplaceholder_2: T.Tensor((T.int64(4) * group_norm_c,), "float32"), c: group_norm_c, T_reshape: T.Tensor((n_group_norm, T.int64(4) * group_norm_c, h_group_norm, w_group_norm), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -3321,7 +3321,7 @@ def test_group_norm_symbolic():
                     v_ax0, v_ax1, v_ax2, v_ax3, v_ax4 = Ts.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
                     Ts.reads(T_reshape_1[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4], rxplaceholder_red_temp_v0[v_ax0, v_ax1], rxplaceholder_red_temp_v1[v_ax0, v_ax1], T_reshape_2[v_ax1, v_ax2], T_reshape_3[v_ax1, v_ax2])
                     Ts.writes(T_group_norm[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
-                    T_group_norm[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = (T_reshape_1[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / (T.Cast("float32", c) * T.Cast("float32", h_group_norm) * T.Cast("float32", w_group_norm))) * T.rsqrt(rxplaceholder_red_temp_v1[v_ax0, v_ax1] / (T.Cast("float32", c) * T.Cast("float32", h_group_norm) * T.Cast("float32", w_group_norm)) - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / (T.Cast("float32", c) * T.Cast("float32", h_group_norm) * T.Cast("float32", w_group_norm)) * (rxplaceholder_red_temp_v0[v_ax0, v_ax1] / (T.Cast("float32", c) * T.Cast("float32", h_group_norm) * T.Cast("float32", w_group_norm))) + T.float32(1.0000000000000001e-05)) * T_reshape_2[v_ax1, v_ax2] + T_reshape_3[v_ax1, v_ax2]
+                    T_group_norm[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = (T_reshape_1[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / (T.Cast(c, "float32") * T.Cast(h_group_norm, "float32") * T.Cast(w_group_norm, "float32"))) * T.rsqrt(rxplaceholder_red_temp_v1[v_ax0, v_ax1] / (T.Cast(c, "float32") * T.Cast(h_group_norm, "float32") * T.Cast(w_group_norm, "float32")) - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / (T.Cast(c, "float32") * T.Cast(h_group_norm, "float32") * T.Cast(w_group_norm, "float32")) * (rxplaceholder_red_temp_v0[v_ax0, v_ax1] / (T.Cast(c, "float32") * T.Cast(h_group_norm, "float32") * T.Cast(w_group_norm, "float32"))) + T.float32(1.0000000000000001e-05)) * T_reshape_2[v_ax1, v_ax2] + T_reshape_3[v_ax1, v_ax2]
             for ax0, ax1, ax2, ax3 in T.grid(n_group_norm, c * T.int64(4), h_group_norm, w_group_norm):
                 with Ts.sblock("T_reshape_3"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -3440,7 +3440,7 @@ def test_rms_norm_fp16():
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     Ts.reads(A[v_ax0, v_ax1, v_ax2, v_ax3])
                     Ts.writes(T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3] = T.Cast("float32", A[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3] = T.Cast(A[v_ax0, v_ax1, v_ax2, v_ax3], "float32")
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with Ts.sblock("T_multiply"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -3466,7 +3466,7 @@ def test_rms_norm_fp16():
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
                     Ts.reads(B[v_ax0, v_ax1])
                     Ts.writes(T_cast_2[v_ax0, v_ax1])
-                    T_cast_2[v_ax0, v_ax1] = T.Cast("float32", B[v_ax0, v_ax1])
+                    T_cast_2[v_ax0, v_ax1] = T.Cast(B[v_ax0, v_ax1], "float32")
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with Ts.sblock("T_rms_norm"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -3478,7 +3478,7 @@ def test_rms_norm_fp16():
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     Ts.reads(T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3])
                     Ts.writes(T_cast[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_cast[v_ax0, v_ax1, v_ax2, v_ax3] = T.Cast("float16", T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_cast[v_ax0, v_ax1, v_ax2, v_ax3] = T.Cast(T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3], "float16")
 
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float16"), weight: R.Tensor((4, 5), dtype="float16")) -> R.Tensor((2, 3, 4, 5), dtype="float16"):
@@ -3492,9 +3492,9 @@ def test_rms_norm_fp16():
 
 def test_rms_norm_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    s = T.dynamic("s")
-    f = T.dynamic("f")
+    n = T.dynamic("n", "int64")
+    s = T.dynamic("s", "int64")
+    f = T.dynamic("f", "int64")
 
     @tvm.script.ir_module
     class RMSNorm:
@@ -3503,17 +3503,17 @@ def test_rms_norm_symbolic():
             gv: R.Tensor((n, s, f), "float32") = R.nn.rms_norm(x, weight, axes=[1, 2])
             return gv
 
-    n_rms_norm = T.dynamic("n")
-    s_rms_norm = T.dynamic("s")
-    f_rms_norm = T.dynamic("f")
-    n_main = T.dynamic("n")
-    s_main = T.dynamic("s")
-    f_main = T.dynamic("f")
+    n_rms_norm = T.dynamic("n", "int64")
+    s_rms_norm = T.dynamic("s", "int64")
+    f_rms_norm = T.dynamic("f", "int64")
+    n_main = T.dynamic("n", "int64")
+    s_main = T.dynamic("s", "int64")
+    f_main = T.dynamic("f", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @Ts.function(private=True)
-        def rms_norm(A: T.Tensor((n_rms_norm, s_rms_norm, f_rms_norm)), B: T.Tensor((s_rms_norm, f_rms_norm)), T_cast: T.Tensor((n_rms_norm, s_rms_norm, f_rms_norm))):
+        def rms_norm(A: T.Tensor((n_rms_norm, s_rms_norm, f_rms_norm), "float32"), B: T.Tensor((s_rms_norm, f_rms_norm), "float32"), T_cast: T.Tensor((n_rms_norm, s_rms_norm, f_rms_norm), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -3548,7 +3548,7 @@ def test_rms_norm_symbolic():
                     v_ax0 = Ts.axis.spatial(n_rms_norm, ax0)
                     Ts.reads(T_multiply_red[v_ax0])
                     Ts.writes(rsqrt[v_ax0])
-                    rsqrt[v_ax0] = T.rsqrt(T_multiply_red[v_ax0] / (T.Cast("float32", s_rms_norm) * T.Cast("float32", f_rms_norm)) + T.float32(1.0000000000000001e-05))
+                    rsqrt[v_ax0] = T.rsqrt(T_multiply_red[v_ax0] / (T.Cast(s_rms_norm, "float32") * T.Cast(f_rms_norm, "float32")) + T.float32(1.0000000000000001e-05))
             for ax0, ax1 in T.grid(s_rms_norm, f_rms_norm):
                 with Ts.sblock("T_cast_1"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -3844,8 +3844,8 @@ def test_dynamic_attention():
     legalization.
     """
 
-    seq_len = T.dynamic("seq_len")
-    seq_len_kv = T.dynamic("seq_len_kv")
+    seq_len = T.dynamic("seq_len", "int64")
+    seq_len_kv = T.dynamic("seq_len_kv", "int64")
 
     @tvm.script.ir_module
     class Attention:
@@ -3870,7 +3870,7 @@ def test_dynamic_batch_attention():
     fix https://github.com/apache/tvm/issues/19696
     """
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @tvm.script.ir_module
     class Attention:
@@ -3885,7 +3885,7 @@ def test_dynamic_batch_attention():
 
     LegalizeOps()(Attention)
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @tvm.script.ir_module
     class AttentionBias:
@@ -4056,7 +4056,7 @@ def test_nll_no_weight():
 
 def test_nll_no_batch():
     # fmt: off
-    C = T.dynamic("C")
+    C = T.dynamic("C", "int64")
 
     @tvm.script.ir_module
     class NLLLoss:
@@ -4065,8 +4065,8 @@ def test_nll_no_batch():
             gv = R.nn.nll_loss(predictions, targets, weights, reduction="mean", ignore_index=1)
             return gv
 
-    C_main = T.dynamic("C")
-    C_nll_loss = T.dynamic("C")
+    C_main = T.dynamic("C", "int64")
+    C_nll_loss = T.dynamic("C", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -4076,7 +4076,7 @@ def test_nll_no_batch():
             return gv
 
         @Ts.function(private=True)
-        def nll_loss(rxplaceholder_1: T.Tensor((C_nll_loss,)), rxplaceholder: T.Tensor((), "int64"), rxplaceholder_2: T.Tensor((C_nll_loss,)), T_divide: T.Tensor((), "float32")):
+        def nll_loss(rxplaceholder_1: T.Tensor((C_nll_loss,), "float32"), rxplaceholder: T.Tensor((), "int64"), rxplaceholder_2: T.Tensor((C_nll_loss,), "float32"), T_divide: T.Tensor((), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -4105,10 +4105,10 @@ def test_nll_no_batch():
 
 def test_nll_loss_symbolic():
     # fmt: off
-    N = T.dynamic("N")
-    C = T.dynamic("C")
-    d1 = T.dynamic("d1")
-    d2 = T.dynamic("d2")
+    N = T.dynamic("N", "int64")
+    C = T.dynamic("C", "int64")
+    d1 = T.dynamic("d1", "int64")
+    d2 = T.dynamic("d2", "int64")
 
     @tvm.script.ir_module
     class NLLLoss:
@@ -4117,14 +4117,14 @@ def test_nll_loss_symbolic():
             gv: R.Tensor((), "float32") = R.nn.nll_loss(predictions, targets, weights, reduction="mean", ignore_index=-1)
             return gv
 
-    N_main = T.dynamic("N")
-    C_main = T.dynamic("C")
-    d1_main = T.dynamic("d1")
-    d2_main = T.dynamic("d2")
-    C_nll_loss = T.dynamic("C")
-    N_nll_loss = T.dynamic("N")
-    d1_nll_loss = T.dynamic("d1")
-    d2_nll_loss = T.dynamic("d2")
+    N_main = T.dynamic("N", "int64")
+    C_main = T.dynamic("C", "int64")
+    d1_main = T.dynamic("d1", "int64")
+    d2_main = T.dynamic("d2", "int64")
+    C_nll_loss = T.dynamic("C", "int64")
+    N_nll_loss = T.dynamic("N", "int64")
+    d1_nll_loss = T.dynamic("d1", "int64")
+    d2_nll_loss = T.dynamic("d2", "int64")
 
     @tvm.script.ir_module
     class Expected:

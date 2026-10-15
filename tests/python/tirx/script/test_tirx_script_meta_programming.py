@@ -331,7 +331,7 @@ def test_function_nested_closure():
 
 
 def test_ir_module_closure():
-    """Closure variable in @I.ir_module class method."""
+    """Closure variable in @T.ir_module class method."""
 
     def f(M=16):
         @I.ir_module

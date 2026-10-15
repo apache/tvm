@@ -27,9 +27,9 @@ import tvm.testing
 from tvm import relax
 from tvm.ir import Call
 from tvm.ir.op import Op
+from tvm.relax.testing.gradient import check_numerical_grads
 from tvm.relax.transform import LegalizeOps
 from tvm.relax.type import TensorType, TupleType
-from tvm.testing.utils import check_numerical_grads
 
 
 def relax_check_gradients(
@@ -151,9 +151,10 @@ def relax_check_gradients(
             assert len(weights) == len(result_numpy)
             ret = 0
             for i, weight in enumerate(weights):
-                ret += np.sum(weight * result_numpy[i])
+                ret += np.sum(weight * result_numpy[i], dtype="float64")
             return ret
-        return np.sum(weights * result_numpy)
+        # Keep the scalar reduction precise enough for finite differences.
+        return np.sum(weights * result_numpy, dtype="float64")
 
     # The gradient function
     assert isinstance(call.op, Op)

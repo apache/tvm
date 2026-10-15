@@ -28,8 +28,6 @@ from collections.abc import Sequence
 from functools import partial as _partial
 from typing import Any
 
-import tvm_ffi as _ffi
-
 import tvm
 from tvm import ir as _ir
 from tvm.ir import Expr, TensorRegion, Type, Var
@@ -44,8 +42,8 @@ _Loc = _base.LocationEntry | _ir.Location | None
 
 
 def _as_expr(value):
-    if isinstance(value, _ffi.ObjectConvertible):
-        value = value.asobject()
+    if hasattr(value, "__tvm_ffi_object__"):
+        value = value.__tvm_ffi_object__()
     if isinstance(value, _ir.Expr):
         return value
     if isinstance(value, str):
@@ -99,27 +97,32 @@ def bind(  # pylint: disable=invalid-name
     if type_annotation is not None:
         # Canonical Vars are callable when they denote functions.  Here a Var is
         # already a resolved type annotation, rather than a deferred annotation factory.
-        if callable(type_annotation) and not isinstance(type_annotation, Expr):
+        if callable(type_annotation) and not isinstance(type_annotation, Expr | _ir.Type):
             type_annotation = type_annotation()
         if isinstance(type_annotation, _ir.Var):
             type_annotation = type_annotation.ty
     return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def evaluate(value: Expr) -> AlreadyEmitted[tvm.ir.Stmt]:
-    """Emit an evaluation and return a reference to its stored statement.
+def evaluate(
+    value: Expr | AlreadyEmitted[tvm.ir.Call] | AlreadyEmitted[tvm.ir.Stmt],
+) -> AlreadyEmitted[tvm.ir.Call] | AlreadyEmitted[tvm.ir.Stmt]:
+    """Emit an expression, or pass through a call or statement emission receipt.
 
     Parameters
     ----------
-    value : Expr
-        The input expression to evaluate.
+    value : Expr, AlreadyEmitted[Call] or AlreadyEmitted[Stmt]
+        The input expression, or a receipt returned unchanged without emission.
 
     Returns
     -------
-    result : AlreadyEmitted[Stmt]
-        A receipt containing the emitted statement, so expression-statement
-        handling does not emit it again.
+    result : AlreadyEmitted[Call] or AlreadyEmitted[Stmt]
+        The existing receipt unchanged, or a receipt containing the newly
+        emitted Evaluate statement, so expression-statement handling does not
+        emit it again.
     """
+    if isinstance(value, AlreadyEmitted):
+        return value
     if isinstance(value, str):
         value = _StringImm(value)
     if isinstance(value, bool):

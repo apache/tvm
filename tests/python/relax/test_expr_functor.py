@@ -875,5 +875,18 @@ def test_function_parameter_mutation():
     tvm.ir.assert_structural_equal(expected, after)
 
 
+def test_unmapped_python_mutator_var_is_absent():
+    @tvm.relax.expr_functor.mutator
+    class Mutator(tvm.relax.PyExprMutator):
+        pass
+
+    mutator = Mutator()
+    old = tvm.relax.Var("old", tvm.ir.PrimType("int32"))
+    new = tvm.relax.Var("new", tvm.ir.PrimType("int32"))
+    assert mutator.get_var_remap(old) is None
+    mutator.set_var_remap(old, new)
+    assert mutator.get_var_remap(old).same_as(new)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

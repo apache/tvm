@@ -34,7 +34,9 @@ from tvm.script import tirx as T
 
 
 @Ts.function
-def elementwise(A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))) -> None:
+def elementwise(
+    A: T.Tensor((128, 128, 128, 128), "float32"), B: T.Tensor((128, 128, 128, 128), "float32")
+) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 128):
         with Ts.sblock("B"):
             vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
@@ -43,7 +45,7 @@ def elementwise(A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 1
 
 @Ts.function
 def elementwise_not_affine(
-    A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))
+    A: T.Tensor((128, 128, 128, 128), "float32"), B: T.Tensor((128, 128, 128, 128), "float32")
 ) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 8):
         with Ts.sblock("B"):
@@ -54,7 +56,7 @@ def elementwise_not_affine(
 
 @Ts.function
 def elementwise_dependent_loop(
-    A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))
+    A: T.Tensor((128, 128, 128, 128), "float32"), B: T.Tensor((128, 128, 128, 128), "float32")
 ) -> None:
     for i in T.serial(0, 128):
         for j, k, l in T.grid(128, i, 128):
@@ -65,7 +67,7 @@ def elementwise_dependent_loop(
 
 @Ts.function
 def elementwise_predicate(
-    A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))
+    A: T.Tensor((128, 128, 128, 128), "float32"), B: T.Tensor((128, 128, 128, 128), "float32")
 ) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 128):
         with Ts.sblock("B"):
@@ -76,7 +78,7 @@ def elementwise_predicate(
 
 @Ts.function
 def elementwise_non_single_branch(
-    A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))
+    A: T.Tensor((128, 128, 128), "float32"), B: T.Tensor((128, 128, 128), "float32")
 ) -> None:
     C = Ts.sblock_alloc_tensor((128, 128, 128))
 
@@ -93,7 +95,7 @@ def elementwise_non_single_branch(
 
 @Ts.function
 def elementwise_with_loops_not_same_scope(
-    A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))
+    A: T.Tensor((128, 128, 128), "float32"), B: T.Tensor((128, 128, 128), "float32")
 ) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("A"):
@@ -108,7 +110,7 @@ def elementwise_with_loops_not_same_scope(
 
 @Ts.function
 def elementwise_with_wrong_block_var_type(
-    A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))
+    A: T.Tensor((128, 128, 128), "float32"), B: T.Tensor((128, 128, 128), "float32")
 ) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("B"):
@@ -121,7 +123,7 @@ def elementwise_with_wrong_block_var_type(
 
 @Ts.function
 def elementwise_reordered(
-    A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))
+    A: T.Tensor((128, 128, 128, 128), "float32"), B: T.Tensor((128, 128, 128, 128), "float32")
 ) -> None:
     for l, j, k, i in T.grid(128, 128, 128, 128):
         with Ts.sblock("B"):
@@ -131,7 +133,7 @@ def elementwise_reordered(
 
 @Ts.function
 def elementwise_reordered2(
-    A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))
+    A: T.Tensor((128, 128, 128, 128), "float32"), B: T.Tensor((128, 128, 128, 128), "float32")
 ) -> None:
     for k, j, i, l in T.grid(128, 128, 128, 128):
         with Ts.sblock("B"):
@@ -141,7 +143,7 @@ def elementwise_reordered2(
 
 @Ts.function
 def elementwise_reordered_with_predicate(
-    A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))
+    A: T.Tensor((128, 128, 128, 128), "float32"), B: T.Tensor((128, 128, 128, 128), "float32")
 ) -> None:
     for l, j, k, i in T.grid(128, 128, 128, 128):
         with Ts.sblock("B"):

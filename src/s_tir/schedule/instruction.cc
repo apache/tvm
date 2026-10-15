@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/dict.h>
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 
@@ -87,7 +88,7 @@ Instruction::Instruction(InstructionKind kind, ffi::Array<Any> inputs, ffi::Arra
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   InstructionNode::RegisterReflection();
-  refl::TypeAttrDef<InstructionNode>().def(refl::type_attr::kRepr,
+  refl::TypeAttrDef<InstructionNode>().def(ffi::type_attr::kRepr.name,
                                            [](Instruction inst, ffi::Function) -> ffi::String {
                                              return InstructionAsPythonRepr(inst.get());
                                            });

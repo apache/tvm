@@ -71,7 +71,11 @@ def te_matmul():
 
 
 @Ts.function
-def tir_matmul(A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def tir_matmul(
+    A: T.Tensor((128, 128), "float32"),
+    B: T.Tensor((128, 128), "float32"),
+    C: T.Tensor((128, 128), "float32"),
+) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
     for i0, j0, k0 in T.grid(128, 128, 128):
@@ -113,7 +117,9 @@ def te_element_wise():
 
 
 @Ts.function
-def tir_element_wise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def tir_element_wise(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
     B = Ts.sblock_alloc_tensor((128, 128))
@@ -165,7 +171,9 @@ def te_conv2d():
 
 @Ts.function
 def tir_conv2d(
-    A: T.Tensor([16, 16, 14, 14]), W: T.Tensor([16, 3, 3, 32]), B: T.Tensor([16, 32, 14, 14])
+    A: T.Tensor([16, 16, 14, 14], "float32"),
+    W: T.Tensor([16, 3, 3, 32], "float32"),
+    B: T.Tensor([16, 32, 14, 14], "float32"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -206,7 +214,10 @@ n = T.dynamic("n", "int32")
 
 @Ts.function
 def tir_multi_output(
-    A0: T.Tensor((m, n)), A1: T.Tensor((m, n)), B0: T.Tensor((m, n)), B1: T.Tensor((m, n))
+    A0: T.Tensor((m, n), "float32"),
+    A1: T.Tensor((m, n), "float32"),
+    B0: T.Tensor((m, n), "float32"),
+    B1: T.Tensor((m, n), "float32"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -244,9 +255,9 @@ off3 = T.dynamic("off3", "int32")
 
 @Ts.function
 def tir_extern(
-    A: T.Tensor((128, 128), elem_offset=off1),
-    B: T.Tensor((128, 128), elem_offset=off2),
-    C: T.Tensor((128, 128), elem_offset=off3),
+    A: T.Tensor((128, 128), "float32", elem_offset=off1),
+    B: T.Tensor((128, 128), "float32", elem_offset=off2),
+    C: T.Tensor((128, 128), "float32", elem_offset=off3),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -306,8 +317,8 @@ def te_extern_epilogue():
 
 @Ts.function
 def tir_extern_epilogue(
-    A: T.Tensor((4, 3), offset_factor=1),
-    B: T.Tensor((3, 2), offset_factor=1),
+    A: T.Tensor((4, 3), "float32", offset_factor=1, elem_offset=T.int32()),
+    B: T.Tensor((3, 2), "float32", offset_factor=1, elem_offset=T.int32()),
     D: T.Tensor((4, 2), "float32"),
 ):
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -341,7 +352,9 @@ def te_reordered_matmul():
 
 @Ts.function
 def tir_reordered_matmul(
-    C: T.Tensor((128, 128)), A: T.Tensor((128, 128)), B: T.Tensor((128, 128))
+    C: T.Tensor((128, 128), "float32"),
+    A: T.Tensor((128, 128), "float32"),
+    B: T.Tensor((128, 128), "float32"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -732,8 +745,8 @@ def te_resize2d_symbolic():
     return [A, B]
 
 
-oh = T.dynamic("oh")
-ow = T.dynamic("ow")
+oh = T.dynamic("oh", "int64")
+ow = T.dynamic("ow", "int64")
 
 
 @Ts.function
@@ -754,10 +767,10 @@ def tir_resize2d_symbolic(
                 T.max(
                     T.min(
                         T.Cast(
-                            "int64",
                             T.round(
-                                T.float32(128) / T.Cast("float32", oh) * T.Cast("float32", v_i2),
+                                T.float32(128) / T.Cast(oh, "float32") * T.Cast(v_i2, "float32"),
                             ),
+                            "int64",
                         ),
                         T.int64(127),
                     ),
@@ -766,10 +779,10 @@ def tir_resize2d_symbolic(
                 T.max(
                     T.min(
                         T.Cast(
-                            "int64",
                             T.round(
-                                T.float32(128) / T.Cast("float32", ow) * T.Cast("float32", v_i3),
+                                T.float32(128) / T.Cast(ow, "float32") * T.Cast(v_i3, "float32"),
                             ),
+                            "int64",
                         ),
                         T.int64(127),
                     ),
@@ -799,10 +812,10 @@ def test_extern_with_explicit_buffer_access():
 
     @Ts.function
     def tir_extern(
-        A: T.Tensor([128, 128], dtype="float32", offset_factor=1),
-        B: T.Tensor([128, 128], dtype="float32", offset_factor=1),
-        P: T.Tensor([1], dtype="float32", offset_factor=1),
-        C: T.Tensor([128, 128], dtype="float32", offset_factor=1),
+        A: T.Tensor([128, 128], dtype="float32", offset_factor=1, elem_offset=T.int32()),
+        B: T.Tensor([128, 128], dtype="float32", offset_factor=1, elem_offset=T.int32()),
+        P: T.Tensor([1], dtype="float32", offset_factor=1, elem_offset=T.int32()),
+        C: T.Tensor([128, 128], dtype="float32", offset_factor=1, elem_offset=T.int32()),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -823,12 +836,16 @@ def te_slice_with_var_input():
     return [tensor, idx, slice0]
 
 
-m = T.dynamic("m")
-n = T.dynamic("n")
+m = T.dynamic("m", "int64")
+n = T.dynamic("n", "int64")
 
 
 @Ts.function
-def tir_slice_with_var_input(tensor: T.Tensor((m, n)), idx: T.int64, slice: T.Tensor((idx, n))):  # noqa: F821
+def tir_slice_with_var_input(
+    tensor: T.Tensor((m, n), "float32"),
+    idx: T.int64,
+    slice: T.Tensor((idx, n), "float32"),  # noqa: F821
+):
     T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
 
     # with Ts.sblock("root"):
@@ -849,7 +866,11 @@ def test_loop_aware_initial_value():
     """Test initial value aware of spatial iter position"""
 
     @Ts.function
-    def tir_workload(a: T.Tensor((5, 5)), b: T.Tensor((5,)), sum_red: T.Tensor((5,))):
+    def tir_workload(
+        a: T.Tensor((5, 5), "float32"),
+        b: T.Tensor((5,), "float32"),
+        sum_red: T.Tensor((5,), "float32"),
+    ):
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
 
         for i, ax in T.grid(5, 5):
@@ -882,7 +903,11 @@ def test_loop_aware_reducer_combiner():
     """Test combiner aware of spatial iter position"""
 
     @Ts.function
-    def tir_workload(a: T.Tensor((5, 5)), b: T.Tensor((5,)), sum_red: T.Tensor((5,))):
+    def tir_workload(
+        a: T.Tensor((5, 5), "float32"),
+        b: T.Tensor((5,), "float32"),
+        sum_red: T.Tensor((5,), "float32"),
+    ):
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
 
         for i, ax in T.grid(5, 5):
@@ -894,7 +919,7 @@ def test_loop_aware_reducer_combiner():
                 with Ts.init():
                     sum_red[v_i] = T.float32(0.0)
                 sum_red[v_i] = T.if_then_else(
-                    a[v_i, sum_red[v_i]] < a[v_i, v_ax], sum_red[v_i], T.Cast("float32", v_ax)
+                    a[v_i, sum_red[v_i]] < a[v_i, v_ax], sum_red[v_i], T.Cast(v_ax, "float32")
                 )
 
     def te_workload():
@@ -946,7 +971,7 @@ def test_adaptive_pooling_window():
                 Ts.reads(adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
                 Ts.writes(adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
                 Ts.sblock_attr({"schedule_rule": "meta_schedule.adaptive_pool_avg"})
-                adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / (T.Cast("float32", T.Select((v_ax2 * 16 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12) * T.Cast("float32", T.Select((v_ax3 * 40 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30))
+                adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / (T.Cast(T.Select((v_ax2 * 16 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12, "float32") * T.Cast(T.Select((v_ax3 * 40 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30, "float32"))
         # fmt: on
 
     def te_workload():

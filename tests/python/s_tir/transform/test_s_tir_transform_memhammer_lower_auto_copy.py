@@ -39,7 +39,7 @@ def _is_tensor_binding(node, *op_names):
 @tvm.script.ir_module
 class Transpose:
     @Ts.function
-    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
+    def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
@@ -60,7 +60,7 @@ class Transpose:
 @tvm.script.ir_module
 class GlobalToShared:
     @Ts.function
-    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
+    def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -82,7 +82,7 @@ class GlobalToShared:
 @tvm.script.ir_module
 class SharedToGlobal:
     @Ts.function
-    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
+    def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -104,7 +104,7 @@ class SharedToGlobal:
 @tvm.script.ir_module
 class GlobalToSharedWithLocalStage:
     @Ts.function
-    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
+    def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -172,7 +172,7 @@ class WmmaToShared:
 @tvm.script.ir_module
 class WmmaToGlobal:
     @Ts.function
-    def main(C: T.Tensor([1024, 1024])) -> None:
+    def main(C: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -191,7 +191,7 @@ class WmmaToGlobal:
 @tvm.script.ir_module
 class WmmaToGlobalWithFusion:
     @Ts.function
-    def main(A: T.Tensor([1024]), C: T.Tensor([1024, 1024])) -> None:
+    def main(A: T.Tensor([1024], "float32"), C: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -212,7 +212,7 @@ class WmmaToGlobalWithFusion:
 @tvm.script.ir_module
 class MmaToGlobal:
     @Ts.function
-    def main(C: T.Tensor([1024, 1024])) -> None:
+    def main(C: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -220,7 +220,7 @@ class MmaToGlobal:
                     for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             C_accum = Ts.sblock_alloc_tensor(
-                                [128, 128], dtype="float32", scope="m16n8k8.matrixC"
+                                [128, 128], dtype="float32", scope="mma.matrixC"
                             )
                             with Ts.sblock("C_global"):
                                 Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
@@ -231,7 +231,7 @@ class MmaToGlobal:
 @tvm.script.ir_module
 class TransformedGlobalToShared:
     @Ts.function
-    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
+    def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -274,7 +274,7 @@ class TransformedGlobalToShared:
 @tvm.script.ir_module
 class TransformedSharedToGlobal:
     @Ts.function
-    def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
+    def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -319,7 +319,7 @@ class TransformedSharedToGlobal:
 @tvm.script.ir_module
 class TransformedGlobalToSharedWithLocalStage:
     @Ts.function
-    def main(A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024))):
+    def main(A: T.Tensor((1024, 1024), "float32"), B: T.Tensor((1024, 1024), "float32")):
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
             for bx in T.parallel(8, annotations={"thread_binding": "blockIdx.x"}):
@@ -1010,7 +1010,7 @@ class TransformedMmaToGlobal:
                         with Ts.sblock(""):
                             Ts.reads()
                             Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                            C_accum = Ts.sblock_alloc_tensor((128, 128), scope="m16n8k8.matrixC")
+                            C_accum = Ts.sblock_alloc_tensor((128, 128), scope="mma.matrixC")
                             with Ts.sblock("C_global"):
                                 Ts.reads(C_accum[0:128, 0:128])
                                 Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
@@ -1034,7 +1034,7 @@ class TransformedMmaToGlobal:
                                                     ax1_0 * 8 : ax1_0 * 8 + 8,
                                                 ],
                                                 (8, 8),
-                                                scope="m16n8k8.matrixC",
+                                                scope="mma.matrixC",
                                                 offset_factor=8,
                                             )
                                             tgt = Ts.match_tensor(
@@ -1136,7 +1136,9 @@ def verify_single_allocation(stmt, alloc_size=None):
     alloc_extents = []
 
     def verify(n):
-        if _is_tensor_binding(n, "tirx.alloc_tensor") and n.var.scope() == "shared.dyn":
+        if _is_tensor_binding(n, "tirx.alloc_tensor") and n.var.scope() == tvm.runtime.MemoryScope(
+            "shared.dyn"
+        ):
             num_alloc[0] += 1
             alloc_extents.append(n.var.shape)
 

@@ -261,8 +261,8 @@ inline Tensor clip(const Tensor& x, const PrimExpr& a_min, const PrimExpr& a_max
       x->shape,
       [&](const ffi::Array<PrimVar>& i) {
         PrimType x_type(x->GetDataType());
-        auto min_val = tvm::prim::cast(x_type, a_min);
-        auto max_val = tvm::prim::cast(x_type, a_max);
+        auto min_val = tvm::prim::cast(a_min, x_type);
+        auto max_val = tvm::prim::cast(a_max, x_type);
         return tvm::max(tvm::min(x(i), max_val), min_val);  // NOLINT(*)
       },
       name, tag);
@@ -303,7 +303,7 @@ inline Tensor cast(const Tensor& x, PrimType type, std::string name = "T_cast",
           }
         }
 
-        return tvm::prim::cast(type, x(i));
+        return tvm::prim::cast(x(i), type);
       },
       name, tag);
 }
@@ -378,7 +378,7 @@ inline Tensor full(const ffi::Array<PrimExpr>& shape, DLDataType dtype, const Pr
 
 inline Tensor full(const ffi::Array<PrimExpr>& shape, PrimType dtype, const PrimExpr fill_value,
                    std::string name = "T_full", std::string tag = kElementWise) {
-  PrimExpr ev = prim::cast(dtype, fill_value);
+  PrimExpr ev = prim::cast(fill_value, dtype);
   if (!ev.defined()) {
     LOG(ERROR) << "Can't cast fill_value to " << dtype;
   }
@@ -398,7 +398,7 @@ inline Tensor full(const ffi::Array<PrimExpr>& shape, PrimType dtype, const Prim
  */
 inline Tensor full_like(const Tensor& x, const PrimExpr fill_value,
                         std::string name = "T_full_like", std::string tag = kElementWise) {
-  PrimExpr ev = prim::cast(x->GetDataType(), fill_value);
+  PrimExpr ev = prim::cast(fill_value, x->GetDataType());
   return compute(x->shape, [&](const ffi::Array<PrimVar>& i) { return ev; }, name, tag);
 }
 
@@ -449,7 +449,7 @@ inline Tensor fast_exp_float32(const Tensor& _x, std::string name, std::string t
             (((((p[0] * f + p[1]) * f + p[2]) * f + p[3]) * f + p[4]) * f + p[5]) * f * f + f + one;
         // Return 2^m * exp(r).
         auto ef = tvm::tirx::reinterpret(PrimType::Float(32),
-                                         ::tvm::prim::cast(PrimType::Int(32), n + b) << 23);
+                                         ::tvm::prim::cast(n + b, PrimType::Int(32)) << 23);
         return ::tvm::max(ef * y, _x(i));  // NOLINT(*)
       },
       name, tag);

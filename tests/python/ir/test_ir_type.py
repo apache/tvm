@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401, F821
 """Test type nodes in the IR"""
+
+import uuid
 
 import pytest
 
 import tvm
-from tvm.script import tirx as T
+from tvm.runtime import MemoryScope
 
 
 def check_json_roundtrip(node):
@@ -69,7 +70,12 @@ def test_tuple_type():
     check_json_roundtrip(tup_ty)
 
 
+def test_memory_scope_json_roundtrip():
+    custom = MemoryScope.register("test.ir.scope." + uuid.uuid4().hex)
+    for scope in (MemoryScope("global"), MemoryScope("shared.dyn"), custom):
+        assert tvm.ir.load_json(tvm.ir.save_json(scope)).same_as(scope)
+
+
 if __name__ == "__main__":
-    test_tensor_type_bad_constructor()
     test_func_type()
     test_tuple_type()

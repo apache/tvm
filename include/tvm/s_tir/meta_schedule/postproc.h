@@ -170,8 +170,6 @@ class Postproc : public ffi::ObjectRef {
   TVM_DLL static ffi::Array<Postproc, void> DefaultRISCV();
   /*! \brief Create default postprocessors for CUDA */
   TVM_DLL static ffi::Array<Postproc, void> DefaultCUDA();
-  /*! \brief Create default postprocessors for CUDA with TensorCore */
-  TVM_DLL static ffi::Array<Postproc, void> DefaultCUDATensorCore();
   /*! \brief Create default postprocessors for Hexagon */
   TVM_DLL static ffi::Array<Postproc, void> DefaultHexagon();
 

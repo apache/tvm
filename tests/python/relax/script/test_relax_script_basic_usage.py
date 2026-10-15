@@ -682,7 +682,9 @@ def test_call_tir_with_grad():
     @I.ir_module
     class Module:
         @Ts.function
-        def identity_tir(A: T.Tensor([54, 96]), B: T.Tensor([54, 96])) -> None:
+        def identity_tir(
+            A: T.Tensor([54, 96], "float32"), B: T.Tensor([54, 96], "float32")
+        ) -> None:
             for i, j in T.grid(54, 96):
                 with Ts.sblock("compute"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -948,8 +950,8 @@ def test_empty_tuple():
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_arith_operators():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @R.function
     def foo(x: R.Tensor((m, n), "float32"), y: R.Tensor((m, n), "float32")):
@@ -1037,8 +1039,8 @@ def test_vm_ops():
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_builtin_ops():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @R.function
     def foo(x: R.Tensor((m, n), dtype="float32")):

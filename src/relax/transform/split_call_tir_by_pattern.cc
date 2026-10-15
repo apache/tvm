@@ -342,12 +342,11 @@ class ForMatcher : public TensorizeComparator {
       equal = (*it).second.same_as(lhs);
     } else {
       // Compare shape
-      if (lhs->shape.size() != rhs->shape.size()) return false;
-      for (size_t i = 0; i < lhs->shape.size(); ++i) {
-        if (!Dispatch(lhs->shape[i], rhs->shape[i])) return false;
+      if (lhs.shape().size() != rhs.shape().size()) return false;
+      for (size_t i = 0; i < lhs.shape().size(); ++i) {
+        if (!Dispatch(lhs.shape()[i], rhs.shape()[i])) return false;
       }
-      equal =
-          DefEqual(lhs.var(), rhs.var()) && lhs->dtype == rhs->dtype && lhs.scope() == rhs.scope();
+      equal = DefEqual(lhs, rhs) && lhs.dtype() == rhs.dtype() && lhs.scope() == rhs.scope();
       if (equal) {
         rhs_tensor_map_.insert_or_assign(rhs, lhs);
       }
@@ -655,13 +654,13 @@ std::pair<tirx::Function, ffi::Optional<tirx::Function>> SplitFunctions(
     }
   }
   arg_partition->push_back(arg_partition1);
-  new_params1.push_back(partitioner->intermediate_tensor.value().var());
+  new_params1.push_back(partitioner->intermediate_tensor.value());
   tirx::Function func1 = tirx::Function(new_params1, SeqStmt(body1), func->ret_type, func->attrs);
   func1 = WithAttr(func1, tvm::relax::attr::kLibraryKernel, library_code);
   // Step 4. Craft the second function.
   ffi::Array<Var> new_params2;
   std::vector<int> arg_partition2;
-  new_params2.push_back(partitioner->intermediate_tensor.value().var());
+  new_params2.push_back(partitioner->intermediate_tensor.value());
   for (int i = 0; i < static_cast<int>(func->params.size()); i++) {
     Var param = func->params[i];
     auto param_tensor = param.as<tirx::TensorVar>();
@@ -774,9 +773,9 @@ class SplitMutator : public ExprMutator {
     TVM_FFI_ICHECK(lib_func->IsInstance<ExternFuncNode>());
     builder_->UpdateFunction(gv, lib_func);
     tirx::TensorVar intermediate_tensor = func1->params.back().as_or_throw<tirx::TensorVar>();
-    PrimType dtype = intermediate_tensor->dtype;
+    PrimType dtype = intermediate_tensor.dtype();
     Call call1(Type::Missing(), call_dps_packed_, {lib_func, Tuple(args1)}, call->attrs,
-               {TensorType(ShapeExpr(intermediate_tensor->shape), dtype)});
+               {TensorType(ShapeExpr(intermediate_tensor.shape()), dtype)});
     Var call_var1 = builder_->Emit(call1);
     // emit the second call to the rest of the function
     ffi::Array<Expr> args2;

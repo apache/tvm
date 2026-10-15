@@ -496,18 +496,16 @@ class TupleGetItem(_CallableExprWithOp):
 class TensorLoad(_CallableExprWithOp):
     """An indexed load from an expression source.
 
-    TensorLoad objects are constructed by a dialect-specific helper that
-    validates the source and derives the result type.
+    The source type's registered inference hook validates the inputs and
+    derives the primitive result type.
     """
 
     source: Expr
     indices: list[Expr]
     loc: Location
 
-    def __init__(self, *args, **kwargs):
-        raise TypeError(
-            "TensorLoad cannot be constructed directly; use a dialect-specific load helper"
-        )
+    def __init__(self, source: Expr, indices: list[Expr], loc: Location = UNKNOWN_LOC):
+        self.__init_handle_by_constructor__(_ffi_api.TensorLoad, source, indices, loc)
 
 
 @tvm_ffi.register_object("ir.Constant")
@@ -712,9 +710,6 @@ def _lambda_type(annotation):
         return Var("", annotation).ty
     if isinstance(annotation, tvm.DataType):
         return tvm.ir.PrimType(annotation)
-    dtype = getattr(annotation, "_dtype_str", None)
-    if dtype is not None:
-        return tvm.ir.PrimType(dtype)
     if callable(annotation):
         value = annotation()
         if isinstance(value, Expr):

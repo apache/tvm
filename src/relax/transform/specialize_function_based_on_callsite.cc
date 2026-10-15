@@ -90,7 +90,7 @@ class SpecializeTIRCallArgs : ExprMutator {
           << "Expected Tensor struct Info for call :" << call->op;
       auto tensor_ty = ty.as_or_throw<TensorType>();
       TVM_FFI_ICHECK(tensor_ty->shape.has_value()) << "Shape undefined for call:" << call->args[0];
-      ffi::String scope = "global";
+      runtime::MemoryScope scope;
       if (tensor_ty->vdevice.has_value()) {
         scope = tensor_ty->vdevice.value()->memory_scope;
       }
@@ -101,19 +101,20 @@ class SpecializeTIRCallArgs : ExprMutator {
         name = std::string({static_cast<char>('A' + i)});
       }
 
-      const TensorVar& tensor = tirx::decl_tensor(GetShapeFromTensorType(tensor_ty),
-                                                  tensor_ty->dtype.value(), name, scope);
+      const TensorVar& tensor = tirx::TensorVar(
+          name,
+          tirx::TensorType(GetShapeFromTensorType(tensor_ty), tensor_ty->dtype.value(), scope));
       param_map.Set(pfunc->params[i], tensor);
     }
-    ffi::String scope = "global";
+    runtime::MemoryScope scope;
     auto out_ty = call->ty_args[0];
     if (out_ty->IsInstance<TensorTypeNode>()) {
       auto ty = out_ty.as_or_throw<TensorType>();
       if (ty->vdevice.has_value()) {
         scope = ty->vdevice.value()->memory_scope;
       }
-      const TensorVar& tensor =
-          tirx::decl_tensor(GetShapeFromTensorType(ty), ty->dtype.value(), "ret_val", scope);
+      const TensorVar& tensor = tirx::TensorVar(
+          "ret_val", tirx::TensorType(GetShapeFromTensorType(ty), ty->dtype.value(), scope));
       param_map.Set(pfunc->params[pfunc->params.size() - 1], tensor);
     } else {
       TVM_FFI_ICHECK(out_ty->IsInstance<TupleTypeNode>())
@@ -134,8 +135,9 @@ class SpecializeTIRCallArgs : ExprMutator {
           scope = ty->vdevice.value()->memory_scope;
         }
 
-        const TensorVar& tensor = tirx::decl_tensor(GetShapeFromTensorType(ty), ty->dtype.value(),
-                                                    "ret_val_" + std::to_string(index), scope);
+        const TensorVar& tensor =
+            tirx::TensorVar("ret_val_" + std::to_string(index),
+                            tirx::TensorType(GetShapeFromTensorType(ty), ty->dtype.value(), scope));
         param_map.Set(pfunc->params[args.size() + index], tensor);
         index++;
       }

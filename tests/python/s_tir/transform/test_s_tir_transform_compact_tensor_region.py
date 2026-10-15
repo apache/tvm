@@ -39,7 +39,7 @@ class BaseCompactTest:
 
         before = tvm.IRModule.from_expr(self.before.with_attr("global_symbol", "main"))
         expected = tvm.IRModule.from_expr(self.expected.with_attr("global_symbol", "main"))
-        simplify = tvm.transform.Sequential(
+        simplify = tvm.ir.transform.Sequential(
             [s_tir.transform.StmtSimplify(), tirx.transform.RemoveNoOp()]
         )
         after = simplify(s_tir.transform.CompactTensorAllocation(is_strict=is_strict)(before))
@@ -341,7 +341,7 @@ class TestMatchTensor(BaseCompactTest):
     is_lower_order_free = False
 
     @Ts.function
-    def before(A: T.Tensor((16, 16)), C: T.Tensor((16, 16))) -> None:
+    def before(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
         for i in range(0, 16):
             with Ts.sblock():
                 A0 = Ts.match_tensor(A[i, 0:16], (16))
@@ -361,7 +361,7 @@ class TestMatchTensor(BaseCompactTest):
                         C1[()] = B2[()] * 2.0
 
     @Ts.function
-    def expected(A: T.Tensor((16, 16)), C: T.Tensor((16, 16))) -> None:
+    def expected(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
         for i in range(0, 16):
             with Ts.sblock():
                 A0 = Ts.match_tensor(A[i, 0:16], (16))
@@ -1005,9 +1005,13 @@ class TestTileAwareCompaction(BaseCompactTest):
         ):
             for i_0 in range(5, annotations={"loop_partition_hint": 1}):
                 for j_0 in range(5, annotations={"loop_partition_hint": 1}):
-                    A_local = T.alloc_tensor(ty_args=[T.Tensor((26, 128), scope="local")])
-                    B_local = T.alloc_tensor(ty_args=[T.Tensor((128, 26), scope="local")])
-                    C_local = T.alloc_tensor(ty_args=[T.Tensor((26, 26), scope="local")])
+                    A_local = T.alloc_tensor(
+                        ty_args=[T.Tensor((26, 128), "float32", scope="local")]
+                    )
+                    B_local = T.alloc_tensor(
+                        ty_args=[T.Tensor((128, 26), "float32", scope="local")]
+                    )
+                    C_local = T.alloc_tensor(ty_args=[T.Tensor((26, 26), "float32", scope="local")])
                     for ax0, ax1 in T.grid(26, 128):
                         if i_0 * 26 + ax0 < 128:
                             A_local[ax0, ax1] = A[i_0 * 26 + ax0, ax1]
@@ -1027,7 +1031,7 @@ class TestTileAwareCompaction(BaseCompactTest):
 
         # Get partitioned workload to compact
         mod = tvm.IRModule.from_expr(main)
-        with tvm.transform.PassContext(
+        with tvm.ir.transform.PassContext(
             config={"s_tir.LoopPartition": {"partition_const_loop": True}}
         ):
             mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
@@ -1043,9 +1047,15 @@ class TestTileAwareCompaction(BaseCompactTest):
     ):
         for i_0 in range(4):
             for j_0 in range(4):
-                A_local_tile0 = T.alloc_tensor(ty_args=[T.Tensor((26, 128), scope="local")])
-                B_local_tile0 = T.alloc_tensor(ty_args=[T.Tensor((128, 26), scope="local")])
-                C_local_tile0 = T.alloc_tensor(ty_args=[T.Tensor((26, 26), scope="local")])
+                A_local_tile0 = T.alloc_tensor(
+                    ty_args=[T.Tensor((26, 128), "float32", scope="local")]
+                )
+                B_local_tile0 = T.alloc_tensor(
+                    ty_args=[T.Tensor((128, 26), "float32", scope="local")]
+                )
+                C_local_tile0 = T.alloc_tensor(
+                    ty_args=[T.Tensor((26, 26), "float32", scope="local")]
+                )
                 for ax0, ax1 in T.grid(26, 128):
                     A_local_tile0[ax0, ax1] = A[i_0 * 26 + ax0, ax1]
                 for ax0, ax1 in T.grid(128, 26):
@@ -1059,9 +1069,9 @@ class TestTileAwareCompaction(BaseCompactTest):
                 for ax0, ax1 in T.grid(26, 26):
                     C[i_0 * 26 + ax0, j_0 * 26 + ax1] = C_local_tile0[ax0, ax1]
 
-            A_local_tile1 = T.alloc_tensor(ty_args=[T.Tensor((26, 128), scope="local")])
-            B_local_tile1 = T.alloc_tensor(ty_args=[T.Tensor((128, 24), scope="local")])
-            C_local_tile1 = T.alloc_tensor(ty_args=[T.Tensor((26, 24), scope="local")])
+            A_local_tile1 = T.alloc_tensor(ty_args=[T.Tensor((26, 128), "float32", scope="local")])
+            B_local_tile1 = T.alloc_tensor(ty_args=[T.Tensor((128, 24), "float32", scope="local")])
+            C_local_tile1 = T.alloc_tensor(ty_args=[T.Tensor((26, 24), "float32", scope="local")])
             for ax0, ax1 in T.grid(26, 128):
                 A_local_tile1[ax0, ax1] = A[i_0 * 26 + ax0, ax1]
             for ax0, ax1 in T.grid(128, 26):
@@ -1079,9 +1089,9 @@ class TestTileAwareCompaction(BaseCompactTest):
                     C[i_0 * 26 + ax0, ax1 + 104] = C_local_tile1[ax0, ax1]
 
         for j_0 in range(4):
-            A_local_tile2 = T.alloc_tensor(ty_args=[T.Tensor((24, 128), scope="local")])
-            B_local_tile2 = T.alloc_tensor(ty_args=[T.Tensor((128, 26), scope="local")])
-            C_local_tile2 = T.alloc_tensor(ty_args=[T.Tensor((24, 26), scope="local")])
+            A_local_tile2 = T.alloc_tensor(ty_args=[T.Tensor((24, 128), "float32", scope="local")])
+            B_local_tile2 = T.alloc_tensor(ty_args=[T.Tensor((128, 26), "float32", scope="local")])
+            C_local_tile2 = T.alloc_tensor(ty_args=[T.Tensor((24, 26), "float32", scope="local")])
             for ax0, ax1 in T.grid(26, 128):
                 if ax0 < 24:
                     A_local_tile2[ax0, ax1] = A[ax0 + 104, ax1]
@@ -1098,9 +1108,9 @@ class TestTileAwareCompaction(BaseCompactTest):
                 if ax0 < 24:
                     C[ax0 + 104, j_0 * 26 + ax1] = C_local_tile2[ax0, ax1]
 
-        A_local_tile3 = T.alloc_tensor(ty_args=[T.Tensor((24, 128), scope="local")])
-        B_local_tile3 = T.alloc_tensor(ty_args=[T.Tensor((128, 24), scope="local")])
-        C_local_tile3 = T.alloc_tensor(ty_args=[T.Tensor((24, 24), scope="local")])
+        A_local_tile3 = T.alloc_tensor(ty_args=[T.Tensor((24, 128), "float32", scope="local")])
+        B_local_tile3 = T.alloc_tensor(ty_args=[T.Tensor((128, 24), "float32", scope="local")])
+        C_local_tile3 = T.alloc_tensor(ty_args=[T.Tensor((24, 24), "float32", scope="local")])
         for ax0, ax1 in T.grid(26, 128):
             if ax0 < 24:
                 A_local_tile3[ax0, ax1] = A[ax0 + 104, ax1]
@@ -1269,8 +1279,8 @@ class TestCompactSymbolicBound0:
 
     @Ts.function
     def before(
-        X: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
-        Y: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
+        X: T.Tensor((T.int64(8), n * T.int64(32)), "float32"),  # noqa: F821
+        Y: T.Tensor((T.int64(8), n * T.int64(32)), "float32"),  # noqa: F821
         n: T.int64,
     ):
         for i, k_0 in T.grid(T.int64(8), n):
@@ -1285,8 +1295,8 @@ class TestCompactSymbolicBound0:
 
     @Ts.function
     def expected(
-        X: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
-        Y: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
+        X: T.Tensor((T.int64(8), n * T.int64(32)), "float32"),  # noqa: F821
+        Y: T.Tensor((T.int64(8), n * T.int64(32)), "float32"),  # noqa: F821
         n: T.int64,
     ):
         for i, k_0 in T.grid(T.int64(8), n):
@@ -1305,8 +1315,8 @@ class TestCompactSymbolicBound1:
 
     @Ts.function
     def before(
-        X: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
-        Y: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
+        X: T.Tensor((T.int64(8), n * T.int64(32)), "float32"),  # noqa: F821
+        Y: T.Tensor((T.int64(8), n * T.int64(32)), "float32"),  # noqa: F821
         n: T.int64,
     ):
         for i, k_0 in T.grid(T.int64(8), n):
@@ -1321,8 +1331,8 @@ class TestCompactSymbolicBound1:
 
     @Ts.function
     def expected(
-        X: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
-        Y: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
+        X: T.Tensor((T.int64(8), n * T.int64(32)), "float32"),  # noqa: F821
+        Y: T.Tensor((T.int64(8), n * T.int64(32)), "float32"),  # noqa: F821
         n: T.int64,
     ):
         # with Ts.sblock("root"):
@@ -1341,7 +1351,7 @@ class TestSymbolicDiagMaskCase:
     """Test symbolic allocation not too complex"""
 
     @Ts.function
-    def before(A: T.Tensor((1, 1, n, n)), n: T.int32):  # noqa: F821
+    def before(A: T.Tensor((1, 1, n, n), "float32"), n: T.int32):  # noqa: F821
         B = Ts.sblock_alloc_tensor((n, n))
         for i in T.parallel(256, annotations={"thread_binding": "blockIdx.x"}):
             for j in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):
@@ -1369,7 +1379,7 @@ class TestSymbolicDiagMaskCase:
                         ]
 
     @Ts.function
-    def expected(A: T.Tensor((1, 1, n, n)), n: T.int32):  # noqa: F821
+    def expected(A: T.Tensor((1, 1, n, n), "float32"), n: T.int32):  # noqa: F821
         B = Ts.sblock_alloc_tensor((n, n))
         for i in T.parallel(256, annotations={"thread_binding": "blockIdx.x"}):
             for j in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):

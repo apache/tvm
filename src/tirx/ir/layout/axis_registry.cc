@@ -18,8 +18,9 @@
  */
 
 /*
- * Axis definitions, attributes, fusers/splitters, and registrations.
+ * Axis definitions, attributes, fusers, and registrations.
  */
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/reflection/enum_def.h>
 
 #include "utils.h"
@@ -35,7 +36,7 @@ ffi::ObjectPtr<ffi::Object> CreateAxis(const std::string& name) {
 }
 
 const ffi::EnumState& AxisEnumState() {
-  static refl::TypeAttrColumn state_column(refl::type_attr::kEnumState);
+  static refl::TypeAttrColumn state_column(ffi::type_attr::kEnumState);
   static ffi::EnumState state =
       ffi::Any(state_column[AxisNode::_GetOrAllocRuntimeTypeIndex()]).as_or_throw<ffi::EnumState>();
   return state;
@@ -67,24 +68,22 @@ ffi::Optional<ffi::String> AxisNode::GetBackend() const {
   return AxisAttr<ffi::String>(this, "backend");
 }
 
-ffi::Optional<ExecScope> AxisNode::GetScope() const { return AxisAttr<ExecScope>(this, "scope"); }
+ffi::Optional<ThreadScope> AxisNode::GetScope() const {
+  return AxisAttr<ThreadScope>(this, "scope");
+}
 
-ffi::Optional<ExecScope> AxisNode::GetSubscope() const {
-  return AxisAttr<ExecScope>(this, "subscope");
+ffi::Optional<ThreadScope> AxisNode::GetSubscope() const {
+  return AxisAttr<ThreadScope>(this, "subscope");
 }
 
 ffi::Optional<FAxisFuser> AxisNode::GetFuser() const { return AxisAttr<FAxisFuser>(this, "fuser"); }
 
-ffi::Optional<FAxisSplitter> AxisNode::GetSplitter() const {
-  return AxisAttr<FAxisSplitter>(this, "splitter");
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   refl::ObjectDef<AxisNode>(refl::init(false));
   refl::TypeAttrDef<AxisNode>()
-      .def(tvm::ffi::reflection::type_attr::kDataToJson,
+      .def(tvm::ffi::type_attr::kDataToJson.name,
            [](const AxisNode* node) -> ffi::String { return node->_str_index; })
-      .def(tvm::ffi::reflection::type_attr::kDataFromJson,
+      .def(tvm::ffi::type_attr::kDataFromJson.name,
            [](const ffi::String& name) -> Axis { return Axis::Get(name); });
 
   refl::GlobalDef()

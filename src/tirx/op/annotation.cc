@@ -38,9 +38,8 @@ const Op& kernel_replace_point_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.kernel_replace_point")
-      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
 const Op& ignore_loop_partition_op() {
@@ -50,10 +49,9 @@ const Op& ignore_loop_partition_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.ignore_loop_partition")
-      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Bool())
+      .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Bool())
       .signature(sig::arg<PrimExpr>("predicate", "The predicate."))
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
-                                 static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
 }
 
 }  // namespace tirx

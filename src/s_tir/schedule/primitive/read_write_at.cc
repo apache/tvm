@@ -20,6 +20,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 
 #include <string>
@@ -133,7 +134,7 @@ class ReadWriteAtTensorReplacer : public StmtExprMutator {
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load))
                           .as_or_throw<TensorLoad>();
     if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(src_)) {
-      return MakeTensorLoad(dst_, load->indices, load->loc);
+      return TensorLoad(dst_, load->indices, load->loc);
     }
     return load;
   }
@@ -163,10 +164,10 @@ struct ReadWriteAtImpl {
     const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
     TensorVar src = GetNthAccessTensor(self, ffi::GetRef<SBlock>(block), tensor_index,
                                        is_read ? TensorIndexType::kRead : TensorIndexType::kWrite);
-    TensorVar dst = WithScope(src, storage_scope);
+    TensorVar dst = WithScope(src, runtime::MemoryScope::Get(storage_scope));
     ReadWriteAtImpl impl(self, loop_sref, src, dst, annotations);
     std::pair<For, SBlockRealize> new_loop_block =
-        impl.MakeLoopAndBlock<is_read>(src.name() + "_" + storage_scope);
+        impl.MakeLoopAndBlock<is_read>(src->name + "_" + storage_scope);
     StmtSRef result_block_sref =
         impl.ReplaceScopeBlock(new_loop_block.first.get(), new_loop_block.second->block.get());
     impl.UpdateSBlockInfo(result_block_sref, !new_loop_block.second->iter_values.empty());
@@ -204,7 +205,7 @@ struct ReadWriteAtImpl {
   std::pair<For, SBlockRealize> MakeLoopAndBlock(const ffi::String& new_block_name_hint) {
     ffi::Array<Stmt> subtrees = AsArray(loop_->body);
     int n_subtrees = subtrees.size();
-    runtime::StorageScope scope = runtime::StorageScope::Create(dst_.scope());
+    runtime::MemoryScope scope = dst_.scope();
     std::vector<NDIntSet> relaxed_regions;
     std::vector<int> r_pos;
     std::vector<int> w_pos;
@@ -333,8 +334,7 @@ struct ReadWriteAtImpl {
     for (int i = 0; i < n; ++i) {
       indices.push_back(domain[i]->min + loop_vars[i].as_or_throw<PrimExpr>());
     }
-    Stmt stmt =
-        TensorStore(copy_to, /*indices=*/indices, /*value=*/MakeTensorLoad(copy_from, indices));
+    Stmt stmt = TensorStore(copy_to, /*indices=*/indices, /*value=*/TensorLoad(copy_from, indices));
     for (int i = n - 1; i >= 0; --i) {
       stmt = For(loop_vars[i].as_or_throw<PrimVar>(), IntImm::Int32(0), domain[i]->extent,
                  ForKind::kDefault, stmt);
@@ -402,17 +402,17 @@ struct ReadAtTraits : public UnpackedInstTraits<ReadAtTraits> {
   StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                   int tensor_index, const ffi::String& storage_scope);
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
-                                          IntImm read_tensor_index, ffi::String storage_scope) {
-    return sch->ReadAt(loop, block, read_tensor_index->value.as<int>().value(), storage_scope);
+                                          int read_tensor_index, ffi::String storage_scope) {
+    return sch->ReadAt(loop, block, read_tensor_index, storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
-                                      ffi::String block, IntImm read_tensor_index,
+                                      ffi::String block, int read_tensor_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("read_at");
     py.Input("loop", loop);
     py.Input("block", block);
-    py.Input("read_tensor_index", read_tensor_index->value.as<int>().value());
+    py.Input("read_tensor_index", read_tensor_index);
     py.Input("storage_scope", storage_scope);
     py.SingleOutput(outputs);
     return py.Str();
@@ -432,17 +432,17 @@ struct WriteAtTraits : public UnpackedInstTraits<WriteAtTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop, SBlockRV block,
-                                          IntImm write_tensor_index, ffi::String storage_scope) {
-    return sch->WriteAt(loop, block, write_tensor_index->value.as<int>().value(), storage_scope);
+                                          int write_tensor_index, ffi::String storage_scope) {
+    return sch->WriteAt(loop, block, write_tensor_index, storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop,
-                                      ffi::String block, IntImm write_tensor_index,
+                                      ffi::String block, int write_tensor_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("write_at");
     py.Input("loop", loop);
     py.Input("block", block);
-    py.Input("write_tensor_index", write_tensor_index->value.as<int>().value());
+    py.Input("write_tensor_index", write_tensor_index);
     py.Input("storage_scope", storage_scope);
     py.SingleOutput(outputs);
     return py.Str();

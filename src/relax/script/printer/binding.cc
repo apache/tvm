@@ -24,7 +24,6 @@
 
 #include <optional>
 
-#include "../../../script/printer/ir/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -104,8 +103,8 @@ ffi::Optional<ExprDoc> VarBindingDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     if (!call) {
       inferred = binding->value->ty;
     } else if (auto op = call->op.as<Op>()) {
-      static const auto fixed = Op::GetAttrMap<TFixedReturnType>(tvm::op_attr::kFixedReturnType);
-      static const auto context_free = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
+      static const auto fixed = Op::GetAttrMap(tvm::op_attr::kFixedReturnType);
+      static const auto context_free = Op::GetAttrMap(tvm::op_attr::kInferType);
       if (fixed.count(op.value()) || context_free.count(op.value())) {
         inferred = call->ty;
       }

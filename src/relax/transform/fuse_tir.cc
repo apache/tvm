@@ -391,7 +391,7 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
     // structurally equal to the `new_buf` passed
     auto ValidateTensorCompatibility = [this](tirx::TensorVar new_buf, Expr expr) {
       if (auto it = relax_to_tir_var_map_.find(expr); it != relax_to_tir_var_map_.end()) {
-        TVM_FFI_ICHECK(ffi::StructuralEqual()((*it).second.type(), new_buf.type()))
+        TVM_FFI_ICHECK(ffi::StructuralEqual()((*it).second.ty(), new_buf.ty()))
             << "Inconsistent tensors " << (*it).second << " and " << new_buf
             << " mapped to the same relax var: " << expr;
       }
@@ -483,7 +483,7 @@ class FusedTIRConstructor : public ExprVisitor {
         // printed, it's more readable when done explicitly.  Since
         // TensorVar is used more than param it gets the name with better
         // readability.
-        tvm::Var param = tvm::Var("p_" + tensor.name(), PtrType::VoidPtrType());
+        tvm::Var param = tvm::Var("p_" + tensor->name, PtrType::VoidPtrType());
         func_info_.params.push_back(param);
         func_info_.tensor_map.Set(param, tensor);
       } else if (auto var = param.as<PrimVar>()) {
@@ -681,7 +681,7 @@ class FusedTIRConstructor : public ExprVisitor {
           for (const tirx::TensorVar& target_tensor : (*it).second) {
             TVM_FFI_ICHECK_LT(tensor_idx, tensors.size());
             const tirx::TensorVar& tensor = tensors[tensor_idx];
-            func_info_.symbolic_var_matcher.Match(tensor->shape, target_tensor->shape);
+            func_info_.symbolic_var_matcher.Match(tensor.shape(), target_tensor.shape());
             func_info_.tensor_subst_map.Set(tensor, target_tensor);
             tensor_idx++;
           }
@@ -782,13 +782,13 @@ class FusedTIRConstructor : public ExprVisitor {
       }
 
       auto unify_name_hints = [this, &tensor]() {
-        ffi::String base_name = tensor.name();
+        ffi::String base_name = tensor->name;
         ffi::String unique_name = base_name + "_intermediate";
         size_t unique_id = 0;
         std::unordered_set<std::string> names;
 
         for (auto& _tensor : func_info_.alloc_tensors) {
-          names.insert(_tensor.name());
+          names.insert(_tensor->name);
         }
 
         while (names.find(unique_name) != names.end()) {
@@ -797,15 +797,15 @@ class FusedTIRConstructor : public ExprVisitor {
         return unique_name;
       };
       // Update tensor with new symbolic shape according to the ty
-      tirx::TensorType new_type(tensor->storage_scope, tensor->dtype, output_shapes[i],
-                                tensor->strides, tensor->elem_offset, tensor->data_alignment,
-                                tensor->offset_factor, tensor->layout);
-      tirx::TensorVar new_tensor(unify_name_hints(), std::move(new_type), tensor.loc());
+      tirx::TensorType new_type(output_shapes[i], tensor.dtype(), tensor.scope(), tensor.strides(),
+                                tensor.elem_offset(), tensor.ty()->data_alignment,
+                                tensor.ty()->offset_factor, tensor.ty()->layout);
+      tirx::TensorVar new_tensor(unify_name_hints(), std::move(new_type), tensor->loc);
       func_info_.alloc_tensors.push_back(new_tensor);
       output_tensors.push_back(new_tensor);
 
       // Match the shape of the output tensor with the shape
-      func_info_.symbolic_var_matcher.Match(tensor->shape, new_tensor->shape);
+      func_info_.symbolic_var_matcher.Match(tensor.shape(), new_tensor.shape());
       func_info_.tensor_subst_map.Set(tensor, new_tensor);
     }
     // Update expr2tensors
@@ -834,10 +834,11 @@ class FusedTIRConstructor : public ExprVisitor {
       const auto* shape_expr = tensor_type->shape.as<ShapeExprNode>();
       TVM_FFI_ICHECK(shape_expr) << "FuseTIR expects all Tensor parameters have a known shape.";
       PrimType dtype = tensor_type->dtype.value();
-      tirx::TensorVar tensor = tir_tensor_param.has_value()
-                                   ? tirx::decl_tensor(shape_expr->values, dtype, name_hint,
-                                                       tir_tensor_param.value().scope())
-                                   : tirx::decl_tensor(shape_expr->values, dtype, name_hint);
+      tirx::TensorVar tensor =
+          tir_tensor_param.has_value()
+              ? tirx::TensorVar(name_hint, tirx::TensorType(shape_expr->values, dtype,
+                                                            tir_tensor_param.value().scope()))
+              : tirx::TensorVar(name_hint, tirx::TensorType(shape_expr->values, dtype));
       out->push_back(std::move(tensor));
 
     } else if (ty.as<PrimTypeNode>()) {
@@ -883,9 +884,9 @@ class FusedTIRConstructor : public ExprVisitor {
     body = subst->Mutate(body).ValueOrUnchanged(body);
     body = s_tir::SBlock({}, {}, {}, "root", std::move(body), std::nullopt, alloc_tensors);
     body = s_tir::SBlockRealize({}, IntImm::Bool(true), body.as_or_throw<s_tir::SBlock>());
-    ffi::Array<tvm::Var> params = func_info_.params.Map([&](const tvm::Var& param) {
+    ffi::Array<tvm::Var> params = func_info_.params.Map([&](const tvm::Var& param) -> tvm::Var {
       if (auto tensor = func_info_.tensor_map.Get(param)) {
-        return tensor.value().var();
+        return tensor.value();
       }
       return param;
     });

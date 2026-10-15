@@ -20,7 +20,7 @@ Programming Guide
 
 This guide explains how to write, compile, and inspect TIRx kernels.  Start
 with the CUDA guide for the core language and native programming model, then
-use tensor layouts and tile primitives to express reusable tile-level work.
+use tensor layouts and tile ops to express reusable tile-level work.
 
 The examples use a single alias for the TIRx TVMScript dialect::
 
@@ -35,7 +35,7 @@ and direct CUDA instructions are available through ``Tx.cuda.*`` and
 
    ../native_basics
    ../layout
-   ../tile_primitives
+   ../tile_ops
 
 For callable reference entries, see the :doc:`API reference <../api/index>`.
 For lowering, dispatch, and backend implementation details, see

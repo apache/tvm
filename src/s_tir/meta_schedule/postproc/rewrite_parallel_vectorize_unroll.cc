@@ -245,7 +245,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
           break;
         }
         const auto* shape =
-            access->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i].as<IntImmNode>();
+            access->source.as_or_throw<tvm::tirx::TensorVar>().shape()[i].as<IntImmNode>();
         if (shape == nullptr) {
           can_analyze_contiguous_access = false;
           break;
@@ -444,8 +444,8 @@ void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const
     return;
   }
 
-  sch->Annotate(loop, tvm::tirx::attr::kAutoUnrollMaxStep, IntImm::Int32(max_step));
-  sch->Annotate(loop, tvm::tirx::attr::kUnrollExplicit, IntImm::Int32(unroll_explicit));
+  sch->Annotate(loop, tvm::tirx::attr::kAutoUnrollMaxStep, max_step);
+  sch->Annotate(loop, tvm::tirx::attr::kUnrollExplicit, unroll_explicit);
 }
 
 }  // namespace s_tir

@@ -159,9 +159,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   IterNode::RegisterReflection();
   refl::TypeAttrDef<IterNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&IterVisit>())
-      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&IterMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&IterVisit>())
+      .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&IterMutate>())
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&IterMaybeInplaceMutate>());
 
   refl::GlobalDef().def("tirx.Iter", [](PrimExpr extent, PrimExpr stride, Axis axis) {
@@ -184,11 +184,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TileLayoutNode::RegisterReflection();
   refl::TypeAttrDef<TileLayoutNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            ffi::FStructuralVisit::FromNative<&TileLayoutVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&TileLayoutVisit>())
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&TileLayoutMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TileLayoutMaybeInplaceMutate>());
 
   refl::GlobalDef().def("tirx.TileLayout", [](ffi::Array<Iter> shard, ffi::Array<Iter> replica,
@@ -197,43 +196,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-bool TileLayoutNode::CompatibleWithShape(const Array<PrimExpr>& shape) const { return true; }
-
-bool VerifyCompactness(const std::vector<Iter>& iters) {
-  sym::Analyzer analyzer;
-  PrimExpr stride_to_find = 1;
-  for (size_t i = 0; i < iters.size(); ++i) {
-    auto iter = std::find_if(iters.begin(), iters.end(), [&](const Iter& iter) {
-      return analyzer->CanProveEqual(iter->stride, stride_to_find);
-    });
-    if (iter == iters.end()) return false;
-    stride_to_find *= (*iter)->extent;
-  }
-  return true;
-}
-
 bool TileLayoutNode::VerifyWellFormed() const {
-  // // 1. For thread axes, verify its compactness
-  // std::unordered_map<String, std::vector<Iter>> thread_axes;
-  // auto collect_thread_axis = [&thread_axes](const Iter& iter) {
-  //   if (iter->axis->IsThreadAxis()) {
-  //     thread_axes[iter->axis.name()].push_back(iter);
-  //   }
-  // };
-  // for (const auto& iter : shard) {
-  //   collect_thread_axis(iter);
-  // }
-  // for (const auto& iter : replica) {
-  //   collect_thread_axis(iter);
-  // }
-  // for (const auto& [axis, off] : offset) {
-  //   collect_thread_axis(Iter(1, off, axis));
-  // }
-  // for (const auto& [axis, iters] : thread_axes) {
-  //   if (!VerifyCompactness(iters)) {
-  //     return false;
-  //   }
-  // }
   // 1. Check if the scope is connected
   if (!GetScope().has_value() && HasThreadAxis()) {
     return false;
@@ -359,67 +322,55 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-bool TileLayoutNode::HasMemoryAxis() const {
-  return std::any_of(shard.begin(), shard.end(),
-                     [](const Iter& iter) { return iter->axis->IsMemoryAxis(); });
-}
-
 bool TileLayoutNode::HasThreadAxis() const {
   return std::any_of(shard.begin(), shard.end(),
                      [](const Iter& iter) { return iter->axis->IsThreadAxis(); });
 }
 
-ffi::Optional<ffi::Tuple<ExecScope, ExecScope>> TileLayoutNode::GetScope() const {
+ffi::Optional<ffi::Tuple<ThreadScope, ThreadScope>> TileLayoutNode::GetScope() const {
   if (!HasThreadAxis()) return std::nullopt;
 
-  std::unordered_map<ffi::String, ffi::String> scope_map;
-  ffi::Optional<ffi::String> inner_most;
+  std::unordered_map<ThreadScope, ThreadScope, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> scope_map;
+  ffi::Optional<ThreadScope> inner_most;
   ffi::Optional<ffi::String> backend;
 
   auto check_axis = [&](const Axis& axis) {
     if (!axis->IsThreadAxis()) return;
-
-    auto subtile_primitivet = axis->GetSubscope();
-    auto tile_primitivet = axis->GetScope();
-    TVM_FFI_ICHECK(subtile_primitivet.has_value() && tile_primitivet.has_value())
+    auto subscope_opt = axis->GetSubscope();
+    auto scope_opt = axis->GetScope();
+    TVM_FFI_ICHECK(subscope_opt.has_value() && scope_opt.has_value())
         << "Thread axis " << axis.name() << " has no subscope or scope";
-
+    ThreadScope subscope = subscope_opt.value();
+    ThreadScope scope = scope_opt.value();
+    TVM_FFI_CHECK(scope->backend() == subscope->backend(), ValueError)
+        << "Thread axis contains scopes from different backends";
     if (backend.has_value()) {
-      TVM_FFI_CHECK(backend.value() == subtile_primitivet.value()->backend, ValueError)
+      TVM_FFI_CHECK(backend.value() == subscope->backend(), ValueError)
           << "Layout contains thread axes from different backends";
     } else {
-      backend = subtile_primitivet.value()->backend;
+      backend = subscope->backend();
     }
-    ffi::String subscope = subtile_primitivet.value()->name();
-    ffi::String scope = tile_primitivet.value()->name();
-
-    if (!inner_most.has_value() ||
-        ScopeHigher(ExecScope(backend.value(), inner_most.value()), subtile_primitivet.value()))
+    if (!inner_most.has_value() || ScopeHigher(inner_most.value(), subscope)) {
       inner_most = subscope;
-
-    auto it = scope_map.find(subscope);
-    if (it == scope_map.end())
-      scope_map[subscope] = scope;
-    else
-      TVM_FFI_ICHECK_EQ(it->second, scope)
-          << "Ill-formed tile layout: conflicting scopes for " << subscope;
+    }
+    auto [it, inserted] = scope_map.emplace(subscope, scope);
+    TVM_FFI_ICHECK(inserted || it->second.same_as(scope))
+        << "Ill-formed tile layout: conflicting scopes for " << subscope;
   };
-
   for (const auto& iter : shard) check_axis(iter->axis);
   for (const auto& iter : replica) check_axis(iter->axis);
   for (const auto& [axis, off] : offset) check_axis(axis);
 
-  ffi::String outer_most = inner_most.value();
+  ThreadScope outer_most = inner_most.value();
   size_t count = 0;
   for (auto it = scope_map.find(outer_most); it != scope_map.end();
        it = scope_map.find(outer_most)) {
-    count++;
+    TVM_FFI_ICHECK_LT(count, scope_map.size()) << "Ill-formed tile layout: cyclic scope chain";
+    ++count;
     outer_most = it->second;
   }
-
   TVM_FFI_ICHECK_EQ(count, scope_map.size()) << "Ill-formed tile layout: disconnected scope chain";
-  return Tuple<ExecScope, ExecScope>{ExecScope(backend.value(), inner_most.value()),
-                                     ExecScope(backend.value(), outer_most)};
+  return Tuple<ThreadScope, ThreadScope>{inner_most.value(), outer_most};
 }
 
 TileLayout TileLayoutNode::DefaultLayout(ffi::Array<PrimExpr> shape) {
@@ -435,7 +386,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tirx.TileLayoutGetScope",
-      [](const TileLayout& layout) -> ffi::Optional<ffi::Tuple<ExecScope, ExecScope>> {
+      [](const TileLayout& layout) -> ffi::Optional<ffi::Tuple<ThreadScope, ThreadScope>> {
         return layout->GetScope();
       });
 }

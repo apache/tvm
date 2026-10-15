@@ -32,6 +32,7 @@
 #include <tvm/ir/with_context.h>
 #include <tvm/sym/int_set.h>
 
+#include <functional>
 #include <limits>
 #include <memory>
 #include <unordered_map>
@@ -305,90 +306,6 @@ class RewriteSimplifier {
   TVM_TIRX_DLL std::function<void()> EnterConstraint(const PrimExpr& constraint,
                                                      bool is_assume = false);
 
-  /*! \brief Flags to enable more computationally-intensive simplifications
-   *
-   * These simplifications may be required for specific schedules, but
-   * would impose too high a compile-time cost to enable by default.
-   * They can be enabled on an as-needed basis by calling
-   * `RewriteSimplifier::SetEnabledExtensions` prior to using
-   * `RewriteSimplifier::operator()`.
-   *
-   * Flags are defined as powers of two to allow future expansion.  To
-   * enable multiple extensions, a user should pass a bitwise OR of the
-   * flags for each desired extension.
-   */
-  enum Extension {
-    // No extensions enabled
-    kNone = 0,
-
-    /* When simplifying an inequality, attempt to use scope-based knowns.
-     *
-     * Example:
-     * if_then_else(i<j && j<k, i<k, false) => if_then_else(i<j && j<k, true, false)
-     */
-    kTransitivelyProveInequalities = (1 << 0),
-
-    /* When simplifying a boolean expression, convert to an AND of ORs
-     * (conjunctive normal form).
-     *
-     * Example:
-     *   (a && b) || c => (a || c) && (b || c)
-     */
-    kConvertBooleanToAndOfOrs = (1 << 1),
-
-    /* When simplifying a boolean AND or a boolean OR, simplify each
-     * branch under the assumption that the other branch does not
-     * already dominate the result.  That is, simplify each branch of
-     * (A && B) under the assumption that the other branch is true,
-     * and simplify each branch of (A || B) under the assumption that
-     * the other branch is false.
-     *
-     * Example:
-     *   (n < 10) && (n < 5) => (n < 10)
-     *   (n < 10) || (n < 5) => (n < 5)
-     */
-    kApplyConstraintsToBooleanBranches = (1 << 2),
-
-    /* Special handling for expressions `(A+B)*C < (A*B)*D`
-     *
-     * Expressions of the form `(A+B)*C < (A*B)*D` can occur occur
-     * when comparing the number of operations required for two
-     * different orderings in which matrix multiplications can be
-     * performed.  Proving or disproving this conditional allows an
-     * optimal order of execution to be selected, even for dynamic
-     * argument shapes.
-     *
-     * The default behavior of `ConstIntBounds` assumes that each term
-     * in an expression is independent, and is insufficient to prove
-     * these inequalities.  For example, the maximum value of `(A+B)*C
-     * - (A*B)*D` is determined by taking the maximum value of
-     * `(A+B)*C` and subtracting the minimum value of `(A*B)*D`.
-     * While this algorithm can be applied in all cases, the bound it
-     * provides is looser than strictly required.
-     *
-     * This extension adds a check for this case.  When `A`, `B`, `C`,
-     * and `D` are all positive values, as is the case for tensor
-     * shapes, the inequality can be written as `1/A + 1/B < D/C`.  If
-     * this inequality holds for the minimum values of `A`, `B`, and
-     * `D`, along with the maximum value of `C`, then the inequality
-     * holds for all values.
-     *
-     * This extension requires little to no performance overhead, and
-     * may be enabled by default in future releases.
-     */
-    kComparisonOfProductAndSum = (1 << 3),
-  };
-
-  /*! \brief Enable an optional extension or extensions
-   *
-   * \param flags A bitwise OR of all optional extensions that should
-   * be enabled.
-   */
-  TVM_TIRX_DLL void SetEnabledExtensions(Extension flags);
-
-  /*! \brief Return the currently enabled extensions */
-  TVM_TIRX_DLL Extension GetEnabledExtensions() const;
-
   /*! \brief Return the statistics counters */
   TVM_TIRX_DLL ffi::ObjectRef GetStatsCounters() const;
 
@@ -481,10 +398,9 @@ inline constexpr CompareResult operator|(CompareResult lhs, CompareResult rhs) {
 /*!
  * \brief Using previously specified knowns, compare the expressions provided
  *
- * Given known expressions [(a OP b), (b OP c), ..., (y OP z)], search
- * for a known result for `(a OP z)`.
+ * Compare directly related expressions, allowing constant offsets.
  */
-class TransitiveComparisonAnalyzer {
+class KnownComparisonAnalyzer {
  public:
   /* \brief Using previously specified knowns, compare the expressions provided
    *
@@ -492,19 +408,12 @@ class TransitiveComparisonAnalyzer {
    *
    * \param rhs The right-hand side of the comparison
    *
-   * \param propagate_inequalities If true, attempt to find a sequence
-   * of transitive inequalities that allow the lhs and rhs to be
-   * compared.  If false, only use the known comparison that have been
-   * directly provided.  Using `propagate_inequalities = false` is
-   * roughly equivalent to comparing against all known inequality
-   * expressions using `prim::ExprDeepEqual`, but also allows for constant
-   * offsets on either side of the inequality.
+   * Directly known comparisons also allow constant offsets on either side.
    *
    * \return The most specific result that can be proven about the
    * comparison.  If nothing can be proven, returns kUnknown.
    */
-  TVM_TIRX_DLL CompareResult TryCompare(const PrimExpr& lhs, const PrimExpr& rhs,
-                                        bool propagate_inequalities = true);
+  TVM_TIRX_DLL CompareResult TryCompare(const PrimExpr& lhs, const PrimExpr& rhs);
 
   /*! \brief Bind a variable as being equal to a known expression
    *
@@ -533,9 +442,9 @@ class TransitiveComparisonAnalyzer {
  private:
   friend class AnalyzerObj;
   friend class ConstraintContext;
-  TransitiveComparisonAnalyzer();
-  TVM_TIRX_DLL ~TransitiveComparisonAnalyzer();
-  void CopyFrom(const TransitiveComparisonAnalyzer& other);
+  KnownComparisonAnalyzer();
+  TVM_TIRX_DLL ~KnownComparisonAnalyzer();
+  void CopyFrom(const KnownComparisonAnalyzer& other);
   class Impl;
   /*! \brief Internal impl */
   std::unique_ptr<Impl> impl_;
@@ -724,8 +633,8 @@ class TVM_TIRX_DLL AnalyzerObj : public ffi::Object {
   CanonicalSimplifier canonical_simplify;
   /*! \brief sub-analyzer: int set */
   IntSetAnalyzer int_set;
-  /*! \brief sub-analyzer transitive comparisons */
-  TransitiveComparisonAnalyzer transitive_comparisons;
+  /*! \brief sub-analyzer known comparisons */
+  KnownComparisonAnalyzer known_comparisons;
   /*! \brief sub-analyzer using Z3 */
   Z3Prover z3_prover;
   /*! \brief constructor */
@@ -872,7 +781,7 @@ class TVM_TIRX_DLL AnalyzerObj : public ffi::Object {
    *
    * The returned analyzer carries the same accumulated facts (variable
    * bounds, modular sets, rewrite/canonical bindings, integer-set domains,
-   * literal constraints and transitive comparisons) as this one, but owns
+   * literal constraints and known comparisons) as this one, but owns
    * its own state: binding or simplifying on either analyzer afterwards does
    * not affect the other. This is the deep copy that handle-copying an
    * Analyzer does not provide.
@@ -921,6 +830,27 @@ class Analyzer : public ffi::ObjectRef {
     TVM_FFI_ICHECK(this->get() != nullptr);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Analyzer, ffi::ObjectRef, AnalyzerObj);
+};
+
+/*!
+ * \brief Scoped no-overflow assumption for unsigned index arithmetic.
+ *
+ * Unsigned arithmetic normally wraps modulo 2^bits. Use
+ * With<AllowUIntAsIndex> only when unsigned values are guaranteed not to
+ * overflow, enabling the analyzer's index rewrites within that scope.
+ * The assumption is off by default, thread-local, and supports nested scopes.
+ * Constructing this context alone does not enable the assumption.
+ */
+class AllowUIntAsIndex {
+ public:
+  /*! \brief Whether unsigned index analysis is enabled in the current thread. */
+  TVM_TIRX_DLL static bool Enabled();
+
+ private:
+  friend class With<AllowUIntAsIndex>;
+  TVM_TIRX_DLL void EnterWithScope();
+  TVM_TIRX_DLL void ExitWithScope();
+  static thread_local int depth_;
 };
 
 /*!

@@ -21,6 +21,7 @@ import tvm_ffi
 
 import tvm
 from tvm.ir import Call, Evaluate, assert_structural_equal, load_json, save_json
+from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.tirx import Var, decl_tensor
 from tvm.tirx.analysis import undefined_vars
@@ -28,35 +29,40 @@ from tvm.tirx.transform.common import TensorReplacer
 
 
 def test_instruction_is_a_void_call():
-    src = decl_tensor((64,), "float32", scope="global")
-    dst = decl_tensor((64,), "float32", scope="local")
-    call = T.cuda.tile.ld(dst, src, scope="warp", vec_bits=128)
+    src = decl_tensor((16, 4), "float32", scope="global")
+    dst = decl_tensor((16, 4), "float32", scope="local")
+    call = T.cuda.tile.apply(T.ptx["ld.global.v4.b32"], dst, src, scope="warp")
     assert isinstance(call, Call)
     assert call.ty == tvm.ir.PrimType("void")
     assert call.op.get_attr("TCallEffectKind") == 3
     assert callable(call.op.get_attr("FTileOpDispatch"))
-    assert call.attrs.scope == "warp"
-    assert call.attrs.vec_bits == 128
+    assert call.attrs.scope.same_as(T.cuda.ThreadScope("warp"))
+    assert call.args[0].value == "ld.global.v4.b32"
     assert not hasattr(call, "config")
     assert not hasattr(call, "workspace")
 
 
 @pytest.mark.parametrize("composite", [False, True])
 def test_roundtrip_and_exactly_one_evaluate(composite):
-    operation = T.cuda.tile.compose.exp if composite else T.cuda.tile.sqrt
+    @T.function(private=True)
+    def exp_scaled(x: T.float32) -> T.float32:
+        return T.exp(x) * T.float32(2)
 
     @T.function
-    def func(A: T.Tensor((16,), "float32", scope="local")):
-        operation(A[:], A[:], scope="warp")
+    def func(A: T.Tensor((16, 1), "float32", scope="local")):
+        if T.constexpr(composite):
+            T.cuda.tile.ewise(exp_scaled, A, A)
+        else:
+            T.cuda.tile.apply(T.ptx["sqrt.rn.f32"], A, A)
 
     nodes = []
     tvm_ffi.structural_walk(func.body, (Evaluate, lambda n: nodes.append(n)))
     assert len(nodes) == 1
     call = nodes[0].value
-    assert isinstance(call, Call)
     assert callable(call.op.get_attr("FTileOpDispatch"))
-    parsed = tvm.script.from_source(func.script(), extra_vars={"T": T})
-    assert_structural_equal(func, parsed)
+    assert_structural_equal(
+        func, tvm.script.from_source(func.script(), extra_vars={"T": T, "I": I})
+    )
     assert_structural_equal(func, load_json(save_json(func)))
     assert_structural_equal(call, pickle.loads(pickle.dumps(call)), map_free_vars=True)
 
@@ -64,24 +70,25 @@ def test_roundtrip_and_exactly_one_evaluate(composite):
 def test_runtime_operands_are_seen_and_replaced():
     src = decl_tensor((16, 16), "float32", scope="global")
     dst = decl_tensor((4, 16), "float32", scope="shared")
-    alternative = decl_tensor((16, 16), "float32", scope="global")
     mbar = Var("mbar", "handle")
     row = Var("row", "int32")
     mask = Var("mask", "uint16")
     policy = Var("policy", "uint64")
-    call = T.cuda.tile.cp_async_bulk_tensor_load(
-        dst[:, :],
-        src[0:1, :],
-        mbar,
-        mask,
-        False,
-        [row, row + 1, row + 2, row + 3],
-        [(row == 0, alternative[:, :])],
-        policy,
-        descriptor_mode="explicit",
+    call = T.cuda.tile.apply(
+        T.ptx[
+            "cp.async.bulk.tensor.2d.shared::cluster.global.tile::gather4.mbarrier::complete_tx::bytes.multicast::cluster.L2::cache_hint"
+        ],
+        dst,
+        src,
+        box=(1, 16),
+        coords=(0, 0),
+        gather4=(row, row + 1, row + 2, row + 3),
+        mbar=mbar,
+        cta_mask=mask,
+        cache_policy=policy,
     )
     free = undefined_vars(Evaluate(call))
-    for value in [src, dst, alternative, mbar, row, mask, policy]:
+    for value in (src, dst, mbar, row, mask, policy):
         assert any(v.same_as(value) for v in free)
     new_row = Var("new_row", "int32")
     replacement = TensorReplacer(var_map={row: new_row})(Evaluate(call))
@@ -94,44 +101,16 @@ def test_runtime_operands_are_seen_and_replaced():
 def test_workspace_is_an_optional_call_operand():
     tvm.backend.load("trn")
     a = decl_tensor((16, 16), "float32", scope="shared")
-    acc = decl_tensor((16, 16), "float32", scope="psum")
+    acc = decl_tensor((16, 16), "float32", scope="trn.psum")
     call = T.trn.tile.matmul(a, a, a, acc_psum=acc)
     assert call.args[-1].same_as(acc)
     assert any(v.same_as(acc) for v in undefined_vars(Evaluate(call)))
     assert_structural_equal(call, load_json(save_json(call)), map_free_vars=True)
 
 
-def test_selector_region_cannot_silently_discard_coordinates():
-    src = decl_tensor((16, 16), "float32", scope="global")
-    dst = decl_tensor((4, 16), "float32", scope="shared")
-    with pytest.raises(ValueError, match="cover their full tensor view"):
-        T.cuda.tile.cp_async_bulk_tensor_load(
-            dst,
-            src[0:4, :],
-            0,
-            src_selector=[(True, src[4:8, :])],
-            descriptor_mode="explicit",
-        )
-
-
-@pytest.mark.parametrize(
-    "kwargs", [{"dispatch": "reg"}, {"config": {}}, {"workspace": {}}, {"hint": "fast"}]
-)
-def test_removed_bags_are_rejected(kwargs):
-    a = decl_tensor((16,), "float32", scope="local")
-    with pytest.raises(TypeError, match="unknown qualifier"):
-        T.cuda.tile.mov(a, 0.0, **kwargs)
-
-
-def test_dynamic_qualifier_is_rejected():
-    a = decl_tensor((16,), "float32", scope="local")
-    with pytest.raises(TypeError, match="expressions belong in operands"):
-        T.cuda.tile.ld(a, a, vec_bits=Var("width", "int32"))
-
-
 def test_direct_call_validation_cannot_bypass_signature():
-    a = decl_tensor((16,), "float32", scope="local")
-    valid = T.cuda.tile.mov(a, 0.0)
+    a = decl_tensor((16, 1), "float32", scope="local")
+    valid = T.cuda.tile.apply(T.ptx["mov.b32"], a, T.float32(0))
     for call in [
         Call(valid.op, valid.args[:-1], attrs=valid.attrs, ty="void"),
         Call(valid.op, valid.args, attrs=valid.attrs, ty="int32"),
@@ -139,14 +118,6 @@ def test_direct_call_validation_cannot_bypass_signature():
     ]:
         with pytest.raises((TypeError, ValueError, RuntimeError)):
             call.validate()
-
-
-def test_block_scale_requires_both_scales():
-    a = decl_tensor((16, 16), "float16", scope="shared")
-    with pytest.raises(TypeError, match="missing operand SFB"):
-        T.cuda.tile.tcgen05.mma_block_scale(a, a, a, SFA=a)
-    with pytest.raises(TypeError, match="unknown qualifier"):
-        T.cuda.tile.tcgen05.mma(a, a, a, SFA=a)
 
 
 def test_tensor_replacer_no_shared_default():

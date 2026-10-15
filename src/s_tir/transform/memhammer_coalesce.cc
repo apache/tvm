@@ -17,9 +17,9 @@
  * under the License.
  */
 #include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/tirx/stmt.h>
 
-#include "../../runtime/thread_storage_scope.h"
 #include "./memhammer_rewrite_rule.h"
 
 namespace tvm {
@@ -237,7 +237,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
     }
   }
   TensorLoad new_tensor_load =
-      MakeTensorLoad(read_region->source.as_or_throw<tvm::tirx::TensorVar>(), read_index);
+      TensorLoad(read_region->source.as_or_throw<tvm::tirx::TensorVar>(), read_index);
   TensorStore new_tensor_store = TensorStore(
       write_region->source.as_or_throw<tvm::tirx::TensorVar>(), write_index, new_tensor_load);
   Stmt ret = new_tensor_store;

@@ -18,7 +18,7 @@
 
 from tvm.ir.location import UNKNOWN_LOC, Location
 
-from ..runtime import DataTypeCode, ObjectConvertible
+from ..runtime import DataTypeCode
 from ._constant import const
 from .expr import Expr, TensorRegion, is_prim_expr
 from .prim import _ffi_api as _prim_ffi_api
@@ -243,10 +243,10 @@ class ExprOp:
         expr : Expr
             Expression with new type
         """
-        return _prim_ffi_api._cast(dtype, self, loc)  # type: ignore
+        return _prim_ffi_api._cast(self, dtype, loc)  # type: ignore
 
 
-class EqualOp(ObjectConvertible, ExprOp):
+class EqualOp(ExprOp):
     """Deferred equal operator.
 
     This is used to support sugar that a == b can either
@@ -280,7 +280,7 @@ class EqualOp(ObjectConvertible, ExprOp):
     def __bool__(self) -> bool:
         return self.__nonzero__()
 
-    def asobject(self) -> Expr:
+    def __tvm_ffi_object__(self) -> Expr:
         """Convert object."""
         return _prim_ffi_api._OpEQ(self.a, self.b, self.loc)  # type: ignore
 
@@ -292,7 +292,7 @@ class EqualOp(ObjectConvertible, ExprOp):
         return f"EqualOp({self.a!r}, {self.b!r})"
 
 
-class NotEqualOp(ObjectConvertible, ExprOp):
+class NotEqualOp(ExprOp):
     """Deferred NE operator.
 
     This is used to support sugar that a != b can either
@@ -326,7 +326,7 @@ class NotEqualOp(ObjectConvertible, ExprOp):
     def __bool__(self) -> bool:
         return self.__nonzero__()
 
-    def asobject(self) -> Expr:
+    def __tvm_ffi_object__(self) -> Expr:
         """Convert object."""
         return _prim_ffi_api._OpNE(self.a, self.b, self.loc)  # type: ignore
 

@@ -20,10 +20,10 @@
 #include <tvm/ir/op.h>
 #include <tvm/relax/expr.h>
 #include <tvm/script/printer/doc_translator.h>
+#include <tvm/script/printer/support.h>
 
 #include <optional>
 
-#include "../../../script/printer/ir/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -57,16 +57,17 @@ ffi::Optional<ExprDoc> InlineTupleCallDocTranslate(DocTranslatorObj* d, ffi::Any
                                                    const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (call->args.size() > 1 && InlineTupleNeedsRawCall(d, call->args[1])) return RawCall(d, call);
+  if (call->args.size() > 1 && InlineTupleNeedsRawCall(d, call->args[1]))
+    return RawCallDocTranslate(d, call);
   if (auto doc = StandardCallDocTranslate(d, call)) return doc;
-  return RawCall(d, call);
+  return RawCallDocTranslate(d, call);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"relax.call_builtin_with_ctx", "relax.make_closure",
                            "relax.invoke_closure", "relax.invoke_pure_closure"}) {
-    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
-                                        FDocTranslate::FromNative<&InlineTupleCallDocTranslate>());
+    OpDef(name).set_native_fn_attr<&InlineTupleCallDocTranslate>(
+        tvm::script::printer::op_attr::kDocTranslateOpCall);
   }
 }
 
@@ -77,10 +78,10 @@ ffi::Optional<ExprDoc> LogicalCallDocTranslate(DocTranslatorObj* d, ffi::AnyView
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   for (const Expr& arg : call->args) {
-    if (arg->ty.as<PrimType>()) return RawCall(d, call);
+    if (arg->ty.as<PrimType>()) return RawCallDocTranslate(d, call);
   }
   if (auto doc = StandardCallDocTranslate(d, call)) return doc;
-  return RawCall(d, call);
+  return RawCallDocTranslate(d, call);
 }
 
 // VM allocation wrappers convert bare integer offsets/device indices to int64.
@@ -99,19 +100,19 @@ ffi::Optional<ExprDoc> VMAllocCallDocTranslate(DocTranslatorObj* d, ffi::AnyView
     return dtype == implicit && dtype != ffi::StringToDLDataType("int64") &&
            dtype != ffi::StringToDLDataType("bool");
   };
-  if (needs_raw(1) || needs_raw(4)) return RawCall(d, call);
+  if (needs_raw(1) || needs_raw(4)) return RawCallDocTranslate(d, call);
   if (auto doc = StandardCallDocTranslate(d, call)) return doc;
-  return RawCall(d, call);
+  return RawCallDocTranslate(d, call);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"relax.logical_and", "relax.logical_or", "relax.logical_not"}) {
-    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
-                                        FDocTranslate::FromNative<&LogicalCallDocTranslate>());
+    OpDef(name).set_native_fn_attr<&LogicalCallDocTranslate>(
+        tvm::script::printer::op_attr::kDocTranslateOpCall);
   }
   for (const char* name : {"relax.vm.alloc_storage", "relax.vm.alloc_tensor"}) {
-    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
-                                        FDocTranslate::FromNative<&VMAllocCallDocTranslate>());
+    OpDef(name).set_native_fn_attr<&VMAllocCallDocTranslate>(
+        tvm::script::printer::op_attr::kDocTranslateOpCall);
   }
 }
 
@@ -121,29 +122,30 @@ ffi::Optional<ExprDoc> CallDPSPackedDocTranslate(DocTranslatorObj* d, ffi::AnyVi
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (call->attrs.has_value() || call->args.size() != 2 || !call->args[1].as<TupleNode>() ||
       call->ty_args.size() != 1 || InlineTupleNeedsRawCall(d, call->args[1])) {
-    return RawCall(d, call);
+    return RawCallDocTranslate(d, call);
   }
   ExprDoc callee = d->Translate(call->args[0]).value();
   if (const auto* packed = call->args[0].as<relax::ExternFuncNode>()) {
     if (!ffi::StructuralEqual()(packed->ty, relax::ExternFunc(packed->global_symbol)->ty)) {
-      return RawCall(d, call);
+      return RawCallDocTranslate(d, call);
     }
     callee = LiteralDoc::Str(packed->global_symbol, std::nullopt);
   } else if (call->args[0].as<StringImmNode>()) {
     // A bare Python string now constructs ExternFunc, so retain this explicit IR value.
-    callee = AnyValue(d, call->args[0]);
+    callee = d->WithExtraStateScope<bool>("ir.explicit_value_type", true,
+                                          [&] { return d->Translate(call->args[0]).value(); });
   }
   d->RecordOrigin(callee, call->args[0]);
   ExprDoc args = d->Translate(call->args[1]).value();
   ffi::Array<ffi::String> keys = {"ty_args"};
-  ffi::Array<ExprDoc> values = {ListDoc({TypeValue(d, call->ty_args[0], false)})};
+  ffi::Array<ExprDoc> values = {ListDoc({d->Translate(call->ty_args[0]).value()})};
   return NamespaceDoc("relax")->Attr("call_dps_packed")->Call({callee, args}, keys, values);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.call_dps_packed")
-      .set_attr<FDocTranslate>(tvm::script::printer::op_attr::kDocTranslateOpCall,
-                               FDocTranslate::FromNative<&CallDPSPackedDocTranslate>());
+      .set_native_fn_attr<&CallDPSPackedDocTranslate>(
+          tvm::script::printer::op_attr::kDocTranslateOpCall);
 }
 
 }  // namespace

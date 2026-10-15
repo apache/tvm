@@ -24,7 +24,7 @@
 
 #include <tvm/ir/stmt.h>
 #include <tvm/tirx/expr.h>
-#include <tvm/tirx/tile/exec_scope.h>
+#include <tvm/tirx/tile/thread_scope.h>
 
 namespace tvm {
 namespace tirx {

@@ -87,11 +87,9 @@ class CPUDeviceAPI final : public DeviceAPI {
     return rv;
   }
   ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final {
-    TVM_FFI_CHECK(
-        !mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global",
-        ValueError)
-        << "Unsupported memory scope: " << mem_scope.value_or("");
+                    ffi::Optional<MemoryScope> mem_scope = std::nullopt) final {
+    TVM_FFI_CHECK(!mem_scope.has_value() || mem_scope.value() == MemoryScope::Global(), ValueError)
+        << "Unsupported memory scope: " << mem_scope.value_or(MemoryScope::Global()).name();
     struct Allocator {
       CPUDeviceAPI* api;
       void AllocData(DLTensor* tensor) {
@@ -137,7 +135,7 @@ class CPUDeviceAPI final : public DeviceAPI {
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(Device dev, void* data) final;
 
-  bool SupportsDevicePointerArithmeticsOnHost() final { return true; }
+  bool SupportsDevicePtrArithmeticOnHost() final { return true; }
 
   static CPUDeviceAPI* Global() {
     // NOTE: explicitly use new to avoid exit-time destruction of global state

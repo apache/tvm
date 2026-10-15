@@ -29,7 +29,7 @@
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/script/ir_builder/ir.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/tile/exec_scope.h>
+#include <tvm/tirx/tile/thread_scope.h>
 
 #include "./utils.h"
 
@@ -45,18 +45,15 @@ using tvm::tirx::Layout;
 namespace {
 
 tvm::tirx::TensorType TensorTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
-                                     ffi::Optional<Expr> data,
+                                     runtime::MemoryScope storage_scope,
                                      ffi::Optional<ffi::Array<PrimExpr>> strides,
-                                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
-                                     int align, int offset_factor, ffi::Optional<Layout> layout) {
+                                     ffi::Optional<PrimExpr> elem_offset, int align,
+                                     int offset_factor, ffi::Optional<Layout> layout,
+                                     ffi::Optional<Expr> data) {
   if (data.has_value()) {
-    storage_scope = data.value()->ty.as_or_throw<PtrType>()->storage_scope;
+    storage_scope = data.value()->ty.as_or_throw<PtrType>()->scope;
   }
-  if (!elem_offset.has_value() && offset_factor) {
-    PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
-    elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
-  }
-  return tvm::tirx::TensorType(storage_scope, dtype, shape,
+  return tvm::tirx::TensorType(shape, dtype, storage_scope,
                                strides.value_or(ffi::Array<PrimExpr>()), elem_offset, align,
                                offset_factor, layout);
 }
@@ -88,7 +85,7 @@ Var Arg(ffi::String name, Var var) {
 }
 
 TensorVar Arg(ffi::String name, TensorVar tensor) {
-  Arg(std::move(name), tensor.var());
+  Arg(std::move(name), Var(tensor));
   return tensor;
 }
 
@@ -181,7 +178,7 @@ tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value) {
                                    << ": LHS is `" << lhs_dtype << "`, RHS is `" << rhs_dtype
                                    << "`, indexing lanes: " << index_lanes;
     }
-    value = tvm::prim::cast(lhs_dtype, value);
+    value = tvm::prim::cast(value, lhs_dtype);
   }
   tvm::Stmt store = tvm::TensorStore(dest, indices, value);
   if (lhs_dtype != rhs_dtype) {
@@ -205,7 +202,7 @@ tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value) {
   return store;
 }
 
-Var Ptr(PrimType dtype, ffi::String storage_scope = "global") {
+Var Ptr(PrimType dtype, runtime::MemoryScope storage_scope = {}) {
   PtrType type_annotation(dtype, storage_scope);
   return tvm::Var("", type_annotation);
 }
@@ -387,7 +384,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.tirx.Boolean", Boolean)
-      .def("script.ir_builder.tirx.Handle", Handle)
+      .def("script.ir_builder.tirx.Handle",
+           static_cast<Var (*)(ffi::Optional<PrimType>, runtime::MemoryScope)>(Handle))
       .def("script.ir_builder.tirx.TensorMap", TensorMap)
       .def("script.ir_builder.tirx.Void", Void)
       .def("script.ir_builder.tirx.min",

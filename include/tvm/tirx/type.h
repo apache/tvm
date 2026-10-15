@@ -26,6 +26,7 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/tirx/layout.h>
 
 #include <optional>
@@ -36,21 +37,13 @@ namespace tvm::tirx {
 #define TVM_INDEX_DEFAULT_I64 1
 #endif
 /*! \brief if TVM_INDEX_DEFAULT_I64 is set, return int64, otherwise return int32 */
-inline PrimType DefaultIndexPrimType() {
+inline PrimType DefaultIndexType() {
 #if TVM_INDEX_DEFAULT_I64
   static const PrimType default_index_ty = PrimType::Int(64);
 #else
   static const PrimType default_index_ty = PrimType::Int(32);
 #endif
   return default_index_ty;
-}
-
-inline DLDataType DefaultIndexType() {
-#if TVM_INDEX_DEFAULT_I64
-  return DLDataType{kDLInt, 64, 1};
-#else
-  return DLDataType{kDLInt, 32, 1};
-#endif
 }
 
 /*!
@@ -70,7 +63,7 @@ class TensorTypeNode : public TypeNode {
   /*! \brief dtype in the content of the tensor */
   PrimType dtype = PrimType::Void();
   /*! \brief Storage scope/address space of the tensor. */
-  ffi::String storage_scope;
+  runtime::MemoryScope scope;
   /*! \brief The type of the tensor prior to flattening
    *
    * This contains the shape as it is accessed by
@@ -98,27 +91,27 @@ class TensorTypeNode : public TypeNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TensorTypeNode>()
-        .def_ro("dtype", &TensorTypeNode::dtype)
-        .def_ro("storage_scope", &TensorTypeNode::storage_scope)
         .def_ro("shape", &TensorTypeNode::shape, refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("strides", &TensorTypeNode::strides, refl::AttachFieldFlag::SEqHashDefSimple())
+        .def_ro("dtype", &TensorTypeNode::dtype)
+        .def_ro("scope", &TensorTypeNode::scope, refl::DefaultValue(runtime::MemoryScope::Global()))
+        .def_ro("strides", &TensorTypeNode::strides, refl::AttachFieldFlag::SEqHashDefSimple(),
+                refl::DefaultValue(ffi::Array<PrimExpr>()))
         .def_ro("elem_offset", &TensorTypeNode::elem_offset,
-                refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("data_alignment", &TensorTypeNode::data_alignment)
-        .def_ro("offset_factor", &TensorTypeNode::offset_factor)
-        .def_ro("layout", &TensorTypeNode::layout);
+                refl::AttachFieldFlag::SEqHashDefSimple(),
+                refl::DefaultValue(IntImm(tvm::tirx::DefaultIndexType(), 0)))
+        .def_ro("data_alignment", &TensorTypeNode::data_alignment,
+                refl::DefaultValue(static_cast<int>(runtime::kAllocAlignment)))
+        .def_ro("offset_factor", &TensorTypeNode::offset_factor, refl::DefaultValue(1))
+        .def_ro("layout", &TensorTypeNode::layout, refl::DefaultValue(nullptr));
   }
 
   /*! \return preferred index type for this tensor node */
-  DLDataType DefaultIndexType() const {
-    return shape.size() != 0 ? shape[0].ty()->dtype : tvm::tirx::DefaultIndexType();
+  PrimType DefaultIndexType() const {
+    return !shape.empty() ? shape[0].ty() : tvm::tirx::DefaultIndexType();
   }
 
-  /*! \return primitive element type for compiler-side uses. */
-  PrimType ElementType() const { return dtype; }
-
   /*! \return type of the physical pointer projected by tensor_data_ptr. */
-  PtrType DataPtrType() const { return PtrType(dtype, storage_scope); }
+  PtrType DataPtrType() const { return PtrType(dtype, scope); }
 
   /*! \brief Whether this type supports scalar tensor syntax. */
   TVM_TIRX_DLL bool IsScalar(bool alloc_or_decl = true) const;
@@ -135,7 +128,8 @@ class TensorTypeNode : public TypeNode {
    * \param index The index to be accessed.
    * \param inner Ignore the elem_offset, return inner offset only
    */
-  ffi::Array<PrimExpr> ElemOffset(ffi::Array<PrimExpr> index, bool inner = false) const;
+  TVM_TIRX_DLL ffi::Array<PrimExpr> ElemOffset(ffi::Array<PrimExpr> index,
+                                               bool inner = false) const;
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TensorType", TensorTypeNode, TypeNode);
 };
@@ -145,9 +139,10 @@ class TensorTypeNode : public TypeNode {
  */
 class TensorType : public Type {
  public:
-  TVM_TIRX_DLL TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
-                          ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
-                          int data_alignment, int offset_factor,
+  TVM_TIRX_DLL TensorType(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
+                          runtime::MemoryScope scope = {}, ffi::Array<PrimExpr> strides = {},
+                          ffi::Optional<PrimExpr> elem_offset = std::nullopt,
+                          int data_alignment = 0, int offset_factor = 0,
                           ffi::Optional<Layout> layout = std::nullopt, Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorType, Type, TensorTypeNode);

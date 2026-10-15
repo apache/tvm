@@ -18,9 +18,9 @@
 """Bundle registry for CI artifact stashing.
 
 Single source of truth for the file lists uploaded to / downloaded from S3 by
-``ci/scripts/jenkins/s3.py``. This module deliberately carries nothing else —
-docker image tags live in ``ci/jenkins/docker-images.ini`` and Jinja-template
-metadata (image platforms, AWS endpoints) lives in ``ci/jenkins/generate.py``.
+``ci/jenkins/scripts/s3.py``. This module deliberately carries nothing else —
+docker image tags live in ``ci/jenkins/docker-images.ini`` and pipeline
+configuration lives in ``ci/jenkins/generated/common.groovy``.
 
 CLI: ``python3 ci/jenkins/data.py <bundle> [<bundle> ...]`` resolves bundle
 names to their file paths (one per line; exit 1 on unknown name). Used by

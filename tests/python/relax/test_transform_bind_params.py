@@ -34,7 +34,11 @@ def test_bind_params(use_np_array):
     @tvm.script.ir_module
     class InputModule:
         @Ts.function
-        def tir_matmul(A: T.Tensor((16, 16)), B: T.Tensor((16, 16)), C: T.Tensor((16, 16))) -> None:
+        def tir_matmul(
+            A: T.Tensor((16, 16), "float32"),
+            B: T.Tensor((16, 16), "float32"),
+            C: T.Tensor((16, 16), "float32"),
+        ) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
 
             for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
@@ -76,10 +80,10 @@ def test_bind_params(use_np_array):
 
 
 def test_bind_params_symbolic_vars():
-    batch = T.dynamic("batch")
-    k = T.dynamic("k")
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    batch = T.dynamic("batch", "int64")
+    k = T.dynamic("k", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Before:

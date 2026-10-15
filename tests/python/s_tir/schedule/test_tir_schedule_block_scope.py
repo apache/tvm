@@ -45,7 +45,11 @@ def elementwise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "flo
 
 
 @Ts.function
-def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+def matmul(
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
+) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -58,7 +62,9 @@ def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 1
 
 @Ts.function
 def war_dependency(
-    A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
+    A: T.Tensor((128, 128), "float32"),
+    B: T.Tensor((128, 128), "float32"),
+    C: T.Tensor((128, 128), "float32"),
 ) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):

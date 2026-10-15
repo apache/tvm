@@ -28,6 +28,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/memory.h>
@@ -235,8 +236,8 @@ bool Is64BitPayload(PayloadType type) {
 }
 
 bool IsScalarTensorAccess(const TensorVar& tensor, const ffi::Array<PrimExpr>& indices) {
-  if (tensor->shape.size() != 1 || indices.size() != 1) return false;
-  const auto* extent = tensor->shape[0].as<IntImmNode>();
+  if (tensor.shape().size() != 1 || indices.size() != 1) return false;
+  const auto* extent = tensor.shape()[0].as<IntImmNode>();
   const auto* index = indices[0].as<IntImmNode>();
   return extent && extent->value == 1 && index && index->value == 0;
 }
@@ -494,15 +495,16 @@ class TokenVerifier : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
+    static const auto scope_local = runtime::MemoryScope::Get("local");
     if (!token_tensors_.count(store->dest.as_or_throw<TensorVar>().get())) {
       return StmtExprVisitor::Visit_(store);
     }
-    TVM_FFI_CHECK(store->dest.as_or_throw<TensorVar>()->dtype->dtype.code == kDLUInt &&
-                      store->dest.as_or_throw<TensorVar>()->dtype->dtype.bits == 32 &&
-                      store->dest.as_or_throw<TensorVar>()->dtype->dtype.lanes == 1,
+    TVM_FFI_CHECK(store->dest.as_or_throw<TensorVar>().dtype()->dtype.code == kDLUInt &&
+                      store->dest.as_or_throw<TensorVar>().dtype()->dtype.bits == 32 &&
+                      store->dest.as_or_throw<TensorVar>().dtype()->dtype.lanes == 1,
                   TypeError)
         << "IKET RangeToken storage must have dtype uint32";
-    TVM_FFI_CHECK(store->dest.as_or_throw<TensorVar>().scope() == "local" &&
+    TVM_FFI_CHECK(store->dest.as_or_throw<TensorVar>().scope() == scope_local &&
                       IsScalarTensorAccess(store->dest.as_or_throw<TensorVar>(), store->indices),
                   ValueError)
         << "IKET RangeToken must use element zero of a local uint32[1] tensor";
@@ -1090,14 +1092,14 @@ class InstrumentOfficialKernel : public StmtExprMutator {
   PrimExpr Event(PrimExpr event_id) const {
     static const Op event_op = Op::Get("tirx.cuda.iket_official_event");
     return Call(PrimType::UInt(32), event_op,
-                {prim::cast(PrimType::UInt(32), event_id), StringImm(device_source_)});
+                {prim::cast(event_id, PrimType::UInt(32)), StringImm(device_source_)});
   }
 
   PrimExpr Event(PrimExpr event_id, PrimExpr payload) const {
     static const Op event_op = Op::Get("tirx.cuda.iket_official_event");
     return Call(
         PrimType::UInt(32), event_op,
-        {prim::cast(PrimType::UInt(32), event_id), StringImm(device_source_), std::move(payload)});
+        {prim::cast(event_id, PrimType::UInt(32)), StringImm(device_source_), std::move(payload)});
   }
 
   PrimExpr NormalizePayload(PrimExpr payload, PayloadType type) const {

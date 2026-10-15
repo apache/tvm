@@ -125,7 +125,11 @@ def test_ceildiv():
 
 def test_tir_func_name():
     @Ts.function
-    def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+    def matmul(
+        A: T.Tensor([128, 128], "float32"),
+        B: T.Tensor([128, 128], "float32"),
+        C: T.Tensor([128, 128], "float32"),
+    ) -> None:
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("update"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -137,7 +141,11 @@ def test_tir_func_name():
 
 def test_tir_func_private_attrs():
     @Ts.function(private=True)
-    def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+    def matmul(
+        A: T.Tensor([128, 128], "float32"),
+        B: T.Tensor([128, 128], "float32"),
+        C: T.Tensor([128, 128], "float32"),
+    ) -> None:
         T.func_attr({"attr": "value"})
 
         for i, j, k in T.grid(128, 128, 128):
@@ -153,7 +161,11 @@ def test_tir_loop_steps():
 
     @Ts.function(private=True)
     def loop_with_steps(
-        A: T.Tensor((N,)), B: T.Tensor((N,)), C: T.Tensor((N,)), tid: T.int32, v: T.int32
+        A: T.Tensor((N,), "float32"),
+        B: T.Tensor((N,), "float32"),
+        C: T.Tensor((N,), "float32"),
+        tid: T.int32,
+        v: T.int32,
     ):
         for i in T.serial(tid, N, step=2):
             C[i] = A[i] + B[i]
@@ -192,7 +204,7 @@ def test_tir_empty_tuple_index():
 
 def test_thread_binding_dtype():
     @Ts.function(private=True)
-    def func(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))):
+    def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")):
         for i in T.parallel(T.int64(128), annotations={"thread_binding": "threadIdx.x"}):
             for j in T.parallel(128, annotations={"thread_binding": "threadIdx.y"}):
                 B[i, j] = A[i, j]
@@ -432,7 +444,7 @@ def vthread_func():
         i0 = T.launch_thread("blockIdx.x", 4)
         i1 = T.launch_thread("threadIdx.x", 2)
         i2 = T.launch_thread("vthread", 2)
-        B = T.alloc_tensor(ty_args=[T.Tensor((16,), scope="local")])
+        B = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32", scope="local")])
         for j in range(16):
             B[j] = A[i0 * 64 + i1 * 32 + i2 * 16 + j] + T.float32(1)
         for j in range(16):
@@ -700,7 +712,11 @@ def func_with_loop_jumps():
 def func_with_loop_steps():
     @Ts.function
     def func(
-        A: T.Tensor((1024,)), B: T.Tensor((1024,)), C: T.Tensor((1024,)), tid: T.int32, v: T.int32
+        A: T.Tensor((1024,), "float32"),
+        B: T.Tensor((1024,), "float32"),
+        C: T.Tensor((1024,), "float32"),
+        tid: T.int32,
+        v: T.int32,
     ):
         for i in T.serial(tid, 1024, step=2):
             C[i] = A[i] + B[i]
@@ -753,7 +769,7 @@ def test_assert_stmt_roundtrip(error_type, message_parts):
 
 
 @Ts.function
-def loop_no_syntax_sugar(A: T.Tensor((128, 128, 128, 128))) -> None:
+def loop_no_syntax_sugar(A: T.Tensor((128, 128, 128, 128), "float32")) -> None:
     for i in T.serial(0, 128):
         for j in T.parallel(0, 128):
             for k in T.vectorized(0, 128):
@@ -764,7 +780,7 @@ def loop_no_syntax_sugar(A: T.Tensor((128, 128, 128, 128))) -> None:
 
 
 @Ts.function
-def loop_syntax_sugar(A: T.Tensor((128, 128, 128, 128))) -> None:
+def loop_syntax_sugar(A: T.Tensor((128, 128, 128, 128), "float32")) -> None:
     for i in T.serial(128):
         for j in T.parallel(128):
             for k in T.vectorized(128):
@@ -780,8 +796,8 @@ def test_loop_syntax_sugar():
 
 @Ts.function
 def elementwise_tensor_default_dtype(
-    A: T.Tensor((128, 128, 128, 128)),
-    B: T.Tensor((128, 128, 128, 128)),
+    A: T.Tensor((128, 128, 128, 128), "float32"),
+    B: T.Tensor((128, 128, 128, 128), "float32"),
 ) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 128):  # noqa: E741
         with Ts.sblock("B"):
@@ -824,7 +840,7 @@ def test_tensor_signature_syntax_sugar():
 
 def test_tensor_1d():
     @Ts.function
-    def func_no_sugar(A: T.Tensor(shape=(16,))):
+    def func_no_sugar(A: T.Tensor(shape=(16,), dtype="float32")):
         for i in T.serial(16):
             A[i] = 0.0
 
@@ -1070,7 +1086,9 @@ def test_roundtrip_basic_usage(ir_generator):
 # Import-time construction also checks the annotated S-TIR API.
 @Ts.function
 def element_wise_env_thread_x(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     i = T.launch_thread("blockIdx.x", 128)
     j0_0 = T.launch_thread("threadIdx.x", 4)

@@ -90,7 +90,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     for (size_t i = new_block->alloc_tensors.size(); i > 0; --i) {
       const TensorVar& tensor = new_block->alloc_tensors[i - 1];
       ffi::Map<ffi::String, ffi::Any> allocate_annotations;
-      auto it = storage_align_.find(tensor.var());
+      auto it = storage_align_.find(tensor);
       if (it != storage_align_.end()) {
         StorageAlignAnnotation allocate_aligns;
         for (auto tuple : it->second) {
@@ -100,11 +100,11 @@ class OpaqueBlockLower : public StmtExprMutator {
         allocate_annotations.Set(s_tir::attr::kTensorDimAlign, allocate_aligns);
       }
       allocate_annotations.Set(tvm::tirx::attr::kTensorDataAlignment,
-                               IntImm::Int32(tensor->data_alignment));
+                               IntImm::Int32(tensor.ty()->data_alignment));
       ffi::Array<Expr> args;
-      if (auto address = addresses.Get(tensor.var())) args.push_back(tvm::Tuple(address.value()));
-      body = SeqStmt({Bind(tensor.var(), Call(tensor.type(), tirx::alloc_tensor_op(), args,
-                                              DictAttrs(allocate_annotations), {tensor.type()})),
+      if (auto address = addresses.Get(tensor)) args.push_back(tvm::Tuple(address.value()));
+      body = SeqStmt({Bind(tensor, Call(tensor.ty(), tirx::alloc_tensor_op(), args,
+                                        DictAttrs(allocate_annotations), {tensor.ty()})),
                       std::move(body)});
     }
     return body;
@@ -120,7 +120,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     auto previous_remap = VarRemapGet(op->loop_var);
     if (!tvm::s_tir::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty()) {
       // handling unit loop
-      VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
+      VarRemapSet(op->loop_var, prim::cast(min, op->loop_var.ty()));
     }
 
     // Keep policy on surviving descendants when this owner is lowered away.

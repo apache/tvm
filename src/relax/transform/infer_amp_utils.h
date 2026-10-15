@@ -42,9 +42,6 @@ using ffi::StringToDLDataType;
 
 enum MixedPrecisionPolicyKind : int { kAlways = 0, kFollow = 1, kNever = 2 };
 
-/*! \brief the operator pattern */
-using TMixedPrecisionPolicy = int;
-
 // NType is the message we want to track for vars with nested tensorstructinfo
 // which represents the realization decision of the var.
 // The string is the name of the dtype decision.
@@ -70,7 +67,10 @@ NType NTypeMerge(const NType& a, const NType& b);
 using VarDTypeMap = std::unordered_map<Var, NType>;
 
 // Call is a call node, out_dtype is the expected output_dtype
-using FInferMixedPrecision = ffi::TypedFunction<Call(const Call& call_node, DLDataType out_dtype)>;
+
+// Compatibility names; new callers can deduce the value type from the key.
+using FInferMixedPrecision = decltype(op_attr::kInferMixedPrecision)::ValueType;
+using TMixedPrecisionPolicy = decltype(op_attr::kMixedPrecisionPolicy)::ValueType;
 
 ffi::Array<ffi::ObjectRef> InferMixedPrecisionFollow(const Call& call, DLDataType out_dtype);
 

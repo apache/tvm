@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-def test_pipeline_compile():
+def test_pipeline_compile(capsys):
     target = tvm.target.Target("llvm", host="llvm")
     pipeline = relax.pipeline.get_default_pipeline(target)
 
@@ -38,7 +38,14 @@ def test_pipeline_compile():
             return lv0
 
     mod = Mod
-    mod = pipeline(mod)
+    from tvm.ir.transform.instrument import PrintAfterAll, PrintBeforeAll
+
+    with tvm.ir.transform.PassContext(instruments=[PrintBeforeAll(), PrintAfterAll()]):
+        mod = pipeline(mod)
+    output = capsys.readouterr().out
+    assert "Before Running Pass:" in output
+    assert "After Running Pass:" in output
+    assert 'name="_pipeline"' in output
 
     ex = tvm.compile(mod, target)
     x_np = np.random.rand(3, 4).astype(np.float32)
@@ -56,8 +63,8 @@ def test_pipeline_with_kv_cache():
     target = tvm.target.Target("llvm", host="llvm")
     pipeline = relax.pipeline.get_default_pipeline(target)
 
-    m = T.dynamic("m")
-    L = T.dynamic("L")
+    m = T.dynamic("m", "int64")
+    L = T.dynamic("L", "int64")
 
     @tvm.script.ir_module
     class Mod:

@@ -32,7 +32,7 @@ n = T.dynamic("n", "int32")
 
 @R.py_module
 class TestPyFuncModule(BasePyModule):
-    """Test module with Python functions using @I.pyfunc decorator."""
+    """Test module with Python functions using @T.pyfunc decorator."""
 
     @I.pyfunc
     def pytorch_processor(x: torch.Tensor) -> torch.Tensor:
@@ -240,7 +240,7 @@ class TestTVMScriptPyFunc:
         assert torch.allclose(result, input_tensor, atol=1e-5)
 
     def test_pyfunc_decorator_preserves_function_signatures(self):
-        """Test that @I.pyfunc decorator preserves function signatures."""
+        """Test that @T.pyfunc decorator preserves function signatures."""
         module = TestPyFuncModule
         pyfuncs = module.__pyfuncs__
 

@@ -74,7 +74,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorMapTypeMaybeInpla
 
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TensorTypeVisit(
     ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  // skips: storage_scope, data_alignment, offset_factor
+  // skips: scope, data_alignment, offset_factor
   const TensorTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->dtype));
@@ -91,7 +91,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TensorTypeVisit
 
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorTypeMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: storage_scope, data_alignment, offset_factor
+  // skips: scope, data_alignment, offset_factor
   const TensorTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimType>, mapped_dtype,
@@ -127,7 +127,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorTypeMutate(
 
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorTypeMaybeInplaceMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: storage_scope, data_alignment, offset_factor
+  // skips: scope, data_alignment, offset_factor
   TensorTypeNode* self = const_cast<TensorTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorTypeNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimType>, mapped_dtype,
@@ -166,16 +166,15 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorTypeMaybeInplaceM
 
 }  // namespace
 
-TensorType::TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
+TensorType::TensorType(ffi::Array<PrimExpr> shape, PrimType dtype, runtime::MemoryScope scope,
                        ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
                        int data_alignment, int offset_factor, ffi::Optional<Layout> layout,
                        Location loc)
     : Type(ffi::UnsafeInit{}) {
-  PrimExpr offset = elem_offset.value_or(
-      IntImm(shape.empty() ? PrimType(tvm::tirx::DefaultIndexType()) : shape[0].ty(), 0));
+  PrimExpr offset = elem_offset.value_or(IntImm(DefaultIndexType(), 0));
   auto n = ffi::make_object<TensorTypeNode>(std::move(offset));
   n->dtype = std::move(dtype);
-  n->storage_scope = storage_scope.empty() ? ffi::String("global") : std::move(storage_scope);
+  n->scope = std::move(scope);
   n->shape = std::move(shape);
   n->strides = std::move(strides);
   n->data_alignment =
@@ -190,21 +189,26 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TensorTypeNode::RegisterReflection();
   refl::TypeAttrDef<TensorTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            ffi::FStructuralVisit::FromNative<&TensorTypeVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&TensorTypeVisit>())
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&TensorTypeMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TensorTypeMaybeInplaceMutate>());
 
   refl::GlobalDef().def(
       "tirx.TensorType",
-      [](ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
-         ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset, int data_alignment,
+      [](ffi::Array<PrimExpr> shape, PrimType dtype, runtime::MemoryScope scope,
+         ffi::Array<PrimExpr> strides, ffi::AnyView elem_offset, int data_alignment,
          int offset_factor, ffi::Optional<Layout> layout, Location loc) {
-        return TensorType(std::move(storage_scope), std::move(dtype), std::move(shape),
-                          std::move(strides), std::move(elem_offset), data_alignment, offset_factor,
-                          std::move(layout), std::move(loc));
+        ffi::Optional<PrimExpr> offset;
+        if (auto integer = elem_offset.as<int64_t>()) {
+          offset = IntImm(DefaultIndexType(), integer.value());
+        } else {
+          offset = elem_offset.cast<ffi::Optional<PrimExpr>>();
+        }
+        return TensorType(std::move(shape), std::move(dtype), std::move(scope), std::move(strides),
+                          std::move(offset), data_alignment, offset_factor, std::move(layout),
+                          std::move(loc));
       });
 }
 
@@ -218,11 +222,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TensorMapTypeNode::RegisterReflection();
   refl::TypeAttrDef<TensorMapTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&TensorMapTypeVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&TensorMapTypeMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TensorMapTypeMaybeInplaceMutate>());
 
   refl::GlobalDef().def("tirx.TensorMapType", [](Location loc) { return TensorMapType(loc); });

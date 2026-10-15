@@ -224,34 +224,21 @@ set(USE_THRUST OFF)
 # Whether use cuRAND
 set(USE_CURAND OFF)
 
-# Whether to enable Hexagon support
-set(USE_HEXAGON OFF)
-set(USE_HEXAGON_SDK /path/to/sdk)
-
-# Whether to build the minimal support android rpc server for Hexagon
-set(USE_HEXAGON_RPC OFF)
-
-# Hexagon architecture to target when compiling TVM itself (not the target for
-# compiling _by_ TVM). This applies to components like the TVM runtime, but is
-# also used to select correct include/library paths from the Hexagon SDK when
-# building runtime for Android.
-# Valid values are v65, v66, v68, v69, v73, v75.
-set(USE_HEXAGON_ARCH "v68")
-
-# Whether to use QHL library
+# Whether to lower Hexagon math intrinsics to QHL calls.
+# The generated code requires QHL runtime wrappers supplied externally.
 set(USE_HEXAGON_QHL OFF)
 
-# Whether to build static libtvm_runtime.a, the default is to build the dynamic
-# version: libtvm_runtime.so.
+# Both libtvm_runtime.so and libtvm_runtime_static.a are built by default.
 #
-# The static runtime library needs to be linked into executables with the linker
-# option --whole-archive (or its equivalent). The reason is that the TVM registry
-# mechanism relies on global constructors being executed at program startup.
+# Link both static archives with tvm_ffi_static before tvm_runtime_static so
+# FFI type attributes initialize before runtime registrations. Retain both with
+# --whole-archive (or its equivalent), for example:
+#   -Wl,--whole-archive -ltvm_ffi_static -ltvm_runtime_static -Wl,--no-whole-archive
+# The TVM registry relies on global constructors being executed at program startup.
 # Global constructors alone are not sufficient for the linker to consider a
 # library member to be used, and some of such library members (object files) may
 # not be included in the final executable. This would make the corresponding
 # runtime functions to be unavailable to the program.
-set(BUILD_STATIC_RUNTIME OFF)
 
 # Caches the build so that building is faster when switching between branches.
 # If you switch branches, build and then encounter a linking error, you may

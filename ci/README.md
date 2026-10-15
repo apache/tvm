@@ -26,8 +26,10 @@ TVM project in a healthy state and preventing breakages. CI in TVM is broken int
  - The tests themselves, all of which live underneath [`tests`](../tests).
  - Definitions of test suites, with each suite defined as a separate `task_` script in
    [`tests/scripts`](../tests/scripts).
- - Scripts and automation [`ci/scripts`](../ci/scripts).
- - The linux test sequence (in [`Jenkinsfile`](../ci/jenkins/templates/)), which lints and builds TVM and runs test
+ - GitHub automation [`ci/github`](github), wheel builds [`ci/wheel`](wheel),
+   and Jenkins host commands [`ci/jenkins/scripts`](jenkins/scripts). Legacy
+   [`ci/scripts`](scripts) paths remain for older trusted Jenkinsfiles used by PR jobs.
+ - The linux test sequence (in [`Jenkinsfile`](../ci/jenkins/generated/)), which lints and builds TVM and runs test
    suites using Docker on Linux.
  - The Windows and Mac test sequences (in [`.github/actions`](../.github/actions)).
  - GitHub Actions that support the code review process (in [`.github/actions`](../.github/actions)).
@@ -64,7 +66,7 @@ Each CI job runs most of its work inside a Docker container, built from files
 in the [`docker/`](../docker) folder. These
 files are built nightly in Jenkins via the [tvm-docker](https://ci.tlcpack.ai/job/tvm-docker/) job.
 The images for these containers are hosted in the [tlcpack Docker Hub](https://hub.docker.com/u/tlcpack)
-and referenced in the [`jenkins/templates`](/ci/jenkins/templates/). These can be inspected and run
+and referenced in the [`jenkins/generated`](/ci/jenkins/generated/). These can be inspected and run
 locally via standard Docker commands.
 
 ### `ci-docker-staging`
@@ -84,11 +86,11 @@ and ask them to push your PR as a branch to test the changes.
 TVM uses Jenkins for running Linux continuous integration (CI) tests on
 [branches](https://ci.tlcpack.ai/job/tvm/) and
 [pull requests](https://ci.tlcpack.ai/job/tvm/view/change-requests/) through a
-build configuration specified in a [`Jenkinsfile`](/ci/jenkins/templates/).
+build configuration specified in a [`Jenkinsfile`](/ci/jenkins/generated/).
 Other jobs run in GitHub Actions for Windows and MacOS jobs.
 
 ## `Jenkinsfile`
 
-The template files in this directory are used to generate the [`Jenkinsfile`](/ci/jenkins/templates/) used by Jenkins to run CI jobs for each commit to PRs and branches.
-
-To regenerate the `Jenkinsfile`, run `make` in the `ci/jenkins` dir.
+The native Groovy entry points in `ci/jenkins/generated/` load shared helpers
+from `common.groovy`. Edit these sources directly; no generation step is needed.
+See [Jenkins pipeline documentation](jenkins/README.md) for trust and rollout checks.

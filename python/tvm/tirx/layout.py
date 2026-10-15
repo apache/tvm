@@ -18,7 +18,7 @@
 """Definition of layout."""
 
 from collections.abc import Sequence
-from typing import Optional, Union
+from typing import Union
 
 import tvm_ffi
 from tvm_ffi.dataclasses import Enum
@@ -28,37 +28,7 @@ from tvm.runtime import Object
 from tvm.tirx.expr import Expr
 
 from . import _ffi_api
-from .exec_scope import ExecScope
-
-
-def _flatten_coord(coord: list[Expr], shape: list[Expr]) -> Expr:
-    """Python mirror of ``src/tirx/ir/layout/utils.cc::FlattenCoord``."""
-
-    flat: Expr = 0
-    for c, s in zip(coord, shape, strict=False):
-        flat = flat * s + c
-    return flat
-
-
-def _split_coord(coord: Expr, extents: list[Expr]) -> list[Expr]:
-    """Python mirror of ``src/tirx/ir/layout/utils.cc::SplitCoord``.
-
-    Walks ``extents`` from the innermost (last index, ``%``-ed first) toward
-    the outermost (index 0, gets the final remaining ``//``).
-    """
-
-    n = len(extents)
-    if n == 0:
-        return []
-    result: list = [None] * n
-    remaining = coord
-    for i in range(n - 1, -1, -1):
-        if i == 0:
-            result[0] = remaining
-        else:
-            result[i] = tvm.tirx.floormod(remaining, extents[i])
-            remaining = tvm.tirx.floordiv(remaining, extents[i])
-    return result
+from .thread_scope import ThreadScope
 
 
 @tvm_ffi.register_object("tirx.Layout")
@@ -118,39 +88,6 @@ class Layout(Object):
             return _ffi_api.LayoutApplyLinear(self, coord[0])  # pylint: disable=no-member
         return _ffi_api.LayoutApply(self, coord)  # pylint: disable=no-member
 
-    def apply_to_shape(self, coord: list[Expr], input_shape: list[Expr]) -> list[Expr]:
-        """Compute the per-shard value that each shard would take if ``coord``
-        were interpreted against ``input_shape``.
-
-        Tries ``self.group(input_shape)`` first. On success, each group owns
-        exactly one ``input_shape`` entry, so ``coord[d]`` can be split
-        *within* that group's shard extents (bounds stay local to one input
-        dim — simpler analyzer simplification, no cross-dim complications).
-
-        Falls back to ``FlattenCoord(coord, input_shape)`` + ``SplitCoord``
-        on ``self``'s raw shard shape when the group call fails (e.g. when
-        ``input_shape`` does not align with the layout's factor boundaries).
-
-        Returns a list of length ``len(self.shard)``; each entry is the value
-        that shard would iterate.
-        """
-
-        try:
-            grouped, seps = self.group(list(input_shape))
-        except Exception:
-            flat = _flatten_coord(coord, input_shape)
-            return _split_coord(flat, [sh.extent for sh in self.shard])
-
-        results: list = [None] * len(grouped.shard)
-        for d in range(len(input_shape)):
-            start = seps[d]
-            end = seps[d + 1]
-            extents = [grouped.shard[i].extent for i in range(start, end)]
-            part = _split_coord(coord[d], extents)
-            for i, c in zip(range(start, end), part, strict=False):
-                results[i] = c
-        return results
-
     def canonicalize(self) -> "Layout":
         """Canonicalize the layout by simplifying and fusing iterators where possible.
 
@@ -183,125 +120,6 @@ class Layout(Object):
         return _ffi_api.LayoutTile(  # pylint: disable=no-member
             self, outer, outer_shape, inner_shape
         )
-
-    def direct_sum(
-        self, left: "TileLayout", left_shape: list[Expr], right_shape: list[Expr]
-    ) -> Union["TileLayout", "ComposeLayout"]:
-        """Direct-sum on the tiling domain (unscaled composition): A + B.
-
-        This layout is treated as the right addend B grouped by `right_shape`.
-        The `left` layout is treated as A grouped by `left_shape`.
-        The resulting layout is evaluated over the interleaved domain S_A ⊗ S_B,
-        without span scaling (unlike tiling).
-        """
-        return _ffi_api.LayoutDirectSum(  # pylint: disable=no-member
-            self, left, left_shape, right_shape
-        )
-
-    def is_tile_inner(
-        self,
-        tile_layout: Union["TileLayout", "ComposeLayout"],
-        tiled_shape: list[Expr],
-        inner_shape: list[Expr],
-    ) -> Optional["TileLayout"]:
-        """Check if a layout is the inner layout of a tiled layout.
-
-        Parameters
-        ----------
-        tile_layout : Union[TileLayout, ComposeLayout]
-            The tiled layout to check
-        tiled_shape : List[Expr]
-            The shape of the tiled layout
-        inner_shape : List[Expr]
-            The shape of the inner layout
-
-        Returns
-        -------
-        Optional[TileLayout]
-            The outer layout if it is the inner layout of the tiled layout, None otherwise
-        """
-        return _ffi_api.LayoutIsTileInner(  # pylint: disable=no-member
-            self, tile_layout, tiled_shape, inner_shape
-        )
-
-    def is_tile_outer(
-        self,
-        tile_layout: Union["TileLayout", "ComposeLayout"],
-        tiled_shape: list[Expr],
-        outer_shape: list[Expr],
-    ) -> Optional["Layout"]:
-        """Check if a layout is the outer layout of a tiled layout.
-
-        Parameters
-        ----------
-        tile_layout : Union[TileLayout, ComposeLayout]
-            The tiled layout to check
-        tiled_shape : List[Expr]
-            The shape of the tiled layout
-        outer_shape : List[Expr]
-            The shape of the outer layout
-
-        Returns
-        -------
-        Optional[Layout]
-            The inner layout if it is the outer layout of the tiled layout, None otherwise
-        """
-        return _ffi_api.LayoutIsTileOuter(  # pylint: disable=no-member
-            self, tile_layout, tiled_shape, outer_shape
-        )
-
-    def is_direct_sum_right(
-        self,
-        sum_layout: Union["TileLayout", "ComposeLayout"],
-        interleaved_shape: list[Expr],
-        right_shape: list[Expr],
-    ) -> Optional["TileLayout"]:
-        """Check if this layout is the right addend B in a direct-sum A + B.
-
-        Returns the left addend A if recognized, otherwise None.
-        """
-        return _ffi_api.LayoutIsDirectSumRight(  # pylint: disable=no-member
-            self, sum_layout, interleaved_shape, right_shape
-        )
-
-    def is_direct_sum_left(
-        self,
-        sum_layout: Union["TileLayout", "ComposeLayout"],
-        interleaved_shape: list[Expr],
-        left_shape: list[Expr],
-    ) -> Optional["Layout"]:
-        """Check if this layout is the left addend A in a direct-sum A + B.
-
-        Returns the right addend B if recognized, otherwise None.
-        """
-        return _ffi_api.LayoutIsDirectSumLeft(  # pylint: disable=no-member
-            self, sum_layout, interleaved_shape, left_shape
-        )
-
-    def slice(self, shape: list[Expr], region: list[tuple[Expr, Expr]]) -> Optional["Layout"]:
-        """Slice the layout with a given shape and region.
-
-        Parameters
-        ----------
-        shape : List[Expr]
-            The shape of the layout
-        region : List[Tuple[Expr, Expr], tvm.ir.Range]
-            The region to slice, each element is (begin, end)
-
-        Returns
-        -------
-        Optional[Layout]
-            The sliced layout, or None if slicing is not possible
-        """
-        assert len(shape) == len(region), "shape and region must have the same length"
-
-        region_list = []
-        for range_i in region:
-            if isinstance(range_i, tvm.ir.Range):
-                region_list.append(range_i)
-            else:
-                region_list.append(tvm.ir.Range(range_i[0], range_i[1]))
-        return _ffi_api.LayoutSlice(self, shape, region_list)  # pylint: disable=no-member
 
     def tile_to(self, to_shape: list[Expr], current_shape: list[Expr]) -> "Layout":
         """Tile the current layout to the given shape.
@@ -339,40 +157,20 @@ class Layout(Object):
             stride *= t
         return list(reversed(res))
 
-    def is_swizzle(self) -> bool:
-        """Check if the layout is a bare swizzle (ComposeLayout over a trivial tile)."""
-        return isinstance(self, ComposeLayout) and self.tile_layout.is_trivial()
-
     def is_trivial(self) -> bool:
         """Check if the layout is trivial."""
         return False
 
-    def storage(self) -> "Layout":
-        if isinstance(self, TileLayout):
-            # Filter out shard with thread axis
-            shard = [iter for iter in self.shard if not iter.axis.is_thread()]
-            replicate = [iter for iter in self.replica if not iter.axis.is_thread()]
-            exclude = {axis: offset for axis, offset in self.offset.items() if not axis.is_thread()}
-            return TileLayout.from_iters(shard, replicate, exclude)  # pylint: disable=no-member
-
-        elif isinstance(self, ComposeLayout):
-            return ComposeLayout(
-                self.per_element,
-                self.swizzle_len,
-                self.atom_len,
-                self.tile_layout.storage(),
-                self.swizzle_inner,
-            )
-        else:
-            raise ValueError(f"Unsupported layout type: {type(self)}")
-
-    def unpack(self, num: int) -> "Layout":
+    def unpack(self, num: int, axis: str = "m") -> "Layout":
         """Unpack the layout, where a single element in the layout is unpacked into num contiguous elements.
 
         Parameters
         ----------
         num : int
             The number of elements to unpack into
+        axis : str
+            Storage coordinate whose element size changes. Ownership coordinates
+            are preserved. Tensor-memory dtype views use ``TCol``.
 
         Returns
         -------
@@ -380,58 +178,40 @@ class Layout(Object):
             The unpacked layout
         """  # noqa: E501
         if isinstance(self, TileLayout):
-            shard = [Iter(iter.extent, iter.stride * num, iter.axis) for iter in self.shard]
-            shard.append(Iter(num, 1, Axis.get("m")))
-            return TileLayout.from_iters(shard, self.replica, self.offset)
+
+            def scale(iter):
+                return Iter(
+                    iter.extent,
+                    iter.stride * num if iter.axis.name == axis else iter.stride,
+                    iter.axis,
+                )
+
+            shard = [scale(iter) for iter in self.shard]
+            shard.append(Iter(num, 1, Axis.get(axis)))
+            offset = {a: v * num if a.name == axis else v for a, v in self.offset.items()}
+            return TileLayout.from_iters(shard, [scale(i) for i in self.replica], offset)
         elif isinstance(self, ComposeLayout):
             assert num & (num - 1) == 0, "num must be a power of 2"
             return ComposeLayout(
                 self.per_element + (num.bit_length() - 1),
                 self.swizzle_len,
                 self.atom_len,
-                self.tile_layout.unpack(num),
+                self.tile_layout.unpack(num, axis),
                 self.swizzle_inner,
             )
         else:
             raise ValueError(f"Unsupported layout type: {type(self)}")
 
-    def broadcast(self, num: int, position: int = -1, axis: '"Axis" | str' = "m") -> "Layout":
-        """Insert a stride-0 broadcast dim of extent ``num`` at ``position``.
-
-        ``position`` follows Python list-insert semantics (negative indices
-        count from the end; ``-1`` appends after the last shard dim).  The
-        new dim has stride 0 — accessing along it doesn't move the byte
-        offset, so the same physical element is "seen" ``num`` times.
-
-        Useful for layouts where a consumer reads the same SMEM datum
-        multiple times (e.g. ``sf_reuse`` over MMA-K steps).
-        """
-        if isinstance(self, TileLayout):
-            if isinstance(axis, str):
-                axis = Axis.get(axis)
-            new_iter = Iter(num, 0, axis)
-            shard = list(self.shard)
-            insert_at = position if position >= 0 else len(shard) + 1 + position
-            shard.insert(insert_at, new_iter)
-            return TileLayout.from_iters(shard, self.replica, self.offset)
-        elif isinstance(self, ComposeLayout):
-            return ComposeLayout(
-                self.per_element,
-                self.swizzle_len,
-                self.atom_len,
-                self.tile_layout.broadcast(num, position, axis),
-                self.swizzle_inner,
-            )
-        else:
-            raise ValueError(f"broadcast not supported for {type(self)}")
-
-    def pack(self, num: int) -> "Layout":
+    def pack(self, num: int, axis: str = "m") -> "Layout":
         """Pack the layout, where num contiguous elements in the layout are packed into a single element.
 
         Parameters
         ----------
         num : int
             The number of elements to pack into
+        axis : str
+            Storage coordinate whose element size changes. Ownership coordinates
+            are preserved. Tensor-memory dtype views use ``TCol``.
 
         Returns
         -------
@@ -443,11 +223,30 @@ class Layout(Object):
             assert (
                 inner_iter.stride == 1
                 and inner_iter.extent % num == 0
-                and inner_iter.axis.is_memory()
+                and inner_iter.axis.name == axis
             ), f"Layout {self} can not be packed into {num} elements"
-            shard = [Iter(iter.extent, iter.stride // num, iter.axis) for iter in self.shard[:-1]]
+            analyzer = tvm.sym.Analyzer()
+
+            def scale(iter):
+                stride = iter.stride
+                if iter.axis.name == axis:
+                    if not analyzer.can_prove(stride % num == 0):
+                        raise ValueError(
+                            f"Layout storage stride {stride} is not divisible by {num}"
+                        )
+                    stride = stride // num
+                return Iter(iter.extent, stride, iter.axis)
+
+            offset = {}
+            for a, value in self.offset.items():
+                if a.name == axis:
+                    if not analyzer.can_prove(value % num == 0):
+                        raise ValueError(f"Layout storage offset {value} is not divisible by {num}")
+                    value = value // num
+                offset[a] = value
+            shard = [scale(iter) for iter in self.shard[:-1]]
             shard.append(Iter(inner_iter.extent // num, 1, inner_iter.axis))
-            return TileLayout.from_iters(shard, self.replica, self.offset)
+            return TileLayout.from_iters(shard, [scale(i) for i in self.replica], offset)
         elif isinstance(self, ComposeLayout):
             assert num & (num - 1) == 0, "num must be a power of 2"
             assert self.per_element >= num.bit_length() - 1, (
@@ -457,7 +256,7 @@ class Layout(Object):
                 self.per_element - (num.bit_length() - 1),
                 self.swizzle_len,
                 self.atom_len,
-                self.tile_layout.pack(num),
+                self.tile_layout.pack(num, axis),
                 self.swizzle_inner,
             )
         else:
@@ -513,11 +312,11 @@ class Axis(Enum, metaclass=_AxisMeta, type_key="tirx.Axis", init=False):
         """Backend owning this axis, or None for a generic axis."""
         return _ffi_api.AxisGetBackend(self)
 
-    def get_scope(self) -> ExecScope | None:
+    def get_scope(self) -> ThreadScope | None:
         """Get the scope of the axis."""
         return _ffi_api.AxisGetScope(self)  # pylint: disable=no-member
 
-    def get_subscope(self) -> ExecScope | None:
+    def get_subscope(self) -> ThreadScope | None:
         """Get the subscope of the axis."""
         return _ffi_api.AxisGetSubscope(self)  # pylint: disable=no-member
 
@@ -798,29 +597,7 @@ class TileLayout(Layout):
         """
         return _ffi_api.TileLayoutGroup(self, shape)  # pylint: disable=no-member
 
-    def group_many(self, shapes: Sequence[Sequence[Expr]]) -> tuple["TileLayout", list[list[int]]]:
-        """Group the layout by the minimal common refinement of several shapes.
-
-        Repeated cumulative product boundaries are retained, so an extent-one
-        dimension in any input shape becomes a real unit iterator in the
-        refined layout.  This operation only splits existing shard iterators;
-        it does not canonicalize or reorder the layout.
-
-        Parameters
-        ----------
-        shapes : Sequence[Sequence[Expr]]
-            Logical shapes with provably equal total products.
-
-        Returns
-        -------
-        Tuple[TileLayout, List[List[int]]]
-            The commonly refined layout and one separator list per input shape.
-        """
-        return _ffi_api.TileLayoutGroupMany(  # pylint: disable=no-member
-            self, [list(shape) for shape in shapes]
-        )
-
-    def get_scope(self) -> tuple[ExecScope, ExecScope] | None:
+    def get_scope(self) -> tuple[ThreadScope, ThreadScope] | None:
         """Get the scope pair of the layout."""
         return _ffi_api.TileLayoutGetScope(self)  # pylint: disable=no-member
 

@@ -41,7 +41,7 @@ def test_tensor():
     assert T.op.output(0).__hash__() == T.__hash__()
     d = {T.op.output(0): 1}
     assert d[T] == 1
-    load = T[0][0][0].asobject()
+    load = T[0][0][0].__tvm_ffi_object__()
     assert isinstance(load, tvm.ir.Call)
     assert load.op.same_as(tvm.ir.Op.get("te.tensor_load"))
     assert load.args[0].same_as(T)
@@ -221,6 +221,29 @@ def test_tensor_inputs():
     x = te.placeholder((1,), name="x")
     y = te.compute(x.shape, lambda i: x[i] + x[i])
     assert tuple(y.op.input_tensors) == (x,)
+
+
+def test_make_sum():
+    A = te.placeholder((2, 10), name="A")
+    k = te.reduce_axis((0, 10), "k")
+    B = te.compute((2,), lambda i: te.sum(A[i, k], axis=k), name="B")
+    json_str = tvm.ir.save_json(B)
+    BB = tvm.ir.load_json(json_str)
+    assert B.op.body[0].combiner is not None
+    assert BB.op.body[0].combiner is not None
+
+
+def test_tensor_make_node():
+    tensor = te.placeholder((10,), name="A")
+    restored = tvm.ir.make_node(
+        "te.Tensor",
+        shape=tensor.shape,
+        dtype=tensor.dtype,
+        op=tensor.op,
+        value_index=tensor.value_index,
+    )
+    assert restored.op == tensor.op
+    assert restored.value_index == tensor.value_index
 
 
 if __name__ == "__main__":

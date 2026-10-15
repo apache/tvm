@@ -205,7 +205,7 @@ PrimExpr ConvertLoopBound(const PrimExpr& e, const PrimType& var_ty) {
   if (const auto* imm = e.as<IntImmNode>()) {
     return tvm::IntImm(var_ty, imm->value);
   }
-  return tvm::prim::Cast(var_ty, e);
+  return tvm::prim::Cast(e, var_ty);
 }
 
 ForFrame For(ForKind kind, PrimExpr start, PrimExpr stop, ffi::Optional<PrimExpr> step,
@@ -360,6 +360,21 @@ tvm::Stmt Evaluate(Expr value) {
   tvm::Stmt stmt = tvm::Evaluate(value);
   AddToParent(stmt);
   return stmt;
+}
+
+// Keep operator construction independent of builder state. Python API exposure
+// invokes this hook only after constructing and selecting its call.
+bool MaybeEmitVoidCall(Call call) {
+  const auto* prim_type = call->ty.as<PrimTypeNode>();
+  bool is_void = IsVoidType(call->ty) || (prim_type && ffi::GetRef<PrimType>(prim_type).IsVoid());
+  if (!is_void || !IRBuilder::IsInScope()) return false;
+  IRBuilder::Current()->AttachLoc(call);
+  Evaluate(std::move(call));
+  return true;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::GlobalDef().def("script.ir_builder.MaybeEmitVoidCall", MaybeEmitVoidCall);
 }
 
 // Preserve the historical FFI entry points with one shared implementation.

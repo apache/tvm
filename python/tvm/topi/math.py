@@ -638,12 +638,12 @@ def clip(x, a_min, a_max):
     def _compute(*indices):
         value = x(*indices)
         const_min = (
-            tvm.tirx.Cast(value.ty, a_min)
+            tvm.tirx.Cast(a_min, value.ty)
             if tvm.ir.is_prim_expr(a_min)
             else tvm.tirx.const(a_min, value.ty)
         )
         const_max = (
-            tvm.tirx.Cast(value.ty, a_max)
+            tvm.tirx.Cast(a_max, value.ty)
             if tvm.ir.is_prim_expr(a_max)
             else tvm.tirx.const(a_max, value.ty)
         )
@@ -676,7 +676,7 @@ def cast(x, dtype, loc: Location = UNKNOWN_LOC):
     # pylint: disable=import-outside-toplevel
     from tvm.ir.prim import _ffi_api
 
-    return _ffi_api._cast(dtype, x, loc)
+    return _ffi_api._cast(x, dtype, loc)
 
 
 def reinterpret(x, dtype):

@@ -27,7 +27,7 @@ from tvm.ir import Attrs, Call, Op
 from tvm.ir.attrs import make_node as _make_attrs
 from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.op import _make_op_api
-from tvm.runtime import DataTypeCode, Object, ObjectConvertible
+from tvm.runtime import DataTypeCode, Object
 
 from ..expr import Expr, ExternFunc, GlobalVar, Var
 from ..type import Type
@@ -354,11 +354,7 @@ def call_builtin_with_ctx(
 
     if ty_args is not None:
         ty_args = [
-            value()
-            if callable(value)
-            else value.asobject()
-            if isinstance(value, ObjectConvertible)
-            else value
+            value() if callable(value) and not isinstance(value, Type) else value
             for value in ty_args
         ]
     return Call(
@@ -775,10 +771,7 @@ def call_pure_packed(
     elif not isinstance(ty_args, list):
         ty_args = [ty_args]
 
-    ty_args = [
-        (ty() if callable(ty) else ty.asobject() if isinstance(ty, ObjectConvertible) else ty)
-        for ty in ty_args
-    ]
+    ty_args = [ty() if callable(ty) and not isinstance(ty, Type) else ty for ty in ty_args]
 
     # note: if we need attributes, we can also take them here
 

@@ -72,12 +72,7 @@ if(USE_CLML_GRAPH_EXECUTOR)
     endif()
     add_library(tvm_clml_objs OBJECT ${CLML_CONTRIB_SRC})
     target_link_libraries(tvm_clml_objs PRIVATE tvm_runtime_extra_defs)
-    # CLML depends on OpenCL runtime symbols — link the OpenCL DSO instead of
-    # duplicating sources (which would cause duplicate registrations).
     target_link_libraries(tvm_runtime_extra PRIVATE tvm_clml_objs ${EXTERN_CLML_COMPUTE_LIB})
-    if(TARGET tvm_runtime_opencl)
-      target_link_libraries(tvm_runtime_extra PRIVATE tvm_runtime_opencl)
-    endif()
     message(STATUS "Build with CLML graph runtime support: "
             ${EXTERN_CLML_COMPUTE_LIB})
 
@@ -86,7 +81,4 @@ if(USE_CLML_GRAPH_EXECUTOR)
 
     message(STATUS "Enable OpenCL as fallback to CLML")
     set(USE_OPENCL ${CLML_PATH})
-    if(USE_OPENCL_ENABLE_HOST_PTR)
-        add_definitions(-DOPENCL_ENABLE_HOST_PTR)
-    endif(USE_OPENCL_ENABLE_HOST_PTR)
 endif()

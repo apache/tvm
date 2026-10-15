@@ -340,7 +340,7 @@ class LazyOutputMutator(PyExprMutator):
                     )
 
 
-@tvm.transform.module_pass(opt_level=0, name="LazyTransformParams")
+@tvm.ir.transform.module_pass(opt_level=0, name="LazyTransformParams")
 class LazyTransformParams:
     """
     Convert transform_params functions into a lazy version.
@@ -379,7 +379,7 @@ class LazyTransformParams:
         self.fset_item = fset_item
         self.extra_set_item_params = [] if extra_set_item_params is None else extra_set_item_params
 
-    def transform_module(self, mod: IRModule, ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, ctx: tvm.ir.transform.PassContext) -> IRModule:
         lazy_mutator = LazyTransformParamsFuncCreator(
             self.fget_item,
             self.fset_item,

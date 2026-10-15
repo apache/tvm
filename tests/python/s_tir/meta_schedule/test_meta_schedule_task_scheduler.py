@@ -24,10 +24,10 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.ir.utils import derived_object
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.dummy_object import DummyBuilder, DummyRunner
+from tvm.s_tir.utils import derived_object
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
@@ -79,9 +79,9 @@ class MatmulReluModule:
 class BatchMatmulModule:
     @Ts.function
     def main(  # type: ignore
-        A: T.Tensor([16, 128, 128]),
-        B: T.Tensor([16, 128, 128]),
-        C: T.Tensor([16, 128, 128]),
+        A: T.Tensor([16, 128, 128], "float32"),
+        B: T.Tensor([16, 128, 128], "float32"),
+        C: T.Tensor([16, 128, 128], "float32"),
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 

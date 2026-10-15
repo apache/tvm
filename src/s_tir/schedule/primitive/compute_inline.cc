@@ -416,14 +416,14 @@ class BaseInliner : public StmtExprMutator {
   void AddTensorsInBlockSignature(const SBlockNode* block) {
     for (const TensorRegion& tensor_region : block->reads) {
       const TensorVar& tensor = tensor_region->source.as_or_throw<tvm::tirx::TensorVar>();
-      tensor_var_map_.Set(tensor.var(), tensor);
+      tensor_var_map_.Set(tensor, tensor);
     }
     for (const TensorRegion& tensor_region : block->writes) {
       const TensorVar& tensor = tensor_region->source.as_or_throw<tvm::tirx::TensorVar>();
-      tensor_var_map_.Set(tensor.var(), tensor);
+      tensor_var_map_.Set(tensor, tensor);
     }
     for (const TensorVar& tensor : block->alloc_tensors) {
-      tensor_var_map_.Set(tensor.var(), tensor);
+      tensor_var_map_.Set(tensor, tensor);
     }
   }
 
@@ -696,8 +696,8 @@ class ReverseComputeInliner : public BaseInliner {
                             .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load))
                             .as_or_throw<TensorLoad>();
       if (!load->source.as_or_throw<TensorVar>().same_as(self_->inlined_tensor_)) return load;
-      PrimExpr replacement = MakeTensorLoad(self_->inlined_store_->dest.as_or_throw<TensorVar>(),
-                                            self_->inlined_store_->indices);
+      PrimExpr replacement = TensorLoad(self_->inlined_store_->dest.as_or_throw<TensorVar>(),
+                                        self_->inlined_store_->indices);
       return StmtExprMutator::Mutate(ffi::AnyView(replacement), InplaceMode::kDisallow)
           .ValueOrUnchanged(std::move(replacement))
           .as_or_throw<PrimExpr>();
@@ -1436,7 +1436,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
   };
 
   // Identity element for reduction (assumed to be 0 for addition-based reductions)
-  PrimExpr identity_elem = prim::MakeConst(epilogue_output_tensor_->dtype, 0);
+  PrimExpr identity_elem = prim::MakeConst(epilogue_output_tensor_.dtype(), 0);
 
   // Substitute reduction tensor load with identity element
   auto init_subst = ffi::make_object<InitSubstituter>(inlined_tensor_, identity_elem);

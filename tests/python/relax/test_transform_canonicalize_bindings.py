@@ -153,8 +153,8 @@ def test_casting():
 
 
 def test_match_cast():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class TestMatchCast:
@@ -165,8 +165,8 @@ def test_match_cast():
             w = z
             return w
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -180,8 +180,8 @@ def test_match_cast():
 
 
 def test_same_shape():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class TestSameShape:
@@ -194,8 +194,8 @@ def test_same_shape():
             q = R.add(w, y)
             return R.add(q, w)
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -210,8 +210,8 @@ def test_same_shape():
 
 
 def test_change_shape():
-    o = T.dynamic("o")
-    p = T.dynamic("p")
+    o = T.dynamic("o", "int64")
+    p = T.dynamic("p", "int64")
 
     @I.ir_module
     class TestChangeShape:
@@ -228,8 +228,8 @@ def test_change_shape():
             q = R.add(w, y)
             return R.add(q, w)
 
-    o = T.dynamic("o")
-    p = T.dynamic("p")
+    o = T.dynamic("o", "int64")
+    p = T.dynamic("p", "int64")
 
     @I.ir_module
     class Expected:
@@ -244,10 +244,10 @@ def test_change_shape():
 
 
 def test_replace_symbolic_variable_and_remove_match_cast():
-    o = T.dynamic("o")
-    p = T.dynamic("p")
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    o = T.dynamic("o", "int64")
+    p = T.dynamic("p", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class TestChangeShape:
@@ -264,8 +264,8 @@ def test_replace_symbolic_variable_and_remove_match_cast():
             q = R.add(w, y)
             return R.add(q, w)
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -290,10 +290,10 @@ def test_replace_symbolic_variable_and_remove_match_cast_of_tuple():
 
     """
 
-    o = T.dynamic("o")
-    p = T.dynamic("p")
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    o = T.dynamic("o", "int64")
+    p = T.dynamic("p", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -305,8 +305,8 @@ def test_replace_symbolic_variable_and_remove_match_cast_of_tuple():
             q = R.add(w[0], y[0])
             return R.add(q, w[0])
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -395,9 +395,9 @@ def test_fold_variables_from_match_cast():
 
     """
 
-    N1 = T.dynamic("N1")
-    M = T.dynamic("M")
-    N2 = T.dynamic("N2")
+    N1 = T.dynamic("N1", "int64")
+    M = T.dynamic("M", "int64")
+    N2 = T.dynamic("N2", "int64")
 
     @I.ir_module
     class Before:
@@ -434,9 +434,9 @@ def test_fold_variables_from_match_cast():
             )
             return (proj_A, proj_B)
 
-    N1 = T.dynamic("N1")
-    M = T.dynamic("M")
-    N2 = T.dynamic("N2")
+    N1 = T.dynamic("N1", "int64")
+    M = T.dynamic("M", "int64")
+    N2 = T.dynamic("N2", "int64")
 
     @I.ir_module
     class Expected:
@@ -483,9 +483,9 @@ def test_inconsistent_match_cast_raises_error():
 
     """
 
-    N1 = T.dynamic("N1")
-    M = T.dynamic("M")
-    N2 = T.dynamic("N2")
+    N1 = T.dynamic("N1", "int64")
+    M = T.dynamic("M", "int64")
+    N2 = T.dynamic("N2", "int64")
 
     @I.ir_module
     class Before:
@@ -531,8 +531,8 @@ def test_match_cast_may_have_distinct_values_in_branches():
 
     """
 
-    N = T.dynamic("N")
-    M = T.dynamic("M")
+    N = T.dynamic("N", "int64")
+    M = T.dynamic("M", "int64")
 
     @I.ir_module
     class Before:
@@ -562,8 +562,8 @@ def test_match_cast_may_have_distinct_values_in_branches():
 
             return out
 
-    N = T.dynamic("N")
-    M = T.dynamic("M")
+    N = T.dynamic("N", "int64")
+    M = T.dynamic("M", "int64")
 
     @I.ir_module
     class Expected:
@@ -898,7 +898,7 @@ def test_canonicalize_with_updated_ty():
     in order to provide better type.
     """
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -919,7 +919,7 @@ def test_canonicalize_with_updated_ty():
             # version of `C` with `ndim=2`.
             return C
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1226,7 +1226,7 @@ def test_canonicalization_causes_ty_update():
     class.
     """
 
-    vocab_size = T.dynamic("vocab_size")
+    vocab_size = T.dynamic("vocab_size", "int64")
 
     @I.ir_module
     class Before:
@@ -1263,7 +1263,7 @@ def test_canonicalization_causes_ty_update():
             # with `shape=[vocab_size,4096]`.
             return E
 
-    vocab_size = T.dynamic("vocab_size")
+    vocab_size = T.dynamic("vocab_size", "int64")
 
     @I.ir_module
     class Expected:
@@ -1432,7 +1432,7 @@ def test_call_tir_out_ty_follows_arguments_when_match_cast_is_kept():
             for i in T.serial(8):
                 with Ts.sblock("b"):
                     vi = Ts.axis.spatial(8, i)
-                    y[0, vi] = x[0, vi] + T.Cast("float16", s)
+                    y[0, vi] = x[0, vi] + T.Cast(s, "float16")
 
         @R.function
         def main(x: R.Tensor((1, 12, 2, 12, 2, 8), "float16"), w: R.Tensor((1, 8), "float16")):
@@ -1491,7 +1491,7 @@ def test_call_tir_out_ty_follows_arguments_through_chained_match_casts():
             for i in T.serial(8):
                 with Ts.sblock("b"):
                     vi = Ts.axis.spatial(8, i)
-                    y[0, vi] = x[0, vi] + T.Cast("float16", s)
+                    y[0, vi] = x[0, vi] + T.Cast(s, "float16")
 
         @R.function
         def main(x: R.Tensor((n, 8), "float16"), w: R.Tensor((1, 8), "float16")):

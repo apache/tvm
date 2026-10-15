@@ -188,19 +188,19 @@ def OOBChecker():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.OOBChecker()  # type: ignore
 
 
-def get_vtcm_compaction_passes() -> list[tvm.transform.Pass]:
+def get_vtcm_compaction_passes() -> list[tvm.ir.transform.Pass]:
     """Utility function to get the list of lowering passes to be applied to calculate the compacted
     VTCM allocation size
 
     Returns
     -------
-    result : List[tvm.transform.Pass]
+    result : List[tvm.ir.transform.Pass]
         returns list of passes
     """
     return _ffi_api.get_vtcm_compaction_passes()  # type: ignore # pylint: disable=no-member

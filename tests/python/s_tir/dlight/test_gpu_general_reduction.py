@@ -85,19 +85,19 @@ def test_scalar_argmin_reduction_value_scope():
             )(_make_scalar_argmin(length))
 
         index_temp, value_temp = mod["main"].body[0].block.alloc_tensors
-        assert index_temp.scope() == "global"
-        assert value_temp.scope() == expected_scope
+        assert index_temp.scope() == tvm.runtime.MemoryScope("global")
+        assert value_temp.scope() == tvm.runtime.MemoryScope(expected_scope)
 
 
 def test_softmax_1():
     # fmt: off
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
         @Ts.function
-        def main(lv44: T.Tensor((T.int64(1), T.int64(32), n, m)), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
+        def main(lv44: T.Tensor((T.int64(1), T.int64(32), n, m), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -139,15 +139,15 @@ def test_softmax_1():
                     v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(var_T_softmax_norm_intermediate[v_i0, v_i1, v_i2, v_i3])
                     Ts.writes(var_compute_intermediate[v_i0, v_i1, v_i2, v_i3])
-                    var_compute_intermediate[v_i0, v_i1, v_i2, v_i3] = T.Cast("float16", var_T_softmax_norm_intermediate[v_i0, v_i1, v_i2, v_i3])
+                    var_compute_intermediate[v_i0, v_i1, v_i2, v_i3] = T.Cast(var_T_softmax_norm_intermediate[v_i0, v_i1, v_i2, v_i3], "float16")
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class After:
         @Ts.function
-        def main(lv44: T.Tensor((T.int64(1), T.int64(32), n, m)), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
+        def main(lv44: T.Tensor((T.int64(1), T.int64(32), n, m), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -189,7 +189,7 @@ def test_softmax_1():
                             Ts.where(ax2_0 * T.int64(256) + ax2_1 < m)
                             Ts.reads(lv44[T.int64(0), v0, v1, v2], T_softmax_maxelem_shared[T.int64(0), v0, v1], T_softmax_expsum_shared[T.int64(0), v0, v1])
                             Ts.writes(var_compute_intermediate[T.int64(0), v0, v1, v2])
-                            var_compute_intermediate[T.int64(0), v0, v1, v2] = T.Cast("float16", T.exp(lv44[T.int64(0), v0, v1, v2] - T_softmax_maxelem_shared[T.int64(0), v0, v1]) / T_softmax_expsum_shared[T.int64(0), v0, v1])
+                            var_compute_intermediate[T.int64(0), v0, v1, v2] = T.Cast(T.exp(lv44[T.int64(0), v0, v1, v2] - T_softmax_maxelem_shared[T.int64(0), v0, v1]) / T_softmax_expsum_shared[T.int64(0), v0, v1], "float16")
     # fmt: on
     _check(Before, After)
 
@@ -371,12 +371,12 @@ def test_softmax_3():
 
 def test_layer_norm():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
         @Ts.function
-        def main(lv6: T.Tensor((T.int64(1), n, T.int64(2560))), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
+        def main(lv6: T.Tensor((T.int64(1), n, T.int64(2560)), "float32"), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -406,14 +406,14 @@ def test_layer_norm():
                     v_i0, v_i1, v_i2 = Ts.axis.remap("SSS", [i0, i1, i2])
                     Ts.reads(var_T_layer_norm_intermediate[v_i0, v_i1, v_i2])
                     Ts.writes(var_compute_intermediate[v_i0, v_i1, v_i2])
-                    var_compute_intermediate[v_i0, v_i1, v_i2] = T.Cast("float16", var_T_layer_norm_intermediate[v_i0, v_i1, v_i2])
+                    var_compute_intermediate[v_i0, v_i1, v_i2] = T.Cast(var_T_layer_norm_intermediate[v_i0, v_i1, v_i2], "float16")
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class After:
         @Ts.function
-        def main(lv6: T.Tensor((T.int64(1), n, T.int64(2560))), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
+        def main(lv6: T.Tensor((T.int64(1), n, T.int64(2560)), "float32"), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -442,14 +442,14 @@ def test_layer_norm():
                             v1 = Ts.axis.spatial(T.int64(2560), ax1_0 * T.int64(256) + ax1_1)
                             Ts.reads(lv6[T.int64(0), v0, v1], A_red_temp_v0_shared[T.int64(0), v0], A_red_temp_v1_shared[T.int64(0), v0], weight1[v1], bias[v1])
                             Ts.writes(var_compute_intermediate[T.int64(0), v0, v1])
-                            var_compute_intermediate[T.int64(0), v0, v1] = T.Cast("float16", (lv6[T.int64(0), v0, v1] - A_red_temp_v0_shared[T.int64(0), v0] * T.float32(0.00039062500000000002)) * T.rsqrt(A_red_temp_v1_shared[T.int64(0), v0] * T.float32(0.00039062500000000002) - A_red_temp_v0_shared[T.int64(0), v0] * T.float32(0.00039062500000000002) * (A_red_temp_v0_shared[T.int64(0), v0] * T.float32(0.00039062500000000002)) + T.float32(1.0000000000000001e-05)) * weight1[v1] + bias[v1])
+                            var_compute_intermediate[T.int64(0), v0, v1] = T.Cast((lv6[T.int64(0), v0, v1] - A_red_temp_v0_shared[T.int64(0), v0] * T.float32(0.00039062500000000002)) * T.rsqrt(A_red_temp_v1_shared[T.int64(0), v0] * T.float32(0.00039062500000000002) - A_red_temp_v0_shared[T.int64(0), v0] * T.float32(0.00039062500000000002) * (A_red_temp_v0_shared[T.int64(0), v0] * T.float32(0.00039062500000000002)) + T.float32(1.0000000000000001e-05)) * weight1[v1] + bias[v1], "float16")
     # fmt: on
     _check(Before, After)
 
 
 def test_rms_norm():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -466,15 +466,15 @@ def test_rms_norm():
                     Ts.writes(Ared_temp[v_bsz, v_i])
                     with Ts.init():
                         Ared_temp[v_bsz, v_i] = T.float32(0)
-                    Ared_temp[v_bsz, v_i] = Ared_temp[v_bsz, v_i] + T.Cast("float32", A[v_bsz, v_i, v_k]) * T.Cast("float32", A[v_bsz, v_i, v_k])
+                    Ared_temp[v_bsz, v_i] = Ared_temp[v_bsz, v_i] + T.Cast(A[v_bsz, v_i, v_k], "float32") * T.Cast(A[v_bsz, v_i, v_k], "float32")
             for bsz, i, k in T.grid(T.int64(1), n, T.int64(4096)):
                 with Ts.sblock("rms_norm"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSS", [bsz, i, k])
                     Ts.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
                     Ts.writes(rms_norm_1[v_bsz, v_i, v_k])
-                    rms_norm_1[v_bsz, v_i, v_k] = T.Cast("float16", T.Cast("float32", B[v_k]) * (T.Cast("float32", A[v_bsz, v_i, v_k]) / T.sqrt(Ared_temp[v_bsz, v_i] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))))
+                    rms_norm_1[v_bsz, v_i, v_k] = T.Cast(T.Cast(B[v_k], "float32") * (T.Cast(A[v_bsz, v_i, v_k], "float32") / T.sqrt(Ared_temp[v_bsz, v_i] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))), "float16")
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class After:
@@ -495,7 +495,7 @@ def test_rms_norm():
                                 Ts.writes(Ared_temp_shared[T.int64(0), v0])
                                 with Ts.init():
                                     Ared_temp_shared[T.int64(0), v0] = T.float32(0)
-                                Ared_temp_shared[T.int64(0), v0] = Ared_temp_shared[T.int64(0), v0] + T.Cast("float32", A[T.int64(0), v0, v1]) * T.Cast("float32", A[T.int64(0), v0, v1])
+                                Ared_temp_shared[T.int64(0), v0] = Ared_temp_shared[T.int64(0), v0] + T.Cast(A[T.int64(0), v0, v1], "float32") * T.Cast(A[T.int64(0), v0, v1], "float32")
                 for ax1_1 in T.parallel(T.int64(256), annotations={"thread_binding": "threadIdx.x"}):
                     for ax1_0 in T.serial(T.int64(16), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         with Ts.sblock("rms_norm"):
@@ -503,7 +503,7 @@ def test_rms_norm():
                             v1 = Ts.axis.spatial(T.int64(4096), ax1_0 * T.int64(256) + ax1_1)
                             Ts.reads(B[v1], A[T.int64(0), v0, v1], Ared_temp_shared[T.int64(0), v0])
                             Ts.writes(rms_norm_1[T.int64(0), v0, v1])
-                            rms_norm_1[T.int64(0), v0, v1] = T.Cast("float16", T.Cast("float32", B[v1]) * (T.Cast("float32", A[T.int64(0), v0, v1]) / T.sqrt(Ared_temp_shared[T.int64(0), v0] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))))
+                            rms_norm_1[T.int64(0), v0, v1] = T.Cast(T.Cast(B[v1], "float32") * (T.Cast(A[T.int64(0), v0, v1], "float32") / T.sqrt(Ared_temp_shared[T.int64(0), v0] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))), "float16")
     # fmt: on
     _check(Before, After)
 
@@ -601,9 +601,9 @@ def test_group_norm():
 
 
 def test_logsumexp():
-    batch_size = T.dynamic("batch_size")
-    vocab_size = T.dynamic("vocab_size")
-    num_chunks = T.dynamic("num_chunks")
+    batch_size = T.dynamic("batch_size", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
+    num_chunks = T.dynamic("num_chunks", "int64")
 
     @I.ir_module
     class Before:
@@ -650,15 +650,16 @@ def test_logsumexp():
                     v0, v1, v2 = Ts.axis.remap("SSS", [l0, l1, l2])
                     blocked_lse[v0, v1] = T.log(temp_sum[v0, v1]) + temp_max[v0, v1]
 
-    batch_size = T.dynamic("batch_size")
-    vocab_size = T.dynamic("vocab_size")
-    num_chunks = T.dynamic("num_chunks")
+    batch_size = T.dynamic("batch_size", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
+    num_chunks = T.dynamic("num_chunks", "int64")
 
     @I.ir_module
     class After:
         @Ts.function
         def compute_lse(
-            A: T.Tensor((batch_size, vocab_size)), blocked_lse: T.Tensor((batch_size, num_chunks))
+            A: T.Tensor((batch_size, vocab_size), "float32"),
+            blocked_lse: T.Tensor((batch_size, num_chunks), "float32"),
         ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 

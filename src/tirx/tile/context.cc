@@ -48,8 +48,8 @@ void DispatchContextObj::AddAllocTensor(TensorVar tensor, ffi::Array<PrimExpr> a
   auto tensors = getOrSetDefault(callbacks, callback::kPrivateAlloc, ffi::Array<Bind>());
   ffi::Array<Expr> args;
   if (!allocated_addr.empty()) args.push_back(tvm::Tuple(allocated_addr));
-  tensors.push_back(Bind(tensor.var(), Call(tensor.type(), alloc_tensor_op(), args,
-                                            DictAttrs(annotations), {tensor.type()})));
+  tensors.push_back(Bind(
+      tensor, Call(tensor.ty(), alloc_tensor_op(), args, DictAttrs(annotations), {tensor.ty()})));
   callbacks.Set(callback::kPrivateAlloc, tensors);
 }
 
@@ -85,7 +85,7 @@ ffi::Optional<ffi::ObjectRef> DispatchContextObj::SharedStateGet(ffi::String key
   return ffi::Optional<ffi::ObjectRef>();
 }
 
-DispatchContext::DispatchContext(Target target, ExecScope exec_scope,
+DispatchContext::DispatchContext(Target target, ThreadScope thread_scope,
                                  ffi::Map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params,
                                  ffi::Map<Var, Range> var_range_map, bool alloc_only,
                                  ffi::Map<ffi::String, ffi::ObjectRef> callbacks,
@@ -93,7 +93,13 @@ DispatchContext::DispatchContext(Target target, ExecScope exec_scope,
                                  ffi::Map<ffi::String, ffi::Array<PrimExpr>> inter,
                                  ffi::Map<ffi::String, ffi::Array<PrimExpr>> intra,
                                  ffi::String scope_kind) {
-  auto n = ffi::make_object<DispatchContextObj>(std::move(target), std::move(exec_scope));
+  auto n = ffi::make_object<DispatchContextObj>(std::move(target), std::move(thread_scope));
+  TVM_FFI_CHECK(n->thread_scope->backend() == n->target->kind->name, ValueError)
+      << "Thread scope " << n->thread_scope.name() << " does not match target "
+      << n->target->kind->name;
+  ffi::String local_name = n->thread_scope->local_name();
+  TVM_FFI_CHECK(scope_kind.empty() || scope_kind == local_name, ValueError)
+      << "scope_kind must match the thread scope's local name";
   for (const auto& [tag, binding] : launch_params) {
     PrimType var_ty = binding.get<0>().ty();
     PrimType extent_ty = binding.get<1>().ty();
@@ -107,7 +113,7 @@ DispatchContext::DispatchContext(Target target, ExecScope exec_scope,
   n->shared_state = std::move(shared_state);
   n->inter = std::move(inter);
   n->intra = std::move(intra);
-  n->scope_kind = std::move(scope_kind);
+  n->scope_kind = std::move(local_name);
   data_ = std::move(n);
 }
 
@@ -115,14 +121,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tirx.DispatchContext",
-           [](Target target, ExecScope exec_scope,
+           [](Target target, ThreadScope thread_scope,
               ffi::Map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params,
               ffi::Map<Var, Range> var_range_map, bool alloc_only,
               ffi::Map<ffi::String, ffi::ObjectRef> callbacks,
               ffi::Map<ffi::String, ffi::ObjectRef> shared_state,
               ffi::Map<ffi::String, ffi::Array<PrimExpr>> inter,
               ffi::Map<ffi::String, ffi::Array<PrimExpr>> intra, ffi::String scope_kind) {
-             return DispatchContext(target, exec_scope, launch_params, var_range_map, alloc_only,
+             return DispatchContext(target, thread_scope, launch_params, var_range_map, alloc_only,
                                     callbacks, shared_state, inter, intra, scope_kind);
            })
       .def_method("tirx.DispatchContextAddAllocTensor", &DispatchContextObj::AddAllocTensor)

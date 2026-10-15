@@ -39,8 +39,7 @@ from .runtime import DataType, DataTypeCode
 from . import error
 
 # tvm.ir
-from .ir import IRModule
-from . import transform
+from .ir import IRModule, transform
 from . import ir
 
 # tvm.script — must be imported before any dialect package so that
@@ -57,6 +56,9 @@ from . import backend
 # tvm.target
 from . import target
 from .target import device_from_target
+
+# Shared code generation helpers
+from . import codegen
 
 # tvm.te
 from . import te

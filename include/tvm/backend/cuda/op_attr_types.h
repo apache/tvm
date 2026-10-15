@@ -20,11 +20,13 @@
 #ifndef TVM_BACKEND_CUDA_OP_ATTR_TYPES_H_
 #define TVM_BACKEND_CUDA_OP_ATTR_TYPES_H_
 
+#include <tvm/ffi/reflection/accessor.h>
+
 namespace tvm {
 namespace backend {
 namespace cuda {
 namespace op_attr {
-inline constexpr const char* kNeedWarpShuffle = "cuda.need_warp_shuffle";
+inline constexpr ffi::reflection::AttrKey<bool> kNeedWarpShuffle{"cuda.need_warp_shuffle"};
 }  // namespace op_attr
 }  // namespace cuda
 }  // namespace backend

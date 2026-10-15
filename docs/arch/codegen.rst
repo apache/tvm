@@ -64,7 +64,12 @@ It performs these steps:
 Target Dispatch
 ---------------
 
-The core dispatch logic lives in ``codegen::Build()`` (``src/target/codegen.cc``), which is
+Generic target configuration and registration live in ``src/target/``. Shared
+code generation lives in ``src/codegen/``, with installed APIs in
+``include/tvm/codegen/`` and Python helpers in ``tvm.codegen``. Platform-specific
+generators remain under ``src/backend/<platform>/codegen/``.
+
+The core dispatch logic lives in ``codegen::Build()`` (``src/codegen/codegen.cc``), which is
 called from the Python-side ``_build_for_target()`` in ``tirx/_compile.py``. It selects the correct
 backend based on the ``Target`` object:
 
@@ -130,7 +135,7 @@ for producing executable code:
 LLVM family
 ~~~~~~~~~~~
 
-``CodeGenLLVM`` (``src/target/llvm/codegen_llvm.h``) translates TIR directly to LLVM IR using
+``CodeGenLLVM`` (``src/codegen/llvm/codegen_llvm.h``) translates TIR directly to LLVM IR using
 the LLVM C++ API. The generated ``llvm::Module`` is then compiled to native code by LLVM's
 backend (x86, ARM, NVPTX, AMDGPU, etc.).
 
@@ -165,7 +170,7 @@ The key methods on ``CodeGenLLVM`` are:
 Source family
 ~~~~~~~~~~~~~
 
-``CodeGenC`` (``src/target/source/codegen_c.h``) generates C-like source code as text. Each
+``CodeGenC`` (``src/codegen/c/codegen_c.h``) generates C-like source code as text. Each
 target subclass overrides methods to emit target-specific syntax.
 
 **Inheritance**:
@@ -188,7 +193,7 @@ target subclass overrides methods to emit target-specific syntax.
 - ``PrintType(dtype, os)`` — emit target-specific type names (e.g., ``half`` for float16).
 - ``PrintVecBinaryOp(...)`` — emit vectorized operations in target syntax.
 
-For CUDA, the build flow (``BuildCUDA`` in ``src/target/opt/build_cuda_on.cc``) is:
+For CUDA, the build flow (``BuildCUDA`` in ``src/backend/cuda/codegen/codegen_cuda.cc``) is:
 
 1. ``CodeGenCUDA`` generates CUDA C source.
 2. An optional post-processing callback (``tvm_callback_cuda_postproc``) transforms the source.
@@ -281,31 +286,31 @@ Source Code Map
      - Contents
    * - ``python/tvm/tirx/_compile.py``
      - ``tirx.compile()``: TIR compilation entry, host/device split, module linking
-   * - ``src/target/codegen.cc``
+   * - ``src/codegen/codegen.cc``
      - ``codegen::Build()``: target dispatch via ``"target.build.<kind>"``
-   * - ``src/target/llvm/codegen_llvm.h``
+   * - ``src/codegen/llvm/codegen_llvm.h``
      - ``CodeGenLLVM``: TIR → LLVM IR base class
-   * - ``src/target/llvm/codegen_cpu.h``
+   * - ``src/codegen/llvm/codegen_cpu.h``
      - ``CodeGenCPU``: CPU-specific LLVM codegen (x86, ARM)
-   * - ``src/target/llvm/codegen_nvptx.cc``
+   * - ``src/backend/cuda/codegen/llvm/codegen_nvptx.cc``
      - ``CodeGenNVPTX``: NVIDIA PTX via LLVM
-   * - ``src/target/llvm/codegen_amdgpu.cc``
+   * - ``src/backend/rocm/codegen/llvm/codegen_amdgpu.cc``
      - ``CodeGenAMDGPU``: AMD GPU via LLVM
-   * - ``src/target/llvm/llvm_module.cc``
+   * - ``src/codegen/llvm/llvm_module.cc``
      - ``LLVMModuleObj``: runtime module with JIT compilation
-   * - ``src/target/source/codegen_c.h``
+   * - ``src/codegen/c/codegen_c.h``
      - ``CodeGenC``: TIR → C-like source base class
-   * - ``src/target/source/codegen_cuda.h``
+   * - ``src/backend/cuda/codegen/codegen_cuda.h``
      - ``CodeGenCUDA``: TIR → CUDA C
-   * - ``src/target/source/codegen_opencl.h``
+   * - ``src/backend/opencl/codegen/codegen_opencl.h``
      - ``CodeGenOpenCL``: TIR → OpenCL C
-   * - ``src/target/source/codegen_metal.h``
+   * - ``src/backend/metal/codegen/codegen_metal.h``
      - ``CodeGenMetal``: TIR → Metal Shading Language
-   * - ``src/target/source/codegen_c_host.h``
+   * - ``src/codegen/c/codegen_c_host.h``
      - ``CodeGenCHost``: TIR → C host code
-   * - ``src/target/opt/build_cuda_on.cc``
+   * - ``src/backend/cuda/codegen/codegen_cuda.cc``
      - ``BuildCUDA``: CUDA build flow (codegen → compile → module)
-   * - ``src/target/spirv/codegen_spirv.h``
+   * - ``src/backend/vulkan/codegen/codegen_spirv.h``
      - ``CodeGenSPIRV``: TIR → SPIR-V for Vulkan
-   * - ``src/target/source/codegen_webgpu.h``
+   * - ``src/backend/webgpu/codegen/codegen_webgpu.h``
      - ``CodeGenWebGPU``: TIR → WGSL

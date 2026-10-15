@@ -26,8 +26,8 @@ from tvm.script import tirx as T
 
 
 def test_vm_builtin_lower_mem_alloc_storage():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -43,8 +43,8 @@ def test_vm_builtin_lower_mem_alloc_storage():
             gv0 = alloc
             return gv0
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -69,8 +69,8 @@ def test_vm_builtin_lower_mem_alloc_storage():
 def test_vm_builtin_alloc_tensor_raises_error():
     """R.builtin.alloc_tensor should be handled earlier"""
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:

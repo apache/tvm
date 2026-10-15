@@ -21,24 +21,16 @@ import functools
 import inspect
 import threading
 from collections.abc import Callable
-from numbers import Integral
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from tvm import ir as _ir
-from tvm.script.ir_builder.base import annotation_constructor as _annotation_constructor
-from tvm.script.ir_builder.base import at as _at
-
-# isort: off
-from typing import Literal
-
-# isort: on
-
 from tvm import DataType, ir
+from tvm import ir as _ir
 from tvm import tirx as tir
-from tvm.ir import Range, Type, is_prim_expr
+from tvm.ir import Range, TensorRegion, Type
 from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.script.ir_builder.base import MISSING
-from tvm.script.ir_builder.base import LocationEntry as _LocationEntry
+from tvm.ir.type import _init_type_api, _normalize_type
+from tvm.runtime import MemoryScope
+from tvm.script.ir_builder.base import MISSING, AlreadyEmitted, IRBuilder
 from tvm.script.ir_builder.ir import Lambda, meta_var
 from tvm.script.parser.protocol_registry import (
     register_mutable_decl as _register_mutable_decl,
@@ -50,7 +42,6 @@ from tvm.target import Target
 
 # pylint: disable=unused-import
 from tvm.tirx import Expr, IndexMap, Var, is_tensor_var, tile
-from tvm.tirx.exec_scope import ExecScope
 
 # import tirx.expr for direct ir construction to pass structural_equal comparison
 from tvm.tirx.expr import (
@@ -59,8 +50,14 @@ from tvm.tirx.expr import (
     TensorLoad,
 )
 from tvm.tirx.layout import Axis, ComposeLayout, Iter, Layout, R, S, TileLayout
+from tvm.tirx.thread_scope import ThreadScope
 
 from . import _ffi_api
+
+_SCOPE_GLOBAL = MemoryScope("global")
+_SCOPE_LOCAL = MemoryScope("local")
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
 
 # pylint: enable=unused-import
 
@@ -78,9 +75,6 @@ def _get_layout(layout: str | Layout | None, shape: list[Expr], scope: str) -> L
 def _normalize_prim_type(dtype) -> ir.PrimType:
     if isinstance(dtype, ir.PrimType):
         return dtype
-    dtype_str = getattr(dtype, "_dtype_str", None)
-    if dtype_str is not None:
-        return ir.PrimType(dtype_str)
     if callable(dtype):
         value = dtype()
         ty = getattr(value, "ty", None)
@@ -184,90 +178,20 @@ def _record_meta_resource(value: Any, skip_frames: int = 2) -> None:
         scope.record(value, frame_info)
 
 
-@_register_mutable_decl("tirx.Tensor", syntax="parameter")
-@_annotation_constructor
-def _tensor_type(
-    shape: list[Expr] | tuple[Expr] | Expr | Integral,
-    dtype: str = "float32",
-    data: Var = None,
-    strides: list[Expr] | None = None,
-    elem_offset: Expr = None,
-    byte_offset: Expr = None,
-    scope: str = "global",
-    align: int = 0,
-    offset_factor: int = 0,
-    layout: str | Layout | None = MISSING,
-    *,
-    loc: _LocationEntry | Location = UNKNOWN_LOC,
-) -> tir.TensorType:
-    """Construct a tensor type for annotations and explicit type-valued fields.
-
-    Parameters
-    ----------
-    shape : Union[List[Expr], Tuple[Expr], Expr, Integral]
-        The shape of the tensor prior to flattening.
-
-    dtype : str
-        The data type in the content of the tensor.
-
-    data : Var
-        An optional pointer whose storage scope determines the tensor type scope.
-
-    strides : List[Expr]
-        The strides of each dimension.
-
-    elem_offset : Expr
-        The offset in terms of number of dtype elements (including lanes).
-
-    byte_offset : Expr, optional
-        The offset in bytes, as an alternative to elem_offset.
-
-    scope : str
-        The optional storage scope of tensor data pointer.
-
-    align : int
-        The alignment requirement of data pointer in bytes.
-
-    offset_factor : int
-        The factor of elem_offset field.
-
-    layout : str or Layout, optional
-        The tensor layout. "default" constructs the shape's default TileLayout;
-        omission and None both omit a layout.
-
-    Returns
-    -------
-    res : TensorType
-        The tensor type. Function annotations introduce variables of this type;
-        allocation and declaration operations construct tensor variables.
-    """
-    shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    shape = tuple(shape)
-    if strides is None:
-        strides = []
-    result = _ffi_api.TensorType(  # type: ignore[attr-defined] # pylint: disable=no-member
-        shape,
-        dtype,
-        data,
-        strides,
-        _get_elem_offset(elem_offset, byte_offset, dtype),
-        scope,
-        align,
-        offset_factor,
-        _get_layout(layout, shape, scope),
-    )
-    return _at(loc, result)
+_tensor_type = _register_mutable_decl("tirx.Tensor", syntax="parameter")(tir.TensorType)
 
 
 def Tuple(*fields: Type) -> Type:  # pylint: disable=invalid-name
     """Construct a tuple type for a TIRx function or binding annotation."""
     normalized_fields = []
     for field in fields:
-        if callable(field) and not isinstance(field, Expr):
+        if isinstance(field, Type) or (isinstance(field, type) and issubclass(field, Type)):
+            field = _normalize_type(field)
+        elif callable(field) and not isinstance(field, Expr):
             field = field()
         if isinstance(field, Expr):
             field = field.ty
-        normalized_fields.append(field)
+        normalized_fields.append(_normalize_type(field))
     return ir.TupleType(normalized_fields)
 
 
@@ -343,7 +267,7 @@ def _alloc_tensor(
     strides=None,
     elem_offset=None,
     byte_offset=None,
-    scope="global",
+    scope=_SCOPE_GLOBAL,
     align=-1,
     offset_factor=0,
     layout=MISSING,
@@ -351,41 +275,28 @@ def _alloc_tensor(
     annotations=None,
 ):
     """Implement separately named allocation conveniences using the canonical Op."""
+    scope = MemoryScope(scope)
     if allocated_addr is not None:
-        if scope in ("", "global", "shared", "shared.dyn", "local"):
+        if scope in (_SCOPE_GLOBAL, _SCOPE_SHARED, _SCOPE_SHARED_DYN, _SCOPE_LOCAL):
             raise ValueError(f"{scope} does not support allocation placement")
         if data is not None or elem_offset is not None or byte_offset is not None or offset_factor:
             raise ValueError(
                 "Allocation placement cannot be combined with pointer or offset metadata"
             )
     tensor_type = _tensor_type(
-        shape, dtype, data, strides, elem_offset, byte_offset, scope, align, offset_factor, layout
+        shape,
+        dtype,
+        scope,
+        strides,
+        elem_offset,
+        align,
+        offset_factor,
+        layout,
+        data=data,
+        byte_offset=byte_offset,
     )
     return _bind_tensor(
         alloc_tensor(allocated_addr, ty_args=[tensor_type], annotations=annotations)
-    )
-
-
-def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Var:
-    """Warpgroup-wide ``(128, elem_per_thread)`` register tile in local scope.
-
-    Sugar for the recurring pattern::
-
-        T.alloc_tensor(ty_args=[T.Tensor(
-            (128, elem_per_thread), dtype,
-            layout=wg_local_layout(elem_per_thread), scope="local",
-        )])
-
-    Used to stage a tcgen05 load: each of the 128 threads in a warpgroup
-    owns one row of ``elem_per_thread`` contiguous elements.
-    """
-    from tvm.backend.cuda.layout import wg_local_layout
-
-    return _alloc_tensor(
-        (128, elem_per_thread),
-        dtype,
-        layout=wg_local_layout(elem_per_thread),
-        scope="local",
     )
 
 
@@ -412,10 +323,10 @@ class LetAnnotation:
         if self.type_spec is not None:
             if isinstance(self.type_spec, ir.Var):
                 return self.type_spec  # Already a Var (e.g. T.handle(...))
-            elif callable(self.type_spec):
-                return self.type_spec()  # e.g. T.int32() -> Var
             elif isinstance(self.type_spec, Type):
                 return Var("", self.type_spec)
+            elif callable(self.type_spec):
+                return self.type_spec()
             else:
                 raise TypeError(f"Invalid type for T.let: {self.type_spec}")
         elif rhs_dtype is not None:
@@ -426,54 +337,6 @@ class LetAnnotation:
 
 
 let = LetAnnotation()  # Singleton for T.let (no subscript)
-
-
-@_register_mutable_decl("tirx.LocalVectorAnnotation", syntax="annotation")
-class LocalVectorAnnotation:
-    """Marker for local vector/tensor allocation via type annotation subscript.
-
-    Created when a DtypeConstructor is subscripted, e.g. ``T.float32[N]`` or
-    ``T.float32[M, N]``. The declaration protocol recognizes this annotation
-    and allocates local storage with ``T.alloc_local(shape=..., dtype=...)``.
-    """
-
-    __slots__ = ("dtype", "shape")
-
-    def __init__(self, dtype: str, shape: tuple):
-        self.dtype = dtype
-        self.shape = shape
-
-
-class DtypeConstructor:
-    """Callable + subscriptable dtype object.
-
-    Replaces the plain functions previously returned by ``func_gen``.
-
-    * ``T.float32()``        — same FFI call as before (returns ``Var``).
-    * ``T.float32[N]``       — returns ``LocalVectorAnnotation("float32", (N,))``.
-    * ``T.float32[M, N]``    — returns ``LocalVectorAnnotation("float32", (M, N))``.
-    * ``x: T.float32``       — parser calls this object, gets a ``Var``.
-    """
-
-    def __init__(self, ffi_name: str, dtype_str: str):
-        self._ffi_name = ffi_name
-        self._dtype_str = dtype_str
-
-    def __call__(
-        self,
-        expr: "Expr | Literal['inf', '-inf', 'nan'] | int | float | None" = None,
-    ) -> "Expr":
-        if isinstance(expr, str):
-            expr = float(expr)
-        return getattr(_ffi_api, self._ffi_name)(expr)
-
-    def __getitem__(self, shape):
-        if isinstance(shape, tuple):
-            return LocalVectorAnnotation(self._dtype_str, shape)
-        return LocalVectorAnnotation(self._dtype_str, (shape,))
-
-    def __repr__(self):
-        return f"DtypeConstructor({self._dtype_str!r})"
 
 
 def decl_tensor(
@@ -501,99 +364,10 @@ smem = _register_mutable_decl("tirx.smem")(alloc_shared)
 tmem = functools.partial(_alloc_tensor, scope="tmem")
 
 
-def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
-    """Allocate a register fragment for ``tcgen05.{ld,st}`` atoms.
-
-    Sizes the per-thread storage, allocates ``local`` scope memory, and returns
-    a 2-D view of shape ``tensor_shape`` with a matching ``tcgen05_atom_layout``.
-    Pass the result to ``Tx.wg.copy_async`` (with a matching TMEM
-    tensor) to trigger the corresponding dispatch path.
-
-    Parameters
-    ----------
-    instr_shape : str
-        ``"32x32b"`` (M=128 fragment, 128 row warpgroup tile, layout
-        ``(128, K):(1@tid_in_wg, 1)``); or ``"16x64b"`` / ``"16x128b"`` /
-        ``"16x256b"`` (M=64 fragments, 64 row warpgroup tile with the
-        per-shape per-lane register decomposition).
-    tensor_shape : tuple[int, int]
-        Logical fragment shape ``(frag_rows, K)`` in element units. ``frag_rows``
-        is ``128`` for ``.32x32b`` and ``64`` for the ``.16x*b`` shapes. The
-        fp32 Layout B readback image also uses ``("32x32b", (64, N))``.
-    dtype : str
-        ``"float32"``, ``"float16"``, or ``"bfloat16"``.
-
-    Returns
-    -------
-    Var
-        2-D view of shape ``tensor_shape`` whose layout matches
-        ``tcgen05_atom_layout(instr_shape, tensor_shape, dtype)``.
-
-    Examples
-    --------
-    M=128 readback (existing dispatch):
-        ``frag = T.alloc_tcgen05_ldst_frag("32x32b", (128, 64), "float32")``
-        ``Tx.wg.copy_async(frag[:, :], tmem[:, 0:64])``
-
-    M=64 readback (.16x64b dispatch):
-        ``frag = T.alloc_tcgen05_ldst_frag("16x64b", (64, 64), "float32")``
-        ``Tx.wg.copy_async(frag[:, :], tmem[0:64, 0:64])``
-
-    Datapath B readback (cta_group=2, per-CTA M=64):
-        ``C = tmem_pool.alloc((64, 128), "float32", datapath="B")``
-        ``frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, 128), "float32")``
-        ``Tx.wg.copy_async(frag[:, :], C[:, :])``
-    """
-    from tvm.backend.cuda.layout import tcgen05_atom_layout  # local import to avoid cycle
-
-    rows, cols = tensor_shape
-    bits = DataType(dtype).bits
-    # Per-warpgroup total bits = 64 rows x K cols x bits. Divided across 128
-    # threads gives per-thread bits; convert to element count.
-    per_thread_bits = (rows * cols * bits) // 128
-    if per_thread_bits % bits != 0:
-        raise ValueError(
-            f"alloc_tcgen05_ldst_frag tensor_shape={tensor_shape} dtype={dtype!r} "
-            f"does not evenly divide across 128 threads"
-        )
-    per_thread_elems = per_thread_bits // bits
-
-    layout = tcgen05_atom_layout(instr_shape, tensor_shape, dtype)
-    flat = alloc_local((per_thread_elems,), dtype)
-    return flat.view(rows, cols, layout=layout)
-
-
-def alloc_cast_frag(src, dtype):
-    """Allocate a register frag holding ``src`` value-cast to ``dtype``.
-
-    Inherits ``src``'s logical shape and its ``(lane, register)`` layout — only
-    the element dtype changes — so ``Tx.cast(dst, src)`` is a per-thread
-    element-wise cast with no cross-lane movement. ``.permute(...)`` the result
-    to the axis order a downstream consumer (e.g. ``stmatrix`` via
-    ``Tx.copy(dispatch="ldstmatrix")``) expects.
-
-    Parameters
-    ----------
-    src : Var
-        Source register frag (e.g. from ``alloc_tcgen05_ldst_frag``).
-    dtype : str
-        Destination element dtype.
-
-    Returns
-    -------
-    Var
-        Fresh ``local`` frag, ``src.shape`` shaped, ``src.layout``, dtype-cast.
-    """
-    rows, cols = src.ty.shape
-    per_thread_elems = (rows * cols) // 128
-    flat = alloc_local((per_thread_elems,), dtype)
-    return flat.view(rows, cols, layout=src.ty.layout)
-
-
 @_register_mutable_decl("tirx.alloc_scalar")
 def alloc_scalar(
     dtype: str = "float32",
-    scope: str = "global",
+    scope: str | MemoryScope = _SCOPE_GLOBAL,
     *,
     annotations: dict[str, Any] | None = None,
 ) -> _ir.TensorLoad:
@@ -637,10 +411,60 @@ def shared_scalar(
 
 @_register_mutable_decl("tirx.local_scalar")
 def local_scalar(
-    dtype: str = "float32", *, annotations: dict[str, Any] | None = None
+    dtype: str = "float32",
+    init: Any = None,
+    *,
+    name: str | None = None,
+    annotations: dict[str, Any] | None = None,
 ) -> _ir.TensorLoad:
-    """Allocate a zero-dimensional tensor in local memory."""
-    return alloc_scalar(dtype=dtype, scope="local", annotations=annotations)
+    """Allocate scalar local storage, optionally naming and initializing it.
+
+    Parameters
+    ----------
+    dtype : str
+        The scalar data type.
+    init : Any
+        Initial value. None leaves the storage uninitialized; otherwise one
+        tensor store is emitted immediately after the allocation.
+    name : str | None
+        Optional name for the allocated tensor variable, set in place.
+    annotations : dict[str, Any] | None
+        Annotations passed through to the allocation.
+
+    Returns
+    -------
+    scalar : TensorLoad
+        A load from index zero of the one-element local tensor, with no layout.
+    """
+    scalar = alloc_scalar(dtype=dtype, scope="local", annotations=annotations)
+    if name is not None:
+        IRBuilder.name(name, scalar.source)
+    if init is not None:
+        assign(scalar, init)
+    return scalar
+
+
+def assign(dst: _ir.TensorLoad | _ir.Var, value: Any) -> AlreadyEmitted[_ir.Stmt]:
+    """Store a value into scalar storage and return its emission receipt.
+
+    Parameters
+    ----------
+    dst : TensorLoad | Var
+        A tensor load identifying the destination tensor and indices, or a
+        tensor variable with constant shape (1,). Immutable scalar variables
+        and whole multi-element tensors are not assignment destinations.
+    value : Any
+        The scalar value to store, converted by the ordinary tensor-store API.
+
+    Returns
+    -------
+    result : AlreadyEmitted[Stmt]
+        Receipt for the exact emitted store. Parser consumption does not emit
+        it again. Active builder source locations are preserved.
+    """
+    from .parser_protocol import set_mutable_cell_  # pylint: disable=import-outside-toplevel
+
+    return set_mutable_cell_(dst, value)
 
 
 def _is_meta_class_instance(value: Any) -> bool:
@@ -737,347 +561,327 @@ def _validate_meta_construction_scope(scope: _MetaConstructionScope) -> None:
     object.__setattr__(scope.instance, "_tirx_meta_owned_resources", created_resources)
 
 
-def _ffi_name_to_dtype(name: str) -> str:
-    """Convert an FFI type name to its TVM dtype string.
-
-    Examples: "Float32" -> "float32", "Int8x4" -> "int8x4",
-    "Float8E4M3" -> "float8_e4m3", "Float8E4M3B11FNUZ" -> "float8_e4m3b11fnuz".
-    """
-    import re
-
-    # Insert underscore before E-notation in float8 names (E3M4, E4M3, etc.)
-    s = re.sub(r"(?<=[a-z0-9])E(\d)", r"_e\1", name, flags=re.IGNORECASE)
-    return s.lower()
-
-
-def func_gen(name: str):
-    """Generate a DtypeConstructor for each Expr dtype.
-
-    Parameters
-    ----------
-    name: str
-        The ffi function name to call, e.g. "Float32", "Int32".
-    """
-    dtype = _ffi_name_to_dtype(name)
-    constructor = DtypeConstructor(name, dtype)
-    _register_scalar_annotation(f"tirx.{dtype}", constructor, dtype=dtype)
-    _register_mutable_decl(f"tirx.{dtype}", syntax="annotation")(constructor)
-    return constructor
+def _prim_type(dtype: str) -> ir.PrimType:
+    """Export a primitive type with its scalar and local-declaration syntax."""
+    value = ir.PrimType(dtype)
+    _register_scalar_annotation(f"tirx.{dtype}", value, dtype=dtype)
+    _register_mutable_decl(f"tirx.{dtype}", syntax="annotation")(value)
+    return value
 
 
 def static_assert(x: Any, message: str = ""):
     assert x, message
 
 
-int8 = func_gen("Int8")
+int8 = _prim_type("int8")
 
-int16 = func_gen("Int16")
+int16 = _prim_type("int16")
 
-int32 = func_gen("Int32")
+int32 = _prim_type("int32")
 
-int64 = func_gen("Int64")
+int64 = _prim_type("int64")
 
-int8x2 = func_gen("Int8x2")
+int8x2 = _prim_type("int8x2")
 
-int16x2 = func_gen("Int16x2")
+int16x2 = _prim_type("int16x2")
 
-int32x2 = func_gen("Int32x2")
+int32x2 = _prim_type("int32x2")
 
-int64x2 = func_gen("Int64x2")
+int64x2 = _prim_type("int64x2")
 
-int8x4 = func_gen("Int8x4")
+int8x4 = _prim_type("int8x4")
 
-int16x4 = func_gen("Int16x4")
+int16x4 = _prim_type("int16x4")
 
-int32x4 = func_gen("Int32x4")
+int32x4 = _prim_type("int32x4")
 
-int64x4 = func_gen("Int64x4")
+int64x4 = _prim_type("int64x4")
 
-int8x8 = func_gen("Int8x8")
+int8x8 = _prim_type("int8x8")
 
-int16x8 = func_gen("Int16x8")
+int16x8 = _prim_type("int16x8")
 
-int32x8 = func_gen("Int32x8")
+int32x8 = _prim_type("int32x8")
 
-int64x8 = func_gen("Int64x8")
+int64x8 = _prim_type("int64x8")
 
-int8x16 = func_gen("Int8x16")
+int8x16 = _prim_type("int8x16")
 
-int16x16 = func_gen("Int16x16")
+int16x16 = _prim_type("int16x16")
 
-int32x16 = func_gen("Int32x16")
+int32x16 = _prim_type("int32x16")
 
-int64x16 = func_gen("Int64x16")
+int64x16 = _prim_type("int64x16")
 
-int8x32 = func_gen("Int8x32")
+int8x32 = _prim_type("int8x32")
 
-int16x32 = func_gen("Int16x32")
+int16x32 = _prim_type("int16x32")
 
-int32x32 = func_gen("Int32x32")
+int32x32 = _prim_type("int32x32")
 
-int64x32 = func_gen("Int64x32")
+int64x32 = _prim_type("int64x32")
 
-int8x64 = func_gen("Int8x64")
+int8x64 = _prim_type("int8x64")
 
-int16x64 = func_gen("Int16x64")
+int16x64 = _prim_type("int16x64")
 
-int32x64 = func_gen("Int32x64")
+int32x64 = _prim_type("int32x64")
 
-int64x64 = func_gen("Int64x64")
+int64x64 = _prim_type("int64x64")
 
-uint8 = func_gen("UInt8")
+uint8 = _prim_type("uint8")
 
-uint16 = func_gen("UInt16")
+uint16 = _prim_type("uint16")
 
-uint32 = func_gen("UInt32")
+uint32 = _prim_type("uint32")
 
-uint64 = func_gen("UInt64")
+uint64 = _prim_type("uint64")
 
-uint8x2 = func_gen("UInt8x2")
+uint8x2 = _prim_type("uint8x2")
 
-uint16x2 = func_gen("UInt16x2")
+uint16x2 = _prim_type("uint16x2")
 
-uint32x2 = func_gen("UInt32x2")
+uint32x2 = _prim_type("uint32x2")
 
-uint64x2 = func_gen("UInt64x2")
+uint64x2 = _prim_type("uint64x2")
 
-uint8x4 = func_gen("UInt8x4")
+uint8x4 = _prim_type("uint8x4")
 
-uint16x4 = func_gen("UInt16x4")
+uint16x4 = _prim_type("uint16x4")
 
-uint32x4 = func_gen("UInt32x4")
+uint32x4 = _prim_type("uint32x4")
 
-uint64x4 = func_gen("UInt64x4")
+uint64x4 = _prim_type("uint64x4")
 
-uint8x8 = func_gen("UInt8x8")
+uint8x8 = _prim_type("uint8x8")
 
-uint16x8 = func_gen("UInt16x8")
+uint16x8 = _prim_type("uint16x8")
 
-uint32x8 = func_gen("UInt32x8")
+uint32x8 = _prim_type("uint32x8")
 
-uint64x8 = func_gen("UInt64x8")
+uint64x8 = _prim_type("uint64x8")
 
-uint8x16 = func_gen("UInt8x16")
+uint8x16 = _prim_type("uint8x16")
 
-uint16x16 = func_gen("UInt16x16")
+uint16x16 = _prim_type("uint16x16")
 
-uint32x16 = func_gen("UInt32x16")
+uint32x16 = _prim_type("uint32x16")
 
-uint64x16 = func_gen("UInt64x16")
+uint64x16 = _prim_type("uint64x16")
 
-uint8x32 = func_gen("UInt8x32")
+uint8x32 = _prim_type("uint8x32")
 
-uint16x32 = func_gen("UInt16x32")
+uint16x32 = _prim_type("uint16x32")
 
-uint32x32 = func_gen("UInt32x32")
+uint32x32 = _prim_type("uint32x32")
 
-uint64x32 = func_gen("UInt64x32")
+uint64x32 = _prim_type("uint64x32")
 
-uint8x64 = func_gen("UInt8x64")
+uint8x64 = _prim_type("uint8x64")
 
-uint16x64 = func_gen("UInt16x64")
+uint16x64 = _prim_type("uint16x64")
 
-uint32x64 = func_gen("UInt32x64")
+uint32x64 = _prim_type("uint32x64")
 
-uint64x64 = func_gen("UInt64x64")
+uint64x64 = _prim_type("uint64x64")
 
-float16 = func_gen("Float16")
+float16 = _prim_type("float16")
 
-float32 = func_gen("Float32")
+float32 = _prim_type("float32")
 
-float64 = func_gen("Float64")
+float64 = _prim_type("float64")
 
-float16x2 = func_gen("Float16x2")
+float16x2 = _prim_type("float16x2")
 
-float32x2 = func_gen("Float32x2")
+float32x2 = _prim_type("float32x2")
 
-float64x2 = func_gen("Float64x2")
+float64x2 = _prim_type("float64x2")
 
-float16x4 = func_gen("Float16x4")
+float16x4 = _prim_type("float16x4")
 
-float32x4 = func_gen("Float32x4")
+float32x4 = _prim_type("float32x4")
 
-float64x4 = func_gen("Float64x4")
+float64x4 = _prim_type("float64x4")
 
-float16x8 = func_gen("Float16x8")
+float16x8 = _prim_type("float16x8")
 
-float32x8 = func_gen("Float32x8")
+float32x8 = _prim_type("float32x8")
 
-float64x8 = func_gen("Float64x8")
+float64x8 = _prim_type("float64x8")
 
-float16x16 = func_gen("Float16x16")
+float16x16 = _prim_type("float16x16")
 
-float32x16 = func_gen("Float32x16")
+float32x16 = _prim_type("float32x16")
 
-float64x16 = func_gen("Float64x16")
+float64x16 = _prim_type("float64x16")
 
-float16x32 = func_gen("Float16x32")
+float16x32 = _prim_type("float16x32")
 
-float32x32 = func_gen("Float32x32")
+float32x32 = _prim_type("float32x32")
 
-float64x32 = func_gen("Float64x32")
+float64x32 = _prim_type("float64x32")
 
-float16x64 = func_gen("Float16x64")
+float16x64 = _prim_type("float16x64")
 
-float32x64 = func_gen("Float32x64")
+float32x64 = _prim_type("float32x64")
 
-float64x64 = func_gen("Float64x64")
+float64x64 = _prim_type("float64x64")
 
-float8_e3m4 = func_gen("Float8E3M4")
+float8_e3m4 = _prim_type("float8_e3m4")
 
-float8_e3m4x2 = func_gen("Float8E3M4x2")
+float8_e3m4x2 = _prim_type("float8_e3m4x2")
 
-float8_e3m4x4 = func_gen("Float8E3M4x4")
+float8_e3m4x4 = _prim_type("float8_e3m4x4")
 
-float8_e3m4x8 = func_gen("Float8E3M4x8")
+float8_e3m4x8 = _prim_type("float8_e3m4x8")
 
-float8_e3m4x16 = func_gen("Float8E3M4x16")
+float8_e3m4x16 = _prim_type("float8_e3m4x16")
 
-float8_e3m4x32 = func_gen("Float8E3M4x32")
+float8_e3m4x32 = _prim_type("float8_e3m4x32")
 
-float8_e3m4x64 = func_gen("Float8E3M4x64")
+float8_e3m4x64 = _prim_type("float8_e3m4x64")
 
-float8_e4m3 = func_gen("Float8E4M3")
+float8_e4m3 = _prim_type("float8_e4m3")
 
-float8_e4m3x2 = func_gen("Float8E4M3x2")
+float8_e4m3x2 = _prim_type("float8_e4m3x2")
 
-float8_e4m3x4 = func_gen("Float8E4M3x4")
+float8_e4m3x4 = _prim_type("float8_e4m3x4")
 
-float8_e4m3x8 = func_gen("Float8E4M3x8")
+float8_e4m3x8 = _prim_type("float8_e4m3x8")
 
-float8_e4m3x16 = func_gen("Float8E4M3x16")
+float8_e4m3x16 = _prim_type("float8_e4m3x16")
 
-float8_e4m3x32 = func_gen("Float8E4M3x32")
+float8_e4m3x32 = _prim_type("float8_e4m3x32")
 
-float8_e4m3x64 = func_gen("Float8E4M3x64")
+float8_e4m3x64 = _prim_type("float8_e4m3x64")
 
-float8_e4m3b11fnuz = func_gen("Float8E4M3B11FNUZ")
+float8_e4m3b11fnuz = _prim_type("float8_e4m3b11fnuz")
 
-float8_e4m3b11fnuzx2 = func_gen("Float8E4M3B11FNUZx2")
+float8_e4m3b11fnuzx2 = _prim_type("float8_e4m3b11fnuzx2")
 
-float8_e4m3b11fnuzx4 = func_gen("Float8E4M3B11FNUZx4")
+float8_e4m3b11fnuzx4 = _prim_type("float8_e4m3b11fnuzx4")
 
-float8_e4m3b11fnuzx8 = func_gen("Float8E4M3B11FNUZx8")
+float8_e4m3b11fnuzx8 = _prim_type("float8_e4m3b11fnuzx8")
 
-float8_e4m3b11fnuzx16 = func_gen("Float8E4M3B11FNUZx16")
+float8_e4m3b11fnuzx16 = _prim_type("float8_e4m3b11fnuzx16")
 
-float8_e4m3b11fnuzx32 = func_gen("Float8E4M3B11FNUZx32")
+float8_e4m3b11fnuzx32 = _prim_type("float8_e4m3b11fnuzx32")
 
-float8_e4m3b11fnuzx64 = func_gen("Float8E4M3B11FNUZx64")
+float8_e4m3b11fnuzx64 = _prim_type("float8_e4m3b11fnuzx64")
 
-float8_e4m3fn = func_gen("Float8E4M3FN")
+float8_e4m3fn = _prim_type("float8_e4m3fn")
 
-float8_e4m3fnx2 = func_gen("Float8E4M3FNx2")
+float8_e4m3fnx2 = _prim_type("float8_e4m3fnx2")
 
-float8_e4m3fnx4 = func_gen("Float8E4M3FNx4")
+float8_e4m3fnx4 = _prim_type("float8_e4m3fnx4")
 
-float8_e4m3fnx8 = func_gen("Float8E4M3FNx8")
+float8_e4m3fnx8 = _prim_type("float8_e4m3fnx8")
 
-float8_e4m3fnx16 = func_gen("Float8E4M3FNx16")
+float8_e4m3fnx16 = _prim_type("float8_e4m3fnx16")
 
-float8_e4m3fnx32 = func_gen("Float8E4M3FNx32")
+float8_e4m3fnx32 = _prim_type("float8_e4m3fnx32")
 
-float8_e4m3fnx64 = func_gen("Float8E4M3FNx64")
+float8_e4m3fnx64 = _prim_type("float8_e4m3fnx64")
 
-float8_e4m3fnuz = func_gen("Float8E4M3FNUZ")
+float8_e4m3fnuz = _prim_type("float8_e4m3fnuz")
 
-float8_e4m3fnuzx2 = func_gen("Float8E4M3FNUZx2")
+float8_e4m3fnuzx2 = _prim_type("float8_e4m3fnuzx2")
 
-float8_e4m3fnuzx4 = func_gen("Float8E4M3FNUZx4")
+float8_e4m3fnuzx4 = _prim_type("float8_e4m3fnuzx4")
 
-float8_e4m3fnuzx8 = func_gen("Float8E4M3FNUZx8")
+float8_e4m3fnuzx8 = _prim_type("float8_e4m3fnuzx8")
 
-float8_e4m3fnuzx16 = func_gen("Float8E4M3FNUZx16")
+float8_e4m3fnuzx16 = _prim_type("float8_e4m3fnuzx16")
 
-float8_e4m3fnuzx32 = func_gen("Float8E4M3FNUZx32")
+float8_e4m3fnuzx32 = _prim_type("float8_e4m3fnuzx32")
 
-float8_e4m3fnuzx64 = func_gen("Float8E4M3FNUZx64")
+float8_e4m3fnuzx64 = _prim_type("float8_e4m3fnuzx64")
 
-float8_e5m2 = func_gen("Float8E5M2")
+float8_e5m2 = _prim_type("float8_e5m2")
 
-float8_e5m2x2 = func_gen("Float8E5M2x2")
+float8_e5m2x2 = _prim_type("float8_e5m2x2")
 
-float8_e5m2x4 = func_gen("Float8E5M2x4")
+float8_e5m2x4 = _prim_type("float8_e5m2x4")
 
-float8_e5m2x8 = func_gen("Float8E5M2x8")
+float8_e5m2x8 = _prim_type("float8_e5m2x8")
 
-float8_e5m2x16 = func_gen("Float8E5M2x16")
+float8_e5m2x16 = _prim_type("float8_e5m2x16")
 
-float8_e5m2x32 = func_gen("Float8E5M2x32")
+float8_e5m2x32 = _prim_type("float8_e5m2x32")
 
-float8_e5m2x64 = func_gen("Float8E5M2x64")
+float8_e5m2x64 = _prim_type("float8_e5m2x64")
 
-float8_e5m2fnuz = func_gen("Float8E5M2FNUZ")
+float8_e5m2fnuz = _prim_type("float8_e5m2fnuz")
 
-float8_e5m2fnuzx2 = func_gen("Float8E5M2FNUZx2")
+float8_e5m2fnuzx2 = _prim_type("float8_e5m2fnuzx2")
 
-float8_e5m2fnuzx4 = func_gen("Float8E5M2FNUZx4")
+float8_e5m2fnuzx4 = _prim_type("float8_e5m2fnuzx4")
 
-float8_e5m2fnuzx8 = func_gen("Float8E5M2FNUZx8")
+float8_e5m2fnuzx8 = _prim_type("float8_e5m2fnuzx8")
 
-float8_e5m2fnuzx16 = func_gen("Float8E5M2FNUZx16")
+float8_e5m2fnuzx16 = _prim_type("float8_e5m2fnuzx16")
 
-float8_e5m2fnuzx32 = func_gen("Float8E5M2FNUZx32")
+float8_e5m2fnuzx32 = _prim_type("float8_e5m2fnuzx32")
 
-float8_e5m2fnuzx64 = func_gen("Float8E5M2FNUZx64")
+float8_e5m2fnuzx64 = _prim_type("float8_e5m2fnuzx64")
 
-float8_e8m0fnu = func_gen("Float8E8M0FNU")
+float8_e8m0fnu = _prim_type("float8_e8m0fnu")
 
-float8_e8m0fnux2 = func_gen("Float8E8M0FNUx2")
+float8_e8m0fnux2 = _prim_type("float8_e8m0fnux2")
 
-float8_e8m0fnux4 = func_gen("Float8E8M0FNUx4")
+float8_e8m0fnux4 = _prim_type("float8_e8m0fnux4")
 
-float8_e8m0fnux8 = func_gen("Float8E8M0FNUx8")
+float8_e8m0fnux8 = _prim_type("float8_e8m0fnux8")
 
-float8_e8m0fnux16 = func_gen("Float8E8M0FNUx16")
+float8_e8m0fnux16 = _prim_type("float8_e8m0fnux16")
 
-float8_e8m0fnux32 = func_gen("Float8E8M0FNUx32")
+float8_e8m0fnux32 = _prim_type("float8_e8m0fnux32")
 
-float8_e8m0fnux64 = func_gen("Float8E8M0FNUx64")
+float8_e8m0fnux64 = _prim_type("float8_e8m0fnux64")
 
-float6_e2m3fn = func_gen("Float6E2M3FN")
+float6_e2m3fn = _prim_type("float6_e2m3fn")
 
-float6_e2m3fnx2 = func_gen("Float6E2M3FNx2")
+float6_e2m3fnx2 = _prim_type("float6_e2m3fnx2")
 
-float6_e2m3fnx4 = func_gen("Float6E2M3FNx4")
+float6_e2m3fnx4 = _prim_type("float6_e2m3fnx4")
 
-float6_e2m3fnx8 = func_gen("Float6E2M3FNx8")
+float6_e2m3fnx8 = _prim_type("float6_e2m3fnx8")
 
-float6_e2m3fnx16 = func_gen("Float6E2M3FNx16")
+float6_e2m3fnx16 = _prim_type("float6_e2m3fnx16")
 
-float6_e2m3fnx32 = func_gen("Float6E2M3FNx32")
+float6_e2m3fnx32 = _prim_type("float6_e2m3fnx32")
 
-float6_e2m3fnx64 = func_gen("Float6E2M3FNx64")
+float6_e2m3fnx64 = _prim_type("float6_e2m3fnx64")
 
-float6_e3m2fn = func_gen("Float6E3M2FN")
+float6_e3m2fn = _prim_type("float6_e3m2fn")
 
-float6_e3m2fnx2 = func_gen("Float6E3M2FNx2")
+float6_e3m2fnx2 = _prim_type("float6_e3m2fnx2")
 
-float6_e3m2fnx4 = func_gen("Float6E3M2FNx4")
+float6_e3m2fnx4 = _prim_type("float6_e3m2fnx4")
 
-float6_e3m2fnx8 = func_gen("Float6E3M2FNx8")
+float6_e3m2fnx8 = _prim_type("float6_e3m2fnx8")
 
-float6_e3m2fnx16 = func_gen("Float6E3M2FNx16")
+float6_e3m2fnx16 = _prim_type("float6_e3m2fnx16")
 
-float6_e3m2fnx32 = func_gen("Float6E3M2FNx32")
+float6_e3m2fnx32 = _prim_type("float6_e3m2fnx32")
 
-float6_e3m2fnx64 = func_gen("Float6E3M2FNx64")
+float6_e3m2fnx64 = _prim_type("float6_e3m2fnx64")
 
-float4_e2m1fn = func_gen("Float4E2M1FN")
+float4_e2m1fn = _prim_type("float4_e2m1fn")
 
-float4_e2m1fnx2 = func_gen("Float4E2M1FNx2")
+float4_e2m1fnx2 = _prim_type("float4_e2m1fnx2")
 
-float4_e2m1fnx4 = func_gen("Float4E2M1FNx4")
+float4_e2m1fnx4 = _prim_type("float4_e2m1fnx4")
 
-float4_e2m1fnx8 = func_gen("Float4E2M1FNx8")
+float4_e2m1fnx8 = _prim_type("float4_e2m1fnx8")
 
-float4_e2m1fnx16 = func_gen("Float4E2M1FNx16")
+float4_e2m1fnx16 = _prim_type("float4_e2m1fnx16")
 
-float4_e2m1fnx32 = func_gen("Float4E2M1FNx32")
+float4_e2m1fnx32 = _prim_type("float4_e2m1fnx32")
 
-float4_e2m1fnx64 = func_gen("Float4E2M1FNx64")
+float4_e2m1fnx64 = _prim_type("float4_e2m1fnx64")
 
-bfloat16 = func_gen("BFloat16")
+bfloat16 = _prim_type("bfloat16")
 
 # Shorthand aliases
 f16 = _register_scalar_annotation("tirx.f16", float16, dtype="float16")
@@ -1107,25 +911,12 @@ u64 = _register_scalar_annotation("tirx.u64", uint64, dtype="uint64")
 _register_mutable_decl("tirx.u64", syntax="annotation")(u64)
 
 
-def boolean(expr: Expr | None = None) -> Expr:
-    """Construct a new tirx.Var with type boolean or cast expression to type boolean.
-
-    Parameters
-    ----------
-    expr: Expr
-        The expression to be cast.
-
-    Returns
-    -------
-    res : Expr
-        The new tirx.Var with type boolean or casted expression with type boolean.
-    """
-    return _ffi_api.Boolean(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
+boolean = _prim_type("bool")
 
 
 def handle(
     dtype: str | None = None,
-    storage_scope: str = "global",
+    storage_scope: str | MemoryScope = _SCOPE_GLOBAL,
 ) -> Var:
     """Create a TIR var that represents a pointer.
 
@@ -1154,23 +945,10 @@ def handle(
 TensorMap = tir.TensorMapType
 
 
-def void(expr: Expr | None = None) -> Expr:
-    """Construct a new tirx.Var with type void or cast expression to type void.
-
-    Parameters
-    ----------
-    expr: Expr
-        The expression to be cast.
-
-    Returns
-    -------
-    res : Expr
-        The new tirx.Var with type void or casted expression with type void.
-    """
-    return _ffi_api.Void(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
+void = _prim_type("void")
 
 
-def ptr(dtype: str, storage_scope: str = "global") -> Var:
+def ptr(dtype: str, storage_scope: str | MemoryScope = _SCOPE_GLOBAL) -> Var:
     """The pointer declaration function.
 
     Parameters
@@ -1279,37 +1057,20 @@ else:
         return _install_meta_class(cls)
 
 
-def Ptr(element_type, storage_scope="global", *, loc: _LocationEntry | Location = UNKNOWN_LOC):
-    """Construct a pointer type from an element type or its annotation constructor.
-
-    For example, ``Ptr(int32)`` and ``Ptr(TensorMap)`` construct pointers
-    in global scope; ``Ptr(int32, "shared")`` selects shared scope. Use ``I.Var(name, ty)``
-    to construct a variable of this type.
-    String element dtypes remain accepted, as in ``Ptr("float32", "shared")``.
-    """
-    if callable(element_type) and not isinstance(element_type, Type):
-        element_type = element_type()
-    if isinstance(element_type, Expr):
-        element_type = element_type.ty
-    if isinstance(element_type, str):
-        element_type = ir.PrimType(element_type)
-    return _at(loc, ir.PtrType(element_type, storage_scope))
-
-
-Tensor = _tensor_type
+# These are aliases of canonical bindings, including their constructor signatures.
+Ptr = ir.PtrType
+Tensor = tir.TensorType
 
 __all__ = [
     "Axis",
     "ComposeLayout",
-    "DtypeConstructor",
-    "ExecScope",
     "FloatImm",
     "IntImm",
     "Iter",
     "Lambda",
     "Layout",
     "LetAnnotation",
-    "LocalVectorAnnotation",
+    "MemoryScope",
     "Ptr",
     "R",
     "Range",
@@ -1317,15 +1078,16 @@ __all__ = [
     "Tensor",
     "TensorLoad",
     "TensorMap",
+    "TensorRegion",
+    "ThreadScope",
     "TileLayout",
     "Tuple",
     "Var",
-    "alloc_cast_frag",
     "alloc_local",
     "alloc_scalar",
     "alloc_shared",
-    "alloc_tcgen05_ldst_frag",
     "alloc_tensor",
+    "assign",
     "bf16",
     "bfloat16",
     "boolean",
@@ -1510,5 +1272,7 @@ __all__ = [
     "uint64x32",
     "uint64x64",
     "void",
-    "wg_reg_tile",
 ]
+
+
+_init_type_api("tirx", __name__)

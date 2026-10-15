@@ -19,7 +19,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 
-#include "../../../target/llvm/canonicalizer/arm_aprofile.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -29,7 +28,7 @@ namespace meta_schedule {
 ffi::String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "llvm") {
     static auto target_has_feature_fn_ptr =
-        tvm::ffi::Function::GetGlobalRequired("target.target_has_feature");
+        tvm::ffi::Function::GetGlobalRequired("codegen.target_has_feature");
     bool have_avx512vnni = target_has_feature_fn_ptr("avx512vnni", target).cast<bool>();
     bool have_avxvnni = target_has_feature_fn_ptr("avxvnni", target).cast<bool>();
     if (have_avx512vnni || have_avxvnni) {
@@ -46,13 +45,10 @@ ffi::String GetRuleKindFromTarget(const Target& target) {
       return "rvv";
     }
 
-    ffi::Map<ffi::String, ffi::Any> target_json =
-        target::canonicalizer::llvm::aprofile::Canonicalize(target->ToConfig());
-
-    if (target_json.at("feature.has_dotprod").cast<bool>()) {
+    if (target_has_feature_fn_ptr("dotprod", target).cast<bool>()) {
       return "dotprod";
     }
-    if (target_json.at("feature.has_asimd").cast<bool>()) {
+    if (target_has_feature_fn_ptr("neon", target).cast<bool>()) {
       return "asimd";
     }
     return "llvm";
@@ -60,24 +56,6 @@ ffi::String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "hexagon") {
     return "hexagon";
   }
-  if (target->kind->name == "cuda") {
-    if (ffi::Optional<ffi::String> opt_sm = target->GetAttr<ffi::String>("arch")) {
-      std::string sm = opt_sm.value();
-      if (sm.starts_with("sm_")) {
-        sm = sm.substr(3);
-        try {
-          if (std::stoi(sm) >= 75) {
-            return "cuda-tensorcore";
-          }
-        } catch (const std::invalid_argument& e) {
-          LOG(WARNING) << "ValueError: Unable to parse `target.arch`: " << sm
-                       << ". Details: " << e.what();
-        }
-      }
-    }
-    return "cuda";
-  }
-
   if (IsGPUTarget(target->kind->name)) {
     return "cuda";
   }
@@ -107,10 +85,6 @@ void SpaceGeneratorObj::InitializeWithTuneContext(const TuneContext& context) {
       default_sch_rules = ScheduleRule::DefaultCUDA();
       default_postprocs = Postproc::DefaultCUDA();
       default_mutator_probs = Mutator::DefaultCUDA();
-    } else if (kind == "cuda-tensorcore") {
-      default_sch_rules = ScheduleRule::DefaultCUDATensorCore();
-      default_postprocs = Postproc::DefaultCUDATensorCore();
-      default_mutator_probs = Mutator::DefaultCUDATensorCore();
     } else if (kind == "hexagon") {
       default_sch_rules = ScheduleRule::DefaultHexagon();
       default_postprocs = Postproc::DefaultHexagon();
@@ -125,7 +99,7 @@ void SpaceGeneratorObj::InitializeWithTuneContext(const TuneContext& context) {
       default_mutator_probs = Mutator::DefaultLLVM();
     } else if (kind == "rvv") {
       static auto llvm_get_vector_width =
-          tvm::ffi::Function::GetGlobalRequired("target.llvm_get_vector_width");
+          tvm::ffi::Function::GetGlobalRequired("codegen.llvm_get_vector_width");
       const int vlen = llvm_get_vector_width(context->target.value()).cast<int>();
       default_sch_rules = ScheduleRule::DefaultRISCV(vlen);
       default_postprocs = Postproc::DefaultRISCV();

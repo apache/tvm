@@ -282,11 +282,11 @@ def test_conv3d():
 
 
 def test_conv2d_dynamic():
-    n = T.dynamic("n")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    c = T.dynamic("c")
-    in_channels = T.dynamic("in_channels")
+    n = T.dynamic("n", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    c = T.dynamic("c", "int64")
+    in_channels = T.dynamic("in_channels", "int64")
 
     @R.function
     def forward(

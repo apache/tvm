@@ -73,7 +73,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
                                               ffi::Map<SBlock, SBlock>* opaque_blocks)
       : opaque_blocks_(opaque_blocks) {
     for (const auto& [var, replacement] : substitutions) {
-      VarRemapSet(var, tvm::prim::cast(var->ty.as_or_throw<PrimType>(), replacement));
+      VarRemapSet(var, tvm::prim::cast(replacement, var->ty.as_or_throw<PrimType>()));
     }
   }
 
@@ -461,7 +461,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
     const PrimExpr& factor = factors[i];
     Var var = loop->loop_var.CopyWithSuffix("_" + std::to_string(i)).CopyWithDType(dtype);
     substitute_value = substitute_value * factor + var.as_or_throw<PrimExpr>();
-    analyzer->Bind(var, Range::FromMinExtent(IntImm(dtype, 0), tvm::prim::cast(dtype, factor)));
+    analyzer->Bind(var, Range::FromMinExtent(IntImm(dtype, 0), tvm::prim::cast(factor, dtype)));
     new_loop_vars.emplace_back(std::move(var));
   }
   ffi::Map<SBlock, SBlock> opaque_block_reuse;
@@ -606,7 +606,7 @@ class BlockMutator : public StmtExprMutator {
           // Change the domain of IterVar corresponding to partitioned loop_var
           if (iter_var_.same_as(iter->var)) {
             new_iter.CopyOnWrite()->dom =
-                Range(tvm::prim::cast(dtype, min_), tvm::prim::cast(dtype, extent_));
+                Range(tvm::prim::cast(min_, dtype), tvm::prim::cast(extent_, dtype));
           }
           return new_iter;
         });
@@ -1292,20 +1292,19 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
 
   static ffi::Array<LoopRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv,
                                                     ffi::Array<ffi::Optional<ExprRV>> factors,
-                                                    IntImm preserve_unit_iters,
-                                                    IntImm disable_predication) {
-    return sch->Split(loop_rv, factors, preserve_unit_iters->value != 0,
-                      disable_predication->value != 0);
+                                                    bool preserve_unit_iters,
+                                                    bool disable_predication) {
+    return sch->Split(loop_rv, factors, preserve_unit_iters, disable_predication);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
-                                      ffi::Array<Any> factors, IntImm preserve_unit_iters,
-                                      IntImm disable_predication) {
+                                      ffi::Array<Any> factors, bool preserve_unit_iters,
+                                      bool disable_predication) {
     PythonAPICall py("split");
     py.Input("loop", loop_rv);
     py.Input("factors", factors);
-    py.Input("preserve_unit_iters", preserve_unit_iters->value != 0);
-    py.Input("disable_predication", disable_predication->value != 0);
+    py.Input("preserve_unit_iters", preserve_unit_iters);
+    py.Input("disable_predication", disable_predication);
     py.OutputList(outputs);
     return py.Str();
   }
@@ -1335,16 +1334,16 @@ struct LoopPartitionTraits : public UnpackedInstTraits<LoopPartitionTraits> {
 
   static ffi::Array<LoopRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv,
                                                     ffi::Array<ffi::Optional<ExprRV>> factors,
-                                                    IntImm preserve_unit_iters) {
-    return sch->LoopPartition(loop_rv, factors, preserve_unit_iters->value != 0);
+                                                    bool preserve_unit_iters) {
+    return sch->LoopPartition(loop_rv, factors, preserve_unit_iters);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
-                                      ffi::Array<Any> factors, IntImm preserve_unit_iters) {
+                                      ffi::Array<Any> factors, bool preserve_unit_iters) {
     PythonAPICall py("loop_partition");
     py.Input("loop", loop_rv);
     py.Input("factors", factors);
-    py.Input("preserve_unit_iters", preserve_unit_iters->value != 0);
+    py.Input("preserve_unit_iters", preserve_unit_iters);
     py.OutputList(outputs);
     return py.Str();
   }
@@ -1400,18 +1399,17 @@ struct FuseTraits : public UnpackedInstTraits<FuseTraits> {
   }
 
   static LoopRV UnpackedApplyToSchedule(Schedule sch, ffi::Array<LoopRV> loop_rvs,
-                                        IntImm preserve_unit_iters) {
-    return sch->Fuse(loop_rvs, preserve_unit_iters->value != 0);
+                                        bool preserve_unit_iters) {
+    return sch->Fuse(loop_rvs, preserve_unit_iters);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs,
-                                      ffi::Array<ffi::String> loop_rvs,
-                                      IntImm preserve_unit_iters) {
+                                      ffi::Array<ffi::String> loop_rvs, bool preserve_unit_iters) {
     PythonAPICall py("fuse");
     for (const ffi::String& loop_rv : loop_rvs) {
       py.Input("", loop_rv);
     }
-    py.Input("preserve_unit_iters", preserve_unit_iters->value != 0);
+    py.Input("preserve_unit_iters", preserve_unit_iters);
     py.SingleOutput(outputs);
     return py.Str();
   }

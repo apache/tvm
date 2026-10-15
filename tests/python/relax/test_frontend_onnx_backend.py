@@ -58,7 +58,7 @@ class TVMRelaxBackendRep(BackendRep):
         self._func_param_names = func_param_names
         self._graph_input_names = graph_input_names
 
-        with tvm.transform.PassContext(opt_level=3):
+        with tvm.ir.transform.PassContext(opt_level=3):
             ex = tvm.compile(mod, target="llvm")
         self._vm = relax.VirtualMachine(ex, tvm.cpu())
 

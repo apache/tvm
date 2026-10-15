@@ -23,7 +23,7 @@
 #include <tvm/script/ir_builder/frame.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/tile/exec_scope.h>
+#include <tvm/tirx/tile/thread_scope.h>
 
 #include <functional>
 #include <utility>
@@ -54,7 +54,7 @@ using ir::WhileFrameObj;
  *
  * \sa FunctionFrame
  */
-class FunctionFrameObj : public ir::StmtFrameObj {
+class TVM_TIRX_DLL FunctionFrameObj : public ir::StmtFrameObj {
  public:
   /*! \brief The name of the block. */
   ffi::Optional<ffi::String> name;

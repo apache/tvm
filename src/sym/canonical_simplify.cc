@@ -96,10 +96,10 @@ inline PrimExpr DivImpl(PrimExpr a, PrimExpr b, DivMode mode) {
  */
 bool CastIsSafe(PrimType dtype, PrimExpr value, AnalyzerObj* analyzer) {
   // uint32/64 is not an index dtype by default; the no-overflow assertion
-  // (uint_as_index) admits it for bounded non-negative upcast elimination.
+  // (AllowUIntAsIndex) admits it for bounded non-negative upcast elimination.
   const bool is_index_dtype =
       IsIndexType(dtype->dtype) ||
-      (uint_as_index::Enabled() &&
+      (AllowUIntAsIndex::Enabled() &&
        dtype->dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLUInt) &&
        (dtype->dtype.bits == 32 || dtype->dtype.bits == 64) && dtype->dtype.lanes == 1);
   if (!is_index_dtype) {
@@ -178,8 +178,8 @@ class SplitExprNode : public CanonicalExprNode {
    * \return whether the cast can be safely pushed to children
    */
   bool CanPushCastToChildren(PrimType dtype, AnalyzerObj* analyzer) const {
-    // prim::cast(dtype, index % upper_factor / lower_factor * scale) ==
-    // prim::cast(dtype, index) % upper_factor / lower_factor * scale
+    // prim::cast(index % upper_factor / lower_factor * scale, dtype) ==
+    // prim::cast(index, dtype) % upper_factor / lower_factor * scale
     // iff it is an upcast (dtype.bits >= self.dtype.bits) or all of
     // its intermediate results fit in the range of dtype
     PrimType self_dtype = this->ExprNode::ty.as_or_throw<PrimType>();
@@ -223,11 +223,11 @@ class SplitExprNode : public CanonicalExprNode {
   }
 
   /*!
-   * \brief self = prim::cast(dtype, self)
+   * \brief self = prim::cast(self, dtype)
    * \param dtype The target datatype
    */
   void PushCastToChildren(PrimType dtype) {
-    this->index = prim::cast(dtype, this->index);
+    this->index = prim::cast(this->index, dtype);
     this->ExprNode::ty = dtype;
   }
 
@@ -369,8 +369,8 @@ class SumExprNode : public CanonicalExprNode {
         dtype.bits() == 64 ? std::numeric_limits<int64_t>::lowest() : -(1LL << (dtype.bits() - 1));
     bool is_min_value = base == min_value;
     bool is_negated_min_value = dtype.MatchesCode(kDLInt) && base > 0 && -base == min_value;
-    // prim::cast(dtype, arg_1 + arg_2 + ... arg_n) ==
-    // prim::cast(dtype, arg_1) + ... + prim::cast(dtype, arg_n)
+    // prim::cast(arg_1 + arg_2 + ... arg_n, dtype) ==
+    // prim::cast(arg_1, dtype) + ... + prim::cast(arg_n, dtype)
     // iff it is an upcast (dtype.bits >= self.dtype.bits) or all of
     // its intermediate results fit in the range of dtype
     PrimType self_dtype = this->ExprNode::ty.as_or_throw<PrimType>();
@@ -420,7 +420,7 @@ class SumExprNode : public CanonicalExprNode {
   }
 
   /*!
-   * \brief self = prim::cast(dtype, self)
+   * \brief self = prim::cast(self, dtype)
    * \param dtype The target datatype
    */
   void PushCastToChildren(PrimType dtype) {
@@ -1362,10 +1362,10 @@ UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::FloorModNod
 UnchangedOr<PrimExpr> CanonicalSimplifier::Impl::Mutate_(const prim::CastNode* op,
                                                          InplaceMode inplace_mode) {
   // The cast reasoning below is index-centric; for unsigned operands it runs
-  // only under the caller's no-overflow assertion (uint_as_index).
+  // only under the caller's no-overflow assertion (AllowUIntAsIndex).
   if (!IsIndexTypedExpr(op) &&
-      !(uint_as_index::Enabled() && op->ExprNode::ty.as<PrimTypeNode>()->dtype.code ==
-                                        static_cast<uint8_t>(DLDataTypeCode::kDLUInt))) {
+      !(AllowUIntAsIndex::Enabled() && op->ExprNode::ty.as<PrimTypeNode>()->dtype.code ==
+                                           static_cast<uint8_t>(DLDataTypeCode::kDLUInt))) {
     return Rewriter::Mutate_(op, inplace_mode);
   }
   // normalize

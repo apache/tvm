@@ -284,7 +284,8 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
           sym::EvalSet(info->var_binding.at(it), sym::AsIntSet(info->range_map)).max() + 1);
     }
     info->cache_tensor.push_back(TensorVar(
-        index_tensor_name, TensorType(storage_scope, data_ty, tensor_shape, {1}, {0}, 0, 0)));
+        index_tensor_name, TensorType(tensor_shape, data_ty,
+                                      runtime::MemoryScope::Get(storage_scope), {1}, {0}, 0, 0)));
 
     // Create loop vars and block vars' binding_value
     std::vector<PrimVar> loop_vars;
@@ -455,7 +456,7 @@ class CacheIndexRewriter : public StmtExprMutator {
             [computation](const PrimExpr& current_expr) {
               return (EquivalentTerms(current_expr, computation, true));
             };
-        TensorLoad load = MakeTensorLoad(info_->cache_tensor[i], cache_indices_[i]);
+        TensorLoad load = TensorLoad(info_->cache_tensor[i], cache_indices_[i]);
         ret_stmt = ReplaceSelectedExpr::ReplaceSelectedExprInStmt(
             ret_stmt, predicate_selector, std::move(load),
             [](const PrimExpr& expr) { return true; });
@@ -541,17 +542,16 @@ struct CacheIndexTraits : public UnpackedInstTraits<CacheIndexTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static ffi::Array<SBlockRV> UnpackedApplyToSchedule(Schedule sch, SBlockRV block,
-                                                      ffi::String storage_scope,
-                                                      IntImm cse_thresh) {
-    return sch->CacheIndex(block, storage_scope, cse_thresh->value.as<int>().value());
+                                                      ffi::String storage_scope, int cse_thresh) {
+    return sch->CacheIndex(block, storage_scope, cse_thresh);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      ffi::String storage_scope, IntImm cse_thresh) {
+                                      ffi::String storage_scope, int cse_thresh) {
     PythonAPICall py("cache_index");
     py.Input("block", block);
     py.Input("storage_scope", storage_scope);
-    py.Input("cse_thresh", cse_thresh->value.as<int>().value());
+    py.Input("cse_thresh", cse_thresh);
     py.OutputList(outputs);
     return py.Str();
   }

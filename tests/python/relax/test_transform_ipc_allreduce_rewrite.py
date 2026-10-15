@@ -24,8 +24,8 @@ from tvm.script import tirx as T
 
 
 def test_ipc_allreduce_rewrite():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -43,8 +43,8 @@ def test_ipc_allreduce_rewrite():
             )
             return alloc1
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -76,8 +76,8 @@ def test_ipc_allreduce_rewrite():
 
 
 def test_ipc_allreduce_spread_along_reshape():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -95,8 +95,8 @@ def test_ipc_allreduce_spread_along_reshape():
             )
             return alloc1
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -132,8 +132,8 @@ def test_ipc_allreduce_spread_along_reshape():
 
 
 def test_ipc_allreduce_skip_reducer_other_than_sum():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:

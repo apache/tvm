@@ -28,9 +28,9 @@ from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.testing import env
 from tvm.tirx import decl_tensor
-from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import Axis, S, TileLayout
 from tvm.tirx.script import ir_builder as I
+from tvm.tirx.thread_scope import ThreadScope
 
 
 def test_generic_layout_without_backend_autoload():
@@ -67,8 +67,8 @@ def test_backend_axis_and_scope_identity():
     assert Axis.m.backend is None
     assert T.cuda.Axis.laneid.backend == "cuda"
     assert T.trn.Axis.P.backend == "trn"
-    assert T.cuda.Axis.laneid.get_scope().name == "warp"
-    assert T.cuda.Axis.laneid.get_subscope().name == "thread"
+    assert T.cuda.Axis.laneid.get_scope().name == "cuda.warp"
+    assert T.cuda.Axis.laneid.get_subscope().name == "cuda.thread"
     assert not T.trn.Axis.P.is_thread()
     with pytest.raises(AttributeError):
         _ = Axis.laneid
@@ -76,20 +76,20 @@ def test_backend_axis_and_scope_identity():
         _ = T.cuda.Axis.P
     with pytest.raises(AttributeError):
         _ = T.trn.Axis.laneid
-    cuda = T.cuda.ExecScope("thread")
-    trn = T.trn.ExecScope("thread")
+    cuda = T.cuda.ThreadScope("thread")
+    trn = T.trn.ThreadScope("thread")
     assert cuda.backend == "cuda" and trn.backend == "trn"
     assert not tvm_ffi.structural_equal(cuda, trn)
     assert_structural_equal(cuda, load_json(save_json(cuda)))
     assert_structural_equal(trn, load_json(save_json(trn)))
-    for backend, factory in (("cuda", T.cuda.ExecScope), ("trn", T.trn.ExecScope)):
+    for backend, factory in (("cuda", T.cuda.ThreadScope), ("trn", T.trn.ThreadScope)):
         root = factory("kernel")
-        assert_structural_equal(root, ExecScope(backend, "kernel"))
+        assert_structural_equal(root, ThreadScope(f"{backend}.kernel"))
         assert_structural_equal(root, load_json(save_json(root)))
-        assert f'T.{backend}.ExecScope("kernel")' in root.script()
-    assert_structural_equal(T.cuda.Axis.bx.get_scope(), T.cuda.ExecScope("kernel"))
-    with pytest.raises(ValueError, match="Unknown execution scope"):
-        T.trn.ExecScope("warp")
+        assert f'T.ThreadScope("{backend}.kernel")' in root.script()
+    assert_structural_equal(T.cuda.Axis.bx.get_scope(), T.cuda.ThreadScope("kernel"))
+    with pytest.raises(ValueError):
+        T.trn.ThreadScope("warp")
 
 
 @pytest.mark.parametrize(
@@ -126,9 +126,9 @@ def test_effective_global_layout_preserves_source_and_region():
     region = tensor[2:4, 3:7]
     layout = region.source.ty.effective_layout()
     assert int(layout.apply(2, 3, shape=tensor.shape)["m"]) == 35
-    sliced = layout.slice(tensor.shape, region.region)
-    assert int(sliced.apply(0, 0)["m"]) == 35
-    assert int(sliced.apply(1, 3)["m"]) == 54
+    starts = [r.min for r in region.region]
+    assert int(layout.apply(*starts, shape=tensor.shape)["m"]) == 35
+    assert int(layout.apply(starts[0] + 1, starts[1] + 3, shape=tensor.shape)["m"]) == 54
     assert save_json(tensor) == before
     compact = decl_tensor((8, 16), "float32", strides=(16, 1))
     assert_structural_equal(compact.ty.effective_layout(), layout)
@@ -166,8 +166,6 @@ def test_none_layout_views_keep_offsets_and_strides():
             assert int(stepped.elem_offset) == 6
             with pytest.raises(ValueError, match="non-contiguous"):
                 permuted.view(32)
-            with pytest.raises(ValueError, match="layout=None"):
-                source.local()
     parents = {bind.var: bind.value.args[0].args[0] for bind in builder.get().body.seq[1:]}
     for view in (reshaped, permuted, sliced, row, stepped):
         root = view
@@ -213,7 +211,9 @@ def test_none_layout_dtype_view_accepts_symbolic_extent():
 def test_tile_call_rejects_cross_backend_scope():
     tensor = decl_tensor((8,), "float32", scope="local", layout="default")
     with pytest.raises(ValueError, match="scope belongs to trn"):
-        T.cuda.tile.add(tensor[:], tensor[:], tensor[:], scope=T.trn.ExecScope("thread"))
+        T.cuda.tile.apply(
+            T.ptx["add.f32"], tensor[:], tensor[:], tensor[:], scope=T.trn.ThreadScope("thread")
+        )
 
 
 def test_none_layout_script_roundtrip():
@@ -267,8 +267,13 @@ def test_tile_load_infers_full_global_layout_with_offset():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=1))
         source = T.decl_tensor(A.data, ty_args=[T.Tensor((8, 16), "float32", elem_offset=7)])
         registers = T.alloc_local((2, 4), "float32", layout="default")
-        T.cuda.tile.ld(registers[:, :], source[2:4, 3:7])
-        T.cuda.tile.st(D[:, :], registers[:, :])
+        source_words = source.sub[2:4, 3:7].view(
+            2, 2, 2, layout=TileLayout(S[(2, 2, 2) : (16, 2, 1)])
+        )
+        register_words = registers.view(2, 2, 2)
+        output_words = D.view(2, 2, 2)
+        T.cuda.tile.apply(T.ptx["ld.global.v2.b32"], register_words, source_words)
+        T.cuda.tile.apply(T.ptx["st.global.v2.b32"], output_words, register_words)
 
     assert kernel.params[0].ty.layout is None
     target = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch()})

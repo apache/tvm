@@ -661,8 +661,8 @@ def test_emit_nested_tuple(emit_nested_tuple):
 
     def make_expected(emit_nested_tuple: bool):
         if emit_nested_tuple:
-            n = T.dynamic("n")
-            m = T.dynamic("m")
+            n = T.dynamic("n", "int64")
+            m = T.dynamic("m", "int64")
 
             @R.function
             def func(
@@ -674,8 +674,8 @@ def test_emit_nested_tuple(emit_nested_tuple):
                 return ((n_1, m_1), x, y)
 
         else:
-            n = T.dynamic("n")
-            m = T.dynamic("m")
+            n = T.dynamic("n", "int64")
+            m = T.dynamic("m", "int64")
 
             @R.function
             def func(

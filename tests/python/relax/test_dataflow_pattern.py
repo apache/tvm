@@ -39,7 +39,11 @@ from tvm.script import tirx as T
 @tvm.script.ir_module
 class Module:
     @Ts.function
-    def tir_matmul(A: T.Tensor((32, 32)), B: T.Tensor((32, 32)), C: T.Tensor((32, 32))) -> None:
+    def tir_matmul(
+        A: T.Tensor((32, 32), "float32"),
+        B: T.Tensor((32, 32), "float32"),
+        C: T.Tensor((32, 32), "float32"),
+    ) -> None:
         T.func_attr({"global_symbol": "tir_matmul"})
 
         for i0, j0, k0 in T.grid(32, 32, 32):
@@ -50,7 +54,7 @@ class Module:
                 C[i, j] += A[i, k] * B[j, k]
 
     @Ts.function
-    def tir_relu(A: T.Tensor((32, 32)), B: T.Tensor((32, 32))):
+    def tir_relu(A: T.Tensor((32, 32), "float32"), B: T.Tensor((32, 32), "float32")):
         T.func_attr({"global_symbol": "tir_relu"})
 
         for i, j in T.grid(32, 32):
@@ -59,7 +63,7 @@ class Module:
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
     @Ts.function
-    def tir_zeros(n: T.int64, A: T.Tensor([n])):
+    def tir_zeros(n: T.int64, A: T.Tensor([n], "float32")):
         T.func_attr({"global_symbol": "tir_zeros"})
 
         for i in range(n):
@@ -720,10 +724,10 @@ def test_concat_mm_split():
 def test_self_attention():
     # The example comes from.
     # https://developer.nvidia.com/blog/nlu-with-tensorrt-bert/
-    b = T.dynamic("b")
-    s = T.dynamic("s")
-    n = T.dynamic("n")
-    h = T.dynamic("h")
+    b = T.dynamic("b", "int64")
+    s = T.dynamic("s", "int64")
+    n = T.dynamic("n", "int64")
+    h = T.dynamic("h", "int64")
 
     @tvm.script.ir_module
     class SelfAttention:
@@ -1599,7 +1603,7 @@ def test_same_shape_pattern(same_shape_func_type):
             return out
 
     elif same_shape_func_type == "same_dynamic_shape":
-        n = T.dynamic("n")
+        n = T.dynamic("n", "int64")
 
         @R.function(private=True)
         def func(
@@ -1628,8 +1632,8 @@ def test_same_shape_pattern(same_shape_func_type):
             return out
 
     elif same_shape_func_type == "different_dynamic_shape":
-        n = T.dynamic("n")
-        m = T.dynamic("m")
+        n = T.dynamic("n", "int64")
+        m = T.dynamic("m", "int64")
 
         @R.function(private=True)
         def func(

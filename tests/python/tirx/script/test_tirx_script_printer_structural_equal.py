@@ -46,11 +46,11 @@ def test_prim_type_hidden_path_exact_message():
 
 def test_function_tensor_param():
     @T.function
-    def func1(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))):
+    def func1(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")):
         pass
 
     @T.function
-    def func2(A: T.Tensor((128, 128)), B: T.Tensor((128, 256))):
+    def func2(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 256), "float32")):
         pass
 
     func1 = func1.with_attr("global_symbol", "main")

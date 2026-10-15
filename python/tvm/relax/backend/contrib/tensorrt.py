@@ -234,7 +234,7 @@ def partition_for_tensorrt(mod: IRModule) -> IRModule:
         from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
 
         partitioned = partition_for_tensorrt(mod)
-        with tvm.transform.PassContext(
+        with tvm.ir.transform.PassContext(
             config={
                 "relax.ext.tensorrt.options": {
                     "build_at_compile_time": True,

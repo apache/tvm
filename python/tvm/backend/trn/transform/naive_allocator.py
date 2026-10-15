@@ -16,12 +16,22 @@
 # under the License.
 
 import functools
+from functools import cache
 
 import tvm_ffi
 
 from tvm.ir import Bind, Call, Op, Tuple, Var
+from tvm.runtime import MemoryScope
 from tvm.tirx import IntImm
 from tvm.tirx.transform.function_pass import function_pass
+
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
+
+
+@cache
+def _scope_trn_sbuf():
+    return MemoryScope("trn.sbuf")
 
 
 def is_const_shape(shape) -> bool:
@@ -31,15 +41,15 @@ def is_const_shape(shape) -> bool:
     return True
 
 
-def get_tensor_size(tensor: Var, shape, dtype, scope: str) -> int:
-    if scope == "trn.sbuf":
+def get_tensor_size(tensor: Var, shape, dtype, scope: MemoryScope) -> int:
+    if scope == _scope_trn_sbuf():
         if tensor.ty.layout is None:
             # the first dimension is partition size
             num_elem = functools.reduce(lambda x, y: x * y, shape[1:])
         else:
             par_size = tensor.ty.layout.size("P")
             num_elem = functools.reduce(lambda x, y: x * y, shape) // par_size
-    elif scope.startswith("shared"):
+    elif scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN):
         num_elem = functools.reduce(lambda x, y: x * y, shape)
     else:
         return None
@@ -64,7 +74,7 @@ def _get_alloc_pool_start(stmt) -> int:
         tensor_type = op.value.ty_args[0]
         shape = tensor_type.shape
         dtype = tensor_type.dtype.dtype
-        scope = tensor_type.storage_scope
+        scope = tensor_type.scope
         tensor_size = get_tensor_size(tensor, shape, dtype, scope)
         if tensor_size is None:
             return
@@ -85,7 +95,7 @@ def _allocate_missing_tensors(stmt, alloc_pool_start: int):
         tensor_type = op.value.ty_args[0]
         shape = tensor_type.shape
         dtype = tensor_type.dtype.dtype
-        scope = tensor_type.storage_scope
+        scope = tensor_type.scope
         tensor_size = get_tensor_size(tensor, shape, dtype, scope)
         allocated_addr = op.value.args[0].fields if op.value.args else []
         if len(allocated_addr) == 0 and tensor_size is not None:

@@ -568,13 +568,13 @@ class IntervalSetEvaluator : public tvm::ExprFunctor<IntervalSet(const Expr&)> {
     if (value_set->min_value.same_as(value_set->max_value)) {
       if (value_set->IsEmpty()) return value_set;
       return IntervalSet::SinglePoint(
-          prim::cast(op->ty.as_or_throw<PrimType>(), value_set->min_value));
+          prim::cast(value_set->min_value, op->ty.as_or_throw<PrimType>()));
     }
     PrimExpr min_value = value_set->HasLowerBound()
-                             ? prim::cast(op->ty.as_or_throw<PrimType>(), value_set->min_value)
+                             ? prim::cast(value_set->min_value, op->ty.as_or_throw<PrimType>())
                              : neg_inf();
     PrimExpr max_value = value_set->HasUpperBound()
-                             ? prim::cast(op->ty.as_or_throw<PrimType>(), value_set->max_value)
+                             ? prim::cast(value_set->max_value, op->ty.as_or_throw<PrimType>())
                              : pos_inf();
     return IntervalSet(min_value, max_value);
   }

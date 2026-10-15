@@ -35,21 +35,60 @@ https://github.com/apache/tvm/actions has the logs for each of these workflows. 
 TVM uses Jenkins for running Linux continuous integration (CI) tests on
 [branches](https://ci.tlcpack.ai/job/tvm/) and
 [pull requests](https://ci.tlcpack.ai/job/tvm/view/change-requests/) through a
-build configuration specified in a [`Jenkinsfile`](/ci/jenkins/templates/).
+build configuration specified in a [`Jenkinsfile`](generated/).
 Other jobs run in GitHub Actions for Windows and MacOS jobs.
 
-## `Jenkinsfile`
+## Pipeline entry points
 
-The template files in this directory are used to generate the [`Jenkinsfile`](/ci/jenkins/templates/) used by Jenkins to run CI jobs for each commit to PRs and branches.
+The five `generated/*_jenkinsfile.groovy` paths remain Jenkins job entry points.
+Despite the historical directory name, these are native Groovy sources: edit
+and review them directly. `generated/common.groovy` shares preparation, checkout,
+Docker setup, artifacts and spot fallback policy. Platform commands and deployment
+stay visible in their respective job files. Image tags remain in
+`docker-images.ini`; artifact bundles remain in `data.py`.
 
-To regenerate the `Jenkinsfile`, run
+Host-side commands live in `scripts/`. GitHub bot and release API helpers live
+in `../github/`. The retained `determine_docker_images.py` supports both
+Jenkins image selection and local `--lookup-only` lookup; `should_rebuild_docker.py`
+and the standalone skip commands retain their command-line interfaces.
 
-```bash
-python3 -mvenv _venv
-_venv/bin/pip3 install -r ci/jenkins/requirements.txt
-_venv/bin/python3 ci/jenkins/generate.py
-```
+### Trust and rollout
+
+Each entry point evaluates the shared helper returned by `readTrusted` at
+Jenkins' selected SCM revision. Untrusted PRs that modify or delete the helper
+fail immediately, before node allocation, checkout, or credentials. Missing
+helpers, interrupted reads, and evaluation errors also propagate directly.
+No alternative helper is fetched or evaluated.
+
+Trusted helper changes use Jenkins' selected revision directly. Cancellation
+runs once before preparation. During preparation, the normal source merge pins
+the PR target revision for subsequent stages, including release targets.
+Host scripts and artifact metadata follow that pinned target revision for PR
+authors outside `CONTRIBUTORS.md`.
+
+The legacy `ci/scripts/` hierarchy and `tests/scripts/task_show_node_info.sh`
+remain alongside the new paths because fork PR jobs can select older trusted
+Jenkinsfiles from their target branch. Those files keep the old docs-only and
+slow-test gates and their helper imports; the native pipelines use the new
+layout without those gates. Both layouts share the artifact registry and image
+configuration. Keep the legacy commands until the trusted targets no longer
+call them. Use a trusted branch build to exercise native helper changes; do not
+bypass a refused read by evaluating PR-owned code or a different revision.
+
+Before enabling the migration on production jobs, validate it with the existing
+Jenkins plugin versions and sandbox settings on a trusted branch: run all five
+entry points, suspend/resume across a node step, and exercise spot loss, a normal
+build-command failure, superseded builds, and a failed on-demand retry. Check
+trusted helper changes, untrusted PRs without helper changes, and refusal of
+untrusted modified/deleted helpers, including a release-target PR. Verify image
+overrides and disabled deployment gates before
+checking enabled docs/Docker deployment in the normal trusted deployment context.
+Local mocked execution checks pipeline control flow but cannot certify Jenkins
+CPS serialization, sandbox approvals, SCM trust configuration, or real agent loss.
+No job path or controller reconfiguration is part of this migration.
 
 # Infrastructure
 
-While all TVM tests are contained within the apache/tvm repository, the infrastructure used to run the tests is donated by the TVM Community. To encourage collaboration, the configuration for TVM's CI infrastructure is stored in a public GitHub repository. TVM community members are encouraged to contribute improvements. The configuration, along with documentation of TVM's CI infrastructure, is in the [tlc-pack/ci](https://github.com/tlc-pack/ci) repo.
+The community's infrastructure configuration and documentation live in
+[tlc-pack/ci](https://github.com/tlc-pack/ci). Coordinate external callers when
+changing any retained script interface.

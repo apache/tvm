@@ -34,13 +34,48 @@ namespace printer {
 namespace details {
 
 // Semantic wrappers register their own Op hooks; ordinary calls use canonical exposure.
+
+namespace {
+
+ffi::Optional<ExprDoc> CallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                        const ffi::Object* destination) {
+  const auto* call =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
+  if (auto op = call->op.as<Op>();
+      op && Op::HasAttrMap(tvm::script::printer::op_attr::kDocTranslateOpCall)) {
+    static const auto& overrides =
+        Op::GetAttrMap<ffi::Any>(tvm::script::printer::op_attr::kDocTranslateOpCall.name);
+    if (overrides.count(op.value())) {
+      ffi::Any hook = overrides[op.value()];
+      if (hook.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {
+        return hook.cast<FDocTranslate>().CallExpected(d, input, destination).value();
+      }
+      ffi::Any binding = nullptr;
+      if (destination) binding = ffi::GetRef<ffi::ObjectRef>(destination);
+      return hook.cast<ffi::Function>()
+          .CallExpected<ffi::Optional<ExprDoc>>(d, input, binding)
+          .value();
+    }
+  }
+  if (auto doc = StandardCallDocTranslate(d, call)) return doc;
+  return RawCallDocTranslate(d, call);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<CallNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
+                                                FDocTranslate::FromNative<&CallDocTranslate>());
+}
+
+}  // namespace
+}  // namespace details
+
 ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallNode* call) {
   auto maybe_op = call->op.as<Op>();
   if (!maybe_op) return std::nullopt;
   const Op& op = maybe_op.value();
   if (call->attrs.has_value() ? op->attrs_type_key != call->attrs->GetTypeKey()
                               : !op->attrs_type_key.empty()) {
-    return RawCall(d, call);
+    return RawCallDocTranslate(d, call);
   }
   ffi::Array<ExprDoc> args;
   for (const Expr& arg : call->args) {
@@ -50,7 +85,7 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
   ffi::Array<ExprDoc> values;
   if (!call->ty_args.empty()) {
     ffi::Array<ExprDoc> types;
-    for (const Type& type : call->ty_args) types.push_back(TypeValue(d, type, false));
+    for (const Type& type : call->ty_args) types.push_back(d->Translate(type).value());
     keys.push_back("ty_args");
     values.push_back(ListDoc(types));
   }
@@ -84,60 +119,28 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
       if (key == "ty" || key == "attrs" || key == "ty_args" || key == "loc" || key == "type_key" ||
           std::any_of(op->args_info.begin(), op->args_info.end(),
                       [&](const ArgumentInfo& info) { return info->name == key; })) {
-        return RawCall(d, call);
+        return RawCallDocTranslate(d, call);
       }
       keys.push_back(key);
-      values.push_back(AnyValue(d, value));
+      values.push_back(d->WithExtraStateScope<bool>("ir.explicit_value_type", true,
+                                                    [&] { return d->Translate(value).value(); }));
     }
   }
   // Well-formed calls reconstruct their result from registered inference or a fixed type.
   // Builder-only inference is deliberately excluded: named construction cannot run it.
   bool omit_result = call->ty.as<MissingType>().has_value() ||
                      (Op::HasAttrMap(tvm::op_attr::kInferType) &&
-                      Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType).count(op)) ||
+                      Op::GetAttrMap(tvm::op_attr::kInferType).count(op)) ||
                      (Op::HasAttrMap(tvm::op_attr::kFixedReturnType) &&
-                      Op::GetAttrMap<TFixedReturnType>(tvm::op_attr::kFixedReturnType).count(op));
+                      Op::GetAttrMap(tvm::op_attr::kFixedReturnType).count(op));
   if (!omit_result) {
-    if (default_attrs) return RawCall(d, call);
+    if (default_attrs) return RawCallDocTranslate(d, call);
     keys.push_back("ty");
-    values.push_back(TypeValue(d, call->ty));
+    values.push_back(d->Translate(call->ty).value());
   }
-  return NamedCallCallee(op->name)->Call(args, keys, values);
+  return details::NamedCallCallee(op->name)->Call(args, keys, values);
 }
 
-namespace {
-
-ffi::Optional<ExprDoc> CallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                        const ffi::Object* destination) {
-  const auto* call =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (auto op = call->op.as<Op>();
-      op && Op::HasAttrMap(tvm::script::printer::op_attr::kDocTranslateOpCall)) {
-    static const auto& overrides =
-        Op::GetAttrMap<ffi::Any>(tvm::script::printer::op_attr::kDocTranslateOpCall);
-    if (overrides.count(op.value())) {
-      ffi::Any hook = overrides[op.value()];
-      if (hook.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {
-        return hook.cast<FDocTranslate>().CallExpected(d, input, destination).value();
-      }
-      ffi::Any binding = nullptr;
-      if (destination) binding = ffi::GetRef<ffi::ObjectRef>(destination);
-      return hook.cast<ffi::Function>()
-          .CallExpected<ffi::Optional<ExprDoc>>(d, input, binding)
-          .value();
-    }
-  }
-  if (auto doc = StandardCallDocTranslate(d, call)) return doc;
-  return RawCall(d, call);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<CallNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
-                                                FDocTranslate::FromNative<&CallDocTranslate>());
-}
-
-}  // namespace
-}  // namespace details
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

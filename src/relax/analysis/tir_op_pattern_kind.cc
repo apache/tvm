@@ -200,11 +200,11 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
    *      A[i, j] = B[j, i] is not broadcast the load indices are not in the same order as store's
    */
   static bool IsBroadcastPattern(const TensorStore& store, const TensorLoad& load) {
-    size_t ndim_load_buf = load->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size();
-    size_t ndim_store_buf = store->dest.as_or_throw<tvm::tirx::TensorVar>()->shape.size();
+    size_t ndim_load_buf = load->source.as_or_throw<tvm::tirx::TensorVar>().shape().size();
+    size_t ndim_store_buf = store->dest.as_or_throw<tvm::tirx::TensorVar>().shape().size();
 
     for (size_t i = 0, j = 0; i < ndim_load_buf; ++i) {
-      if (IsConstInt(load->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i], 1) &&
+      if (IsConstInt(load->source.as_or_throw<tvm::tirx::TensorVar>().shape()[i], 1) &&
           IsConstInt(load->indices[i], 0)) {
         // Skip unit load dimensions
         // E.g. A[i, j] = B[1, j] is still broadcast
@@ -458,11 +458,11 @@ bool HasReshapePattern(const tirx::Function& func) {
 
       auto f_calc_flattened_idx = [&](const TensorVar& tensor,
                                       const ffi::Array<PrimExpr>& indices) {
-        TVM_FFI_ICHECK_EQ(indices.size(), tensor->shape.size());
+        TVM_FFI_ICHECK_EQ(indices.size(), tensor.shape().size());
         int ndim = indices.size();
         PrimExpr idx = 0;
         for (int i = 0; i < ndim; ++i) {
-          idx = idx * tensor->shape[i] + indices[i];
+          idx = idx * tensor.shape()[i] + indices[i];
         }
         idx = ana_->Simplify(idx);
         return sym::IterMapSimplify(
@@ -483,7 +483,7 @@ bool HasReshapePattern(const tirx::Function& func) {
           if (!(indices[i].same_as(block->iter_vars[i]->var) &&
                 this->ana_->CanProveEqual(block->iter_vars[i]->dom.value()->min,
                                           IntImm::Int64(/*value=*/0)) &&
-                this->ana_->CanProveEqual(tensor->shape[i],
+                this->ana_->CanProveEqual(tensor.shape()[i],
                                           block->iter_vars[i]->dom.value()->extent))) {
             return false;
           }

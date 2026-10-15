@@ -47,7 +47,7 @@ class OOBError : public s_tir::ScheduleErrorContextObj {
   ffi::String DetailRenderTemplate() const final {
     std::stringstream s;
     for (const auto& oob : locations_) {
-      s << "Out of bounds memory access on tensor " << oob.tensor.name() << " dimension "
+      s << "Out of bounds memory access on tensor " << oob.tensor->name << " dimension "
         << oob.dimension << ".";
       s << " index " << oob.index << " with bounds [" << oob.index_bounds.min() << ", "
         << oob.index_bounds.max() << "] is outside the range [0, " << oob.shape_bounds.min()
@@ -74,14 +74,14 @@ class OOBCheckerVisitor final : public s_tir::StmtExprVisitorWithAnalyzer {
   using s_tir::StmtExprVisitorWithAnalyzer::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* node) final {
-    for (size_t i = 0; i < node->dest.as_or_throw<TensorVar>()->shape.size(); i++) {
+    for (size_t i = 0; i < node->dest.as_or_throw<TensorVar>().shape().size(); i++) {
       CheckBounds(node, node->dest.as_or_throw<TensorVar>(), i);
     }
     return StmtExprVisitorWithAnalyzer::Visit_(node);
   }
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* node) final {
     TensorVar tensor = node->source.as_or_throw<tvm::tirx::TensorVar>();
-    for (size_t i = 0; i < tensor->shape.size(); i++) {
+    for (size_t i = 0; i < tensor.shape().size(); i++) {
       CheckBounds(node, tensor, i);
     }
     return StmtExprVisitorWithAnalyzer::Visit_(node);
@@ -90,7 +90,7 @@ class OOBCheckerVisitor final : public s_tir::StmtExprVisitorWithAnalyzer {
   template <class T>
   void CheckBounds(const T* node, const TensorVar& tensor, size_t i) {
     auto ind_bounds = analyzer_->int_set(node->indices[i]);
-    auto shape_bounds = analyzer_->int_set(tensor->shape[i]);
+    auto shape_bounds = analyzer_->int_set(tensor.shape()[i]);
     // We would expect that
     // `analyzer_.CanProve(node->indices[i] < 0 || node->indices[i] >= tensor->shape[i])`
     // would be the way to check if any out of bounds access occurs here, but `CanProve` checks if

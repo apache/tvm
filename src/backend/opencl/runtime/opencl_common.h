@@ -28,6 +28,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/runtime/timer.h>
 
@@ -271,8 +272,9 @@ class OpenCLWorkspace : public DeviceAPI {
     }
   }
   // Initialize the device.
-  void Init(const std::string& type_key, const std::string& device_type,
-            const std::string& platform_name = "", cl_context_properties properties[] = nullptr);
+  TVM_OPENCL_DLL void Init(const std::string& type_key, const std::string& device_type,
+                           const std::string& platform_name = "",
+                           cl_context_properties properties[] = nullptr);
   virtual void Init() { Init(this->type_key, "gpu"); }
   virtual bool Init(cl_context_properties ctx_props[]) {
     if (!contexts.empty()) return false;
@@ -345,21 +347,21 @@ class OpenCLWorkspace : public DeviceAPI {
   }
 
   void* AllocDataSpaceView(Device dev, void* data, ffi::Shape shape, DLDataType dtype,
-                           ffi::Optional<ffi::String> mem_scope = std::nullopt);
+                           ffi::Optional<runtime::MemoryScope> mem_scope = std::nullopt);
   void FreeDataSpaceView(Device dev, void* ptr);
-  cl_device_id GetCLDeviceID(int device_id);
+  TVM_OPENCL_DLL cl_device_id GetCLDeviceID(int device_id);
   // override device API
   void SetDevice(Device dev) final;
   ffi::Any GetAttr(Device dev, const ffi::String& name) final;
   ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final;
+                    ffi::Optional<runtime::MemoryScope> mem_scope = std::nullopt) final;
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                       ffi::Optional<ffi::String> mem_scope = std::nullopt,
+                       ffi::Optional<runtime::MemoryScope> mem_scope = std::nullopt,
                        TensorMemoryPool* pool = nullptr);
   void* AllocDataSpace(Device dev, size_t width, size_t height, size_t depth, DLDataType type_hint,
-                       ffi::Optional<ffi::String> mem_scope = std::nullopt,
+                       ffi::Optional<runtime::MemoryScope> mem_scope = std::nullopt,
                        TensorMemoryPool* pool = nullptr);
-  void* GetNativePtr(const tvm::ffi::Tensor& narr);
+  void* GetMappedHostPtrIfAvailable(void* data) final;
   void SetNativePtr(const tvm::ffi::Tensor& narr, void* host_ptr, size_t buf_size);
   void SetPerfHint(Device dev, cl_uint perf_hint);
   void FreeDataSpace(Device dev, void* ptr);
@@ -371,7 +373,8 @@ class OpenCLWorkspace : public DeviceAPI {
   // cl_mem alloc utils
   void* AllocCLBuffer(Device dev, size_t size, size_t alignment, DLDataType type_hint);
   void* AllocCLImage(Device dev, void* back_buffer, size_t width, size_t height, size_t depth,
-                     size_t row_pitch, DLDataType type_hint, ffi::Optional<ffi::String> mem_scope);
+                     size_t row_pitch, DLDataType type_hint,
+                     ffi::Optional<runtime::MemoryScope> mem_scope);
 
   /*!
    * \brief Get the thread local ThreadEntry
@@ -379,7 +382,7 @@ class OpenCLWorkspace : public DeviceAPI {
   virtual OpenCLThreadEntry* GetThreadEntry();
 
   // get the global workspace
-  static OpenCLWorkspace* Global();
+  TVM_OPENCL_DLL static OpenCLWorkspace* Global();
 
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
 
@@ -446,10 +449,10 @@ struct BufferDescriptor {
     kImage2DNHWC,
   };
   BufferDescriptor() = default;
-  explicit BufferDescriptor(ffi::Optional<ffi::String> scope)
+  explicit BufferDescriptor(ffi::Optional<runtime::MemoryScope> scope)
       : layout(MemoryLayoutFromScope(scope)) {}
-  static MemoryLayout MemoryLayoutFromScope(ffi::Optional<ffi::String> mem_scope);
-  static ffi::String ScopeFromMemoryLayout(MemoryLayout mem_scope);
+  static MemoryLayout MemoryLayoutFromScope(ffi::Optional<runtime::MemoryScope> mem_scope);
+  static runtime::MemoryScope ScopeFromMemoryLayout(MemoryLayout mem_scope);
 
   /* clBuffer object */
   // buffer should be the first element here

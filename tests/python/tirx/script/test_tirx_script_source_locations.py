@@ -148,14 +148,14 @@ def test_parser_retains_inline_call_site_and_definition_locs():
     ]
 
 
-def test_parser_attaches_loc_to_tile_primitive_call():
+def test_parser_attaches_loc_to_tile_op_call():
     sources = []
 
     @T.function
     @_capture_source(sources)
     def tile_call():
         A = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32")])
-        T.cuda.tile.mov(A[0:16], T.float32(0))
+        T.cuda.tile.apply(T.ptx["mov.b32"], A[0:16], T.float32(0))
 
     source = sources[0]
     call_ast = source.as_ast().body[0].body[-1].value
@@ -164,7 +164,7 @@ def test_parser_attaches_loc_to_tile_primitive_call():
         func,
         lambda node: isinstance(node, tvm.ir.Call)
         and isinstance(node.op, tvm.ir.Op)
-        and node.op.name == "tirx.cuda.tile.mov",
+        and node.op.name == "tirx.cuda.tile.apply",
     )
 
     assert _loc_range(call.loc) == _loc_range(source.to_loc(call_ast))
@@ -425,3 +425,23 @@ def _position(test, statement, expression):
 
 def _loc_position(loc):
     return loc.start_line, loc.start_column, loc.end_line, loc.end_column
+
+
+def test_eager_and_deferred_nodes_keep_nested_locations_and_receipts():
+    from tvm.script.ir_builder.base import at
+
+    caller = ir.SourceLoc(ir.SourceName("caller.py"), 2, 1, 2, 20)
+    callee = ir.SourceLoc(ir.SourceName("definition.py"), 3, 1, 3, 20)
+    explicit = ir.SourceLoc(ir.SourceName("definition.py"), 3, 5, 3, 10)
+    with I.IRBuilder() as ib:
+        with ib.with_loc(caller), ib.with_loc(callee):
+            loop = T.serial(2)
+        with loop:
+            with ib.with_loc(caller), ib.with_loc(callee):
+                receipt = T.evaluate(1)
+                assert at(explicit, receipt) is receipt
+    result = ib.get()
+    assert isinstance(result, ir.For)
+    assert_structural_equal(result.loc, ir.CallSiteLoc(callee, caller))
+    assert receipt.value.same_as(result.body[0])
+    assert_structural_equal(receipt.value.loc, ir.CallSiteLoc(explicit, caller))

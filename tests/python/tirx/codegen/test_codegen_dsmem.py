@@ -137,8 +137,8 @@ def test_mapa_pointer_bind_codegen():
     tvm_ffi.structural_walk(main.body, collect)
     assert len(binds) == 1
     assert isinstance(binds[0].var.ty, PtrType)
-    assert binds[0].var.ty.storage_scope == "shared"
-    assert binds[0].value.ty.storage_scope == "shared"
+    assert binds[0].var.ty.scope == tvm.runtime.MemoryScope("shared")
+    assert binds[0].value.ty.scope == tvm.runtime.MemoryScope("shared")
     assert_structural_equal(binds[0].var.ty, binds[0].value.ty)
     assert len(decl_tensors) == 1
     assert decl_tensors[0].value.args[0].same_as(binds[0].var)

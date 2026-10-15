@@ -274,7 +274,7 @@ void VMExecutable::SaveMemoryScopeSection(support::Stream* strm) const {
   for (auto it = this->memory_scopes.begin(); it != this->memory_scopes.end(); it++) {
     LOG(WARNING) << "Scope Saving:" << it->second;
     strm->Write(it->first);
-    strm->Write(it->second);
+    strm->Write(std::string(it->second.name()));
   }
 }
 
@@ -337,7 +337,7 @@ void VMExecutable::LoadMemoryScopeSection(support::Stream* strm) {
     STREAM_CHECK(strm->Read(&const_idx), "memory scopes");
     STREAM_CHECK(strm->Read(&scope), "memory scopes");
     LOG(WARNING) << "Scope Loaded:" << scope;
-    this->memory_scopes[const_idx] = scope;
+    this->memory_scopes[const_idx] = MemoryScope::Get(scope);
   }
 }
 

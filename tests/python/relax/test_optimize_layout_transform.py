@@ -31,7 +31,7 @@ from tvm.script import tirx as T
 
 
 def _run_pass_compare_output(Before, Expected):
-    After = tvm.transform.Sequential(
+    After = tvm.ir.transform.Sequential(
         [
             OptimizeLayoutTransform(),
             DeadCodeElimination(),
@@ -270,8 +270,8 @@ def test_optimize_transform_layout_pass_two_args():
 
 
 def test_tranform_layout_tir_remove_pad_transform_layout():
-    p0 = T.dynamic("p0")
-    i0 = T.dynamic("i0")
+    p0 = T.dynamic("p0", "int64")
+    i0 = T.dynamic("i0", "int64")
 
     @I.ir_module
     class Before:
@@ -289,7 +289,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
         @Ts.function(private=True)
-        def remove_pad(input: T.Tensor((p0,)), output: T.Tensor((i0,))):
+        def remove_pad(input: T.Tensor((p0,), "float32"), output: T.Tensor((i0,), "float32")):
             T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -343,8 +343,8 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                 R.output(gv)
             return gv
 
-    p0 = T.dynamic("p0")
-    i0 = T.dynamic("i0")
+    p0 = T.dynamic("p0", "int64")
+    i0 = T.dynamic("i0", "int64")
 
     @I.ir_module
     class Expected:
@@ -362,7 +362,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
         @Ts.function(private=True)
-        def remove_pad(input: T.Tensor((p0,)), output: T.Tensor((i0,))):
+        def remove_pad(input: T.Tensor((p0,), "float32"), output: T.Tensor((i0,), "float32")):
             T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
 
             # with Ts.sblock("root"):

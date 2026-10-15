@@ -99,7 +99,7 @@ def test_roundtrip_scopeid_deferred():
     assert_structural_equal(test, from_source(code))
 
 
-def test_exec_scope_filter_guard_roundtrip():
+def test_thread_scope_filter_guard_roundtrip():
     @T.function(private=True)
     def test(A: T.Tensor((1,), "float32", scope="global")) -> None:
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
@@ -134,11 +134,14 @@ def test_roundtrip_op1():
                 )
             ]
         )
-        T.cuda.tile.ld(transfer_reg_125, transfer_src_125, scope="cta")
-        T.cuda.tile.st(transfer_dst_125, transfer_reg_125, scope="cta")
+        T.cuda.tile.apply(T.ptx['ld.global.b32'], transfer_reg_125, transfer_src_125, scope="cta")
+        T.cuda.tile.apply(T.ptx['st.global.b32'], transfer_dst_125, transfer_reg_125, scope="cta")
         for i in range(10):
-            T.cuda.tile.mov(A_smem, T.float32(0), scope='cta')
-            T.cuda.tile.mma_sync(A_smem, A_smem, A_smem, A_smem, scope='cta')
+            T.cuda.tile.apply(T.ptx['mov.b32'], A_smem, T.float32(0), scope='cta')
+            T.cuda.tile.apply(
+                T.ptx['mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32'],
+                A_smem, A_smem, A_smem, A_smem, scope='cta'
+            )
         transfer_src_129 = T.meta_var(A_smem[tuple([slice(None) for _ in A_smem.shape])])
         transfer_dst_129 = T.meta_var(A)
         transfer_reg_129 = T.alloc_tensor(
@@ -150,8 +153,8 @@ def test_roundtrip_op1():
                 )
             ]
         )
-        T.cuda.tile.ld(transfer_reg_129, transfer_src_129, scope="cta")
-        T.cuda.tile.st(transfer_dst_129, transfer_reg_129, scope="cta")
+        T.cuda.tile.apply(T.ptx['ld.global.b32'], transfer_reg_129, transfer_src_129, scope="cta")
+        T.cuda.tile.apply(T.ptx['st.global.b32'], transfer_dst_129, transfer_reg_129, scope="cta")
         # fmt: on
 
     code = test.script()
@@ -188,8 +191,14 @@ def test_roundtrip_op2():
                     )
                 ]
             )
-            T.cuda.tile.ld(transfer_reg_155, transfer_src_155, scope="cta")
-            T.cuda.tile.st(transfer_dst_155, transfer_reg_155, scope="cta")
+            T.cuda.tile.apply(
+                T.ptx['ld.global.b32'],
+                transfer_reg_155, transfer_src_155, scope="cta"
+            )
+            T.cuda.tile.apply(
+                T.ptx['st.global.b32'],
+                transfer_dst_155, transfer_reg_155, scope="cta"
+            )
             transfer_src_156 = T.meta_var(B[k * 32:k * 32 + 32, 0:64])
             transfer_dst_156 = T.meta_var(B_smem)
             transfer_reg_156 = T.alloc_tensor(
@@ -201,10 +210,19 @@ def test_roundtrip_op2():
                     )
                 ]
             )
-            T.cuda.tile.ld(transfer_reg_156, transfer_src_156, scope="cta")
-            T.cuda.tile.st(transfer_dst_156, transfer_reg_156, scope="cta")
-            T.cuda.tile.mma_sync(C_local, A_smem, B_smem, C_local, scope='cta')
-        T.cuda.tile.st(C, C_local, scope='cta')
+            T.cuda.tile.apply(
+                T.ptx['ld.global.b32'],
+                transfer_reg_156, transfer_src_156, scope="cta"
+            )
+            T.cuda.tile.apply(
+                T.ptx['st.global.b32'],
+                transfer_dst_156, transfer_reg_156, scope="cta"
+            )
+            T.cuda.tile.apply(
+                T.ptx['mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32'],
+                C_local, A_smem, B_smem, C_local, scope='cta'
+            )
+        T.cuda.tile.apply(T.ptx['st.global.b32'], C, C_local, scope='cta')
         # fmt: on
 
     code = test.script()
@@ -246,8 +264,14 @@ def test_roundtrip_op3():
                     )
                 ]
             )
-            T.cuda.tile.ld(transfer_reg_187, transfer_src_187, scope="cta")
-            T.cuda.tile.st(transfer_dst_187, transfer_reg_187, scope="cta")
+            T.cuda.tile.apply(
+                T.ptx['ld.global.b32'],
+                transfer_reg_187, transfer_src_187, scope="cta"
+            )
+            T.cuda.tile.apply(
+                T.ptx['st.global.b32'],
+                transfer_dst_187, transfer_reg_187, scope="cta"
+            )
             transfer_src_188 = T.meta_var(B[i * 32:i * 32 + 32, :])
             transfer_dst_188 = T.meta_var(B_smem[i, :, :])
             transfer_reg_188 = T.alloc_tensor(
@@ -259,8 +283,14 @@ def test_roundtrip_op3():
                     )
                 ]
             )
-            T.cuda.tile.ld(transfer_reg_188, transfer_src_188, scope="cta")
-            T.cuda.tile.st(transfer_dst_188, transfer_reg_188, scope="cta")
+            T.cuda.tile.apply(
+                T.ptx['ld.global.b32'],
+                transfer_reg_188, transfer_src_188, scope="cta"
+            )
+            T.cuda.tile.apply(
+                T.ptx['st.global.b32'],
+                transfer_dst_188, transfer_reg_188, scope="cta"
+            )
 
         for k in range(K // 32):
             copy_k = T.meta_var(k + NUM_STAGES - 1)
@@ -277,8 +307,14 @@ def test_roundtrip_op3():
                     )
                 ]
             )
-            T.cuda.tile.ld(transfer_reg_194, transfer_src_194, scope="cta")
-            T.cuda.tile.st(transfer_dst_194, transfer_reg_194, scope="cta")
+            T.cuda.tile.apply(
+                T.ptx['ld.global.b32'],
+                transfer_reg_194, transfer_src_194, scope="cta"
+            )
+            T.cuda.tile.apply(
+                T.ptx['st.global.b32'],
+                transfer_dst_194, transfer_reg_194, scope="cta"
+            )
             transfer_src_195 = T.meta_var(B[copy_k * 32:copy_k * 32 + 32, :])
             transfer_dst_195 = T.meta_var(B_smem[copy_stage, :, :])
             transfer_reg_195 = T.alloc_tensor(
@@ -290,13 +326,22 @@ def test_roundtrip_op3():
                     )
                 ]
             )
-            T.cuda.tile.ld(transfer_reg_195, transfer_src_195, scope="cta")
-            T.cuda.tile.st(transfer_dst_195, transfer_reg_195, scope="cta")
-            T.cuda.tile.mma_sync(
-                C_local, A_smem[gemm_stage, :, :], B_smem[gemm_stage, :, :], C_local, scope="cta"
+            T.cuda.tile.apply(
+                T.ptx['ld.global.b32'],
+                transfer_reg_195, transfer_src_195, scope="cta"
+            )
+            T.cuda.tile.apply(
+                T.ptx['st.global.b32'],
+                transfer_dst_195, transfer_reg_195, scope="cta"
+            )
+            T.cuda.tile.apply(
+                T.ptx['mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32'],
+                C_local, A_smem[gemm_stage, :, :],
+                B_smem[gemm_stage, :, :],
+                C_local, scope="cta"
             )
 
-        T.cuda.tile.st(C, C_local, scope='cta')
+        T.cuda.tile.apply(T.ptx['st.global.b32'], C, C_local, scope='cta')
         # fmt: on
 
     code = test.script()
@@ -323,12 +368,12 @@ def test_roundtrip_tensormap():
 def test_roundtrip_tensormap_kernel_param():
     # fmt: off
     @T.function
-    def func1(A_map: T.Ptr(T.TensorMap, "")):
+    def func1(A_map: T.Ptr(T.TensorMap)):
         T.func_attr({"global_symbol": "func"})
         T.evaluate(T.address_of(A_map))
     # fmt: on
     code = func1.script()
-    assert "T.Ptr(T.TensorMap)" in code
+    assert "T.Ptr(T.TensorMap())" in code
     assert from_source(code).script() == code
     assert_structural_equal(func1, from_source(code))
 
@@ -357,7 +402,7 @@ def test_roundtrip_op_call_config():
     ):
 
         T.device_entry()
-        T.cuda.tile.add(B, A, T.float32(1), rounding_mode="rz")
+        T.cuda.tile.apply(T.ptx['add.rz.f32'], B, A, T.float32(1))
         # fmt: on
     code = test.script()
     assert from_source(code).script() == code
@@ -383,8 +428,13 @@ def test_kwargs_op_call():
     @T.function(private=True)
     def test(A: T.Tensor((10, 10), "float32"), B: T.Tensor((10, 10), "float32")):
         T.device_entry()
-        kwargs = T.meta_var({"descriptor_mode": "auto", "cta_group": 2})
-        T.cuda.tile.cp_async_bulk_tensor_load(A[:, :], B[:, :], A.data, **kwargs)
+        kwargs = T.meta_var({"box": (10, 10), "coords": (0, 0)})
+        T.cuda.tile.apply(
+            T.ptx["cp.async.bulk.tensor.2d.shared::cta.global.tile.mbarrier::complete_tx::bytes"],
+            A[:, :],
+            B[:, :],
+            mbar=A.data, **kwargs
+        )
         # fmt: on
     code = test.script()
     print(code)
@@ -403,7 +453,7 @@ def test_roundtrip_persistent_decorator():
         cta_id = T.cuda.block_idx('x')
         warp_id = T.cuda.warp_id()
         lane_id = T.cuda.lane_id()
-        T.cuda.tile.mov(A[0:32], T.float32(0), scope='cta')
+        T.cuda.tile.apply(T.ptx['mov.b32'], A[0:32], T.float32(0), scope='cta')
         # fmt: on
 
     code = test.script()
@@ -424,7 +474,7 @@ def test_roundtrip_persistent_not_present():
         cta_id = T.cuda.block_idx('x')
         warp_id = T.cuda.warp_id()
         lane_id = T.cuda.lane_id()
-        T.cuda.tile.mov(A[0:32], T.float32(0), scope='cta')
+        T.cuda.tile.apply(T.ptx['mov.b32'], A[0:32], T.float32(0), scope='cta')
         # fmt: on
 
     code = test.script()
@@ -550,7 +600,7 @@ def test_scope_id_dtype_uint32():
     dtypes = {str(d.var.ty) for d in scope_defs}
     assert dtypes == {"int32", "uint32"}
     code = func.script()
-    assert 'T.Cast("uint32", T.cuda.thread_idx("x"))' in code
+    assert 'T.Cast(T.cuda.thread_idx("x"), "uint32")' in code
     assert 'T.cuda.block_idx("x")' in code
     _assert_roundtrip(func)
 
@@ -574,8 +624,8 @@ def test_scope_id_dtype_uint32_lane_and_warp():
     # fmt: on
 
     code = func.script()
-    assert 'T.Cast("uint32", T.cuda.warp_id())' in code
-    assert 'T.Cast("uint32", T.cuda.lane_id())' in code
+    assert 'T.Cast(T.cuda.warp_id(), "uint32")' in code
+    assert 'T.Cast(T.cuda.lane_id(), "uint32")' in code
     _assert_roundtrip(func)
 
 
@@ -600,7 +650,7 @@ def test_scope_id_dtype_uint32_with_preferred():
     # fmt: on
 
     code = func.script()
-    assert 'T.Cast("uint32"' in code
+    assert "T.Cast(" in code and ', "uint32")' in code
     _assert_roundtrip(func)
 
 

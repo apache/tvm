@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from functools import cache
 
 import tvm_ffi
 
@@ -28,16 +29,23 @@ from tvm.ir import Attrs, Call, Op, StringImm, const
 from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.op import _init_op_api, _make_op_api
 from tvm.ir.type import PrimType, PtrType
+from tvm.runtime import MemoryScope
 from tvm.tirx.op import bitwise_and, call_intrin, ptr_byte_offset
+
+
+@cache
+def _scope_tmem():
+    return MemoryScope("tmem")
+
 
 tir = tirx
 
 
 def _tmem_address(tensor):
     """Recover the encoded 32-bit address from an explicit TMEM backing pointer."""
-    if tensor.scope() != "tmem":
+    if tensor.scope() != _scope_tmem():
         raise ValueError("Expected a TMEM tensor")
-    return tirx.Cast("uint32", tirx.reinterpret("uint64", tensor.data))
+    return tirx.Cast(tirx.reinterpret("uint64", tensor.data), "uint32")
 
 
 ########################################################
@@ -570,7 +578,7 @@ def ptx_legacy_ldmatrix(
 ):
     """Load a matrix with explicit pointer and element-offset operands.
 
-    The legacy lowering uses the result ``ty`` for its element width, including
+    Downstream legacy emitters use the result ``ty`` for its element width, including
     the transposed int8 gather form. ``dtype`` is the PTX instruction type token.
     """
     return _legacy_ldmatrix(

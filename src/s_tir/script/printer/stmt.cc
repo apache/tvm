@@ -17,11 +17,10 @@
  * under the License.
  */
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/script/printer/doc_translator.h>
-
-#include "../../../script/printer/utils.h"
-#include "../../../tirx/script/printer/utils.h"
+#include <tvm/script/printer/support.h>
 
 namespace tvm {
 namespace script {
@@ -29,17 +28,39 @@ namespace printer {
 namespace details {
 namespace {
 
+CallDoc TensorHelperCall(DocTranslatorObj* d, const Type& type, const ffi::String& helper) {
+  CallDoc rhs = d->Translate(type).value().as_or_throw<CallDoc>();
+  TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Tensor", TypeError)
+      << "Ts." << helper << " cannot reconstruct this nonrepresentable TensorType";
+  // S-TIR's allocation and matching helpers retain their public scope/align names.
+  // Translate the canonical Type fields at this sugar boundary only.
+  bool has_offset = false;
+  bool has_factor = false;
+  for (size_t i = 0; i < rhs->kwargs_keys.size(); ++i) {
+    has_offset |= rhs->kwargs_keys[i] == "elem_offset";
+    has_factor |= rhs->kwargs_keys[i] == "offset_factor";
+    if (rhs->kwargs_keys[i] == "data_alignment") rhs->kwargs_keys.Set(i, "align");
+  }
+  // An explicit factor makes these helpers synthesize a symbolic offset.
+  // Supply the fixed zero explicitly when the type printer omitted it.
+  if (has_factor && !has_offset) {
+    rhs->kwargs_keys.push_back("elem_offset");
+    rhs->kwargs_values.push_back(d->WithExtraStateScope<bool>("ir.explicit_value_type", true, [&] {
+      return d->Translate(type.as_or_throw<tirx::TensorType>()->elem_offset).value();
+    }));
+  }
+  rhs->callee = NamespaceDoc("s_tir")->Attr(helper);
+  return rhs;
+}
+
 void PrintMatchTensor(DocTranslatorObj* d, const s_tir::MatchTensorRegionNode* match,
                       const ffi::Array<PrimExpr>& allocated_addr = {}) {
   ExprDoc source = d->Translate(match->source).value();
-  CallDoc rhs = d->Translate(match->tensor.var()->ty).value().as_or_throw<CallDoc>();
-  TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Tensor", TypeError)
-      << "Ts.match_tensor cannot reconstruct this nonrepresentable TensorType";
-  rhs->callee = NamespaceDoc("s_tir")->Attr("match_tensor");
+  CallDoc rhs = TensorHelperCall(d, match->tensor->ty, "match_tensor");
   rhs->args.insert(rhs->args.begin(), source);
   if (!allocated_addr.empty()) {
     rhs->kwargs_keys.push_back("allocated_addr");
-    rhs->kwargs_values.push_back(AnyValue(d, allocated_addr));
+    rhs->kwargs_values.push_back(d->Translate(allocated_addr).value());
   }
   IdDoc lhs = VarDoc(d, match->tensor);
   d->Emit(AssignDoc(lhs, rhs, std::nullopt), ffi::GetRef<ffi::ObjectRef>(match));
@@ -48,6 +69,10 @@ void PrintMatchTensor(DocTranslatorObj* d, const s_tir::MatchTensorRegionNode* m
 ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* block,
                                const s_tir::SBlockRealizeNode* realize) {
   auto docs = d->WithDocScope([&]() {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+    static const auto scope_local = runtime::MemoryScope::Get("local");
+
     TVM_FFI_CHECK(!realize || realize->iter_values.size() == block->iter_vars.size(), TypeError)
         << "SBlockRealize binding count must match its iter vars";
     ffi::Array<AssignDoc> axes;
@@ -113,39 +138,38 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
       annotations.erase(s_tir::attr::kTensorAllocatedAddr);
     }
     if (!annotations.empty()) {
-      d->Emit(
-          ExprStmtDoc(NamespaceDoc("s_tir")->Attr("sblock_attr")->Call({AnyValue(d, annotations)})),
-          block->annotations);
+      d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")
+                              ->Attr("sblock_attr")
+                              ->Call({d->Translate(annotations).value()})),
+              block->annotations);
     }
     for (const tirx::TensorVar& tensor : block->alloc_tensors) {
-      CallDoc rhs = d->Translate(tensor.var()->ty).value().as_or_throw<CallDoc>();
-      TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Tensor", TypeError)
-          << "Ts.sblock_alloc_tensor cannot reconstruct this nonrepresentable TensorType";
-      const auto* tensor_type = tensor.var()->ty.as<tirx::TensorTypeNode>();
-      auto allocated_addr = addresses.Get(tensor.var()).value_or(ffi::Array<PrimExpr>{});
+      CallDoc rhs = TensorHelperCall(d, tensor->ty, "sblock_alloc_tensor");
+      const auto* tensor_type = tensor->ty.as<tirx::TensorTypeNode>();
+      auto allocated_addr = addresses.Get(tensor).value_or(ffi::Array<PrimExpr>{});
       TVM_FFI_CHECK(
           allocated_addr.empty() ||
-              (tensor_type->storage_scope != "global" && tensor_type->storage_scope != "shared" &&
-               tensor_type->storage_scope != "shared.dyn" && tensor_type->storage_scope != "local"),
+              (tensor_type->scope != runtime::MemoryScope::Global() &&
+               tensor_type->scope != scope_shared && tensor_type->scope != scope_shared_dyn &&
+               tensor_type->scope != scope_local),
           TypeError)
-          << "Ts.sblock_alloc_tensor does not accept allocated_addr in "
-          << tensor_type->storage_scope;
-      rhs->callee = NamespaceDoc("s_tir")->Attr("sblock_alloc_tensor");
+          << "Ts.sblock_alloc_tensor does not accept allocated_addr in " << tensor_type->scope;
       if (!allocated_addr.empty()) {
         rhs->kwargs_keys.push_back("allocated_addr");
-        rhs->kwargs_values.push_back(AnyValue(d, allocated_addr));
+        rhs->kwargs_values.push_back(d->Translate(allocated_addr).value());
       }
       IdDoc lhs = VarDoc(d, tensor);
       d->Emit(AssignDoc(lhs, rhs, std::nullopt), ffi::GetRef<ffi::ObjectRef>(tensor.get()));
     }
     for (const s_tir::MatchTensorRegion& match : block->match_tensors) {
       PrintMatchTensor(d, match.get(),
-                       addresses.Get(match->tensor.var()).value_or(ffi::Array<PrimExpr>{}));
+                       addresses.Get(match->tensor).value_or(ffi::Array<PrimExpr>{}));
     }
     if (block->init.has_value()) {
-      d->Emit(ScopeDoc(std::nullopt, NamespaceDoc("s_tir")->Attr("init")->Call({}),
-                       Body(block->init.value(), d)),
-              block->init.value());
+      d->Emit(
+          ScopeDoc(std::nullopt, NamespaceDoc("s_tir")->Attr("init")->Call({}),
+                   ToStmtDocArray(d->WithDocScope([&]() { d->Translate(block->init.value()); }))),
+          block->init.value());
     }
     d->Translate(block->body);
   });

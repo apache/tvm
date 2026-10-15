@@ -634,6 +634,13 @@ def _get_prefill_kernel_config(
     ):
         tile_z = 8
         num_warps = 2
+        if dtype == "float32" and d == 512 and d_v == 512:
+            # A 4x4 tile needs 16 threads and 24,688 shared bytes. The usual
+            # 64-thread configuration cannot fit these wide FP32 heads.
+            bdx = 16
+            num_warps = 1
+            tile_x = 4
+            tile_z = 4
     if target.kind.name == "metal":
         max_shared_memory_per_block = int(target.attrs["max_shared_memory_per_block"])
         tile_x, num_warps, tile_z = _fit_prefill_config_to_shared_memory(

@@ -32,7 +32,7 @@ modifier combination, operand count, and operand types while constructing one
 when it needs a new representation, its code-generation support.
 
 This layer is below the layout-aware ``Tx.cuda.tile.*`` / ``Tx.trn.tile.*`` primitives and does not run
-tile-primitive dispatch.
+tile-op dispatch.
 
 Supported instruction families
 ------------------------------
@@ -182,8 +182,8 @@ PTX versus CUDA helpers
 Use ``Tx.ptx`` for one table-described PTX instruction.  Use ``Tx.cuda`` for
 backend helpers that require multiple statements, C/C++ expressions, descriptor
 packing, or other behavior that cannot be represented as one PTX instruction.
-``Tx.ptx_legacy`` only preserves historical spellings needed by compatibility
-passes and is not the API for new kernels.
+``Tx.ptx_legacy`` preserves operation construction for downstream emitters.
+TVM CUDA codegen does not emit these operations; use ``Tx.ptx`` in new kernels.
 
 Namespace API
 -------------

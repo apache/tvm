@@ -241,7 +241,7 @@ def test_max_pool2d_backward():
                     with Ts.init():
                         maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] = T.int64(-1)
                         maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] = T.float32(-3.4028234663852886e+38)
-                    v_maxpool_grad_argmax_v0: T.let[T.int64] = T.Select(maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] > pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw] or (maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] == pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw] and maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] < v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(26) + v_dh * T.int64(13) + v_ax3 * T.int64(2) + v_dw), maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3], v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(26) + T.Cast("int64", v_dh) * T.int64(13) + v_ax3 * T.int64(2) + T.Cast("int64", v_dw))
+                    v_maxpool_grad_argmax_v0: T.let[T.int64] = T.Select(maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] > pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw] or (maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] == pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw] and maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] < v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(26) + v_dh * T.int64(13) + v_ax3 * T.int64(2) + v_dw), maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3], v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(26) + T.Cast(v_dh, "int64") * T.int64(13) + v_ax3 * T.int64(2) + T.Cast(v_dw, "int64"))
                     v_maxpool_grad_argmax_v1: T.let[T.float32] = T.Select(maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] > pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw], maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3], pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw])
                     maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] = v_maxpool_grad_argmax_v0
                     maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] = v_maxpool_grad_argmax_v1
@@ -287,7 +287,7 @@ def test_avg_pool2d_backward():
                     Ts.writes(T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3])
                     with Ts.init():
                         T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] = T.float32(0)
-                    T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] = T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] + T.if_then_else(T.Select(v_ax2 < T.int64(3), T.int64(0), T.Div(v_ax2 - T.int64(3), T.int64(2)) + T.int64(1)) <= T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh and T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh < T.int64(6) and T.Select(v_ax3 < T.int64(4), T.int64(0), T.Div(v_ax3 - T.int64(4), T.int64(2)) + T.int64(1)) <= T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww and T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww < T.int64(5), output_grad[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww] / T.Cast("float32", T.max((T.min(T.Div(v_ax2 + T.int64(2), T.int64(2)) * T.int64(2) + T.int64(3) - T.Cast("int64", v_wh) * T.int64(2), T.int64(10)) - T.max(T.Div(v_ax2 + T.int64(2), T.int64(2)) - T.Cast("int64", v_wh) - T.int64(1), T.int64(0)) * T.int64(2)) * (T.min(T.Div(v_ax3 + T.int64(1), T.int64(2)) * T.int64(2) + T.int64(4) - T.Cast("int64", v_ww) * T.int64(2), T.int64(10)) - T.max(T.Div(v_ax3 + T.int64(1), T.int64(2)) * T.int64(2) - T.Cast("int64", v_ww) * T.int64(2) - T.int64(1), T.int64(0))), T.int64(1))), T.float32(0.0))
+                    T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] = T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] + T.if_then_else(T.Select(v_ax2 < T.int64(3), T.int64(0), T.Div(v_ax2 - T.int64(3), T.int64(2)) + T.int64(1)) <= T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh and T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh < T.int64(6) and T.Select(v_ax3 < T.int64(4), T.int64(0), T.Div(v_ax3 - T.int64(4), T.int64(2)) + T.int64(1)) <= T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww and T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww < T.int64(5), output_grad[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww] / T.Cast(T.max((T.min(T.Div(v_ax2 + T.int64(2), T.int64(2)) * T.int64(2) + T.int64(3) - T.Cast(v_wh, "int64") * T.int64(2), T.int64(10)) - T.max(T.Div(v_ax2 + T.int64(2), T.int64(2)) - T.Cast(v_wh, "int64") - T.int64(1), T.int64(0)) * T.int64(2)) * (T.min(T.Div(v_ax3 + T.int64(1), T.int64(2)) * T.int64(2) + T.int64(4) - T.Cast(v_ww, "int64") * T.int64(2), T.int64(10)) - T.max(T.Div(v_ax3 + T.int64(1), T.int64(2)) * T.int64(2) - T.Cast(v_ww, "int64") * T.int64(2) - T.int64(1), T.int64(0))), T.int64(1)), "float32"), T.float32(0.0))
 
         @R.function
         def main(output_grad: R.Tensor((3, 2, 6, 5), dtype="float32"), data: R.Tensor((3, 2, 10, 10), dtype="float32")) -> R.Tensor((3, 2, 10, 10), dtype="float32"):
@@ -312,14 +312,14 @@ def test_take_backward():
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def take_backward(rxplaceholder: T.Tensor((T.int64(3), T.int64(2), T.int64(5)), offset_factor=1), rxplaceholder_1: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), offset_factor=1), rxplaceholder_2: T.Tensor((T.int64(2),), 'int32', offset_factor=1), out_buf: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32")):
+        def take_backward(rxplaceholder: T.Tensor((T.int64(3), T.int64(2), T.int64(5)), "float32", offset_factor=1, elem_offset=T.int64()), rxplaceholder_1: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32", offset_factor=1, elem_offset=T.int64()), rxplaceholder_2: T.Tensor((T.int64(2),), 'int32', offset_factor=1, elem_offset=T.int64()), out_buf: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("take_backward"):
                 for i_index in range(T.int64(60)):
                     out_buf[i_index // T.int64(5) // T.int64(4), i_index // T.int64(5) % T.int64(4), i_index % T.int64(5)] = T.float32(0)
                 for parallel, serial in T.grid(T.int64(15), T.int64(2)):
-                    out_buf[(parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) // T.int64(5) // T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) // T.int64(5) % T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) % T.int64(5)] = out_buf[(parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) // T.int64(5) // T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) // T.int64(5) % T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) % T.int64(5)] + rxplaceholder[(parallel // T.int64(5) * T.int64(5) * T.int64(2) + serial * T.int64(5) + parallel % T.int64(5)) // T.int64(5) // T.int64(2), (parallel // T.int64(5) * T.int64(5) * T.int64(2) + serial * T.int64(5) + parallel % T.int64(5)) // T.int64(5) % T.int64(2), (parallel // T.int64(5) * T.int64(5) * T.int64(2) + serial * T.int64(5) + parallel % T.int64(5)) % T.int64(5)]
+                    out_buf[(parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast(rxplaceholder_2[serial], "int64") * T.int64(5) + parallel % T.int64(5)) // T.int64(5) // T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast(rxplaceholder_2[serial], "int64") * T.int64(5) + parallel % T.int64(5)) // T.int64(5) % T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast(rxplaceholder_2[serial], "int64") * T.int64(5) + parallel % T.int64(5)) % T.int64(5)] = out_buf[(parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast(rxplaceholder_2[serial], "int64") * T.int64(5) + parallel % T.int64(5)) // T.int64(5) // T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast(rxplaceholder_2[serial], "int64") * T.int64(5) + parallel % T.int64(5)) // T.int64(5) % T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast(rxplaceholder_2[serial], "int64") * T.int64(5) + parallel % T.int64(5)) % T.int64(5)] + rxplaceholder[(parallel // T.int64(5) * T.int64(5) * T.int64(2) + serial * T.int64(5) + parallel % T.int64(5)) // T.int64(5) // T.int64(2), (parallel // T.int64(5) * T.int64(5) * T.int64(2) + serial * T.int64(5) + parallel % T.int64(5)) // T.int64(5) % T.int64(2), (parallel // T.int64(5) * T.int64(5) * T.int64(2) + serial * T.int64(5) + parallel % T.int64(5)) % T.int64(5)]
 
         @R.function
         def main(output_grad: R.Tensor((3, 2, 5), dtype="float32"), x: R.Tensor((3, 4, 5), dtype="float32"), indices: R.Tensor((2,), dtype="int32")) -> R.Tensor((3, 4, 5), dtype="float32"):
@@ -334,9 +334,9 @@ def test_take_backward():
 
 def test_take_backward_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    i = T.dynamic("i")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    i = T.dynamic("i", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class TakeBackward:
@@ -345,24 +345,24 @@ def test_take_backward_symbolic():
             gv = R.grad.take_backward(output_grad, x, indices, axis=1)
             return gv
 
-    m_take_backward = T.dynamic("m")
-    i_take_backward = T.dynamic("i")
-    n_take_backward = T.dynamic("n")
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    i_main = T.dynamic("i")
+    m_take_backward = T.dynamic("m", "int64")
+    i_take_backward = T.dynamic("i", "int64")
+    n_take_backward = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    i_main = T.dynamic("i", "int64")
 
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def take_backward(rxplaceholder: T.Tensor((m_take_backward, i_take_backward), offset_factor=1), rxplaceholder_1: T.Tensor((m_take_backward, n_take_backward), offset_factor=1), rxplaceholder_2: T.Tensor((i_take_backward,), 'int32', offset_factor=1), out_buf: T.Tensor((m_take_backward, n_take_backward))):
+        def take_backward(rxplaceholder: T.Tensor((m_take_backward, i_take_backward), "float32", offset_factor=1, elem_offset=T.int64()), rxplaceholder_1: T.Tensor((m_take_backward, n_take_backward), "float32", offset_factor=1, elem_offset=T.int64()), rxplaceholder_2: T.Tensor((i_take_backward,), 'int32', offset_factor=1, elem_offset=T.int64()), out_buf: T.Tensor((m_take_backward, n_take_backward), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("take_backward"):
                 for i_1 in range(m_take_backward * n_take_backward):
                     out_buf[i_1 // n_take_backward, i_1 % n_take_backward] = T.float32(0)
                 for parallel, serial in T.grid(m_take_backward, i_take_backward):
-                    out_buf[(parallel * n_take_backward + T.Cast("int64", rxplaceholder_2[serial])) // n_take_backward, (parallel * n_take_backward + T.Cast("int64", rxplaceholder_2[serial])) % n_take_backward] = out_buf[(parallel * n_take_backward + T.Cast("int64", rxplaceholder_2[serial])) // n_take_backward, (parallel * n_take_backward + T.Cast("int64", rxplaceholder_2[serial])) % n_take_backward] + rxplaceholder[(parallel * i_take_backward + serial) // i_take_backward, (parallel * i_take_backward + serial) % i_take_backward]
+                    out_buf[(parallel * n_take_backward + T.Cast(rxplaceholder_2[serial], "int64")) // n_take_backward, (parallel * n_take_backward + T.Cast(rxplaceholder_2[serial], "int64")) % n_take_backward] = out_buf[(parallel * n_take_backward + T.Cast(rxplaceholder_2[serial], "int64")) // n_take_backward, (parallel * n_take_backward + T.Cast(rxplaceholder_2[serial], "int64")) % n_take_backward] + rxplaceholder[(parallel * i_take_backward + serial) // i_take_backward, (parallel * i_take_backward + serial) % i_take_backward]
 
         @R.function
         def main(output_grad: R.Tensor((m_main, i_main), dtype="float32"), x: R.Tensor((m_main, n_main), dtype="float32"), indices: R.Tensor((i_main,), dtype="int32")) -> R.Tensor((m_main, n_main), dtype="float32"):

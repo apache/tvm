@@ -36,9 +36,10 @@
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/tile/context.h>
-#include <tvm/tirx/tile/exec_scope.h>
+#include <tvm/tirx/tile/thread_scope.h>
 #include <tvm/tirx/transform.h>
 
+#include <algorithm>
 #include <limits>
 #include <optional>
 #include <unordered_map>
@@ -282,7 +283,9 @@ struct ExecAnalysis::Impl {
       LOG(WARNING) << "ExecContext tracking disabled: missing/symbolic threadIdx extents";
       return false;
     }
-    int64_t warp_ext = thread_ext / 32;
+    // A sub-warp block still has one warp, with only its leading lanes active.
+    int64_t lane_ext = std::min<int64_t>(thread_ext, 32);
+    int64_t warp_ext = std::max<int64_t>(thread_ext / 32, 1);
     auto cluster_cta_axes = collect_extents(
         {{"clusterCtaIdx.x", "cbx"}, {"clusterCtaIdx.y", "cby"}, {"clusterCtaIdx.z", "cbz"}});
     if (!cluster_bounds_.empty() && cluster_cta_axes.empty()) return false;
@@ -305,7 +308,7 @@ struct ExecAnalysis::Impl {
     // Preserve the old flattened cta_id split for 0-D/1-D declarations. Multi-dimensional
     // CTA ids keep their concrete factor axes (bx/by/bz or cbx/cby/cbz).
     if (cta_axes.size() <= 1) cta_axes.clear();
-    ctx_stack_.push_back(ExecContext::AtKernelEntry(/*lane_ext=*/32, warp_ext, cta_ext, cta_axes));
+    ctx_stack_.push_back(ExecContext::AtKernelEntry(lane_ext, warp_ext, cta_ext, cta_axes));
     return true;
   }
 
@@ -1036,14 +1039,16 @@ void ExecAnalysis::Pop(int count) {
 PrimExpr ExecAnalysis::RewritePredicate(const PrimExpr& condition) const {
   return impl_->RewriteFilterCalls(condition);
 }
-std::pair<SplitMap, SplitMap> ExecAnalysis::Split(const tirx::ExecScope& scope) const {
-  TVM_FFI_CHECK(!impl_->variable_cluster_ || scope->name() != "cluster", ValueError)
+std::pair<SplitMap, SplitMap> ExecAnalysis::Split(const tirx::ThreadScope& scope) const {
+  TVM_FFI_CHECK(scope->backend() == "cuda", ValueError) << "Expected a CUDA thread scope";
+  TVM_FFI_CHECK(!impl_->variable_cluster_ || scope->local_name() != "cluster", ValueError)
       << "Cluster tensor instructions require one static cluster shape; "
          "use explicit CUDA/PTX instructions for variable or preferred cluster shapes";
   if (impl_->ctx_stack_.empty()) return {};
   ExecSplit split;
   std::string err;
-  if (ScopeSwitch(impl_->ctx_stack_.back().A, StringToScopeKind(scope->name()), &split, &err)) {
+  if (ScopeSwitch(impl_->ctx_stack_.back().A, StringToScopeKind(scope->local_name()), &split,
+                  &err)) {
     return {EncodeSplitSide(split.inter), EncodeSplitSide(split.intra)};
   }
   LOG(WARNING) << "ExecContext scope_switch failed: " << err;

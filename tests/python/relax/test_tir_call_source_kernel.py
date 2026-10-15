@@ -42,8 +42,8 @@ extern "C" __global__ void add_kernel(float* x, float* y, float* output, int n_e
 def test_tir_call_source_kernel():
     BLOCK_SIZE = 64
 
-    m_add = T.dynamic("m")
-    m_main = T.dynamic("m")
+    m_add = T.dynamic("m", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Module:
@@ -77,12 +77,16 @@ def test_tir_call_source_kernel():
                 R.output(output)
             return output
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Parsed:
         @Ts.function
-        def add(x: T.Tensor((m,)), y: T.Tensor((m,)), output: T.Tensor((m,))):
+        def add(
+            x: T.Tensor((m,), "float32"),
+            y: T.Tensor((m,), "float32"),
+            output: T.Tensor((m,), "float32"),
+        ):
             with Ts.sblock("root"):
                 Ts.reads(x[0:m], y[0:m])
                 Ts.writes(output[0:m])

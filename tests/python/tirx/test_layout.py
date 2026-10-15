@@ -15,9 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring, missing-function-docstring, missing-class-docstring
-import functools
 import itertools
-import operator
 
 import pytest
 
@@ -25,19 +23,18 @@ import tvm
 from tvm.backend.cuda.axis import Axis as CUDAAxis
 from tvm.backend.cuda.axis import TCol, TLane, laneid, tid_in_wg, tx, warpid, wgid, wid_in_wg
 from tvm.backend.cuda.lang import SMEMPool
-from tvm.backend.cuda.layout import tmem_mma_operand_layout, wg_local_layout
+from tvm.backend.cuda.layout import (
+    SwizzleMode,
+    mma_shared_layout,
+    tmem_datapath_layout,
+    tmem_mma_operand_layout,
+)
 from tvm.backend.trn.axis import Axis as TRNAxis
-from tvm.backend.trn.axis import F, P
-from tvm.backend.trn.layout import to_psum_layout, trainium_layout
+from tvm.backend.trn.axis import Bank, F, P
 from tvm.ir import assert_structural_equal
 from tvm.ir.type import PrimType, PtrType
 from tvm.script.ir_builder import IRBuilder
-from tvm.sym import Analyzer
 from tvm.tirx import Var
-from tvm.tirx.cuda.tile.tma_utils import (
-    SwizzleMode,
-    mma_shared_layout,
-)
 from tvm.tirx.layout import Axis, ComposeLayout, Iter, R, S, TileLayout, m
 from tvm.tirx.script import ir_builder as Tx_builder
 
@@ -79,8 +76,8 @@ def test_axis():
     assert CUDAAxis.TCol.is_memory()
     assert CUDAAxis.TLane.is_memory()
 
-    assert CUDAAxis.bx.get_scope().name == "kernel"
-    assert CUDAAxis.bx.get_subscope().name == "cta"
+    assert CUDAAxis.bx.get_scope().name == "cuda.kernel"
+    assert CUDAAxis.bx.get_subscope().name == "cuda.cta"
 
 
 def test_constructor():
@@ -147,16 +144,6 @@ def test_constructor_multi_term_offset():
     assert dict(radd.offset) == {laneid: 1, m: 64}
 
 
-def test_wg_local_layout_helper():
-    layout = wg_local_layout(16)
-    expected = TileLayout(S[(128, 16) : (1 @ tid_in_wg, 1)])
-    assert_structural_equal(layout.canonicalize(), expected.canonicalize())
-
-    layout_rows = wg_local_layout(8, rows=64)
-    expected_rows = TileLayout(S[(64, 8) : (1 @ tid_in_wg, 1)])
-    assert_structural_equal(layout_rows.canonicalize(), expected_rows.canonicalize())
-
-
 def test_spec_builder():
     """Test S[shape:stride] + R[shape:stride] + offset combinator API."""
 
@@ -214,22 +201,22 @@ def test_verify_well_formed():
         layout = TileLayout(S[(8, 4, 2) : (4 @ laneid, 1 @ laneid, 1)])
         res = layout.get_scope()
         assert res is not None
-        assert res[0].name == "thread"
-        assert res[1].name == "warp"
+        assert res[0].name == "cuda.thread"
+        assert res[1].name == "cuda.warp"
         assert layout.verify_well_formed()
 
         layout = TileLayout(S[8 : 4 @ laneid] + R[4 : 1 @ laneid])
         res = layout.get_scope()
         assert res is not None
-        assert res[0].name == "thread"
-        assert res[1].name == "warp"
+        assert res[0].name == "cuda.thread"
+        assert res[1].name == "cuda.warp"
         assert layout.verify_well_formed()
 
         layout = TileLayout(S[(8, 4, 2) : (4 @ laneid, 1 @ laneid, 1)])
         res = layout.get_scope()
         assert res is not None
-        assert res[0].name == "thread"
-        assert res[1].name == "warp"
+        assert res[0].name == "cuda.thread"
+        assert res[1].name == "cuda.warp"
         assert layout.verify_well_formed()
 
         layout = TileLayout(
@@ -237,8 +224,8 @@ def test_verify_well_formed():
         )
         res = layout.get_scope()
         assert res is not None
-        assert res[0].name == "thread"
-        assert res[1].name == "cta"
+        assert res[0].name == "cuda.thread"
+        assert res[1].name == "cuda.cta"
         assert layout.verify_well_formed()
 
         layout = TileLayout(
@@ -246,8 +233,8 @@ def test_verify_well_formed():
         )
         res = layout.get_scope()
         assert res is not None
-        assert res[0].name == "thread"
-        assert res[1].name == "warpgroup"
+        assert res[0].name == "cuda.thread"
+        assert res[1].name == "cuda.warpgroup"
         assert layout.verify_well_formed()
 
         layout = TileLayout(S[(2, 8, 2, 4, 2) : (2 @ wgid, 4 @ laneid, 1 @ wgid, 1 @ laneid, 1)])
@@ -515,225 +502,54 @@ def test_normalize_tile_layout():
 
 def test_tile_layout():
     def case1():
-        # (8):(1)x(8):(1) -> (64):(1)
         inner = TileLayout(S[8:1])
         outer = inner
         layout_tile = TileLayout(S[64:1])
         assert_structural_equal(layout_tile, inner.tile(outer, [8], [8]))
 
-        outer_res = inner.is_tile_inner(layout_tile, [64], [8])
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), outer.canonicalize())
-
-        inner_res = outer.is_tile_outer(layout_tile, [64], [8])
-        assert inner_res is not None
-        assert_structural_equal(inner_res.canonicalize(), inner.canonicalize())
-
     case1()
 
     def case2():
-        # (8,8):(8,1)x(8,8):(8,1) -> (8,8,8,8):(512,8,64,1)
         inner = TileLayout(S[(8, 8) : (8, 1)])
         outer = inner
         layout_tile = TileLayout(S[(8, 8, 8, 8) : (512, 8, 64, 1)])
         assert_structural_equal(layout_tile, inner.tile(outer, [8, 8], [8, 8]))
 
-        outer_res = inner.is_tile_inner(layout_tile, [64, 64], [8, 8])
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), outer.canonicalize())
-
-        inner_res = outer.is_tile_outer(layout_tile, [64, 64], [8, 8])
-        assert inner_res is not None
-        assert_structural_equal(inner_res.canonicalize(), inner.canonicalize())
-
     case2()
 
     def case3():
-        # (2,4):(1,2)x(8,8):(8,1) -> (8,2,8,4):(64,1,8,2)
         inner = TileLayout(S[(2, 4) : (1, 2)])
         outer = TileLayout(S[(8, 8) : (8, 1)])
         layout_tile = TileLayout(S[(8, 2, 32) : (64, 1, 2)])
         assert_structural_equal(layout_tile, inner.tile(outer, [8, 8], [2, 4]))
 
-        outer_res = inner.is_tile_inner(layout_tile, [16, 32], [2, 4])
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), outer.canonicalize())
-
-        inner_res = outer.is_tile_outer(layout_tile, [16, 32], [8, 8])
-        assert inner_res is not None
-        assert_structural_equal(inner_res.canonicalize(), inner.canonicalize())
-
-        assert outer.is_tile_inner(layout_tile, [16, 32], [8, 8]) is None
-        assert inner.is_tile_outer(layout_tile, [16, 32], [2, 4]) is None
-
     case3()
 
     def case4():
-        # ((4,2),(2,4)):((16,8),(1,2))x(8,8):(8,1) -> (8,4,2,8,2,4):(512,16,8,64,1,2)
         inner = TileLayout(S[(4, 2, 2, 4) : (16, 8, 1, 2)])
         outer = TileLayout(S[(8, 8) : (8, 1)])
         layout_tile = TileLayout(S[(8, 4, 2, 8, 2, 4) : (512, 16, 8, 64, 1, 2)])
         assert_structural_equal(layout_tile.canonicalize(), inner.tile(outer, (8, 8), (8, 8)))
 
-        outer_res = inner.is_tile_inner(layout_tile, (64, 64), (8, 8))
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), outer.canonicalize())
-
-        inner_res = outer.is_tile_outer(layout_tile, (64, 64), (8, 8))
-        assert inner_res is not None
-        assert_structural_equal(inner_res.canonicalize(), inner.canonicalize())
-
-        assert outer.is_tile_inner(layout_tile, (64, 64), (8, 8)) is None
-        assert inner.is_tile_outer(layout_tile, (64, 64), (8, 8)) is None
-
     case4()
 
     def case5_sharded1():
-        # Tile over a sharded layout - 1
         layout = TileLayout(S[(8, 1, 4, 2) : (4 @ laneid, 2, 1 @ laneid, 1)])
         outer = TileLayout(S[(8, 8) : (8, 1)])
         layout_tile = layout.tile(outer=outer, outer_shape=(8, 8), inner_shape=(8, 8))
         layout_expected = TileLayout(S[(8, 8, 1, 8, 4, 2) : (16, 4 @ laneid, 2, 2, 1 @ laneid, 1)])
         assert_structural_equal(layout_expected.canonicalize(), layout_tile)
 
-        outer_res = layout.is_tile_inner(layout_tile, (64, 64), (8, 8))
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), outer.canonicalize())
-
-        inner_res = outer.is_tile_outer(layout_tile, (64, 64), (8, 8))
-        assert inner_res is not None
-        assert_structural_equal(inner_res.canonicalize(), layout.canonicalize())
-
-        assert outer.is_tile_inner(layout_tile, (64, 64), (8, 8)) is None
-        assert layout.is_tile_outer(layout_tile, (64, 64), (8, 8)) is None
-
     case5_sharded1()
 
     def case6_sharded2():
-        # Tile over a sharded layout - 2
         inner = TileLayout(S[(8, 4) : (4 @ laneid, 1 @ laneid)])
         outer = TileLayout(S[(8, 8) : (8, 1)])
         layout_tile = inner.tile(outer=outer, outer_shape=(8, 8), inner_shape=(8, 4))
         layout_expected = TileLayout(S[(8, 8, 8, 4) : (8, 4 @ laneid, 1, 1 @ laneid)])
         assert_structural_equal(layout_expected, layout_tile)
 
-        outer_res = inner.is_tile_inner(layout_tile, (64, 32), (8, 4))
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), outer.canonicalize())
-
-        inner_res = outer.is_tile_outer(layout_tile, (64, 32), (8, 8))
-        assert inner_res is not None
-        assert_structural_equal(inner_res.canonicalize(), inner.canonicalize())
-
-        assert outer.is_tile_inner(layout_tile, (64, 32), (8, 8)) is None
-        assert inner.is_tile_outer(layout_tile, (64, 32), (8, 4)) is None
-
     case6_sharded2()
-
-    def case7_normalized4():
-        # Normalized Tile Layout Test - 4 (tile < inner)
-        outer = TileLayout(S[(4, 2, 1) : (2, 1, 1)])
-        inner = TileLayout(S[(2, 4, 1) : (2, 3, 1)])
-        layout_tile = inner.tile(outer, outer_shape=(4, 2), inner_shape=(2, 4))
-
-        inner_res = outer.is_tile_outer(layout_tile, (8, 8), (4, 2))
-        assert inner_res is not None
-        assert_structural_equal(inner_res.canonicalize(), inner.canonicalize())
-
-        outer_res = inner.is_tile_inner(layout_tile, (8, 8), (2, 4))
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), outer.canonicalize())
-
-        assert outer.is_tile_inner(layout_tile, (8, 8), (4, 2)) is None
-        assert inner.is_tile_outer(layout_tile, (8, 8), (2, 4)) is None
-
-    case7_normalized4()
-
-    def case8_normalized5():
-        # Normalized Tile Layout Test - 5 (tile = inner)
-        outer = TileLayout(S[(8, 2) : (2, 1)])
-        inner = TileLayout(S[(2, 4) : (4, 1)])
-        layout_tile = inner.tile(outer, (8, 2), (2, 4))
-
-        outer_res = inner.is_tile_inner(layout_tile, (16, 8), (2, 4))
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), outer.canonicalize())
-
-        inner_res = outer.is_tile_outer(layout_tile, (16, 8), (8, 2))
-        assert inner_res is not None
-        assert_structural_equal(inner_res.canonicalize(), inner.canonicalize())
-
-        assert outer.is_tile_inner(layout_tile, (16, 8), (8, 2)) is None
-        assert inner.is_tile_outer(layout_tile, (16, 8), (2, 4)) is None
-
-    case8_normalized5()
-
-    def case9_normalized6():
-        # Normalized Tile Layout Test - 6 (tile < inner)
-        outer = TileLayout(S[(8, 4, 1) : (4, 1, 4)])
-        inner = TileLayout(S[(2, 1, 1) : (4, 3, 1)])
-        TileLayout(S[(8, 2, 2) : (4, 2, 2)])
-        layout_tile = inner.tile(outer, (8, 4), (2, 1))
-
-        outer_res = inner.is_tile_inner(layout_tile, (16, 4), (2, 1))
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), outer.canonicalize())
-
-        inner_res = outer.is_tile_outer(layout_tile, (16, 4), (8, 4))
-        assert inner_res is not None
-        assert_structural_equal(inner_res.canonicalize(), inner.canonicalize())
-
-    case9_normalized6()
-
-    def case10_normalized7():
-        # Normalized Tile Layout Test - 7 (tile = inner)
-        outer = TileLayout(S[(8, 8, 4) : (32, 4, 1)])
-        inner = TileLayout(S[(1, 2, 1) : (4, 3, 1)])
-        inner_tmp = TileLayout(S[(1, 2, 2) : (8, 4, 3)])
-        layout_tile = inner.tile(outer, (8, 8, 4), (1, 2, 1))
-
-        outer_res = inner.is_tile_inner(layout_tile, (8, 16, 4), (1, 2, 1))
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), outer.canonicalize())
-
-        assert inner.is_tile_inner(layout_tile.canonicalize(), (8, 16, 4), (1, 2, 1))
-
-        assert outer.is_tile_inner(layout_tile, (8, 16, 4), (8, 8, 4)) is None
-        assert inner_tmp.is_tile_inner(layout_tile, (8, 16, 4), (1, 2, 2)) is None
-
-    case10_normalized7()
-
-    def case11_normalized8():
-        # Normalized Tile Layout Test - 8 (tile = inner w/ device)
-        outer = TileLayout(S[(8, 8, 4) : (32, 4, 1)])
-        inner = TileLayout(S[(8, 8, 1, 4, 2) : (4, 4 @ laneid, 2, 1 @ laneid, 1)])
-        layout_tile = inner.tile(outer, (8, 8, 4), (8, 8, 8))
-
-        outer_res = inner.is_tile_inner(layout_tile, (64, 64, 32), (8, 8, 8))
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), outer.canonicalize())
-        assert inner.is_tile_inner(layout_tile.canonicalize(), (64, 64, 32), (8, 8, 8))
-        assert not outer.canonicalize().is_tile_inner(
-            layout_tile.canonicalize(), (64, 64, 32), (8, 8, 4)
-        )
-
-    case11_normalized8()
-
-    def case12_normalized9():
-        # Normalized Tile Layout Test - 9 (tile = inner w/ device + diff major-dim)
-        outer = TileLayout(S[(16, 8, 4) : (1, 64, 16)])
-        inner = TileLayout(S[(2, 4, 2, 2) : (4, 1, 4, 3)])
-        layout_tile = inner.tile(outer, (16, 8, 4), (8, 2, 2))
-
-        outer_res = inner.is_tile_inner(layout_tile, (128, 16, 8), (8, 2, 2))
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), outer.canonicalize())
-        assert inner.is_tile_inner(layout_tile.canonicalize(), (128, 16, 8), (8, 2, 2))
-        assert not outer.canonicalize().is_tile_inner(
-            layout_tile.canonicalize(), (128, 16, 8), (16, 8, 4)
-        )
-
-    case12_normalized9()
 
     def case_dims_mismatch():
         with pytest.raises(Exception):
@@ -744,47 +560,25 @@ def test_tile_layout():
     case_dims_mismatch()
 
     def case_tile_compose_layout():
-        # tile(TileLayout, ComposeLayout)
         compose = ComposeLayout(3, 3, 3, TileLayout(S[(8, 64) : (64, 1)]))
         layout = TileLayout(S[(8, 1) : (1, 1)])
         layout_tile = compose.tile(layout, (8, 1), (8, 64))
         layout_expected = ComposeLayout(3, 3, 3, TileLayout(S[4096:1]))
         assert_structural_equal(layout_tile.canonicalize(), layout_expected.canonicalize())
 
-        outer_res = compose.is_tile_inner(layout_tile, (4096,), (512,))
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), layout.canonicalize())
-
-        inner_res = layout.is_tile_outer(layout_tile, (4096,), (8,))
-        assert inner_res is not None
-        assert_structural_equal(inner_res.canonicalize(), compose.canonicalize())
-
-        assert layout.is_tile_inner(layout_tile, (4096,), (512,)) is None
-        assert compose.is_tile_outer(layout_tile, (4096,), (8,)) is None
-
     case_tile_compose_layout()
 
     def case_tile_swizzle_layout():
-        # swizzle_128B_atom
-        swizzle = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
+        swizzle = ComposeLayout(3, 3, 3, TileLayout(S[512,]))
         layout = TileLayout(S[(8, 4) : (1, 8)])
         layout_tile = swizzle.tile(layout, (8, 4), (8, 64))
         layout_expected = ComposeLayout(3, 3, 3, TileLayout(S[(64, 4, 64) : (64, 4096, 1)]))
         assert_structural_equal(layout_tile.canonicalize(), layout_expected)
 
-        outer_res = swizzle.is_tile_inner(layout_tile, (64, 256), (8, 64))
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), layout.canonicalize())
-
-        inner_res = layout.is_tile_outer(layout_tile, (64, 256), (8, 4))
-        assert inner_res is not None
-        assert_structural_equal(inner_res.canonicalize(), swizzle.canonicalize())
-
     case_tile_swizzle_layout()
 
     def case_tile_swizzle_layout2():
-        # swizzle_128B_atom
-        swizzle = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
+        swizzle = ComposeLayout(3, 3, 3, TileLayout(S[512,]))
         tile = TileLayout(S[(3, 8, 4) : (8 * 4, 1, 8)])
         layout_tile = swizzle.tile(tile, (3, 8, 4), (1, 8, 64))
         layout_expected = ComposeLayout(
@@ -796,19 +590,10 @@ def test_tile_layout():
         )
         assert_structural_equal(layout_tile.canonicalize(), layout_expected.canonicalize())
 
-        outer_res = swizzle.is_tile_inner(layout_tile, (3, 64, 256), (1, 8, 64))
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), tile.canonicalize())
-
-        inner_res = tile.is_tile_outer(layout_tile, (3, 64, 256), (3, 8, 4))
-        assert inner_res is not None
-        assert_structural_equal(inner_res.canonicalize(), swizzle.canonicalize())
-
     case_tile_swizzle_layout2()
 
     def case_tile_swizzle_layout3():
-        # swizzle_64B_atom
-        swizzle = ComposeLayout(3, 2, 3, TileLayout(S[(256,)]))
+        swizzle = ComposeLayout(3, 2, 3, TileLayout(S[256,]))
         tile = TileLayout(S[(8, 8) : (1, 8)])
         layout_tile = swizzle.tile(tile, (8, 8), (8, 32))
         layout_expected = ComposeLayout(
@@ -820,47 +605,11 @@ def test_tile_layout():
         )
         assert_structural_equal(layout_tile.canonicalize(), layout_expected.canonicalize())
 
-        outer_res = swizzle.is_tile_inner(layout_tile, (64, 256), (8, 32))
-        assert outer_res is not None
-        assert_structural_equal(outer_res.canonicalize(), tile.canonicalize())
-
-        inner_res = tile.is_tile_outer(layout_tile, (64, 256), (8, 8))
-        assert inner_res is not None
-        assert_structural_equal(inner_res.canonicalize(), swizzle.canonicalize())
-
     case_tile_swizzle_layout3()
-
-    def case_tile_swizzle_layout4():
-        # swizzle_64B_atom
-        swizzle = ComposeLayout(3, 2, 3, TileLayout(S[(256,)]))
-        outer = swizzle.is_tile_inner(swizzle, (64, 256), (8, 32))
-        assert outer is None
-
-        outer = swizzle.is_tile_inner(swizzle, (64, 32), (8, 32))
-        assert outer is not None
-        outer_expected = TileLayout(S[(8, 1) : (1, 0)])
-        assert_structural_equal(outer.canonicalize(), outer_expected.canonicalize())
-
-    case_tile_swizzle_layout4()
-
-    def case_tile_swizzle_layout5():
-        # swizzle_128B_atom
-        swizzle = ComposeLayout(3, 2, 3, TileLayout(S[(256,)]))
-        tile1 = TileLayout(S[(8, 8) : (1, 8)])
-        tile2 = TileLayout(S[(2, 2) : (1, 2)])
-        layout_tile = swizzle.tile(tile1, (8, 8), (8, 32))
-        layout_tile = layout_tile.tile(tile2, (2, 2), (64, 256))
-
-        outer = swizzle.is_tile_inner(layout_tile, (128, 512), (8, 32))
-        assert outer is not None
-        outer_expected = tile1.tile(tile2, (2, 2), (8, 8))
-        assert_structural_equal(outer.canonicalize(), outer_expected.canonicalize())
-
-    case_tile_swizzle_layout5()
 
 
 def test_shard_layout():
-    """In the current layout design, shard is just a special case of tile, where the outer tile has thread axes."""  # noqa: E501
+    """Sharding is tiling with thread axes on the outer tile."""
 
     def case_mma_layout():
         layout = TileLayout(S[(1, 2) : (2, 1)])
@@ -869,21 +618,12 @@ def test_shard_layout():
         layout_expected = TileLayout(S[(32, 2) : (1 @ laneid, 1)])
         assert_structural_equal(res.canonicalize(), layout_expected.canonicalize())
 
-        outer = layout.is_tile_inner(res, [8, 8], [1, 2])
-        assert outer is not None
-        assert_structural_equal(outer.canonicalize(), layout_warp.canonicalize())
-
-        inner = layout_warp.is_tile_outer(res, [8, 8], [8, 4])
-        assert inner is not None
-        assert_structural_equal(inner.canonicalize(), layout.canonicalize())
-
     case_mma_layout()
 
     def case_cta_layout():
         layout = TileLayout(S[(1, 2) : (2, 1)])
         layout_warp = TileLayout(S[(8, 4) : (4 @ laneid, 1 @ laneid)])
         layout_cta = TileLayout(S[(2, 2) : (2 @ warpid, 1 @ warpid)])
-
         res_warp = layout.tile(layout_warp, [8, 4], [1, 2])
         res = res_warp.tile(layout_cta, [2, 2], [8, 8])
         layout_expected = TileLayout(
@@ -891,49 +631,7 @@ def test_shard_layout():
         )
         assert_structural_equal(res.canonicalize(), layout_expected.canonicalize())
 
-        outer = layout.is_tile_inner(res, [16, 16], [1, 2])
-        outer_expected = TileLayout(
-            S[(2, 8, 2, 4) : (2 @ warpid, 4 @ laneid, 1 @ warpid, 1 @ laneid)]
-        )
-        assert outer is not None
-        assert_structural_equal(outer, outer_expected)
-
-        inner = layout_cta.is_tile_outer(res, [16, 16], [2, 2])
-        assert inner is not None
-        assert_structural_equal(inner.canonicalize(), res_warp.canonicalize())
-
     case_cta_layout()
-
-    def case_cta_layout2():
-        with tvm.target.Target("cuda"):
-            tiled = TileLayout(S[(2, 8, 2, 4, 2) : (64 @ tx, 4 @ tx, 32 @ tx, 1 @ tx, 1)])
-            # local is inner of cta
-            layout = TileLayout(S[2:1])
-            outer = layout.is_tile_inner(tiled, [16, 16], [1, 2])
-            assert outer is not None
-            outer_expected = TileLayout(S[(2, 8, 2, 4) : (64 @ tx, 4 @ tx, 32 @ tx, 1 @ tx)])
-            assert_structural_equal(outer.canonicalize(), outer_expected.canonicalize())
-
-            layout = TileLayout(S[(2, 8, 2, 4) : (2 @ warpid, 4 @ laneid, 1 @ warpid, 1 @ laneid)])
-            inner = layout.is_tile_outer(tiled, [16, 16], [16, 8])
-            inner_expected = TileLayout(S[2:1])
-            assert inner is not None
-            assert_structural_equal(inner.canonicalize(), inner_expected.canonicalize())
-
-            # warp view is inner of cta
-            layout = TileLayout(S[(8, 1, 4, 2) : (4 @ laneid, 2, 1 @ laneid, 1)])
-            outer = layout.is_tile_inner(tiled, [16, 16], [8, 8])
-            assert outer is not None
-            outer_expected = TileLayout(S[(2, 2) : (2 @ warpid, 1 @ warpid)])
-            assert_structural_equal(outer.canonicalize(), outer_expected.canonicalize())
-
-            layout = TileLayout(S[(2, 2) : (2 @ warpid, 1 @ warpid)])
-            inner = layout.is_tile_outer(tiled, [16, 16], [2, 2])
-            inner_expected = TileLayout(S[(32, 2) : (1 @ laneid, 1)])
-            assert inner is not None
-            assert_structural_equal(inner.canonicalize(), inner_expected.canonicalize())
-
-    case_cta_layout2()
 
     def case_quad_shuffle():
         layout = TileLayout(S[(1, 2) : (2, 1)])
@@ -941,14 +639,6 @@ def test_shard_layout():
         res = layout.tile(layout_warp, [8, 1], [1, 2])
         layout_expected = TileLayout(S[(8, 2) : (4 @ laneid, 1)])
         assert_structural_equal(res.canonicalize(), layout_expected.canonicalize())
-
-        outer = layout.is_tile_inner(res, [8, 2], [1, 2])
-        assert outer is not None
-        assert_structural_equal(outer.canonicalize(), layout_warp.canonicalize())
-
-        inner = layout_warp.is_tile_outer(res, [8, 2], [8, 1])
-        assert inner is not None
-        assert_structural_equal(inner.canonicalize(), layout.canonicalize())
 
     case_quad_shuffle()
 
@@ -958,14 +648,6 @@ def test_shard_layout():
         res = layout.tile(layout_rep, [2, 1], [64, 128])
         layout_expected = TileLayout(S[(2, 8192) : (2 @ warpid, 1)] + R[2 : 1 @ warpid])
         assert_structural_equal(res.canonicalize(), layout_expected.canonicalize())
-
-        outer = layout.is_tile_inner(res, [128, 128], [64, 128])
-        assert outer is not None
-        assert_structural_equal(outer.canonicalize(), layout_rep.canonicalize())
-
-        inner = layout_rep.is_tile_outer(res, [128, 128], [2, 1])
-        assert inner is not None
-        assert_structural_equal(inner.canonicalize(), layout.canonicalize())
 
     case_replicate()
 
@@ -1032,15 +714,53 @@ def test_size_span():
         layout_free = TileLayout(S[8 : 1 @ F])
         assert layout_free.size("P") == 1 and layout_free.size("F") == 8
 
-        layout = trainium_layout("PF", (128, 128))
+        layout = TileLayout(
+            S[
+                (
+                    128,
+                    128,
+                ) : (
+                    1 @ P,
+                    1 @ F,
+                )
+            ]
+        )
         assert layout.size("P") == 128 and layout.size("F") == 128
 
-        layout = trainium_layout("FPF", (32, 512, 512))
+        layout = TileLayout(
+            S[
+                (
+                    32,
+                    4,
+                    128,
+                    512,
+                ) : (
+                    512 @ F,
+                    16384 @ F,
+                    1 @ P,
+                    1 @ F,
+                )
+            ]
+        )
         assert_structural_equal(
             layout, TileLayout(S[(32, 4, 128, 512) : (512 @ F, (512 * 32) @ F, 1 @ P, 1 @ F)])
         )
 
-        layout = trainium_layout("FPPF", (2, 4, 32, 512))
+        layout = TileLayout(
+            S[
+                (
+                    2,
+                    4,
+                    32,
+                    512,
+                ) : (
+                    512 @ F,
+                    32 @ P,
+                    1 @ P,
+                    1 @ F,
+                )
+            ]
+        )
         assert_structural_equal(
             layout, TileLayout(S[(2, 4, 32, 512) : (512 @ F, 32 @ P, 1 @ P, 1 @ F)])
         )
@@ -1238,7 +958,19 @@ def test_apply():
 
     ################ Trainium PSUM Layout
     def test_trainium_psum_layout_0():
-        layout = to_psum_layout(TileLayout(S[(1024, 8) : (1 @ F, 1 @ P)]))
+        layout = TileLayout(
+            S[
+                (
+                    2,
+                    512,
+                    8,
+                ) : (
+                    1 @ Bank,
+                    1 @ F,
+                    1 @ P,
+                )
+            ]
+        )
         for i, j in itertools.product(range(1024), range(8)):
             coord = layout.apply(i, j, shape=(1024, 8))
             assert coord["Bank"] == i // 512
@@ -1299,43 +1031,6 @@ def test_normalize_trainium_layout():
     case3()
 
 
-def test_direct_sum():
-    def case1():
-        # Example from the appendix: A + B yields contiguous (16):(1)
-        # B = (2,2):(4,1), A = (2,2):(8,2)
-        B = TileLayout(S[(2, 2) : (4, 1)])
-        A = TileLayout(S[(2, 2) : (8, 2)])
-
-        # Compute direct sum on tiling domain S_A ⊗ S_B with shapes (2,2) and (2,2)
-        sum_layout = B.direct_sum(A, [2, 2], [2, 2]).canonicalize()
-        expected = TileLayout(S[16:1])
-        assert_structural_equal(expected, sum_layout)
-
-        # Verify Apply equality: 8p + 2q + 4i + j
-        print(f"sum_layout: {sum_layout}")
-        an = Analyzer()
-        for p in [0, 1]:
-            for q in [0, 1]:
-                for i in [0, 1]:
-                    for j in [0, 1]:
-                        m = sum_layout.apply(p, q, i, j, shape=(2, 2, 2, 2))["m"]
-                        m_left = A.apply(p, i, shape=(2, 2))["m"]
-                        m_right = B.apply(q, j, shape=(2, 2))["m"]
-                        assert an.can_prove(m == m_left + m_right)
-
-        # Recognition: recover A given B and sum, and recover B given A and sum
-        interleaved_shape = [2, 2, 2, 2]  # [A0, B0, A1, B1]
-        A_rec = B.is_direct_sum_right(sum_layout, interleaved_shape, [2, 2])
-        assert A_rec is not None
-        assert_structural_equal(A.canonicalize(), A_rec.canonicalize())
-
-        B_rec = A.is_direct_sum_left(sum_layout, interleaved_shape, [2, 2])
-        assert B_rec is not None
-        assert_structural_equal(B.canonicalize(), B_rec.canonicalize())
-
-    case1()
-
-
 def test_group_by_logical_shape():
     def case1():
         layout = TileLayout(S[(8, 8) : (8, 1)])
@@ -1347,63 +1042,6 @@ def test_group_by_logical_shape():
         assert seps[2] == 4
 
     case1()
-
-
-def test_group_many_uses_minimal_common_refinement():
-    layout = TileLayout(S[30:1])
-    grouped, separators = layout.group_many(([6, 5], [2, 15]))
-
-    expected = TileLayout(S[(2, 3, 5) : (15, 5, 1)])
-    assert_structural_equal(grouped, expected)
-    assert [list(seps) for seps in separators] == [[0, 2, 3], [0, 1, 3]]
-
-
-def test_group_many_preserves_repeated_boundaries_as_unit_iters():
-    layout = TileLayout(S[30:1])
-    grouped, separators = layout.group_many(
-        (
-            [1, 6, 1, 5, 1],
-            [2, 1, 3, 5],
-        )
-    )
-
-    expected = TileLayout(S[(1, 2, 1, 3, 1, 5, 1) : (30, 15, 15, 5, 5, 1, 1)])
-    assert_structural_equal(grouped, expected)
-    assert [list(seps) for seps in separators] == [
-        [0, 1, 4, 5, 6, 7],
-        [0, 2, 3, 4, 7],
-    ]
-
-
-def test_group_many_preserves_existing_unit_iter_stride():
-    layout = TileLayout(S[(6, 1, 5) : (5, 97, 1)])
-    grouped, separators = layout.group_many(([6, 1, 5], [30]))
-
-    assert_structural_equal(grouped, layout)
-    assert [list(seps) for seps in separators] == [[0, 1, 2, 3], [0, 3]]
-
-
-def test_group_many_rejects_incompatible_boundaries():
-    layout = TileLayout(S[12:1])
-    with pytest.raises(tvm.error.InternalError, match="incompatible cumulative boundaries"):
-        layout.group_many(([3, 4], [2, 6]))
-
-
-def test_group_many_accepts_only_provably_ordered_symbolic_boundaries():
-    n = Var("n", "int32")
-    extent = tvm.tirx.floormod(n, 16) + 2
-    layout = TileLayout(S[2 * extent : 1])
-
-    grouped, separators = layout.group_many(([2, extent], [1, 2, extent]))
-    expected = TileLayout(S[(1, 2, extent) : (Analyzer().simplify(2 * extent), extent, 1)])
-    assert_structural_equal(grouped, expected)
-    assert [list(seps) for seps in separators] == [[0, 2, 3], [0, 1, 2, 3]]
-
-    with pytest.raises(
-        tvm.error.InternalError,
-        match="cannot prove cumulative boundary divisibility|order or equality",
-    ):
-        layout.group_many(([2, extent], [extent, 2]))
 
 
 def test_permute_by_groups():
@@ -1518,8 +1156,11 @@ def test_tmem_mma_operand_layout_grouped_d():
     )
     assert_structural_equal(head128_o, expected_head64_o)
 
-    with pytest.raises(ValueError, match="ws=True only valid"):
-        tmem_mma_operand_layout("D", (128, 256), "float32", M=128, cta_group=1, ws=True)
+    wide_ws = tmem_mma_operand_layout("D", (128, 256), "float32", M=128, cta_group=1, ws=True)
+    assert_structural_equal(wide_ws, tmem_datapath_layout("D", 128, 256))
+
+    with pytest.raises(ValueError, match="ws=True requires cta_group=1"):
+        tmem_mma_operand_layout("D", (64, 256), "float32", M=128, cta_group=2, ws=True)
 
     with pytest.raises(ValueError, match="group must be"):
         tmem_mma_operand_layout(
@@ -1533,43 +1174,6 @@ def test_tmem_mma_operand_layout_grouped_d():
     # accumulator's scatter, not the A operand's).
     a_f = tmem_mma_operand_layout("A", (64, 64), "float32", M=64, cta_group=1)
     assert_structural_equal(a_f, TileLayout(S[(64, 64) : (1 @ TLane, 1 @ TCol)]).canonicalize())
-
-
-def test_storage():
-    def case1():
-        layout = TileLayout(S[(8, 8) : (8, 1)])
-        assert_structural_equal(layout.storage(), layout)
-
-    case1()
-
-    def case2():
-        layout = TileLayout(S[(8, 4, 2) : (4 @ laneid, 1 @ laneid, 1)])
-        layout_stroage = TileLayout(S[2:1])
-        assert_structural_equal(layout.storage(), layout_stroage)
-
-    case2()
-
-    def case3():
-        layout = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
-        assert_structural_equal(layout.storage(), layout)
-
-    case3()
-
-    def case4():
-        layout = (
-            TileLayout(S[2:1])
-            .tile(TileLayout(S[(8, 4) : (4 @ laneid, 1 @ laneid)]), (8, 4), (1, 2))
-            .tile(TileLayout(S[(2, 1) : (1, 2)]), (2, 1), (8, 8))
-            .tile(TileLayout(S[(1, 8) : (8, 1)]), (1, 8), (16, 8))
-        )
-        layout_stroage = (
-            TileLayout(S[2:1])
-            .tile(TileLayout(S[(2, 1) : (1, 2)]), (2, 1), (1, 2))
-            .tile(TileLayout(S[(1, 8) : (8, 1)]), (1, 8), (2, 2))
-        )
-        assert_structural_equal(layout.storage().canonicalize(), layout_stroage.canonicalize())
-
-    case4()
 
 
 def test_unpack():
@@ -1618,130 +1222,23 @@ def test_pack():
     case3()
 
 
-def test_slice():
-    def verify_slice(layout, shape, region, sliced):
-        r_shape = [r[1] - r[0] for r in region]
-        r_size = functools.reduce(operator.mul, [r[1] - r[0] for r in region])
-
-        def get_region_coord(u):
-            coord = []
-            for r in reversed(region):
-                coord.append(u % (r[1] - r[0]))
-                u //= r[1] - r[0]
-            return coord[::-1]
-
-        def get_shape_coord(r_coord, region):
-            return [region[i][0] + r_coord[i] for i in range(len(region))]
-
-        analyzer = Analyzer()
-
-        for u in range(r_size):
-            r_coord = get_region_coord(u)
-            s_coord = get_shape_coord(r_coord, region)
-            a = layout.apply(*s_coord, shape=shape)["m"]
-            b = sliced.apply(*r_coord, shape=r_shape)["m"]
-            assert analyzer.simplify(a == b)
-
-    def case1():
-        layout = TileLayout(S[(8, 8) : (8, 1)])
-        shape = [64]
-        region = [(5, 8)]
-        sliced = layout.slice(shape, region).canonicalize()
-        assert sliced is not None
-        verify_slice(layout, shape, region, sliced)
-
-        region = [tvm.ir.Range(5, 8)]
-        sliced_2 = layout.slice(shape, region).canonicalize()
-        assert sliced_2 is not None
-        assert_structural_equal(sliced, sliced_2)
-
-    case1()
-
-    def case2():
-        # Choose begin and extent to satisfy midpoint condition
-        layout = TileLayout(S[(4, 4, 4, 4) : (64, 4, 16, 1)])
-        shape = [16, 16]
-        region = [(2, 3), (6, 10)]
-        sliced = layout.slice(shape, region).canonicalize()
-        assert sliced is not None
-        verify_slice(layout, shape, region, sliced)
-
-    case2()
-
-    def case3():
-        layout = TileLayout(S[(2, 8, 3, 8) : (192, 8, 64, 1)])
-        shape = [16, 24]
-        region = [(2, 6), (4, 12)]
-        sliced = layout.slice(shape, region).canonicalize()
-        assert sliced is not None
-        verify_slice(layout, shape, region, sliced)
-
-    case3()
-
-    def case4():
-        layout = TileLayout(S[(128, 2, 64) : (64, 128 * 64, 1)])
-        shape = [128, 128]
-        region = [(0, 128), (32, 96)]
-        sliced = layout.slice(shape, region).canonicalize()
-        assert sliced is not None
-        verify_slice(layout, shape, region, sliced)
-
-    case4()
-
-    def case_adds_region_offset_to_base():
-        warp_offset = Var("warp_offset", "int32")
-        layout = TileLayout(S[(4, 64)] + warp_offset * 64)
-        shape = [4, 64]
-        region = [(2, 4), (0, 64)]
-        sliced = layout.slice(shape, region).canonicalize()
-        assert sliced is not None
-        assert Analyzer().can_prove_equal(sliced.offset[m], warp_offset * 64 + 128)
-
-    case_adds_region_offset_to_base()
-
-    def case_swizzle_slice():
-        # bare-swizzle ComposeLayout slice - delegates to ComposeLayout
-        swizzle = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
-        shape = [512]
-        region = [(64, 128)]
-        sliced = swizzle.slice(shape, region)
-        assert sliced is not None
-        verify_slice(swizzle, shape, region, sliced)
-
-    case_swizzle_slice()
-
-    def case_compose_slice():
-        # ComposeLayout slice
-        compose = ComposeLayout(3, 3, 3, TileLayout(S[(8, 64) : (64, 1)]))
-        shape = [512]
-        region = [(64, 128)]
-        sliced = compose.slice(shape, region)
-        assert sliced is not None
-        verify_slice(compose, shape, region, sliced)
-
-    case_compose_slice()
-
-    def case_compose_slice_2d():
-        # ComposeLayout slice with 2D shape
-        compose = ComposeLayout(3, 3, 3, TileLayout(S[(8, 64) : (64, 1)]))
-        shape = [8, 64]
-        region = [(2, 4), (0, 64)]
-        sliced = compose.slice(shape, region)
-        assert sliced is not None
-        verify_slice(compose, shape, region, sliced)
-
-    case_compose_slice_2d()
-
-
-def test_cuda_copy_extract_swizzle_tile_simplifies_constant_region_extents():
-    from tvm.tirx.cuda.tile.copy._common import _extract_tile
-
-    zero = tvm.tirx.Mul(tvm.tirx.IntImm("int32", 0), tvm.tirx.IntImm("int32", 64))
-    end = tvm.tirx.Add(zero, tvm.tirx.IntImm("int32", 64))
-
-    tile = _extract_tile(ComposeLayout(3, 3, 3, TileLayout(S[(512,)])), [(zero, end)])
-
-    assert [int(it.extent) for it in tile.shard] == [64]
+@pytest.mark.parametrize("storage_axis, owner_axis", [(m, laneid), (TCol, TLane)])
+def test_pack_preserves_ownership_and_storage_offsets(storage_axis, owner_axis):
+    layout = TileLayout.from_iters(
+        [Iter(8, 1, owner_axis), Iter(4, 2, storage_axis), Iter(2, 1, storage_axis)],
+        [Iter(2, 16, storage_axis)],
+        {owner_axis: 8, storage_axis: 4},
+    )
+    packed = layout.pack(2, storage_axis.name)
+    for owner, word in itertools.product(range(8), range(4)):
+        before = layout.apply(owner, word, 0)
+        after = packed.apply(owner, word, 0)
+        assert int(after[owner_axis.name]) == int(before[owner_axis.name])
+        assert int(after[storage_axis.name]) * 2 == int(before[storage_axis.name])
+    assert int(packed.replica[0].stride) == 8
+    assert_structural_equal(
+        packed.unpack(2, storage_axis.name).canonicalize(), layout.canonicalize()
+    )
 
 
 def _compose_swizzle(value, per_element, swizzle_len, atom_len, swizzle_inner=True):
@@ -1893,8 +1390,8 @@ def test_compose_structured_apply_splits_one_cross_atom_term():
 def test_compose_structured_apply_handles_uint32_casts_per_term():
     x = Var("x", ty="int32")
     y = Var("y", ty="int32")
-    x_u32 = tvm.tirx.Cast("uint32", x)
-    y_u32 = tvm.tirx.Cast("uint32", y)
+    x_u32 = tvm.tirx.Cast(x, "uint32")
+    y_u32 = tvm.tirx.Cast(y, "uint32")
     layout = ComposeLayout(3, 3, 3, TileLayout(S[(8, 8) : (64, 1)] + 72))
 
     actual = layout.apply(x_u32, y_u32, shape=(8, 8))["m"]
@@ -2008,118 +1505,8 @@ def test_compose_structured_apply_emits_shared_base_address_chain():
                 logical, 3, 3, 3
             )
 
-
-def test_apply_to_shape():
-    """``apply_to_shape`` should give per-shard coord, preferring per-dim
-    split when the input shape aligns with the layout's grouping."""
-
-    from tvm.tirx.layout import Iter, TileLayout
-
-    # 1 shard per dim — coord[d] passes through unchanged.
-    lay = TileLayout(S[16, 16])
-    assert [int(x) for x in lay.apply_to_shape([5, 7], [16, 16])] == [5, 7]
-
-    # Dim 1 split into (4, 4) factors — per-dim mixed-radix within dim 1,
-    # no cross-dim flatten needed.
-    lay2 = TileLayout.from_iters([Iter(16, 16, "m"), Iter(4, 4, "m"), Iter(4, 1, "m")])
-    assert [int(x) for x in lay2.apply_to_shape([5, 7], [16, 16])] == [5, 7 // 4, 7 % 4]
-
-    # Both dims split — verifies split stays local to each dim.
-    lay3 = TileLayout.from_iters(
-        [Iter(4, 64, "m"), Iter(4, 16, "m"), Iter(4, 4, "m"), Iter(4, 1, "m")]
-    )
-    r = lay3.apply_to_shape([13, 9], [16, 16])
-    assert [int(x) for x in r] == [13 // 4, 13 % 4, 9 // 4, 9 % 4]
-
-
-def test_slice_single_shard_skips_defensive_floormod():
-    """Regression: ``Layout.slice`` must not emit ``floormod(begin, Ek)`` on
-    single-shard groups whose caller-contract guarantees ``begin + extent
-    <= Ek``.
-
-    Background: ``SlicePerGroup`` in ``src/tirx/ir/layout/tile_slice.cc``
-    decomposes ``begin`` into per-shard coordinates via
-    ``floormod(floordiv(begin, B[k]), Ek)``. When ``m == 1`` (single shard
-    in the group) and ``begin`` is a runtime expression (e.g. a pipeline
-    stage ``TensorLoad``), the analyzer cannot prove ``begin < Ek`` so the
-    defensive ``floormod`` survives codegen.
-
-    Concretely, fa4's K_smem with shape ``(SMEM_PIPE_DEPTH_KV=3, 128, 128)``
-    sliced by ``[stage:stage+1, :, :]`` would emit
-    ``floormod(stage, 3) * 16384`` in every per-MMA SMEM-descriptor offset
-    (72 sites at s1024_kv4) — even though ``PipelineState`` already keeps
-    ``stage`` in ``[0, 3)``.
-
-    The fix relies on the existing single-shard caller contract noted in
-    the function:
-        ``the slice is valid as long as the caller guarantees
-         begin + slice_extent <= extent (which is assumed)``
-
-    With the contract the mod is provably a no-op; this test asserts the
-    sliced layout's ``offset`` is the bare ``stage * stride`` form for
-    runtime ``begin``.
-    """
-    # Single-shard outer-axis slice with a runtime stage variable.
-    layout = TileLayout(S[(3, 128, 128) : (16384, 128, 1)])
-    shape = [3, 128, 128]
-    stage = Var("stage", "int32")
-    region = [tvm.ir.Range(stage, stage + 1), tvm.ir.Range(0, 128), tvm.ir.Range(0, 128)]
-    sliced = layout.slice(shape, region)
-    assert sliced is not None
-    offset_strs = [str(off) for _, off in sliced.offset.items()]
-    full = " | ".join(offset_strs)
-    # No defensive floormod-by-extent should remain on the stage axis.
-    assert "FloorMod" not in full and "floormod" not in full and "% 3" not in full, (
-        f"single-shard slice with runtime begin must not emit defensive floormod, got offset={full}"
-    )
-
-    # Multi-shard groups (e.g. row dim with swizzle interleaving
-    # ``(128, 2):(64, 8192)``) still need the floormod for correct
-    # decomposition; verify we did not over-aggressively strip it.
-    multi_shard = TileLayout.from_iters(
-        [Iter(2, 8192, "m"), Iter(128, 64, "m")]  # outer (extent=2), inner (extent=128)
-    )
-    multi_shape = [256]
-    multi_region = [tvm.ir.Range(96, 96 + 32)]
-    multi_sliced = multi_shard.slice(multi_shape, multi_region)
-    assert multi_sliced is not None
     # Constants — analyzer simplifies floormod(96, 128) to 96 internally;
     # we just assert offset is non-empty and structurally sane (not None).
-
-
-def test_slice_tcgen05_frag_layout_scope_consistent():
-    """Slicing a wid_in_wg+laneid frag layout (tcgen05 16x256b) must stay
-    scope-consistent: the sliced result canonicalizes to a single tid_in_wg
-    chain over the full 128 threads (regression for the per-group-fusion bug).
-    """
-    frag = TileLayout(
-        S[(4, 2, 2, 8, 4, 4, 2) : (1 @ wid_in_wg, 16, 2, 4 @ laneid, 4, 1 @ laneid, 1)]
-    )
-
-    def thread_chain(layout):
-        canon = layout.canonicalize()
-        names = {it.axis.name for it in canon.shard if it.axis.is_thread()}
-        titers = sorted(
-            ((int(it.stride), int(it.extent)) for it in canon.shard if it.axis.is_thread()),
-        )
-        running = 1
-        for stride, extent in titers:
-            assert stride == running, f"non-contiguous thread chain: {titers}"
-            running *= extent
-        return names, running
-
-    with tvm.target.Target("cuda"):
-        # Full-region slice and a column sub-slice must both canonicalize to a
-        # single tid_in_wg chain covering all 128 warpgroup threads.
-        full = frag.slice([128, 32], [(0, 128), (0, 32)])
-        names, total = thread_chain(full)
-        assert names == {"tid_in_wg"}, names
-        assert total == 128, total
-
-        col = frag.slice([128, 32], [(0, 128), (16, 32)])
-        names_c, total_c = thread_chain(col)
-        assert names_c == {"tid_in_wg"}, names_c
-        assert total_c == 128, total_c
 
 
 if __name__ == "__main__":

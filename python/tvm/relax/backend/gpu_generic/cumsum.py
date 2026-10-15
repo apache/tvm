@@ -34,7 +34,7 @@ def _get_total_rounds(n, log_block_n: int, index_bits: int):
     total_rounds = T.int64(0)
     for round_index in range(1, (index_bits - 1) // log_block_n + 1):
         threshold = T.int64(1 << (round_index * log_block_n - 1))
-        total_rounds += T.Cast("int64", n > threshold)
+        total_rounds += T.Cast(n > threshold, "int64")
     return total_rounds
 
 
@@ -121,8 +121,8 @@ def gpu_2d_continuous_cumsum(
                             for i in T.vectorized(N):
                                 local_buf[i] = T.if_then_else(
                                     tx_idx + i < cur_len,
-                                    T.Cast(out_dtype, source[by, src_offset + tx_idx + i]),
-                                    T.Cast(out_dtype, 0),
+                                    T.Cast(source[by, src_offset + tx_idx + i], out_dtype),
+                                    T.Cast(0, out_dtype),
                                 )
                             # Inclusive scan inside thread
                             for i in T.unroll(1, N):
@@ -174,8 +174,8 @@ def gpu_2d_continuous_cumsum(
                                     bx > 0, source[by, src_offset + bx - 1], 0
                                 )
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @Ts.function(private=True)
     def cumsum(A: T.Tensor([m, n], dtype=in_dtype), Out: T.Tensor([m, n], dtype=out_dtype)):
@@ -254,9 +254,9 @@ def gpu_3d_axis_1_cumsum(
     out_dtype = out_dtype or in_dtype
     TX = T.int64(tx_len)
 
-    outer = T.dynamic("outer")
-    scan = T.dynamic("scan")
-    inner = T.dynamic("inner")
+    outer = T.dynamic("outer", "int64")
+    scan = T.dynamic("scan", "int64")
+    inner = T.dynamic("inner", "int64")
 
     @Ts.function(private=True)
     def cumsum(
@@ -275,9 +275,9 @@ def gpu_3d_axis_1_cumsum(
                     if row < outer * inner:
                         outer_idx: T.let[T.int64] = row // inner
                         inner_idx: T.let[T.int64] = row % inner
-                        accumulator[()] = T.Cast(out_dtype, 0)
+                        accumulator[()] = T.Cast(0, out_dtype)
                         for k in T.serial(scan):
-                            accumulator[()] += T.Cast(out_dtype, A[outer_idx, k, inner_idx])
+                            accumulator[()] += T.Cast(A[outer_idx, k, inner_idx], out_dtype)
                             Out[outer_idx, k, inner_idx] = accumulator[()]
 
     return cumsum

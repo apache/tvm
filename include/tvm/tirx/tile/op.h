@@ -25,11 +25,6 @@
 
 namespace tvm::tirx::tile {
 
-namespace op_attr {
-/*! \brief Backend validation of a tensor instruction Call. */
-inline constexpr const char* kTensorCallValidate = "FTensorCallValidate";
-}  // namespace op_attr
-
 /*! \brief Attach the native Call contract and backend validator to a tile instruction. */
 TVM_TIRX_DLL void ConfigureTensorInstruction(Op op, ffi::Function validator);
 

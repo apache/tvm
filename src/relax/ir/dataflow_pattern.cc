@@ -47,17 +47,17 @@ struct PatternReprPrinterHelper {
   void Print(const ffi::ObjectRef& x) { stream << fn_repr(ffi::AnyView(x)).cast<ffi::String>(); }
 };
 
-#define RELAX_PATTERN_PRINTER_DEF(NODE_TYPE, REPR_LAMBDA)                                      \
-  TVM_FFI_STATIC_INIT_BLOCK() {                                                                \
-    namespace refl = tvm::ffi::reflection;                                                     \
-    refl::TypeAttrDef<NODE_TYPE>().def(                                                        \
-        refl::type_attr::kRepr, [](ffi::ObjectRef ref, ffi::Function fn_repr) -> ffi::String { \
-          auto* node = static_cast<const NODE_TYPE*>(ref.get());                               \
-          PatternReprPrinterHelper printer(fn_repr);                                           \
-          auto* p = &printer;                                                                  \
-          REPR_LAMBDA(p, node);                                                                \
-          return printer.stream.str();                                                         \
-        });                                                                                    \
+#define RELAX_PATTERN_PRINTER_DEF(NODE_TYPE, REPR_LAMBDA)                                          \
+  TVM_FFI_STATIC_INIT_BLOCK() {                                                                    \
+    namespace refl = tvm::ffi::reflection;                                                         \
+    refl::TypeAttrDef<NODE_TYPE>().def(                                                            \
+        ffi::type_attr::kRepr.name, [](ffi::ObjectRef ref, ffi::Function fn_repr) -> ffi::String { \
+          auto* node = static_cast<const NODE_TYPE*>(ref.get());                                   \
+          PatternReprPrinterHelper printer(fn_repr);                                               \
+          auto* p = &printer;                                                                      \
+          REPR_LAMBDA(p, node);                                                                    \
+          return printer.stream.str();                                                             \
+        });                                                                                        \
   }
 
 ExternFuncPattern::ExternFuncPattern(ffi::String global_symbol) : DFPattern(ffi::UnsafeInit{}) {

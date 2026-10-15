@@ -55,7 +55,7 @@ namespace runtime {
  * \param mem_scope The optional device memory scope.
  */
 TVM_RUNTIME_DLL ffi::Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
-                                  ffi::Optional<ffi::String> mem_scope = std::nullopt);
+                                  ffi::Optional<MemoryScope> mem_scope = std::nullopt);
 
 /*!
  * \brief Copy between existing tensors with exactly matching byte sizes.
@@ -69,7 +69,7 @@ TVM_RUNTIME_DLL void CopyFromTo(ffi::TensorView source, ffi::TensorView destinat
  * \note A fresh allocation is made even when source already resides on dev.
  */
 TVM_RUNTIME_DLL ffi::Tensor CopyTo(ffi::TensorView source, Device dev,
-                                   ffi::Optional<ffi::String> mem_scope = std::nullopt);
+                                   ffi::Optional<MemoryScope> mem_scope = std::nullopt);
 
 /*!
  * \brief Create a compact view retaining ownership of source.
@@ -227,9 +227,9 @@ class TensorMemoryPool : public ffi::Object {
 
   /*! \brief Return an owning compact tensor in ordinary global memory. */
   virtual ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                            ffi::Optional<ffi::String> mem_scope = std::nullopt) {
+                            ffi::Optional<MemoryScope> mem_scope = std::nullopt) {
     std::lock_guard<std::recursive_mutex> lock(mu_);
-    if (mem_scope.has_value() && !(*mem_scope).empty() && *mem_scope != "global") {
+    if (mem_scope.has_value() && *mem_scope != MemoryScope::Global()) {
       return DeviceAPI::Get(device)->Empty(shape, dtype, device, mem_scope);
     }
     size_t nbytes = ffi::GetDataSize(shape.Product(), dtype);
@@ -246,7 +246,7 @@ class TensorMemoryPool : public ffi::Object {
     auto it = memory_pool_.find(size);
     if (it != memory_pool_.end()) {
       auto& pool = it->second;
-      bool addressable = DeviceAPI::Get(device)->SupportsDevicePointerArithmeticsOnHost();
+      bool addressable = DeviceAPI::Get(device)->SupportsDevicePtrArithmeticOnHost();
       auto candidate = std::find_if(pool.begin(), pool.end(), [&](const ffi::Tensor& tensor) {
         return tensor.device().device_type == device.device_type &&
                tensor.device().device_id == device.device_id &&
@@ -276,15 +276,10 @@ class TensorMemoryPool : public ffi::Object {
   /*! \brief Create a bounded owning view of a backing tensor. */
   virtual ffi::Tensor CreateView(ffi::Tensor backing, ffi::Shape shape, DLDataType dtype,
                                  uint64_t byte_offset = 0,
-                                 ffi::Optional<ffi::String> mem_scope = std::nullopt) {
-    TVM_FFI_CHECK(!mem_scope.has_value() || (*mem_scope).empty() || *mem_scope == "global" ||
-                      (backing.device().device_type == kDLHexagon &&
-                       (*mem_scope == "global.vtcm" || *mem_scope == "global.ddr")),
-                  ValueError)
-        << "Unsupported tensor view memory scope";
+                                 ffi::Optional<MemoryScope> mem_scope = std::nullopt) {
     auto view = runtime::CreateView(std::move(backing), std::move(shape), dtype, byte_offset);
     if (view.device().device_type == kDLHexagon &&
-        (!mem_scope.has_value() || (*mem_scope).empty() || *mem_scope == "global")) {
+        (!mem_scope.has_value() || *mem_scope == MemoryScope::Global())) {
       // Hexagon kernels receive the adjusted pointer rather than a byte offset.
       auto* tensor = const_cast<DLTensor*>(view.GetDLTensorPtr());
       if (tensor->byte_offset != 0) {

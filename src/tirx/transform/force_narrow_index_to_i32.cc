@@ -56,10 +56,10 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
   static void CheckTensorParams(const Function& func) {
     for (const Var& param : func->params) {
       if (auto tensor = param.as<TensorVar>();
-          tensor && tensor.value()->dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
-          tensor.value()->dtype.bits() > 32) {
+          tensor && tensor.value().dtype().MatchesCode(DLDataTypeCode::kDLInt) &&
+          tensor.value().dtype().bits() > 32) {
         TVM_FFI_THROW(InternalError) << "The tensor parameter " << tensor.value() << " has dtype "
-                                     << tensor.value()->dtype << ". The function is " << func;
+                                     << tensor.value().dtype() << ". The function is " << func;
       }
     }
   }
@@ -69,11 +69,12 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
     // Scalar assignments in TVMScript use local scalar storage.  Keep its explicit
     // dtype (e.g. an int64 opaque call result) and cast at narrowed index uses.
     // IsScalar checks the scalar layout contract, not merely the allocation size.
-    bool is_local_scalar = buf.scope() == "local" && buf.IsScalar();
-    if (!is_local_scalar && buf->dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
-        buf->dtype.bits() > 32) {
+    static const auto local = runtime::MemoryScope::Get("local");
+    bool is_local_scalar = buf.scope() == local && buf.IsScalar();
+    if (!is_local_scalar && buf.dtype().MatchesCode(DLDataTypeCode::kDLInt) &&
+        buf.dtype().bits() > 32) {
       TVM_FFI_THROW(InternalError)
-          << "The tensor " << buf << " allocated in the function has dtype " << buf->dtype
+          << "The tensor " << buf << " allocated in the function has dtype " << buf.dtype()
           << ". The function is " << func_;
     }
   }

@@ -131,7 +131,7 @@ def test_ir_builder_tir_block_base():
         body=tvm.ir.Evaluate(0),
         alloc_tensors=None,
         match_tensors=None,
-        annotations={"tirx.script_parsing_detect_access": tirx.IntImm("int64", 3)},
+        annotations={"tirx.script_parsing_detect_access": 3},
     )
     block_realize_expected = s_tir.SBlockRealize(
         iter_values=[],
@@ -225,7 +225,7 @@ def test_ir_builder_tir_axis():
         writes=[],
         name_hint="block",
         body=tvm.ir.Evaluate(0),
-        annotations={"tirx.script_parsing_detect_access": tirx.IntImm("int64", 3)},
+        annotations={"tirx.script_parsing_detect_access": 3},
     )
     block_realize_expected = s_tir.SBlockRealize(
         iter_values=[var_a, var_b, var_c, var_d],

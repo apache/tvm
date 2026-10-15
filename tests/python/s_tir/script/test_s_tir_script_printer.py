@@ -51,7 +51,7 @@ def test_function_symbolic_tensor_param_roundtrip():
 
     source = func.script()
     assert "T.Tensor((n + 1, n)" in source
-    assert source.index("def main[n: T.int32](") < source.index("T.evaluate(n)")
+    assert source.index("def main[n](") < source.index("T.evaluate(n)")
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
             source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
@@ -72,7 +72,7 @@ def test_function_compound_tensor_shape_first_use_roundtrip():
 
     source = func.script()
     assert "T.Tensor((T.max(n, 1),)" in source
-    assert source.index("def main[n: T.int32](") < source.index("T.evaluate(n)")
+    assert source.index("def main[n](") < source.index("T.evaluate(n)")
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
             source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
@@ -103,7 +103,7 @@ def test_function_symbolic_alloc_tensor_roundtrip():
     ).with_attr({"s_tir": True, "script.namespace": "s_tir"})
 
     source = func.script()
-    assert 'T.alloc_tensor(ty_args=[T.Tensor((size,), "float32")])' in source
+    assert "T.alloc_tensor(ty_args=[T.Tensor((size,), T.float32)])" in source
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
             source,
@@ -135,7 +135,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def main(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def main(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 """,
     )
@@ -162,7 +162,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def main(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def main(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     T.evaluate(A.data)
 """,
@@ -191,7 +191,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def main(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def main(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 """,
     )
@@ -213,9 +213,9 @@ def test_block_realize():
     _assert_print(
         obj,
         """
-i = I.dynamic("i", dtype="int32")
-j = I.dynamic("j", dtype="int32")
-k = I.dynamic("k", dtype="int32")
+i = T.dynamic("i", dtype="int32")
+j = T.dynamic("j", dtype="int32")
+k = T.dynamic("k", dtype="int32")
 with Ts.sblock("block"):
     vi = Ts.axis.spatial(128, i)
     vj = Ts.axis.spatial(64, j)
@@ -269,8 +269,8 @@ def test_match_tensor_region():
     _assert_print(
         obj,
         """
-src = I.Var("src", T.Tensor((128, 128), "float32"))
-tgt = Ts.match_tensor(src[64:128, 64:128], (64, 64), "float32")
+src = T.Var("src", T.Tensor((128, 128), T.float32))
+tgt = Ts.match_tensor(src[64:128, 64:128], (64, 64), T.float32)
 """,
     )
 
@@ -378,7 +378,7 @@ def main():
     with Ts.sblock("root"):
         Ts.reads()
         Ts.writes()
-        v = Ts.sblock_alloc_tensor((128, 128), "float32")
+        v = Ts.sblock_alloc_tensor((128, 128), T.float32)
         for i in range(128):
             for j in range(128):
                 with Ts.sblock(""):
@@ -406,7 +406,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function(private=True)
-def main(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def main(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 """,
     )
@@ -427,7 +427,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def func(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 """
     _assert_print(main, expected_output)
@@ -526,7 +526,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def func(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     a_load: T.let[T.float32x4] = T.masked_load(A, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4))
     T.masked_store(A, a_load, 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
@@ -573,7 +573,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function(private=True)
-def main(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def main(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     T.masked_store(A, T.masked_load(B, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4)), 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
 """
@@ -610,10 +610,10 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def func(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32)):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
-    mask: T.let["uint1xvscalex4"] = T.get_active_lane_mask(0, 13, ty="uint1xvscalex4")
-    a_load: T.let["float32xvscalex4"] = T.masked_load(A, 0, T.Ramp(0, 4, T.vscale() * 4), mask)
+    mask: T.let[T.PrimType("uint1xvscalex4")] = T.get_active_lane_mask(0, 13, ty=T.PrimType("uint1xvscalex4"))
+    a_load: T.let[T.PrimType("float32xvscalex4")] = T.masked_load(A, 0, T.Ramp(0, 4, T.vscale() * 4), mask)
     T.masked_store(A, a_load, 0, T.Ramp(0, 2, T.vscale() * 4), mask)
 """
     _assert_print(main, expected_output)
@@ -652,7 +652,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def main(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
+def main(A: T.Tensor((128,), T.float32), B: T.Tensor((128,), T.float32)):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     B[0:T.vscale() * 4] = A[T.Ramp(0, 1, T.vscale() * 4)]
 """
@@ -675,9 +675,9 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def main(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32")):
+def main(A: T.Tensor((4,), T.float32), B: T.Tensor((4,), T.float32)):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
-    A[0:4] = T.call_llvm_pure_intrin("llvm.sqrt", B[T.Ramp(0, 1, 4)], ty="float32x4")
+    A[0:4] = T.call_llvm_pure_intrin("llvm.sqrt", B[T.Ramp(0, 1, 4)], ty=T.float32x4)
 """
     _assert_print(main, expected_output)
 
@@ -701,7 +701,7 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def main(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32")):
+def main(A: T.Tensor((4,), T.float32), B: T.Tensor((4,), T.float32)):
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     for i in range(1000):
         if i % 13 == 0:
@@ -720,19 +720,19 @@ def opt_gemm_lower():
     class Module:
         @Ts.function
         def mmult(
-            A_1: T.Tensor([16384], elem_offset=0, align=64, offset_factor=1),
-            B_1: T.Tensor([1024, 1024], elem_offset=0, align=64, offset_factor=1),
-            C_1: T.Tensor([16384], elem_offset=0, align=64, offset_factor=1),
+            A_1: T.Tensor([16384], "float32", elem_offset=0, align=64, offset_factor=1),
+            B_1: T.Tensor([1024, 1024], "float32", elem_offset=0, align=64, offset_factor=1),
+            C_1: T.Tensor([16384], "float32", elem_offset=0, align=64, offset_factor=1),
         ) -> None:
             # function attr dict
             T.func_attr({"tirx.noalias": True})
             # body
-            packedB = T.alloc_tensor(ty_args=[T.Tensor((32768,))])
+            packedB = T.alloc_tensor(ty_args=[T.Tensor((32768,), "float32")])
             for x in T.parallel(0, 32):
                 for y in T.serial(0, 1024):
                     packedB[T.ramp(((x * 32768) + (y * 32)), 1, 32)] = B_1[y, T.ramp(x * 32, 1, 32)]
             for x_outer in T.parallel(0, 32):
-                C_global = T.alloc_tensor(ty_args=[T.Tensor((1024,))])
+                C_global = T.alloc_tensor(ty_args=[T.Tensor((1024,), "float32")])
                 for y_outer in T.serial(0, 32):
                     for x_c_init in T.serial(0, 32):
                         C_global[T.ramp((x_c_init * 32), 1, 32)] = T.broadcast(T.float32(0), 32)
@@ -786,10 +786,10 @@ def opt_conv_tensorcore_lower():
         # body
         A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor([12845056], "float16", data=A.data)])
         W_1 = T.decl_tensor(W.data, ty_args=[T.Tensor([1179648], "float16", data=W.data)])
-        Conv_1 = T.decl_tensor(Conv.data, ty_args=[T.Tensor([25690112], data=Conv.data)])
+        Conv_1 = T.decl_tensor(Conv.data, ty_args=[T.Tensor([25690112], "float32", data=Conv.data)])
         bz = T.launch_thread("blockIdx.z", 196)
         Conv_wmma_accumulator = T.alloc_tensor(
-            ty_args=[T.Tensor((2048,), scope="wmma.accumulator")]
+            ty_args=[T.Tensor((2048,), "float32", scope="wmma.accumulator")]
         )
         Apad_shared = T.alloc_tensor(ty_args=[T.Tensor((12288,), "float16", scope="shared")])
         W_shared = T.alloc_tensor(ty_args=[T.Tensor((12288,), "float16", scope="shared")])
@@ -1345,7 +1345,7 @@ def comm_reducer_single_reduce_group():
 
         for i in T.serial(0, 128):
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            reduce_temp0 = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
+            reduce_temp0 = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
             T.evaluate(
                 T.gpu_thread_allreduce(
                     T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
@@ -1547,7 +1547,7 @@ def func_T_ptr_let_statement():
 def func_T_ptr_allocate():
     @Ts.function
     def func_T_ptr_allocate() -> None:
-        A = T.alloc_tensor(ty_args=[T.Tensor((1024,))])
+        A = T.alloc_tensor(ty_args=[T.Tensor((1024,), "float32")])
         A[0] = 0.0
 
     return func_T_ptr_allocate
@@ -1688,7 +1688,7 @@ def test_void_ptr_vs_handle():
 
     tvm.ir.assert_structural_equal(void_ptr.params[0].ty, handle.params[0].ty)
     script = void_ptr.script()
-    assert 'out_ret_value: T.Ptr(I.PrimType("void"))' in script
+    assert "out_ret_value: T.Ptr(T.void)" in script
     assert 'T.handle("void")' not in script
     tvm.ir.assert_structural_equal(
         void_ptr,
@@ -1708,7 +1708,7 @@ def test_void_ptr_vs_handle():
         T.evaluate(out_ret_value)
 
     scoped_script = scoped_void_ptr.script()
-    assert 'out_ret_value: T.Ptr(I.PrimType("void"), "shared")' in scoped_script
+    assert 'out_ret_value: T.Ptr(T.void, "shared")' in scoped_script
     assert 'T.handle("void"' not in scoped_script
     tvm.ir.assert_structural_equal(
         scoped_void_ptr,
@@ -1749,9 +1749,9 @@ def decl_tensor():
 def allocate_and_decl_tensor():
     @Ts.function
     def func(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")) -> None:
-        D = T.alloc_tensor(ty_args=[T.Tensor((16,))])
+        D = T.alloc_tensor(ty_args=[T.Tensor((16,), "float32")])
         for i in range(4):
-            C = T.alloc_tensor(ty_args=[T.Tensor((4,))])
+            C = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32")])
             for j in range(4):
                 C[j] = A[i * 4 + j] + T.float32(1.0)
             for j in range(4):
@@ -1891,24 +1891,26 @@ def tvm_shfl_builtins():
     ):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         threadIdx_x = T.launch_thread("threadIdx.x", 32)
-        A_warp = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
-        B_warp = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
-        red_buf0 = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
-        A_warp_1 = T.decl_tensor(A_warp.data, ty_args=[T.Tensor((32,), scope="local")])
-        A_1 = T.decl_tensor(A, ty_args=[T.Tensor((32,), data=A)])  # A is a handle param
+        A_warp = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
+        B_warp = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
+        red_buf0 = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
+        A_warp_1 = T.decl_tensor(A_warp.data, ty_args=[T.Tensor((32,), "float32", scope="local")])
+        A_1 = T.decl_tensor(A, ty_args=[T.Tensor((32,), "float32", data=A)])  # A is a handle param
         A_warp_1[0] = A_1[threadIdx_x]
-        B_warp_1 = T.decl_tensor(B_warp.data, ty_args=[T.Tensor((32,), scope="local")])
+        B_warp_1 = T.decl_tensor(B_warp.data, ty_args=[T.Tensor((32,), "float32", scope="local")])
         T.gpu_storage_sync("warp")
         B_warp_1[0] = T.gpu_warp_shuffle(
             T.gpu_warp_activemask(), A_warp_1[0], threadIdx_x % 4 * 8 + threadIdx_x // 4, 32, 32
         ) + T.float32(1)
-        red_buf0_1 = T.decl_tensor(red_buf0.data, ty_args=[T.Tensor((1,), scope="local")])
+        red_buf0_1 = T.decl_tensor(
+            red_buf0.data, ty_args=[T.Tensor((1,), "float32", scope="local")]
+        )
         mask = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="local")])
-        t0 = T.alloc_tensor(ty_args=[T.Tensor((1,), scope="local")])
+        t0 = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
         red_buf0_1[0] = A_warp_1[0]
         mask_1 = T.decl_tensor(mask.data, ty_args=[T.Tensor((1,), "uint32", scope="local")])
         mask_1[0] = T.gpu_warp_activemask()
-        t0_1 = T.decl_tensor(t0.data, ty_args=[T.Tensor((1,), scope="local")])
+        t0_1 = T.decl_tensor(t0.data, ty_args=[T.Tensor((1,), "float32", scope="local")])
         t0_1[0] = T.gpu_warp_shuffle_down(mask_1[0], red_buf0_1[0], 16, 32, 32)
         red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
         t0_1[0] = T.gpu_warp_shuffle_down(mask_1[0], red_buf0_1[0], 8, 32, 32)
@@ -1923,9 +1925,9 @@ def tvm_shfl_builtins():
         # NOTE(Zihao): test gpu_warp_shuffle_up
         red_buf0_1[0] = T.gpu_warp_shuffle_up(mask_1[0], red_buf0_1[0], 0, 32, 32)
         if threadIdx_x == 0:
-            C_1 = T.decl_tensor(C, ty_args=[T.Tensor((1,), data=C)])
+            C_1 = T.decl_tensor(C, ty_args=[T.Tensor((1,), "float32", data=C)])
             C_1[0] = red_buf0_1[0]
-        B_1 = T.decl_tensor(B, ty_args=[T.Tensor((32,), data=B)])
+        B_1 = T.decl_tensor(B, ty_args=[T.Tensor((32,), "float32", data=B)])
         B_1[threadIdx_x] = B_warp_1[0]
 
     return func
@@ -1953,7 +1955,7 @@ def tvm_struct_set_generated_in_cpp():
     @I.ir_module
     class Module:
         @Ts.function
-        def tir_packed_call(A: T.Tensor(16)):
+        def tir_packed_call(A: T.Tensor(16, "float32")):
             with T.device_context(0, 0):
                 T.evaluate(
                     T.call_cpacked(
@@ -1963,7 +1965,7 @@ def tvm_struct_set_generated_in_cpp():
                             T.stack_make_shape(16),
                             T.reinterpret(T.uint64(0), ty="handle"),
                             T.uint32(1),
-                            T.Cast("float32", 0),
+                            T.Cast(0, "float32"),
                             0,
                         ),
                     )
@@ -2136,9 +2138,9 @@ def test_disable_concise_scoping_when_scope_annotated():
 @Ts.function
 def main():
     T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
-    x = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
+    x = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int32, scope="local")])
     x[0] = 1
-    y = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])  # annotation 1
+    y = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int32, scope="local")])  # annotation 1
     y[0] = x[0] + 1
     T.evaluate(y[0] - 1)"""
     )
@@ -2160,11 +2162,10 @@ def test_ir_module():
     _assert_module_representations(
         mod,
         """
-# from tvm.script import ir as I
 # from tvm.script import s_tir as Ts
 # from tvm.script import tirx as T
 
-@I.ir_module
+@T.ir_module
 class Module:
     @Ts.function
     def foo():

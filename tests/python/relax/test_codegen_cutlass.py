@@ -93,7 +93,7 @@ pytestmark = [
 
 
 def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
-    with tvm.transform.PassContext(
+    with tvm.ir.transform.PassContext(
         config={
             "relax.backend.use_cuda_graph": cuda_graph,
             "relax.transform.apply_legalize_ops": legalize,
@@ -1284,13 +1284,12 @@ def test_fp16A_int4B_gemm():
                     Ts.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = (
                         T.Cast(
-                            "float16",
                             T.shift_right(
                                 T.shift_left(
                                     T.bitwise_and(
                                         T.shift_right(
-                                            T.Cast("int32", A[v_i, v_j // T.int64(2)]),
-                                            T.Cast("int32", v_j % T.int64(2)) * 4,
+                                            T.Cast(A[v_i, v_j // T.int64(2)], "int32"),
+                                            T.Cast(v_j % T.int64(2), "int32") * 4,
                                         ),
                                         15,
                                     ),
@@ -1298,6 +1297,7 @@ def test_fp16A_int4B_gemm():
                                 ),
                                 28,
                             ),
+                            "float16",
                         )
                         * B[v_j]
                     )
@@ -1326,7 +1326,7 @@ def test_fp16A_int4B_gemm():
                     Ts.reads(max_abs_value[v_i])
                     Ts.writes(scale[v_i])
                     scale[v_i] = T.max(
-                        T.Cast("float32", max_abs_value[v_i]), T.float32(0.0001)
+                        T.Cast(max_abs_value[v_i], "float32"), T.float32(0.0001)
                     ) * T.float32(0.125)
             for j, i, k in T.grid(T.int64(64), T.int64(64), T.int64(2)):
                 with Ts.sblock("w_gathered"):
@@ -1342,12 +1342,11 @@ def test_fp16A_int4B_gemm():
                             T.shift_left(
                                 T.bitwise_and(
                                     T.Cast(
-                                        "int8",
                                         T.min(
                                             T.max(
                                                 T.round(
                                                     T.Cast(
-                                                        "float32", A[v_i * T.int64(2) + v_k, v_j]
+                                                        A[v_i * T.int64(2) + v_k, v_j], "float32"
                                                     )
                                                     / scale[v_i * T.int64(2) + v_k]
                                                 ),
@@ -1355,10 +1354,11 @@ def test_fp16A_int4B_gemm():
                                             ),
                                             T.float32(7),
                                         ),
+                                        "int8",
                                     ),
                                     T.int8(15),
                                 ),
-                                T.Cast("int8", v_k) * T.int8(4),
+                                T.Cast(v_k, "int8") * T.int8(4),
                             ),
                             T.int8(0),
                         ),
@@ -1368,7 +1368,7 @@ def test_fp16A_int4B_gemm():
                     v_i0 = Ts.axis.spatial(T.int64(128), i0)
                     Ts.reads(scale[v_i0])
                     Ts.writes(compute[v_i0])
-                    compute[v_i0] = T.Cast("float16", scale[v_i0])
+                    compute[v_i0] = T.Cast(scale[v_i0], "float16")
 
         @R.function
         def main_bias(
@@ -1551,7 +1551,7 @@ def test_fp16A_int8B_gemm():
                     v_i, v_j = Ts.axis.remap("SS", [i, j])
                     Ts.reads(A[v_i, v_j], B[v_j])
                     Ts.writes(decode_1[v_i, v_j])
-                    decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_j]
+                    decode_1[v_i, v_j] = T.Cast(A[v_i, v_j], "float16") * B[v_j]
 
         @Ts.function
         def encode(
@@ -1577,7 +1577,7 @@ def test_fp16A_int8B_gemm():
                     Ts.reads(max_abs_value[v_i])
                     Ts.writes(scale[v_i])
                     scale[v_i] = T.max(
-                        T.Cast("float32", max_abs_value[v_i]), T.float32(0.0001)
+                        T.Cast(max_abs_value[v_i], "float32"), T.float32(0.0001)
                     ) * T.float32(0.0078125)
             for j, i in T.grid(T.int64(64), T.int64(64)):
                 with Ts.sblock("w_gathered"):
@@ -1585,21 +1585,21 @@ def test_fp16A_int8B_gemm():
                     Ts.reads(A[v_i, v_j], scale[v_i])
                     Ts.writes(w_gathered[v_j, v_i])
                     w_gathered[v_j, v_i] = T.Cast(
-                        "int8",
                         T.min(
                             T.max(
-                                T.round(T.Cast("float32", A[v_i, v_j]) / scale[v_i]),
+                                T.round(T.Cast(A[v_i, v_j], "float32") / scale[v_i]),
                                 T.float32(-128),
                             ),
                             T.float32(127),
                         ),
+                        "int8",
                     )
             for i0 in range(T.int64(64)):
                 with Ts.sblock("compute"):
                     v_i0 = Ts.axis.spatial(T.int64(64), i0)
                     Ts.reads(scale[v_i0])
                     Ts.writes(compute[v_i0])
-                    compute[v_i0] = T.Cast("float16", scale[v_i0])
+                    compute[v_i0] = T.Cast(scale[v_i0], "float16")
 
         @R.function
         def main(
@@ -1707,23 +1707,23 @@ def test_rms_norm():
                     with Ts.init():
                         Ared_temp[v_bsz, v_i] = T.float32(0)
                     Ared_temp[v_bsz, v_i] = Ared_temp[v_bsz, v_i] + T.Cast(
-                        "float32", A[v_bsz, v_i, v_k]
-                    ) * T.Cast("float32", A[v_bsz, v_i, v_k])
+                        A[v_bsz, v_i, v_k], "float32"
+                    ) * T.Cast(A[v_bsz, v_i, v_k], "float32")
             for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
                 with Ts.sblock("rms_norm"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSS", [bsz, i, k])
                     Ts.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
                     Ts.writes(rms_norm[v_bsz, v_i, v_k])
                     rms_norm[v_bsz, v_i, v_k] = T.Cast(
-                        "float16",
-                        T.Cast("float32", B[v_k])
+                        T.Cast(B[v_k], "float32")
                         * (
-                            T.Cast("float32", A[v_bsz, v_i, v_k])
+                            T.Cast(A[v_bsz, v_i, v_k], "float32")
                             / T.sqrt(
                                 Ared_temp[v_bsz, v_i] * T.float32(0.000244140625)
                                 + T.float32(9.9999999999999995e-07)
                             )
                         ),
+                        "float16",
                     )
 
         @R.function
@@ -1821,7 +1821,7 @@ def test_conv2d_cuda_graph():
 
 
 def test_fp16A_int8B_gemm_batched():
-    b = T.dynamic("b")
+    b = T.dynamic("b", "int64")
 
     @I.ir_module
     class Module:
@@ -1838,7 +1838,7 @@ def test_fp16A_int8B_gemm_batched():
                     v_i, v_j = Ts.axis.remap("SS", [i, j])
                     Ts.reads(A[v_i, v_j], B[v_j])
                     Ts.writes(decode_1[v_i, v_j])
-                    decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_j]
+                    decode_1[v_i, v_j] = T.Cast(A[v_i, v_j], "float16") * B[v_j]
 
         @Ts.function
         def encode(
@@ -1864,7 +1864,7 @@ def test_fp16A_int8B_gemm_batched():
                     Ts.reads(max_abs_value[v_i])
                     Ts.writes(scale[v_i])
                     scale[v_i] = T.max(
-                        T.Cast("float32", max_abs_value[v_i]), T.float32(0.0001)
+                        T.Cast(max_abs_value[v_i], "float32"), T.float32(0.0001)
                     ) * T.float32(0.0078125)
             for j, i in T.grid(T.int64(64), T.int64(64)):
                 with Ts.sblock("w_gathered"):
@@ -1872,21 +1872,21 @@ def test_fp16A_int8B_gemm_batched():
                     Ts.reads(A[v_i, v_j], scale[v_i])
                     Ts.writes(w_gathered[v_j, v_i])
                     w_gathered[v_j, v_i] = T.Cast(
-                        "int8",
                         T.min(
                             T.max(
-                                T.round(T.Cast("float32", A[v_i, v_j]) / scale[v_i]),
+                                T.round(T.Cast(A[v_i, v_j], "float32") / scale[v_i]),
                                 T.float32(-128),
                             ),
                             T.float32(127),
                         ),
+                        "int8",
                     )
             for i0 in range(T.int64(64)):
                 with Ts.sblock("compute"):
                     v_i0 = Ts.axis.spatial(T.int64(64), i0)
                     Ts.reads(scale[v_i0])
                     Ts.writes(compute[v_i0])
-                    compute[v_i0] = T.Cast("float16", scale[v_i0])
+                    compute[v_i0] = T.Cast(scale[v_i0], "float16")
 
         @R.function
         def main(
@@ -1962,7 +1962,7 @@ def test_fp16A_int8B_gemm_batched():
 
 
 def test_fp16A_int8B_gemm_batched_finegrained():
-    b = T.dynamic("b")
+    b = T.dynamic("b", "int64")
 
     @I.ir_module
     class Module:
@@ -1978,7 +1978,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                     v_i, v_j = Ts.axis.remap("SS", [i, j])
                     Ts.reads(A[v_i, v_j], B[v_i // T.int64(64), v_j])
                     Ts.writes(decode_1[v_i, v_j])
-                    decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_i // T.int64(64), v_j]
+                    decode_1[v_i, v_j] = T.Cast(A[v_i, v_j], "float16") * B[v_i // T.int64(64), v_j]
 
         @Ts.function
         def encode(
@@ -2022,7 +2022,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                     Ts.reads(max_abs_value[v_i, v_j])
                     Ts.writes(scale[v_i, v_j])
                     scale[v_i, v_j] = T.max(
-                        T.Cast("float32", max_abs_value[v_i, v_j]), T.float32(0.0001)
+                        T.Cast(max_abs_value[v_i, v_j], "float32"), T.float32(0.0001)
                     ) * T.float32(0.0078125)
             for j, i in T.grid(T.int64(128), T.int64(128)):
                 with Ts.sblock("w_gathered"):
@@ -2030,23 +2030,23 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                     Ts.reads(A[v_i, v_j], scale[v_j // T.int64(64), v_i])
                     Ts.writes(w_gathered[v_j, v_i])
                     w_gathered[v_j, v_i] = T.Cast(
-                        "int8",
                         T.min(
                             T.max(
                                 T.round(
-                                    T.Cast("float32", A[v_i, v_j]) / scale[v_j // T.int64(64), v_i]
+                                    T.Cast(A[v_i, v_j], "float32") / scale[v_j // T.int64(64), v_i]
                                 ),
                                 T.float32(-128),
                             ),
                             T.float32(127),
                         ),
+                        "int8",
                     )
             for i0, i1 in T.grid(T.int64(2), T.int64(128)):
                 with Ts.sblock("compute"):
                     v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(scale[v_i0, v_i1])
                     Ts.writes(compute[v_i0, v_i1])
-                    compute[v_i0, v_i1] = T.Cast("float16", scale[v_i0, v_i1])
+                    compute[v_i0, v_i1] = T.Cast(scale[v_i0, v_i1], "float16")
 
         @R.function
         def main(
@@ -2245,8 +2245,8 @@ def _test_batched_var_len_attention(
 
 
 def test_batched_var_len_attention():
-    num_tokens = T.dynamic("num_tokens")
-    num_seq = T.dynamic("num_seq")
+    num_tokens = T.dynamic("num_tokens", "int64")
+    num_seq = T.dynamic("num_seq", "int64")
 
     @I.ir_module
     class Module:
@@ -2299,8 +2299,8 @@ def test_batched_var_len_attention():
 
 
 def test_batched_var_len_multi_query_attention():
-    num_tokens = T.dynamic("num_tokens")
-    num_seq = T.dynamic("num_seq")
+    num_tokens = T.dynamic("num_tokens", "int64")
+    num_seq = T.dynamic("num_seq", "int64")
 
     @I.ir_module
     class Module:
@@ -2395,8 +2395,8 @@ def test_sliding_window():
 
 
 def test_batched_var_len_sliding_window():
-    num_tokens = T.dynamic("num_tokens")
-    num_seq = T.dynamic("num_seq")
+    num_tokens = T.dynamic("num_tokens", "int64")
+    num_seq = T.dynamic("num_seq", "int64")
 
     @I.ir_module
     class Module:

@@ -24,6 +24,21 @@ from numbers import Integral
 from typing import TYPE_CHECKING
 
 import tvm
+from tvm.runtime import MemoryScope
+
+
+@functools.cache
+def _tmem_scope():
+    return MemoryScope("tmem")
+
+
+def _is_tmem_scope(scope):
+    try:
+        return scope == _tmem_scope()
+    except ValueError:
+        # Do not cache absence: an owning backend may register its scopes later.
+        return False
+
 
 if TYPE_CHECKING:
     from tvm.ir import Var
@@ -38,7 +53,7 @@ def _redecl(
     column address, while every other scope carries
     ``data``/``strides``/``elem_offset`` through.
     """
-    if buf.scope() == "tmem":
+    if _is_tmem_scope(buf.scope()):
         from tvm.backend.cuda.op import _tmem_address  # pylint: disable=import-outside-toplevel
         from tvm.tirx.script.ir_builder.parser_protocol import (
             bind_,  # pylint: disable=import-outside-toplevel
@@ -150,16 +165,17 @@ def view(buf: Var, *args, **kwargs) -> Var:
     if len(args) == 1 and isinstance(args[0], str | tvm.DataType) and not kwargs:
         cast_dtype = tvm.DataType(args[0])
         cur_dtype = tvm.DataType(buf.dtype)
+        storage_axis = "TCol" if _is_tmem_scope(buf.scope()) else "m"
         if cast_dtype.bits > cur_dtype.bits:
             assert cast_dtype.bits % cur_dtype.bits == 0
             ratio = cast_dtype.bits // cur_dtype.bits
-            layout = None if buf.layout is None else buf.layout.pack(ratio)
+            layout = None if buf.layout is None else buf.layout.pack(ratio, storage_axis)
             shape = [s for s in buf.shape[:-1]] + [buf.shape[-1] // ratio]
             new_elem_offset = buf.elem_offset // ratio
         else:
             assert cur_dtype.bits % cast_dtype.bits == 0
             ratio = cur_dtype.bits // cast_dtype.bits
-            layout = None if buf.layout is None else buf.layout.unpack(ratio)
+            layout = None if buf.layout is None else buf.layout.unpack(ratio, storage_axis)
             shape = [s for s in buf.shape[:-1]] + [buf.shape[-1] * ratio]
             new_elem_offset = buf.elem_offset * ratio
         strides = None
@@ -196,35 +212,10 @@ def view(buf: Var, *args, **kwargs) -> Var:
     )
     if layout is None:
         shape = _infer_shape(shape)
-    strides = _reshape_strides(buf, shape) if buf.layout is None and layout is None else None
+    strides = (
+        [] if layout is not None else _reshape_strides(buf, shape) if buf.layout is None else None
+    )
     return _redecl(buf, shape, buf.layout if layout is None else layout, strides=strides)
-
-
-def local(buf: Var, *shape, layout=None) -> Var:
-    """Implement :meth:`TensorType.local`."""
-    if not shape:
-        if buf.layout is None:
-            raise ValueError(
-                "Var.local cannot infer a shape because the parent tensor has layout=None; "
-                "pass an explicit shape together with layout=..."
-            )
-        storage_layout = buf.layout.storage()
-        local_extent = storage_layout.span() if layout is None else storage_layout.size()
-        shape = (local_extent,)
-    elif layout is None:
-        if buf.layout is None:
-            raise ValueError(
-                "Var.local without layout= cannot validate the physical storage span "
-                "because the parent tensor has layout=None; pass an explicit layout=..."
-            )
-        local_extent = buf.layout.storage().span()
-        shape_total = functools.reduce(lambda x, y: x * y, shape, 1)
-        if not tvm.sym.Analyzer().can_prove_equal(shape_total, local_extent):
-            raise ValueError(
-                f"Local view shape {shape} has {shape_total} elements, "
-                f"but the tensor has physical storage span {local_extent} per thread"
-            )
-    return _redecl(buf, shape, "default" if layout is None else layout)
 
 
 def permute(buf: Var, *dims) -> Var:
@@ -262,8 +253,9 @@ def rearrange(buf: Var, pattern: str, /, **sizes) -> Var:
             f"{len(buf.shape)} dims (pattern {pattern!r}, shape {list(buf.shape)})"
         )
     axis_size: dict = {}
+    analyzer = tvm.sym.Analyzer()
     for group, dim in zip(lhs_groups, buf.shape):
-        dim_c = int(dim)
+        dim_c = int(analyzer.simplify(dim))
         known = {axis: int(sizes[axis]) for axis in group if axis in sizes}
         unknown = [axis for axis in group if axis not in sizes]
         product = 1
@@ -306,40 +298,6 @@ def sub(buf: Var) -> SubIndexer:
     return SubIndexer(buf)
 
 
-def tile(buf: Var, *specs) -> TileIndexer:
-    """Implement :meth:`TensorType.tile`."""
-    if specs and isinstance(specs[0], int | Integral):
-        if len(specs) != 2:
-            raise ValueError("tile(dim, factors) takes a dim and a factors tuple")
-        specs = (specs,)
-    normalized = []
-    seen = set()
-    for spec in specs:
-        if not isinstance(spec, tuple | list) or len(spec) != 2:
-            raise ValueError(f"tile: each spec must be (dim, factors), got {spec!r}")
-        dim = _normalized_dim(buf, spec[0], "tile")
-        if dim in seen:
-            raise ValueError(f"tile: dim {dim} tiled more than once")
-        seen.add(dim)
-        factors = spec[1]
-        if not isinstance(factors, tuple | list) or len(factors) < 1:
-            raise ValueError(f"tile: factors for dim {dim} must be a non-empty tuple")
-        normalized.append((dim, tuple(factors)))
-    return TileIndexer(buf, normalized)
-
-
-def chunk(buf: Var, spec) -> ChunkIndexer:
-    """Implement :meth:`TensorType.chunk`."""
-    if not isinstance(spec, tuple | list):
-        raise ValueError(f"chunk: spec must be a per-dim tuple, got {spec!r}")
-    if len(spec) != len(buf.shape):
-        raise ValueError(f"chunk: spec length {len(spec)} != tensor rank {len(buf.shape)}")
-    for dim, count in enumerate(spec):
-        if count is not None and (not isinstance(count, Integral) or int(count) < 1):
-            raise ValueError(f"chunk: spec[{dim}] must be None or a positive int, got {count!r}")
-    return ChunkIndexer(buf, tuple(spec))
-
-
 def _normalized_dim(buf: Var, dim, name):
     ndim = len(buf.shape)
     if dim < 0:
@@ -372,6 +330,10 @@ def _surgery_parts(buf: Var):
             layout.swizzle_inner,
         )
         layout = layout.tile_layout
+        # A bare swizzle describes its period, rather than the tensor extent.
+        # Expand the swizzle period to the tensor domain before permuting axes.
+        if layout.is_trivial():
+            layout = tvm.tirx.layout.TileLayout(tvm.tirx.layout.S[tuple(buf.shape)])
     return layout, swizzle
 
 
@@ -432,7 +394,7 @@ def _swizzle_offset_commutes(swizzle, extra_offset):
 def _rebuild_view(buf: Var, new_shape, new_shard, grouped, swizzle, extra_offset):
     """Rebuild a derived view while preserving its physical addresses."""
     offset_map = dict(grouped.offset.items())
-    is_tmem = buf.scope() == "tmem"
+    is_tmem = _is_tmem_scope(buf.scope())
     if (
         not is_tmem
         and extra_offset is not None
@@ -482,7 +444,7 @@ def _tmem_element_offset_to_column_offset(buf: Var, element_offset):
 
 def _tmem_offset_axis_check(buf: Var, group_iters, start_c, what):
     """Check that a tmem view offset can move into the declaration address."""
-    if buf.scope() != "tmem":
+    if not _is_tmem_scope(buf.scope()):
         return
     if start_c == 0:
         return
@@ -529,8 +491,12 @@ def _view_drop(buf: Var, dim, index):
 def _view_narrow(buf: Var, dim, start, length):
     """Narrow one logical dimension while preserving its storage offset."""
     dim = _normalized_dim(buf, dim, "index")
+    analyzer = tvm.sym.Analyzer()
+    start, length = analyzer.simplify(start), analyzer.simplify(length)
     start_c = _concrete_int(start)
     length_c = _concrete_int(length)
+    start = start if start_c is None else start_c
+    length = length if length_c is None else length_c
     extent_c = _concrete_int(buf.shape[dim])
     if start_c is not None and start_c < 0:
         raise ValueError(f"sub: start {start_c} must be non-negative")
@@ -572,12 +538,10 @@ def _view_narrow(buf: Var, dim, start, length):
                     "sub: dim with multiple layout iters requires concrete iter extents"
                 )
             inner *= int(extent)
-        if not (isinstance(start, Integral) and isinstance(length, Integral)):
-            raise ValueError(
-                f"sub: dim {dim} is made of {len(group)} layout iters; "
-                f"start/length must be concrete multiples of {inner}"
-            )
-        if start % inner != 0 or length % inner != 0:
+        if not (
+            analyzer.can_prove_equal(start % inner, 0)
+            and analyzer.can_prove_equal(length % inner, 0)
+        ):
             raise ValueError(
                 f"sub: dim {dim} start/length must be multiples of the "
                 f"inner iter block {inner}; got start={start} length={length}"
@@ -640,86 +604,4 @@ class SubIndexer:
                     dim += 1
             else:
                 buf = _view_drop(buf, dim, item)
-        return buf
-
-
-class ChunkIndexer:
-    """Indexer returned by :meth:`TensorType.chunk`."""
-
-    def __init__(self, tensor: Var, spec):
-        self._tensor = tensor
-        self._spec = spec
-
-    def __getitem__(self, picks):
-        if not isinstance(picks, tuple):
-            picks = (picks,)
-        buf = self._tensor
-        if len(picks) > len(self._spec):
-            raise ValueError(f"chunk: {len(picks)} indices for a rank-{len(self._spec)} spec")
-        translated = []
-        for dim, pick in enumerate(picks):
-            count = self._spec[dim]
-            if count is None:
-                translated.append(pick)
-            elif isinstance(pick, slice):
-                raise ValueError(
-                    f"chunk: chunked dim {dim} takes a chunk index, not a slice; got {pick!r}"
-                )
-            else:
-                size = buf.shape[dim] // int(count)
-                translated.append(slice(pick * size, (pick + 1) * size))
-        return buf[tuple(translated)]
-
-
-class TileIndexer:
-    """Indexer returned by :meth:`TensorType.tile`."""
-
-    def __init__(self, tensor: Var, specs):
-        self._tensor = tensor
-        self._specs = specs
-
-    def __getitem__(self, picks) -> Var:
-        if not isinstance(picks, tuple):
-            picks = (picks,)
-        n_factors = sum(len(factors) for _, factors in self._specs)
-        if len(picks) != n_factors:
-            raise ValueError(
-                f"tile: split into {n_factors} factor(s) but {len(picks)} "
-                f"index(es) given (int/Expr picks, ':' keeps)"
-            )
-        groups, pos = [], 0
-        for dim, factors in self._specs:
-            groups.append((dim, factors, picks[pos : pos + len(factors)]))
-            pos += len(factors)
-        buf = self._tensor
-        for dim, factors, dim_picks in sorted(groups, key=lambda group: group[0], reverse=True):
-            buf = self._apply(buf, dim, factors, dim_picks)
-        return buf
-
-    @staticmethod
-    def _is_keep(pick):
-        return (
-            isinstance(pick, slice)
-            and pick.start is None
-            and pick.stop is None
-            and pick.step is None
-        )
-
-    @classmethod
-    def _apply(cls, buf, dim, factors, dim_picks):
-        for pick in dim_picks:
-            if isinstance(pick, slice) and not cls._is_keep(pick):
-                raise ValueError("tile: a factor slice must be ':' (keep whole); got a sub-slice")
-        n_keep = sum(1 for pick in dim_picks if cls._is_keep(pick))
-        if n_keep == len(dim_picks):
-            raise ValueError(
-                f"tile: dim {dim} picks no factor (all ':'); a chunk must pick "
-                f"at least one factor. Use .view / .chunk for a pure reshape."
-            )
-        buf = buf.view(*buf.shape[:dim], *factors, *buf.shape[dim + 1 :])
-        for index in reversed(range(len(dim_picks))):
-            if not cls._is_keep(dim_picks[index]):
-                buf = _view_drop(buf, dim + index, dim_picks[index])
-        if n_keep >= 2:
-            buf = buf.view(*buf.shape[:dim], -1, *buf.shape[dim + n_keep :])
         return buf

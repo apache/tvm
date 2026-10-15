@@ -22,8 +22,6 @@
  * \brief Statement simplifier based on analyzer
  */
 
-#include "stmt_simplify.h"
-
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
@@ -40,60 +38,45 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-void StmtSimplifyConfigObj::RegisterReflection() {
-  namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<StmtSimplifyConfigObj>()
-      .def_ro("transitively_prove_inequalities",
-              &StmtSimplifyConfigObj::transitively_prove_inequalities,
-              "If true, simplify conditionals with transitive combinations of scoped constraints",
-              refl::DefaultValue(false))
-      .def_ro("convert_boolean_to_and_of_ors",
-              &StmtSimplifyConfigObj::convert_boolean_to_and_of_ors,
-              "If true, simplify conditionals into an AND of ORs", refl::DefaultValue(false))
-      .def_ro("apply_constraints_to_boolean_branches",
-              &StmtSimplifyConfigObj::apply_constraints_to_boolean_branches,
-              "If true, simplify each branch of AND/OR under constraints provided by the other "
-              "branch",
-              refl::DefaultValue(false));
-}
+namespace {
 
-sym::RewriteSimplifier::Extension StmtSimplifyConfigObj::GetEnabledExtensions() const {
-  sym::RewriteSimplifier::Extension flags = sym::RewriteSimplifier::kNone;
-  if (transitively_prove_inequalities) {
-    flags = sym::RewriteSimplifier::Extension(
-        flags | sym::RewriteSimplifier::kTransitivelyProveInequalities);
-  }
-  if (convert_boolean_to_and_of_ors) {
-    flags = sym::RewriteSimplifier::Extension(flags |
-                                              sym::RewriteSimplifier::kConvertBooleanToAndOfOrs);
-  }
-  if (apply_constraints_to_boolean_branches) {
-    flags = sym::RewriteSimplifier::Extension(
-        flags | sym::RewriteSimplifier::kApplyConstraintsToBooleanBranches);
-  }
-  return flags;
-}
+class StmtSimplifier : public StmtExprMutatorWithAnalyzer {
+ public:
+  using StmtExprMutatorWithAnalyzer::Mutate;
+  using StmtExprMutatorWithAnalyzer::Mutate_;
+  explicit StmtSimplifier(const sym::Analyzer& analyzer) : StmtExprMutatorWithAnalyzer(analyzer) {}
 
-static StmtSimplifyConfig MakeDefaultStmtSimplifyConfig() {
-  return tvm::transform::PassConfigWithDefaults<StmtSimplifyConfig>();
-}
+  Function Run(Function func);
 
-TVM_FFI_STATIC_INIT_BLOCK() { StmtSimplifyConfigObj::RegisterReflection(); }
+ protected:
+  using Parent = StmtExprMutatorWithAnalyzer;
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ::tvm::transform::PassContext::RegisterConfigOption<StmtSimplifyConfig>("tirx.StmtSimplify");
-}
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) final;
 
-Function StmtSimplifier::Apply(Function func, const sym::Analyzer& analyzer,
-                               ffi::Optional<StmtSimplifyConfig> config_opt) {
-  auto config = config_opt.has_value() ? config_opt.value() : MakeDefaultStmtSimplifyConfig();
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final;
 
-  auto simplifier = ffi::make_object<StmtSimplifier>(analyzer, config);
-  return simplifier->Run(std::move(func));
-}
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
+
+  UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) override;
+
+  // eliminate useless stores
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) override;
+
+ private:
+  bool ArrayDeepEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimExpr>& rhs);
+
+  /* \brief Internal utility for checking conditionals
+   *
+   * Substitutes any known Bind values and then simplifies with the analyzer.
+   */
+  ffi::Optional<bool> ProveCondition(PrimExpr condition) const;
+
+  // Pure Bind values kept for substitution into assert conditions.
+  // Grows monotonically under SSA — no scope-based cleanup required.
+  ffi::Map<Var, PrimExpr> non_inlined_bindings_;
+};
 
 Function StmtSimplifier::Run(Function func) {
-  analyzer_->rewrite_simplify.SetEnabledExtensions(config_->GetEnabledExtensions());
   MarkTensorParamShapes(func);
   auto* n = func.CopyOnWrite();
   // Shared string literals no longer enter the primitive analyzer.  Inline their
@@ -218,10 +201,10 @@ UnchangedOr<Stmt> StmtSimplifier::Mutate_(const TensorStoreNode* op, InplaceMode
     TensorVar tensor = load->source.as_or_throw<tvm::tirx::TensorVar>();
     if (tensor.same_as(store->dest.as_or_throw<TensorVar>()) &&
         ArrayDeepEqual(load->indices, store->indices) &&
-        prim::ExprDeepEqual()(tensor->elem_offset,
-                              store->dest.as_or_throw<TensorVar>()->elem_offset) &&
-        ArrayDeepEqual(tensor->shape, store->dest.as_or_throw<TensorVar>()->shape) &&
-        ArrayDeepEqual(tensor->strides, store->dest.as_or_throw<TensorVar>()->strides)) {
+        prim::ExprDeepEqual()(tensor.elem_offset(),
+                              store->dest.as_or_throw<TensorVar>().elem_offset()) &&
+        ArrayDeepEqual(tensor.shape(), store->dest.as_or_throw<TensorVar>().shape()) &&
+        ArrayDeepEqual(tensor.strides(), store->dest.as_or_throw<TensorVar>().strides())) {
       return Evaluate(0);
     }
   }
@@ -256,8 +239,10 @@ ffi::Optional<bool> StmtSimplifier::ProveCondition(PrimExpr condition) const {
   }
 }
 
+}  // namespace
+
 Function StmtSimplify(Function func, const sym::Analyzer& analyzer) {
-  return StmtSimplifier::Apply(std::move(func), analyzer);
+  return ffi::make_object<StmtSimplifier>(analyzer)->Run(std::move(func));
 }
 
 namespace transform {
@@ -265,9 +250,7 @@ namespace transform {
 Pass StmtSimplify() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     sym::Analyzer analyzer;
-    auto cfg = ctx->GetConfigOrDefault<StmtSimplifyConfig>("tirx.StmtSimplify");
-
-    return StmtSimplifier::Apply(f, analyzer, cfg);
+    return tirx::StmtSimplify(std::move(f), analyzer);
   };
   return CreateFunctionPass(pass_func, 0, "tirx.StmtSimplify");
 }

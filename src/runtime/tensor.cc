@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/extra/base64.h>
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
@@ -85,7 +86,7 @@ void CopyFromBytes(ffi::TensorView destination, const void* data, size_t nbytes,
 }
 
 ffi::Tensor Empty(ffi::Shape shape, DLDataType dtype, Device dev,
-                  ffi::Optional<ffi::String> mem_scope) {
+                  ffi::Optional<MemoryScope> mem_scope) {
   return DeviceAPI::Get(dev)->Empty(shape, dtype, dev, mem_scope);
 }
 
@@ -162,7 +163,7 @@ ffi::Tensor CreateView(ffi::Tensor source, ffi::Shape shape, DLDataType dtype,
   return ret;
 }
 
-ffi::Tensor CopyTo(ffi::TensorView source, Device dev, ffi::Optional<ffi::String> mem_scope) {
+ffi::Tensor CopyTo(ffi::TensorView source, Device dev, ffi::Optional<MemoryScope> mem_scope) {
   ffi::Tensor ret = Empty(ffi::Shape(source.shape()), source.dtype(), dev, mem_scope);
   CopyFromTo(source, ret);
   Device copy_gpu_dev = source.device().device_type != kDLCPU ? source.device() : dev;
@@ -201,7 +202,7 @@ using namespace tvm::runtime;
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::TypeAttrDef<tvm::ffi::TensorObj>()
-      .def(tvm::ffi::reflection::type_attr::kDataToJson,
+      .def(tvm::ffi::type_attr::kDataToJson.name,
            [](const tvm::ffi::TensorObj* node) {
              std::string result;
              tvm::support::BytesOutStream mstrm(&result);
@@ -210,7 +211,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              b64strm.Finish();
              return tvm::ffi::String(std::move(result));
            })
-      .def(tvm::ffi::reflection::type_attr::kDataFromJson, [](const std::string& blob) {
+      .def(tvm::ffi::type_attr::kDataFromJson.name, [](const std::string& blob) {
         tvm::support::BytesInStream mstrm(blob);
         tvm::support::Base64InStream b64strm(&mstrm);
         b64strm.InitPosition();

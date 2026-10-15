@@ -63,10 +63,10 @@ def test_broadcast_to():
 
 def test_broadcast_to_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
-    d = T.dynamic("d")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
+    d = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class BroadcastTo:
@@ -75,14 +75,14 @@ def test_broadcast_to_symbolic():
             gv: R.Tensor((a, b, c, d), "float32") = R.broadcast_to(x, (a, b, c, d))
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    d_main = T.dynamic("d")
-    a_broadcast_to = T.dynamic("a")
-    b_broadcast_to = T.dynamic("b")
-    c_broadcast_to = T.dynamic("c")
-    d_broadcast_to = T.dynamic("d")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    d_main = T.dynamic("d", "int64")
+    a_broadcast_to = T.dynamic("a", "int64")
+    b_broadcast_to = T.dynamic("b", "int64")
+    c_broadcast_to = T.dynamic("c", "int64")
+    d_broadcast_to = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -173,10 +173,10 @@ def test_concat_input_tuple_var():
 
 def test_concat_input_tuple_var_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b0 = T.dynamic("b0")
-    b1 = T.dynamic("b1")
-    b2 = T.dynamic("b2")
+    a = T.dynamic("a", "int64")
+    b0 = T.dynamic("b0", "int64")
+    b1 = T.dynamic("b1", "int64")
+    b2 = T.dynamic("b2", "int64")
 
     @tvm.script.ir_module
     class Concat:
@@ -185,14 +185,14 @@ def test_concat_input_tuple_var_symbolic():
             gv: R.Tensor((a, b0 + b1 + b2), "float32") = R.concat(t, axis=1)
             return gv
 
-    a_main = T.dynamic("a")
-    b0_main = T.dynamic("b0")
-    b1_main = T.dynamic("b1")
-    b2_main = T.dynamic("b2")
-    a_concatenate = T.dynamic("a")
-    b0_concatenate = T.dynamic("b0")
-    b1_concatenate = T.dynamic("b1")
-    b2_concatenate = T.dynamic("b2")
+    a_main = T.dynamic("a", "int64")
+    b0_main = T.dynamic("b0", "int64")
+    b1_main = T.dynamic("b1", "int64")
+    b2_main = T.dynamic("b2", "int64")
+    a_concatenate = T.dynamic("a", "int64")
+    b0_concatenate = T.dynamic("b0", "int64")
+    b1_concatenate = T.dynamic("b1", "int64")
+    b2_concatenate = T.dynamic("b2", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -253,9 +253,9 @@ def test_expand_dims():
 
 def test_expand_dims_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class ExpandDims:
@@ -264,12 +264,12 @@ def test_expand_dims_symbolic():
             gv: R.Tensor((a, 1, b, 1, c, 1), "float32") = R.expand_dims(x, axis=[1, 3, 5])
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    a_expand_dims = T.dynamic("a")
-    b_expand_dims = T.dynamic("b")
-    c_expand_dims = T.dynamic("c")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_expand_dims = T.dynamic("a", "int64")
+    b_expand_dims = T.dynamic("b", "int64")
+    c_expand_dims = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -358,9 +358,9 @@ def test_flatten_zero_rank():
 
 def test_flatten_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Flatten:
@@ -369,12 +369,12 @@ def test_flatten_symbolic():
             gv: R.Tensor((a * b * c,), "float32") = R.flatten(x)
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    a_reshape = T.dynamic("a")
-    b_reshape = T.dynamic("b")
-    c_reshape = T.dynamic("c")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_reshape = T.dynamic("a", "int64")
+    b_reshape = T.dynamic("b", "int64")
+    c_reshape = T.dynamic("c", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -432,10 +432,10 @@ def test_permute_dims():
 
 def test_permute_dims_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
-    d = T.dynamic("d")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
+    d = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class PermuteDims:
@@ -444,14 +444,14 @@ def test_permute_dims_symbolic():
             gv: R.Tensor((b, d, c, a), "float32") = R.permute_dims(x, axes=[1, -1, 2, -4])
             return gv
 
-    b_main = T.dynamic("b")
-    d_main = T.dynamic("d")
-    c_main = T.dynamic("c")
-    a_main = T.dynamic("a")
-    a_transpose = T.dynamic("a")
-    b_transpose = T.dynamic("b")
-    c_transpose = T.dynamic("c")
-    d_transpose = T.dynamic("d")
+    b_main = T.dynamic("b", "int64")
+    d_main = T.dynamic("d", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_main = T.dynamic("a", "int64")
+    a_transpose = T.dynamic("a", "int64")
+    b_transpose = T.dynamic("b", "int64")
+    c_transpose = T.dynamic("c", "int64")
+    d_transpose = T.dynamic("d", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -558,8 +558,8 @@ def test_reshape():
 
 def test_reshape_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
 
     @tvm.script.ir_module
     class Reshape:
@@ -568,10 +568,10 @@ def test_reshape_symbolic():
             gv: R.Tensor((a // 2, b * 2), "float32") = R.reshape(x, (a // 2, b * 2))
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    a_reshape = T.dynamic("a")
-    b_reshape = T.dynamic("b")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    a_reshape = T.dynamic("a", "int64")
+    b_reshape = T.dynamic("b", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -596,8 +596,8 @@ def test_reshape_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
     # ShapeExpr might be produced by shape computation
-    a = T.dynamic("a")
-    b = T.dynamic("b")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
 
     @tvm.script.ir_module
     class Reshape2:
@@ -608,10 +608,10 @@ def test_reshape_symbolic():
             return gv
 
     # After lowering, redundant var might be removed by later dead code elimination
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    a_reshape = T.dynamic("a")
-    b_reshape = T.dynamic("b")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    a_reshape = T.dynamic("a", "int64")
+    b_reshape = T.dynamic("b", "int64")
 
     @tvm.script.ir_module
     class Expected2:
@@ -653,8 +653,8 @@ def test_reshape_symbolic():
     tvm.ir.assert_structural_equal(mod2, Expected2)
 
     # ShapeExpr might be produced by shape computation
-    a = T.dynamic("a")
-    b = T.dynamic("b")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
 
     @I.ir_module
     class Reshape3:
@@ -665,15 +665,15 @@ def test_reshape_symbolic():
             return gv
 
     # After lowering, redundant var might be removed by later dead code elimination
-    b_reshape = T.dynamic("b")
-    b_main = T.dynamic("b")
+    b_reshape = T.dynamic("b", "int64")
+    b_main = T.dynamic("b", "int64")
 
     @I.ir_module
     class Expected3:
         @Ts.function(private=True)
         def reshape(
-            rxplaceholder: T.Tensor((T.int64(10), b_reshape)),
-            T_reshape: T.Tensor((T.int64(5), b_reshape * T.int64(2))),
+            rxplaceholder: T.Tensor((T.int64(10), b_reshape), "float32"),
+            T_reshape: T.Tensor((T.int64(5), b_reshape * T.int64(2)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -726,10 +726,10 @@ def test_data_dependent_reshape():
     out_mod = relax.transform.LegalizeOps()(mod)
 
     # fmt: off
-    M_main = T.dynamic("M")
-    N_main = T.dynamic("N")
-    M_reshape = T.dynamic("M")
-    N_reshape = T.dynamic("N")
+    M_main = T.dynamic("M", "int64")
+    N_main = T.dynamic("N", "int64")
+    M_reshape = T.dynamic("M", "int64")
+    N_reshape = T.dynamic("N", "int64")
 
     @I.ir_module
     class Expected:
@@ -888,8 +888,8 @@ def test_split_by_indices_n_section_divisible():
 
 def test_split_by_indices_n_section_divisible_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class Split:
@@ -898,9 +898,9 @@ def test_split_by_indices_n_section_divisible_symbolic():
             gv: R.Tuple([R.Tensor((m, n), "float32"), R.Tensor((m, n), "float32"), R.Tensor((m, n), "float32")]) = R.split(x, 3, axis=1)
             return gv
 
-    m_main = T.dynamic("m")
-    n = T.dynamic("n")
-    m_split = T.dynamic("m")
+    m_main = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    m_split = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1003,8 +1003,8 @@ def test_squeeze_no_axis():
 
 def test_squeeze_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
 
     @tvm.script.ir_module
     class Squeeze:
@@ -1013,10 +1013,10 @@ def test_squeeze_symbolic():
             gv: R.Tensor((a, b, 1), "float32") = R.squeeze(x, [1])
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    a_squeeze = T.dynamic("a")
-    b_squeeze = T.dynamic("b")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    a_squeeze = T.dynamic("a", "int64")
+    b_squeeze = T.dynamic("b", "int64")
 
     @tvm.script.ir_module
     class Expected:
@@ -1198,9 +1198,9 @@ def test_repeat_no_axis():
 
 def test_repeat_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
     @I.ir_module
     class Repeat:
@@ -1209,17 +1209,17 @@ def test_repeat_symbolic():
             gv = R.repeat(x, 2, 0)
             return gv
 
-    a_repeat = T.dynamic("a")
-    b_repeat = T.dynamic("b")
-    c_repeat = T.dynamic("c")
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
+    a_repeat = T.dynamic("a", "int64")
+    b_repeat = T.dynamic("b", "int64")
+    c_repeat = T.dynamic("c", "int64")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
 
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def repeat(rxplaceholder: T.Tensor((a_repeat, b_repeat, c_repeat)), T_repeat: T.Tensor((T.int64(2) * a_repeat, b_repeat, c_repeat))):
+        def repeat(rxplaceholder: T.Tensor((a_repeat, b_repeat, c_repeat), "float32"), T_repeat: T.Tensor((T.int64(2) * a_repeat, b_repeat, c_repeat), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1274,9 +1274,9 @@ def test_tile():
 
 def test_tile_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
     @I.ir_module
     class Tile:
@@ -1285,17 +1285,17 @@ def test_tile_symbolic():
             gv = R.tile(x, (2, 1, 2, 3))
             return gv
 
-    a_tile = T.dynamic("a")
-    b_tile = T.dynamic("b")
-    c_tile = T.dynamic("c")
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
+    a_tile = T.dynamic("a", "int64")
+    b_tile = T.dynamic("b", "int64")
+    c_tile = T.dynamic("c", "int64")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
 
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def tile(rxplaceholder: T.Tensor((a_tile, b_tile, c_tile)), T_tile: T.Tensor((T.int64(2), a_tile, b_tile * T.int64(2), c_tile * T.int64(3)))):
+        def tile(rxplaceholder: T.Tensor((a_tile, b_tile, c_tile), "float32"), T_tile: T.Tensor((T.int64(2), a_tile, b_tile * T.int64(2), c_tile * T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1355,8 +1355,8 @@ def test_flip():
 
 def test_flip_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
 
     @I.ir_module
     class Flip:
@@ -1365,10 +1365,10 @@ def test_flip_symbolic():
             gv = R.flip(x, axis=1)
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    a_flip = T.dynamic("a")
-    b_flip = T.dynamic("b")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    a_flip = T.dynamic("a", "int64")
+    b_flip = T.dynamic("b", "int64")
 
     @I.ir_module
     class Expected:
@@ -1381,7 +1381,7 @@ def test_flip_symbolic():
             return gv
 
         @Ts.function(private=True)
-        def flip(rxplaceholder: T.Tensor((a_flip, b_flip)), T_reverse_sequence: T.Tensor((a_flip, b_flip))):
+        def flip(rxplaceholder: T.Tensor((a_flip, b_flip), "float32"), T_reverse_sequence: T.Tensor((a_flip, b_flip), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             for ax0, ax1 in T.grid(a_flip, b_flip):
@@ -1467,9 +1467,9 @@ def test_scatter_elements():
     class Expected:
         @Ts.function(private=True)
         def scatter_elements(
-            rxplaceholder: T.Tensor((T.int64(4), T.int64(4)), offset_factor=1),
-            rxplaceholder_1: T.Tensor((T.int64(2), T.int64(2)), 'int64', offset_factor=1),
-            rxplaceholder_2: T.Tensor((T.int64(2), T.int64(2)), offset_factor=1),
+            rxplaceholder: T.Tensor((T.int64(4), T.int64(4)), "float32", offset_factor=1, elem_offset=T.int64()),
+            rxplaceholder_1: T.Tensor((T.int64(2), T.int64(2)), 'int64', offset_factor=1, elem_offset=T.int64()),
+            rxplaceholder_2: T.Tensor((T.int64(2), T.int64(2)), "float32", offset_factor=1, elem_offset=T.int64()),
             out_buf: T.Tensor((T.int64(4), T.int64(4)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
@@ -1490,12 +1490,12 @@ def test_scatter_elements():
                                         (fused * T.int64(2) + k) % T.int64(2),
                                     ]
                                     + T.Cast(
-                                        "int64",
                                         rxplaceholder_1[
                                             (fused * T.int64(2) + k) // T.int64(2),
                                             (fused * T.int64(2) + k) % T.int64(2),
                                         ]
                                         < T.int64(0),
+                                        "int64",
                                     )
                                     * T.int64(4)
                                 )
@@ -1509,12 +1509,12 @@ def test_scatter_elements():
                                         (fused * T.int64(2) + k) % T.int64(2),
                                     ]
                                     + T.Cast(
-                                        "int64",
                                         rxplaceholder_1[
                                             (fused * T.int64(2) + k) // T.int64(2),
                                             (fused * T.int64(2) + k) % T.int64(2),
                                         ]
                                         < T.int64(0),
+                                        "int64",
                                     )
                                     * T.int64(4)
                                 )
@@ -1545,10 +1545,10 @@ def test_scatter_elements():
 
 def test_scatter_elements_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class ScatterElements:
@@ -1556,23 +1556,23 @@ def test_scatter_elements_symbolic():
         def main(x: R.Tensor((a, b), "float32"), indices:R.Tensor((m, n), "int64"), updates:R.Tensor((m,n), "float32")):
             gv = R.scatter_elements(x, indices, updates, axis=1)
             return gv
-    a_scatter_elements = T.dynamic("a")
-    b_scatter_elements = T.dynamic("b")
-    m_scatter_elements = T.dynamic("m")
-    n_scatter_elements = T.dynamic("n")
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
+    a_scatter_elements = T.dynamic("a", "int64")
+    b_scatter_elements = T.dynamic("b", "int64")
+    m_scatter_elements = T.dynamic("m", "int64")
+    n_scatter_elements = T.dynamic("n", "int64")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
         def scatter_elements(
-            rxplaceholder: T.Tensor((a_scatter_elements, b_scatter_elements), offset_factor=1),
-            rxplaceholder_1: T.Tensor((m_scatter_elements, n_scatter_elements), 'int64', offset_factor=1),
-            rxplaceholder_2: T.Tensor((m_scatter_elements, n_scatter_elements), offset_factor=1),
-            out_buf: T.Tensor((a_scatter_elements, b_scatter_elements)),
+            rxplaceholder: T.Tensor((a_scatter_elements, b_scatter_elements), "float32", offset_factor=1, elem_offset=T.int64()),
+            rxplaceholder_1: T.Tensor((m_scatter_elements, n_scatter_elements), 'int64', offset_factor=1, elem_offset=T.int64()),
+            rxplaceholder_2: T.Tensor((m_scatter_elements, n_scatter_elements), "float32", offset_factor=1, elem_offset=T.int64()),
+            out_buf: T.Tensor((a_scatter_elements, b_scatter_elements), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -1589,11 +1589,11 @@ def test_scatter_elements_symbolic():
                                         (fused * n_scatter_elements + k) // n_scatter_elements, (fused * n_scatter_elements + k) % n_scatter_elements
                                     ]
                                     + T.Cast(
-                                        "int64",
                                         rxplaceholder_1[
                                             (fused * n_scatter_elements + k) // n_scatter_elements, (fused * n_scatter_elements + k) % n_scatter_elements
                                         ]
                                         < T.int64(0),
+                                        "int64",
                                     )
                                     * b_scatter_elements
                                 )
@@ -1606,11 +1606,11 @@ def test_scatter_elements_symbolic():
                                         (fused * n_scatter_elements + k) // n_scatter_elements, (fused * n_scatter_elements + k) % n_scatter_elements
                                     ]
                                     + T.Cast(
-                                        "int64",
                                         rxplaceholder_1[
                                             (fused * n_scatter_elements + k) // n_scatter_elements, (fused * n_scatter_elements + k) % n_scatter_elements
                                         ]
                                         < T.int64(0),
+                                        "int64",
                                     )
                                     * b_scatter_elements
                                 )
@@ -1742,9 +1742,9 @@ def test_layout_transform_symbolic():
     pad_value = 2
 
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
     @I.ir_module
     class LayoutTransform:
@@ -1755,17 +1755,17 @@ def test_layout_transform_symbolic():
             )
             return gv
 
-    a_te_layout_transform_with_pad = T.dynamic("a")
-    b_te_layout_transform_with_pad = T.dynamic("b")
-    c_te_layout_transform_with_pad = T.dynamic("c")
-    a_main = T.dynamic("a")
-    c_main = T.dynamic("c")
-    b_main = T.dynamic("b")
+    a_te_layout_transform_with_pad = T.dynamic("a", "int64")
+    b_te_layout_transform_with_pad = T.dynamic("b", "int64")
+    c_te_layout_transform_with_pad = T.dynamic("c", "int64")
+    a_main = T.dynamic("a", "int64")
+    c_main = T.dynamic("c", "int64")
+    b_main = T.dynamic("b", "int64")
 
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def te_layout_transform_with_pad(A: T.Tensor((a_te_layout_transform_with_pad, b_te_layout_transform_with_pad, c_te_layout_transform_with_pad)), te_layout_transform_with_pad_1: T.Tensor((a_te_layout_transform_with_pad, c_te_layout_transform_with_pad, (b_te_layout_transform_with_pad - b_te_layout_transform_with_pad % T.int64(-3)) // T.int64(3), T.int64(3)))):
+        def te_layout_transform_with_pad(A: T.Tensor((a_te_layout_transform_with_pad, b_te_layout_transform_with_pad, c_te_layout_transform_with_pad), "float32"), te_layout_transform_with_pad_1: T.Tensor((a_te_layout_transform_with_pad, c_te_layout_transform_with_pad, (b_te_layout_transform_with_pad - b_te_layout_transform_with_pad % T.int64(-3)) // T.int64(3), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1811,7 +1811,7 @@ def test_func_ty_of_legalized_layout_transform():
                 R.output(gv)
             return gv
 
-    After = tvm.transform.Sequential(
+    After = tvm.ir.transform.Sequential(
         [
             relax.transform.LegalizeOps(),
             relax.transform.ToNonDataflow(),
@@ -1882,7 +1882,7 @@ def test_scatter_nd():
             return gv
 
         @Ts.function(private=True)
-        def scatter_nd(data: T.Tensor((T.int64(8),), offset_factor=1), indices: T.Tensor((T.int64(4), T.int64(1)), 'int64'), updates: T.Tensor((T.int64(4),), offset_factor=1), out_buf: T.Tensor((T.int64(8),))):
+        def scatter_nd(data: T.Tensor((T.int64(8),), "float32", offset_factor=1, elem_offset=T.int64()), indices: T.Tensor((T.int64(4), T.int64(1)), 'int64'), updates: T.Tensor((T.int64(4),), "float32", offset_factor=1, elem_offset=T.int64()), out_buf: T.Tensor((T.int64(8),), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):

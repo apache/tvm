@@ -29,6 +29,7 @@ from tvm_ffi import get_global_func
 import tvm
 from tvm import ir, s_tir, tirx
 from tvm.ir import TensorRegion
+from tvm.runtime import MemoryScope
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
 from tvm.target.target import Target
@@ -149,7 +150,7 @@ class TensorInfo:
         self.assoc_lps_info = [(sch.get(lp) if lp is not None else None) for lp in assoc_lps]
         self.shape = tensor_region.source.shape
 
-    def get_scope(self) -> str:
+    def get_scope(self) -> MemoryScope:
         return self.tensor_region.source.scope()
 
     def get_vecsize(self, tensor_index: int = 0, vbits: int = 128):
@@ -450,7 +451,9 @@ def _tensor_region_offset(region):
             offset += bounds.min * tensor.strides[axis]
         else:
             offset = offset * tensor.shape[axis] + bounds.min
-    return tvm.sym.Analyzer().simplify(offset + tensor.elem_offset)
+    if not (isinstance(tensor.elem_offset, tirx.IntImm) and tensor.elem_offset.value == 0):
+        offset += tensor.elem_offset
+    return tvm.sym.Analyzer().simplify(offset)
 
 
 def is_broadcast_epilogue(

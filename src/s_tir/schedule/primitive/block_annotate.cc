@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/tuple.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../../transform/ir_utils.h"
@@ -41,8 +42,8 @@ class StorageAlignAxisOutOfRangeError : public ScheduleErrorContextObj {
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    int ndim = static_cast<int>(tensor_->shape.size());
-    os << "The tensor to set storage alignment of, " << tensor_.name() << ", has " << ndim
+    int ndim = static_cast<int>(tensor_.shape().size());
+    os << "The tensor to set storage alignment of, " << tensor_->name << ", has " << ndim
        << " dimension(s), so `axis` is required to be in [" << -(ndim) << ", " << ndim
        << ") for storage_align. However, the input `axis` is " << axis_
        << ", which is out of the expected range.";
@@ -53,7 +54,7 @@ class StorageAlignAxisOutOfRangeError : public ScheduleErrorContextObj {
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
   static int CheckAndUpdate(const IRModule& mod, const TensorVar& tensor, int axis) {
-    int ndim = static_cast<int>(tensor->shape.size());
+    int ndim = static_cast<int>(tensor.shape().size());
     if (axis < -ndim || axis >= ndim) {
       throw MakeScheduleError<StorageAlignAxisOutOfRangeError>(mod, tensor, axis);
     }
@@ -81,7 +82,7 @@ class NonAllocatedTensorError : public ScheduleErrorContextObj {
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "The input tensor " << tensor_.name()
+    os << "The input tensor " << tensor_->name
        << " is not allocated by a block. This means the tensor is either a function parameter or "
           "defined in `match_tensor` of a block.";
     return os.str();
@@ -202,7 +203,7 @@ class StorageScopeMutator : public ReplaceTensorMutator {
   static SBlock Mutate(const SBlock& allocate_site, const TensorVar& old_tensor,
                        const ffi::String& storage_scope,
                        ffi::Map<SBlock, SBlock>* block_sref_reuse) {
-    TensorVar new_tensor = WithScope(old_tensor, storage_scope);
+    TensorVar new_tensor = WithScope(old_tensor, runtime::MemoryScope::Get(storage_scope));
     auto mutator = ffi::make_object<StorageScopeMutator>(old_tensor, new_tensor, storage_scope,
                                                          block_sref_reuse);
     Stmt new_block = mutator->Mutate(allocate_site).ValueOrUnchanged(allocate_site);
@@ -270,13 +271,13 @@ void SetScope(ScheduleState self, const StmtSRef& block_sref, int tensor_index,
   TensorVar tensor =
       GetNthAccessTensor(self, ffi::GetRef<SBlock>(block), tensor_index, TensorIndexType::kWrite);
 
-  // Step 1. If `storage_scope` equals the original storage scope of the tensor, just return.
-  if (tensor.scope() == storage_scope) {
+  // Step 1. Validate before enum lookup to preserve the scheduling error diagnostic.
+  CheckStorageScope(self, storage_scope);
+
+  // Step 2. If `storage_scope` equals the original storage scope of the tensor, just return.
+  if (tensor.scope() == runtime::MemoryScope::Get(storage_scope)) {
     return;
   }
-
-  // Step 2. Throw an error if the input storage scope is invalid.
-  CheckStorageScope(self, storage_scope);
 
   // Step 3. Get the allocation site of the target tensor.
   StmtSRef alloc_site_sref =
@@ -318,7 +319,7 @@ class DTypeMutator : public ReplaceTensorMutator {
   DTypeMutator(const TensorVar& old_tensor, TensorVar new_tensor, PrimType dtype,
                ffi::Map<SBlock, SBlock>* block_sref_reuse)
       : ReplaceTensorMutator(old_tensor, std::move(new_tensor), block_sref_reuse),
-        src_dtype_(old_tensor->dtype),
+        src_dtype_(old_tensor.dtype()),
         tgt_dtype_(dtype) {}
 
  private:
@@ -326,7 +327,7 @@ class DTypeMutator : public ReplaceTensorMutator {
     if (auto replacement =
             VarRemapGet(match_tensor->source->source.as_or_throw<tvm::tirx::TensorVar>())
                 .as<TensorVar>()) {
-      TensorVar new_target_tensor = WithDType(match_tensor->tensor, replacement.value()->dtype);
+      TensorVar new_target_tensor = WithDType(match_tensor->tensor, replacement.value().dtype());
       VarRemapSet(match_tensor->tensor, new_target_tensor);
       return MatchTensorRegion(
           new_target_tensor,
@@ -343,7 +344,7 @@ class DTypeMutator : public ReplaceTensorMutator {
                            .as_or_throw<TensorStore>();
     if (auto replacement = VarRemapGet(original_tensor).as<TensorVar>()) {
       node.CopyOnWrite()->dest = replacement.value();
-      node.CopyOnWrite()->value = Cast(tgt_dtype_, node->value);
+      node.CopyOnWrite()->value = Cast(node->value, tgt_dtype_);
     }
     return node;
   }
@@ -354,7 +355,7 @@ class DTypeMutator : public ReplaceTensorMutator {
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                           .as_or_throw<TensorLoad>();
     if (auto replacement = VarRemapGet(original_tensor).as<TensorVar>()) {
-      return Cast(src_dtype_, MakeTensorLoad(replacement.value(), node->indices));
+      return Cast(TensorLoad(replacement.value(), node->indices), src_dtype_);
     }
     return node;
   }
@@ -370,7 +371,7 @@ void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int tensor_i
   PrimType target_dtype(ffi::StringToDLDataType(dtype));
 
   // Step 1. If `dtype` equals the original data type, just return.
-  if (tensor->dtype == target_dtype) {
+  if (tensor.dtype() == target_dtype) {
     return;
   }
 
@@ -398,16 +399,13 @@ struct StorageAlignTraits : public UnpackedInstTraits<StorageAlignTraits> {
   static constexpr size_t kNumAttrs = 4;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm tensor_index,
-                                      IntImm axis, IntImm factor, IntImm offset) {
-    return sch->StorageAlign(block_rv, tensor_index->value.as<int>().value(),
-                             axis->value.as<int>().value(), factor->value.as<int>().value(),
-                             offset->value.as<int>().value());
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, int tensor_index, int axis,
+                                      int factor, int offset) {
+    return sch->StorageAlign(block_rv, tensor_index, axis, factor, offset);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      IntImm tensor_index, IntImm axis, IntImm factor,
-                                      IntImm offset) {
+                                      int tensor_index, int axis, int factor, int offset) {
     PythonAPICall py("storage_align");
     py.Input("block", block_rv);
     py.Input("tensor_index", tensor_index);
@@ -430,13 +428,13 @@ struct SetScopeTraits : public UnpackedInstTraits<SetScopeTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm tensor_index,
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, int tensor_index,
                                       ffi::String storage_scope) {
-    return sch->SetScope(block_rv, tensor_index->value.as<int>().value(), storage_scope);
+    return sch->SetScope(block_rv, tensor_index, storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      IntImm tensor_index, ffi::String storage_scope) {
+                                      int tensor_index, ffi::String storage_scope) {
     PythonAPICall py("set_scope");
     py.Input("block", block_rv);
     py.Input("tensor_index", tensor_index);
@@ -457,13 +455,13 @@ struct UnsafeSetDTypeTraits : public UnpackedInstTraits<UnsafeSetDTypeTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm tensor_index,
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, int tensor_index,
                                       ffi::String dtype) {
-    return sch->UnsafeSetDType(block_rv, tensor_index->value.as<int>().value(), dtype);
+    return sch->UnsafeSetDType(block_rv, tensor_index, dtype);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      IntImm tensor_index, ffi::String dtype) {
+                                      int tensor_index, ffi::String dtype) {
     PythonAPICall py("unsafe_set_dtype");
     py.Input("block", block_rv);
     py.Input("tensor_index", tensor_index);

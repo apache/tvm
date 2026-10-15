@@ -29,6 +29,7 @@ from tvm import relax
 from tvm import relax as _relax
 from tvm.ir import IRModule
 from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm.ir.type import _init_type_api, _normalize_type
 from tvm.relax import Expr, ExternFunc, ShapeExpr, TupleGetItem, const
 from tvm.relax.distributed import DeviceMesh as _DeviceMesh
 from tvm.relax.distributed import DTensorType as _DTensorType
@@ -373,13 +374,13 @@ def Shape(values=None, ndim=-1, *, loc: _LocationEntry | Location = UNKNOWN_LOC)
 def _type(value):
     if value is None:
         return _ir.TupleType([])
+    if isinstance(value, _ir.Type) or (isinstance(value, type) and issubclass(value, _ir.Type)):
+        return _normalize_type(value)
     if callable(value):
         value = value()
     if _ir.is_prim_expr(value):
         value = value.ty
-    if not isinstance(value, _ir.Type):
-        raise TypeError(f"Expected a concrete type, got {type(value).__name__}")
-    return value
+    return _normalize_type(value)
 
 
 def Callable(
@@ -588,3 +589,6 @@ __all__ = [
     "vulkan",
     "webgpu",
 ]
+
+
+_init_type_api("relax", __name__)

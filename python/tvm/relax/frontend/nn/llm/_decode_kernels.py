@@ -206,7 +206,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
     B = T.dynamic("B", "int32")
     nnz_pages = T.dynamic("nnz_pages", "int32")
     max_num_pages = T.dynamic("max_num_pages", "int32")
-    pages_elem_offset = T.dynamic("pages_elem_offset")
+    pages_elem_offset = T.dynamic("pages_elem_offset", "int64")
     page_indptr_elem_offset = T.dynamic("page_indptr_elem_offset", "int32")
     page_values_elem_offset = T.dynamic("page_values_elem_offset", "int32")
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")

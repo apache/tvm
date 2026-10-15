@@ -22,7 +22,7 @@
 
 #include <tvm/target/target.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/tile/exec_scope.h>
+#include <tvm/tirx/tile/thread_scope.h>
 
 namespace tvm {
 namespace tirx {
@@ -50,15 +50,15 @@ constexpr const char* kPostTensorDefStmt = "post_tensor_def_stmt";
  */
 class DispatchContextObj : public ffi::Object {
  public:
-  DispatchContextObj(Target target, ExecScope exec_scope)
-      : target(std::move(target)), exec_scope(std::move(exec_scope)) {}
+  DispatchContextObj(Target target, ThreadScope thread_scope)
+      : target(std::move(target)), thread_scope(std::move(thread_scope)) {}
   explicit DispatchContextObj(ffi::UnsafeInit)
-      : target(ffi::UnsafeInit{}), exec_scope(ffi::UnsafeInit{}) {}
+      : target(ffi::UnsafeInit{}), thread_scope(ffi::UnsafeInit{}) {}
 
   /*! \brief The target of the kernel. */
   Target target;
-  /*! \brief The exec scope of the operator */
-  ExecScope exec_scope;
+  /*! \brief The thread scope of the operator */
+  ThreadScope thread_scope;
   /*! \brief Hardware tag to (index variable, extent) launch parameters. */
   ffi::Map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params;
   /*! \brief A map from loop variables to their ranges. */
@@ -75,7 +75,7 @@ class DispatchContextObj : public ffi::Object {
    * Maps axis name ("laneid"/"warpid"/"cta_id"/"wid_in_wg"/"wgid") to a
    * 2-element [extent, offset] PrimExpr array. Empty map = no ExecContext
    * tracking available (fallback for unresolved filters, pre-Phase-4 call
-   * sites, etc.); dispatchers should fall back to exec_scope.name in that
+   * sites, etc.); dispatchers should fall back to thread_scope.local_name in that
    * case.
    */
   ffi::Map<ffi::String, ffi::Array<PrimExpr>> inter;
@@ -88,7 +88,7 @@ class DispatchContextObj : public ffi::Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DispatchContextObj>()
         .def_ro("target", &DispatchContextObj::target)
-        .def_ro("exec_scope", &DispatchContextObj::exec_scope)
+        .def_ro("thread_scope", &DispatchContextObj::thread_scope)
         .def_ro("launch_params", &DispatchContextObj::launch_params)
         .def_ro("var_range_map", &DispatchContextObj::var_range_map)
         .def_ro("alloc_only", &DispatchContextObj::alloc_only)
@@ -124,7 +124,7 @@ class DispatchContextObj : public ffi::Object {
 class DispatchContext : public ffi::ObjectRef {
  public:
   TVM_TIRX_DLL DispatchContext(
-      Target target, ExecScope exec_scope,
+      Target target, ThreadScope thread_scope,
       ffi::Map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params = {},
       ffi::Map<Var, Range> var_range_map = {}, bool alloc_only = false,
       ffi::Map<ffi::String, ffi::ObjectRef> callbacks = {},

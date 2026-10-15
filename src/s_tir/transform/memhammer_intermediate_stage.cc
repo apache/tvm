@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/support/gpu_thread_tag.h>
 
 #include "memhammer_rewrite_rule.h"
@@ -243,6 +244,9 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
                                           ffi::Optional<For> compute_location,
                                           const ffi::Array<For>& outer_loops,
                                           TensorVar* alloc_tensor) {
+  static const auto scope_wmma_accumulator = runtime::MemoryScope::Get("wmma.accumulator");
+  static const auto scope_mma_matrixC = runtime::MemoryScope::Get("mma.matrixC");
+
   Stmt body = stmt;
   std::vector<const ForNode*> loops;
   std::vector<const ForNode*> loops_under_compute_location;
@@ -275,11 +279,12 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
     TVM_FFI_ICHECK_EQ(op->then_case->size(), 1);
     body = op->then_case->seq[0];
   }
+  const auto memory_scope = runtime::MemoryScope::Get(storage_scope);
   for (const For& loop : outer_loops) {
     if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
       const ffi::String thread_tag = tvm::s_tir::GetThreadBinding(loop).value();
       auto thread_scope = ParseThreadBindingTag(thread_tag);
-      if (CanRelaxStorageUnderThread(runtime::StorageScope::Create(storage_scope), thread_scope)) {
+      if (CanRelaxStorageUnderThread(memory_scope, thread_scope)) {
         if (is_write_cache && thread_scope.dim_index == 0) {
           // writing C_reindex_m16n8k8_matrixC_shared_dyn is warp execution
           continue;
@@ -294,8 +299,9 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   const TensorLoadNode* target_tensor_load = nullptr;
   if (is_write_cache) {
     auto walk_fn = [&](const TensorLoad& tensor_load) -> ffi::Expected<ffi::WalkResult> {
-      if (tensor_load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "wmma.accumulator" ||
-          tensor_load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "m16n8k8.matrixC") {
+      if (tensor_load->source.as_or_throw<tvm::tirx::TensorVar>().scope() ==
+              scope_wmma_accumulator ||
+          tensor_load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == scope_mma_matrixC) {
         if (target_tensor_load == nullptr) {
           target_tensor_load = tensor_load.get();
         } else {
@@ -380,20 +386,22 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   if (is_write_cache) {
     // this is needed for global <- cast(load(wmma))
     // shared stage should have the same dtype as wmma
-    new_tensor =
-        WithScope(target_tensor_load->source.as_or_throw<tvm::tirx::TensorVar>(), storage_scope);
+    new_tensor = WithScope(target_tensor_load->source.as_or_throw<tvm::tirx::TensorVar>(),
+                           runtime::MemoryScope::Get(storage_scope));
   } else {
-    new_tensor = WithScope(tensor_store->dest.as_or_throw<TensorVar>(), storage_scope);
+    new_tensor = WithScope(tensor_store->dest.as_or_throw<TensorVar>(),
+                           runtime::MemoryScope::Get(storage_scope));
   }
-  ffi::ObjectPtr<TensorTypeNode> tensor_type = CopyTensorType(new_tensor);
+  ffi::ObjectPtr<TensorTypeNode> tensor_type =
+      ffi::make_object<TensorTypeNode>(*new_tensor.ty().get());
   tensor_type->shape = new_shape;
-  new_tensor = RebuildTensorVar(new_tensor, std::move(tensor_type));
+  new_tensor = TensorVar(new_tensor->name, TensorType(std::move(tensor_type)), new_tensor->loc);
   *alloc_tensor = new_tensor;
 
   Stmt generate_body{ffi::UnsafeInit{}};
   if (is_write_cache) {
     // copy from wmma to new cache tensor
-    TensorLoad new_tensor_load = MakeTensorLoad(new_tensor, cache_indices);
+    TensorLoad new_tensor_load = TensorLoad(new_tensor, cache_indices);
     generate_body =
         ffi::make_object<TensorLoadReplacer>(
             target_tensor_load->source.as_or_throw<tvm::tirx::TensorVar>(), new_tensor_load)
@@ -436,12 +444,12 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   }
   Stmt rewrite_body{ffi::UnsafeInit{}};
   if (is_write_cache) {
-    TensorLoad new_tensor_load = MakeTensorLoad(new_tensor, cache_indices);
+    TensorLoad new_tensor_load = TensorLoad(new_tensor, cache_indices);
     rewrite_body =
         TensorStore(new_tensor, cache_indices, ffi::GetRef<TensorLoad>(target_tensor_load));
   } else {
     rewrite_body = TensorStore(tensor_store->dest.as_or_throw<TensorVar>(), tensor_store->indices,
-                               MakeTensorLoad(new_tensor, cache_indices));
+                               TensorLoad(new_tensor, cache_indices));
   }
   if (predicate.has_value()) {
     rewrite_body = If(predicate.value(), rewrite_body);

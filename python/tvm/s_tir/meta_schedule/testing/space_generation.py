@@ -32,7 +32,7 @@ from tvm.target import Target
 
 
 def get_rules(
-    kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"],
+    kind: Literal["llvm", "cuda", "hexagon"],
     types: type | tuple[type, ...],
 ) -> list[ms.ScheduleRule]:
     """Get default schedule rules"""
@@ -57,7 +57,7 @@ def structural_equal_no_gs(mod1: IRModule, mod2: IRModule) -> bool:
 
 
 def generate_design_space(
-    kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"],
+    kind: Literal["llvm", "cuda", "hexagon"],
     mod: IRModule,
     target: Target,
     types: type | tuple[type, ...],

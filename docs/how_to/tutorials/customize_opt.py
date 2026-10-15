@@ -119,9 +119,9 @@ except ImportError as e:
 
 
 # Define a new pass for CUBLAS dispatch
-@tvm.transform.module_pass(opt_level=0, name="CublasDispatch")
+@tvm.ir.transform.module_pass(opt_level=0, name="CublasDispatch")
 class CublasDispatch:
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm.ir.transform.PassContext) -> IRModule:
         # Check if CUBLAS is enabled
         if not tvm.get_global_func("relax.ext.cublas", True):
             raise Exception("CUBLAS is not enabled.")
@@ -168,7 +168,7 @@ target = tvm.target.Target.from_device(device)
 if os.getenv("CI", "") != "true":
     trials = 2000
     with target, tempfile.TemporaryDirectory() as tmp_dir:
-        mod = tvm.transform.Sequential(
+        mod = tvm.ir.transform.Sequential(
             [
                 relax.get_pipeline("zero"),
                 relax.transform.MetaScheduleTuneTIR(work_dir=tmp_dir, max_trials_global=trials),
@@ -190,7 +190,7 @@ from tvm.s_tir import dlight as dl
 
 # Apply DLight rules
 with target:
-    mod = tvm.transform.Sequential(
+    mod = tvm.ir.transform.Sequential(
         [
             relax.get_pipeline("zero"),
             dl.ApplyDefaultSchedule(  # pylint: disable=not-callable

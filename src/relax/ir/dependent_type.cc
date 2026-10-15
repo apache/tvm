@@ -189,7 +189,7 @@ ShapeType::ShapeType(ffi::Array<PrimExpr> values, Location loc) : Type(ffi::Unsa
   n->ndim = static_cast<int>(values.size());
   n->values = values.Map([](PrimExpr value) {
     if (value->IsInstance<IntImmNode>()) {
-      return tvm::prim::cast(PrimType::Int(64), value);
+      return tvm::prim::cast(value, PrimType::Int(64));
     }
     TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
         << "the value in ShapeType can only have dtype of int64";
@@ -211,10 +211,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   ShapeTypeNode::RegisterReflection();
   refl::TypeAttrDef<ShapeTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&ShapeTypeVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&ShapeTypeVisit>())
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&ShapeTypeMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&ShapeTypeMaybeInplaceMutate>());
 }
 
@@ -267,11 +267,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TensorTypeNode::RegisterReflection();
   refl::TypeAttrDef<TensorTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            ffi::FStructuralVisit::FromNative<&TensorTypeVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&TensorTypeVisit>())
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&TensorTypeMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TensorTypeMaybeInplaceMutate>())
       .def(tvm::type_attr::kSubscriptExprRealize,
            [](Expr value,
@@ -321,10 +320,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   FuncTypeNode::RegisterReflection();
   refl::TypeAttrDef<FuncTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&FuncTypeVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&FuncTypeVisit>())
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&FuncTypeMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&FuncTypeMaybeInplaceMutate>());
 
   refl::GlobalDef().def("relax.FuncType",

@@ -508,12 +508,11 @@ class CollectProducerScopeInfo : public ExprVisitor {
     } else {
       auto* op_ptr = call->op.as<OpNode>();
       Op op = ffi::GetRef<Op>(op_ptr);
-      static auto op_map_context_free = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
+      static auto op_map_context_free = Op::GetAttrMap(tvm::op_attr::kInferType);
       if (op_map_context_free.count(op)) {
         out_ty = Call::ReinferType(call);
       } else {
-        static auto op_map_infer_ty =
-            Op::GetAttrMap<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder);
+        static auto op_map_infer_ty = Op::GetAttrMap(tvm::relax::op_attr::kInferTypeWithBuilder);
         TVM_FFI_ICHECK(op_map_infer_ty.count(op))
             << " Cannot find a type inference attribute registered to op: " << op->name;
         out_ty = op_map_infer_ty[op](ffi::GetRef<Call>(call), builder_);
@@ -553,7 +552,8 @@ class CollectProducerScopeInfo : public ExprVisitor {
     if (out_ty->IsInstance<TensorTypeNode>()) {
       auto tensor_ty = out_ty.as_or_throw<TensorType>();
       auto shape_arr = GetShapeFromTensorType(tensor_ty);
-      return TensorType(ShapeExpr(shape_arr), tensor_ty->dtype, VDevice(target_, 0, scope[0]));
+      return TensorType(ShapeExpr(shape_arr), tensor_ty->dtype,
+                        VDevice(target_, 0, runtime::MemoryScope::Get(scope[0])));
     }
 
     TVM_FFI_ICHECK(out_ty->IsInstance<TupleTypeNode>())
@@ -570,8 +570,8 @@ class CollectProducerScopeInfo : public ExprVisitor {
           << si;
       auto ty = si.as_or_throw<TensorType>();
       auto shape_arr = GetShapeFromTensorType(ty);
-      ty_fields.push_back(
-          TensorType(ShapeExpr(shape_arr), ty->dtype, VDevice(target_, 0, scope[0])));
+      ty_fields.push_back(TensorType(ShapeExpr(shape_arr), ty->dtype,
+                                     VDevice(target_, 0, runtime::MemoryScope::Get(scope[0]))));
     }
     return TupleType(ty_fields);
   }
@@ -729,7 +729,8 @@ class DefineVDevice : ExprMutator {
     if (arg->IsInstance<GenericConstNode>()) {
       if (auto tensor_ty = arg->ty.as<TensorTypeNode>()) {
         if (!tensor_ty->vdevice.has_value()) {
-          const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, scope));
+          const VDevice& vdev =
+              MakeGlobalVDevice(VDevice(target_, 0, runtime::MemoryScope::Get(scope)));
           TVM_FFI_ICHECK(tensor_ty->shape.has_value())
               << "Shape not defined for a constant tensor ..!";
           arg->ty = TensorType(tensor_ty->shape.value(), tensor_ty->dtype, vdev, tensor_ty->loc);
@@ -738,7 +739,7 @@ class DefineVDevice : ExprMutator {
       }
     }
     ffi::ObjectPtr<HintOnDeviceAttrs> attrs = ffi::make_object<HintOnDeviceAttrs>();
-    const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, scope));
+    const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, runtime::MemoryScope::Get(scope)));
     attrs->device_type = vdev->target.value()->GetTargetDeviceType();
     attrs->index = vdev->vdevice_id;
     attrs->memory_scope = vdev->memory_scope;

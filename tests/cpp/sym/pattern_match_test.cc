@@ -98,16 +98,16 @@ TEST(Pattern, Basic) {
   }
   // cast pattern
   {
-    TVM_FFI_ICHECK(!cast(PConst<DLDataType>(DLDataType{kDLInt, 32, 1}), px)
-                        .Match(prim::Cast(PrimType::Float(64), x)));
-    TVM_FFI_ICHECK(cast(pt, px).Match(prim::Cast(PrimType::Float(64), x)));
+    TVM_FFI_ICHECK(!cast(px, PConst<DLDataType>(DLDataType{kDLInt, 32, 1}))
+                        .Match(prim::Cast(x, PrimType::Float(64))));
+    TVM_FFI_ICHECK(cast(px, pt).Match(prim::Cast(x, PrimType::Float(64))));
     TVM_FFI_ICHECK((pt.Eval() == DLDataType{kDLFloat, 64, 1}));
-    auto zz = cast(pt, px).Eval();
+    auto zz = cast(px, pt).Eval();
     TVM_FFI_ICHECK(
-        (cast(pt, px) - cast(pt, py))
-            .Match(prim::Cast(PrimType::Float(64), x) - prim::Cast(PrimType::Int(64), x)));
-    auto expr = prim::Cast(PrimType::Int(32), prim::Cast(PrimType::Float(64), x));
-    TVM_FFI_ICHECK(!(cast(pt, cast(pt, px))).Match(expr));
+        (cast(px, pt) - cast(py, pt))
+            .Match(prim::Cast(x, PrimType::Float(64)) - prim::Cast(x, PrimType::Int(64))));
+    auto expr = prim::Cast(prim::Cast(x, PrimType::Float(64)), PrimType::Int(32));
+    TVM_FFI_ICHECK(!(cast(cast(px, pt), pt)).Match(expr));
   }
   // ramp pattern
   {

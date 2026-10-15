@@ -21,7 +21,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 
-#include "../../../tirx/transform/ir_utils.h"
 #include "../utils.h"
 
 namespace tvm {

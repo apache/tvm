@@ -16,9 +16,11 @@
 # under the License.
 """CUDA-specific memory and instruction layout factories."""
 
+import copy
+from enum import Enum
+
 import tvm
-from tvm.backend.cuda.axis import Axis as CUDAAxis
-from tvm.tirx.layout import Axis, Iter, R, S, TileLayout
+from tvm.tirx.layout import Axis, ComposeLayout, Iter, Layout, R, S, TileLayout
 
 # ============================================================================
 # TMEM datapath layouts (PTX ISA §9.7.16.10.5)
@@ -174,15 +176,15 @@ def _mma_datapath_letter(M, cta_group, ws=False, sparse=False):
     """Map (instruction ``M``, ``cta_group``, ``ws``, ``sparse``) to the PTX
     tcgen05 datapath letter. Raises for families rejected in the v1 semantic
     allocator API (sparse Layout C, M=32 Layout G). See
-    ``localdoc/claude_plan.txt`` S3a."""
+    the documented PTX TMEM datapaths."""
     if sparse:
         raise ValueError(
             f"alloc_tcgen05_mma_AB: sparse A (Layout C) not supported in v1 "
             f"(M={M}, cta_group={cta_group})"
         )
-    if ws and not (cta_group == 1 and M == 64):
+    if ws and not (cta_group == 1 and M in (64, 128)):
         raise ValueError(
-            f"alloc_tcgen05_mma_AB: ws=True only valid for cta_group=1, M=64 (Layout E); "
+            f"alloc_tcgen05_mma_AB: ws=True requires cta_group=1, M=64 or M=128; "
             f"got M={M}, cta_group={cta_group}"
         )
     if cta_group == 1:
@@ -212,8 +214,7 @@ def tmem_mma_operand_layout(
     per-CTA buffer rows; ``per_cta_rows = M // cta_group``. Physical 32-bit
     column count is left to the pool's ``_resolve_cols`` (layout-aware).
 
-    Reproduces the hand-written layouts the three FlashMLA kernels use; the
-    supported/reject domain is spec'd in ``localdoc/claude_plan.txt`` S3a.
+    Selects the documented PTX datapath from explicit instruction parameters.
     """
     tlane = Axis.get("TLane")
     tcol = Axis.get("TCol")
@@ -231,7 +232,7 @@ def tmem_mma_operand_layout(
     if operand == "D":
         if group is not None:
             # flat buffer (m, N) + explicit grouping -> (m, s, 2, n) layout
-            # (codex plan option b): keeps kernel O buffer 2D, layout 4-axis.
+            # Keep the kernel output tensor 2D and its physical layout 4-axis.
             if len(ext) != 2:
                 raise ValueError(f"alloc_tcgen05_mma_D group= requires 2D (m,N), got {ext}")
             m, N = ext
@@ -310,281 +311,87 @@ def tmem_mma_operand_layout(
             layout = TileLayout(S[(m, K) : (1 @ tlane, 1 @ tcol)])
     else:
         raise ValueError(f"tmem_mma_operand_layout: operand must be 'A' or 'D', got {operand!r}")
+    # PTX matrix D keeps sub-word accumulators in the low bits of a b32 cell.
+    # A remains packed. TCol strides are expressed in tensor element units.
+    from tvm.runtime import DataType
+
+    if operand == "D" and DataType(dtype).bits == 16:
+        layout = TileLayout.from_iters(
+            shard=[
+                Iter(i.extent, i.stride * (2 if i.axis.name == "TCol" else 1), i.axis)
+                for i in layout.shard
+            ],
+            replica=layout.replica,
+        )
     return layout.canonicalize()
-
-
-def wg_local_layout(cols, rows=128):
-    """Return a warpgroup-local register layout.
-
-    The logical ``(rows, cols)`` tile is distributed on ``tid_in_wg`` along rows,
-    so each thread owns one row and contiguous ``cols`` local elements.
-    """
-    return TileLayout(S[(rows, cols) : (1 @ CUDAAxis.tid_in_wg, 1)])
 
 
 # Allowed (.shape, .num) combinations for tcgen05.ld/st atoms.
 # Source: PTX ISA Table 49 (tcgen05-num-shapes-ld).
-_TCGEN05_ATOM_REPS = {
-    "32x32b": (1, 2, 4, 8, 16, 32, 64, 128),
-    "16x64b": (1, 2, 4, 8, 16, 32, 64, 128),
-    "16x128b": (1, 2, 4, 8, 16, 32, 64),
-    "16x256b": (1, 2, 4, 8, 16, 32),
-}
+class SwizzleMode(Enum):
+    """The swizzle mode of the TMA."""
+
+    SWIZZLE_NONE = 0
+    SWIZZLE_32B_ATOM = 1
+    SWIZZLE_64B_ATOM = 2
+    SWIZZLE_128B_ATOM = 3
 
 
-# Per-warp fp32-column factor for each instr_shape. For .16x*b atoms the
-# warpgroup fragment is 64 rows x (factor * rep) fp32 cols; for .32x32b the
-# fragment is 128 rows x (factor * rep) fp32 cols with factor=1.
-_TCGEN05_COL_FACTOR_FP32 = {"32x32b": 1, "16x64b": 2, "16x128b": 4, "16x256b": 8}
-
-# Allowed fragment row counts per warpgroup for each instr_shape. ``.32x32b``
-# normally covers M=128, but a 64-row shape denotes the Layout B readback image:
-# the logical (64, N) tile is physically a (128, N/2) ``.32x32b`` register
-# file. ``.16x*b`` natively covers M=64 (one 16-row slab per warp, using lanes
-# 0..15 of each warp's 32-lane TMEM partition) and can be extended to M=128 by
-# issuing the atom twice with row offsets 0 and 16. The M=128 variant doubles
-# per-thread registers and treats the extra slab as the highest m-bit.
-_TCGEN05_FRAG_ROWS = {
-    "32x32b": (64, 128),
-    "16x64b": (64, 128),
-    "16x128b": (64, 128),
-    "16x256b": (64, 128),
-}
+def mma_atom_layout(dtype: str, swizzle_mode: SwizzleMode | int) -> ComposeLayout:
+    """Generate the MMA-compatible shared-memory atom layout."""
+    bits = tvm.DataType(dtype).bits
+    if isinstance(swizzle_mode, int):
+        swizzle_mode = SwizzleMode(swizzle_mode)
+    per_element = (128 // bits).bit_length() - 1
+    swizzle_len = swizzle_mode.value
+    atom_len = 3
+    period = 1 << (per_element + swizzle_len + atom_len)
+    return ComposeLayout(per_element, swizzle_len, atom_len, TileLayout(S[(period,)]))
 
 
-def tcgen05_atom_layout(instr_shape: str, tensor_shape: tuple[int, int], dtype) -> "TileLayout":
-    """Register-side ``TileLayout`` for ``tcgen05.ld``/``tcgen05.st`` atoms.
+def mma_atom_shape(dtype: str, swizzle_mode: SwizzleMode | int, shape: list[int] | None = None):
+    """Generate the MMA-compatible shared-memory atom shape."""
+    bits = tvm.DataType(dtype).bits
+    if isinstance(swizzle_mode, int):
+        swizzle_mode = SwizzleMode(swizzle_mode)
+    atom_shape = {
+        SwizzleMode.SWIZZLE_32B_ATOM: [8, 256],
+        SwizzleMode.SWIZZLE_64B_ATOM: [8, 512],
+        SwizzleMode.SWIZZLE_128B_ATOM: [8, 1024],
+    }[swizzle_mode]
+    atom_shape[-1] //= bits
+    if shape is None:
+        return atom_shape
+    atom_shape = [1] * (len(shape) - len(atom_shape)) + atom_shape
+    return atom_shape
 
-    Describes the per-warpgroup register tile that ``Tx.copy_async`` produces
-    when reading a TMEM fragment via ``tcgen05.{ld,st}.<instr_shape>.xN``.
-    ``rep`` (the ``.xN`` qualifier) is inferred from ``tensor_shape``.
 
-    Fragment row count is determined by ``instr_shape``: ``.32x32b`` normally
-    covers an M=128 fragment (128 rows per warpgroup), and
-    ``.16x{64,128,256}b`` covers an M=64 fragment (64 rows per warpgroup).
-    ``("32x32b", (64, N))`` is the fp32 Layout B readback image for a
-    ``.cta_group::2`` M=64 accumulator.
+def mma_shared_layout(dtype: str, swizzle_mode: SwizzleMode | int, shape) -> Layout:
+    """Generate the MMA-compatible shared-memory layout for shape and dtype.
 
-    TMEM is kept **dense** for 16-bit dtypes: two 16-bit elements per 32-bit
-    TMEM cell (matching the existing ``.32x32b`` convention). The PTX op is
-    issued with the plain ``.b32`` form (no ``.pack::16b`` qualifier), and
-    the returned layout describes the per-thread register file with two
-    packed 16-bit elements per 32-bit register.
-
-    Parameters
-    ----------
-    instr_shape : str
-        The PTX atom's ``.shape`` qualifier. One of ``"32x32b"``, ``"16x64b"``,
-        ``"16x128b"``, ``"16x256b"``.
-    tensor_shape : tuple[int, int]
-        The logical fragment shape in **element units**. Must be
-        ``(frag_rows, K)`` where ``frag_rows`` is ``128`` for ``.32x32b`` and
-        ``64`` for the other shapes. The fp32 Layout B image is the exception:
-        it uses ``("32x32b", (64, N))``. The column extent is divisible by the
-        per-warp column factor for the chosen instr_shape and dtype::
-
-            K must be a power-of-two multiple of (factor_fp32 * elem_per_32b)
-
-        where ``factor_fp32`` is ``1`` / ``2`` / ``4`` / ``8`` for ``.32x32b`` /
-        ``.16x64b`` / ``.16x128b`` / ``.16x256b``, and ``elem_per_32b`` is
-        ``1`` for fp32 and ``2`` for fp16/bf16. The inferred rep must be in PTX
-        Table 49's supported set for the chosen instr_shape.
-    dtype : str | tvm.DataType
-        Element dtype. ``"float32"``, ``"float16"``, or ``"bfloat16"``.
-
-    Returns
-    -------
-    TileLayout
-        A ``tensor_shape``-shaped tile layout. The factory builds it as a
-        sequence of fine-grained iters describing the per-(lane, register)
-        destination position.
-
-    Examples
-    --------
-    ``tcgen05_atom_layout("16x64b", (64, 64), "float32")`` → ``.16x64b.x32`` (rep=32, fp32).
-
-    ``tcgen05_atom_layout("16x128b", (64, 256), "float16")`` → ``.16x128b.x32`` (rep=32,
-    fp16; two fp16 elements packed per 32-bit register and per 32-bit TMEM cell).
+    It uses a default tiling strategy to tile the TMA atom layout into the shared memory.
     """
-    if instr_shape not in _TCGEN05_ATOM_REPS:
-        raise ValueError(
-            f"tcgen05_atom_layout instr_shape must be one of "
-            f"{list(_TCGEN05_ATOM_REPS)}, got {instr_shape!r}"
-        )
-    bits = tvm.runtime.DataType(dtype).bits
-    if bits not in (16, 32):
-        raise ValueError(
-            f"tcgen05_atom_layout dtype must be a 32-bit or 16-bit type, got {dtype} ({bits} bits)"
-        )
-    if len(tensor_shape) != 2:
-        raise ValueError(
-            f"tcgen05_atom_layout tensor_shape must be 2-D (rows, cols), got {tensor_shape!r}"
-        )
-    rows, cols = tensor_shape
-    allowed_rows = _TCGEN05_FRAG_ROWS[instr_shape]
-    if rows not in allowed_rows:
-        raise ValueError(
-            f"tcgen05_atom_layout {instr_shape!r} expects rows ∈ {allowed_rows}, got {rows}"
-        )
-
-    if instr_shape == "32x32b" and rows == 64:
-        # Layout B's logical (64, N) tile physically occupies all 128 lanes and
-        # N/2 tcols. A .32x32b thread therefore owns its physical lane and N/2
-        # fp32 registers. Re-label that (128, N/2) register file as (64, N).
-        if bits != 32:
-            raise ValueError(
-                "tcgen05_atom_layout: 32x32b with 64 rows is the datapath B "
-                f"readback image and is fp32-only, got {dtype} ({bits} bits)"
-            )
-        if cols % 2 != 0:
-            raise ValueError(
-                f"tcgen05_atom_layout: 32x32b (64, N) datapath B image expects even N, got {cols}"
-            )
-        n_half = cols // 2
-        if n_half not in _TCGEN05_ATOM_REPS["32x32b"]:
-            raise ValueError(
-                f"tcgen05_atom_layout: 32x32b (64, N) datapath B image needs N/2={n_half} "
-                f"(from N={cols}) in the PTX Table 49 set {_TCGEN05_ATOM_REPS['32x32b']}"
-            )
-        return TileLayout.from_iters(
-            [
-                Iter(64, 1, CUDAAxis.tid_in_wg),
-                Iter(2, 64, CUDAAxis.tid_in_wg),
-                Iter(n_half, 1, "m"),
-            ],
-            [],
-            {},
-        )
-
-    elem_per_32b = 32 // bits
-    col_factor_elem = _TCGEN05_COL_FACTOR_FP32[instr_shape] * elem_per_32b
-    if cols % col_factor_elem != 0:
-        raise ValueError(
-            f"tcgen05_atom_layout cols={cols} not divisible by the per-rep column "
-            f"factor {col_factor_elem} for instr_shape={instr_shape!r} dtype={dtype}; "
-            f"valid cols are k * {col_factor_elem} for k in "
-            f"{_TCGEN05_ATOM_REPS[instr_shape]}"
-        )
-    rep = cols // col_factor_elem
-    if rep not in _TCGEN05_ATOM_REPS[instr_shape]:
-        raise ValueError(
-            f"tcgen05_atom_layout inferred rep={rep} (from cols={cols}) is not in "
-            f"the PTX Table 49 supported set for {instr_shape}: "
-            f"{_TCGEN05_ATOM_REPS[instr_shape]}"
-        )
-
-    laneid = CUDAAxis.laneid
-    wid = CUDAAxis.wid_in_wg
-    N = rep
-    shape = instr_shape
-    # All m-strides below are written in fp32-reg units; we multiply by
-    # elem_per_32b at the end and prepend a C_pack iter for the 16-bit case
-    # (each fp32 reg packs ``elem_per_32b`` elements at adjacent col positions).
-
-    if shape == "32x32b":
-        # M=128 fragment, simple thread-rows layout:
-        #   (rows=128, cols=K) : (1@tid_in_wg, 1)
-        # Each of 128 warpgroup threads owns one row; cols are contiguous in
-        # the per-thread storage. For 16-bit dtypes the K cols are packed two
-        # per 32-bit register (handled by the per-thread storage element count
-        # naturally — m-stride 1 in element units).
-        iters = [
-            Iter(rows, 1, CUDAAxis.tid_in_wg),
-            Iter(cols, 1, "m"),
-        ]
-        return TileLayout.from_iters(iters, [], {})
-
-    # Iter lists are written high-to-low: ``TileLayout`` decomposes a flat
-    # coordinate via ``SplitCoord`` (src/tirx/ir/layout/utils.cc) using
-    # row-major ordering, where the FIRST iter receives the *high* bits and
-    # the LAST iter receives the *low* bits. So R_w (highest-stride row
-    # contribution) comes first in row_iters_fp32 and R_t1/t2 (lowest)
-    # comes last; same for col.
-    if shape == "16x64b":
-        # Per-warp tile (fp32 view): (16 rows, 2N cols). Per-lane regs = N.
-        # Lane (t0, t1, t2): t0 = laneid & 1, t1 = (laneid >> 1) & 1, t2 = laneid >> 2.
-        #   Row = t2 + 8*t0 + 16*wid_in_wg
-        #   Col (fp32) = t1 + 2*r,   r ∈ [0, N)
-        row_iters_fp32 = [
-            (4, 1, wid),  # R_w:  wid_in_wg       → R bits 4..5
-            (2, 1, laneid),  # R_t0: laneid bit 0    → R bit 3
-            (8, 4, laneid),  # R_t2: laneid bits 2..4 → R bits 0..2
-        ]
-        col_iters_fp32 = [
-            (N, 1, "m"),  # C_r:  register slot   → C bits 1..
-            (2, 2, laneid),  # C_t1: laneid bit 1    → C bit 0
-        ]
-        m_used_M64 = N
-    elif shape == "16x128b":
-        # Per-warp tile (fp32 view): (16 rows, 4N cols). Per-lane regs = 2N.
-        # Lane (t0, t1): t0 = laneid & 3, t1 = laneid >> 2.
-        # Reg r = ra + 2*rb, ra ∈ {0,1}, rb ∈ [0, N).
-        #   Row = t1 + 8*ra + 16*wid_in_wg
-        #   Col (fp32) = t0 + 4*rb
-        row_iters_fp32 = [
-            (4, 1, wid),  # R_w
-            (2, 1, "m"),  # R_ra: reg bit 0        → R bit 3
-            (8, 4, laneid),  # R_t1: laneid bits 2..4 → R bits 0..2
-        ]
-        col_iters_fp32 = [
-            (N, 2, "m"),  # C_rb: reg bits 1..     → C bits 2..
-            (4, 1, laneid),  # C_t0: laneid bits 0..1 → C bits 0..1
-        ]
-        m_used_M64 = 2 * N
-    else:  # 16x256b
-        # Per-warp tile (fp32 view): (16 rows, 8N cols). Per-lane regs = 4N.
-        # Lane (t0, t1) as for 16x128b. Reg r = v0p + 2*va + 4*vb.
-        #   Row = t1 + 8*va + 16*wid_in_wg
-        #   Col (fp32) = v0p + 2*t0 + 8*vb
-        row_iters_fp32 = [
-            (4, 1, wid),  # R_w
-            (2, 2, "m"),  # R_va: reg bit 1 → R bit 3
-            (8, 4, laneid),  # R_t1
-        ]
-        col_iters_fp32 = [
-            (N, 4, "m"),  # C_vb:  reg bits 2.. → C bits 3..
-            (4, 1, laneid),  # C_t0
-            (2, 1, "m"),  # C_v0p: reg bit 0  → C bit 0
-        ]
-        m_used_M64 = 4 * N
-
-    if rows == 128:
-        # M=128 covers both 16-row half-slabs of each warp's 32-lane TMEM
-        # partition (the M=64 atom covers only lanes 0..15; the high half
-        # 16..31 needs a second PTX issue with row offset 16). We surface
-        # the combined fragment as a single (128, K) tile by inserting a
-        # v_slab iter right *after* R_w (i.e. as the next-highest row bit).
-        # v_slab claims one m-bit at the next free offset
-        # (stride = m_used_M64) so reg indices [0, m_used_M64) hold the
-        # low slab and [m_used_M64, 2*m_used_M64) hold the high slab — the
-        # split the dispatch uses when emitting the two PTX calls. The
-        # inserted iter also doubles wid_in_wg's row stride from 16 to 32,
-        # so the four warps now tile rows 0..31 / 32..63 / 64..95 / 96..127.
-        new_row_iters = []
-        for ext, stride, axis in row_iters_fp32:
-            new_row_iters.append((ext, stride, axis))
-            if axis is wid:
-                new_row_iters.append((2, m_used_M64, "m"))
-        row_iters_fp32 = new_row_iters
-
-    def _scale(iters):
-        out = []
-        for ext, stride, axis in iters:
-            if axis == "m":
-                out.append((ext, stride * elem_per_32b, axis))
-            else:
-                out.append((ext, stride, axis))
-        return out
-
-    row_iters = _scale(row_iters_fp32)
-    col_iters = _scale(col_iters_fp32)
-
-    # For the 16-bit packed variant each fp32 register holds two adjacent
-    # column elements (low / high halves). Add a C_pack iter of extent
-    # ``elem_per_32b`` and m-stride 1 at the *low* end of the col axis —
-    # i.e. as the LAST col iter under SplitCoord's high-to-low ordering.
-    if elem_per_32b > 1:
-        col_iters.append((elem_per_32b, 1, "m"))
-
-    iters = [Iter(ext, stride, axis) for ext, stride, axis in row_iters + col_iters]
-    return TileLayout.from_iters(iters, [], {})
+    if isinstance(swizzle_mode, int):
+        swizzle_mode = SwizzleMode(swizzle_mode)
+    if swizzle_mode == SwizzleMode.SWIZZLE_NONE:
+        # No-swizzle MMA smem is the packed-16B atom: offset e16*m +
+        # M*e16*(k//e16) + k%e16 (e16=128/bits); plain tile if K % e16 != 0.
+        bits = tvm.DataType(dtype).bits
+        e16 = 128 // bits
+        m, k = int(shape[-2]), int(shape[-1])
+        if k % e16 == 0:
+            lead = [int(s) for s in shape[:-2]]
+            extents = [*lead, m, k // e16, e16]
+            strides = []
+            stride = m * k
+            for e in reversed(lead):
+                strides.insert(0, stride)
+                stride *= e
+            strides += [e16, m * e16, 1]
+            return TileLayout(S[tuple(extents) : tuple(strides)]).canonicalize()
+        return TileLayout(S[tuple(shape)]).canonicalize()
+    atom_shape = mma_atom_shape(dtype, swizzle_mode, shape)
+    layout = mma_atom_layout(dtype, swizzle_mode)
+    tile_to_shape = copy.copy(atom_shape)
+    tile_to_shape[-2] = shape[-2]
+    return layout.tile_to(tile_to_shape, atom_shape).tile_to(shape, tile_to_shape).canonicalize()

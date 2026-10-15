@@ -31,8 +31,6 @@
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/type.h>
 
-#include <string>
-
 namespace tvm {
 // forward declare shared statement.
 class Stmt;
@@ -44,8 +42,8 @@ namespace tirx {
  *
  * TensorVar does not introduce a runtime object or a second identity.  It
  * safely widens to Var, and get() returns the underlying VarNode used by
- * identity-sensitive maps.  operator-> exposes the immutable TensorType
- * access contract for concise compiler-side metadata access.
+ * identity-sensitive maps.  operator-> exposes the same VarNode, while ty()
+ * and the metadata accessors expose its immutable TensorType access contract.
  */
 class TensorVar : public Var {
  public:
@@ -58,27 +56,26 @@ class TensorVar : public Var {
         << "Expected a non-null Var with TensorType";
   }
 
-  /*! \brief Return the ordinary variable view over the same identity. */
-  Var var() const { return ffi::GetRef<Var>(get()); }
-
   /*! \brief Return the tensor type carried by the ordinary variable. */
-  TensorType type() const { return get()->ty.as_or_throw<TensorType>(); }
+  TensorType ty() const { return get()->ty.as_or_throw<TensorType>(); }
 
-  /*! \brief Return the tensor's diagnostic name. */
-  const ffi::String& name() const { return get()->name; }
+  /*! \brief Return the shape of the tensor. */
+  const ffi::Array<PrimExpr>& shape() const { return ty()->shape; }
 
-  /*! \brief Return the source location carried by the ordinary Var. */
-  const Location& loc() const { return get()->loc; }
+  /*! \brief Return the primitive element type. */
+  PrimType dtype() const { return ty()->dtype; }
+
+  /*! \brief Return explicit strides, or an empty array for a compact tensor. */
+  const ffi::Array<PrimExpr>& strides() const { return ty()->strides; }
+
+  /*! \brief Return the offset in tensor elements. */
+  const PrimExpr& elem_offset() const { return ty()->elem_offset; }
 
   /*! \brief Project the physical pointer established by the definition site. */
-  Expr data() const { return Call(type()->DataPtrType(), tensor_data_ptr_op(), {var()}); }
+  Expr data() const { return Call(ty()->DataPtrType(), tensor_data_ptr_op(), {*this}); }
 
   /*! \brief Return the storage scope associated with this tensor. */
-  ffi::String scope() const { return (*this)->storage_scope; }
-
-  /*!
-   * \brief Return a new tensor with the allocated address.
-   */
+  runtime::MemoryScope scope() const { return ty()->scope; }
 
   /*!
    * \brief Return true if the tensor is a scalar.
@@ -87,23 +84,9 @@ class TensorVar : public Var {
    */
   TVM_TIRX_DLL bool IsScalar(bool alloc_or_decl = true) const;
 
-  /*! \return primitive element type for compiler-side uses. */
-  PrimType ElementType() const { return (*this)->ElementType(); }
-
-  explicit TensorVar(ffi::ObjectPtr<VarNode> node) : Var(std::move(node)) {}
+  explicit TensorVar(ffi::ObjectPtr<VarNode> node) : TensorVar(Var(std::move(node))) {}
   explicit TensorVar(ffi::UnsafeInit tag) : Var(tag) {}
   TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TensorVar);
-
-  const TensorTypeNode* operator->() const {
-    const auto* var_node = static_cast<const VarNode*>(data_.get());
-    TVM_FFI_ICHECK(var_node != nullptr);
-    const auto* type_node = var_node->ty.as<TensorTypeNode>();
-    TVM_FFI_ICHECK(type_node != nullptr)
-        << "Expected a Var with TensorType, but " << var_node->name << " has type " << var_node->ty;
-    return type_node;
-  }
-
-  const VarNode* get() const { return static_cast<const VarNode*>(data_.get()); }
 
   [[maybe_unused]] static constexpr bool _type_is_nullable = false;
   static constexpr bool _type_container_is_exact = false;
@@ -111,68 +94,10 @@ class TensorVar : public Var {
 };
 
 // Preserve ObjectRef-style identity comparison for exact TensorVar operands.
-// Comparisons widened to Var or Expr continue to build symbolic expressions.
+// Comparisons widened to Var or Expr remain unavailable; use same_as for identity.
 inline bool operator==(const TensorVar& lhs, const TensorVar& rhs) { return lhs.same_as(rhs); }
 
 inline bool operator!=(const TensorVar& lhs, const TensorVar& rhs) { return !lhs.same_as(rhs); }
-
-/*! \brief Recover a checked tensor view from an ordinary VarNode pointer. */
-inline TensorVar GetTensorVar(const VarNode* var) { return TensorVar(ffi::GetRef<Var>(var)); }
-
-inline ffi::ObjectPtr<TensorTypeNode> CopyTensorType(const TensorVar& var) {
-  return ffi::make_object<TensorTypeNode>(*var.operator->());
-}
-
-inline TensorVar RebuildTensorVar(const TensorVar& var, ffi::ObjectPtr<TensorTypeNode> type,
-                                  ffi::Optional<ffi::String> name = std::nullopt) {
-  return TensorVar(name.value_or(var.name()), TensorType(std::move(type)), var.loc());
-}
-
-/*!
- * \brief Construct a new tensor given shape, and dtype.
- * \param shape The shape of the tensor,
- * \param dtype The content data type.
- * \param name The name of the tensor
- * \param storage_scope The storage scope associated with this tensor
- * \param loc The location of this object in the source code.
- * \return The created tensor.
- * \sa TensorVar for complete constructor.
- */
-TVM_TIRX_DLL TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
-                                   ffi::String name = "tensor", ffi::String storage_scope = "",
-                                   Location loc = UnknownLoc());
-
-/*!
- * \brief Creates a TIR tensor for the provided parameters.
- * \param shape shape of the tensor
- * \param dtype data type
- * \param name tensor name
- * \param data_alignment alignment requirement of data pointer in bytes
- * \param offset_factor Factor of elem_offset field, elem_offset is guaranteed to be
- *                      multiple of offset_factor
-                        User can specify data_alignment and offset_factor to be 0
- *                      A default value will be picked.
- * \param memory_scope memory scope of the tensor
- */
-TVM_TIRX_DLL tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
-                                                       std::string name, int data_alignment,
-                                                       int offset_factor,
-                                                       std::string memory_scope = "");
-
-/*!
- * \brief Construct a TensorLoad from a TensorVar.
- *
- * This is the sole typed construction path for tirx loads.  The result type
- * is derived from the tensor element type and index lanes, and every tirx
- * TensorLoad is required to have a TensorVar source.
- */
-TVM_TIRX_DLL TensorLoad MakeTensorLoad(TensorVar tensor, ffi::Array<PrimExpr> indices,
-                                       Location loc = UnknownLoc());
-
-/*! \brief Select the entire tensor. */
-TVM_TIRX_DLL TensorRegion FullTensorRegion(TensorVar tensor);
-/*! \brief Construct unit or vector-lane ranges from point indices. */
-TVM_TIRX_DLL TensorRegion TensorRegionFromPoint(TensorVar tensor, ffi::Array<PrimExpr> indices);
 
 }  // namespace tirx
 }  // namespace tvm

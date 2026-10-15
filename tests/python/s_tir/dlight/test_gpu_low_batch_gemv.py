@@ -30,7 +30,7 @@ from tvm.target import Target
 def test_batch_decode_gemv():
     # fmt: off
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def before(lv429: T.Tensor((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Tensor((T.int64(4096), T.int64(896)), "float16"), lv807: T.Tensor((batch_size, T.int64(1), T.int64(28672)), 'float16'), NT_matmul_intermediate: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16')):
@@ -44,7 +44,7 @@ def test_batch_decode_gemv():
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
                 Ts.reads(lv429[v_i0, v_i1 // T.int64(8)])
                 Ts.writes(compute[v_i0, v_i1])
-                compute[v_i0, v_i1] = T.Cast("float16", T.bitwise_and(T.shift_right(lv429[v_i0, v_i1 // T.int64(8)], T.Cast("uint32", v_i1 % T.int64(8) * T.int64(4))), T.uint32(15)))
+                compute[v_i0, v_i1] = T.Cast(T.bitwise_and(T.shift_right(lv429[v_i0, v_i1 // T.int64(8)], T.Cast(v_i1 % T.int64(8) * T.int64(4), "uint32")), T.uint32(15)), "float16")
         for i0, i1 in T.grid(T.int64(4096), T.int64(28672)):
             with Ts.sblock("dequantize"):
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
@@ -60,7 +60,7 @@ def test_batch_decode_gemv():
                     NT_matmul_intermediate[v_i0, v_i1, v_i2] = T.float16(0)
                 NT_matmul_intermediate[v_i0, v_i1, v_i2] = NT_matmul_intermediate[v_i0, v_i1, v_i2] + lv807[v_i0, v_i1, v_k] * dequantize_intermediate_intermediate[v_i2, v_k]
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def expected(lv429: T.Tensor((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Tensor((T.int64(4096), T.int64(896)), "float16"), lv807: T.Tensor((batch_size, T.int64(1), T.int64(28672)), 'float16'), NT_matmul_intermediate: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16')):
@@ -92,7 +92,7 @@ def test_batch_decode_gemv():
                                         v1 = Ts.axis.spatial(T.int64(28672), ax2_fused_u_fused_0 * T.int64(256) + ax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0 * T.int64(8) + ax1)
                                         Ts.reads(lv429[v0, v1 // T.int64(8)], lv430[v0, v1 // T.int64(32)])
                                         Ts.writes(dequantize_intermediate_intermediate_local[v0, v1])
-                                        dequantize_intermediate_intermediate_local[v0, v1] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv429[v0, v1 // T.int64(8)], T.Cast("uint32", v1 % T.int64(8) * T.int64(4))), T.uint32(15))) - T.float16(7)) * lv430[v0, v1 // T.int64(32)]
+                                        dequantize_intermediate_intermediate_local[v0, v1] = (T.Cast(T.bitwise_and(T.shift_right(lv429[v0, v1 // T.int64(8)], T.Cast(v1 % T.int64(8) * T.int64(4), "uint32")), T.uint32(15)), "float16") - T.float16(7)) * lv430[v0, v1 // T.int64(32)]
                             for ax0_1, u_fused_ax1_fused_fused_2, ax2_fused_u_fused_2 in T.grid(T.int64(4), T.int64(2), T.int64(2)):
                                 for ax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_1 in T.vectorized(T.int64(4)):
                                     with Ts.sblock("NT_matmul_rf_update"):
@@ -158,7 +158,7 @@ def test_batch_gemv():
     K = 4096
 
     # fmt: off
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def before(A: T.Tensor((batch_size, T.int64(1), T.int64(K)), 'float16'), B: T.Tensor((T.int64(N), T.int64(K)), "float16"), NT_matmul: T.Tensor((batch_size, T.int64(1), T.int64(N)), 'float16')):
@@ -174,7 +174,7 @@ def test_batch_gemv():
                     NT_matmul[v_i0, v_i1, v_i2] = T.float16(0)
                 NT_matmul[v_i0, v_i1, v_i2] = NT_matmul[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_i2, v_k]
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def expected(A: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16'), B: T.Tensor((T.int64(4096), T.int64(4096)), "float16"), NT_matmul: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16')):
@@ -259,10 +259,10 @@ def test_batch_gemv():
 
 def test_reduction_symbolic_var():
     # fmt: off
-    kv_seq_len = T.dynamic("kv_seq_len")
+    kv_seq_len = T.dynamic("kv_seq_len", "int64")
 
     @Ts.function(private=True)
-    def before(A: T.Tensor((T.int64(1), T.int64(32), T.int64(1), kv_seq_len)), B: T.Tensor((T.int64(1), T.int64(32), kv_seq_len, T.int64(128))), matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float32")):
+    def before(A: T.Tensor((T.int64(1), T.int64(32), T.int64(1), kv_seq_len), "float32"), B: T.Tensor((T.int64(1), T.int64(32), kv_seq_len, T.int64(128)), "float32"), matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float32")):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -282,7 +282,7 @@ def test_reduction_symbolic_var():
 
 
 def test_small_spatial_axis():
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def func(
@@ -302,7 +302,7 @@ def test_small_spatial_axis():
                 C[v_i0, v_i1] = C[v_i0, v_i1] + A[v_i0, v_k] * B[v_i1, v_k]
 
     # fmt: off
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def expected(A: T.Tensor((batch_size, T.int64(4096)), 'float16'), B: T.Tensor((T.int64(8), T.int64(4096)), "float16"), C: T.Tensor((batch_size, T.int64(8)), 'float16')):
@@ -408,7 +408,7 @@ def test_outer_reduction():
         for i0, i1 in T.grid(4096, 6144):
             with Ts.sblock("compute"):
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
-                compute[v_i0, v_i1] = T.Cast("float16", T.bitwise_and(T.shift_right(B0[v_i0 // 8, v_i1], T.Cast("uint32", v_i0 % 8 * 4)), T.uint32(15)))
+                compute[v_i0, v_i1] = T.Cast(T.bitwise_and(T.shift_right(B0[v_i0 // 8, v_i1], T.Cast(v_i0 % 8 * 4, "uint32")), T.uint32(15)), "float16")
         for i0, i1 in T.grid(4096, 6144):
             with Ts.sblock("dequantize"):
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
@@ -480,7 +480,7 @@ def test_outer_reduction():
                                             v1 = Ts.axis.spatial(6144, ax1_fused_0 * 64 + ax1_fused_1)
                                             Ts.reads(B0_local[v0 // 8, v1], B1_local[v0 // 32, v1])
                                             Ts.writes(B_local[v0, v1])
-                                            B_local[v0, v1] = (T.Cast("float16", T.bitwise_and(T.shift_right(B0_local[v0 // 8, v1], T.Cast("uint32", v0 % 8 * 4)), T.uint32(15))) - T.float16(7)) * B1_local[v0 // 32, v1]
+                                            B_local[v0, v1] = (T.Cast(T.bitwise_and(T.shift_right(B0_local[v0 // 8, v1], T.Cast(v0 % 8 * 4, "uint32")), T.uint32(15)), "float16") - T.float16(7)) * B1_local[v0 // 32, v1]
                                 for ax0_1, ax2_fused_1_ax2_fused_3_fused_1_0 in T.grid(4, 2):
                                     for ax2_fused_1_ax2_fused_3_fused_1_1 in T.vectorized(4):
                                         with Ts.sblock("matmul_rf_update"):
@@ -539,7 +539,7 @@ def test_outer_reduction():
 
 def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
     # fmt: off
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def before(A: T.Tensor((batch_size, T.int64(1), T.int64(128)), 'float16'), B: T.Tensor((T.int64(128), T.int64(128)), "float16"), C: T.Tensor((batch_size, T.int64(1), T.int64(128)), 'float16')):
@@ -565,7 +565,7 @@ def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
 
 
 def test_low_batch_gemv_rejects_non_einsum_tensor_access():
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def before(
@@ -589,7 +589,7 @@ def test_low_batch_gemv_rejects_non_einsum_tensor_access():
 
 def test_low_batch_gemv_broadcast_epilogue():
     # fmt: off
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def before(
@@ -621,7 +621,7 @@ def test_low_batch_gemv_broadcast_epilogue():
                 Ts.reads(C_temp[v_i0, v_i1, T.int64(0), v_i4])
                 Ts.writes(C[v_i0, v_i1, v_i2, v_i3, v_i4])
                 C[v_i0, v_i1, v_i2, v_i3, v_i4] = T.Cast(
-                    "float32", C_temp[v_i0, v_i1, T.int64(0), v_i4]
+                    C_temp[v_i0, v_i1, T.int64(0), v_i4], "float32"
                 )
     # fmt: on
 

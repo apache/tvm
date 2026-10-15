@@ -125,11 +125,11 @@ class Cast(ExprWithOp):
 
     Parameters
     ----------
-    dtype : str
-        The data type
-
     value : Expr
-        The value of the function.
+        The value to cast.
+
+    dtype : str | PrimType
+        The target data type.
 
     loc : Location, optional
         The location of this expression in the source code.
@@ -137,10 +137,10 @@ class Cast(ExprWithOp):
 
     value: Expr
 
-    def __init__(self, dtype: str | PrimType, value, loc: Location = UNKNOWN_LOC) -> None:
+    def __init__(self, value, dtype: str | PrimType, loc: Location = UNKNOWN_LOC) -> None:
         if isinstance(dtype, PrimType):
             dtype = dtype.dtype
-        self.__init_handle_by_constructor__(_prim_ffi_api.Cast, dtype, value, loc)  # type: ignore
+        self.__init_handle_by_constructor__(_prim_ffi_api.Cast, value, dtype, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.LShift")

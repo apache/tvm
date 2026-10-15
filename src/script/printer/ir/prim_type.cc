@@ -17,10 +17,13 @@
  * under the License.
  */
 
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/script/printer/doc_translator.h>
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
+#include <limits>
 #include <optional>
 
 #include "utils.h"
@@ -32,26 +35,36 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> AnyTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView, const ffi::Object*) {
-  ExprDoc doc = NamespaceDoc("relax")->Attr("Any");
-  return d->GetOrCreateExtraState<bool>("ir.type_value") ? doc->Call({}) : doc;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<AnyTypeNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
-      FDocTranslate::FromNative<&AnyTypeDocTranslate>());
-}
-
-ffi::Optional<ExprDoc> MissingTypeDocTranslate(DocTranslatorObj*, ffi::AnyView,
+ffi::Optional<ExprDoc> MemoryScopeDocTranslate(DocTranslatorObj*, ffi::AnyView input,
                                                const ffi::Object*) {
-  return NamespaceDoc("ir")->Attr("MissingType")->Call({});
+  return NamespaceDoc("tirx")
+      ->Attr("MemoryScope")
+      ->Call({LiteralDoc::Str(input.cast<runtime::MemoryScope>().name(), std::nullopt)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<MissingTypeNode>().attr(
+  ffi::reflection::TypeAttrDef<runtime::MemoryScopeObj>().attr(
       tvm::script::printer::type_attr::kDocTranslate,
-      FDocTranslate::FromNative<&MissingTypeDocTranslate>());
+      FDocTranslate::FromNative<&MemoryScopeDocTranslate>());
+}
+
+bool HasPrimTypeShorthand(const PrimType& type) {
+  bool supported_element =
+      (type.MatchesCode(kDLInt, kDLUInt) &&
+       (type.bits() == 8 || type.bits() == 16 || type.bits() == 32 || type.bits() == 64)) ||
+      (type.MatchesCode(kDLFloat) &&
+       (type.bits() == 16 || type.bits() == 32 || type.bits() == 64)) ||
+      type.MatchesCode(kDLFloat8_e3m4, kDLFloat8_e4m3, kDLFloat8_e4m3b11fnuz, kDLFloat8_e4m3fn,
+                       kDLFloat8_e4m3fnuz, kDLFloat8_e5m2, kDLFloat8_e5m2fnuz, kDLFloat8_e8m0fnu,
+                       kDLFloat6_e2m3fn, kDLFloat6_e3m2fn, kDLFloat4_e2m1fn);
+  bool supported_lanes = type->dtype.lanes == 1 || type->dtype.lanes == 2 ||
+                         type->dtype.lanes == 4 || type->dtype.lanes == 8 ||
+                         type->dtype.lanes == 16 || type->dtype.lanes == 32 ||
+                         type->dtype.lanes == 64;
+  bool supported_scalar =
+      type.IsVoid() || (type.IsScalar() && (type.MatchesElementType(kDLBool, 8) ||
+                                            type.MatchesElementType(kDLBfloat, 16)));
+  return (supported_element && supported_lanes) || supported_scalar;
 }
 
 ffi::Optional<ExprDoc> IntImmDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -62,7 +75,14 @@ ffi::Optional<ExprDoc> IntImmDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
   ExprDoc value = LiteralDoc::Int(ffi::GetRef<IntImm>(imm), std::nullopt);
   DLDataType default_dtype =
       ffi::StringToDLDataType(d->GetExtraConfig<ffi::String>("ir.int_dtype", "int32"));
-  if (dtype == default_dtype) return value;
+  if (dtype == default_dtype && !d->GetOrCreateExtraState<bool>("ir.explicit_value_type"))
+    return value;
+  if (!HasPrimTypeShorthand(imm->ty.as_or_throw<PrimType>()) ||
+      imm->value < std::numeric_limits<int64_t>::min() ||
+      imm->value > std::numeric_limits<int64_t>::max()) {
+    return NamespaceDoc("tirx")->Attr("IntImm")->Call(
+        {LiteralDoc::DataType(dtype, std::nullopt), value});
+  }
   return NamespaceDoc("tirx")->Attr(ffi::DLDataTypeToString(dtype))->Call({value});
 }
 
@@ -79,7 +99,17 @@ ffi::Optional<ExprDoc> FloatImmDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   DLDataType default_dtype =
       ffi::StringToDLDataType(d->GetExtraConfig<ffi::String>("ir.float_dtype", "void"));
   ExprDoc value = LiteralDoc::Float(imm->value, std::nullopt);
-  if (dtype == default_dtype) return value;
+  if (dtype == default_dtype && !d->GetOrCreateExtraState<bool>("ir.explicit_value_type"))
+    return value;
+  if (!HasPrimTypeShorthand(imm->ty.as_or_throw<PrimType>())) {
+    if (!std::isfinite(imm->value)) {
+      // Nonfinite literals render as strings; FloatImm requires a numeric value.
+      value = NamespaceDoc("tirx")->Attr("float64")->Call({value})->Attr("value");
+    }
+    return NamespaceDoc("tirx")
+        ->Attr("FloatImm")
+        ->Call({LiteralDoc::DataType(dtype, std::nullopt), value});
+  }
   return NamespaceDoc("tirx")->Attr(ffi::DLDataTypeToString(dtype))->Call({value});
 }
 
@@ -94,22 +124,9 @@ ffi::Optional<ExprDoc> PrimTypeDocTranslate(DocTranslatorObj*, ffi::AnyView inpu
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PrimTypeNode>(input);
   PrimType type = ffi::GetRef<PrimType>(ty);
-  bool supported_element =
-      (type.MatchesCode(kDLInt, kDLUInt) &&
-       (type.bits() == 8 || type.bits() == 16 || type.bits() == 32 || type.bits() == 64)) ||
-      (type.MatchesCode(kDLFloat) &&
-       (type.bits() == 16 || type.bits() == 32 || type.bits() == 64)) ||
-      type.MatchesCode(kDLFloat8_e3m4, kDLFloat8_e4m3, kDLFloat8_e4m3b11fnuz, kDLFloat8_e4m3fn,
-                       kDLFloat8_e4m3fnuz, kDLFloat8_e5m2, kDLFloat8_e5m2fnuz, kDLFloat8_e8m0fnu,
-                       kDLFloat6_e2m3fn, kDLFloat6_e3m2fn, kDLFloat4_e2m1fn);
-  bool supported_lanes = ty->dtype.lanes == 1 || ty->dtype.lanes == 2 || ty->dtype.lanes == 4 ||
-                         ty->dtype.lanes == 8 || ty->dtype.lanes == 16 || ty->dtype.lanes == 32 ||
-                         ty->dtype.lanes == 64;
-  bool supported_scalar = type.IsScalar() && (type.MatchesElementType(kDLBool, 8) ||
-                                              type.MatchesElementType(kDLBfloat, 16));
   // Other widths and fixed or scalable vectors have no exported TIRx shorthand.
-  if ((supported_element && supported_lanes) || supported_scalar) {
-    return NamespaceDoc("tirx")->Attr(ffi::DLDataTypeToString(ty->dtype));
+  if (HasPrimTypeShorthand(type)) {
+    return NamespaceDoc("tirx")->Attr(type.IsVoid() ? "void" : ffi::DLDataTypeToString(ty->dtype));
   }
   return NamespaceDoc("ir")
       ->Attr("PrimType")
@@ -126,12 +143,13 @@ ffi::Optional<ExprDoc> PtrTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
                                            const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PtrTypeNode>(input);
-  ExtraStateScope<bool> annotations(d, "ir.type_value", false);
-  ffi::Array<ExprDoc> args{d->Translate(ty->element_type).value()};
-  if (ty->storage_scope != "global") {
-    args.push_back(LiteralDoc::Str(ty->storage_scope, std::nullopt));
-  }
-  return NamespaceDoc("tirx")->Attr("Ptr")->Call(args);
+  return d->WithExtraStateScope<bool>("ir.explicit_value_type", true, [&]() -> ExprDoc {
+    ffi::Array<ExprDoc> args{d->Translate(ty->element_type).value()};
+    if (ty->scope != runtime::MemoryScope::Global()) {
+      args.push_back(LiteralDoc::Str(ty->scope.name(), std::nullopt));
+    }
+    return NamespaceDoc("ir")->Attr("Ptr")->Call(args);
+  });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -140,16 +158,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       FDocTranslate::FromNative<&PtrTypeDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> StringTypeDocTranslate(DocTranslatorObj*, ffi::AnyView, const ffi::Object*) {
-  return NamespaceDoc("ir")->Attr("StringType")->Call({});
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<StringTypeNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
-      FDocTranslate::FromNative<&StringTypeDocTranslate>());
-}
-
+// The short builder name is already the TensorRegion expression constructor.
+// Preserve that export and keep the explicit Type spelling for this one collision.
 ffi::Optional<ExprDoc> TensorRegionTypeDocTranslate(DocTranslatorObj*, ffi::AnyView,
                                                     const ffi::Object*) {
   return NamespaceDoc("ir")->Attr("TensorRegionType")->Call({});
@@ -165,23 +175,10 @@ ffi::Optional<ExprDoc> TupleTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView i
                                              const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleTypeNode>(input);
-  if (ty->fields.empty()) {
-    ExprDoc doc = NamespaceDoc("relax")->Attr("Tuple");
-    return d->GetOrCreateExtraState<bool>("ir.type_value") ? doc->Call({}) : doc;
-  }
-  ExtraStateScope<bool> annotations(d, "ir.type_value", false);
+  ExprDoc callee = NamespaceDoc("ir")->Attr("Tuple");
   ffi::Array<ExprDoc> fields;
   for (const Type& field : ty->fields) fields.push_back(d->Translate(field).value());
-  std::function<bool(const Type&)> is_primitive = [&](const Type& field) {
-    if (field.as<PrimType>() || field.as<PtrType>()) return true;
-    if (const auto* tuple = field.as<TupleTypeNode>()) {
-      return std::all_of(tuple->fields.begin(), tuple->fields.end(), is_primitive);
-    }
-    return false;
-  };
-  bool primitive = std::all_of(ty->fields.begin(), ty->fields.end(), is_primitive);
-  return (primitive ? NamespaceDoc("tirx")->Attr("Tuple") : NamespaceDoc("relax")->Attr("Tuple"))
-      ->Call(fields);
+  return callee->Call(fields);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

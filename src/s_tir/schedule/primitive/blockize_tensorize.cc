@@ -460,12 +460,12 @@ ffi::Array<TensorRegion> EvalSetRegions(const ffi::Array<TensorRegion>& regions,
   for (const TensorRegion& tensor_region : regions) {
     const TensorVar& tensor = tensor_region->source.as_or_throw<tvm::tirx::TensorVar>();
     ffi::Array<sym::IntSet> relaxed = sym::EvalSet(tensor_region->region, dom_map);
-    TVM_FFI_ICHECK_EQ(relaxed.size(), tensor->shape.size());
-    int ndim = tensor->shape.size();
+    TVM_FFI_ICHECK_EQ(relaxed.size(), tensor.shape().size());
+    int ndim = tensor.shape().size();
     ffi::Array<Range> new_region;
     new_region.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      new_region.push_back(relaxed[i].CoverRange(RangeFromExtent(tensor->shape[i])).value());
+      new_region.push_back(relaxed[i].CoverRange(RangeFromExtent(tensor.shape()[i])).value());
     }
     results.push_back(TensorRegion(tensor, new_region, TensorRegionType()));
   }
@@ -483,10 +483,11 @@ ffi::Array<TensorRegion> UnionRegions(const ffi::Array<TensorRegion>& regions) {
   for (const TensorRegion& tensor_region : regions) {
     const TensorVar& tensor = tensor_region->source.as_or_throw<tvm::tirx::TensorVar>();
     if (intset_map.find(tensor) == intset_map.end()) {
-      intset_map[tensor] = {tensor->shape.size(), ffi::Array<sym::IntSet>()};
+      intset_map[tensor] = {tensor.shape().size(), ffi::Array<sym::IntSet>()};
     }
-    std::vector<ffi::Array<sym::IntSet>> dim_range(tensor->shape.size(), ffi::Array<sym::IntSet>());
-    for (size_t dim = 0; dim < tensor->shape.size(); ++dim) {
+    std::vector<ffi::Array<sym::IntSet>> dim_range(tensor.shape().size(),
+                                                   ffi::Array<sym::IntSet>());
+    for (size_t dim = 0; dim < tensor.shape().size(); ++dim) {
       intset_map[tensor][dim].push_back(sym::IntSet::FromRange(tensor_region->region[dim]));
     }
   }
@@ -494,7 +495,7 @@ ffi::Array<TensorRegion> UnionRegions(const ffi::Array<TensorRegion>& regions) {
   for (const auto& it : intset_map) {
     const TensorVar& tensor = it.first;
     ffi::Array<Range> regions;
-    for (size_t dim = 0; dim < tensor->shape.size(); ++dim) {
+    for (size_t dim = 0; dim < tensor.shape().size(); ++dim) {
       const sym::IntSet intset = sym::Union(it.second[dim]);
       regions.push_back({intset.min(), intset.max() + 1});
     }
@@ -887,7 +888,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     int offset = static_cast<int>(indices_base.size()) - static_cast<int>(old_region.size());
     TVM_FFI_ICHECK(offset >= 0);
     ffi::Array<Range> new_region;
-    new_region.reserve(cur->shape.size());
+    new_region.reserve(cur.shape().size());
     for (int i = 0; i < offset; i++) {
       PrimExpr min = indices_base[i];
       PrimExpr extent = IntImm(min.ty(), 1);
@@ -895,7 +896,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     }
     for (int i = 0; i < static_cast<int>(old_region.size()); i++) {
       PrimExpr min = indices_base[i + offset];
-      PrimExpr extent = cast(min.ty(), old_region[i]->extent);
+      PrimExpr extent = cast(old_region[i]->extent, min.ty());
       new_region.push_back(Range::FromMinExtent(min, extent));
     }
     match_tensor_regions.push_back(
@@ -939,21 +940,21 @@ struct BlockizeTraits : public UnpackedInstTraits<BlockizeTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, ffi::ObjectRef target,
-                                          IntImm preserve_unit_iters) {
+                                          bool preserve_unit_iters) {
     if (auto loop = target.as<LoopRV>()) {
-      return sch->Blockize(loop.value(), preserve_unit_iters->value != 0);
+      return sch->Blockize(loop.value(), preserve_unit_iters);
     } else if (auto blocks = target.as<ffi::Array<SBlockRV>>()) {
-      return sch->Blockize(blocks.value(), preserve_unit_iters->value != 0);
+      return sch->Blockize(blocks.value(), preserve_unit_iters);
     }
     TVM_FFI_THROW(TypeError) << "expect Loop or list of SBlocks, but gets:" << target->GetTypeKey();
     TVM_FFI_UNREACHABLE();
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::ObjectRef target,
-                                      IntImm preserve_unit_iters) {
+                                      bool preserve_unit_iters) {
     PythonAPICall py("blockize");
     py.Input("target", target);
-    py.Input("preserve_unit_iters", preserve_unit_iters->value != 0);
+    py.Input("preserve_unit_iters", preserve_unit_iters);
     py.SingleOutput(outputs);
     return py.Str();
   }
@@ -972,11 +973,11 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, ffi::ObjectRef block_or_loop_rv,
-                                      ffi::String intrin, IntImm preserve_unit_iters) {
+                                      ffi::String intrin, bool preserve_unit_iters) {
     if (auto block = block_or_loop_rv.as<SBlockRV>()) {
-      sch->Tensorize(block.value(), intrin, preserve_unit_iters->value != 0);
+      sch->Tensorize(block.value(), intrin, preserve_unit_iters);
     } else if (auto loop = block_or_loop_rv.as<LoopRV>()) {
-      sch->Tensorize(loop.value(), intrin, preserve_unit_iters->value != 0);
+      sch->Tensorize(loop.value(), intrin, preserve_unit_iters);
     } else {
       TVM_FFI_THROW(TypeError) << "Expected SBlock or Loop, but gets: "
                                << block_or_loop_rv->GetTypeKey();
@@ -984,11 +985,11 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_or_loop_rv,
-                                      ffi::String intrin, IntImm preserve_unit_iters) {
+                                      ffi::String intrin, bool preserve_unit_iters) {
     PythonAPICall py("tensorize");
     py.Input("block_or_loop", block_or_loop_rv);
     py.Input("tensor_intrin", intrin);
-    py.Input("preserve_unit_iters", preserve_unit_iters->value != 0);
+    py.Input("preserve_unit_iters", preserve_unit_iters);
     return py.Str();
   }
 

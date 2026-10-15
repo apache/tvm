@@ -88,10 +88,10 @@ using LiveVarSet = std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqu
 static bool IsRelaxOwnedCall(const CallNode* call) {
   auto op = call->op.as<Op>();
   if (!op) return true;
-  static auto infer_type_map = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
+  static auto infer_type_map = Op::GetAttrMap(tvm::op_attr::kInferType);
   static auto infer_type_with_builder_map =
-      Op::GetAttrMap<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder);
-  static auto legalize_map = Op::GetAttrMap<FLegalize>(tvm::relax::op_attr::kLegalize);
+      Op::GetAttrMap(tvm::relax::op_attr::kInferTypeWithBuilder);
+  static auto legalize_map = Op::GetAttrMap(tvm::relax::op_attr::kLegalize);
   return infer_type_map.count(op.value()) || infer_type_with_builder_map.count(op.value()) ||
          legalize_map.count(op.value());
 }
@@ -716,13 +716,14 @@ class VMShapeLowerMutator
     TVM_FFI_ICHECK_GT(heap_size_->value, 0);
     // construct a tirx::Function that compute the shape.
     ffi::Array<PrimExpr> buffer_shape{heap_size_};
-    tirx::TensorVar buffer = tirx::decl_tensor(buffer_shape, PrimType(ShapeDType()), "H", "global");
+    tirx::TensorVar buffer =
+        tirx::TensorVar("H", tirx::TensorType(buffer_shape, PrimType(ShapeDType())));
 
     ffi::Map<tvm::Var, PrimExpr> var_map;
     for (const auto& [expr, slot] : slot_map_) {
       if (auto var = expr.as<tvm::Var>()) {
-        var_map.Set(var.value(), tirx::MakeTensorLoad(
-                                     buffer, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
+        var_map.Set(var.value(),
+                    TensorLoad(buffer, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
       }
     }
     auto f_substitute =
@@ -742,7 +743,7 @@ class VMShapeLowerMutator
     }
 
     tvm::SeqStmt body(seq);
-    ffi::Array<tvm::Var> params{buffer.var()};
+    ffi::Array<tvm::Var> params{buffer};
     Type ret_type = VoidType();
 
     // TODO(relax-team): Consider attach the target attribute to

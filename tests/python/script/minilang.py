@@ -135,7 +135,7 @@ class RecordingLocationEntry:
 
 
 class Language:
-    """One recording source namespace M and shared infrastructure namespace I."""
+    """One recording source namespace M and shared infrastructure namespace T."""
 
     def __init__(self):
         self.stack, self.functions = [], Module()
@@ -206,7 +206,7 @@ class Language:
         def Tensor(shape=None, dtype="float32", device=None, placement="S[0]"):
             return Value("tensor", (shape, dtype, device, placement))
 
-        def dynamic(name, dtype="int64", *, loc=None):
+        def dynamic(name, dtype="int32", *, loc=None):
             return self.at(loc, Value("symbol", (dtype,), name))
 
         def cell(value=None):
@@ -216,6 +216,9 @@ class Language:
         self.M.dynamic = self.I.dynamic = dynamic
         self.M.int32 = protocol_registry.register_scalar_annotation(
             "M.int32", lambda: None, dtype="int32"
+        )
+        self.M.int64 = protocol_registry.register_scalar_annotation(
+            "M.int64", lambda: None, dtype="int64"
         )
         self.M.cell = protocol_registry.register_mutable_decl("M.cell")(cell)
 

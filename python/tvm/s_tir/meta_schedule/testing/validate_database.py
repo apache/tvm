@@ -37,9 +37,9 @@ from tvm.s_tir.meta_schedule.testing.tune_utils import generate_input_data
 from tvm.s_tir.meta_schedule.utils import remove_build_dir
 from tvm.s_tir.schedule import Trace
 from tvm.s_tir.tensor_intrin import *  # type: ignore # pylint: disable=wildcard-import,unused-wildcard-import
+from tvm.s_tir.testing import strtobool
 from tvm.support import describe
 from tvm.target import Target
-from tvm.testing.utils import strtobool
 
 DELIMITOR = "\n" + "-" * 30 + "\n"
 

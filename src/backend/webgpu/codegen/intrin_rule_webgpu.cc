@@ -21,13 +21,12 @@
  * \file intrin_rule_webgpu.cc
  * \brief WebGPU intrinsic rules.
  */
+#include <tvm/codegen/intrin_rule.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op_attr_types.h>
-
-#include "../../../target/intrin_rule.h"
 
 namespace tvm {
 namespace codegen {
@@ -66,7 +65,7 @@ static PrimExpr DispatchWebGPUShuffle(const PrimExpr& e) {
   TVM_FFI_ICHECK(call != nullptr);
   TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
   PrimExpr lane = call->args[2].as_or_throw<PrimExpr>();
-  PrimExpr lane_or_delta = prim::Cast(PrimType::UInt(32, lane.ty().lanes()), lane);
+  PrimExpr lane_or_delta = prim::Cast(lane, PrimType::UInt(32, lane.ty().lanes()));
   ffi::Array<PrimExpr> webgpu_args{call->args[1].as_or_throw<PrimExpr>(), lane_or_delta};
   return Call(e.ty(), T()(e.ty(), call->op.as_or_throw<Op>()), webgpu_args).as_or_throw<PrimExpr>();
 }
@@ -160,7 +159,7 @@ void RegisterWebGPUIntrinRules() {
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
   OpDef("prim.tanh")
-      .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchNumericalStableTanh);
+      .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchNumericallyStableTanh);
 
   OpDef("prim.trunc")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
@@ -186,23 +185,23 @@ void RegisterWebGPUIntrinRules() {
   OpDef("tirx.webgpu.subgroup_shuffle")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("lane", "The source thread id."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "subgroupShuffle")
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>( tvm::op_attr::kInferType)
+      .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "subgroupShuffle")
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.webgpu.subgroup_shuffle_up")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("delta", "The source lane id offset to be added."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "subgroupShuffleUp")
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>( tvm::op_attr::kInferType)
+      .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "subgroupShuffleUp")
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.webgpu.subgroup_shuffle_down")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("delta", "The source lane id offset to be subtracted."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeReturnArgType<0>>())
-      .set_attr<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol, "subgroupShuffleDown")
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_native_fn_attr<&InferTypeReturnArgType<0>>( tvm::op_attr::kInferType)
+      .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "subgroupShuffleDown")
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
   // clang-format on
 }
 

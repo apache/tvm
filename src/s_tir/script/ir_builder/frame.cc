@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ir/function.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/script/ir_builder/frame.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/function.h>
@@ -70,7 +71,7 @@ void FunctionFrameObj::BindTensorRegion(tvm::tirx::TensorVar tensor, tvm::Tensor
   frame->match_tensors.push_back(tvm::s_tir::MatchTensorRegion(tensor, std::move(region)));
   if (!allocated_addr.empty()) {
     frame->allocated_addresses.push_back(
-        ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor.var(), std::move(allocated_addr)));
+        ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor, std::move(allocated_addr)));
   }
 }
 
@@ -95,11 +96,11 @@ void SBlockFrameObj::ExitWithScope() {
     attrs.Set(tvm::s_tir::attr::kTensorAllocatedAddr, allocated_addresses);
   }
   if (int detect_access = (!reads.has_value()) | (!writes.has_value() << 1)) {
-    attrs.Set(tvm::s_tir::attr::kScriptParsingDetectAccess, tvm::IntImm::Int64(detect_access));
+    attrs.Set(tvm::s_tir::attr::kScriptParsingDetectAccess, detect_access);
   }
   tvm::s_tir::SBlock block(iter_vars, reads.value_or(ffi::Array<tvm::TensorRegion>()),
-                           writes.value_or(ffi::Array<tvm::TensorRegion>()), name, AsStmt(stmts),
-                           init, tir_alloc_tensors, match_tensors, attrs, loc);
+                           writes.value_or(ffi::Array<tvm::TensorRegion>()), name,
+                           tvm::SeqStmt(stmts), init, tir_alloc_tensors, match_tensors, attrs, loc);
   if (no_realize) {
     TVM_FFI_CHECK(iter_values.empty(), ValueError)
         << "Block bindings are not allowed when `no_realize=True`";
@@ -124,7 +125,7 @@ void BlockInitFrameObj::EnterWithScope() {
 void BlockInitFrameObj::ExitWithScope() {
   ir::StmtFrameObj::ExitWithScope();
   SBlockFrame frame = FindSBlockFrame("Ts.init");
-  frame->init = AsStmt(stmts);
+  frame->init = tvm::SeqStmt(stmts);
 }
 
 }  // namespace s_tir

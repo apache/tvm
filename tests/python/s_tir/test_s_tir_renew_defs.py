@@ -162,7 +162,11 @@ def test_symbolic_func():
     m = T.dynamic("m", "int32")
 
     @Ts.function
-    def symbolic_func(A: T.Tensor((n, m)), B: T.Tensor((n, m * 2)), n: T.int32):  # noqa: F821
+    def symbolic_func(
+        A: T.Tensor((n, m), "float32"),  # noqa: F821
+        B: T.Tensor((n, m * 2), "float32"),  # noqa: F821
+        n: T.int32,
+    ):
         for i, j in T.grid(n, m):
             B[i, j * 2] = A[i, j]
             B[i, j * 2 + 1] = A[i, j]
@@ -176,7 +180,7 @@ def test_tensor_params():
     m = T.dynamic("m")
 
     @Ts.function
-    def main(A: T.Tensor((m * 2,)), B: T.Tensor((m, 2))):
+    def main(A: T.Tensor((m * 2,), "float32"), B: T.Tensor((m, 2), "float32")):
         for i, j in T.grid(m, 2):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])

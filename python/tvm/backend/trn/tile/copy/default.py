@@ -17,7 +17,10 @@
 
 """Implementation of copy operator dispatchs."""
 
+from functools import cache
+
 from tvm.backend.trn.layout import is_trainium_layout
+from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
 from tvm.tirx import Function
 from tvm.tirx.tile import DispatchContext, fail
@@ -27,12 +30,24 @@ from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_ewise_dim_map
 from ..instruction_generator import InstructionGenerator
 
+_SCOPE_GLOBAL = MemoryScope("global")
+
+
+@cache
+def _scope_trn_psum():
+    return MemoryScope("trn.psum")
+
+
+@cache
+def _scope_trn_sbuf():
+    return MemoryScope("trn.sbuf")
+
 
 def copy_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     """Schedule copy operation between global and shared memory on CUDA."""
     # Basic validation checks
     if sctx.scope_kind != "thread":
-        fail("requires thread exec_scope for TRN copy")
+        fail("requires thread scope for TRN copy")
 
     dst_region, src_region = op.args
     src, dst = src_region.source, dst_region.source
@@ -41,17 +56,17 @@ def copy_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     valid_config = all(
         [
             src.ty.effective_layout() and dst.ty.effective_layout(),
-            src.scope() in ["global", "trn.sbuf", "trn.psum"],
-            dst.scope() in ["global", "trn.sbuf", "trn.psum"],
-            src.scope() != "global" or dst.scope() != "global",
-            (src.scope() == "global" and isinstance(src.ty.effective_layout(), T.TileLayout))
+            src.scope() in [_SCOPE_GLOBAL, _scope_trn_sbuf(), _scope_trn_psum()],
+            dst.scope() in [_SCOPE_GLOBAL, _scope_trn_sbuf(), _scope_trn_psum()],
+            src.scope() != _SCOPE_GLOBAL or dst.scope() != _SCOPE_GLOBAL,
+            (src.scope() == _SCOPE_GLOBAL and isinstance(src.ty.effective_layout(), T.TileLayout))
             or (
-                src.scope() in ["trn.sbuf", "trn.psum"]
+                src.scope() in [_scope_trn_sbuf(), _scope_trn_psum()]
                 and is_trainium_layout(src.ty.effective_layout())
             ),
-            (dst.scope() == "global" and isinstance(dst.ty.effective_layout(), T.TileLayout))
+            (dst.scope() == _SCOPE_GLOBAL and isinstance(dst.ty.effective_layout(), T.TileLayout))
             or (
-                dst.scope() in ["trn.sbuf", "trn.psum"]
+                dst.scope() in [_scope_trn_sbuf(), _scope_trn_psum()]
                 and is_trainium_layout(dst.ty.effective_layout())
             ),
         ]
@@ -93,9 +108,9 @@ def copy_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
         inst = inst_gen.fit_inst_tile_to_region(inst, src_region)
         src_to_dst = False
 
-    if src.scope() == "global":
+    if src.scope() == _SCOPE_GLOBAL:
         func = T.nki.load
-    elif dst.scope() == "global":
+    elif dst.scope() == _SCOPE_GLOBAL:
         func = T.nki.store
     else:
         func = T.nki.tensor_copy

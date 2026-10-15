@@ -25,6 +25,7 @@
 
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/support/gpu_thread_tag.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/abi.h>
@@ -56,7 +57,10 @@ int Stoi(const std::string& str) {
 }
 
 std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
-                                                   const std::string& scope) {
+                                                   runtime::MemoryScope scope) {
+  static const auto matrix_a = runtime::MemoryScope::Get("wmma.matrix_a");
+  static const auto matrix_b = runtime::MemoryScope::Get("wmma.matrix_b");
+  static const auto accumulator = runtime::MemoryScope::Get("wmma.accumulator");
   size_t m, n, k;
   size_t last_pos = 0, pos = 0;
   pos = shape_str.find(", ", last_pos);
@@ -66,11 +70,11 @@ std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
   n = Stoi(shape_str.substr(last_pos, pos - last_pos));
   last_pos = pos + 2;
   k = Stoi(shape_str.substr(last_pos, shape_str.length() - last_pos));
-  if (scope == "wmma.matrix_a") {
+  if (scope == matrix_a) {
     return std::pair<int32_t, int32_t>(m, k);
-  } else if (scope == "wmma.matrix_b") {
+  } else if (scope == matrix_b) {
     return std::pair<int32_t, int32_t>(k, n);
-  } else if (scope == "wmma.accumulator") {
+  } else if (scope == accumulator) {
     return std::pair<int32_t, int32_t>(m, n);
   }
   return std::pair<int32_t, int32_t>(0, 0);
@@ -619,7 +623,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     return spirv::Value();
   } else if (op->op.same_as(tirx::address_of_op())) {
     const TensorLoadNode* load = op->args[0].as<TensorLoadNode>();
-    Var buffer_var = load->source.as_or_throw<tvm::tirx::TensorVar>().var();
+    Var buffer_var = load->source.as_or_throw<tvm::tirx::TensorVar>();
     const VarNode* buffer_node = buffer_var.get();
     PrimExpr index = load->indices[0];
     PrimType ele_dtype = GetElementDataType(buffer_node);
@@ -663,7 +667,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const prim::BroadcastNode* op) {
 
 spirv::Value CodeGenSPIRV::Dispatch_(const TensorLoadNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
-  Var buffer_var = op->source.as_or_throw<tvm::tirx::TensorVar>().var();
+  Var buffer_var = op->source.as_or_throw<tvm::tirx::TensorVar>();
   PrimExpr prim_index = op->indices[0];
 
   PrimType desired_read_type = op->ty.as_or_throw<PrimType>();
@@ -749,7 +753,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const prim::ShuffleNode* op) {
 
 void CodeGenSPIRV::Dispatch_(const TensorStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
-  Var buffer_var = op->dest.as_or_throw<TensorVar>().var();
+  Var buffer_var = op->dest.as_or_throw<TensorVar>();
   PrimExpr prim_index = op->indices[0];
 
   auto it = storage_info_.find(buffer_var.get());
@@ -809,7 +813,7 @@ void CodeGenSPIRV::Dispatch_(const ForNode* op) {
                ? builder_->IntImm(init_value.stype, 1)
                : builder_->UIntImm(init_value.stype, 1);
   } else {
-    step = MakeValue(tvm::prim::cast(end.ty(), *op->step));
+    step = MakeValue(tvm::prim::cast(*op->step, end.ty()));
   }
 
   // Must get init label after making value(to make sure they are correct)
@@ -916,9 +920,15 @@ void CodeGenSPIRV::Dispatch_(const IfNode* op) {
 }
 
 void CodeGenSPIRV::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
+  static const auto scope_wmma_matrix_a = runtime::MemoryScope::Get("wmma.matrix_a");
+  static const auto scope_wmma_matrix_b = runtime::MemoryScope::Get("wmma.matrix_b");
+  static const auto scope_wmma_accumulator = runtime::MemoryScope::Get("wmma.accumulator");
+  static const auto scope_local = runtime::MemoryScope::Get("local");
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+  static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
   tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
   DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
-  ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
+  runtime::MemoryScope scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(!PrimType(dtype).IsVoid());
@@ -928,55 +938,47 @@ void CodeGenSPIRV::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
 
   spirv::Value buf;
-  auto storage_scope = runtime::StorageScope::Create(scope);
   spirv::SType etype = builder_->GetSType(PrimType(dtype));
-  runtime::StorageRank rank = storage_scope.rank;
   spv::StorageClass storage_class;
   const VarNode* var_node = buffer.get();
 
-  switch (rank) {
-    case runtime::StorageRank::kWMMAMatrixA:
-    case runtime::StorageRank::kWMMAMatrixB:
-    case runtime::StorageRank::kWMMAAccumulator: {
-      auto shape = annotations->dict.Get("fragment_shape");
-      TVM_FFI_ICHECK(shape.has_value())
-          << "Cannot find shape of the wmma fragment " << buffer.name();
-      fragment_info_[var_node] = {shape.value().as_or_throw<ffi::String>()};
-      fragment_info_[var_node].scope = scope;
-      etype = GetFragmentSType(var_node, PrimType(dtype));
-      storage_class = spv::StorageClassFunction;
-      fragment_info_[var_node].sclass = storage_class;
-      TVM_FFI_ICHECK(fragment_info_.count(var_node));
-      const std::string& fscope = fragment_info_[var_node].scope;
-      const std::string& shape_str = fragment_info_.at(var_node).shape;
-      std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, fscope);
-      int64_t size = dim.first * dim.second;
-      buf = builder_->Allocate(etype, static_cast<uint32_t>(constant_size) / size, storage_class);
-    } break;
-    case runtime::StorageRank::kLocal: {
-      storage_class = spv::StorageClassFunction;
-      buf = builder_->Allocate(etype, static_cast<uint32_t>(constant_size), storage_class);
-    } break;
-    case runtime::StorageRank::kShared: {
-      storage_class = spv::StorageClassWorkgroup;
-      // Shared memory
-      // Aligned on 4-byte boundary
-      int32_t aligned_constant_size = ((constant_size + 3) & ~0x3);
-      buf = builder_->Allocate(etype, static_cast<uint32_t>(aligned_constant_size), storage_class);
+  if (scope == scope_wmma_matrix_a || scope == scope_wmma_matrix_b ||
+      scope == scope_wmma_accumulator) {
+    auto shape = annotations->dict.Get("fragment_shape");
+    TVM_FFI_ICHECK(shape.has_value()) << "Cannot find shape of the wmma fragment " << buffer->name;
+    fragment_info_[var_node] = {shape.value().as_or_throw<ffi::String>()};
+    fragment_info_[var_node].scope = scope;
+    etype = GetFragmentSType(var_node, PrimType(dtype));
+    storage_class = spv::StorageClassFunction;
+    fragment_info_[var_node].sclass = storage_class;
+    TVM_FFI_ICHECK(fragment_info_.count(var_node));
+    const runtime::MemoryScope& fscope = fragment_info_[var_node].scope;
+    const std::string& shape_str = fragment_info_.at(var_node).shape;
+    std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, fscope);
+    int64_t size = dim.first * dim.second;
+    buf = builder_->Allocate(etype, static_cast<uint32_t>(constant_size) / size, storage_class);
+  } else if (scope == scope_local) {
+    storage_class = spv::StorageClassFunction;
+    buf = builder_->Allocate(etype, static_cast<uint32_t>(constant_size), storage_class);
+  } else if (scope == scope_shared || scope == scope_shared_dyn) {
+    storage_class = spv::StorageClassWorkgroup;
+    // Shared memory
+    // Aligned on 4-byte boundary
+    int32_t aligned_constant_size = ((constant_size + 3) & ~0x3);
+    buf = builder_->Allocate(etype, static_cast<uint32_t>(aligned_constant_size), storage_class);
 
-      size_t num_bytes = ((dtype.bits + 7) / 8) * PrimType(dtype).lanes() *
-                         static_cast<uint32_t>(aligned_constant_size);
-      shared_memory_bytes_used_ += num_bytes;
-    } break;
-    default:
-      TVM_FFI_THROW(InternalError) << "Can only allocate shared or local memory inside kernel";
+    size_t num_bytes = ((dtype.bits + 7) / 8) * PrimType(dtype).lanes() *
+                       static_cast<uint32_t>(aligned_constant_size);
+    shared_memory_bytes_used_ += num_bytes;
+  } else {
+    TVM_FFI_THROW(InternalError) << "Can only allocate shared or local memory inside kernel";
   }
 
-  builder_->SetName(buf, buffer.name());
+  builder_->SetName(buf, buffer->name);
 
   StorageInfo& info = storage_info_[var_node];
   TVM_FFI_ICHECK(!info.element_type_known);
-  info.SetContentType(PrimType(dtype), buffer.name());
+  info.SetContentType(PrimType(dtype), buffer->name);
 
   TVM_FFI_ICHECK(!var_map_.count(var_node));
   var_map_[var_node] = buf;
@@ -991,9 +993,9 @@ void CodeGenSPIRV::DispatchDeclTensor(const BindNode* op, const CallNode* buffer
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   const VarNode* buffer_var = buffer.get();
   TVM_FFI_ICHECK(!var_map_.count(buffer_var))
-      << "Buffer variable " << buffer.name() << " is already defined";
+      << "Buffer variable " << buffer->name << " is already defined";
   TVM_FFI_ICHECK(!storage_info_.count(buffer_var))
-      << "Storage metadata for buffer variable " << buffer.name() << " is already defined";
+      << "Storage metadata for buffer variable " << buffer->name << " is already defined";
 
   spirv::Value data_value = MakeValue(data);
 
@@ -1009,11 +1011,11 @@ void CodeGenSPIRV::DispatchDeclTensor(const BindNode* op, const CallNode* buffer
     auto it = storage_info_.find(source);
     if (it != storage_info_.end()) {
       info = it->second;
-      info.name_hint = buffer.name();
+      info.name_hint = buffer->name;
     }
   }
   if (!info.element_type_known) {
-    info.SetContentType(declared_storage_type, buffer.name());
+    info.SetContentType(declared_storage_type, buffer->name);
   }
 
   var_map_[buffer_var] = data_value;
@@ -1071,7 +1073,7 @@ void CodeGenSPIRV::Dispatch_(const EvaluateNode* op) { MakeValue(op->value); }
 
 spirv::SType CodeGenSPIRV::GetFragmentSType(const VarNode* buffer, const PrimType& dtype) {
   TVM_FFI_ICHECK(fragment_info_.count(buffer));
-  const std::string& scope = fragment_info_[buffer].scope;
+  const runtime::MemoryScope& scope = fragment_info_[buffer].scope;
   const std::string& shape_str = fragment_info_.at(buffer).shape;
   std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
   int64_t size = dim.first * dim.second;

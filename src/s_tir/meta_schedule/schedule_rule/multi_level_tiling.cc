@@ -41,7 +41,7 @@ std::vector<int> GetReadTensorNDims(const StmtSRef& block_sref) {
   for (int i = 0; i < n; ++i) {
     const VarNode* read_tensor = block->reads[i]->source.as_or_throw<tvm::tirx::TensorVar>().get();
     if (read_tensor != write_tensor) {
-      results[i] = GetTensorVar(read_tensor)->shape.size();
+      results[i] = ffi::GetRef<Var>(read_tensor).as_or_throw<TensorVar>().shape().size();
     }
   }
   return results;
@@ -285,10 +285,9 @@ std::vector<State> MultiLevelTilingObj::TileLoopNest(State state,
     if (spatial_loop_product > 2 * this->thread_warp_size_) {
       low_inclusive = this->thread_warp_size_;
     }
-    sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleThreadExtentLowInclusive,
-                  IntImm::Int32(low_inclusive));
+    sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleThreadExtentLowInclusive, low_inclusive);
     sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleThreadExtentHighInclusive,
-                  IntImm::Int32(high_inclusive));
+                  high_inclusive);
   }
   return {state};
 }
@@ -372,7 +371,7 @@ void MultiLevelTilingObj::AnnotateCooperativeFetching(Schedule* sch,
   const s_tir::SBlockNode* block_node = (*sch)->GetSRef(block)->StmtAs<s_tir::SBlockNode>();
   TVM_FFI_ICHECK_EQ(block_node->writes.size(), 1);
   const DLDataType dtype =
-      block_node->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>()->dtype->dtype;
+      block_node->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>().dtype()->dtype;
   std::function<bool(int)> f_filter = nullptr;
   if (dtype == DLDataType{kDLFloat, 32, 1}) {
     f_filter = [&](int vector_len) { return vector_len <= 4; };

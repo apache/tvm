@@ -43,8 +43,8 @@ from tvm.ir import (
 )
 from tvm.ir.location import UNKNOWN_LOC
 from tvm.ir.op import register_op_attr
-from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.expr import IntImm
+from tvm.tirx.thread_scope import ThreadScope
 
 _REQUIRED = object()
 SPECS = {}
@@ -142,29 +142,9 @@ class Instruction:
         unknown = set(kw) - set(allowed)
         if unknown:
             raise TypeError(f"{self.name}: unknown qualifier(s) {sorted(unknown)}")
-        scope = kw.get("scope")
-        if isinstance(scope, ExecScope) and scope.backend != self.backend:
-            raise ValueError(f"{self.name}: scope belongs to {scope.backend}")
         attrs_values = {name: _static(value) for name, value in kw.items()}
         if isinstance(attrs_values.get("axes"), int):
             attrs_values["axes"] = [attrs_values["axes"]]
-        if self.schema == "TcMmaAttrs":
-            for name in ("mma_m", "mma_n"):
-                value = attrs_values.get(name)
-                if value is not None and (type(value) is not int or value <= 0):
-                    raise ValueError(f"{name} must be a positive integer")
-        if self.schema == "TMAAttrs":
-            if isinstance(attrs_values.get("oob"), str):
-                oob = attrs_values["oob"]
-                if oob not in {"zero", "nan"}:
-                    raise ValueError(f"unsupported TensorMap oob={oob!r}")
-                attrs_values["oob"] = {"zero": 0, "nan": 1}[oob]
-            if isinstance(attrs_values.get("tensormap_l2_promotion"), str):
-                promotion = attrs_values["tensormap_l2_promotion"]
-                choices = {"none": 0, "L2::none": 0, "L2::64B": 1, "L2::128B": 2, "L2::256B": 3}
-                if promotion not in choices:
-                    raise ValueError(f"invalid TensorMap L2 promotion {promotion!r}")
-                attrs_values["tensormap_l2_promotion"] = choices[promotion]
         for name, default in allowed.items():
             attrs_values.setdefault(name, default)
         if explicit_attrs is not None:
@@ -172,18 +152,34 @@ class Instruction:
                 raise TypeError("attrs cannot be combined with qualifier keywords")
             attrs = explicit_attrs
         else:
+            attrs_values["scope"] = self._thread_scope(attrs_values["scope"])
             attrs = make_node("tirx.tensor." + self.schema, **attrs_values)
         call = Call(self.name, args, attrs=attrs, ty=result_ty, loc=loc)
         call.validate()
         return call
 
+    def _thread_scope(self, value):
+        if isinstance(value, str):
+            local_name = value.split(".", 1)[-1]
+            if local_name not in self.scopes:
+                raise ValueError(
+                    f"{self.name}: unsupported scope {value!r}; expected {self.scopes}"
+                )
+            value = ThreadScope(value if "." in value else f"{self.backend}.{value}")
+        if not isinstance(value, ThreadScope):
+            raise TypeError(f"{self.name}: scope must be a string or ThreadScope")
+        if value.backend != self.backend:
+            raise ValueError(f"{self.name}: scope belongs to {value.backend}")
+        if value.local_name not in self.scopes:
+            raise ValueError(
+                f"{self.name}: unsupported scope {value.local_name!r}; expected {self.scopes}"
+            )
+        return value
+
     def validate(self, call):
         if len(call.args) != len(self.operands):
             raise TypeError(f"{self.name}: invalid operand count")
-        if str(call.attrs.scope) not in self.scopes:
-            raise ValueError(
-                f"{self.name}: unsupported scope {call.attrs.scope!r}; expected {self.scopes}"
-            )
+        self._thread_scope(call.attrs.scope)
         for arg, value in zip(self.operands, call.args):
             if _is_absent(value):
                 if arg.default is not None:
@@ -206,29 +202,8 @@ class Instruction:
 
                 if not is_prim_expr(value):
                     raise TypeError(f"{arg.name} must be a scalar expression")
-            elif arg.role == "coordinates":
-                if not isinstance(value, Tuple) or len(value.fields) != 4:
-                    raise ValueError("gather4 must contain exactly four row coordinates")
-            elif arg.role == "selectors":
-                if not isinstance(value, Tuple):
-                    raise TypeError("src_selector must contain (condition, region) pairs")
-                for pair in value.fields:
-                    if not isinstance(pair, Tuple) or len(pair.fields) != 2:
-                        raise TypeError("src_selector must contain (condition, region) pairs")
-                    candidate = _region(pair.fields[1])
-                    from tvm.sym.analyzer import Analyzer
 
-                    analyzer = Analyzer()
-                    if not all(
-                        analyzer.can_prove_equal(r.min, 0)
-                        and analyzer.can_prove_equal(r.extent, dim)
-                        for r, dim in zip(candidate.region, candidate.source.ty.shape)
-                    ):
-                        raise ValueError(
-                            "src_selector candidates must cover their full tensor view"
-                        )
-
-        # Validate nested regions too, including selector candidates.
+        # Validate tensor regions nested inside argument tuples.
         def check_region(region):
             _region(region)
 
@@ -242,8 +217,8 @@ def _expr(value):
         return Tuple([_expr(v) for v in value])
     if isinstance(value, str):
         return StringImm(value)
-    if hasattr(value, "asobject"):
-        return value.asobject()
+    if hasattr(value, "__tvm_ffi_object__"):
+        return value.__tvm_ffi_object__()
     return const(value)
 
 
@@ -252,8 +227,8 @@ def _static(value):
         return value.value
     if isinstance(value, IntImm):
         return bool(value) if str(value.dtype) == "bool" else int(value)
-    if isinstance(value, ExecScope):
-        return value.name
+    if isinstance(value, ThreadScope):
+        return value
     if isinstance(value, Expr):
         raise TypeError("Instruction qualifiers must be static; expressions belong in operands")
     return value
@@ -284,10 +259,6 @@ def _operand(value, role="expr"):
         if isinstance(value, TensorLoad):
             value = tvm_ffi.get_global_func("tirx.AsTensorRegion")(value)
         return _region(value)
-    if role == "selectors":
-        return Tuple(
-            [Tuple([_expr(cond), _operand(candidate, "region")]) for cond, candidate in value]
-        )
     if role == "tensor":
         return value
     if is_tensor_var(value):
@@ -345,7 +316,7 @@ class TensorCall:
         view.options = {k: _expr(v) for k, v in options.items() if v is not None}
         view.options.update({k: v for k, v in extras.items() if v is not None})
         view.workspaces = {k: values[k] for k in spec.workspaces if values[k] is not None}
-        view.scope = ExecScope(spec.backend, str(call.attrs.scope))
+        view.scope = call.attrs.scope
         return view
 
     def get_private_tensors(self, tensor_dict, sctx):
@@ -366,12 +337,6 @@ class TensorCall:
 
 for _name in (
     "ScopeAttrs",
-    "MemoryAttrs",
-    "AsyncAttrs",
-    "TMAAttrs",
-    "TcCopyAttrs",
-    "TcMmaAttrs",
-    "MathAttrs",
     "TrnAttrs",
 ):
     tvm_ffi.register_object("tirx.tensor." + _name)(type(_name, (Attrs,), {}))

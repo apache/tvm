@@ -409,7 +409,7 @@ def test_comparisons_use_native_promotion_and_broadcast(primitive_language):
     def main():
         x < y
 
-    expected = prim.LT(prim.Broadcast(prim.Cast("int64", x), 4), y)
+    expected = prim.LT(prim.Broadcast(prim.Cast(x, "int64"), 4), y)
     ir.assert_structural_equal(main.body[0][1], expected)
 
 
@@ -471,7 +471,7 @@ def test_host_equality_result_is_not_arbitrarily_converted(primitive_language):
     M = primitive_language.M
 
     class CustomEquality(EqualOp):
-        def asobject(self):
+        def __tvm_ffi_object__(self):
             raise AssertionError("custom equality subclasses are host values")
 
     result = CustomEquality(ir.Var("x", "int32"), 0)
@@ -574,12 +574,12 @@ def test_ir_branch_incoming_read_and_rebinding_obeys_python_scope(language):
 def test_datatype_value_roundtrip(language):
     # A DataType value needs only shared IR: the minimal language parses its shared spelling
     # into a root-typed constant, and the shared printer reproduces that spelling.
-    spelling = 'I.dtype("float32")'
+    spelling = 'T.dtype("float32")'
     source = f"@M.function\ndef main():\n    M.record({spelling})\n"
-    value = entry.parse(source, extra_vars={"M": language.M, "I": I}).body[0][1]
+    value = entry.parse(source, extra_vars={"M": language.M, "T": tvm.script.tirx}).body[0][1]
     ir.assert_structural_equal(value, ir.DataTypeImm(DataType("float32")))
     printed = ir.IRModule(attrs={"dtype": value}).script()
-    assert f'I.module_attrs({{"dtype": {spelling}}})' in printed
+    assert f'T.module_attrs({{"dtype": {spelling}}})' in printed
 
 
 def test_mutating_stores_and_loop_control_keep_effect_order(language):

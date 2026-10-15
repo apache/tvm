@@ -185,16 +185,19 @@ def test_dataflow_fold():
 def test_fold_mixed_case():
     n_addone = T.dynamic("n", "int32")
     m_addone = T.dynamic("m", "int32")
-    n_before = T.dynamic("n")
-    m_before = T.dynamic("m")
-    n_expected = T.dynamic("n")
-    m_expected = T.dynamic("m")
+    n_before = T.dynamic("n", "int64")
+    m_before = T.dynamic("m", "int64")
+    n_expected = T.dynamic("n", "int64")
+    m_expected = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class Module:
         # TIR function can handle different cases.
         @Ts.function
-        def addone(A: T.Tensor((n_addone, m_addone)), B: T.Tensor((n_addone, m_addone))) -> None:
+        def addone(
+            A: T.Tensor((n_addone, m_addone), "float32"),
+            B: T.Tensor((n_addone, m_addone), "float32"),
+        ) -> None:
             for i, j in T.grid(n_addone, m_addone):
                 with Ts.sblock("addone"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -598,7 +601,7 @@ def test_fold_large_op_with_tensor_input():
 def test_call_tir_with_primitive_args_not_folded():
     """call_tir with symbolic primitive arguments cannot be const-evaluated."""
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @tvm.script.ir_module
     class Module:

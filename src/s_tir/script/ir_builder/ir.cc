@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/script/ir_builder/ir.h>
 #include <tvm/sym/analyzer.h>
 
@@ -48,21 +49,23 @@ FunctionFrame DeclFunction(bool is_private, bool persistent) {
 
 TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType dtype,
                       ffi::Optional<Expr> data, ffi::Array<PrimExpr> strides,
-                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                      int offset_factor, ffi::Optional<Layout> layout,
+                      ffi::Optional<PrimExpr> elem_offset, runtime::MemoryScope storage_scope,
+                      int align, int offset_factor, ffi::Optional<Layout> layout,
                       ffi::Array<PrimExpr> allocated_addr) {
   if (data.has_value()) {
-    storage_scope = data.value()->ty.as_or_throw<PtrType>()->storage_scope;
+    storage_scope = data.value()->ty.as_or_throw<PtrType>()->scope;
   }
+  // Matching/allocation builders retain their binding contract; TensorType itself
+  // has a fixed zero offset and never invents a symbolic variable.
   if (!elem_offset.has_value() && offset_factor) {
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
     elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
   }
-  TensorVar tensor("", tvm::tirx::TensorType(storage_scope, dtype, shape, strides, elem_offset,
+  TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset,
                                              align, offset_factor, layout));
   tvm::TensorRegion region{ffi::UnsafeInit{}};
   if (auto load = param.as<TensorLoad>()) {
-    region = TensorRegionFromLoad(load.value());
+    region = TensorRegion::FromTensorLoad(load.value());
   } else if (auto view = param.as<tvm::TensorRegion>()) {
     region = view.value();
   } else {
@@ -112,7 +115,7 @@ void Reads(ffi::Array<ffi::ObjectRef> tensor_slices) {
     if (auto tensor_region = obj.as<TensorRegion>()) {
       reads.push_back(tensor_region.value());
     } else if (auto tensor_load = obj.as<TensorLoad>()) {
-      reads.push_back(TensorRegionFromLoad(tensor_load.value()));
+      reads.push_back(TensorRegion::FromTensorLoad(tensor_load.value()));
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid type for tensor reads.";
     }
@@ -132,7 +135,7 @@ void Writes(ffi::Array<ffi::ObjectRef> tensor_slices) {
     if (auto tensor_region = obj.as<TensorRegion>()) {
       writes.push_back(tensor_region.value());
     } else if (auto tensor_load = obj.as<TensorLoad>()) {
-      writes.push_back(TensorRegionFromLoad(tensor_load.value()));
+      writes.push_back(TensorRegion::FromTensorLoad(tensor_load.value()));
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid type for tensor writes.";
     }
@@ -191,22 +194,26 @@ void BlockAttrs(ffi::Map<ffi::String, Any> attrs) {
 
 TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Optional<Expr> data,
                             ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
-                            ffi::String storage_scope, int align, int offset_factor,
+                            runtime::MemoryScope storage_scope, int align, int offset_factor,
                             ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr) {
-  std::string scope = static_cast<std::string>(storage_scope);
-  if (scope.empty()) {
-    scope = "global";
-  }
-  if (scope == "global" || scope == "shared" || scope == "shared.dyn" || scope == "local") {
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+  static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+  static const auto scope_local = runtime::MemoryScope::Get("local");
+
+  auto scope = storage_scope;
+  if (scope == runtime::MemoryScope::Global() || scope == scope_shared ||
+      scope == scope_shared_dyn || scope == scope_local) {
     TVM_FFI_ICHECK(allocated_addr.empty())
         << "ValueError: For `" << scope
         << "` scope, Ts.alloc_tensor does not accept `allocated_addr`";
   }
+  // Matching/allocation builders retain their binding contract; TensorType itself
+  // has a fixed zero offset and never invents a symbolic variable.
   if (!elem_offset.has_value() && offset_factor) {
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
     elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
   }
-  TensorVar tensor("", tvm::tirx::TensorType(storage_scope, dtype, shape, strides, elem_offset,
+  TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset,
                                              align, offset_factor, layout));
   IRBuilder builder = IRBuilder::Current();
   auto opt_func_frame = builder->FindFrame<tirx::FunctionFrame>();
@@ -224,14 +231,14 @@ TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
     block_frame.value()->alloc_tensors.push_back(tensor);
     if (!allocated_addr.empty()) {
       block_frame.value()->allocated_addresses.push_back(
-          ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor.var(), allocated_addr));
+          ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor, allocated_addr));
     }
   } else if (opt_func_frame.has_value()) {
     auto frame = ffi::GetRef<FunctionFrame>(opt_func_frame.value().as<FunctionFrameObj>());
     frame->root_alloc_tensors.push_back(tensor);
     if (!allocated_addr.empty()) {
       frame->root_allocated_addresses.push_back(
-          ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor.var(), allocated_addr));
+          ffi::Tuple<Var, ffi::Array<PrimExpr>>(tensor, allocated_addr));
     }
   } else {
     TVM_FFI_CHECK(allocated_addr.empty(), ValueError)

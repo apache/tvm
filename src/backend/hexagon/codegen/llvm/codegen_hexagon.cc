@@ -41,28 +41,30 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+#include <tvm/codegen/codegen.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/support/file_utils.h>
-#include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
-#include <map>
+#include <cstring>
+#include <functional>
+#include <iterator>
 #include <sstream>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "../../../../codegen/build_common.h"
+#include "../../../../codegen/llvm/codegen_cpu.h"
+#include "../../../../codegen/llvm/llvm_instance.h"
 #include "../../../../runtime/metadata.h"
-#include "../../../../target/build_common.h"
-#include "../../../../target/llvm/codegen_cpu.h"
-#include "../../../../target/llvm/llvm_instance.h"
 #include "../hexagon_fallback_module.h"
 
 namespace tvm {
@@ -319,14 +321,14 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(TensorVar buffer, PrimType buffer_
   if (buffer_type.bits() != 8) return nullptr;
 
   int table_elem_count =
-      sym::Analyzer()->Simplify(buffer->shape[0]).as<IntImmNode>()->value.as<int>().value();
+      sym::Analyzer()->Simplify(buffer.shape()[0]).as<IntImmNode>()->value.as<int>().value();
   if (table_elem_count <= 0 || table_elem_count > 256) return nullptr;
 
   auto int32 = PrimType::Int(32);
   auto native_vector_bytes = native_vector_bits_ / 8;
 
   // Indexes
-  llvm::Value* trunc = MakeValue(prim::Cast(index_ty.WithBits(8), index));
+  llvm::Value* trunc = MakeValue(prim::Cast(index, index_ty.WithBits(8)));
   llvm::Value* index_pad = CreateVecPad(trunc, native_vector_bytes);
 
   // Values
@@ -334,9 +336,9 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(TensorVar buffer, PrimType buffer_
   PrimType table_type = buffer_type.WithLanes(table_elem_count);
 
   auto table_all = MakeValue(
-      MakeTensorLoad(buffer, {
-                                 prim::Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),
-                             }));
+      TensorLoad(buffer, {
+                             prim::Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),
+                         }));
 
   // The number of value vectors should be a power of 2.
   int table_vec_count = llvm::PowerOf2Ceil(GetVectorBytes(table_type) / native_vector_bytes);
@@ -421,7 +423,13 @@ void ProcessLLVMOptions(const std::vector<std::string>& llvm_vec) {
 
 ffi::Module BuildHexagon(IRModule mod, Target target) {
   LLVMInstance llvm_instance;
-  With<LLVMTarget> llvm_target(llvm_instance, target);
+  // This generic vectorizer option must not affect later compilation for other targets.
+  // LLVMTarget restores the previous value when Hexagon compilation leaves this scope.
+  auto target_config = target->ToConfig();
+  target_config.Set("cl-opt",
+                    ffi::Array<ffi::String>{"-force-target-max-vector-interleave:uint=1"});
+  LLVMTargetInfo target_info(llvm_instance, target_config);
+  With<LLVMTarget> llvm_target(llvm_instance, target_info);
 
   auto split = [](const std::string& str, char delim = ' ') {
     std::vector<std::string> vec;
@@ -453,8 +461,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
   std::vector<std::string> llvm_options_vec = split(llvm_options_str);
   assert(llvm_options_vec.size() >= 1 && llvm_options_vec[0] == "llvm");
   llvm_options_vec.insert(std::next(llvm_options_vec.begin()),
-                          {"-hexagon-small-data-threshold=0",
-                           "-force-target-max-vector-interleave=1", "-hexagon-autohvx=1"});
+                          {"-hexagon-small-data-threshold=0", "-hexagon-autohvx=1"});
 
   // Process extra command line options for LLVM. Make sure it's only
   // done once.

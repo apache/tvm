@@ -26,15 +26,15 @@ from tvm.script import tirx as T
 def test_broadcast_to_symbolic():
     # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
-    x_0 = T.dynamic("x_0")
-    x_1 = T.dynamic("x_1")
+    x_0 = T.dynamic("x_0", "int64")
+    x_1 = T.dynamic("x_1", "int64")
 
     @tvm.script.ir_module
     class Before:
         @Ts.function
         def broadcast_to(
             rxplaceholder: T.Tensor((T.int64(3), T.int64(1)), "float32"),
-            T_broadcast_to: T.Tensor((x_0, x_1)),
+            T_broadcast_to: T.Tensor((x_0, x_1), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -46,13 +46,13 @@ def test_broadcast_to_symbolic():
                     Ts.writes(T_broadcast_to[v_ax0, v_ax1])
                     T_broadcast_to[v_ax0, v_ax1] = rxplaceholder[v_ax0, T.int64(0)]
 
-    x_0 = T.dynamic("x_0")
-    x_1 = T.dynamic("x_1")
+    x_0 = T.dynamic("x_0", "int64")
+    x_1 = T.dynamic("x_1", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @Ts.function
-        def broadcast_to(rxplaceholder: T.Tensor((T.int64(3), T.int64(1)), "float32"), T_broadcast_to: T.Tensor((x_0, x_1))):
+        def broadcast_to(rxplaceholder: T.Tensor((T.int64(3), T.int64(1)), "float32"), T_broadcast_to: T.Tensor((x_0, x_1), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             for ax0_ax1_fused_1 in T.parallel(T.int64(256), annotations={"thread_binding": "blockIdx.x"}):
@@ -66,7 +66,7 @@ def test_broadcast_to_symbolic():
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.transform.PassContext(opt_level=3):
+    with target, tvm.ir.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
@@ -195,7 +195,7 @@ def test_matmul():
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.transform.PassContext(opt_level=3):
+    with target, tvm.ir.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
@@ -265,7 +265,7 @@ def test_add():
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.transform.PassContext(opt_level=3):
+    with target, tvm.ir.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
@@ -312,7 +312,7 @@ def test_full():
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.transform.PassContext(opt_level=3):
+    with target, tvm.ir.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
@@ -348,7 +348,7 @@ def test_scheduled():
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.transform.PassContext(opt_level=3):
+    with target, tvm.ir.transform.PassContext(opt_level=3):
         # should do nothing
         After = DefaultGPUSchedule()(Scheduled)
     tvm.ir.assert_structural_equal(After, Scheduled)
@@ -450,7 +450,7 @@ def test_multiple():
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.transform.PassContext(opt_level=3):
+    with target, tvm.ir.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
@@ -488,7 +488,7 @@ def test_add_on_metal():
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("apple/m1-gpu")
-    with target, tvm.transform.PassContext(opt_level=0):
+    with target, tvm.ir.transform.PassContext(opt_level=0):
         mod = DefaultGPUSchedule()(Before)
     tvm.ir.assert_structural_equal(mod, Expected)
 
@@ -523,7 +523,7 @@ def test_scalar_add():
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.transform.PassContext(opt_level=0):
+    with target, tvm.ir.transform.PassContext(opt_level=0):
         mod = DefaultGPUSchedule()(Before)
     tvm.ir.assert_structural_equal(mod, Expected)
 
@@ -562,7 +562,7 @@ def test_sum():
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.transform.PassContext(opt_level=0):
+    with target, tvm.ir.transform.PassContext(opt_level=0):
         mod = DefaultGPUSchedule()(Before)
     tvm.ir.assert_structural_equal(mod, Expected)
 
@@ -596,7 +596,7 @@ def test_scalar_block_no_loops():
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.transform.PassContext(opt_level=0):
+    with target, tvm.ir.transform.PassContext(opt_level=0):
         mod = DefaultGPUSchedule()(Before)
     tvm.ir.assert_structural_equal(mod, Expected)
 

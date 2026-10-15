@@ -58,6 +58,18 @@ def test_wide_head_prefill_fits_metal_shared_memory():
     assert 24_928 <= int(target.attrs["max_shared_memory_per_block"])
 
 
+@pytest.mark.parametrize("sliding_window", [False, True])
+def test_wide_fp32_head_prefill_fits_webgpu_shared_memory(sliding_window):
+    target = tvm.target.Target("webgpu")
+    config = _get_prefill_kernel_config(1, 8, 512, "float32", target)
+    func = _attention_prefill(1, 8, 512, "float32", sliding_window, {}, target)
+
+    assert config == (16, 2, 8, 16, 1, 4, 512, 4)
+    assert _get_allocated_shared_memory(func) <= int(target.attrs["max_shared_memory_per_block"])
+    mod = tvm.tirx.compile(func.with_attr("global_symbol", "main"), target=target).mod
+    assert mod.imports[0].inspect_source()
+
+
 def test_non_power_of_two_head_prefill_reduces_query_tile_for_metal():
     target = tvm.target.Target("metal")
     config = _get_prefill_kernel_config(

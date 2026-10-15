@@ -119,8 +119,8 @@ def test_normalize_no_op():
     after_mod = relax.transform.Normalize()(before_mod)
     assert_structural_equal(before_mod, after_mod, map_free_vars=True)
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @tvm.script.ir_module
     class ANFMod2:

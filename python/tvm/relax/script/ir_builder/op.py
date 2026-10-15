@@ -24,8 +24,6 @@ import numbers as _numbers
 from types import SimpleNamespace as _Namespace
 from typing import Any
 
-import tvm_ffi as _ffi
-
 import tvm
 from tvm import ir as _ir
 from tvm import relax as _relax
@@ -236,8 +234,8 @@ from tvm.relax.op import to_vdevice as _to_vdevice
 from tvm.relax.op.builtin import stop_lift_params
 from tvm.relax.type import Type
 from tvm.relax.utils import convert_to_expr
-from tvm.runtime import ObjectConvertible
 from tvm.script.ir_builder import base as _base
+from tvm.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
 
 from . import distributed as dist  # noqa: F401
 from .ir import _value, lookup_vdevice
@@ -312,10 +310,7 @@ def call_packed(
     elif not isinstance(ty_args, list):
         ty_args = [ty_args]
 
-    ty_args = [
-        (ty() if callable(ty) else ty.asobject() if isinstance(ty, ObjectConvertible) else ty)
-        for ty in ty_args
-    ]
+    ty_args = [ty() if callable(ty) and not isinstance(ty, _ir.Type) else ty for ty in ty_args]
 
     is_default = False
     if "attrs_type_key" in kwargs:
@@ -481,15 +476,17 @@ def select(condition, true_value, false_value):
 
 def if_then_else_(condition: Any, true_value: Any, false_value: Any) -> Any:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.if_then_else_`."""
-    if isinstance(condition, _ffi.ObjectConvertible):
-        condition = condition.asobject()
+    if hasattr(condition, "__tvm_ffi_object__"):
+        condition = condition.__tvm_ffi_object__()
     if not isinstance(condition, _ir.Expr):
         return true_value if condition else false_value
     true_value = (
-        true_value.asobject() if isinstance(true_value, _ffi.ObjectConvertible) else true_value
+        true_value.__tvm_ffi_object__() if hasattr(true_value, "__tvm_ffi_object__") else true_value
     )
     false_value = (
-        false_value.asobject() if isinstance(false_value, _ffi.ObjectConvertible) else false_value
+        false_value.__tvm_ffi_object__()
+        if hasattr(false_value, "__tvm_ffi_object__")
+        else false_value
     )
     if _ir.is_prim_expr(condition) and all(
         _ir.is_prim_expr(value)
@@ -577,7 +574,7 @@ def ne_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
 
 
 inspect = _Namespace()
-_init_op_api("relax", __name__)
+_init_op_api("relax", __name__, wrapper=_auto_emit_void_call)
 
 __all__ = [
     "ArgmaxArgminAttrs",

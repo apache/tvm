@@ -34,6 +34,7 @@
 
 #include <tuple>
 
+#include "../../../s_tir/backend/adreno/texture_utils.h"
 #include "../../op/tensor/manipulate.h"
 #include "../../transform/infer_layout_utils.h"
 #include "../../transform/utils.h"
@@ -82,9 +83,8 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       }
     }
 
-    if ((std::string(tir_out_ty->vdevice.value()->memory_scope).find("texture") !=
-         std::string::npos) &&
-        (vdev_attrs->dst_vdevice->memory_scope == "global")) {
+    if (texture::IsTextureStorage(tir_out_ty->vdevice.value()->memory_scope) &&
+        (vdev_attrs->dst_vdevice->memory_scope == runtime::MemoryScope::Global())) {
       auto shape_arr = tir_out_ty->GetShape().value();
       auto new_ty = TensorType(ShapeExpr(shape_arr), tir_out_ty->dtype, vdev_attrs->dst_vdevice);
 

@@ -29,6 +29,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/runtime/timer.h>
 
 #include <algorithm>
@@ -152,11 +153,11 @@ class CUDADeviceAPI final : public DeviceAPI {
     return rv;
   }
   ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final {
-    TVM_FFI_CHECK(
-        !mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global",
-        ValueError)
-        << "Unsupported memory scope: " << mem_scope.value_or("");
+                    ffi::Optional<runtime::MemoryScope> mem_scope = std::nullopt) final {
+    TVM_FFI_CHECK(!mem_scope.has_value() || mem_scope.value() == runtime::MemoryScope::Global(),
+                  ValueError)
+        << "Unsupported memory scope: "
+        << mem_scope.value_or(runtime::MemoryScope::Global()).name();
     struct Allocator {
       CUDADeviceAPI* api;
       void AllocData(DLTensor* tensor) {
@@ -301,7 +302,7 @@ class CUDADeviceAPI final : public DeviceAPI {
     ThreadLocalWorkspacePool(dev.device_type)->FreeWorkspace(dev, data);
   }
 
-  bool SupportsDevicePointerArithmeticsOnHost() final { return true; }
+  bool SupportsDevicePtrArithmeticOnHost() final { return true; }
 
   static CUDADeviceAPI* Global() {
     // NOTE: explicitly use new to avoid exit-time destruction of global state
@@ -710,9 +711,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       TVM_FFI_ICHECK_EQ(swizzle_kind, CU_TENSOR_MAP_SWIZZLE_32B)
           << "CU_TENSOR_MAP_INTERLEAVE_32B requires CU_TENSOR_MAP_SWIZZLE_32B";
     }
-    TVM_FFI_ICHECK_EQ(element_strides[0], 1U)
-        << "elementStrides[0] must be one because tiled TMA does not support an "
-           "innermost element stride";
+    if (interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_NONE) {
+      TVM_FFI_ICHECK_EQ(element_strides[0], 1U)
+          << "elementStrides[0] must be one for non-interleaved tiled TMA";
+    }
     if (interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_32B || is_packed_align16) {
       TVM_FFI_ICHECK_EQ((reinterpret_cast<uint64_t>(tensor_ptr) & 0b11111), 0)
           << "globalAddress must be 32-byte aligned";

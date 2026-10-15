@@ -43,8 +43,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call_node) final {
-    static const auto& lower_builtin_fmap =
-        Op::GetAttrMap<FLowerBuiltin>(tvm::relax::op_attr::kLowerBuiltin);
+    static const auto& lower_builtin_fmap = Op::GetAttrMap(tvm::relax::op_attr::kLowerBuiltin);
     // post-order mutation
     Call call = VisitExprPostOrder_(call_node).as_or_throw<Call>();
 
@@ -179,7 +178,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     VDevice vdev = attrs->dst_vdevice;
     int dev_type = vdev->target.value()->GetTargetDeviceType();
     int dev_id = vdev->vdevice_id;
-    StringImm storage_scope = StringImm(vdev->memory_scope);
+    StringImm storage_scope = StringImm(vdev->memory_scope.name());
     args.push_back(IntImm::Int64(dev_type));
     args.push_back(IntImm::Int64(dev_id));
     args.push_back(storage_scope);

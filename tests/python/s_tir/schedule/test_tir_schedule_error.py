@@ -30,7 +30,11 @@ from tvm.script import tirx as T
 
 
 @Ts.function
-def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+def matmul(
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
+) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
             vi, vj = Ts.axis.remap("SS", [i, j])

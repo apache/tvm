@@ -22,6 +22,8 @@
  * \brief Target kind registry
  */
 #include <dlpack/dlpack.h>
+#include <tvm/ffi/extra/dataclass.h>
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
@@ -32,8 +34,6 @@
 
 #include <algorithm>
 
-#include "./llvm/canonicalizer/canonicalize.h"
-
 namespace tvm {
 
 namespace refl = ffi::reflection;
@@ -42,18 +42,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TargetKindObj::RegisterReflection();
   refl::TypeAttrDef<TargetKindObj>()
-      .def(tvm::ffi::reflection::type_attr::kDataToJson,
+      .def(tvm::ffi::type_attr::kDataToJson.name,
            [](const TargetKindObj* node) {
              // simply save as the string
              return node->name;
            })
-      .def(tvm::ffi::reflection::type_attr::kDataFromJson, [](const ffi::String& name) {
+      .def(tvm::ffi::type_attr::kDataFromJson.name, [](const ffi::String& name) {
         auto kind = TargetKind::Get(name);
         TVM_FFI_ICHECK(kind.has_value()) << "Cannot find target kind \'" << name << '\'';
         return kind.value();
       });
   refl::TypeAttrDef<TargetKindObj>().def(
-      refl::type_attr::kRepr,
+      ffi::type_attr::kRepr.name,
       [](TargetKind kind, ffi::Function) -> ffi::String { return kind->name; });
 }
 /**********  Registry-related code  **********/
@@ -124,63 +124,6 @@ ffi::Map<ffi::String, ffi::Any> TestTargetParser(ffi::Map<ffi::String, ffi::Any>
 /**********  Register Target kinds and attributes  **********/
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  TargetKindDef("llvm")
-      .set_default_device_type(kDLCPU)
-      .def_option<ffi::Array<ffi::String>>("mattr")
-      .def_option<ffi::String>("mcpu")
-      .def_option<ffi::String>("mtriple")
-      .def_option<ffi::String>("mfloat-abi")
-      .def_option<ffi::String>("mabi")
-      .def_option<int64_t>("num-cores")
-      // Fast math flags, see https://llvm.org/docs/LangRef.html#fast-math-flags
-      .def_option<bool>("fast-math")  // implies all the below
-      .def_option<bool>("fast-math-nnan")
-      .def_option<bool>("fast-math-ninf")
-      .def_option<bool>("fast-math-nsz")
-      .def_option<bool>("fast-math-arcp")
-      .def_option<bool>("fast-math-contract")
-      .def_option<bool>("fast-math-reassoc")
-      .def_option<int64_t>("opt-level")
-      // LLVM command line flags, see below
-      .def_option<ffi::Array<ffi::String>>("cl-opt")
-      // TVM & LLVM custom vector bit width
-      .def_option<int64_t>("vector-width")
-      .set_default_keys({"cpu"})
-      // Force the external codegen kind attribute to be registered, even if no external
-      // codegen targets are enabled by the TVM build.
-      .set_target_canonicalizer(tvm::target::canonicalizer::llvm::Canonicalize);
-
-  // Note regarding the "cl-opt" attribute:
-  // Each string in the array has the format
-  //   -optionname[[:type]=value]
-  // where
-  //   * optionname is the actual LLVM option (e.g. "unroll-threshold")
-  //   * type is one of "bool", "int", "uint", or "string"
-  //   * value is the corresponding option value (for "bool" type is can be 0 or "false"
-  //     for false value, or 1 or "true" for true value)
-  // If type is omitted, it is assumed to be "bool". If value is omitted, it is assumed
-  // to be "true".
-  //
-  // The type must match the option type in LLVM. To find the type, search the LLVM
-  // repository (https://github.com/llvm/llvm-project) for optionname, and look for
-  // its definition: it will be a declaration of a variable of type cl::opt<T> with
-  // optionname being an argument to the constructor. The T in the declaration is
-  // the type.
-  // For example, for unroll-threshold, we get the following declaration:
-  // static cl::opt<unsigned>
-  //     UnrollThreshold("unroll-threshold", cl::Hidden,
-  //                     cl::desc("The cost threshold for loop unrolling"));
-  // Hence the type is "uint".
-
-  TargetKindDef("c")
-      .set_default_device_type(kDLCPU)
-      .def_option<ffi::String>("mcpu")
-      .def_option<ffi::String>("march")
-      .def_option<int64_t>("workspace-byte-alignment")
-      .def_option<int64_t>("constants-byte-alignment")
-      .set_default_keys({"cpu"})
-      .set_target_canonicalizer(tvm::target::canonicalizer::llvm::Canonicalize);
-
   TargetKindDef("ext_dev")  // line break
       .set_default_device_type(kDLExtDev);
 

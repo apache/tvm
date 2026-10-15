@@ -487,7 +487,7 @@ def test_z3_cast_preserves_bounds():
     _require_z3(analyzer)
 
     s = tirx.Var("s", "int16")
-    widened = tirx.Cast("int32", s)
+    widened = tirx.Cast(s, "int32")
     assert analyzer.can_prove(widened <= 32767, SB)
     assert analyzer.can_prove(widened >= -32768, SB)
 

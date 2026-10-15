@@ -901,7 +901,7 @@ def test_dynamic_strided_slice_infer_ty_arg_wrong_shape_info():
 def test_legalize_dynamic_begin_end():
     """relax.op.strided_slice FLegalize must support dynamic begin/end"""
 
-    index = T.dynamic("index")
+    index = T.dynamic("index", "int64")
 
     @I.ir_module
     class before:
@@ -909,7 +909,7 @@ def test_legalize_dynamic_begin_end():
         def main(A: R.Tensor((16, 16), "float32"), B: R.Shape([index])) -> R.Tensor((1, 16)):
             return R.strided_slice(A, [0], [index], [index + 1], assume_inbound=True)
 
-    index = T.dynamic("index")
+    index = T.dynamic("index", "int64")
 
     @I.ir_module
     class expected:
@@ -923,9 +923,9 @@ def test_legalize_dynamic_begin_end():
 
         @Ts.function(private=True)
         def strided_slice(
-            A: T.Tensor((T.int64(16), T.int64(16))),
+            A: T.Tensor((T.int64(16), T.int64(16)), "float32"),
             index: T.int64,
-            B: T.Tensor((T.int64(1), T.int64(16))),
+            B: T.Tensor((T.int64(1), T.int64(16)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for (*iters,) in T.grid(*B.shape):
@@ -940,7 +940,7 @@ def test_legalize_dynamic_begin_end():
 def test_legalize_dynamic_begin_inf_end():
     """relax.op.strided_slice FLegalize must support dynamic begin/end"""
 
-    index = T.dynamic("index")
+    index = T.dynamic("index", "int64")
 
     @I.ir_module
     class before:
@@ -951,14 +951,14 @@ def test_legalize_dynamic_begin_inf_end():
             )
 
     # fmt: off
-    index = T.dynamic("index")
+    index = T.dynamic("index", "int64")
 
     @I.ir_module
     class expected:
         strided_slice_index = T.int64()
 
         @Ts.function(private=True)
-        def strided_slice(A: T.Tensor((T.int64(16), T.int64(16)), "float32"), index: strided_slice_index, T_dynamic_strided_slice_with_axes: T.Tensor((T.max(T.int64(16) - T.max(T.if_then_else(strided_slice_index < T.int64(0), strided_slice_index + T.int64(16), strided_slice_index), T.int64(0)), T.int64(0)), T.int64(16)))):
+        def strided_slice(A: T.Tensor((T.int64(16), T.int64(16)), "float32"), index: strided_slice_index, T_dynamic_strided_slice_with_axes: T.Tensor((T.max(T.int64(16) - T.max(T.if_then_else(strided_slice_index < T.int64(0), strided_slice_index + T.int64(16), strided_slice_index), T.int64(0)), T.int64(0)), T.int64(16)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):

@@ -59,7 +59,7 @@ void StmtExprMutatorWithAnalyzer::MarkTensorParamShapes(const tirx::Function& fu
       continue;
     }
     tirx::TensorVar tensor = param.as_or_throw<tirx::TensorVar>();
-    for (PrimExpr shape : tensor->shape) {
+    for (PrimExpr shape : tensor.shape()) {
       analyzer_->MarkGlobalNonNegValue(shape);
     }
   }

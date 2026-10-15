@@ -19,6 +19,8 @@
 
 import tvm_ffi as _ffi
 
+from tvm.runtime import MemoryScope
+
 from . import _ffi_api
 
 
@@ -28,7 +30,7 @@ def ConvertSSA():
 
 
 def StmtSimplify():
-    """Simplify schedulable TIR with block constraints and tirx.StmtSimplify options."""
+    """Simplify schedulable TIR with block constraints."""
     return _ffi_api.StmtSimplify()
 
 
@@ -37,7 +39,7 @@ def CanonicalizeLoop():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.CanonicalizeLoop()  # type: ignore
@@ -49,7 +51,7 @@ def LowerCrossThreadReduction():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.LowerCrossThreadReduction()  # type: ignore
@@ -60,7 +62,7 @@ def LowerInitBlock():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.LowerInitBlock()  # type: ignore
@@ -73,7 +75,7 @@ def PlanAndUpdateTensorAllocationLocation():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.PlanAndUpdateTensorAllocationLocation()  # type: ignore
@@ -86,7 +88,7 @@ def ConvertBlocksToOpaque():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.ConvertBlocksToOpaque()  # type: ignore
@@ -97,7 +99,7 @@ def LiftThreadBinding():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.LiftThreadBinding()  # type: ignore
@@ -116,7 +118,7 @@ def CompactTensorAllocation(is_strict: bool = True):
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.CompactTensorAllocation(is_strict)  # type: ignore
@@ -127,7 +129,7 @@ def LowerMatchTensor():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.LowerMatchTensor()  # type: ignore
@@ -140,7 +142,7 @@ def LowerOpaqueBlock():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.LowerOpaqueBlock()  # type: ignore
@@ -151,7 +153,7 @@ def TransformMmaTensorLayout():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.TransformMmaTensorLayout()  # type: ignore
@@ -162,7 +164,7 @@ def InjectPermutedLayout():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.InjectPermutedLayout()  # type: ignore
@@ -176,7 +178,7 @@ def LowerThreadBinding():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.LowerThreadBinding()  # type: ignore
@@ -187,7 +189,7 @@ def InjectSoftwarePipeline():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.InjectSoftwarePipeline()  # type: ignore
@@ -198,7 +200,7 @@ def LowerAutoCopy():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.LowerAutoCopy()  # type: ignore
@@ -209,7 +211,7 @@ def ManifestSharedMemoryLocalStage():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.ManifestSharedMemoryLocalStage()  # type: ignore
@@ -220,7 +222,7 @@ def AnnotateIrregularLoop():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.AnnotateIrregularLoop()  # type: ignore
@@ -240,7 +242,7 @@ def LoopPartition():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.LoopPartition()  # type: ignore
@@ -251,7 +253,7 @@ def InjectVirtualThread():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.InjectVirtualThread()  # type: ignore
@@ -262,7 +264,7 @@ def RewriteUnsafeSelect():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.RewriteUnsafeSelect()  # type: ignore
@@ -280,7 +282,7 @@ def VerifyVTCMLimit(default_target=None):
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.VerifyVTCMLimit(default_target)  # type: ignore
@@ -291,23 +293,23 @@ def LowerVtcmAlloc():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.LowerVtcmAlloc()  # type: ignore
 
 
-def ThreadSync(storage_scope):
+def ThreadSync(storage_scope: str | MemoryScope):
     """Insert sync between parallel read/write of shared tensors.
 
     Parameters
     ----------
-    storage_scope: str
+    storage_scope: str or MemoryScope
         The target storage scope.
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.ThreadSync(storage_scope)  # type: ignore
@@ -323,21 +325,10 @@ def InferFragment():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.InferFragment()  # type: ignore
-
-
-def LowerThreadAllreduce():
-    """Lower cross thread allreduce.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerThreadAllreduce()  # type: ignore
 
 
 def InjectPTXAsyncCopy():
@@ -345,7 +336,7 @@ def InjectPTXAsyncCopy():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.InjectPTXAsyncCopy()  # type: ignore
@@ -357,7 +348,7 @@ def MergeSharedMemoryAllocations():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.MergeSharedMemoryAllocations()  # type: ignore
@@ -368,7 +359,7 @@ def DefaultGPUSchedule():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.DefaultGPUSchedule()  # type: ignore
@@ -384,7 +375,7 @@ def RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite=False):
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite)  # type: ignore
@@ -395,7 +386,7 @@ def RemoveStoreUndef():
 
     Returns
     -------
-    fpass : tvm.transform.Pass
+    fpass : tvm.ir.transform.Pass
         The result pass
     """
     return _ffi_api.RemoveStoreUndef()  # type: ignore

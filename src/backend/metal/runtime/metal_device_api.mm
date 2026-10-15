@@ -23,6 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/runtime/timer.h>
 #include <algorithm>
 
@@ -146,11 +147,10 @@ void MetalWorkspace::SetDevice(Device dev) {
 }
 
 ffi::Tensor MetalWorkspace::Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                                  ffi::Optional<ffi::String> mem_scope) {
-  TVM_FFI_CHECK(
-      !mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global",
-      ValueError)
-      << "Unsupported memory scope: " << mem_scope.value_or("");
+                                  ffi::Optional<runtime::MemoryScope> mem_scope) {
+  TVM_FFI_CHECK(!mem_scope.has_value() || mem_scope.value() == runtime::MemoryScope::Global(),
+                ValueError)
+      << "Unsupported memory scope: " << mem_scope.value_or(runtime::MemoryScope::Global()).name();
   struct Allocator {
     MetalWorkspace* api;
     void AllocData(DLTensor* tensor) {
@@ -440,8 +440,9 @@ class MetalTimerObj : public TimerObj {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.timer.metal",
-                        [](Device dev) { return Timer(ffi::make_object<MetalTimerObj>(dev)); });
+  refl::GlobalDef().def("runtime.timer.metal", [](Device dev) {
+    return Timer(ffi::UnsafeInit{}, ffi::make_object<MetalTimerObj>(dev));
+  });
 }
 
 }  // namespace metal

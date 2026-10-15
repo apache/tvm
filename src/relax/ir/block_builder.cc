@@ -1048,16 +1048,16 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   }
 
   /*! \brief Operator type inference map. */
-  tvm::OpAttrMap<FInferType> op_map_context_free_infer_ty =
-      Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
-  tvm::OpAttrMap<FInferTypeWithBuilder> op_map_infer_ty =
-      Op::GetAttrMap<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder);
-  tvm::OpAttrMap<FInferTypeWithBuilder> op_map_dist_infer_ty =
-      Op::GetAttrMap<FInferTypeWithBuilder>(
-          tvm::relax::distributed::op_attr::kInferTypeWithBuilder);
+  decltype(Op::GetAttrMap(tvm::op_attr::kInferType)) op_map_context_free_infer_ty =
+      Op::GetAttrMap(tvm::op_attr::kInferType);
+  decltype(Op::GetAttrMap(tvm::relax::op_attr::kInferTypeWithBuilder)) op_map_infer_ty =
+      Op::GetAttrMap(tvm::relax::op_attr::kInferTypeWithBuilder);
+  decltype(Op::GetAttrMap(
+      tvm::relax::distributed::op_attr::kInferTypeWithBuilder)) op_map_dist_infer_ty =
+      Op::GetAttrMap(tvm::relax::distributed::op_attr::kInferTypeWithBuilder);
   /*! \brief Operator normalization function */
-  tvm::OpAttrMap<FNormalize> op_map_normalize_ =
-      Op::GetAttrMap<FNormalize>(tvm::relax::op_attr::kNormalize);
+  decltype(Op::GetAttrMap(tvm::relax::op_attr::kNormalize)) op_map_normalize_ =
+      Op::GetAttrMap(tvm::relax::op_attr::kNormalize);
 
   /*! \brief Whether the FNormalize function should be applied */
   bool apply_f_normalize_{true};

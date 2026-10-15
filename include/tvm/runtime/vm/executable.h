@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 
@@ -153,7 +154,7 @@ class TVM_RUNTIME_DLL VMExecutable : public ffi::ModuleObj {
   /*! \brief The global constant pool. */
   std::vector<ffi::Any> constants;
   /*! \brief The VDevice memory scopes */
-  std::unordered_map<Index, std::string> memory_scopes;
+  std::unordered_map<Index, MemoryScope> memory_scopes;
   /*! \brief The offset of instruction. */
   std::vector<Index> instr_offset;
   /*! \brief The byte data of instruction. */

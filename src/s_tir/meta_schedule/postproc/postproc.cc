@@ -87,20 +87,6 @@ ffi::Array<Postproc> Postproc::DefaultCUDA() {
   };
 }
 
-ffi::Array<Postproc> Postproc::DefaultCUDATensorCore() {
-  return ffi::Array<Postproc>{
-      Postproc::DisallowDynamicLoop(),
-      Postproc::RewriteCooperativeFetch(),
-      Postproc::RewriteUnboundBlock(/*max_threadblocks=*/256),
-      Postproc::RewriteParallelVectorizeUnroll(),
-      Postproc::RewriteReductionBlock(),
-      Postproc::VerifyGPUCode(),
-      // RewriteTensorize is relatively expensive and it doesn't affect the validity of a sample, so
-      // run it only on samples that have passed VerifyGPUCode.
-      Postproc::RewriteTensorize(/*vectorize_init_loop=*/false),
-  };
-}
-
 ffi::Array<Postproc> Postproc::DefaultHexagon() {
   return ffi::Array<Postproc>{
       Postproc::DisallowDynamicLoop(),   Postproc::RewriteParallelVectorizeUnroll(),
@@ -126,7 +112,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("s_tir.meta_schedule.PostprocPyPostproc", Postproc::PyPostproc)
       .def("s_tir.meta_schedule.PostprocDefaultLLVM", Postproc::DefaultLLVM)
       .def("s_tir.meta_schedule.PostprocDefaultCUDA", Postproc::DefaultCUDA)
-      .def("s_tir.meta_schedule.PostprocDefaultCUDATensorCore", Postproc::DefaultCUDATensorCore)
       .def("s_tir.meta_schedule.PostprocDefaultHexagon", Postproc::DefaultHexagon);
 }
 

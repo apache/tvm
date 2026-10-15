@@ -28,6 +28,9 @@
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/extra/dataclass.h>
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_hash.h>
+#include <tvm/ffi/reflection/native_function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/attrs.h>
@@ -460,10 +463,24 @@ class TensorLoadNode : public ExprNode {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TensorLoad", TensorLoadNode, ExprNode);
 };
 
+/*!
+ * \brief Infer a load's primitive result type from its populated source, indices and location.
+ * \note The callback must derive the result from those inputs, not the unpublished result type.
+ */
+using FTensorLoadInferType = ffi::reflection::NativeFunctionView<PrimType(const TensorLoadNode*)>;
+
 /*! \brief Managed reference to TensorLoadNode. */
 class TensorLoad : public PrimExpr {
  public:
-  explicit TensorLoad(ffi::ObjectPtr<TensorLoadNode> node) : PrimExpr(std::move(node)) {}
+  /*! \brief Construct a load using the inference hook on the runtime class of source->ty. */
+  TVM_TIRX_DLL TensorLoad(Expr source, ffi::Array<PrimExpr> indices, Location loc = UnknownLoc());
+
+  /*! \brief Construct with an explicit primitive result type, bypassing source-type inference. */
+  TVM_TIRX_DLL static TensorLoad Unchecked(PrimType ty, Expr source, ffi::Array<PrimExpr> indices,
+                                           Location loc = UnknownLoc());
+
+  /*! \brief Wrap an existing node, requiring a concrete primitive result type. */
+  TVM_TIRX_DLL explicit TensorLoad(ffi::ObjectPtr<TensorLoadNode> node);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorLoad, PrimExpr, TensorLoadNode);
   static constexpr bool _type_container_is_exact = true;
@@ -829,8 +846,8 @@ class GlobalVarNode : public ExprNode {
     // A GlobalVar identifies a module-level symbol.  Its type is derived from the
     // corresponding function definition and is not part of the symbol identity.
     refl::TypeAttrDef<GlobalVarNode>()
-        .def(tvm::ffi::reflection::type_attr::kSEqual, &GlobalVarNode::SEqual)
-        .def(tvm::ffi::reflection::type_attr::kSHash, &GlobalVarNode::SHash);
+        .def(tvm::ffi::type_attr::kSEqual.name, &GlobalVarNode::SEqual)
+        .def(tvm::ffi::type_attr::kSHash.name, &GlobalVarNode::SHash);
   }
 
   bool SEqual(const GlobalVarNode* other,
@@ -925,9 +942,6 @@ inline std::ostream& operator<<(std::ostream& os, CallEffectKind side_effect) {
       TVM_FFI_THROW(InternalError) << "Unknown CallEffectKind: " << static_cast<int>(side_effect);
   }
 }
-
-/*! \brief Use integer to record the kind. */
-using TCallEffectKind = int64_t;
 
 /*!
  * \brief Call corresponds to callable invocation.
@@ -1081,6 +1095,13 @@ class TensorRegion : public Expr {
   TVM_TIRX_DLL TensorRegion(Expr source, ffi::Array<Range> region, Type ty,
                             Location loc = UnknownLoc());
 
+  /*!
+   * \brief Convert a tensor load to a region with unit extent at each index.
+   * \param value The tensor load whose source, indices and location are retained.
+   * \return The region, requiring the source to be a TIRx TensorVar.
+   */
+  TVM_TIRX_DLL static TensorRegion FromTensorLoad(TensorLoad value);
+
   explicit TensorRegion(ffi::ObjectPtr<TensorRegionNode> node) : Expr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRegion, Expr, TensorRegionNode);
@@ -1161,11 +1182,16 @@ inline constexpr bool object_ref_contains_v<PrimExpr, TensorLoadNode> = true;
 }  // namespace ffi
 
 namespace op_attr {
-inline constexpr const char* kCallEffectKind = "TCallEffectKind";
+/*! \brief Use integer to record the kind. */
+inline constexpr ffi::reflection::AttrKey<int64_t> kCallEffectKind{"TCallEffectKind"};
 }  // namespace op_attr
 
+// Compatibility names; new callers can deduce the value type from the key.
+using TCallEffectKind = decltype(op_attr::kCallEffectKind)::ValueType;
+
 namespace type_attr {
-inline constexpr const char* kSubscriptExprRealize = "__subscript_expr_realize__";
+inline constexpr const char* kTensorLoadInferType = "__tvm_tensor_load_infer_type__";
+inline constexpr const char* kSubscriptExprRealize = "__tvm_subscript_expr_realize__";
 }  // namespace type_attr
 
 }  // namespace tvm

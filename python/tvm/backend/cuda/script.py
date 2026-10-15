@@ -20,17 +20,20 @@ from __future__ import annotations
 
 from tvm import ir as _ir
 from tvm.backend.cuda import op as _cuda_op
+from tvm.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
 
 from . import layout as layout
 from .axis import Axis as Axis
 from .backend_config import BackendConfig as BackendConfig
-from .exec_scope import ExecScope as ExecScope
 from .launch import AccessPolicyWindow as AccessPolicyWindow
 from .launch import KernelAttributes as KernelAttributes
 from .launch import LaunchCompletionEvent as LaunchCompletionEvent
 from .launch import LaunchConfig as LaunchConfig
 from .launch import MemSyncDomainMap as MemSyncDomainMap
 from .launch import ProgrammaticEvent as ProgrammaticEvent
+from .ptx.engine import PTXNamespace as _PTXNamespace
+from .ptx.engine import _InstrChain
+from .thread_scope import ThreadScope as ThreadScope
 from .tile.instructions import make_namespace as _make_tensor_namespace
 
 # pylint: disable=protected-access
@@ -43,9 +46,9 @@ class _CpAsyncRaw:
         # Legacy variant: takes (dst_ptr, dst_offset, src_ptr, src_offset,
         # cp_size). Offsets are folded into the pointers; lowers through the
         # raw op below.
-        self.legacy = _cuda_op.ptx_cp_async_legacy
+        self.legacy = _auto_emit_void_call(_cuda_op.ptx_cp_async_legacy)
         op = _ir.Op.get("tirx.s_tir.cp_async_raw")
-        self._construct = _ir.op._make_op_api(op, __name__)
+        self._construct = _auto_emit_void_call(_ir.op._make_op_api(op, __name__))
 
     def __call__(self, *args, **kwds):
         return self._construct(*args, **kwds)
@@ -75,29 +78,35 @@ class PTXLegacyNamespace:
     def __init__(self):
         # Same lowered asm as T.ptx.mma, but the accumulator doubles as the
         # destination and the offsets are explicit.
-        self.mma = _cuda_op.ptx_legacy_mma
+        self.mma = _auto_emit_void_call(_cuda_op.ptx_legacy_mma)
         # (trans, num, dtype, local_ptr, local_offset, smem_ptr, smem_offset)
-        self.ldmatrix = _cuda_op.ptx_legacy_ldmatrix
+        self.ldmatrix = _auto_emit_void_call(_cuda_op.ptx_legacy_ldmatrix)
 
 
 class CudaWgmmaNamespace:
     """WGMMA companions that are not PTX instructions (pure-C / empty-asm helpers)."""
 
     def __init__(self):
-        self.noop_barrier = _cuda_op.cuda_wgmma_noop_barrier
-        self.encode_matrix_descriptor = _cuda_op.cuda_wgmma_encode_matrix_descriptor
+        self.noop_barrier = _auto_emit_void_call(_cuda_op.cuda_wgmma_noop_barrier)
+        self.encode_matrix_descriptor = _auto_emit_void_call(
+            _cuda_op.cuda_wgmma_encode_matrix_descriptor
+        )
 
 
 class CudaTcgen05Namespace:
     """tcgen05 companions that are not PTX instructions (pure-C descriptor packers)."""
 
     def __init__(self):
-        self.encode_matrix_descriptor = _cuda_op.cuda_tcgen05_encode_matrix_descriptor
-        self.encode_instr_descriptor = _ir.op._make_op_api(
-            _ir.Op.get("tirx.cuda.tcgen05_encode_instr_descriptor"), __name__
+        self.encode_matrix_descriptor = _auto_emit_void_call(
+            _cuda_op.cuda_tcgen05_encode_matrix_descriptor
         )
-        self.encode_instr_descriptor_block_scaled = _ir.op._make_op_api(
-            _ir.Op.get("tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled"), __name__
+        self.encode_instr_descriptor = _auto_emit_void_call(
+            _ir.op._make_op_api(_ir.Op.get("tirx.cuda.tcgen05_encode_instr_descriptor"), __name__)
+        )
+        self.encode_instr_descriptor_block_scaled = _auto_emit_void_call(
+            _ir.op._make_op_api(
+                _ir.Op.get("tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled"), __name__
+            )
         )
 
 
@@ -105,13 +114,13 @@ class IketNamespace:
     """Frontend-only NVIDIA IKET annotations."""
 
     def __init__(self):
-        self.mark = _cuda_op.cuda_iket_mark
-        self.range_start = _cuda_op.cuda_iket_range_start
-        self.range_end = _cuda_op.cuda_iket_range_end
-        self.range_push = _cuda_op.cuda_iket_range_push
-        self.range_pop = _cuda_op.cuda_iket_range_pop
-        self.sentinel_token = _cuda_op.cuda_iket_sentinel_token
-        self.official_event = _cuda_op.cuda_iket_official_event
+        self.mark = _auto_emit_void_call(_cuda_op.cuda_iket_mark)
+        self.range_start = _auto_emit_void_call(_cuda_op.cuda_iket_range_start)
+        self.range_end = _auto_emit_void_call(_cuda_op.cuda_iket_range_end)
+        self.range_push = _auto_emit_void_call(_cuda_op.cuda_iket_range_push)
+        self.range_pop = _auto_emit_void_call(_cuda_op.cuda_iket_range_pop)
+        self.sentinel_token = _auto_emit_void_call(_cuda_op.cuda_iket_sentinel_token)
+        self.official_event = _auto_emit_void_call(_cuda_op.cuda_iket_official_event)
 
 
 TensorMapEncodeTiledAttr = _cuda_op.TensorMapEncodeTiledAttr
@@ -121,65 +130,72 @@ TCGen05InstrDescriptorBlockScaledAttrs = _cuda_op.TCGen05InstrDescriptorBlockSca
 iket = IketNamespace()
 wgmma = CudaWgmmaNamespace()
 tcgen05 = CudaTcgen05Namespace()
-warp_sum = _cuda_op.cuda_warp_sum
-warp_max = _cuda_op.cuda_warp_max
-warp_min = _cuda_op.cuda_warp_min
-cta_sum = _cuda_op.cuda_cta_sum
-cta_max = _cuda_op.cuda_cta_max
-cta_min = _cuda_op.cuda_cta_min
-func_call = _cuda_op.cuda_func_call
-sm100_2sm_leader_smem_addr = _cuda_op.cuda_sm100_2sm_leader_smem_addr
-timer_init = _cuda_op.timer_init
-timer_start = _cuda_op.timer_start
-timer_end = _cuda_op.timer_end
-timer_finalize = _cuda_op.timer_finalize
-mma_store = _ir.op._make_op_api(_ir.Op.get("tirx.cuda.mma_store"), __name__)
-mma_fill = _ir.op._make_op_api(_ir.Op.get("tirx.cuda.mma_fill"), __name__)
-bmma_sync = _cuda_op.bmma_sync
-atomic_add = _cuda_op.cuda_atomic_add
-atomic_cas = _cuda_op.cuda_atomic_cas
-cta_reduce = _cuda_op.cuda_cta_reduce
-mov_sreg = _cuda_op.cuda_mov_sreg
-wait_until = _cuda_op.cuda_wait_until
-warp_reduce = _cuda_op.cuda_warp_reduce
-__shfl_sync = _cuda_op.__shfl_sync
-__shfl_up_sync = _cuda_op.__shfl_up_sync
-__shfl_down_sync = _cuda_op.__shfl_down_sync
-__shfl_xor_sync = _cuda_op.__shfl_xor_sync
-__activemask = _cuda_op.__activemask
+warp_sum = _auto_emit_void_call(_cuda_op.cuda_warp_sum)
+warp_max = _auto_emit_void_call(_cuda_op.cuda_warp_max)
+warp_min = _auto_emit_void_call(_cuda_op.cuda_warp_min)
+cta_sum = _auto_emit_void_call(_cuda_op.cuda_cta_sum)
+cta_max = _auto_emit_void_call(_cuda_op.cuda_cta_max)
+cta_min = _auto_emit_void_call(_cuda_op.cuda_cta_min)
+func_call = _auto_emit_void_call(_cuda_op.cuda_func_call)
+sm100_2sm_leader_smem_addr = _auto_emit_void_call(_cuda_op.cuda_sm100_2sm_leader_smem_addr)
+timer_init = _auto_emit_void_call(_cuda_op.timer_init)
+timer_start = _auto_emit_void_call(_cuda_op.timer_start)
+timer_end = _auto_emit_void_call(_cuda_op.timer_end)
+timer_finalize = _auto_emit_void_call(_cuda_op.timer_finalize)
+mma_store = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("tirx.cuda.mma_store"), __name__))
+mma_fill = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("tirx.cuda.mma_fill"), __name__))
+bmma_sync = _auto_emit_void_call(_cuda_op.bmma_sync)
+atomic_add = _auto_emit_void_call(_cuda_op.cuda_atomic_add)
+atomic_cas = _auto_emit_void_call(_cuda_op.cuda_atomic_cas)
+cta_reduce = _auto_emit_void_call(_cuda_op.cuda_cta_reduce)
+mov_sreg = _auto_emit_void_call(_cuda_op.cuda_mov_sreg)
+wait_until = _auto_emit_void_call(_cuda_op.cuda_wait_until)
+warp_reduce = _auto_emit_void_call(_cuda_op.cuda_warp_reduce)
+__shfl_sync = _auto_emit_void_call(_cuda_op.__shfl_sync)
+__shfl_up_sync = _auto_emit_void_call(_cuda_op.__shfl_up_sync)
+__shfl_down_sync = _auto_emit_void_call(_cuda_op.__shfl_down_sync)
+__shfl_xor_sync = _auto_emit_void_call(_cuda_op.__shfl_xor_sync)
+__activemask = _auto_emit_void_call(_cuda_op.__activemask)
 
 
 tile = _make_tensor_namespace()
-_ir.op._init_op_api("tirx.cuda", __name__)
+tile.apply = _auto_emit_void_call(tile.apply)
+tile.ewise = _auto_emit_void_call(tile.ewise)
+_ir.op._init_op_api("tirx.cuda", __name__, wrapper=_auto_emit_void_call)
 
 
 class NVSHMEMNamespace:
     """The NVSHMEM intrinsics submodule."""
 
     def __init__(self):
-        self.my_pe = _cuda_op.nvshmem_my_pe
-        self.n_pes = _cuda_op.nvshmem_n_pes
-        self.signal_op = _cuda_op.nvshmem_signal_op
-        self.wait_until = _cuda_op.nvshmem_wait_until
-        self.quiet = _cuda_op.nvshmem_quiet
-        self.fence = _cuda_op.nvshmem_fence
-        self.barrier_all = _cuda_op.nvshmem_barrier_all
+        self.my_pe = _auto_emit_void_call(_cuda_op.nvshmem_my_pe)
+        self.n_pes = _auto_emit_void_call(_cuda_op.nvshmem_n_pes)
+        self.signal_op = _auto_emit_void_call(_cuda_op.nvshmem_signal_op)
+        self.wait_until = _auto_emit_void_call(_cuda_op.nvshmem_wait_until)
+        self.quiet = _auto_emit_void_call(_cuda_op.nvshmem_quiet)
+        self.fence = _auto_emit_void_call(_cuda_op.nvshmem_fence)
+        self.barrier_all = _auto_emit_void_call(_cuda_op.nvshmem_barrier_all)
         self.getmem_nbi = NVSHMEMGetMemNBINamespace()
         self.putmem_nbi = NVSHMEMPutMemNBINamespace()
         self.putmem_signal_nbi = NVSHMEMPutMemSignalNBINamespace()
         # Canonical Op names are also exposed directly for reconstruction.
         for name in ("getmem_nbi", "putmem_nbi", "putmem_signal_nbi"):
             for scope in ("warp", "block"):
-                setattr(self, f"{name}_{scope}", getattr(_cuda_op, f"nvshmem_{name}_{scope}"))
+                setattr(
+                    self,
+                    f"{name}_{scope}",
+                    getattr(getattr(self, name), scope),
+                )
 
 
 class NVSHMEMGetMemNBINamespace:
     """The NVSHMEM GetMemNBI intrinsics submodule."""
 
     def __init__(self):
-        self.warp = _cuda_op.nvshmem_getmem_nbi_warp
-        self.block = _cuda_op.nvshmem_getmem_nbi_block
+        self.warp = _auto_emit_void_call(_cuda_op.nvshmem_getmem_nbi_warp)
+        self.block = _auto_emit_void_call(_cuda_op.nvshmem_getmem_nbi_block)
 
+    @_auto_emit_void_call
     def __call__(self, *args, **kwds):
         return _cuda_op.nvshmem_getmem_nbi(*args, **kwds)
 
@@ -190,9 +206,10 @@ class NVSHMEMPutMemNBINamespace:
     """The NVSHMEM PutMemNBI intrinsics submodule."""
 
     def __init__(self):
-        self.warp = _cuda_op.nvshmem_putmem_nbi_warp
-        self.block = _cuda_op.nvshmem_putmem_nbi_block
+        self.warp = _auto_emit_void_call(_cuda_op.nvshmem_putmem_nbi_warp)
+        self.block = _auto_emit_void_call(_cuda_op.nvshmem_putmem_nbi_block)
 
+    @_auto_emit_void_call
     def __call__(self, *args, **kwds):
         return _cuda_op.nvshmem_putmem_nbi(*args, **kwds)
 
@@ -203,10 +220,30 @@ class NVSHMEMPutMemSignalNBINamespace:
     """The NVSHMEM PutMemSignalNBI intrinsics submodule."""
 
     def __init__(self):
-        self.warp = _cuda_op.nvshmem_putmem_signal_nbi_warp
-        self.block = _cuda_op.nvshmem_putmem_signal_nbi_block
+        self.warp = _auto_emit_void_call(_cuda_op.nvshmem_putmem_signal_nbi_warp)
+        self.block = _auto_emit_void_call(_cuda_op.nvshmem_putmem_signal_nbi_block)
 
+    @_auto_emit_void_call
     def __call__(self, *args, **kwds):
         return _cuda_op.nvshmem_putmem_signal_nbi(*args, **kwds)
 
     # __call__ corresponds to nvshmem_putmem_signal_nbi
+
+
+class _ScriptInstrChain(_InstrChain):
+    """Preserve PTX instruction metadata while emitting script calls."""
+
+    __slots__ = ()
+
+    def __getattr__(self, name):
+        return _ScriptInstrChain(super().__getattr__(name)._cands)
+
+    __call__ = _auto_emit_void_call(_InstrChain.__call__)
+
+
+class PTXNamespace(_PTXNamespace):
+    """Script-facing PTX chains, also valid as tile instruction operands."""
+
+    def _family(self, token):
+        chain = super()._family(token)
+        return None if chain is None else _ScriptInstrChain(chain._cands)

@@ -154,7 +154,7 @@ ffi::Any LocalSession::GetAttr(Device dev, const ffi::String& name) {
 }
 
 void* LocalSession::AllocTensor(Device dev, ffi::ShapeView shape, DLDataType dtype,
-                                ffi::Optional<ffi::String> mem_scope) {
+                                ffi::Optional<MemoryScope> mem_scope) {
   EnsureOpen();
   ffi::Tensor tensor = DeviceAPI::Get(dev)->Empty(shape, dtype, dev, mem_scope);
   void* handle = tensor.data_ptr();

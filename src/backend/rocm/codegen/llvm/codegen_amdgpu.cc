@@ -39,6 +39,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/support/gpu_thread_tag.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt.h>
@@ -52,10 +53,10 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 
+#include "../../../../codegen/build_common.h"
+#include "../../../../codegen/llvm/codegen_llvm.h"
+#include "../../../../codegen/llvm/llvm_instance.h"
 #include "../../../../runtime/metadata.h"
-#include "../../../../target/build_common.h"
-#include "../../../../target/llvm/codegen_llvm.h"
-#include "../../../../target/llvm/llvm_instance.h"
 #include "../rocm_fallback_module.h"
 
 namespace tvm {
@@ -105,16 +106,18 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+    static const auto scope_local = runtime::MemoryScope::Get("local");
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
     tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
     DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
-    ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
+    runtime::MemoryScope scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->scope;
     TensorVar buffer = op->var.as_or_throw<TensorVar>();
     DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
     llvm::Value* buf = nullptr;
     StorageInfo& info = alloc_storage_info_[buffer.get()];
-    auto storage_scope = runtime::StorageScope::Create(scope);
 
-    if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
+    if (scope == scope_shared_dyn) {
       LOG(WARNING) << "Dynamic shared memory support for rocm is experimental.";
       buf = AllocateSharedMemory(PrimType(dtype), 0, 3, std::min(info.alignment, 16),
                                  llvm::GlobalValue::ExternalLinkage);
@@ -132,7 +135,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       if (info.alignment > 16) {
         info.alignment = 16;
       }
-      if (storage_scope.rank == runtime::StorageRank::kLocal) {
+      if (scope == scope_local) {
         llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
           return builder_->CreateAlloca(DTypeToLLVMType(PrimType(dtype)),
                                         ConstInt32(constant_size));
@@ -143,7 +146,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
         }
         buf = alloca;
       } else {
-        TVM_FFI_ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
+        TVM_FFI_ICHECK(scope == scope_shared)
             << "Can only allocate shared or local memory inside kernel";
         // Shared memory: address space == 3
         buf = AllocateSharedMemory(PrimType(dtype), constant_size, 3, info.alignment,

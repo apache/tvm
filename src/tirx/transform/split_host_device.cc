@@ -33,6 +33,7 @@
 #include <tvm/ir/stmt.h>
 #include <tvm/ir/transform.h>
 #include <tvm/ir/unique_name_supply.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
@@ -47,7 +48,6 @@
 #include <optional>
 
 #include "../../runtime/metadata.h"
-#include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -65,10 +65,8 @@ void ValidateDeviceScopeRegion(const RegionStmtNode* region) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.device_scope", "Internal host/device splitting boundary.")
       .signature(sig::var_args<Expr>("launch_values"), sig::call_attrs<DictAttrsNode>())
-      .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
-                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
-      .set_attr<FRegionValidate>(tvm::op_attr::kRegionValidate,
-                                 FRegionValidate::FromNative<&ValidateDeviceScopeRegion>());
+      .set_native_fn_attr<&RegionNoBodyParams>(tvm::op_attr::kRegionGetBodyParams)
+      .set_native_fn_attr<&ValidateDeviceScopeRegion>(tvm::op_attr::kRegionValidate);
 }
 
 // Device-region annotation
@@ -189,7 +187,7 @@ class HostDeviceSplitter : public StmtExprMutator {
       } else {
         std::unordered_map<Var, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> param_order;
         for (size_t i = 0; i < cur_func_->params.size(); ++i) {
-          param_order[cur_func_->params[i].as_or_throw<tvm::tirx::TensorVar>().var()] = i;
+          param_order[cur_func_->params[i].as_or_throw<tvm::tirx::TensorVar>()] = i;
         }
         // sort by original order
         std::sort(params.begin(), params.end(),
@@ -208,8 +206,8 @@ class HostDeviceSplitter : public StmtExprMutator {
     for (const Var& param : params) {
       if (param->ty.as<TensorTypeNode>()) {
         TensorVar tensor = param.as_or_throw<TensorVar>();
-        TensorVar kernel_tensor(tensor.name(), tensor.type(), tensor.loc());
-        Var data_param(tensor.name() + "_ptr", tensor.type()->DataPtrType());
+        TensorVar kernel_tensor(tensor->name, tensor.ty(), tensor->loc);
+        Var data_param(tensor->name + "_ptr", tensor.ty()->DataPtrType());
         kernel_params.push_back(data_param);
         call_args.push_back(tensor.data());
         tensor_data_params.Set(param, data_param);
@@ -239,15 +237,15 @@ class HostDeviceSplitter : public StmtExprMutator {
     }
 
     for (TensorVar buf : tensors_to_declare) {
-      auto data_param = tensor_data_params.Get(buf.var());
+      auto data_param = tensor_data_params.Get(buf);
       auto kernel_tensor = kernel_rewriter->VarRemapGet(buf);
       TVM_FFI_ICHECK(data_param.has_value())
-          << "Undefined tensor " << buf.name() << " was not captured as a kernel parameter";
+          << "Undefined tensor " << buf->name << " was not captured as a kernel parameter";
       TVM_FFI_ICHECK(kernel_tensor != nullptr);
       body = SeqStmt(
           {Bind(kernel_tensor.as_or_throw<TensorVar>(),
-                Call(kernel_tensor.as_or_throw<TensorVar>().type(), decl_tensor_op(),
-                     {data_param.value()}, {}, {kernel_tensor.as_or_throw<TensorVar>().type()})),
+                Call(kernel_tensor.as_or_throw<TensorVar>().ty(), decl_tensor_op(),
+                     {data_param.value()}, {}, {kernel_tensor.as_or_throw<TensorVar>().ty()})),
            std::move(body)});
     }
     Function device_func(kernel_params, SeqStmt(body), kernel_ret_type);
@@ -488,9 +486,11 @@ class DeviceInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
-    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
-    auto storage_scope = runtime::StorageScope::Create(scope);
-    if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->scope;
+    auto storage_scope = scope;
+    if (storage_scope == scope_shared_dyn) {
       TVM_FFI_ICHECK(!saw_dyn_shared_alloc_)
           << "Only one dynamic shared memory allocation is allowed.";
       saw_dyn_shared_alloc_ = true;

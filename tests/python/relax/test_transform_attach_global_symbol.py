@@ -29,20 +29,20 @@ from tvm.script import tirx as T
 
 
 def test_basic():
-    m_tir_matmul = T.dynamic("m")
-    n_tir_matmul = T.dynamic("n")
-    k_tir_matmul = T.dynamic("k")
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    k_main = T.dynamic("k")
+    m_tir_matmul = T.dynamic("m", "int64")
+    n_tir_matmul = T.dynamic("n", "int64")
+    k_tir_matmul = T.dynamic("k", "int64")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    k_main = T.dynamic("k", "int64")
 
     @tvm.script.ir_module
     class Before:
         @Ts.function
         def tir_matmul(
-            A: T.Tensor((m_tir_matmul, n_tir_matmul)),
-            B: T.Tensor((n_tir_matmul, k_tir_matmul)),
-            C: T.Tensor((m_tir_matmul, k_tir_matmul)),
+            A: T.Tensor((m_tir_matmul, n_tir_matmul), "float32"),
+            B: T.Tensor((n_tir_matmul, k_tir_matmul), "float32"),
+            C: T.Tensor((m_tir_matmul, k_tir_matmul), "float32"),
         ) -> None:
             for i, j, k_tir_matmul_index in T.grid(m_tir_matmul, k_tir_matmul, n_tir_matmul):
                 with Ts.sblock("matmul"):
@@ -60,20 +60,20 @@ def test_basic():
             )
             return gv0
 
-    m_tir_matmul = T.dynamic("m")
-    n_tir_matmul = T.dynamic("n")
-    k_tir_matmul = T.dynamic("k")
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    k_main = T.dynamic("k")
+    m_tir_matmul = T.dynamic("m", "int64")
+    n_tir_matmul = T.dynamic("n", "int64")
+    k_tir_matmul = T.dynamic("k", "int64")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    k_main = T.dynamic("k", "int64")
 
     @tvm.script.ir_module
     class Expected:
         @Ts.function
         def tir_matmul(
-            A: T.Tensor((m_tir_matmul, n_tir_matmul)),
-            B: T.Tensor((n_tir_matmul, k_tir_matmul)),
-            C: T.Tensor((m_tir_matmul, k_tir_matmul)),
+            A: T.Tensor((m_tir_matmul, n_tir_matmul), "float32"),
+            B: T.Tensor((n_tir_matmul, k_tir_matmul), "float32"),
+            C: T.Tensor((m_tir_matmul, k_tir_matmul), "float32"),
         ) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
 

@@ -172,10 +172,10 @@ inline tvm::te::Tensor pad(
   tvm::ffi::Array<tvm::PrimExpr> pad_after_int32;
 
   for (const auto& ele : pad_before) {
-    pad_before_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
+    pad_before_int32.push_back(tvm::prim::cast(ele, tvm::PrimType::Int(32)));
   }
   for (const auto& ele : pad_after) {
-    pad_after_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
+    pad_after_int32.push_back(tvm::prim::cast(ele, tvm::PrimType::Int(32)));
   }
 
   tvm::ffi::Array<tvm::PrimExpr> output_shape;
@@ -498,14 +498,14 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
   tvm::ffi::Array<tvm::PrimExpr> pad_after_int32;
 
   // pad size for batch dimension is 0
-  pad_before_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), 0));
-  pad_after_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), 0));
+  pad_before_int32.push_back(tvm::prim::cast(0, tvm::PrimType::Int(32)));
+  pad_after_int32.push_back(tvm::prim::cast(0, tvm::PrimType::Int(32)));
   // insert pad sizes given for spatial dimensions
   for (const auto& ele : pad_before) {
-    pad_before_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
+    pad_before_int32.push_back(tvm::prim::cast(ele, tvm::PrimType::Int(32)));
   }
   for (const auto& ele : pad_after) {
-    pad_after_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
+    pad_after_int32.push_back(tvm::prim::cast(ele, tvm::PrimType::Int(32)));
   }
 
   // pad the input with paddings provided

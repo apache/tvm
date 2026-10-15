@@ -258,13 +258,13 @@ def test_SRSR_block():
 
 
 def test_op_elemwise_symbolic():
-    N = T.dynamic("N")
-    C = T.dynamic("C")
-    H = T.dynamic("H")
-    W = T.dynamic("W")
+    N = T.dynamic("N", "int64")
+    C = T.dynamic("C", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
 
     @Ts.function(private=True)
-    def before(Arg: T.Tensor((N, C, H, W)), Relu: T.Tensor((N, C, H, W))):
+    def before(Arg: T.Tensor((N, C, H, W), "float32"), Relu: T.Tensor((N, C, H, W), "float32")):
         for i0, i1, i2, i3 in T.grid(N, C, H, W):
             with Ts.sblock("compute"):
                 v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -272,13 +272,13 @@ def test_op_elemwise_symbolic():
                 Ts.writes(Relu[v_i0, v_i1, v_i2, v_i3])
                 Relu[v_i0, v_i1, v_i2, v_i3] = T.max(Arg[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
-    N = T.dynamic("N")
-    C = T.dynamic("C")
-    H = T.dynamic("H")
-    W = T.dynamic("W")
+    N = T.dynamic("N", "int64")
+    C = T.dynamic("C", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
 
     @Ts.function(private=True)
-    def expected(Arg: T.Tensor((N, H, W, C)), Relu: T.Tensor((N, H, W, C))):
+    def expected(Arg: T.Tensor((N, H, W, C), "float32"), Relu: T.Tensor((N, H, W, C), "float32")):
         # with Ts.sblock("root"):
         for ax0, ax1, ax2, ax3 in T.grid(N, H, W, C):
             with Ts.sblock("compute"):
@@ -493,11 +493,11 @@ def test_op_upsampling():
                     T.max(
                         T.min(
                             T.Cast(
-                                "int64",
                                 T.floor(
-                                    T.float32(1.1089109182357788) * T.Cast("float32", v_i2)
+                                    T.float32(1.1089109182357788) * T.Cast(v_i2, "float32")
                                     + T.float32(1.0000000000000001e-05)
                                 ),
+                                "int64",
                             ),
                             223,
                         ),
@@ -506,11 +506,11 @@ def test_op_upsampling():
                     T.max(
                         T.min(
                             T.Cast(
-                                "int64",
                                 T.floor(
-                                    T.float32(0.91056913137435913) * T.Cast("float32", v_i3)
+                                    T.float32(0.91056913137435913) * T.Cast(v_i3, "float32")
                                     + T.float32(1.0000000000000001e-05)
                                 ),
+                                "int64",
                             ),
                             223,
                         ),
@@ -535,11 +535,11 @@ def test_op_upsampling():
                     T.max(
                         T.min(
                             T.Cast(
-                                "int64",
                                 T.floor(
-                                    T.float32(1.1089109182357788) * T.Cast("float32", v1)
+                                    T.float32(1.1089109182357788) * T.Cast(v1, "float32")
                                     + T.float32(1.0000000000000001e-05)
                                 ),
+                                "int64",
                             ),
                             T.int64(223),
                         ),
@@ -548,11 +548,11 @@ def test_op_upsampling():
                     T.max(
                         T.min(
                             T.Cast(
-                                "int64",
                                 T.floor(
-                                    T.float32(0.91056913137435913) * T.Cast("float32", v2)
+                                    T.float32(0.91056913137435913) * T.Cast(v2, "float32")
                                     + T.float32(1.0000000000000001e-05)
                                 ),
+                                "int64",
                             ),
                             T.int64(223),
                         ),

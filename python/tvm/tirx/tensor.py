@@ -25,8 +25,11 @@ import tvm_ffi
 import tvm
 from tvm.ir import Call, PrimType, PtrType, Type, Var
 from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm.runtime import MemoryScope
 
 from . import _ffi_api, _tensor_view
+
+_SCOPE_GLOBAL = MemoryScope("global")
 
 _REARRANGE_PATTERN_UNSET = object()
 
@@ -50,7 +53,7 @@ class TensorType(Type):
     """
 
     dtype: PrimType
-    storage_scope: str
+    scope: MemoryScope
     shape: list
     strides: list
     elem_offset: tvm.ir.Expr
@@ -58,19 +61,82 @@ class TensorType(Type):
     offset_factor: int
     layout: object | None
 
+    def __init__(
+        self,
+        shape,
+        dtype,
+        scope=_SCOPE_GLOBAL,
+        strides=None,
+        elem_offset=None,
+        align=0,
+        offset_factor=0,
+        layout=None,
+        *,
+        data=None,
+        byte_offset=None,
+        loc: Location = UNKNOWN_LOC,
+        data_alignment=None,
+    ):
+        """Construct a tensor access contract.
+
+        An omitted element offset is zero in the configured index dtype,
+        independent of shape and offset_factor. Integer offsets use that dtype;
+        explicitly typed expressions retain theirs. Pass a symbolic offset explicitly
+        when the contract permits a variable starting position. ``align`` remains a
+        compatibility spelling for ``data_alignment``.
+        """
+        from tvm.ir.type import _normalize_type
+        from tvm.script.ir_builder.base import MISSING, at
+
+        from .layout import Layout, S, TileLayout
+
+        shape = (shape,) if tvm.ir.is_prim_expr(shape) or isinstance(shape, Integral) else shape
+        shape = tuple(shape)
+        dtype = _normalize_type(dtype)
+        if not isinstance(dtype, PrimType):
+            raise TypeError("Tensor dtype must be a primitive type")
+        if elem_offset is not None and byte_offset is not None:
+            raise ValueError("elem_offset and byte_offset cannot be set at the same time")
+        if byte_offset is not None:
+            elem_offset = byte_offset * 8 // tvm.DataType(dtype.dtype).bits
+        if data_alignment is None:
+            data_alignment = align
+        elif align not in (0, data_alignment):
+            raise ValueError("align and data_alignment must agree")
+        if data is not None:
+            if not isinstance(data, tvm.ir.Expr) or not isinstance(data.ty, PtrType):
+                raise TypeError("Tensor data must be an Expr with PtrType")
+            scope = data.ty.scope
+        if layout is MISSING:
+            layout = None
+        if layout == "default":
+            layout = TileLayout(S[shape])
+        elif layout is not None and not isinstance(layout, Layout):
+            raise TypeError("layout must be a Layout, None, or 'default'")
+        self.__init_handle_by_constructor__(
+            _ffi_api.TensorType,
+            shape,
+            dtype,
+            scope,
+            () if strides is None else strides,
+            elem_offset,
+            data_alignment,
+            offset_factor,
+            layout,
+            UNKNOWN_LOC,
+        )
+        at(loc, self)
+
     __expr_methods__ = (
-        "scope",
         "is_scalar",
         "ptr_to",
         "view",
-        "local",
         "permute",
         "rearrange",
-        "tile",
-        "chunk",
     )
 
     __expr_properties__: ClassVar[dict[str, Callable]] = {
+        "scope": lambda ty, expr: lambda: ty._scope(expr),
         "shape": _tensor_type_field("shape"),
         "strides": _tensor_type_field("strides"),
         "elem_offset": _tensor_type_field("elem_offset"),
@@ -92,8 +158,8 @@ class TensorType(Type):
         """
         if self.layout is not None:
             return self.layout
-        if self.storage_scope != "global":
-            raise ValueError(f"An explicit layout is required for {self.storage_scope} tensors")
+        if self.scope != _SCOPE_GLOBAL:
+            raise ValueError(f"An explicit layout is required for {self.scope} tensors")
 
         from tvm.sym import Analyzer
 
@@ -110,11 +176,11 @@ class TensorType(Type):
                 expected = analyzer.simplify(expected * extent)
         return TileLayout(S[tuple(self.shape)])
 
-    def scope(self, expr):
+    def _scope(self, expr):
         """Return the storage scope associated with this tensor.
         Returns
         -------
-        scope : str
+        scope : tvm.runtime.MemoryScope
             The storage scope associated with this tensor.
         """
         _check_tensor_receiver(self, expr)
@@ -163,43 +229,6 @@ class TensorType(Type):
 
         return _tensor_view.view(expr, *args, **kwargs)
 
-    def local(self, expr, *shape, layout=None) -> "Var":
-        """Create a thread-local view of this tensor.
-
-        By default, both the inferred and explicit-shape forms address the
-        raw physical storage span.  ``local()[k]`` is the k-th physical
-        storage element, including any gaps or layout offset, while
-        ``local(d0, d1, ...)`` is a row-major reshape of that same span.
-        Pass ``layout=`` to request a mediated view explicitly.  This is an
-        escape hatch whose shape is interpreted by the supplied layout.  When
-        that shape is explicit, the parent tensor does not need a layout.
-
-        When called with no shape arguments, auto-infers a 1D shape from
-        the span of the parent layout's non-thread component (i.e.
-        ``expr.layout.storage().span()``).  The explicit-``layout=`` form
-        instead infers the parent layout's ``storage().size()`` for
-        compatibility.  Either inference requires the parent tensor to have a
-        layout.
-
-        Parameters
-        ----------
-        shape : tuple of Expr
-            The shape of the local view for indexing.  Without ``layout=``,
-            its product must equal the per-thread physical storage span.
-            With an explicit layout, the shape is not constrained by the raw
-            span.  If omitted, a matching 1D shape is computed automatically.
-
-        layout : optional
-            Override layout. If None, the default (identity) layout is used.
-
-        Returns
-        -------
-        local : Var
-            The corresponding local tensor.
-        """
-        _check_tensor_receiver(self, expr)
-        return _tensor_view.local(expr, *shape, layout=layout)
-
     def permute(self, expr, *dims) -> "Var":
         """Permute the dimensions of the tensor.
 
@@ -242,56 +271,6 @@ class TensorType(Type):
                 raise TypeError("Var.rearrange() missing required argument: 'pattern'")
             pattern = sizes.pop("pattern")
         return _tensor_view.rearrange(expr, pattern, **sizes)
-
-    def tile(self, expr, *specs) -> "_tensor_view.TileIndexer":
-        """Chunk a dim: split it into factors, pick a chunk, keep the rest.
-
-        Rank-preserving — the picked dim's remaining factors merge back into
-        that one dim, and every other dim is untouched, so N dims in gives N
-        dims out. Chunk multiple dims by chaining (dims never shift):
-        ``buf.tile(0, (nx, -1))[cx, :].tile(1, (-1, ny))[:, cy]``.
-
-        Call as ``tile(dim, factors)`` for one dim, or pass several
-        ``(dim, factors)`` specs as sugar for a chain. ``factors`` is the
-        tuple the dim splits into (row-major, like :meth:`unflatten`; one
-        ``-1`` inferred). The indexer takes one entry per factor: an ``int`` /
-        ``Expr`` **picks** it (fixing the chunk, dropping the axis, folding
-        its offset) and ``:`` **keeps** it. At least one factor per dim must be
-        picked — a pure keep-everything split is :meth:`unflatten`, not a
-        chunk::
-
-            # 64 rows split into (stripe, warp, row) = (-1, WARPS, 4); this
-            # warp's 16 interleaved rows (stripe x row merged):
-            buf.tile(1, (-1, WARPS, 4))[:, warp, :]
-
-            tile(d, (n, -1))[c, :]   # contiguous block c
-            tile(d, (-1, n))[:, c]   # round-robin chunk c
-
-        A picked index may be a dynamic Expr (e.g. a warp id); picking
-        several factors of one dim is allowed.
-        """
-        _check_tensor_receiver(self, expr)
-        return _tensor_view.tile(expr, *specs)
-
-    def chunk(self, expr, spec) -> "_tensor_view.ChunkIndexer":
-        """Split dims into equal contiguous chunks and pick a chunk per dim —
-        **rank-preserving**. Index the result with ``[picks]``.
-
-        ``spec`` is a per-dim tuple (length = rank). Each entry is ``None``
-        (leave the dim) or a positive int ``n`` (split that dim, extent ``E``
-        with ``E % n == 0``, into ``n`` equal chunks of ``E // n``). Then
-        ``chunk(spec)[picks]`` takes one entry per dim: a chunked dim's pick is
-        the chunk index (int / Expr) and **narrows that dim** to the chunk's
-        ``[c*E//n : (c+1)*E//n)`` range — the dim is kept at ``E // n``, no
-        dimension is added; an unchunked dim's pick is a normal index (``:`` /
-        int / slice). The result is the *same TensorRegion* as the hand-written
-        slice — one line instead of the ``c*k : (c+1)*k`` arithmetic::
-
-            X[.., c * k : (c + 1) * k, ..]        # before (k = E // n)
-            X.chunk((None, .., n, ..))[.., c, ..]  # after (k inferred)
-        """
-        _check_tensor_receiver(self, expr)
-        return _tensor_view.chunk(expr, spec)
 
     def _data(self, expr):
         _check_tensor_property_receiver(self, expr)
@@ -340,14 +319,13 @@ def decl_tensor(
     data=None,
     strides=None,
     elem_offset=None,
-    scope="",
+    scope=_SCOPE_GLOBAL,
     data_alignment=-1,
     offset_factor=0,
     loc: Location = UNKNOWN_LOC,
     layout=None,
 ):
     # pylint: disable=import-outside-toplevel
-    from .expr import Var
     from .layout import S, TileLayout
 
     shape = (shape,) if tvm.ir.is_prim_expr(shape) or isinstance(shape, Integral) else shape
@@ -357,20 +335,16 @@ def decl_tensor(
     if layout == "default":
         layout = TileLayout(S[tuple(shape)]) if shape else None
 
-    if offset_factor != 0 and elem_offset is None:
-        shape_ty = shape[0].ty if shape and tvm.ir.is_prim_expr(shape[0]) else "int32"
-        elem_offset = Var(f"{name}_elem_offset", shape_ty)
-    storage_scope = scope
     if data is not None:
         if not isinstance(data, tvm.ir.Expr) or not isinstance(data.ty, PtrType):
             raise TypeError("Tensor data must be an Expr with PtrType")
         if not isinstance(data.ty.element_type, PrimType):
             raise TypeError("Tensor data must point to a primitive type")
-        storage_scope = data.ty.storage_scope
+        scope = data.ty.scope
     tensor_type = _ffi_api.TensorType(  # type: ignore
-        storage_scope,
-        dtype,
         shape,
+        dtype,
+        scope,
         strides,
         elem_offset,
         data_alignment,

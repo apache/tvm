@@ -56,7 +56,7 @@ def test_rms_norm_with_casting():
                     v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
                     Ts.reads(data[v_ax0, v_ax1, v_ax2])
                     Ts.writes(T_cast_1[v_ax0, v_ax1, v_ax2])
-                    T_cast_1[v_ax0, v_ax1, v_ax2] = T.Cast("float32", data[v_ax0, v_ax1, v_ax2])
+                    T_cast_1[v_ax0, v_ax1, v_ax2] = T.Cast(data[v_ax0, v_ax1, v_ax2], "float32")
             for ax0, ax1, ax2 in T.grid(1, n, 4096):
                 with Ts.sblock("T_multiply"):
                     v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
@@ -82,7 +82,7 @@ def test_rms_norm_with_casting():
                     v_ax0 = Ts.axis.spatial(4096, ax0)
                     Ts.reads(weight[v_ax0])
                     Ts.writes(T_cast_2[v_ax0])
-                    T_cast_2[v_ax0] = T.Cast("float32", weight[v_ax0])
+                    T_cast_2[v_ax0] = T.Cast(weight[v_ax0], "float32")
             for ax0, ax1, ax2 in T.grid(1, n, 4096):
                 with Ts.sblock("T_rms_norm"):
                     v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
@@ -94,7 +94,7 @@ def test_rms_norm_with_casting():
                     v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
                     Ts.reads(T_rms_norm[v_ax0, v_ax1, v_ax2])
                     Ts.writes(T_cast[v_ax0, v_ax1, v_ax2])
-                    T_cast[v_ax0, v_ax1, v_ax2] = T.Cast("float16", T_rms_norm[v_ax0, v_ax1, v_ax2])
+                    T_cast[v_ax0, v_ax1, v_ax2] = T.Cast(T_rms_norm[v_ax0, v_ax1, v_ax2], "float16")
 
     n = T.dynamic("n", "int32")
 
@@ -128,7 +128,7 @@ def test_rms_norm_with_casting():
                             v_ax2 = Ts.axis.spatial(4096, ax2_0 * 8 + ax0)
                             Ts.reads(data_local[v_ax0, v_ax1, v_ax2])
                             Ts.writes(T_multiply_local[v_ax0, v_ax1, v_ax2])
-                            T_multiply_local[v_ax0, v_ax1, v_ax2] = T.Cast("float32", data_local[v_ax0, v_ax1, v_ax2]) * T.Cast("float32", data_local[v_ax0, v_ax1, v_ax2])
+                            T_multiply_local[v_ax0, v_ax1, v_ax2] = T.Cast(data_local[v_ax0, v_ax1, v_ax2], "float32") * T.Cast(data_local[v_ax0, v_ax1, v_ax2], "float32")
                     for ax0 in range(8):
                         with Ts.sblock("T_multiply_red"):
                             v_ax0 = Ts.axis.spatial(1, 0)
@@ -153,7 +153,7 @@ def test_rms_norm_with_casting():
                             v_ax2 = Ts.axis.spatial(4096, ax0_0 * 8 + ax0_1 * 8 + ax0_2)
                             Ts.reads(rsqrt_shared[v_ax0, v_ax1], data_local[v_ax0, v_ax1, v_ax2], weight[v_ax2])
                             Ts.writes(T_rms_norm_local[v_ax0, v_ax1, v_ax2])
-                            T_rms_norm_local[v_ax0, v_ax1, v_ax2] = rsqrt_shared[v_ax0, v_ax1] * T.Cast("float32", data_local[v_ax0, v_ax1, v_ax2]) * T.Cast("float32", weight[v_ax2])
+                            T_rms_norm_local[v_ax0, v_ax1, v_ax2] = rsqrt_shared[v_ax0, v_ax1] * T.Cast(data_local[v_ax0, v_ax1, v_ax2], "float32") * T.Cast(weight[v_ax2], "float32")
                     for ax0 in T.vectorized(8):
                         with Ts.sblock("T_cast_local"):
                             v0 = Ts.axis.spatial(1, 0)
@@ -161,7 +161,7 @@ def test_rms_norm_with_casting():
                             v2 = Ts.axis.spatial(4096, ax0_0 * 8 + ax0)
                             Ts.reads(T_rms_norm_local[v0, v1, v2])
                             Ts.writes(T_cast[v0, v1, v2])
-                            T_cast[v0, v1, v2] = T.Cast("float16", T_rms_norm_local[v0, v1, v2])
+                            T_cast[v0, v1, v2] = T.Cast(T_rms_norm_local[v0, v1, v2], "float16")
     # fmt: on
     _check(Before, After)
 
@@ -173,7 +173,7 @@ def test_rms_norm_without_casting():
     @I.ir_module
     class Before:
         @Ts.function
-        def main(data: T.Tensor((1, n, 4096)), weight: T.Tensor((4096,), "float32"), T_cast: T.Tensor((1, n, 4096))):
+        def main(data: T.Tensor((1, n, 4096), "float32"), weight: T.Tensor((4096,), "float32"), T_cast: T.Tensor((1, n, 4096), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -219,7 +219,7 @@ def test_rms_norm_without_casting():
     @I.ir_module
     class After:
         @Ts.function
-        def main(data: T.Tensor((1, n, 4096)), weight: T.Tensor((4096,), "float32"), T_cast: T.Tensor((1, n, 4096))):
+        def main(data: T.Tensor((1, n, 4096), "float32"), weight: T.Tensor((4096,), "float32"), T_cast: T.Tensor((1, n, 4096), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):

@@ -14,19 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, F401, F403, F841
+# ruff: noqa: E501, F401, F841
 import pytest
 
 import tvm
 import tvm.s_tir.meta_schedule as ms
 import tvm.testing
+from tvm.codegen import llvm_lookup_intrinsic_id
 from tvm.s_tir import Schedule
-from tvm.s_tir.tensor_intrin.cuda import *
 from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
-from tvm.target.codegen import llvm_lookup_intrinsic_id
 from tvm.tirx import floordiv, floormod
 
 
@@ -477,7 +476,7 @@ class Conv2dInt8:
                 i0_7, i1_7, i2_7, i3_7 = Ts.axis.remap("SSSS", [i0_6, i1_6, i2_6, i3_6])
                 Ts.reads(T_subtract_1[i0_7, i1_7, i2_7, i3_7])
                 Ts.writes(compute[i0_7, i1_7, i2_7, i3_7])
-                compute[i0_7, i1_7, i2_7, i3_7] = T.Cast("int32", T.shift_right(T.Cast("int64", T_subtract_1[i0_7, i1_7, i2_7, i3_7]) * T.Cast("int64", 1963325822), (31) - (1)))
+                compute[i0_7, i1_7, i2_7, i3_7] = T.Cast(T.shift_right(T.Cast(T_subtract_1[i0_7, i1_7, i2_7, i3_7], "int64") * T.Cast(1963325822, "int64"), (31) - (1)), "int32")
 
 @tvm.script.ir_module
 class Conv2dInt8_target:
@@ -596,7 +595,7 @@ class Conv2dInt8_target:
                 i0_7, i1_7, i2_7, i3_7 = Ts.axis.remap("SSSS", [i0_6, i1_6, i2_6, i3_6])
                 Ts.reads(T_subtract_1[i0_7, i1_7, i2_7, i3_7])
                 Ts.writes(compute_2[i0_7, i1_7, i2_7, i3_7])
-                compute_2[i0_7, i1_7, i2_7, i3_7] = T.Cast("int32", T.shift_right(T.Cast("int64", T_subtract_1[i0_7, i1_7, i2_7, i3_7]) * T.Cast("int64", 1098990753), (31) - (1)))
+                compute_2[i0_7, i1_7, i2_7, i3_7] = T.Cast(T.shift_right(T.Cast(T_subtract_1[i0_7, i1_7, i2_7, i3_7], "int64") * T.Cast(1098990753, "int64"), (31) - (1)), "int32")
         for i0_8, i1_8, i2_8, i3_8 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_add_3"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_8, i1_8, i2_8, i3_8])
@@ -1066,12 +1065,17 @@ def get_conv2d_vnni_mod(intrin_id):
                             A = Ts.match_tensor(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], [4], dtype="uint8", offset_factor=1)
                             B = Ts.match_tensor(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4], [16, 4], dtype="int8", offset_factor=1)
                             C = Ts.match_tensor(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16], [16], dtype="int32", offset_factor=1)
-                            A_u8x4: T.uint8x4 = A[T.ramp(0, 1, 4)]
-                            A_i32: T.int32 = T.reinterpret(A_u8x4, ty="int32")
-                            B_i8x64: T.int8x64 = B[0, T.ramp(0, 1, 64)]
-                            B_i32x16: T.int32x16 = T.reinterpret(B_i8x64, ty="int32x16")
-                            C_i32x16: T.int32x16 = C[T.ramp(0, 1, 16)]
-                            C[T.ramp(0, 1, 16)] = T.call_llvm_pure_intrin(T.uint32(intrin_id), C_i32x16, T.broadcast(A_i32, 16), B_i32x16, ty="int32x16")
+                            A_u8x4 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.uint8x4, scope="local", elem_offset=T.int32(0))])
+                            A_u8x4[0] = A[T.ramp(0, 1, 4)]
+                            A_i32 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int32, scope="local", elem_offset=T.int32(0))])
+                            A_i32[0] = T.reinterpret(A_u8x4[0], ty="int32")
+                            B_i8x64 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int8x64, scope="local", elem_offset=T.int32(0))])
+                            B_i8x64[0] = B[0, T.ramp(0, 1, 64)]
+                            B_i32x16 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int32x16, scope="local", elem_offset=T.int32(0))])
+                            B_i32x16[0] = T.reinterpret(B_i8x64[0], ty="int32x16")
+                            C_i32x16 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int32x16, scope="local", elem_offset=T.int32(0))])
+                            C_i32x16[0] = C[T.ramp(0, 1, 16)]
+                            C[T.ramp(0, 1, 16)] = T.call_llvm_pure_intrin(T.uint32(intrin_id), C_i32x16[0], T.broadcast(A_i32[0], 16), B_i32x16[0], ty="int32x16")
                     for ax0, ax1, ax2, ax3 in T.grid(1, 1, 1, 7):
                         for ax4_fused in T.vectorized(16):
                             with Ts.sblock("T_cast_8"):
@@ -1460,7 +1464,7 @@ class Conv2dInt8_with_predicate:
                 i0_2, i1_2, i2_2, i3_2 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2])
                 Ts.writes(compute_1[i0_2, i1_2, i2_2, i3_2])
-                compute_1[i0_2, i1_2, i2_2, i3_2] = T.Cast("int32", T.shift_right(T.shift_left(T.Cast("int64", T_add[i0_2, i1_2, i2_2, i3_2]) * T.Cast("int64", p4[i3_2]), p5[i3_2]), (31) + (p6[i3_2])))
+                compute_1[i0_2, i1_2, i2_2, i3_2] = T.Cast(T.shift_right(T.shift_left(T.Cast(T_add[i0_2, i1_2, i2_2, i3_2], "int64") * T.Cast(p4[i3_2], "int64"), p5[i3_2]), (31) + (p6[i3_2])), "int32")
         for i0_3, i1_3, i2_3, i3_3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_add_1"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
@@ -1484,7 +1488,7 @@ class Conv2dInt8_with_predicate:
                 i0_8, i1_8, i2_8, i3_8 = Ts.axis.remap("SSSS", [i0_7, i1_7, i2_7, i3_7])
                 Ts.reads(T_subtract_1[i0_8, i1_8, i2_8, i3_8])
                 Ts.writes(compute[i0_8, i1_8, i2_8, i3_8])
-                compute[i0_8, i1_8, i2_8, i3_8] = T.Cast("int32", T.shift_right(T.Cast("int64", T_subtract_1[i0_8, i1_8, i2_8, i3_8]) * T.Cast("int64", 1963325822), (31) - (1)))
+                compute[i0_8, i1_8, i2_8, i3_8] = T.Cast(T.shift_right(T.Cast(T_subtract_1[i0_8, i1_8, i2_8, i3_8], "int64") * T.Cast(1963325822, "int64"), (31) - (1)), "int32")
 
 @tvm.script.ir_module
 class Conv2dInt8_with_predicate_target:
@@ -1536,7 +1540,7 @@ class Conv2dInt8_with_predicate_target:
                 i0_2, i1_2, i2_2, i3_2 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2])
                 Ts.writes(compute_1[i0_2, i1_2, i2_2, i3_2])
-                compute_1[i0_2, i1_2, i2_2, i3_2] = T.Cast("int32", T.shift_right(T.shift_left(T.Cast("int64", T_add[i0_2, i1_2, i2_2, i3_2]) * T.Cast("int64", p4[i3_2]), p5[i3_2]), (31) + (p6[i3_2])))
+                compute_1[i0_2, i1_2, i2_2, i3_2] = T.Cast(T.shift_right(T.shift_left(T.Cast(T_add[i0_2, i1_2, i2_2, i3_2], "int64") * T.Cast(p4[i3_2], "int64"), p5[i3_2]), (31) + (p6[i3_2])), "int32")
         for i0_3, i1_3, i2_3, i3_3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_add_1"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
@@ -1560,13 +1564,13 @@ class Conv2dInt8_with_predicate_target:
                 i0_8, i1_8, i2_8, i3_8 = Ts.axis.remap("SSSS", [i0_7, i1_7, i2_7, i3_7])
                 Ts.reads(T_subtract_1[i0_8, i1_8, i2_8, i3_8])
                 Ts.writes(compute_3[i0_8, i1_8, i2_8, i3_8])
-                compute_3[i0_8, i1_8, i2_8, i3_8] = T.Cast("int32", T.shift_right(T.Cast("int64", T_subtract_1[i0_8, i1_8, i2_8, i3_8]) * T.Cast("int64", 1457846997), (31) - (0)))
+                compute_3[i0_8, i1_8, i2_8, i3_8] = T.Cast(T.shift_right(T.Cast(T_subtract_1[i0_8, i1_8, i2_8, i3_8], "int64") * T.Cast(1457846997, "int64"), (31) - (0)), "int32")
         for i0_9, i1_9, i2_9, i3_9 in T.grid(16, 56, 56, 256):
             with Ts.sblock("compute_3"):
                 i0_10, i1_10, i2_10, i3_10 = Ts.axis.remap("SSSS", [i0_9, i1_9, i2_9, i3_9])
                 Ts.reads(p9[i0_10, i1_10, i2_10, i3_10])
                 Ts.writes(compute_4[i0_10, i1_10, i2_10, i3_10])
-                compute_4[i0_10, i1_10, i2_10, i3_10] = T.Cast("int32", T.shift_right(T.Cast("int64", p9[i0_10, i1_10, i2_10, i3_10]) * T.Cast("int64", 2101000910), (31) - (0)))
+                compute_4[i0_10, i1_10, i2_10, i3_10] = T.Cast(T.shift_right(T.Cast(p9[i0_10, i1_10, i2_10, i3_10], "int64") * T.Cast(2101000910, "int64"), (31) - (0)), "int32")
         for i0_11, i1_11, i2_11, i3_11 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_add_2"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_11, i1_11, i2_11, i3_11])
@@ -1668,7 +1672,7 @@ class Conv2dInt8_with_predicate_scheduled:
                                                 Ts.reads(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i], pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i], p1_reindex_shared_wmma_matrix_b[v0_o, v1_o, v3_o * 16 + v3_i, v4_o * 16 + v4_i])
                                                 Ts.writes(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i])
                                                 Ts.sblock_attr({"meta_schedule.tiling_structure": "SSSRRSRS"})
-                                                conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] = conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] + T.Cast("int32", pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i]) * T.Cast("int32", p1_reindex_shared_wmma_matrix_b[v0_o, v1_o, v3_o * 16 + v3_i, v4_o * 16 + v4_i])
+                                                conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] = conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] + T.Cast(pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i], "int32") * T.Cast(p1_reindex_shared_wmma_matrix_b[v0_o, v1_o, v3_o * 16 + v3_i, v4_o * 16 + v4_i], "int32")
                         for ax0_0, ax1_0 in T.grid(1, 2):
                             with Ts.sblock("conv2d_nhwc_reindex_shared_wmma.accumulator_o"):
                                 v0_o = Ts.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 4 * 392 + ax2_0_1_ax3_0_1_fused * 2 + ax2_0_2_ax3_0_2_fused // 2 + ax0_0)
@@ -1689,7 +1693,7 @@ class Conv2dInt8_with_predicate_scheduled:
                             Ts.where(((ax1_0 * 4 + ax1_1) * 32 + ax1_2) * 2 + ax1_3 < 64)
                             Ts.reads(p7[()], conv2d_nhwc_reindex_shared[v0, v1], p2[0, 0, 0, v1], p3[0, 0, 0, v1], p4[v1], p5[v1], p6[v1], p8[0], p9[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
                             Ts.writes(compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
-                            compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1] = T.max(T.min(T.Cast("int32", T.shift_right(T.Cast("int64", T.max(T.min(p7[()] + T.Cast("int32", T.shift_right(T.shift_left(T.Cast("int64", conv2d_nhwc_reindex_shared[v0, v1] - p2[0, 0, 0, v1] + p3[0, 0, 0, v1]) * T.Cast("int64", p4[v1]), p5[v1]), (31) + (p6[v1]))), 255), 0) - p8[0]) * T.Cast("int64", 1457846997), (31) - (0))) + T.Cast("int32", T.shift_right(T.Cast("int64", p9[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1]) * T.Cast("int64", 2101000910), (31) - (0))), 255), 0)
+                            compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1] = T.max(T.min(T.Cast(T.shift_right(T.Cast(T.max(T.min(p7[()] + T.Cast(T.shift_right(T.shift_left(T.Cast(conv2d_nhwc_reindex_shared[v0, v1] - p2[0, 0, 0, v1] + p3[0, 0, 0, v1], "int64") * T.Cast(p4[v1], "int64"), p5[v1]), (31) + (p6[v1])), "int32"), 255), 0) - p8[0], "int64") * T.Cast(1457846997, "int64"), (31) - (0)), "int32") + T.Cast(T.shift_right(T.Cast(p9[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1], "int64") * T.Cast(2101000910, "int64"), (31) - (0)), "int32"), 255), 0)
 
 # fmt: on
 def verify(anchor_mod, anchor_trace_fun, target_mod, target, ref):

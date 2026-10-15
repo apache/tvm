@@ -27,6 +27,8 @@
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
 
+#include "memory_scope.h"
+
 namespace tvm {
 
 #ifdef TVM_LLVM_VERSION
@@ -40,6 +42,7 @@ void RegisterHexagonIntrinRules();
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  tvm::backend::hexagon::RegisterMemoryScopes();
   using namespace tvm;
   TargetKindDef("hexagon")
       .set_default_device_type(kDLHexagon)

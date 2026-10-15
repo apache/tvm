@@ -21,8 +21,8 @@ from tvm_ffi import convert, Object
 from tvm_ffi._dtype import dtype as DataType, DataTypeCode
 
 # class exposures
-from .object_generic import ObjectConvertible
 from .device import Device
+from .memory_scope import MemoryScope
 from ._tensor import Tensor, tensor, empty
 from .module import Module
 from .executable import Executable

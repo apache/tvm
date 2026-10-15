@@ -131,7 +131,7 @@ def _split_host_device_modules(
 
 def _build_for_target(mod: IRModule, target: Target) -> tvm.runtime.Module:
     """Build a runtime module from an IRModule and a Target."""
-    if tvm.transform.PassContext.current().config.get("tirx.disable_assert", False):
+    if tvm.ir.transform.PassContext.current().config.get("tirx.disable_assert", False):
         mod = tvm.tirx.transform.SkipAssert()(mod)
     build_f_name = "target.build." + target.kind.name
     bf = tvm.get_global_func(build_f_name)
@@ -146,7 +146,7 @@ def _codegen_host_and_device(
     """Compile each device group and attach it to the host runtime module."""
 
     # Get the first module to get the attributes
-    # necessary for tests/python/codegen/test_target_codegen_blob.py::test_cuda_multi_lib
+    # necessary for tests/python/backend/cuda/test_cuda_module_export.py::test_cuda_multi_lib
     mhost_all = ir.IRModule({}, attrs=host_mod.attrs)
 
     mhost_all.update(host_mod)
@@ -165,7 +165,7 @@ def _codegen_host_and_device(
 def compile(  # pylint: disable=redefined-builtin
     mod: Function | IRModule,
     target: str | Target | None = None,
-    pipeline: str | tvm.transform.Pass | None = "default",
+    pipeline: str | tvm.ir.transform.Pass | None = "default",
 ) -> Executable:
     """Compile a function or module to an executable for the target.
 
@@ -175,7 +175,7 @@ def compile(  # pylint: disable=redefined-builtin
         The input to be compiled.
     target : Optional[Union[str, Target]]
         The target for compilation, including backend configuration defaults.
-    pipeline : Union[None, str, tvm.transform.Pass]
+    pipeline : Union[None, str, tvm.ir.transform.Pass]
         The pipeline to use for compilation.
 
     Returns

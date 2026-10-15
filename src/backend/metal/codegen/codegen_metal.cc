@@ -28,6 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/support/gpu_thread_tag.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
@@ -43,7 +44,7 @@
 #include <unordered_map>
 #include <utility>
 
-#include "../../../target/build_common.h"
+#include "../../../codegen/build_common.h"
 #include "metal_fallback_module.h"
 
 namespace tvm {
@@ -76,7 +77,7 @@ void CodeGenMetal::InitFuncState(const Function& f) {
   // analyze the data;
   for (Var arg : f->params) {
     if (arg->ty.as<PtrTypeNode>()) {
-      alloc_storage_scope_[arg.get()] = "global";
+      alloc_storage_scope_[arg.get()] = runtime::MemoryScope::Global();
     }
   }
 }
@@ -330,15 +331,18 @@ void CodeGenMetal::PrintVecElemStore(const std::string& vec, const PrimType& t, 
          << " = " << value << ";\n";
 }
 
-void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os) {  // NOLINT(*)
-  if (scope == "global") {
+void CodeGenMetal::PrintStorageScope(const runtime::MemoryScope& scope,
+                                     std::ostream& os) {  // NOLINT(*)
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+  static const auto scope_local = runtime::MemoryScope::Get("local");
+  if (scope == runtime::MemoryScope::Global()) {
     os << "device ";
-  } else if (scope == "shared") {
+  } else if (scope == scope_shared) {
     os << "threadgroup ";
-  } else if (scope == "local") {
+  } else if (scope == scope_local) {
     os << "thread ";
   } else {
-    TVM_FFI_THROW(InternalError) << "Unknown storage scope `" << scope << "`";
+    TVM_FFI_THROW(InternalError) << "Unknown storage scope `" << scope.name() << "`";
   }
 }
 
@@ -353,11 +357,11 @@ void CodeGenMetal::Dispatch_(const BindNode* op) {
     analyzer_->Bind(op->var, prim_value.value());
   }
   const auto* pointer_type = op->var->ty.as<PtrTypeNode>();
-  if (pointer_type == nullptr || pointer_type->storage_scope.empty()) {
+  if (pointer_type == nullptr) {
     return CodeGenC::Dispatch_(op);
   }
 
-  const std::string& storage_scope = pointer_type->storage_scope;
+  const runtime::MemoryScope& storage_scope = pointer_type->scope;
   alloc_storage_scope_[op->var.get()] = storage_scope;
   RegisterHandleTypeFromPointer(op->var, &op->value);
   std::string value = PrintExpr(op->value);
@@ -377,9 +381,10 @@ void CodeGenMetal::Dispatch_(const BindNode* op) {
 }
 
 void CodeGenMetal::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
+  static const auto scope_metal_simdgroup = runtime::MemoryScope::Get("metal.simdgroup");
   tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
   DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
-  ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
+  runtime::MemoryScope scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());
@@ -412,7 +417,7 @@ void CodeGenMetal::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
   }
 
   alloc_storage_scope_[buffer.get()] = scope;
-  if (scope == "metal.simdgroup") {
+  if (scope == scope_metal_simdgroup) {
     bool supported_simdgroup_dtype = PrimType(dtype) == PrimType::Float(16) ||
                                      PrimType(dtype) == PrimType::Float(32) ||
                                      PrimType(dtype) == PrimType::BFloat(16);
@@ -522,15 +527,12 @@ void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
     const auto* pointer_type = op->ty.as<PtrTypeNode>();
     TVM_FFI_ICHECK(pointer_type)
         << "Metal pointer byte offsets must have a pointer result type, but got " << op->ty;
-    if (pointer_type->storage_scope.empty()) {
-      return CodeGenC::Dispatch_(op, os);
-    }
 
     os << "((";
-    PrintStorageScope(pointer_type->storage_scope, os);
+    PrintStorageScope(pointer_type->scope, os);
     PrintType(pointer_type->element_type, os);
     os << "*)(((";
-    PrintStorageScope(pointer_type->storage_scope, os);
+    PrintStorageScope(pointer_type->scope, os);
     os << "char*)";
     PrintExpr(op->args[0], os);
     os << ") + ";

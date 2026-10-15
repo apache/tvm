@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/int_set.h>
 
@@ -53,7 +54,7 @@ ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
       /*extra_relax_scope=*/
-      runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::TensorVar>().scope()));
+      region->source.as_or_throw<tvm::tirx::TensorVar>().scope());
   sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
   return EstimateRegionUpperBound(
       /*region=*/region->region,
@@ -81,7 +82,7 @@ ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
       /*extra_relax_scope=*/
-      runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::TensorVar>().scope()));
+      region->source.as_or_throw<tvm::tirx::TensorVar>().scope());
   sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
   if (ffi::Optional<ffi::Array<sym::IntSet>> result = EstimateRegionLowerBound(
           /*region=*/region->region,
@@ -89,7 +90,7 @@ ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(
           /*predicate=*/predicate, /*analyzer=*/analyzer_ref)) {
     return result.value();
   }
-  return ffi::Array<sym::IntSet>(region->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size(),
+  return ffi::Array<sym::IntSet>(region->source.as_or_throw<tvm::tirx::TensorVar>().shape().size(),
                                  sym::IntSet::Nothing());
 }
 
@@ -355,7 +356,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
                   /*dom_low_inclusive=*/parent_sref,
                   /*dom_high_exclusive=*/lca,
                   /*analyzer=*/analyzer_.get());
-              if (!ProducerCoversConsumer(tensor->shape, produced_region, consumed_region,
+              if (!ProducerCoversConsumer(tensor.shape(), produced_region, consumed_region,
                                           analyzer_.get())) {
                 region_cover = false;
                 self_->block_info.at(consumer_block_sref).region_cover = region_cover;

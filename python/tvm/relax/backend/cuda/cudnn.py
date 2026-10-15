@@ -153,7 +153,7 @@ def partition_for_cudnn(mod):
     """
 
     patterns = get_patterns_with_prefix("cudnn")
-    return tvm.transform.Sequential(
+    return tvm.ir.transform.Sequential(
         [
             transform.FuseOpsByPattern(patterns, bind_constants=False, annotate_codegen=True),
             annotate_workspace,
@@ -200,7 +200,7 @@ class WorkspaceAnnotator(PyExprMutator):
         return f
 
 
-@tvm.transform.module_pass(opt_level=0)
+@tvm.ir.transform.module_pass(opt_level=0)
 def annotate_workspace(mod, _):
     """Pass to annotate a workspace requirement for each cuDNN-offloaded function."""
     annotator = WorkspaceAnnotator(mod)

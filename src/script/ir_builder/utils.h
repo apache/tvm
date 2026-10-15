@@ -41,64 +41,10 @@ inline IRModuleFrame FindModuleFrame(const ffi::String& method) {
   throw;
 }
 
-inline IRModuleFrame FindModuleFrame() {
-  IRBuilder builder = IRBuilder::Current();
-  if (ffi::Optional<IRModuleFrame> frame = builder->FindFrame<IRModuleFrame>()) {
-    return frame.value();
-  } else {
-    TVM_FFI_THROW(ValueError) << "IRModule frame not find. Please ensure it"
-                              << " is called under I.ir_module()";
-  }
-  throw;
-}
-
-/*!
- * \brief Add a core IR statement to the top frame in IRBuilder frame stack.
- * \param stmt The Stmt.
- * \param loc The stored result location, which may be undefined.
- */
-inline void AddToParent(tvm::Stmt stmt, Location loc) {
-  IRBuilder builder = IRBuilder::Current();
-  // A deferred frame owns its location even when that location is undefined.
-  // Preserve an existing body location when flattening returns the body itself.
-  if (stmt.defined() && stmt->loc.as<UnknownLocNode>()) stmt->loc = std::move(loc);
-  if (builder->frames.empty()) {
-    if (!builder->result.has_value()) {
-      if (stmt.as<tvm::SeqStmtNode>()) {
-        auto normalized = tvm::SeqStmt(stmt);
-        if (normalized->loc.as<UnknownLocNode>()) normalized->loc = stmt->loc;
-        builder->result = std::move(normalized);
-      } else {
-        builder->result = std::move(stmt);
-      }
-      return;
-    }
-    TVM_FFI_CHECK(builder->result.as<tvm::StmtNode>(), ValueError)
-        << "Builder.result has already been set";
-    ffi::Array<tvm::Stmt> incoming = tvm::SeqStmt(stmt)->seq;
-    if (incoming.empty()) return;
-    if (builder->result.as<tvm::SeqStmtNode>()) {
-      // Move the builder's ownership so unobserved results can grow in place.
-      // Copy-on-write preserves sequences and arrays retained by callers.
-      auto sequence = std::move(builder->result).value().as_or_throw<tvm::SeqStmt>();
-      auto* node = sequence.CopyOnWrite();
-      for (const auto& child : incoming) node->seq.push_back(child);
-      builder->result = std::move(sequence);
-    } else {
-      builder->result =
-          tvm::SeqStmt({builder->result.value().as_or_throw<tvm::Stmt>(), tvm::SeqStmt(incoming)});
-    }
-  } else if (const auto* stmt_frame = builder->frames.back().as<StmtFrameObj>()) {
-    ffi::GetRef<StmtFrame>(stmt_frame)->stmts.push_back(stmt);
-  } else {
-    TVM_FFI_THROW(TypeError) << "Unsupported frame type: " << builder->frames.back();
-  }
-}
-
 /*! \brief Add an eager statement under the current source-call context. */
 inline void AddToParent(tvm::Stmt stmt) {
   // Some builder paths use an undefined statement as an omitted branch.
-  if (stmt.defined()) IRBuilder::Current()->SetCurrentLoc(stmt);
+  if (stmt.defined()) IRBuilder::Current()->AttachLoc(stmt);
   AddToParent(std::move(stmt), UnknownLoc());
 }
 

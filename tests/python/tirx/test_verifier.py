@@ -90,7 +90,7 @@ def test_layout():
     def test1():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(32,), block=4 * 32))
         _lane = T.cuda.lane_id()
-        A = T.alloc_tensor(ty_args=[T.Tensor((2,), layout=T.TileLayout(T.S[2, 1]))])
+        A = T.alloc_tensor(ty_args=[T.Tensor((2,), "float32", layout=T.TileLayout(T.S[2, 1]))])
 
         A[0] = 0
         # fmt: on
@@ -105,7 +105,7 @@ def test_layout():
         A = T.alloc_tensor(
             ty_args=[
                 T.Tensor(
-                    (512,),
+                    (512,), "float32",
                     scope="shared",
                     layout=T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(512,)])),
                 )
@@ -158,12 +158,12 @@ def test_device_func():
     @T.function(check_well_formed=False)
     def test1(A: T.Tensor((128,), "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
-        T.cuda.tile.mov(A, 0., scope='cta')
+        T.cuda.tile.apply(T.ptx['mov.b32'], A, 0., scope='cta')
 
     @T.function(check_well_formed=False)
     def test2(A: T.Tensor((128,), "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(128,), block=(128,)))
-        T.cuda.tile.mov(A, 0.)
+        T.cuda.tile.apply(T.ptx['mov.b32'], A, 0.)
     # fmt: on
     verify(test1)
     verify(test2)

@@ -721,7 +721,7 @@ TVM_DLL void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int w
  */
 TVM_DLL void UnsafeHideTensorAccess(ScheduleState self, const StmtSRef& block_sref,
                                     const ffi::String& tensor_type,
-                                    const ffi::Array<IntImm>& tensor_index_array);
+                                    const ffi::Array<int64_t>& tensor_index_array);
 
 /*!
  * \brief Annotate the read or write region of a specific tensor in a block

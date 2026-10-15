@@ -23,8 +23,8 @@
 #include <tvm/relax/script/ir_builder/ir.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/script/ir_builder/frame.h>
 
-#include "../../../script/ir_builder/utils.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -307,7 +307,7 @@ tvm::Var EmitVarBinding(const tvm::relax::VarBinding& binding) {
 namespace {
 
 tvm::Var RecordBindingLoc(tvm::Var var, const Location& name_loc, const Location& statement_loc) {
-  Location loc = IRBuilder::Current()->GetCurrentLoc(statement_loc);
+  Location loc = IRBuilder::Current()->ResolveLoc(statement_loc);
   if (!loc.as<UnknownLocNode>()) {
     CheckBindingBlockFrameExistAndUnended()->binding_locs.Set(var, loc);
   }

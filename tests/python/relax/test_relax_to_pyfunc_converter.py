@@ -34,13 +34,13 @@ from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
-n_symbolic_add = T.dynamic("n")
-batch_symbolic_matmul = T.dynamic("batch")
-m = T.dynamic("m")
-k = T.dynamic("k")
-n_symbolic_matmul = T.dynamic("n")
-batch_symbolic_expand_dims = T.dynamic("batch")
-seq_len = T.dynamic("seq_len")
+n_symbolic_add = T.dynamic("n", "int64")
+batch_symbolic_matmul = T.dynamic("batch", "int64")
+m = T.dynamic("m", "int64")
+k = T.dynamic("k", "int64")
+n_symbolic_matmul = T.dynamic("n", "int64")
+batch_symbolic_expand_dims = T.dynamic("batch", "int64")
+seq_len = T.dynamic("seq_len", "int64")
 
 
 @I.ir_module

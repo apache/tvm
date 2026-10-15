@@ -78,12 +78,9 @@ from tvm.ir.prim.expr import (  # noqa: F401
     Shuffle,
     Sub,
 )
-from tvm.runtime import ObjectConvertible
-
-from . import _ffi_api
 
 
-class IntImmEnum(ObjectConvertible):
+class IntImmEnum:
     """Lazily evaluate an IntImm in case
     the constructor is not available in runtime.
 
@@ -100,7 +97,7 @@ class IntImmEnum(ObjectConvertible):
         self.value = value
         self.loc = loc
 
-    def asobject(self) -> "IntImm":
+    def __tvm_ffi_object__(self) -> "IntImm":
         """Convert object."""
         return IntImm("int32", self.value, self.loc)  # type: ignore
 
@@ -124,7 +121,7 @@ def TensorLoad(tensor: Var, indices: list[Expr], loc: Location = UNKNOWN_LOC) ->
 
     """
 
-    return _ffi_api.TensorLoad(tensor, indices, loc)
+    return ir.TensorLoad(tensor, indices, loc)
 
 
 class CallEffectKind:

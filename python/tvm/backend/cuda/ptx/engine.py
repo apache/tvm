@@ -45,6 +45,7 @@ from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
 from tvm.ir import Call, Op, StringImm, TensorLoad, const
 from tvm.ir.op import register_op_attr
 from tvm.ir.type import PrimType, PtrType
+from tvm.runtime import MemoryScope
 from tvm.tirx.expr import CallEffectKind, IntImm
 from tvm.tirx.op import call_intrin, reinterpret
 
@@ -59,6 +60,9 @@ from .table import (
     operand_type,
     unescape_token,
 )
+
+_SCOPE_SHARED = MemoryScope("shared")
+_SCOPE_SHARED_DYN = MemoryScope("shared.dyn")
 
 # Every ptx call is a void statement, and RemoveNoOp deletes any Evaluate()
 # whose value is <= kReadState, so kOpaque is what keeps the instruction alive.
@@ -583,7 +587,7 @@ def _coerce_address(entry, slot, value, mod_map):
             f"or a uint32 shared address"
         )
     if isinstance(ty, PtrType):
-        if ty.storage_scope.startswith("shared"):
+        if ty.scope in (_SCOPE_SHARED, _SCOPE_SHARED_DYN):
             raise ValueError(
                 f"{entry.name}: operand '{slot.name}' is a {space or 'generic'} address "
                 f"but got a shared-scope pointer"
@@ -662,7 +666,7 @@ def _coerce_pred(entry, pred):
     raise ValueError(f"{entry.name}: pred must be a bool/uint32/int32 expression")
 
 
-def _emit(entry, filled, operands, pred=None, preserve_dst=False):
+def _resolve_modifiers(entry, filled):
     # Modifiers resolve before the operands are looked at: the attribute chain
     # is parsed before the call happens, and a register group's length may be a
     # function of the modifiers, so the expected arity needs the modifier map.
@@ -676,6 +680,49 @@ def _emit(entry, filled, operands, pred=None, preserve_dst=False):
         error = entry.check(mod_map)
         if error:
             raise ValueError(f"{entry.name}: {error}")
+    return mod_map
+
+
+def instruction_forms(instruction):
+    """Return table entries and resolved modifiers for a fully spelled opcode.
+
+    Operand overloads remain separate entries. Consumers select an operand form,
+    never inspect frontend candidate chains or infer missing opcode qualifiers.
+    """
+    if isinstance(instruction, str):
+        instruction = PTXNamespace()[instruction]
+    if not isinstance(instruction, _InstrChain):
+        raise TypeError("Expected a T.ptx instruction or PTX instruction string")
+    forms, errors = [], []
+    for entry, filled in instruction._cands:
+        try:
+            modifiers = _resolve_modifiers(entry, filled)
+        except ValueError as error:
+            errors.append(str(error))
+        else:
+            forms.append((entry, modifiers))
+    names = {
+        ".".join([entry.ptx_name, *(v for v in modifiers.values() if v)])
+        for entry, modifiers in forms
+    }
+    if len(names) != 1:
+        raise ValueError("PTX instruction is not fully specified: " + "; ".join(errors))
+    return tuple(forms)
+
+
+def instruction_name(instruction):
+    """Return validated PTX text in table slot order, without binding operands.
+
+    Accept a ``T.ptx`` chain or its string spelling. Operand overloads remain
+    unresolved: this identifies the opcode and modifiers, not an operand form.
+    Tile patterns can use it without inspecting the frontend's candidates.
+    """
+    entry, modifiers = instruction_forms(instruction)[0]
+    return ".".join([entry.ptx_name, *(v for v in modifiers.values() if v)])
+
+
+def _emit(entry, filled, operands, pred=None, preserve_dst=False):
+    mod_map = _resolve_modifiers(entry, filled)
     layout = operand_layout(entry, mod_map)
     n_args = sum(n for _, _, n in layout)
     if len(operands) != n_args:

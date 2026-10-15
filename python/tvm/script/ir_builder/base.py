@@ -20,7 +20,7 @@ from collections.abc import Callable
 from contextlib import contextmanager, nullcontext
 from functools import wraps
 from inspect import signature
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, ParamSpec, TypeVar
 
 from tvm_ffi import register_object as _register_object
 from tvm_ffi.dataclasses import MISSING as MISSING
@@ -203,6 +203,21 @@ class IRBuilder(_Object):
         """Get the constructed IR."""
         return _ffi_api.IRBuilderGet(self)  # type: ignore[attr-defined] # pylint: disable=no-member
 
+    def line_trace_scope(self, *, exclude_paths=()):
+        """Track Python source lines while executing builder code.
+
+        TVM and Python implementation frames are excluded automatically.
+        ``exclude_paths`` supplies additional implementation directories.
+        User helpers retain their own line and the caller's location. Nested
+        scopes and exceptions restore the preceding trace and location state.
+        Locations cover whole lines; use the parser for expression ranges.
+        Tracing only supplies locations: script-facing void calls emit under
+        any active builder, independently of this scope.
+        """
+        from .tracing import LineTraceScope  # pylint: disable=import-outside-toplevel
+
+        return LineTraceScope(self, exclude_paths=exclude_paths)
+
     @contextmanager
     def with_loc(self, loc):
         """Attach ``loc`` to IR nodes constructed in the nested scope.
@@ -225,11 +240,12 @@ class IRBuilder(_Object):
                 self
             )
 
-    def _set_current_loc(self, value):
-        """Compose the active source location onto the same supported IR node or frame."""
-        return _ffi_api.IRBuilderSetCurrentLoc(  # type: ignore[attr-defined] # pylint: disable=no-member
-            self, value
+    def _attach_loc(self, value, loc=None):
+        """Compose active and explicit source context onto the same supported IR node or frame."""
+        _ffi_api.IRBuilderAttachLoc(  # type: ignore[attr-defined] # pylint: disable=no-member
+            self, value, UnknownLoc() if loc is None else loc
         )
+        return value
 
     @staticmethod
     def name(s: str, v: Any) -> Any:
@@ -276,26 +292,61 @@ _T = TypeVar("_T")
 
 
 class AlreadyEmitted(Generic[_T]):
-    """Hold the exact emitted value; location handling preserves this receipt.
+    """Hold the exact native result of an already emitted builder operation.
 
     Parameters
     ----------
-    value : Any
-        Object already emitted by a language variant's builder. The receipt
-        retains this object without copying it. Binding or emitting the receipt
-        must not emit the object again.
+    value : T
+        Native result retained without copying or emitting it. Operator APIs
+        wrap their original Call; statement APIs wrap the emitted statement.
 
     Attributes
     ----------
-    value : Any
-        The same emitted object, available for identity checks and source-location
-        attachment.
+    value : T
+        The same object, available for identity checks and source-location
+        attachment. Builder consumers must check for this receipt before FFI
+        conversion, so they do not emit the object again.
+
+    Notes
+    -----
+    FFI conversion exposes only the wrapped object, not its emission history.
     """
 
     __slots__ = ("value",)
+    value: _T
 
     def __init__(self, value: _T) -> None:
         self.value = value
+
+    def __tvm_ffi_object__(self) -> _T:
+        """Return the exact wrapped native object without copying or emitting."""
+        return self.value
+
+
+_P = ParamSpec("_P")
+
+
+def auto_emit_void_call(func: Callable[_P, _T]) -> Callable[_P, _T | AlreadyEmitted[ir.Call]]:
+    """Adapt an operator constructor to the script builder boundary.
+
+    Construct once and preserve the callable's signature and metadata. A void
+    Call under an active IRBuilder emits one Evaluate(call) and returns a
+    receipt containing the exact original Call. Both primitive void and the
+    empty tuple type count as void. Non-Call results, non-void calls and calls
+    outside a builder pass through unchanged.
+
+    The native hook supplies source context to both Call and Evaluate, handles
+    frameless builders, and propagates normal errors from invalid frames.
+    """
+
+    @wraps(func)
+    def wrapped(*args: _P.args, **kwargs: _P.kwargs) -> _T | AlreadyEmitted[ir.Call]:
+        result = func(*args, **kwargs)
+        if isinstance(result, ir.Call) and _ffi_api.MaybeEmitVoidCall(result):
+            return AlreadyEmitted(result)
+        return result
+
+    return wrapped
 
 
 class LocationEntry:
@@ -350,8 +401,9 @@ def at(loc: LocationEntry | ir.Location | None, value: _T) -> _T:
 
     Notes
     -----
-    Native mutation annotates the statement held by the builder itself.  Keep
-    the original Python facade as well, including callable objects and frames.
+    Native mutation annotates the wrapped object in the builder IR. For an
+    operator receipt this is the Call inside its Evaluate statement. Keep the
+    original Python facade as well, including callable objects and frames.
     Unsupported objects and ordinary Python values pass through unchanged.
     """
     if loc is None:
@@ -366,7 +418,7 @@ def at(loc: LocationEntry | ir.Location | None, value: _T) -> _T:
     targets = target if isinstance(target, list | tuple) else (target,)
     for item in targets:
         if isinstance(item, _Object):
-            _ffi_api.IRBuilderSetLoc(IRBuilder.current(), item, loc)
+            IRBuilder.current()._attach_loc(item, loc)
     return value
 
 

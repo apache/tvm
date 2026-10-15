@@ -566,8 +566,8 @@ def test_ty_args_tir_var_used_before_define_call_tir():
 def test_ty_erase_to_well_formed():
     # Error: The return ty contains undefined symbolic vars
     """
-    m, n = T.dynamic("m"), T.dynamic("n")
-    m1, n1 = T.dynamic("m1"), T.dynamic("n1")
+    m, n = T.dynamic("m", "int64"), T.dynamic("n", "int64")
+    m1, n1 = T.dynamic("m1", "int64"), T.dynamic("n1", "int64")
 
     @R.function
     def foo(x: R.Tensor((m, n), dtype="float32")) -> R.Tensor((m1, n1), dtype="float32"):
@@ -800,7 +800,7 @@ def test_call_tir_with_interspersed_primitive_argument():
             B: T.Tensor([T.int64(16)], "float16"),
         ):
             for i in range(T.int64(16)):
-                B[i] = A[i] + T.Cast("float16", scale) * C[i]
+                B[i] = A[i] + T.Cast(scale, "float16") * C[i]
 
     rx.analysis.well_formed(Module)
 
@@ -822,7 +822,7 @@ def test_call_tir_with_incorrect_primitive_argument_dtype():
             B: T.Tensor([T.int64(16)], "float16"),
         ):
             for i in range(T.int64(16)):
-                B[i] = A[i] * T.Cast("float16", scale)
+                B[i] = A[i] * T.Cast(scale, "float16")
 
     assert not rx.analysis.check_well_formed(Module)
     with pytest.raises(ValueError, match="Argument 1 type mismatch"):
@@ -845,7 +845,7 @@ def test_call_tir_shape_expr_is_not_a_primitive_argument():
 
         @Ts.function
         def make_tensor(m: T.int64, n: T.int64, B: T.Tensor([T.int64(1)], "float32")):
-            B[0] = T.Cast("float32", m + n)
+            B[0] = T.Cast(m + n, "float32")
 
     assert not rx.analysis.check_well_formed(Module)
 
@@ -1012,8 +1012,8 @@ def test_call_tir_with_correct_dynamic_output_shape():
 
     """
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module
     class Module:
@@ -1044,8 +1044,8 @@ def test_call_tir_with_incorrect_dynamic_output_shape():
 
     """
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module(check_well_formed=False)
     class Module:
@@ -1078,8 +1078,8 @@ def test_call_tir_incorrect_dimensionality_of_output_shape():
 
     """
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module(check_well_formed=False)
     class Module:
@@ -1115,8 +1115,8 @@ def test_call_tir_output_shape_with_mixed_static_and_dynamic():
 
     """
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module(check_well_formed=False)
     class Module:
@@ -1146,8 +1146,8 @@ def test_call_tir_with_correct_inferred_dynamic_output_shape():
 
     """
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module
     class Module:
@@ -1182,8 +1182,8 @@ def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
 
     """
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module(check_well_formed=False)
     class Module:
@@ -1214,8 +1214,8 @@ def test_call_tir_with_dtensor_arguments():
 
     # from tvm.script.parser import relax as R
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module
     class Module:

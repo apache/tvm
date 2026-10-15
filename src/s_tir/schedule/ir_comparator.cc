@@ -423,7 +423,7 @@ bool TensorizeComparator::DefEqual(const Var& lhs, const Var& rhs) {
   equal_map_.insert_or_assign(lhs, rhs);
   // Cast if necessary. This allows the workload and the tensor intrin to have different dtypes in
   // the indices.
-  analyzer_->Bind(lhs, cast(lhs_prim_type.value(), rhs.as_or_throw<PrimExpr>()));
+  analyzer_->Bind(lhs, cast(rhs.as_or_throw<PrimExpr>(), lhs_prim_type.value()));
   return true;
 }
 
@@ -501,13 +501,13 @@ bool TensorizeComparator::CompareTensor(const TensorVar& lhs, const TensorVar& r
     // Remap the tensor variable definition without recursively comparing its
     // TensorType.  Tensorization intentionally matches a region of a larger
     // workload tensor against the intrinsic's smaller descriptor tensor.
-    auto data_it = equal_map_.find(lhs.var());
+    auto data_it = equal_map_.find(lhs);
     if (data_it != equal_map_.end()) {
-      equal = data_it->second.same_as(rhs.var());
+      equal = data_it->second.same_as(rhs);
     } else {
-      equal = lhs->dtype == rhs->dtype && lhs.scope() == rhs.scope();
+      equal = lhs.dtype() == rhs.dtype() && lhs.scope() == rhs.scope();
       if (equal) {
-        equal_map_.insert_or_assign(lhs.var(), rhs.var());
+        equal_map_.insert_or_assign(lhs, rhs);
       }
     }
     if (equal) {
@@ -516,7 +516,7 @@ bool TensorizeComparator::CompareTensor(const TensorVar& lhs, const TensorVar& r
       if (assert_mode_) {
         std::ostringstream os;
         os << "CompareTensor tensor mismatch: " << lhs << " vs " << rhs
-           << ", dtypes: " << lhs->dtype << " vs " << rhs->dtype << ", scope(): " << lhs.scope()
+           << ", dtypes: " << lhs.dtype() << " vs " << rhs.dtype() << ", scope(): " << lhs.scope()
            << " vs " << rhs.scope();
         EmitError(os.str());
       }
@@ -776,13 +776,13 @@ bool AutoTensorizeComparator::CompareTensor(const TensorVar& lhs, const TensorVa
     // Remap the tensor itself, skipping tensor shape and storage scope.  Auto
     // tensorization inserts the cache stages that move workload tensors into
     // an intrinsic's required scope, while the element dtype must still agree.
-    auto data_it = equal_map_.find(lhs.var());
+    auto data_it = equal_map_.find(lhs);
     if (data_it != equal_map_.end()) {
-      equal = data_it->second.same_as(rhs.var());
+      equal = data_it->second.same_as(rhs);
     } else {
-      equal = lhs->dtype == rhs->dtype;
+      equal = lhs.dtype() == rhs.dtype();
       if (equal) {
-        equal_map_.insert_or_assign(lhs.var(), rhs.var());
+        equal_map_.insert_or_assign(lhs, rhs);
       }
     }
     if (equal) {

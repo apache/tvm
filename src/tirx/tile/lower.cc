@@ -39,7 +39,7 @@
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/tile/dispatch.h>
-#include <tvm/tirx/tile/exec_scope.h>
+#include <tvm/tirx/tile/thread_scope.h>
 #include <tvm/tirx/transform.h>
 
 #include <limits>
@@ -84,8 +84,7 @@ class NoOpCallVerifier : public StmtExprVisitor {
 
   Result Visit_(const CallNode* call) final {
     if (auto op = call->op.as<Op>(); op && Op::HasAttrMap(tile::op_attr::kTileOpDispatch)) {
-      static const auto& dispatchers =
-          Op::GetAttrMap<tile::FTileOpDispatch>(tile::op_attr::kTileOpDispatch);
+      static const auto& dispatchers = Op::GetAttrMap(tile::op_attr::kTileOpDispatch);
       valid_ &= !dispatchers.count(op.value());
     }
     if (call->op.as<GlobalVar>() || call->op.as<OpaqueExprNode>()) this->Visit(call->op);
@@ -435,7 +434,7 @@ class TileDispatcher : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
     TVM_FFI_ICHECK(op);
-    RegisterStorageRoot(old_tensor.var(), op->var, std::nullopt);
+    RegisterStorageRoot(old_tensor, op->var, std::nullopt);
 
     std::vector<Stmt> seq{stmt};
     AppendPostTensorDefStmts(&seq, old_tensor, op->var.as_or_throw<TensorVar>());
@@ -448,7 +447,7 @@ class TileDispatcher : public StmtExprMutator {
     op = stmt.as<BindNode>();
     TVM_FFI_ICHECK(op);
     const auto* tensor_call = op->value.as<CallNode>();
-    RegisterStorageRoot(old_tensor.var(), op->var, tensor_call->args[0]);
+    RegisterStorageRoot(old_tensor, op->var, tensor_call->args[0]);
 
     std::vector<Stmt> seq{stmt};
     AppendPostTensorDefStmts(&seq, old_tensor, op->var.as_or_throw<TensorVar>());
@@ -481,20 +480,19 @@ class TileDispatcher : public StmtExprMutator {
     if (!op || !op->op.as<Op>() || !Op::HasAttrMap(tile::op_attr::kTileOpDispatch)) {
       return StmtExprMutator::Mutate_(stmt, inplace_mode);
     }
-    static const auto& dispatchers =
-        Op::GetAttrMap<tile::FTileOpDispatch>(tile::op_attr::kTileOpDispatch);
+    static const auto& dispatchers = Op::GetAttrMap(tile::op_attr::kTileOpDispatch);
     if (!dispatchers.count(op->op.as_or_throw<Op>())) {
       return StmtExprMutator::Mutate_(stmt, inplace_mode);
     }
     op->op.as_or_throw<Op>().Validate(op);
     TVM_FFI_CHECK(op->attrs.has_value(), ValueError)
         << "A tile instruction must have scope attributes";
-    auto scope_name =
-        ffi::reflection::FieldGetter(op->attrs->GetTypeKey(), "scope")(op->attrs.value())
-            .cast<ffi::String>();
-    ExecScope scope(target_->kind->name, scope_name);
+    auto scope = ffi::reflection::FieldGetter(op->attrs->GetTypeKey(), "scope")(op->attrs.value())
+                     .cast<ThreadScope>();
+    TVM_FFI_CHECK(scope->backend() == target_->kind->name, ValueError)
+        << "Thread scope " << scope.name() << " does not match target " << target_->kind->name;
     ffi::Map<ffi::String, ffi::Array<PrimExpr>> inter_map, intra_map;
-    ffi::String scope_kind = scope->name();
+    ffi::String scope_kind = scope->local_name();
     if (cuda_analysis_) {
       auto split = cuda_analysis_->Split(scope);
       inter_map = std::move(split.first);
@@ -526,8 +524,7 @@ class TileDispatcher : public StmtExprMutator {
     }
     // Propagate shared_state changes back (Map uses COW semantics)
     shared_state_ = sctx->shared_state;
-    TVM_FFI_CHECK(res->body.has_value(), ValueError)
-        << "A tile primitive implementation must have a body";
+    TVM_FFI_CHECK(res->body.has_value(), ValueError) << "A tile op implementation must have a body";
     return Mutate(res->body.value(), inplace_mode).ValueOrUnchanged(res->body.value());
   }
 

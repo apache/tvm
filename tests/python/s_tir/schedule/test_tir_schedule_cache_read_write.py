@@ -38,7 +38,7 @@ from tvm.script import tirx as T
 
 
 @Ts.function
-def elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def elementwise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
 
     for i, j in T.grid(128, 128):
@@ -53,7 +53,8 @@ def elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
 @Ts.function
 def elementwise_shape_int64(
-    A: T.Tensor((T.int64(128), T.int64(128))), C: T.Tensor((T.int64(128), T.int64(128)))
+    A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+    C: T.Tensor((T.int64(128), T.int64(128)), "float32"),
 ) -> None:
     B = Ts.sblock_alloc_tensor((T.int64(128), T.int64(128)))
 
@@ -202,7 +203,7 @@ def reduce_reindex_cache_write_1(
 
 
 @Ts.function
-def func_nested_seq(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def func_nested_seq(B: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     A = Ts.sblock_alloc_tensor((128, 128))
 
     for i, j in T.grid(128, 128):
@@ -227,7 +228,9 @@ def func_nested_seq(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
 
 @Ts.function
-def access_under_scope(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def access_under_scope(
+    B: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     A = Ts.sblock_alloc_tensor((128, 128))
 
     for i0, j0 in T.grid(8, 8):
@@ -491,7 +494,9 @@ def nested_tensor_access(
 
 
 @Ts.function
-def cache_read_elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def cache_read_elementwise(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
     A_global = Ts.sblock_alloc_tensor((128, 128))
     B_local = Ts.sblock_alloc_tensor((128, 128), scope="local")
@@ -514,7 +519,9 @@ def cache_read_elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> 
 
 
 @Ts.function
-def cache_read_under_scope(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def cache_read_under_scope(
+    B: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     A = Ts.sblock_alloc_tensor((128, 128))
 
     A_global = Ts.sblock_alloc_tensor((128, 128))
@@ -678,7 +685,9 @@ def cache_read_multi_consumer_target() -> None:
 
 
 @Ts.function
-def continuous_cache_read(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def continuous_cache_read(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
     B_shared = Ts.sblock_alloc_tensor((128, 128), scope="shared")
     B_local = Ts.sblock_alloc_tensor((128, 128), scope="local")
@@ -838,7 +847,9 @@ def cache_read_nested_tensor_access(
 
 
 @Ts.function
-def cache_write_elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def cache_write_elementwise(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
     B_global = Ts.sblock_alloc_tensor((128, 128), scope="local")
     C_local = Ts.sblock_alloc_tensor((128, 128))
@@ -861,7 +872,9 @@ def cache_write_elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) ->
 
 
 @Ts.function
-def cache_write_under_scope(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def cache_write_under_scope(
+    B: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     A = Ts.sblock_alloc_tensor((128, 128))
 
     A_global = Ts.sblock_alloc_tensor((128, 128))
@@ -1089,7 +1102,9 @@ def cache_write_multi_consumer_all_consume_cache():
 
 
 @Ts.function
-def continuous_cache_write(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def continuous_cache_write(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
 
     B_shared = Ts.sblock_alloc_tensor((128, 128), scope="shared")
@@ -1156,9 +1171,9 @@ def block_predicate_cache_write_output_buf() -> None:
 
 @Ts.function
 def symbolic_matmul_blocked(
-    A: T.Tensor(((n + 31) // 32 * 32, 4)),  # noqa: F821
-    B: T.Tensor((4, (n + 31) // 32 * 32)),  # noqa: F821
-    C: T.Tensor(((n + 31) // 32 * 32, (n + 31) // 32 * 32)),  # noqa: F821
+    A: T.Tensor(((n + 31) // 32 * 32, 4), "float32"),  # noqa: F821
+    B: T.Tensor((4, (n + 31) // 32 * 32), "float32"),  # noqa: F821
+    C: T.Tensor(((n + 31) // 32 * 32, (n + 31) // 32 * 32), "float32"),  # noqa: F821
     n: T.int32,
 ):
     for i0_0, i1_0 in T.grid((n + 31) // 32, (n + 31) // 32):
@@ -1184,9 +1199,9 @@ def symbolic_matmul_blocked(
 
 @Ts.function
 def symbolic_matmul_blocked_cache_read(
-    A: T.Tensor(((n + 31) // 32 * 32, 4)),  # noqa: F821
-    B: T.Tensor((4, (n + 31) // 32 * 32)),  # noqa: F821
-    C: T.Tensor(((n + 31) // 32 * 32, (n + 31) // 32 * 32)),  # noqa: F821
+    A: T.Tensor(((n + 31) // 32 * 32, 4), "float32"),  # noqa: F821
+    B: T.Tensor((4, (n + 31) // 32 * 32), "float32"),  # noqa: F821
+    C: T.Tensor(((n + 31) // 32 * 32, (n + 31) // 32 * 32), "float32"),  # noqa: F821
     n: T.int32,
 ):
     for i0_0, i1_0 in T.grid((n + 31) // 32, (n + 31) // 32):
@@ -1220,9 +1235,9 @@ def symbolic_matmul_blocked_cache_read(
 
 @Ts.function
 def symbolic_matmul_blocked_cache_write(
-    A: T.Tensor(((n + 31) // 32 * 32, 4)),  # noqa: F821
-    B: T.Tensor((4, (n + 31) // 32 * 32)),  # noqa: F821
-    C: T.Tensor(((n + 31) // 32 * 32, (n + 31) // 32 * 32)),  # noqa: F821
+    A: T.Tensor(((n + 31) // 32 * 32, 4), "float32"),  # noqa: F821
+    B: T.Tensor((4, (n + 31) // 32 * 32), "float32"),  # noqa: F821
+    C: T.Tensor(((n + 31) // 32 * 32, (n + 31) // 32 * 32), "float32"),  # noqa: F821
     n: T.int32,
 ):
     for i0_0, i1_0 in T.grid((n + 31) // 32, (n + 31) // 32):

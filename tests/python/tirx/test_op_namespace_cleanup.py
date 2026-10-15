@@ -68,7 +68,7 @@ def _has_path(root, path):
     return True
 
 
-def test_builtin_expression_ops_are_not_tile_primitives():
+def test_builtin_expression_ops_are_not_tile_ops():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "float32")
 
@@ -113,7 +113,7 @@ def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
     assert_structural_equal(encode, reparsed)
 
 
-def test_kernel_replace_point_is_builtin_marker_not_tile_primitive():
+def test_kernel_replace_point_is_builtin_marker_not_tile_op():
     assert _op_attr("tirx.kernel_replace_point", "FTileOpDispatch") is None
     assert "tirx.tile.kernel_replace_point" not in Op.list_op_names()
     assert hasattr(T, "kernel_replace_point")
@@ -378,7 +378,17 @@ def test_tile_helpers_are_separate_from_backend_instructions():
     assert not hasattr(tvm.tirx, "TilePrimitiveCall")
     assert not hasattr(tvm.tirx, "TileOpCall")
     assert not any(name.startswith("tirx.tile.") for name in Op.list_op_names())
-    for name in ("copy", "copy_async", "sum", "min", "permute_layout"):
+    for name in (
+        "copy",
+        "copy_async",
+        "sum",
+        "min",
+        "permute_layout",
+        "ld",
+        "st",
+        "compose",
+        "tcgen05",
+    ):
         assert not hasattr(T.cuda.tile, name)
-    for name in ("reduce_sum", "reduce_max", "reduce_min", "permute_layout", "copy_scalar"):
-        assert not hasattr(T.cuda.tile.compose, name)
+    assert T.cuda.tile.apply
+    assert T.cuda.tile.ewise

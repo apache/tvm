@@ -100,12 +100,12 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    HandleLoadStoreToVariable(op->source.as_or_throw<tvm::tirx::TensorVar>().var());
+    HandleLoadStoreToVariable(op->source.as_or_throw<tvm::tirx::TensorVar>());
     return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-    HandleLoadStoreToVariable(op->dest.as_or_throw<TensorVar>().var());
+    HandleLoadStoreToVariable(op->dest.as_or_throw<TensorVar>());
     return StmtExprVisitor::Visit_(op);
   }
 

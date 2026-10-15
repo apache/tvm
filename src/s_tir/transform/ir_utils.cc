@@ -302,7 +302,7 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchTensorRegion& match_tensor,
                                     const ffi::Array<PrimExpr>& indices) {
   const TensorVar& target = match_tensor->tensor;
   const TensorRegion& source = match_tensor->source;
-  TVM_FFI_ICHECK_EQ(indices.size(), target->shape.size());
+  TVM_FFI_ICHECK_EQ(indices.size(), target.shape().size());
 
   sym::Analyzer analyzer;
   ffi::Array<PrimExpr> result;
@@ -325,7 +325,7 @@ ffi::Array<Range> ConvertRegion(const MatchTensorRegion& match_tensor,
                                 const ffi::Array<Range>& region) {
   const TensorVar& target = match_tensor->tensor;
   const TensorRegion& source = match_tensor->source;
-  TVM_FFI_ICHECK_EQ(region.size(), target->shape.size());
+  TVM_FFI_ICHECK_EQ(region.size(), target.shape().size());
 
   sym::Analyzer analyzer;
   ffi::Array<Range> result;
@@ -363,8 +363,7 @@ class StorageAlignCollector : public StmtExprVisitor {
     if (it != op->annotations.end()) {
       auto annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& item : annotation) {
-        storage_align_[op->writes[item.get<0>()]->source.as_or_throw<TensorVar>().var()].push_back(
-            item);
+        storage_align_[op->writes[item.get<0>()]->source.as_or_throw<TensorVar>()].push_back(item);
       }
     }
     return StmtExprVisitor::Visit_(op);
@@ -389,7 +388,7 @@ class StorageAlignCollector : public StmtExprVisitor {
         // the first tensor idx info is meaningless for alloc
         // stmt and should set as negative intentionally.
         TVM_FFI_ICHECK_EQ(tensor_index, -1);
-        storage_align_[op->var.as_or_throw<TensorVar>().var()].push_back(storage_align_tuple);
+        storage_align_[op->var.as_or_throw<TensorVar>()].push_back(storage_align_tuple);
       }
     }
     return StmtExprVisitor::Visit_(op);

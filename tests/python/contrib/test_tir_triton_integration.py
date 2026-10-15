@@ -64,8 +64,8 @@ def test_tir_triton_integration():
 
     BLOCK_SIZE = 64
 
-    add_m = T.dynamic("m")
-    main_m = T.dynamic("m")
+    add_m = T.dynamic("m", "int64")
+    main_m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Module:
@@ -107,12 +107,16 @@ def test_tir_triton_integration():
         scratch_args.append(tvm.tirx.reinterpret("handle", tvm.tirx.IntImm("uint64", 0)))
 
     # The thread extent is 256 because the kernel is compiled with num_warps=8.
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Parsed:
         @Ts.function
-        def add(x: T.Tensor((m,)), y: T.Tensor((m,)), output: T.Tensor((m,))):
+        def add(
+            x: T.Tensor((m,), "float32"),
+            y: T.Tensor((m,), "float32"),
+            output: T.Tensor((m,), "float32"),
+        ):
             with Ts.sblock("root"):
                 Ts.reads(x[0:m], y[0:m])
                 Ts.writes(output[0:m])

@@ -21,6 +21,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/analysis.h>
 #include <tvm/ir/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/support/gpu_thread_tag.h>
 
@@ -693,7 +694,7 @@ void CheckBlockHasTrivialBinding(const ScheduleState& self, const StmtSRef& bloc
 
 ffi::Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
                                               const ffi::Optional<StmtSRef>& high_exclusive,
-                                              const runtime::StorageScope& extra_relax_scope) {
+                                              const runtime::MemoryScope& extra_relax_scope) {
   ffi::Map<Var, Range> result;
   const StmtSRefObj* p = low_inclusive.get();
   const StmtSRefObj* limit = high_exclusive.has_value() ? high_exclusive.value().get() : nullptr;
@@ -704,7 +705,7 @@ ffi::Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
     }
     result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
   }
-  if (extra_relax_scope.rank != runtime::StorageRank::kGlobal) {
+  if (!IsGlobalMemoryScope(extra_relax_scope)) {
     for (; p; p = p->parent) {
       if (const ForNode* loop = p->StmtAs<ForNode>()) {
         if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
@@ -1364,7 +1365,7 @@ void AddShapeVarBounds(const ScheduleState& state, const StmtSRefObj* sref,
   const FunctionNode* f = GetRootFunction(state->mod, sref->stmt, nullptr);
   for (const Var& param : f->params) {
     if (auto tensor = param.as<TensorVar>()) {
-      for (const PrimExpr& e : tensor.value()->shape) {
+      for (const PrimExpr& e : tensor.value().shape()) {
         analyzer->MarkGlobalNonNegValue(e);
       }
     }
@@ -1424,7 +1425,7 @@ AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& wri
   static constexpr const std::tuple<bool, bool, bool, bool, bool, bool> kNotExist =
       std::make_tuple(false, false, false, false, false, false);
   // Step 1. Extract the write indices
-  int w_dim = write_region->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size();
+  int w_dim = write_region->source.as_or_throw<tvm::tirx::TensorVar>().shape().size();
   std::unordered_map<const VarNode*, int> var2idx;
   var2idx.reserve(w_dim);
   for (int i = 0; i < w_dim; ++i) {
@@ -1441,7 +1442,7 @@ AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& wri
   // Step 2. Map each read index to a write index
   bool no_const_read = true;
   bool no_shift_read = true;
-  int r_dim = read_region->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size();
+  int r_dim = read_region->source.as_or_throw<tvm::tirx::TensorVar>().shape().size();
   std::vector<int> mapped(r_dim, -1);
   for (int i = 0; i < r_dim; ++i) {
     const Range& dom = read_region->region[i];
@@ -1521,7 +1522,7 @@ void CheckStorageScope(const ScheduleState& self, ffi::String storage_scope) {
   };
 
   try {
-    runtime::StorageScope::Create(std::string(storage_scope));
+    runtime::MemoryScope::Get(std::string(storage_scope));
   } catch (...) {
     throw MakeScheduleError<InvalidStorageScopeError>(self->mod, std::move(storage_scope));
   }

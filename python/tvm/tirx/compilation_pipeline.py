@@ -33,11 +33,11 @@ def default_tir_pipeline(*, target=None):
 def tirx_pipeline(*, prepare_only=False, target=None):
     """The TIRX pipeline used in tvm.tirx.compile"""
 
-    @tvm.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
+    @tvm.ir.transform.module_pass(opt_level=0)
+    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.ir.transform.PassContext) -> tvm.ir.IRModule:
         """The default lowering passes for TIR backend."""
         mod = _bind_target(mod, target)
-        pass_ctx = tvm.transform.PassContext.current()
+        pass_ctx = tvm.ir.transform.PassContext.current()
         config = pass_ctx.config
         passes = [
             tirx.transform.LowerTIRx(),
@@ -56,7 +56,7 @@ def tirx_pipeline(*, prepare_only=False, target=None):
                 tirx.transform.LowerThreadAllreduce(),
             ]
         )
-        mod = tvm.transform.Sequential(passes)(mod)
+        mod = tvm.ir.transform.Sequential(passes)(mod)
         return mod if prepare_only else finalize_tir_pipeline()(mod)
 
     return _pipeline, finalize_host_passes, finalize_device_passes
@@ -65,7 +65,7 @@ def tirx_pipeline(*, prepare_only=False, target=None):
 def _bind_target(mod, target):
     if target is None:
         return mod
-    return tvm.transform.Sequential(
+    return tvm.ir.transform.Sequential(
         [
             tirx.transform.BindTarget(target),
             cuda_transforms.BindBackendConfig(),
@@ -92,7 +92,7 @@ def _with_target_binding(pipeline, target, *, original_mod=None, prepared_mod=No
         else ()
     )
 
-    @tvm.transform.module_pass(opt_level=0)
+    @tvm.ir.transform.module_pass(opt_level=0)
     def _pipeline(mod, _ctx):
         if (
             prepared_mod is not None
@@ -119,7 +119,7 @@ def _with_target_binding(pipeline, target, *, original_mod=None, prepared_mod=No
 
 def finalize_tir_pipeline():
     """Lower module-wide calling conventions after all dialects are prepared."""
-    return tvm.transform.Sequential(
+    return tvm.ir.transform.Sequential(
         [
             tirx.transform.AnnotateEntryFunc(),
             tirx.transform.SplitHostDevice(),
@@ -140,23 +140,22 @@ def finalize_host_passes():  # pylint: disable=unused-argument
         tirx.transform.LowerTVMBuiltin(),
         tirx.transform.LowerIntrin(),
     ]
-    return tvm.transform.Sequential(host_pass_list)
+    return tvm.ir.transform.Sequential(host_pass_list)
 
 
 def finalize_device_passes():  # pylint: disable=unused-argument
     """The default finalization passes for TIR backend."""
     device_pass_list = [
-        tirx.transform.LowerWarpMemory(),
         tirx.transform.StmtSimplify(),
         tirx.transform.LowerIntrin(),
     ]
-    return tvm.transform.Sequential(device_pass_list)
+    return tvm.ir.transform.Sequential(device_pass_list)
 
 
 def finalize_device_passes_tirx():  # pylint: disable=unused-argument
     """The TIRx finalization passes for TIR backend."""
     device_pass_list = [tirx.transform.LowerIntrin()]
-    return tvm.transform.Sequential(device_pass_list)
+    return tvm.ir.transform.Sequential(device_pass_list)
 
 
 # global map of pre-built pipelines

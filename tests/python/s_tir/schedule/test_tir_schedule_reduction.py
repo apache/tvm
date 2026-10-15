@@ -36,7 +36,7 @@ from tvm.script import tirx as T
 
 
 @Ts.function
-def rowsum_blockized(A: T.Tensor([32, 4, 128]), B: T.Tensor([32, 4])) -> None:
+def rowsum_blockized(A: T.Tensor([32, 4, 128], "float32"), B: T.Tensor([32, 4], "float32")) -> None:
     for i0, i2_0 in T.grid(32, 16):
         with Ts.sblock("blockized_B"):
             io, ko = Ts.axis.remap("SR", [i0, i2_0])
@@ -53,7 +53,11 @@ def rowsum_blockized(A: T.Tensor([32, 4, 128]), B: T.Tensor([32, 4])) -> None:
 
 
 @Ts.function
-def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+def matmul(
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
+) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("update"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -64,7 +68,9 @@ def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 1
 
 @Ts.function
 def matmul_decompose0(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
@@ -79,8 +85,8 @@ def matmul_decompose0(
 
 @Ts.function
 def matmul_decompose1(
-    A: T.Tensor([32, 4, 128], elem_offset=0, align=64, offset_factor=1),
-    B: T.Tensor([32, 4], elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor([32, 4, 128], "float32", elem_offset=0, align=64, offset_factor=1),
+    B: T.Tensor([32, 4], "float32", elem_offset=0, align=64, offset_factor=1),
 ) -> None:
     for i0 in T.serial(0, 32):
         with Ts.sblock("blockized_B_init"):
@@ -101,9 +107,9 @@ def matmul_decompose1(
 
 @Ts.function
 def matmul_decompose2(
-    A: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
-    B: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
-    C: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
+    B: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
+    C: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
 ) -> None:
     for i0, i1 in T.grid(128, 128):
         with Ts.sblock("update_init"):
@@ -117,7 +123,9 @@ def matmul_decompose2(
 
 @Ts.function
 def matmul_decompose_fail3(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     for i, k, j in T.grid(128, 128, 128):
         with Ts.sblock("update"):
@@ -129,9 +137,9 @@ def matmul_decompose_fail3(
 
 @Ts.function
 def matmul_decompose4(
-    A: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
-    B: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
-    C: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
+    B: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
+    C: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
 ) -> None:
     # body
     with Ts.sblock("root"):
@@ -154,7 +162,9 @@ def matmul_decompose4(
 
 @Ts.function
 def matmul_with_annotation(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("update"):
@@ -167,7 +177,9 @@ def matmul_with_annotation(
 
 @Ts.function
 def matmul_decompose_with_annotation(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
 ) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):

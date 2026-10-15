@@ -74,7 +74,7 @@ def test_dispatch_scanop_cuda():
     lowered to the packed func `"gpu_2d_continuous_cumsum"`.
     """
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -122,7 +122,7 @@ def test_dispatch_scanop_cuda():
 
 
 def test_dispatch_sort():
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -220,7 +220,7 @@ def test_dispatch_sort_cuda():
 
 
 def test_dispatch_argsort():
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -277,7 +277,7 @@ def test_dispatch_argsort_cuda():
     vdevices = [R.vdevice("cuda", 0)]
     x = relax.Var("x", R.Tensor((2, 3), "float32", vdevices[0]))
     y = relax.Var("y", R.Tensor((2, 3), "float32"))
-    bb = relax.BlockBuilder()
+    bb = relax.BlockBuilder(tvm.IRModule(global_infos={"vdevice": vdevices}))
     with target:
         with bb.function("foo", (x,), {"global_symbol": "foo"}):
             with bb.dataflow():
@@ -314,7 +314,7 @@ def test_dispatch_argsort_cuda():
 
 
 def test_dispatch_topk():
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -424,8 +424,8 @@ def test_dispatch_sort_cuda_large_batch(size):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -460,8 +460,8 @@ def test_dispatch_topk_cuda_large_batch():
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -527,8 +527,8 @@ def test_dispatch_cumsum_gpu(target, index_bits):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -562,8 +562,8 @@ def test_dispatch_cumsum_index_width(target_kind, index_bits):
     """Respect the caller's index budget without restricting Metal's default."""
     from tvm.relax.backend.gpu_generic import gpu_2d_continuous_cumsum
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -592,8 +592,8 @@ def test_dispatch_cumprod_cuda_large_batch():
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -698,7 +698,7 @@ def test_dispatch_cumsum_webgpu_axes_and_dtypes(
 def test_dispatch_cumsum_webgpu_symbolic_non_contiguous_axis():
     """The serial WebGPU fallback accepts a symbolic scan extent."""
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Symbolic:

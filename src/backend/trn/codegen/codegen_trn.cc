@@ -26,6 +26,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/transform.h>
@@ -37,8 +38,7 @@
 #include <unordered_map>
 #include <utility>
 
-#include "../../../runtime/thread_storage_scope.h"
-#include "../../../target/build_common.h"
+#include "../../../codegen/build_common.h"
 
 namespace tvm {
 
@@ -207,15 +207,17 @@ void CodeGenTrainium::PrintType(const PrimType& t, std::ostream& os) {  // NOLIN
   LOG(FATAL) << "Cannot convert type " << t << " to Trainium type";
 }
 
-std::string CodeGenTrainium::GetStorageScopeStr(const std::string& scope) {  // NOLINT(*)
-  if (scope == "global") {
+std::string CodeGenTrainium::GetStorageScopeStr(const runtime::MemoryScope& scope) {  // NOLINT(*)
+  static const auto scope_trn_sbuf = runtime::MemoryScope::Get("trn.sbuf");
+  static const auto scope_trn_psum = runtime::MemoryScope::Get("trn.psum");
+  if (scope == runtime::MemoryScope::Global()) {
     return "nl.hbm";
-  } else if (scope == "trn.sbuf") {
+  } else if (scope == scope_trn_sbuf) {
     return "nl.sbuf";
-  } else if (scope == "trn.psum") {
+  } else if (scope == scope_trn_psum) {
     return "nl.psum";
   } else {
-    LOG(FATAL) << "Unknown storage scope `" << scope << "`";
+    LOG(FATAL) << "Unknown storage scope `" << scope.name() << "`";
     return "";
   }
 }
@@ -229,18 +231,19 @@ void CodeGenTrainium::Dispatch_(const BindNode* op) {
 }
 
 void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
+  static const auto scope_trn_psum = runtime::MemoryScope::Get("trn.psum");
   tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
   DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
-  ffi::String scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->storage_scope;
+  runtime::MemoryScope scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->scope;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   TVM_FFI_ICHECK(buffer.defined());
-  std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
+  std::string vid = AllocVarID(buffer.get(), buffer->name + "_ptr");
 
   this->PrintIndent();
   std::ostringstream dtype_os;
   PrintType(PrimType(dtype), dtype_os);
   std::string dtype_str = dtype_os.str();
-  if (scope == "trn.psum") {
+  if (scope == scope_trn_psum) {
     stream << vid << " = nl.ndarray(shape=[";
     TVM_FFI_ICHECK(shape->fields.size() == 3);
     stream << PrintExpr(shape->fields[0]) << ", nl.par_dim(" << PrintExpr(shape->fields[1]) << "), "
@@ -257,7 +260,7 @@ void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* bu
   if (addr.empty()) {
     stream << GetStorageScopeStr(scope) << ")\n";
   } else {
-    if (scope == "trn.psum") {
+    if (scope == scope_trn_psum) {
       TVM_FFI_ICHECK(addr.size() == 2);
       TVM_FFI_ICHECK(addr[0]->IsInstance<IntImmNode>())
           << "placement[0] must be a constant integer, got: " << addr[0];
@@ -632,12 +635,14 @@ void CodeGenTrainium::Dispatch_(const prim::FloorModNode* op, std::ostream& os) 
 }
 
 void CodeGenTrainium::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
+  static const auto scope_trn_psum = runtime::MemoryScope::Get("trn.psum");
+  static const auto scope_trn_sbuf = runtime::MemoryScope::Get("trn.sbuf");
   Expr data = buffer_call->args[0];
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
-  tvm::Tuple shape(buffer->shape);
-  DLDataType dtype = buffer->dtype->dtype;
-  ffi::String scope = buffer.scope();
-  if (scope == "trn.psum" || scope == "trn.sbuf") {
+  tvm::Tuple shape(buffer.shape());
+  DLDataType dtype = buffer.dtype()->dtype;
+  runtime::MemoryScope scope = buffer.scope();
+  if (scope == scope_trn_psum || scope == scope_trn_sbuf) {
     return;
   }
   const VarNode* data_var = data.as<VarNode>();
@@ -661,8 +666,8 @@ void CodeGenTrainium::DispatchDeclTensor(const BindNode* op, const CallNode* buf
   auto it = data_buffer_idmap_.find(data_var);
   if (it != data_buffer_idmap_.end()) {
     const TensorVar& prev_buffer = data_decl_buffer_map_.at(data_var);
-    if (ffi::StructuralEqual()(prev_buffer->shape, shape->fields) &&
-        prev_buffer->dtype == PrimType(dtype)) {
+    if (ffi::StructuralEqual()(prev_buffer.shape(), shape->fields) &&
+        prev_buffer.dtype() == PrimType(dtype)) {
       buffer_idmap_[buffer] = it->second;
       return;
     }

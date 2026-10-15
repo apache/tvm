@@ -100,25 +100,6 @@ def test_op_set_signature_metadata_and_counts():
     tvm.ir.Call(op, [x]).validate()
 
 
-def test_op_set_signature_preserves_custom_validator():
-    op = tvm.ir.Op.get("relax.call_pure_packed")
-    original_args = [(info.name, info.doc) for info in op.args_info]
-    original_ty_args = [(info.name, info.doc) for info in op.ty_args_info]
-    original_var_args = (op.var_args_info.name, op.var_args_info.doc)
-    original_var_ty_args = (op.var_ty_args_info.name, op.var_ty_args_info.doc)
-    try:
-        op.set_signature()
-        with pytest.raises(TypeError, match="call_pure_packed expects a function argument"):
-            tvm.ir.Call(op, []).validate()
-    finally:
-        op.set_signature(
-            original_args,
-            ty_args=original_ty_args,
-            var_args=original_var_args,
-            var_ty_args=original_var_ty_args,
-        )
-
-
 def test_op_set_signature_checks_counts_without_types_or_attrs():
     name = "test.python_set_signature.count_only"
     tvm.ir._ffi_api.RegisterOp(name, "Count-only Python signature")
@@ -132,16 +113,6 @@ def test_op_set_signature_checks_counts_without_types_or_attrs():
         ty_args=[tvm.ir.StringType()],
     )
     assert call.attrs is not None
-
-
-def test_ptx_ops_have_variadic_call_signature():
-    from tvm.backend.cuda.ptx import TABLE
-
-    op = tvm.ir.Op.get(next(iter(TABLE.values())).op_name)
-    assert not op.args_info
-    assert op.var_args_info.name == "operands"
-    tvm.ir.Call(op, []).validate()
-    tvm.ir.Call(op, [tvm.ir.Var("x", tvm.ir.AnyType())]).validate()
 
 
 if __name__ == "__main__":

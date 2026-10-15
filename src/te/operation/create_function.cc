@@ -103,9 +103,9 @@ class TensorLoadToTensorTransformer : public s_tir::StmtExprMutator {
       : s_tir::StmtExprMutator(VTableInstance()), tensor2tensors_(tensor2tensors) {}
 
   TensorVar NormalizeTensorType(const TensorVar& tensor) {
-    auto type = Mutate(tensor.var()->ty).ValueOrUnchanged(tensor.var()->ty).cast<TensorType>();
-    if (type.same_as(tensor.var()->ty)) return tensor;
-    return TensorVar(tensor.name(), type, tensor.loc());
+    auto type = Mutate(tensor->ty).ValueOrUnchanged(tensor->ty).cast<TensorType>();
+    if (type.same_as(tensor->ty)) return tensor;
+    return TensorVar(tensor->name, type, tensor->loc);
   }
 
   s_tir::IterVar NormalizeAxisDomain(const s_tir::IterVar& axis) {
@@ -164,7 +164,7 @@ class TensorLoadToTensorTransformer : public s_tir::StmtExprMutator {
     auto it = tensor2tensors_.find(tensor);
     TVM_FFI_ICHECK(it != tensor2tensors_.end()) << "IndexError: Cannot find the tensor " << tensor;
     const TensorVar& tir_tensor = it->second;
-    return MakeTensorLoad(tir_tensor, te::GetTensorLoadIndices(call), call->loc);
+    return TensorLoad(tir_tensor, te::GetTensorLoadIndices(call), call->loc);
   }
 
  private:
@@ -384,10 +384,11 @@ ffi::Array<TensorVar> GenerateOutputTensors(const te::ComputeOp& compute_op, Cre
   //  - Add the non-argument tensors to `alloc_tensor` of the root block
   ffi::Array<TensorVar> tir_tensors;
   for (const te::Tensor& tensor : tensors) {
-    TensorVar tir_tensor = decl_tensor(info->transformer->Mutate(tensor->shape)
-                                           .ValueOrUnchanged(tensor->shape)
-                                           .cast<ffi::Array<PrimExpr>>(),
-                                       tensor->dtype, tensor->GetNameHint(), "global");
+    TensorVar tir_tensor =
+        TensorVar(tensor->GetNameHint(), TensorType(info->transformer->Mutate(tensor->shape)
+                                                        .ValueOrUnchanged(tensor->shape)
+                                                        .cast<ffi::Array<PrimExpr>>(),
+                                                    tensor->dtype, runtime::MemoryScope::Global()));
     info->tensor2tensors.insert_or_assign(tensor, tir_tensor);
     tir_tensors.push_back(tir_tensor);
     if (!info->IsArg(tensor)) {
@@ -425,7 +426,7 @@ ffi::Map<ffi::String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& co
     }
   }
   // Set script_parsing_detect_access
-  annotations.Set(tvm::s_tir::attr::kScriptParsingDetectAccess, IntImm::Int32(3));
+  annotations.Set(tvm::s_tir::attr::kScriptParsingDetectAccess, 3);
   return annotations;
 }
 
@@ -498,7 +499,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
     //  - A LHS operand is the tensor storing the reduction result, with corresponding indices.
     //  - A RHS operand is the value to be reduced.
     for (int i = 0; i < n_tensors; ++i) {
-      const PrimExpr& left = MakeTensorLoad(tensors[i], indices);
+      const PrimExpr& left = TensorLoad(tensors[i], indices);
       const PrimExpr& right = analyzer->Simplify(f_transform_and_remap(reduce->source[i]));
       lhs.push_back(left);
       rhs.push_back(right);
@@ -519,7 +520,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
       const TensorVar& tensor = tensors[i];
       PrimExpr value = [&]() -> PrimExpr {
         if (n_tensors > 1) {
-          temp_vars.push_back(Var("v_" + tensor.name(), lhs[i].ty()));
+          temp_vars.push_back(Var("v_" + tensor->name, lhs[i].ty()));
           return temp_vars.back().as_or_throw<PrimExpr>();
         }
         PrimExpr combined = reduce->combiner.get()->operator()(lhs, rhs)[i];
@@ -710,7 +711,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
                                s_tir::SBlock(/*iter_vars=*/leaf.block_iters,
                                              /*reads=*/{},
                                              /*writes=*/{},
-                                             /*name_hint=*/info->FreshName(tensors[i].name()),
+                                             /*name_hint=*/info->FreshName(tensors[i]->name),
                                              /*body=*/body,
                                              /*init=*/std::nullopt,
                                              /*alloc_tensors=*/{},
@@ -764,7 +765,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     const te::Tensor& input_tensor = extern_op->inputs[i];
     auto it = info->tensor2tensors.find(input_tensor);
     TVM_FFI_ICHECK(it != info->tensor2tensors.end());
-    var_map.insert_or_assign(placeholder.get(), it->second.var());
+    var_map.insert_or_assign(placeholder.get(), it->second);
     input_tensor_map.insert_or_assign(placeholder.get(), it->second);
   }
 
@@ -775,17 +776,19 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     const te::Tensor& output_tensor = extern_op.output(i);
     TensorVar output_tir_tensor = info->transformer->NormalizeTensorType(placeholder);
     if (!info->IsArg(output_tensor)) {
-      PrimExpr zero_offset = IntImm(placeholder->elem_offset.ty(), 0);
-      if (auto offset_var = placeholder->elem_offset.as<PrimVar>()) {
+      PrimExpr zero_offset = IntImm(placeholder.elem_offset().ty(), 0);
+      if (auto offset_var = placeholder.elem_offset().as<PrimVar>()) {
         var_map.insert_or_assign(offset_var.value().get(), zero_offset);
       }
-      ffi::ObjectPtr<TensorTypeNode> type = CopyTensorType(output_tir_tensor);
+      ffi::ObjectPtr<TensorTypeNode> type =
+          ffi::make_object<TensorTypeNode>(*output_tir_tensor.ty().get());
       type->elem_offset = zero_offset;
-      output_tir_tensor = RebuildTensorVar(output_tir_tensor, std::move(type));
+      output_tir_tensor =
+          TensorVar(output_tir_tensor->name, TensorType(std::move(type)), output_tir_tensor->loc);
       info->root_alloc.push_back(output_tir_tensor);
     }
     input_tensor_map.insert_or_assign(placeholder.get(), output_tir_tensor);
-    var_map.insert_or_assign(placeholder.get(), output_tir_tensor.var());
+    var_map.insert_or_assign(placeholder.get(), output_tir_tensor);
     info->tensor2tensors.insert_or_assign(output_tensor, output_tir_tensor);
   }
 
@@ -871,10 +874,11 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
     // Declare a tensor for any argument tensors without a pre-existing
     // tensor declaration recorded in the tensor2tensor binds map
     if (info->tensor2tensors.count(tensor) == 0) {
-      const TensorVar& tir_tensor = decl_tensor(info->transformer->Mutate(placeholder->shape)
-                                                    .ValueOrUnchanged(placeholder->shape)
-                                                    .cast<ffi::Array<PrimExpr>>(),
-                                                placeholder->dtype, placeholder->name, "global");
+      const TensorVar& tir_tensor = TensorVar(
+          placeholder->name, TensorType(info->transformer->Mutate(placeholder->shape)
+                                            .ValueOrUnchanged(placeholder->shape)
+                                            .cast<ffi::Array<PrimExpr>>(),
+                                        placeholder->dtype, runtime::MemoryScope::Global()));
       info->tensor2tensors.insert_or_assign(tensor, tir_tensor);
     }
   } else if (auto compute_op = op.as<te::ComputeOp>()) {
@@ -895,7 +899,7 @@ Function GenerateAndCompleteFunction(const ffi::Array<te::Tensor>& arg_list,
   for (const te::Tensor& tensor : arg_list) {
     auto it = info->tensor2tensors.find(tensor);
     TVM_FFI_ICHECK(it != info->tensor2tensors.end());
-    parameters.push_back(it->second.var());
+    parameters.push_back(it->second);
   }
   SeqStmt body(root_stmts);
   body = info->transformer->Mutate(body, InplaceMode::kAllow).ValueOrUnchanged(body);
@@ -964,7 +968,7 @@ Function GenerateAndCompleteFunction(const ffi::Array<ffi::ObjectRef>& arg_tir_v
       te::Tensor tensor = opt_tensor.value();
       auto it = info->tensor2tensors.find(tensor);
       TVM_FFI_ICHECK(it != info->tensor2tensors.end());
-      parameters.push_back(it->second.var());
+      parameters.push_back(it->second);
     } else if (auto var = arg.as<PrimVar>()) {
       parameters.push_back(var.value());
     }

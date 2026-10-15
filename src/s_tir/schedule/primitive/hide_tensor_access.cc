@@ -21,7 +21,6 @@
 
 #include <set>
 
-#include "../../../tirx/transform/ir_utils.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -86,7 +85,7 @@ class InvalidIndexError : public ScheduleErrorContextObj {
 
 void UnsafeHideTensorAccess(ScheduleState self, const StmtSRef& block_sref,
                             const ffi::String& tensor_type,
-                            const ffi::Array<IntImm>& tensor_index_array) {
+                            const ffi::Array<int64_t>& tensor_index_array) {
   /*!
    * Check:
    *   - validity of tensor_index_array
@@ -103,8 +102,7 @@ void UnsafeHideTensorAccess(ScheduleState self, const StmtSRef& block_sref,
   }
 
   std::set<int> tensor_indices;
-  for (const IntImm& tensor_idx : tensor_index_array) {
-    int tensor_idx_val = tensor_idx->value.as<int>().value();
+  for (int64_t tensor_idx_val : tensor_index_array) {
     if (tensor_idx_val >= 0 && tensor_idx_val < num_access_regions) {
       tensor_indices.insert(tensor_idx_val);
     } else {
@@ -156,13 +154,13 @@ struct UnsafeHideTensorAccessTraits : public UnpackedInstTraits<UnsafeHideTensor
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, ffi::String tensor_type,
-                                      ffi::Array<IntImm> tensor_index_array) {
+                                      ffi::Array<int64_t> tensor_index_array) {
     sch->UnsafeHideTensorAccess(block, tensor_type, tensor_index_array);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
                                       ffi::String tensor_type,
-                                      ffi::Array<IntImm> tensor_index_array) {
+                                      ffi::Array<int64_t> tensor_index_array) {
     PythonAPICall py("unsafe_hide_tensor_access");
     py.Input("block", block);
     py.Input("tensor_type", tensor_type);

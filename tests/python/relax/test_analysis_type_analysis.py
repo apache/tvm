@@ -222,7 +222,7 @@ def test_base_check():
     vdevice1 = rx.VDevice("llvm")
     vdevice2 = rx.VDevice("cuda", 0)
     vdevice3 = rx.VDevice("cuda", 2)
-    vdevice4 = rx.VDevice("cuda", 0, "")
+    vdevice4 = rx.VDevice("cuda", 0, "global")
 
     tensor0 = rx.TensorType(ndim=-1, dtype="int32")
     tensor1 = rx.TensorType(ndim=-1, dtype="float32")
@@ -758,8 +758,8 @@ def test_collect_symbolic_var_from_non_tensor_params(param_type, param_order):
 
 
 def test_collect_nonnegative_expressions():
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @R.function
     def func(

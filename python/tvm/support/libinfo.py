@@ -32,7 +32,6 @@ def libinfo():
         "USE_NCCL": os.environ.get("TVM_USE_NCCL", "ON"),
         "USE_NVTX": os.environ.get("TVM_USE_NVTX", "ON"),
         "USE_NVSHMEM": os.environ.get("TVM_USE_NVSHMEM", "OFF"),
-        "USE_HEXAGON": "OFF",
         "USE_CUDNN": "OFF",
         "USE_CUTLASS": "OFF",
         "USE_VULKAN": "OFF",

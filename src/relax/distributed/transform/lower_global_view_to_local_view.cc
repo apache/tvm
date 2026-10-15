@@ -140,7 +140,7 @@ class DistributedTensorCompactor : public s_tir::StmtExprMutator {
       }
       TensorVar tensor = param.as_or_throw<TensorVar>();
       TensorVar shard_tensor = compactor->ShardTensor(tensor);
-      new_params.push_back(shard_tensor.var());
+      new_params.push_back(shard_tensor);
       if (!shard_tensor.same_as(tensor)) {
         replace_tensor_map.Set(tensor, shard_tensor);
       }
@@ -253,17 +253,17 @@ class DistributedTensorCompactor : public s_tir::StmtExprMutator {
     }
     DimShard dim_shards = tensor_shards_[tensor];
     ffi::Array<PrimExpr> shape;
-    for (int i = 0; i < static_cast<int>(tensor->shape.size()); i++) {
+    for (int i = 0; i < static_cast<int>(tensor.shape().size()); i++) {
       if (dim_shards.count(i)) {
-        shape.push_back(floordiv(tensor->shape[i], dim_shards[i]));
+        shape.push_back(floordiv(tensor.shape()[i], dim_shards[i]));
       } else {
-        shape.push_back(tensor->shape[i]);
+        shape.push_back(tensor.shape()[i]);
       }
     }
-    TensorType new_type(tensor->storage_scope, tensor->dtype, std::move(shape), tensor->strides,
-                        tensor->elem_offset, tensor->data_alignment, tensor->offset_factor,
-                        tensor->layout);
-    return TensorVar(tensor.name(), std::move(new_type), tensor.loc());
+    TensorType new_type(std::move(shape), tensor.dtype(), tensor.scope(), tensor.strides(),
+                        tensor.elem_offset(), tensor.ty()->data_alignment,
+                        tensor.ty()->offset_factor, tensor.ty()->layout);
+    return TensorVar(tensor->name, std::move(new_type), tensor->loc);
   }
 
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {

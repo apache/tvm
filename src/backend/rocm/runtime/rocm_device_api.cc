@@ -28,6 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/runtime/timer.h>
 
 #include <algorithm>
@@ -144,11 +145,11 @@ class ROCMDeviceAPI final : public DeviceAPI {
     return rv;
   }
   ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                    ffi::Optional<ffi::String> mem_scope = std::nullopt) final {
-    TVM_FFI_CHECK(
-        !mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global",
-        ValueError)
-        << "Unsupported memory scope: " << mem_scope.value_or("");
+                    ffi::Optional<runtime::MemoryScope> mem_scope = std::nullopt) final {
+    TVM_FFI_CHECK(!mem_scope.has_value() || mem_scope.value() == runtime::MemoryScope::Global(),
+                  ValueError)
+        << "Unsupported memory scope: "
+        << mem_scope.value_or(runtime::MemoryScope::Global()).name();
     struct Allocator {
       ROCMDeviceAPI* api;
       void AllocData(DLTensor* tensor) {

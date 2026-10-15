@@ -28,7 +28,7 @@
 #include <string>
 #include <utility>
 
-#include "../../../target/build_common.h"
+#include "../../../codegen/build_common.h"
 #include "../runtime/spirv_shader.h"
 #include "spirv_utils.h"
 #include "vulkan_fallback_module.h"

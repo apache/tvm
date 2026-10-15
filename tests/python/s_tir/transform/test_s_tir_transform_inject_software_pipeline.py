@@ -21,22 +21,13 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.s_tir.tensor_intrin.cuda
+import tvm.s_tir.testing
 import tvm.testing
 from tvm import te, tirx
 from tvm.s_tir.meta_schedule.testing import te_workload
-from tvm.s_tir.tensor_intrin.cuda import (
-    LDMATRIX_f16_A_DYN_INTRIN,
-    LDMATRIX_f16_B_DYN_INTRIN,
-    MMA_f16f16f32_INTRIN,
-    MMA_fill_16x16_f32_INTRIN,
-    MMA_store_16x16_f32_global_INTRIN,
-    shared_16x16_to_ldmatrix_32x8_layout,
-)
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
-from tvm.testing.tir import mma_schedule
 
 
 def _check(original, transformed):
@@ -1474,165 +1465,6 @@ def test_three_stage_compute_two_stage_async():
                             D[tx, i - 2 + 16] = C[(i - 2 + 16) % 2, tx, 0] + T.float32(1)
 
     tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
-
-
-N = K = M = 4096
-
-
-def get_mma_schedule():
-    i_factors, j_factors, k_factors = [1, 32, 1, 4, 2], [16, 2, 4, 1, 2], [128, 2, 1]
-
-    def index_map(i, j):
-        return (
-            i // 16,
-            j // 16,
-            *shared_16x16_to_ldmatrix_32x8_layout(i % 16, j % 16),
-        )
-
-    workload = te.create_function(
-        te_workload.matmul(N, M, K, in_dtype="float16", out_dtype="float32")
-    )
-
-    return mma_schedule(
-        workload,
-        16,
-        "float16",
-        False,
-        i_factors,
-        j_factors,
-        k_factors,
-        index_map,
-        index_map,
-        index_map,
-        LDMATRIX_f16_A_DYN_INTRIN,
-        LDMATRIX_f16_B_DYN_INTRIN,
-        MMA_f16f16f32_INTRIN,
-        MMA_fill_16x16_f32_INTRIN,
-        MMA_store_16x16_f32_global_INTRIN,
-        "shared.dyn",
-    )
-
-
-def build_and_run(sch):
-    if tvm.testing.is_ampere_or_newer():
-        with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
-            f = tvm.compile(sch.mod["main"], target="cuda")
-
-        a_np = np.random.uniform(size=(N, K)).astype("float16")
-        b_np = np.random.uniform(size=(K, M)).astype("float16")
-        c_np = np.dot(a_np.astype("float32"), b_np.astype("float32"))
-
-        def run_and_check():
-            dev = tvm.cuda(0)
-            a = tvm.runtime.tensor(a_np, dev)
-            b = tvm.runtime.tensor(b_np, dev)
-            c = tvm.runtime.tensor(np.zeros((N, M), dtype="float32"), dev)
-            f(a, b, c)
-            tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
-
-        tvm.testing.run_with_gpu_lock(run_and_check)
-
-
-@pytest.mark.gpu
-@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_async_pipelined_mma_gemm_simple():
-    sch = get_mma_schedule()
-
-    k0 = sch.get_loops(sch.get_sblock("C_o_update"))[3]
-
-    sch.annotate(k0, ann_key="software_pipeline_stage", ann_val=[0, 0, 3])
-    sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
-    sch.annotate(k0, ann_key="software_pipeline_async_stages", ann_val=[0])
-
-    seq = tvm.transform.Sequential(
-        [
-            tvm.s_tir.transform.PlanAndUpdateTensorAllocationLocation(),
-            tvm.s_tir.transform.ConvertBlocksToOpaque(),
-            tvm.s_tir.transform.LowerMatchTensor(),
-            tvm.s_tir.transform.InjectSoftwarePipeline(),
-        ]
-    )
-    mod = seq(sch.mod)
-
-    pipeline = mod["main"].body[0].block.body[0].body[0].body[0].body[0].block.body[1].block.body
-    prologue, body, epilogue = pipeline
-
-    commit_group = prologue.block.body[0].body[0].block.body
-    assert len(commit_group) == 3
-    assert commit_group[-1].value.args[0] == 0
-
-    commit_group = body.block.body[0].body[0].block.body
-    assert len(commit_group) == 3
-    assert commit_group[-1].value.args[0] == 0
-
-    assert (
-        body.block.body[0].body[1].block.body[0].value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
-    )
-    assert body.block.body[0].body[1].block.body[0].value.args[1] == 3
-
-    assert (
-        epilogue.block.body[0]
-        .body[0]
-        .block.body[0]
-        .value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
-    )
-    assert str(epilogue.block.body[0].body[0].block.body[0].value.args[1]) == "2 - k_0_0"
-
-    build_and_run(sch)
-
-
-@pytest.mark.gpu
-@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_async_nested_pipeline_mma_gemm_ideal_annotation():
-    sch = get_mma_schedule()
-
-    k0 = sch.get_loops(sch.get_sblock("C_o_update"))[3]
-    k1 = sch.get_loops(sch.get_sblock("C_o_update"))[4]
-
-    sch.annotate(k0, ann_key="software_pipeline_stage", ann_val=[0, 0, 2, 3, 3])
-    sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 3, 2, 4])
-    sch.annotate(k0, ann_key="software_pipeline_async_stages", ann_val=[0])
-
-    sch.annotate(k1, ann_key="software_pipeline_stage", ann_val=[0, 0, 1])
-    sch.annotate(k1, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
-
-    seq = tvm.transform.Sequential(
-        [
-            tvm.s_tir.transform.PlanAndUpdateTensorAllocationLocation(),
-            tvm.s_tir.transform.ConvertBlocksToOpaque(),
-            tvm.s_tir.transform.LowerMatchTensor(),
-            tvm.s_tir.transform.InjectSoftwarePipeline(),
-        ]
-    )
-    mod = seq(sch.mod)
-
-    pipeline = mod["main"].body[0].block.body[0].body[0].body[0].body[0].block.body[1].block.body
-    prologue, body, epilogue = pipeline
-
-    commit_group = prologue.block.body[0].body[0].block.body
-    assert len(commit_group) == 3
-    assert commit_group[-1].value.args[0] == 0
-
-    assert (
-        prologue.block.body[0]
-        .body[1]
-        .block.body[0]
-        .value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
-    )
-    assert prologue.block.body[0].body[1].block.body[0].value.args[1] == 2
-
-    commit_group = body.block.body[0].body[0].block.body
-    assert len(commit_group) == 3
-    assert commit_group[-1].value.args[0] == 0
-
-    assert (
-        body.block.body[0].body[1].block.body[0].value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
-    )
-    assert body.block.body[0].body[1].block.body[0].value.args[1] == 2
-
-    assert str(epilogue.block.body[0].body[0].block.body[0].value.args[1]) == "1 - k_0_0"
-
-    build_and_run(sch)
 
 
 def test_less_loop_than_num_stage():

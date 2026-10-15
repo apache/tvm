@@ -28,6 +28,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
@@ -36,6 +37,7 @@
 #include <map>
 #include <unordered_set>
 
+#include "../memory_scope.h"
 #include "../schedule/utils.h"
 #include "ir_utils.h"
 
@@ -129,8 +131,6 @@ class PipelineOpaqueAccessRewriter {
     static const Op load_matrix_sync = Op::Get("tirx.gpu_load_matrix_sync");
     static const Op store_matrix_sync = Op::Get("tirx.gpu_store_matrix_sync");
     static const Op mma_sync = Op::Get("tirx.gpu_mma_sync");
-    static const Op ptx_ldmatrix_legacy = Op::Get("tirx.ptx_legacy.ldmatrix");
-    static const Op ptx_mma_legacy = Op::Get("tirx.ptx_legacy.mma");
     if (call->op.same_as(load_matrix_sync) || call->op.same_as(store_matrix_sync)) {
       const TensorVar& tensor = tensor_data_to_tensor_.at(GetBufferDataVar(call->args[0]).value());
       auto it = tensor_remap_.find(tensor);
@@ -157,10 +157,6 @@ class PipelineOpaqueAccessRewriter {
         }
       }
       return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->loc);
-    } else if (call->op.same_as(ptx_mma_legacy)) {
-      return RewriteTensorAccess(call, {6, 8, 10});
-    } else if (call->op.same_as(ptx_ldmatrix_legacy)) {
-      return RewriteTensorAccess(call, {3});
     }
     return call;
   }
@@ -180,41 +176,11 @@ class PipelineOpaqueAccessRewriter {
     int fragment_size = GetWmmaFragmentSize(old_tensor);
     PrimExpr offset =
         floordiv(foldl([](PrimExpr a, PrimExpr b, Location loc) { return mul(a, b, loc); },
-                       IntImm::Int32(1), old_tensor->shape),
+                       IntImm::Int32(1), old_tensor.shape()),
                  fragment_size);
     new_tensor_offset +=
-        floormod(pipeline_loop_->loop_var - pipeline_loop_->min, new_tensor->shape[0]) * offset;
+        floormod(pipeline_loop_->loop_var - pipeline_loop_->min, new_tensor.shape()[0]) * offset;
     return new_tensor_offset;
-  }
-
-  Expr RewriteTensorAccess(const Call& call, const std::vector<int> arg_indices) {
-    auto product = [](const ffi::Array<PrimExpr>& input) {
-      return foldl([](PrimExpr a, PrimExpr b, Location loc) { return mul(a, b, loc); },
-                   IntImm::Int32(1), input);
-    };
-    ffi::Array<Expr> new_args = call->args;
-    for (int i : arg_indices) {
-      const TensorVar& tensor = tensor_data_to_tensor_.at(GetBufferDataVar(call->args[i]).value());
-      auto it = tensor_remap_.find(tensor);
-      if (it != tensor_remap_.end()) {
-        const TensorVar& new_tensor = (*it).second;
-        new_args.Set(i, new_tensor.data());
-        PrimExpr old_index = call->args[i + 1].as_or_throw<PrimExpr>();
-        PrimExpr offset =
-            new_tensor->strides.empty() ? product(tensor->shape) : new_tensor->strides[0];
-        if (tensor.scope() == "m16n8k8.matrixA" || tensor.scope() == "m16n8k8.matrixB") {
-          // mma scope size will shrink by warp size
-          // @see transform_mma_tensor_layout
-          TVM_FFI_ICHECK_EQ(floormod(offset, 32).as_or_throw<IntImm>()->value, 0)
-              << "mma scope size should be multiple of warp size";
-          offset = floordiv(offset, 32);
-        }
-        PrimExpr new_index =
-            old_index + floormod(pipeline_loop_->loop_var, new_tensor->shape[0]) * offset;
-        new_args.Set(i + 1, new_index);
-      }
-    }
-    return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->loc);
   }
 
   const ffi::Map<Var, TensorVar>& tensor_data_to_tensor_;
@@ -254,7 +220,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
                                 fragment_info) {
     for (const auto& [original, remapped] : tensor_remap) {
       VarRemapSet(original, remapped);
-      tensor_data_to_tensor_.Set(remapped.var(), remapped);
+      tensor_data_to_tensor_.Set(remapped, remapped);
     }
   }
 
@@ -268,9 +234,9 @@ class PipelineBodyRewriter : public StmtExprMutator {
       // if access_all_versions == true
       Range accessed_version =
           access_all_versions_
-              ? Range::FromMinExtent(0, new_tensor->shape[0])
+              ? Range::FromMinExtent(0, new_tensor.shape()[0])
               : Range::FromMinExtent(floormod((pipeline_loop_->loop_var - pipeline_loop_->min),
-                                              new_tensor->shape[0]),
+                                              new_tensor.shape()[0]),
                                      IntImm::Int32(1));
       new_region.insert(new_region.begin(), accessed_version);
       return TensorRegion(new_tensor, new_region, TensorRegionType());
@@ -280,13 +246,13 @@ class PipelineBodyRewriter : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     for (const TensorVar& alloc_tensor : op->alloc_tensors) {
-      tensor_data_to_tensor_.Set(alloc_tensor.var(), alloc_tensor);
+      tensor_data_to_tensor_.Set(alloc_tensor, alloc_tensor);
     }
     SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
     for (const TensorVar& alloc_tensor : op->alloc_tensors) {
-      tensor_data_to_tensor_.erase(alloc_tensor.var());
+      tensor_data_to_tensor_.erase(alloc_tensor);
     }
     return block;
   }
@@ -311,7 +277,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
     auto* n = store.CopyOnWrite();
     n->dest = new_tensor;
     PrimExpr version =
-        floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_tensor->shape[0]);
+        floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_tensor.shape()[0]);
     n->indices.insert(n->indices.begin(), version);
     return store;
   }
@@ -324,29 +290,33 @@ class PipelineBodyRewriter : public StmtExprMutator {
                        .as_or_throw<ffi::Array<PrimExpr>>();
     TensorVar new_tensor = replacement.value();
     PrimExpr version =
-        floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_tensor->shape[0]);
+        floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_tensor.shape()[0]);
     indices.insert(indices.begin(), version);
-    return MakeTensorLoad(new_tensor, indices, op->loc);
+    return TensorLoad(new_tensor, indices, op->loc);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    const auto scope_mma_matrixA = GetRegisteredMemoryScope("mma.matrixA");
+    const auto scope_mma_matrixB = GetRegisteredMemoryScope("mma.matrixB");
+
     if (op->op.same_as(tirx::tensor_data_ptr_op())) {
       TensorVar tensor = op->args[0].as_or_throw<TensorVar>();
       if (auto replacement = VarRemapGet(tensor).as<TensorVar>()) {
         TensorVar new_tensor = replacement.value();
-        PrimExpr stride = new_tensor->strides.empty() ? PrimExpr(1) : new_tensor->strides[0];
-        if (new_tensor->strides.empty()) {
-          for (const PrimExpr& extent : tensor->shape) stride = stride * extent;
+        PrimExpr stride = new_tensor.strides().empty() ? PrimExpr(1) : new_tensor.strides()[0];
+        if (new_tensor.strides().empty()) {
+          for (const PrimExpr& extent : tensor.shape()) stride = stride * extent;
         }
-        if (tensor.scope() == "m16n8k8.matrixA" || tensor.scope() == "m16n8k8.matrixB") {
+        if ((scope_mma_matrixA && tensor.scope() == *scope_mma_matrixA) ||
+            (scope_mma_matrixB && tensor.scope() == *scope_mma_matrixB)) {
           // These logical matrix allocations are distributed over a warp.
           TVM_FFI_ICHECK_EQ(floormod(stride, 32).as_or_throw<IntImm>()->value, 0);
           stride = floordiv(stride, 32);
         }
-        PrimType dtype = tensor->dtype;
+        PrimType dtype = tensor.dtype();
         int bytes = (dtype.bits() * dtype.lanes() + 7) / 8;
         PrimExpr version =
-            floormod(pipeline_loop_->loop_var - pipeline_loop_->min, new_tensor->shape[0]);
+            floormod(pipeline_loop_->loop_var - pipeline_loop_->min, new_tensor.shape()[0]);
         return Call(op->ty, tirx::ptr_byte_offset_op(),
                     {new_tensor.data(), version * stride * bytes}, {}, {}, op->loc);
       }
@@ -411,7 +381,7 @@ class PipelineRewriter : public StmtExprMutator {
       }
     }
     for (const auto& [_, remapped] : tensor_remap_) {
-      tensor_data_to_tensor_.Set(remapped.var(), remapped);
+      tensor_data_to_tensor_.Set(remapped, remapped);
     }
 
     ordered_stmts_.resize(pipeline_info_.size());
@@ -449,8 +419,8 @@ class PipelineRewriter : public StmtExprMutator {
     for (const auto& alloc : pipeline_allocs_) {
       TensorVar remapped = tensor_remap_.Get(alloc).value_or(alloc);
       alloc_tensors.push_back(remapped);
-      tensor_data_to_tensor_.erase(alloc.var());
-      tensor_data_to_tensor_.erase(remapped.var());
+      tensor_data_to_tensor_.erase(alloc);
+      tensor_data_to_tensor_.erase(remapped);
     }
     SBlock block = MakeSBlock(stmt, tensor_data_to_tensor_);
     block.CopyOnWrite()->alloc_tensors = std::move(alloc_tensors);
@@ -593,14 +563,15 @@ class PipelineRewriter : public StmtExprMutator {
    * \return The resized tensor.
    */
   TensorVar RewriteAllocTensor(const TensorVar& tensor, int num_versions) {
-    ffi::ObjectPtr<TensorTypeNode> new_tensor = CopyTensorType(tensor);
+    ffi::ObjectPtr<TensorTypeNode> new_tensor =
+        ffi::make_object<TensorTypeNode>(*tensor.ty().get());
     new_tensor->shape.insert(new_tensor->shape.begin(), PrimExpr(num_versions));
     if (new_tensor->strides.size()) {
       TVM_FFI_ICHECK(new_tensor->strides.size() + 1 == new_tensor->shape.size());
       PrimExpr stride_0 = new_tensor->strides[0] * new_tensor->shape[1];
       new_tensor->strides.insert(new_tensor->strides.begin(), stride_0);
     }
-    return RebuildTensorVar(tensor, std::move(new_tensor));
+    return TensorVar(tensor->name, TensorType(std::move(new_tensor)), tensor->loc);
   }
 
   // Per-stage states that need to be tracked across pipeline prologue, body, and epilogue.
@@ -1083,7 +1054,7 @@ void BuildDependencyGraph(const ffi::Array<SBlock>& blocks,
 
   for (const SBlock& block : blocks) {
     for (const TensorRegion& read : block->reads) {
-      auto it = tensor_writers.find(read->source.as_or_throw<tvm::tirx::TensorVar>().var());
+      auto it = tensor_writers.find(read->source.as_or_throw<tvm::tirx::TensorVar>());
       if (it != tensor_writers.end()) {
         for (const SBlock& writer : it->second) {
           if (dep_src2dst != nullptr) {
@@ -1096,7 +1067,7 @@ void BuildDependencyGraph(const ffi::Array<SBlock>& blocks,
       }
     }
     for (const TensorRegion& write : block->writes) {
-      tensor_writers[write->source.as_or_throw<tvm::tirx::TensorVar>().var()].push_back(block);
+      tensor_writers[write->source.as_or_throw<tvm::tirx::TensorVar>()].push_back(block);
     }
   }
 }
@@ -1111,7 +1082,7 @@ class PipelineInjector : public StmtExprMutator {
     auto injector = ffi::make_object<PipelineInjector>(global_symbol);
     for (const Var& param : func->params) {
       if (auto tensor = param.as<TensorVar>()) {
-        injector->tensor_data_to_tensor_.Set(tensor.value().var(), tensor.value());
+        injector->tensor_data_to_tensor_.Set(tensor.value(), tensor.value());
       }
     }
     injector->fragment_info_ = GetTensorCoreFragmentInfo(func->body.value());
@@ -1185,8 +1156,7 @@ class PipelineInjector : public StmtExprMutator {
                                   : nullptr) {
       const auto& block = realize->block;
       for (const auto& tensor : block->alloc_tensors) {
-        TVM_FFI_ICHECK(tensor->IsInstance<TensorTypeNode>());
-        tensor_data_to_tensor_.Set(tensor.var(), tensor);
+        tensor_data_to_tensor_.Set(tensor, tensor);
       }
       pipeline_body = block->body;
       pipeline_allocs = block->alloc_tensors;
@@ -1213,7 +1183,7 @@ class PipelineInjector : public StmtExprMutator {
             nested_pipeline_block->match_tensors.empty());  // match_tensor should have been lowered
         for (const auto& tensor : nested_pipeline_block->alloc_tensors) {
           pipeline_allocs.push_back(tensor);
-          tensor_data_to_tensor_.Set(tensor.var(), tensor);
+          tensor_data_to_tensor_.Set(tensor, tensor);
         }
         const auto* nested_seq = nested_pipeline_block->body.get();
         for (size_t j = 0; j < nested_seq->seq.size(); j++) {
@@ -1273,7 +1243,7 @@ class PipelineInjector : public StmtExprMutator {
             op->body->size() == 1 ? op->body->seq[0].as<SBlockRealizeNode>() : nullptr) {
       const auto& block = realize->block;
       for (const auto& tensor : block->alloc_tensors) {
-        tensor_data_to_tensor_.erase(tensor.var());
+        tensor_data_to_tensor_.erase(tensor);
       }
     }
     return pipeline;
@@ -1288,8 +1258,8 @@ class PipelineInjector : public StmtExprMutator {
     for (const TensorVar& alloc_tensor : alloc_tensors) {
       n->alloc_tensors.push_back(alloc_tensor);
       ffi::Array<Range> region;
-      region.reserve(alloc_tensor->shape.size());
-      for (const PrimExpr& dim : alloc_tensor->shape) {
+      region.reserve(alloc_tensor.shape().size());
+      for (const PrimExpr& dim : alloc_tensor.shape()) {
         region.push_back(Range::FromMinExtent(0, dim));
       }
       n->writes.push_back(TensorRegion(alloc_tensor, region, TensorRegionType()));
@@ -1298,7 +1268,7 @@ class PipelineInjector : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     for (const auto& tensor : op->alloc_tensors) {
-      tensor_data_to_tensor_.Set(tensor.var(), tensor);
+      tensor_data_to_tensor_.Set(tensor, tensor);
     }
 
     auto it = op->annotations.find(tvm::s_tir::attr::kDoubleBufferScope);
@@ -1315,7 +1285,7 @@ class PipelineInjector : public StmtExprMutator {
                        .as_or_throw<SBlock>();
 
     for (const auto& tensor : op->alloc_tensors) {
-      tensor_data_to_tensor_.erase(tensor.var());
+      tensor_data_to_tensor_.erase(tensor);
     }
     return block;
   }

@@ -44,21 +44,18 @@ namespace relax {
                    sig::arg("x2", "The second input tensor."),                                   \
                    sig::var_ty_args("out_type",                                                  \
                                     "Optional output tensor type carrying the virtual device.")) \
-        .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutBinaryEwise)  \
-        .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,             \
-                                         MixedPrecisionPolicyKind::kFollow)                      \
-        .set_attr<bool>(tvm::relax::op_attr::kPurity, true) __VA_ARGS__;                         \
+        .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutBinaryEwise)                     \
+        .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow) \
+        .set_attr(tvm::relax::op_attr::kPurity, true) __VA_ARGS__;                               \
   }
 
-#define RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(OpName)                                \
-  RELAX_REGISTER_BINARY_OP_AND_IMPL(                                                       \
-      OpName, .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, \
-                                               InferTypeBroadcastArith))
+#define RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(OpName) \
+  RELAX_REGISTER_BINARY_OP_AND_IMPL(                        \
+      OpName, .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeBroadcastArith))
 
-#define RELAX_REGISTER_CMP_OP_AND_IMPL(OpName)                                             \
-  RELAX_REGISTER_BINARY_OP_AND_IMPL(                                                       \
-      OpName, .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, \
-                                               InferTypeBroadcastCMP))
+#define RELAX_REGISTER_CMP_OP_AND_IMPL(OpName) \
+  RELAX_REGISTER_BINARY_OP_AND_IMPL(           \
+      OpName, .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeBroadcastCMP))
 
 /***************** Arithmetic operators *****************/
 

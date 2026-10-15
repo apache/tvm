@@ -130,7 +130,7 @@ def gpu_multinomial_from_uniform(
     def compare_bool_not_equal(a: T.bool, b: T.bool) -> T.bool:
         # Vulkan does not support compare two bool value direct
         # return a != b
-        return T.Cast("int8", a) != T.Cast("int8", b)
+        return T.Cast(a, "int8") != T.Cast(b, "int8")
 
     @T.macro
     def block_adjacent_difference_left(
@@ -173,7 +173,7 @@ def gpu_multinomial_from_uniform(
             shared_buf = Ts.sblock_alloc_tensor((TX * TY,), dtype, scope="shared")
             idx: T.let[T.int64] = ty * TX + tx
 
-            local_sum[()] = T.Cast(dtype, init_value)
+            local_sum[()] = T.Cast(init_value, dtype)
             for i in T.unroll(thread_elem):
                 if T.constexpr(mask_local is not None):
                     if mask_local[i]:
@@ -214,10 +214,10 @@ def gpu_multinomial_from_uniform(
                 prob_local: T.let = T.if_then_else(
                     idx < vocab_size,
                     prob[row_idx, idx],
-                    T.Cast(prob_dtype, 0),
+                    T.Cast(0, prob_dtype),
                 )
                 prob_gt_threshold[v] = T.if_then_else(
-                    prob_local > threshold, prob_local, T.Cast(prob_dtype, 0)
+                    prob_local > threshold, prob_local, T.Cast(0, prob_dtype)
                 )
                 valid[v] = prob_local > threshold and idx < vocab_size
 
@@ -259,9 +259,9 @@ def gpu_multinomial_from_uniform(
 
             aggregate[()] += step_aggregate[()]
 
-    n = T.dynamic("n")
-    vocab_size = T.dynamic("vocab_size")
-    batch_size = T.dynamic("batch_size")
+    n = T.dynamic("n", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function
     def parallel_sampling_from_prob(
@@ -279,17 +279,17 @@ def gpu_multinomial_from_uniform(
         step_iter = Ts.sblock_alloc_tensor((), "int32", scope="local")
 
         for bx in T.parallel(batch_size, annotations={"thread_binding": "blockIdx.x"}):
-            row_idx: T.let[T.int64] = T.Cast("int64", row_indices[bx, 0])
+            row_idx: T.let[T.int64] = T.Cast(row_indices[bx, 0], "int64")
             for ty in T.parallel(TY, annotations={"thread_binding": "threadIdx.y"}):
                 for tx in T.parallel(TX, annotations={"thread_binding": "threadIdx.x"}):
                     u: T.let[T.float32] = uniform_samples[bx, 0]
-                    aggregate[()] = T.Cast(prob_dtype, 0)
+                    aggregate[()] = T.Cast(0, prob_dtype)
                     step_iter[()] = T.int32(0)
                     # at least one iteration
                     while T.gpu_thread_invariant(
                         (step_iter[()] == 0 or aggregate[()] < u - eps)
-                        and T.Cast(target_dtype, step_iter[()])
-                        < T.Cast(target_dtype, T.ceildiv(vocab_size, block_elem))
+                        and T.Cast(step_iter[()], target_dtype)
+                        < T.Cast(T.ceildiv(vocab_size, block_elem), target_dtype)
                     ):
                         single_batch_sampling(
                             prob,
@@ -297,7 +297,7 @@ def gpu_multinomial_from_uniform(
                             vocab_size,
                             ty,
                             tx,
-                            T.Cast(target_dtype, step_iter[()]),
+                            T.Cast(step_iter[()], target_dtype),
                             0.0,
                             aggregate,
                             u,
@@ -318,9 +318,9 @@ def generic_get_sample_index(
 ):
     """Generate a generic get_sample_index kernel."""
 
-    batch = T.dynamic("batch")
-    vocab_size = T.dynamic("vocab_size")
-    out_batch = T.dynamic("out_batch")
+    batch = T.dynamic("batch", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
+    out_batch = T.dynamic("out_batch", "int64")
 
     @Ts.function(private=True)
     def _get_sample_index(

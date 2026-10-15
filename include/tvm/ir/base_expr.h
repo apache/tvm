@@ -63,7 +63,7 @@ class TypeNode : public ffi::Object {
     namespace refl = tvm::ffi::reflection;
     // loc do not participate in structural equal and hash.
     refl::ObjectDef<TypeNode>().def_ro("loc", &TypeNode::loc, refl::DefaultValue(UnknownLoc()),
-                                       refl::AttachFieldFlag::SEqHashIgnore());
+                                       refl::init(false), refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;

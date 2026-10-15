@@ -68,6 +68,8 @@
 #include "3rdparty/tvm-ffi/src/ffi/object.cc"
 #include "3rdparty/tvm-ffi/src/ffi/tensor.cc"
 #include "3rdparty/tvm-ffi/src/ffi/testing/testing.cc"
+// Enum registration requires the FFI type-attribute registry above.
+#include "src/runtime/memory_scope.cc"
 #include "src/runtime/vm/attn_backend.cc"
 #include "src/runtime/vm/builtin.cc"
 #include "src/runtime/vm/bytecode.cc"

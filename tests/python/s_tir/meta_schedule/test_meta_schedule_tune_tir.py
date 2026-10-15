@@ -25,11 +25,11 @@ pytest.importorskip("tornado")  # tvm.rpc.tracker (LocalRPC) requires tornado
 
 import tvm
 import tvm.testing
-from tvm.ir.utils import derived_object
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
 from tvm.s_tir.schedule import SBlockRV, Schedule
+from tvm.s_tir.utils import derived_object
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
@@ -40,7 +40,11 @@ logging.getLogger("tvm.s_tir.meta_schedule").setLevel(logging.DEBUG)
 
 
 @Ts.function
-def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+def matmul(
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
+) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("update"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])

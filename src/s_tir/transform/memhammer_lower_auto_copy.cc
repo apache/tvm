@@ -24,6 +24,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -33,8 +34,6 @@
 #include <array>
 #include <stack>
 
-#include "../../runtime/thread_storage_scope.h"
-#include "../../tirx/transform/ir_utils.h"
 #include "../schedule/utils.h"
 #include "./memhammer_rewrite_rule.h"
 #include "tvm/tirx/stmt.h"
@@ -96,11 +95,14 @@ class AutoPadder {
    * \return the list of new padded tensors
    */
   ffi::Array<TensorVar> PadSharedMemory(const ffi::Array<TensorVar>& tensors) {
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
     ffi::Array<TensorVar> result;
 
     for (const TensorVar& tensor : tensors) {
-      runtime::StorageScope scope = runtime::StorageScope::Create(tensor.scope());
-      if (scope.rank == runtime::StorageRank::kShared) {
+      runtime::MemoryScope scope = tensor.scope();
+      if ((scope == scope_shared || scope == scope_shared_dyn)) {
         auto iter_spaces = iter_spaces_[tensor.get()];
         if (iter_spaces.empty()) {
           result.push_back(tensor);
@@ -110,8 +112,8 @@ class AutoPadder {
         // iteration spaces
         std::vector<std::vector<int>> low_dim_iter_space(iter_spaces.size(), std::vector<int>());
 
-        int n = tensor->shape.size();
-        int data_bits = tensor->dtype.bits();
+        int n = tensor.shape().size();
+        int data_bits = tensor.dtype().bits();
         // Step 1. initialize `low_dim_iter_space` with the iteration space of the last dim
         for (int i = 0; i < static_cast<int>(iter_spaces.size()); i++) {
           auto last_dim_iter_space = iter_spaces[i][n - 1];
@@ -124,12 +126,12 @@ class AutoPadder {
         for (int k = n - 2; k >= 0; k--) {  // dims
           int max_pad_size = static_cast<int>(std::min(
               max_pad_factor_ *
-                  static_cast<double>((stride * tensor->shape[k + 1]).as<IntImmNode>()->value),
+                  static_cast<double>((stride * tensor.shape()[k + 1]).as<IntImmNode>()->value),
               static_cast<double>(32 * 32 / data_bits)));
           int min_conflict = INT32_MAX;
           int min_conflict_pad = -1;
           for (int pad = 0; pad <= max_pad_size; pad += pad_min) {  // select padding
-            int padded_stride = (((stride * tensor->shape[k + 1]).as<IntImmNode>()->value + pad) %
+            int padded_stride = (((stride * tensor.shape()[k + 1]).as<IntImmNode>()->value + pad) %
                                  (32 * 32 / data_bits))
                                     .as<int>()
                                     .value();
@@ -157,7 +159,7 @@ class AutoPadder {
             auto iter_space = iter_spaces[i][k];
             if (!iter_space.empty()) {
               int padded_stride =
-                  (((stride * tensor->shape[k + 1]).as<IntImmNode>()->value + min_conflict_pad) %
+                  (((stride * tensor.shape()[k + 1]).as<IntImmNode>()->value + min_conflict_pad) %
                    (32 * 32 / data_bits))
                       .as<int>()
                       .value();
@@ -170,18 +172,18 @@ class AutoPadder {
               low_dim_iter_space[i] = loc;
             }
           }
-          stride = stride * tensor->shape[k + 1] + min_conflict_pad;
+          stride = stride * tensor.shape()[k + 1] + min_conflict_pad;
           reverse_strides.push_back(stride);
         }
         // Step 3. create the new padded tensor
-        ffi::ObjectPtr<TensorTypeNode> b = CopyTensorType(tensor);
+        ffi::ObjectPtr<TensorTypeNode> b = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
         ffi::Array<PrimExpr> strides;
         for (int i = static_cast<int>(reverse_strides.size()) - 1; i >= 0; i--) {
           strides.push_back(reverse_strides[i]);
         }
         strides.push_back(1);
         b->strides = strides;
-        TensorVar new_tensor = RebuildTensorVar(tensor, std::move(b));
+        TensorVar new_tensor = TensorVar(tensor->name, TensorType(std::move(b)), tensor->loc);
         result.push_back(new_tensor);
         padded_tensor_map_.Set(tensor, new_tensor);
       } else {
@@ -213,7 +215,7 @@ class AutoPadder {
                               .as_or_throw<TensorLoad>();
         TensorVar tensor = load->source.as_or_throw<tvm::tirx::TensorVar>();
         if (auto replacement = VarRemapGet(tensor).as<TensorVar>()) {
-          return MakeTensorLoad(replacement.value(), load->indices, load->loc);
+          return TensorLoad(replacement.value(), load->indices, load->loc);
         }
         return load;
       }
@@ -545,9 +547,11 @@ class AutoPadder {
      * \param op the tensor store
      */
     ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-      runtime::StorageScope scope =
-          runtime::StorageScope::Create(op->dest.as_or_throw<TensorVar>().scope());
-      if (scope.rank == runtime::StorageRank::kShared) {
+      static const auto scope_shared = runtime::MemoryScope::Get("shared");
+      static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
+      runtime::MemoryScope scope = op->dest.as_or_throw<TensorVar>().scope();
+      if ((scope == scope_shared || scope == scope_shared_dyn)) {
         ffi::Array<PrimExpr> substitued_indices;
         sym::Analyzer analyzer;
         auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -581,9 +585,12 @@ class AutoPadder {
      * \param op the tensor load
      */
     ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+      static const auto scope_shared = runtime::MemoryScope::Get("shared");
+      static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
       TensorVar tensor = op->source.as_or_throw<tvm::tirx::TensorVar>();
-      runtime::StorageScope scope = runtime::StorageScope::Create(tensor.scope());
-      if (scope.rank == runtime::StorageRank::kShared) {
+      runtime::MemoryScope scope = tensor.scope();
+      if ((scope == scope_shared || scope == scope_shared_dyn)) {
         ffi::Array<PrimExpr> substitued_indices;
         sym::Analyzer analyzer;
         auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -617,6 +624,9 @@ class AutoPadder {
      * \param op the call node
      */
     ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
+      static const auto scope_shared = runtime::MemoryScope::Get("shared");
+      static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
       if (const auto* eval =
               op->body->size() == 1 ? op->body->seq[0].as<EvaluateNode>() : nullptr) {
         if (const auto* call = eval->value.as<CallNode>()) {
@@ -626,8 +636,8 @@ class AutoPadder {
               call->op.same_as(gpu_store_matrix_sync_op)) {
             for (const MatchTensorRegion& r : op->match_tensors) {
               TensorVar src_tensor = r->source->source.as_or_throw<tvm::tirx::TensorVar>();
-              runtime::StorageScope scope = runtime::StorageScope::Create(src_tensor.scope());
-              if (scope.rank == runtime::StorageRank::kShared) {
+              runtime::MemoryScope scope = src_tensor.scope();
+              if ((scope == scope_shared || scope == scope_shared_dyn)) {
                 ffi::Array<Range> region = r->source->region;
                 ffi::Array<PrimExpr> indices;
                 for (int i = 0; i < static_cast<int>(region.size()); i++) {
@@ -732,6 +742,8 @@ class AutoCopyMutator : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    static const auto scope_wmma_accumulator = runtime::MemoryScope::Get("wmma.accumulator");
+
     SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
@@ -749,7 +761,7 @@ class AutoCopyMutator : public StmtExprMutator {
       bool found = false;
       for (size_t i = 0; i < block->reads.size(); i++) {
         if (block->reads[i]->source.as_or_throw<tvm::tirx::TensorVar>().scope() ==
-            "wmma.accumulator") {
+            scope_wmma_accumulator) {
           found = true;
           target_read = block->reads[i];
         }
@@ -757,7 +769,7 @@ class AutoCopyMutator : public StmtExprMutator {
       TVM_FFI_ICHECK(found) << "Multiple tensor read";
     }
 
-    int data_bits = target_read->source.as_or_throw<tvm::tirx::TensorVar>()->dtype.bits();
+    int data_bits = target_read->source.as_or_throw<tvm::tirx::TensorVar>().dtype().bits();
     ConstraintSet constraints(this->thread_extent_,  //
                               this->outer_loops_,    //
                               target_read,           //

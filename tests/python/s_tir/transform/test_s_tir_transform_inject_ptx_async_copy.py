@@ -21,6 +21,7 @@ import pytest
 import tvm_ffi
 
 import tvm
+import tvm.s_tir.testing
 import tvm.testing
 from tvm import s_tir
 from tvm.script import ir as I
@@ -157,10 +158,10 @@ def test_inject_async_copy():
 
         assert count_cp_async(mod["main"].body) == 1
 
-        if not tvm.testing.is_ampere_or_newer():
+        if not tvm.s_tir.testing.is_ampere_or_newer():
             continue
 
-        with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
+        with tvm.ir.transform.PassContext(config={"tirx.use_async_copy": 1}):
             mod = tvm.compile(tvm.IRModule.from_expr(f), target="cuda")
 
         A_np = np.random.rand(32, 128).astype(dtype)
@@ -191,10 +192,10 @@ def test_inject_async_copy_shared_dyn():
 
     assert count_cp_async(mod["main"].body) == 2
 
-    if not tvm.testing.is_ampere_or_newer():
+    if not tvm.s_tir.testing.is_ampere_or_newer():
         return
 
-    with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
+    with tvm.ir.transform.PassContext(config={"tirx.use_async_copy": 1}):
         mod = tvm.compile(tvm.IRModule.from_expr(f), target="cuda")
 
     A_np = np.random.rand(32, 128).astype("float16")
@@ -407,7 +408,7 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
                         C[tx, i] = A_shared[tx, 0] + B_shared[tx, 0]
 
     mod = tvm.IRModule.from_expr(simple_compute)
-    with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
+    with tvm.ir.transform.PassContext(config={"tirx.use_async_copy": 1}):
         tvm.compile(mod, target="cuda")
     generated_code = postproc_if_missing_async_support()
     print(generated_code)
@@ -870,7 +871,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                 )
 
     mod = tvm.IRModule.from_expr(complex_compute)
-    with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
+    with tvm.ir.transform.PassContext(config={"tirx.use_async_copy": 1}):
         tvm.compile(mod, target="cuda")
     generated_code = postproc_if_missing_async_support()
     # generated_code must contain "  setp.ne.b32 p, %0, 0;"
@@ -888,7 +889,7 @@ def test_multiplication_nodes_are_inlined():
 
             with Ts.async_copy_scope():
                 for i in range(16):
-                    cse_v1: T.int64 = T.Cast("int64", i)
+                    cse_v1: T.int64 = T.Cast(i, "int64")
                     A_shared[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)] = (
                         A_flattened[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)]
                     )
@@ -903,7 +904,7 @@ def test_multiplication_nodes_are_inlined():
             A_flattened = T.decl_tensor(A.data, ty_args=[T.Tensor((4096,), "float16", data=A.data)])
             A_shared = T.alloc_tensor(ty_args=[T.Tensor((4096,), "float16", scope="shared")])
             for i in range(16):
-                cse_v1: T.int64 = T.Cast("int64", i)
+                cse_v1: T.int64 = T.Cast(i, "int64")
                 T.s_tir.cp_async_raw(
                     A_shared.data,
                     tx * T.int64(128) + cse_v1 * T.int64(8),

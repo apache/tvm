@@ -48,7 +48,7 @@ def build_and_run(mod, inputs_np, target, legalize=True):
         with tvm.target.Target("cuda"):
             mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
 
-    with tvm.transform.PassContext():
+    with tvm.ir.transform.PassContext():
         ex = tvm.compile(mod, target)
 
     dev = tvm.cuda(0)
@@ -65,9 +65,9 @@ def build_and_run(mod, inputs_np, target, legalize=True):
 
 
 def test_attention():
-    num_seqs = T.dynamic("num_seqs")
-    num_blocks = T.dynamic("num_blocks")
-    max_num_blocks_per_seq = T.dynamic("max_num_blocks_per_seq")
+    num_seqs = T.dynamic("num_seqs", "int64")
+    num_blocks = T.dynamic("num_blocks", "int64")
+    max_num_blocks_per_seq = T.dynamic("max_num_blocks_per_seq", "int64")
 
     @I.ir_module
     class ModulePagedAttentionV1:
@@ -105,9 +105,9 @@ def test_attention():
                 R.output(out)
             return out
 
-    num_seqs = T.dynamic("num_seqs")
-    num_blocks = T.dynamic("num_blocks")
-    max_num_blocks_per_seq = T.dynamic("max_num_blocks_per_seq")
+    num_seqs = T.dynamic("num_seqs", "int64")
+    num_blocks = T.dynamic("num_blocks", "int64")
+    max_num_blocks_per_seq = T.dynamic("max_num_blocks_per_seq", "int64")
 
     @I.ir_module
     class ModulePagedAttentionV2:
@@ -352,8 +352,8 @@ def test_attention():
 
 
 def test_cache():
-    num_tokens = T.dynamic("num_tokens")
-    num_blocks = T.dynamic("num_blocks")
+    num_tokens = T.dynamic("num_tokens", "int64")
+    num_blocks = T.dynamic("num_blocks", "int64")
 
     @I.ir_module
     class Module:

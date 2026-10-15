@@ -29,7 +29,7 @@
 namespace tvm {
 
 CallEffectKind SideEffect(const Expr& expr) {
-  static auto effects = Op::GetAttrMap<TCallEffectKind>(tvm::op_attr::kCallEffectKind);
+  static auto effects = Op::GetAttrMap(tvm::op_attr::kCallEffectKind);
   CallEffectKind kind = CallEffectKind::kPure;
   ffi::StructuralVisit(
       expr,

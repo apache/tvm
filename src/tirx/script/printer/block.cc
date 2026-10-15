@@ -18,12 +18,13 @@
  */
 #include <tvm/ir/prim/op.h>
 #include <tvm/script/printer/doc_translator.h>
-#include <tvm/tirx/tile/exec_scope.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt.h>
+#include <tvm/tirx/tile/thread_scope.h>
 
 #include <optional>
 
 #include "../../../script/printer/ir/utils.h"
-#include "utils.h"
 
 namespace tvm {
 namespace script {
@@ -32,20 +33,19 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> ExecScopeDocTranslate(DocTranslatorObj*, ffi::AnyView input,
-                                             const ffi::Object*) {
+ffi::Optional<ExprDoc> ThreadScopeDocTranslate(DocTranslatorObj*, ffi::AnyView input,
+                                               const ffi::Object*) {
   const auto* scope =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ExecScopeNode>(input);
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ThreadScopeObj>(input);
   return NamespaceDoc("tirx")
-      ->Attr(scope->backend)
-      ->Attr("ExecScope")
+      ->Attr("ThreadScope")
       ->Call({LiteralDoc::Str(scope->name(), std::nullopt)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::ExecScopeNode>().attr(
+  ffi::reflection::TypeAttrDef<tirx::ThreadScopeObj>().attr(
       tvm::script::printer::type_attr::kDocTranslate,
-      FDocTranslate::FromNative<&ExecScopeDocTranslate>());
+      FDocTranslate::FromNative<&ThreadScopeDocTranslate>());
 }
 
 }  // namespace

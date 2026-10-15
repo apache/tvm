@@ -37,12 +37,10 @@ TVM_FFI_STATIC_INIT_BLOCK() { ExternOpNode::RegisterReflection(); }
 
 int ExternOpNode::num_outputs() const { return static_cast<int>(output_placeholders.size()); }
 
-PrimType ExternOpNode::output_dtype(size_t i) const {
-  return output_placeholders[i]->ElementType();
-}
+PrimType ExternOpNode::output_dtype(size_t i) const { return output_placeholders[i].dtype(); }
 
 ffi::Array<PrimExpr> ExternOpNode::output_shape(size_t i) const {
-  return output_placeholders[i]->shape;
+  return output_placeholders[i].shape();
 }
 
 ExternOp::ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
@@ -58,12 +56,12 @@ ExternOp::ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi:
   n->attrs = std::move(attrs);
   TVM_FFI_ICHECK_EQ(inputs.size(), input_placeholders.size());
   for (size_t i = 0; i < inputs.size(); ++i) {
-    TVM_FFI_ICHECK_EQ(inputs[i]->dtype, input_placeholders[i]->dtype);
-    TVM_FFI_ICHECK_EQ(inputs[i]->shape.size(), input_placeholders[i]->shape.size());
+    TVM_FFI_ICHECK_EQ(inputs[i]->dtype, input_placeholders[i].dtype());
+    TVM_FFI_ICHECK_EQ(inputs[i]->shape.size(), input_placeholders[i].shape().size());
     for (size_t dim = 0; dim < inputs[i]->shape.size(); ++dim) {
-      TVM_FFI_ICHECK(inputs[i]->shape[dim].same_as(input_placeholders[i]->shape[dim]));
+      TVM_FFI_ICHECK(inputs[i]->shape[dim].same_as(input_placeholders[i].shape()[dim]));
     }
-    TVM_FFI_ICHECK_EQ(input_placeholders[i]->strides.size(), 0U);
+    TVM_FFI_ICHECK_EQ(input_placeholders[i].strides().size(), 0U);
   }
   n->inputs = std::move(inputs);
   n->input_placeholders = std::move(input_placeholders);

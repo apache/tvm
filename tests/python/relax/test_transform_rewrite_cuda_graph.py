@@ -31,7 +31,7 @@ from tvm.script import tirx as T
 @pytest.fixture(autouse=True)
 def enable_cuda_graph():
     """Enable cuda graph transform for all tests in this file"""
-    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
+    with tvm.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
         yield
 
 
@@ -475,11 +475,11 @@ def test_capture_fixed_inputs():
                         A_red_temp_v0[v_ax0, v_ax1, v_ax2] = T.float32(0)
                         A_red_temp_v1[v_ax0, v_ax1, v_ax2] = T.float32(0)
                     v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0[v_ax0, v_ax1, v_ax2] + T.Cast(
-                        "float32", A[v_ax0, v_ax1, v_ax2, v_k3]
+                        A[v_ax0, v_ax1, v_ax2, v_k3], "float32"
                     )
                     v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1[v_ax0, v_ax1, v_ax2] + T.Cast(
-                        "float32", A[v_ax0, v_ax1, v_ax2, v_k3]
-                    ) * T.Cast("float32", A[v_ax0, v_ax1, v_ax2, v_k3])
+                        A[v_ax0, v_ax1, v_ax2, v_k3], "float32"
+                    ) * T.Cast(A[v_ax0, v_ax1, v_ax2, v_k3], "float32")
                     A_red_temp_v0[v_ax0, v_ax1, v_ax2] = v_A_red_temp_v0
                     A_red_temp_v1[v_ax0, v_ax1, v_ax2] = v_A_red_temp_v1
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(16), T.int64(32), T.int64(32), T.int64(16)):
@@ -495,9 +495,8 @@ def test_capture_fixed_inputs():
                     Ts.writes(T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3] = (
                         T.Cast(
-                            "float16",
                             (
-                                T.Cast("float32", A[v_ax0, v_ax1, v_ax2, v_ax3])
+                                T.Cast(A[v_ax0, v_ax1, v_ax2, v_ax3], "float32")
                                 - A_red_temp_v0[v_ax0, v_ax1, v_ax2] * T.float32(0.0625)
                             )
                             * T.rsqrt(
@@ -507,6 +506,7 @@ def test_capture_fixed_inputs():
                                 * (A_red_temp_v0[v_ax0, v_ax1, v_ax2] * T.float32(0.0625))
                                 + T.float32(1.0000000000000001e-05)
                             ),
+                            "float16",
                         )
                         * B[v_ax3]
                         + C[v_ax3]
@@ -657,7 +657,7 @@ def test_capture_fixed_inputs():
             _4: R.Tuple = R.memory.kill_storage(storage1)
             return gv_1
 
-    mod = tvm.transform.Sequential(
+    mod = tvm.ir.transform.Sequential(
         [
             relax.pipeline.get_pipeline(),
             relax.transform.LiftTransformParams(),
@@ -698,9 +698,9 @@ def test_transform_is_no_op_when_disabled():
             alloc3 = R.memory.alloc_tensor(storage, 0, R.shape([8]), "float32")
             return ()
 
-    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
+    with tvm.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
         AfterWhenEnabled = relax.transform.RewriteCUDAGraph()(Before)
-    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": False}):
+    with tvm.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": False}):
         AfterWhenDisabled = relax.transform.RewriteCUDAGraph()(Before)
 
     assert not tvm_ffi.structural_equal(Before, AfterWhenEnabled)
@@ -759,8 +759,8 @@ def test_static_args():
 
 
 def test_dynamic_capture():
-    m_add_one = T.dynamic("m")
-    m_main = T.dynamic("m")
+    m_add_one = T.dynamic("m", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -796,14 +796,14 @@ def test_dynamic_capture():
             _ = R.call_tir_packed(Before.add_one, (alloc2, alloc3))
             return alloc3
 
-    m_add_one = T.dynamic("m")
-    m_main_cuda_graph_capture = T.dynamic("m")
-    m_main = T.dynamic("m")
+    m_add_one = T.dynamic("m", "int64")
+    m_main_cuda_graph_capture = T.dynamic("m", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
         @Ts.function
-        def add_one(x: T.Tensor((m_add_one,)), y: T.Tensor((m_add_one,))):
+        def add_one(x: T.Tensor((m_add_one,), "float32"), y: T.Tensor((m_add_one,), "float32")):
             # with Ts.sblock("root"):
             for i in T.serial(T.int64(0), m_add_one):
                 with Ts.sblock("add"):
@@ -1096,7 +1096,7 @@ def test_disable_capture_output():
 
 
 def test_static_input_with_symbolic_shape():
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -1115,8 +1115,8 @@ def test_static_input_with_symbolic_shape():
             gv = (alloc3,)
             return gv
 
-    m_main_cuda_graph_capture = T.dynamic("m")
-    m_main = T.dynamic("m")
+    m_main_cuda_graph_capture = T.dynamic("m", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -1193,7 +1193,7 @@ if __name__ == "__main__":
 
 
 def test_match_cast_of_captured_value():
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:

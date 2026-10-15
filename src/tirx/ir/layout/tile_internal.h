@@ -34,27 +34,10 @@ namespace tirx {
 std::pair<TileLayout, std::vector<int64_t>> Group(TileLayout layout,
                                                   const ffi::Array<PrimExpr>& shape);
 
-// Group a tile layout by the minimal common refinement of several logical shapes.
-std::pair<TileLayout, std::vector<std::vector<int64_t>>> GroupMany(
-    TileLayout layout, const ffi::Array<ffi::Array<PrimExpr>>& shapes);
-
 // Same as Group but returns std::nullopt instead of fatal-checking when the
 // layout cannot be regrouped by ``shape``.
 std::optional<std::pair<TileLayout, std::vector<int64_t>>> TryGroup(
     TileLayout layout, const ffi::Array<PrimExpr>& shape);
-
-// Compute a tiled logical shape, either inner or outer tiling.
-ffi::Array<PrimExpr> TileShape(ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> factor,
-                               bool is_inner);
-
-// Elementwise division of two shapes.
-ffi::Array<PrimExpr> DivideShape(ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> factor);
-
-// Extract the even indices from a vector of separators.
-std::vector<int64_t> EvenSeparatorIndices(std::vector<int64_t> seps);
-
-// Split axes according to a split scope on the target.
-TileLayout SplitAxesByScope(TileLayout layout, const ffi::String& split_scope);
 
 }  // namespace tirx
 }  // namespace tvm

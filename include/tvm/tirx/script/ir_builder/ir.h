@@ -26,7 +26,7 @@
 #include <tvm/script/ir_builder/ir.h>
 #include <tvm/tirx/script/ir_builder/frame.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/tile/exec_scope.h>
+#include <tvm/tirx/tile/thread_scope.h>
 #include <tvm/tirx/type.h>
 
 namespace tvm {
@@ -52,8 +52,8 @@ using tvm::Var;
 using tvm::ffi::Tensor;
 using tvm::ffi::Tuple;
 using tvm::ffi::Variant;
-using tvm::tirx::ExecScope;
 using tvm::tirx::TensorVar;
+using tvm::tirx::ThreadScope;
 
 /*!
  * \brief The primitive function statement.
@@ -119,7 +119,7 @@ tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value);
  * \return The pointer.
  */
 inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
-                  ffi::String storage_scope = "global") {
+                  runtime::MemoryScope storage_scope = {}) {
   Type type_annotation = dtype.has_value() ? Type(PtrType(dtype.value(), storage_scope))
                                            : Type(PtrType::VoidPtrType(storage_scope));
   return tvm::Var("", type_annotation);
@@ -130,7 +130,7 @@ inline Var TensorMap() { return tvm::Var("", PtrType(tvm::tirx::TensorMapType())
 #define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                \
   inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {  \
     PrimType dtype = DType;                                                \
-    return expr.has_value() ? tvm::prim::cast(dtype, expr.value())         \
+    return expr.has_value() ? tvm::prim::cast(expr.value(), dtype)         \
                             : tvm::Var("", dtype).as_or_throw<PrimExpr>(); \
   }
 

@@ -64,7 +64,7 @@ TensorRegion GetRelaxedTensorRegion(const SBlockRealize& realize, const TensorRe
     relaxed_region.push_back(
         relaxed_intsets[i]
             .CoverRange(Range::FromMinExtent(
-                0, tensor_region->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i]))
+                0, tensor_region->source.as_or_throw<tvm::tirx::TensorVar>().shape()[i]))
             .value());
   }
   return TensorRegion(tensor_region->source.as_or_throw<tvm::tirx::TensorVar>(), relaxed_region,
@@ -128,7 +128,7 @@ class RollingBufferMatchError : public ScheduleErrorContextObj {
   }
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "The target tensor " << tensor_region_->source.as_or_throw<tvm::tirx::TensorVar>().name()
+    os << "The target tensor " << tensor_region_->source.as_or_throw<tvm::tirx::TensorVar>()->name
        << " with region " << tensor_region_->region
        << " should have at least one dimension range that matches a rolling pattern "
           "such as hh.outer * stride + hh.inner. ";
@@ -156,7 +156,7 @@ class RollingBufferInsertionError : public ScheduleErrorContextObj {
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "rolling_buffer injection is invalid. The block {0} should be tiled so that "
-       << "the lca of the access location of the target tensor " << tensor_.name()
+       << "the lca of the access location of the target tensor " << tensor_->name
        << " is a for loop. ";
     return os.str();
   }
@@ -269,11 +269,12 @@ class RollingBufferInfoCollector {
     if (!roll_iter_var.has_value()) {
       return false;
     }
-    ffi::Array<PrimExpr> new_shape = tensor->shape;
+    ffi::Array<PrimExpr> new_shape = tensor.shape();
     new_shape.Set(roll_axis, region[roll_axis]->extent);
-    auto new_tensor_type = CopyTensorType(tensor);
+    auto new_tensor_type = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
     new_tensor_type->shape = new_shape;
-    TensorVar new_tensor = RebuildTensorVar(tensor, std::move(new_tensor_type));
+    TensorVar new_tensor =
+        TensorVar(tensor->name, TensorType(std::move(new_tensor_type)), tensor->loc);
 
     info_ = RollingBufferInfo{tensor,         new_tensor,      roll_axis, region[roll_axis]->extent,
                               bound_overlaps, bound_iter_vars, {}};
@@ -362,8 +363,7 @@ class RollingBufferRewriter : public StmtExprMutator {
           new_iter_vars.push_back(old_iter_var);
         }
       }
-      ffi::Map<Var, TensorVar> tensor_data_to_tensor = {
-          {info_->new_tensor.var(), info_->new_tensor}};
+      ffi::Map<Var, TensorVar> tensor_data_to_tensor = {{info_->new_tensor, info_->new_tensor}};
       auto infered_access_regions = GetSBlockReadWriteRegion(stmt, tensor_data_to_tensor);
 
       n->iter_vars = std::move(new_iter_vars);
@@ -424,7 +424,7 @@ class RollingBufferRewriter : public StmtExprMutator {
       TensorVar tensor = stmt->source.as_or_throw<tvm::tirx::TensorVar>();
       ffi::Array<PrimExpr> indices = stmt->indices;
       RewriteTensorAccess(&tensor, &indices);
-      return MakeTensorLoad(tensor, indices, stmt->loc);
+      return TensorLoad(tensor, indices, stmt->loc);
     }
     return stmt;
   }
@@ -505,12 +505,12 @@ struct RollingBufferTraits : public UnpackedInstTraits<RollingBufferTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm write_tensor_index) {
-    return sch->RollingBuffer(block, write_tensor_index->value.as<int>().value());
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, int write_tensor_index) {
+    return sch->RollingBuffer(block, write_tensor_index);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      IntImm write_tensor_index) {
+                                      int write_tensor_index) {
     PythonAPICall py("rolling_buffer");
     py.Input("block", block);
     py.Input("write_tensor_index", write_tensor_index);

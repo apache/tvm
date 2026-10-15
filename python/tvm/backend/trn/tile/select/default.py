@@ -17,8 +17,11 @@
 
 """Implementation of select schedules."""
 
+from functools import cache
+
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import TensorRegion
+from tvm.runtime import MemoryScope
 from tvm.script import tirx as T
 from tvm.tirx import FloatImm, Function
 from tvm.tirx.tile import DispatchContext, fail
@@ -30,10 +33,15 @@ from ..dim_utils import get_ewise_dim_map
 from ..instruction_generator import InstructionGenerator
 
 
+@cache
+def _scope_trn_sbuf():
+    return MemoryScope("trn.sbuf")
+
+
 def select_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     """Generate schedule for select operation on Trainium."""
     if sctx.scope_kind != "thread":
-        fail("requires thread exec_scope for TRN select")
+        fail("requires thread scope for TRN select")
 
     op = TensorCall.decode(op)
     assert isinstance(op, Select), f"{op} is not a Select"
@@ -60,7 +68,7 @@ def select_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     # Validate tensor layout and scope
     tensor_conditions = [
         dst.source.ty.effective_layout() and true_value.source.ty.effective_layout(),
-        dst.source.scope() == "trn.sbuf" and true_value.source.scope() == "trn.sbuf",
+        dst.source.scope() == _scope_trn_sbuf() and true_value.source.scope() == _scope_trn_sbuf(),
         is_trainium_layout(true_value.source.ty.effective_layout()),
         is_trainium_layout(dst.source.ty.effective_layout()),
     ]

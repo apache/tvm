@@ -35,7 +35,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "exec_scope.h"
+#include "thread_scope.h"
 
 namespace tvm::backend::cuda {
 using namespace tvm::tirx;

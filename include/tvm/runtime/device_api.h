@@ -31,6 +31,7 @@
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/base.h>
+#include <tvm/runtime/memory_scope.h>
 
 #include <string>
 /*!
@@ -144,7 +145,7 @@ class TVM_RUNTIME_DLL DeviceAPI {
    * \return A tensor whose deleter owns the backend allocation and its resources.
    */
   virtual ffi::Tensor Empty(ffi::ShapeView shape, DLDataType dtype, DLDevice device,
-                            ffi::Optional<ffi::String> mem_scope = std::nullopt) = 0;
+                            ffi::Optional<MemoryScope> mem_scope = std::nullopt) = 0;
 
   /*!
    * \brief copy data from one place to another
@@ -246,7 +247,19 @@ class TVM_RUNTIME_DLL DeviceAPI {
   /*!
    * \brief Whether pointer arithmetics on a device owned pointer may be performed on the host.
    */
-  virtual bool SupportsDevicePointerArithmeticsOnHost() { return false; }
+  virtual bool SupportsDevicePtrArithmeticOnHost() { return false; }
+
+  /*!
+   * \brief Query an existing host mapping of a device allocation, if available.
+   *
+   * The returned pointer is borrowed from the allocation and remains subject to
+   * its mapping lifetime and synchronization requirements. This query does not
+   * map, unmap, or synchronize memory, and does not apply a tensor byte offset.
+   *
+   * \param data The backend's device allocation handle.
+   * \return The base of the existing host mapping, or nullptr if unavailable.
+   */
+  virtual void* GetMappedHostPtrIfAvailable(void* data) { return nullptr; }
 
  protected:
   /*!

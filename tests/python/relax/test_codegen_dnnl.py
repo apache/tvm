@@ -56,7 +56,7 @@ def build_and_run(mod, inputs, legalize=False):
     dev = tvm.cpu()
     inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs]
 
-    with tvm.transform.PassContext(config={"relax.transform.apply_legalize_ops": legalize}):
+    with tvm.ir.transform.PassContext(config={"relax.transform.apply_legalize_ops": legalize}):
         ex = tvm.compile(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
@@ -68,7 +68,7 @@ def test_dnnl_offload():
         "relax.nn.conv2d", with_bias=False, activation="relax.nn.relu"
     )
 
-    seq = tvm.transform.Sequential(
+    seq = tvm.ir.transform.Sequential(
         [
             relax.transform.FuseOpsByPattern([("dnnl.conv2d_relu", pat)]),
             relax.transform.MergeCompositeFunctions(),

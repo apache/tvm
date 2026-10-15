@@ -1696,23 +1696,17 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 self._raise_error(parameter, "Only scalar type parameters are supported")
             bound = getattr(parameter, "bound", None)
             dtype = (
-                "int64"
+                "int32"
                 if bound is None or (isinstance(bound, ast.Name) and bound.id == "int")
                 else protocol_registry.SCALAR_ANNOTATION_DTYPE.get(
                     self.module.prescan_ctx._match_special_func(bound)
                 )
             )
-            if bound is not None and not (isinstance(bound, ast.Name) and bound.id == "int"):
-                if (
-                    protocol_registry.SCALAR_ANNOTATION_DTYPE.get(
-                        self.module.prescan_ctx._match_special_func(bound)
-                    )
-                    is None
-                ):
-                    self._raise_error(
-                        parameter,
-                        "A symbolic type parameter bound must be int or a registered scalar dtype",
-                    )
+            if dtype is None:
+                self._raise_error(
+                    parameter,
+                    "A symbolic type parameter bound must be int or a registered scalar dtype",
+                )
             if getattr(parameter, "default_value", None) is not None:
                 self._raise_error(parameter, "A symbolic type parameter cannot have a default")
             alias = self.module.make_fresh_name("_symbol")
@@ -1788,9 +1782,9 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             self.function.capture_names.add(name)
             alias = self.module.make_fresh_name("_parameter")
             forward[name] = alias
-            dtype = protocol_registry.SCALAR_ANNOTATION_DTYPE[
+            dtype = protocol_registry.SCALAR_ANNOTATION_DTYPE.get(
                 self.module.prescan_ctx._match_special_func(annotation)
-            ]
+            )
             created = self._call(
                 self.module.ir_prefix,
                 "dynamic",

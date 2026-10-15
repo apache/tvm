@@ -26,7 +26,11 @@ from tvm.target import Target
 
 
 @Ts.function
-def matmul(A: T.Tensor([512, 512]), B: T.Tensor([512, 512]), C: T.Tensor([512, 512])) -> None:
+def matmul(
+    A: T.Tensor([512, 512], "float32"),
+    B: T.Tensor([512, 512], "float32"),
+    C: T.Tensor([512, 512], "float32"),
+) -> None:
     for i, j, k in T.grid(512, 512, 512):  # type: ignore
         with Ts.sblock("C"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])  # type: ignore

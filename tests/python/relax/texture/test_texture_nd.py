@@ -62,7 +62,7 @@ def get_rpc():
 
 def preprocess_pipeline(mod: IRModule) -> IRModule:
     desired_layouts = {"relax.nn.conv2d": ["NCHW16c", "OIHW16o", "NCHW16c"]}
-    seq = tvm.transform.Sequential(
+    seq = tvm.ir.transform.Sequential(
         [
             tvm.tirx.transform.BindTarget(Target.current(allow_none=False)),
             tvm.relax.transform.FoldConstant(),
@@ -89,7 +89,7 @@ def preprocess_pipeline(mod: IRModule) -> IRModule:
 
 
 def postprocess_pipeline(mod: IRModule) -> IRModule:
-    seq = tvm.transform.Sequential(
+    seq = tvm.ir.transform.Sequential(
         [
             tvm.relax.transform.ToNonDataflow(),
             tvm.relax.transform.RemovePurityChecking(),

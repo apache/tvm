@@ -20,10 +20,11 @@ Test the @tvm-bot merge code
 """
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
-import tvm
+import pytest
 
 from .test_utils import GITHUB_SCRIPT_ROOT, TempGit, run_script
 
@@ -47,8 +48,11 @@ class _TvmBotTest:
         """
         return data
 
-    @tvm.testing.skip_if_wheel_test
-    def test(self, tmpdir_factory):
+    @pytest.mark.skipif(
+        os.getenv("WHEEL_TEST", "").lower() in {"true", "1", "yes"},
+        reason="Test not supported in wheel.",
+    )
+    def test_command(self, tmpdir_factory):
         """
         Run the tvm-bot script using the data from preprocess_data
         """
@@ -278,4 +282,4 @@ class TestIgnoreJobs(_TvmBotTest):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    raise SystemExit(pytest.main([__file__]))

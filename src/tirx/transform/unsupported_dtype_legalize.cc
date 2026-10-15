@@ -183,13 +183,13 @@ class ComputeLegalizer : public StmtExprMutator {
     // all casts to matched data type (fp8/bf16) becomes f32
     PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (MatchType(op_ty)) {
-      return prim::cast(promote_dtype_.WithLanes(op_ty.lanes()), op_val);
+      return prim::cast(op_val, promote_dtype_.WithLanes(op_ty.lanes()));
     }
 
     if (op_val.same_as(op->value)) {
       return ffi::Unchanged();
     } else {
-      return prim::cast(op_ty, op_val);
+      return prim::cast(op_val, op_ty);
     }
   }
 
@@ -250,7 +250,7 @@ class ComputeLegalizer : public StmtExprMutator {
       bool is_load = op->op.same_as(tirx::masked_load_op());
       TensorVar original = op->args[0].as_or_throw<TensorVar>();
       TensorVar tensor = GetRemappedTensor(original);
-      ffi::Array<Expr> args{tensor.var()};
+      ffi::Array<Expr> args{tensor};
       ffi::Optional<PrimExpr> value;
       if (!is_load) {
         value = this->Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
@@ -266,13 +266,13 @@ class ComputeLegalizer : public StmtExprMutator {
       if (is_load) {
         for (const PrimExpr& index : indices) args.push_back(index);
         args.push_back(predicate);
-        Type type = MakeTensorLoad(tensor, indices).ty();
+        Type type = TensorLoad(tensor, indices).ty();
         return Call(type, op->op, args, op->attrs, op->ty_args, op->loc);
       }
-      if (MatchType(tensor->dtype)) {
-        value = CastTargetToDType(value.value(), MakeTensorLoad(tensor, indices).ty());
+      if (MatchType(tensor.dtype())) {
+        value = CastTargetToDType(value.value(), TensorLoad(tensor, indices).ty());
       }
-      PrimType storage_dtype = MakeTensorLoad(tensor, indices).ty();
+      PrimType storage_dtype = TensorLoad(tensor, indices).ty();
       if (value.value().ty() != storage_dtype) {
         TVM_FFI_ICHECK(MatchType(value.value().ty()));
         value = DTypeConversion(value.value(), storage_dtype);
@@ -386,10 +386,10 @@ class ComputeLegalizer : public StmtExprMutator {
         new_buf.same_as(op->dest.as_or_throw<TensorVar>())) {
       return ffi::Unchanged();
     } else {
-      if (MatchType(new_buf->dtype)) {
-        value = CastTargetToDType(value, MakeTensorLoad(new_buf, indices).ty());
+      if (MatchType(new_buf.dtype())) {
+        value = CastTargetToDType(value, TensorLoad(new_buf, indices).ty());
       }
-      PrimType storage_dtype = MakeTensorLoad(new_buf, indices).ty();
+      PrimType storage_dtype = TensorLoad(new_buf, indices).ty();
       if (value.ty() != storage_dtype) {
         // this happens when tensor get rewritten to f32
         // but values remain as fp8/bf16
@@ -408,7 +408,7 @@ class ComputeLegalizer : public StmtExprMutator {
     if (tensor.same_as(op->source) && indices.same_as(op->indices)) {
       return ffi::Unchanged();
     }
-    return MakeTensorLoad(tensor, indices, op->loc);
+    return TensorLoad(tensor, indices, op->loc);
   }
 
  private:
@@ -580,7 +580,7 @@ class StorageLegalizer : public StmtExprMutator {
       return ffi::Unchanged();
     } else {
       if (MatchType(op->value.ty())) {
-        TVM_FFI_ICHECK(new_buf->dtype.MatchesCode(DLDataTypeCode::kDLUInt));
+        TVM_FFI_ICHECK(new_buf.dtype().MatchesCode(DLDataTypeCode::kDLUInt));
       }
       return TensorStore(new_buf, indices, value);
     }
@@ -594,7 +594,7 @@ class StorageLegalizer : public StmtExprMutator {
     if (tensor.same_as(op->source) && indices.same_as(op->indices)) {
       return ffi::Unchanged();
     }
-    return MakeTensorLoad(tensor, indices, op->loc);
+    return TensorLoad(tensor, indices, op->loc);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
@@ -613,13 +613,13 @@ class StorageLegalizer : public StmtExprMutator {
     if (op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) {
       bool is_load = op->op.same_as(tirx::masked_load_op());
       TensorVar tensor = GetRemappedTensor(op->args[0].as_or_throw<TensorVar>());
-      ffi::Array<Expr> args{tensor.var()};
+      ffi::Array<Expr> args{tensor};
       ffi::Optional<PrimExpr> value;
       if (!is_load) {
         PrimExpr original_value = op->args[1].as_or_throw<PrimExpr>();
         value = this->ChangeToUInt(this->Mutate(original_value).ValueOrUnchanged(original_value));
         if (MatchType(original_value.ty())) {
-          TVM_FFI_ICHECK(tensor->dtype.MatchesCode(DLDataTypeCode::kDLUInt));
+          TVM_FFI_ICHECK(tensor.dtype().MatchesCode(DLDataTypeCode::kDLUInt));
         }
         args.push_back(value.value());
       }
@@ -634,7 +634,7 @@ class StorageLegalizer : public StmtExprMutator {
                          .ValueOrUnchanged(op->args[op->args.size() - 1])
                          .as_or_throw<Expr>());
       if (is_load) {
-        Type type = MakeTensorLoad(tensor, indices).ty();
+        Type type = TensorLoad(tensor, indices).ty();
         return Call(type, op->op, args, op->attrs, op->ty_args, op->loc);
       } else {
         return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->loc);
@@ -648,8 +648,8 @@ class StorageLegalizer : public StmtExprMutator {
       }
       Call call = ret.as_or_throw<Call>();
       Type new_element_type = GetStorageUIntDType(ffi::GetRef<PrimType>(element_type));
-      return Call(PtrType(new_element_type, pointer_type->storage_scope), call->op, call->args,
-                  call->attrs, call->ty_args, call->loc);
+      return Call(PtrType(new_element_type, pointer_type->scope), call->op, call->args, call->attrs,
+                  call->ty_args, call->loc);
     }
     if (!op->ty.as<PrimTypeNode>()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -703,7 +703,7 @@ class StorageLegalizer : public StmtExprMutator {
         PrimType elem_prim_type = ffi::GetRef<PrimType>(elem_type);
         if (MatchType(elem_prim_type)) {
           Var new_var =
-              Var(var->name, PtrType(GetStorageUIntDType(elem_prim_type), ptr_type->storage_scope));
+              Var(var->name, PtrType(GetStorageUIntDType(elem_prim_type), ptr_type->scope));
           VarRemapSet(var, new_var);
           return new_var;
         }
@@ -715,7 +715,7 @@ class StorageLegalizer : public StmtExprMutator {
   TensorVar GetRemappedTensor(TensorVar buf) {
     auto mapped = VarRemapGet(buf);
     if (mapped != nullptr) return mapped.as_or_throw<TensorVar>();
-    TVM_FFI_ICHECK(!MatchType(buf->dtype)) << "Cannot find var remap for " << buf;
+    TVM_FFI_ICHECK(!MatchType(buf.dtype())) << "Cannot find var remap for " << buf;
     return buf;
   }
 };

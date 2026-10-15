@@ -34,7 +34,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../tirx/transform/ir_utils.h"
+#include "../tensor_region.h"
 #include "../transform/ir_utils.h"
 #include "conditional_bounds.h"
 
@@ -54,7 +54,7 @@ class BlockReadWriteDetector : public s_tir::StmtExprVisitor {
       : tensor_var_map_(tensor_var_map) {
     for (const auto& item : tensor_var_map) {
       const TensorVar& tensor = item.second;
-      tensor_var_map_.Set(tensor.var(), tensor);
+      tensor_var_map_.Set(tensor, tensor);
     }
   }
 
@@ -152,8 +152,8 @@ void BlockReadWriteDetector::operator()(const Stmt& stmt) {
   TVM_FFI_ICHECK(block != nullptr)
       << "Only visiting Blocks is allowed, but got " << stmt->GetTypeKey();
   for (const s_tir::MatchTensorRegion& match_tensor : block->match_tensors) {
-    const Var target_var = match_tensor->tensor.var();
-    const Var source_var = match_tensor->source->source.as_or_throw<tvm::tirx::TensorVar>().var();
+    const Var target_var = match_tensor->tensor;
+    const Var source_var = match_tensor->source->source.as_or_throw<tvm::tirx::TensorVar>();
     if (tensor_var_map_.find(source_var) != tensor_var_map_.end()) {
       match_tensors_.insert_or_assign(target_var.get(), match_tensor);
       tensor_var_map_.Set(target_var, match_tensor->tensor);
@@ -286,7 +286,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op)
   if (op->op.same_as(tirx::address_of_op())) {
     if (const auto* load = op->args[0].as<TensorLoadNode>()) {
       // A tensor address is an opaque use, not a load of its pointed-to value.
-      UpdateOpaque(load->source.as_or_throw<TensorVar>().var());
+      UpdateOpaque(load->source.as_or_throw<TensorVar>());
       for (const PrimExpr& index : load->indices) {
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
       }
@@ -386,10 +386,10 @@ std::vector<sym::IntSet> BlockReadWriteDetector::ConvertMatchedRegion(
 
   ffi::Array<Range> region;
   region.reserve(int_sets.size());
-  TVM_FFI_ICHECK_EQ(tensor->shape.size(), int_sets.size());
+  TVM_FFI_ICHECK_EQ(tensor.shape().size(), int_sets.size());
   for (size_t i = 0; i < int_sets.size(); ++i) {
     const tvm::sym::IntSet& int_set = int_sets[i];
-    region.push_back(int_set.CoverRange(Range::FromMinExtent(0, tensor->shape[i])).value());
+    region.push_back(int_set.CoverRange(Range::FromMinExtent(0, tensor.shape()[i])).value());
   }
 
   region = ConvertRegion(match_tensor, region);
@@ -405,7 +405,7 @@ std::vector<sym::IntSet> BlockReadWriteDetector::ConvertMatchedRegion(
 void BlockReadWriteDetector::Update(std::vector<TensorVar>* tensors,
                                     std::vector<std::vector<sym::IntSet>>* regions,
                                     TensorVar tensor, std::vector<sym::IntSet> region) {
-  if (tensor_var_map_.find(tensor.var()) == tensor_var_map_.end()) return;
+  if (tensor_var_map_.find(tensor) == tensor_var_map_.end()) return;
   // Handle match_tensor remap
   auto it = match_tensors_.find(tensor.get());
   if (it != match_tensors_.end()) {
@@ -441,14 +441,14 @@ ffi::Array<TensorRegion> BlockReadWriteDetector::CollectRegions(
     }
     ffi::Array<Range> region;
     region.reserve(regions[i].size());
-    TVM_FFI_ICHECK_EQ(tensors[i]->shape.size(), regions[i].size());
+    TVM_FFI_ICHECK_EQ(tensors[i].shape().size(), regions[i].size());
     for (size_t j = 0; j < regions[i].size(); j++) {
       const tvm::sym::IntSet& range = regions[i][j];
       if (range.CanProveSinglePoint(ana_)) {
         PrimExpr min = range.min();
         region.push_back(Range::FromMinExtent(min, prim::MakeConst(min.ty(), 1)));
       } else {
-        region.push_back(range.CoverRange(Range::FromMinExtent(0, tensors[i]->shape[j])).value());
+        region.push_back(range.CoverRange(Range::FromMinExtent(0, tensors[i].shape()[j])).value());
       }
     }
     res.push_back(TensorRegion(tensors[i], region, TensorRegionType()));
@@ -460,7 +460,7 @@ void BlockReadWriteDetector::UpdateOpaque(const Var& tensor_var) {
   auto it = tensor_var_map_.find(tensor_var);
   if (it != tensor_var_map_.end()) {
     const TensorVar& tensor = (*it).second;
-    const TensorRegion tensor_region = FullTensorRegion(tensor);
+    const TensorRegion tensor_region = s_tir::FullTensorRegion(tensor);
     const ffi::Array<Range>& region = tensor_region->region;
     std::vector<sym::IntSet> int_set;
     int_set.reserve(region.size());

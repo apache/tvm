@@ -21,6 +21,7 @@ from typing import NoReturn, TypeVar
 from tvm import DataType
 from tvm.ir import DataTypeImm, GlobalInfo, LambdaExpr, Location, Var
 from tvm.ir.location import UNKNOWN_LOC
+from tvm.ir.type import _init_type_api
 from tvm.runtime import Object as tvm_Object
 
 from . import _ffi_api
@@ -39,7 +40,7 @@ def dtype(value: str | DataType) -> DataTypeImm:
     return DataTypeImm(value)
 
 
-def dynamic(name: str, dtype: str = "int64", *, loc: LocationEntry | Location = UNKNOWN_LOC) -> Var:
+def dynamic(name: str, dtype: str = "int32", *, loc: LocationEntry | Location = UNKNOWN_LOC) -> Var:
     """Create a fresh primitive symbolic variable, independently of builder scope.
 
     Parameters
@@ -47,7 +48,7 @@ def dynamic(name: str, dtype: str = "int64", *, loc: LocationEntry | Location = 
     name : str
         The symbol's display name. Repeated names do not share identity.
     dtype : str
-        Primitive dtype, defaulting to int64.
+        Primitive dtype, defaulting to int32.
     loc : LocationEntry or Location, optional
         Source location of the symbol.
 
@@ -199,3 +200,6 @@ def Lambda(parameter_types, function, *, ret_type=None):  # pylint: disable=inva
     An optional return annotation checks the body type without inserting casts.
     """
     return LambdaExpr(parameter_types, function, ret_type=ret_type)
+
+
+_init_type_api("ir", __name__)

@@ -24,12 +24,13 @@
 #include <tvm/ir/analysis.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op/memory.h>
 
 #include <unordered_set>
 
-#include "../../../tirx/transform/ir_utils.h"
+#include "../../tensor_region.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -57,7 +58,7 @@ class NotSingleWriteBlock : public ScheduleErrorContextObj {
 
   ffi::String DetailRenderTemplate() const final {
     size_t k = write_blocks_.size();
-    return "The tensor " + tensor_.name() + " is expected to be written by single block, but got " +
+    return "The tensor " + tensor_->name + " is expected to be written by single block, but got " +
            std::to_string(k) + " blocks who write it.";
   }
 
@@ -219,11 +220,11 @@ SBlock MakeReindexCacheStage(const TensorRegion& cache_region, ReindexCacheStage
       /*iter_vars*/ std::move(block_vars),
       /*reads=*/{TensorRegion(info->read_tensor, read_access_region, TensorRegionType())},
       /*writes=*/{TensorRegion(info->write_tensor, write_access_region, TensorRegionType())},
-      /*name_hint*/ cache_region->source.as_or_throw<tvm::tirx::TensorVar>().name() + "_" +
+      /*name_hint*/ cache_region->source.as_or_throw<tvm::tirx::TensorVar>()->name + "_" +
           storage_scope,
       /*body=*/
       TensorStore(info->write_tensor, write_access_indices,
-                  MakeTensorLoad(info->read_tensor, read_access_indices)),
+                  TensorLoad(info->read_tensor, read_access_indices)),
       /*init=*/std::nullopt,
       /*alloc_tensors=*/{},
       /*match_tensors=*/{},
@@ -277,13 +278,13 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
   ffi::Array<PrimExpr> read_access_indices;
   ffi::Array<PrimExpr> write_access_indices;
   // Create block vars, block's accessed region and accessing indices
-  for (int i = 0;
-       i < static_cast<int>(cache_region->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size());
+  for (int i = 0; i < static_cast<int>(
+                          cache_region->source.as_or_throw<tvm::tirx::TensorVar>().shape().size());
        ++i) {
     Range axis_range = cache_region->region[i];
     PrimVar var("v" + std::to_string(read_access_indices.size()), axis_range->extent.ty());
     if (cache_full_region) {
-      PrimExpr dim = cache_region->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i];
+      PrimExpr dim = cache_region->source.as_or_throw<tvm::tirx::TensorVar>().shape()[i];
       block_vars.push_back(IterVar(/*dom=*/Range::FromMinExtent(IntImm(dim.ty(), 0), dim),
                                    /*var=*/var,
                                    /*IterVarType=*/kDataPar));
@@ -322,11 +323,11 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
       /*iter_vars=*/std::move(block_vars),
       /*reads=*/{TensorRegion(info->read_tensor, read_access_region, TensorRegionType())},
       /*writes=*/{TensorRegion(info->write_tensor, write_access_region, TensorRegionType())},
-      /*name_hint=*/cache_region->source.as_or_throw<tvm::tirx::TensorVar>().name() + "_" +
+      /*name_hint=*/cache_region->source.as_or_throw<tvm::tirx::TensorVar>()->name + "_" +
           storage_scope,
       /*body=*/
       TensorStore(info->write_tensor, write_access_indices,
-                  MakeTensorLoad(info->read_tensor, read_access_indices)),
+                  TensorLoad(info->read_tensor, read_access_indices)),
       /*init=*/std::nullopt,
       /*alloc_tensors=*/{},
       /*match_tensors=*/{},
@@ -428,11 +429,11 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
   // Create the body block
   SBlock new_block(
       /*iter_vars=*/new_block_iters,
-      /*reads=*/{TensorRegionFromPoint(info->read_tensor, src_indices)},
-      /*writes=*/{TensorRegionFromPoint(info->write_tensor, dst_indices)},
-      /*name_hint=*/info->write_tensor.name() + "_reindex",
+      /*reads=*/{s_tir::TensorRegionFromPoint(info->read_tensor, src_indices)},
+      /*writes=*/{s_tir::TensorRegionFromPoint(info->write_tensor, dst_indices)},
+      /*name_hint=*/info->write_tensor->name + "_reindex",
       /*body=*/
-      TensorStore(info->write_tensor, dst_indices, MakeTensorLoad(info->read_tensor, src_indices)));
+      TensorStore(info->write_tensor, dst_indices, TensorLoad(info->read_tensor, src_indices)));
 
   // Step 4: Create surrounding loops
 
@@ -694,7 +695,7 @@ TensorRegion RelaxTensorRegion(ScheduleState self, const TensorRegion& tensor_re
   ffi::Array<Range> region;
   region.reserve(int_sets.size());
   for (size_t i = 0; i < int_sets.size(); ++i) {
-    region.push_back(int_sets[i].CoverRange(Range::FromMinExtent(0, tensor->shape[i])).value());
+    region.push_back(int_sets[i].CoverRange(Range::FromMinExtent(0, tensor.shape()[i])).value());
   }
   return TensorRegion(tensor, region, TensorRegionType());
 }
@@ -1122,7 +1123,7 @@ class CacheReadRewriter : public StmtExprMutator {
     }
     // Cache remapping can change pointer storage scope; the base Call hook preserves its type.
     if (!op->op.same_as(tirx::tensor_data_ptr_op()) || op->args.size() != 1) return result;
-    PtrType type = op->args[0].as_or_throw<TensorVar>().type()->DataPtrType();
+    PtrType type = op->args[0].as_or_throw<TensorVar>().ty()->DataPtrType();
     if (ffi::StructuralEqual()(op->ty, type)) return result;
     if (inplace_mode == InplaceMode::kAllow) {
       const_cast<CallNode*>(op)->ty = std::move(type);
@@ -1470,7 +1471,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     }
     // Cache remapping can change pointer storage scope; the base Call hook preserves its type.
     if (!op->op.same_as(tirx::tensor_data_ptr_op()) || op->args.size() != 1) return result;
-    PtrType type = op->args[0].as_or_throw<TensorVar>().type()->DataPtrType();
+    PtrType type = op->args[0].as_or_throw<TensorVar>().ty()->DataPtrType();
     if (ffi::StructuralEqual()(op->ty, type)) return result;
     if (inplace_mode == InplaceMode::kAllow) {
       const_cast<CallNode*>(op)->ty = std::move(type);
@@ -1646,7 +1647,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
  */
 TensorVar CreateReindexTensor(const TensorVar& tensor, const ffi::Array<IterVar>& block_iters,
                               const std::unordered_set<Var>& covered) {
-  ffi::ObjectPtr<TensorTypeNode> new_tensor = CopyTensorType(tensor);
+  ffi::ObjectPtr<TensorTypeNode> new_tensor = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
   std::vector<PrimExpr> new_shape;
   std::vector<PrimExpr> new_strides;
   for (const auto& iter : block_iters) {
@@ -1657,7 +1658,7 @@ TensorVar CreateReindexTensor(const TensorVar& tensor, const ffi::Array<IterVar>
   new_strides.clear();
   new_tensor->shape = new_shape;
   new_tensor->strides = new_strides;
-  return RebuildTensorVar(tensor, std::move(new_tensor), tensor.name() + "_reindex");
+  return TensorVar(tensor->name + "_reindex", TensorType(std::move(new_tensor)), tensor->loc);
 }
 
 /*!
@@ -1698,7 +1699,7 @@ class InvalidTensorAccessError : public ScheduleErrorContextObj {
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "The target tensor " << tensor_.name()
+    os << "The target tensor " << tensor_->name
        << " should be accessed in the leaf block {0} via TensorLoad or TensorStore. The indices "
           "should be the same if there are multiple accesses to the target tensor. ";
     if (kind_ == ErrorKind::kNoAccess) {
@@ -2031,7 +2032,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_tens
                      GetTensorRegionFromTensor(scope_block->reads, read_tensor)) {
         return scope_region.value();
       } else {
-        return FullTensorRegion(read_tensor);
+        return s_tir::FullTensorRegion(read_tensor);
       }
     }
   }();
@@ -2041,15 +2042,16 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_tens
       info.loc_sref.value()->StmtAs<SBlockNode>() == nullptr ||
       !AllConsumersUnderStmt(self, read_tensor, scope_sref, info.loc_sref.value());
   info.cache_region = cache_region;
-  info.write_tensor = WithScope(read_tensor, storage_scope);
+  info.write_tensor = WithScope(read_tensor, runtime::MemoryScope::Get(storage_scope));
   if (!cache_full_region) {
-    auto write_tensor = CopyTensorType(info.write_tensor);
+    auto write_tensor = ffi::make_object<TensorTypeNode>(*info.write_tensor.ty().get());
     std::vector<PrimExpr> shape;
     for (auto cache_range : info.cache_region->region) {
       shape.push_back(cache_range->extent);
     }
     write_tensor->shape = std::move(shape);
-    info.write_tensor = RebuildTensorVar(info.write_tensor, std::move(write_tensor));
+    info.write_tensor = TensorVar(info.write_tensor->name, TensorType(std::move(write_tensor)),
+                                  info.write_tensor->loc);
   }
   info.alloc = info.write_tensor;
 
@@ -2132,15 +2134,16 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_te
       info.loc_sref.value()->StmtAs<SBlockNode>() == nullptr ||
       !AllConsumersUnderStmt(self, write_tensor, scope_sref, info.loc_sref.value());
   info.cache_region = cache_region;
-  info.read_tensor = WithScope(write_tensor, storage_scope);
+  info.read_tensor = WithScope(write_tensor, runtime::MemoryScope::Get(storage_scope));
   if (!cache_full_region) {
-    auto read_tensor_type = CopyTensorType(info.read_tensor);
+    auto read_tensor_type = ffi::make_object<TensorTypeNode>(*info.read_tensor.ty().get());
     std::vector<PrimExpr> shape;
     for (auto cache_range : info.cache_region->region) {
       shape.push_back(cache_range->extent);
     }
     read_tensor_type->shape = std::move(shape);
-    info.read_tensor = RebuildTensorVar(info.read_tensor, std::move(read_tensor_type));
+    info.read_tensor = TensorVar(info.read_tensor->name, TensorType(std::move(read_tensor_type)),
+                                 info.read_tensor->loc);
   }
   info.alloc = info.read_tensor;
 
@@ -2279,11 +2282,12 @@ void CollectReindexCacheStageInfoAndCreateTensor(
   }
 
   // Create new tensor
-  ffi::ObjectPtr<TensorTypeNode> new_tensor = CopyTensorType(old_tensor);
-  new_tensor->storage_scope = storage_scope;
+  ffi::ObjectPtr<TensorTypeNode> new_tensor =
+      ffi::make_object<TensorTypeNode>(*old_tensor.ty().get());
+  new_tensor->scope = runtime::MemoryScope::Get(storage_scope);
   new_tensor->shape = new_shape;
-  TensorVar rebuilt =
-      RebuildTensorVar(old_tensor, std::move(new_tensor), old_tensor.name() + "_" + storage_scope);
+  TensorVar rebuilt = TensorVar(old_tensor->name + "_" + storage_scope,
+                                TensorType(std::move(new_tensor)), old_tensor->loc);
 
   if (is_cache_read) {
     info->write_tensor = rebuilt;
@@ -2495,7 +2499,7 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
   }
 
   ffi::Array<StmtSRef> results_block_sref;
-  TensorVar new_tensor = WithScope(tensor, storage_scope);
+  TensorVar new_tensor = WithScope(tensor, runtime::MemoryScope::Get(storage_scope));
 
   // Do cache read
   // Cache read step 0. Create CacheStageInfo
@@ -2642,17 +2646,16 @@ struct CacheReadTraits : public UnpackedInstTraits<CacheReadTraits> {
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block,
                                           ffi::Array<SBlockRV> consumer_blocks,
-                                          IntImm read_tensor_index, ffi::String storage_scope) {
-    return sch->CacheRead(block, read_tensor_index->value.as<int>().value(), storage_scope,
-                          consumer_blocks);
+                                          int read_tensor_index, ffi::String storage_scope) {
+    return sch->CacheRead(block, read_tensor_index, storage_scope, consumer_blocks);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
                                       ffi::Array<ffi::String> consumer_blocks,
-                                      IntImm read_tensor_index, ffi::String storage_scope) {
+                                      int read_tensor_index, ffi::String storage_scope) {
     PythonAPICall py("cache_read");
     py.Input("block", block);
-    py.Input("read_tensor_index", read_tensor_index->value.as<int>().value());
+    py.Input("read_tensor_index", read_tensor_index);
     py.Input("storage_scope", storage_scope);
     // Only write out consumer blocks if provided.
     if (!consumer_blocks.empty()) {
@@ -2677,17 +2680,16 @@ struct CacheWriteTraits : public UnpackedInstTraits<CacheWriteTraits> {
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block,
                                           ffi::Array<SBlockRV> consumer_blocks,
-                                          IntImm write_tensor_index, ffi::String storage_scope) {
-    return sch->CacheWrite(block, write_tensor_index->value.as<int>().value(), storage_scope,
-                           consumer_blocks);
+                                          int write_tensor_index, ffi::String storage_scope) {
+    return sch->CacheWrite(block, write_tensor_index, storage_scope, consumer_blocks);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
                                       ffi::Array<ffi::String> consumer_blocks,
-                                      IntImm write_tensor_index, ffi::String storage_scope) {
+                                      int write_tensor_index, ffi::String storage_scope) {
     PythonAPICall py("cache_write");
     py.Input("block", block);
-    py.Input("write_tensor_index", write_tensor_index->value.as<int>().value());
+    py.Input("write_tensor_index", write_tensor_index);
     py.Input("storage_scope", storage_scope);
     // Only write out consumer blocks if provided.
     if (!consumer_blocks.empty()) {
@@ -2711,16 +2713,16 @@ struct CacheInplaceTraits : public UnpackedInstTraits<CacheInplaceTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static ffi::Array<SBlockRV> UnpackedApplyToSchedule(Schedule sch, SBlockRV block,
-                                                      IntImm read_tensor_index,
+                                                      int read_tensor_index,
                                                       ffi::String storage_scope) {
-    return sch->CacheInplace(block, read_tensor_index->value.as<int>().value(), storage_scope);
+    return sch->CacheInplace(block, read_tensor_index, storage_scope);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      IntImm read_tensor_index, ffi::String storage_scope) {
+                                      int read_tensor_index, ffi::String storage_scope) {
     PythonAPICall py("cache_inplace");
     py.Input("block", block);
-    py.Input("read_tensor_index", read_tensor_index->value.as<int>().value());
+    py.Input("read_tensor_index", read_tensor_index);
     py.Input("storage_scope", storage_scope);
     py.OutputList(outputs);
     return py.Str();
@@ -2739,21 +2741,18 @@ struct ReIndexTraits : public UnpackedInstTraits<ReIndexTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IntImm tensor_index,
-                                          IntImm tensor_index_type) {
-    return sch->ReIndex(block, tensor_index->value.as<int>().value(),
-                        static_cast<TensorIndexType>(tensor_index_type->value.as<int>().value()));
+  static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block, int tensor_index,
+                                          int tensor_index_type) {
+    return sch->ReIndex(block, tensor_index, static_cast<TensorIndexType>(tensor_index_type));
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      IntImm tensor_index, IntImm tensor_index_type) {
+                                      int tensor_index, int tensor_index_type) {
     PythonAPICall py("reindex");
     py.Input("block", block);
     std::ostringstream os;
-    os << "(\""
-       << TensorIndexType2Str(
-              static_cast<TensorIndexType>(tensor_index_type->value.as<int>().value()))
-       << "\", " << tensor_index << ")";
+    os << "(\"" << TensorIndexType2Str(static_cast<TensorIndexType>(tensor_index_type)) << "\", "
+       << tensor_index << ")";
     py.Input("tensor", ffi::String(os.str()));
     py.SingleOutput(outputs);
     return py.Str();
@@ -2773,17 +2772,16 @@ struct ReindexCacheReadTraits : public UnpackedInstTraits<ReindexCacheReadTraits
   static constexpr size_t kNumDecisions = 0;
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IndexMap index_map,
-                                          IntImm read_tensor_index, ffi::String storage_scope) {
-    return sch->ReindexCacheRead(block, read_tensor_index->value.as<int>().value(), storage_scope,
-                                 index_map);
+                                          int read_tensor_index, ffi::String storage_scope) {
+    return sch->ReindexCacheRead(block, read_tensor_index, storage_scope, index_map);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      IndexMap index_map, IntImm read_tensor_index,
+                                      IndexMap index_map, int read_tensor_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("reindex_cache_read");
     py.Input("block", block);
-    py.Input("read_tensor_index", read_tensor_index->value.as<int>().value());
+    py.Input("read_tensor_index", read_tensor_index);
     py.Input("storage_scope", storage_scope);
     py.Input("index_map", index_map->ToPythonString());
     py.SingleOutput(outputs);
@@ -2804,17 +2802,16 @@ struct ReindexCacheWriteTraits : public UnpackedInstTraits<ReindexCacheWriteTrai
   static constexpr size_t kNumDecisions = 0;
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block, IndexMap index_map,
-                                          IntImm write_tensor_index, ffi::String storage_scope) {
-    return sch->ReindexCacheWrite(block, write_tensor_index->value.as<int>().value(), storage_scope,
-                                  index_map);
+                                          int write_tensor_index, ffi::String storage_scope) {
+    return sch->ReindexCacheWrite(block, write_tensor_index, storage_scope, index_map);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block,
-                                      IndexMap index_map, IntImm write_tensor_index,
+                                      IndexMap index_map, int write_tensor_index,
                                       ffi::String storage_scope) {
     PythonAPICall py("reindex_cache_write");
     py.Input("block", block);
-    py.Input("write_tensor_index", write_tensor_index->value.as<int>().value());
+    py.Input("write_tensor_index", write_tensor_index);
     py.Input("storage_scope", storage_scope);
     py.Input("index_map", index_map->ToPythonString());
     py.SingleOutput(outputs);

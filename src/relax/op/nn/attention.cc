@@ -170,26 +170,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("query", "The input queries tensor."),
                  sig::arg("key", "The input keys tensor."),
                  sig::arg("value", "The input values tensor."), sig::call_attrs<AttentionAttrs>())
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kAlways)
-      .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
-                                      InferMixedPrecisionAttention)
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeAttention)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kAlways)
+      .set_attr(tvm::relax::op_attr::kInferMixedPrecision, InferMixedPrecisionAttention)
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeAttention)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 
   OpDef("relax.nn.attention_bias")
       .signature(sig::arg("query", "The input queries tensor."),
                  sig::arg("key", "The input keys tensor."),
                  sig::arg("value", "The input values tensor."),
                  sig::arg("bias", "The input bias tensor."), sig::call_attrs<AttentionAttrs>())
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kAlways)
-      .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
-                                      InferMixedPrecisionAttention)
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeAttention)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kAlways)
+      .set_attr(tvm::relax::op_attr::kInferMixedPrecision, InferMixedPrecisionAttention)
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeAttention)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 
   OpDef("relax.nn.attention_var_len")
       .signature(sig::arg("query", "The input queries tensor."),
@@ -200,13 +194,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("max_seqlen_q", "The maximum query sequence length in the batch."),
                  sig::arg("max_seqlen_k", "The maximum key sequence length in the batch."),
                  sig::call_attrs<AttentionAttrs>())
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kAlways)
-      .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
-                                      InferMixedPrecisionAttention)
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeAttention)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kAlways)
+      .set_attr(tvm::relax::op_attr::kInferMixedPrecision, InferMixedPrecisionAttention)
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeAttention)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 
   AttentionAttrs::RegisterReflection();
 }

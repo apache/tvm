@@ -15,32 +15,47 @@
     specific language governing permissions and limitations
     under the License.
 
-Execution Scope IR
-==================
+Thread Scope Enum Tags
+======================
 
-tvm.tirx.exec_scope
--------------------
-.. automodule:: tvm.tirx.exec_scope
+tvm.tirx.thread_scope
+---------------------
+.. automodule:: tvm.tirx.thread_scope
    :members:
    :no-index:
 
 Backend scopes
 --------------
 
-Execution scope identities remain part of generic layout IR. Backends register
-their finite execution hierarchies and provide the user-facing constructors:
-``T.cuda.ExecScope("warp")`` and ``T.trn.ExecScope("thread")``.
-``T.cuda.ExecScope("kernel")`` names the root used by grid axes such as ``bx``
+Thread scopes are canonical ``ffi.Enum`` identities shared by layout IR,
+tile Call attributes, and dispatch contexts. Query a registered tag with
+``T.ThreadScope("cuda.warp")``. The ``name`` property is the qualified enum
+name; ``local_name`` is ``"warp"``. ``backend`` and ``rank`` are enum attributes,
+and registration order has no hierarchy semantics.
+
+Backends register their finite thread hierarchies natively using ``EnumDef``
+and explicit backend and rank attributes. Their user-facing lookup helpers are:
+``T.cuda.ThreadScope("warp")`` and ``T.trn.ThreadScope("thread")``.
+``T.cuda.ThreadScope("kernel")`` names the root used by grid axes such as ``bx``
 in the ``kernel -> cta`` relationship. Every scope uniformly describes a
 hierarchy node; each backend tile instruction declares the scopes it supports.
+Same-backend hierarchy comparisons use explicit ranks; cross-backend comparisons
+are rejected.
 For example, CUDA TMA instructions accept ``thread`` and ``tcgen05.ld/st`` accept
 ``warpgroup``. CUDA index bindings and predicate analysis live in
 ``tvm.backend.cuda.tile.exec_context``.
 
-.. automodule:: tvm.backend.cuda.exec_scope
+Instruction APIs continue accepting ``scope="warp"`` and also accept qualified
+names or ``ThreadScope`` values. Construction resolves the value before
+creating the Call; ``Call.attrs.scope`` always contains a ``ThreadScope`` enum.
+Omitting scope uses the instruction backend's ``thread`` tag. Direct attribute
+construction must provide the tag or its qualified name; shared attribute
+schemas have no backend-independent default.
+
+.. automodule:: tvm.backend.cuda.thread_scope
    :members:
    :no-index:
 
-.. automodule:: tvm.backend.trn.exec_scope
+.. automodule:: tvm.backend.trn.thread_scope
    :members:
    :no-index:

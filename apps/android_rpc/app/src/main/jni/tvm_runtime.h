@@ -46,6 +46,7 @@
 #include "../src/runtime/cpu_device_api.cc"
 #include "../src/runtime/device_api.cc"
 #include "../src/runtime/logging.cc"
+#include "../src/runtime/memory_scope.cc"
 #include "../src/runtime/metadata.cc"
 #include "../src/runtime/registry.cc"
 #include "../src/runtime/rpc/rpc_channel.cc"

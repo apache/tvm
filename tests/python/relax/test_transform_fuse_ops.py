@@ -1281,8 +1281,8 @@ def test_dead_group():
 
 
 def test_symbolic_shape_aware_fuse():
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -1295,10 +1295,10 @@ def test_symbolic_shape_aware_fuse():
                 R.output(gv)
             return gv
 
-    n_fused_add_exp_squeeze = T.dynamic("n")
-    m_fused_add_exp_squeeze = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_main = T.dynamic("m")
+    n_fused_add_exp_squeeze = T.dynamic("n", "int64")
+    m_fused_add_exp_squeeze = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -1329,7 +1329,7 @@ def test_symbolic_shape_aware_fuse():
 
 
 def test_symbolic_shape_aware_fuse_2():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -1342,8 +1342,8 @@ def test_symbolic_shape_aware_fuse_2():
                 R.output(gv)
             return gv
 
-    n_fused_full_trilu_broadcast_to = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_fused_full_trilu_broadcast_to = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1384,7 +1384,7 @@ def test_symbolic_shape_aware_fuse_2():
 
 
 def test_symbolic_prim_arg_after_tensor_arg():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -1461,7 +1461,7 @@ def test_symbolic_prim_arg_after_tensor_arg():
 
 
 def test_symbolic_prim_arg_before_tensor_arg():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -1538,7 +1538,7 @@ def test_symbolic_prim_arg_before_tensor_arg():
 
 
 def test_symbolic_prim_arg_reused_from_derived_tensor_shape():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -1618,8 +1618,8 @@ def test_symbolic_prim_arg_reused_from_derived_tensor_shape():
 
 
 def test_symbolic_prim_arg_not_bound_by_derived_tensor_shape():
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -1826,7 +1826,7 @@ def test_primitive_call_arg_used_by_output_shape_not_inlined():
 
 
 def test_symbolic_prim_arg_used_only_by_output_shape():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -1897,7 +1897,7 @@ def test_symbolic_prim_arg_used_only_by_output_shape():
 
 
 def test_shape_expr_arg():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -1916,8 +1916,8 @@ def test_shape_expr_arg():
                 R.output(gv, lv2)
             return gv, lv2
 
-    n_fused_full_trilu_broadcast_to = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_fused_full_trilu_broadcast_to = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1964,8 +1964,8 @@ def test_shape_expr_arg():
 
 
 def test_skipping_match_cast():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -2221,7 +2221,7 @@ def test_packed_params():
                     v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(lv[v_i0, v_i1])
                     Ts.writes(compute[v_i0, v_i1])
-                    compute[v_i0, v_i1] = T.Cast("float32", lv[v_i0, v_i1])
+                    compute[v_i0, v_i1] = T.Cast(lv[v_i0, v_i1], "float32")
 
         @Ts.function(private=True)
         def matmul(x: T.Tensor((T.int64(16), T.int64(16)), "float32"), lv2: T.Tensor((T.int64(16), T.int64(16)), "float32"), T_matmul: T.Tensor((T.int64(16), T.int64(16)), "float32")):

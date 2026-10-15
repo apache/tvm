@@ -22,6 +22,7 @@
  * \brief Data SLayout expression.
  */
 #include <tvm/ffi/dtype.h>
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -221,7 +222,7 @@ ffi::Optional<SLayout> SLayout::Create(const std::string& name, PrimType index_t
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   SLayoutNode::RegisterReflection();
-  refl::TypeAttrDef<SLayoutNode>().def(refl::type_attr::kRepr,
+  refl::TypeAttrDef<SLayoutNode>().def(ffi::type_attr::kRepr.name,
                                        [](SLayout l, ffi::Function) -> ffi::String {
                                          return "SLayout(" + std::string(l->name) + ")";
                                        });
@@ -521,7 +522,7 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
       bind_map.insert_or_assign(orig_axis->var.get(),
                                 orig_axis->var.ty() == orig_shape.ty()
                                     ? orig_shape
-                                    : prim::cast(orig_axis->var.ty(), orig_shape));
+                                    : prim::cast(orig_shape, orig_axis->var.ty()));
     }
   }
   auto f_substitute = [&bind_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -604,7 +605,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   SBijectiveLayoutNode::RegisterReflection();
   refl::TypeAttrDef<SBijectiveLayoutNode>().def(
-      refl::type_attr::kRepr, [](SBijectiveLayout bl, ffi::Function) -> ffi::String {
+      ffi::type_attr::kRepr.name, [](SBijectiveLayout bl, ffi::Function) -> ffi::String {
         return "SBijectiveLayout(" + std::string(bl->src_layout.name()) + "->" +
                std::string(bl->dst_layout.name()) + ")";
       });

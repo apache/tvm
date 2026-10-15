@@ -639,7 +639,7 @@ def test_rewrite_static_reshape():
                     i, j = Ts.axis.remap("SS", iters)
                     z[i, j] = y1[i, j] + y2[i, j]
 
-    After = tvm.transform.Sequential(
+    After = tvm.ir.transform.Sequential(
         [
             # Lower both R.reshape and R.add from Relax to TIR
             relax.transform.LegalizeOps(),
@@ -656,7 +656,7 @@ def test_rewrite_static_reshape():
 
 
 # def test_rewrite_dynamic_reshape():
-#     N = T.dynamic("N")
+#     N = T.dynamic("N", "int64")
 #
 #     @I.ir_module
 #     class Before:
@@ -700,7 +700,7 @@ def test_rewrite_static_reshape():
 #                     i, j = Ts.axis.remap("SS", iters)
 #                     z[i, j] = y1[i, j] + y2[i, j]
 
-#     After = tvm.transform.Sequential(
+#     After = tvm.ir.transform.Sequential(
 #         [
 #             # Lower both R.reshape and R.add from Relax to TIR
 #             relax.transform.LegalizeOps(),
@@ -717,7 +717,7 @@ def test_rewrite_static_reshape():
 
 
 def test_rewrite_dynamic_reshape():
-    N = T.dynamic("N")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module
     class Before:
@@ -729,7 +729,7 @@ def test_rewrite_dynamic_reshape():
                 R.output(z)
             return z
 
-    N = T.dynamic("N")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module
     class Expected:
@@ -763,7 +763,7 @@ def test_rewrite_dynamic_reshape():
                     i, j = Ts.axis.remap("SS", iters)
                     z[i, j] = y1[i, j] + y2[i, j]
 
-    After = tvm.transform.Sequential(
+    After = tvm.ir.transform.Sequential(
         [
             # Lower both R.reshape and R.add from Relax to TIR
             relax.transform.LegalizeOps(),
