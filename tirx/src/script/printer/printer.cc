@@ -360,9 +360,9 @@ ffi::String RenderScript(const ffi::ObjectRef& obj, const PrinterConfig& config)
             if (auto id = child.as<IdDoc>()) used.insert(id.value()->name);
           },
           &visited);
-      std::string loader = "tvm";
+      std::string loader = "tvm_tirx";
       for (size_t suffix = 1; used.count(loader); ++suffix)
-        loader = "tvm_" + std::to_string(suffix);
+        loader = "tvm_tirx_" + std::to_string(suffix);
       ffi::String json = ffi::json::Stringify(
           ffi::ToJSONGraph(metadata, ffi::json::Object{{"tvm_version", TVM_VERSION}}), 2);
       block.value()->stmts.insert(block.value()->stmts.begin(),
@@ -373,7 +373,7 @@ ffi::String RenderScript(const ffi::ObjectRef& obj, const PrinterConfig& config)
                                                 ->Call({LiteralDoc::Str(json, std::nullopt)}),
                                             std::nullopt));
       header.push_back(
-          ffi::String(loader == "tvm" ? "import tvm\n" : "import tvm as " + loader + "\n"));
+          ffi::String(loader == "tvm_tirx" ? "import tvm_tirx\n" : "import tvm_tirx as " + loader + "\n"));
     } else {
       block.value()->stmts.push_back(
           CommentDoc("Metadata omitted. Use show_meta=True in script() method to show it."));
@@ -411,7 +411,10 @@ ffi::String RenderScript(const ffi::ObjectRef& obj, const PrinterConfig& config)
       canonical.resize(canonical.size() - std::string(".prefix").size());
       if (!namespaces.count(canonical)) continue;
       ffi::String alias = config->GetExtraConfig<ffi::String>(key, fallback);
-      ffi::String import = "from tvm_tirx.script import " + canonical + " as " + std::string(alias);
+      ffi::String import =
+          canonical == "s_tir" || canonical == "relax"
+              ? "from tvm." + canonical + " import script as " + std::string(alias)
+              : "from tvm_tirx.script import " + canonical + " as " + std::string(alias);
       if (config->GetExtraConfig<bool>("ir.comment_imports", false) && !config->show_meta) {
         header.push_back(CommentDoc(import));
       } else {

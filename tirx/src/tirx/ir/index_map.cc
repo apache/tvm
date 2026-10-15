@@ -473,7 +473,7 @@ ffi::String IndexMapNode::ToPythonString(
   std::string inverse_lambda_expr =
       IndexMap2PythonLambdaExpr(inverse->initial_indices, inverse->final_indices);
   std::ostringstream oss;
-  oss << "tvm.tirx.IndexMap.from_func(" << lambda_expr
+  oss << "tvm_tirx.tirx.IndexMap.from_func(" << lambda_expr
       << ", inverse_index_map=" << inverse_lambda_expr << ")";
   return ffi::String(oss.str());
 }
