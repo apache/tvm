@@ -37,9 +37,10 @@ transformations of primitive tensor functions.
 # First, let's take a look at the implementation of ``mm_relu`` in the previous section:
 
 import tvm
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 @I.ir_module
@@ -77,18 +78,18 @@ a_np = np.random.uniform(size=(128, 128)).astype("float32")
 b_np = np.random.uniform(size=(128, 128)).astype("float32")
 c_np = a_np @ b_np
 
-a_nd = tvm.runtime.tensor(a_np)
-b_nd = tvm.runtime.tensor(b_np)
-c_nd = tvm.runtime.tensor(np.zeros((128, 128), dtype="float32"))
+a_nd = tvm_tirx.runtime.tensor(a_np)
+b_nd = tvm_tirx.runtime.tensor(b_np)
+c_nd = tvm_tirx.runtime.tensor(np.zeros((128, 128), dtype="float32"))
 
 
-def evaluate(mod: tvm.IRModule):
-    lib = tvm.tirx.compile(mod, target="llvm").mod
+def evaluate(mod: tvm_tirx.IRModule):
+    lib = tvm_tirx.tirx.compile(mod, target="llvm").mod
     # check correctness
     lib(a_nd, b_nd, c_nd)
     np.testing.assert_allclose(c_nd.numpy(), c_np, rtol=1e-5)
     # evaluate performance
-    f_timer = lib.time_evaluator("main", tvm.cpu())
+    f_timer = lib.time_evaluator("main", tvm_tirx.cpu())
     print(f_timer(a_nd, b_nd, c_nd))
 
 

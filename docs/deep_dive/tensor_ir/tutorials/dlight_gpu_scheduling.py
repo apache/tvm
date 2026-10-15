@@ -46,10 +46,11 @@ quality, and how to write custom rules.
 # rules: ``Linear`` layers produce GEMM (matrix multiplication) kernels, ``LayerNorm``
 # produces a general-reduction kernel, and ``ReLU`` is a simple elementwise op.
 
-import tvm
-from tvm import relax, tirx
+import tvm_tirx
+from tvm import relax
 from tvm.relax.frontend import nn
 from tvm.s_tir import dlight as dl
+from tvm_tirx import tirx
 
 
 class DemoModel(nn.Module):
@@ -70,8 +71,8 @@ mod, params = DemoModel().export_tvm({"forward": {"x": nn.spec.Tensor((1, 768), 
 ######################################################################
 # Legalize Relax operators into TIR functions so that DLight has concrete kernels to schedule.
 
-device = tvm.cuda(0)
-target = tvm.target.Target.from_device(device)
+device = tvm_tirx.cuda(0)
+target = tvm_tirx.target.Target.from_device(device)
 with target:
     mod = relax.get_pipeline("zero")(mod)
 
@@ -263,7 +264,7 @@ from tvm.s_tir.dlight.base.schedule_rule import ScheduleRule
 
 
 @ScheduleRule.from_callable("MyTileAndBind")
-def my_tile_and_bind(func: tirx.Function, target: tvm.target.Target, tunable: bool):
+def my_tile_and_bind(func: tirx.Function, target: tvm_tirx.target.Target, tunable: bool):
     """A minimal rule: for single-block injective functions, tile and bind to GPU threads."""
     if not isinstance(func, tirx.Function):
         return None

@@ -15,12 +15,12 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.script.ir_builder
----------------------
+tvm_tirx.script.ir_builder
+--------------------------
 
-tvm.script.ir_builder
-*********************
-.. automodule:: tvm.script.ir_builder
+tvm_tirx.script.ir_builder
+**************************
+.. automodule:: tvm_tirx.script.ir_builder
    :members:
    :imported-members:
    :exclude-members: Call, DataTypeImm, FuncType, GenericConst, MissingType, Op, PrimType, Range, StringImm, StringType, TensorRegion, TensorRegionType, Tuple, Type, Var

@@ -56,9 +56,10 @@ import numpy as np
 import tvm_ffi
 
 import tvm
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 @I.ir_module
@@ -205,10 +206,10 @@ class DynamicShapeModule:
 # Now let's check the runtime dynamic shape inference:
 
 
-def evaluate_dynamic_shape(lib: tvm.runtime.Module, m: int, n: int, k: int):
-    A = tvm.runtime.tensor(np.random.uniform(size=(m, k)).astype("float32"))
-    B = tvm.runtime.tensor(np.random.uniform(size=(k, n)).astype("float32"))
-    C = tvm.runtime.tensor(np.zeros((m, n), dtype="float32"))
+def evaluate_dynamic_shape(lib: tvm_tirx.runtime.Module, m: int, n: int, k: int):
+    A = tvm_tirx.runtime.tensor(np.random.uniform(size=(m, k)).astype("float32"))
+    B = tvm_tirx.runtime.tensor(np.random.uniform(size=(k, n)).astype("float32"))
+    C = tvm_tirx.runtime.tensor(np.zeros((m, n), dtype="float32"))
     lib(A, B, C)
     return C.numpy()
 
@@ -265,7 +266,7 @@ C = te.compute((128, 128), lambda i, j: te.max(Y[i, j], 0), name="C")
 # and one output parameter **C**.
 
 te_func = te.create_function([A, B, C]).with_attr({"global_symbol": "mm_relu"})
-TEModule = tvm.IRModule({"mm_relu": te_func})
+TEModule = tvm_tirx.IRModule({"mm_relu": te_func})
 TEModule.show()
 
 ######################################################################
@@ -283,5 +284,5 @@ Y = te.compute((M, N), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name="Y")
 C = te.compute((M, N), lambda i, j: te.max(Y[i, j], 0), name="C")
 
 dyn_te_func = te.create_function([A, B, C]).with_attr({"global_symbol": "mm_relu"})
-DynamicTEModule = tvm.IRModule({"mm_relu": dyn_te_func})
+DynamicTEModule = tvm_tirx.IRModule({"mm_relu": dyn_te_func})
 DynamicTEModule.show()

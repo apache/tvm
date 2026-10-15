@@ -56,26 +56,26 @@ compiler arguments are not modeled as separate Python fields.
 
 .. code-block:: python
 
-    from tvm.backend.cuda import BackendConfig
+    from tvm_tirx.backend.cuda import BackendConfig
 
     cuda_config = BackendConfig(
         compiler="nvrtc",
         nvrtc=["--use_fast_math", "--ftz=false"],
     )
-    target = tvm.target.Target({
+    target = tvm_tirx.target.Target({
         "kind": "cuda", "arch": "sm_100a",
         "backend_config": {"cuda": cuda_config},
     })
     executable = tvm.compile(func, target=target)
 
-.. autoclass:: tvm.backend.cuda.BackendConfig
+.. autoclass:: tvm_tirx.backend.cuda.BackendConfig
    :members:
    :undoc-members:
 
-.. autoclass:: tvm.backend.cuda.compiler.CompilationResult
+.. autoclass:: tvm_tirx.backend.cuda.compiler.CompilationResult
    :members:
 
-.. autofunction:: tvm.backend.cuda.compiler.compile_source
+.. autofunction:: tvm_tirx.backend.cuda.compiler.compile_source
 
 See :doc:`../native_basics/cuda/compiling` for target-tag defaults, inheritance,
 per-entry compilation, and artifact behavior. See :doc:`cuda_compile_options`

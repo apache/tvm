@@ -64,12 +64,14 @@ from pprint import pprint
 from tvm_ffi import Shape
 
 import tvm
-from tvm import relax, te, tirx
+import tvm_tirx
+from tvm import relax, te
 from tvm.relax import register_pipeline
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.relax.frontend.nn.llm.kv_cache import PagedKVCache, TIRPagedKVCache
 from tvm.s_tir import dlight
+from tvm_tirx import tirx
 
 ######################################################################
 # First, we need to define the model configuration. The configuration includes the key parameters
@@ -92,8 +94,8 @@ class LlamaConfig:
     head_dim: int = 64  # hidden_size // num_attention_heads
 
 
-dev = tvm.cuda(0)
-target = tvm.target.Target.from_device(dev)
+dev = tvm_tirx.cuda(0)
+target = tvm_tirx.target.Target.from_device(dev)
 
 
 ######################################################################
@@ -382,9 +384,11 @@ def _pipeline(  # pylint: disable=too-many-arguments
 ):
     ext_mods = ext_mods or []
 
-    @tvm.ir.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.ir.transform.PassContext) -> tvm.ir.IRModule:
-        seq = tvm.ir.transform.Sequential(
+    @tvm_tirx.ir.transform.module_pass(opt_level=0)
+    def _pipeline(
+        mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext
+    ) -> tvm_tirx.ir.IRModule:
+        seq = tvm_tirx.ir.transform.Sequential(
             [
                 # Phase 1. Passes on high-level operator graph
                 # We can enable cublas for further optimization
@@ -490,7 +494,8 @@ if not IS_IN_CI:
 
     # Convert params into ndarray
     params = [
-        tvm.runtime.tensor(param_dict[k].astype("float16"), device=dev) for k in named_params.keys()
+        tvm_tirx.runtime.tensor(param_dict[k].astype("float16"), device=dev)
+        for k in named_params.keys()
     ]
 
 
@@ -524,7 +529,7 @@ if not IS_IN_CI:
     input_len = len(prompt)
 
     # Load prompt tokens into TVM ndarray on the target device
-    tokens = tvm.runtime.tensor(np.array(prompt).astype("int32"), device=dev)
+    tokens = tvm_tirx.runtime.tensor(np.array(prompt).astype("int32"), device=dev)
 
 ######################################################################
 # Create the KVCache
@@ -548,7 +553,7 @@ if not IS_IN_CI:
 # The next step is to embed the tokens into the hidden states. We use the `embed` function
 # compiled in the Relax IRModule to embed the tokens into the hidden states.
 
-nd_view_func = tvm.get_global_func("vm.builtin.reshape")
+nd_view_func = tvm_tirx.get_global_func("vm.builtin.reshape")
 
 
 def embed(tokens, params):
@@ -563,9 +568,9 @@ def embed(tokens, params):
 # ~~~~~~~
 # Before running the forward pass, we first get some help functions for preparation.
 
-add_sequence_func = tvm.get_global_func("vm.builtin.kv_state_add_sequence")
-begin_forward_func = tvm.get_global_func("vm.builtin.kv_state_begin_forward")
-end_forward_func = tvm.get_global_func("vm.builtin.kv_state_end_forward")
+add_sequence_func = tvm_tirx.get_global_func("vm.builtin.kv_state_add_sequence")
+begin_forward_func = tvm_tirx.get_global_func("vm.builtin.kv_state_begin_forward")
+end_forward_func = tvm_tirx.get_global_func("vm.builtin.kv_state_end_forward")
 
 ######################################################################
 # As we are creating a new sequence, we need to call `add_sequence_func` to initialize
@@ -610,7 +615,7 @@ if not IS_IN_CI:
     print("The generated token:")
 
     while last_token != tokenizer.eos_token_id:
-        tokens = tvm.runtime.tensor(np.array([last_token]).astype("int32"), device=dev)
+        tokens = tvm_tirx.runtime.tensor(np.array([last_token]).astype("int32"), device=dev)
         hidden_states = embed(tokens, params)
         begin_forward_func(kv_cache, Shape([seq_id]), Shape([1]))
         logits, kv_cache = vm["decode"](hidden_states, kv_cache, params)

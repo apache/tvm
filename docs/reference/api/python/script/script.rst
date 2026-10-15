@@ -15,22 +15,22 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.script
-----------
+tvm_tirx.script
+---------------
 
-tvm.script
-**********
-.. automodule:: tvm.script
+tvm_tirx.script
+***************
+.. automodule:: tvm_tirx.script
    :members:
    :imported-members:
    :exclude-members: Any
 
-tvm.script.relax
+tvm.relax.script
 ****************
 
 Operator attributes re-exported by this namespace are documented in :mod:`tvm.relax.op`.
 
-.. automodule:: tvm.script.relax
+.. automodule:: tvm.relax.script
    :members:
    :exclude-members: ExternFunc, ShapeExpr, TupleGetItem, Range, function, macro,
       ArgmaxArgminAttrs, ArgsortAttrs, AstypeAttrs, CallInplacePackedAttrs, CallTIRInplaceAttrs,
@@ -42,28 +42,28 @@ Operator attributes re-exported by this namespace are documented in :mod:`tvm.re
       SplitAttrs, SqueezeAttrs, StackAttrs, StatisticalAttrs, StridedSliceAttrs, TakeAttrs,
       TileAttrs, TopKAttrs, ToVDeviceAttrs, TriluAttrs, WrapParamAttrs
 
-.. autofunction:: tvm.script.relax.function
+.. autofunction:: tvm.relax.script.function
 
-.. autofunction:: tvm.script.relax.macro
+.. autofunction:: tvm.relax.script.macro
 
-tvm.script.tirx
-***************
+tvm_tirx.script.tirx
+********************
 
-Operator attributes re-exported by this namespace are documented in :mod:`tvm.tirx`.
-Shared IR classes and builder infrastructure are documented in :mod:`tvm.ir` and
-:mod:`tvm.script.ir_builder`.
-The canonical ``MemoryScope`` class is documented in :mod:`tvm.runtime`.
+Operator attributes re-exported by this namespace are documented in :mod:`tvm_tirx.tirx`.
+Shared IR classes and builder infrastructure are documented in :mod:`tvm_tirx.ir` and
+:mod:`tvm_tirx.script.ir_builder`.
+The canonical ``MemoryScope`` class is documented in :mod:`tvm_tirx.runtime`.
 
-.. automodule:: tvm.script.tirx
+.. automodule:: tvm_tirx.script.tirx
    :members:
    :exclude-members: AlreadyEmitted, DataTypeImm, FuncType, GenericConst, IRBuilder,
       IRModuleFrame, MemoryScope, MissingType, Op, PrimType, StringImm, StringType, TensorRegion,
       TensorRegionType, Type, Range, meta_var, Var, Call, CommReducer, Reduce, FloatImm, IntImm, Cast, Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod, LShift, RShift, BitwiseAnd, BitwiseOr, BitwiseXor, BitwiseNot, Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not, Select, Ramp, Broadcast, Shuffle, CallEffectKind, IterVar, ComposeLayout, DtypeConstructor, ThreadScope, Iter, Layout, LetAnnotation, LocalVectorAnnotation, TileLayout, CallFFIKernelAttr, TensorMapEncodeTiledAttr, function, jit, inline, macro
 
-.. autofunction:: tvm.script.tirx.function
+.. autofunction:: tvm_tirx.script.tirx.function
 
-.. autofunction:: tvm.script.tirx.jit
+.. autofunction:: tvm_tirx.script.tirx.jit
 
-.. autofunction:: tvm.script.tirx.inline
+.. autofunction:: tvm_tirx.script.tirx.inline
 
-.. autofunction:: tvm.script.tirx.macro
+.. autofunction:: tvm_tirx.script.tirx.macro

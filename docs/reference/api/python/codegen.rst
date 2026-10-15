@@ -15,8 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.codegen
-===========
-.. automodule:: tvm.codegen
+tvm_tirx.codegen
+================
+.. automodule:: tvm_tirx.codegen
    :members:
    :show-inheritance:
