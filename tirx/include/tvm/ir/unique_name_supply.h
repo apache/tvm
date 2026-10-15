@@ -128,7 +128,7 @@ class UniqueNameSupply : public ffi::ObjectRef {
    * The functor should return the name of the dereferenced object.
    */
   template <typename Iter, typename Lambda>
-  TVM_TIRX_DLL UniqueNameSupply(Iter begin, Iter end, Lambda f) : UniqueNameSupply("") {
+  UniqueNameSupply(Iter begin, Iter end, Lambda f) : UniqueNameSupply("") {
     for (auto it = begin; it != end; ++it) {
       this->operator->()->ReserveName(f(*it), false);
     }
