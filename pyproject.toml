@@ -103,7 +103,7 @@ sdist.include = [
   "/cmake/**",
   "/src/**",
   "/include/**",
-  "/python/**",
+  "/python/tvm/**",
   "/licenses/**",
   "/LICENSE",
   "/NOTICE",
