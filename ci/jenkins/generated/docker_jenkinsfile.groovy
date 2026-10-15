@@ -129,7 +129,7 @@ def deploy() {
           withCredentials([string(credentialsId: 'dockerhub-tlcpack-key', variable: 'TLCPACK_TOKEN')]) {
             try {
               sh(script: 'echo $TLCPACK_TOKEN | docker login --username octomldriazati --password-stdin', label: 'Log in to Docker Hub')
-              images.each { name, image ->
+              source_images.each { name, image ->
                 if (image.contains('tlcpackstaging')) {
                   def tag = image.split(':')[1]
                   sh(

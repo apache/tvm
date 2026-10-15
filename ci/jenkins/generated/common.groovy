@@ -20,6 +20,7 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // Keep the image names aligned with docker-images.ini. Tags are resolved in prepare.
 image_platforms = [ci_arm: 'ARM', ci_cpu: 'CPU', ci_gpu: 'GPU', ci_wasm: 'CPU']
 images = image_platforms.collectEntries { name, platform -> [(name): ''] }
+source_images = [:]
 built_images = [:]
 upstream_revision = null
 max_time = 180
@@ -125,18 +126,36 @@ def init_git() {
   checkout_trusted_files()
 }
 
-def ecr_pull(full_name) {
-  aws_account_id = sh(
-    returnStdout: true,
-    script: 'aws sts get-caller-identity | grep Account | cut -f4 -d\\"',
-    label: 'Get AWS ID'
-  ).trim()
+// Apply only after Hub selection and job overrides; inputs stay public image names.
+def docker_hub_image(image) {
+  def cache = env.DOCKER_HUB_CACHE
+  if (cache == null) cache = '477529581014.dkr.ecr.us-west-2.amazonaws.com/docker-hub'
+  cache = cache.trim().replaceAll('/+$', '')
+  if (!cache || !image) return image
 
-  try {
-    withEnv([
-      "AWS_ACCOUNT_ID=${aws_account_id}",
-      'AWS_DEFAULT_REGION=us-west-2',
-      "AWS_ECR_REPO=${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com"]) {
+  def path = image
+  if (image.contains('/')) {
+    def host = image.substring(0, image.indexOf('/'))
+    if (host in ['docker.io', 'index.docker.io', 'registry-1.docker.io']) {
+      path = image.substring(image.indexOf('/') + 1)
+    } else if (host.contains('.') || host.contains(':') || host == 'localhost') {
+      return image
+    }
+  }
+  if (!path.contains('/')) path = "library/${path}"
+  return "${cache}/${path}"
+}
+
+def ecr_registry(image) {
+  def registry = image.tokenize('/')[0]
+  return registry ==~ /[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com(\.cn)?/ ? registry : null
+}
+
+def ecr_pull(full_name) {
+  def registry = ecr_registry(full_name)
+  def region = registry.tokenize('.')[3]
+  withEnv(["AWS_DEFAULT_REGION=${region}", "AWS_ECR_REPO=${registry}"]) {
+    try {
       sh(
         script: '''
           set -eux
@@ -152,12 +171,7 @@ def ecr_pull(full_name) {
         """,
         label: 'Pull image from ECR'
       )
-    }
-  } finally {
-    withEnv([
-      "AWS_ACCOUNT_ID=${aws_account_id}",
-      'AWS_DEFAULT_REGION=us-west-2',
-      "AWS_ECR_REPO=${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com"]) {
+    } finally {
       sh(
         script: 'docker logout $AWS_ECR_REPO',
         label: 'Clean up login credentials'
@@ -234,7 +248,10 @@ def prepare(node_type) {
             ).trim()
           }
         }
-        images.keySet().each { name -> images[name] = params["${name}_param"] ?: images[name] }
+        images.keySet().each { name ->
+          source_images[name] = params["${name}_param"] ?: images[name]
+          images[name] = docker_hub_image(source_images[name])
+        }
         sh(
           script: 'echo "Docker images being used in this build:"\n' +
             images.collect { name, image -> "echo \" ${name} = ${image}\"" }.join('\n'),
@@ -344,9 +361,7 @@ def docker_init(image) {
     label: 'Clean old Docker images',
   )
 
-  if (image.contains("amazonaws.com")) {
-    // If this string is in the image name it's from ECR and needs to be pulled
-    // with the right credentials
+  if (ecr_registry(image)) {
     ecr_pull(image)
   } else {
     sh(
