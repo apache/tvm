@@ -2586,7 +2586,7 @@ def test_squeeze_out_of_range_dim():
         def forward(self, input):
             return input.squeeze((0, 2))
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
