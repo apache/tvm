@@ -48,7 +48,7 @@ sphinx_precheck() {
     echo "PreCheck sphinx doc generation WARNINGS.."
 
     # setup tvm-ffi into python folder
-    uv pip install -v --target=python ./3rdparty/tvm-ffi/
+    uv pip install -v --target=python ./tirx/3rdparty/tvm-ffi/
 
     pushd docs
     make clean
@@ -130,7 +130,7 @@ find . -type f -path "*.log" | xargs rm -f
 find . -type f -path "*.pyc" | xargs rm -f
 
 # setup tvm-ffi into python folder
-uv pip install -v --target=python ./3rdparty/tvm-ffi/
+uv pip install -v --target=python ./tirx/3rdparty/tvm-ffi/
 
 # LLVMModule JIT execution, needed by the tutorials this build runs.
 uv pip install --no-deps apache-tvm-ffi-orcjit==0.1.2

@@ -86,7 +86,8 @@ if __name__ == "__main__":
     # Build from this checkout's pinned submodule once, then transfer the exact
     # Python/native package together with the TVM libraries to test workers.
     ffi_commit = subprocess.check_output(
-        ["git", "-C", str(REPO_ROOT / "3rdparty" / "tvm-ffi"), "rev-parse", "HEAD"], text=True
+        ["git", "-C", str(REPO_ROOT / "tirx" / "3rdparty" / "tvm-ffi"), "rev-parse", "HEAD"],
+        text=True,
     ).strip()
     ffi_identity = f"{ffi_commit} {sys.implementation.cache_tag}"
     ffi_marker = REPO_ROOT / "python" / "tvm_ffi" / ".source-commit"
@@ -102,7 +103,7 @@ if __name__ == "__main__":
                 "--no-deps",
                 "--reinstall",
                 "--target=python",
-                "./3rdparty/tvm-ffi/",
+                "./tirx/3rdparty/tvm-ffi/",
             ],
             cwd=REPO_ROOT,
             env=env,

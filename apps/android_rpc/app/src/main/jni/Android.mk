@@ -37,8 +37,8 @@ LOCAL_SRC_FILES := org_apache_tvm_native_c_api.cc
 LOCAL_LDFLAGS := -L$(SYSROOT)/usr/lib/ -llog
 
 LOCAL_C_INCLUDES := $(ROOT_PATH)/include $(ROOT_PATH)/tirx/include \
-                    $(ROOT_PATH)/3rdparty/tvm-ffi/include \
-                    $(ROOT_PATH)/3rdparty/tvm-ffi/3rdparty/dlpack/include \
+                    $(ROOT_PATH)/tirx/3rdparty/tvm-ffi/include \
+                    $(ROOT_PATH)/tirx/3rdparty/tvm-ffi/3rdparty/dlpack/include \
                     $(ROOT_PATH)/3rdparty/OpenCL-Headers
 
 LOCAL_MODULE = tvm4j_runtime_packed

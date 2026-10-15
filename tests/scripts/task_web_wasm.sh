@@ -21,7 +21,7 @@ set -euxo pipefail
 export PYTHONPATH="$(pwd)/tirx/python:$(pwd)/python"
 
 # setup tvm-ffi into python folder
-uv pip install -v --target=python ./3rdparty/tvm-ffi/
+uv pip install -v --target=python ./tirx/3rdparty/tvm-ffi/
 
 rm -rf .emscripten_cache
 cd web

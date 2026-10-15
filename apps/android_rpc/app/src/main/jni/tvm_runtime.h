@@ -32,17 +32,19 @@
 #define TVM_LOG_CUSTOMIZE 1
 #define TVM_FFI_USE_LIBBACKTRACE 0
 
-#include "../3rdparty/tvm-ffi/src/ffi/backtrace.cc"
-#include "../3rdparty/tvm-ffi/src/ffi/container.cc"
-#include "../3rdparty/tvm-ffi/src/ffi/dtype.cc"
-#include "../3rdparty/tvm-ffi/src/ffi/error.cc"
-#include "../3rdparty/tvm-ffi/src/ffi/extra/library_module.cc"
-#include "../3rdparty/tvm-ffi/src/ffi/extra/library_module_dynamic_lib.cc"
-#include "../3rdparty/tvm-ffi/src/ffi/extra/library_module_system_lib.cc"
-#include "../3rdparty/tvm-ffi/src/ffi/extra/module.cc"
-#include "../3rdparty/tvm-ffi/src/ffi/function.cc"
-#include "../3rdparty/tvm-ffi/src/ffi/object.cc"
-#include "../3rdparty/tvm-ffi/src/ffi/tensor.cc"
+// FFI registration precedes the runtime implementation.
+// clang-format off
+#include "../tirx/3rdparty/tvm-ffi/src/ffi/backtrace.cc"
+#include "../tirx/3rdparty/tvm-ffi/src/ffi/container.cc"
+#include "../tirx/3rdparty/tvm-ffi/src/ffi/dtype.cc"
+#include "../tirx/3rdparty/tvm-ffi/src/ffi/error.cc"
+#include "../tirx/3rdparty/tvm-ffi/src/ffi/extra/library_module.cc"
+#include "../tirx/3rdparty/tvm-ffi/src/ffi/extra/library_module_dynamic_lib.cc"
+#include "../tirx/3rdparty/tvm-ffi/src/ffi/extra/library_module_system_lib.cc"
+#include "../tirx/3rdparty/tvm-ffi/src/ffi/extra/module.cc"
+#include "../tirx/3rdparty/tvm-ffi/src/ffi/function.cc"
+#include "../tirx/3rdparty/tvm-ffi/src/ffi/object.cc"
+#include "../tirx/3rdparty/tvm-ffi/src/ffi/tensor.cc"
 #include "../src/runtime/registry.cc"
 #include "../src/runtime/rpc/rpc_channel.cc"
 #include "../src/runtime/rpc/rpc_endpoint.cc"
@@ -63,6 +65,7 @@
 #include "../tirx/src/runtime/threading_backend.cc"
 #include "../tirx/src/runtime/timer.cc"
 #include "../tirx/src/runtime/workspace_pool.cc"
+// clang-format on
 
 #ifdef TVM_OPENCL_RUNTIME
 #include "../src/runtime/opencl/opencl_device_api.cc"
