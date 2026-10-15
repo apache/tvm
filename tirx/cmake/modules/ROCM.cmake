@@ -16,7 +16,11 @@
 # under the License.
 
 # ROCM Module
-find_rocm(${USE_ROCM})
+if("${TVM_TIRX_USE_ROCM}" MATCHES ${IS_TRUE_PATTERN} AND IS_DIRECTORY "${TVM_TIRX_ROCM_PATH}")
+  find_rocm("${TVM_TIRX_ROCM_PATH}")
+else()
+  find_rocm(${TVM_TIRX_USE_ROCM})
+endif()
 
 if(ROCM_FOUND)
   # always set the includedir
@@ -26,13 +30,13 @@ if(ROCM_FOUND)
   add_definitions(-D__HIP_PLATFORM_AMD__=1)
 endif(ROCM_FOUND)
 
-if(USE_ROCM)
+if(TVM_TIRX_USE_ROCM)
   if(NOT ROCM_FOUND)
-    message(FATAL_ERROR "Cannot find ROCM, USE_ROCM=" ${USE_ROCM})
+    message(FATAL_ERROR "Cannot find ROCM, TVM_TIRX_USE_ROCM=" ${TVM_TIRX_USE_ROCM})
   endif()
   message(STATUS "Build rocm device runtime")
 
-  tvm_file_glob(GLOB RUNTIME_ROCM_SRCS src/backend/rocm/runtime/*.cc)
+  file(GLOB RUNTIME_ROCM_SRCS CONFIGURE_DEPENDS src/backend/rocm/runtime/*.cc)
 
   set(_rocm_libs ${ROCM_HIPHCC_LIBRARY})
   if(ROCM_HSA_LIBRARY)
@@ -40,13 +44,14 @@ if(USE_ROCM)
   endif()
 
   add_library(tvm_runtime_rocm_objs OBJECT ${RUNTIME_ROCM_SRCS})
-  target_link_libraries(tvm_runtime_rocm_objs PUBLIC tvm_ffi_header)
+  target_link_libraries(tvm_runtime_rocm_objs PUBLIC tvm_tirx_header)
   set_target_properties(tvm_runtime_rocm_objs PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  if(TVM_VISIBILITY_FLAG)
-    target_compile_options(tvm_runtime_rocm_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
-  endif()
   add_library(tvm_runtime_rocm SHARED $<TARGET_OBJECTS:tvm_runtime_rocm_objs>)
+  if(PROJECT_IS_TOP_LEVEL)
+    install(TARGETS tvm_runtime_rocm DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  endif()
   list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_rocm)
   target_link_libraries(tvm_runtime_rocm PUBLIC tvm_runtime PRIVATE ${_rocm_libs})
-  tvm_configure_target_library(tvm_runtime_rocm RUNTIME_MODULE)
-endif(USE_ROCM)
+  tvm_tirx_configure_target(tvm_runtime_rocm_objs)
+  tvm_tirx_configure_target(tvm_runtime_rocm)
+endif(TVM_TIRX_USE_ROCM)

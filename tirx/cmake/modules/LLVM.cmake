@@ -25,10 +25,10 @@ add_definitions(-DNDEBUG=1)
 # TODO(@jroesch, @tkonolige): if we actually use targets we can do this.
 # target_compile_definitions(tvm_compiler PRIVATE NDEBUG=1)
 
-# Test if ${USE_LLVM} is not an explicit boolean false
+# Test if ${TVM_TIRX_USE_LLVM} is not an explicit boolean false
 # It may be a boolean or a string
-if(NOT ${USE_LLVM} MATCHES ${IS_FALSE_PATTERN})
-  find_llvm(${USE_LLVM})
+if(NOT ${TVM_TIRX_USE_LLVM} MATCHES ${IS_FALSE_PATTERN})
+  find_llvm(${TVM_TIRX_USE_LLVM})
   if (${TVM_LLVM_VERSION} LESS 150)
     message(FATAL_ERROR "LLVM version 15.0 or greater is required.")
   endif()
@@ -52,17 +52,12 @@ if(NOT ${USE_LLVM} MATCHES ${IS_FALSE_PATTERN})
   # Set flags that are only needed for LLVM target
   add_definitions(-DTVM_LLVM_VERSION=${TVM_LLVM_VERSION})
   add_definitions(-DTVM_LLVM_HAS_AARCH64_TARGET=${TVM_LLVM_HAS_AARCH64_TARGET})
-  tvm_file_glob(GLOB COMPILER_LLVM_SRCS
-    src/codegen/llvm/*.cc
+  file(GLOB COMPILER_LLVM_SRCS CONFIGURE_DEPENDS src/codegen/llvm/*.cc
     src/backend/cuda/codegen/llvm/*.cc
     src/backend/rocm/codegen/llvm/*.cc
     src/backend/hexagon/codegen/llvm/*.cc
   )
   list(REMOVE_ITEM COMPILER_LLVM_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/llvm/target_kind.cc")
-  if(USE_HEXAGON_QHL)
-    set_property(SOURCE src/backend/hexagon/codegen/llvm/intrin_rule_hexagon.cc
-      APPEND PROPERTY COMPILE_DEFINITIONS ENABLE_QHL=1)
-  endif()
   list(APPEND TVM_LINKER_LIBS ${LLVM_LIBS})
   list(APPEND COMPILER_SRCS ${COMPILER_LLVM_SRCS})
   if(NOT MSVC)

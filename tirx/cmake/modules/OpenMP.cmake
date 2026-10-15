@@ -16,7 +16,7 @@
 # under the License.
 
 # OpenMP Module
-if(USE_OPENMP STREQUAL "gnu")
+if(TVM_TIRX_USE_OPENMP STREQUAL "gnu")
   find_package(OpenMP)
   if(OPENMP_FOUND)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
@@ -27,7 +27,7 @@ if(USE_OPENMP STREQUAL "gnu")
     add_definitions(-DTVM_THREADPOOL_USE_OPENMP=0)
     message(WARNING "OpenMP cannot be found, use TVM threadpool instead.")
   endif()
-elseif(USE_OPENMP STREQUAL "intel")
+elseif(TVM_TIRX_USE_OPENMP STREQUAL "intel")
   find_package(OpenMP)
   if(OPENMP_FOUND)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")

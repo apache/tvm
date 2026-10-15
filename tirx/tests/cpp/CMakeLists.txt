@@ -15,95 +15,49 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Enable ctest if gtest is available
-if(USE_GTEST AND NOT BUILD_TESTING STREQUAL "OFF")
-  # Check env var for backward compatibility. A better way to specify package
-  # locations is to use CMAKE_PREFIX_PATH or other standard CMake mechanism
-  # (see CMake documentation for `find_package`).
-  set(GTEST_ROOT "$ENV{GTEST_LIB}")
-  if("${USE_GTEST}" STREQUAL "AUTO")
-    # If USE_GTEST is AUTO, treat GTest as optional: enable if found.
-    find_package(GTest)
-  elseif("${USE_GTEST}" MATCHES ${IS_TRUE_PATTERN})
-    # USE_GTEST is set to ON, TRUE, etc. Treat GTest as a required package.
-    find_package(GTest REQUIRED)
-  endif()
-  if(GTEST_FOUND)
-    if(NOT TARGET GTest::gmock)
-      # GMock is formally supported in CMake 3.20; for now, expect libgmock.a in the same directory,
-      # and require that folks compiling against GTest::gmock also link against GTest::GTest
-      # (for the includes dir).
-      add_library(GTest::gmock STATIC IMPORTED GLOBAL)
-      get_target_property(GTEST_LIB_PATH GTest::GTest IMPORTED_LOCATION)
-      if("${GTEST_LIB_PATH}" STREQUAL "GTEST_LIB_PATH-NOTFOUND")
-        # CMake >= 3.20 makes GTest::GTest into a compatibility target. The real import location is in
-        # GTest::gtest.
-        get_target_property(GTEST_LIB_PATH GTest::gtest IMPORTED_LOCATION)
-        if("${GTEST_LIB_PATH}" STREQUAL "GTEST_LIB_PATH-NOTFOUND")
-          message(FATAL_ERROR "Neither GTest::GTest nor GTest::gtest targets defined IMPORTED_LOCATION")
-        endif()
-      endif()
-      get_filename_component(GTEST_LIB_DIR "${GTEST_LIB_PATH}" DIRECTORY)
-      set_target_properties(GTest::gmock PROPERTIES
-          IMPORTED_LOCATION "${GTEST_LIB_DIR}/libgmock.a")
-    endif()
-
-    enable_testing()
-    include(GoogleTest)
-    set(GTEST_FOUND TRUE PARENT_SCOPE)
-  endif()
+# C++ tests always use GTest. Prefer an existing package, otherwise build it.
+set(TVM_TIRX_USE_OPENCL_GTEST "" CACHE PATH "Optional OpenCL-specific GTest installation")
+if(TVM_TIRX_USE_OPENCL_GTEST)
+  set(GTest_ROOT "${TVM_TIRX_USE_OPENCL_GTEST}")
 endif()
-
-# Create the `tirx_cpptest` target when GTest is available.
-if(GTEST_FOUND)
-  tvm_file_glob(GLOB_RECURSE TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
-  add_executable(tirx_cpptest ${TEST_SRCS})
-  # Preserve the executable location used before this became a subdirectory.
-  set_target_properties(tirx_cpptest PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-  # include runtime files for unit testing
-  target_link_libraries(tirx_cpptest PRIVATE tvm_tirx GTest::GTest GTest::Main GTest::gmock pthread dl)
-  if(DEFINED LLVM_LIBS)
-    # The TVM library is linked with LLVM libraries. If the LLVM libraries are
-    # static and the symbols are not hidden, then don't link them again into
-    # tirx_cpptest since tirx_cpptest is itself linked against the TVM library. If static
-    # LLVM libraries are linked in twice, it can cause issues with global
-    # variable initialization (cl::opt).
-    # If the LLVM libraries are dynamic, we have to link them again, since the
-    # TVM library will not contain any LLVM definitions.
-    unset(LLVM_SO)
-    foreach(L IN LISTS LLVM_LIBS)
-      if(L MATCHES "libLLVM.*\.so")
-        set(LLVM_SO TRUE)
-        break()
-      endif()
-    endforeach()
-    if(DEFINED LLVM_SO OR HIDE_PRIVATE_SYMBOLS)
-      target_link_libraries(tirx_cpptest PRIVATE ${LLVM_LIBS})
-    endif()
-  endif()
-  set_target_properties(tirx_cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
-  set_target_properties(tirx_cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
-  # tirx_cpptest is built into ${CMAKE_BINARY_DIR} but the TVM shared libs it
-  # links against (libtvm_tirx.so / libtvm_runtime.so) now live in
-  # ${CMAKE_BINARY_DIR}/lib. CMake's default behaviour bakes the
-  # absolute path of build/lib/ into the binary's RUNPATH, which works in tree
-  # but is not relocatable. Set $ORIGIN/lib (or @loader_path/lib on macOS)
-  # explicitly so the test binary finds its TVM libs relative to its own
-  # location, mirroring the install-time RPATH setup.
-  if(APPLE)
-    set_target_properties(tirx_cpptest PROPERTIES
-      BUILD_RPATH "@loader_path/lib"
-      INSTALL_RPATH "@loader_path/lib"
-    )
-  elseif(UNIX)
-    set_target_properties(tirx_cpptest PROPERTIES
-      BUILD_RPATH "\$ORIGIN/lib"
-      INSTALL_RPATH "\$ORIGIN/lib"
-    )
-  endif()
-  target_compile_definitions(tirx_cpptest PRIVATE "NDEBUG")
-
-  # For some reason, compile definitions are not propagated correctly, so we manually add them here
-  target_compile_definitions(tirx_cpptest PUBLIC $<TARGET_PROPERTY:tvm_tirx,INTERFACE_COMPILE_DEFINITIONS>)
-  gtest_discover_tests(tirx_cpptest WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
+find_package(GTest CONFIG QUIET)
+if(TARGET GTest::gtest AND TARGET GTest::gtest_main AND TARGET GTest::gmock)
+  set(_gtest_targets GTest::gtest GTest::gtest_main GTest::gmock)
+else()
+  include(FetchContent)
+  set(INSTALL_GTEST OFF)
+  set(BUILD_GMOCK ON)
+  set(gtest_force_shared_crt ON)
+  FetchContent_Declare(googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG v1.14.0)
+  FetchContent_MakeAvailable(googletest)
+  # Use one coherent fetched build even when a partial installed package exists.
+  set(_gtest_targets gtest gtest_main gmock)
 endif()
+include(GoogleTest)
+file(GLOB_RECURSE _test_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
+add_executable(tirx_cpptest ${_test_sources})
+target_link_libraries(tirx_cpptest PRIVATE tvm_tirx ${_gtest_targets} ${CMAKE_DL_LIBS})
+if(TVM_TIRX_USE_THREADS)
+  target_link_libraries(tirx_cpptest PRIVATE Threads::Threads)
+endif()
+# LLVM symbols are hidden in the compiler library, including static LLVM builds.
+if(DEFINED LLVM_LIBS)
+  target_link_libraries(tirx_cpptest PRIVATE ${LLVM_LIBS})
+endif()
+set_target_properties(tirx_cpptest PROPERTIES
+  CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF
+  RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}")
+foreach(_config IN LISTS CMAKE_CONFIGURATION_TYPES)
+  string(TOUPPER "${_config}" _config_upper)
+  set_target_properties(tirx_cpptest PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY_${_config_upper} "${PROJECT_BINARY_DIR}")
+endforeach()
+target_compile_definitions(tirx_cpptest PRIVATE NDEBUG)
+if(APPLE)
+  set_property(TARGET tirx_cpptest PROPERTY BUILD_RPATH "@loader_path/lib")
+elseif(UNIX)
+  set_property(TARGET tirx_cpptest PROPERTY BUILD_RPATH "\$ORIGIN/lib")
+endif()
+gtest_discover_tests(tirx_cpptest WORKING_DIRECTORY "${PROJECT_BINARY_DIR}" DISCOVERY_MODE PRE_TEST)
