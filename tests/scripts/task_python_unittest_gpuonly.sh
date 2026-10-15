@@ -31,9 +31,6 @@ export TVM_TEST_TARGETS='cuda;metal;rocm;nvptx'
 # only minimal functionality of Vulkan runtime.
 export TVM_TEST_TARGETS='{"kind":"vulkan","from_device":0}'
 
-export PYTHONPATH="$(pwd)/tirx/python:$(pwd)/python"
-export PYTEST_ADDOPTS="${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
-
-python3 -m pytest -vvs -n auto -m "${TVM_TEST_MARKER}" \
+./tests/scripts/task_python_unittest.sh \
     tirx/tests/python/backend/vulkan/codegen/test_basic.py \
     tirx/tests/python/backend/vulkan/test_module_export.py

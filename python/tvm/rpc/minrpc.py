@@ -41,6 +41,8 @@ def find_minrpc_server_libpath(server="posix_popen_server"):
     curr_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     source_dir = os.path.abspath(os.path.join(curr_dir, "..", "..", ".."))
     roots = [os.path.join(curr_dir, ".."), source_dir]
+    if os.environ.get("TVM_HOME"):
+        roots.append(os.environ["TVM_HOME"])
     candidates = []
     for root in roots:
         minrpc_dir = os.path.join(root, "src", "runtime", "rpc", "minrpc")

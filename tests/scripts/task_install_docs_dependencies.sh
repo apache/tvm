@@ -18,14 +18,16 @@
 
 set -euxo pipefail
 
-BUILD_DIR=$1
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
-cp ../cmake/config.cmake .
-
-echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_RPC ON\) >> config.cmake
-echo set\(TVM_TIRX_USE_LLVM llvm-config-17\) >> config.cmake
-echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
-echo set\(USE_CCACHE OFF\) >> config.cmake
-echo set\(SUMMARIZE ON\) >> config.cmake
+# Additional documentation dependencies for the CPU CI image.
+uv pip install \
+    'Sphinx==8.1.3' \
+    'sphinx_autodoc_annotation~=1.0' \
+    'sphinx-gallery==0.20.0' \
+    'sphinx-book-theme==1.1.4' \
+    'pydata-sphinx-theme==0.15.4' \
+    'autodocsumm==0.2.14' \
+    'image==1.5.33' \
+    'matplotlib==3.10.8' \
+    'commonmark==0.9.1' \
+    'docutils==0.21.2' \
+    'Pillow==12.1.1'

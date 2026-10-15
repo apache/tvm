@@ -20,13 +20,10 @@
 # correctly, even if they aren't actively tested in the CI.
 set -euxo pipefail
 
-BUILD_DIR=$1
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
-cp ../cmake/config.cmake .
-
-echo set\(TVM_TIRX_USE_OPENCL ON\) >> config.cmake
-echo set\(TVM_TIRX_USE_ROCM ON\) >> config.cmake
-echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
-echo set\(USE_CCACHE OFF\) >> config.cmake
-echo set\(SUMMARIZE ON\) >> config.cmake
+# Preserve the separate runtime-only GPU compile check.
+uv pip install --python python3 --no-deps --target build/python ./tirx/3rdparty/tvm-ffi
+export PYTHONPATH="$PWD/build/python"
+cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DTVM_TIRX_USE_OPENCL=ON -DTVM_TIRX_USE_ROCM=ON -DCMAKE_CXX_FLAGS=-Werror \
+    -DUSE_CCACHE=OFF -DSUMMARIZE=ON
+cmake --build build --target tvm_runtime tvm_runtime_opencl tvm_runtime_rocm

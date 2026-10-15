@@ -51,6 +51,9 @@ classifiers = [
 ]
 dependencies = ["apache-tvm-tirx==0.1.0a0"]
 
+[project.scripts]
+tvm-config = "tvm.config:__main__"
+
 [project.optional-dependencies]
 torch = ["torch"]
 cuda = ["cuda-bindings"]
@@ -121,7 +124,6 @@ sdist.include = [
   "/tirx/src/runtime/metadata.h",
   "/tirx/src/runtime/pack_args.h",
   "/tirx/src/runtime/workspace_pool.h",
-  "/3rdparty/OpenCL-Headers/**",
   "/3rdparty/cutlass/**",
   "/3rdparty/cutlass_fpA_intB_gemm/**",
   "/3rdparty/libflash_attn/**",

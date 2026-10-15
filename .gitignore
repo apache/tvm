@@ -258,7 +258,6 @@ conda/pkg
 _docs/
 jvm/target
 .config/configstore/
-.ci-py-scripts/
 
 
 # Local tvm-site checkout

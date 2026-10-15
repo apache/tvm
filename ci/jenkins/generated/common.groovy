@@ -22,6 +22,8 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 image_platforms = [ci_arm: 'ARM', ci_cpu: 'CPU', ci_gpu: 'GPU', ci_wasm: 'CPU']
 // Resolve Hub inputs through the caller account ECR cache; false keeps public names.
 enable_docker_hub_cache = true
+env.SCCACHE_BUCKET = 'tvm-sccache-prod'
+env.SCCACHE_REGION = 'us-west-2'
 max_time = 180
 docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TEST_STEP_NAME'
 docker_build = 'docker/build.sh'
@@ -386,6 +388,16 @@ def start() {
   } catch (Exception ex) {
     prepare('CPU-SMALL')
   }
+}
+
+// Preserve caller limits, otherwise share the node among its executors.
+def build_environment() {
+  def parallel_limit = env.CMAKE_BUILD_PARALLEL_LEVEL ?: sh(
+    script: 'n=$(( $(getconf _NPROCESSORS_ONLN) / ${CI_NUM_EXECUTORS:-1} )); if [ "$n" -lt 1 ]; then n=1; fi; echo "$n"',
+    returnStdout: true,
+    label: 'Determine build parallelism',
+  ).trim()
+  return ["CMAKE_BUILD_PARALLEL_LEVEL=${parallel_limit}"]
 }
 
 return this

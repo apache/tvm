@@ -33,17 +33,26 @@ stage('Build') {
   ci.with_node(instance: 'CPU-SPOT', retry_instance: 'CPU',
     name: 'BUILD: GPU', folder: 'tvm/build-gpu', variables: ['PLATFORM=gpu']) {
     ci.docker_init(images.ci_gpu)
-    sh "${docker_run} --no-gpu ${images.ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
-    sh (
-      script: "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_gpu} --no-gpu ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir build",
-      label: 'Run CMake build',
-    )
-    ci.upload_artifacts('gpu', '--artifact tvm_lib --artifact tvm_lib_gpu_extra')
+    withEnv(ci.build_environment()) {
+      sh(
+        script: """${docker_run} --no-gpu ${images.ci_gpu} bash -euo pipefail -c '
+          source ./tests/scripts/task_install_build_dependencies.sh
+          ./tests/scripts/task_build_gpu.sh
+          sccache --show-stats
+        '""",
+        label: 'Build gpu',
+      )
+    }
+    ci.upload_artifacts('gpu', '--path "dist/*.whl"')
 
     // Check the compiler-only GPU configuration after publishing the test build.
     sh 'rm -rf build'
-    sh "${docker_run} --no-gpu ${images.ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
-    sh "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_gpu} --no-gpu ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --cmake-target tvm_runtime --build-dir build"
+    withEnv(ci.build_environment()) {
+      sh(
+        script: "${docker_run} --no-gpu ${images.ci_gpu} ./tests/scripts/task_build_gpu_other.sh",
+        label: 'Build gpu_other',
+      )
+    }
   }
 }
 
@@ -56,12 +65,12 @@ stage('Test') {
         ci.docker_init(images.ci_gpu)
         ci.download_artifacts('gpu')
         sh(
-          script: "${docker_run} ${images.ci_gpu} ./tests/scripts/task_java_unittest.sh",
-          label: 'Run Java unit tests',
-        )
-        sh(
-          script: "${docker_run} ${images.ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
-          label: 'Run Python GPU unit tests',
+          script: """${docker_run} ${images.ci_gpu} bash -euo pipefail -c '
+            source ./tests/scripts/test_task_install_dist_wheels.sh
+            ./tests/scripts/task_java_unittest.sh
+            ./tests/scripts/task_python_unittest_gpuonly.sh
+          '""",
+          label: 'Run Java and Python GPU unit tests',
         )
       }
     },
@@ -72,7 +81,10 @@ stage('Test') {
         ci.docker_init(images.ci_gpu)
         ci.download_artifacts('gpu')
         sh(
-          script: "${docker_run} ${images.ci_gpu} ./tests/scripts/task_python_docs.sh",
+          script: """${docker_run} ${images.ci_gpu} bash -euo pipefail -c '
+            source ./tests/scripts/test_task_install_dist_wheels.sh
+            ./tests/scripts/task_python_docs.sh
+          '""",
           label: 'Build docs',
         )
         ci.upload_artifacts('docs', '--path docs.tgz')
