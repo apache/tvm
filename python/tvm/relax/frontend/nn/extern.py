@@ -316,6 +316,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
             The list of include paths.
         """
         results = [
+            Path(tvm.libinfo.find_include_path()),
             Path(libinfo.find_include_path()),
             Path(tvm_ffi.libinfo.find_include_path()),
             Path(tvm_ffi.libinfo.find_dlpack_include_path()),
