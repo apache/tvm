@@ -27,9 +27,22 @@ stage('Build') {
       script: "${docker_run} ${images.ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
       label: 'Create CPU CMake config',
     )
-    ci.cmake_build(images.ci_cpu, 'build')
-    ci.make_cpp_tests(images.ci_cpu, 'build')
-    ci.upload_artifacts('cpu', '--artifacts tvm_lib --artifacts cpptest')
+    sh (
+      script: "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_cpu} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir build",
+      label: 'Run CMake build',
+    )
+    sh (
+      script: """
+        set -eux
+        ${docker_run} ${images.ci_cpu} python3 ./tests/scripts/task_build.py \
+          --sccache-bucket tvm-sccache-prod \
+          --sccache-region us-west-2 \
+          --cmake-target cpptest \
+          --build-dir build
+        """,
+      label: 'Make C++ tests',
+    )
+    ci.upload_artifacts('cpu', '--artifact tvm_lib --artifact cpptest')
   }
 }
 
@@ -40,8 +53,14 @@ stage('Test') {
       variables: ['PLATFORM=cpu', 'TEST_STEP_NAME=unittest: CPU']) {
       ci.docker_init(images.ci_cpu)
       ci.download('cpu')
-      ci.cpp_unittest(images.ci_cpu)
-      ci.python_unittest(images.ci_cpu)
+      sh (
+        script: "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_cpu} ./tests/scripts/task_cpp_unittest.sh",
+        label: 'Run C++ tests',
+      )
+      sh (
+        script: "${docker_run} ${images.ci_cpu} ./tests/scripts/task_python_unittest.sh",
+        label: 'Run Python unit tests',
+      )
     }
   })
 }

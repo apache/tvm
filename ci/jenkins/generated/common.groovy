@@ -34,8 +34,8 @@ properties([parameters(image_platforms.collect { name, platform ->
   string(name: "${name}_param", defaultValue: '')
 })])
 
-// Internal helpers, with dependencies before their callers.
-// Keep these callable for existing pipelines.
+// Shared utilities; platform Jenkinsfiles own stages, parallel groups and commands.
+// Keep existing helpers callable for older Jenkinsfiles.
 
 def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
@@ -71,6 +71,9 @@ def checkout_trusted_files() {
   }
 
   // Trust contributors listed in the pinned target revision.
+  // That target must contain the matching scripts and artifacts.py registry.
+  // Before the coordinated rename reaches the target, use a trusted branch;
+  // never mix target scripts with untrusted PR artifact metadata.
   grep_code = sh(
     returnStatus: true,
     script: "git show '${upstream_revision}:CONTRIBUTORS.md' | grep '@${env.CHANGE_AUTHOR}'",
@@ -286,8 +289,12 @@ def run_on_node(label, name, folder, image, variables, body) {
 
 // Public entry points.
 
-// The caller supplies exact node labels; omitting retry_instance disables fallback.
-// Docker setup stays in the body so each attempt uses the caller's chosen image.
+// with_node(instance: 'CPU-SPOT', retry_instance: 'CPU', name: 'Build',
+//           folder: 'tvm/build', variables: ['PLATFORM=cpu']) { docker_init(image); ... }
+// name marks skipped stages; folder isolates executor workspaces; variables is optional.
+// Skip before allocation/setup. Each attempt checks out sources, then times the body.
+// Keep docker_init explicit in the body. Omit retry_instance for a single attempt;
+// otherwise failures retry only for the newest build, with cancellation propagated.
 def with_node(options, body) {
   if (skip_ci) {
     Utils.markStageSkippedForConditional(options.name)
@@ -318,6 +325,10 @@ def with_node(options, body) {
   }
 }
 
+// upload_artifacts('cpu', '--artifact tvm_lib --artifact cpptest')
+// Or select paths: '--path "build/*.whl"'. Options pass unchanged to s3.py.
+// Registry artifacts and explicit paths are mutually exclusive; repeat one-value flags.
+// Upload globs are sorted/deduplicated; download(tag) copies the whole saved prefix.
 def upload_artifacts(tag, options) {
   upload(tag, options)
 }
@@ -365,8 +376,8 @@ def start() {
   }
 }
 
-// Legacy compatibility functions. Keep names, signatures and behavior until
-// existing pipeline callers have migrated after merge.
+// Legacy compatibility functions. Preserve signatures and behavior for older
+// Jenkinsfiles; current platform files spell out build and test commands directly.
 
 def python_unittest(image) {
   sh (

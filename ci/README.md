@@ -92,4 +92,4 @@ Other jobs run in GitHub Actions for Windows and MacOS jobs.
 
 The native Groovy entry points in `ci/jenkins/generated/` load shared helpers
 from `common.groovy`. Edit these sources directly; no generation step is needed.
-See [Jenkins pipeline documentation](jenkins/README.md) for trust and rollout checks.
+See comments in [common.groovy](jenkins/generated/common.groovy) for shared utility options and trust constraints.

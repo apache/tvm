@@ -27,9 +27,25 @@ stage('Build') {
       script: "${docker_run} ${images.ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
       label: 'Create WASM CMake config',
     )
-    ci.cmake_build(images.ci_wasm, 'build')
-    ci.make_cpp_tests(images.ci_wasm, 'build')
-    ci.cpp_unittest(images.ci_wasm)
+    sh (
+      script: "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_wasm} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir build",
+      label: 'Run CMake build',
+    )
+    sh (
+      script: """
+        set -eux
+        ${docker_run} ${images.ci_wasm} python3 ./tests/scripts/task_build.py \
+          --sccache-bucket tvm-sccache-prod \
+          --sccache-region us-west-2 \
+          --cmake-target cpptest \
+          --build-dir build
+        """,
+      label: 'Make C++ tests',
+    )
+    sh (
+      script: "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_wasm} ./tests/scripts/task_cpp_unittest.sh",
+      label: 'Run C++ tests',
+    )
     sh(
       script: "${docker_run} ${images.ci_wasm} ./tests/scripts/task_web_wasm.sh",
       label: 'Run WASM lint and tests',

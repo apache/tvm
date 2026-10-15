@@ -24,8 +24,11 @@ stage('Build') {
     name: 'BUILD: GPU', folder: 'tvm/build-gpu', variables: ['PLATFORM=gpu']) {
     ci.docker_init(images.ci_gpu)
     sh "${docker_run} --no-gpu ${images.ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
-    ci.cmake_build("${images.ci_gpu} --no-gpu", 'build')
-    ci.upload_artifacts('gpu', '--artifacts tvm_lib --artifacts tvm_lib_gpu_extra')
+    sh (
+      script: "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_gpu} --no-gpu ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir build",
+      label: 'Run CMake build',
+    )
+    ci.upload_artifacts('gpu', '--artifact tvm_lib --artifact tvm_lib_gpu_extra')
 
     // Check the compiler-only GPU configuration after publishing the test build.
     sh 'rm -rf build'
@@ -62,7 +65,7 @@ stage('Test') {
           script: "${docker_run} ${images.ci_gpu} ./tests/scripts/task_python_docs.sh",
           label: 'Build docs',
         )
-        ci.upload_artifacts('docs', '--paths docs.tgz')
+        ci.upload_artifacts('docs', '--path docs.tgz')
         sh(
           script: "aws s3 cp --no-progress _docs s3://${s3_bucket}/${s3_prefix}/docs --recursive",
           label: 'Upload docs to S3',
@@ -118,7 +121,7 @@ stage('Deploy') {
       ci.deploy_step('Deploy Docs', env.DOCS_DEPLOY_ENABLED == 'yes', 'tvm/deploy-docs') {
         ci.init_git()
         sh(
-          script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/docs --paths docs.tgz",
+          script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/docs --path docs.tgz",
           label: 'Download docs folder from S3',
         )
         deploy_docs()

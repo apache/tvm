@@ -27,8 +27,21 @@ stage('Build') {
       script: "${docker_run} ${images.ci_arm} ./tests/scripts/task_config_build_arm.sh build",
       label: 'Create ARM CMake config',
     )
-    ci.cmake_build(images.ci_arm, 'build')
-    ci.make_cpp_tests(images.ci_arm, 'build')
-    ci.upload_artifacts('arm', '--artifacts tvm_lib --artifacts cpptest')
+    sh (
+      script: "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_arm} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir build",
+      label: 'Run CMake build',
+    )
+    sh (
+      script: """
+        set -eux
+        ${docker_run} ${images.ci_arm} python3 ./tests/scripts/task_build.py \
+          --sccache-bucket tvm-sccache-prod \
+          --sccache-region us-west-2 \
+          --cmake-target cpptest \
+          --build-dir build
+        """,
+      label: 'Make C++ tests',
+    )
+    ci.upload_artifacts('arm', '--artifact tvm_lib --artifact cpptest')
   }
 }

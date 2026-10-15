@@ -15,20 +15,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Bundle registry for CI artifact stashing.
+"""Named CI artifacts. Uploads expand globs; downloads copy the saved paths.
 
-Single source of truth for the file lists uploaded to / downloaded from S3 by
-``ci/jenkins/scripts/s3.py``. This module deliberately carries nothing else —
-docker image tags live in ``ci/jenkins/docker-images.ini`` and pipeline
-configuration lives in ``ci/jenkins/generated/common.groovy``.
+Examples::
 
-CLI: ``python3 ci/jenkins/artifacts.py <bundle> [<bundle> ...]`` resolves bundle
-names to their file paths (one per line; exit 1 on unknown name). Used by
-``s3.py`` at Jenkins runtime and by any external caller that needs
-data-driven artifact lists. Entries may be repository-relative literal paths or
-glob patterns. Only s3.py upload expands patterns; this registry and its CLI
-return the declarative entries unchanged. Downloads normally copy the whole
-artifact prefix.
+    python3 ci/jenkins/artifacts.py tvm_lib cpptest
+    ./ci/jenkins/scripts/s3.py --action upload --bucket BUCKET --prefix PREFIX \
+        --artifact tvm_lib --artifact cpptest
 """
 
 import sys

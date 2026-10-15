@@ -158,25 +158,27 @@ if __name__ == "__main__":
     parser.add_argument(
         "--prefix", help="s3 bucket + tag (e.g. s3://tvm-ci-prod/PR-1234/cpu", required=True
     )
-    selection = parser.add_mutually_exclusive_group()
-    selection.add_argument(
-        "--paths",
-        "--items",
+    parser.add_argument(
+        "--path",
         dest="paths",
-        nargs="+",
-        help="repository-relative files, folders or upload glob patterns",
+        action="append",
+        help="repository-relative file, folder or upload glob pattern (repeatable)",
+        metavar="PATH",
     )
-    selection.add_argument(
-        "--artifacts",
+    parser.add_argument(
+        "--artifact",
         "--bundle",
         dest="artifacts",
-        nargs="+",
-        action="extend",
-        help="artifact names from ci/jenkins/artifacts.py (repeatable)",
+        action="append",
+        help="artifact name from ci/jenkins/artifacts.py (repeatable)",
         metavar="NAME",
     )
+    # Legacy --items accepts several paths and retains the last occurrence.
+    parser.add_argument("--items", nargs="+", help="files and folders to transfer")
 
     args = parser.parse_args()
+    if args.artifacts is not None and (args.paths is not None or args.items is not None):
+        parser.error("--artifact/--bundle and --path/--items are mutually exclusive")
 
     logging.info(args)
 
@@ -198,11 +200,11 @@ if __name__ == "__main__":
 
     if args.artifacts is not None:
         items = resolve_artifacts(args.artifacts)
-    elif args.paths is not None:
-        items = args.paths
+    elif args.paths is not None or args.items is not None:
+        items = (args.paths or []) + (args.items or [])
     else:
         if args.action == "upload":
-            logging.error("Cannot upload without --paths or --artifacts")
+            logging.error("Cannot upload without --path or --artifact")
             exit(1)
         else:
             # Download the whole prefix
