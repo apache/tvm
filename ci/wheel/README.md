@@ -18,7 +18,7 @@
 # TVM wheel packaging
 
 The wheels are built by a standard `cibuildwheel` flow, configured in
-`.github/workflows/publish_wheel.yml` and `pyproject.toml` (`[tool.cibuildwheel]`
+`.github/workflows/publish_wheel.yml` and `tirx/pyproject.toml` (`[tool.cibuildwheel]`
 and `[tool.scikit-build]`). This directory holds the few helper scripts that flow
 invokes:
 
