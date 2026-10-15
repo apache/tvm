@@ -15,8 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Keep shared libraries relocatable within their installation directory.
+# Apply compilation policy only to TIRx targets, including their object libraries.
 function(tvm_tirx_configure_target target)
+  set_property(TARGET ${target} PROPERTY POSITION_INDEPENDENT_CODE ON)
+  set_property(TARGET ${target} PROPERTY CXX_STANDARD 20)
+  set_property(TARGET ${target} PROPERTY CXX_STANDARD_REQUIRED ON)
+  set_property(TARGET ${target} PROPERTY CUDA_STANDARD 20)
+  set_property(TARGET ${target} PROPERTY CUDA_STANDARD_REQUIRED ON)
+  set_property(TARGET ${target} PROPERTY CXX_EXTENSIONS OFF)
+  set_property(TARGET ${target} PROPERTY CXX_VISIBILITY_PRESET hidden)
+  set_property(TARGET ${target} PROPERTY VISIBILITY_INLINES_HIDDEN ON)
+
+  # Keep shared libraries relocatable within their installation directory.
   if(APPLE)
     set_target_properties(${target} PROPERTIES BUILD_RPATH "@loader_path" INSTALL_RPATH "@loader_path")
   elseif(UNIX)
