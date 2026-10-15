@@ -40,11 +40,9 @@ def executable(path, body):
     path.chmod(0o755)
 
 
-@pytest.mark.parametrize(
-    "script_root", [JENKINS_SCRIPT_ROOT, REPO_ROOT / "ci/scripts/jenkins"], ids=["native", "legacy"]
-)
 @pytest.mark.parametrize("failures", [2, 3])
-def test_s3_transfer_retries(tmp_path, monkeypatch, failures, script_root):
+def test_s3_transfer_retries(tmp_path, monkeypatch, failures):
+    script_root = JENKINS_SCRIPT_ROOT
     # Run the real retry.sh with fake AWS and sleep, without network or delays.
     executable(
         tmp_path / "aws",
@@ -70,7 +68,7 @@ with pathlib.Path(os.environ["SLEEP_LOG"]).open("a") as out:
     monkeypatch.setenv("FAILURES", str(failures))
     monkeypatch.setenv("SLEEP_LOG", str(tmp_path / "sleeps"))
     monkeypatch.syspath_prepend(str(script_root))
-    destination = "file name" if script_root == JENKINS_SCRIPT_ROOT else "artifact.so"
+    destination = "file name"
     for transfer in range(2):
         log = tmp_path / f"aws-{transfer}"
         monkeypatch.setenv("AWS_LOG", str(log))

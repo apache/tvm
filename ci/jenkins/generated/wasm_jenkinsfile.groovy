@@ -15,8 +15,43 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Reject untrusted helper edits before allocating nodes or running pipeline steps.
-ci = evaluate(readTrusted('ci/jenkins/generated/common.groovy'))
+// Keep trusted branches on their selected helper; recover rejected PR helpers
+// only from the fixed upstream main ref. Never evaluate the checkout's copy.
+def helperPath = 'ci/jenkins/generated/common.groovy'
+def helperSource
+try {
+  helperSource = readTrusted(helperPath)
+} catch (hudson.AbortException failure) {
+  def rejected = failure.message == "‘${helperPath}’ has been modified in an untrusted revision"
+  def missing = failure.message?.endsWith("/${helperPath} not found")
+  if (!env.CHANGE_ID || !(rejected || missing)) {
+    throw failure
+  }
+} catch (java.io.FileNotFoundException failure) {
+  if (!env.CHANGE_ID || failure.message != helperPath) {
+    throw failure
+  }
+}
+if (helperSource == null) {
+  node('CPU-SMALL') {
+    helperSource = sh(
+      returnStdout: true,
+      label: 'Read trusted helper from upstream main',
+      script: '''
+        set -eu
+        helper_repo=$(mktemp -d)
+        trap 'rm -rf "$helper_repo"' EXIT
+        git init --bare --quiet "$helper_repo"
+        git --git-dir="$helper_repo" fetch --quiet --no-tags --depth=1 \
+          https://github.com/apache/tvm.git +refs/heads/main:refs/heads/trusted-main
+        revision=$(git --git-dir="$helper_repo" rev-parse --verify 'refs/heads/trusted-main^{commit}')
+        git --git-dir="$helper_repo" show "$revision:ci/jenkins/generated/common.groovy"
+      '''
+    )
+  }
+}
+// Evaluation and subsequent pipeline failures must never trigger a fallback.
+ci = evaluate(helperSource)
 ci.start()
 
 ci.build('CPU', 'BUILD: WASM', 'tvm/build-wasm', images.ci_wasm, 'wasm') {

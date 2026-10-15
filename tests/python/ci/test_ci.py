@@ -23,15 +23,12 @@ from pathlib import Path
 
 import pytest
 
-from .test_utils import JENKINS_SCRIPT_ROOT, REPO_ROOT, TempGit, run_script
+from .test_utils import JENKINS_SCRIPT_ROOT, TempGit, run_script
 
 
-@pytest.fixture(
-    params=[JENKINS_SCRIPT_ROOT, REPO_ROOT / "ci/scripts/jenkins"], ids=["native", "legacy"]
-)
-def jenkins_script_root(request):
-    # Fork PR jobs still use main's Jenkinsfiles and the legacy command paths.
-    return request.param
+@pytest.fixture
+def jenkins_script_root():
+    return JENKINS_SCRIPT_ROOT
 
 
 def parameterize_named(**kwargs):
@@ -314,49 +311,3 @@ def test_should_rebuild_docker(
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))
-
-
-@pytest.mark.parametrize(
-    "files, expected",
-    [([], 0), (["docs/page.rst"], 1), (["src/code.cc"], 0), (["docs/page.rst", "src/code.cc"], 0)],
-)
-def test_legacy_docs_gate(tmp_path, files, expected):
-    repo = TempGit(tmp_path)
-    repo.run("config", "user.name", "CI Test")
-    repo.run("config", "user.email", "ci-test@example.com")
-    repo.run("commit", "--allow-empty", "-m", "base")
-    repo.run("update-ref", "refs/remotes/origin/main", "HEAD")
-    for filename in files:
-        path = tmp_path / filename
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("change")
-    repo.run("add", ".")
-    repo.run("commit", "--allow-empty", "-m", "change")
-    result = run_script(
-        [REPO_ROOT / "ci/scripts/jenkins/git_change_docs.sh"], cwd=tmp_path, check=False
-    )
-    assert result.returncode == expected
-
-
-@pytest.mark.parametrize(
-    "branch, body, expected",
-    [
-        ("main", "ordinary change", 1),
-        ("ci-docker-staging", "ordinary change", 1),
-        ("feature", "ordinary change", 0),
-        ("feature", "@tvm-bot run slow tests", 1),
-    ],
-)
-def test_legacy_slow_gate(tmp_path, branch, body, expected):
-    repo = TempGit(tmp_path)
-    repo.run("config", "user.name", "CI Test")
-    repo.run("config", "user.email", "ci-test@example.com")
-    repo.run("commit", "--allow-empty", "-m", "base")
-    if branch != "main":
-        repo.run("checkout", "-b", branch)
-    result = run_script(
-        [REPO_ROOT / "ci/scripts/jenkins/should_run_slow_tests.py", "--pr", "1", "--pr-body", body],
-        cwd=tmp_path,
-        check=False,
-    )
-    assert result.returncode == expected

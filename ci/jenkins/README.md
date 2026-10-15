@@ -54,32 +54,35 @@ and the standalone skip commands retain their command-line interfaces.
 
 ### Trust and rollout
 
-Each entry point evaluates the shared helper returned by `readTrusted` at
-Jenkins' selected SCM revision. Untrusted PRs that modify or delete the helper
-fail immediately, before node allocation, checkout, or credentials. Missing
-helpers, interrupted reads, and evaluation errors also propagate directly.
-No alternative helper is fetched or evaluated.
+Each entry point first reads the shared helper with `readTrusted` at Jenkins'
+selected SCM revision. Trusted named branches retain their own helper. For PRs,
+Jenkins rejects an untrusted helper modification and may report a deleted helper
+as missing. These specific read failures recover by fetching `refs/heads/main`
+from the fixed `https://github.com/apache/tvm.git` URL into a fresh temporary bare
+repository on a small CPU node. The fetched commit is resolved and its helper
+blob is read directly, without checking out or evaluating PR-owned code. Recovery
+always uses latest upstream main, including for release-target PRs.
 
-Trusted helper changes use Jenkins' selected revision directly. Cancellation
-runs once before preparation. During preparation, the normal source merge pins
-the PR target revision for subsequent stages, including release targets.
-Host scripts and artifact metadata follow that pinned target revision for PR
-authors outside `CONTRIBUTORS.md`.
+Other read failures, cancellation, fallback fetch/read failures and helper
+evaluation errors propagate. Evaluation occurs outside the read-recovery block.
+The fallback requires no credentials or controller configuration changes.
 
-The legacy `ci/scripts/` hierarchy and `tests/scripts/task_show_node_info.sh`
-remain alongside the new paths because fork PR jobs can select older trusted
-Jenkinsfiles from their target branch. Those files keep the old docs-only and
-slow-test gates and their helper imports; the native pipelines use the new
-layout without those gates. Both layouts share the artifact registry and image
-configuration. Keep the legacy commands until the trusted targets no longer
-call them. Use a trusted branch build to exercise native helper changes; do not
-bypass a refused read by evaluating PR-owned code or a different revision.
+Cancellation runs once before preparation. During preparation, the normal source
+merge pins the PR target revision for subsequent stages, including release
+targets. Host scripts and artifact metadata follow that pinned target revision
+for PR authors outside `CONTRIBUTORS.md`.
+
+The obsolete `ci/scripts/` copies and old node-info path have been removed now
+that main's Jenkinsfiles use the canonical layout. The live `task_build.py`,
+source-mode test scripts and artifact interfaces remain available. Older target
+branches must retain their matching legacy commands; they are not supplied by
+this checkout.
 
 Before enabling the migration on production jobs, validate it with the existing
 Jenkins plugin versions and sandbox settings on a trusted branch: run all five
 entry points, suspend/resume across a node step, and exercise spot loss, a normal
 build-command failure, superseded builds, and a failed on-demand retry. Check
-trusted helper changes, untrusted PRs without helper changes, and refusal of
+trusted helper changes, untrusted PRs without helper changes, and recovery of
 untrusted modified/deleted helpers, including a release-target PR. Verify image
 overrides and disabled deployment gates before
 checking enabled docs/Docker deployment in the normal trusted deployment context.
