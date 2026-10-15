@@ -89,6 +89,7 @@ wheel.py-api = "py3"
 build-dir = "build"
 
 # Wheel configuration
+install.components = ["tvm"]
 wheel.packages = ["python/tvm"]
 wheel.install-dir = "tvm"
 

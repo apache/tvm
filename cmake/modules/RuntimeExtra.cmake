@@ -98,4 +98,5 @@ if(TVM_VISIBILITY_FLAG)
   set_property(TARGET tvm_runtime_extra APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 endif()
 
-tvm_configure_target_library(tvm_runtime_extra RUNTIME_MODULE)
+# The root registers the package-owned installation alongside tvm_compiler.
+tvm_configure_target_library(tvm_runtime_extra)
