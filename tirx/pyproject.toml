@@ -20,7 +20,7 @@
 requires = [
   "scikit-build-core>=0.11",
   "mlc-z3-static>=4.16.0",
-  "apache-tvm-ffi>=0.1.14.post1",
+  "apache-tvm-ffi>=0.1.15rc0",
 ]
 build-backend = "scikit_build_core.build"
 
@@ -47,7 +47,7 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-  "apache-tvm-ffi>=0.1.14.post1",
+  "apache-tvm-ffi>=0.1.15rc0",
   "apache-tvm-ffi-orcjit==0.1.2",
   "ml_dtypes",
   "numpy",

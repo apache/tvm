@@ -81,7 +81,7 @@ jobs:
           assert version("apache-tvm-ffi") == os.environ["TVM_FFI_VERSION"]
           assert version("apache-tvm-tirx") == "0.1.0a0"
           assert "apache-tvm-tirx==0.1.0a0" in requires("apache-tvm")
-          assert "apache-tvm-ffi>=0.1.14.post1" in requires("apache-tvm-tirx")
+          assert "apache-tvm-ffi>=0.1.15rc0" in requires("apache-tvm-tirx")
           assert "apache-tvm-ffi-orcjit==0.1.2" in requires("apache-tvm-tirx")
           PY
 
