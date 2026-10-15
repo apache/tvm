@@ -16,19 +16,48 @@
 // under the License.
 
 // Reject untrusted helper edits before allocating nodes or running pipeline steps.
-ci = evaluate(readTrusted('ci/jenkins/generated/common.groovy'))
+def helper_source
+try {
+  helper_source = readTrusted('ci/jenkins/generated/common.groovy')
+} catch (Throwable ex) {
+  echo 'Jenkinsfile changes must be pushed to an upstream branch. ' +
+    'wasm/pr-head will fail for these changes; check wasm/branch status instead.'
+  throw ex
+}
+ci = evaluate(helper_source)
 ci.start()
 
-ci.build('CPU', 'BUILD: WASM', 'tvm/build-wasm', images.ci_wasm, 'wasm') {
-  sh(
-    script: "${docker_run} ${images.ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
-    label: 'Create WASM CMake config',
-  )
-  ci.cmake_build(images.ci_wasm, 'build')
-  ci.make_cpp_tests(images.ci_wasm, 'build')
-  ci.cpp_unittest(images.ci_wasm)
-  sh(
-    script: "${docker_run} ${images.ci_wasm} ./tests/scripts/task_web_wasm.sh",
-    label: 'Run WASM lint and tests',
-  )
+stage('Build') {
+  ci.with_node(instance: 'CPU-SPOT', retry_instance: 'CPU',
+    name: 'BUILD: WASM', folder: 'tvm/build-wasm', variables: ['PLATFORM=wasm']) {
+    ci.docker_init(images.ci_wasm)
+    sh(
+      script: "${docker_run} ${images.ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
+      label: 'Create WASM CMake config',
+    )
+    sh (
+      script: "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_wasm} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir build",
+      label: 'Run CMake build',
+    )
+    sh (
+      script: """
+        set -eux
+        ${docker_run} ${images.ci_wasm} python3 ./tests/scripts/task_build.py \
+          --sccache-bucket tvm-sccache-prod \
+          --sccache-region us-west-2 \
+          --cmake-target cpptest \
+          --cmake-target tirx_cpptest \
+          --build-dir build
+        """,
+      label: 'Make C++ tests',
+    )
+    sh (
+      script: "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_wasm} ./tests/scripts/task_cpp_unittest.sh",
+      label: 'Run C++ tests',
+    )
+    sh(
+      script: "${docker_run} ${images.ci_wasm} ./tests/scripts/task_web_wasm.sh",
+      label: 'Run WASM lint and tests',
+    )
+  }
 }

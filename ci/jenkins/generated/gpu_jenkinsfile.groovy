@@ -15,26 +15,46 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
+
 // Reject untrusted helper edits before allocating nodes or running pipeline steps.
-ci = evaluate(readTrusted('ci/jenkins/generated/common.groovy'))
+def helper_source
+try {
+  helper_source = readTrusted('ci/jenkins/generated/common.groovy')
+} catch (Throwable ex) {
+  echo 'Jenkinsfile changes must be pushed to an upstream branch. ' +
+    'gpu/pr-head will fail for these changes; check gpu/branch status instead.'
+  throw ex
+}
+ci = evaluate(helper_source)
 ci.start()
 
-ci.build('CPU', 'BUILD: GPU', 'tvm/build-gpu', images.ci_gpu, 'gpu') {
-  sh "${docker_run} --no-gpu ${images.ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
-  ci.cmake_build("${images.ci_gpu} --no-gpu", 'build')
-  ci.upload('gpu', '--bundle tvm_lib --bundle tvm_lib_gpu_extra')
+stage('Build') {
+  ci.with_node(instance: 'CPU-SPOT', retry_instance: 'CPU',
+    name: 'BUILD: GPU', folder: 'tvm/build-gpu', variables: ['PLATFORM=gpu']) {
+    ci.docker_init(images.ci_gpu)
+    sh "${docker_run} --no-gpu ${images.ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
+    sh (
+      script: "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_gpu} --no-gpu ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir build",
+      label: 'Run CMake build',
+    )
+    ci.upload_artifacts('gpu', '--artifact tvm_lib --artifact tvm_lib_gpu_extra')
 
-  // Check the compiler-only GPU configuration after publishing the test build.
-  sh 'rm -rf build'
-  sh "${docker_run} --no-gpu ${images.ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
-  sh "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_gpu} --no-gpu ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --cmake-target tvm_runtime --build-dir build"
+    // Check the compiler-only GPU configuration after publishing the test build.
+    sh 'rm -rf build'
+    sh "${docker_run} --no-gpu ${images.ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
+    sh "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_gpu} --no-gpu ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --cmake-target tvm_runtime --build-dir build"
+  }
 }
 
 stage('Test') {
   parallel(
     'unittest: GPU': {
-      ci.test('GPU', 'unittest: GPU', 'tvm/ut-python-gpu', images.ci_gpu, 'gpu') {
-        ci.download('gpu')
+      ci.with_node(instance: 'GPU-SPOT', retry_instance: 'GPU',
+        name: 'unittest: GPU', folder: 'tvm/ut-python-gpu',
+        variables: ['PLATFORM=gpu', 'TEST_STEP_NAME=unittest: GPU']) {
+        ci.docker_init(images.ci_gpu)
+        ci.download_artifacts('gpu')
         sh(
           script: "${docker_run} ${images.ci_gpu} ./tests/scripts/task_java_unittest.sh",
           label: 'Run Java unit tests',
@@ -46,13 +66,16 @@ stage('Test') {
       }
     },
     'docs: GPU': {
-      ci.test('GPU', 'docs: GPU', 'tvm/docs-python-gpu', images.ci_gpu, 'gpu') {
-        ci.download('gpu')
+      ci.with_node(instance: 'GPU-SPOT', retry_instance: 'GPU',
+        name: 'docs: GPU', folder: 'tvm/docs-python-gpu',
+        variables: ['PLATFORM=gpu', 'TEST_STEP_NAME=docs: GPU']) {
+        ci.docker_init(images.ci_gpu)
+        ci.download_artifacts('gpu')
         sh(
           script: "${docker_run} ${images.ci_gpu} ./tests/scripts/task_python_docs.sh",
           label: 'Build docs',
         )
-        ci.upload('docs', '--items docs.tgz')
+        ci.upload_artifacts('docs', '--path docs.tgz')
         sh(
           script: "aws s3 cp --no-progress _docs s3://${s3_bucket}/${s3_prefix}/docs --recursive",
           label: 'Upload docs to S3',
@@ -105,13 +128,21 @@ def deploy_docs() {
 stage('Deploy') {
   if (env.BRANCH_NAME == 'main') {
     parallel('Deploy Docs': {
-      ci.deploy_step('Deploy Docs', env.DOCS_DEPLOY_ENABLED == 'yes', 'tvm/deploy-docs') {
-        ci.init_git()
-        sh(
-          script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/docs --items docs.tgz",
-          label: 'Download docs folder from S3',
-        )
-        deploy_docs()
+      if (env.DOCS_DEPLOY_ENABLED == 'yes') {
+        node('CPU') {
+          ws(ci.per_exec_ws('tvm/deploy-docs')) {
+            timeout(time: max_time, unit: 'MINUTES') {
+              ci.init_git()
+              sh(
+                script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/docs --path docs.tgz",
+                label: 'Download docs folder from S3',
+              )
+              deploy_docs()
+            }
+          }
+        }
+      } else {
+        Utils.markStageSkippedForConditional('Deploy Docs')
       }
     })
   }

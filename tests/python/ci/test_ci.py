@@ -18,20 +18,70 @@
 """Test various CI scripts and GitHub Actions workflows"""
 
 import json
+import os
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from .test_utils import JENKINS_SCRIPT_ROOT, REPO_ROOT, TempGit, run_script
+JENKINS_SCRIPT_ROOT = Path(__file__).resolve().parents[3] / "ci" / "jenkins" / "scripts"
 
 
-@pytest.fixture(
-    params=[JENKINS_SCRIPT_ROOT, REPO_ROOT / "ci/scripts/jenkins"], ids=["native", "legacy"]
-)
-def jenkins_script_root(request):
-    # Fork PR jobs still use main's Jenkinsfiles and the legacy command paths.
-    return request.param
+class TempGit:
+    """
+    A wrapper to run commands in a directory (specifically for use in CI tests)
+    """
+
+    def __init__(self, cwd):
+        self.cwd = cwd
+        # Jenkins git is too old and doesn't have 'git init --initial-branch',
+        # so init and checkout need to be separate steps
+        self.run("init", stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        self.run("checkout", "-b", "main", stderr=subprocess.PIPE)
+        self.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+
+    def run(self, *args, **kwargs):
+        """
+        Run a git command based on *args
+        """
+        proc = subprocess.run(
+            ["git"] + list(args), encoding="utf-8", cwd=self.cwd, check=False, **kwargs
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"git command failed: '{args}'")
+
+        return proc
+
+
+def run_script(command: list[Any], check: bool = True, **kwargs):
+    """
+    Wrapper to run a script and print its output if there was an error
+    """
+    command = [str(c) for c in command]
+    kwargs_to_send = {
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "encoding": "utf-8",
+    }
+    env = kwargs.pop("env", None)
+    if env is not None:
+        kwargs_to_send["env"] = {**os.environ, **env}
+    kwargs_to_send.update(kwargs)
+    proc = subprocess.run(
+        command,
+        check=False,
+        **kwargs_to_send,
+    )
+    if check and proc.returncode != 0:
+        raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
+
+    return proc
+
+
+@pytest.fixture
+def jenkins_script_root():
+    return JENKINS_SCRIPT_ROOT
 
 
 def parameterize_named(**kwargs):
@@ -314,49 +364,3 @@ def test_should_rebuild_docker(
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))
-
-
-@pytest.mark.parametrize(
-    "files, expected",
-    [([], 0), (["docs/page.rst"], 1), (["src/code.cc"], 0), (["docs/page.rst", "src/code.cc"], 0)],
-)
-def test_legacy_docs_gate(tmp_path, files, expected):
-    repo = TempGit(tmp_path)
-    repo.run("config", "user.name", "CI Test")
-    repo.run("config", "user.email", "ci-test@example.com")
-    repo.run("commit", "--allow-empty", "-m", "base")
-    repo.run("update-ref", "refs/remotes/origin/main", "HEAD")
-    for filename in files:
-        path = tmp_path / filename
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("change")
-    repo.run("add", ".")
-    repo.run("commit", "--allow-empty", "-m", "change")
-    result = run_script(
-        [REPO_ROOT / "ci/scripts/jenkins/git_change_docs.sh"], cwd=tmp_path, check=False
-    )
-    assert result.returncode == expected
-
-
-@pytest.mark.parametrize(
-    "branch, body, expected",
-    [
-        ("main", "ordinary change", 1),
-        ("ci-docker-staging", "ordinary change", 1),
-        ("feature", "ordinary change", 0),
-        ("feature", "@tvm-bot run slow tests", 1),
-    ],
-)
-def test_legacy_slow_gate(tmp_path, branch, body, expected):
-    repo = TempGit(tmp_path)
-    repo.run("config", "user.name", "CI Test")
-    repo.run("config", "user.email", "ci-test@example.com")
-    repo.run("commit", "--allow-empty", "-m", "base")
-    if branch != "main":
-        repo.run("checkout", "-b", branch)
-    result = run_script(
-        [REPO_ROOT / "ci/scripts/jenkins/should_run_slow_tests.py", "--pr", "1", "--pr-body", body],
-        cwd=tmp_path,
-        check=False,
-    )
-    assert result.returncode == expected

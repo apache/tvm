@@ -15,23 +15,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Bundle registry for CI artifact stashing.
+"""Named CI artifacts. Uploads expand globs; downloads copy the saved paths.
 
-Single source of truth for the file lists uploaded to / downloaded from S3 by
-``ci/jenkins/scripts/s3.py``. This module deliberately carries nothing else —
-docker image tags live in ``ci/jenkins/docker-images.ini`` and pipeline
-configuration lives in ``ci/jenkins/generated/common.groovy``.
+Examples::
 
-CLI: ``python3 ci/jenkins/data.py <bundle> [<bundle> ...]`` resolves bundle
-names to their file paths (one per line; exit 1 on unknown name). Used by
-``s3.py`` at Jenkins runtime and by any external caller that needs
-data-driven artifact lists.
+    python3 ci/jenkins/artifacts.py tvm_lib cpptest
+    ./ci/jenkins/scripts/s3.py --action upload --bucket BUCKET --prefix PREFIX \
+        --artifact tvm_lib --artifact cpptest
 """
 
 import sys
 from glob import glob
 
-files_to_stash = {
+ARTIFACTS = {
     # Executables and build files needed to run c++ tests
     "cpptest": [
         "build/cpptest",
@@ -67,9 +63,9 @@ files_to_stash = {
 if __name__ == "__main__":
     paths = []
     for name in sys.argv[1:]:
-        if name not in files_to_stash:
+        if name not in ARTIFACTS:
             print(f"unknown bundle: {name}", file=sys.stderr)
             sys.exit(1)
-        paths.extend(files_to_stash[name])
+        paths.extend(ARTIFACTS[name])
     for p in paths:
         print(p)

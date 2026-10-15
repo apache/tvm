@@ -16,15 +16,41 @@
 // under the License.
 
 // Reject untrusted helper edits before allocating nodes or running pipeline steps.
-ci = evaluate(readTrusted('ci/jenkins/generated/common.groovy'))
+def helper_source
+try {
+  helper_source = readTrusted('ci/jenkins/generated/common.groovy')
+} catch (Throwable ex) {
+  echo 'Jenkinsfile changes must be pushed to an upstream branch. ' +
+    'arm/pr-head will fail for these changes; check arm/branch status instead.'
+  throw ex
+}
+ci = evaluate(helper_source)
 ci.start()
 
-ci.build('ARM-GRAVITON3', 'BUILD: arm', 'tvm/build-arm', images.ci_arm, 'arm') {
-  sh(
-    script: "${docker_run} ${images.ci_arm} ./tests/scripts/task_config_build_arm.sh build",
-    label: 'Create ARM CMake config',
-  )
-  ci.cmake_build(images.ci_arm, 'build')
-  ci.make_cpp_tests(images.ci_arm, 'build')
-  ci.upload('arm', '--bundle tvm_lib --bundle cpptest')
+stage('Build') {
+  ci.with_node(instance: 'ARM-GRAVITON3-SPOT', retry_instance: 'ARM-GRAVITON3',
+    name: 'BUILD: arm', folder: 'tvm/build-arm', variables: ['PLATFORM=arm']) {
+    ci.docker_init(images.ci_arm)
+    sh(
+      script: "${docker_run} ${images.ci_arm} ./tests/scripts/task_config_build_arm.sh build",
+      label: 'Create ARM CMake config',
+    )
+    sh (
+      script: "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_arm} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir build",
+      label: 'Run CMake build',
+    )
+    sh (
+      script: """
+        set -eux
+        ${docker_run} ${images.ci_arm} python3 ./tests/scripts/task_build.py \
+          --sccache-bucket tvm-sccache-prod \
+          --sccache-region us-west-2 \
+          --cmake-target cpptest \
+          --cmake-target tirx_cpptest \
+          --build-dir build
+        """,
+      label: 'Make C++ tests',
+    )
+    ci.upload_artifacts('arm', '--artifact tvm_lib --artifact cpptest')
+  }
 }
