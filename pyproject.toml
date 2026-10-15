@@ -179,7 +179,7 @@ include = [
   "tests/**/*.py",
   "docs/**/*.py",
   "apps/**/*.py",
-  "ci/scripts/**/*.py",
+  "ci/**/*.py",
   "conftest.py",
   "jvm/**/*.py",
   "web/tests/**/*.py",
