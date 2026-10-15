@@ -342,9 +342,20 @@ def _pid_is_running(pid: int) -> bool:
         return False
     try:
         state = stat_path.read_text(encoding="utf-8").split()[2]
-    except (FileNotFoundError, IndexError):
+    except (FileNotFoundError, ProcessLookupError, IndexError):
         return False
     return state != "Z"
+
+
+@pytest.mark.parametrize("error", [FileNotFoundError, ProcessLookupError])
+def test_pid_check_handles_process_exit_during_stat_read(monkeypatch, error):
+    def read_stat(*_args, **_kwargs):
+        raise error("process exited")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "exists", lambda _path: True)
+        patch.setattr(Path, "read_text", read_stat)
+        assert not _pid_is_running(12345)
 
 
 def test_timeout_kills_run_iket_workload_and_grandchild(tmp_path, monkeypatch):
