@@ -16,7 +16,15 @@
 // under the License.
 
 // Reject untrusted helper edits before allocating nodes or running pipeline steps.
-ci = evaluate(readTrusted('ci/jenkins/generated/common.groovy'))
+def helper_source
+try {
+  helper_source = readTrusted('ci/jenkins/generated/common.groovy')
+} catch (Throwable ex) {
+  echo 'Jenkinsfile changes must be pushed to an upstream branch. ' +
+    'docker/pr-head will fail for these changes; check docker/branch status instead.'
+  throw ex
+}
+ci = evaluate(helper_source)
 ci.start()
 
 def ecr_push(full_name) {

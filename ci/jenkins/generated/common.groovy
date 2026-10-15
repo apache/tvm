@@ -21,6 +21,7 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 image_platforms = [ci_arm: 'ARM', ci_cpu: 'CPU', ci_gpu: 'GPU', ci_wasm: 'CPU']
 images = image_platforms.collectEntries { name, platform -> [(name): ''] }
 source_images = [:]
+// Resolve Hub inputs through the caller account ECR cache; false keeps public names.
 enable_docker_hub_cache = true
 built_images = [:]
 upstream_revision = null

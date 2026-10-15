@@ -16,7 +16,15 @@
 // under the License.
 
 // Reject untrusted helper edits before allocating nodes or running pipeline steps.
-ci = evaluate(readTrusted('ci/jenkins/generated/common.groovy'))
+def helper_source
+try {
+  helper_source = readTrusted('ci/jenkins/generated/common.groovy')
+} catch (Throwable ex) {
+  echo 'Jenkinsfile changes must be pushed to an upstream branch. ' +
+    'cpu/pr-head will fail for these changes; check cpu/branch status instead.'
+  throw ex
+}
+ci = evaluate(helper_source)
 ci.start()
 
 stage('Build') {
@@ -38,6 +46,7 @@ stage('Build') {
           --sccache-bucket tvm-sccache-prod \
           --sccache-region us-west-2 \
           --cmake-target cpptest \
+          --cmake-target tirx_cpptest \
           --build-dir build
         """,
       label: 'Make C++ tests',
