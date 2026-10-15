@@ -310,18 +310,29 @@ def with_node(options, body) {
       }
     }
   }
-  try {
+  if (!options.retry_instance) {
     run(options.instance)
-  } catch (Throwable ex) {
-    // Jenkins also uses FlowInterruptedException for agent loss and timeouts.
-    // Actual interruptions (user cancellation or a milestone) must not retry.
-    if (ex instanceof org.jenkinsci.plugins.workflow.steps.FlowInterruptedException) {
-      if (ex.isActualInterruption()) throw ex
-    } else if (ex instanceof InterruptedException) {
-      throw ex
+    return
+  }
+  def failure = null
+  // The Pipeline retry step distinguishes actual cancellation from retryable
+  // agent loss/timeouts without calling restricted exception methods in Groovy.
+  retry(2) {
+    if (failure == null) {
+      try {
+        run(options.instance)
+      } catch (Throwable ex) {
+        failure = ex
+        throw ex
+      }
+    } else {
+      // Plain thread interruption must also propagate before another allocation.
+      if (failure instanceof InterruptedException &&
+          !(failure instanceof org.jenkinsci.plugins.workflow.steps.FlowInterruptedException)) {
+        throw failure
+      }
+      retry_latest(failure) { run(options.retry_instance) }
     }
-    if (!options.retry_instance) throw ex
-    retry_latest(ex) { run(options.retry_instance) }
   }
 }
 
