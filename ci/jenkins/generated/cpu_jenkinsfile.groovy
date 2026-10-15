@@ -61,7 +61,7 @@ stage('Test') {
       name: 'unittest: CPU', folder: 'tvm/ut-python-cpu',
       variables: ['PLATFORM=cpu', 'TEST_STEP_NAME=unittest: CPU']) {
       ci.docker_init(images.ci_cpu)
-      ci.download('cpu')
+      ci.download_artifacts('cpu')
       sh (
         script: "${docker_run} --env CI_NUM_EXECUTORS ${images.ci_cpu} ./tests/scripts/task_cpp_unittest.sh",
         label: 'Run C++ tests',

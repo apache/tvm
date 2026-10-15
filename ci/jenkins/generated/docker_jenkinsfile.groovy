@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
+
 // Reject untrusted helper edits before allocating nodes or running pipeline steps.
 def helper_source
 try {
@@ -112,50 +114,64 @@ def deploy() {
     if (env.BRANCH_NAME != 'main') return
     parallel(
       'Upload built Docker images': {
-        ci.deploy_step('Upload built Docker images',
-          env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null,
-          'tvm/deploy-docker') {
-          ci.init_git()
-          try {
-            withCredentials([string(credentialsId: 'dockerhub-tlcpackstaging-key', variable: 'DOCKERHUB_KEY')]) {
-              sh(script: 'docker login -u tlcpackstaging -p ${DOCKERHUB_KEY}', label: 'Log in to Docker Hub')
+        if (env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null) {
+          node('CPU') {
+            ws(ci.per_exec_ws('tvm/deploy-docker')) {
+              timeout(time: max_time, unit: 'MINUTES') {
+                ci.init_git()
+                try {
+                  withCredentials([string(credentialsId: 'dockerhub-tlcpackstaging-key', variable: 'DOCKERHUB_KEY')]) {
+                    sh(script: 'docker login -u tlcpackstaging -p ${DOCKERHUB_KEY}', label: 'Log in to Docker Hub')
+                  }
+                  def date = sh(
+                    script: 'python3 -c \'import datetime; print(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))\'',
+                    label: 'Determine date', returnStdout: true,
+                  ).trim()
+                  def tag = "${date}-${upstream_revision.substring(0, 8)}"
+                  images.keySet().each { name -> update_docker(built_images[name], "tlcpackstaging/${name}:${tag}") }
+                } finally {
+                  sh(script: 'docker logout', label: 'Clean up login credentials')
+                }
+              }
             }
-            def date = sh(
-              script: 'python3 -c \'import datetime; print(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))\'',
-              label: 'Determine date', returnStdout: true,
-            ).trim()
-            def tag = "${date}-${upstream_revision.substring(0, 8)}"
-            images.keySet().each { name -> update_docker(built_images[name], "tlcpackstaging/${name}:${tag}") }
-          } finally {
-            sh(script: 'docker logout', label: 'Clean up login credentials')
           }
+        } else {
+          Utils.markStageSkippedForConditional('Upload built Docker images')
         }
       },
       'Tag tlcpackstaging to tlcpack': {
-        ci.deploy_step('Tag tlcpackstaging to tlcpack', env.DEPLOY_DOCKER_IMAGES == 'yes', 'tvm/tag-images') {
-          ci.init_git()
-          withCredentials([string(credentialsId: 'dockerhub-tlcpack-key', variable: 'TLCPACK_TOKEN')]) {
-            try {
-              sh(script: 'echo $TLCPACK_TOKEN | docker login --username octomldriazati --password-stdin', label: 'Log in to Docker Hub')
-              source_images.each { name, image ->
-                if (image.contains('tlcpackstaging')) {
-                  def tag = image.split(':')[1]
-                  sh(
-                    script: """
-                      set -eux
-                      . ${jenkins_scripts_root}/retry.sh
-                      docker pull tlcpackstaging/${name}:${tag}
-                      docker tag tlcpackstaging/${name}:${tag} tlcpack/${name.replace('_', '-')}:${tag}
-                      retry 5 docker push tlcpack/${name.replace('_', '-')}:${tag}
-                    """,
-                    label: "Tag tlcpackstaging/${name} image to tlcpack",
-                  )
+        if (env.DEPLOY_DOCKER_IMAGES == 'yes') {
+          node('CPU') {
+            ws(ci.per_exec_ws('tvm/tag-images')) {
+              timeout(time: max_time, unit: 'MINUTES') {
+                ci.init_git()
+                withCredentials([string(credentialsId: 'dockerhub-tlcpack-key', variable: 'TLCPACK_TOKEN')]) {
+                  try {
+                    sh(script: 'echo $TLCPACK_TOKEN | docker login --username octomldriazati --password-stdin', label: 'Log in to Docker Hub')
+                    source_images.each { name, image ->
+                      if (image.contains('tlcpackstaging')) {
+                        def tag = image.split(':')[1]
+                        sh(
+                          script: """
+                            set -eux
+                            . ${jenkins_scripts_root}/retry.sh
+                            docker pull tlcpackstaging/${name}:${tag}
+                            docker tag tlcpackstaging/${name}:${tag} tlcpack/${name.replace('_', '-')}:${tag}
+                            retry 5 docker push tlcpack/${name.replace('_', '-')}:${tag}
+                          """,
+                          label: "Tag tlcpackstaging/${name} image to tlcpack",
+                        )
+                      }
+                    }
+                  } finally {
+                    sh(script: 'docker logout', label: 'Clean up login credentials')
+                  }
                 }
               }
-            } finally {
-              sh(script: 'docker logout', label: 'Clean up login credentials')
             }
           }
+        } else {
+          Utils.markStageSkippedForConditional('Tag tlcpackstaging to tlcpack')
         }
       },
     )

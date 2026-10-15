@@ -17,28 +17,30 @@
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
-// Keep the image names aligned with docker-images.ini. Tags are resolved in prepare.
+// ------ Config ------
+// Keep image names aligned with docker-images.ini. Tags are resolved in prepare.
 image_platforms = [ci_arm: 'ARM', ci_cpu: 'CPU', ci_gpu: 'GPU', ci_wasm: 'CPU']
-images = image_platforms.collectEntries { name, platform -> [(name): ''] }
-source_images = [:]
 // Resolve Hub inputs through the caller account ECR cache; false keeps public names.
 enable_docker_hub_cache = true
-built_images = [:]
-upstream_revision = null
 max_time = 180
-rebuild_docker_images = false
 docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TEST_STEP_NAME'
 docker_build = 'docker/build.sh'
 s3_bucket = 'tvm-jenkins-artifacts-prod'
-s3_prefix = "tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"
 jenkins_scripts_root = 'ci/jenkins/scripts'
+
+// ------ Runtime state ------
+images = image_platforms.collectEntries { name, platform -> [(name): ''] }
+source_images = [:]
+built_images = [:]
+upstream_revision = null
+rebuild_docker_images = false
+s3_prefix = "tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"
 
 properties([parameters(image_platforms.collect { name, platform ->
   string(name: "${name}_param", defaultValue: '')
 })])
 
 // Shared utilities; platform Jenkinsfiles own stages, parallel groups and commands.
-// Keep existing helpers callable for older Jenkinsfiles.
 
 def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
@@ -294,24 +296,6 @@ def retry_latest(ex, body) {
   body()
 }
 
-def run_on_node(label, name, folder, image, variables, body) {
-  if (skip_ci) {
-    Utils.markStageSkippedForConditional(name)
-    return
-  }
-  echo 'Begin running on node_type ' + label
-  node(label) {
-    ws(per_exec_ws(folder)) {
-      init_git()
-      docker_init(image)
-      timeout(time: max_time, unit: 'MINUTES') {
-        withEnv(variables) { body() }
-      }
-    }
-  }
-  echo 'End running on node_type ' + label
-}
-
 // Public entry points.
 
 // with_node(instance: 'CPU-SPOT', retry_instance: 'CPU', name: 'Build',
@@ -348,9 +332,19 @@ def with_node(options, body) {
 // upload_artifacts('cpu', '--artifact tvm_lib --artifact cpptest')
 // Or select paths: '--path "build/*.whl"'. Options pass unchanged to s3.py.
 // Registry artifacts and explicit paths are mutually exclusive; repeat one-value flags.
-// Upload globs are sorted/deduplicated; download(tag) copies the whole saved prefix.
+// Upload globs are sorted/deduplicated; download_artifacts(tag) copies the whole saved prefix.
 def upload_artifacts(tag, options) {
-  upload(tag, options)
+  sh(
+    script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/${tag} ${options}",
+    label: 'Upload artifacts to S3',
+  )
+}
+
+def download_artifacts(tag) {
+  sh(
+    script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/${tag}",
+    label: 'Download artifacts from S3',
+  )
 }
 
 def docker_init(image) {
@@ -391,97 +385,6 @@ def start() {
     prepare('CPU-SMALL-SPOT')
   } catch (Exception ex) {
     prepare('CPU-SMALL')
-  }
-}
-
-// Legacy compatibility functions. Preserve signatures and behavior for older
-// Jenkinsfiles; current platform files spell out build and test commands directly.
-
-def python_unittest(image) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_python_unittest.sh",
-    label: 'Run Python unit tests',
-  )
-}
-
-def make_cpp_tests(image, build_dir) {
-  sh (
-    script: """
-      set -eux
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
-        --sccache-bucket tvm-sccache-prod \
-        --sccache-region us-west-2 \
-        --cmake-target cpptest \
-        --cmake-target tirx_cpptest \
-        --build-dir ${build_dir}
-      """,
-    label: 'Make C++ tests',
-  )
-}
-
-def cmake_build(image, path) {
-  sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir ${path}",
-    label: 'Run CMake build',
-  )
-}
-
-def cpp_unittest(image) {
-  sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_cpp_unittest.sh",
-    label: 'Run C++ tests',
-  )
-}
-
-// A failed build command is final. Infrastructure failures retry only while
-// this is the newest build; tests intentionally also retry AbortException.
-def build(label, name, folder, image, platform, body) {
-  stage('Build') {
-    try {
-      run_on_node("${label}-SPOT", name, folder, image, ["PLATFORM=${platform}"], body)
-    } catch (hudson.AbortException ex) {
-      echo 'Received normal AbortException, exit now. Details:' + ex.toString()
-      throw ex
-    } catch (Throwable ex) {
-      retry_latest(ex) {
-        run_on_node(label, name, folder, image, ["PLATFORM=${platform}"], body)
-      }
-    }
-  }
-}
-
-def test(label, name, folder, image, platform, body) {
-  def variables = ["PLATFORM=${platform}", "TEST_STEP_NAME=${name}"]
-  try {
-    run_on_node("${label}-SPOT", name, folder, image, variables, body)
-  } catch (Throwable ex) {
-    retry_latest(ex) { run_on_node(label, name, folder, image, variables, body) }
-  }
-}
-
-def upload(tag, options) {
-  sh(
-    script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/${tag} ${options}",
-    label: 'Upload artifacts to S3',
-  )
-}
-
-def download(tag) {
-  sh(
-    script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/${tag}",
-    label: 'Download artifacts from S3',
-  )
-}
-
-def deploy_step(name, enabled, folder, body) {
-  if (enabled) {
-    node('CPU') {
-      ws(per_exec_ws(folder)) {
-        timeout(time: max_time, unit: 'MINUTES') { body() }
-      }
-    }
-  } else {
-    Utils.markStageSkippedForConditional(name)
   }
 }
 

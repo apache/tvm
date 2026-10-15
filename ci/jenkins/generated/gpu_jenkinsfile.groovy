@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
+
 // Reject untrusted helper edits before allocating nodes or running pipeline steps.
 def helper_source
 try {
@@ -52,7 +54,7 @@ stage('Test') {
         name: 'unittest: GPU', folder: 'tvm/ut-python-gpu',
         variables: ['PLATFORM=gpu', 'TEST_STEP_NAME=unittest: GPU']) {
         ci.docker_init(images.ci_gpu)
-        ci.download('gpu')
+        ci.download_artifacts('gpu')
         sh(
           script: "${docker_run} ${images.ci_gpu} ./tests/scripts/task_java_unittest.sh",
           label: 'Run Java unit tests',
@@ -68,7 +70,7 @@ stage('Test') {
         name: 'docs: GPU', folder: 'tvm/docs-python-gpu',
         variables: ['PLATFORM=gpu', 'TEST_STEP_NAME=docs: GPU']) {
         ci.docker_init(images.ci_gpu)
-        ci.download('gpu')
+        ci.download_artifacts('gpu')
         sh(
           script: "${docker_run} ${images.ci_gpu} ./tests/scripts/task_python_docs.sh",
           label: 'Build docs',
@@ -126,13 +128,21 @@ def deploy_docs() {
 stage('Deploy') {
   if (env.BRANCH_NAME == 'main') {
     parallel('Deploy Docs': {
-      ci.deploy_step('Deploy Docs', env.DOCS_DEPLOY_ENABLED == 'yes', 'tvm/deploy-docs') {
-        ci.init_git()
-        sh(
-          script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/docs --path docs.tgz",
-          label: 'Download docs folder from S3',
-        )
-        deploy_docs()
+      if (env.DOCS_DEPLOY_ENABLED == 'yes') {
+        node('CPU') {
+          ws(ci.per_exec_ws('tvm/deploy-docs')) {
+            timeout(time: max_time, unit: 'MINUTES') {
+              ci.init_git()
+              sh(
+                script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/docs --path docs.tgz",
+                label: 'Download docs folder from S3',
+              )
+              deploy_docs()
+            }
+          }
+        }
+      } else {
+        Utils.markStageSkippedForConditional('Deploy Docs')
       }
     })
   }
