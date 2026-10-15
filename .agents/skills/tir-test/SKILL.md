@@ -1,16 +1,15 @@
 ---
 name: tir-test
-description: Run TVM's in-tree TIRx test suite, with optional tirx-kernels integration checks.
+description: Run TVM's in-tree TIRx tests and tirx-kernels import and correctness checks.
 ---
 
-Run the full compiler test suite in `tirx/tests/python/tirx/`, using the
-`tvm_tirx` package in `tirx/python/`. The parent `tests/python/tirx/` directory
-contains downstream integration tests, not the compiler suite after the split.
+Run the compiler suite in `tirx/tests/python/tirx/`, using the `tvm_tirx` package
+in `tirx/python/`, together with the downstream correctness test in
+`tests/python/tirx/test_tirx_kernels_registry_correctness.py`.
 
-Keep tirx-kernels integration opt-in while that repository still uses the old
-`tvm` namespaces. Its import failures must not prevent running the compiler
-suite. Set `TIR_TEST_WITH_KERNELS=1` only when downstream validation is requested;
-when enabled, failures in either import gate remain failures.
+Both tirx-kernels import gates and its correctness coverage are enabled by
+default. Use `TIR_TEST_WITH_KERNELS=0` only for an explicitly requested
+compiler-only run, and report that reduced coverage.
 
 ## Steps
 
@@ -24,7 +23,7 @@ Run all commands below in the same Bash shell from the TVM repository root.
    export TIR_TEST_TVM_ROOT="$(pwd -P)"
    export TIR_TEST_NUM_GPUS="${TIR_TEST_NUM_GPUS:-}"
    export TIR_TEST_XDIST_WORKERS="${TIR_TEST_XDIST_WORKERS:-16}"
-   export TIR_TEST_WITH_KERNELS="${TIR_TEST_WITH_KERNELS:-0}"
+   export TIR_TEST_WITH_KERNELS="${TIR_TEST_WITH_KERNELS:-1}"
 
    [[ -d "$TIR_TEST_TVM_ROOT/tirx/python/tvm_tirx" &&
       -d "$TIR_TEST_TVM_ROOT/tirx/tests/python/tirx" ]] || {
@@ -153,8 +152,9 @@ Run all commands below in the same Bash shell from the TVM repository root.
    If native libraries are missing or stale, build this worktree with the same
    `PYTHONPATH` before testing.
 
-2. Run downstream import gates only when explicitly enabled:
+2. Run downstream import gates and select the full test coverage:
    ```bash
+   TIR_TEST_PATHS=(tirx/tests/python/tirx/)
    if [[ "$TIR_TEST_WITH_KERNELS" == 1 ]]; then
      TIR_TEST_KERNELS_ROOT="${TIR_TEST_KERNELS_ROOT:-$(dirname "$TIR_TEST_TVM_ROOT")/tirx-kernels}"
      [[ -d "$TIR_TEST_KERNELS_ROOT/tirx_kernels" ]] || {
@@ -164,16 +164,18 @@ Run all commands below in the same Bash shell from the TVM repository root.
      export PYTHONPATH="${TIR_TEST_KERNELS_ROOT}:${PYTHONPATH:-}"
      "$PYTHON_BIN" -m tirx_kernels.bench_suite --check-imports || exit 1
      "$PYTHON_BIN" -m tirx_kernels.registry --strict || exit 1
+     TIR_TEST_PATHS+=(tests/python/tirx/test_tirx_kernels_registry_correctness.py)
+     export TIRX_KERNEL_TEST_MIN_FREE_GB="${TIRX_KERNEL_TEST_MIN_FREE_GB:-0}"
    else
-     echo "tirx-kernels import gates: not requested (TIR_TEST_WITH_KERNELS=0)"
+     echo "compiler-only run: tirx-kernels import and correctness checks disabled"
    fi
    ```
 
-3. Run the full compiler test suite with xdist parallelism and save the full log:
+3. Run the selected test suites with xdist parallelism and save the full log:
    ```bash
    export TIR_TEST_LOG="${TIR_TEST_LOG:-/tmp/tir-test-$(date +%Y%m%d-%H%M%S).log}"
    set -o pipefail
-   "$PYTHON_BIN" -m pytest tirx/tests/python/tirx/ -n "$TIR_TEST_XDIST_WORKERS" 2>&1 | tee "$TIR_TEST_LOG"
+   "$PYTHON_BIN" -m pytest "${TIR_TEST_PATHS[@]}" -n "$TIR_TEST_XDIST_WORKERS" 2>&1 | tee "$TIR_TEST_LOG"
    ```
 
    `tirx/tests/python/tirx/conftest.py` uses `tvm_tirx.testing._pytest` to assign
@@ -181,9 +183,14 @@ Run all commands below in the same Bash shell from the TVM repository root.
    GPUs. Tests that explicitly use `tvm_tirx.cuda(0)` still run on the first
    selected physical GPU.
 
+   Registry correctness tests take a per-device lock to serialize large workloads
+   on each GPU. MegaMoE remains skipped because it requires its dedicated
+   multi-process scheduler.
+
 4. Report results: selected physical GPUs, elapsed time, total passed, failed,
    skipped, and errors, plus the full log path. Report both downstream gates as
-   passed, failed, or not requested; disabled integration checks are not passes.
+   passed, failed, or explicitly disabled; disabled integration checks are not
+   passes.
 
 ## Failure triage rules
 
