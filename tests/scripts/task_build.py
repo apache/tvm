@@ -93,8 +93,16 @@ if __name__ == "__main__":
     if not ffi_marker.is_file() or ffi_marker.read_text().strip() != ffi_identity:
         subprocess.run(
             [
-                "uv", "pip", "install", "--python", sys.executable,
-                "-v", "--no-deps", "--reinstall", "--target=python", "./3rdparty/tvm-ffi/",
+                "uv",
+                "pip",
+                "install",
+                "--python",
+                sys.executable,
+                "-v",
+                "--no-deps",
+                "--reinstall",
+                "--target=python",
+                "./3rdparty/tvm-ffi/",
             ],
             cwd=REPO_ROOT,
             env=env,
