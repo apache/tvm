@@ -95,13 +95,13 @@ jobs:
         run: |
           set -euxo pipefail
           python -m pytest -v -s 'tirx/tests/python/codegen/gpu_common/test_allreduce.py::test_allreduce_sum_compile'
-          python -m pytest -v -s 'tirx/tests/python/backend/metal/codegen/test_metal.py::test_func_with_trailing_pod_params'
+          python -m pytest -v -s 'tirx/tests/python/backend/metal/codegen/test_basic.py::test_func_with_trailing_pod_params'
       - name: Minimal Metal Compile-and-Run
         shell: bash -l {0}
         run: |
           set -euxo pipefail
           python -m pytest -v -s tirx/tests/python/backend/metal
-          python -m pytest -v -s 'tirx/tests/python/codegen/gpu_common/test_gpu_intrinsics.py'
+          python -m pytest -v -s 'tirx/tests/python/codegen/gpu_common/test_intrinsics.py'
           python -m pytest -v -s 'tirx/tests/python/codegen/gpu_common/test_allreduce.py::test_allreduce_sum[dims0-metal]'
 
   Windows:
