@@ -141,7 +141,7 @@ logging.level = "INFO"
 [tool.scikit-build.cmake.define]
 TVM_BUILD_PYTHON_MODULE = "ON"
 TVM_USE_INSTALLED_TIRX = "ON"
-USE_CUDA = "OFF"
+TVM_TIRX_USE_CUDA = "OFF"
 BUILD_TESTING = "OFF"
 
 [tool.setuptools_scm]

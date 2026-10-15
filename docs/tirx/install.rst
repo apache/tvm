@@ -47,7 +47,7 @@ The wheel is enough to inspect and author TIRx IR. Some CUDA workflows also
 need NVIDIA's Python CUDA bindings, available through ``apache-tvm[cuda]``.
 That extra does not enable CUDA in the TVM library and does not install a driver
 or toolkit. To compile and run the CUDA examples, use a TVM build configured
-with ``USE_CUDA=ON``; see :ref:`install TVM from source <install-from-source>`.
+with ``TVM_TIRX_USE_CUDA=ON``; see :ref:`install TVM from source <install-from-source>`.
 
 Verify:
 

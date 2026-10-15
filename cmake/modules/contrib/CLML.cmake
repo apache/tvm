@@ -80,5 +80,5 @@ if(USE_CLML_GRAPH_EXECUTOR)
     add_definitions(-DTVM_GRAPH_EXECUTOR_CLML)
 
     message(STATUS "Enable OpenCL as fallback to CLML")
-    set(USE_OPENCL ${CLML_PATH})
+    set(TVM_TIRX_USE_OPENCL ${CLML_PATH})
 endif()

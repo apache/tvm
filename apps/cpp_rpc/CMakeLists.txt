@@ -32,7 +32,7 @@ if (OS)
    endif()
 endif()
 
-if(USE_OPENCL)
+if(TARGET tvm_tirx::tvm_runtime_opencl)
    if (ANDROID_ABI)
      if(DEFINED ENV{ANDROID_NDK_MAJOR})
        if($ENV{ANDROID_NDK_MAJOR} VERSION_LESS "23")

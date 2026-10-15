@@ -16,7 +16,7 @@
 # under the License.
 
 # HIPBLAS contrib goes into libtvm_runtime_extra.
-if(USE_ROCM AND USE_HIPBLAS)
+if(TVM_TIRX_USE_ROCM AND USE_HIPBLAS)
   message(STATUS "Build with HIPBLAS support")
   tvm_file_glob(GLOB HIPBLAS_CONTRIB_SRC src/relax/backend/contrib/hipblas/*.cc)
   list(APPEND COMPILER_SRCS ${HIPBLAS_CONTRIB_SRC})
@@ -27,9 +27,9 @@ if(USE_ROCM AND USE_HIPBLAS)
   if(NOT ROCM_HIPBLASLT_LIBRARY STREQUAL "ROCM_HIPBLASLT_LIBRARY-NOTFOUND")
     target_link_libraries(tvm_runtime_extra PRIVATE ${ROCM_HIPBLASLT_LIBRARY})
   endif()
-endif(USE_ROCM AND USE_HIPBLAS)
+endif(TVM_TIRX_USE_ROCM AND USE_HIPBLAS)
 
-if(USE_ROCM AND USE_THRUST)
+if(TVM_TIRX_USE_ROCM AND USE_THRUST)
   message(STATUS "Build with rocThrust support")
   # We need to override CXX to hipcc. This is required by rocthrust
   if(${CMAKE_CXX_COMPILER} MATCHES "hipcc$")
@@ -44,4 +44,4 @@ if(USE_ROCM AND USE_THRUST)
   add_library(tvm_rocthrust_objs OBJECT src/runtime/extra/contrib/thrust/thrust.cu)
   target_link_libraries(tvm_rocthrust_objs PRIVATE tvm_runtime_extra_defs)
   target_link_libraries(tvm_runtime_extra PRIVATE tvm_rocthrust_objs roc::rocthrust)
-endif(USE_ROCM AND USE_THRUST)
+endif(TVM_TIRX_USE_ROCM AND USE_THRUST)
