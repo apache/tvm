@@ -111,6 +111,15 @@ sdist.include = [
   "/README.md",
   "/apps/**",
   "/web/**",
+  # Private build inputs remain in the source distribution, outside the core's
+  # installed public-header interface.
+  "/tirx/3rdparty/compiler-rt/builtin_fp16.h",
+  "/tirx/src/backend/opencl/memory_scope.h",
+  "/tirx/src/backend/opencl/runtime/opencl_common.h",
+  "/tirx/src/backend/opencl/runtime/texture.h",
+  "/tirx/src/runtime/metadata.h",
+  "/tirx/src/runtime/pack_args.h",
+  "/tirx/src/runtime/workspace_pool.h",
   "/3rdparty/OpenCL-Headers/**",
   "/3rdparty/cutlass/**",
   "/3rdparty/cutlass_fpA_intB_gemm/**",

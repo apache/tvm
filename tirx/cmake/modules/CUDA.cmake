@@ -16,7 +16,7 @@
 # under the License.
 
 # CUDA Module
-find_cuda(${USE_CUDA} OFF)
+find_cuda(${TVM_TIRX_USE_CUDA} OFF)
 
 if(CUDA_FOUND)
   # always set the includedir when CUDA is available
@@ -24,9 +24,9 @@ if(CUDA_FOUND)
   include_directories(SYSTEM ${CUDA_INCLUDE_DIRS})
 endif(CUDA_FOUND)
 
-if(USE_CUDA)
+if(TVM_TIRX_USE_CUDA)
   if(NOT CUDA_FOUND)
-    message(FATAL_ERROR "Cannot find CUDA, USE_CUDA=" ${USE_CUDA})
+    message(FATAL_ERROR "Cannot find CUDA, TVM_TIRX_USE_CUDA=" ${TVM_TIRX_USE_CUDA})
   endif()
   message(STATUS "Build with CUDA ${CUDA_VERSION} support")
   enable_language(CUDA)
@@ -43,9 +43,7 @@ if(USE_CUDA)
   # the `compile_commands.json`, the clangd LSP cannot find the
   # include files.
   #
-  # Furthermore, this override cannot be specified in a user's
-  # `config.cmake` for TVM, because it must be set after CMake's
-  # built-in CUDA support.
+  # Set this after enabling CMake's built-in CUDA support.
   #
   # [0] https://github.com/Kitware/CMake/commit/6377a438
   set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
@@ -57,37 +55,31 @@ if(USE_CUDA)
     message(STATUS "CMAKE_CUDA_ARCHITECTURES not set, using native")
     set(CMAKE_CUDA_ARCHITECTURES native)
   endif()
-endif(USE_CUDA)
+endif(TVM_TIRX_USE_CUDA)
 
-if(USE_CUDA)
+if(TVM_TIRX_USE_CUDA)
   message(STATUS "Build cuda device runtime")
 
   # tvm_runtime_cuda links libcuda; without it the .so silently drops its
   # libcuda.so.1 dependency, so fail configure instead.
   if(NOT CUDA_CUDA_LIBRARY)
-    message(FATAL_ERROR "USE_CUDA is on but libcuda was not found. "
+    message(FATAL_ERROR "TVM_TIRX_USE_CUDA is on but libcuda was not found. "
       "Set -DCUDA_CUDA_LIBRARY=<path to libcuda.so> or make the driver stub discoverable.")
   endif()
 
-  tvm_file_glob(GLOB RUNTIME_CUDA_SRCS src/backend/cuda/runtime/*.cc)
+  file(GLOB RUNTIME_CUDA_SRCS CONFIGURE_DEPENDS src/backend/cuda/runtime/*.cc)
 
   add_library(tvm_runtime_cuda_objs OBJECT ${RUNTIME_CUDA_SRCS})
-  target_link_libraries(tvm_runtime_cuda_objs PUBLIC tvm_ffi_header)
+  target_link_libraries(tvm_runtime_cuda_objs PUBLIC tvm_tirx_header)
   # These sources compile into tvm_runtime_cuda.dll, so their TVM_RUNTIME_DLL /
   # TVM_FFI_DLL symbols must be dllexport on MSVC (e.g. GetCudaDeviceCount in
   # cuda_device_api.cc). Mirror tvm_runtime_objs; a no-op on non-MSVC platforms.
   target_compile_definitions(tvm_runtime_cuda_objs PRIVATE TVM_RUNTIME_EXPORTS TVM_FFI_EXPORTS)
   set_target_properties(tvm_runtime_cuda_objs PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  if(TVM_VISIBILITY_FLAG)
-    target_compile_options(tvm_runtime_cuda_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
-  endif()
   add_library(tvm_runtime_cuda SHARED $<TARGET_OBJECTS:tvm_runtime_cuda_objs>)
   list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_cuda)
   target_link_libraries(tvm_runtime_cuda PUBLIC tvm_runtime PRIVATE ${CUDA_CUDART_LIBRARY} ${CUDA_CUDA_LIBRARY})
-  tvm_configure_target_library(tvm_runtime_cuda RUNTIME_MODULE)
+  tvm_tirx_configure_target(tvm_runtime_cuda_objs)
+  tvm_tirx_configure_target(tvm_runtime_cuda)
 
-  if(USE_NVTX)
-    message(STATUS "Build with NVTX support")
-    target_link_libraries(tvm_runtime_cuda PRIVATE ${CUDA_NVTX_LIBRARY})
-  endif()
-endif(USE_CUDA)
+endif(TVM_TIRX_USE_CUDA)

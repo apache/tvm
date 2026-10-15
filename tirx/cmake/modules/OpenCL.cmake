@@ -15,14 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-if(USE_OPENCL)
-  tvm_file_glob(GLOB RUNTIME_OPENCL_SRCS src/backend/opencl/runtime/*.cc)
+if(TVM_TIRX_USE_OPENCL)
+  file(GLOB RUNTIME_OPENCL_SRCS CONFIGURE_DEPENDS src/backend/opencl/runtime/*.cc)
 
   set(_opencl_libs "")
-  if(${USE_OPENCL} MATCHES ${IS_TRUE_PATTERN})
+  if(${TVM_TIRX_USE_OPENCL} MATCHES ${IS_TRUE_PATTERN})
     message(STATUS "Enabled runtime search for OpenCL library location")
-    tvm_file_glob(GLOB OPENCL_WRAPPER_SRCS
-      "src/backend/opencl/runtime/opencl_wrapper/opencl_wrapper.cc"
+    file(GLOB OPENCL_WRAPPER_SRCS CONFIGURE_DEPENDS "src/backend/opencl/runtime/opencl_wrapper/opencl_wrapper.cc"
     )
     list(APPEND RUNTIME_OPENCL_SRCS ${OPENCL_WRAPPER_SRCS})
     find_path(TVM_OPENCL_HEADERS_DIR CL/cl.h
@@ -30,7 +29,7 @@ if(USE_OPENCL)
       PATH_SUFFIXES include REQUIRED)
     set(_opencl_include_dirs "${TVM_OPENCL_HEADERS_DIR}")
   else()
-    find_opencl(${USE_OPENCL})
+    find_opencl(${TVM_TIRX_USE_OPENCL})
     if(NOT OpenCL_FOUND)
       message(FATAL_ERROR "Error! Cannot find specified OpenCL library")
     endif()
@@ -42,7 +41,7 @@ if(USE_OPENCL)
   message(STATUS "Build opencl device runtime")
 
   add_library(tvm_runtime_opencl_objs OBJECT ${RUNTIME_OPENCL_SRCS})
-  target_link_libraries(tvm_runtime_opencl_objs PUBLIC tvm_ffi_header)
+  target_link_libraries(tvm_runtime_opencl_objs PUBLIC tvm_tirx_header)
   target_include_directories(tvm_runtime_opencl_objs SYSTEM PRIVATE ${_opencl_include_dirs})
   if(WIN32)
     set(_opencl_export "__declspec(dllexport)")
@@ -53,23 +52,21 @@ if(USE_OPENCL)
   endif()
   target_compile_definitions(tvm_runtime_opencl_objs PRIVATE "TVM_OPENCL_DLL=${_opencl_export}")
   set_target_properties(tvm_runtime_opencl_objs PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  if(TVM_VISIBILITY_FLAG)
-    target_compile_options(tvm_runtime_opencl_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
-  endif()
   add_library(tvm_runtime_opencl SHARED $<TARGET_OBJECTS:tvm_runtime_opencl_objs>)
   list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_opencl)
   target_link_libraries(tvm_runtime_opencl PUBLIC tvm_runtime PRIVATE ${_opencl_libs})
   target_compile_definitions(tvm_runtime_opencl INTERFACE "TVM_OPENCL_DLL=${_opencl_import}")
   target_include_directories(tvm_runtime_opencl SYSTEM INTERFACE
     "$<BUILD_INTERFACE:${_opencl_include_dirs}>")
-  tvm_configure_target_library(tvm_runtime_opencl RUNTIME_MODULE)
+  tvm_tirx_configure_target(tvm_runtime_opencl_objs)
+  tvm_tirx_configure_target(tvm_runtime_opencl)
 
 
 
-  if(USE_OPENCL_ENABLE_HOST_PTR)
+  if(TVM_TIRX_USE_OPENCL_ENABLE_HOST_PTR)
     target_compile_definitions(tvm_runtime_opencl_objs PRIVATE OPENCL_ENABLE_HOST_PTR)
-  endif(USE_OPENCL_ENABLE_HOST_PTR)
-  if(USE_OPENCL_EXTN_QCOM)
+  endif(TVM_TIRX_USE_OPENCL_ENABLE_HOST_PTR)
+  if(TVM_TIRX_USE_OPENCL_EXTN_QCOM)
     add_definitions(-DUSE_OPENCL_EXTN_QCOM)
     find_path(ocl_header cl.h HINTS ${OpenCL_INCLUDE_DIRS} PATH_SUFFIXES CL)
     set(OCL_VERSION_HEADER "${ocl_header}/cl.h")
@@ -79,5 +76,5 @@ if(USE_OPENCL)
       add_definitions(-DCL_TARGET_OPENCL_VERSION=${CMAKE_MATCH_1})
       message(STATUS "Set OpenCL Target version to " ${CMAKE_MATCH_1})
     endif()
-  endif(USE_OPENCL_EXTN_QCOM)
-endif(USE_OPENCL)
+  endif(TVM_TIRX_USE_OPENCL_EXTN_QCOM)
+endif(TVM_TIRX_USE_OPENCL)

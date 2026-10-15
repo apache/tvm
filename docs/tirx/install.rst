@@ -88,3 +88,28 @@ list, and consult the `tirx-kernels README
 <https://github.com/mlc-ai/tirx-kernels#readme>`_ and
 ``reference-dependencies.json`` in that repository for current optional
 requirements.
+
+Standalone CMake build
+----------------------
+
+The core can be built independently from the repository checkout. Initialize
+its bundled FFI dependency, then use native CMake options (CMake 3.26 or newer)::
+
+    git submodule update --init --recursive tirx/3rdparty/tvm-ffi
+    cmake -S tirx -B tirx/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+        -DTVM_TIRX_USE_LLVM=ON -DTVM_TIRX_BUILD_TESTS=ON
+    cmake --build tirx/build
+    ctest --test-dir tirx/build
+    cmake --install tirx/build --prefix /path/to/install
+
+Core feature options use the ``TVM_TIRX_USE_`` prefix. SDK selectors such as
+``TVM_TIRX_USE_CUDA`` and ``TVM_TIRX_USE_LLVM`` also accept an SDK path or
+``llvm-config`` command. Compiler caches, linkers, and toolchain flags use
+standard CMake settings. The standalone core does not read ``config.cmake``.
+C++ tests are off by default; enabling them supplies GTest in the test subtree.
+Installation includes public headers, libraries, and CMake package targets.
+
+A parent project can use ``add_subdirectory(path/to/tirx)`` and link to
+``tvm_tirx::tvm_tirx`` or ``tvm_tirx::tvm_runtime``. This builds the bundled FFI
+source targets and leaves tests, packaging, and installation to the parent.
+A parent that wants to install the core package can call ``tvm_tirx_install()``.

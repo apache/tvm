@@ -18,12 +18,12 @@
 # src/sym/z3_prover.cc is always part of COMPILER_SRCS (picked up by the
 # src/sym/*.cc glob). It compiles a conservative stub by default and switches
 # to the real Z3 implementation only when the TVM_USE_Z3 macro is defined below.
-if(${USE_Z3} MATCHES ${IS_FALSE_PATTERN})
+if(${TVM_TIRX_USE_Z3} MATCHES ${IS_FALSE_PATTERN})
   return()
 endif()
 
 set(TVM_Z3_REQUIRED TRUE)
-if("${USE_Z3}" MATCHES "^[Aa][Uu][Tt][Oo]$")
+if("${TVM_TIRX_USE_Z3}" MATCHES "^[Aa][Uu][Tt][Oo]$")
   set(TVM_Z3_REQUIRED FALSE)
 endif()
 
@@ -77,14 +77,14 @@ elseif(Z3_FOUND OR (Z3_INCLUDE_DIR AND Z3_LIBRARY))
     set(Z3_LIBRARY ${Z3_LIBRARIES})
   endif()
   if(NOT Z3_INCLUDE_DIR OR NOT Z3_LIBRARY)
-    message(FATAL_ERROR "USE_Z3 is ON, but Z3 include directory or library was not found.")
+    message(FATAL_ERROR "TVM_TIRX_USE_Z3 is ON, but Z3 include directory or library was not found.")
   endif()
   include_directories(SYSTEM ${Z3_INCLUDE_DIR})
   list(APPEND TVM_LINKER_LIBS ${Z3_LIBRARY})
 else()
   if(TVM_Z3_REQUIRED)
     message(FATAL_ERROR
-      "USE_Z3 is ON, but Z3 was not found. Install the static Z3 development "
+      "TVM_TIRX_USE_Z3 is ON, but Z3 was not found. Install the static Z3 development "
       "package with `pip install 'mlc-z3-static>=4.16.0'`, or point "
       "Z3_DIR/CMAKE_PREFIX_PATH at a Z3 installation.")
   endif()
@@ -96,7 +96,7 @@ endif()
 add_compile_definitions(TVM_USE_Z3)
 message(STATUS "Build with Z3 SMT solver support")
 
-if(TVM_BUILD_PYTHON_MODULE AND Z3_TARGET)
+if(TVM_TIRX_BUILD_PYTHON_MODULE AND Z3_TARGET)
   get_target_property(_z3_target_type ${Z3_TARGET} TYPE)
   if(_z3_target_type STREQUAL "STATIC_LIBRARY" AND Python3_EXECUTABLE)
     execute_process(COMMAND "${Python3_EXECUTABLE}" -c

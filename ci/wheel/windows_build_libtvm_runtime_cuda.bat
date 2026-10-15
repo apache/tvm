@@ -90,7 +90,7 @@ set "cuda_root_fwd=%cuda_root:\=/%"
 set "nvcc_fwd=%nvcc_exe:\=/%"
 
 call "%vcvars%" || exit /b 1
-cmake -S "%repo_root_fwd%/tirx" -B "%build_dir_fwd%" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DTVM_BUILD_PYTHON_MODULE=ON -DUSE_CUDA="%cuda_root_fwd%" -DUSE_LLVM=OFF -DUSE_NVTX=OFF -DCMAKE_CUDA_COMPILER="%nvcc_fwd%" -DCMAKE_CUDA_FLAGS="-allow-unsupported-compiler" || exit /b 1
+cmake -S "%repo_root_fwd%/tirx" -B "%build_dir_fwd%" -G Ninja -DCMAKE_BUILD_TYPE=Release -DTVM_TIRX_BUILD_TESTS=OFF -DTVM_TIRX_BUILD_PYTHON_MODULE=ON -DTVM_TIRX_USE_CUDA="%cuda_root_fwd%" -DTVM_TIRX_USE_LLVM=OFF -DCMAKE_CUDA_COMPILER="%nvcc_fwd%" -DCMAKE_CUDA_FLAGS="-allow-unsupported-compiler" || exit /b 1
 cmake --build "%build_dir_fwd%" --target tvm_runtime tvm_runtime_cuda --config Release || exit /b 1
 
 if not exist "%build_dir%\lib\tvm_runtime_cuda.dll" ( echo tvm_runtime_cuda.dll was not produced & exit /b 1 )

@@ -15,72 +15,51 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Helpers for configuring library targets.
-
-# Hide symbols from static archives linked into a shared library. This prevents
-# downstream libraries from accidentally binding to private archive symbols such
-# as those from libstdc++_nonshared.a.
-function(tvm_hide_static_linked_lib_symbols target_name)
-  if(HIDE_PRIVATE_SYMBOLS
-     AND CMAKE_SYSTEM_NAME MATCHES "Linux|Android|FreeBSD|NetBSD|OpenBSD"
-     AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang"
-  )
-    target_link_options(${target_name} PRIVATE "-Wl,--exclude-libs,ALL")
+# Target-local policies shared by the compiler and runtime backends.
+function(tvm_tirx_configure_target target)
+  set_target_properties(${target} PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CUDA_STANDARD 20
+    CUDA_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON)
+  target_compile_definitions(${target} PRIVATE TVM_VERSION="${TVM_TIRX_VERSION}")
+  target_include_directories(${target} PRIVATE "${PROJECT_SOURCE_DIR}/3rdparty/compiler-rt")
+  if(MSVC)
+    target_compile_definitions(${target} PRIVATE WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS
+      _SCL_SECURE_NO_WARNINGS _ENABLE_EXTENDED_ALIGNED_STORAGE NOMINMAX)
+    target_compile_options(${target} PRIVATE /EHsc /MP /bigobj /permissive-
+      /wd4244 /wd4267 /wd4018 /wd4316 /wd4101 /wd4180 /wd4251 /wd4624 /wd4146 /wd4141 /wd4068)
+  else()
+    target_compile_options(${target} PRIVATE -Wall)
   endif()
-endfunction()
-
-#######################################################
-# tvm_configure_target_library(target_name [RUNTIME_MODULE])
-#
-# Configure a TVM library target. The target always gets a relative rpath
-# ($ORIGIN / @loader_path) so that sibling shared libraries in the same
-# directory resolve each other regardless of the install location (e.g. inside a
-# Python wheel).
-#
-# For shared libraries and runtime modules, hide symbols that come from linked
-# static archives so downstream libraries cannot accidentally bind to private
-# archive symbols such as those from libstdc++_nonshared.a.
-#
-# With the RUNTIME_MODULE option -- used for the optional runtime backend
-# libraries (tvm_runtime_cuda, tvm_runtime_vulkan, ...) -- the target is also
-# emitted into the build "lib" directory and installed; when building the Python
-# module it is additionally installed into the package "lib" directory. Targets
-# that manage their own output directory / install rules (tvm_compiler,
-# tvm_runtime, ...) omit the option and take only the rpath.
-#
-# No-op if the target does not exist.
-function(tvm_configure_target_library target_name)
-  if(NOT TARGET ${target_name})
-    return()
-  endif()
-  cmake_parse_arguments(ARG "RUNTIME_MODULE" "" "" ${ARGN})
-
-  if(APPLE)
-    set_target_properties(${target_name} PROPERTIES
-      BUILD_RPATH "@loader_path"
-      INSTALL_RPATH "@loader_path"
-    )
-  elseif(UNIX)
-    set_target_properties(${target_name} PROPERTIES
-      BUILD_RPATH "\$ORIGIN"
-      INSTALL_RPATH "\$ORIGIN"
-    )
-  endif()
-
-  get_target_property(TVM_TARGET_TYPE ${target_name} TYPE)
-  if(TVM_TARGET_TYPE STREQUAL "SHARED_LIBRARY" OR TVM_TARGET_TYPE STREQUAL "MODULE_LIBRARY")
-    tvm_hide_static_linked_lib_symbols(${target_name})
-  endif()
-
-  if(ARG_RUNTIME_MODULE)
-    set_target_properties(${target_name} PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-      RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-      ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    )
-    install(TARGETS ${target_name} DESTINATION lib${LIB_SUFFIX})
-    if(TVM_BUILD_PYTHON_MODULE)
-      install(TARGETS ${target_name} DESTINATION "lib")
+  tvm_ffi_add_prefix_map(${target} "${PROJECT_SOURCE_DIR}")
+  get_target_property(_type ${target} TYPE)
+  if(_type STREQUAL "SHARED_LIBRARY")
+    if(APPLE)
+      target_link_options(${target} PRIVATE "-Wl,-undefined,error")
+      set_target_properties(${target} PROPERTIES BUILD_RPATH "@loader_path" INSTALL_RPATH "@loader_path")
+    elseif(UNIX)
+      target_link_options(${target} PRIVATE "-Wl,--no-undefined")
+      set_target_properties(${target} PROPERTIES BUILD_RPATH "\$ORIGIN" INSTALL_RPATH "\$ORIGIN")
     endif()
+    tvm_ffi_hide_static_linked_lib_symbols(${target})
+    tvm_ffi_add_apple_dsymutil(${target})
   endif()
+  # Honor a parent's output layout; otherwise keep standalone libraries together.
+  foreach(_kind ARCHIVE LIBRARY RUNTIME)
+    if(DEFINED CMAKE_${_kind}_OUTPUT_DIRECTORY)
+      set(_output "${CMAKE_${_kind}_OUTPUT_DIRECTORY}")
+    else()
+      set(_output "${PROJECT_BINARY_DIR}/lib")
+    endif()
+    set_target_properties(${target} PROPERTIES ${_kind}_OUTPUT_DIRECTORY "${_output}")
+    foreach(_config IN LISTS CMAKE_CONFIGURATION_TYPES)
+      string(TOUPPER "${_config}" _config)
+      set_target_properties(${target} PROPERTIES ${_kind}_OUTPUT_DIRECTORY_${_config} "${_output}")
+    endforeach()
+  endforeach()
 endfunction()

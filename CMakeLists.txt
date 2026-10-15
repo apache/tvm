@@ -55,9 +55,41 @@ else()
   if(NOT TVM_OPENCL_HEADERS_ROOT AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/OpenCL-Headers/CL/cl.h")
     set(TVM_OPENCL_HEADERS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/OpenCL-Headers")
   endif()
+  # Forward legacy parent settings as normal variables. Only explicit core
+  # settings remain cached, so reconfiguration never freezes a forwarded value.
+  set(_tirx_parent_options "")
+  foreach(_option USE_CUDA USE_OPENCL USE_OPENCL_ENABLE_HOST_PTR USE_OPENCL_EXTN_QCOM
+      USE_OPENCL_GTEST USE_VULKAN USE_KHRONOS_SPIRV USE_SPIRV_KHR_INTEGER_DOT_PRODUCT
+      USE_METAL USE_ROCM USE_THREADS USE_LLVM USE_OPENMP USE_CUSTOM_LOGGING USE_Z3 ROCM_PATH)
+    if(NOT DEFINED TVM_TIRX_${_option})
+      list(APPEND _tirx_parent_options ${_option})
+      if(DEFINED ${_option})
+        set(TVM_TIRX_${_option} "${${_option}}")
+      endif()
+    endif()
+  endforeach()
+  # Keep source-built core libraries beside the parent libraries.
+  set(_tirx_output_defaults "")
+  foreach(_kind ARCHIVE LIBRARY RUNTIME)
+    if(NOT DEFINED CMAKE_${_kind}_OUTPUT_DIRECTORY)
+      set(CMAKE_${_kind}_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+      list(APPEND _tirx_output_defaults ${_kind})
+    endif()
+  endforeach()
   add_subdirectory(tirx)
+  foreach(_option IN LISTS _tirx_parent_options)
+    unset(TVM_TIRX_${_option} CACHE)
+  endforeach()
+  # The embedding parent explicitly owns installation of the core package.
+  tvm_tirx_install()
+  foreach(_kind IN LISTS _tirx_output_defaults)
+    unset(CMAKE_${_kind}_OUTPUT_DIRECTORY)
+  endforeach()
 endif()
-foreach(_utility Utils Summary Linker Library FindCUDA FindROCM FindOpenCL CCache)
+foreach(_utility Utils Summary Linker Library CCache)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils/${_utility}.cmake")
+endforeach()
+foreach(_utility FindCUDA FindROCM FindOpenCL)
   include("${TVM_TIRX_CMAKE_DIR}/utils/${_utility}.cmake")
 endforeach()
 foreach(_collective NCCL RCCL NVSHMEM)
@@ -173,7 +205,9 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
 add_library(tvm_runtime_extra SHARED)
 add_library(tvm_runtime_extra_defs INTERFACE)
 target_link_libraries(tvm_runtime_extra_defs INTERFACE
-  tvm_tirx::tvm_runtime tvm_tirx::private_headers tvm_ffi::header)
+  tvm_tirx::tvm_runtime tvm_ffi::header)
+target_include_directories(tvm_runtime_extra_defs SYSTEM INTERFACE
+  "${CMAKE_CURRENT_SOURCE_DIR}/tirx/3rdparty/compiler-rt")
 target_compile_definitions(tvm_runtime_extra_defs INTERFACE TVM_RUNTIME_EXTRA_EXPORTS TVM_FFI_EXPORTS)
 if(HIDE_PRIVATE_SYMBOLS AND NOT MSVC)
   target_compile_options(tvm_runtime_extra_defs INTERFACE -fvisibility=hidden)
@@ -230,6 +264,11 @@ if(USE_CLML_GRAPH_EXECUTOR)
   target_link_libraries(tvm_clml_objs PRIVATE tvm_tirx::tvm_runtime_opencl)
   target_link_libraries(tvm_runtime_extra PRIVATE tvm_tirx::tvm_runtime_opencl)
 endif()
+if(TARGET tvm_clml_objs)
+  # CLML shares OpenCL implementation types; these are source inputs, not an
+  # installed core interface. The parent sdist carries their bounded closure.
+  target_include_directories(tvm_clml_objs PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tirx/src")
+endif()
 # Retain the upstream runtime-extra assembly module and its target composition.
 include(cmake/modules/RuntimeExtra.cmake)
 target_link_libraries(tvm_runtime_extra PRIVATE ${TVM_RUNTIME_LINKER_LIBS} ${CMAKE_DL_LIBS})
@@ -239,7 +278,9 @@ if(HIDE_PRIVATE_SYMBOLS AND NOT MSVC)
 endif()
 target_compile_definitions(tvm_compiler PRIVATE TVM_EXPORTS TVM_FFI_EXPORTS)
 target_link_libraries(tvm_compiler PUBLIC tvm_tirx::tvm_tirx tvm_runtime_extra)
-target_link_libraries(tvm_compiler PRIVATE tvm_tirx::private_headers ${TVM_LINKER_LIBS})
+target_link_libraries(tvm_compiler PRIVATE ${TVM_LINKER_LIBS})
+target_include_directories(tvm_compiler SYSTEM PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/tirx/3rdparty/compiler-rt")
 foreach(_target tvm_compiler tvm_runtime_extra)
   target_include_directories(${_target} PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
