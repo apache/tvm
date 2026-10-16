@@ -230,7 +230,8 @@ def fail(reason):
     raise DispatchFail(reason)
 
 
-def run_dispatch(call, sctx):
+def run_dispatch(call, sctx) -> Stmt:
+    """Lower a tensor instruction to its replacement statement."""
     from tvm_tirx.tirx.tile.instruction import TensorCall
 
     view = TensorCall.decode(call)
@@ -243,6 +244,8 @@ def run_dispatch(call, sctx):
         result = view.spec.lower(view, sctx)
         if result is None:
             raise DispatchFail("lowerer returned no implementation")
+        if not isinstance(result, Stmt):
+            raise TypeError(f"lowerer must return a Stmt, got {type(result).__name__}")
         return result
     except Exception as error:
         raise RuntimeError(

@@ -89,7 +89,7 @@ TEST(ThreadScope, TypedCallAndDispatchWithoutPython) {
                             .cast<ThreadScope>()
                             .same_as(scope));
             ++*invoked;
-            return Function({}, SeqStmt(Evaluate(37)));
+            return Evaluate(37);
           });
   Call call(PrimType::Void(), Op::Get("thread_scope_test.instruction"), {}, attrs);
   Function func({}, SeqStmt(Evaluate(call)), VoidType(), DictAttrs({{"target", target}}));

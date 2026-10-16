@@ -46,7 +46,8 @@ The pass recognizes ``Evaluate(Call)`` by the presence of the operator's
 resolves the scope against the active thread set,
 constructs a ``DispatchContext``, and
 invokes the instruction's registered lowerer. It replaces the Evaluate with
-the returned function body and lowers any nested tensor calls.
+the returned statement and lowers any nested tensor calls. A lowerer may return
+a single statement or a ``SeqStmt`` containing multiple statements.
 
 This preserves launch parameters, inter/intra scope maps, value ranges,
 descriptor caches, host initialization, and allocation/initialization
