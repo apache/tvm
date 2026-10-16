@@ -21,10 +21,6 @@ import math
 import numpy as np
 import pytest
 
-pytest.importorskip("scipy")
-
-import scipy
-
 import tvm_tirx
 import tvm_tirx.testing
 from tvm_tirx import tirx
@@ -136,7 +132,7 @@ def test_unary_intrin():
         (tvm_tirx.tirx.asinh, lambda x: np.arcsinh(x)),
         (tvm_tirx.tirx.acosh, lambda x: np.arccosh(x)),
         (tvm_tirx.tirx.atanh, lambda x: np.arctanh(x)),
-        (tvm_tirx.tirx.erf, lambda x: scipy.special.erf(x)),
+        (tvm_tirx.tirx.erf, np.vectorize(math.erf)),
     ]
 
     def run_test(tvm_intrin, np_func, atol=1e-5, rtol=1e-5):

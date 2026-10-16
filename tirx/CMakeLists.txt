@@ -95,10 +95,8 @@ endif()
 # ######### TIRx build settings ##########
 
 include(GNUInstallDirs)
-if(PROJECT_IS_TOP_LEVEL)
-  if(TVM_TIRX_BUILD_PYTHON_MODULE)
-    set(CMAKE_INSTALL_LIBDIR lib)
-  endif()
+if(PROJECT_IS_TOP_LEVEL AND TVM_TIRX_BUILD_PYTHON_MODULE)
+  set(CMAKE_INSTALL_LIBDIR lib)
 endif()
 add_compile_definitions(TVM_TIRX_VERSION="${TVM_TIRX_VERSION}")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/compiler-rt")
@@ -119,7 +117,9 @@ foreach(_kind ARCHIVE LIBRARY RUNTIME)
   endif()
   foreach(_config IN LISTS CMAKE_CONFIGURATION_TYPES)
     string(TOUPPER "${_config}" _config)
-    set(CMAKE_${_kind}_OUTPUT_DIRECTORY_${_config} "${CMAKE_${_kind}_OUTPUT_DIRECTORY}")
+    if(NOT DEFINED CMAKE_${_kind}_OUTPUT_DIRECTORY_${_config})
+      set(CMAKE_${_kind}_OUTPUT_DIRECTORY_${_config} "${CMAKE_${_kind}_OUTPUT_DIRECTORY}")
+    endif()
   endforeach()
 endforeach()
 
@@ -275,13 +275,8 @@ endforeach()
 # ######### Installation ##########
 
 # Public headers
-file(GLOB_RECURSE _headers CONFIGURE_DEPENDS RELATIVE
-  "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
-foreach(_header IN LISTS _headers)
-  get_filename_component(_directory "${_header}" DIRECTORY)
-  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/${_header}"
-    DESTINATION "include/${_directory}" COMPONENT tvm_tirx)
-endforeach()
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
+  DESTINATION include COMPONENT tvm_tirx FILES_MATCHING PATTERN "*.h")
 
 # Libraries
 install(TARGETS tvm_tirx_header tvm_tirx_compiler tvm_runtime tvm_runtime_static

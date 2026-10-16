@@ -47,7 +47,6 @@ dependencies = [
   "apache-tvm-ffi-orcjit==0.1.2",
   "ml_dtypes",
   "numpy",
-  "typing_extensions",
   "packaging",
 ]
 
@@ -62,7 +61,7 @@ all = ["psutil", "cloudpickle"]
 
 [project.urls]
 Homepage = "https://tvm.apache.org/"
-Documentation = "https://tvm.apache.org/docs/"
+Documentation = "https://tvm.apache.org/tirx/"
 Repository = "https://github.com/apache/tvm"
 "Bug Tracker" = "https://github.com/apache/tvm/issues"
 
@@ -70,7 +69,6 @@ Repository = "https://github.com/apache/tvm"
 torch = ["torch"]
 popen-pool = ["psutil", "cloudpickle"]
 test = [
-  "scipy",
   "z3-solver",
   "pytest",
   "pytest-xdist",
