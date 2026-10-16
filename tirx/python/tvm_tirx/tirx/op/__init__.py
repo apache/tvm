@@ -116,8 +116,6 @@ from ..expr import TensorLoad as _make_tensor_load
 from ..tensor import is_tensor_var, tensor_data_ptr
 from ..type import TensorMapType
 
-tir = tirx  # alias for backward compat with upstream tir.convert() calls
-
 
 def register_intrin_lowering(
     op_name,
