@@ -90,10 +90,10 @@ def test_range_and_value_constructor_parameters():
     ir.assert_structural_equal(R.prim_value(3, dtype="int32"), relax.prim_value(3, dtype="int32"))
 
 
-def test_operation_dtype_keywords_match_normal_constructors():
+def test_operation_type_keywords_match_normal_constructors():
     for name in ("min_value", "max_value", "infinity"):
         ir.assert_structural_equal(
-            getattr(T, name)(dtype="float32"), getattr(tirx, name)(dtype="float32")
+            getattr(T, name)(ty="float32"), getattr(tirx, name)(ty="float32")
         )
     x = ir.Var("x", "float32")
     for operation in (T.exp, tirx.exp):
