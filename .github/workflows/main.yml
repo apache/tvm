@@ -56,12 +56,12 @@ jobs:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         run: |
           set -euxo pipefail
-          pip install scikit-build-core
+          pip install "scikit-build-core>=0.11" "setuptools-scm>=8"
           export CMAKE_ARGS="-DTVM_TIRX_USE_LLVM=ON -DTVM_TIRX_USE_METAL=ON -DTVM_TIRX_BUILD_TESTS=OFF"
           pip wheel --no-deps -w dist ./tirx -v
-          export PIP_FIND_LINKS="$(pwd)/dist"
+          pip install --no-deps --force-reinstall dist/apache_tvm_tirx-*.whl
           export CMAKE_ARGS="-DBUILD_TESTING=OFF"
-          pip wheel --no-deps -w dist . -v
+          pip wheel --no-deps --no-build-isolation -w dist . -v
       - name: Install TIRx and TVM from wheels
         shell: bash -l {0}
         run: |
@@ -121,12 +121,14 @@ jobs:
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         run: |
-          pip install scikit-build-core || exit /b 1
+          pip install "scikit-build-core>=0.11" "setuptools-scm>=8" || exit /b 1
           set CMAKE_ARGS=-DTVM_TIRX_USE_LLVM=ON -DTVM_TIRX_BUILD_TESTS=OFF
           pip wheel --no-deps -w dist ./tirx -v || exit /b 1
-          set PIP_FIND_LINKS=%CD%\dist
+          for %%w in (dist\apache_tvm_tirx-*.whl) do (
+            pip install --no-deps --force-reinstall "%%w" || exit /b 1
+          )
           set CMAKE_ARGS=-DBUILD_TESTING=OFF
-          pip wheel --no-deps -w dist . -v || exit /b 1
+          pip wheel --no-deps --no-build-isolation -w dist . -v || exit /b 1
           for %%w in (dist\*.whl) do (
             pip install --no-deps "%%w" || exit /b 1
           )
