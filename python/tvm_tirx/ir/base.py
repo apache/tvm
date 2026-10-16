@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Common base structures."""
+"""Base IR objects, serialization, structural comparison, and script printing."""
 
 import tvm_ffi
 from tvm_ffi import register_object

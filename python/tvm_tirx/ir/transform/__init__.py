@@ -16,7 +16,7 @@
 # under the License.
 # isort: skip_file
 # pylint: disable=unused-import
-"""Utilities for IR transformations."""
+"""IR passes, pass contexts, sequential pipelines, and pass instrumentation."""
 
 from .core import (
     ModulePass,

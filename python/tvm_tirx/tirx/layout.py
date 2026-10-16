@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=super-init-not-called
-"""Definition of layout."""
+"""Represent tensor layouts, iteration axes, and mappings between logical and physical storage."""
 
 from collections.abc import Sequence
 from typing import Union

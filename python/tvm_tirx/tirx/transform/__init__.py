@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Namespace of all TIR transformations"""
+"""Transformation passes for lowering and optimizing tensor-level IR."""
 # pylint: disable=wildcard-import, invalid-name
 
 from .function_pass import function_pass, FunctionPass

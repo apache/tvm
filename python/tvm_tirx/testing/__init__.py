@@ -17,7 +17,7 @@
 # under the License.
 
 # pylint: disable=redefined-builtin, wildcard-import
-"""Utility Python functions for TVM testing"""
+"""Testing helpers for numerical comparisons, target selection, and compiler validation."""
 
 from ._ffi_api import (
     echo,

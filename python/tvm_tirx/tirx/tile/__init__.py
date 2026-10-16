@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""Tensor instruction contracts and dispatch contexts for lowering tile operations."""
+
 from .dispatch import DispatchContext, fail
 from .instruction import Instruction, Operand, TensorCall
 
