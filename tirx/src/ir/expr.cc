@@ -1168,7 +1168,7 @@ Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Location loc) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.Range_from_min_extent", Range::FromMinExtent);
+  refl::GlobalDef().def("ir.RangeFromMinExtent", Range::FromMinExtent);
 }
 
 // Var
@@ -1292,7 +1292,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                            ffi::Optional<Attrs> attrs, ffi::Array<Type> ty_args,
                            Location loc) { return Call(ret_ty, op, args, attrs, ty_args, loc); });
   refl::GlobalDef().def("ir.CallValidate", [](const Call& call) { call.Validate(); });
-  refl::GlobalDef().def("ir.reinfer_type",
+  refl::GlobalDef().def("ir.CallReinferType",
                         [](const Call& call) { return Call::ReinferType(call.get()); });
 }
 

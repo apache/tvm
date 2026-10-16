@@ -18,7 +18,7 @@
 
 from tvm import te
 from tvm.te import _te_tensor_overload as _overload
-from tvm_tirx.ir import _overload_prim_expr as _expr
+from tvm_tirx.ir import _prim_expr_overload as _expr
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.runtime import DataTypeCode
 
