@@ -17,8 +17,7 @@
 
 """Implementation of default unary operator dispatches."""
 
-from tvm_tirx.ir import FloatImm
-from tvm_tirx.tirx import Function
+from tvm_tirx.ir import FloatImm, Stmt
 from tvm_tirx.tirx.tile import DispatchContext, fail
 from tvm_tirx.tirx.tile.common import MapOpType
 from tvm_tirx.tirx.tile.instruction import TensorCall
@@ -27,13 +26,13 @@ from ..common import init_analyzer
 from ..instruction_generator import InstructionGenerator
 from .utils import (
     const_input_ops,
-    generate_unary_func,
+    generate_unary_stmt,
     non_activation_unary_map_ops,
     try_find_inst_unary,
 )
 
 
-def unary_trn(op: TensorCall, unary_op: MapOpType, sctx: DispatchContext) -> Function | None:
+def unary_trn(op: TensorCall, unary_op: MapOpType, sctx: DispatchContext) -> Stmt:
     """Schedule unary operation on Trainium."""
     # Check execution environment
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
@@ -62,8 +61,8 @@ def unary_trn(op: TensorCall, unary_op: MapOpType, sctx: DispatchContext) -> Fun
         inst_repr = try_find_inst_unary(dst_tensor_region, src_tensor_region, analyzer, inst_gen)
     else:
         inst_repr = try_find_inst_unary(dst_tensor_region, dst_tensor_region, analyzer, inst_gen)
-    # Generate and return the implementation function
-    return generate_unary_func(
+    # Generate and return the implementation statement
+    return generate_unary_stmt(
         dst_tensor_region,
         _src,
         inst_gen,

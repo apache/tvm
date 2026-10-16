@@ -501,7 +501,7 @@ class TileDispatcher : public StmtExprMutator {
     tile::DispatchContext sctx(target_, scope, launch_params_, var_range_map_,
                                /*alloc_only=*/false, /*callbacks=*/{}, shared_state_, inter_map,
                                intra_map, scope_kind);
-    Function res = tile::Dispatch(ffi::GetRef<Call>(op), sctx);
+    Stmt res = tile::Dispatch(ffi::GetRef<Call>(op), sctx);
     // Implementation found, handle callbacks
     if (auto bufs = sctx->callbacks.Get(tirx::tile::callback::kPrivateAlloc)) {
       auto buf_list = bufs.value().as<Array<Bind>>().value();
@@ -524,8 +524,7 @@ class TileDispatcher : public StmtExprMutator {
     }
     // Propagate shared_state changes back (Map uses COW semantics)
     shared_state_ = sctx->shared_state;
-    TVM_FFI_CHECK(res->body.has_value(), ValueError) << "A tile op implementation must have a body";
-    return Mutate(res->body.value(), inplace_mode).ValueOrUnchanged(res->body.value());
+    return Mutate(res, inplace_mode).ValueOrUnchanged(res);
   }
 
   // --- Scope-id resolution at kernel scope ----------------------------------

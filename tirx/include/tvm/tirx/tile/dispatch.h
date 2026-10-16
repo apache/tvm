@@ -25,7 +25,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ir/op.h>
-#include <tvm/tirx/function.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/tile/context.h>
 
 namespace tvm::tirx::tile {
@@ -38,7 +38,7 @@ namespace op_attr {
  * dispatcher can be implemented in C++ or registered from Python.
  */
 inline constexpr ffi::reflection::AttrKey<
-    ffi::TypedFunction<Function(const Call&, const DispatchContext&)>>
+    ffi::TypedFunction<Stmt(const Call&, const DispatchContext&)>>
     kTileOpDispatch{"FTileOpDispatch"};
 }  // namespace op_attr
 
@@ -49,9 +49,9 @@ using FTileOpDispatch = decltype(op_attr::kTileOpDispatch)::ValueType;
  * \brief Invoke the Call's FTileOpDispatch attribute.
  * \param call The tile instruction to lower.
  * \param context The operator's execution context and accumulated callbacks.
- * \return The instruction implementation, whose body is expanded by TileDispatch.
+ * \return The instruction implementation statement, expanded by TileDispatch.
  */
-TVM_TIRX_DLL Function Dispatch(const Call& call, const DispatchContext& context);
+TVM_TIRX_DLL Stmt Dispatch(const Call& call, const DispatchContext& context);
 
 }  // namespace tvm::tirx::tile
 #endif  // TVM_TIRX_TILE_DISPATCH_H_
