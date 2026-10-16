@@ -1192,7 +1192,7 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
       parallel_env_.in_parallel_loop = true;
       PrimExpr end = IsZero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
       bool stride_pattern = false;
-      if (auto it = op->annotations.find(tvm::codegen::attr::kParallelStridePattern);
+      if (auto it = op->annotations.find(tvm::codegen::attr::kParallelStridePattern.name);
           it != op->annotations.end()) {
         ffi::Any annotation = (*it).second;
         if (auto value = annotation.as<bool>()) {

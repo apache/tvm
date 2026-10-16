@@ -58,7 +58,7 @@ def test_matmul_tensorize_too_small():
                 for ax2_1 in T.parallel(1, annotations={"thread_binding": "vthread.y"}):
                     for ax1_1 in T.parallel(1, annotations={"thread_binding": "vthread.x"}):
                         for ax2_2 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
-                            for ax1_2 in T.parallel(8, annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax1_2 in T.parallel(8, annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(4, 2):
                                     for ax2_3_1_init in T.vectorized(2):
                                         with Ts.sblock("compute_init"):

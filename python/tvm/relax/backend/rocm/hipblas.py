@@ -56,7 +56,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
     lhs_shape = lhs.ty.shape.values
     rhs_shape = rhs.ty.shape.values
 
-    if not isinstance(lhs_shape[-1], tvm_tirx.tirx.expr.IntImm | int):
+    if not isinstance(lhs_shape[-1], tvm_tirx.ir.IntImm | int):
         # Reduction axis must be constant
         return False
 
@@ -75,7 +75,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
         bias = context.annotated_expr["bias"]
         bias_shape = bias.ty.shape.values
         bias_batches = reduce(operator.mul, bias_shape[:-1], 1)
-        if not isinstance(bias_batches, tvm_tirx.tirx.expr.IntImm | int) or int(bias_batches) > 1:
+        if not isinstance(bias_batches, tvm_tirx.ir.IntImm | int) or int(bias_batches) > 1:
             # hipblas only supports bias vector
             return False
 

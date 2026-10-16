@@ -120,10 +120,10 @@ def get_const_float(expr):
     """
     if isinstance(expr, float):
         return float(expr)
-    if not isinstance(expr, tvm_tirx.tirx.FloatImm):
+    if not isinstance(expr, tvm_tirx.ir.FloatImm):
         ana = tvm_tirx.sym.Analyzer()
         expr = ana.simplify(expr)
-    if not isinstance(expr, tvm_tirx.tirx.FloatImm):
+    if not isinstance(expr, tvm_tirx.ir.FloatImm):
         raise ValueError("Expect value to be constant float")
     return float(expr.value)
 
@@ -143,10 +143,10 @@ def equal_const_int(expr, value):
     """
     if isinstance(expr, Integral):
         return expr == value
-    if not isinstance(expr, tvm_tirx.tirx.IntImm):
+    if not isinstance(expr, tvm_tirx.ir.IntImm):
         ana = tvm_tirx.sym.Analyzer()
         expr = ana.simplify(expr)
-    if not isinstance(expr, tvm_tirx.tirx.IntImm):
+    if not isinstance(expr, tvm_tirx.ir.IntImm):
         return False
     return expr.value == value
 
@@ -174,10 +174,10 @@ def get_const_tuple(in_tuple):
     for elem in in_tuple:
         if tvm_tirx.ir.is_prim_var(elem):
             ret.append(elem)
-        elif not isinstance(elem, tvm_tirx.tirx.IntImm | int):
+        elif not isinstance(elem, tvm_tirx.ir.IntImm | int):
             ana = tvm_tirx.sym.Analyzer() if ana is None else ana
             elem = ana.simplify(elem)
-            if not isinstance(elem, tvm_tirx.tirx.IntImm):
+            if not isinstance(elem, tvm_tirx.ir.IntImm):
                 ret.append(elem)
             else:
                 ret.append(get_const_int(elem))
@@ -265,7 +265,7 @@ def ravel_index(indices, shape):
 
     Parameters
     ----------
-    indices : tuple of int or tvm_tirx.tirx.IntImm
+    indices : tuple of int or tvm_tirx.ir.IntImm
         The input coordinates
 
     shape : tuple of int
@@ -290,7 +290,7 @@ def unravel_index(idx, shape):
 
     Parameters
     ----------
-    idx : int or tvm_tirx.tirx.IntImm
+    idx : int or tvm_tirx.ir.IntImm
         The 1D index
 
     shape : tuple of int
@@ -298,7 +298,7 @@ def unravel_index(idx, shape):
 
     Returns
     -------
-    indices : tuple of int or tvm_tirx.tirx.IntImm
+    indices : tuple of int or tvm_tirx.ir.IntImm
         Corresponding coordinate of the 1D index
     """
     idxd = tvm_tirx.tirx.indexdiv

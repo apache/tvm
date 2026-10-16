@@ -21,8 +21,8 @@
  * \file data_type_rewriter.h
  * \brief Rewrite the data type of expressions.
  */
-#ifndef TVM_TIR_IR_DATA_TYPE_REWRITER_H_
-#define TVM_TIR_IR_DATA_TYPE_REWRITER_H_
+#ifndef TVM_TIRX_IR_DATA_TYPE_REWRITER_H_
+#define TVM_TIRX_IR_DATA_TYPE_REWRITER_H_
 
 #include <tvm/tirx/stmt_functor.h>
 
@@ -161,4 +161,4 @@ class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
 }  // namespace tirx
 }  // namespace tvm
 
-#endif  // TVM_TIR_IR_DATA_TYPE_REWRITER_H_
+#endif  // TVM_TIRX_IR_DATA_TYPE_REWRITER_H_

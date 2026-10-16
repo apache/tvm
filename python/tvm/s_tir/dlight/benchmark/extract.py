@@ -186,7 +186,7 @@ def extract_func_info_from_function(
         tensor = param
         shape = []
         for dim in tensor.shape:
-            if isinstance(dim, tvm_tirx.tirx.IntImm):
+            if isinstance(dim, tvm_tirx.ir.IntImm):
                 shape.append(dim.value)
             elif tvm_tirx.ir.is_prim_var(dim):
                 dym_var[dim.name] = str(dim.ty)

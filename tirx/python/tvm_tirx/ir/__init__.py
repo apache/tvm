@@ -39,6 +39,9 @@ from .type import (
 )
 from .expr import (
     Call,
+    CallEffectKind,
+    IntImm,
+    FloatImm,
     Constant,
     GenericConst,
     DataTypeImm,

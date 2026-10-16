@@ -23,6 +23,7 @@ converter registered under the same name (the converters are keyed by
 out of the module and annotates them for the ``tensorrt`` codegen.
 """
 
+import tvm_tirx
 from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.expr import ShapeExpr
 from tvm.relax.transform import (
@@ -30,7 +31,6 @@ from tvm.relax.transform import (
     MergeCompositeFunctions,
     PatternCheckContext,
 )
-from tvm_tirx import tirx
 from tvm_tirx.ir import IRModule
 
 from ..pattern_registry import Pattern, get_patterns_with_prefix, register_patterns
@@ -60,7 +60,9 @@ def _resize2d_pattern() -> Pattern:
 
         if not isinstance(size_expr, ShapeExpr) or len(size_expr.values) != 2:
             return False
-        if not all(isinstance(dim, tirx.IntImm) and dim.value > 0 for dim in size_expr.values):
+        if not all(
+            isinstance(dim, tvm_tirx.ir.IntImm) and dim.value > 0 for dim in size_expr.values
+        ):
             return False
 
         attrs = resize.attrs

@@ -61,7 +61,7 @@ def _has_zero_extent_loop(stmt: tvm_tirx.ir.Stmt) -> bool:
 
     def visit_for(node: tvm_tirx.ir.For):
         nonlocal found
-        if isinstance(node.extent, tirx.IntImm) and node.extent.value == 0:
+        if isinstance(node.extent, tvm_tirx.ir.IntImm) and node.extent.value == 0:
             found = True
 
     tvm_ffi.structural_walk(stmt, (tvm_tirx.ir.For, visit_for), order="post")

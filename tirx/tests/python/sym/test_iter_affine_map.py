@@ -395,16 +395,16 @@ def test_predicate():
                 64,
                 0,
                 1,
-                (i * 16 + j) // 23 * 8 + ((i * 16 + j) % 23 + tvm_tirx.tirx.IntImm("int32", -15)),
+                (i * 16 + j) // 23 * 8 + ((i * 16 + j) % 23 + tvm_tirx.ir.IntImm("int32", -15)),
             )
         },
         var_dom([(i, 12), (j, 16)]),
         predicate=tvm_tirx.tirx.And(
             tvm_tirx.tirx.And(
                 i * 16 + j < 184,
-                tvm_tirx.tirx.LE(tvm_tirx.tirx.IntImm("int32", 8), (i * 16 + j) % 23),
+                tvm_tirx.tirx.LE(tvm_tirx.ir.IntImm("int32", 8), (i * 16 + j) % 23),
             ),
-            tvm_tirx.tirx.LE(tvm_tirx.tirx.IntImm("int32", 15), (i * 16 + j) % 23),
+            tvm_tirx.tirx.LE(tvm_tirx.ir.IntImm("int32", 15), (i * 16 + j) % 23),
         ),
     )
 
@@ -1497,7 +1497,14 @@ def test_detect_iter_map_accepts_external_analyzer():
     analyzer = tvm_tirx.sym.Analyzer()
     analyzer.bind(tile, T.int32(4))
     # The external analyzer supplies `tile == 4`, allowing detection to succeed.
-    assert len(tvm_tirx.sym.detect_iter_map([i % tile], iter_vars, analyzer=analyzer).indices) == 1
+    assert (
+        len(
+            tvm_tirx.sym.detect_iter_map(
+                [i % tile], iter_vars, True, "Surjective", analyzer, True
+            ).indices
+        )
+        == 1
+    )
 
 
 def test_iter_map_simplify_accepts_external_analyzer():
@@ -1507,7 +1514,9 @@ def test_iter_map_simplify_accepts_external_analyzer():
 
     analyzer = tvm_tirx.sym.Analyzer()
     analyzer.bind(tile, T.int32(8))
-    simplified = tvm_tirx.sym.iter_map_simplify([i % tile], iter_vars, analyzer=analyzer)
+    simplified = tvm_tirx.sym.iter_map_simplify(
+        [i % tile], iter_vars, True, "Surjective", analyzer, True
+    )
     tvm_tirx.ir.assert_structural_equal(simplified, [i % 8])
 
 

@@ -388,7 +388,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   TypeDeriveFunc infer_ty_env_func(EnvFunc::Get("tvm.relax.type.infer_view_ty"));
   auto runtime_view_ty = FuncType::OpaqueFunc(infer_ty_env_func, true);
 
-  ExternFunc runtime_view_func("runtime.TVMTensorCreateView", runtime_view_ty);
+  ExternFunc runtime_view_func("runtime.TensorCreateView", runtime_view_ty);
 
   return Call(Type::Missing(), runtime_view_func, {data, shape, dtype, relative_byte_offset});
 }

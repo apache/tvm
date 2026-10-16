@@ -25,8 +25,8 @@ from tvm_ffi import register_global_func
 # isort: on
 from tvm.s_tir.schedule import Schedule as _Schedule
 from tvm_tirx import ir, tirx
+from tvm_tirx.ir import IntImm
 from tvm_tirx.target import Target
-from tvm_tirx.tirx.expr import IntImm
 
 from .builder import Builder
 from .cost_model import CostModel

@@ -21,8 +21,8 @@
  * \file dtype_conversion.h
  * \brief Header file of data type conversion routines.
  */
-#ifndef TVM_TIR_TRANSFORM_DTYPE_CONVERSION_H_
-#define TVM_TIR_TRANSFORM_DTYPE_CONVERSION_H_
+#ifndef TVM_TIRX_TRANSFORM_DTYPE_CONVERSION_H_
+#define TVM_TIRX_TRANSFORM_DTYPE_CONVERSION_H_
 
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/stmt.h>
@@ -209,4 +209,4 @@ PrimExpr DTypeConversion(PrimExpr src_value, PrimType tgt_dtype,
 
 }  // namespace tirx
 }  // namespace tvm
-#endif  // TVM_TIR_TRANSFORM_DTYPE_CONVERSION_H_
+#endif  // TVM_TIRX_TRANSFORM_DTYPE_CONVERSION_H_

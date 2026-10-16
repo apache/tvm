@@ -117,7 +117,7 @@ def test_cuda_bf16_vectorize_add(*, backend_config):
     def check_cuda(n, lanes):
         vec_dtype = f"bfloat16x{lanes}"
         num_blocks = n // num_thread
-        one = tvm_tirx.tirx.Broadcast(tvm_tirx.tirx.const(1, "bfloat16"), lanes)
+        one = tvm_tirx.ir.prim.vector_expr.Broadcast(tvm_tirx.tirx.const(1, "bfloat16"), lanes)
 
         @I.ir_module
         class Module:

@@ -29,7 +29,6 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/bound.h>
 
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -82,9 +81,8 @@ class BoundDeducer : public tvm::ExprFunctor<void(const Expr&)> {
  public:
   friend class BoundDeduceInputChecker;
   friend class Converter;
-  BoundDeducer(PrimExpr target, PrimExpr expr,
-               const std::unordered_map<const VarNode*, IntSet>& hint_map,
-               const std::unordered_map<const VarNode*, IntSet>& relax_map)
+  BoundDeducer(PrimExpr target, PrimExpr expr, const ffi::Map<Var, IntSet>& hint_map,
+               const ffi::Map<Var, IntSet>& relax_map)
       : target_(target), expr_(expr), hint_map_(hint_map), relax_map_(relax_map) {}
 
   void Deduce();
@@ -228,8 +226,8 @@ class BoundDeducer : public tvm::ExprFunctor<void(const Expr&)> {
   CompareOp ReverseOp(CompareOp comp_op);
   PrimExpr target_;
   PrimExpr expr_;
-  const std::unordered_map<const VarNode*, IntSet>& hint_map_;
-  const std::unordered_map<const VarNode*, IntSet>& relax_map_;
+  const ffi::Map<Var, IntSet>& hint_map_;
+  const ffi::Map<Var, IntSet>& relax_map_;
   ExprIntSetMap expr_map_;
   std::vector<const ffi::Object*> path_;
   size_t iter_{0};
@@ -372,9 +370,8 @@ void BoundDeducer::Relax() {
   result_ = (comp_op == kGreater) ? b.max() : b.min();
 }
 
-IntSet DeduceBound(PrimExpr v, PrimExpr e,
-                   const std::unordered_map<const VarNode*, IntSet>& hint_map,
-                   const std::unordered_map<const VarNode*, IntSet>& relax_map) {
+IntSet DeduceBound(PrimExpr v, PrimExpr e, const ffi::Map<Var, IntSet>& hint_map,
+                   const ffi::Map<Var, IntSet>& relax_map) {
   BoundDeducer d(v, e, hint_map, relax_map);
   d.Deduce();
   if (!d.success_) return IntSet::Nothing();
@@ -390,26 +387,11 @@ IntSet DeduceBound(PrimExpr v, PrimExpr e,
   return IntSet::Interval(min, max);
 }
 
-// assuming e >= 0, deduce the bound of variable from it.
-// return empty set to represent deduce failure.
-IntSet DeduceBound(PrimExpr v, PrimExpr e, const ffi::Map<Var, IntSet>& hint_map,
-                   const ffi::Map<Var, IntSet>& relax_map) {
-  std::unordered_map<const VarNode*, IntSet> hmap;
-  for (auto kv : hint_map) {
-    hmap.emplace(kv.first.get(), kv.second);
-  }
-  std::unordered_map<const VarNode*, IntSet> rmap;
-  for (auto kv : relax_map) {
-    rmap.emplace(kv.first.get(), kv.second);
-  }
-  return DeduceBound(v, e, hmap, rmap);
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("sym.DeduceBound",
-                        [](PrimExpr v, PrimExpr cond, const ffi::Map<Var, IntSet> hint_map,
-                           const ffi::Map<Var, IntSet> relax_map) {
+                        [](PrimExpr v, PrimExpr cond, const ffi::Map<Var, IntSet>& hint_map,
+                           const ffi::Map<Var, IntSet>& relax_map) {
                           return DeduceBound(v, cond, hint_map, relax_map);
                         });
 }

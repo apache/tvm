@@ -603,27 +603,27 @@ def test_arange_infer_ty_shape_var():
     _check_inference(
         bb,
         relax.op.arange(stop),
-        relax.TensorType((T.cast(T.ceil(stop), "int64"),), "float32"),
+        relax.TensorType((T.cast(T.ceil(stop), ty="int64"),), "float32"),
     )
     _check_inference(
         bb,
         relax.op.arange(1, stop),
-        relax.TensorType((T.cast(T.ceil(stop - 1.0), "int64"),), "float32"),
+        relax.TensorType((T.cast(T.ceil(stop - 1.0), ty="int64"),), "float32"),
     )
     _check_inference(
         bb,
         relax.op.arange(start, stop),
-        relax.TensorType((T.cast(T.ceil(stop - start), "int64"),), "float32"),
+        relax.TensorType((T.cast(T.ceil(stop - start), ty="int64"),), "float32"),
     )
     _check_inference(
         bb,
         relax.op.arange(start, stop, 2),
-        relax.TensorType((T.cast(T.ceil((stop - start) / 2), "int64"),), "float32"),
+        relax.TensorType((T.cast(T.ceil((stop - start) / 2), ty="int64"),), "float32"),
     )
     _check_inference(
         bb,
         relax.op.arange(start, stop, step),
-        relax.TensorType((T.cast(T.ceil((stop - start) / step), "int64"),), "float32"),
+        relax.TensorType((T.cast(T.ceil((stop - start) / step), ty="int64"),), "float32"),
     )
 
 

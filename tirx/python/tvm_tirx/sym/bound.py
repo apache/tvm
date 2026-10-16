@@ -34,7 +34,7 @@ def deduce_bound(var, cond, hint_map, relax_map):
         Domain of variables used to help deduction.
 
     relax_map : Map[tvm_tirx.ir.Var, IntSet]
-        The fomain of the variables to be relaxed
+        The domain of the variables to be relaxed
         using the provided domain.
     """
     return _ffi_api.DeduceBound(var, cond, hint_map, relax_map)

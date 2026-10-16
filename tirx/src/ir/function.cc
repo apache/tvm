@@ -31,7 +31,6 @@ namespace tvm {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("ir.BaseFunc_Attrs", [](BaseFunc func) { return func->attrs; })
       .def("ir.BaseFuncCopy", [](BaseFunc func) { return func; })
       .def("ir.BaseFuncWithAttr",
            [](ffi::RValueRef<BaseFunc> func_ref, ffi::String key, Any value) -> BaseFunc {

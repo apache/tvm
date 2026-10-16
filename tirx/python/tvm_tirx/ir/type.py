@@ -49,12 +49,7 @@ class Type(Node, Scriptable):
     @staticmethod
     def missing():
         """Construct a MissingType for missing type information."""
-        return _ffi_api.TypeMissing()
-
-    @staticmethod
-    def Missing():
-        """Construct a MissingType for missing type information."""
-        return _ffi_api.TypeMissing()
+        return MissingType()
 
     def __eq__(self, other):
         """Compare two types for structural equivalence."""

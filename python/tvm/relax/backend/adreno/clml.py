@@ -31,7 +31,7 @@ from tvm.relax.dpl.pattern import (
 from tvm.relax.expr import TupleGetItem, VarBinding
 from tvm.relax.expr_functor import PyExprMutator, mutator
 from tvm.relax.transform import PatternCheckContext
-from tvm_tirx import IRModule, tirx
+from tvm_tirx import IRModule
 from tvm_tirx.ir.transform import PassContext, module_pass
 
 from ..pattern_registry import register_patterns
@@ -645,7 +645,7 @@ def _check_dequantize_matmul(ctx: relax.transform.PatternCheckContext) -> bool:
 
     if not (
         (len(root.ty.shape) == 3)
-        and isinstance(root.ty.shape[0], tirx.IntImm)
+        and isinstance(root.ty.shape[0], tvm_tirx.ir.IntImm)
         and (_dtype_str(root.ty.dtype) == "float16")
         and (root.ty.shape[0] == 1)
     ):

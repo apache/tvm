@@ -344,4 +344,4 @@ bool ContainsNode(const Stmt& stmt) {
 }  // namespace tirx
 }  // namespace tvm
 
-#endif  // TVM_TIR_STMT_FUNCTOR_H_
+#endif  // TVM_TIRX_STMT_FUNCTOR_H_

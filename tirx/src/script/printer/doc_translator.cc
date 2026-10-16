@@ -240,23 +240,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = ffi::reflection;
   refl::ObjectDef<DocTranslatorObj>();
   refl::EnsureTypeAttrColumn(tvm::script::printer::type_attr::kDocTranslate);
-  refl::GlobalDef()
-      .def("script.printer.DocTranslate",
-           [](ffi::AnyView ir, ffi::Map<ffi::String, ffi::Any> extra_config) {
-             return DocTranslate(ir, nullptr, std::move(extra_config));
-           })
-      .def_method("script.printer.Translate", &DocTranslatorObj::Translate)
-      .def_method("script.printer.Emit", &DocTranslatorObj::Emit)
-      .def_method("script.printer.VarGetOrAllocId", &DocTranslatorObj::VarGetOrAllocId)
-      .def_method("script.printer.GetImplicitDefs", &DocTranslatorObj::GetImplicitDefs)
-      .def_method("script.printer.AllocId", &DocTranslatorObj::AllocId)
-      .def_method("script.printer.BeginVarScope", &DocTranslatorObj::BeginVarScope)
-      .def_method("script.printer.EndVarScope", &DocTranslatorObj::EndVarScope)
-      .def_method("script.printer.BeginDocScope", &DocTranslatorObj::BeginDocScope)
-      .def_method("script.printer.EndDocScope", &DocTranslatorObj::EndDocScope)
-      .def("script.printer.WithDocScope", [](const DocTranslator& d, const ffi::Function& fn) {
-        return d->WithDocScope([&]() { fn(); });
-      });
 }
 
 }  // namespace printer

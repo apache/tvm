@@ -220,7 +220,7 @@ def test_kv_transfer_with_disco():
         remote_position_map = sess.empty((len(position_map_array),), "int32")
         remote_tp_group_pe_offset_np = np.array([2] * len(position_map_array), dtype=np.int32)
         remote_tp_group_pe_offset = sess.empty((len(remote_tp_group_pe_offset_np),), "int32")
-        f_view_func = sess.get_global_func("runtime.TVMTensorCreateView")
+        f_view_func = sess.get_global_func("runtime.TensorCreateView")
         layer_view = f_view_func(
             pages,
             Shape([num_pages, 2, num_kv_heads, page_size, head_dim]),

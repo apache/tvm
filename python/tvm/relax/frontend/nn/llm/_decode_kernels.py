@@ -316,7 +316,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                     for j in T.serial(bdy * tile_size_per_bdx):
                                         # compute S = Q * K * sm_scale
                                         for vec in T.vectorized(VEC_SIZE):
-                                            QK_local[vec] = T.cast(Q_local[vec], "float32") * T.cast(K_smem[tz * bdy * tile_size_per_bdx + j, tx * VEC_SIZE + vec], "float32") * sm_scale * math.log2(math.exp(1))
+                                            QK_local[vec] = T.cast(Q_local[vec], ty="float32") * T.cast(K_smem[tz * bdy * tile_size_per_bdx + j, tx * VEC_SIZE + vec], ty="float32") * sm_scale * math.log2(math.exp(1))
                                         S_reduce_local[0] = 0
                                         for vec in T.unroll(VEC_SIZE):
                                             S_reduce_local[0] += QK_local[vec]
@@ -347,7 +347,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                         for vec in T.vectorized(VEC_SIZE):
                                             V_local[vec] = V_smem[tz * bdy * tile_size_per_bdx + j, tx * VEC_SIZE + vec]
                                         for vec in T.vectorized(VEC_SIZE):
-                                            O_local[vec] += T.cast(V_local[vec], "float32") * S_local[j]
+                                            O_local[vec] += T.cast(V_local[vec], ty="float32") * S_local[j]
 
                                 if bdz > 1:
                                     # allreduce over bdz

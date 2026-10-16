@@ -32,6 +32,7 @@ from tvm_tirx.ir import (
     Call,
     Expr,
     ExprWithOp,
+    IntImm,
     PrimType,
     PtrType,
     TensorLoad,
@@ -110,23 +111,12 @@ from tvm_tirx.ir.prim.op import truncmod as truncmod
 from tvm_tirx.ir.prim.op import vscale as vscale
 
 from .. import _ffi_api
-from ..expr import ExprOp, IntImm
+from ..expr import ExprOp
 from ..expr import TensorLoad as _make_tensor_load
 from ..tensor import is_tensor_var, tensor_data_ptr
 from ..type import TensorMapType
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
-
-# Insertion order matters: a longer prefix has to be tried before the shorter
-# one it starts with, or `ptx_legacy_mma` would strip as `ptx` + `legacy_mma`.
-_DEVICE_INTRIN_PREFIX_TO_NAMESPACE = {
-    "cuda_": "cuda",
-    "ptx_legacy_": "ptx_legacy",
-    "ptx_": "ptx",
-    "s_tir_": "s_tir",
-    "nvshmem_": "nvshmem",
-    "nki_": "nki",
-}
 
 
 def register_intrin_lowering(
@@ -167,20 +157,6 @@ def register_intrin_lowering(
     return _register(f) if f is not None else _register
 
 
-def _canonical_device_intrin_name(func_name: str) -> str:
-    """Return the canonical registry name for statically registered device intrinsics."""
-
-    if not isinstance(func_name, str) or not func_name.startswith("tirx."):
-        return func_name
-    basename = func_name[len("tirx.") :]
-    if "." in basename:
-        return func_name
-    for prefix, namespace in _DEVICE_INTRIN_PREFIX_TO_NAMESPACE.items():
-        if basename.startswith(prefix):
-            return f"tirx.{namespace}.{basename[len(prefix) :]}"
-    return func_name
-
-
 def _reject_tensor_region(value, api_name):
     """Reject region metadata where a call argument must denote a runtime value."""
     if isinstance(value, TensorRegion):
@@ -214,10 +190,7 @@ def _primexpr_dtype(expr):
 def _pack_tensor(buf, loc: Location = UNKNOWN_LOC):
     """Build intrinsics that packs the tensor."""
     shape = Call(
-        "tirx.stack_make_shape",
-        buf.ty.shape,
-        loc=loc,
-        ty=PtrType(tvm_tirx.ir.PrimType("int64")),
+        "tirx.stack_make_shape", buf.ty.shape, loc=loc, ty=PtrType(tvm_tirx.ir.PrimType("int64"))
     )
     strides = (
         Call(
@@ -423,7 +396,7 @@ def call_cpacked(*args, loc: Location = UNKNOWN_LOC, ty=None):
 
 
 def call_intrin(
-    dtype: str | tvm_tirx.ir.Type, func_name, *args, attrs=None, loc: Location = UNKNOWN_LOC
+    func_name, *args, ty: str | tvm_tirx.ir.Type, attrs=None, loc: Location = UNKNOWN_LOC
 ):
     """Build expression by calling an intrinsic function.
 
@@ -432,7 +405,7 @@ def call_intrin(
 
     Parameters
     ----------
-    dtype : str or tvm_tirx.ir.Type
+    ty : str or tvm_tirx.ir.Type
         The data type of the result.
 
     func_name: str
@@ -452,18 +425,16 @@ def call_intrin(
     call : Expr
         The call expression.
     """
-    if isinstance(func_name, str):
-        func_name = _canonical_device_intrin_name(func_name)
     args = tuple(_reject_tensor_region(arg, "call_intrin") for arg in args)
-    return Call(func_name, args, attrs=attrs, loc=loc, ty=dtype)
+    return Call(func_name, args, attrs=attrs, loc=loc, ty=ty)
 
 
-def call_pure_extern(dtype, func_name, *args, loc: Location = UNKNOWN_LOC):
+def call_pure_extern(func_name, *args, ty, loc: Location = UNKNOWN_LOC):
     """Build expression by calling a pure extern function.
 
     Parameters
     ----------
-    dtype : str
+    ty : str
         The data type of the result.
 
     func_name: str
@@ -484,16 +455,16 @@ def call_pure_extern(dtype, func_name, *args, loc: Location = UNKNOWN_LOC):
         "tirx.call_pure_extern",
         [func_name, *(_reject_tensor_region(arg, "call_pure_extern") for arg in args)],
         loc=loc,
-        ty=dtype,
+        ty=ty,
     )
 
 
-def call_extern(dtype, func_name, *args, loc: Location = UNKNOWN_LOC):
+def call_extern(func_name, *args, ty, loc: Location = UNKNOWN_LOC):
     """Build expression by calling a extern function.
 
     Parameters
     ----------
-    dtype : str
+    ty : str
         The data type of the result.
 
     func_name: str
@@ -514,16 +485,16 @@ def call_extern(dtype, func_name, *args, loc: Location = UNKNOWN_LOC):
         "tirx.call_extern",
         [func_name, *(_reject_tensor_region(arg, "call_extern") for arg in args)],
         loc=loc,
-        ty=dtype,
+        ty=ty,
     )
 
 
-def call_llvm_intrin(dtype, name, *args, loc: Location = UNKNOWN_LOC):
+def call_llvm_intrin(name, *args, ty, loc: Location = UNKNOWN_LOC):
     """Build expression by calling a llvm intrinsic function
 
     Parameters
     ----------
-    dtype : str
+    ty : str
        The data type of the result.
 
     name : str
@@ -552,22 +523,22 @@ def call_llvm_intrin(dtype, name, *args, loc: Location = UNKNOWN_LOC):
     if llvm_id == 0:
         raise ValueError(f"Unknown llvm intrinsic function {name}")
     return call_intrin(
-        dtype,
         "tirx.call_llvm_intrin",
         name
         if isinstance(name, IntImm)
         else tvm_tirx.tirx.const(llvm_id, "int32" if isinstance(name, str) else "uint32"),
         *args,
         loc=loc,
+        ty=ty,
     )
 
 
-def call_llvm_pure_intrin(dtype, name, *args, loc: Location = UNKNOWN_LOC):
+def call_llvm_pure_intrin(name, *args, ty, loc: Location = UNKNOWN_LOC):
     """Build expression by calling a pure llvm intrinsic function
 
     Parameters
     ----------
-    dtype : str
+    ty : str
        The data type of the result.
 
     name : str
@@ -596,13 +567,13 @@ def call_llvm_pure_intrin(dtype, name, *args, loc: Location = UNKNOWN_LOC):
     if llvm_id == 0:
         raise ValueError(f"Unknown llvm intrinsic function {name}")
     return call_intrin(
-        dtype,
         "tirx.call_llvm_pure_intrin",
         name
         if isinstance(name, IntImm)
         else tvm_tirx.tirx.const(llvm_id, "int32" if isinstance(name, str) else "uint32"),
         *args,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -622,7 +593,7 @@ def stack_alloca(dtype_str, num, *, ty=None, loc: Location = UNKNOWN_LOC):
     call : Expr
         The call expression.
     """
-    return call_intrin(ty, "tirx.stack_alloca", dtype_str, num, loc=loc)
+    return call_intrin("tirx.stack_alloca", dtype_str, num, loc=loc, ty=ty)
 
 
 def stack_make_shape(*args, ty=None, loc: Location = UNKNOWN_LOC):
@@ -638,7 +609,7 @@ def stack_make_shape(*args, ty=None, loc: Location = UNKNOWN_LOC):
     call : Expr
         The call expression.
     """
-    return call_intrin(ty, "tirx.stack_make_shape", *args, loc=loc)
+    return call_intrin("tirx.stack_make_shape", *args, loc=loc, ty=ty)
 
 
 def stack_make_dltensor(
@@ -683,7 +654,6 @@ def stack_make_dltensor(
         arr_dtype = const(0, dtype=arr_dtype)
 
     return call_intrin(
-        ty,
         "tirx.stack_make_dltensor",
         data,
         shape,
@@ -692,6 +662,7 @@ def stack_make_dltensor(
         arr_dtype,
         elem_offset,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -702,7 +673,7 @@ def assume_aligned(tensor, alignment_bytes, *, ty=None, loc: Location = UNKNOWN_
     be a tensor variable and alignment a scalar integer constant, a power of
     two between 1 and 2**27 bytes (inclusive).
     """
-    return call_intrin(ty, "tirx.assume_aligned", tensor, alignment_bytes, loc=loc)
+    return call_intrin("tirx.assume_aligned", tensor, alignment_bytes, loc=loc, ty=ty)
 
 
 def undef(*, ty=None, loc: Location = UNKNOWN_LOC):
@@ -713,7 +684,7 @@ def undef(*, ty=None, loc: Location = UNKNOWN_LOC):
     call : Expr
         The call expression.
     """
-    return call_intrin(ty, "tirx.undef", loc=loc)
+    return call_intrin("tirx.undef", loc=loc, ty=ty)
 
 
 def handle_add_byte_offset(handle, offset, *, ty=None, loc: Location = UNKNOWN_LOC):
@@ -732,15 +703,15 @@ def handle_add_byte_offset(handle, offset, *, ty=None, loc: Location = UNKNOWN_L
     call : Expr
         The call expression.
     """
-    return call_intrin(ty, "tirx.handle_add_byte_offset", handle, offset, loc=loc)
+    return call_intrin("tirx.handle_add_byte_offset", handle, offset, loc=loc, ty=ty)
 
 
-def abi_field_get(arr, index, field, dtype):
+def abi_field_get(arr, index, field, *, ty, loc: Location = UNKNOWN_LOC):
     """Get struct field value in array
 
     Parameters
     ----------
-    dtype : str
+    ty : str
         The date type of the result.
 
     arr : StructType*
@@ -757,7 +728,7 @@ def abi_field_get(arr, index, field, dtype):
     call : Expr
         The call expression.
     """
-    return call_intrin(dtype, "tirx.abi_field_get", arr, index, field)
+    return call_intrin("tirx.abi_field_get", arr, index, field, loc=loc, ty=ty)
 
 
 def abi_field_set(arr, index, field, value, *, ty=None, loc: Location = UNKNOWN_LOC):
@@ -782,7 +753,7 @@ def abi_field_set(arr, index, field, value, *, ty=None, loc: Location = UNKNOWN_
     call : Expr
         The call expression.
     """
-    return call_intrin(ty, "tirx.abi_field_set", arr, index, field, value, loc=loc)
+    return call_intrin("tirx.abi_field_set", arr, index, field, value, loc=loc, ty=ty)
 
 
 def _is_tensormap_var(obj: Var) -> bool:
@@ -811,7 +782,7 @@ def address_of(obj: Var | TensorLoad, loc: Location = UNKNOWN_LOC, *, ty=None) -
         return Call("tirx.address_of", [tensor_load], ty=ty, loc=loc)
     elif isinstance(obj, Var):
         if _is_tensormap_var(obj):
-            return call_intrin(ty, "tirx.address_of", obj, loc=loc)
+            return call_intrin("tirx.address_of", obj, loc=loc, ty=ty)
         if not isinstance(obj.ty, tvm_tirx.ir.PrimType):
             raise TypeError(f"address_of expects a scalar or TensorMap Var, but got {obj.ty}")
         return Call("tirx.address_of", [obj], ty=ty, loc=loc)
@@ -862,7 +833,6 @@ def gpu_thread_allreduce(
         return tvm_tirx.ir.Tuple(value) if isinstance(value, list | tuple | Array) else value
 
     return call_intrin(
-        ty,
         "tirx.gpu_thread_allreduce",
         combine,
         as_operand(identity),
@@ -871,6 +841,7 @@ def gpu_thread_allreduce(
         as_operand(destinations),
         as_operand(thread_axes),
         loc=loc,
+        ty=ty,
     )
 
 
@@ -888,7 +859,7 @@ def gpu_thread_invariant(cond, *, ty=None, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
     assert tvm_tirx.ir.is_prim_expr(cond)
-    return call_intrin(ty, "tirx.gpu_thread_invariant", cond, loc=loc)
+    return call_intrin("tirx.gpu_thread_invariant", cond, loc=loc, ty=ty)
 
 
 def gpu_storage_sync(storage_scope, *, ty=None, loc: Location = UNKNOWN_LOC):
@@ -903,7 +874,7 @@ def gpu_storage_sync(storage_scope, *, ty=None, loc: Location = UNKNOWN_LOC):
     loc : tvm_tirx.ir.Location, optional
         The source location.
     """
-    return call_intrin(ty, "tirx.gpu_storage_sync", storage_scope, loc=loc)
+    return call_intrin("tirx.gpu_storage_sync", storage_scope, loc=loc, ty=ty)
 
 
 def cpu_parallel_barrier(*, ty=None, loc: Location = UNKNOWN_LOC):
@@ -917,12 +888,12 @@ def cpu_parallel_barrier(*, ty=None, loc: Location = UNKNOWN_LOC):
     To replace ``pragma_parallel_barrier_when_finish``, place this operation
     after the former attribute body.
     """
-    return call_intrin(ty, "tirx.cpu_parallel_barrier", loc=loc)
+    return call_intrin("tirx.cpu_parallel_barrier", loc=loc, ty=ty)
 
 
 def kernel_replace_point(*, ty=None, loc: Location = UNKNOWN_LOC):
     """Mark where a transform should replace generated kernel initialization."""
-    return call_intrin(ty, "tirx.kernel_replace_point", loc=loc)
+    return call_intrin("tirx.kernel_replace_point", loc=loc, ty=ty)
 
 
 def gpu_warp_shuffle(
@@ -949,14 +920,7 @@ def gpu_warp_shuffle(
         The call expression.
     """
     return call_intrin(
-        ty,
-        "tirx.gpu_warp_shuffle",
-        mask,
-        value,
-        warp_id,
-        width,
-        warp_size,
-        loc=loc,
+        "tirx.gpu_warp_shuffle", mask, value, warp_id, width, warp_size, loc=loc, ty=ty
     )
 
 
@@ -985,14 +949,7 @@ def gpu_warp_shuffle_up(
         The call expression.
     """
     return call_intrin(
-        ty,
-        "tirx.gpu_warp_shuffle_up",
-        mask,
-        value,
-        offset,
-        width,
-        warp_size,
-        loc=loc,
+        "tirx.gpu_warp_shuffle_up", mask, value, offset, width, warp_size, loc=loc, ty=ty
     )
 
 
@@ -1021,14 +978,7 @@ def gpu_warp_shuffle_down(
         The call expression.
     """
     return call_intrin(
-        ty,
-        "tirx.gpu_warp_shuffle_down",
-        mask,
-        value,
-        offset,
-        width,
-        warp_size,
-        loc=loc,
+        "tirx.gpu_warp_shuffle_down", mask, value, offset, width, warp_size, loc=loc, ty=ty
     )
 
 
@@ -1056,14 +1006,7 @@ def gpu_warp_shuffle_xor(
         The call expression.
     """
     return call_intrin(
-        ty,
-        "tirx.gpu_warp_shuffle_xor",
-        mask,
-        value,
-        lane_mask,
-        width,
-        warp_size,
-        loc=loc,
+        "tirx.gpu_warp_shuffle_xor", mask, value, lane_mask, width, warp_size, loc=loc, ty=ty
     )
 
 
@@ -1075,7 +1018,7 @@ def gpu_warp_activemask(*, ty=None, loc: Location = UNKNOWN_LOC):
     call : Expr
         The call expression.
     """
-    return call_intrin(ty, "tirx.gpu_warp_activemask", loc=loc)
+    return call_intrin("tirx.gpu_warp_activemask", loc=loc, ty=ty)
 
 
 def ptr_byte_offset(data, byte_offset, *, ty, loc: Location = UNKNOWN_LOC):
@@ -1084,7 +1027,7 @@ def ptr_byte_offset(data, byte_offset, *, ty, loc: Location = UNKNOWN_LOC):
     ``byte_offset`` is always in bytes. ``ty`` specifies both the result
     element type and storage scope.
     """
-    return call_intrin(ty, "tirx.ptr_byte_offset", data, byte_offset, loc=loc)
+    return call_intrin("tirx.ptr_byte_offset", data, byte_offset, loc=loc, ty=ty)
 
 
 def throw_last_error(*, ty=None, loc: Location = UNKNOWN_LOC):
@@ -1095,15 +1038,15 @@ def throw_last_error(*, ty=None, loc: Location = UNKNOWN_LOC):
     ret : Expr
         The return expression
     """
-    return call_intrin(ty, "tirx.throw_last_error", loc=loc)
+    return call_intrin("tirx.throw_last_error", loc=loc, ty=ty)
 
 
-def vector_low(dtype, vec):
+def vector_low(vec, *, ty, loc: Location = UNKNOWN_LOC):
     """Get the low level half of the vector
 
     Parameters
     ----------
-    dtype : str
+    ty : str
        The data type of the result.
 
     vec : list
@@ -1114,15 +1057,15 @@ def vector_low(dtype, vec):
     call : Expr
         The call expression.
     """
-    return call_intrin(dtype, "tirx.vector_low", vec)
+    return call_intrin("tirx.vector_low", vec, loc=loc, ty=ty)
 
 
-def vector_high(dtype, vec):
+def vector_high(vec, *, ty, loc: Location = UNKNOWN_LOC):
     """Get the high level half of the vector
 
     Parameters
     ----------
-    dtype : str
+    ty : str
        The data type of the result.
 
     vec : list
@@ -1133,10 +1076,10 @@ def vector_high(dtype, vec):
     call : Expr
         The call expression.
     """
-    return call_intrin(dtype, "tirx.vector_high", vec)
+    return call_intrin("tirx.vector_high", vec, loc=loc, ty=ty)
 
 
-def vector_combine(dtype, vec1, vec2):
+def vector_combine(vec1, vec2, *, ty, loc: Location = UNKNOWN_LOC):
     """Concat two vectors
 
     Parameters
@@ -1152,7 +1095,7 @@ def vector_combine(dtype, vec1, vec2):
     call : Expr
         The call expression.
     """
-    return call_intrin(dtype, "tirx.vector_combine", vec1, vec2)
+    return call_intrin("tirx.vector_combine", vec1, vec2, loc=loc, ty=ty)
 
 
 def gpu_dp4a(vec1, vec2, acc=0, **kwargs):
@@ -1177,12 +1120,12 @@ def gpu_dp4a(vec1, vec2, acc=0, **kwargs):
     return Call("tirx.gpu_dp4a", [vec1, vec2, acc], **kwargs)
 
 
-def reinterpret(dtype, value, loc: Location = UNKNOWN_LOC) -> Expr:
+def reinterpret(value, *, ty, loc: Location = UNKNOWN_LOC) -> Expr:
     """Reinterpret a value as an exact primitive or pointer type.
 
     Parameters
     ----------
-    dtype : str or tvm_tirx.ir.Type
+    ty : str or tvm_tirx.ir.Type
         The data type.
 
     value : Expr
@@ -1194,15 +1137,11 @@ def reinterpret(dtype, value, loc: Location = UNKNOWN_LOC) -> Expr:
     Returns
     -------
     value : tvm.Expr
-        The reinterpret cast value of dtype.
+        The reinterpret cast value of ty.
     """
-    if isinstance(dtype, str):
-        dtype = (
-            PtrType(tvm_tirx.ir.PrimType("void"))
-            if dtype == "handle"
-            else tvm_tirx.ir.PrimType(dtype)
-        )
-    return _ffi_api.reinterpret(dtype, value, loc)  # type: ignore
+    if isinstance(ty, str):
+        ty = PtrType(tvm_tirx.ir.PrimType("void")) if ty == "handle" else tvm_tirx.ir.PrimType(ty)
+    return _ffi_api.reinterpret(ty, value, loc)  # type: ignore
 
 
 def gpu_thread_filter(var, pred, *, loc: Location = UNKNOWN_LOC, ty=None):
@@ -1221,7 +1160,7 @@ def gpu_thread_filter(var, pred, *, loc: Location = UNKNOWN_LOC, ty=None):
     evaluated at runtime.
 
     """
-    return call_intrin(ty, "tirx.gpu_thread_filter", var, pred, loc=loc)
+    return call_intrin("tirx.gpu_thread_filter", var, pred, loc=loc, ty=ty)
 
 
 def gpu_active_thread_selector(var, pred, loc: Location = UNKNOWN_LOC, *, ty=None):
@@ -1231,7 +1170,7 @@ def gpu_active_thread_selector(var, pred, loc: Location = UNKNOWN_LOC, *, ty=Non
     active domain for which ``pred`` is true. It is intended for compiler
     metadata and should not survive to executable codegen.
     """
-    return call_intrin(ty, "tirx.gpu_active_thread_selector", var, pred, loc=loc)
+    return call_intrin("tirx.gpu_active_thread_selector", var, pred, loc=loc, ty=ty)
 
 
 def isnullptr(x, loc: Location = UNKNOWN_LOC, *, ty=None):
@@ -1250,7 +1189,7 @@ def isnullptr(x, loc: Location = UNKNOWN_LOC, *, ty=None):
     y : Expr
         The result.
     """
-    return call_intrin(ty, "tirx.isnullptr", x, loc=loc)  # type: ignore
+    return call_intrin("tirx.isnullptr", x, loc=loc, ty=ty)  # type: ignore
 
 
 def logaddexp(a, b, loc: Location = UNKNOWN_LOC):
@@ -1310,7 +1249,6 @@ def alloc_workspace(
         The call expression.
     """
     return call_intrin(
-        ty,
         "tirx.alloc_workspace",
         device_type,
         device_id,
@@ -1318,6 +1256,7 @@ def alloc_workspace(
         dtype_code_hint,
         dtype_bits_hint,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1340,17 +1279,10 @@ def free_workspace(device_type, device_id, ptr, *, ty=None, loc: Location = UNKN
     call : Expr
         The call expression.
     """
-    return call_intrin(
-        ty,
-        "tirx.free_workspace",
-        device_type,
-        device_id,
-        ptr,
-        loc=loc,
-    )
+    return call_intrin("tirx.free_workspace", device_type, device_id, ptr, loc=loc, ty=ty)
 
 
-def get_active_lane_mask(dtype, base, limit):
+def get_active_lane_mask(base, limit, *, ty, loc: Location = UNKNOWN_LOC):
     """
     Calculate a predicate mask given an upper bound (limit) and a current value (base).
 
@@ -1359,7 +1291,7 @@ def get_active_lane_mask(dtype, base, limit):
 
     Parameters
     ----------
-    dtype : str
+    ty : str
         The data type of the result.
 
     base : Expr
@@ -1368,33 +1300,36 @@ def get_active_lane_mask(dtype, base, limit):
     limit : Expr
         An expression representing the limit.
     """
-    return call_intrin(dtype, "tirx.get_active_lane_mask", base, limit)
+    return call_intrin("tirx.get_active_lane_mask", base, limit, loc=loc, ty=ty)
 
 
-def masked_load(dtype, tensor, *indices_and_mask):
+def masked_load(tensor, index, *args, ty=None, loc: Location = UNKNOWN_LOC):
     """Load vector lanes selected by a predicate mask.
 
     Parameters
     ----------
-    dtype : str
+    ty : str
         The vector data type to load.
 
     tensor : Var
         The tensor to load.
 
-    indices_and_mask : Expr
+    index : Expr
+        The first tensor index.
+
+    args : Expr
         The tensor indices followed by a boolean lane mask. The mask must match the
         lane count and scalability of the loaded vector.
 
     Returns
     -------
     call : Expr
-        A ``tirx.masked_load`` call with result type ``dtype``.
+        A ``tirx.masked_load`` call with result type ``ty``.
     """
-    return call_intrin(dtype, "tirx.masked_load", tensor, *indices_and_mask)
+    return call_intrin("tirx.masked_load", tensor, index, *args, loc=loc, ty=ty)
 
 
-def masked_store(tensor, value, *indices_and_mask, ty=None, loc: Location = UNKNOWN_LOC):
+def masked_store(tensor, value, index, *args, ty=None, loc: Location = UNKNOWN_LOC):
     """Store vector lanes selected by a predicate mask.
 
     Parameters
@@ -1405,7 +1340,10 @@ def masked_store(tensor, value, *indices_and_mask, ty=None, loc: Location = UNKN
     value : Expr
         The vector value to store.
 
-    indices_and_mask : Expr
+    index : Expr
+        The first tensor index.
+
+    args : Expr
         The tensor indices followed by a boolean lane mask. The mask must match the
         lane count and scalability of ``value``.
 
@@ -1414,14 +1352,7 @@ def masked_store(tensor, value, *indices_and_mask, ty=None, loc: Location = UNKN
     call : Expr
         A void-typed ``tirx.masked_store`` call.
     """
-    return call_intrin(
-        ty,
-        "tirx.masked_store",
-        tensor,
-        value,
-        *indices_and_mask,
-        loc=loc,
-    )
+    return call_intrin("tirx.masked_store", tensor, value, index, *args, loc=loc, ty=ty)
 
 
 def get_vscale_expr(dtype: str | tvm_ffi.dtype, min_size: int = 128) -> Expr:
@@ -1449,7 +1380,7 @@ def ignore_loop_partition(predicate, *, ty=None, loc: Location = UNKNOWN_LOC) ->
     predicate : Expr
         The annotated predicate expression.
     """
-    return call_intrin(ty, "tirx.ignore_loop_partition", predicate, loc=loc)
+    return call_intrin("tirx.ignore_loop_partition", predicate, loc=loc, ty=ty)
 
 
 def gpu_load_matrix_sync(
@@ -1499,7 +1430,6 @@ def gpu_load_matrix_sync(
         The call expression.
     """
     return call_intrin(
-        ty,
         "tirx.gpu_load_matrix_sync",
         fragment,
         m,
@@ -1510,6 +1440,7 @@ def gpu_load_matrix_sync(
         stride,
         layout,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1560,7 +1491,6 @@ def gpu_mma_sync(
         The call expression.
     """
     return call_intrin(
-        ty,
         "tirx.gpu_mma_sync",
         fragment_d,
         index_d,
@@ -1571,6 +1501,7 @@ def gpu_mma_sync(
         fragment_c,
         index_c,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1602,17 +1533,7 @@ def gpu_fill_fragment(fragment, m, n, k, index, value, *, ty=None, loc: Location
     call : Expr
         The call expression.
     """
-    return call_intrin(
-        ty,
-        "tirx.gpu_fill_fragment",
-        fragment,
-        m,
-        n,
-        k,
-        index,
-        value,
-        loc=loc,
-    )
+    return call_intrin("tirx.gpu_fill_fragment", fragment, m, n, k, index, value, loc=loc, ty=ty)
 
 
 def gpu_store_matrix_sync(
@@ -1662,7 +1583,6 @@ def gpu_store_matrix_sync(
         The call expression.
     """
     return call_intrin(
-        ty,
         "tirx.gpu_store_matrix_sync",
         fragment,
         m,
@@ -1673,9 +1593,10 @@ def gpu_store_matrix_sync(
         stride,
         layout,
         loc=loc,
+        ty=ty,
     )
 
 
 def gpu_thread_return(*, ty=None, loc: Location = UNKNOWN_LOC):
     """Return from the current GPU thread without a function value."""
-    return call_intrin(ty, "tirx.gpu_thread_return", loc=loc)
+    return call_intrin("tirx.gpu_thread_return", loc=loc, ty=ty)

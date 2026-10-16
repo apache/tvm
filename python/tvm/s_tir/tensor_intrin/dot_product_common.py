@@ -39,7 +39,7 @@ def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
             for i in range(0, 4):
                 with Ts.sblock("update"):
                     vi = Ts.axis.remap("R", [i])
-                    C[0] = C[0] + T.cast(A[vi], dtype_c) * T.cast(B[vi], dtype_c)
+                    C[0] = C[0] + T.cast(A[vi], ty=dtype_c) * T.cast(B[vi], ty=dtype_c)
 
     @Ts.function
     def dp4a_impl(

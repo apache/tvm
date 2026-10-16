@@ -251,7 +251,7 @@ def test_no_unroll_for_spatial_block():
         with Ts.sblock("root"):
             A_red_temp_v0 = Ts.sblock_alloc_tensor((1,))
             A_red_temp_v1 = Ts.sblock_alloc_tensor((1,))
-            for ax0 in T.serial(1, annotations={"auto_unroll_max_step": 512, "unroll_explicit": 1}):
+            for ax0 in T.serial(1, annotations={"tirx.auto_unroll_max_step": 512, "tirx.unroll_explicit": 1}):
                 for k1, k2, k3 in T.grid(4, 4, 32):
                     with Ts.sblock("A_red_temp"):
                         v_ax0 = Ts.axis.spatial(1, 0)

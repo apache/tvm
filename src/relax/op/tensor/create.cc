@@ -393,7 +393,7 @@ Type InferTypeArange(const CallNode* call_node) {
       return tvm::floordiv((end - start + step - 1), step);
     } else {
       return tvm::prim::cast(
-          tvm::ceil(tvm::prim::cast(end - start, tvm::PrimType::Float(32)) / step),
+          tvm::prim::ceil(tvm::prim::cast(end - start, tvm::PrimType::Float(32)) / step),
           tvm::PrimType::Int(64));
     }
   }();

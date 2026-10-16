@@ -29,7 +29,6 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/support/cuda/nvtx.h>
 
 #include <algorithm>
 #include <iomanip>
@@ -44,6 +43,7 @@
 #include "attn_backend.h"
 #include "attn_utils.h"
 #include "kv_state.h"
+#include "nvtx.h"
 
 namespace tvm {
 namespace runtime {

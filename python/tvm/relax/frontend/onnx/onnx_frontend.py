@@ -62,7 +62,7 @@ from tvm.topi.utils import get_const_tuple
 from tvm_tirx import tirx
 from tvm_tirx.ir import Expr as TvmExpr
 from tvm_tirx.ir import IRModule
-from tvm_tirx.ir.supply import UniqueNameSupply
+from tvm_tirx.ir.unique_name_supply import UniqueNameSupply
 from tvm_tirx.runtime import DataType, DataTypeCode
 
 from ..common import autopad
@@ -567,7 +567,7 @@ class MatMulInteger16(OnnxOpConverter):
 
 def _to_numpy(x):
     if tvm_tirx.ir.is_prim_expr(x):
-        if isinstance(x, tirx.IntImm | tirx.FloatImm):
+        if isinstance(x, tvm_tirx.ir.IntImm | tvm_tirx.ir.FloatImm):
             return _np.array(x.value)
         return x
     else:
@@ -673,7 +673,7 @@ class Div(BinaryBase):
     def _is_zero(expr):
         if isinstance(expr, tvm_tirx.ir.GenericConst):
             return bool(_np.any(expr.value.numpy() == 0))
-        if isinstance(expr, tirx.IntImm):
+        if isinstance(expr, tvm_tirx.ir.IntImm):
             return int(expr.value) == 0
         return False
 
@@ -954,7 +954,7 @@ def _shape_product(dims: list[int | tirx.Expr]) -> int | tirx.Expr:
 
     prod = 1
     for dim in dims:
-        if isinstance(dim, tirx.IntImm):
+        if isinstance(dim, tvm_tirx.ir.IntImm):
             dim = int(dim.value)
         prod = prod * dim
     return prod
@@ -1001,7 +1001,7 @@ def _get_axis_extent(data: relax.Expr, axis: int, op_name: str) -> tuple[int, in
     ty = data.ty
     if isinstance(ty, relax.TensorType) and isinstance(ty.shape, relax.ShapeExpr):
         axis_extent = ty.shape.values[normalized_axis]
-        if isinstance(axis_extent, tirx.IntImm):
+        if isinstance(axis_extent, tvm_tirx.ir.IntImm):
             axis_extent = int(axis_extent.value)
         return normalized_axis, axis_extent
 
@@ -1288,7 +1288,7 @@ class Cast(OnnxOpConverter):
         to_type = get_type(attr["to"])
         if isinstance(inputs[0], relax.ShapeExpr):
             shape = inputs[0]
-            if all([isinstance(x, tirx.IntImm) for x in shape]):
+            if all([isinstance(x, tvm_tirx.ir.IntImm) for x in shape]):
                 shape = [int(x) for x in shape]
                 return relax.const(shape, to_type)
             inputs = [bb.normalize(relax.op.shape_to_tensor(shape))]
@@ -1296,7 +1296,7 @@ class Cast(OnnxOpConverter):
             output = inputs[0].value.numpy().astype(to_type)
             return relax.const(output, to_type)
         if tvm_tirx.ir.is_prim_expr(inputs[0]):
-            if isinstance(inputs[0], tirx.IntImm | tirx.FloatImm):
+            if isinstance(inputs[0], tvm_tirx.ir.IntImm | tvm_tirx.ir.FloatImm):
                 return tvm_tirx.tirx.const(inputs[0].value, to_type)
             return inputs[0].astype(to_type)
 
@@ -1495,8 +1495,8 @@ def _shapes_equal(a: list[tirx.Expr] | None, b: list[tirx.Expr] | None) -> bool:
     if a is None or b is None or len(a) != len(b):
         return False
     for x, y in zip(a, b):
-        x_static = isinstance(x, tirx.IntImm | int)
-        y_static = isinstance(y, tirx.IntImm | int)
+        x_static = isinstance(x, tvm_tirx.ir.IntImm | int)
+        y_static = isinstance(y, tvm_tirx.ir.IntImm | int)
         if x_static and y_static:
             if int(x) != int(y):
                 return False
@@ -1529,7 +1529,7 @@ class Scatter(OnnxOpConverter):
                 "Scatter with `indices` of unknown rank is unsupported, as the per-entry "
                 "coordinate grid cannot be built"
             )
-        if not all(isinstance(s, tirx.IntImm | int) for s in indices_shape):
+        if not all(isinstance(s, tvm_tirx.ir.IntImm | int) for s in indices_shape):
             raise ValueError(
                 "Scatter with dynamic `indices` whose shape is not provably equal to "
                 "`data`'s shape is unsupported: the fallback lowering silently produces "
@@ -1915,7 +1915,7 @@ class Trilu(OnnxOpConverter):
             k = get_constant(k, params)
         if isinstance(k, tvm_tirx.ir.GenericConst):
             k = int(k.value.numpy().item())
-        if isinstance(k, tirx.IntImm):
+        if isinstance(k, tvm_tirx.ir.IntImm):
             k = int(k)
         if isinstance(k, int):
             if upper:
@@ -2398,7 +2398,7 @@ class Squeeze(OnnxOpConverter):
             return
         for axis in _normalize_constant_axes(list(axes), rank, "Squeeze"):
             extent = ty.shape.values[axis]
-            if not isinstance(extent, tirx.IntImm):
+            if not isinstance(extent, tvm_tirx.ir.IntImm):
                 raise ValueError(
                     f"Squeeze axis {axis} has a symbolic extent that cannot be proven to be "
                     "1 at import time; only statically known unit-size axes can be squeezed."
@@ -2497,7 +2497,7 @@ class ConstantOfShape(OnnxOpConverter):
         if (
             isinstance(shape, relax.ShapeExpr)
             and len(shape) == 1
-            and all(isinstance(x, tirx.IntImm) for x in shape)
+            and all(isinstance(x, tvm_tirx.ir.IntImm) for x in shape)
         ):
             shape = [int(x) for x in shape]
             return relax.const(_np.full(shape, value, dtype), dtype)
@@ -2688,7 +2688,7 @@ class Sqrt(OnnxOpConverter):
 
 def _normalize_shape_dim(dim: int | tirx.Expr) -> int | tirx.Expr:
     """Normalize a shape dimension, converting IntImm to int if needed."""
-    if isinstance(dim, tirx.IntImm):
+    if isinstance(dim, tvm_tirx.ir.IntImm):
         return int(dim.value)
     return dim
 
@@ -3008,7 +3008,7 @@ def _get_known_tensor_length(expr: relax.Expr | None) -> int | None:
         raise ValueError(f"Expected a 1-D tensor, but got ndim={ty.ndim}.")
     if isinstance(ty.shape, relax.ShapeExpr):
         dim = ty.shape.values[0]
-        if isinstance(dim, tirx.IntImm):
+        if isinstance(dim, tvm_tirx.ir.IntImm):
             return int(dim.value)
         if isinstance(dim, int):
             return dim
@@ -3180,7 +3180,7 @@ class Slice(OnnxOpConverter):
                 steps = [1] * len(axes)
             if any(
                 (isinstance(step, int) and step == 0)
-                or (isinstance(step, tirx.IntImm) and int(step) == 0)
+                or (isinstance(step, tvm_tirx.ir.IntImm) and int(step) == 0)
                 for step in steps
             ):
                 raise ValueError("Slice step values must be non-zero.")
@@ -3189,12 +3189,12 @@ class Slice(OnnxOpConverter):
                 assert all(len(i) == 1 for i in [starts, ends, steps])
                 sliced_values = shape_data[starts[0] : ends[0] : steps[0]]
 
-                if all([isinstance(val, tirx.IntImm | int) for val in sliced_values]):
+                if all([isinstance(val, tvm_tirx.ir.IntImm | int) for val in sliced_values]):
                     return relax.const([x.value for x in sliced_values], "int64")
                 return relax.ShapeExpr(sliced_values)
 
             assume_inbound = not all(
-                [isinstance(param, tirx.IntImm | int) for param in [*starts, *ends, *steps]]
+                [isinstance(param, tvm_tirx.ir.IntImm | int) for param in [*starts, *ends, *steps]]
             )
             starts = get_prim_value_list(starts)
             ends = get_prim_value_list(ends)
@@ -3404,7 +3404,7 @@ class Tile(OnnxOpConverter):
             return None
 
         length = shape.values[0]
-        if not isinstance(length, tirx.IntImm):
+        if not isinstance(length, tvm_tirx.ir.IntImm):
             return None
         return length.value
 
@@ -3471,13 +3471,11 @@ class Expand(OnnxOpConverter):
             assert len(data_shape) == len(target_shape)
             # Apply ONNX v13 Expand broadcasting rules
             for i, s in enumerate(target_shape):
-                if isinstance(s, tvm_tirx.tirx.IntImm):
+                if isinstance(s, tvm_tirx.ir.IntImm):
                     if s.value == -1:
                         # -1 means preserve the input dimension
                         target_shape[i] = data_shape[i]
-                    elif (
-                        isinstance(data_shape[i], tvm_tirx.tirx.IntImm) and data_shape[i].value == 1
-                    ):
+                    elif isinstance(data_shape[i], tvm_tirx.ir.IntImm) and data_shape[i].value == 1:
                         # Input dimension is 1, can broadcast to any target dimension >= 1
                         if s.value < 1:
                             raise ValueError(
@@ -3485,7 +3483,7 @@ class Expand(OnnxOpConverter):
                                 f"at possition {i}. Target dimensions must be >= 1."
                             )
                     elif (
-                        isinstance(data_shape[i], tvm_tirx.tirx.IntImm)
+                        isinstance(data_shape[i], tvm_tirx.ir.IntImm)
                         and s.value == data_shape[i].value
                     ):
                         # Dimensions match, no change needed
@@ -3495,7 +3493,7 @@ class Expand(OnnxOpConverter):
                         # This would "squeeze" the dimension - preserve input for safety
                         target_shape[i] = data_shape[i]
                     else:
-                        if isinstance(data_shape[i], tvm_tirx.tirx.IntImm):
+                        if isinstance(data_shape[i], tvm_tirx.ir.IntImm):
                             raise ValueError(
                                 f"ONNX Expand: Cannot broadcast input shape {original_data_shape} "
                                 f"to target shape {original_target_shape}. "
@@ -3576,7 +3574,9 @@ class Expand(OnnxOpConverter):
         padded_data = data
 
         if target_ndim > data_ndim:
-            padded_data_shape = [tirx.IntImm("int64", 1)] * (target_ndim - data_ndim) + data_shape
+            padded_data_shape = [tvm_tirx.ir.IntImm("int64", 1)] * (
+                target_ndim - data_ndim
+            ) + data_shape
             padded_data = bb.normalize(relax.op.reshape(data, relax.ShapeExpr(padded_data_shape)))
 
         return bb.normalize(relax.op.broadcast_to(padded_data, relax.ShapeExpr(shape_vars)))
@@ -4586,7 +4586,7 @@ class Flatten(OnnxOpConverter):
         if axis == 0:
             new_shape = (1, -1)
         else:
-            shape_flags = [isinstance(x, tvm_tirx.script.tirx.IntImm) for x in data_shape[0:axis]]
+            shape_flags = [isinstance(x, tvm_tirx.ir.IntImm) for x in data_shape[0:axis]]
 
             if all(shape_flags):
                 data_shape = [x.value for x in data_shape[0:axis]]
@@ -4700,7 +4700,7 @@ class GroupNormalization(OnnxOpConverter):
             )
 
         channel_dim = ty.shape[1]
-        if not isinstance(channel_dim, tirx.IntImm):
+        if not isinstance(channel_dim, tvm_tirx.ir.IntImm):
             raise ValueError(
                 "GroupNormalization-18 requires a statically known channel count "
                 "to expand per-group scale/bias to per-channel."
@@ -4757,7 +4757,7 @@ class GroupNormalization(OnnxOpConverter):
             )
 
         channel_dim = ty.shape[1]
-        if isinstance(channel_dim, tirx.IntImm):
+        if isinstance(channel_dim, tvm_tirx.ir.IntImm):
             channels = int(channel_dim)
             if channels % num_groups != 0:
                 raise ValueError(
@@ -5187,7 +5187,7 @@ def _argreduce_select_last_index(bb, data, axis, keepdims, op):
     data_flipped = relax.op.flip(data, axis=axis)
     flipped_idx = bb.normalize(op(data_flipped, axis, keepdims))
     axis_size = data.ty.shape[axis]
-    if isinstance(axis_size, tirx.IntImm):
+    if isinstance(axis_size, tvm_tirx.ir.IntImm):
         offset = relax.const(int(axis_size) - 1, "int64")
     else:
         # dynamic: get axis size at runtime and subtract 1
@@ -5766,7 +5766,7 @@ class SplitToSequence(OnnxOpConverter):
             chunk_size = int(split)
             dim_size = input_shape[axis]
 
-            if isinstance(dim_size, int | tirx.IntImm):
+            if isinstance(dim_size, int | tvm_tirx.ir.IntImm):
                 dim_size_int = int(dim_size)
                 split = math.ceil(dim_size_int / chunk_size)
             else:

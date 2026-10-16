@@ -44,11 +44,6 @@ class BaseFunc(_CallableExprWithOp):
     def __bool__(self) -> bool:
         return True
 
-    @property
-    def attrs(self):
-        """Return the attrs member of the function."""
-        return _ffi_api.BaseFunc_Attrs(self)
-
     def with_attr(self, attr_key_or_dict, attr_value=None) -> "BaseFunc":
         """Create a new copy of the function and update the attribute.
 
@@ -97,7 +92,7 @@ class BaseFunc(_CallableExprWithOp):
             A new copy of the function
         """
         if isinstance(attr_map, tvm_tirx.ir.DictAttrs):
-            attr_map = attr_map._dict()
+            attr_map = attr_map.dict
 
         return _ffi_api.BaseFuncWithAttrs(self, attr_map)
 

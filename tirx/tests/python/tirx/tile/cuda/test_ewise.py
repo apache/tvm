@@ -38,23 +38,23 @@ def _scalar(operation, src_dtype, dst_dtype, with_bias=False):
     def atom(x: source, bias: source) -> destination:
         # Conversion and composition are explicit parts of this scalar atom.
         if T.constexpr(with_bias):
-            value = T.cast(x, "float32") * T.float32(1.5) + T.cast(bias, "float32")
+            value = T.cast(x, ty="float32") * T.float32(1.5) + T.cast(bias, ty="float32")
         else:
-            value = T.cast(x, "float32")
+            value = T.cast(x, ty="float32")
         if T.constexpr(operation == "zero"):
-            return T.cast(0, dst_dtype)
+            return T.cast(0, ty=dst_dtype)
         elif T.constexpr(operation == "sqrt"):
-            return T.cast(T.sqrt(value), dst_dtype)
+            return T.cast(T.sqrt(value), ty=dst_dtype)
         elif T.constexpr(operation == "reciprocal"):
-            return T.cast(T.float32(1) / value, dst_dtype)
+            return T.cast(T.float32(1) / value, ty=dst_dtype)
         elif T.constexpr(operation == "exp"):
-            return T.cast(T.exp(value), dst_dtype)
+            return T.cast(T.exp(value), ty=dst_dtype)
         elif T.constexpr(operation == "exp2"):
-            return T.cast(T.exp2(value), dst_dtype)
+            return T.cast(T.exp2(value), ty=dst_dtype)
         elif T.constexpr(operation == "log2"):
-            return T.cast(T.log2(value), dst_dtype)
+            return T.cast(T.log2(value), ty=dst_dtype)
         else:
-            return T.cast(value / (T.float32(1) + T.exp(-value)), dst_dtype)
+            return T.cast(value / (T.float32(1) + T.exp(-value)), ty=dst_dtype)
 
     return atom
 
@@ -135,7 +135,7 @@ def _shared_case(input, operation, src_dtype, dst_dtype, bias_type=None, target=
                 if T.constexpr(bias_type == "region"):
                     b[0] = BS[src_index]
                 else:
-                    b[0] = T.cast(bias_constant, src_dtype)
+                    b[0] = T.cast(bias_constant, ty=src_dtype)
                 if T.constexpr(operation == "zero"):
                     T.cuda.tile.apply(T.ptx["mov.b16"], d.view("uint16"), T.uint16(0))
                 else:
@@ -358,7 +358,7 @@ def test_unary_op_local(input, op_type, src_dtype, dst_dtype):
                 scalar_atom,
                 res_view.rearrange("(j r) (c l v) -> (r l) c j v", j=2, r=8, c=16, l=4, v=2),
                 acc_view.rearrange("(j r) (c l v) -> (r l) c j v", j=2, r=8, c=16, l=4, v=2),
-                T.cast(0, src_dtype),
+                T.cast(0, ty=src_dtype),
                 scope="warp",
             )
 

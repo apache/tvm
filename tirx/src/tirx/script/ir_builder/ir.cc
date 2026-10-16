@@ -60,21 +60,16 @@ tvm::tirx::TensorType TensorTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
 
 }  // namespace
 
-FunctionFrame Function(bool is_private, bool persistent) {
+FunctionFrame Function(bool is_private, bool persistent, bool is_declaration) {
   ffi::ObjectPtr<FunctionFrameObj> n = ffi::make_object<FunctionFrameObj>();
   n->name = std::nullopt;
   n->is_private = is_private;
+  n->is_declaration = is_declaration;
   n->args.clear();
   n->ret_type = std::nullopt;
   n->attrs = {};
   n->persistent = persistent;
   return FunctionFrame(n);
-}
-
-FunctionFrame DeclFunction(bool is_private, bool persistent) {
-  FunctionFrame frame = Function(is_private, persistent);
-  frame->is_declaration = true;
-  return frame;
 }
 
 Var Arg(ffi::String name, Var var) {
@@ -233,13 +228,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              TVM_FFI_CHECK_GE(bytes, 0, ValueError);
              const auto& frames = IRBuilder::Current()->frames;
              for (auto it = frames.rbegin(); it != frames.rend(); ++it) {
-               if (auto region = (*it).as<RegionFrame>();
+               if (auto region = (*it).as<ir::RegionFrame>();
                    region && region.value()->op->name == "tirx.device_entry") {
                  auto attrs = region.value()->attrs->dict;
-                 int64_t previous = attrs.Get(tvm::backend::cuda::attr::kSmemRequired)
+                 int64_t previous = attrs.Get(tvm::backend::cuda::attr::kSmemRequired.name)
                                         .value_or(int64_t{0})
                                         .cast<int64_t>();
-                 attrs.Set(tvm::backend::cuda::attr::kSmemRequired, std::max(previous, bytes));
+                 attrs.Set(tvm::backend::cuda::attr::kSmemRequired.name, std::max(previous, bytes));
                  region.value()->attrs = DictAttrs(attrs);
                  return;
                }
@@ -248,7 +243,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("script.ir_builder.tirx.TensorType", TensorTypeDecl)
       .def("script.ir_builder.tirx.Function", Function)
-      .def("script.ir_builder.tirx.DeclFunction", DeclFunction)
       .def("script.ir_builder.tirx.Arg",
            [](ffi::String name, ffi::ObjectRef obj) -> ffi::ObjectRef {
              using namespace tvm::tirx;
@@ -266,132 +260,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Ptr", Ptr);
 }
 
-#define TVM_TMP_STR(x) #x
-
-#define TVM_FFI_REFL_DEF_GLOBAL_SIZE(Prefix, DType) \
-  def(Prefix TVM_TMP_STR(8), DType##8)              \
-      .def(Prefix TVM_TMP_STR(16), DType##16)       \
-      .def(Prefix TVM_TMP_STR(32), DType##32)       \
-      .def(Prefix TVM_TMP_STR(64), DType##64)
-
-#define TVM_FFI_REFL_DEF_GLOBAL_LANES(Prefix, Func) \
-  def(Prefix TVM_TMP_STR(x4), Func##x4)             \
-      .def(Prefix TVM_TMP_STR(x8), Func##x8)        \
-      .def(Prefix TVM_TMP_STR(x16), Func##x16)      \
-      .def(Prefix TVM_TMP_STR(x32), Func##x32)      \
-      .def(Prefix TVM_TMP_STR(x64), Func##x64)
-
-#define TVM_FFI_REFL_DEF_GLOBAL_SIZES_LANES(Prefix, DType)              \
-  TVM_FFI_REFL_DEF_GLOBAL_LANES(Prefix TVM_TMP_STR(8), DType##8)        \
-      .TVM_FFI_REFL_DEF_GLOBAL_LANES(Prefix TVM_TMP_STR(16), DType##16) \
-      .TVM_FFI_REFL_DEF_GLOBAL_LANES(Prefix TVM_TMP_STR(32), DType##32) \
-      .TVM_FFI_REFL_DEF_GLOBAL_LANES(Prefix TVM_TMP_STR(64), DType##64)
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("script.ir_builder.tirx.BFloat16", BFloat16)
-      .TVM_FFI_REFL_DEF_GLOBAL_SIZE("script.ir_builder.tirx.Float", Float)
-      .TVM_FFI_REFL_DEF_GLOBAL_SIZE("script.ir_builder.tirx.UInt", UInt)
-      .TVM_FFI_REFL_DEF_GLOBAL_SIZE("script.ir_builder.tirx.Int", Int)
-      .TVM_FFI_REFL_DEF_GLOBAL_SIZES_LANES("script.ir_builder.tirx.Float", Float)
-      .TVM_FFI_REFL_DEF_GLOBAL_SIZES_LANES("script.ir_builder.tirx.UInt", UInt)
-      .TVM_FFI_REFL_DEF_GLOBAL_SIZES_LANES("script.ir_builder.tirx.Int", Int)
-      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tirx.BFloat16", BFloat16);
-}
-
-// Float8 variants
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("script.ir_builder.tirx.Float8E3M4", Float8E3M4)
-      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tirx.Float8E3M4", Float8E3M4);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("script.ir_builder.tirx.Float8E4M3", Float8E4M3)
-      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tirx.Float8E4M3", Float8E4M3);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("script.ir_builder.tirx.Float8E4M3B11FNUZ", Float8E4M3B11FNUZ)
-      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tirx.Float8E4M3B11FNUZ", Float8E4M3B11FNUZ);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("script.ir_builder.tirx.Float8E4M3FN", Float8E4M3FN)
-      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tirx.Float8E4M3FN", Float8E4M3FN);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("script.ir_builder.tirx.Float8E4M3FNUZ", Float8E4M3FNUZ)
-      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tirx.Float8E4M3FNUZ", Float8E4M3FNUZ);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("script.ir_builder.tirx.Float8E5M2", Float8E5M2)
-      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tirx.Float8E5M2", Float8E5M2);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("script.ir_builder.tirx.Float8E5M2FNUZ", Float8E5M2FNUZ)
-      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tirx.Float8E5M2FNUZ", Float8E5M2FNUZ);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("script.ir_builder.tirx.Float8E8M0FNU", Float8E8M0FNU)
-      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tirx.Float8E8M0FNU", Float8E8M0FNU);
-}
-
-// Float6 variants
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("script.ir_builder.tirx.Float6E2M3FN", Float6E2M3FN)
-      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tirx.Float6E2M3FN", Float6E2M3FN);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("script.ir_builder.tirx.Float6E3M2FN", Float6E3M2FN)
-      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tirx.Float6E3M2FN", Float6E3M2FN);
-}
-
-// Float4 variant
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("script.ir_builder.tirx.Float4E2M1FN", Float4E2M1FN)
-      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tirx.Float4E2M1FN", Float4E2M1FN);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("script.ir_builder.tirx.Boolean", Boolean)
       .def("script.ir_builder.tirx.Handle",
            static_cast<Var (*)(ffi::Optional<PrimType>, runtime::MemoryScope)>(Handle))
-      .def("script.ir_builder.tirx.TensorMap", TensorMap)
-      .def("script.ir_builder.tirx.Void", Void)
-      .def("script.ir_builder.tirx.min",
-           [](PrimExpr a, PrimExpr b) -> PrimExpr { return tvm::min(a, b); })
-      .def("script.ir_builder.tirx.max",
-           [](PrimExpr a, PrimExpr b) -> PrimExpr { return tvm::max(a, b); });
+      .def("script.ir_builder.tirx.TensorMap", TensorMap);
 }
 
 }  // namespace tirx

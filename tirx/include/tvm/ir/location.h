@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file location.h
+ * \file tvm/ir/location.h
  * \brief Source locations and source-text lookup.
  */
 #ifndef TVM_IR_LOCATION_H_
@@ -172,83 +172,6 @@ class CallSiteLoc : public Location {
   TVM_TIRX_DLL CallSiteLoc(Location callee, Location caller);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CallSiteLoc, Location, CallSiteLocNode);
-};
-
-/*! \brief A program source in any language.
- *
- * Could represent the source from an ML framework or a source
- * representing a tvm::IRModule.
- */
-class Source;
-
-class SourceObj : public ffi::Object {
- public:
-  explicit SourceObj(SourceName source_name) : source_name(std::move(source_name)) {}
-  explicit SourceObj(ffi::UnsafeInit tag) : source_name(tag) {}
-  /*! \brief The source name. */
-  SourceName source_name;
-
-  /*! \brief The raw source. */
-  ffi::String source;
-
-  /*! \brief A mapping of line breaks into the raw source. */
-  std::vector<std::pair<int, int>> line_map;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SourceObj>()
-        .def_ro("source_name", &SourceObj::source_name)
-        .def_ro("source", &SourceObj::source);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Source", SourceObj, ffi::Object);
-};
-
-class Source : public ffi::ObjectRef {
- public:
-  TVM_TIRX_DLL Source(SourceName src_name, std::string source);
-  TVM_TIRX_DLL tvm::ffi::String GetLine(int line);
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Source, ffi::ObjectRef, SourceObj);
-};
-
-/*!
- * \brief A mapping from a unique source name to source fragment.
- */
-class SourceMap;
-/*!
- * \brief Stores locations in frontend source that generated a node.
- */
-class SourceMapObj : public ffi::Object {
- public:
-  /*! \brief The source mapping. */
-  ffi::Map<SourceName, Source> source_map;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SourceMapObj>().def_ro("source_map", &SourceMapObj::source_map);
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SourceMap", SourceMapObj, ffi::Object);
-};
-
-class SourceMap : public ffi::ObjectRef {
- public:
-  TVM_TIRX_DLL explicit SourceMap(ffi::Map<SourceName, Source> source_map);
-
-  explicit SourceMap(std::initializer_list<std::pair<SourceName, Source>> source_map)
-      : SourceMap(ffi::Map<SourceName, Source>(source_map)) {}
-
-  SourceMap() : SourceMap(ffi::Map<SourceName, Source>()) {}
-
-  void Add(const Source& source);
-
-  SourceMapObj* operator->() {
-    TVM_FFI_ICHECK(get() != nullptr);
-    return static_cast<SourceMapObj*>(get_mutable());
-  }
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SourceMap, ffi::ObjectRef, SourceMapObj);
 };
 
 }  // namespace tvm

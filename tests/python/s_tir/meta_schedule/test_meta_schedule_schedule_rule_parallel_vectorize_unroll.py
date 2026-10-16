@@ -88,9 +88,9 @@ class PureSpatial:
         for i0, i1, i2, i3, i4 in T.grid(1, 52, 52, 3, 1):
             with Ts.sblock("T_strided_slice_with_axes"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                Ts.reads(placeholder_2[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(4)])
+                Ts.reads(placeholder_2[ax0, ax1, ax2, ax3, T.cast(ax4, ty="int64") + T.int64(4)])
                 Ts.writes(T_strided_slice_with_axes[ax0, ax1, ax2, ax3, ax4])
-                T_strided_slice_with_axes[ax0, ax1, ax2, ax3, ax4] = placeholder_2[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(4)]
+                T_strided_slice_with_axes[ax0, ax1, ax2, ax3, ax4] = placeholder_2[ax0, ax1, ax2, ax3, T.cast(ax4, ty="int64") + T.int64(4)]
         for i0, i1, i2, i3, i4 in T.grid(1, 52, 52, 3, 1):
             with Ts.sblock("T_sigmoid"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -100,9 +100,9 @@ class PureSpatial:
         for i0, i1, i2, i3, i4 in T.grid(1, 52, 52, 3, 80):
             with Ts.sblock("T_strided_slice_with_axes_1"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                Ts.reads(placeholder_2[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(5)])
+                Ts.reads(placeholder_2[ax0, ax1, ax2, ax3, T.cast(ax4, ty="int64") + T.int64(5)])
                 Ts.writes(T_strided_slice_with_axes_1[ax0, ax1, ax2, ax3, ax4])
-                T_strided_slice_with_axes_1[ax0, ax1, ax2, ax3, ax4] = placeholder_2[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(5)]
+                T_strided_slice_with_axes_1[ax0, ax1, ax2, ax3, ax4] = placeholder_2[ax0, ax1, ax2, ax3, T.cast(ax4, ty="int64") + T.int64(5)]
         for i0, i1, i2, i3, i4 in T.grid(1, 52, 52, 3, 80):
             with Ts.sblock("T_sigmoid_1"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -124,9 +124,9 @@ class PureSpatial:
         for i0, i1, i2, i3, i4 in T.grid(1, 26, 26, 3, 1):
             with Ts.sblock("T_strided_slice_with_axes_2"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                Ts.reads(placeholder_1[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(4)])
+                Ts.reads(placeholder_1[ax0, ax1, ax2, ax3, T.cast(ax4, ty="int64") + T.int64(4)])
                 Ts.writes(T_strided_slice_with_axes_2[ax0, ax1, ax2, ax3, ax4])
-                T_strided_slice_with_axes_2[ax0, ax1, ax2, ax3, ax4] = placeholder_1[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(4)]
+                T_strided_slice_with_axes_2[ax0, ax1, ax2, ax3, ax4] = placeholder_1[ax0, ax1, ax2, ax3, T.cast(ax4, ty="int64") + T.int64(4)]
         for i0, i1, i2, i3, i4 in T.grid(1, 26, 26, 3, 1):
             with Ts.sblock("T_sigmoid_2"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -136,9 +136,9 @@ class PureSpatial:
         for i0, i1, i2, i3, i4 in T.grid(1, 26, 26, 3, 80):
             with Ts.sblock("T_strided_slice_with_axes_3"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                Ts.reads(placeholder_1[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(5)])
+                Ts.reads(placeholder_1[ax0, ax1, ax2, ax3, T.cast(ax4, ty="int64") + T.int64(5)])
                 Ts.writes(T_strided_slice_with_axes_3[ax0, ax1, ax2, ax3, ax4])
-                T_strided_slice_with_axes_3[ax0, ax1, ax2, ax3, ax4] = placeholder_1[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(5)]
+                T_strided_slice_with_axes_3[ax0, ax1, ax2, ax3, ax4] = placeholder_1[ax0, ax1, ax2, ax3, T.cast(ax4, ty="int64") + T.int64(5)]
         for i0, i1, i2, i3, i4 in T.grid(1, 26, 26, 3, 80):
             with Ts.sblock("T_sigmoid_3"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -160,9 +160,9 @@ class PureSpatial:
         for i0, i1, i2, i3, i4 in T.grid(1, 13, 13, 3, 1):
             with Ts.sblock("T_strided_slice_with_axes_4"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                Ts.reads(placeholder[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(4)])
+                Ts.reads(placeholder[ax0, ax1, ax2, ax3, T.cast(ax4, ty="int64") + T.int64(4)])
                 Ts.writes(T_strided_slice_with_axes_4[ax0, ax1, ax2, ax3, ax4])
-                T_strided_slice_with_axes_4[ax0, ax1, ax2, ax3, ax4] = placeholder[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(4)]
+                T_strided_slice_with_axes_4[ax0, ax1, ax2, ax3, ax4] = placeholder[ax0, ax1, ax2, ax3, T.cast(ax4, ty="int64") + T.int64(4)]
         for i0, i1, i2, i3, i4 in T.grid(1, 13, 13, 3, 1):
             with Ts.sblock("T_sigmoid_4"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -172,9 +172,9 @@ class PureSpatial:
         for i0, i1, i2, i3, i4 in T.grid(1, 13, 13, 3, 80):
             with Ts.sblock("T_strided_slice_with_axes_5"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                Ts.reads(placeholder[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(5)])
+                Ts.reads(placeholder[ax0, ax1, ax2, ax3, T.cast(ax4, ty="int64") + T.int64(5)])
                 Ts.writes(T_strided_slice_with_axes_5[ax0, ax1, ax2, ax3, ax4])
-                T_strided_slice_with_axes_5[ax0, ax1, ax2, ax3, ax4] = placeholder[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(5)]
+                T_strided_slice_with_axes_5[ax0, ax1, ax2, ax3, ax4] = placeholder[ax0, ax1, ax2, ax3, T.cast(ax4, ty="int64") + T.int64(5)]
         for i0, i1, i2, i3, i4 in T.grid(1, 13, 13, 3, 80):
             with Ts.sblock("T_sigmoid_5"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])

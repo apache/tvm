@@ -343,14 +343,16 @@ class TestMultipleCondition(BaseCompare):
 class TestBroadcastBound(BaseCompare):
     a = tvm_tirx.tirx.Var("a", "int32")
     test_case = tvm_tirx.testing.parameter(
-        TestCase(tvm_tirx.tirx.Broadcast(a, 4), (0, 128), {a: (0, 128)}),
+        TestCase(tvm_tirx.ir.prim.vector_expr.Broadcast(a, 4), (0, 128), {a: (0, 128)}),
     )
 
 
 class TestRampBound(BaseCompare):
     a = tvm_tirx.tirx.Var("a", "int32")
     test_case = tvm_tirx.testing.parameter(
-        TestCase(tvm_tirx.tirx.Ramp(a, 2, 4) + 2, (2, 128 + 2 * 3 + 2), {a: (0, 128)}),
+        TestCase(
+            tvm_tirx.ir.prim.vector_expr.Ramp(a, 2, 4) + 2, (2, 128 + 2 * 3 + 2), {a: (0, 128)}
+        ),
     )
 
 

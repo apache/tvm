@@ -47,7 +47,6 @@ tvm_tirx_option(TVM_TIRX_USE_LLVM STRING ON "Build with LLVM (OFF, ON, or llvm-c
 # ######### Z3 ##########
 
 tvm_tirx_option(TVM_TIRX_USE_Z3 STRING AUTO "Build with Z3 SMT solver support (OFF, ON, AUTO)")
-set_property(CACHE TVM_TIRX_USE_Z3 PROPERTY STRINGS OFF ON AUTO)
 
 # ######### CUDA ##########
 
@@ -101,7 +100,7 @@ if(PROJECT_IS_TOP_LEVEL)
     set(CMAKE_INSTALL_LIBDIR lib)
   endif()
 endif()
-add_compile_definitions(TVM_VERSION="${TVM_TIRX_VERSION}")
+add_compile_definitions(TVM_TIRX_VERSION="${TVM_TIRX_VERSION}")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/compiler-rt")
 
 if(MSVC)

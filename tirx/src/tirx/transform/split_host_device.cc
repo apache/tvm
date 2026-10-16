@@ -53,22 +53,6 @@
 namespace tvm {
 namespace tirx {
 
-namespace {
-static ffi::Array<Var> RegionNoBodyParams(const CallNode*) { return {}; }
-
-void ValidateDeviceScopeRegion(const RegionStmtNode* region) {
-  TVM_FFI_CHECK(region->result_vars.empty(), ValueError)
-      << region->op->name << " expects no results";
-}
-}  // namespace
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.device_scope", "Internal host/device splitting boundary.")
-      .signature(sig::var_args<Expr>("launch_values"), sig::call_attrs<DictAttrsNode>())
-      .set_native_fn_attr<&RegionNoBodyParams>(tvm::op_attr::kRegionGetBodyParams)
-      .set_native_fn_attr<&ValidateDeviceScopeRegion>(tvm::op_attr::kRegionValidate);
-}
-
 // Device-region annotation
 
 class DeviceRegionAnnotater : public StmtExprMutator {
@@ -275,7 +259,7 @@ class HostDeviceSplitter : public StmtExprMutator {
       device_func = WithAttr(std::move(device_func), tvm::attr::kNumInputs, num_inputs);
     }
     GlobalVar kernel_symbol_global = var_supply_();
-    if (region->attrs->dict.count(tvm::backend::cuda::attr::kLaunchFields)) {
+    if (region->attrs->dict.count(tvm::backend::cuda::attr::kLaunchFields.name)) {
       Stmt launch = MakeCudaKernelLaunch(kernel_symbol_global, &device_func, call_args, region);
       (*device_mod_)->Add(kernel_symbol_global, device_func);
       return launch;
@@ -588,15 +572,15 @@ class GlobalVarCallCollector : public StmtExprVisitor {
 
 Stmt MakeCudaKernelLaunch(const GlobalVar& symbol, Function* func, ffi::Array<Expr> args,
                           const RegionStmtNode* region) {
-  auto fields = region->attrs->dict.at(tvm::backend::cuda::attr::kLaunchFields)
+  auto fields = region->attrs->dict.at(tvm::backend::cuda::attr::kLaunchFields.name)
                     .as_or_throw<ffi::Array<ffi::String>>();
   ffi::Array<Expr> values = region->args;
-  auto kernel_attrs = region->attrs->dict.at(tvm::backend::cuda::attr::kKernelAttrs)
+  auto kernel_attrs = region->attrs->dict.at(tvm::backend::cuda::attr::kKernelAttrs.name)
                           .as_or_throw<ffi::Map<ffi::String, int64_t>>();
   auto info = DeviceInfoCollector::Collect(symbol, *func, true);
   ffi::Array<Stmt> host_stmts;
   auto required_bytes = info.dynamic_smem_requirement;
-  if (auto pool_bytes = region->attrs->dict.Get(tvm::backend::cuda::attr::kSmemRequired)) {
+  if (auto pool_bytes = region->attrs->dict.Get(tvm::backend::cuda::attr::kSmemRequired.name)) {
     PrimExpr pool = IntImm::Int64(pool_bytes->cast<int64_t>());
     required_bytes = required_bytes ? prim::Max(required_bytes.value(), pool) : pool;
   }
@@ -609,7 +593,7 @@ Stmt MakeCudaKernelLaunch(const GlobalVar& symbol, Function* func, ffi::Array<Ex
     }
     if (index < 0) {
       TVM_FFI_CHECK(!prim::IsZero(bytes) ||
-                        region->attrs->dict.count(tvm::backend::cuda::attr::kSmemRequired),
+                        region->attrs->dict.count(tvm::backend::cuda::attr::kSmemRequired.name),
                     ValueError)
           << "A shared.dyn placeholder requires LaunchConfig.dynamic_smem_bytes or "
              "SMEMPool.commit()";
@@ -647,9 +631,9 @@ Stmt MakeCudaKernelLaunch(const GlobalVar& symbol, Function* func, ffi::Array<Ex
   *func =
       WithAttrs(std::move(*func), {{tvm::attr::kCallingConv, tvm::CallingConv::kDeviceKernelLaunch},
                                    {tvm::attr::kGlobalSymbol, symbol->name_hint},
-                                   {tvm::backend::cuda::attr::kLaunchFields, fields},
-                                   {tvm::backend::cuda::attr::kKernelAttrs, kernel_attrs},
-                                   {tvm::backend::cuda::attr::kLaunchDimensions, dimensions}});
+                                   {tvm::backend::cuda::attr::kLaunchFields.name, fields},
+                                   {tvm::backend::cuda::attr::kKernelAttrs.name, kernel_attrs},
+                                   {tvm::backend::cuda::attr::kLaunchDimensions.name, dimensions}});
   auto attrs = ffi::make_object<CallFFIKernelAttr>();
   attrs->launch_fields = fields;
   attrs->kernel_attrs = kernel_attrs;

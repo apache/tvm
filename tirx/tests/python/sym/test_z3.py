@@ -498,7 +498,7 @@ def test_z3_bitwise_and_mask_bound():
 
     x = tirx.Var("x", "int32")
     analyzer.bind(x, tvm_tirx.ir.Range(0, 256))
-    assert analyzer.can_prove(tirx.bitwise_and(x, tirx.IntImm("int32", 7)) < 8, SB)
+    assert analyzer.can_prove(tirx.bitwise_and(x, tvm_tirx.ir.IntImm("int32", 7)) < 8, SB)
 
 
 def test_z3_bitwise_and_le_operand():
@@ -558,7 +558,7 @@ def test_z3_shift_right_halves():
     analyzer.bind(x, tvm_tirx.ir.Range(0, 256))
     analyzer.set_z3_rlimit(0)
     # For non-negative x, (x >> 1) * 2 <= x.
-    assert analyzer.can_prove(tirx.shift_right(x, tirx.IntImm("int32", 1)) * 2 <= x, SB)
+    assert analyzer.can_prove(tirx.shift_right(x, tvm_tirx.ir.IntImm("int32", 1)) * 2 <= x, SB)
 
 
 def test_z3_shift_left_lower_bound():
@@ -677,7 +677,7 @@ def test_z3_opaque_call_is_safe():
     _require_z3(analyzer)
 
     x = tirx.Var("x", "int32")
-    call = tirx.call_extern("int32", "foo", x)
+    call = tirx.call_extern("foo", x, ty="int32")
     assert not analyzer.can_prove(call > 0, SB)
     with analyzer.constraint_scope(call > 0):
         assert analyzer.can_prove(call > 0, SB)

@@ -83,7 +83,7 @@ class With {
   ContextType* operator->() { return get(); }
   const ContextType* operator->() const { return get(); }
   ContextType& operator*() { return *get(); }
-  const ContextType* operator*() const { return *get(); }
+  const ContextType& operator*() const { return *get(); }
 
   ContextType operator()() { return ctx_; }
 

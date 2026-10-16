@@ -112,8 +112,8 @@ def test_dataflow_var():
 
 def test_nested_tir_call_in_dependent_type_is_well_formed():
     p = rx.Var("p", tvm_tirx.ir.PrimType("int64"))
-    inner = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", p)
-    outer = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", inner)
+    inner = tirx.call_intrin("tirx.gpu_thread_invariant", p, ty="int64")
+    outer = tirx.call_intrin("tirx.gpu_thread_invariant", inner, ty="int64")
     x = rx.Var("x", rx.TensorType([outer], "float32"))
     bb = rx.BlockBuilder()
 
@@ -125,8 +125,8 @@ def test_nested_tir_call_in_dependent_type_is_well_formed():
 
 def test_nested_tir_call_in_shape_expr_is_well_formed():
     p = rx.Var("p", tvm_tirx.ir.PrimType("int64"))
-    inner = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", p)
-    outer = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", inner)
+    inner = tirx.call_intrin("tirx.gpu_thread_invariant", p, ty="int64")
+    outer = tirx.call_intrin("tirx.gpu_thread_invariant", inner, ty="int64")
     bb = rx.BlockBuilder()
 
     with bb.function("main", [p]):

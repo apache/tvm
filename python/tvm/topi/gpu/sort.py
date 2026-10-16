@@ -1167,7 +1167,7 @@ def topk_thrust(
         tag="topk_gpu",
     )
 
-    if isinstance(k, tvm_tirx.tirx.IntImm):
+    if isinstance(k, tvm_tirx.ir.IntImm):
         k = k.value
 
     if not isinstance(k, int) or k > 0:

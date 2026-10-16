@@ -16,6 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/*!
+ * \file tvm/script/printer/doc_translator.h
+ * \brief Translator from IR values to printer docs.
+ */
 #ifndef TVM_SCRIPT_PRINTER_DOC_TRANSLATOR_H_
 #define TVM_SCRIPT_PRINTER_DOC_TRANSLATOR_H_
 

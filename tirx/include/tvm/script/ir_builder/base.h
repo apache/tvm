@@ -16,6 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/*!
+ * \file tvm/script/ir_builder/base.h
+ * \brief Base IRBuilder and frame definitions.
+ */
 #ifndef TVM_SCRIPT_IR_BUILDER_BASE_H_
 #define TVM_SCRIPT_IR_BUILDER_BASE_H_
 

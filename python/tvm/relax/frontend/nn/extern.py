@@ -28,7 +28,7 @@ import tvm_ffi
 
 import tvm
 import tvm_tirx
-from tvm_tirx import libinfo, tirx
+from tvm_tirx import libinfo
 from tvm_tirx.runtime import Module, load_static_library
 from tvm_tirx.support import cc as _cc
 
@@ -57,9 +57,9 @@ class ExternModule:
                 if isinstance(arg, core.Tensor):
                     return arg._expr  # pylint: disable=protected-access
                 if isinstance(arg, int):
-                    return rx.prim_value(tirx.IntImm("int64", arg))
+                    return rx.prim_value(tvm_tirx.ir.IntImm("int64", arg))
                 if isinstance(arg, float):
-                    return rx.prim_value(tirx.FloatImm("float64", arg))
+                    return rx.prim_value(tvm_tirx.ir.FloatImm("float64", arg))
                 if isinstance(arg, str):
                     return tvm_tirx.ir.StringImm(arg)
                 if tvm_tirx.ir.is_prim_expr(arg):

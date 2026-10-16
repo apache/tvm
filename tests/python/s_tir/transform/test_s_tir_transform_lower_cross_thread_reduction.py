@@ -823,11 +823,7 @@ def single_reduction_loop_with_tensorize(
                 B_i8x128 = B[0, T.ramp(0, 1, 128)]
                 B_i32x32: T.int32x32 = T.reinterpret(B_i8x128, ty="int32x32")
                 C[T.ramp(0, 1, 32)] = T.call_llvm_pure_intrin(
-                    4217,
-                    C[T.ramp(0, 1, 32)],
-                    T.broadcast(A_i32, 32),
-                    B_i32x32,
-                    ty="int32x32",
+                    4217, C[T.ramp(0, 1, 32)], T.broadcast(A_i32, 32), B_i32x32, ty="int32x32"
                 )
 
 
@@ -892,7 +888,7 @@ def reducer_max(
                 Ts.reads([A[vi, vk]])
                 Ts.writes([B[vi]])
                 with Ts.init():
-                    B[vi] = T.min_value("float32")
+                    B[vi] = T.min_value(ty="float32")
                 B[vi] = T.max(B[vi], A[vi, vk])
 
 
@@ -911,7 +907,7 @@ def lowered_reducer_max(
                 T.evaluate(
                     T.gpu_thread_allreduce(
                         T.Lambda([T.float32, T.float32], lambda x, y: (T.max(x, y),)),
-                        (T.min_value("float32"),),
+                        (T.min_value(ty="float32"),),
                         (A[vi, vk],),
                         True,
                         (reduce_temp0[0],),
@@ -1065,7 +1061,7 @@ def softmax(
                     Ts.reads([A[i0_1, k]])
                     Ts.writes([T_softmax_maxelem_shared[i0_1]])
                     with Ts.init():
-                        T_softmax_maxelem_shared[i0_1] = T.min_value("float32")
+                        T_softmax_maxelem_shared[i0_1] = T.min_value(ty="float32")
                     T_softmax_maxelem_shared[i0_1] = T.max(
                         T_softmax_maxelem_shared[i0_1], A[i0_1, k]
                     )
@@ -1123,7 +1119,7 @@ def lowered_softmax(
             with Ts.sblock("T_softmax_maxelem_normal_reduction_init"):
                 Ts.reads([])
                 Ts.writes([normal_reduce_temp0[0]])
-                normal_reduce_temp0[0] = T.min_value("float32")
+                normal_reduce_temp0[0] = T.min_value(ty="float32")
             for ax0_0 in T.serial(0, 8):
                 with Ts.sblock("T_softmax_maxelem_normal_reduction"):
                     i0_1 = Ts.axis.spatial(256, i0)
@@ -1137,7 +1133,7 @@ def lowered_softmax(
                 T.evaluate(
                     T.gpu_thread_allreduce(
                         T.Lambda([T.float32, T.float32], lambda x, y: (T.max(x, y),)),
-                        (T.min_value("float32"),),
+                        (T.min_value(ty="float32"),),
                         (normal_reduce_temp0[0],),
                         True,
                         (reduce_temp0[0],),

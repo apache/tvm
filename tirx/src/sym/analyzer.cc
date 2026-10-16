@@ -354,14 +354,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](Analyzer analyzer, const PrimExpr& expr, int strength) {
              return analyzer->CanProve(expr, static_cast<ProofStrength>(strength));
            })
-      .def("sym.EnterAllowUintAsIndex",
+      .def("sym.AnalyzerEnterAllowUintAsIndex",
            []() {
              // With has a noexcept(false) destructor, so it cannot use make_shared.
              auto ctx = std::shared_ptr<With<AllowUIntAsIndex>>(new With<AllowUIntAsIndex>());
              return ffi::Function::FromPacked(
                  [ctx](ffi::PackedArgs, ffi::Any*) mutable { ctx.reset(); });
            })
-      .def("sym.GetAllowUintAsIndex", &AllowUIntAsIndex::Enabled)
       .def("sym.AnalyzerSetMaximumRewriteSteps",
            [](Analyzer analyzer, int64_t maximum) {
              analyzer->rewrite_simplify.SetMaximumRewriteSteps(maximum);

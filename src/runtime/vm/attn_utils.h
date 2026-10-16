@@ -29,7 +29,6 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/support/cuda/nvtx.h>
 
 #include <algorithm>
 #include <cstring>
@@ -37,9 +36,28 @@
 #include <utility>
 #include <vector>
 
+#include "nvtx.h"
+
 namespace tvm {
 namespace runtime {
 namespace vm {
+
+/*!
+ * \brief Get the preferred host device from the input device.
+ * - For CUDA and ROCm, CUDAHost and ROCMHost will be returned for pinned memory,
+ * since pinned memory reduces copy overhead.
+ * - For other devices, CPU is returned as a fallback.
+ */
+inline Device GetPreferredHostDevice(Device device) {
+  if (device.device_type == DLDeviceType::kDLCUDA) {
+    return Device{DLDeviceType::kDLCUDAHost, 0};
+  } else if (device.device_type == DLDeviceType::kDLROCM) {
+    return Device{DLDeviceType::kDLROCMHost, 0};
+  } else {
+    // Fallback to CPU.
+    return Device{DLDeviceType::kDLCPU, 0};
+  }
+}
 
 /*!
  * \brief The maximum allowed block depth (a.k.a. number of common

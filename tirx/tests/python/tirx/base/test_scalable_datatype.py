@@ -42,7 +42,7 @@ _STEPVECTOR_NAME = (
 
 @pytest.mark.skipif(llvm_version_major() < 13, reason="Stepvector intrinsic was added in LLVM 13.")
 def test_create_scalable_tir_intrin():
-    intrin = tirx.call_llvm_intrin("int32xvscalex4", _STEPVECTOR_NAME)
+    intrin = tirx.call_llvm_intrin(_STEPVECTOR_NAME, ty="int32xvscalex4")
     assert intrin.ty.dtype == "int32xvscalex4"
     assert (
         str(intrin) == f'T.call_llvm_intrin("{_STEPVECTOR_NAME}", ty=T.PrimType("int32xvscalex4"))'

@@ -83,7 +83,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /////////////////////////////// Function ////////////////////////////////
 
-FunctionFrame Function(bool is_pure, bool is_private) {
+FunctionFrame Function(bool is_pure, bool is_private, bool is_declaration, bool local) {
   const IRBuilder& ir_builder = IRBuilder::Current();
   ffi::Optional<tvm::IRModule> mod = std::nullopt;
   if (const ffi::Optional<ir::IRModuleFrame> mod_frame =
@@ -93,15 +93,10 @@ FunctionFrame Function(bool is_pure, bool is_private) {
   auto n = ffi::make_object<FunctionFrameObj>(tvm::relax::BlockBuilder::Create(
       /*mod=*/mod, tvm::relax::BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript()));
   n->is_pure = is_pure;
-  n->is_private = is_private;
+  n->is_private = is_private || local;
+  n->declaration = is_declaration;
+  n->local = local;
   return FunctionFrame(n);
-}
-
-FunctionFrame DeclFunction(bool is_pure, bool is_private, bool local) {
-  FunctionFrame frame = Function(is_pure, is_private || local);
-  frame->declaration = true;
-  frame->local = local;
-  return frame;
 }
 
 FunctionFrame LocalFunction(bool is_pure, const tvm::Var& reference) {
@@ -204,7 +199,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.relax.Function", Function)
-      .def("script.ir_builder.relax.DeclFunction", DeclFunction)
       .def("script.ir_builder.relax.LocalFunction", LocalFunction)
       .def("script.ir_builder.relax.ArgVar", ArgVar)
       .def("script.ir_builder.relax.Arg", Arg)

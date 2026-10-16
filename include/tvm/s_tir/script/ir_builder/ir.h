@@ -32,8 +32,8 @@ using tvm::Var;
 using tvm::tirx::Layout;
 using tvm::tirx::TensorVar;
 
-FunctionFrame Function(bool is_private = false, bool persistent = false);
-FunctionFrame DeclFunction(bool is_private = false, bool persistent = false);
+FunctionFrame Function(bool is_private = false, bool persistent = false,
+                       bool is_declaration = false);
 
 /*!
  * \brief Bind a tensor subregion in an S-TIR block.

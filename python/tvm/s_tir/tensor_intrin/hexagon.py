@@ -69,7 +69,7 @@ def generate_dma_load_intrin(
                         A.dtype,
                         0,
                     ),
-                    T.cast(size, dtype="int"),
+                    T.cast(size, ty="int"),
                     False,  # Do not use experimental bypass mode.
                 )
             )
@@ -91,7 +91,7 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
                 for k in T.serial(0, 4):
                     with Ts.sblock("update"):
                         vi, vk = Ts.axis.remap("SR", [i, k])
-                        C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
+                        C[vi] = C[vi] + T.cast(A[vk], ty="int32") * T.cast(B[vi, vk], ty="int32")
 
     @Ts.function
     def dot_product_32x4_u8u8i32_vrmpy(
@@ -134,7 +134,7 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
                 for k in T.serial(0, 4):
                     with Ts.sblock("update"):
                         vi, vk = Ts.axis.remap("SR", [i, k])
-                        C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
+                        C[vi] = C[vi] + T.cast(A[vk], ty="int32") * T.cast(B[vi, vk], ty="int32")
 
     @Ts.function
     def dot_product_32x4_u8i8i32_vrmpy(
@@ -177,7 +177,7 @@ def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
                 for k in T.serial(0, 2):
                     with Ts.sblock("update"):
                         vi, vk = Ts.axis.remap("SR", [i, k])
-                        C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
+                        C[vi] = C[vi] + T.cast(A[vk], ty="int32") * T.cast(B[vi, vk], ty="int32")
 
     @Ts.function
     def dot_product_32x2_i16i16i32_vdmpy(

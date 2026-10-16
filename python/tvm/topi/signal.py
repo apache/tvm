@@ -19,6 +19,7 @@
 
 from math import pi
 
+import tvm_tirx
 from tvm import te
 from tvm_tirx import ir, tirx
 from tvm_tirx.script.ir_builder import IRBuilder
@@ -160,7 +161,7 @@ def stft(
 def dft(
     re_data: te.Tensor,
     im_data: te.Tensor,
-    inverse: tirx.IntImm,
+    inverse: tvm_tirx.ir.IntImm,
 ):
     """
     Computes the discrete Fourier transform of input (calculation along the last axis).

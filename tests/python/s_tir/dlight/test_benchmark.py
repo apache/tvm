@@ -118,7 +118,7 @@ def cuda_workload(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp
                 for ax2_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.y"}):
                     for ax1_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.x"}):
                         for ax2_2 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
-                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax2_3_init, ax1_3_init in T.grid(T.int64(4), T.int64(4)):
                                     with Ts.sblock("matmul_init"):
                                         v0 = Ts.axis.spatial(T.int64(1), ax0)

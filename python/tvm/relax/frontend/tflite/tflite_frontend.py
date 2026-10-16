@@ -1345,8 +1345,8 @@ class OperatorConverter:
 
         # Get min/max of the output dtype. This will be used to ensure that clip a_min/a_max are not
         # beyond the dtype range.
-        qmin = float(tvm_tirx.tirx.min_value(dtype).value)
-        qmax = float(tvm_tirx.tirx.max_value(dtype).value)
+        qmin = float(tvm_tirx.tirx.min_value(ty=dtype).value)
+        qmax = float(tvm_tirx.tirx.max_value(ty=dtype).value)
 
         # The input expr is a quantized tensor with its scale and zero point. We calculate the
         # suitable clip off points based on these scale and zero point.
@@ -8019,11 +8019,11 @@ class OperatorConverter:
         on_val = self.get_tensor_value(on_value).item()
         off_val = self.get_tensor_value(off_value).item()
         if "float" in dtype:
-            on_prim = relax.prim_value(tvm_tirx.tirx.FloatImm(dtype, float(on_val)))
-            off_prim = relax.prim_value(tvm_tirx.tirx.FloatImm(dtype, float(off_val)))
+            on_prim = relax.prim_value(tvm_tirx.ir.FloatImm(dtype, float(on_val)))
+            off_prim = relax.prim_value(tvm_tirx.ir.FloatImm(dtype, float(off_val)))
         else:
-            on_prim = relax.prim_value(tvm_tirx.tirx.IntImm(dtype, int(on_val)))
-            off_prim = relax.prim_value(tvm_tirx.tirx.IntImm(dtype, int(off_val)))
+            on_prim = relax.prim_value(tvm_tirx.ir.IntImm(dtype, int(on_val)))
+            off_prim = relax.prim_value(tvm_tirx.ir.IntImm(dtype, int(off_val)))
 
         out = relax.op.one_hot(indices_expr, on_prim, off_prim, depth, axis)
 
@@ -9192,8 +9192,7 @@ def from_tflite(
                         "(e.g. runtime string queries)"
                     )
                 input_var = relax.Var(
-                    name=model_input_name,
-                    ty=relax.TensorType(shape=shape, dtype=dtype),
+                    name=model_input_name, ty=relax.TensorType(shape=shape, dtype=dtype)
                 )
                 exp_tab.set_expr(model_input_name, input_var)
                 input_list.append(input_var)

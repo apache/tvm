@@ -34,14 +34,11 @@ from .expr import (
     BitwiseNot,
     BitwiseOr,
     BitwiseXor,
-    Broadcast,
     Cast,
     CmpExpr,
     Div,
-    FloatImm,
     FloorDiv,
     FloorMod,
-    IntImm,
     Let,
     LogicalExpr,
     LShift,
@@ -51,10 +48,8 @@ from .expr import (
     Mul,
     Not,
     Or,
-    Ramp,
     RShift,
     Select,
-    Shuffle,
     Sub,
 )
 from .op import (
@@ -128,6 +123,7 @@ from .op import (
     truncmod,
     vscale,
 )
+from .vector_expr import Broadcast, Ramp, Shuffle
 
 
 def expr_deep_equal(lhs: Expr, rhs: Expr) -> bool:

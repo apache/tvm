@@ -64,13 +64,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def_packed("ir.EnvFuncCall",
-                  [](ffi::PackedArgs args, ffi::Any* rv) {
-                    EnvFunc env = args[0].cast<EnvFunc>();
-                    TVM_FFI_ICHECK_GE(args.size(), 1);
-                    env->func.CallPacked(args.Slice(1), rv);
-                  })
-      .def("ir.EnvFuncGetFunction", [](const EnvFunc& n) { return n->func; });
+  refl::GlobalDef().def_packed("ir.EnvFuncCall", [](ffi::PackedArgs args, ffi::Any* rv) {
+    EnvFunc env = args[0].cast<EnvFunc>();
+    TVM_FFI_ICHECK_GE(args.size(), 1);
+    env->func.CallPacked(args.Slice(1), rv);
+  });
 }
 }  // namespace tvm

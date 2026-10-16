@@ -30,7 +30,9 @@ import tvm_ffi
 from tvm_tirx.ir import (
     Attrs,
     Call,
+    CallEffectKind,
     Expr,
+    IntImm,
     Op,
     PrimType,
     PtrType,
@@ -43,7 +45,6 @@ from tvm_tirx.ir import (
 )
 from tvm_tirx.ir.location import UNKNOWN_LOC
 from tvm_tirx.ir.op import register_op_attr
-from tvm_tirx.tirx.expr import IntImm
 from tvm_tirx.tirx.thread_scope import ThreadScope
 
 _REQUIRED = object()
@@ -78,7 +79,8 @@ class Instruction:
             return SPECS[self.name]._factory
         from .dispatch import run_dispatch
 
-        register_op_attr(self.name, "TCallEffectKind", 3)
+        tvm_ffi.get_global_func("ir.RegisterOp")(self.name, "Tile instruction")
+        register_op_attr(self.name, "TCallEffectKind", CallEffectKind.UpdateState)
         register_op_attr(self.name, "TFixedReturnType", PrimType("void"))
         register_op_attr(self.name, "FTileOpDispatch", run_dispatch)
         op = Op.get(self.name)

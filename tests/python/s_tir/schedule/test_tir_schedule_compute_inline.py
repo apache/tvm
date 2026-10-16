@@ -847,7 +847,7 @@ class Conv2dInt8_TensorCore_with_predicate_before:
                                                 Ts.reads(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i], pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i], p1_reindex_shared_wmma_matrix_b[v0, v1, v3_o * 16 + v3_i, v4_o * 16 + v4_i])
                                                 Ts.writes(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i])
                                                 Ts.sblock_attr({"meta_schedule.tiling_structure":"SSSRRSRS"})
-                                                conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] = conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] + T.cast(pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i], "int32") * T.cast(p1_reindex_shared_wmma_matrix_b[v0, v1, v3_o * 16 + v3_i, v4_o * 16 + v4_i], "int32")
+                                                conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] = conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] + T.cast(pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i], ty="int32") * T.cast(p1_reindex_shared_wmma_matrix_b[v0, v1, v3_o * 16 + v3_i, v4_o * 16 + v4_i], ty="int32")
                         for ax0_0, ax1_0 in T.grid(1, 2):
                             with Ts.sblock("conv2d_nhwc_reindex_shared_wmma.accumulator_o"):
                                 v0_o = Ts.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 4 * 392 + ax2_0_1_ax3_0_1_fused * 2 + ax2_0_2_ax3_0_2_fused // 2)
@@ -1425,7 +1425,7 @@ def test_reverse_compute_inline_layer_norm():
         A_red_temp_v0_shared = Ts.sblock_alloc_tensor((T.int64(1), n), scope="shared")
         A_red_temp_v1_shared = Ts.sblock_alloc_tensor((T.int64(1), n), scope="shared")
         var_T_layer_norm_intermediate = Ts.sblock_alloc_tensor((T.int64(1), n, T.int64(2560)))
-        for ax0_ax1_fused in T.parallel(n, annotations={"thread_binding": "blockIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+        for ax0_ax1_fused in T.parallel(n, annotations={"thread_binding": "blockIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
             for ax0, ax1, ax2_0 in T.grid(T.int64(1), T.int64(1), T.int64(10)):
                 for ax2_1 in T.parallel(T.int64(256), annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("A_red_temp"):
@@ -1466,7 +1466,7 @@ def test_reverse_compute_inline_layer_norm():
         # with Ts.sblock("root"):
         A_red_temp_v0_shared = Ts.sblock_alloc_tensor((T.int64(1), n), scope="shared")
         A_red_temp_v1_shared = Ts.sblock_alloc_tensor((T.int64(1), n), scope="shared")
-        for ax0_ax1_fused in T.parallel(n, annotations={"thread_binding": "blockIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+        for ax0_ax1_fused in T.parallel(n, annotations={"thread_binding": "blockIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
             for ax0, ax1, ax2_0 in T.grid(T.int64(1), T.int64(1), T.int64(10)):
                 for ax2_1 in T.parallel(T.int64(256), annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("A_red_temp"):

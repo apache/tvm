@@ -18,6 +18,8 @@
 # ruff: noqa: F401
 """Test Meta Schedule Database"""
 
+import base64
+import json
 import os.path as osp
 import tempfile
 from collections.abc import Callable
@@ -590,6 +592,30 @@ def test_json_database_get_top_k(k, expected):
         database = _create_tmp_database(tmpdir)
         result = call_get_top_k(run_secs_list, database, k)
     assert result == expected
+
+
+def test_workload_base64_contains_json_without_length_prefix():
+    workload = Workload(Matmul)
+    encoded = workload.as_json()
+    payload = base64.b64decode(str(encoded[1]), validate=True)
+    assert isinstance(json.loads(payload), dict)
+    restored = Workload.from_json(encoded)
+    tvm_tirx.ir.assert_structural_equal(restored.mod, Matmul)
+
+
+def test_database_json_escapes_control_characters(tmp_path):
+    mod = Matmul.with_attr("\x01key", "\x02valueé中")
+    database = _create_tmp_database(str(tmp_path))
+    workload = database.commit_workload(mod)
+    # JSON string values and dictionary keys must use JSON escapes, never Python \xNN.
+    target = Target({"kind": "llvm", "mcpu": "test\x01cpu"})
+    record = TuningRecord(Schedule(mod).trace, workload, run_secs=[1.0], target=target)
+    database.commit_tuning_record(record)
+    for name in ["workloads.json", "tuning_records.json"]:
+        for line in (tmp_path / name).read_text().splitlines():
+            json.loads(line)
+    restored = _create_tmp_database(str(tmp_path))
+    assert len(restored.get_all_tuning_records()) == 1
 
 
 def MatmulFunction() -> IRModule:

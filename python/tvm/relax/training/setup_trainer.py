@@ -18,8 +18,8 @@
 """Setup Trainer Pass."""
 
 import tvm_tirx
+from tvm_tirx.ir import IntImm
 from tvm_tirx.ir.module import IRModule
-from tvm_tirx.tirx.expr import IntImm
 
 from ..analysis import check_well_formed
 from ..expr import Tuple

@@ -27,14 +27,12 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/sym/int_set.h>
 
-#include <unordered_map>
-
 namespace tvm {
 namespace sym {
 
 /*!
- * \brief Deduce the bound of the target variable in a expression,
- *  give the domain of each variables. Return undefined IntSet to
+ * \brief Deduce the bound of the target variable in an expression,
+ *  given the domain of each variable. Return IntSet::Nothing() to
  *  represent failure.
  *
  * \note The returned set may be smaller than set that
@@ -44,24 +42,11 @@ namespace sym {
  * \param cond The conditional expression.
  * \param hint_map The domain of variable, used to help deduce.
  * \param relax_map The domain of each variable, used to relax the domain,
- *        The deduce bound must implies e for all value in relax_map
+ *        The deduce bound must imply e for all value in relax_map
  * \return An integer set that always satisfies the condition.
  */
-IntSet DeduceBound(PrimExpr v, PrimExpr cond, const ffi::Map<Var, IntSet>& hint_map,
-                   const ffi::Map<Var, IntSet>& relax_map);
-/*!
- * \brief Same as DeduceBound with  unordered_map signature.
- *
- * \param v The target variable to be deduced.
- * \param cond The conditional expression.
- * \param hint_map The domain of variable, used to help deduce.
- * \param relax_map The domain of each variable, used to relax the domain,
- *        The deduce bound mush implies e for all value in relax_map
- * \return An integer set that always satisfies the condition.
- */
-TVM_TIRX_DLL IntSet DeduceBound(PrimExpr v, PrimExpr cond,
-                                const std::unordered_map<const VarNode*, IntSet>& hint_map,
-                                const std::unordered_map<const VarNode*, IntSet>& relax_map);
+TVM_TIRX_DLL IntSet DeduceBound(PrimExpr v, PrimExpr cond, const ffi::Map<Var, IntSet>& hint_map,
+                                const ffi::Map<Var, IntSet>& relax_map);
 
 }  // namespace sym
 }  // namespace tvm

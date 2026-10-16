@@ -143,7 +143,6 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
       result.Set(gv, base_func);
     }
     return IRModule(result,       // functions
-                    {},           // map
                     mod->attrs);  // attrs);
   };
   return CreateModulePass(pass_func, 0, "MetaScheduleApplyDatabase");

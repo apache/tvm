@@ -402,7 +402,7 @@ def test_cast_local_view_sliced(A_dtype, B_dtype, slice_start, slice_end):
         )
         for i in T.serial(LOCAL_LEN):
             reg_src[i] = A[tx, i]
-            reg_dst[i] = T.cast(0, B_dtype)
+            reg_dst[i] = T.cast(0, ty=B_dtype)
         reg_src_view = reg_src.view(N_THREADS, LOCAL_LEN, layout=cast_layout)
         reg_dst_view = reg_dst.view(N_THREADS, LOCAL_LEN, layout=cast_layout)
         T.cuda.tile.apply(
@@ -911,7 +911,7 @@ def _tcgen05_cast_warpgroup_kernel():
         reg_in = a_bf16.view(_TCGEN05_REGS_PER_THREAD, layout="default")
         reg_out = a_fp32.view(_TCGEN05_REGS_PER_THREAD, layout="default")
         for r in T.serial(_TCGEN05_REGS_PER_THREAD):
-            row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, "int32"))
+            row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, ty="int32"))
             reg_in[r] = A[row, col]
         dst_view = a_fp32.rearrange(
             "(w h r) (k l v) -> w (r l) k h v", w=4, h=2, r=8, k=8, l=4, v=2
@@ -923,7 +923,7 @@ def _tcgen05_cast_warpgroup_kernel():
         )
         T.cuda.tile.apply(T.ptx["cvt.f32.bf16"], dst_view, src_view, scope="warpgroup")
         for r in T.serial(_TCGEN05_REGS_PER_THREAD):
-            row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, "int32"))
+            row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, ty="int32"))
             B[row, col] = reg_out[r]
 
     return kernel

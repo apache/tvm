@@ -155,7 +155,19 @@ class Target(Object):
         return _ffi_api.TargetExport(self)
 
     def with_host(self, host=None):
-        return _ffi_api.WithHost(self, Target(host))
+        """Return a copy of this target with the given host.
+
+        Parameters
+        ----------
+        host : Optional[Union[str, Dict, Target]]
+            The new host target. ``None`` removes the host.
+
+        Returns
+        -------
+        target : Target
+            The target with the updated host.
+        """
+        return _ffi_api.WithHost(self, Target(host) if host is not None else None)
 
     @staticmethod
     def from_device(device: str | Device) -> "Target":

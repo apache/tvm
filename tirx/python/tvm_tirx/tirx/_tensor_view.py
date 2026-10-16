@@ -316,7 +316,7 @@ def _concrete_int(value):
         return None
     if isinstance(value, Integral):
         return int(value)
-    if isinstance(value, tvm_tirx.tirx.IntImm):
+    if isinstance(value, tvm_tirx.ir.IntImm):
         return int(value)
     return None
 
@@ -356,7 +356,7 @@ def _dim_group_offset(group, index):
     extents = []
     for iterator in group[1:]:
         extent = iterator.extent
-        if not isinstance(extent, tvm_tirx.tirx.IntImm):
+        if not isinstance(extent, tvm_tirx.ir.IntImm):
             raise ValueError(
                 "select/narrow: dim with multiple layout iters requires concrete iter extents"
             )
@@ -538,7 +538,7 @@ def _view_narrow(buf: Var, dim, start, length):
         inner = 1
         for iterator in group[1:]:
             extent = iterator.extent
-            if not isinstance(extent, tvm_tirx.tirx.IntImm):
+            if not isinstance(extent, tvm_tirx.ir.IntImm):
                 raise ValueError(
                     "sub: dim with multiple layout iters requires concrete iter extents"
                 )
@@ -591,7 +591,7 @@ class SubIndexer:
                     if item.stop is not None:
                         raise ValueError("sub: a stop bound with a step is not supported")
                     extent = buf.shape[dim]
-                    if not isinstance(extent, tvm_tirx.tirx.IntImm):
+                    if not isinstance(extent, tvm_tirx.ir.IntImm):
                         raise ValueError("sub: a stepped slice requires a concrete dim extent")
                     extent = int(extent)
                     if extent % step != 0:

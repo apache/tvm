@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-# ruff: noqa: F821
 """Common functions and classes for CUTLASS GEMM and Conv2d geneator."""
 
 import logging
@@ -28,8 +27,9 @@ import tempfile
 
 import tvm_ffi
 
+import tvm_tirx
+from tvm_tirx.ir import IntImm
 from tvm_tirx.runtime import Object
-from tvm_tirx.tirx import IntImm
 
 from . import _ffi_api as ffi
 from .attention_operation import (
@@ -539,7 +539,7 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["M"] = annotations["M"]
         attrs["group_size"] = annotations["group_size"]
 
-        if not isinstance(attrs["M"], tvm_tirx.tirx.IntImm):
+        if not isinstance(attrs["M"], tvm_tirx.ir.IntImm):
             attrs["M"] = get_flattened_batch_dim(
                 func_args[lhs_arg_idx], int(annotations["batch_rank"])
             )
@@ -888,7 +888,7 @@ def instantiate_template(func_name, annotations, func_args):
         attrs = {"input": func_args[0], "gamma": func_args[1], "beta": func_args[2]}
         attrs.update(dict(annotations))
 
-        if not isinstance(attrs["M"], tvm_tirx.tirx.IntImm):
+        if not isinstance(attrs["M"], tvm_tirx.ir.IntImm):
             attrs["M"] = get_flattened_batch_dim(func_args[0], int(attrs["batch_rank"]))
 
         code = instantiate_layer_norm_template(attrs)
@@ -899,7 +899,7 @@ def instantiate_template(func_name, annotations, func_args):
         attrs = {"input": func_args[0], "weight": func_args[1]}
         attrs.update(dict(annotations))
 
-        if not isinstance(attrs["M"], tvm_tirx.tirx.IntImm):
+        if not isinstance(attrs["M"], tvm_tirx.ir.IntImm):
             attrs["M"] = get_flattened_batch_dim(func_args[0], int(attrs["batch_rank"]))
 
         code = instantiate_rms_norm_template(attrs)

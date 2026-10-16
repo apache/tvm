@@ -62,7 +62,7 @@ def test_decode_gemv_1():
                 Ts.writes()
                 C_rf_local = Ts.sblock_alloc_tensor((512, 1, 1, 4096), "float16", scope="local")
                 for ax0_fused in T.parallel(4096, annotations={"thread_binding": "blockIdx.x"}):
-                    for ax1_0_fused_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax1_0_fused_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         with Ts.sblock("matmul_rf_init"):
                             vax1_0_fused_1 = Ts.axis.spatial(512, ax1_0_fused_1)
                             v0 = Ts.axis.spatial(4096, ax0_fused)
@@ -195,7 +195,7 @@ def test_decode_gemv_3():
                 Ts.writes()
                 C_rf_local = Ts.sblock_alloc_tensor((1024, 1, 1, 4096), "float16", scope="local")
                 for ax0_0_fused in T.parallel(512, annotations={"thread_binding": "blockIdx.x"}):
-                    for ax1_fused_1 in T.parallel(1024, annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax1_fused_1 in T.parallel(1024, annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax0_1_init in range(8):
                             with Ts.sblock("matmul_rf_init"):
                                 vax1_fused_1 = Ts.axis.spatial(1024, ax1_fused_1)
@@ -340,7 +340,7 @@ def test_decode_gemv_sigmoid():
                 C_local = Ts.sblock_alloc_tensor((1, 1, 4096), "float16", scope="local")
                 C_rf_local = Ts.sblock_alloc_tensor((512, 1, 1, 4096), "float16", scope="local")
                 for ax0_fused in T.parallel(4096, annotations={"thread_binding": "blockIdx.x"}):
-                    for ax1_0_fused_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax1_0_fused_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         with Ts.sblock("matmul_rf_init"):
                             vax1_0_fused_1 = Ts.axis.spatial(512, ax1_0_fused_1)
                             v0 = Ts.axis.spatial(4096, ax0_fused)
@@ -426,7 +426,7 @@ def test_decode_gemv_1_fp32():
                 C_fp32_local = Ts.sblock_alloc_tensor((1, 1, 4096), scope="local")
                 C_fp32_rf_local = Ts.sblock_alloc_tensor((512, 1, 1, 4096), scope="local")
                 for ax0_fused in T.parallel(4096, annotations={"thread_binding": "blockIdx.x"}):
-                    for ax1_0_fused_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax1_0_fused_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         with Ts.sblock("matmul_rf_init"):
                             vax1_0_fused_1 = Ts.axis.spatial(512, ax1_0_fused_1)
                             v0 = Ts.axis.spatial(4096, ax0_fused)
@@ -499,7 +499,7 @@ def test_reduction_no_spatial():
                 Ared_temp_shared = Ts.sblock_alloc_tensor((1, 1), scope="shared")
                 Ared_temp_rf_local = Ts.sblock_alloc_tensor((1024, 1, 1), scope="local")
                 for ax0_fused in T.parallel(T.int64(1), annotations={"thread_binding": "blockIdx.x"}):
-                    for ax1_fused_1 in T.parallel(1024, annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax1_fused_1 in T.parallel(1024, annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         with Ts.sblock("Ared_temp_rf_init"):
                             vax1_fused_1 = Ts.axis.spatial(1024, ax1_fused_1)
                             v0 = Ts.axis.spatial(T.int64(1), T.int64(0))
@@ -726,7 +726,7 @@ def test_reduction_inner_no_broadcasting():
             temp_local_local = Ts.sblock_alloc_tensor((256,), scope="local")
             temp_local_rf_local = Ts.sblock_alloc_tensor((256, 256), scope="local")
             for ax0_fused in T.parallel(256, annotations={"thread_binding": "blockIdx.x"}):
-                for ax1_fused_1 in T.parallel(256, annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                for ax1_fused_1 in T.parallel(256, annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                     with Ts.sblock("sum_rf_init"):
                         vax1_fused_1, v0 = Ts.axis.remap("SS", [ax1_fused_1, ax0_fused])
                         Ts.reads()
@@ -1276,7 +1276,7 @@ def test_gemv_output_one_element():
             NT_matmul_intermediate_shared = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1)), "float16", scope="shared")
             NT_matmul_intermediate_rf_local = Ts.sblock_alloc_tensor((T.int64(1024), T.int64(1), T.int64(1)), "float16", scope="local")
             for ax0_fused in T.parallel(T.int64(1), annotations={"thread_binding": "blockIdx.x"}):
-                for ax1_fused_1 in T.parallel(T.int64(1024), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                for ax1_fused_1 in T.parallel(T.int64(1024), annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                     with Ts.sblock("NT_matmul_rf_init"):
                         vax1_fused_1 = Ts.axis.spatial(T.int64(1024), ax1_fused_1)
                         v0 = Ts.axis.spatial(T.int64(1), T.int64(0))

@@ -39,7 +39,7 @@ def dot_product_16x4_u8i8i32_desc(
             for k in T.serial(0, 4):
                 with Ts.sblock("update"):
                     vi, vk = Ts.axis.remap("SR", [i, k])
-                    C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
+                    C[vi] = C[vi] + T.cast(A[vk], ty="int32") * T.cast(B[vi, vk], ty="int32")
 
 
 @Ts.function

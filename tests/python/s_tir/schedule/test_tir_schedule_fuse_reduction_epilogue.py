@@ -46,7 +46,9 @@ def matmul_bias_before(
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
             with Ts.init():
                 temp[vi, vj] = T.int32(0)
-            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
+            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], ty="int32") * T.cast(
+                B[vj, vk], ty="int32"
+            )
     for i, j in T.grid(16, 16):
         with Ts.sblock("add"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -68,7 +70,7 @@ def matmul_bias_expected(
             Ts.writes(D[vi, vj])
             with Ts.init():
                 D[vi, vj] = C[vi, vj]
-            D[vi, vj] = D[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
+            D[vi, vj] = D[vi, vj] + T.cast(A[vi, vk], ty="int32") * T.cast(B[vj, vk], ty="int32")
 
 
 @Ts.function
@@ -123,7 +125,9 @@ def matmul_bias_multiple_epilogue_before(
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
             with Ts.init():
                 temp[vi, vj] = T.int32(0)
-            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
+            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], ty="int32") * T.cast(
+                B[vj, vk], ty="int32"
+            )
     for i, j in T.grid(16, 16):
         with Ts.sblock("add"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -150,7 +154,7 @@ def matmul_bias_multiple_epilogue_expected(
             Ts.writes(D[vi, vj])
             with Ts.init():
                 D[vi, vj] = C[vi, vj]
-            D[vi, vj] = D[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
+            D[vi, vj] = D[vi, vj] + T.cast(A[vi, vk], ty="int32") * T.cast(B[vj, vk], ty="int32")
     for i, j in T.grid(16, 16):
         with Ts.sblock("add2"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -239,7 +243,9 @@ def matmul_bias_invalid_multiple_use_before(
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
             with Ts.init():
                 temp[vi, vj] = T.int32(0)
-            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
+            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], ty="int32") * T.cast(
+                B[vj, vk], ty="int32"
+            )
     for i, j in T.grid(16, 16):
         with Ts.sblock("bad_epilogue"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -268,7 +274,9 @@ def matmul_bias_invalid_scaling_before(
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
             with Ts.init():
                 temp[vi, vj] = T.int32(0)
-            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
+            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], ty="int32") * T.cast(
+                B[vj, vk], ty="int32"
+            )
     for i, j in T.grid(16, 16):
         with Ts.sblock("scaled_epilogue"):
             vi, vj = Ts.axis.remap("SS", [i, j])

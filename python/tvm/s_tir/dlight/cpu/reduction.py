@@ -148,5 +148,5 @@ class Reduction(CPUScheduleRule):
         if isinstance(extent, int) and extent <= vec_lanes:
             return
         _, inner_loop = sch.split(inner, factors=[None, vec_lanes])
-        sch.annotate(inner_loop, ann_key="auto_unroll_max_step", ann_val=vec_lanes)
-        sch.annotate(inner_loop, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(inner_loop, ann_key="tirx.auto_unroll_max_step", ann_val=vec_lanes)
+        sch.annotate(inner_loop, ann_key="tirx.unroll_explicit", ann_val=1)

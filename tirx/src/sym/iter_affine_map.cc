@@ -1615,8 +1615,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "sym.DetectIterMap",
       [](const ffi::Array<PrimExpr>& indices, const ffi::Map<PrimVar, Range>& input_iters,
-         const PrimExpr& input_pred, int check_level, bool simplify_trivial_iterators,
-         ffi::Optional<Analyzer> opt_analyzer) {
+         const PrimExpr& input_pred, int check_level, ffi::Optional<Analyzer> opt_analyzer,
+         bool simplify_trivial_iterators) {
         Analyzer ana = opt_analyzer.has_value() ? opt_analyzer.value() : Analyzer();
         return DetectIterMap(indices, input_iters, input_pred, IterMapLevel(check_level), ana,
                              simplify_trivial_iterators);
@@ -2331,8 +2331,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "sym.IterMapSimplify",
       [](const ffi::Array<PrimExpr>& indices, const ffi::Map<PrimVar, Range>& input_iters,
-         const PrimExpr& input_pred, int check_level, bool simplify_trivial_iterators,
-         ffi::Optional<Analyzer> opt_analyzer) {
+         const PrimExpr& input_pred, int check_level, ffi::Optional<Analyzer> opt_analyzer,
+         bool simplify_trivial_iterators) {
         Analyzer ana = opt_analyzer.has_value() ? opt_analyzer.value() : Analyzer();
         return IterMapSimplify(indices, input_iters, input_pred, IterMapLevel(check_level), ana,
                                simplify_trivial_iterators);
@@ -2677,7 +2677,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "sym.SubspaceDivide",
       [](const ffi::Array<PrimExpr>& bindings, const ffi::Map<PrimVar, Range>& root_iters,
          const ffi::Array<PrimVar>& sub_iters, const PrimExpr& predicate, int check_level,
-         bool simplify_trivial_iterators, ffi::Optional<Analyzer> opt_analyzer) {
+         ffi::Optional<Analyzer> opt_analyzer, bool simplify_trivial_iterators) {
         Analyzer ana = opt_analyzer.has_value() ? opt_analyzer.value() : Analyzer();
         return SubspaceDivide(bindings, root_iters, sub_iters, predicate, IterMapLevel(check_level),
                               ana, simplify_trivial_iterators);

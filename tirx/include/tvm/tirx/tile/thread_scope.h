@@ -16,7 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-/*! \brief Enum identities for backend-defined thread hierarchies. */
+/*!
+ * \file tvm/tirx/tile/thread_scope.h
+ * \brief Enum identities for backend-defined thread hierarchies.
+ */
 #ifndef TVM_TIRX_TILE_THREAD_SCOPE_H_
 #define TVM_TIRX_TILE_THREAD_SCOPE_H_
 #include <tvm/ffi/enum.h>

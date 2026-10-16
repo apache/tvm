@@ -50,7 +50,7 @@ def neon_4x4_i8i8i32_desc(
             for k in T.serial(0, 4):
                 with Ts.sblock("update"):
                     vi, vk = Ts.axis.remap("SR", [i, k])
-                    C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
+                    C[vi] = C[vi] + T.cast(A[vk], ty="int32") * T.cast(B[vi, vk], ty="int32")
 
 
 @Ts.function
@@ -131,8 +131,8 @@ def get_dotprod_intrin(in_dtype, out_dtype):
                 for k in T.serial(0, 4):
                     with Ts.sblock("update"):
                         vi, vk = Ts.axis.remap("SR", [i, k])
-                        C[vi] = C[vi] + T.cast(A[vk], dtype=out_dtype) * T.cast(
-                            B[vi, vk], dtype=out_dtype
+                        C[vi] = C[vi] + T.cast(A[vk], ty=out_dtype) * T.cast(
+                            B[vi, vk], ty=out_dtype
                         )
 
     @Ts.function

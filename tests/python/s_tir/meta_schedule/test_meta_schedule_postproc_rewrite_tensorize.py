@@ -135,12 +135,12 @@ class Conv2dNCHWcVNNIModuleTiled:
                             n, oc_chunk, oh, ow, oc_block
                         ] + T.cast(
                             placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
-                            "int32",
+                            ty="int32",
                         ) * T.cast(
                             placeholder_1[
                                 oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner
                             ],
-                            "int32",
+                            ty="int32",
                         )
 
 
@@ -334,8 +334,8 @@ class DenseDP4ATiled:
                                             {"meta_schedule.tiling_structure": "SSSRRSRS"}
                                         )
                                         compute_local[i, j] = compute_local[i, j] + T.cast(
-                                            X_shared[i, k_o * 4 + k], "int32"
-                                        ) * T.cast(W_shared[j, k_o * 4 + k], "int32")
+                                            X_shared[i, k_o * 4 + k], ty="int32"
+                                        ) * T.cast(W_shared[j, k_o * 4 + k], ty="int32")
                     for ax0, ax1 in T.grid(16, 16):
                         with Ts.sblock("compute_local"):
                             v0 = Ts.axis.spatial(128, i0_0_i1_0_fused // 2 * 16 + ax0)
@@ -453,11 +453,7 @@ class DenseDP4ATensorized:
                                     offset_factor=1,
                                 )
                                 C[0] = C[0] + T.call_pure_extern(
-                                    "__dp4a",
-                                    A[T.ramp(0, 1, 4)],
-                                    B[T.ramp(0, 1, 4)],
-                                    0,
-                                    ty="int32",
+                                    "__dp4a", A[T.ramp(0, 1, 4)], B[T.ramp(0, 1, 4)], 0, ty="int32"
                                 )
                     for ax0, ax1 in T.grid(16, 16):
                         with Ts.sblock("compute_local"):

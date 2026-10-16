@@ -87,7 +87,9 @@ def rvv_vec_dot_product_kernels(
                 for k in T.serial(0, n_elems):
                     with Ts.sblock("update"):
                         vj, vk = Ts.axis.remap("SR", [j, k])
-                        C[vj] = C[vj] + T.cast(A[vk], out_dtype) * T.cast(B[vj, vk], out_dtype)
+                        C[vj] = C[vj] + T.cast(A[vk], ty=out_dtype) * T.cast(
+                            B[vj, vk], ty=out_dtype
+                        )
 
     # LLVM only supports ELEN=32 or ELEN=64
     # https://llvm.org/docs//RISCV/RISCVVectorExtension.html

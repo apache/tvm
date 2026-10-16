@@ -303,28 +303,28 @@ def test_shape_expr():
 
 def test_prim_value_helper_from_python_scalar():
     int_value = rx.prim_value(1)
-    assert isinstance(int_value, tirx.IntImm)
+    assert isinstance(int_value, tvm_tirx.ir.IntImm)
     tvm_tirx.ir.assert_structural_equal(int_value.ty, tvm_tirx.ir.PrimType("int64"))
     assert int_value.value == 1
 
     np_int_value = rx.prim_value(np.int32(2))
-    assert isinstance(np_int_value, tirx.IntImm)
+    assert isinstance(np_int_value, tvm_tirx.ir.IntImm)
     tvm_tirx.ir.assert_structural_equal(np_int_value.ty, tvm_tirx.ir.PrimType("int64"))
     assert np_int_value.value == 2
 
     float_value = rx.prim_value(1.0)
-    assert isinstance(float_value, tirx.FloatImm)
+    assert isinstance(float_value, tvm_tirx.ir.FloatImm)
     tvm_tirx.ir.assert_structural_equal(float_value.ty, tvm_tirx.ir.PrimType("float64"))
     assert float_value.value == 1.0
 
     np_float_value = rx.prim_value(np.float32(1.5))
-    assert isinstance(np_float_value, tirx.FloatImm)
+    assert isinstance(np_float_value, tvm_tirx.ir.FloatImm)
     tvm_tirx.ir.assert_structural_equal(np_float_value.ty, tvm_tirx.ir.PrimType("float64"))
     assert np_float_value.value == 1.5
 
 
 def test_prim_value_helper_preserves_prim_expr():
-    float_imm = tirx.FloatImm("float32", 1.0)
+    float_imm = tvm_tirx.ir.FloatImm("float32", 1.0)
     assert rx.prim_value(float_imm).same_as(float_imm)
     assert R.prim_value(float_imm).same_as(float_imm)
 

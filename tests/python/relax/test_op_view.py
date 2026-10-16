@@ -500,7 +500,7 @@ def test_lower_runtime_builtin_shape_change():
         def main(A: R.Tensor([4096], "float32")):
             _ = R.null_value()
             B = R.ExternFunc(
-                "runtime.TVMTensorCreateView",
+                "runtime.TensorCreateView",
                 R.Callable(
                     derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
@@ -533,7 +533,7 @@ def test_lower_runtime_builtin_view_shape_from_unknown():
         def main(A: R.Tensor(dtype="float32")):
             _ = R.null_value()
             B = R.ExternFunc(
-                "runtime.TVMTensorCreateView",
+                "runtime.TensorCreateView",
                 R.Callable(
                     derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
@@ -563,7 +563,7 @@ def test_lower_runtime_builtin_dtype_change():
         @R.function
         def main(A: R.Tensor([4096], "float32")):
             B = R.ExternFunc(
-                "runtime.TVMTensorCreateView",
+                "runtime.TensorCreateView",
                 R.Callable(
                     derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
@@ -594,7 +594,7 @@ def test_lower_runtime_builtin_byte_offset():
         def main(A: R.Tensor([4096], "float32")):
             _ = R.null_value()
             B = R.ExternFunc(
-                "runtime.TVMTensorCreateView",
+                "runtime.TensorCreateView",
                 R.Callable(
                     derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
@@ -643,7 +643,7 @@ def test_lower_runtime_builtin_view_with_multiple_updated_fields():
         @R.function
         def main(A: R.Tensor([4096], "uint8")):
             B = R.ExternFunc(
-                "runtime.TVMTensorCreateView",
+                "runtime.TensorCreateView",
                 R.Callable(
                     derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,
@@ -655,7 +655,7 @@ def test_lower_runtime_builtin_view_with_multiple_updated_fields():
                 R.prim_value(0),
             )
             C = R.ExternFunc(
-                "runtime.TVMTensorCreateView",
+                "runtime.TensorCreateView",
                 R.Callable(
                     derive_func="tvm.relax.type.infer_view_ty",
                     purity=True,

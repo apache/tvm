@@ -57,8 +57,6 @@ class TargetKindObj : public ffi::Object {
   int default_device_type;
   /*! \brief Default keys of the target */
   ffi::Array<ffi::String> default_keys;
-  /*! \brief Function used to canonicalize a JSON target during creation */
-  FTargetCanonicalizer target_canonicalizer;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -104,12 +102,6 @@ class TargetKind : public ffi::ObjectRef {
  private:
   friend class TargetInternal;
 };
-
-/*! \brief Value used with --runtime in target specs to indicate the C++ runtime. */
-static constexpr const char* kTvmRuntimeCpp = "c++";
-
-/*! \brief Value used with --runtime in target specs to indicate the C runtime. */
-static constexpr const char* kTvmRuntimeCrt = "c";
 
 /*!
  * \brief Process-wide registry of canonical target kinds, keyed by name.
@@ -196,8 +188,7 @@ class TargetKindDef {
    * \return This builder for chaining. Also updates the kind's ConfigSchema.
    */
   TargetKindDef& set_target_canonicalizer(FTargetCanonicalizer canonicalizer) {
-    kind_->target_canonicalizer = canonicalizer;
-    kind_->schema_.set_canonicalizer(canonicalizer);
+    kind_->schema_.set_canonicalizer(std::move(canonicalizer));
     return *this;
   }
   /*!

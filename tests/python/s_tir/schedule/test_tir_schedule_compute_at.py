@@ -1496,8 +1496,8 @@ def test_compute_at_to_index():
                     with Ts.init():
                         conv[nn, ff, yy, xx] = 0
                     conv[nn, ff, yy, xx] = conv[nn, ff, yy, xx] + T.cast(
-                        pad[nn, rc, yy * 2 + ry, xx * 2 + rx], "int32"
-                    ) * T.cast(wbuf[ff, rc, ry, rx], "int32")
+                        pad[nn, rc, yy * 2 + ry, xx * 2 + rx], ty="int32"
+                    ) * T.cast(wbuf[ff, rc, ry, rx], ty="int32")
 
     @Ts.function
     def multi_producers_after_compute_at(
@@ -1537,8 +1537,8 @@ def test_compute_at_to_index():
                     with Ts.init():
                         conv[nn, ff, yy, xx] = 0
                     conv[nn, ff, yy, xx] = conv[nn, ff, yy, xx] + T.cast(
-                        pad[nn, rc, yy * 2 + ry, xx * 2 + rx], "int32"
-                    ) * T.cast(wbuf[ff, rc, ry, rx], "int32")
+                        pad[nn, rc, yy * 2 + ry, xx * 2 + rx], ty="int32"
+                    ) * T.cast(wbuf[ff, rc, ry, rx], ty="int32")
 
     sch = tvm.s_tir.Schedule(multi_producers_conv, debug_mask="all")
     block_c = sch.get_sblock("pad")

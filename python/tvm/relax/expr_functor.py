@@ -22,6 +22,7 @@ from collections.abc import Callable
 
 import tvm_ffi
 
+import tvm_tirx
 from tvm import te as _te
 from tvm.s_tir.utils import derived_object
 from tvm_tirx import tirx as _tirx
@@ -204,15 +205,15 @@ class ExprFunctor:
             ret = self.visit_not_(expr)
         elif isinstance(expr, _tirx.Select):
             ret = self.visit_select_(expr)
-        elif isinstance(expr, _tirx.Ramp):
+        elif isinstance(expr, tvm_tirx.ir.prim.vector_expr.Ramp):
             ret = self.visit_ramp_(expr)
-        elif isinstance(expr, _tirx.Broadcast):
+        elif isinstance(expr, tvm_tirx.ir.prim.vector_expr.Broadcast):
             ret = self.visit_broadcast_(expr)
-        elif isinstance(expr, _tirx.Shuffle):
+        elif isinstance(expr, tvm_tirx.ir.prim.vector_expr.Shuffle):
             ret = self.visit_shuffle_(expr)
-        elif isinstance(expr, _tirx.IntImm):
+        elif isinstance(expr, tvm_tirx.ir.IntImm):
             ret = self.visit_int_imm_(expr)
-        elif isinstance(expr, _tirx.FloatImm):
+        elif isinstance(expr, tvm_tirx.ir.FloatImm):
             ret = self.visit_float_imm_(expr)
         elif isinstance(expr, SeqExpr):
             ret = self.visit_seq_expr_(expr)
@@ -345,19 +346,19 @@ class ExprFunctor:
     def visit_select_(self, op: _tirx.Select):
         return self.visit_expr_fallback_(op)
 
-    def visit_ramp_(self, op: _tirx.Ramp):
+    def visit_ramp_(self, op: tvm_tirx.ir.prim.vector_expr.Ramp):
         return self.visit_expr_fallback_(op)
 
-    def visit_broadcast_(self, op: _tirx.Broadcast):
+    def visit_broadcast_(self, op: tvm_tirx.ir.prim.vector_expr.Broadcast):
         return self.visit_expr_fallback_(op)
 
-    def visit_shuffle_(self, op: _tirx.Shuffle):
+    def visit_shuffle_(self, op: tvm_tirx.ir.prim.vector_expr.Shuffle):
         return self.visit_expr_fallback_(op)
 
-    def visit_int_imm_(self, op: _tirx.IntImm):
+    def visit_int_imm_(self, op: tvm_tirx.ir.IntImm):
         return self.visit_expr_fallback_(op)
 
-    def visit_float_imm_(self, op: _tirx.FloatImm):
+    def visit_float_imm_(self, op: tvm_tirx.ir.FloatImm):
         return self.visit_expr_fallback_(op)
 
     def visit_seq_expr_(self, op: SeqExpr):
