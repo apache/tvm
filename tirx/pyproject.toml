@@ -142,7 +142,7 @@ markers = [
 # Skip win32, i686 (32-bit), and musllinux wheels.
 skip = "*-win32 *-manylinux_i686 *-musllinux*"
 build-verbosity = 1
-test-requires = ["pytest", "numpy"]
+test-requires = ["pytest", "numpy", "torch; sys_platform != 'win32'"]
 test-command = "python -I -c \"import importlib.util; assert importlib.util.find_spec('tvm') is None\" && python -I -m pytest -vvs {package}/tests/python/all-platform-minimal-test {package}/tests/python/runtime/test_tensor.py {package}/tests/python/runtime/test_module.py {package}/tests/python/codegen/test_executable.py {package}/tests/python/ir/test_type.py {package}/tests/python/script/test_ir_builder.py {package}/tests/python/codegen/llvm/test_basic.py::test_llvm_vadd_pipeline {package}/tests/python/codegen/gpu_common/test_allreduce.py::test_allreduce_sum_compile"
 
 [tool.cibuildwheel.linux]

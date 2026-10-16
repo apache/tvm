@@ -67,7 +67,7 @@ jobs:
         run: |
           set -euxo pipefail
           export TVM_FFI_VERSION="$(python -c 'from importlib.metadata import version; print(version("apache-tvm-ffi"))')"
-          pip install ml_dtypes
+          pip install ml_dtypes torch
           # --no-deps: this package requires apache-tvm-ffi>=0.1.14.post1, and the source-built core
           # versions as 0.1.dev1+g<sha> from the shallow checkout, which is < 0.1.0 under PEP 440.
           # Without it pip replaces the source-matched core with a PyPI build.

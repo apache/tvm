@@ -201,12 +201,10 @@ class NoCompiler(importlib.abc.MetaPathFinder):
         # Do not expose sibling compiler packages to this isolated consumer.
         if fullname == 'tvm_ffi':
             return importlib.util.spec_from_file_location(fullname, sys.argv[3])
-        if fullname.split('.')[0] == 'torch':
-            raise ImportError('Torch is not part of the FFI consumer')
         if fullname.split('.')[0] in ('tvm', 'tvm_tirx'):
             raise AssertionError('Unexpected compiler/framework import: ' + fullname)
 sys.meta_path.insert(0, NoCompiler())
-import numpy as np
+import torch
 import tvm_ffi
 assert tvm_ffi.get_global_func('runtime.NumThreads', allow_missing=True) is None
 module = tvm_ffi.load_module(sys.argv[1])
@@ -214,25 +212,13 @@ for name in ('codegen.Build', 'runtime.ModuleTimeEvaluator', 'runtime.LocalTimeE
     assert tvm_ffi.get_global_func(name, allow_missing=True) is None, name
 assert tvm_ffi.get_global_func('runtime.NumThreads', allow_missing=True), (
     'runtime.NumThreads missing')
-a = np.arange(16, dtype='int32')
-b = np.zeros_like(a)
-a_ffi, b_ffi = tvm_ffi.from_dlpack(a), tvm_ffi.from_dlpack(b)
-if sys.argv[2] == 'cuda':
-    allocate = tvm_ffi.get_global_func('runtime.TensorAllocWithScope')
-    copy = tvm_ffi.get_global_func('runtime.TensorCopyFromTo')
-    def empty():
-        return allocate(tvm_ffi.Shape([16]), tvm_ffi.dtype('int32'),
-                        tvm_ffi.device('cuda', 0), None)
-    a_device, b_device = empty(), empty()
-    copy(a_ffi, a_device)
-    module['cuda'](a_device, b_device)
-    copy(b_device, b_ffi)
-    expected = a + 1
-else:
-    module['cpu'](a_ffi, b_ffi)
-    expected = a + tvm_ffi.get_global_func('runtime.NumThreads')()
-np.testing.assert_array_equal(b, expected)
-assert not any(name.split('.')[0] in ('tvm', 'tvm_tirx', 'torch') for name in sys.modules)
+device = sys.argv[2]
+a = torch.arange(16, dtype=torch.int32, device=device)
+b = torch.empty_like(a)
+module[device](a, b)
+expected = a + (1 if device == 'cuda' else tvm_ffi.get_global_func('runtime.NumThreads')())
+torch.testing.assert_close(b, expected)
+assert not any(name.split('.')[0] in ('tvm', 'tvm_tirx') for name in sys.modules)
 """
     subprocess.run(
         [sys.executable, "-I", "-c", consumer, str(output), device, tvm_ffi.__file__],
