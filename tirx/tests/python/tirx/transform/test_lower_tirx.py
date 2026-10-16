@@ -81,9 +81,7 @@ def _int_range(side, axis):
     return tuple(int(x) for x in side[axis])
 
 
-@T.function(private=True)
-def _probe_impl():
-    T.evaluate(0)
+_PROBE_STMT = tvm_tirx.ir.Evaluate(0)
 
 
 L_LANE = T.TileLayout(T.S[32 : 1 @ laneid])
@@ -1018,7 +1016,7 @@ def test_lower_exec_context_infers_plain_predicate_for_dispatch():
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
@@ -1068,7 +1066,7 @@ def test_lower_exec_context_tracks_let_aliases_and_hoists_warp_shuffle():
     def _probe(op_call, sctx):
         seen.append(sctx.inter)
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
@@ -1123,7 +1121,7 @@ def test_lower_exec_context_respects_preferred_cluster_bounds():
     def _probe(op_call, sctx):
         seen.append(sctx.inter)
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
@@ -1191,7 +1189,7 @@ def test_lower_exec_context_infers_warpgroup_range_predicate_for_dispatch():
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
@@ -1250,7 +1248,7 @@ def test_lower_exec_context_tracks_cta_thread_range_predicate_for_dispatch():
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
@@ -1295,7 +1293,7 @@ def test_lower_exec_context_tracks_cta_thread_single_warp_range_predicate():
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
@@ -1340,7 +1338,7 @@ def test_lower_exec_context_tracks_warpgroup_thread_range_predicate():
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
@@ -1392,7 +1390,7 @@ def test_lower_exec_context_tracks_dependent_conjunctive_predicate():
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
@@ -1567,7 +1565,7 @@ def test_lower_exec_context_selector_filter_for_elect_sync():
     def _probe(op_call, sctx):
         seen.append(sctx.inter["laneid"][1].script(extra_config={"tirx.prefix": "T"}))
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
@@ -1655,7 +1653,7 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
     def _probe(op_call, sctx):
         seen.append({"inter": sctx.inter, "intra": sctx.intra})
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
@@ -1707,7 +1705,7 @@ def test_lower_exec_context_tracks_factorized_cta_predicate():
     def _probe(op_call, sctx):
         seen.append(sctx.inter)
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
@@ -1751,13 +1749,13 @@ def test_lower_exec_context_keeps_kernel_cta_predicate_out_of_cluster_active_set
     def _probe_kernel(op_call, sctx):
         seen["kernel"] = sctx.inter
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @_register_probe(cluster_variant)
     def _probe_cluster(op_call, sctx):
         seen["cluster"] = sctx.inter
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
@@ -1805,7 +1803,7 @@ def test_lower_exec_context_tracks_cta_axis_modulo_predicate():
     def _probe(op_call, sctx):
         seen.append(sctx.inter)
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
@@ -1848,7 +1846,7 @@ def test_lower_exec_context_tracks_cta_id_in_pair_predicate():
     def _probe(op_call, sctx):
         seen.append(sctx.inter)
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
@@ -1902,13 +1900,13 @@ def test_lower_exec_context_tracks_two_cta_pair_predicates():
     def _probe_zero(op_call, sctx):
         seen["zero"] = sctx.inter
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @_register_probe(one_variant)
     def _probe_one(op_call, sctx):
         seen["one"] = sctx.inter
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
@@ -1962,7 +1960,7 @@ def test_lower_exec_context_tracks_cta_id_in_pair_after_axis_predicate():
     def _probe(op_call, sctx):
         seen.append(sctx.inter)
 
-        return _probe_impl
+        return _PROBE_STMT
 
     @I.ir_module
     class Before:
