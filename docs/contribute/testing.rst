@@ -49,7 +49,7 @@ In order for a test to be run, all of the following must be true.
   appear in the environment variable `TVM_TEST_TARGETS`.
 
 - For parametrized tests using the `target` fixture, the build
-  configuration in `config.cmake` must enable the corresponding
+  configuration passed to CMake must enable the corresponding
   runtime.
 
 Unit-Test File Contents
@@ -64,7 +64,7 @@ that cannot run on the current machine with
 :py:func:`tvm.testing.device_enabled`, and obtain its device with
 ``tvm.device_from_target(target)``.  The function is run once per target, the
 success/failure of each is reported separately, and a target whose device
-is disabled in ``config.cmake`` or absent from the machine is reported as
+is disabled in the CMake configuration or absent from the machine is reported as
 skipped.
 
 .. code-block:: python
@@ -132,7 +132,7 @@ marks are as follows.
   available.  The :py:mod:`tvm.testing.env` module exposes one memoized
   probe per capability (e.g. ``has_cuda()``, ``has_rocm()``,
   ``has_vulkan()``, ``has_gpu()``, ``has_llvm()``), each of which
-  returns ``False`` when the runtime is disabled in ``config.cmake`` or
+  returns ``False`` when the runtime is disabled in the CMake configuration or
   no compatible device is present.  Pair it with ``@pytest.mark.gpu``
   for tests that use the GPU::
 

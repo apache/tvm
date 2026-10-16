@@ -36,7 +36,7 @@ ARTIFACTS = {
         "build/CMakeFiles/rules.ninja",
     ],
     # runtime files
-    "tvm_runtime": ["build/lib/libtvm_runtime.so", "build/config.cmake"],
+    "tvm_runtime": ["build/lib/libtvm_runtime.so", "build/CMakeCache.txt"],
     # compiler files
     "tvm_lib": [
         "build/lib/libtvm_compiler.so",
@@ -50,7 +50,7 @@ ARTIFACTS = {
         "build/lib/libtvm_runtime_rocm.so",
         "build/lib/libtvm_runtime_extra.so",
         "build/libtvm_allvisible.so",
-        "build/config.cmake",
+        "build/CMakeCache.txt",
     ],
     # gpu related compiler files
     "tvm_lib_gpu_extra": [

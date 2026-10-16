@@ -13,8 +13,9 @@ if(WIN32)
 endif()
 
 # Set output to same directory as the other TVM libs
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 add_executable(tvm_rpc ${TVM_RPC_SOURCES})
+tvm_configure_target(tvm_rpc)
+set_target_properties(tvm_rpc PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
 include(CheckIPOSupported)
 check_ipo_supported(RESULT result OUTPUT output)

@@ -231,12 +231,12 @@ class NNAPIRuntime : public JSONRuntimeBase {
 #else   // ifdef TVM_GRAPH_EXECUTOR_NNAPI
   void Init(const ffi::Array<ffi::Tensor>& consts) final {
     TVM_FFI_THROW(InternalError)
-        << "NNAPI runtime is not enabled. Build with USE_NNAPI_RUNTIME to enable it.";
+        << "NNAPI runtime is not enabled. Build with TVM_USE_NNAPI_RUNTIME to enable it.";
   }
 
   void Run() final {
     TVM_FFI_THROW(InternalError)
-        << "NNAPI runtime is not enabled. Build with USE_NNAPI_RUNTIME to enable it.";
+        << "NNAPI runtime is not enabled. Build with TVM_USE_NNAPI_RUNTIME to enable it.";
   }
 #endif  // ifdef TVM_GRAPH_EXECUTOR_NNAPI
 };

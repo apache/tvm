@@ -101,7 +101,7 @@ ENV/
 *.pyc
 *~
 config.mk
-config.cmake
+CMakeUserPresets.json
 Win32
 *.dir
 perf

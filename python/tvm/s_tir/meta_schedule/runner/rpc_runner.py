@@ -480,7 +480,7 @@ def default_alloc_argument(
     f_random_fill = get_global_func_on_rpc_session(
         session,
         "tvm.contrib.random.random_fill_for_measure",
-        "Please make sure 'USE_RANDOM' is turned ON in the config.cmake on the RPC server.",
+        "Please make sure '-DTVM_USE_RANDOM=ON' is set when configuring CMake on the RPC server.",
     )
 
     return alloc_argument_common(f_random_fill, device, args_info, alloc_repeat, device.empty)

@@ -105,7 +105,7 @@ its bundled FFI dependency, then use native CMake options (CMake 3.26 or newer):
 Core feature options use the ``TVM_TIRX_USE_`` prefix. SDK selectors such as
 ``TVM_TIRX_USE_CUDA`` and ``TVM_TIRX_USE_LLVM`` also accept an SDK path or
 ``llvm-config`` command. Compiler caches, linkers, and toolchain flags use
-standard CMake settings. The standalone core does not read ``config.cmake``.
+standard CMake settings.
 
 LLVM is enabled by default and requires LLVM 15 or newer with development
 headers and libraries. Install ``llvm-dev`` on Debian/Ubuntu, ``llvm-devel``
@@ -137,7 +137,7 @@ The repository's native build script also accepts ``CMAKE_ARGS`` for its TVM
 configuration, including parent-only options::
 
     mkdir -p build
-    CMAKE_ARGS='-DTVM_TIRX_USE_LLVM=ON -DUSE_RPC=ON' \
+    CMAKE_ARGS='-DTVM_TIRX_USE_LLVM=ON -DTVM_USE_RPC=ON' \
         python tests/scripts/task_build.py --build-dir build
 
 The native build script applies these settings only to TVM configuration;

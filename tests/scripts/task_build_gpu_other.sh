@@ -25,5 +25,5 @@ uv pip install --python python3 --no-deps --target build/python ./tirx/3rdparty/
 export PYTHONPATH="$PWD/build/python"
 cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DTVM_TIRX_USE_OPENCL=ON -DTVM_TIRX_USE_ROCM=ON -DCMAKE_CXX_FLAGS=-Werror \
-    -DUSE_CCACHE=OFF -DSUMMARIZE=ON
+    -DTVM_USE_CCACHE=OFF
 cmake --build build --target tvm_runtime tvm_runtime_opencl tvm_runtime_rocm

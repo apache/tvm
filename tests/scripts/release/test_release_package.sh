@@ -98,8 +98,7 @@ echo "[8/10] Compile and Python Import on Linux ..."
 cd apache-tvm-src-${version}
 mkdir build
 cd build
-cp ../cmake/config.cmake .
-cmake ..
+cmake .. -DTVM_TIRX_USE_LLVM=OFF -DTVM_TIRX_USE_CUDA=OFF
 make -j16
 cd ..
 
