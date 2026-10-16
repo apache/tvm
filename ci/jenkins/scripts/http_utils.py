@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,6 +16,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
-sphinx>=7
-sphinx-book-theme
-triton>=3.3
+import json
+import logging
+from typing import Any
+from urllib import request
+
+
+def get(url: str, headers: dict[str, str] | None = None) -> dict[str, Any]:
+    logging.info(f"Requesting GET to {url}")
+    if headers is None:
+        headers = {}
+    req = request.Request(url, headers=headers)
+    with request.urlopen(req) as response:
+        response_headers = {k: v for k, v in response.getheaders()}
+        response = json.loads(response.read())
+
+    return response, response_headers

@@ -1,0 +1,141 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# GH actions.
+# We use it to cover windows and mac builds
+# Jenkins is still the primary CI
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - tirx-standalone-root  # Temporary standalone branch validation.
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: CI-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  MacOS:
+    if: >-
+      ${{ github.repository == 'apache/tvm-tirx' || github.repository == 'apache/tvm' ||
+          (github.repository == 'tqchen/tvm-dev' && github.ref == 'refs/heads/tirx-standalone-root') }}
+    runs-on: macOS-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          submodules: 'recursive'
+      - uses: ./.github/actions/setup
+      - name: Detect environment variables
+        id: env_vars
+        uses: ./.github/actions/detect-env-vars
+      - name: Build TIRx wheels
+        shell: bash -l {0}
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
+        run: |
+          set -euxo pipefail
+          pip install "scikit-build-core>=0.11" "setuptools-scm>=8"
+          export CMAKE_ARGS="-DTVM_TIRX_USE_LLVM=ON -DTVM_TIRX_USE_METAL=ON -DTVM_TIRX_BUILD_TESTS=OFF"
+          pip wheel --no-deps -w dist . -v
+          pip install --no-deps --force-reinstall dist/apache_tvm_tirx-*.whl
+      - name: Install TIRx from wheels
+        shell: bash -l {0}
+        run: |
+          set -euxo pipefail
+          export TVM_FFI_VERSION="$(python -c 'from importlib.metadata import version; print(version("apache-tvm-ffi"))')"
+          pip install psutil cloudpickle ml_dtypes numpy packaging scipy typing_extensions
+          # --no-deps: this package requires apache-tvm-ffi>=0.1.14.post1, and the source-built core
+          # versions as 0.1.dev1+g<sha> from the shallow checkout, which is < 0.1.0 under PEP 440.
+          # Without it pip replaces the source-matched core with a PyPI build.
+          pip install --no-deps "apache-tvm-ffi-orcjit>=0.1.2"
+          # Keep the source-matched tvm-ffi installed by the setup steps.
+          pip install --no-deps dist/*.whl
+          python - <<'PY'
+          import os
+          from importlib.metadata import requires, version
+
+          assert version("apache-tvm-ffi") == os.environ["TVM_FFI_VERSION"]
+          assert version("apache-tvm-tirx") == "0.1.0a1"
+          assert "apache-tvm-ffi>=0.1.15.post0" in requires("apache-tvm-tirx")
+          assert "apache-tvm-ffi-orcjit>=0.1.2" in requires("apache-tvm-tirx")
+          PY
+
+      - name: Test
+        shell: bash -l {0}
+        run: >-
+          python -m pytest -v tests/python/codegen/llvm/test_minimal.py
+          tests/python/runtime/test_validate_wheel_library.py tests/python/script
+      - name: Minimal Metal Compile-Only
+        shell: bash -l {0}
+        run: |
+          set -euxo pipefail
+          python -m pytest -v -s 'tests/python/codegen/gpu_common/test_allreduce.py::test_allreduce_sum_compile'
+          python -m pytest -v -s 'tests/python/backend/metal/codegen/test_basic.py::test_func_with_trailing_pod_params'
+      - name: Minimal Metal Compile-and-Run
+        shell: bash -l {0}
+        run: |
+          set -euxo pipefail
+          python -m pytest -v -s tests/python/backend/metal
+          python -m pytest -v -s 'tests/python/codegen/gpu_common/test_intrinsics.py'
+          python -m pytest -v -s 'tests/python/codegen/gpu_common/test_allreduce.py::test_allreduce_sum[dims0-metal]'
+
+  Windows:
+    if: >-
+      ${{ github.repository == 'apache/tvm-tirx' || github.repository == 'apache/tvm' ||
+          (github.repository == 'tqchen/tvm-dev' && github.ref == 'refs/heads/tirx-standalone-root') }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          submodules: 'recursive'
+      - uses: ./.github/actions/setup
+      - name: Detect environment variables
+        id: env_vars
+        uses: ./.github/actions/detect-env-vars
+      - name: Build and install TIRx
+        shell: cmd /C call {0}
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
+        run: |
+          pip install "scikit-build-core>=0.11" "setuptools-scm>=8" || exit /b 1
+          set CMAKE_ARGS=-DTVM_TIRX_USE_LLVM=ON -DTVM_TIRX_BUILD_TESTS=OFF
+          pip wheel --no-deps -w dist . -v || exit /b 1
+          for %%w in (dist\apache_tvm_tirx-*.whl) do (
+            pip install --no-deps --force-reinstall "%%w" || exit /b 1
+          )
+      - name: Install test dependencies
+        shell: cmd /C call {0}
+        run: |
+          pip install psutil cloudpickle ml_dtypes numpy packaging scipy typing_extensions || exit /b 1
+          rem --no-deps keeps the source-built apache-tvm-ffi (versioned below 0.1.14.post1 from the
+          rem shallow checkout) from being replaced by a PyPI build.
+          pip install --no-deps "apache-tvm-ffi-orcjit>=0.1.2" || exit /b 1
+      - name: Test
+        shell: cmd /C call {0}
+        run: >-
+          python -m pytest -v tests/python/codegen/llvm/test_minimal.py
+          tests/python/runtime/test_validate_wheel_library.py tests/python/script

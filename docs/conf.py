@@ -18,6 +18,7 @@
 import os
 import sys
 from pathlib import Path
+from types import ModuleType
 
 os.environ["TVM_FFI_BUILD_DOCS"] = "1"
 
@@ -50,8 +51,14 @@ napoleon_use_rtype = False
 napoleon_use_ivar = True
 napoleon_custom_sections = ["Usage"]
 
-# Match the FFI reference's optional PyTorch import convention.
-autodoc_mock_imports = ["torch"]
+# Optional kernel dependencies are not needed to render their Python APIs.
+autodoc_mock_imports = ["torch", "triton"]
+# The Triton adapter checks this minimum version at import time. Its remaining
+# imports are handled by autodoc's mocks; no Triton code executes during a build.
+_triton = ModuleType("triton")
+_triton.__version__ = "3.3.0"
+_triton.__path__ = []
+sys.modules.setdefault("triton", _triton)
 
 html_theme_options = {
     "repository_url": "https://github.com/apache/tvm",

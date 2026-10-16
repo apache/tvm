@@ -15,15 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[build-system]
-# mlc-z3-static ships the PIC static libz3 + headers consumed by TVM_TIRX_USE_Z3=ON.
-requires = ["scikit-build-core>=0.11", "mlc-z3-static>=4.16.0"]
-build-backend = "scikit_build_core.build"
-
 [project]
 name = "apache-tvm-tirx"
 version = "0.1.0a1"
-description = "TVM TIRx compiler and runtime"
+description = "TVM TIRx"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
@@ -43,27 +38,24 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-  "apache-tvm-ffi>=0.1.15rc0",
-  "apache-tvm-ffi-orcjit==0.1.2",
+  "apache-tvm-ffi>=0.1.15.post0",
+  "apache-tvm-ffi-orcjit>=0.1.2",
   "ml_dtypes",
   "numpy",
   "packaging",
 ]
-
-[project.scripts]
-tvm-tirx-config = "tvm_tirx.config:__main__"
-
-[project.optional-dependencies]
-torch = ["torch"]
-cuda = ["cuda-bindings"]
-popen-pool = ["psutil", "cloudpickle"]
-all = ["psutil", "cloudpickle"]
 
 [project.urls]
 Homepage = "https://tvm.apache.org/"
 Documentation = "https://tvm.apache.org/tirx/"
 Repository = "https://github.com/apache/tvm"
 "Bug Tracker" = "https://github.com/apache/tvm/issues"
+
+[project.optional-dependencies]
+torch = ["torch"]
+cuda = ["cuda-bindings"]
+popen-pool = ["psutil", "cloudpickle"]
+all = ["psutil", "cloudpickle"]
 
 [dependency-groups]
 torch = ["torch"]
@@ -83,6 +75,15 @@ test = [
 ]
 lint = ["ruff", "pre-commit"]
 dev = [{ include-group = "test" }, { include-group = "lint" }]
+docs = ["sphinx>=7", "sphinx-book-theme"]
+
+[project.scripts]
+tvm-tirx-config = "tvm_tirx.config:__main__"
+
+[build-system]
+# mlc-z3-static ships the PIC static libz3 + headers consumed by TVM_TIRX_USE_Z3=ON.
+requires = ["scikit-build-core>=0.11", "mlc-z3-static>=4.16.0"]
+build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]
 cmake.build-type = "Release"

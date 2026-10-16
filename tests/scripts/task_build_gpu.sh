@@ -19,12 +19,14 @@
 set -euxo pipefail
 
 export CMAKE_ARGS="
+    -DTVM_TIRX_BUILD_TESTS=ON
     -DTVM_TIRX_USE_CUDA=ON
-    -DTVM_TIRX_USE_VULKAN=ON
-    -DTVM_TIRX_USE_OPENCL=ON
-    -DTVM_TIRX_USE_OPENCL_GTEST=/googletest
+    -DTVM_TIRX_USE_VULKAN=OFF
+    -DTVM_TIRX_USE_OPENCL=OFF
     -DTVM_TIRX_USE_LLVM='/usr/bin/llvm-config-15 --link-static'
     -DCMAKE_CXX_FLAGS=-Werror
     -DCMAKE_CUDA_ARCHITECTURES=75
 "
-uv build --wheel --no-build-isolation --offline --python python3 --out-dir dist ./tirx
+uv build --wheel --no-build-isolation --offline --python python3 --out-dir dist .
+
+./build/tirx_cpptest

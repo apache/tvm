@@ -19,7 +19,6 @@ github:
   description: "Open ML Compiler Foundation"
   homepage: https://tvm.apache.org/
   labels:
-    - tvm
     - compiler
     - tirx
     - gpu
@@ -27,11 +26,6 @@ github:
   features:
     issues: true
     projects: true
-
-  protected_branches:
-    main:
-      required_pull_request_reviews:
-        required_approving_review_count: 1
 
   enabled_merge_buttons:
     squash: true

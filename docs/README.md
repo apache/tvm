@@ -21,8 +21,8 @@ After building TIRx, install the documentation dependencies and build from the
 repository root:
 
 ```bash
-python -m pip install -r docs/requirements.txt
-python -m sphinx -b html -W docs docs/_build/html
+uv pip install --group docs
+uv run --no-sync python -m sphinx -b html -W docs docs/_build/html
 ```
 
 Open `docs/_build/html/index.html` to browse the reference.
