@@ -94,7 +94,7 @@ def find_include_path() -> str:
     raise RuntimeError("Cannot find TVM include path.")
 
 
-__version__ = "0.1.0a0"
+__version__ = "0.1.0a1"
 
 
 _LIBRARY_NAMES = ("tvm_tirx_compiler", "tvm_runtime")
