@@ -243,6 +243,7 @@ PrimExpr max_value(PrimType value_ty, Location loc) {
     return FloatImm(value_ty, 6.0, loc);
   }
   TVM_FFI_THROW(InternalError) << "Cannot decide max_value for type" << dtype;
+  TVM_FFI_UNREACHABLE();
 }
 
 PrimExpr min_value(PrimType value_ty, Location loc) {
@@ -297,6 +298,7 @@ PrimExpr min_value(PrimType value_ty, Location loc) {
     return FloatImm(value_ty, -6.0, loc);
   }
   TVM_FFI_THROW(InternalError) << "Cannot decide min_value for type" << dtype;
+  TVM_FFI_UNREACHABLE();
 }
 
 PrimExpr cast(PrimExpr value, PrimType t, Location loc) {

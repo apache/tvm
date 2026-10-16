@@ -585,6 +585,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           TVM_FFI_THROW(InternalError)
               << "Expected VerifyWellFormed argument to be a Function or IRModule, but found "
               << obj->GetTypeKey();
+          TVM_FFI_UNREACHABLE();
         }
       });
 }

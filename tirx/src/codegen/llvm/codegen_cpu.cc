@@ -411,6 +411,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(Type type, llvm::Value*
     }
     default:
       TVM_FFI_THROW(InternalError) << "unknown field code";
+      TVM_FFI_UNREACHABLE();
   }
 }
 

@@ -134,7 +134,8 @@ struct ModularSetAnalyzer::Entry {
   }
 };
 
-class ModularSetAnalyzer::Impl : public tvm::ExprFunctor<ModularSetAnalyzer::Entry(const Expr&)> {
+class ModularSetAnalyzer::Impl final
+    : public tvm::ExprFunctor<ModularSetAnalyzer::Entry(const Expr&)> {
  public:
   explicit Impl(AnalyzerObj* parent) : parent_(parent) {}
 

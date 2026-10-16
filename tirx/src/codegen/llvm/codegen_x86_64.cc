@@ -43,6 +43,8 @@ namespace codegen {
 
 class CodeGenX86_64 final : public CodeGenCPU {
  public:
+  using CodeGenCPU::Dispatch_;
+
   llvm::Value* Dispatch_(const prim::CastNode* op) override;
 
  private:
