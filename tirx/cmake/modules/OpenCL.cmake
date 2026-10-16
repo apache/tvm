@@ -26,7 +26,18 @@ if(TVM_TIRX_USE_OPENCL)
     list(APPEND RUNTIME_OPENCL_SRCS ${OPENCL_WRAPPER_SRCS})
     find_path(TVM_OPENCL_HEADERS_DIR CL/cl.h
       HINTS "${TVM_OPENCL_HEADERS_ROOT}" ENV OPENCL_SDK
-      PATH_SUFFIXES include REQUIRED)
+      PATH_SUFFIXES include)
+    if(NOT TVM_OPENCL_HEADERS_DIR)
+      include(FetchContent)
+      FetchContent_Declare(tvm_opencl_headers
+        GIT_REPOSITORY https://github.com/KhronosGroup/OpenCL-Headers.git
+        GIT_TAG b590a6bfe034ea3a418b7b523e3490956bcb367a
+        # Only consume headers; do not add the upstream build/install rules.
+        SOURCE_SUBDIR headers-only
+      )
+      FetchContent_MakeAvailable(tvm_opencl_headers)
+      set(TVM_OPENCL_HEADERS_DIR "${tvm_opencl_headers_SOURCE_DIR}")
+    endif()
     set(_opencl_include_dirs "${TVM_OPENCL_HEADERS_DIR}")
   else()
     find_opencl(${TVM_TIRX_USE_OPENCL})
