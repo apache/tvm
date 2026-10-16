@@ -1993,6 +1993,16 @@ ffi::Optional<PrimExpr> IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, P
   // We handle scale!=1 in above code, hence we only consider floordiv(x, rhs) below
   // where x=floormod(floordiv(iter, lower_factor), extent) + base
 
+  if (analyzer_->CanProveLess(rhs, 1)) {
+    // The padding and the split constructed below assume a positive divisor.
+    // A non-positive one can be written directly or come from dividing the
+    // divisor by a negative scale above, e.g. floordiv(63 - x, 2) becomes
+    // floordiv(x - 63, -2).
+    ErrorLogger(this) << "Cannot represent as IterMap: the divisor " << rhs
+                      << " of FloorDiv is not positive.";
+    return std::nullopt;
+  }
+
   auto pair = PadDividendToDivisor(lhs, base, rhs);
   if (!pair) return std::nullopt;
   IterSplitExpr padded = pair->first;
@@ -2112,6 +2122,13 @@ ffi::Optional<PrimExpr> IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, P
 
   // We handle scale!=1 in above code, hence we only consider floormod(x, rhs) below
   // where x=floormod(floordiv(iter, lower_factor), extent) + base
+  if (analyzer_->CanProveLess(rhs, 1)) {
+    // See SplitFloorDivConst: the padding and the split below assume a
+    // positive divisor.
+    ErrorLogger(this) << "Cannot represent as IterMap: the divisor " << rhs
+                      << " of FloorMod is not positive.";
+    return std::nullopt;
+  }
   PrimExpr source_upper_bound = lhs->source->extent;
   auto origin_it = padded_origin_map_.find(lhs->source);
   if (origin_it != padded_origin_map_.end()) {
