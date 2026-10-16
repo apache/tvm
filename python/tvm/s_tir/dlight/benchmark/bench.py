@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Optional
 
 import tvm_tirx
 from tvm import relax
+from tvm.runtime import time_evaluator
 from tvm.s_tir.meta_schedule.runner import EvaluatorConfig
 from tvm.s_tir.meta_schedule.testing.tune_utils import generate_input_data
 from tvm_tirx.ir import IRModule
@@ -130,9 +131,10 @@ def benchmark(
     )
     # run benchmark
     if rpc_config is None:
-        profile_result = rt_mod.time_evaluator(
+        profile_result = time_evaluator(
+            rt_mod,
             func_name,
-            dev=dev,
+            device=dev,
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,

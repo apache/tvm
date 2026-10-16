@@ -79,7 +79,7 @@ def test_rpc_module():
         f1 = remote.load_module("dev_lib_cl.so")
         a = dev.tensor(a_np)
         b = dev.tensor(np.zeros(1024, dtype=A.dtype))
-        time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
+        time_f = tvm.runtime.time_evaluator(f1, f1.entry_name, dev, number=10)
         cost = time_f(a, b).mean
         print(f"{cost:g} secs/op\n")
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)

@@ -36,7 +36,7 @@ def test_sampling():
             static_mod.import_module(mod)
         temp = utils.tempdir()
         mod_path = temp.relpath(f"{name}.so")
-        static_mod.export_library(mod_path)
+        tvm_tirx.codegen.Executable(static_mod).export_library(mod_path)
         return tvm_tirx.runtime.load_module(mod_path)
 
     # Test configuration

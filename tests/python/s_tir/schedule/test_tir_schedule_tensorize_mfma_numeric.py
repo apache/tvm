@@ -112,7 +112,7 @@ def run_test(
         mma_store_intrin,
     )
 
-    f = tvm.compile(sch.mod["main"], target="rocm")
+    f = tvm.compile(sch.mod["main"], target="rocm").jit()
 
     if in_dtype == "float32":
         a_np = np.random.uniform(size=(M, K)).astype("float32")
@@ -154,7 +154,7 @@ def run_test(
         b = tvm_tirx.runtime.tensor(b_np, dev)
         c = tvm_tirx.runtime.tensor(np.zeros((M, N), dtype=out_dtype), dev)
         if measure:
-            return f.time_evaluator(f.entry_name, dev, number=500)(a, b, c)
+            return tvm.runtime.time_evaluator(f, f.entry_name, dev, number=500)(a, b, c)
         f(a, b, c)
         dev.sync()
         tvm_tirx.testing.assert_allclose(c.numpy(), c_np, rtol=1e-2, atol=1e-2)

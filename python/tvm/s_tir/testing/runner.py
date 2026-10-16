@@ -20,6 +20,8 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal, Optional, Union
 
+from tvm.runtime import time_evaluator
+
 if TYPE_CHECKING:
     import numpy as np
 
@@ -64,10 +66,11 @@ def _args_to_numpy(args):
 
 
 def _normalize_export_func(export_func, output_format) -> tuple[Callable, str]:
+    from tvm_tirx.codegen import Executable
     from tvm_tirx.support import ndk, tar
 
     def export_with(func):
-        return lambda mod, path: mod.export_library(path, fcompile=func)
+        return lambda mod, path: Executable(mod).export_library(path, fcompile=func)
 
     if export_func == "tar":
         export_func = export_with(tar.tar)
@@ -117,7 +120,7 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
     -------
     args : List[Union[np.ndarray, Tensor, int, float]]
         The results of running the module.
-    profile_result : tvm_tirx.runtime.BenchmarkResult
+    profile_result : tvm.runtime.BenchmarkResult
         The profiling result of running the module.
     """
     import os.path as osp
@@ -125,6 +128,7 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
 
     from tvm.s_tir.meta_schedule.runner import EvaluatorConfig
     from tvm_tirx.runtime import device, load_module
+    from tvm_tirx.support import cc, tar, utils
 
     evaluator_config = EvaluatorConfig._normalized(evaluator_config)
     export_func, output_format = _normalize_export_func(export_func, output_format)
@@ -135,10 +139,17 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
         device: Device = device(device_type, 0)
 
         args = _args_to_device(args, device)
+        if artifact_path.endswith((".o", ".tar")):
+            with utils.tempdir() as temp:
+                objects = tar.normalize_file_list_by_unpacking_tars(temp, [artifact_path])
+                library = osp.join(tmp_dir, "module.so")
+                cc.create_shared(library, objects)
+            artifact_path = library
         remote_mod = load_module(artifact_path)
-        profile_result = remote_mod.time_evaluator(
+        profile_result = time_evaluator(
+            remote_mod,
             func_name=remote_mod.entry_name,
-            dev=device,
+            device=device,
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
@@ -194,7 +205,7 @@ def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
     -------
     args : List[Union[np.ndarray, Tensor, int, float]]
         The results of running the module.
-    profile_result : tvm_tirx.runtime.BenchmarkResult
+    profile_result : tvm.runtime.BenchmarkResult
         The profiling result of running the module.
     """
 
@@ -218,9 +229,10 @@ def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
             session.upload(artifact_path, remote_path)
             args = _args_to_device(args, device, device.empty)
             remote_mod = session.load_module(remote_path)
-            profile_result = remote_mod.time_evaluator(
+            profile_result = time_evaluator(
+                remote_mod,
                 func_name=remote_mod.entry_name,
-                dev=device,
+                device=device,
                 number=evaluator_config.number,
                 repeat=evaluator_config.repeat,
                 min_repeat_ms=evaluator_config.min_repeat_ms,

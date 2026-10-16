@@ -270,7 +270,8 @@ All module types implement the same interface: ``GetFunction(name)`` returns a `
 that can be called from Python or C++. The VM and other runtime components use this interface
 to invoke compiled kernels without knowing which backend produced them.
 
-The module tree is serializable via ``export_library()``, which packs the host module and all
+The module tree is serializable via
+``tvm_tirx.codegen.Executable(module).export_library()``, which packs the host module and all
 imported device modules into a single shared library (``.so`` / ``.dll`` / ``.dylib``) or
 a tar archive for deployment.
 

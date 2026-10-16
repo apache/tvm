@@ -19,7 +19,7 @@
 
 /*!
  * \file src/runtime/timer.cc
- * \brief Runtime timer primitives: Timer, WrapTimeEvaluator.
+ * \brief Parent runtime timing and benchmarking policy.
  */
 
 #include <tvm/ffi/extra/module.h>
@@ -28,7 +28,8 @@
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/timer.h>
+#include <tvm/runtime/tensor.h>
+#include <tvm/runtime/timing.h>
 
 #include <chrono>
 #include <mutex>
@@ -88,7 +89,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-Timer Timer::Start(Device dev) {
+Timer StartTimer(Device dev) {
   // Function-local statics: thread-safe lazy init (C++11 magic statics),
   // visible only to this function.
   static std::set<DLDeviceType> seen_devices;
@@ -115,7 +116,7 @@ Timer Timer::Start(Device dev) {
   }
 }
 
-static ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int repeat,
+ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int repeat,
                                        int min_repeat_ms, int limit_zero_time_iterations,
                                        int cooldown_interval_ms, int repeats_to_cooldown,
                                        int cache_flush_bytes, ffi::Function f_preproc) {
@@ -155,7 +156,7 @@ static ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number,
         }
         DeviceAPI::Get(dev)->StreamSync(dev, nullptr);
         // start timing
-        Timer t = Timer::Start(dev);
+        Timer t = StartTimer(dev);
         for (int j = 0; j < number; ++j) {
           pf.CallPacked(args, num_args, &temp);
         }

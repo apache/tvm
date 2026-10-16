@@ -69,7 +69,7 @@ def check_executable(exec, dev, inputs, expected, entry_func_name):
 
 def check_roundtrip(exec0, reference_exec, input_arrays, entry_func_name="main"):
     with utils.tempdir() as temp:
-        exec0.mod.export_library(temp.relpath("exec.so"))
+        exec0.export_library(temp.relpath("exec.so"))
         exec1 = tvm_tirx.runtime.load_module(temp.relpath("exec.so"))
     assert exec0.stats() == exec1["stats"]()
     assert exec0.as_text() == exec1["as_text"]()

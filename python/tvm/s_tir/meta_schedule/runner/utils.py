@@ -21,6 +21,7 @@ from collections.abc import Callable
 from typing import Any
 
 import tvm_tirx.runtime
+from tvm.runtime import time_evaluator
 from tvm_tirx.runtime import Device, Module
 
 from .config import EvaluatorConfig
@@ -110,9 +111,10 @@ def run_evaluator_common(
     costs: List[float]
         The evaluator results
     """
-    evaluator = rt_mod.time_evaluator(
+    evaluator = time_evaluator(
+        rt_mod,
         func_name=rt_mod.entry_name,
-        dev=device,
+        device=device,
         number=evaluator_config.number,
         repeat=evaluator_config.repeat,
         min_repeat_ms=evaluator_config.min_repeat_ms,

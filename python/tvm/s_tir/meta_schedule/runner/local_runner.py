@@ -24,6 +24,7 @@ from contextlib import contextmanager
 import tvm_tirx
 from tvm.s_tir.utils import derived_object
 from tvm_tirx.runtime import Device, Module
+from tvm_tirx.support import cc, tar, utils
 from tvm_tirx.support.popen_pool import PopenPoolExecutor
 
 from ..logging import get_logger
@@ -145,7 +146,14 @@ def _worker_func(
     with resource_handler():
         # Step 1: create the local runtime module
         with Profiler.timeit("LocalRunner/load_module"):
-            rt_mod = tvm_tirx.runtime.load_module(artifact_path)
+            if artifact_path.endswith((".o", ".tar")):
+                with utils.tempdir() as temp:
+                    objects = tar.normalize_file_list_by_unpacking_tars(temp, [artifact_path])
+                    library = temp.relpath("module.so")
+                    cc.create_shared(library, objects)
+                    rt_mod = tvm_tirx.runtime.load_module(library)
+            else:
+                rt_mod = tvm_tirx.runtime.load_module(artifact_path)
         # Step 2: Allocate input arguments
         with Profiler.timeit("LocalRunner/alloc_argument"):
             device = tvm_tirx.runtime.device(device_type, 0)

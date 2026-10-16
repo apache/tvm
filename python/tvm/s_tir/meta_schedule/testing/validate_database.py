@@ -474,9 +474,10 @@ def make_alloc_arg_and_check(
         costs: List[float]
             The evaluator results
         """
-        evaluator = rt_mod.time_evaluator(
+        evaluator = tvm.runtime.time_evaluator(
+            rt_mod,
             func_name=rt_mod.entry_name,
-            dev=device,
+            device=device,
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
@@ -565,10 +566,12 @@ def local_build_and_run(
         The running time of running the module
     """
     # potential memory leak https://github.com/apache/tvm/issues/11096
-    lib = tvm.compile(mod, target=target)
+    lib = tvm.compile(mod, target=target).jit()
     tvm_inputs = [tvm_tirx.runtime.tensor(inp, device=device) for inp in inputs]
     device.sync()
-    func = lib.time_evaluator(lib.entry_name, dev=device, number=ARGS.number, repeat=ARGS.repeat)
+    func = tvm.runtime.time_evaluator(
+        lib, lib.entry_name, device=device, number=ARGS.number, repeat=ARGS.repeat
+    )
     benchmark_res = func(*tvm_inputs)
     device.sync()
     return [arg.numpy() for arg in tvm_inputs], list(benchmark_res.results)

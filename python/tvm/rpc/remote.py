@@ -232,7 +232,10 @@ def time_evaluator(
     f_preproc="",
 ):
     """Create an evaluator after validating the module and remote device session."""
-    return module.time_evaluator(
+    from tvm.runtime import time_evaluator as runtime_time_evaluator
+
+    return runtime_time_evaluator(
+        module,
         func_name,
         device,
         number,

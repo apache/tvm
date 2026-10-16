@@ -159,8 +159,10 @@ def get_global_symbol_section_map(path, *, nm=None) -> dict[str, str]:
 
 @register_global_func("s_tir.meta_schedule.builder.export_ndk")
 def _ndk_export(mod):
+    from tvm_tirx.codegen import Executable  # pylint: disable=import-outside-toplevel
+
     tmp_dir = tempfile.mkdtemp()
     binary_name = "tmp_binary.so"
     binary_path = Path(tmp_dir) / binary_name
-    mod.export_library(binary_path, fcompile=create_shared)
+    Executable(mod).export_library(binary_path, fcompile=create_shared)
     return str(binary_path)

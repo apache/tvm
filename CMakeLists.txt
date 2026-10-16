@@ -222,7 +222,7 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/relax/testing/*.cc
 )
 
-# VM, RPC, Disco and optional integrations remain parent runtime extensions.
+# Timing, VM, RPC, Disco and optional integrations remain parent runtime extensions.
 add_library(tvm_runtime_extra SHARED)
 add_library(tvm_runtime_extra_defs INTERFACE)
 target_link_libraries(tvm_runtime_extra_defs INTERFACE
@@ -235,7 +235,7 @@ if(HIDE_PRIVATE_SYMBOLS AND NOT MSVC)
 endif()
 target_link_libraries(tvm_runtime_extra PRIVATE tvm_runtime_extra_defs)
 tvm_file_glob(GLOB _vm_sources src/runtime/vm/*.cc src/runtime/rpc/minrpc/*.cc)
-target_sources(tvm_runtime_extra PRIVATE ${_vm_sources})
+target_sources(tvm_runtime_extra PRIVATE src/runtime/timer.cc ${_vm_sources})
 if(USE_RPC)
   tvm_file_glob(GLOB _rpc_sources src/runtime/rpc/*.cc)
   target_sources(tvm_runtime_extra PRIVATE ${_rpc_sources})
@@ -302,7 +302,7 @@ if(HIDE_PRIVATE_SYMBOLS AND NOT MSVC)
   target_compile_options(tvm_compiler PRIVATE -fvisibility=hidden)
 endif()
 target_compile_definitions(tvm_compiler PRIVATE TVM_EXPORTS TVM_FFI_EXPORTS)
-target_link_libraries(tvm_compiler PUBLIC tvm_tirx::shared tvm_ffi::shared tvm_runtime_extra)
+target_link_libraries(tvm_compiler PUBLIC tvm_tirx_compiler::shared tvm_ffi::shared tvm_runtime_extra)
 target_link_libraries(tvm_compiler PRIVATE ${TVM_LINKER_LIBS})
 target_include_directories(tvm_compiler SYSTEM PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/tirx/3rdparty/compiler-rt")
