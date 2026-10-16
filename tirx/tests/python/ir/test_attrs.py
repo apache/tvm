@@ -22,9 +22,7 @@ import tvm_tirx
 
 
 def test_dict_attrs():
-    dattr = tvm_tirx.ir.make_node(
-        "ir.DictAttrs", dict={"x": 1, "y": 10, "name": "xyz", "padding": (0, 0)}
-    )
+    dattr = tvm_tirx.ir.make_node("ir.DictAttrs", x=1, y=10, name="xyz", padding=(0, 0))
     assert dattr.x == 1
     assert dattr.dict["x"] == 1
     datrr = tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(dattr))
@@ -37,10 +35,23 @@ def test_dict_attrs():
     assert len(dattr.items()) == 4
 
 
+def test_dict_attrs_dictionary_entry():
+    attrs = tvm_tirx.ir.make_node(
+        "ir.DictAttrs", dict={"nested": 1}, label="entry", type_key="metadata"
+    )
+    assert set(attrs.keys()) == {"dict", "label", "type_key"}
+    assert attrs["dict"]["nested"] == 1
+    assert attrs["label"] == "entry"
+    assert attrs["type_key"] == "metadata"
+    module = tvm_tirx.IRModule(attrs={"type_key": "metadata"})
+    assert module.attrs["type_key"] == "metadata"
+    assert len(tvm_tirx.ir.make_node("ir.DictAttrs")) == 0
+
+
 def test_attrs_equal():
-    dattr0 = tvm_tirx.ir.make_node("ir.DictAttrs", dict={"x": 1, "y": [10, 20]})
-    dattr1 = tvm_tirx.ir.make_node("ir.DictAttrs", dict={"y": [10, 20], "x": 1})
-    dattr2 = tvm_tirx.ir.make_node("ir.DictAttrs", dict={"x": 1, "y": None})
+    dattr0 = tvm_tirx.ir.make_node("ir.DictAttrs", x=1, y=[10, 20])
+    dattr1 = tvm_tirx.ir.make_node("ir.DictAttrs", y=[10, 20], x=1)
+    dattr2 = tvm_tirx.ir.make_node("ir.DictAttrs", x=1, y=None)
     tvm_tirx.ir.assert_structural_equal(dattr0, dattr1)
     assert not tvm_ffi.structural_equal(dattr0, dattr2)
     assert not tvm_ffi.structural_equal({"x": 1}, tvm_tirx.runtime.convert(1))
@@ -48,8 +59,8 @@ def test_attrs_equal():
 
 
 def test_assert_structural_equal_reports_mismatch():
-    dattr0 = tvm_tirx.ir.make_node("ir.DictAttrs", dict={"x": 1, "y": [10, 20]})
-    dattr1 = tvm_tirx.ir.make_node("ir.DictAttrs", dict={"x": 1, "y": [10, 30]})
+    dattr0 = tvm_tirx.ir.make_node("ir.DictAttrs", x=1, y=[10, 20])
+    dattr1 = tvm_tirx.ir.make_node("ir.DictAttrs", x=1, y=[10, 30])
 
     with pytest.raises(ValueError) as err:
         tvm_tirx.ir.assert_structural_equal(dattr0, dattr1)

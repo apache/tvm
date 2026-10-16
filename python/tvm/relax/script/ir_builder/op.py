@@ -321,11 +321,7 @@ def call_packed(
         is_default = True
     attrs = None
     if kwargs or not is_default:
-        attrs = (
-            tvm_tirx.ir.DictAttrs(dict=kwargs)
-            if attrs_type_key == "ir.DictAttrs"
-            else tvm_tirx.ir.attrs.make_node(attrs_type_key, **kwargs)
-        )
+        attrs = tvm_tirx.ir.attrs.make_node(attrs_type_key, **kwargs)
 
     return Call(op, args, attrs=attrs, ty_args=ty_args)
 

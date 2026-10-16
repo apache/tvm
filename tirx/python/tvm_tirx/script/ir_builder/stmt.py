@@ -268,7 +268,7 @@ def region(
     if isinstance(op, str):
         op = _ir.Op.get(op)
     if attrs is None or isinstance(attrs, dict):
-        attrs = _ir.make_node("ir.DictAttrs", dict={**(attrs or {})})
+        attrs = _ir.make_node("ir.DictAttrs", **(attrs or {}))
     return _ffi_api.Region(op, args, body_params, attrs)
 
 

@@ -523,7 +523,7 @@ def test_call_dps_packed_raw_roundtrip(exception):
     args = (x,)
     attrs = None
     if exception == "attrs":
-        attrs = tvm_tirx.ir.make_node("ir.DictAttrs", dict={"label": "preserved"})
+        attrs = tvm_tirx.ir.make_node("ir.DictAttrs", label="preserved")
     elif exception == "typed_callee":
         callee = relax.ExternFunc("packed", ty=relax.FuncType([tensor_type], tensor_type))
     else:

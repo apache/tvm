@@ -54,7 +54,7 @@ class IRModule(Node, Scriptable):
 
         attrs = None if not attrs else attrs
         if attrs is not None:
-            attrs = make_node("ir.DictAttrs", dict={**attrs})
+            attrs = make_node("ir.DictAttrs", **attrs)
         if global_infos is None:
             global_infos = {}
         self.__init_handle_by_constructor__(

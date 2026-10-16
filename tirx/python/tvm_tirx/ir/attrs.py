@@ -111,7 +111,7 @@ class DictAttrs(Attrs):
         return self.dict.__len__()
 
 
-def make_node(type_key, **kwargs):
+def make_node(type_key, /, **kwargs):
     """Make a new IR node by its type key and fields
 
     Parameters
@@ -120,7 +120,7 @@ def make_node(type_key, **kwargs):
         The type key of the node.
 
     **kwargs : dict
-        The fields of the node.
+        The fields of the node. For ``ir.DictAttrs``, these are the dictionary entries.
 
     Returns
     -------
@@ -145,6 +145,8 @@ def make_node(type_key, **kwargs):
        assert isinstance(x, tvm_tirx.ir.IntImm)
        assert x.value == 10
     """
+    if type_key == "ir.DictAttrs":
+        return DictAttrs(dict=kwargs)
     args = [type_key]
     for k, v in kwargs.items():
         args += [k, v]

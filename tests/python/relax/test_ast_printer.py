@@ -434,7 +434,7 @@ def test_op_attrs():
     x = rx.Var("x", R.Tensor((10,), "float32"))
     # Manually create a Call with attributes to test printer support for Op attributes
     op = tvm_tirx.ir.Op.get("relax.add")
-    attrs = tvm_tirx.ir.make_node("ir.DictAttrs", dict={"my_attr": "my_value"})
+    attrs = tvm_tirx.ir.make_node("ir.DictAttrs", my_attr="my_value")
     call_node = rx.Call(op, [x, x], attrs=attrs)
 
     call_str = dump_ast(call_node, include_call_attrs=True)

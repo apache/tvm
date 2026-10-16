@@ -119,7 +119,7 @@ class DFPattern(Node):
         result: AttrPattern
             The resulting AttrPattern
         """
-        attrs = make_node("ir.DictAttrs", dict={**attrs})
+        attrs = make_node("ir.DictAttrs", **attrs)
         return AttrPattern(self, attrs)
 
     def has_ty(self, ty: "Type") -> "TypePattern":

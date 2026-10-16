@@ -26,12 +26,13 @@ import tvm_ffi
 
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
+from . import _ffi_api
 from .expr import Expr
 
 
 def _make_op_api(op, module_name):
     """Build a callable whose operands and result are governed by its Op."""
-    from .attrs import DictAttrs, make_node  # pylint: disable=import-outside-toplevel
+    from .attrs import make_node  # pylint: disable=import-outside-toplevel
     from .expr import Call  # pylint: disable=import-outside-toplevel
 
     def call(
@@ -60,11 +61,7 @@ def _make_op_api(op, module_name):
                 raise TypeError(f"{op.name}: unexpected keyword operands {tuple(kwargs)}")
             if attrs is not None:
                 raise TypeError(f"{op.name}: cannot mix attrs with attribute keywords")
-            attrs = (
-                DictAttrs(dict=kwargs)
-                if op.attrs_type_key == "ir.DictAttrs"
-                else make_node(op.attrs_type_key, **kwargs)
-            )
+            attrs = make_node(op.attrs_type_key, **kwargs)
         if is_region:
             from tvm_tirx.script.ir_builder.stmt import region
 
@@ -154,6 +151,33 @@ class Op(Expr):
 
     def __init__(self):
         raise RuntimeError("Cannot create op, use get instead")
+
+    @staticmethod
+    def get(op_name):
+        """Get a registered operator by name.
+
+        Parameters
+        ----------
+        op_name : str
+            The canonical operator name.
+
+        Returns
+        -------
+        Op
+            A handle to the registered operator.
+        """
+        return _ffi_api.GetOp(op_name)
+
+    @staticmethod
+    def list_op_names():
+        """List registered operator names in unspecified order.
+
+        Returns
+        -------
+        list[str]
+            The registered operator names.
+        """
+        return _ffi_api.ListOpNames()
 
     def set_attr(self, attr_name, value, override=False):
         """Set an operator attribute.

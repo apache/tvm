@@ -291,7 +291,7 @@ class RegionStmt(Stmt):
         if isinstance(op, str):
             op = Op.get(op)
         if attrs is None or isinstance(attrs, Mapping):
-            attrs = make_node("ir.DictAttrs", dict={**(attrs or {})})
+            attrs = make_node("ir.DictAttrs", **(attrs or {}))
         self.__init_handle_by_constructor__(
             _ffi_api.RegionStmt,
             op,

@@ -77,7 +77,7 @@ class Function(BaseFunc, Scriptable):
             param_list.append(x)
 
         if attrs is None:
-            attrs = tvm_tirx.ir.make_node("ir.DictAttrs", dict={})
+            attrs = tvm_tirx.ir.make_node("ir.DictAttrs")
 
         self.__init_handle_by_constructor__(
             _ffi_api.Function,
