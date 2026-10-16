@@ -108,20 +108,13 @@ Core feature options use the ``TVM_TIRX_USE_`` prefix. SDK selectors such as
 standard CMake settings. The standalone core does not read ``config.cmake``.
 
 LLVM is enabled by default and requires LLVM 15 or newer with development
-headers and libraries. Install your platform's LLVM development package (such
-as ``llvm-dev`` on Debian/Ubuntu or ``llvm-devel`` on Fedora). For a custom
-installation, set ``LLVM_DIR`` to the directory containing ``LLVMConfig.cmake``,
-set ``CMAKE_PREFIX_PATH`` to its installation prefix, or set
-``TVM_TIRX_USE_LLVM`` to the full path to ``llvm-config``. Explicitly set
+headers and libraries. Install ``llvm-dev`` on Debian/Ubuntu, ``llvm-devel``
+on Fedora, or ``llvmdev`` from conda-forge. Explicitly set
 ``TVM_TIRX_USE_LLVM=OFF`` to omit LLVM support.
 
 CUDA defaults to ``AUTO``: a usable toolkit, including its compiler, runtime,
 and driver library or stub, enables CUDA; otherwise the build continues
-without CUDA. A detected toolkit must still pass CMake's compiler checks;
-configure errors from incompatible toolchains are reported normally.
-A GPU is not required on the build host. Set ``TVM_TIRX_USE_CUDA=OFF`` to disable CUDA, or ``ON`` (or an SDK path) to require
-it. ``CMAKE_CUDA_ARCHITECTURES`` can override the compiler's default target
-architectures.
+without CUDA.
 
 C++ tests are off by default; enabling them supplies GTest in the test subtree.
 Installation includes public headers, libraries, and CMake package targets.

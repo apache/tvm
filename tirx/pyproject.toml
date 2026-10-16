@@ -122,8 +122,6 @@ logging.level = "INFO"
 
 [tool.scikit-build.cmake.define]
 TVM_TIRX_BUILD_PYTHON_MODULE = "ON"
-# Statically link Z3 from the mlc-z3-static build dependency by default.
-TVM_TIRX_USE_Z3 = "AUTO"
 TVM_TIRX_BUILD_TESTS = "OFF"
 
 [tool.pytest.ini_options]
