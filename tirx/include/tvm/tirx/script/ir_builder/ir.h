@@ -16,6 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/*!
+ * \file tvm/tirx/script/ir_builder/ir.h
+ * \brief IRBuilder APIs for TIRx functions and statements.
+ */
 #ifndef TVM_TIRX_SCRIPT_IR_BUILDER_IR_H_
 #define TVM_TIRX_SCRIPT_IR_BUILDER_IR_H_
 
@@ -34,20 +38,6 @@ namespace script {
 namespace ir_builder {
 namespace tirx {
 
-using ir::Assert;
-using ir::Bind;
-using ir::Break;
-using ir::Continue;
-using ir::Else;
-using ir::Evaluate;
-using ir::For;
-using ir::Grid;
-using ir::If;
-using ir::Region;
-using ir::Return;
-using ir::Then;
-using ir::While;
-
 using tvm::Var;
 using tvm::ffi::Tensor;
 using tvm::ffi::Tuple;
@@ -59,10 +49,8 @@ using tvm::tirx::ThreadScope;
  * \brief The primitive function statement.
  * \return The FunctionFrame.
  */
-FunctionFrame Function(bool is_private, bool persistent = false);
-
-/*! \brief Construct a bodyless function signature using the ordinary signature operations. */
-FunctionFrame DeclFunction(bool is_private = false, bool persistent = false);
+FunctionFrame Function(bool is_private = false, bool persistent = false,
+                       bool is_declaration = false);
 
 /*!
  * \brief The Function variable arguments adding function.
@@ -126,71 +114,6 @@ inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
 }
 
 inline Var TensorMap() { return tvm::Var("", PtrType(tvm::tirx::TensorMapType())); }
-
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                \
-  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {  \
-    PrimType dtype = DType;                                                \
-    return expr.has_value() ? tvm::prim::cast(expr.value(), dtype)         \
-                            : tvm::Var("", dtype).as_or_throw<PrimExpr>(); \
-  }
-
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, Code)                         \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##8, (PrimType(DLDataType{Code, 8, 1})));   \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##16, (PrimType(DLDataType{Code, 16, 1}))); \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##32, (PrimType(DLDataType{Code, 32, 1}))); \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##64, (PrimType(DLDataType{Code, 64, 1})));
-
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(BFloat, kDLBfloat);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(Float, kDLFloat);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(UInt, kDLUInt);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(Int, kDLInt);
-
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(FuncName, Code, Size)                       \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x2, (PrimType(DLDataType{Code, Size, 2})))    \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x4, (PrimType(DLDataType{Code, Size, 4})));   \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x8, (PrimType(DLDataType{Code, Size, 8})));   \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x16, (PrimType(DLDataType{Code, Size, 16}))); \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x32, (PrimType(DLDataType{Code, Size, 32}))); \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x64, (PrimType(DLDataType{Code, Size, 64})));
-
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(DType, Code) \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##8, Code, 8);      \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##16, Code, 16);    \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##32, Code, 32);    \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##64, Code, 64);
-
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(BFloat, kDLBfloat);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Float, kDLFloat);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(UInt, kDLUInt);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Int, kDLInt);
-
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(DType, Code, Bits)            \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType, (PrimType(DLDataType{Code, Bits, 1})));       \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x2, (PrimType(DLDataType{Code, Bits, 2})));   \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x4, (PrimType(DLDataType{Code, Bits, 4})));   \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x8, (PrimType(DLDataType{Code, Bits, 8})));   \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x16, (PrimType(DLDataType{Code, Bits, 16}))); \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x32, (PrimType(DLDataType{Code, Bits, 32}))); \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x64, (PrimType(DLDataType{Code, Bits, 64})));
-
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E3M4, kDLFloat8_e3m4, 8);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3, kDLFloat8_e4m3, 8);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3B11FNUZ, kDLFloat8_e4m3b11fnuz, 8);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3FN, kDLFloat8_e4m3fn, 8);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3FNUZ, kDLFloat8_e4m3fnuz, 8);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E5M2, kDLFloat8_e5m2, 8);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E5M2FNUZ, kDLFloat8_e5m2fnuz, 8);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E8M0FNU, kDLFloat8_e8m0fnu, 8);
-
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float6E2M3FN, kDLFloat6_e2m3fn, 6);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float6E3M2FN, kDLFloat6_e3m2fn, 6);
-
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float4E2M1FN, kDLFloat4_e2m1fn, 4);
-
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(Boolean, PrimType::Bool());
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(Void, PrimType::Void());
-
-#undef TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST
 
 }  // namespace tirx
 }  // namespace ir_builder

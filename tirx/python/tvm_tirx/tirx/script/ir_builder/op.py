@@ -18,7 +18,6 @@
 
 from __future__ import annotations
 
-import functools
 from typing import Any
 
 from tvm_tirx import ir
@@ -28,10 +27,11 @@ from tvm_tirx import tirx as tir
 
 # pylint: disable=unused-import
 from tvm_tirx.codegen import llvm_lookup_intrinsic_id
-from tvm_tirx.ir import Call, Var
+from tvm_tirx.ir import Call, CallEffectKind, Var
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.ir.prim import _ffi_api as _prim_ffi
 from tvm_tirx.ir.prim import _ffi_api as _prim_ffi_api
+from tvm_tirx.ir.prim.vector_expr import Broadcast, Ramp, Shuffle
 from tvm_tirx.script.ir_builder import base as _base
 from tvm_tirx.script.ir_builder.base import IRBuilder
 from tvm_tirx.script.ir_builder.base import auto_emit_void_call as _auto_emit_void_call
@@ -54,8 +54,6 @@ from tvm_tirx.tirx.expr import (
     BitwiseNot,
     BitwiseOr,
     BitwiseXor,
-    Broadcast,
-    CallEffectKind,
     Cast,
     Div,
     FloorDiv,
@@ -67,15 +65,12 @@ from tvm_tirx.tirx.expr import (
     Mul,
     Not,
     Or,
-    Ramp,
     RShift,
     Select,
-    Shuffle,
     Sub,
 )
 from tvm_tirx.tirx.op import CallFFIKernelAttr
 
-from . import _ffi_api
 from .external_kernel import call_kernel as _call_kernel
 
 call_kernel = _auto_emit_void_call(_call_kernel)
@@ -99,9 +94,13 @@ def _call_global(func: ir.GlobalVar, *args: Expr) -> Call:
     return Call(func, args)
 
 
-def cast(value, dtype, loc: Location = UNKNOWN_LOC):
-    """Cast an expression to the requested data type."""
-    return _prim_ffi_api._cast(value, dtype, loc)  # type: ignore[attr-defined]
+def cast(value, ty, *, loc: Location = UNKNOWN_LOC):
+    """Cast an expression to the requested data type.
+
+    The result type may be passed positionally as ``cast(value, ty)`` or
+    explicitly as ``cast(value, ty=ty)``. The source location is keyword-only.
+    """
+    return _prim_ffi_api._cast(value, ty, loc)  # type: ignore[attr-defined]
 
 
 def Let(  # pylint: disable=invalid-name
@@ -114,7 +113,7 @@ def Let(  # pylint: disable=invalid-name
     return tir.Let(var, value, expr)
 
 
-def min(a: Expr, b: Expr) -> Expr:  # pylint: disable=redefined-builtin
+def min(a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> Expr:  # pylint: disable=redefined-builtin
     """Compute the minimum value of two expressions.
 
     Parameters
@@ -125,15 +124,18 @@ def min(a: Expr, b: Expr) -> Expr:  # pylint: disable=redefined-builtin
     b : Expr
         The right hand operand
 
+    loc : Location, optional
+        The location of the expression in the source code.
+
     Returns
     -------
     res : Expr
         The result expression.
     """
-    return _ffi_api.min(a, b)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _prim_ffi_api._OpMin(a, b, loc)  # type: ignore[attr-defined]
 
 
-def max(a: Expr, b: Expr) -> Expr:  # pylint: disable=redefined-builtin
+def max(a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> Expr:  # pylint: disable=redefined-builtin
     """Compute the maximum value of two expressions.
 
     Parameters
@@ -144,22 +146,15 @@ def max(a: Expr, b: Expr) -> Expr:  # pylint: disable=redefined-builtin
     b : Expr
         The right hand operand
 
+    loc : Location, optional
+        The location of the expression in the source code.
+
     Returns
     -------
     res : Expr
         The result expression.
     """
-    return _ffi_api.max(a, b)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def _llvm_result_type(func):
-    """Keep symbolic intrinsic-name conversion when spelling the result as ty."""
-
-    @functools.wraps(func)
-    def wrapped(name, *args, ty, loc: Location = UNKNOWN_LOC):
-        return func(ty, name, *args, loc=loc)
-
-    return wrapped
+    return _prim_ffi_api._OpMax(a, b, loc)  # type: ignore[attr-defined]
 
 
 class WebGPUNamespace:
@@ -571,13 +566,13 @@ call_extern = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("tirx.call_ext
 @_auto_emit_void_call
 def call_intrin(func_name, *args, ty, attrs=None, loc: Location = UNKNOWN_LOC):
     """Call an intrinsic with an explicit result type."""
-    return _tir_op.call_intrin(ty, func_name, *args, attrs=attrs, loc=loc)
+    return _tir_op.call_intrin(func_name, *args, attrs=attrs, loc=loc, ty=ty)
 
 
-call_llvm_intrin = _auto_emit_void_call(_llvm_result_type(_tir_op.call_llvm_intrin))
+call_llvm_intrin = _auto_emit_void_call(_tir_op.call_llvm_intrin)
 
 
-call_llvm_pure_intrin = _auto_emit_void_call(_llvm_result_type(_tir_op.call_llvm_pure_intrin))
+call_llvm_pure_intrin = _auto_emit_void_call(_tir_op.call_llvm_pure_intrin)
 
 
 call_pure_extern = _auto_emit_void_call(
@@ -601,7 +596,7 @@ get_active_lane_mask = _auto_emit_void_call(
 )
 
 
-masked_load = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("tirx.masked_load"), __name__))
+masked_load = _auto_emit_void_call(_tir_op.masked_load)
 
 
 masked_store = _auto_emit_void_call(_tir_op.masked_store)

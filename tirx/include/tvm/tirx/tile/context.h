@@ -16,7 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-/*! \brief Context and callbacks shared by tile operation dispatchers. */
+/*!
+ * \file tvm/tirx/tile/context.h
+ * \brief Context and callbacks shared by tile operation dispatchers.
+ */
 #ifndef TVM_TIRX_TILE_CONTEXT_H_
 #define TVM_TIRX_TILE_CONTEXT_H_
 

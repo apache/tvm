@@ -28,25 +28,6 @@ import tvm_ffi
 CODEGEN_REGISTRY = {}
 
 
-def _canonical_device_intrin_name(op_name: str) -> str:
-    if not op_name.startswith("tirx."):
-        return op_name
-    basename = op_name[len("tirx.") :]
-    if "." in basename:
-        return op_name
-    for prefix, namespace in (
-        ("cuda_", "cuda"),
-        ("ptx_legacy_", "ptx_legacy"),
-        ("ptx_", "ptx"),
-        ("s_tir_", "s_tir"),
-        ("nvshmem_", "nvshmem"),
-        ("nki_", "nki"),
-    ):
-        if basename.startswith(prefix):
-            return f"tirx.{namespace}.{basename[len(prefix) :]}"
-    return op_name
-
-
 @tvm_ffi.register_global_func("tirx.intrinsics.cuda.get_codegen")
 def get_codegen(op):
     """get the codegen function for a given op"""
@@ -56,14 +37,12 @@ def get_codegen(op):
 def register_codegen(op, backend="cuda"):
     """Register a codegen function for a given op.
 
-    The codegen function should return a ``cuda_func_call`` statement, and
+    The codegen function should return a ``func_call`` statement, and
     optionally a list of tags that the codegen function needs.
     """
 
     def decorator(func):
         full_op_name = "tirx." + op
-        canonical_op_name = _canonical_device_intrin_name(full_op_name)
-        op_names = {full_op_name, canonical_op_name}
 
         @functools.wraps(func)
         def wrapper(arg_list, attrs=None):
@@ -75,8 +54,7 @@ def register_codegen(op, backend="cuda"):
                 return res[0], res[1]
             return res, list()
 
-        for op_name in op_names:
-            CODEGEN_REGISTRY[op_name] = wrapper
+        CODEGEN_REGISTRY[full_op_name] = wrapper
         return wrapper
 
     return decorator

@@ -391,10 +391,6 @@ ffi::Module BuildCHost(IRModule mod, Target target) {
   cg.Init(output_ssa, emit_asserts, emit_fwd_func_decl, target->str(), devices);
   cg.SetConstantsByteAlignment(target->GetAttr<int64_t>("constants-byte-alignment").value_or(16));
 
-  auto is_aot_executor_fn = [](const Function& func) -> bool {
-    return func->GetAttr<bool>(tvm::codegen::attr::kRunnerFunction, false).value();
-  };
-
   std::vector<std::pair<GlobalVar, Function>> funcs;
   for (auto [gvar, base_func] : mod->functions) {
     TVM_FFI_ICHECK(base_func->IsInstance<FunctionNode>()) << "CodegenCHost: Can only take Function";
@@ -402,12 +398,9 @@ ffi::Module BuildCHost(IRModule mod, Target target) {
     funcs.push_back({gvar, function});
   }
 
-  // Sort functions
-  auto sort_key = [&is_aot_executor_fn](const auto& kv) {
-    return std::tuple{is_aot_executor_fn(kv.second), kv.first->name_hint};
-  };
-  std::sort(funcs.begin(), funcs.end(), [&sort_key](const auto& kv_a, const auto& kv_b) {
-    return sort_key(kv_a) < sort_key(kv_b);
+  // Sort functions by name for deterministic output.
+  std::sort(funcs.begin(), funcs.end(), [](const auto& kv_a, const auto& kv_b) {
+    return kv_a.first->name_hint < kv_b.first->name_hint;
   });
 
   for (const auto& [gvar, function] : funcs) {

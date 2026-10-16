@@ -66,7 +66,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
                 ty_args=[T.Tensor(shape, dtype, scope="local", layout=r_layout)]
             )
             for kk in range(k):
-                A_smem[tid, kk] = T.cast(tid * 100 + kk + 1, dtype)
+                A_smem[tid, kk] = T.cast(tid * 100 + kk + 1, ty=dtype)
             T.cuda.cta_sync()
             T.cuda.tile.apply(
                 T.ptx[load],
@@ -75,7 +75,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
                 scope=scope,
             )
             for kk in range(k):
-                A_smem[tid, kk] = T.cast(0, dtype)
+                A_smem[tid, kk] = T.cast(0, ty=dtype)
             T.cuda.cta_sync()
             T.cuda.tile.apply(
                 T.ptx[store],
@@ -96,7 +96,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
                 ty_args=[T.Tensor(shape, dtype, scope="local", layout=r_layout)]
             )
             for kk in range(k):
-                A[tid, kk] = T.cast(tid * 100 + kk + 1, dtype)
+                A[tid, kk] = T.cast(tid * 100 + kk + 1, ty=dtype)
             T.cuda.cta_sync()
             T.cuda.tile.apply(
                 T.ptx[load],
@@ -105,7 +105,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
                 scope=scope,
             )
             for kk in range(k):
-                A[tid, kk] = T.cast(0, dtype)
+                A[tid, kk] = T.cast(0, ty=dtype)
             T.cuda.cta_sync()
             T.cuda.tile.apply(
                 T.ptx[store],
@@ -486,7 +486,7 @@ def test_ptx_st_from_src_f32_vector_preserves_values():
         reg = T.alloc_local((4,), "float32", layout="default")
         out = T.alloc_local((4,), "float32", layout="default")
         for i in range(4):
-            reg[i] = T.cast(i + 1, "float32")
+            reg[i] = T.cast(i + 1, ty="float32")
         T.ptx.st.shared.v4.f32(smem.ptr_to([0]), reg[0], reg[1], reg[2], reg[3])
         T.ptx.ld.shared.v4.f32(out[0], out[1], out[2], out[3], smem.ptr_to([0]))
         for i in range(4):
@@ -529,7 +529,7 @@ def test_copy_forced_vec_width_codegen(variant, dtype, n_elements, expected_st, 
         reg = T.alloc_local((n_elements,), dtype, layout="default")
         out = T.alloc_local((n_elements,), dtype, layout="default")
         for i in range(n_elements):
-            reg[i] = T.cast(i + 1, dtype)
+            reg[i] = T.cast(i + 1, ty=dtype)
         T.cuda.tile.apply(T.ptx[expected_st], smem, reg)
         T.cuda.cta_sync()
         T.cuda.tile.apply(T.ptx[expected_ld], out, smem)
@@ -569,7 +569,7 @@ def test_copy_forced_vec_dynamic_swizzled_shared_uses_vector_ptx():
         reg = T.alloc_local((4,), "float32", layout="default")
         out = T.alloc_local((4,), "float32", layout="default")
         for i in range(4):
-            reg[i] = T.cast(tid * 16 + i + 1, "float32")
+            reg[i] = T.cast(tid * 16 + i + 1, ty="float32")
         row: T.let = tid % 64
         col: T.let = (tid // 64) * 4
         smem_view = smem.rearrange("r (b c) -> r b c", b=8, c=32)
@@ -618,7 +618,7 @@ def test_copy_explicit_vector_instructions():
             ty_args=[T.Tensor((4,), "float32", scope="local", layout=TileLayout(S[4]))]
         )
         for i in range(4):
-            reg[i] = T.cast(i + 1, "float32")
+            reg[i] = T.cast(i + 1, ty="float32")
         T.cuda.tile.apply(T.ptx["st.shared.v4.u32"], smem.view("uint32"), reg.view("uint32"))
         T.cuda.cta_sync()
         T.cuda.tile.apply(T.ptx["ld.shared.v4.u32"], out.view("uint32"), smem.view("uint32"))
@@ -645,7 +645,7 @@ def test_copy_forced_vec_rejects_size_mismatch():
         smem = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", scope="shared", layout="default")])
         reg = T.alloc_local((4,), "float32", layout="default")
         T.cuda.tile.apply(T.ptx["st.shared.v2.b32"], smem, reg)
-        B[0] = T.cast(0, "float32")
+        B[0] = T.cast(0, ty="float32")
 
     target = tvm_tirx.target.Target("cuda")
     with target:
@@ -666,7 +666,7 @@ def test_copy_vector_rejects_missing_thread_axis():
             ty_args=[T.Tensor((4,), "float32", scope="local", layout=TileLayout(S[4]))]
         )
         T.cuda.tile.apply(T.ptx["st.shared.v4.b32"], smem, reg, scope="warp")
-        B[0] = T.cast(0, "float32")
+        B[0] = T.cast(0, ty="float32")
 
     target = tvm_tirx.target.Target("cuda")
     with target:
@@ -688,7 +688,7 @@ def test_reg_explicit_vector_width(words):
         reg = T.alloc_local((8,), "float16", layout=TileLayout(S[8:1]))
         smem = T.alloc_shared((8,), "float16", layout=TileLayout(S[8:1]))
         for i in range(8):
-            reg[i] = T.cast(i + 1, "float16")
+            reg[i] = T.cast(i + 1, ty="float16")
         T.cuda.tile.apply(
             T.ptx[opcode],
             smem.view("uint32").view(4 // words, words),
@@ -874,7 +874,7 @@ def _build_tcgen05_d_epilogue_deposit_roundtrip():
         reg_in = d_reg.view(regs_per_thread, layout="default")
         reg_out = d_reg_out.view(regs_per_thread, layout="default")
         for r in T.serial(regs_per_thread):
-            row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, "int32"))
+            row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, ty="int32"))
             reg_in[r] = A[row, col]
         T.cuda.tile.apply(
             T.ptx["st.shared.v2.u32"],
@@ -890,7 +890,7 @@ def _build_tcgen05_d_epilogue_deposit_roundtrip():
             scope="warpgroup",
         )
         for r in T.serial(regs_per_thread):
-            row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, "int32"))
+            row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, ty="int32"))
             B[row, col] = reg_out[r]
 
     return kernel

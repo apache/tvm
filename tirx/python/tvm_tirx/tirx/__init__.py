@@ -36,12 +36,12 @@ from .tensor import (
 )
 from .type import TensorMapType
 from .expr import convert
-from .expr import Var, FloatImm, IntImm, Cast
+from .expr import Var, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import LShift, RShift, BitwiseAnd, BitwiseOr, BitwiseXor, BitwiseNot
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
-from .expr import Select, TensorLoad, Ramp, Broadcast, Shuffle
-from .expr import CallEffectKind, Let
+from .expr import Select, TensorLoad
+from .expr import Let
 
 
 from .function import Function, IndexMap, renew_def

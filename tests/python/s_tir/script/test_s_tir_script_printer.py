@@ -546,22 +546,22 @@ def test_predicated_tensor_load_store():
         b: tirx.decl_tensor(shape=[256, 256], dtype="float32", name="B"),
     }
     tensor_load = tirx.call_intrin(
-        "float32x4",
         "tirx.masked_load",
         tensors[b],
         0,
-        tirx.Ramp(0, 4, 4),
-        tirx.Broadcast(tirx.IntImm("bool", 0), 4),
+        tvm_tirx.ir.prim.vector_expr.Ramp(0, 4, 4),
+        tvm_tirx.ir.prim.vector_expr.Broadcast(tvm_tirx.ir.IntImm("bool", 0), 4),
+        ty="float32x4",
     )
     body = tvm_tirx.ir.Evaluate(
         tirx.call_intrin(
-            "void",
             "tirx.masked_store",
             tensors[a],
             tensor_load,
             0,
-            tirx.Ramp(0, 2, 4),
-            tirx.Broadcast(tirx.IntImm("bool", 0), 4),
+            tvm_tirx.ir.prim.vector_expr.Ramp(0, 2, 4),
+            tvm_tirx.ir.prim.vector_expr.Broadcast(tvm_tirx.ir.IntImm("bool", 0), 4),
+            ty="void",
         )
     )
     func = tirx.Function(
@@ -1136,10 +1136,10 @@ def opt_conv_tensorcore_mod_host():
         ) and (T.abi_field_get(arg0, 0, 7, ty="uint16") == T.uint16(1)), (
             "arg0.dtype is expected to be float16"
         )
-        assert 16 == T.cast(arg0_shape[0], "int32"), (
+        assert 16 == T.cast(arg0_shape[0], ty="int32"), (
             "Argument arg0.shape[0] has an unsatisfied constraint"
         )
-        assert 14 == T.cast(arg0_shape[1], "int32"), (
+        assert 14 == T.cast(arg0_shape[1], ty="int32"), (
             "Argument arg0.shape[1] has an unsatisfied constraint"
         )
         if not (T.isnullptr(arg0_strides.data)):
@@ -1147,15 +1147,15 @@ def opt_conv_tensorcore_mod_host():
                 (
                     (
                         (
-                            (1 == T.cast(arg0_strides[5], "int32"))
-                            and (16 == T.cast(arg0_strides[4], "int32"))
+                            (1 == T.cast(arg0_strides[5], ty="int32"))
+                            and (16 == T.cast(arg0_strides[4], ty="int32"))
                         )
-                        and (256 == T.cast(arg0_strides[3], "int32"))
+                        and (256 == T.cast(arg0_strides[3], ty="int32"))
                     )
-                    and (4096 == T.cast(arg0_strides[2], "int32"))
+                    and (4096 == T.cast(arg0_strides[2], ty="int32"))
                 )
-                and (57344 == T.cast(arg0_strides[1], "int32"))
-            ) and (802816 == T.cast(arg0_strides[0], "int32")), (
+                and (57344 == T.cast(arg0_strides[1], ty="int32"))
+            ) and (802816 == T.cast(arg0_strides[0], ty="int32")), (
                 "arg0.strides: expected to be compact array"
             )
             T.evaluate(0)
@@ -1184,17 +1184,17 @@ def opt_conv_tensorcore_mod_host():
             stack_tcode[1] = 3
             T.evaluate(T.abi_field_set(stack_value, 2, 12, Conv))
             stack_tcode[2] = 3
-            T.evaluate(T.abi_field_set(stack_value, 3, 12, T.cast(196, "int64")))
+            T.evaluate(T.abi_field_set(stack_value, 3, 12, T.cast(196, ty="int64")))
             stack_tcode[3] = 0
-            T.evaluate(T.abi_field_set(stack_value, 4, 12, T.cast(2, "int64")))
+            T.evaluate(T.abi_field_set(stack_value, 4, 12, T.cast(2, ty="int64")))
             stack_tcode[4] = 0
-            T.evaluate(T.abi_field_set(stack_value, 5, 12, T.cast(4, "int64")))
+            T.evaluate(T.abi_field_set(stack_value, 5, 12, T.cast(4, ty="int64")))
             stack_tcode[5] = 0
-            T.evaluate(T.abi_field_set(stack_value, 6, 12, T.cast(4, "int64")))
+            T.evaluate(T.abi_field_set(stack_value, 6, 12, T.cast(4, ty="int64")))
             stack_tcode[6] = 0
-            T.evaluate(T.abi_field_set(stack_value, 7, 12, T.cast(2, "int64")))
+            T.evaluate(T.abi_field_set(stack_value, 7, 12, T.cast(2, ty="int64")))
             stack_tcode[7] = 0
-            T.evaluate(T.abi_field_set(stack_value, 8, 12, T.cast(32, "int64")))
+            T.evaluate(T.abi_field_set(stack_value, 8, 12, T.cast(32, ty="int64")))
             stack_tcode[8] = 0
             T.evaluate(T.call_packed_lowered("default_function_kernel0", stack_value, 0, 9))
 
@@ -1335,7 +1335,7 @@ def function_with_allocate_annotations():
         for ax0_ax1_fused_5 in T.serial(0, 56):
             for ax2_5, ax3_3 in T.grid(56, 64):
                 T_cast_7[(((ax0_ax1_fused_5 * 3584) + (ax2_5 * 64)) + ax3_3)] = T.cast(
-                    tensor_2[(((ax0_ax1_fused_5 * 3584) + (ax2_5 * 64)) + ax3_3)], "int16"
+                    tensor_2[(((ax0_ax1_fused_5 * 3584) + (ax2_5 * 64)) + ax3_3)], ty="int16"
                 )
 
     return function_with_allocate_annotations
@@ -1385,7 +1385,7 @@ def comm_reducer_multiple_reduce_groups():
                             T.Select(x1 >= y1, x1, y1),
                         ),
                     ),
-                    (T.int32(-1), T.min_value("float32")),
+                    (T.int32(-1), T.min_value(ty="float32")),
                     (i * 128 + threadIdx_x, A[i * 128 + threadIdx_x]),
                     True,
                     (reduce_temp0[0], reduce_temp1[0]),
@@ -1417,7 +1417,7 @@ def multiple_commreducer():
                 T.evaluate(
                     T.gpu_thread_allreduce(
                         T.Lambda([T.float32, T.float32], lambda x, y: (T.max(x, y),)),
-                        (T.min_value("float32"),),
+                        (T.min_value(ty="float32"),),
                         (normal_reduce_temp0[0],),
                         True,
                         (reduce_temp0[0],),
@@ -1570,9 +1570,7 @@ def llvm_intrin_call():
                     ],
                 )
                 B[vi] = T.call_llvm_pure_intrin(
-                    T.llvm_lookup_intrinsic_id("llvm.ctpop.i8"),
-                    A[vi],
-                    ty="uint8",
+                    T.llvm_lookup_intrinsic_id("llvm.ctpop.i8"), A[vi], ty="uint8"
                 )
 
     return ctpop

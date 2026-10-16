@@ -103,9 +103,9 @@ def test_tir_triton_integration():
 
     # Triton omits constexpr arguments and appends global scratch, plus profile
     # scratch starting in 3.5. This kernel requires no scratch allocation.
-    scratch_args = [tvm_tirx.tirx.reinterpret("handle", tvm_tirx.tirx.IntImm("uint64", 0))]
+    scratch_args = [tvm_tirx.tirx.reinterpret(tvm_tirx.ir.IntImm("uint64", 0), ty="handle")]
     if version.parse(triton.__version__) >= version.parse("3.5.0"):
-        scratch_args.append(tvm_tirx.tirx.reinterpret("handle", tvm_tirx.tirx.IntImm("uint64", 0)))
+        scratch_args.append(tvm_tirx.tirx.reinterpret(tvm_tirx.ir.IntImm("uint64", 0), ty="handle"))
 
     # The thread extent is 256 because the kernel is compiled with num_warps=8.
     m = T.dynamic("m", "int64")

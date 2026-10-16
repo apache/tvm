@@ -128,8 +128,8 @@ def detect_iter_map(
     input_iters,
     predicate=True,
     check_level=IterMapLevel.Surjective,
-    simplify_trivial_iterators=True,
     analyzer=None,
+    simplify_trivial_iterators=True,
 ):
     """Detect if indices can be written as mapped iters from input iters
 
@@ -167,7 +167,7 @@ def detect_iter_map(
     elif check_level is None:
         check_level = IterMapLevel.NoCheck
     return _ffi_api.DetectIterMap(
-        indices, input_iters, predicate, check_level, simplify_trivial_iterators, analyzer
+        indices, input_iters, predicate, check_level, analyzer, simplify_trivial_iterators
     )
 
 
@@ -211,8 +211,8 @@ def iter_map_simplify(
     input_iters,
     predicate=True,
     check_level=IterMapLevel.Surjective,
-    simplify_trivial_iterators=True,
     analyzer=None,
+    simplify_trivial_iterators=True,
 ):
     """Simplify the indices using iter map detection.
 
@@ -240,9 +240,9 @@ def iter_map_simplify(
 
     Returns
     -------
-    results : IterMapResult
-        The iter map matching result.
-        The result's .indices is empty array if no match can be found.
+    results : List[Expr]
+        The simplified indices.
+        The input indices are returned unchanged if no match can be found.
 
     """
     if isinstance(check_level, str):
@@ -250,7 +250,7 @@ def iter_map_simplify(
     elif check_level is None:
         check_level = IterMapLevel.NoCheck
     return _ffi_api.IterMapSimplify(
-        indices, input_iters, predicate, check_level, simplify_trivial_iterators, analyzer
+        indices, input_iters, predicate, check_level, analyzer, simplify_trivial_iterators
     )
 
 
@@ -276,8 +276,8 @@ def subspace_divide(
     sub_iters,
     predicate=True,
     check_level=IterMapLevel.Surjective,
-    simplify_trivial_iterators=True,
     analyzer=None,
+    simplify_trivial_iterators=True,
 ):
     """Detect if bindings can be written as
     ``[a_0*e_0 + b_0 + c_0, a_1*e_1 + b_1, ..., a_n*e_n + b_n]``
@@ -343,8 +343,8 @@ def subspace_divide(
         sub_iters,
         predicate,
         check_level,
-        simplify_trivial_iterators,
         analyzer,
+        simplify_trivial_iterators,
     )
 
 

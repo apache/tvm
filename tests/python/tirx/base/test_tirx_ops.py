@@ -34,7 +34,7 @@ def test_const_fold():
     def check(f, *args):
         x = f(*[tvm_tirx.tirx.const(x, "int32") for x in args])
         y = f(*args)
-        if not isinstance(x, tvm_tirx.tirx.IntImm) or x.value != int(y):
+        if not isinstance(x, tvm_tirx.ir.IntImm) or x.value != int(y):
             raise ValueError(f"check error: {x} vs {y} ")
 
     tmod = tvm_tirx.tirx.truncmod
@@ -103,17 +103,17 @@ def test_const_fold4():
     x1 = tvm_tirx.tirx.const(4, "int32")
     x2 = x1 + 5
     tdiv = tvm_tirx.tirx.truncdiv
-    assert isinstance(x2, tvm_tirx.tirx.IntImm) and x2.value == 9
+    assert isinstance(x2, tvm_tirx.ir.IntImm) and x2.value == 9
     x3 = tdiv(x2, 3)
-    assert isinstance(x3, tvm_tirx.tirx.IntImm) and x3.value == 3
+    assert isinstance(x3, tvm_tirx.ir.IntImm) and x3.value == 3
     x4 = x3 + 0.55
-    assert isinstance(x4, tvm_tirx.tirx.FloatImm) and abs(x4.value - 3.55) < 1e-6
+    assert isinstance(x4, tvm_tirx.ir.FloatImm) and abs(x4.value - 3.55) < 1e-6
     x5 = tvm_tirx.tirx.ceil(x4)
-    assert isinstance(x5, tvm_tirx.tirx.FloatImm) and x5.value == 4
+    assert isinstance(x5, tvm_tirx.ir.FloatImm) and x5.value == 4
     x6 = x5.astype("int")
-    assert isinstance(x6, tvm_tirx.tirx.IntImm) and x6.value == 4, f"x6={x6}"
+    assert isinstance(x6, tvm_tirx.ir.IntImm) and x6.value == 4, f"x6={x6}"
     y = (tvm_tirx.tirx.round((tvm_tirx.tirx.const(6.5, "float32") - 1) / 1.5) + 2).astype("int")
-    assert isinstance(y, tvm_tirx.tirx.IntImm) and y.value == 6
+    assert isinstance(y, tvm_tirx.ir.IntImm) and y.value == 6
 
 
 def test_binary_dtype_match():
@@ -236,9 +236,9 @@ def test_comm_reducer(num_args):
 
 def test_llvm_intrin():
     with pytest.raises(ValueError, match=r"Unknown llvm intrinsic function llvm.dummy"):
-        a = tvm_tirx.tirx.call_llvm_intrin("int32x4", "llvm.dummy")
+        a = tvm_tirx.tirx.call_llvm_intrin("llvm.dummy", ty="int32x4")
     with pytest.raises(ValueError, match=r"Unknown llvm intrinsic function llvm.dummy"):
-        a = tvm_tirx.tirx.call_llvm_pure_intrin("int32x4", "llvm.dummy")
+        a = tvm_tirx.tirx.call_llvm_pure_intrin("llvm.dummy", ty="int32x4")
 
 
 if __name__ == "__main__":

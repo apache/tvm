@@ -58,10 +58,6 @@ class EnvFunc(Object):
     def __call__(self, *args):
         return _ffi_api.EnvFuncCall(self, *args)  # type: ignore # pylint: disable=no-member
 
-    @property
-    def func(self):
-        return _ffi_api.EnvFuncGetFunction(self)  # type: ignore # pylint: disable=no-member
-
     @staticmethod
     def get(name):
         """Get a static env function

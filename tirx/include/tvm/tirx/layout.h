@@ -277,9 +277,6 @@ class ComposeLayout : public Layout {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComposeLayoutNode);
 };
 
-constexpr int kPSUMMaxElemPerBank = 512;
-constexpr int kPSUMBankNum = 8;
-
 }  // namespace tirx
 }  // namespace tvm
 

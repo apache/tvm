@@ -180,7 +180,7 @@ class ExprOp:
     def __invert__(self) -> Expr:
         if _dtype_is_float(self):
             raise RuntimeError("Cannot use ~ operator on float type Expr.")
-        return _prim_ffi_api.bitwise_not(self, UNKNOWN_LOC)  # type: ignore
+        return _prim_ffi_api.BitwiseNot(self, UNKNOWN_LOC)  # type: ignore
 
     def __lt__(self, other: Expr) -> Expr:
         return _prim_ffi_api._OpLT(self, other, UNKNOWN_LOC)  # type: ignore

@@ -18,11 +18,11 @@
 
 Run manually (never at import time)::
 
-    python -m tvm_tirx.backend.cuda.ptx.gen_stubs -o python/tvm/script/tirx.pyi
+    python -m tvm_tirx.backend.cuda.ptx.gen_stubs -o python/tvm_tirx/script/tirx.pyi
 
 The output is a *module stub for* ``tvm_tirx.script.tirx``: that module is
 virtual at runtime (dialect-registry ``__getattr__``), but a ``.pyi`` file
-at ``python/tvm/script/tirx.pyi`` makes Pyright/Pylance resolve it — giving
+at ``python/tvm_tirx/script/tirx.pyi`` makes Pyright/Pylance resolve it — giving
 VS Code completion for ``T.ptx.`` chains. All other members fall back to
 ``Any`` via the stub's module ``__getattr__``, matching today's behavior.
 
@@ -157,7 +157,7 @@ def generate() -> str:
         '"""Generated stub for T.ptx — do not edit.',
         "",
         "Regenerate:",
-        "  python -m tvm_tirx.backend.cuda.ptx.gen_stubs -o python/tvm/script/tirx.pyi",
+        "  python -m tvm_tirx.backend.cuda.ptx.gen_stubs -o python/tvm_tirx/script/tirx.pyi",
         '"""',
         "",
         "from typing import Any",

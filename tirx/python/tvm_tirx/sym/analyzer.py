@@ -507,7 +507,7 @@ def allow_uint_as_index():
     provably stay small), NOT for runtime codegen semantics where unsigned
     wraparound is real behavior.
     """
-    exit_scope = _ffi_api.EnterAllowUintAsIndex()
+    exit_scope = _ffi_api.AnalyzerEnterAllowUintAsIndex()
     try:
         yield
     finally:

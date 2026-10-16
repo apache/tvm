@@ -537,13 +537,13 @@ def test_bind_with_constant():
     def constant_binds():
         x = T.meta_var(1)
         y = T.meta_var(42.0)
-        T.evaluate(T.cast(x, "float32") + y)
+        T.evaluate(T.cast(x, ty="float32") + y)
 
     @Ts.function
     def constant_binds_wrapped():
         x = T.meta_var(T.int32(1))
         y = T.meta_var(T.float32(42.0))
-        T.evaluate(T.cast(x, "float32") + y)
+        T.evaluate(T.cast(x, ty="float32") + y)
 
     assert_structural_equal_ignore_global_symbol(constant_binds, constant_binds_wrapped)
 

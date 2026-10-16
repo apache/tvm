@@ -87,9 +87,9 @@ class CudaWgmmaNamespace:
     """WGMMA companions that are not PTX instructions (pure-C / empty-asm helpers)."""
 
     def __init__(self):
-        self.noop_barrier = _auto_emit_void_call(_cuda_op.cuda_wgmma_noop_barrier)
+        self.noop_barrier = _auto_emit_void_call(_cuda_op.wgmma_noop_barrier)
         self.encode_matrix_descriptor = _auto_emit_void_call(
-            _cuda_op.cuda_wgmma_encode_matrix_descriptor
+            _cuda_op.wgmma_encode_matrix_descriptor
         )
 
 
@@ -98,7 +98,7 @@ class CudaTcgen05Namespace:
 
     def __init__(self):
         self.encode_matrix_descriptor = _auto_emit_void_call(
-            _cuda_op.cuda_tcgen05_encode_matrix_descriptor
+            _cuda_op.tcgen05_encode_matrix_descriptor
         )
         self.encode_instr_descriptor = _auto_emit_void_call(
             _ir.op._make_op_api(_ir.Op.get("tirx.cuda.tcgen05_encode_instr_descriptor"), __name__)
@@ -114,13 +114,13 @@ class IketNamespace:
     """Frontend-only NVIDIA IKET annotations."""
 
     def __init__(self):
-        self.mark = _auto_emit_void_call(_cuda_op.cuda_iket_mark)
-        self.range_start = _auto_emit_void_call(_cuda_op.cuda_iket_range_start)
-        self.range_end = _auto_emit_void_call(_cuda_op.cuda_iket_range_end)
-        self.range_push = _auto_emit_void_call(_cuda_op.cuda_iket_range_push)
-        self.range_pop = _auto_emit_void_call(_cuda_op.cuda_iket_range_pop)
-        self.sentinel_token = _auto_emit_void_call(_cuda_op.cuda_iket_sentinel_token)
-        self.official_event = _auto_emit_void_call(_cuda_op.cuda_iket_official_event)
+        self.mark = _auto_emit_void_call(_cuda_op.iket_mark)
+        self.range_start = _auto_emit_void_call(_cuda_op.iket_range_start)
+        self.range_end = _auto_emit_void_call(_cuda_op.iket_range_end)
+        self.range_push = _auto_emit_void_call(_cuda_op.iket_range_push)
+        self.range_pop = _auto_emit_void_call(_cuda_op.iket_range_pop)
+        self.sentinel_token = _auto_emit_void_call(_cuda_op.iket_sentinel_token)
+        self.official_event = _auto_emit_void_call(_cuda_op.iket_official_event)
 
 
 TensorMapEncodeTiledAttr = _cuda_op.TensorMapEncodeTiledAttr
@@ -130,14 +130,14 @@ TCGen05InstrDescriptorBlockScaledAttrs = _cuda_op.TCGen05InstrDescriptorBlockSca
 iket = IketNamespace()
 wgmma = CudaWgmmaNamespace()
 tcgen05 = CudaTcgen05Namespace()
-warp_sum = _auto_emit_void_call(_cuda_op.cuda_warp_sum)
-warp_max = _auto_emit_void_call(_cuda_op.cuda_warp_max)
-warp_min = _auto_emit_void_call(_cuda_op.cuda_warp_min)
-cta_sum = _auto_emit_void_call(_cuda_op.cuda_cta_sum)
-cta_max = _auto_emit_void_call(_cuda_op.cuda_cta_max)
-cta_min = _auto_emit_void_call(_cuda_op.cuda_cta_min)
-func_call = _auto_emit_void_call(_cuda_op.cuda_func_call)
-sm100_2sm_leader_smem_addr = _auto_emit_void_call(_cuda_op.cuda_sm100_2sm_leader_smem_addr)
+warp_sum = _auto_emit_void_call(_cuda_op.warp_sum)
+warp_max = _auto_emit_void_call(_cuda_op.warp_max)
+warp_min = _auto_emit_void_call(_cuda_op.warp_min)
+cta_sum = _auto_emit_void_call(_cuda_op.cta_sum)
+cta_max = _auto_emit_void_call(_cuda_op.cta_max)
+cta_min = _auto_emit_void_call(_cuda_op.cta_min)
+func_call = _auto_emit_void_call(_cuda_op.func_call)
+sm100_2sm_leader_smem_addr = _auto_emit_void_call(_cuda_op.sm100_2sm_leader_smem_addr)
 timer_init = _auto_emit_void_call(_cuda_op.timer_init)
 timer_start = _auto_emit_void_call(_cuda_op.timer_start)
 timer_end = _auto_emit_void_call(_cuda_op.timer_end)
@@ -145,12 +145,12 @@ timer_finalize = _auto_emit_void_call(_cuda_op.timer_finalize)
 mma_store = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("tirx.cuda.mma_store"), __name__))
 mma_fill = _auto_emit_void_call(_ir.op._make_op_api(_ir.Op.get("tirx.cuda.mma_fill"), __name__))
 bmma_sync = _auto_emit_void_call(_cuda_op.bmma_sync)
-atomic_add = _auto_emit_void_call(_cuda_op.cuda_atomic_add)
-atomic_cas = _auto_emit_void_call(_cuda_op.cuda_atomic_cas)
-cta_reduce = _auto_emit_void_call(_cuda_op.cuda_cta_reduce)
-mov_sreg = _auto_emit_void_call(_cuda_op.cuda_mov_sreg)
-wait_until = _auto_emit_void_call(_cuda_op.cuda_wait_until)
-warp_reduce = _auto_emit_void_call(_cuda_op.cuda_warp_reduce)
+atomic_add = _auto_emit_void_call(_cuda_op.atomic_add)
+atomic_cas = _auto_emit_void_call(_cuda_op.atomic_cas)
+cta_reduce = _auto_emit_void_call(_cuda_op.cta_reduce)
+mov_sreg = _auto_emit_void_call(_cuda_op.mov_sreg)
+wait_until = _auto_emit_void_call(_cuda_op.wait_until)
+warp_reduce = _auto_emit_void_call(_cuda_op.warp_reduce)
 __shfl_sync = _auto_emit_void_call(_cuda_op.__shfl_sync)
 __shfl_up_sync = _auto_emit_void_call(_cuda_op.__shfl_up_sync)
 __shfl_down_sync = _auto_emit_void_call(_cuda_op.__shfl_down_sync)

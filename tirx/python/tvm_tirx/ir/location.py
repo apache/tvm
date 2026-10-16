@@ -16,18 +16,12 @@
 # under the License.
 """Source-location metadata and the shared unknown location."""
 
-from tvm_ffi import get_global_func, register_object
+from tvm_ffi import register_object
 
 from tvm_tirx.base import _RUNTIME_ONLY
 from tvm_tirx.runtime import Object
 
 from . import _ffi_api
-
-
-@register_object("ir.SourceMap")
-class SourceMap(Object):
-    def add(self, name, content):
-        return get_global_func("SourceMapAdd")(self, name, content)
 
 
 @register_object("ir.SourceName")

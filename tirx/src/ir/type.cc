@@ -257,7 +257,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&TypeMutate>())
       .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TypeMaybeInplaceMutate>());
-  refl::GlobalDef().def("ir.TypeMissing", []() { return Type::Missing(); });
 }
 
 MissingType::MissingType() : Type(ffi::UnsafeInit{}) {

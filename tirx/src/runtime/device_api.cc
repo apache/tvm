@@ -154,23 +154,23 @@ void DeviceAPI::SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStrea
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.Device_StreamCreate",
+      .def("runtime.DeviceStreamCreate",
            [](DLDevice dev) {
              return reinterpret_cast<int64_t>(DeviceAPIManager::Get(dev)->CreateStream(dev));
            })
-      .def("runtime.Device_StreamFree",
+      .def("runtime.DeviceStreamFree",
            [](DLDevice dev, int64_t stream) {
              DeviceAPIManager::Get(dev)->FreeStream(dev, reinterpret_cast<TVMStreamHandle>(stream));
            })
-      .def("runtime.Device_SetStream",
+      .def("runtime.DeviceSetStream",
            [](DLDevice dev, int64_t stream) {
              DeviceAPIManager::Get(dev)->SetStream(dev, reinterpret_cast<TVMStreamHandle>(stream));
            })
-      .def("runtime.Device_StreamSync",
+      .def("runtime.DeviceStreamSync",
            [](DLDevice dev, int64_t stream) {
              DeviceAPIManager::Get(dev)->StreamSync(dev, reinterpret_cast<TVMStreamHandle>(stream));
            })
-      .def("runtime.Device_StreamSyncFromTo", [](DLDevice dev, int64_t src, int64_t dst) {
+      .def("runtime.DeviceStreamSyncFromTo", [](DLDevice dev, int64_t src, int64_t dst) {
         DeviceAPIManager::Get(dev)->SyncStreamFromTo(dev, reinterpret_cast<TVMStreamHandle>(src),
                                                      reinterpret_cast<TVMStreamHandle>(dst));
       });
@@ -179,20 +179,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // set device api
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("runtime.GetDeviceAttr",
-           [](int device_type, int device_id, ffi::String name) {
-             DLDevice dev{static_cast<DLDeviceType>(device_type), device_id};
-             DeviceAPI* api = DeviceAPI::Get(dev, name == "exist");
-             if (api == nullptr) return ffi::Any(false);
-             return api->GetAttr(dev, name);
-           })
-      .def("runtime.TVMSetStream", [](int device_type, int device_id, void* stream) {
-        Device dev;
-        dev.device_type = static_cast<DLDeviceType>(device_type);
-        dev.device_id = device_id;
-        DeviceAPIManager::Get(dev)->SetStream(dev, stream);
-      });
+  refl::GlobalDef().def("runtime.GetDeviceAttr",
+                        [](int device_type, int device_id, ffi::String name) {
+                          DLDevice dev{static_cast<DLDeviceType>(device_type), device_id};
+                          DeviceAPI* api = DeviceAPI::Get(dev, name == "exist");
+                          if (api == nullptr) return ffi::Any(false);
+                          return api->GetAttr(dev, name);
+                        });
 }
 }  // namespace runtime
 }  // namespace tvm
@@ -220,18 +213,35 @@ int TVMBackendGetDeviceIndex(int device_type, int* out_device_index) {
   TVM_FFI_SAFE_CALL_END();
 }
 
-void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size, int dtype_code_hint,
-                               int dtype_bits_hint) {
+namespace {
+
+int AllocWorkspaceSafe(int device_type, int device_id, uint64_t size, int dtype_code_hint,
+                       int dtype_bits_hint, void** out) {
+  TVM_FFI_SAFE_CALL_BEGIN();
   DLDevice dev{static_cast<DLDeviceType>(device_type), device_id};
   TVM_FFI_CHECK_LE(size, std::numeric_limits<size_t>::max(), ValueError)
       << "Workspace size exceeds addressable memory";
   DLDataType type_hint{static_cast<uint8_t>(dtype_code_hint), static_cast<uint8_t>(dtype_bits_hint),
                        1};
-  return DeviceAPI::Get(dev)->AllocWorkspace(dev, static_cast<size_t>(size), type_hint);
+  *out = DeviceAPI::Get(dev)->AllocWorkspace(dev, static_cast<size_t>(size), type_hint);
+  TVM_FFI_SAFE_CALL_END();
+}
+
+}  // namespace
+
+void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size, int dtype_code_hint,
+                               int dtype_bits_hint) {
+  void* ptr = nullptr;
+  if (AllocWorkspaceSafe(device_type, device_id, size, dtype_code_hint, dtype_bits_hint, &ptr) !=
+      0) {
+    return nullptr;
+  }
+  return ptr;
 }
 
 int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
+  TVM_FFI_SAFE_CALL_BEGIN();
   DLDevice dev{static_cast<DLDeviceType>(device_type), device_id};
   DeviceAPI::Get(dev)->FreeWorkspace(dev, ptr);
-  return 0;
+  TVM_FFI_SAFE_CALL_END();
 }

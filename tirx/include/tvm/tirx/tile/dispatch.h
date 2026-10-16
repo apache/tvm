@@ -16,7 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-/*! \brief Dispatch interface for lowering tile instruction Calls. */
+/*!
+ * \file tvm/tirx/tile/dispatch.h
+ * \brief Dispatch interface for lowering tile instruction Calls.
+ */
 #ifndef TVM_TIRX_TILE_DISPATCH_H_
 #define TVM_TIRX_TILE_DISPATCH_H_
 

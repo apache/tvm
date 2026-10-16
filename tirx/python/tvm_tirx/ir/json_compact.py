@@ -18,55 +18,6 @@
 
 import json
 
-_PRIM_TYPE_KEY_RENAMES = {
-    "arith.Analyzer": "sym.Analyzer",
-    "arith.CanonicalExpr": "sym.CanonicalExpr",
-    "arith.ConstIntBound": "sym.ConstIntBound",
-    "arith.IntervalSet": "sym.IntervalSet",
-    "arith.IterMapExpr": "sym.IterMapExpr",
-    "arith.IterMapResult": "sym.IterMapResult",
-    "arith.IterMark": "sym.IterMark",
-    "arith.IterSplitExpr": "sym.IterSplitExpr",
-    "arith.IterSumExpr": "sym.IterSumExpr",
-    "arith.ModularSet": "sym.ModularSet",
-    "arith.RewriteSimplifierStats": "sym.RewriteSimplifierStats",
-    "arith.SplitExpr": "sym.SplitExpr",
-    "arith.SumExpr": "sym.SumExpr",
-    "tirx.BufferRegion": "ir.TensorRegion",
-    "tirx.BufferRegionType": "ir.TensorRegionType",
-    "tirx.IterVar": "s_tir.IterVar",
-    "tirx.SBlock": "s_tir.SBlock",
-    "tirx.SBlockRealize": "s_tir.SBlockRealize",
-    "tirx.MatchBufferRegion": "s_tir.MatchBufferRegion",
-    "tirx.TensorIntrin": "s_tir.TensorIntrin",
-    "tirx.Cast": "ir.prim.Cast",
-    "tirx.Add": "ir.prim.Add",
-    "tirx.Sub": "ir.prim.Sub",
-    "tirx.Mul": "ir.prim.Mul",
-    "tirx.Div": "ir.prim.Div",
-    "tirx.Mod": "ir.prim.Mod",
-    "tirx.FloorDiv": "ir.prim.FloorDiv",
-    "tirx.FloorMod": "ir.prim.FloorMod",
-    "tirx.Min": "ir.prim.Min",
-    "tirx.Max": "ir.prim.Max",
-    "tirx.EQ": "ir.prim.EQ",
-    "tirx.NE": "ir.prim.NE",
-    "tirx.LT": "ir.prim.LT",
-    "tirx.LE": "ir.prim.LE",
-    "tirx.GT": "ir.prim.GT",
-    "tirx.GE": "ir.prim.GE",
-    "tirx.And": "ir.prim.And",
-    "tirx.Or": "ir.prim.Or",
-    "tirx.Not": "ir.prim.Not",
-    "tirx.Select": "ir.prim.Select",
-    "tirx.Let": "ir.prim.Let",
-    "tirx.Ramp": "ir.prim.Ramp",
-    "tirx.Broadcast": "ir.prim.Broadcast",
-    "tirx.Shuffle": "ir.prim.Shuffle",
-    "tirx.CommReducer": "te.CommReducer",
-    "tirx.Reduce": "te.Reduce",
-}
-
 
 def get_version(jgraph):
     """
@@ -139,22 +90,7 @@ def upgrade_json(json_str):
     # written before the canonical Var field was renamed to `name`.  Rewriting
     # nodes in place preserves node indices and shared references.
     nodes = data.get("nodes", [])
-    tensor_region_type = None
     for node in nodes:
-        if node.get("type") == "tirx.BufferRegion":
-            fields = node.get("data")
-            if not isinstance(fields, dict) or "buffer" not in fields:
-                raise ValueError("Legacy tirx.BufferRegion requires a buffer field")
-            fields["source"] = fields.pop("buffer")
-            # Typed BufferRegion already carries type/loc.  Before it became
-            # an Expr, it had only buffer/region; supply that form's defaults
-            # by appending a type node so existing graph indices stay intact.
-            if "ty" not in fields:
-                if tensor_region_type is None:
-                    tensor_region_type = len(nodes)
-                    nodes.append({"type": "ir.TensorRegionType", "data": {}})
-                fields["ty"] = tensor_region_type
-        node["type"] = _PRIM_TYPE_KEY_RENAMES.get(node.get("type"), node.get("type"))
         if node.get("type") == "relax.expr.Var":
             node["type"] = "ir.Var"
         elif node.get("type") == "tirx.Var":

@@ -109,7 +109,7 @@ void IRModuleFrameObj::ExitWithScope() {
   IRBuilder builder = IRBuilder::Current();
   TVM_FFI_CHECK(!builder->result.has_value(), ValueError) << "Builder.result has already been set";
   auto dict_attrs = DictAttrs(attrs);
-  builder->result = tvm::IRModule(func_map, {}, dict_attrs, global_infos);
+  builder->result = tvm::IRModule(func_map, dict_attrs, global_infos);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -172,7 +172,7 @@ void ForFrameObj::SetNames(
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  tvm::ffi::reflection::GlobalDef().def_method("script.ir_builder.tirx.ForFrameSetNames",
+  tvm::ffi::reflection::GlobalDef().def_method("script.ir_builder.ForFrameSetNames",
                                                &ForFrameObj::SetNames);
 }
 

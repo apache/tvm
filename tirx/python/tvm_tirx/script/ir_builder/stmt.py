@@ -30,9 +30,8 @@ from typing import Any
 
 import tvm_tirx
 from tvm_tirx import ir as _ir
-from tvm_tirx.ir import Expr, TensorRegion, Type, Var
+from tvm_tirx.ir import Expr, IntImm, TensorRegion, Type, Var
 from tvm_tirx.ir import StringImm as _StringImm
-from tvm_tirx.ir.prim import IntImm
 from tvm_tirx.script.ir_builder import base as _base
 from tvm_tirx.script.ir_builder.base import AlreadyEmitted
 

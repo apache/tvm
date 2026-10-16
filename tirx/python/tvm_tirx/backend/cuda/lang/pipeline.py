@@ -20,8 +20,8 @@ These classes emit TIR via @T.inline. Decorate with @T.meta_class so that
 instances are automatically treated as meta values inside @T.function.
 """
 
+from tvm_tirx.ir import IntImm as _IntImm
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import IntImm as _IntImm
 
 
 def _tcgen05_commit_is_unicast(cta_mask):

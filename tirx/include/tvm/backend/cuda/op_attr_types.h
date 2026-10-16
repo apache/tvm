@@ -16,7 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
+/*!
+ * \file tvm/backend/cuda/op_attr_types.h
+ * \brief CUDA backend operator attribute keys.
+ */
 #ifndef TVM_BACKEND_CUDA_OP_ATTR_TYPES_H_
 #define TVM_BACKEND_CUDA_OP_ATTR_TYPES_H_
 

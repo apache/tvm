@@ -108,7 +108,7 @@ def _tensor_map(ctx, region, rank, box, encoding):
     view_dims = tuple(r.extent for r in region.region)
     dims = view_dims[:rank]
     for size in dims:
-        wide = T.cast(size, "int64")
+        wide = T.cast(size, ty="int64")
         _encode_requirement(
             ctx, T.And(wide > 0, wide <= 2**32), "TMA dimensions must be in 1..2^32"
         )
@@ -166,7 +166,7 @@ def _tensor_map(ctx, region, rank, box, encoding):
         f"TMA global origin requires {alignment}-byte alignment",
     )
     for stride in strides[:-1]:
-        byte_stride = T.cast(stride, "int64") * bits // 8
+        byte_stride = T.cast(stride, ty="int64") * bits // 8
         _encode_requirement(
             ctx,
             byte_stride % alignment == 0,
@@ -300,8 +300,8 @@ def lower(opcode, entry, modifiers, args, params, sctx):
         ctx.require(base_bits % 1024 == 0, "TMA atom origin must be 128-byte aligned")
         pointer = (
             T.cuda.cvta_generic_to_shared(pointer)
-            - T.cast(physical_bits // 8, "uint32")
-            + T.cast(base_bits // 8, "uint32")
+            - T.cast(physical_bits // 8, ty="uint32")
+            + T.cast(base_bits // 8, ty="uint32")
         )
     else:
         smem.aligned(origin, 128)
@@ -341,20 +341,20 @@ def lower(opcode, entry, modifiers, args, params, sctx):
         if len(rows) != 4:
             raise ValueError("gather4 requires four explicit row coordinates")
         native_coords = [coords[-1], *rows]
-    native_coords = [T.cast(c, "int32") for c in native_coords]
+    native_coords = [T.cast(c, ty="int32") for c in native_coords]
     if load:
         native = [pointer, tmap, *native_coords, params.pop("mbar")]
         if modifiers.get("multicast"):
             native.append(
                 T.cast(
                     params.pop("cta_mask"),
-                    "uint32" if entry.name.endswith("multicast32") else "uint16",
+                    ty="uint32" if entry.name.endswith("multicast32") else "uint16",
                 )
             )
     else:
         native = [tmap, *native_coords, pointer]
     if modifiers.get("cache"):
-        native.append(T.cast(params.pop("cache_policy"), "uint64"))
+        native.append(T.cast(params.pop("cache_policy"), ty="uint64"))
     pred = params.pop("pred", None)
     if params:
         raise ValueError(f"{opcode}: unknown fields {tuple(params)}")

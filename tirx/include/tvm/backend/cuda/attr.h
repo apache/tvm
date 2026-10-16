@@ -16,18 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
+/*!
+ * \file tvm/backend/cuda/attr.h
+ * \brief CUDA backend attribute keys.
+ */
 #ifndef TVM_BACKEND_CUDA_ATTR_H_
 #define TVM_BACKEND_CUDA_ATTR_H_
+
+#include <tvm/ffi/reflection/accessor.h>
+#include <tvm/ir/expr.h>
 
 namespace tvm {
 namespace backend {
 namespace cuda {
 namespace attr {
-inline constexpr const char* kLaunchFields = "cuda.launch_fields";
-inline constexpr const char* kKernelAttrs = "cuda.kernel_attrs";
-inline constexpr const char* kSmemRequired = "cuda.smem_required";
-inline constexpr const char* kLaunchDimensions = "cuda.launch_dimensions";
+inline constexpr ffi::reflection::AttrKey<ffi::Array<ffi::String>> kLaunchFields{
+    "cuda.launch_fields"};
+inline constexpr ffi::reflection::AttrKey<ffi::Map<ffi::String, int64_t>> kKernelAttrs{
+    "cuda.kernel_attrs"};
+inline constexpr ffi::reflection::AttrKey<int64_t> kSmemRequired{"cuda.smem_required"};
+inline constexpr ffi::reflection::AttrKey<ffi::Array<PrimExpr>> kLaunchDimensions{
+    "cuda.launch_dimensions"};
+inline constexpr ffi::reflection::AttrKey<bool> kIKetEnabled{"cuda.iket.enabled"};
 }  // namespace attr
 }  // namespace cuda
 }  // namespace backend

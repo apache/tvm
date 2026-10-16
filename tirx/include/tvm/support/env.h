@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file support/env.h
+ * \file tvm/support/env.h
  * \brief Typed environment variable access.
  */
 #ifndef TVM_SUPPORT_ENV_H_

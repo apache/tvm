@@ -53,7 +53,7 @@ enum SignType { kPositive, kNegative, kZero, kUnknown };
  */
 class IntSetObj : public ffi::Object {
  public:
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.IntSet", IntSetObj, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("sym.IntSet", IntSetObj, ffi::Object);
 };
 
 /*!
@@ -161,17 +161,6 @@ class IntSet : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IntSet, ffi::ObjectRef, IntSetObj);
 };
 
-//-----------------------------------------------
-// Integer set legacy API.
-//------------------------------------------------
-/*!
- * \brief Convert std::unordered_map<const VarNode*, IntSet> to ffi::Map<Var, IntSet>
- *
- * \param dom_map The domain map to convert.
- * \return The converted map.
- */
-TVM_TIRX_DLL ffi::Map<Var, IntSet> ConvertDomMap(
-    const std::unordered_map<const VarNode*, IntSet>& dom_map);
 /*!
  * \brief Find an symbolic integer set that contains all possible values of
  *  e given the domain of each variables.
@@ -182,15 +171,6 @@ TVM_TIRX_DLL ffi::Map<Var, IntSet> ConvertDomMap(
  */
 TVM_TIRX_DLL IntSet EvalSet(PrimExpr e, const ffi::Map<Var, IntSet>& dom_map);
 /*!
- * \brief Same as EvalSet, but takes unordered_map
- *
- * \param e The expression to be evaluated.
- * \param dom_map The domain of each variable.
- * \return An integer set that can cover all the possible values of e.
- */
-TVM_TIRX_DLL IntSet EvalSet(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom_map);
-
-/*!
  * \brief Find an symbolic integer set that contains is union over
  *  all the possible conditional values in dom_map.
  *
@@ -198,15 +178,15 @@ TVM_TIRX_DLL IntSet EvalSet(PrimExpr e, const std::unordered_map<const VarNode*,
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values.
  */
-TVM_TIRX_DLL IntSet EvalSet(IntSet s, const std::unordered_map<const VarNode*, IntSet>& dom_map);
+TVM_TIRX_DLL IntSet EvalSet(IntSet s, const ffi::Map<Var, IntSet>& dom_map);
 /*!
- * \brief Same as EvalSet, but takes unordered_map
+ * \brief Evaluate the range over the domain of each variable
  *
  * \param r The range to be evaluated.
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-TVM_TIRX_DLL IntSet EvalSet(Range r, const std::unordered_map<const VarNode*, IntSet>& dom_map);
+TVM_TIRX_DLL IntSet EvalSet(Range r, const ffi::Map<Var, IntSet>& dom_map);
 /*!
  * \brief Same as EvalSet, but takes ffi::Array<Range>
  *
@@ -226,8 +206,7 @@ using ExprIntSetMap = std::unordered_map<PrimExpr, IntSet, ffi::ObjectPtrHash, f
  * \param dom_map The domain of each variable.
  * \return the map from the expression to its possible value.
  */
-TVM_TIRX_DLL ExprIntSetMap
-EvalSetForEachSubExpr(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom_map);
+TVM_TIRX_DLL ExprIntSetMap EvalSetForEachSubExpr(PrimExpr e, const ffi::Map<Var, IntSet>& dom_map);
 
 /*!
  * \brief Create a union set of all sets, possibly relaxed

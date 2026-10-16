@@ -822,7 +822,7 @@ class LambdaExprNode : public StagingExprNode {
 /*! \brief Managed reference to a typed staging lambda. */
 class LambdaExpr : public StagingExpr {
  public:
-  TVM_TIRX_DLL explicit LambdaExpr(ffi::Array<Var> vars, Expr body);
+  TVM_TIRX_DLL explicit LambdaExpr(ffi::Array<Var> vars, Expr body, Location loc = UnknownLoc());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LambdaExpr, StagingExpr, LambdaExprNode);
 };
 

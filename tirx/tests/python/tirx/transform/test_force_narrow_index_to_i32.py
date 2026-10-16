@@ -85,7 +85,7 @@ def test_thread_axis2():
                                     + i0_i1_i2_i3_fused_2
                                 )
                                 % T.int64(384),
-                                "int32",
+                                ty="int32",
                             ),
                         ] = T.Select(
                             T.cast(
@@ -115,10 +115,10 @@ def test_thread_axis2():
                                             + i0_i1_i2_i3_fused_2
                                         )
                                         % T.int64(384),
-                                        "int32",
+                                        ty="int32",
                                     ),
                                 ],
-                                "int32",
+                                ty="int32",
                             )
                             != 0,
                             T.float32(-1000000000),
@@ -145,7 +145,7 @@ def test_thread_axis2():
                                         + i0_i1_i2_i3_fused_2
                                     )
                                     % T.int64(384),
-                                    "int32",
+                                    ty="int32",
                                 ),
                             ],
                         )
@@ -307,10 +307,10 @@ def test_fail_on_internal_tensor():
         C = T.alloc_tensor(ty_args=[T.Tensor((128,), "int64")])
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
-                C[i * 8 + j] = T.cast(A[i * 8 + j], "int64") + T.int64(1)
+                C[i * 8 + j] = T.cast(A[i * 8 + j], ty="int64") + T.int64(1)
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
-                B[i * 8 + j] = T.cast(C[i * 8 + j] + T.int64(1), "int32")
+                B[i * 8 + j] = T.cast(C[i * 8 + j] + T.int64(1), ty="int32")
 
     @I.ir_module
     class mod:

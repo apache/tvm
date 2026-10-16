@@ -22,10 +22,10 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/object_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/script/printer/printer.h>
-#include <tvm/support/str_escape.h>
 
 #include <algorithm>
 #include <cmath>
@@ -112,6 +112,9 @@ class DocPrinter {
    * \sa PrintTypedDoc
    */
   void PrintDoc(const Doc& doc);
+
+  /*! \brief Render and quote an expression, preserving its diagnostic spans. */
+  void PrintExprString(const ExprDoc& doc);
 
   /*!
    * \brief Virtual method to print a LiteralDoc
@@ -296,6 +299,9 @@ class DocPrinter {
 
  private:
   void MarkSpan(const ByteSpan& span, const AccessPath& path);
+
+  // Nested string expressions defer their spans until escaping establishes final offsets.
+  std::vector<std::pair<ByteSpan, AccessPath>>* pending_string_spans_{nullptr};
 
   /*! \brief Options to customize certain aspects of the output */
   PrinterConfig options_;
@@ -666,6 +672,10 @@ void DocPrinter::PrintDoc(const Doc& doc) {
 }
 
 void DocPrinter::MarkSpan(const ByteSpan& span, const AccessPath& path) {
+  if (pending_string_spans_ != nullptr) {
+    pending_string_spans_->emplace_back(span, path);
+    return;
+  }
   int n = path_to_underline_.size();
   for (int i = 0; i < n; ++i) {
     AccessPath p = path_to_underline_[i];
@@ -683,81 +693,24 @@ void DocPrinter::MarkSpan(const ByteSpan& span, const AccessPath& path) {
 namespace {
 
 /*!
- * \brief Escape an ExprStringDoc child while preserving final output positions.
+ * \brief Buffer a complete expression before UTF-8-aware escaping.
  *
- * ExprStringDoc must print its child through the active PythonDocPrinter so that the child's
- * precedence, printer configuration, and source-path bookkeeping stay in the current traversal.
- * However, escaping after printing into a temporary buffer would make PrintDoc record positions
- * in that unescaped buffer, rather than the final Python source. This scoped adapter instead
- * replaces the output stream's buffer only while the child is printed. It escapes each write and
- * forwards it immediately to the original final buffer; the caller emits the surrounding quotes
- * outside the scope so that only the child is transformed.
- *
- * The adapter owns neither the output stream nor its original buffer. Both outlive this stack
- * object. The constructor saves the original buffer in destination_ and installs this adapter;
- * the destructor restores the original buffer before the caller continues writing to the stream.
- *
- * PrintDoc uses tellp() before and after every child to record source spans. tellp() reaches
- * seekoff(0, cur, out), which is the only seek this adapter accepts and delegates directly to the
- * original buffer. Because that buffer already contains the preceding output and advances by the
- * escaped byte count, child spans use absolute positions in the final source, including any
- * expansion introduced by StrEscape.
- *
- * A raw newline violates the one-line expression-string contract. xsputn records its presence
- * while still escaping and forwarding the write, and the caller checks saw_newline() before
- * completing the literal. On every exit path, including exception unwinding, the noexcept
- * destructor restores the original buffer.
+ * Child tellp() positions refer to this buffer. PrintExprString translates the deferred
+ * source spans after escaping and restores the destination even if printing throws.
  */
-class ScopedExprStringEscapeBuf : public std::streambuf {
+class ScopedExprStringBuffer {
  public:
-  explicit ScopedExprStringEscapeBuf(std::ostream* output)
-      : output_(output), destination_(output->rdbuf()) {
-    output_->rdbuf(this);
-  }
-
-  ~ScopedExprStringEscapeBuf() noexcept { output_->rdbuf(destination_); }
-
-  ScopedExprStringEscapeBuf(const ScopedExprStringEscapeBuf&) = delete;
-  ScopedExprStringEscapeBuf& operator=(const ScopedExprStringEscapeBuf&) = delete;
-
-  bool saw_newline() const { return saw_newline_; }
-
- protected:
-  std::streamsize xsputn(const char* data, std::streamsize count) final {
-    if (count <= 0) return 0;
-    saw_newline_ = saw_newline_ || std::find(data, data + count, '\n') != data + count;
-    // StrEscape is byte-wise, so each write can be transformed independently and forwarded
-    // without retaining or copying the complete output. Report consumed input bytes, not the
-    // potentially larger number of escaped bytes written to the destination.
-    std::string escaped = support::StrEscape(data, static_cast<size_t>(count));
-    destination_->sputn(escaped.data(), escaped.size());
-    return count;
-  }
-
-  int_type overflow(int_type ch) final {
-    if (traits_type::eq_int_type(ch, traits_type::eof())) {
-      return traits_type::not_eof(ch);
-    }
-    char value = traits_type::to_char_type(ch);
-    return xsputn(&value, 1) == 1 ? ch : traits_type::eof();
-  }
-
-  int sync() final { return destination_->pubsync(); }
-
-  pos_type seekoff(off_type offset, std::ios_base::seekdir direction,
-                   std::ios_base::openmode mode) final {
-    // Support the current-position query used by tellp(), preserving the destination's absolute
-    // escaped offset. ExprStringDoc rendering never needs to reposition the output sequence.
-    if (offset == 0 && direction == std::ios_base::cur && (mode & std::ios_base::out)) {
-      return destination_->pubseekoff(offset, direction, mode);
-    }
-    return pos_type(off_type(-1));
-  }
+  explicit ScopedExprStringBuffer(std::ostream* output)
+      : output_(output), destination_(output->rdbuf(&buffer_)) {}
+  ~ScopedExprStringBuffer() noexcept { output_->rdbuf(destination_); }
+  ScopedExprStringBuffer(const ScopedExprStringBuffer&) = delete;
+  ScopedExprStringBuffer& operator=(const ScopedExprStringBuffer&) = delete;
+  std::string str() const { return buffer_.str(); }
 
  private:
+  std::stringbuf buffer_;
   std::ostream* output_;
   std::streambuf* destination_;
-  bool saw_newline_{false};
 };
 
 ffi::String RenderInvisiblePathInfo(const ffi::String& script,
@@ -1088,6 +1041,41 @@ class PythonDocPrinter : public DocPrinter {
   bool is_last_stmt_{false};
 };
 
+void DocPrinter::PrintExprString(const ExprDoc& doc) {
+  size_t start_pos = output_.tellp();
+  std::vector<std::pair<ByteSpan, AccessPath>> spans;
+  auto* previous_spans = pending_string_spans_;
+  std::string text;
+  {
+    ScopedExprStringBuffer buffer(&output_);
+    pending_string_spans_ = &spans;
+    try {
+      PrintDoc(doc);
+      text = buffer.str();
+    } catch (...) {
+      pending_string_spans_ = previous_spans;
+      throw;
+    }
+    pending_string_spans_ = previous_spans;
+  }
+  TVM_FFI_ICHECK(text.find('\n') == std::string::npos)
+      << "An expression rendered inside a Python string literal must be one line";
+  output_ << ffi::EscapedStringPy(text);
+  // Prefix lengths include the opening quote and exclude the closing quote. Every source
+  // span ends at a Doc boundary, after the complete UTF-8 text for that child was printed.
+  std::map<size_t, size_t> offsets;
+  auto escaped_offset = [&](size_t offset) {
+    auto [it, inserted] = offsets.emplace(offset, 0);
+    if (inserted) {
+      it->second = start_pos + ffi::EscapedStringPy(text.substr(0, offset)).size() - 1;
+    }
+    return it->second;
+  };
+  for (const auto& [span, path] : spans) {
+    MarkSpan({escaped_offset(span.first), escaped_offset(span.second)}, path);
+  }
+}
+
 void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
   const ffi::Any& value = doc->value;
   if (value == nullptr) {
@@ -1129,22 +1117,13 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
     }
 
   } else if (const auto opt_str = value.as<ffi::String>()) {
-    output_ << "\"" << support::StrEscape((*opt_str).data(), (*opt_str).size()) << "\"";
+    output_ << ffi::EscapedStringPy(*opt_str);
   } else {
     TVM_FFI_THROW(TypeError) << "Unsupported literal value type: " << value.GetTypeKey();
   }
 }
 
-void PythonDocPrinter::PrintTypedDoc(const ExprStringDoc& doc) {
-  this->output_ << '"';
-  {
-    ScopedExprStringEscapeBuf escaping_scope(&this->output_);
-    this->PrintDoc(doc->value);
-    TVM_FFI_ICHECK(!escaping_scope.saw_newline())
-        << "An expression rendered inside a Python string literal must be one line";
-  }
-  this->output_ << '"';
-}
+void PythonDocPrinter::PrintTypedDoc(const ExprStringDoc& doc) { PrintExprString(doc->value); }
 
 void PythonDocPrinter::PrintTypedDoc(const IdDoc& doc) { output_ << doc->name; }
 

@@ -484,7 +484,7 @@ def test_roundtrip_persistent_not_present():
 
 
 def test_roundtrip_cuda_func_call_source_code():
-    """cuda_func_call with a multiline trailing source operand must print with
+    """func_call with a multiline trailing source operand must print with
     inline string literal, not as a metadata reference."""
 
     # fmt: off
@@ -590,7 +590,7 @@ def test_scope_id_dtype_uint32():
 
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         bx = T.cuda.block_idx('x')
-        tx = T.cast(T.cuda.thread_idx('x'), "uint32")
+        tx = T.cast(T.cuda.thread_idx('x'), ty="uint32")
         A[tx] = T.float32(bx)
     # fmt: on
 
@@ -620,8 +620,8 @@ def test_scope_id_dtype_uint32_lane_and_warp():
 
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 32))
         _ = T.cuda.block_idx('x')
-        warp = T.cast(T.cuda.warp_id(), "uint32")
-        lane = T.cast(T.cuda.lane_id(), "uint32")
+        warp = T.cast(T.cuda.warp_id(), ty="uint32")
+        lane = T.cast(T.cuda.lane_id(), ty="uint32")
         A[lane] = T.float32(warp)
     # fmt: on
 
@@ -643,8 +643,8 @@ def test_scope_id_dtype_uint32_with_preferred():
         )
         _ = T.cuda.cluster_id('x')
         cx, cy = (
-            T.cast(T.cuda.cluster_cta_id("x"), "uint32"),
-            T.cast(T.cuda.cluster_cta_id("y"), "uint32"),
+            T.cast(T.cuda.cluster_cta_id("x"), ty="uint32"),
+            T.cast(T.cuda.cluster_cta_id("y"), ty="uint32"),
         )
         tx = T.cuda.thread_idx('x')
         if tx == 0:
@@ -665,7 +665,7 @@ def test_scope_id_dtype_uint32_deferred_extent():
 
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 32))
         _ = T.cuda.block_idx('x')
-        lane = T.cast(T.cuda.lane_id(), "uint32")
+        lane = T.cast(T.cuda.lane_id(), ty="uint32")
         warp = T.cuda.warp_id()
         A[lane] = T.float32(warp)
     # fmt: on

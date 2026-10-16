@@ -60,6 +60,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_native_fn_attr<&ValidateBuiltinRegion>(tvm::op_attr::kRegionValidate);
 }
 
+void ValidateDeviceScopeRegion(const RegionStmtNode* region) {
+  TVM_FFI_CHECK(region->result_vars.empty(), ValueError)
+      << region->op->name << " expects no results";
+}
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.device_scope", "Internal host/device splitting boundary.")
+      .signature(sig::var_args<Expr>("launch_values"), sig::call_attrs<DictAttrsNode>())
+      .set_native_fn_attr<&RegionNoBodyParams>(tvm::op_attr::kRegionGetBodyParams)
+      .set_native_fn_attr<&ValidateDeviceScopeRegion>(tvm::op_attr::kRegionValidate);
+}
+
 const Op& device_entry_op() {
   static const Op op = Op::Get("tirx.device_entry");
   return op;
@@ -68,7 +79,7 @@ const Op& device_entry_op() {
 void ValidateDeviceEntry(const RegionStmtNode* region) {
   TVM_FFI_CHECK(region->result_vars.empty() && region->body_params.empty(), ValueError)
       << "device_entry expects no results or body parameters";
-  if (auto fields = region->attrs->dict.Get(tvm::backend::cuda::attr::kLaunchFields)) {
+  if (auto fields = region->attrs->dict.Get(tvm::backend::cuda::attr::kLaunchFields.name)) {
     TVM_FFI_CHECK_EQ(fields->as_or_throw<ffi::Array<ffi::String>>().size(), region->args.size(),
                      ValueError)
         << "device_entry launch fields must describe every configuration operand";

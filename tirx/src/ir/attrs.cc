@@ -30,9 +30,4 @@ TVM_FFI_STATIC_INIT_BLOCK() { DictAttrsNode::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() { tvm::ffi::reflection::ObjectDef<AttrsNode>(); }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.DictAttrsGetDict", [](DictAttrs attrs) { return attrs->dict; });
-}
-
 }  // namespace tvm

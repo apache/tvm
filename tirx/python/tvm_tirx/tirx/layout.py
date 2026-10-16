@@ -33,9 +33,6 @@ from .thread_scope import ThreadScope
 
 @tvm_ffi.register_object("tirx.Layout")
 class Layout(Object):
-    def __init__(self):
-        self.__init_handle_by_constructor__(_ffi_api.Layout)  # pylint: disable=no-member
-
     def verify_well_formed(self) -> bool:
         """Verify if the layout is well-formed.
 
@@ -144,7 +141,7 @@ class Layout(Object):
         # Python ``int`` -> int32 IntImm and breaks structural-equal).
         for t in data:
             if tvm_tirx.ir.is_prim_expr(t) and t.ty.dtype != "int32":
-                from .expr import IntImm  # pylint: disable=import-outside-toplevel
+                from tvm_tirx.ir import IntImm  # pylint: disable=import-outside-toplevel
 
                 stride = IntImm(t.ty, stride)
                 break

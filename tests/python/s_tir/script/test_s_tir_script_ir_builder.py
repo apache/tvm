@@ -251,7 +251,7 @@ def test_ir_builder_tir_thread():
     thread_var = tirx.Var("v", "int32")
     launch = tvm_tirx.ir.RegionStmt(
         tvm_tirx.ir.Op.get("tirx.launch_thread"),
-        [tvm_tirx.ir.StringImm("blockIdx.y"), tirx.IntImm("int32", 1)],
+        [tvm_tirx.ir.StringImm("blockIdx.y"), tvm_tirx.ir.IntImm("int32", 1)],
         [thread_var],
         {},
         tvm_tirx.ir.Evaluate(0),

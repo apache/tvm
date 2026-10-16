@@ -23,7 +23,7 @@ from tvm_tirx.runtime import Object
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("ir.IntSet")
+@tvm_ffi.register_object("sym.IntSet")
 class IntSet(Object):
     """Represent a set of integer in one dimension."""
 
@@ -49,7 +49,7 @@ class IntSet(Object):
         rset : IntSet
             The result set.
         """
-        return _ffi_api.intset_vector(vec)
+        return _ffi_api.IntSetVector(vec)
 
     @staticmethod
     def single_point(point):
@@ -65,7 +65,7 @@ class IntSet(Object):
         rset : IntSet
             The result set.
         """
-        return _ffi_api.intset_single_point(point)
+        return _ffi_api.IntSetSinglePoint(point)
 
 
 @tvm_ffi.register_object("sym.IntervalSet")
@@ -179,12 +179,12 @@ def pos_inf():
 
 
 def neg_inf():
-    """Returns the symbolic positive infinity
+    """Returns the symbolic negative infinity
 
     Returns
     ----------
     neg_inf : tvm_tirx.ir.Var
-        A symbolic var that indicates positive infinity
+        A symbolic var that indicates negative infinity
     """
     return _ffi_api.NegInf()
 

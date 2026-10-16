@@ -271,12 +271,12 @@ def register_op_attr(op_name, attr_key, value=None, override=False):
     -------
     result : object or function
         The registered value when supplied, or a decorator that registers and
-        returns its argument. The named Op is created if it does not exist.
+        returns its argument. The named Op must already be registered.
     """
 
     def _register(v):
         """internal register function"""
-        _ffi_api.RegisterOpAttr(op_name, attr_key, v, override)
+        Op.get(op_name).set_attr(attr_key, v, override)
         return v
 
     return _register(value) if value is not None else _register

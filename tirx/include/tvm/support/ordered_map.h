@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file support/ordered_map.h
+ * \file tvm/support/ordered_map.h
  * \brief An STL-like map that preserves insertion order.
  */
 #ifndef TVM_SUPPORT_ORDERED_MAP_H_

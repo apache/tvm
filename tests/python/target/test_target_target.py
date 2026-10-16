@@ -329,6 +329,9 @@ def test_target_with_host():
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 32768
+    tgt = tgt.with_host(None)
+    assert tgt.kind.name == "cuda"
+    assert tgt.host is None
 
 
 def test_target_attr_bool_value():

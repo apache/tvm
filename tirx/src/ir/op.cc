@@ -235,12 +235,6 @@ void OpNode::RegisterReflection() {
       .def_ro("ty_args_info", &OpNode::ty_args_info, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("var_args_info", &OpNode::var_args_info, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("var_ty_args_info", &OpNode::var_ty_args_info, refl::AttachFieldFlag::SEqHashIgnore())
-      .def_static("get", &Op::Get,
-                  "get(op_name: str) -> Op\n\nReturn the canonical named Op; raise AttributeError "
-                  "if unregistered.")
-      .def_static(
-          "list_op_names", &Op::ListNames,
-          "list_op_names() -> list[str]\n\nReturn registered operator names in unspecified order.")
       .def(
           "get_attr",
           [](Op op, ffi::String name) {
@@ -332,11 +326,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              TVM_FFI_CHECK(!OpRegistry::Global()->Contains(name), AttributeError)
                  << "Operator " << name << " is registered before";
              OpDef(name, doc);
-           })
-      .def("ir.RegisterOpAttr", [](ffi::String name, ffi::String key, ffi::Any value, bool override) {
-        OpDef(name)
-            .set_attr(key, value, override);
-      });
+           });
   // clang-format on
 }
 

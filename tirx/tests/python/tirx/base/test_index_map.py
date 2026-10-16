@@ -21,9 +21,9 @@ import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
-from tvm_tirx.ir import assert_structural_equal, const
+from tvm_tirx.ir import IntImm, assert_structural_equal, const
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import IndexMap, IntImm, Var, floordiv, floormod
+from tvm_tirx.tirx import IndexMap, Var, floordiv, floormod
 
 
 def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
