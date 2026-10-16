@@ -379,7 +379,7 @@ def matmul_relu_padding(A: T.Tensor((127, 127), "float16"), B: T.Tensor((127, 12
                                 Ts.reads(C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i], A_reindex[v0_o * 16 + v0_i, v2_o * 16 + v2_i], B_reindex[v2_o * 16 + v2_i, v1_o * 16 + v1_i])
                                 Ts.writes(C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
                                 Ts.sblock_attr({"meta_schedule.tiling_structure":"SSSRRSRS"})
-                                C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i] = C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i] + T.cast(A_reindex[v0_o * 16 + v0_i, v2_o * 16 + v2_i], "float32") * T.cast(B_reindex[v2_o * 16 + v2_i, v1_o * 16 + v1_i], "float32")
+                                C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i] = C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i] + T.cast(A_reindex[v0_o * 16 + v0_i, v2_o * 16 + v2_i], ty="float32") * T.cast(B_reindex[v2_o * 16 + v2_i, v1_o * 16 + v1_i], ty="float32")
                 for ax0, ax1 in T.grid(16, 32):
                     with Ts.sblock("C_reindex_shared_wmma.accumulator"):
                         v0 = Ts.axis.spatial(128, ax0_0_2_ax1_0_2_fused // 2 * 16 + ax0)

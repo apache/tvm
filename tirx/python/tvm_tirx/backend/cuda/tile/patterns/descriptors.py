@@ -26,8 +26,8 @@ import tvm_ffi
 
 from tvm_tirx.backend.cuda.cpp.descriptors import encode_smem_descriptor_base_uint64
 from tvm_tirx.ir import Var
+from tvm_tirx.ir.expr import IntImm
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import IntImm
 from tvm_tirx.tirx.layout import ComposeLayout
 
 
@@ -58,10 +58,10 @@ def _encode_matrix_descriptor(ctx, smem, ldo, sdo, swizzle, atom_origin):
         physical = smem.memory(atom_origin) * smem.bits // 8
         address = (
             address
-            - T.cast(physical, "uint32")
-            + T.cast(swizzle_bytes(physical, swizzle), "uint32")
+            - T.cast(physical, ty="uint32")
+            + T.cast(swizzle_bytes(physical, swizzle), ty="uint32")
         )
-    address = T.cast(address // T.uint32(16), "uint64")
+    address = T.cast(address // T.uint32(16), ty="uint64")
     return T.bitwise_or(descriptor, T.bitwise_and(address, T.uint64(0x3FFF)))
 
 

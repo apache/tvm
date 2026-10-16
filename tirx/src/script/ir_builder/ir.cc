@@ -380,24 +380,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Preserve the historical FFI entry points with one shared implementation.
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::GlobalDef()
-      .def("script.ir_builder.tirx.For", For)
-      .def("script.ir_builder.tirx.Grid", Grid)
-      .def("script.ir_builder.tirx.Assert", Assert)
-      .def("script.ir_builder.tirx.Bind", Bind)
-      .def("script.ir_builder.tirx.While", While)
-      .def("script.ir_builder.tirx.Return", Return)
-      .def("script.ir_builder.tirx.Break", Break)
-      .def("script.ir_builder.tirx.Continue", Continue)
-      .def("script.ir_builder.tirx.If", If)
-      .def("script.ir_builder.tirx.Then", Then)
-      .def("script.ir_builder.tirx.Else", Else)
-      .def("script.ir_builder.tirx.Region", Region)
-      .def("script.ir_builder.tirx.Evaluate", Evaluate);
+      .def("script.ir_builder.For", For)
+      .def("script.ir_builder.Grid", Grid)
+      .def("script.ir_builder.Assert", Assert)
+      .def("script.ir_builder.Bind", Bind)
+      .def("script.ir_builder.While", While)
+      .def("script.ir_builder.Return", Return)
+      .def("script.ir_builder.Break", Break)
+      .def("script.ir_builder.Continue", Continue)
+      .def("script.ir_builder.If", If)
+      .def("script.ir_builder.Then", Then)
+      .def("script.ir_builder.Else", Else)
+      .def("script.ir_builder.Region", Region)
+      .def("script.ir_builder.Evaluate", Evaluate);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.ir_builder.tirx.AddToParent",
+  refl::GlobalDef().def("script.ir_builder.AddToParent",
                         [](tvm::Stmt stmt) { AddToParent(std::move(stmt)); });
 }
 

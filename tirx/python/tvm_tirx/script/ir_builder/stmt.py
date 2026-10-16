@@ -32,7 +32,7 @@ import tvm_tirx
 from tvm_tirx import ir as _ir
 from tvm_tirx.ir import Expr, TensorRegion, Type, Var
 from tvm_tirx.ir import StringImm as _StringImm
-from tvm_tirx.ir.prim import IntImm
+from tvm_tirx.ir.expr import IntImm
 from tvm_tirx.script.ir_builder import base as _base
 from tvm_tirx.script.ir_builder.base import AlreadyEmitted
 
@@ -268,7 +268,7 @@ def region(
     if isinstance(op, str):
         op = _ir.Op.get(op)
     if attrs is None or isinstance(attrs, dict):
-        attrs = _ir.make_node("ir.DictAttrs", **(attrs or {}))
+        attrs = _ir.make_node("ir.DictAttrs", dict={**(attrs or {})})
     return _ffi_api.Region(op, args, body_params, attrs)
 
 

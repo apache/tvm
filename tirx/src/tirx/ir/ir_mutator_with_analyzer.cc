@@ -227,7 +227,7 @@ UnchangedOr<Stmt> StmtExprMutatorWithAnalyzer::Mutate_(const RegionStmtNode* op,
     }
     // Native CUDA coordinates are ordinary calls. Their bounds come from the
     // enclosing launch configuration, including when no variable binds them.
-    if (auto description = op->attrs->dict.Get(tvm::backend::cuda::attr::kLaunchFields)) {
+    if (auto description = op->attrs->dict.Get(tvm::backend::cuda::attr::kLaunchFields.name)) {
       auto fields = description->as_or_throw<ffi::Array<ffi::String>>();
       for (size_t i = 0; i < fields.size(); ++i) {
         std::string field(fields[i]);

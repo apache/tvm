@@ -63,7 +63,7 @@ def transformed_elementwise_func(
 ) -> None:
     for i in T.serial(0, 16):
         B_new = T.alloc_tensor(
-            ty_args=[T.Tensor([1, 16], "float32")], annotations={"tensor_data_alignment": 64}
+            ty_args=[T.Tensor([1, 16], "float32")], annotations={"tirx.tensor_data_alignment": 64}
         )
         for j in T.serial(0, 16):
             B_new[0, j] = A[i, j] + 1.0
@@ -101,7 +101,7 @@ def transformed_gpu_func(
     i2 = T.launch_thread("vthread", 2)
     B = T.alloc_tensor(
         ty_args=[T.Tensor([1, 16], "float32", scope="local")],
-        annotations={"tensor_data_alignment": 64},
+        annotations={"tirx.tensor_data_alignment": 64},
     )
     for j in range(0, 16):
         B[0, j] = A[i0 * 4 + i1 * 2 + i2, j] + 1.0
@@ -142,7 +142,7 @@ def transformed_symbolic_func(
 ) -> None:
     for i in range(0, n):
         B = T.alloc_tensor(
-            ty_args=[T.Tensor([m], "float32")], annotations={"tensor_data_alignment": 64}
+            ty_args=[T.Tensor([m], "float32")], annotations={"tirx.tensor_data_alignment": 64}
         )
         for j in range(0, m):
             B[j] = A[i, j] + 1.0
@@ -199,10 +199,10 @@ def compacted_multi_alloc_func(A: T.Tensor(32, "float32"), D: T.Tensor(32, "floa
 def transformed_multi_alloc_func(A: T.Tensor(32, "float32"), D: T.Tensor(32, "float32")) -> None:
     for i in range(0, 32):
         B = T.alloc_tensor(
-            ty_args=[T.Tensor((32,), "float32")], annotations={"tensor_data_alignment": 64}
+            ty_args=[T.Tensor((32,), "float32")], annotations={"tirx.tensor_data_alignment": 64}
         )
         C = T.alloc_tensor(
-            ty_args=[T.Tensor((32,), "float32")], annotations={"tensor_data_alignment": 64}
+            ty_args=[T.Tensor((32,), "float32")], annotations={"tirx.tensor_data_alignment": 64}
         )
         B[i] = A[i] + 1.0
         C[i] = A[i] + B[i]
@@ -240,7 +240,7 @@ def transformed_strided_tensor_func(
     for i0 in T.serial(4):
         B = T.alloc_tensor(
             ty_args=[T.Tensor([4, 16], "float32", strides=[17, 1])],
-            annotations={"tensor_data_alignment": 64},
+            annotations={"tirx.tensor_data_alignment": 64},
         )
         for i1, j in T.grid(4, 16):
             B[i1, j] = A[i0 * 4 + i1, j] + T.float32(1)
@@ -286,7 +286,7 @@ def transformed_symbolic_strided_tensor_func(A: T.Tensor((1, n, 10240), "float32
                     scope="shared.dyn",
                 )
             ],
-            annotations={"tensor_data_alignment": 64},
+            annotations={"tirx.tensor_data_alignment": 64},
         )
         for ax0, ax1 in T.grid(96, 64):
             if i * 128 + j * 32 + ax0 < (n + 63) // 64 * 64:
@@ -366,13 +366,13 @@ def test_preserved_annotations():
 def test_preserved_none_pragma_annotation():
     @Ts.function
     def before(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
-        for i in T.serial(8, annotations={"unroll_explicit": None}):
+        for i in T.serial(8, annotations={"tirx.unroll_explicit": None}):
             with Ts.sblock("block"):
                 B[i] = A[i] + 1.0
 
     @Ts.function
     def after(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
-        for i in T.serial(8, annotations={"unroll_explicit": None}):
+        for i in T.serial(8, annotations={"tirx.unroll_explicit": None}):
             B[i] = A[i] + 1.0
 
     mod = tvm_tirx.IRModule.from_expr(before.with_attr("global_symbol", "main"))

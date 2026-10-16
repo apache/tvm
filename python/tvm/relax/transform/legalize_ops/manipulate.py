@@ -24,9 +24,9 @@ from tvm import relax, te, topi
 from tvm.relax.op.base import call_tir
 from tvm.relax.type import TensorType
 from tvm.relax.utils import gen_call_tir_inputs
-from tvm_tirx import DataTypeCode, tirx
+from tvm_tirx import DataTypeCode
 from tvm_tirx.ir import Call
-from tvm_tirx.tirx.expr import IntImm
+from tvm_tirx.ir.expr import IntImm
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr, ShapeExpr, Tuple, TupleGetItem, Var
@@ -111,7 +111,7 @@ def _permute_dims(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.split")
 def _split(bb: BlockBuilder, call: Call) -> Expr:
-    if isinstance(call.attrs.indices_or_sections, tirx.IntImm):
+    if isinstance(call.attrs.indices_or_sections, tvm_tirx.ir.expr.IntImm):
         indices_or_sections = call.attrs.indices_or_sections.value
     else:
         indices_or_sections = call.attrs.indices_or_sections
@@ -343,7 +343,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
 
     function_name = "te_layout_transform"
     _, padding_predicate = index_map.non_surjective_inverse(call.args[0].ty.shape)
-    if not isinstance(padding_predicate, tvm_tirx.tirx.expr.IntImm):
+    if not isinstance(padding_predicate, tvm_tirx.ir.expr.IntImm):
         function_name += "_with_pad"
     tir_func, call_args, _ = gen_call_tir_inputs(te_layout_transform, call.args[0], function_name)
     # Create a TIR schedule to apply the layout change.

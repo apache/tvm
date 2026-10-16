@@ -24,9 +24,10 @@ from tvm_tirx.error import InternalError as _InternalError
 from tvm_tirx.ir import Attrs, is_prim_expr
 from tvm_tirx.ir import Call as _Call
 from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.expr import FloatImm, IntImm
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.runtime import DataTypeCode
-from tvm_tirx.tirx import FloatImm, IndexMap, IntImm
+from tvm_tirx.tirx import IndexMap
 
 from ..expr import Expr, ShapeExpr, prim_value
 from ..expr import Tuple as RxTuple

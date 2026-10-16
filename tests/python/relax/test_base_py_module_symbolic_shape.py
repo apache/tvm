@@ -50,7 +50,7 @@ def test_infer_concrete_shape_all_concrete_dims():
     mod = _make_module()
     bpm = BasePyModule(mod, device=tvm_tirx.cpu(0), target="llvm")
 
-    shape = [tirx.IntImm("int32", 5), 6]
+    shape = [tvm_tirx.ir.expr.IntImm("int32", 5), 6]
     inferred = bpm._infer_concrete_shape_from_args(shape, in_args=[])
     assert inferred == [5, 6]
 

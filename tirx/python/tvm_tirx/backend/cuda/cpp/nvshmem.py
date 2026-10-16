@@ -89,7 +89,7 @@ device_intrinsic(
 )
 
 
-@register_codegen("nvshmem_signal_op")
+@register_codegen("nvshmem.signal_op")
 def codegen_nvshmem_signal_op(sig_addr, signal, sig_op, pe):
     """Map ``sig_op`` (string) to its NVSHMEM int constant, then forward."""
     sig_op_int = _resolve_attr(sig_op, _SIG_OP_VAL, "signal op")
@@ -111,7 +111,7 @@ for _c_type, _suffix in [("uint64_t", "uint64")]:
 del _c_type, _suffix
 
 
-@register_codegen("nvshmem_wait_until")
+@register_codegen("nvshmem.wait_until")
 def codegen_nvshmem_wait_until(ivar, cmp, cmp_value, type):
     """Dispatch to the type-specific wait_until helper after mapping ``cmp``
     (string) to its NVSHMEM int constant."""
@@ -145,7 +145,7 @@ del _scope_suffix, _backend_call
 
 
 def _make_putmem_signal_dispatcher(scope_suffix):
-    @register_codegen(f"nvshmem_putmem_signal_nbi{scope_suffix}")
+    @register_codegen(f"nvshmem.putmem_signal_nbi{scope_suffix}")
     def _codegen(dest, source, nelems, sig_addr, signal, sig_op, pe):
         sig_op_int = _resolve_attr(sig_op, _SIG_OP_VAL, "signal op")
         result = CODEGEN_REGISTRY[f"tirx._nvshmem_putmem_signal_nbi{scope_suffix}_impl"](

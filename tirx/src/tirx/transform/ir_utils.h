@@ -21,8 +21,8 @@
  * \file ir_utils.h
  * \brief Helper functions to construct and compose IR nodes.
  */
-#ifndef TVM_TIR_TRANSFORM_IR_UTILS_H_
-#define TVM_TIR_TRANSFORM_IR_UTILS_H_
+#ifndef TVM_TIRX_TRANSFORM_IR_UTILS_H_
+#define TVM_TIRX_TRANSFORM_IR_UTILS_H_
 
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
@@ -69,4 +69,4 @@ Stmt ConvertSSA(Stmt stmt);
 
 }  // namespace tirx
 }  // namespace tvm
-#endif  // TVM_TIR_TRANSFORM_IR_UTILS_H_
+#endif  // TVM_TIRX_TRANSFORM_IR_UTILS_H_

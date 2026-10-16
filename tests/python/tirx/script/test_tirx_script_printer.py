@@ -466,9 +466,9 @@ T.Cast(a, "float64")
 
 
 def test_llvm_intrin_imm():
-    a = tirx.call_llvm_intrin("int32x4", "llvm.donothing")
+    a = tirx.call_llvm_intrin("llvm.donothing", ty="int32x4")
     _assert_print(a, 'T.call_llvm_intrin("llvm.donothing", ty=T.int32x4)')
-    a = tirx.call_llvm_pure_intrin("int32x4", "llvm.donothing")
+    a = tirx.call_llvm_pure_intrin("llvm.donothing", ty="int32x4")
     _assert_print(a, 'T.call_llvm_pure_intrin("llvm.donothing", ty=T.int32x4)')
 
 
@@ -504,8 +504,8 @@ a {sign} b"""
 
 
 def test_binary_arith_const():
-    a = tirx.IntImm("int64", 3)
-    b = tirx.IntImm("int64", 4)
+    a = tvm_tirx.ir.expr.IntImm("int64", 3)
+    b = tvm_tirx.ir.expr.IntImm("int64", 4)
     for op, name in [
         (tirx.Add, "Add"),
         (tirx.Sub, "Sub"),
@@ -582,7 +582,7 @@ def test_select():
 )
 def test_ramp(lanes, scripted_lanes):
     a = tirx.Var("a", "int32")
-    obj = tirx.Ramp(a, 1, lanes)
+    obj = tvm_tirx.ir.prim.vector_expr.Ramp(a, 1, lanes)
     _assert_print(
         obj,
         f"""
@@ -596,7 +596,7 @@ T.Ramp(a, 1, {scripted_lanes})
     "lanes, scripted_lanes", [(4, "4"), (tvm_tirx.tirx.vscale() * 4, "T.vscale() * 4")]
 )
 def test_broadcast(lanes, scripted_lanes):
-    obj = tirx.Broadcast(0, lanes)
+    obj = tvm_tirx.ir.prim.vector_expr.Broadcast(0, lanes)
     _assert_print(
         obj,
         f"""
@@ -640,7 +640,7 @@ Ts.comm_reducer(lambda x, y: x + y, [T.float32(0.0)])
 
 
 def test_int_imm():
-    _assert_print(tirx.IntImm("int64", 1), "T.int64(1)")
+    _assert_print(tvm_tirx.ir.expr.IntImm("int64", 1), "T.int64(1)")
     obj = TB.int16(1)
     _assert_print(
         obj,
@@ -766,7 +766,7 @@ def f(A: T.Tensor((1,), T.float32)):
 
 
 def test_printer_cuda_namespace_printf():
-    node = tvm_tirx.ir.Evaluate(cuda_op.cuda_printf("x=%d", tir.IntImm("int32", 1)))
+    node = tvm_tirx.ir.Evaluate(cuda_op.printf("x=%d", tvm_tirx.ir.expr.IntImm("int32", 1)))
     _assert_namespace_print(node, 'T.cuda.printf("x=%d", 1)')
 
 
@@ -777,13 +777,15 @@ def _assert_namespace_print(obj, expected):
 
 
 def test_printer_cuda_cluster_sync():
-    node = tvm_tirx.ir.Evaluate(cuda_op.cuda_cluster_sync())
+    node = tvm_tirx.ir.Evaluate(cuda_op.cluster_sync())
     _assert_namespace_print(node, "T.cuda.cluster_sync()")
 
 
 def test_printer_cuda_namespace_mbarrier_wait():
     node = tvm_tirx.ir.Evaluate(
-        cuda_op.cuda_mbarrier_wait(tir.IntImm("int32", 0), tir.IntImm("int32", 0))
+        cuda_op.mbarrier_wait(
+            tvm_tirx.ir.expr.IntImm("int32", 0), tvm_tirx.ir.expr.IntImm("int32", 0)
+        )
     )
     _assert_namespace_print(node, "T.cuda.mbarrier_wait(0, 0)")
 
@@ -800,7 +802,7 @@ def test_printer_ptx_more():
     a = tir.Var("a", "handle")
     b = tir.Var("b", "handle")
     _assert_namespace_print(
-        cuda_op.cuda_tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0),
+        cuda_op.tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0),
         """
 d = T.Var("d", T.Ptr(T.void))
 a = T.Var("a", T.Ptr(T.void))
@@ -808,7 +810,7 @@ T.cuda.tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0)
 """,
     )
     _assert_namespace_print(
-        cuda_op.cuda_tcgen05_encode_instr_descriptor(
+        cuda_op.tcgen05_encode_instr_descriptor(
             d,
             d_dtype="f16",
             a_dtype="f16",
@@ -830,7 +832,7 @@ T.cuda.tcgen05_encode_instr_descriptor(d, K=16, M=16, N=16, a_dtype="f16", b_dty
 """,  # noqa: E501
     )
     _assert_namespace_print(
-        cuda_op.cuda_tcgen05_encode_instr_descriptor_block_scaled(
+        cuda_op.tcgen05_encode_instr_descriptor_block_scaled(
             d,
             d_dtype="f16",
             a_dtype="f16",
@@ -857,40 +859,40 @@ T.cuda.tcgen05_encode_instr_descriptor_block_scaled(d, K=16, M=16, N=16, a_dtype
 def test_printer_cuda_mbarrier_wait_var():
     bar = tir.Var("bar", "handle")
     _assert_namespace_print(
-        cuda_op.cuda_mbarrier_wait(bar, 1),
+        cuda_op.mbarrier_wait(bar, 1),
         """
 bar = T.Var("bar", T.Ptr(T.void))
 T.cuda.mbarrier_wait(bar, 1)
 """,
     )
-    _assert_namespace_print(cuda_op.cuda_cluster_sync(), "T.cuda.cluster_sync()")
+    _assert_namespace_print(cuda_op.cluster_sync(), "T.cuda.cluster_sync()")
 
 
 def test_printer_cuda_more():
     p = tir.Var("p", "handle")
-    _assert_namespace_print(cuda_op.cuda_thread_fence(), "T.cuda.thread_fence()")
-    _assert_namespace_print(cuda_op.cuda_warp_sync(), "T.cuda.warp_sync()")
-    _assert_namespace_print(cuda_op.cuda_cta_sync(), "T.cuda.cta_sync()")
-    _assert_namespace_print(cuda_op.cuda_grid_sync(), "T.cuda.grid_sync()")
-    _assert_namespace_print(cuda_op.cuda_cluster_sync(), "T.cuda.cluster_sync()")
-    _assert_namespace_print(cuda_op.cuda_syncthreads_and(1), "T.cuda.syncthreads_and(1)")
-    _assert_namespace_print(cuda_op.cuda_syncthreads_or(1), "T.cuda.syncthreads_or(1)")
-    _assert_namespace_print(cuda_op.cuda_nano_sleep(100), "T.cuda.nano_sleep(100)")
+    _assert_namespace_print(cuda_op.thread_fence(), "T.cuda.thread_fence()")
+    _assert_namespace_print(cuda_op.warp_sync(), "T.cuda.warp_sync()")
+    _assert_namespace_print(cuda_op.cta_sync(), "T.cuda.cta_sync()")
+    _assert_namespace_print(cuda_op.grid_sync(), "T.cuda.grid_sync()")
+    _assert_namespace_print(cuda_op.cluster_sync(), "T.cuda.cluster_sync()")
+    _assert_namespace_print(cuda_op.syncthreads_and(1), "T.cuda.syncthreads_and(1)")
+    _assert_namespace_print(cuda_op.syncthreads_or(1), "T.cuda.syncthreads_or(1)")
+    _assert_namespace_print(cuda_op.nano_sleep(100), "T.cuda.nano_sleep(100)")
     _assert_namespace_print(
-        cuda_op.cuda_atomic_add(p, tir.IntImm("int32", 1)),
+        cuda_op.atomic_add(p, tvm_tirx.ir.expr.IntImm("int32", 1)),
         """
 p = T.Var("p", T.Ptr(T.void))
 T.cuda.atomic_add(p, 1)
 """,
     )
     _assert_namespace_print(
-        cuda_op.cuda_atomic_cas(p, 1, 2),
+        cuda_op.atomic_cas(p, 1, 2),
         """
 p = T.Var("p", T.Ptr(T.void))
 T.cuda.atomic_cas(p, 1, 2)
 """,
     )
-    _assert_namespace_print(cuda_op.cuda_func_call("f", 1, ""), 'T.cuda.func_call("f", 1, "")')
+    _assert_namespace_print(cuda_op.func_call("f", 1, ""), 'T.cuda.func_call("f", 1, "")')
 
 
 def test_printer_cuda_low_level_warp_intrinsics_roundtrip():
@@ -1117,11 +1119,11 @@ def test_printer_ptx_mma_and_wgmma():
     a = tir.Var("a", "handle")
     tir.Var("b", "handle")
     _assert_namespace_print(
-        cuda_op.cuda_wgmma_encode_matrix_descriptor(d, a, 1, 1, 0),
+        cuda_op.wgmma_encode_matrix_descriptor(d, a, 1, 1, 0),
         """
 d = T.Var("d", T.Ptr(T.void))
 a = T.Var("a", T.Ptr(T.void))
 T.cuda.wgmma_encode_matrix_descriptor(d, a, 1, 1, 0)
 """,
     )
-    _assert_namespace_print(cuda_op.cuda_wgmma_noop_barrier(0), "T.cuda.wgmma_noop_barrier(0)")
+    _assert_namespace_print(cuda_op.wgmma_noop_barrier(0), "T.cuda.wgmma_noop_barrier(0)")

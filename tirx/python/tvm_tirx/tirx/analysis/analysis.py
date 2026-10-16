@@ -38,7 +38,7 @@ def verify_memory(func: Function) -> bool:
     result : bool
         The result of verification.
     """
-    return _ffi_api.verify_memory(func)  # type: ignore
+    return _ffi_api.VerifyMemory(func)  # type: ignore
 
 
 def undefined_vars(node: Stmt | Expr, defs: list[Var] | None = None) -> list[Var]:

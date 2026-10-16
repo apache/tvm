@@ -609,7 +609,7 @@ class OpenCLTimerObj : public TimerObj {
 
   static size_t count_timer_execs;
   static std::vector<size_t> event_start_idxs;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.opencl.OpenCLTimerNode", OpenCLTimerObj, TimerObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.opencl.OpenCLTimer", OpenCLTimerObj, TimerObj);
 
  private:
   int64_t duration;

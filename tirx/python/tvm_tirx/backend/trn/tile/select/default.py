@@ -21,9 +21,10 @@ from functools import cache
 
 from tvm_tirx.backend.trn.layout import is_trainium_layout
 from tvm_tirx.ir import TensorRegion
+from tvm_tirx.ir.expr import FloatImm
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import FloatImm, Function
+from tvm_tirx.tirx import Function
 from tvm_tirx.tirx.tile import DispatchContext, fail
 from tvm_tirx.tirx.tile.instruction import TensorCall
 from tvm_tirx.tirx.tile.views import Select

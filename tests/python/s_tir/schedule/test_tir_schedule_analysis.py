@@ -164,8 +164,8 @@ class DenseTIRModule:
                     Ts.writes(compute[i, j])
                     with Ts.init():
                         compute[i, j] = 0
-                    compute[i, j] = compute[i, j] + T.cast(placeholder[i, k], "int32") * T.cast(
-                        placeholder_1[j // 16, k // 4, j % 16, k % 4], "int32"
+                    compute[i, j] = compute[i, j] + T.cast(placeholder[i, k], ty="int32") * T.cast(
+                        placeholder_1[j // 16, k // 4, j % 16, k % 4], ty="int32"
                     )
 
 
@@ -203,10 +203,10 @@ class Conv2dNCHWcTIRModule:
                     n, oc_chunk, oh, ow, oc_block
                 ] + T.cast(
                     placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
-                    "int32",
+                    ty="int32",
                 ) * T.cast(
                     placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
-                    "int32",
+                    ty="int32",
                 )
 
 
@@ -312,7 +312,7 @@ def matmul_16x8x8_desc(out_dtype):
             for i, j, k in T.grid(16, 8, 8):
                 with Ts.sblock("update"):
                     vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
-                    C[vi, vj] += T.cast(A[vi, vk], out_dtype) * T.cast(B[vk, vj], out_dtype)
+                    C[vi, vj] += T.cast(A[vi, vk], ty=out_dtype) * T.cast(B[vk, vj], ty=out_dtype)
 
     return desc
 

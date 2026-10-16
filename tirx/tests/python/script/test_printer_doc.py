@@ -136,8 +136,8 @@ EXPR_CASES = {
     "str": (LiteralDoc("test"), '"test"'),
     "str-quote": (LiteralDoc('""'), r'"\"\""'),
     "str-escape": (LiteralDoc("\n\t\\test\r"), r'"\n\t\\test\r"'),
-    # TODO: fix the roundatrippable problem caused by utf8
-    "str-utf8": pytest.param(LiteralDoc("\x88"), r'"\x88"', marks=pytest.mark.xfail),
+    "str-utf8": (LiteralDoc("\x88"), r'"\u0088"'),
+    "str-unicode": (LiteralDoc("é中😀"), r'"\u00e9\u4e2d\U0001f600"'),
     "int": (LiteralDoc(-1), "-1"),
     "float": (LiteralDoc(3.25), "3.25"),
     "id": (IdDoc("test"), "test"),

@@ -114,7 +114,14 @@ def test_unexpected_tir_cast_args():
         def f(x: R.Tensor((m,), "float32")):
             # tirx.cast expects 2 arguments, but got 3
             return R.call_tir(
-                "foo", (x,), ty_args=[R.Tensor((T.cast("int32", m, 1),), dtype="float32")]
+                "foo",
+                (x,),
+                ty_args=[
+                    R.Tensor(
+                        (T.cast("int32", loc=1, ty=m),),
+                        dtype="float32",
+                    )
+                ],
             )
 
 

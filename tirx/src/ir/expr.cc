@@ -784,19 +784,22 @@ Expr LambdaExprNode::Apply(const ffi::Array<Expr>& arguments) const {
       .cast<Expr>();
 }
 
-LambdaExpr::LambdaExpr(ffi::Array<Var> vars, Expr body) : StagingExpr(ffi::UnsafeInit{}) {
+LambdaExpr::LambdaExpr(ffi::Array<Var> vars, Expr body, Location loc)
+    : StagingExpr(ffi::UnsafeInit{}) {
   auto n = ffi::make_object<LambdaExprNode>(std::move(body));
   ffi::Array<Type> types;
   for (const Var& var : vars) types.push_back(var->ty);
   n->ty = FuncType(types, n->body->ty);
   n->vars = std::move(vars);
+  n->loc = std::move(loc);
   data_ = std::move(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.LambdaExpr",
-                        [](ffi::Array<Var> vars, Expr body) { return LambdaExpr(vars, body); });
+  refl::GlobalDef().def("ir.LambdaExpr", [](ffi::Array<Var> vars, Expr body, Location loc) {
+    return LambdaExpr(vars, body, loc);
+  });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -878,14 +881,6 @@ PrimExpr::PrimExpr(Call call) : PrimExpr(std::move(call).as_or_throw<PrimExpr>()
 PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm::Int32(value)) {}
 
 PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(PrimType::Float(32), value)) {}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("relax.Tuple", [](ffi::Array<Expr> fields, Location loc) { return Tuple(fields, loc); })
-      .def("relax.TupleGetItem",
-           [](Expr tuple, int index, Location loc) { return TupleGetItem(tuple, index, loc); });
-}
 
 // Constants
 GenericConst::GenericConst(ffi::Any value, Type ty, Location loc) : Constant(ffi::UnsafeInit{}) {
@@ -1241,7 +1236,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&GlobalVarMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.GlobalVar", [](ffi::String name) { return GlobalVar(name); });
+  refl::GlobalDef().def("ir.GlobalVar",
+                        [](ffi::String name, Location loc) { return GlobalVar(name, loc); });
 }
 
 // Call construction intentionally does not validate: passes and raw script
@@ -1300,14 +1296,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](const Call& call) { return Call::ReinferType(call.get()); });
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.DebugPrint", [](ffi::ObjectRef ref) {
-    std::stringstream ss;
-    ss << ref;
-    return ss.str();
-  });
-  // Note: kRepr for GlobalVarNode is registered in script/printer/script_printer.cc.
-}
+// Note: kRepr for GlobalVarNode is registered in script/printer/script_printer.cc.
 
 }  // namespace tvm

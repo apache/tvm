@@ -96,13 +96,15 @@ def test_unroll_loop_optional_annotations():
         def main(
             A: T.Tensor(8, "float32", layout="default"), B: T.Tensor(8, "float32", layout="default")
         ):
-            for i in T.serial(8, annotations={"pragma_unroll": None}):
+            for i in T.serial(8, annotations={"tirx.pragma_unroll": None}):
                 B[i] = A[i] + 1.0
-            for i in T.serial(8, annotations={"unroll_explicit": None}):
+            for i in T.serial(8, annotations={"tirx.unroll_explicit": None}):
                 B[i] = A[i] + 2.0
-            for i in T.serial(8, annotations={"pragma_unroll": False}):
+            for i in T.serial(8, annotations={"tirx.pragma_unroll": False}):
                 B[i] = A[i] + 3.0
-            for i in T.serial(8, annotations={"auto_unroll_max_step": 16, "unroll_explicit": 0}):
+            for i in T.serial(
+                8, annotations={"tirx.auto_unroll_max_step": 16, "tirx.unroll_explicit": 0}
+            ):
                 B[i] = A[i] + 4.0
 
     @I.ir_module
@@ -111,11 +113,11 @@ def test_unroll_loop_optional_annotations():
         def main(
             A: T.Tensor(8, "float32", layout="default"), B: T.Tensor(8, "float32", layout="default")
         ):
-            for i in T.serial(8, annotations={"pragma_unroll": None}):
+            for i in T.serial(8, annotations={"tirx.pragma_unroll": None}):
                 B[i] = A[i] + 1.0
             for i in T.serial(8):
                 B[i] = A[i] + 2.0
-            for i in T.serial(8, annotations={"pragma_unroll": False}):
+            for i in T.serial(8, annotations={"tirx.pragma_unroll": False}):
                 B[i] = A[i] + 3.0
             for i in T.unroll(8):
                 B[i] = A[i] + 4.0
@@ -988,7 +990,7 @@ def test_lower_uint32_scope_id_casts_at_bind():
         @T.function(private=True)
         def main():
             T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
-            tx = T.cast(T.cuda.thread_idx("x"), "uint32")
+            tx = T.cast(T.cuda.thread_idx("x"), ty="uint32")
             for k in T.serial(4, dtype="uint32"):
                 T.evaluate(tx + k)
 
@@ -2017,7 +2019,7 @@ def test_lower_remaps_tensor_memory_address_metadata(offset):
             addr = T.alloc_shared((1,), "uint32")
             for i in T.serial(2):
                 tensor = T.cuda.decl_tmem(
-                    addr[0] + T.uint32(offset) + T.cast(i, "uint32"),
+                    addr[0] + T.uint32(offset) + T.cast(i, ty="uint32"),
                     ty_args=[T.Tensor((64,), "float32", scope="tmem", layout="default")],
                 )
                 T.evaluate(tensor.data)
@@ -2035,8 +2037,7 @@ def test_lower_remaps_tensor_memory_address_metadata(offset):
             for i in range(2):
                 tensor = T.decl_tensor(
                     T.reinterpret(
-                        expected_address(addr, i),
-                        ty=T.Ptr(T.PrimType("float32"), scope="tmem"),
+                        expected_address(addr, i), ty=T.Ptr(T.PrimType("float32"), scope="tmem")
                     ),
                     ty_args=[T.Tensor((64,), T.float32, scope="tmem")],
                 )

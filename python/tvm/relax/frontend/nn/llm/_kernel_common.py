@@ -230,7 +230,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     i, j, k = Ts.axis.remap("SSR", [li, lj, lk])
                     with Ts.init():
                         S_local[i, j] = 0.0
-                    S_local[i, j] += T.cast(Q_smem[i, k], "float32") * T.cast(K_smem[j, k], "float32") * sm_scale * math.log2(math.exp(1))
+                    S_local[i, j] += T.cast(Q_smem[i, k], ty="float32") * T.cast(K_smem[j, k], ty="float32") * sm_scale * math.log2(math.exp(1))
         T.gpu_storage_sync("shared")
         for li, lj in T.grid(tile_x, tile_z):
             with Ts.sblock("S_store"):
@@ -292,7 +292,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     i, j, k = Ts.axis.remap("SSR", [li, lj, lk])
                     with Ts.init():
                         O_local[i, j] *= T.exp2(m_prev_smem[i] - m_smem[i])
-                    O_local[i, j] += S_smem[i, k] * T.cast(V_smem[k, j], "float32")
+                    O_local[i, j] += S_smem[i, k] * T.cast(V_smem[k, j], ty="float32")
 
     @T.macro
     def paged_store_output_lse(

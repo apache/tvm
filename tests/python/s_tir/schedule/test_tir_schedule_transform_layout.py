@@ -658,7 +658,7 @@ def test_error_on_wrong_padding_type():
             "block",
             sch.get(sch.get_sblock("block")).writes[0].source.name,
             lambda i: [i // 4, i % 4],
-            pad_value=tirx.IntImm("int8", 0),
+            pad_value=tvm_tirx.ir.expr.IntImm("int8", 0),
         )
 
 
@@ -705,7 +705,7 @@ def test_padded_transform_if_then_else(dtype):
                 vi = Ts.axis.remap("S", [i])
                 B[vi] = A[vi]
 
-    pad_value_imm = tirx.IntImm(dtype, 0)
+    pad_value_imm = tvm_tirx.ir.expr.IntImm(dtype, 0)
 
     @Ts.function(private=True)
     def expected_func(A: T.Tensor(14, dtype)):

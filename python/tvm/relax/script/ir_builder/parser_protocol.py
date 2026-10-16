@@ -89,12 +89,12 @@ def function_(
     Local function bodies require their previously declared reference.
     """
     if decl:
-        return _base.at_(loc, _ffi_api.DeclFunction(pure, private, local))
+        return _base.at_(loc, _ffi_api.Function(pure, private, True, local))
     if local:
         if reference is None:
             raise ValueError("A local function requires its declared reference")
         return _base.at_(loc, _ffi_api.LocalFunction(pure, reference))
-    return _base.at_(loc, _ffi_api.Function(pure, private))
+    return _base.at_(loc, _ffi_api.Function(pure, private, False, False))
 
 
 def arg_(name: str, ty: Any, *, loc: _Loc = None) -> _ir.Var:

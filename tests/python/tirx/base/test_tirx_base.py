@@ -122,8 +122,8 @@ def test_return_accepts_expr_and_roundtrips():
 def test_stmt_loc_not_structural():
     loc_a = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("a.py"), 1, 1, 1, 2)
     loc_b = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("b.py"), 10, 3, 10, 4)
-    stmt_a = tvm_tirx.ir.Evaluate(tirx.IntImm("int32", 0), loc_a)
-    stmt_b = tvm_tirx.ir.Evaluate(tirx.IntImm("int32", 0), loc_b)
+    stmt_a = tvm_tirx.ir.Evaluate(tvm_tirx.ir.expr.IntImm("int32", 0), loc_a)
+    stmt_b = tvm_tirx.ir.Evaluate(tvm_tirx.ir.expr.IntImm("int32", 0), loc_b)
 
     assert tvm_ffi.structural_equal(stmt_a, stmt_b)
     assert tvm_ffi.structural_hash(stmt_a) == tvm_ffi.structural_hash(stmt_b)
@@ -141,10 +141,12 @@ def test_return_stmt_functor_traversal_and_mutation():
 
     rewritten = tvm_ffi.structural_map(
         stmt,
-        (tirx.Var, lambda var: tirx.IntImm("int32", 4) if var.same_as(x) else var),
+        (tirx.Var, lambda var: tvm_tirx.ir.expr.IntImm("int32", 4) if var.same_as(x) else var),
         order="post",
     )
-    expected = tvm_tirx.ir.Return(tirx.Add(tirx.IntImm("int32", 4), tirx.IntImm("int32", 1)), loc)
+    expected = tvm_tirx.ir.Return(
+        tirx.Add(tvm_tirx.ir.expr.IntImm("int32", 4), tvm_tirx.ir.expr.IntImm("int32", 1)), loc
+    )
     tvm_tirx.ir.assert_structural_equal(rewritten, expected)
     assert rewritten.loc.same_as(loc)
 
@@ -226,7 +228,7 @@ def test_eq_ops():
     # rewritten as `is None` / `is not None`. This test exercises the overloaded
     # `__eq__` / `__ne__` operators on `IntImm` / `StringImm`; the `is` operators
     # bypass those overloads and would defeat the test.
-    a = tirx.IntImm("int8", 1)
+    a = tvm_tirx.ir.expr.IntImm("int8", 1)
     with pytest.raises(TypeError):
         assert a != None
     with pytest.raises(TypeError):

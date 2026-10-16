@@ -85,7 +85,7 @@ def test_smem_descriptor_matches_runtime_encoder(ldo, sdo, swizzle):
             out[0] = desc
             # The shared address is the encoder's only runtime input; hand it
             # back so the comparison can OR it into the Python constant.
-            out[1] = T.cast(T.cuda.cvta_generic_to_shared(smem.ptr_to([0])), "uint64")
+            out[1] = T.cast(T.cuda.cvta_generic_to_shared(smem.ptr_to([0])), ty="uint64")
 
     got = _compile_and_run(kernel, 2)
     want = encode_smem_descriptor_base_uint64(ldo, sdo, swizzle) | ((int(got[1]) >> 4) & 0x3FFF)
@@ -132,7 +132,7 @@ def test_instr_descriptor_block_scaled_matches_runtime_encoder(
                 trans_b=trans_b,
                 n_cta_groups=cta_group,
             )
-            out[0] = T.cast(desc, "uint64")
+            out[0] = T.cast(desc, ty="uint64")
 
     got = _compile_and_run(kernel, 1)
     want = encode_instr_descriptor_block_scaled_uint32(

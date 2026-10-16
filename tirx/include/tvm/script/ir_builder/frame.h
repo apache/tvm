@@ -16,6 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/*!
+ * \file tvm/script/ir_builder/frame.h
+ * \brief Shared IRBuilder frames for IRModules and statements.
+ */
 #ifndef TVM_SCRIPT_IR_BUILDER_FRAME_H_
 #define TVM_SCRIPT_IR_BUILDER_FRAME_H_
 
@@ -152,7 +156,7 @@ class ForFrameObj : public StmtFrameObj {
         .def_ro("doms", &ForFrameObj::doms);
     // `f_make_for_loop` is not registered as it's not visited.
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ForFrame", ForFrameObj, StmtFrameObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.ForFrame", ForFrameObj, StmtFrameObj);
 
  public:
   /*! \brief Apply source target names before entry, preserving variable identity. */
@@ -202,8 +206,7 @@ class AssertFrameObj : public StmtFrameObj {
         .def_ro("error_kind", &AssertFrameObj::error_kind)
         .def_ro("message_parts", &AssertFrameObj::message_parts);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.AssertFrame", AssertFrameObj,
-                                    StmtFrameObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.AssertFrame", AssertFrameObj, StmtFrameObj);
 
  public:
   /*!
@@ -253,8 +256,7 @@ class RegionFrameObj : public StmtFrameObj {
         .def_ro("body_params", &RegionFrameObj::body_params)
         .def_ro("attrs", &RegionFrameObj::attrs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.RegionFrame", RegionFrameObj,
-                                    StmtFrameObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.RegionFrame", RegionFrameObj, StmtFrameObj);
 
   /*! \brief Construct the region and add it to the enclosing builder frame. */
   void ExitWithScope() final;
@@ -288,8 +290,7 @@ class WhileFrameObj : public StmtFrameObj {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<WhileFrameObj>().def_ro("condition", &WhileFrameObj::condition);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.WhileFrame", WhileFrameObj,
-                                    StmtFrameObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.WhileFrame", WhileFrameObj, StmtFrameObj);
 
  public:
   /*!
@@ -338,7 +339,7 @@ class IfFrameObj : public StmtFrameObj {
         .def_ro("then_stmts", &IfFrameObj::then_stmts)
         .def_ro("else_stmts", &IfFrameObj::else_stmts);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.IfFrame", IfFrameObj, StmtFrameObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.IfFrame", IfFrameObj, StmtFrameObj);
 
  public:
   /*!
@@ -372,7 +373,7 @@ class ThenFrameObj : public StmtFrameObj {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ThenFrameObj>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ThenFrame", ThenFrameObj, StmtFrameObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.ThenFrame", ThenFrameObj, StmtFrameObj);
 
  public:
   /*!
@@ -411,7 +412,7 @@ class ElseFrameObj : public StmtFrameObj {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ElseFrameObj>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ElseFrame", ElseFrameObj, StmtFrameObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.ElseFrame", ElseFrameObj, StmtFrameObj);
 
  public:
   /*!

@@ -212,6 +212,22 @@ def test_statement_receipts_keep_emitted_nodes_and_locs():
         assert statement.loc.same_as(location)
 
 
+def test_explicit_loc_on_global_var_lambda_and_min_max():
+    location = ir.SourceLoc(ir.SourceName("explicit_loc.py"), 2, 1, 2, 9)
+    assert ir.GlobalVar("main", loc=location).loc.same_as(location)
+    assert ir.GlobalVar("main").loc.same_as(ir.UnknownLoc())
+
+    combiner = ir.LambdaExpr(["int32", "int32"], lambda x, y: x + y, loc=location)
+    assert combiner.loc.same_as(location)
+
+    a = tirx.Var("a", "int32")
+    b = tirx.Var("b", "int32")
+    for result in (T.min(a, b, loc=location), T.max(a, b, loc=location)):
+        assert result.loc.same_as(location)
+    assert isinstance(T.min(a, b), prim.Min)
+    assert isinstance(T.max(a, b), prim.Max)
+
+
 def test_native_bind_keeps_returned_and_stored_variable_identity():
     # Aliases of an explicitly produced native variable must not rename, reloc or bind it again.
     from tvm_tirx import ir
@@ -382,9 +398,9 @@ def _line_of(function, statement):
 def test_non_call_expression_reads_keep_their_source_range():
     # Bare name, property, item and literal emissions must retain their written
     # ranges in actual IR, with each host read evaluated once.
-    value = prim.IntImm("int32", 1)
-    attribute = prim.IntImm("int32", 2)
-    item = prim.IntImm("int32", 3)
+    value = tvm_tirx.ir.expr.IntImm("int32", 1)
+    attribute = tvm_tirx.ir.expr.IntImm("int32", 2)
+    item = tvm_tirx.ir.expr.IntImm("int32", 3)
     reads = []
 
     class Holder:

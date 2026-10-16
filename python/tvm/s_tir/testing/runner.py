@@ -142,7 +142,7 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
-            f_preproc="cache_flush_cpu_non_first_arg"
+            f_preproc="runtime.CacheFlushCPUArguments"
             if evaluator_config.enable_cpu_cache_flush
             else "",
         )(*args)
@@ -224,7 +224,7 @@ def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
                 number=evaluator_config.number,
                 repeat=evaluator_config.repeat,
                 min_repeat_ms=evaluator_config.min_repeat_ms,
-                f_preproc="cache_flush_cpu_non_first_arg"
+                f_preproc="runtime.CacheFlushCPUArguments"
                 if evaluator_config.enable_cpu_cache_flush
                 else "",
             )(*args)

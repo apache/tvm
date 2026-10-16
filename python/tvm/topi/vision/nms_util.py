@@ -303,14 +303,14 @@ def _all_class_nms_ir(
 ):
     with IRBuilder() as ib:
         if isinstance(iou_threshold, float | int):
-            iou_threshold = tvm_tirx.tirx.FloatImm("float32", float(iou_threshold))
+            iou_threshold = tvm_tirx.ir.expr.FloatImm("float32", float(iou_threshold))
         elif isinstance(iou_threshold, te.Tensor):
             if len(iou_threshold.shape) == 0:
                 iou_threshold = iou_threshold()
             elif len(iou_threshold.shape) == 1 and iou_threshold.shape[0] == 1:
                 iou_threshold = iou_threshold[0]
             else:
-                iou_threshold = tvm_tirx.tirx.FloatImm("float32", 0.5)
+                iou_threshold = tvm_tirx.ir.expr.FloatImm("float32", 0.5)
 
         if isinstance(max_output_size_per_class, int):
             max_output_size_per_class = tvm_tirx.tirx.const(max_output_size_per_class)
@@ -359,7 +359,7 @@ def _all_class_nms_ir(
 
         nms_loop(
             batch_class,
-            tvm_tirx.tirx.IntImm("int32", -1),  # top_k
+            tvm_tirx.ir.expr.IntImm("int32", -1),  # top_k
             iou_threshold,
             max_output_size_per_class,
             valid_count,

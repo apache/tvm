@@ -33,18 +33,13 @@ using ir::ForFrameObj;
 using tvm::s_tir::IterVar;
 using tvm::s_tir::IterVarType;
 
-FunctionFrame Function(bool is_private, bool persistent) {
+FunctionFrame Function(bool is_private, bool persistent, bool is_declaration) {
   auto n = ffi::make_object<FunctionFrameObj>();
   n->is_private = is_private;
+  n->is_declaration = is_declaration;
   n->persistent = persistent;
   n->attrs = {};
   return FunctionFrame(std::move(n));
-}
-
-FunctionFrame DeclFunction(bool is_private, bool persistent) {
-  FunctionFrame frame = Function(is_private, persistent);
-  frame->is_declaration = true;
-  return frame;
 }
 
 TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType dtype,
@@ -344,7 +339,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.s_tir.Function", Function)
-      .def("script.ir_builder.s_tir.DeclFunction", DeclFunction)
       .def("script.ir_builder.s_tir.MatchTensor", MatchTensor)
       .def("script.ir_builder.s_tir.Block", Block)
       .def("script.ir_builder.s_tir.Init", Init)

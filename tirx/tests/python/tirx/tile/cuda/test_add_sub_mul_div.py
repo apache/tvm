@@ -37,7 +37,7 @@ from tvm_tirx.tirx.layout import S, TileLayout
 @T.function(private=True)
 def half_divide(a: T.float16, b: T.float16) -> T.float16:
     # PTX has no native half division. The caller supplies the scalar composite.
-    return T.cast(T.cast(a, "float32") / T.cast(b, "float32"), "float16")
+    return T.cast(T.cast(a, ty="float32") / T.cast(b, ty="float32"), ty="float16")
 
 
 def _run(kernel, arrays, expected, output=0, atol=1e-3, target="cuda", opcode=None):
@@ -1084,10 +1084,10 @@ def test_mul_tcgen05_16x256b_atom_warpgroup_dispatch():
 
 def _splat_f32(value):
     """Prepare the two equal f32 fields of a native b64 packed operand."""
-    if isinstance(value, tvm_tirx.ir.prim.FloatImm):
+    if isinstance(value, tvm_tirx.ir.expr.FloatImm):
         bits = struct.unpack("I", struct.pack("f", value.value))[0]
         return T.uint64(bits) | (T.uint64(bits) << T.uint64(32))
-    bits = T.cast(T.reinterpret(value, ty="uint32"), "uint64")
+    bits = T.cast(T.reinterpret(value, ty="uint32"), ty="uint64")
     return bits | (bits << T.uint64(32))
 
 

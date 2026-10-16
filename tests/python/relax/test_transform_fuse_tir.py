@@ -517,7 +517,7 @@ def test_fuse_return_partial_result():
             return lhs, rhs
 
         def f_identity(dtype0: tvm_tirx.DataType, dtype1: tvm_tirx.DataType):
-            return tvm_tirx.tirx.const(-1, dtype0), tvm.te.min_value(dtype1)
+            return tvm_tirx.tirx.const(-1, dtype0), tvm.te.min_value(ty=dtype1)
 
         argmax = te.comm_reducer(f_combine, f_identity, name="argmax")
         m, n = val.shape

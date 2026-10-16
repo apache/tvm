@@ -18,14 +18,7 @@
 
 from tvm_ffi import register_object as _register_object
 
-from tvm_tirx.script.ir_builder.frame import AssertFrame as AssertFrame
-from tvm_tirx.script.ir_builder.frame import ElseFrame as ElseFrame
-from tvm_tirx.script.ir_builder.frame import ForFrame as ForFrame
-from tvm_tirx.script.ir_builder.frame import IfFrame as IfFrame
-from tvm_tirx.script.ir_builder.frame import RegionFrame as RegionFrame
 from tvm_tirx.script.ir_builder.frame import StmtFrame
-from tvm_tirx.script.ir_builder.frame import ThenFrame as ThenFrame
-from tvm_tirx.script.ir_builder.frame import WhileFrame as WhileFrame
 
 
 @_register_object("script.ir_builder.tirx.FunctionFrame")

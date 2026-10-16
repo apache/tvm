@@ -99,215 +99,376 @@ class TestVector(BaseCompare):
     test_case = tvm_tirx.testing.parameter(
         # Add rules
         TestCase(
-            tvm_tirx.tirx.Ramp(x, 1, 4) + tvm_tirx.tirx.Ramp(y, 2, 4),
-            tvm_tirx.tirx.Ramp(x + y, 3, 4),
+            tvm_tirx.ir.prim.vector_expr.Ramp(x, 1, 4) + tvm_tirx.ir.prim.vector_expr.Ramp(y, 2, 4),
+            tvm_tirx.ir.prim.vector_expr.Ramp(x + y, 3, 4),
         ),
-        TestCase(tvm_tirx.tirx.Ramp(x, 1, 2) + y, tvm_tirx.tirx.Ramp(x + y, 1, 2)),
-        TestCase(y + tvm_tirx.tirx.Ramp(x, 1, 2), tvm_tirx.tirx.Ramp(y + x, 1, 2)),
         TestCase(
-            tvm_tirx.tirx.Ramp(x, 1, tirx.vscale() * 4)
-            + tvm_tirx.tirx.Ramp(y, 2, tirx.vscale() * 4),
-            tvm_tirx.tirx.Ramp(x + y, 3, tirx.vscale() * 4),
+            tvm_tirx.ir.prim.vector_expr.Ramp(x, 1, 2) + y,
+            tvm_tirx.ir.prim.vector_expr.Ramp(x + y, 1, 2),
+        ),
+        TestCase(
+            y + tvm_tirx.ir.prim.vector_expr.Ramp(x, 1, 2),
+            tvm_tirx.ir.prim.vector_expr.Ramp(y + x, 1, 2),
+        ),
+        TestCase(
+            tvm_tirx.ir.prim.vector_expr.Ramp(x, 1, tirx.vscale() * 4)
+            + tvm_tirx.ir.prim.vector_expr.Ramp(y, 2, tirx.vscale() * 4),
+            tvm_tirx.ir.prim.vector_expr.Ramp(x + y, 3, tirx.vscale() * 4),
         ),
         TestCase(y.astype("int32x2") + x.astype("int32x2"), (y + x).astype("int32x2")),
-        TestCase(tvm_tirx.tirx.Broadcast(0, 4) + y, tvm_tirx.tirx.Broadcast(y, 4)),
+        TestCase(
+            tvm_tirx.ir.prim.vector_expr.Broadcast(0, 4) + y,
+            tvm_tirx.ir.prim.vector_expr.Broadcast(y, 4),
+        ),
         # int64 lanes
         TestCase(
-            tvm_tirx.tirx.Broadcast(x, 4)
-            + tvm_tirx.tirx.Ramp(0, 1, tvm_tirx.tirx.IntImm(dtype="int64", value=4)),
-            tvm_tirx.tirx.Ramp(x, 1, 4),
+            tvm_tirx.ir.prim.vector_expr.Broadcast(x, 4)
+            + tvm_tirx.ir.prim.vector_expr.Ramp(
+                0, 1, tvm_tirx.ir.expr.IntImm(dtype="int64", value=4)
+            ),
+            tvm_tirx.ir.prim.vector_expr.Ramp(x, 1, 4),
         ),
         TestCase(
-            tvm_tirx.tirx.Broadcast(x, tvm_tirx.tirx.IntImm(dtype="int64", value=4))
-            + tvm_tirx.tirx.Ramp(0, 1, 4),
-            tvm_tirx.tirx.Ramp(x, 1, 4),
+            tvm_tirx.ir.prim.vector_expr.Broadcast(
+                x, tvm_tirx.ir.expr.IntImm(dtype="int64", value=4)
+            )
+            + tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4),
+            tvm_tirx.ir.prim.vector_expr.Ramp(x, 1, 4),
         ),
         # int64 iterators with int32 lanes
         TestCase(
-            tvm_tirx.tirx.Broadcast(x64, 4)
-            + tvm_tirx.tirx.Ramp(tvm_tirx.tirx.IntImm(dtype="int64", value=0), 1, 4),
-            tvm_tirx.tirx.Ramp(x64, 1, 4),
+            tvm_tirx.ir.prim.vector_expr.Broadcast(x64, 4)
+            + tvm_tirx.ir.prim.vector_expr.Ramp(
+                tvm_tirx.ir.expr.IntImm(dtype="int64", value=0), 1, 4
+            ),
+            tvm_tirx.ir.prim.vector_expr.Ramp(x64, 1, 4),
         ),
         TestCase(
-            tvm_tirx.tirx.Broadcast(0, tirx.vscale() * 8) + y,
-            tvm_tirx.tirx.Broadcast(y, tirx.vscale() * 8),
+            tvm_tirx.ir.prim.vector_expr.Broadcast(0, tirx.vscale() * 8) + y,
+            tvm_tirx.ir.prim.vector_expr.Broadcast(y, tirx.vscale() * 8),
         ),
         TestCase(
-            tvm_tirx.tirx.Ramp(x, 1, 4).astype("float32x4") + tvm_tirx.tirx.Broadcast(0.0, 4),
-            tvm_tirx.tirx.Ramp(x, 1, 4).astype("float32x4"),
+            tvm_tirx.ir.prim.vector_expr.Ramp(x, 1, 4).astype("float32x4")
+            + tvm_tirx.ir.prim.vector_expr.Broadcast(0.0, 4),
+            tvm_tirx.ir.prim.vector_expr.Ramp(x, 1, 4).astype("float32x4"),
         ),
         # Sub rules
         TestCase(
-            tvm_tirx.tirx.Ramp(x, 4, 4) - tvm_tirx.tirx.Ramp(y, 2, 4),
-            tvm_tirx.tirx.Ramp(x - y, 2, 4),
+            tvm_tirx.ir.prim.vector_expr.Ramp(x, 4, 4) - tvm_tirx.ir.prim.vector_expr.Ramp(y, 2, 4),
+            tvm_tirx.ir.prim.vector_expr.Ramp(x - y, 2, 4),
         ),
-        TestCase(tvm_tirx.tirx.Ramp(x, 1, 2) - y, tvm_tirx.tirx.Ramp(x - y, 1, 2)),
-        TestCase(y - tvm_tirx.tirx.Ramp(x, 1, 2), tvm_tirx.tirx.Ramp(y - x, -1, 2)),
+        TestCase(
+            tvm_tirx.ir.prim.vector_expr.Ramp(x, 1, 2) - y,
+            tvm_tirx.ir.prim.vector_expr.Ramp(x - y, 1, 2),
+        ),
+        TestCase(
+            y - tvm_tirx.ir.prim.vector_expr.Ramp(x, 1, 2),
+            tvm_tirx.ir.prim.vector_expr.Ramp(y - x, -1, 2),
+        ),
         TestCase(y.astype("int32x2") - x.astype("int32x2"), (y - x).astype("int32x2")),
         # Mul rules
         TestCase(y.astype("int32x2") * x.astype("int32x2"), (y * x).astype("int32x2")),
-        TestCase(tvm_tirx.tirx.Ramp(x, 4, 4) * 2, tvm_tirx.tirx.Ramp(x * 2, 8, 4)),
-        TestCase(2 * tvm_tirx.tirx.Ramp(x, 4, 4), tvm_tirx.tirx.Ramp(x * 2, 8, 4)),
-        TestCase(tvm_tirx.tirx.Broadcast(0, 4) * x, tvm_tirx.tirx.Broadcast(0, 4)),
-        TestCase(tvm_tirx.tirx.Broadcast(0.0, 4) * x, tvm_tirx.tirx.Broadcast(0.0, 4)),
+        TestCase(
+            tvm_tirx.ir.prim.vector_expr.Ramp(x, 4, 4) * 2,
+            tvm_tirx.ir.prim.vector_expr.Ramp(x * 2, 8, 4),
+        ),
+        TestCase(
+            2 * tvm_tirx.ir.prim.vector_expr.Ramp(x, 4, 4),
+            tvm_tirx.ir.prim.vector_expr.Ramp(x * 2, 8, 4),
+        ),
+        TestCase(
+            tvm_tirx.ir.prim.vector_expr.Broadcast(0, 4) * x,
+            tvm_tirx.ir.prim.vector_expr.Broadcast(0, 4),
+        ),
+        TestCase(
+            tvm_tirx.ir.prim.vector_expr.Broadcast(0.0, 4) * x,
+            tvm_tirx.ir.prim.vector_expr.Broadcast(0.0, 4),
+        ),
         ## DivMod rules
         # trunc div
         TestCase(tdiv(y.astype("int32x2"), x.astype("int32x2")), tdiv(y, x).astype("int32x2")),
-        TestCase(tdiv(tvm_tirx.tirx.Ramp(x, 4, 4), 2), tvm_tirx.tirx.Ramp(tdiv(x, 2), 2, 4)),
         TestCase(
-            tdiv(tvm_tirx.tirx.Ramp(x, 4, tirx.vscale() * 5), 2),
-            tvm_tirx.tirx.Ramp(tdiv(x, 2), 2, tirx.vscale() * 5),
+            tdiv(tvm_tirx.ir.prim.vector_expr.Ramp(x, 4, 4), 2),
+            tvm_tirx.ir.prim.vector_expr.Ramp(tdiv(x, 2), 2, 4),
         ),
-        TestCase(tdiv(tvm_tirx.tirx.Ramp(x * 8 + 1, 1, 4), 8), x.astype("int32x4"), x >= 0),
         TestCase(
-            tdiv(tvm_tirx.tirx.Ramp(x * 8 + 15, 1, 4), 8),
-            tdiv(tvm_tirx.tirx.Ramp(x * 8 + 15, 1, 4), 8),
+            tdiv(tvm_tirx.ir.prim.vector_expr.Ramp(x, 4, tirx.vscale() * 5), 2),
+            tvm_tirx.ir.prim.vector_expr.Ramp(tdiv(x, 2), 2, tirx.vscale() * 5),
+        ),
+        TestCase(
+            tdiv(tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 1, 1, 4), 8), x.astype("int32x4"), x >= 0
+        ),
+        TestCase(
+            tdiv(tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 15, 1, 4), 8),
+            tdiv(tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 15, 1, 4), 8),
         ),
         # trunc mod
         TestCase(tmod(y.astype("int32x2"), x.astype("int32x2")), tmod(y, x).astype("int32x2")),
-        TestCase(tmod(tvm_tirx.tirx.Ramp(x, 4, 4), 2), tvm_tirx.tirx.Broadcast(tmod(x, 2), 4)),
-        TestCase(tmod(tvm_tirx.tirx.Ramp(x * 8 + 1, 1, 4), 8), tvm_tirx.tirx.Ramp(1, 1, 4), x >= 0),
         TestCase(
-            tmod(tvm_tirx.tirx.Ramp(x * 8 + 1, 1, tirx.vscale() * 4), 8),
-            tmod(tvm_tirx.tirx.Ramp(1, 1, tirx.vscale() * 4), 8),
+            tmod(tvm_tirx.ir.prim.vector_expr.Ramp(x, 4, 4), 2),
+            tvm_tirx.ir.prim.vector_expr.Broadcast(tmod(x, 2), 4),
+        ),
+        TestCase(
+            tmod(tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 1, 1, 4), 8),
+            tvm_tirx.ir.prim.vector_expr.Ramp(1, 1, 4),
             x >= 0,
         ),
         TestCase(
-            tmod(tvm_tirx.tirx.Ramp(x * 8 + 1, 15, 4), 8),
-            tmod(tvm_tirx.tirx.Ramp(1, 15, 4), 8),
+            tmod(tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 1, 1, tirx.vscale() * 4), 8),
+            tmod(tvm_tirx.ir.prim.vector_expr.Ramp(1, 1, tirx.vscale() * 4), 8),
+            x >= 0,
+        ),
+        TestCase(
+            tmod(tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 1, 15, 4), 8),
+            tmod(tvm_tirx.ir.prim.vector_expr.Ramp(1, 15, 4), 8),
             x >= 0,
         ),
         # floor div
         TestCase(fld(y.astype("int32x2"), x.astype("int32x2")), fld(y, x).astype("int32x2")),
-        TestCase(fld(tvm_tirx.tirx.Ramp(x, 4, 4), 2), tvm_tirx.tirx.Ramp(fld(x, 2), 2, 4)),
         TestCase(
-            fld(tvm_tirx.tirx.Ramp(x, 4, tirx.vscale() * 4), 2),
-            tvm_tirx.tirx.Ramp(fld(x, 2), 2, tirx.vscale() * 4),
-        ),
-        TestCase(fld(tvm_tirx.tirx.Ramp(x * 8 + 1, 1, 4), 8), (x).astype("int32x4")),
-        TestCase(
-            fld(tvm_tirx.tirx.Ramp(x * 8 + 15, 1, 4), 8),
-            fld(tvm_tirx.tirx.Ramp(x * 8 + 15, 1, 4), 8),
+            fld(tvm_tirx.ir.prim.vector_expr.Ramp(x, 4, 4), 2),
+            tvm_tirx.ir.prim.vector_expr.Ramp(fld(x, 2), 2, 4),
         ),
         TestCase(
-            fld(tvm_tirx.tirx.Ramp(x, 8, 5), tvm_tirx.tirx.Broadcast(4, 5)),
-            tvm_tirx.tirx.Ramp(fld(x, 4), 2, 5),
+            fld(tvm_tirx.ir.prim.vector_expr.Ramp(x, 4, tirx.vscale() * 4), 2),
+            tvm_tirx.ir.prim.vector_expr.Ramp(fld(x, 2), 2, tirx.vscale() * 4),
         ),
+        TestCase(fld(tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 1, 1, 4), 8), (x).astype("int32x4")),
         TestCase(
-            fld(
-                tvm_tirx.tirx.Ramp(x, 8, tirx.vscale() * 4),
-                tvm_tirx.tirx.Broadcast(4, tirx.vscale() * 4),
-            ),
-            tvm_tirx.tirx.Ramp(fld(x, 4), 2, tirx.vscale() * 4),
-        ),
-        TestCase(
-            fld(tvm_tirx.tirx.Ramp(flm(x * 4, 256), 1, 4), tvm_tirx.tirx.Broadcast(8, 4)),
-            tvm_tirx.tirx.Broadcast(fld(flm(x * 4, 256), 8), 4),
-        ),
-        TestCase(
-            fld(tvm_tirx.tirx.Ramp(x, 7, 4), tvm_tirx.tirx.Broadcast(4, 4)),
-            fld(tvm_tirx.tirx.Ramp(x, 7, 4), tvm_tirx.tirx.Broadcast(4, 4)),
-        ),
-        TestCase(
-            fld(tvm_tirx.tirx.Ramp(x * 8, 1, 4), tvm_tirx.tirx.Broadcast(4, 4)),
-            tvm_tirx.tirx.Broadcast(x * 2, 4),
+            fld(tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 15, 1, 4), 8),
+            fld(tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 15, 1, 4), 8),
         ),
         TestCase(
             fld(
-                tvm_tirx.tirx.Ramp(x * 8, 1, tirx.vscale() * 4),
-                tvm_tirx.tirx.Broadcast(4, tirx.vscale() * 4),
+                tvm_tirx.ir.prim.vector_expr.Ramp(x, 8, 5),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 5),
+            ),
+            tvm_tirx.ir.prim.vector_expr.Ramp(fld(x, 4), 2, 5),
+        ),
+        TestCase(
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x, 8, tirx.vscale() * 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, tirx.vscale() * 4),
+            ),
+            tvm_tirx.ir.prim.vector_expr.Ramp(fld(x, 4), 2, tirx.vscale() * 4),
+        ),
+        TestCase(
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(flm(x * 4, 256), 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(8, 4),
+            ),
+            tvm_tirx.ir.prim.vector_expr.Broadcast(fld(flm(x * 4, 256), 8), 4),
+        ),
+        TestCase(
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x, 7, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 4),
             ),
             fld(
-                tvm_tirx.tirx.Ramp(x * 8, 1, tirx.vscale() * 4),
-                tvm_tirx.tirx.Broadcast(4, tirx.vscale() * 4),
+                tvm_tirx.ir.prim.vector_expr.Ramp(x, 7, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 4),
             ),
         ),
         TestCase(
-            fld(tvm_tirx.tirx.Ramp(x * 8, 3, 4), tvm_tirx.tirx.Broadcast(4, 4)),
-            fld(tvm_tirx.tirx.Ramp(x * 8, 3, 4), tvm_tirx.tirx.Broadcast(4, 4)),
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 8, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 4),
+            ),
+            tvm_tirx.ir.prim.vector_expr.Broadcast(x * 2, 4),
         ),
         TestCase(
-            fld(tvm_tirx.tirx.Ramp(x * 8 + 15, 1, 4), tvm_tirx.tirx.Broadcast(4, 4)),
-            fld(tvm_tirx.tirx.Ramp(x * 8 + 15, 1, 4), tvm_tirx.tirx.Broadcast(4, 4)),
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 8, 1, tirx.vscale() * 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, tirx.vscale() * 4),
+            ),
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 8, 1, tirx.vscale() * 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, tirx.vscale() * 4),
+            ),
         ),
         TestCase(
-            fld(tvm_tirx.tirx.Ramp(x * 4, 1, 4), tvm_tirx.tirx.Broadcast(64, 4)),
-            tvm_tirx.tirx.Broadcast(fld(x, 16), 4),
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 8, 3, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 4),
+            ),
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 8, 3, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 4),
+            ),
         ),
         TestCase(
-            fld(tvm_tirx.tirx.Ramp(x * 8, 2, 4), tvm_tirx.tirx.Broadcast(64, 4)),
-            tvm_tirx.tirx.Broadcast(fld(x, 8), 4),
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 15, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 4),
+            ),
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 15, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 4),
+            ),
         ),
         TestCase(
-            fld(tvm_tirx.tirx.Ramp(x * 4, 1, 5), tvm_tirx.tirx.Broadcast(64, 5)),
-            fld(tvm_tirx.tirx.Ramp(x * 4, 1, 5), tvm_tirx.tirx.Broadcast(64, 5)),
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 4, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 4),
+            ),
+            tvm_tirx.ir.prim.vector_expr.Broadcast(fld(x, 16), 4),
+        ),
+        TestCase(
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 8, 2, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 4),
+            ),
+            tvm_tirx.ir.prim.vector_expr.Broadcast(fld(x, 8), 4),
+        ),
+        TestCase(
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 4, 1, 5),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 5),
+            ),
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 4, 1, 5),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 5),
+            ),
         ),  # Example negative case: x = 15; [60, 61, 62, 63, 64] / 64 = [0, 0, 0, 0, 1]
         TestCase(
-            fld(tvm_tirx.tirx.Ramp(x * 4 + 3, 1, 4), tvm_tirx.tirx.Broadcast(64, 4)),
-            fld(tvm_tirx.tirx.Ramp(x * 4 + 3, 1, 4), tvm_tirx.tirx.Broadcast(64, 4)),
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 4 + 3, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 4),
+            ),
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 4 + 3, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 4),
+            ),
         ),  # Example negative case: x = 15; [63, 64, 65, 66] % 64 = [0, 1, 1, 1]
         TestCase(
-            fld(tvm_tirx.tirx.Ramp(x * 7, 1, 4), tvm_tirx.tirx.Broadcast(64, 4)),
-            fld(tvm_tirx.tirx.Ramp(x * 7, 1, 4), tvm_tirx.tirx.Broadcast(64, 4)),
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 7, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 4),
+            ),
+            fld(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 7, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 4),
+            ),
         ),  # Example negative case: x = 9; [63, 70, 77, 84] % 64 = [0, 1, 1, 1]
         # floor mod
         TestCase(flm(y.astype("int32x2"), x.astype("int32x2")), flm(y, x).astype("int32x2")),
-        TestCase(flm(tvm_tirx.tirx.Ramp(x, 4, 4), 2), tvm_tirx.tirx.Broadcast(flm(x, 2), 4)),
         TestCase(
-            flm(tvm_tirx.tirx.Ramp(x, 4, tirx.vscale() * 8), 2),
-            tvm_tirx.tirx.Broadcast(flm(x, 2), tirx.vscale() * 8),
-        ),
-        TestCase(flm(tvm_tirx.tirx.Ramp(x * 8 + 1, 1, 4), 8), tvm_tirx.tirx.Ramp(1, 1, 4)),
-        TestCase(
-            flm(tvm_tirx.tirx.Ramp(x * 8 + 1, 1, tirx.vscale() * 4), 8),
-            flm(tvm_tirx.tirx.Ramp(1, 1, tirx.vscale() * 4), 8),
+            flm(tvm_tirx.ir.prim.vector_expr.Ramp(x, 4, 4), 2),
+            tvm_tirx.ir.prim.vector_expr.Broadcast(flm(x, 2), 4),
         ),
         TestCase(
-            flm(tvm_tirx.tirx.Ramp(x * 8 + 1, 15, 4), 8), flm(tvm_tirx.tirx.Ramp(1, 15, 4), 8)
+            flm(tvm_tirx.ir.prim.vector_expr.Ramp(x, 4, tirx.vscale() * 8), 2),
+            tvm_tirx.ir.prim.vector_expr.Broadcast(flm(x, 2), tirx.vscale() * 8),
         ),
         TestCase(
-            flm(tvm_tirx.tirx.Ramp(x, 8, 4), tvm_tirx.tirx.Broadcast(4, 4)),
-            tvm_tirx.tirx.Broadcast(flm(x, 4), 4),
+            flm(tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 1, 1, 4), 8),
+            tvm_tirx.ir.prim.vector_expr.Ramp(1, 1, 4),
         ),
         TestCase(
-            flm(tvm_tirx.tirx.Ramp(x, 7, 4), tvm_tirx.tirx.Broadcast(4, 4)),
-            flm(tvm_tirx.tirx.Ramp(x, 7, 4), tvm_tirx.tirx.Broadcast(4, 4)),
+            flm(tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 1, 1, tirx.vscale() * 4), 8),
+            flm(tvm_tirx.ir.prim.vector_expr.Ramp(1, 1, tirx.vscale() * 4), 8),
         ),
         TestCase(
-            flm(tvm_tirx.tirx.Ramp(x * 8, 1, 4), tvm_tirx.tirx.Broadcast(4, 4)),
-            tvm_tirx.tirx.Ramp(0, 1, 4),
+            flm(tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 1, 15, 4), 8),
+            flm(tvm_tirx.ir.prim.vector_expr.Ramp(1, 15, 4), 8),
         ),
         TestCase(
-            flm(tvm_tirx.tirx.Ramp(x * 8, 1, 5), tvm_tirx.tirx.Broadcast(4, 5)),
-            flm(tvm_tirx.tirx.Ramp(0, 1, 5), tvm_tirx.tirx.Broadcast(4, 5)),
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x, 8, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 4),
+            ),
+            tvm_tirx.ir.prim.vector_expr.Broadcast(flm(x, 4), 4),
         ),
         TestCase(
-            flm(tvm_tirx.tirx.Ramp(x * 8 + 7, 1, 4), tvm_tirx.tirx.Broadcast(4, 4)),
-            flm(tvm_tirx.tirx.Ramp(3, 1, 4), tvm_tirx.tirx.Broadcast(4, 4)),
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x, 7, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 4),
+            ),
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x, 7, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 4),
+            ),
         ),
         TestCase(
-            flm(tvm_tirx.tirx.Ramp(x * 4, 1, 4), tvm_tirx.tirx.Broadcast(64, 4)),
-            tvm_tirx.tirx.Ramp(flm(x * 4, 64), 1, 4),
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 8, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 4),
+            ),
+            tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4),
         ),
         TestCase(
-            flm(tvm_tirx.tirx.Ramp(x * 8, 2, 4), tvm_tirx.tirx.Broadcast(64, 4)),
-            tvm_tirx.tirx.Ramp(flm(x * 8, 64), 2, 4),
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 8, 1, 5),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 5),
+            ),
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 5),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 5),
+            ),
         ),
         TestCase(
-            flm(tvm_tirx.tirx.Ramp(x * 4, 1, 5), tvm_tirx.tirx.Broadcast(64, 5)),
-            flm(tvm_tirx.tirx.Ramp(x * 4, 1, 5), tvm_tirx.tirx.Broadcast(64, 5)),
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 7, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 4),
+            ),
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(3, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(4, 4),
+            ),
+        ),
+        TestCase(
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 4, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 4),
+            ),
+            tvm_tirx.ir.prim.vector_expr.Ramp(flm(x * 4, 64), 1, 4),
+        ),
+        TestCase(
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 8, 2, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 4),
+            ),
+            tvm_tirx.ir.prim.vector_expr.Ramp(flm(x * 8, 64), 2, 4),
+        ),
+        TestCase(
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 4, 1, 5),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 5),
+            ),
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 4, 1, 5),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 5),
+            ),
         ),  # Example negative case: x = 15; [60, 61, 62, 63, 64] % 64 = [60, 61, 62, 63, 0]
         TestCase(
-            flm(tvm_tirx.tirx.Ramp(x * 4 + 3, 1, 4), tvm_tirx.tirx.Broadcast(64, 4)),
-            flm(tvm_tirx.tirx.Ramp(x * 4 + 3, 1, 4), tvm_tirx.tirx.Broadcast(64, 4)),
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 4 + 3, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 4),
+            ),
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 4 + 3, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 4),
+            ),
         ),  # Example negative case: x = 15; [63, 64, 65, 66] % 64 = [63, 0, 1, 2]
         TestCase(
-            flm(tvm_tirx.tirx.Ramp(x * 2, 1, 8), tvm_tirx.tirx.Broadcast(20, 8)),
-            flm(tvm_tirx.tirx.Ramp(x * 2, 1, 8), tvm_tirx.tirx.Broadcast(20, 8)),
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 2, 1, 8),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(20, 8),
+            ),
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 2, 1, 8),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(20, 8),
+            ),
         ),  # Example negative case: x = 9; [18, 19, 20, ..., 25] % 20 = [18, 19, 0, 1, ..., 5]
         TestCase(
-            flm(tvm_tirx.tirx.Ramp(x * 7, 1, 4), tvm_tirx.tirx.Broadcast(64, 4)),
-            flm(tvm_tirx.tirx.Ramp(x * 7, 1, 4), tvm_tirx.tirx.Broadcast(64, 4)),
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 7, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 4),
+            ),
+            flm(
+                tvm_tirx.ir.prim.vector_expr.Ramp(x * 7, 1, 4),
+                tvm_tirx.ir.prim.vector_expr.Broadcast(64, 4),
+            ),
         ),  # Example negative case: x = 9; [63, 70, 77, 84] % 64 = [63, 6, 13, 20]
         # Min/Max rules
         TestCase(
@@ -1427,8 +1588,8 @@ class TestBitwiseConstants(BaseCompare):
 
 
 class TestDivZero(BaseCompare):
-    ramp = tvm_tirx.tirx.Ramp(1, 1, 2)
-    broadcast = tvm_tirx.tirx.Broadcast(0, 2)
+    ramp = tvm_tirx.ir.prim.vector_expr.Ramp(1, 1, 2)
+    broadcast = tvm_tirx.ir.prim.vector_expr.Broadcast(0, 2)
 
     test_case = tvm_tirx.testing.parameter(
         TestCase(tvm_tirx.tirx.Div(ramp, broadcast), RuntimeError),
@@ -1466,24 +1627,38 @@ class TestIfThenElse(BaseCompare):
 
 class TestCLZ(BaseCompare):
     test_case = tvm_tirx.testing.parameter(
-        TestCase(tvm_tirx.tirx.call_intrin("int32", "prim.clz", 0), T.int32(32)),
-        TestCase(tvm_tirx.tirx.call_intrin("int32", "prim.clz", 1), T.int32(31)),
-        TestCase(tvm_tirx.tirx.call_intrin("int32", "prim.clz", 2), T.int32(30)),
-        TestCase(tvm_tirx.tirx.call_intrin("int32", "prim.clz", 128), T.int32(24)),
         TestCase(
-            tvm_tirx.tirx.call_intrin("int32", "prim.clz", tvm_tirx.tirx.IntImm("int64", 0)),
+            tvm_tirx.tirx.call_intrin("prim.clz", 0, ty="int32"),
+            T.int32(32),
+        ),
+        TestCase(
+            tvm_tirx.tirx.call_intrin("prim.clz", 1, ty="int32"),
+            T.int32(31),
+        ),
+        TestCase(
+            tvm_tirx.tirx.call_intrin("prim.clz", 2, ty="int32"),
+            T.int32(30),
+        ),
+        TestCase(
+            tvm_tirx.tirx.call_intrin("prim.clz", 128, ty="int32"),
+            T.int32(24),
+        ),
+        TestCase(
+            tvm_tirx.tirx.call_intrin("prim.clz", tvm_tirx.ir.expr.IntImm("int64", 0), ty="int32"),
             T.int32(64),
         ),
         TestCase(
-            tvm_tirx.tirx.call_intrin("int32", "prim.clz", tvm_tirx.tirx.IntImm("int64", 1)),
+            tvm_tirx.tirx.call_intrin("prim.clz", tvm_tirx.ir.expr.IntImm("int64", 1), ty="int32"),
             T.int32(63),
         ),
         TestCase(
-            tvm_tirx.tirx.call_intrin("int32", "prim.clz", tvm_tirx.tirx.IntImm("int64", 2)),
+            tvm_tirx.tirx.call_intrin("prim.clz", tvm_tirx.ir.expr.IntImm("int64", 2), ty="int32"),
             T.int32(62),
         ),
         TestCase(
-            tvm_tirx.tirx.call_intrin("int32", "prim.clz", tvm_tirx.tirx.IntImm("int64", 128)),
+            tvm_tirx.tirx.call_intrin(
+                "prim.clz", tvm_tirx.ir.expr.IntImm("int64", 128), ty="int32"
+            ),
             T.int32(56),
         ),
     )

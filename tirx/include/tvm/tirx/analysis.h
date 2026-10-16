@@ -21,8 +21,8 @@
  * \file tvm/tirx/analysis.h
  * \brief Analysis utilities and passes for TIR.
  */
-#ifndef TVM_TIR_ANALYSIS_H_
-#define TVM_TIR_ANALYSIS_H_
+#ifndef TVM_TIRX_ANALYSIS_H_
+#define TVM_TIRX_ANALYSIS_H_
 
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/expr.h>
@@ -55,21 +55,6 @@ TVM_TIRX_DLL bool VerifyMemory(const Function& func);
  * \param expr The expr to be calculated.
  */
 TVM_TIRX_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
-
-/*!
- * \brief Calculate the constants size in bytes needed by the TIR allocates inside the TIR Function
- * \param func The TIR Function for which the constants size to be calculated
- * \param constant_byte_alignment The byte alignment required for each constant allocated
- */
-TVM_TIRX_DLL size_t CalculateConstantBytes(const Function& func, int64_t constant_byte_alignment);
-
-/*!
- * \brief Calculate the workspace size in bytes needed by the TIR allocates inside the TIR Function
- * \param func The TIR Function for which the workspace size to be calculated
- * \param workspace_byte_alignment The byte alignment required for each tensor allocated in this
- * workspace
- */
-TVM_TIRX_DLL size_t CalculateWorkspaceBytes(const Function& func, int64_t workspace_byte_alignment);
 
 /*!
  * \brief Verify if the given TIR is well-formed. The verification includes:
@@ -133,4 +118,4 @@ TVM_TIRX_DLL Pass VerifyMemory();
 }  // namespace transform
 }  // namespace tirx
 }  // namespace tvm
-#endif  // TVM_TIR_ANALYSIS_H_
+#endif  // TVM_TIRX_ANALYSIS_H_

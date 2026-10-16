@@ -25,7 +25,7 @@ from tvm_tirx.backend.cuda import op as _cuda_op
 
 def test_tir_op_tvm_struct_get():
     x = tirx.Var("x", ty="handle")
-    expr = tirx.abi_field_get(x, 1, 2, dtype="int32")
+    expr = tirx.abi_field_get(x, 1, 2, ty="int32")
     assert expr.op.name == "tirx.abi_field_get"
 
 
@@ -33,11 +33,11 @@ def test_scalar_integer_signature():
     ptr = tirx.Var("ptr", ty="handle")
     for dtype in ("int8", "uint32", "int64", "uint64"):
         index = tirx.Var("index", dtype)
-        assert tirx.abi_field_get(ptr, index, 2, dtype="int32").args[1].same_as(index)
-    assert tirx.abi_field_get(ptr, 1 << 40, 2, dtype="int32").args[1].ty.dtype == "int64"
+        assert tirx.abi_field_get(ptr, index, 2, ty="int32").args[1].same_as(index)
+    assert tirx.abi_field_get(ptr, 1 << 40, 2, ty="int32").args[1].ty.dtype == "int64"
     for dtype in ("float32", "bool", "int32x4", "int32xvscalex4"):
         with pytest.raises(TypeError, match=rf"index.*expected `ir.IntExpr`.*\[ty={dtype}\]"):
-            tirx.abi_field_get(ptr, tirx.Var("index", dtype), 2, dtype="int32").validate()
+            tirx.abi_field_get(ptr, tirx.Var("index", dtype), 2, ty="int32").validate()
 
 
 def test_tir_op_tvm_struct_set():
@@ -61,12 +61,76 @@ def test_tir_op_address_of():
 
 def test_tir_op_reinterpret():
     x = tirx.Var("x", ty="int32")
-    expr = tirx.reinterpret("float32", x)
+    expr = tirx.reinterpret(x, ty="float32")
     assert expr.op.name == "tirx.reinterpret"
     with pytest.raises(TypeError, match="scalar 64-bit integer source"):
-        tirx.reinterpret("handle", x)
-    pointer = tirx.reinterpret("handle", tirx.Var("address", ty="uint64"))
+        tirx.reinterpret(x, ty="handle")
+    pointer = tirx.reinterpret(tirx.Var("address", ty="uint64"), ty="handle")
     assert pointer.ty == tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("void"))
+
+
+@pytest.mark.parametrize("op_name", ["call_extern", "call_pure_extern", "call_intrin"])
+def test_result_type_keyword_matches_script_builder(op_name):
+    from tvm_tirx.script import tirx as T
+
+    x = tirx.Var("x", ty="float32")
+    ty = tvm_tirx.ir.PrimType("float32")
+    loc = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("op.py"), 1, 0, 1, 8)
+    name = "prim.exp" if op_name == "call_intrin" else "external_func"
+    direct = getattr(tirx, op_name)(name, x, ty=ty, loc=loc)
+    scripted = getattr(T, op_name)(name, x, ty=ty, loc=loc)
+    assert direct.ty == ty
+    assert direct.loc.same_as(loc)
+    tvm_tirx.ir.assert_structural_equal(direct, scripted)
+    with pytest.raises(TypeError):
+        getattr(tirx, op_name)("float32", name, x)
+
+
+@pytest.mark.parametrize("op_name", ["min_value", "max_value", "infinity"])
+def test_primitive_result_type_keyword(op_name):
+    from tvm_tirx.script import tirx as T
+
+    ty = tvm_tirx.ir.PrimType("float32")
+    direct = getattr(tirx, op_name)(ty=ty)
+    scripted = getattr(T, op_name)(ty=ty)
+    assert direct.ty == ty
+    tvm_tirx.ir.assert_structural_equal(direct, scripted)
+    with pytest.raises(TypeError):
+        getattr(tirx, op_name)("float32")
+
+
+def test_masked_memory_wrapper_parity_and_inference():
+    from tvm_tirx.script import tirx as T
+
+    tensor = tirx.decl_tensor((16,), "float32")
+    index = tvm_tirx.ir.prim.Ramp(0, 1, 4)
+    mask = tvm_tirx.ir.prim.Broadcast(True, 4)
+    loc = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("op.py"), 2, 0, 2, 8)
+    loaded = tirx.op.masked_load(tensor, index, mask, loc=loc)
+    assert loaded.ty == tvm_tirx.ir.PrimType("float32x4")
+    assert loaded.loc.same_as(loc)
+    tvm_tirx.ir.assert_structural_equal(loaded, T.masked_load(tensor, index, mask, loc=loc))
+    explicit = tirx.op.masked_load(tensor, index, mask, ty=loaded.ty, loc=loc)
+    tvm_tirx.ir.assert_structural_equal(loaded, explicit)
+    stored = tirx.op.masked_store(tensor, loaded, index, mask, loc=loc)
+    assert stored.ty == tvm_tirx.ir.PrimType("void")
+    assert stored.loc.same_as(loc)
+    tvm_tirx.ir.assert_structural_equal(
+        stored, T.masked_store(tensor, loaded, index, mask, loc=loc)
+    )
+
+
+def test_cast_result_type_keyword():
+    from tvm_tirx.script import tirx as T
+
+    value = tirx.Var("x", ty="int32")
+    ty = tvm_tirx.ir.PrimType("float32")
+    assert T.cast(value, ty=ty).ty == ty
+    assert tirx.reinterpret(value, ty=ty).ty == ty
+    with pytest.raises(TypeError):
+        T.cast(value, "float32")
+    with pytest.raises(TypeError):
+        tirx.reinterpret("float32", value)
 
 
 def test_tir_op_isnullptr():
@@ -189,20 +253,14 @@ def test_tir_op_mma_store():
         [16, 16], dtype="int32", scope="global", offset_factor=1, strides=[x, y]
     )
     expr = _cuda_op.mma_store(
-        "int32",
-        16,
-        16,
-        tensor.ptr_to([0, 0]),
-        tensor_w.data,
-        tensor_w.ty.elem_offset,
-        x,
+        16, 16, tensor.ptr_to([0, 0]), tensor_w.data, tensor_w.ty.elem_offset, x, ty="int32"
     )
     assert expr.op.name == "tirx.cuda.mma_store"
 
 
 def test_tir_op_mma_fill():
     tensor_w = tirx.decl_tensor([16, 8], dtype="int32", scope="warp", offset_factor=1)
-    expr = _cuda_op.mma_fill("int32", 8, tensor_w.data, tensor_w.ty.elem_offset)
+    expr = _cuda_op.mma_fill(8, tensor_w.data, tensor_w.ty.elem_offset, ty="int32")
     assert expr.op.name == "tirx.cuda.mma_fill"
 
 
@@ -227,15 +285,15 @@ def test_op_ptx_cp_async():
 
 def test_tir_op_vector_low():
     tensor = tirx.decl_tensor((4, 4), "int8", offset_factor=1)
-    vec = tensor[0, tirx.Ramp(0, 1, 16)]
-    expr = tirx.vector_low("int8x8", vec)
+    vec = tensor[0, tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 16)]
+    expr = tirx.vector_low(vec, ty="int8x8")
     assert expr.op.name == "tirx.vector_low"
 
 
 def test_tir_op_vector_high():
     tensor = tirx.decl_tensor((4, 4), "int8", offset_factor=1)
-    vec = tensor[0, tirx.Ramp(0, 1, 16)]
-    expr = tirx.vector_high("int8x8", vec)
+    vec = tensor[0, tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 16)]
+    expr = tirx.vector_high(vec, ty="int8x8")
     assert expr.op.name == "tirx.vector_high"
 
 
@@ -249,8 +307,8 @@ def test_tir_op_dp4a():
 
 def test_tir_op_vector_combine():
     tensor = tirx.decl_tensor((4, 4), "int8", offset_factor=1)
-    vec = tensor[0, tirx.Ramp(0, 1, 16)]
-    expr = tirx.vector_combine("int8x8", vec, vec)
+    vec = tensor[0, tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 16)]
+    expr = tirx.vector_combine(vec, vec, ty="int8x8")
     assert expr.op.name == "tirx.vector_combine"
 
 

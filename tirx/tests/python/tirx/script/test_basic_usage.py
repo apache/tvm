@@ -358,7 +358,9 @@ def test_roundtrip_unary_inplace():
         lane_id = T.cuda.lane_id()
         T.cuda.tile.apply(T.ptx['ex2.approx.ftz.f32'], A[0:32], A[0:32], scope='warp')
         T.cuda.tile.apply(T.ptx['sqrt.rn.f32'], A[32:64], A[32:64], scope='warp')
-        T.cuda.tile.apply(T.ptx['div.rn.f32'], A[64:96], T.cast(1, A.dtype), A[64:96], scope='warp')
+        T.cuda.tile.apply(
+            T.ptx['div.rn.f32'], A[64:96], T.cast(1, ty=A.dtype), A[64:96], scope='warp'
+        )
         # fmt: on
 
     code = test.script()
@@ -563,7 +565,7 @@ def test_thread_return_is_distinct_from_function_return():
     assert isinstance(thread_exit.body[0], tvm_tirx.ir.Evaluate)
     assert thread_exit.body[0].value.op.name == "tirx.gpu_thread_return"
     assert isinstance(function_exit.body[0], tvm_tirx.ir.Return)
-    assert isinstance(function_exit.body[0].value, tirx.IntImm)
+    assert isinstance(function_exit.body[0].value, tvm_tirx.ir.expr.IntImm)
     assert function_exit.body[0].value.value == 0
 
 
@@ -822,7 +824,7 @@ def test_roundtrip_serial_unroll_false_with_other_annotations():
         cta_id = T.cuda.block_idx('x')
         warp_id = T.cuda.warp_id()
         lane_id = T.cuda.lane_id()
-        for _ in T.serial(10, annotations={"disable_unroll": True, "custom": 42}):
+        for _ in T.serial(10, annotations={"tirx.disable_unroll": True, "custom": 42}):
             T.cuda.tile.apply(T.ptx['mov.b32'], A[0:32], T.float32(0), scope='cta')
         # fmt: on
 

@@ -157,12 +157,12 @@ class ConciseModuleFromPython:
             with Ts.sblock("Y"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 with Ts.init():
-                    Y[vi, vj] = T.cast(T.float32(0), dtype)
+                    Y[vi, vj] = T.cast(T.float32(0), ty=dtype)
                 Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(M, N):
             with Ts.sblock("C"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
-                C[vi, vj] = T.max(Y[vi, vj], T.cast(T.float32(0), dtype))
+                C[vi, vj] = T.max(Y[vi, vj], T.cast(T.float32(0), ty=dtype))
 
 
 ######################################################################
@@ -194,12 +194,12 @@ class DynamicShapeModule:
             with Ts.sblock("Y"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 with Ts.init():
-                    Y[vi, vj] = T.cast(T.float32(0), dtype)
+                    Y[vi, vj] = T.cast(T.float32(0), ty=dtype)
                 Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(M, N):
             with Ts.sblock("C"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
-                C[vi, vj] = T.max(Y[vi, vj], T.cast(T.float32(0), dtype))
+                C[vi, vj] = T.max(Y[vi, vj], T.cast(T.float32(0), ty=dtype))
 
 
 ######################################################################

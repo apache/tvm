@@ -684,7 +684,7 @@ def argmax_split(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -709,7 +709,7 @@ def argmin_split_init_update_reordered(
             Ts.reads(idx[i, k], val[i, k])
             Ts.writes(argmin_v0[i], argmin_v1[i])
             with Ts.init():
-                argmin_v1[i] = T.max_value("float32")
+                argmin_v1[i] = T.max_value(ty="float32")
                 argmin_v0[i] = -1
             v_argmin_v0: T.let[T.int32] = T.Select(
                 argmin_v1[i] <= val[i, k], argmin_v0[i], idx[i, k]
@@ -736,7 +736,7 @@ def argmax_split_different_shape(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -762,7 +762,7 @@ def argmax_split_different_indices(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i + 1] = T.min_value("float32")
+                argmax_v1[i + 1] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -788,7 +788,7 @@ def argmax_split_init_not_tensorstore(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                v1_init: T.let[T.float32] = T.min_value("float32")
+                v1_init: T.let[T.float32] = T.min_value(ty="float32")
                 argmax_v1[i] = v1_init
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
@@ -841,7 +841,7 @@ def argmax_split_bind_fewer_than_init(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -889,7 +889,7 @@ def argmax_split_let_body_neither_seqstmt_nor_tensorstore(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -914,7 +914,7 @@ def argmax_split_init_update_inconsistent_tensorstore_number(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -941,7 +941,7 @@ def argmax_split_body_seq_not_tensorstore(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -967,7 +967,7 @@ def argmax_split_body_tensorstore_value_not_var(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -997,7 +997,7 @@ def argmax_split_body_tensorstore_value_unbound_var(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -1023,7 +1023,7 @@ def argmax_split_one_let_var_used_multi_times(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("int32")
+                argmax_v1[i] = T.min_value(ty="int32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -1049,7 +1049,7 @@ def argmax_split_body_one_tensor_updated_multi_times(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("int32")
+                argmax_v1[i] = T.min_value(ty="int32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -1076,7 +1076,7 @@ def argmax_split_init_tensor_not_match(
             Ts.writes(argmax_v0[i], argmax_v0_1[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0_1[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -1103,7 +1103,7 @@ def argmax_split_rfactor(
             Ts.writes(argmax_v0_rf[i, vi1_1], argmax_v1_rf[i, vi1_1])
             with Ts.init():
                 argmax_v0_rf[i, vi1_1] = -1
-                argmax_v1_rf[i, vi1_1] = T.min_value("float32")
+                argmax_v1_rf[i, vi1_1] = T.min_value(ty="float32")
             v_argmax_v0_rf: T.let[T.int32] = T.Select(
                 argmax_v1_rf[i, vi1_1] >= val[i, vi1_0 * 32 + vi1_1],
                 argmax_v0_rf[i, vi1_1],
@@ -1123,7 +1123,7 @@ def argmax_split_rfactor(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= argmax_v1_rf[i, vi1_1], argmax_v0[i], argmax_v0_rf[i, vi1_1]
             )
@@ -1150,7 +1150,7 @@ def argmin_split_rfactor(
             Ts.writes(argmin_v0_rf[i, vi1_1], argmin_v1_rf[i, vi1_1])
             with Ts.init():
                 argmin_v0_rf[i, vi1_1] = -1
-                argmin_v1_rf[i, vi1_1] = T.max_value("float32")
+                argmin_v1_rf[i, vi1_1] = T.max_value(ty="float32")
             v_argmin_v0_rf: T.let[T.int32] = T.Select(
                 argmin_v1_rf[i, vi1_1] <= val[i, vi1_0 * 32 + vi1_1],
                 argmin_v0_rf[i, vi1_1],
@@ -1170,7 +1170,7 @@ def argmin_split_rfactor(
             Ts.writes(argmin_v0[i], argmin_v1[i])
             with Ts.init():
                 argmin_v0[i] = -1
-                argmin_v1[i] = T.max_value("float32")
+                argmin_v1[i] = T.max_value(ty="float32")
             v_argmin_v0: T.let[T.int32] = T.Select(
                 argmin_v1[i] <= argmin_v1_rf[i, vi1_1], argmin_v0[i], argmin_v0_rf[i, vi1_1]
             )

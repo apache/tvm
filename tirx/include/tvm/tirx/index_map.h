@@ -23,8 +23,8 @@
  *
  * For use with TIR tensors.
  */
-#ifndef TVM_TIR_INDEX_MAP_H_
-#define TVM_TIR_INDEX_MAP_H_
+#ifndef TVM_TIRX_INDEX_MAP_H_
+#define TVM_TIRX_INDEX_MAP_H_
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ir/expr.h>
@@ -276,4 +276,4 @@ class IndexMap : public ffi::ObjectRef {
 }  // namespace tirx
 }  // namespace tvm
 
-#endif  // TVM_TIR_INDEX_MAP_H_
+#endif  // TVM_TIRX_INDEX_MAP_H_

@@ -40,7 +40,8 @@ TVM_TIRX_DLL const Op& launch_thread_op();
 
 /*!
  * \brief Mark a user-facing device entry containing device scope definitions.
- * Takes no operands, body parameters, attributes or results.
+ * Operands are optional launch configuration values, each named by the
+ * cuda.launch_fields attribute; there are no body parameters or results.
  */
 TVM_TIRX_DLL const Op& device_entry_op();
 

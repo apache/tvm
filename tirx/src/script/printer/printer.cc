@@ -364,7 +364,7 @@ ffi::String RenderScript(const ffi::ObjectRef& obj, const PrinterConfig& config)
       for (size_t suffix = 1; used.count(loader); ++suffix)
         loader = "tvm_tirx_" + std::to_string(suffix);
       ffi::String json = ffi::json::Stringify(
-          ffi::ToJSONGraph(metadata, ffi::json::Object{{"tvm_version", TVM_VERSION}}), 2);
+          ffi::ToJSONGraph(metadata, ffi::json::Object{{"tvm_tirx_version", TVM_TIRX_VERSION}}), 2);
       block.value()->stmts.insert(block.value()->stmts.begin(),
                                   AssignDoc(metadata_id.value(),
                                             IdDoc(loader)

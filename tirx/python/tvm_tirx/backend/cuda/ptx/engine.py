@@ -41,12 +41,12 @@ from tvm_ffi import get_global_func, register_global_func, structural_equal
 
 from tvm_tirx.backend.cuda.codegen.registry import register_codegen
 from tvm_tirx.backend.cuda.codegen.utils import parse_str
-from tvm_tirx.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
+from tvm_tirx.backend.cuda.op import cvta_generic_to_shared, func_call
 from tvm_tirx.ir import Call, Op, StringImm, TensorLoad, const
+from tvm_tirx.ir.expr import CallEffectKind, IntImm
 from tvm_tirx.ir.op import register_op_attr
 from tvm_tirx.ir.type import PrimType, PtrType
 from tvm_tirx.runtime import MemoryScope
-from tvm_tirx.tirx.expr import CallEffectKind, IntImm
 from tvm_tirx.tirx.op import call_intrin, reinterpret
 
 from .render import render_variant
@@ -94,8 +94,8 @@ _INTEGER_DTYPES = frozenset(
 def register_table(table: dict[str, InstructionEntry]) -> None:
     """Register every table entry as a TVM Op + generic codegen."""
     for entry in table.values():
-        # First attr call implicitly creates the Op registry entry. Effect
-        # kind must exist before any side-effect analysis sees the op.
+        get_global_func("ir.RegisterOp")(entry.op_name, entry.name)
+        # Effect kind must exist before any side-effect analysis sees the op.
         register_op_attr(entry.op_name, "TCallEffectKind", _EFFECT_OPAQUE)
         # Encoded variants have no shared named operand prefix; codegen checks
         # each variant's operands, predicate, modifier tokens, and marker.
@@ -112,6 +112,7 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
 
 def register_addr() -> None:
     """Register the pure address-expression op consumed by PTX instructions."""
+    get_global_func("ir.RegisterOp")(_ADDR_OP_NAME, "PTX address expression")
     register_op_attr(_ADDR_OP_NAME, "TCallEffectKind", _EFFECT_PURE)
     op = Op.get(_ADDR_OP_NAME)
     op.add_arg("base", "The base pointer.")
@@ -298,7 +299,7 @@ def _make_codegen(entry: InstructionEntry):
         # is forwarded as-is.
         forwarded = [rest[at[i]] for i in range(n_operands) if i not in imm_at and i not in sunk]
         forwarded += list(rest[n_present:])
-        return cuda_func_call(helper, *forwarded, source)
+        return func_call(helper, *forwarded, source)
 
     return codegen
 
@@ -450,7 +451,7 @@ def _coerce_operand(entry, slot, values, mod_map):
 def _coerce_addr_arg(entry, slot, value, mod_map):
     base = getattr(value.base, "scalar", value.base)
     base = _coerce_address(entry, slot, base, mod_map)
-    return call_intrin(base.ty, _ADDR_OP_NAME, base, value.byte_offset)
+    return call_intrin(_ADDR_OP_NAME, base, value.byte_offset, ty=base.ty)
 
 
 def _coerce_pred_operand(entry, slot, values):
@@ -579,7 +580,7 @@ def _coerce_address(entry, slot, value, mod_map):
             # helpers did. The pointer's storage_scope is not a reliable
             # discriminator here: a shared buffer's ptr_to() reports 'global',
             # so gating on it rejects correct code.
-            return cuda_cvta_generic_to_shared(value)
+            return cvta_generic_to_shared(value)
         if isinstance(ty, PrimType) and ty.dtype == "uint32":
             return value  # trusted raw shared-window address
         raise ValueError(
@@ -598,7 +599,7 @@ def _coerce_address(entry, slot, value, mod_map):
         # parameter is `const void*` and PTX binds it to the same "l" register
         # either way, so make the conversion an explicit, visible IR node
         # rather than a silent type pun.
-        return reinterpret("handle", value)
+        return reinterpret(value, ty="handle")
     if isinstance(ty, PrimType) and ty.dtype == "uint32":
         raise ValueError(f"{entry.name}: uint32 address requires shared state space")
     raise ValueError(f"{entry.name}: operand '{slot.name}' must be a pointer or uint64 handle")
@@ -790,12 +791,12 @@ def _emit(entry, filled, operands, pred=None, preserve_dst=False):
     # there -- without it a printed call would re-parse at the wrong arity.
     flags += [f"s{i}" for i in sorted(sunk)]
     return call_intrin(
-        "",  # every ptx call is a void statement; destinations are operands
         entry.op_name,
         *coerced,
         *((pred,) if pred is not None else ()),
         *mod_map.values(),
         ",".join(flags),
+        ty="",
     )
 
 

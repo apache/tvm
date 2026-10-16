@@ -74,11 +74,11 @@ def prim_value(value: Expr | int | float, dtype: str | None = None) -> Expr:
     if tvm_tirx.ir.is_prim_expr(value):
         return value
     if isinstance(value, bool | _np.bool_):
-        return tvm_tirx.tirx.IntImm(dtype or "bool", int(value))
+        return tvm_tirx.ir.expr.IntImm(dtype or "bool", int(value))
     if isinstance(value, Integral):
-        return tvm_tirx.tirx.IntImm(dtype or "int64", int(value))
+        return tvm_tirx.ir.expr.IntImm(dtype or "int64", int(value))
     if isinstance(value, Real):
-        return tvm_tirx.tirx.FloatImm(dtype or "float64", float(value))
+        return tvm_tirx.ir.expr.FloatImm(dtype or "float64", float(value))
     tvm_value = tvm_ffi.convert(value)
     if tvm_tirx.ir.is_prim_expr(tvm_value):
         return tvm_value

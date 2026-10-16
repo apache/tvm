@@ -172,16 +172,12 @@ class Target : public ffi::ObjectRef {
   Target WithoutHost() const;
 
  private:
-  Target(TargetKind kind, ffi::Optional<ffi::ObjectRef> host, ffi::String tag,
-         ffi::Array<ffi::String> keys, ffi::Map<ffi::String, ffi::Any> attrs);
-
   // enable with syntax.
   friend class TargetInternal;
   friend class With<Target>;
   /*!
    * \brief Push a new target context onto the thread local stack.
-   *  The Target on top of the stack is used to determine which
-   *  specialization to use when invoking a GenericFunc.
+   *  The Target on top of the stack is returned by Target::Current().
    */
   TVM_TIRX_DLL void EnterWithScope();
   /*!

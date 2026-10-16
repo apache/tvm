@@ -29,7 +29,7 @@ from .. import tag
 def can_convert_multiply_to_intdiv(origin_size, scaled_size):
     """Check whether can convert multiplication to division"""
     # Only support IntImm type
-    if not isinstance(scaled_size, tvm_tirx.tirx.expr.IntImm):
+    if not isinstance(scaled_size, tvm_tirx.ir.expr.IntImm):
         return False
 
     div = scaled_size / origin_size.astype("float")
@@ -471,7 +471,7 @@ def resize1d(
 
     for i in range(1):
         if isinstance(size[i], int):
-            size[i] = tvm_tirx.tirx.IntImm("int32", size[i])
+            size[i] = tvm_tirx.ir.expr.IntImm("int32", size[i])
 
     def compute_func(*indices):
         return _resize_1d(
@@ -838,7 +838,7 @@ def resize2d(
 
     for i in range(2):
         if isinstance(size[i], int):
-            size[i] = tvm_tirx.tirx.IntImm("int32", size[i])
+            size[i] = tvm_tirx.ir.expr.IntImm("int32", size[i])
 
     def compute_func(*indices):
         return _resize_2d(
@@ -1301,7 +1301,7 @@ def resize3d(
 
     for i in range(3):
         if isinstance(size[i], int):
-            size[i] = tvm_tirx.tirx.IntImm("int32", size[i])
+            size[i] = tvm_tirx.ir.expr.IntImm("int32", size[i])
 
     def compute_func(*indices):
         return _resize_3d(

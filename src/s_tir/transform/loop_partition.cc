@@ -266,19 +266,17 @@ class CandidateSelector final : public StmtExprVisitor {
 class PartitionFinder : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
-  explicit PartitionFinder(Var current_var,
-                           const std::unordered_map<const VarNode*, IntSet>& hint_map,
-                           const std::unordered_map<const VarNode*, IntSet>& relax_map,
-                           bool has_partition_hint)
+  explicit PartitionFinder(Var current_var, ffi::Map<Var, IntSet>& hint_map,
+                           ffi::Map<Var, IntSet>& relax_map, bool has_partition_hint)
       : current_var_(current_var),
         has_partition_hint_(has_partition_hint),
         hint_map_(hint_map),
         relax_map_(relax_map) {
     for (const auto& kv : hint_map) {
-      out_vars_.insert(kv.first);
+      out_vars_.insert(kv.first.get());
     }
     for (const auto& kv : relax_map) {
-      out_vars_.insert(kv.first);
+      out_vars_.insert(kv.first.get());
     }
   }
 
@@ -294,27 +292,28 @@ class PartitionFinder : public StmtExprVisitor {
       return std::nullopt;
     }
 
-    const VarNode* var = op->loop_var.get();
-    hint_map_.insert({var, IntSet::Interval(op->min, op->min + op->extent - 1)});
-    relax_map_.insert({var, IntSet::Interval(op->min, op->min + op->extent - 1)});
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    const Var& var = op->loop_var;
+    hint_map_.Set(var, IntSet::Interval(op->min, op->min + op->extent - 1));
+    relax_map_.Set(var, IntSet::Interval(op->min, op->min + op->extent - 1));
+    auto result = StmtExprVisitor::Visit_(op);
     relax_map_.erase(var);
     hint_map_.erase(var);
-    return std::nullopt;
+    return result;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     // handle thread_axis
     if (op->op.same_as(tirx::launch_thread_op()) &&
         !op->args[0].as_or_throw<StringImm>()->value.starts_with("vthread")) {
-      const VarNode* var = op->body_params[0].as_or_throw<PrimVar>().get();
+      Var var = op->body_params[0].as_or_throw<PrimVar>();
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       IntSet dom = IntSet::FromRange(Range(IntImm(extent.ty(), 0), extent));
-      hint_map_.insert({var, dom});
-      relax_map_.insert({var, dom});
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+      hint_map_.Set(var, dom);
+      relax_map_.Set(var, dom);
+      auto result = StmtExprVisitor::Visit_(op);
       relax_map_.erase(var);
       hint_map_.erase(var);
+      return result;
     } else {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
@@ -414,8 +413,9 @@ class PartitionFinder : public StmtExprVisitor {
   Var current_var_;
   bool has_partition_hint_;
   std::unordered_set<const VarNode*> out_vars_;
-  std::unordered_map<const VarNode*, IntSet> hint_map_;
-  std::unordered_map<const VarNode*, IntSet> relax_map_;
+  // Borrow the caller's maps; each visit restores its scoped bindings.
+  ffi::Map<Var, IntSet>& hint_map_;
+  ffi::Map<Var, IntSet>& relax_map_;
 };
 
 // Replace the set of conditions given by ps with cond_value (true or false)
@@ -538,10 +538,10 @@ class LoopPartitioner : public StmtExprMutator {
     bool relax = thread_scope &&
                  support::GPUThreadTag::Parse(tvm::s_tir::GetThreadBinding(op).value()).rank == 1;
     auto& ranges = relax ? relax_map_ : hint_map_;
-    ranges.insert({op->loop_var.get(), IntSet::Interval(op->min, op->min + op->extent - 1)});
+    ranges.Set(op->loop_var, IntSet::Interval(op->min, op->min + op->extent - 1));
     Stmt res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    ranges.erase(op->loop_var.get());
+    ranges.erase(op->loop_var);
     return res;
   }
 
@@ -565,17 +565,15 @@ class LoopPartitioner : public StmtExprMutator {
     Stmt res{ffi::UnsafeInit{}};
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.
-      relax_map_.insert(
-          {var.get(), IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), extent - 1)});
+      relax_map_.Set(var, IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), extent - 1));
       res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                 .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-      relax_map_.erase(var.get());
+      relax_map_.erase(var);
     } else {
-      hint_map_.insert(
-          {var.get(), IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), extent - 1)});
+      hint_map_.Set(var, IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), extent - 1));
       res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                 .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-      hint_map_.erase(var.get());
+      hint_map_.erase(var);
     }
     return res;
   }
@@ -591,8 +589,8 @@ class LoopPartitioner : public StmtExprMutator {
   inline Stmt MakeFor(const ffi::Object* op, PrimExpr extent, Stmt body);
 
   /* Candidate IRs that may be partitioned potentially */
-  std::unordered_map<const VarNode*, IntSet> hint_map_;
-  std::unordered_map<const VarNode*, IntSet> relax_map_;
+  ffi::Map<Var, IntSet> hint_map_;
+  ffi::Map<Var, IntSet> relax_map_;
   sym::Analyzer analyzer_;
   ffi::ObjectPtr<CandidateSelector> selector;
   bool no_unroll_loop_with_extent_one_;
@@ -700,14 +698,14 @@ ffi::Optional<Stmt> LoopPartitioner::TryPartition(const Stmt& stmt, Var var, Pri
                                                   bool partition_thread_scope) {
   using namespace sym;
   // include hint of var.
-  hint_map_.insert({var.get(), IntSet::Interval(min, max)});
+  hint_map_.Set(var, IntSet::Interval(min, max));
 
   const auto* loop = stmt.as<ForNode>();
   bool has_partition_hint_ = loop && HasPartitionHint(loop);
   auto finder = ffi::make_object<PartitionFinder>(var, hint_map_, relax_map_, has_partition_hint_);
   finder->Visit(body);
 
-  hint_map_.erase(var.get());
+  hint_map_.erase(var);
   if (finder->partitions.empty()) return std::nullopt;
 
   IntSet for_interval = IntSet::Interval(min, max);

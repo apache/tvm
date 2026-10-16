@@ -103,7 +103,6 @@ IRModule MarkScheduled(const IRModule& mod) {
   }
 
   return IRModule(result,              // functions
-                  mod->source_map,     // map
                   mod->attrs,          // attrs
                   mod->global_infos);  // global_infos
 }
@@ -202,7 +201,7 @@ Pass DefaultGPUSchedule() {
           wrapped.Set(gv, base_func);
         }
         if (any_wrapped) {
-          m = IRModule(wrapped, m->source_map, m->attrs, m->global_infos);
+          m = IRModule(wrapped, m->attrs, m->global_infos);
         }
         s_tir::Schedule sch = s_tir::Schedule::Traced(m, /*seed=*/-1, /*debug_mask=*/0,
                                                       s_tir::ScheduleErrorRenderLevel::kDetail);

@@ -186,7 +186,7 @@ class SoftmaxBeforeInline:
             with Ts.sblock("T_softmax_maxelem"):
                 i0_1, k = Ts.axis.remap("SR", [i0, i1])
                 with Ts.init():
-                    T_softmax_maxelem[i0_1] = T.min_value("float32")
+                    T_softmax_maxelem[i0_1] = T.min_value(ty="float32")
                 T_softmax_maxelem[i0_1] = T.max(T_softmax_maxelem[i0_1], A[i0_1, k])
         for i0, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_exp"):
@@ -213,7 +213,7 @@ class SoftmaxAfterInline:
             with Ts.sblock("T_softmax_maxelem"):
                 i0_1, k = Ts.axis.remap("SR", [i0, i1])
                 with Ts.init():
-                    T_softmax_maxelem[i0_1] = T.min_value("float32")
+                    T_softmax_maxelem[i0_1] = T.min_value(ty="float32")
                 T_softmax_maxelem[i0_1] = T.max(T_softmax_maxelem[i0_1], A[i0_1, k])
         for i0, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_expsum"):
@@ -270,7 +270,7 @@ class BeforePureSpatial:
                 Ts.reads(T_less[ax0, ax1], T_add_1[ax0, ax1], placeholder[ax0, ax1])
                 Ts.writes(T_where[ax0, ax1])
                 T_where[ax0, ax1] = T.Select(
-                    T.cast(T_less[ax0, ax1], "int32") != 0, T_add_1[ax0, ax1], placeholder[ax0, ax1]
+                    T.cast(T_less[ax0, ax1], ty="int32") != 0, T_add_1[ax0, ax1], placeholder[ax0, ax1]
                 )
         for i0, i1, i2 in T.grid(1, 384, 768):
             with Ts.sblock("T_take"):
@@ -303,7 +303,7 @@ class AfterPureSpatial:
                 ax0, ax1, ax2 = Ts.axis.remap("SSS", [i0, i1, i2])
                 Ts.reads(placeholder[ax0, ax1], placeholder_1[T.min(T.max(T.int64(0), placeholder[ax0, ax1]), T.int64(30521)) : T.min(T.max(T.int64(0), placeholder[ax0, ax1] + T.int64(30522)), T.int64(30521)) + T.int64(1), ax2], placeholder_2[ax0, ax1, ax2])
                 Ts.writes(T_add[ax0, ax1, ax2])
-                T_add[ax0, ax1, ax2] = placeholder_1[T.min(T.max(T.int64(0), T.Select(T.cast(placeholder[ax0, ax1] < T.int64(0), "int32") != 0, placeholder[ax0, ax1] + T.int64(30522), placeholder[ax0, ax1])), T.int64(30521)), ax2] + placeholder_2[ax0, ax1, ax2]
+                T_add[ax0, ax1, ax2] = placeholder_1[T.min(T.max(T.int64(0), T.Select(T.cast(placeholder[ax0, ax1] < T.int64(0), ty="int32") != 0, placeholder[ax0, ax1] + T.int64(30522), placeholder[ax0, ax1])), T.int64(30521)), ax2] + placeholder_2[ax0, ax1, ax2]
 
 @tvm_tirx.script.ir_module
 class ConstConsumer:
@@ -357,7 +357,7 @@ class Conv2dInt8:
                 Ts.writes(conv2d_nhwc[nn, yy, xx, ff])
                 with Ts.init():
                     conv2d_nhwc[nn, yy, xx, ff] = 0
-                conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], "int32") * T.cast(p1[ff, ry, rx, rc], "int32")
+                conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], ty="int32") * T.cast(p1[ff, ry, rx, rc], ty="int32")
         for i0, i1, i2, i3 in T.grid(16, 14, 14, 1024):
             with Ts.sblock("T_subtract"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])

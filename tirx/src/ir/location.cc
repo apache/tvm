@@ -32,11 +32,6 @@
 
 namespace tvm {
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  SourceObj::RegisterReflection();
-  SourceMapObj::RegisterReflection();
-}
-
 ffi::ObjectPtr<SourceNameNode> GetSourceNameNode(const ffi::String& name) {
   // always return pointer as the reference can change as map re-allocate.
   // or use another level of indirection by creating a unique_ptr
@@ -153,71 +148,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("ir.CallSiteLoc", [](Location callee, Location caller) {
         return CallSiteLoc(std::move(callee), std::move(caller));
       });
-}
-
-/*! \brief Construct a source from a string. */
-Source::Source(SourceName src_name, std::string source) {
-  auto n = ffi::make_object<SourceObj>(std::move(src_name));
-  n->source = std::move(source);
-
-  int index = 0;
-  int length = 0;
-  n->line_map.push_back({index, length});
-  // NB(@jroesch):
-  std::string source_str = n->source;
-  for (auto c : source_str) {
-    if (c == '\n') {
-      // Record the length of the line.
-      n->line_map.back().second = length;
-      // Bump past the newline.
-      index += 1;
-      // Record the start of the next line, and put placeholder for length.
-      n->line_map.push_back({index, 0});
-      // Reset length to zero.
-      length = 0;
-    } else {
-      length += 1;
-      index += 1;
-    }
-  }
-  n->line_map.back().second = length;
-
-  data_ = n;
-}
-
-tvm::ffi::String Source::GetLine(int line) {
-  VLOG(1) << "Source::GetLine: line=" << line;
-  TVM_FFI_ICHECK(line - 1 < static_cast<int64_t>((*this)->line_map.size()))
-      << "requested line: " << line << "at index: " << (line - 1)
-      << "line_map size: " << (*this)->line_map.size() << "source: " << (*this)->source;
-
-  // Adjust for zero indexing, now have (line_start, line_length);
-  auto range = (*this)->line_map.at(line - 1);
-  int line_start = range.first;
-  int line_length = range.second;
-  VLOG(1) << "Source::GetLine: line_start=" << line_start << " line_length=" << line_length;
-  // TODO(@jroesch): expose substring on tvm::ffi::String.
-  auto line_text = std::string((*this)->source).substr(line_start, line_length);
-  VLOG(1) << "Source::GetLine: line_text=" << line_text;
-  return line_text;
-}
-
-SourceMap::SourceMap(ffi::Map<SourceName, Source> source_map) {
-  auto n = ffi::make_object<SourceMapObj>();
-  n->source_map = std::move(source_map);
-  data_ = std::move(n);
-}
-
-void SourceMap::Add(const Source& source) { (*this)->source_map.Set(source->source_name, source); }
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("SourceMapAdd", [](SourceMap map, ffi::String name, ffi::String content) {
-    auto src_name = SourceName::Get(name);
-    Source source(src_name, content);
-    map.Add(source);
-    return src_name;
-  });
 }
 
 }  // namespace tvm

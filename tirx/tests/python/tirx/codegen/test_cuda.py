@@ -178,8 +178,8 @@ def test_legacy_tensorcore_ops_require_downstream_codegen(op_name):
         "ptx_legacy.ldmatrix": lambda: cuda_op.ptx_legacy_ldmatrix(
             False, 4, ".b16", data, 0, data, 0, ty="float16"
         ),
-        "cuda.mma_store": lambda: cuda_op.mma_store("float16", 16, 16, data, data, 0, 16),
-        "cuda.mma_fill": lambda: cuda_op.mma_fill("float16", 8, data, 0),
+        "cuda.mma_store": lambda: cuda_op.mma_store(16, 16, data, data, 0, 16, ty="float16"),
+        "cuda.mma_fill": lambda: cuda_op.mma_fill(8, data, 0, ty="float16"),
     }
     call = calls[op_name]()
     assert call.op.name == "tirx." + op_name
@@ -257,7 +257,7 @@ def test_vector_pointer_preserves_packed_offset(monkeypatch):
                     ty_args=[tensor.ty],
                 ),
             ),
-            tvm_tirx.ir.Evaluate(tvm_tirx.tirx.call_extern("void", "consume", pointer)),
+            tvm_tirx.ir.Evaluate(tvm_tirx.tirx.call_extern("consume", pointer, ty="void")),
         ]
     )
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_80"})
@@ -658,7 +658,7 @@ def test_megamoe_extracted_intrinsics_codegen():
             F32[2] = F32[1]
             F32[3] = T.cuda.fdividef(F32[0], F32[1])
             U32[3] = T.cuda.float_as_uint(F32[1])
-            T.ptx.add.rn.f32.bf16(F32[0], T.cast(U32[0], "uint16"), F32[0])
+            T.ptx.add.rn.f32.bf16(F32[0], T.cast(U32[0], ty="uint16"), F32[0])
             U64[0] = T.reinterpret(U32.data, ty="uint64")
             U32[0] = T.cuda.ballot_sync(T.uint32(0xFFFFFFFF), I32[0])
             I32[0] = T.cuda.ffs_u32(U32[0])
@@ -1081,7 +1081,7 @@ def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
     if fill_mode == "zero":
         from tvm_tirx.tirx.op import if_then_else
 
-        src_size = T.cast(if_then_else(predicate != 0, cp_size, 0), "uint32")
+        src_size = T.cast(if_then_else(predicate != 0, cp_size, 0), ty="uint32")
 
     # fmt: off
     @T.function
@@ -1210,7 +1210,7 @@ def test_uint32_loop_var_and_scope_id_emit_unsigned():
     def main(A: T.Tensor((128,), "int32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         _ = T.cuda.block_idx("x")
-        tx = T.cast(T.cuda.thread_idx("x"), "uint32")
+        tx = T.cast(T.cuda.thread_idx("x"), ty="uint32")
         for k in T.serial(4, dtype="uint32"):
             A[tx] = A[tx] + T.int32(k)
 
@@ -1228,7 +1228,7 @@ def test_uint32_loop_var_runs_correctly():
     def main(A: T.Tensor((128,), "int32"), B: T.Tensor((128,), "int32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         _ = T.cuda.block_idx("x")
-        tx = T.cast(T.cuda.thread_idx("x"), "uint32")
+        tx = T.cast(T.cuda.thread_idx("x"), ty="uint32")
         acc = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
         acc[0] = 0
         for k in T.serial(4, dtype="uint32"):

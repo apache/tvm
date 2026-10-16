@@ -311,7 +311,7 @@ class ROCMTimerObj : public TimerObj {
     ROCM_CALL(hipEventCreate(&start_));
     ROCM_CALL(hipEventCreate(&stop_));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.rocm.ROCMTimerNode", ROCMTimerObj, TimerObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.rocm.ROCMTimer", ROCMTimerObj, TimerObj);
 
  private:
   hipEvent_t start_;

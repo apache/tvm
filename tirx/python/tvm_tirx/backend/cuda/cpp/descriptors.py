@@ -36,7 +36,7 @@ from ..codegen.utils import validate_cta_group
 # wgmma_encode_matrix_descriptor — pure-C bitfield struct fill (no asm).
 # =============================================================================
 device_intrinsic(
-    "cuda_wgmma_encode_matrix_descriptor",
+    "cuda.wgmma_encode_matrix_descriptor",
     helper_name="ptx_wgmma_encode_matrix_descriptor",
     c_signature="(uint64_t* desc, void* addr, int ldo, int sdo, int swizzle)",
     body=(
@@ -68,7 +68,7 @@ device_intrinsic(
 # tcgen05 SMEM / instr descriptor encoders — pure-C bitfield struct fills.
 # =============================================================================
 device_intrinsic(
-    "cuda_tcgen05_encode_matrix_descriptor",
+    "cuda.tcgen05_encode_matrix_descriptor",
     helper_name="tvm_builtin_ptx_tcgen05_encode_matrix_descriptor",
     c_signature="(uint64_t* desc, void* addr, int ldo, int sdo, int swizzle)",
     body=(
@@ -320,7 +320,7 @@ device_intrinsic(
 )
 
 
-@register_codegen("cuda_tcgen05_encode_instr_descriptor")
+@register_codegen("cuda.tcgen05_encode_instr_descriptor")
 def codegen_cuda_tcgen05_encode_instr_descriptor(desc, *, attrs):
     """Validate static Call.attrs and lower the in-place descriptor fill."""
     d_dtype = attrs.d_dtype
@@ -419,7 +419,7 @@ device_intrinsic(
 )
 
 
-@register_codegen("cuda_tcgen05_encode_instr_descriptor_block_scaled")
+@register_codegen("cuda.tcgen05_encode_instr_descriptor_block_scaled")
 def codegen_cuda_tcgen05_encode_instr_descriptor_block_scaled(desc, *, attrs):
     """Validate static Call.attrs and lower the in-place descriptor fill."""
     d_dtype = attrs.d_dtype
@@ -534,7 +534,7 @@ def _get_tcgen05_mma_scale_vec_size(kind, scale_dtype):
 #     (bits [29, 31)) fields of an in-flight ``InstrDescriptorBlockScaled``.
 # =============================================================================
 device_intrinsic(
-    "cuda_get_tmem_addr",
+    "cuda.get_tmem_addr",
     c_signature="(uint32_t addr, int row_offset, int col_offset)",
     body="    return get_tmem_addr(addr, row_offset, col_offset);",
     return_type="uint32_t",
@@ -543,7 +543,7 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "cuda_runtime_instr_desc",
+    "cuda.runtime_instr_desc",
     c_signature="(uint32_t* desc, const uint32_t& sf_id)",
     body="    *desc = (*desc & ~0x60000030) | ((sf_id << 29) | (sf_id << 4));",
 )

@@ -21,8 +21,8 @@ from functools import cache
 import tvm_ffi
 
 from tvm_tirx.ir import Bind, Call, Op, Tuple, Var
+from tvm_tirx.ir.expr import IntImm
 from tvm_tirx.runtime import MemoryScope
-from tvm_tirx.tirx import IntImm
 from tvm_tirx.tirx.transform.function_pass import function_pass
 
 _SCOPE_SHARED = MemoryScope("shared")

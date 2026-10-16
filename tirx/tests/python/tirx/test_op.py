@@ -34,7 +34,7 @@ def test_instruction_is_a_void_call():
     call = T.cuda.tile.apply(T.ptx["ld.global.v4.b32"], dst, src, scope="warp")
     assert isinstance(call, Call)
     assert call.ty == tvm_tirx.ir.PrimType("void")
-    assert call.op.get_attr("TCallEffectKind") == 3
+    assert call.op.get_attr("TCallEffectKind") == tvm_tirx.ir.CallEffectKind.UpdateState
     assert callable(call.op.get_attr("FTileOpDispatch"))
     assert call.attrs.scope.same_as(T.cuda.ThreadScope("warp"))
     assert call.args[0].value == "ld.global.v4.b32"

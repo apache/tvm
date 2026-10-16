@@ -292,7 +292,7 @@ def test_effectful_enclosing_condition():
 
 @pytest.mark.parametrize("field", ["min", "extent", "step"])
 def test_effectful_loop_header(field):
-    value = tvm_tirx.tirx.call_extern("int32", "loop_header")
+    value = tvm_tirx.tirx.call_extern("loop_header", ty="int32")
     start = value if field == "min" else 0
     stop = value if field == "extent" else 4
     step = value if field == "step" else 1

@@ -315,7 +315,7 @@ class IketProfiler:
             mod = tvm_tirx.IRModule.from_expr(mod)
         if not isinstance(mod, tvm_tirx.IRModule):
             raise TypeError("IketProfiler.compile expects a TIRx Function or IRModule")
-        enabled_mod = mod.with_attr("tirx.iket.enabled", True)
+        enabled_mod = mod.with_attr("cuda.iket.enabled", True)
         executable = tvm_tirx.tirx.compile(enabled_mod, target=target, pipeline=tir_pipeline)
         return _OfficialIketExecutable(executable)
 

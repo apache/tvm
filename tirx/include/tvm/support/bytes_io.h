@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file support/bytes_io.h
+ * \file tvm/support/bytes_io.h
  * \brief In-memory byte stream implementations.
  *
  *   BytesInStream  — sequential read from a fixed memory region

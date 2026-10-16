@@ -289,5 +289,13 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 
 
 sum = comm_reducer(lambda x, y: x + y, lambda t: const(0, dtype=t), name="sum")
-min = comm_reducer(lambda x, y: _prim_ffi_api._OpMin(x, y, UNKNOWN_LOC), max_value, name="min")  # type: ignore
-max = comm_reducer(lambda x, y: _prim_ffi_api._OpMax(x, y, UNKNOWN_LOC), min_value, name="max")  # type: ignore
+min = comm_reducer(
+    lambda x, y: _prim_ffi_api._OpMin(x, y, UNKNOWN_LOC),
+    lambda dtype: max_value(ty=dtype),
+    name="min",
+)  # type: ignore
+max = comm_reducer(
+    lambda x, y: _prim_ffi_api._OpMax(x, y, UNKNOWN_LOC),
+    lambda dtype: min_value(ty=dtype),
+    name="max",
+)  # type: ignore

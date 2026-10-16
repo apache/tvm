@@ -18,7 +18,7 @@
 
 from numbers import Integral
 
-from tvm_tirx.ir.prim import IntImm
+from tvm_tirx.ir.expr import IntImm
 
 from .analyzer import Analyzer
 

@@ -72,7 +72,7 @@ def test_builtin_expression_ops_are_not_tile_ops():
     x = tvm_tirx.tirx.Var("x", "int32")
     y = tvm_tirx.tirx.Var("y", "float32")
 
-    cast = T.cast(x, "float32")
+    cast = T.cast(x, ty="float32")
     assert isinstance(cast, tvm_tirx.tirx.Cast)
     assert cast.ty.dtype == "float32"
 
@@ -188,7 +188,7 @@ def test_backend_specific_wrappers_are_not_root_exports():
     backend_only_names = [
         "ptx_legacy_mma",
         "mma_store",
-        "cuda_thread_fence",
+        "thread_fence",
         "nvshmem_fence",
         "make_filled_simdgroup_matrix",
         "simdgroup_load",
@@ -201,7 +201,7 @@ def test_backend_specific_wrappers_are_not_root_exports():
 
     assert cuda_op.ptx_legacy_mma
     assert cuda_op.mma_store
-    assert cuda_op.cuda_thread_fence
+    assert cuda_op.thread_fence
     assert cuda_op.nvshmem_fence
     assert metal_op.make_filled_simdgroup_matrix
     assert metal_op.simdgroup_load
@@ -297,7 +297,10 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
     ]:
         assert _op_attr(op_name, "FTileOpDispatch") is None
         assert op_name.split(".")[1] == namespace
-        assert _op_attr(op_name, "TCallEffectKind") in (1, 3)
+        assert _op_attr(op_name, "TCallEffectKind") in (
+            tvm_tirx.ir.CallEffectKind.Pure,
+            tvm_tirx.ir.CallEffectKind.UpdateState,
+        )
 
     code = device_namespaces.script()
     assert "T.cuda.cta_sync(" in code

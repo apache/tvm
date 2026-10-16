@@ -81,7 +81,9 @@ TVM_RUNTIME_DLL int TVMBackendGetDeviceIndex(int device_type, int* out_device_in
  * certain backends such as OpenGL.
  * \param dtype_bits_hint The type bits of the array elements. Only used in
  * certain backends such as OpenGL.
- * \return nullptr when error is thrown, a valid ptr if success
+ * \return A valid pointer on success, nullptr on failure. Failure records the
+ * raised TVM FFI error on the calling thread; no C++ exception crosses this C
+ * entry point.
  */
 TVM_RUNTIME_DLL void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes,
                                                int dtype_code_hint, int dtype_bits_hint);
@@ -92,7 +94,8 @@ TVM_RUNTIME_DLL void* TVMBackendAllocWorkspace(int device_type, int device_id, u
  * \param ptr The result allocated space pointer.
  * \param device_type The device type which the space will be allocated.
  * \param device_id The device id which the space will be allocated.
- * \return 0 when no error is thrown, -1 when failure happens
+ * \return 0 on success, -1 on failure. Failure records the raised TVM FFI error
+ * on the calling thread; no C++ exception crosses this C entry point.
  *
  * \sa TVMBackendAllocWorkspace
  */
@@ -131,7 +134,7 @@ typedef int (*FTVMParallelLambda)(int task_id, TVMParallelGroupEnv* penv, void* 
 TVM_RUNTIME_DLL int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_task);
 
 /*!
- * \brief BSP barrrier between parallel threads
+ * \brief BSP barrier between parallel threads
  * \param task_id the task id of the function.
  * \param penv The parallel environment backs the execution.
  * \return 0 when no error is thrown, -1 when failure happens

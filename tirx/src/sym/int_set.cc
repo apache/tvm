@@ -1027,14 +1027,6 @@ IntSet Intersect(const ffi::Array<IntSet>& sets) {
   return IntervalSet(ana->Simplify(x->min_value), ana->Simplify(x->max_value));
 }
 
-ffi::Map<Var, IntSet> ConvertDomMap(const std::unordered_map<const VarNode*, IntSet>& dom_map) {
-  ffi::Map<Var, IntSet> dmap;
-  for (auto kv : dom_map) {
-    dmap.Set(ffi::GetRef<Var>(kv.first), kv.second);
-  }
-  return dmap;
-}
-
 IntSet EvalSet(PrimExpr e, const ffi::Map<Var, IntSet>& dom_map) {
   Analyzer ana;
   return IntervalSetEvaluator(ana.get(), dom_map, {}, false).Eval(e);
@@ -1052,10 +1044,6 @@ IntSet IntSet::Vector(PrimExpr x) {
   }
 }
 
-IntSet EvalSet(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom_map) {
-  return EvalSet(e, ConvertDomMap(dom_map));
-}
-
 IntSet EvalSet(Range r, const ffi::Map<Var, IntSet>& dom_map) {
   Analyzer ana;
   PrimType min_ty = r->min.ty();
@@ -1070,10 +1058,6 @@ IntSet EvalSet(Range r, const ffi::Map<Var, IntSet>& dom_map) {
   return res;
 }
 
-IntSet EvalSet(Range r, const std::unordered_map<const VarNode*, IntSet>& dom_map) {
-  return EvalSet(r, ConvertDomMap(dom_map));
-}
-
 ffi::Array<IntSet> EvalSet(const ffi::Array<Range>& region, const ffi::Map<Var, IntSet>& dom_map) {
   Analyzer ana;
   IntervalSetEvaluator m(ana.get(), dom_map);
@@ -1086,10 +1070,9 @@ ffi::Array<IntSet> EvalSet(const ffi::Array<Range>& region, const ffi::Map<Var, 
   return result;
 }
 
-IntSet EvalSet(IntSet s, const std::unordered_map<const VarNode*, IntSet>& dom_map) {
+IntSet EvalSet(IntSet s, const ffi::Map<Var, IntSet>& dom_map) {
   Analyzer ana;
-  auto dmap = ConvertDomMap(dom_map);
-  IntervalSetEvaluator m(ana.get(), dmap);
+  IntervalSetEvaluator m(ana.get(), dom_map);
   const IntervalSetObj* s_int = s.as<IntervalSetObj>();
   PrimExpr vmax = s_int->HasUpperBound() ? m.Eval(s_int->max_value).max() : s_int->max_value;
   PrimExpr vmin = s_int->HasLowerBound() ? m.Eval(s_int->min_value).min() : s_int->min_value;
@@ -1110,11 +1093,9 @@ class SubExprIntervalSetEvaluator : public IntervalSetEvaluator {
   ExprIntSetMap expr_map;
 };
 
-ExprIntSetMap EvalSetForEachSubExpr(PrimExpr e,
-                                    const std::unordered_map<const VarNode*, IntSet>& dom_map) {
+ExprIntSetMap EvalSetForEachSubExpr(PrimExpr e, const ffi::Map<Var, IntSet>& dom_map) {
   Analyzer ana;
-  auto dmap = ConvertDomMap(dom_map);
-  SubExprIntervalSetEvaluator m(ana.get(), dmap);
+  SubExprIntervalSetEvaluator m(ana.get(), dom_map);
   m.Eval(e);
   return m.expr_map;
 }
@@ -1264,11 +1245,8 @@ ffi::Array<IntSet> EstimateRegionUpperBound(const ffi::Array<Range>& region,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("sym.intset_single_point", IntSet::SinglePoint)
-      .def("sym.intset_vector", IntSet::Vector)
-      .def("sym.intset_interval", IntSet::Interval)
-      .def_method("sym.IntervalSetGetMin", &IntSet::min)
-      .def_method("sym.IntervalSetGetMax", &IntSet::max)
+      .def("sym.IntSetSinglePoint", IntSet::SinglePoint)
+      .def("sym.IntSetVector", IntSet::Vector)
       .def_method("sym.IntSetIsNothing", &IntSet::IsNothing)
       .def_method("sym.IntSetIsEverything", &IntSet::IsEverything)
       .def("sym.EstimateRegionLowerBound",

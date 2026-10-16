@@ -27,7 +27,7 @@ import tvm_tirx
 from tvm import relax, te
 from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.expr_functor import PyExprMutator, mutator
-from tvm_tirx import IRModule, tirx
+from tvm_tirx import IRModule
 
 
 @tvm_tirx.ir.transform.module_pass(opt_level=0, name="FuseTransposeMatmul")
@@ -129,9 +129,9 @@ class _TransposeMatmulFuser(PyExprMutator):  # pylint: disable=abstract-method
                         a_dim = a_shape[i if is_a_larger else i - offset]
                         b_dim = b_shape[i if not is_a_larger else i - offset]
                         dim_equal = a_dim == b_dim
-                        if not isinstance(dim_equal, tirx.IntImm) or dim_equal == 0:
-                            a_dim_is_one = isinstance(a_dim, tirx.IntImm) and a_dim == 1
-                            b_dim_is_one = isinstance(b_dim, tirx.IntImm) and b_dim == 1
+                        if not isinstance(dim_equal, tvm_tirx.ir.expr.IntImm) or dim_equal == 0:
+                            a_dim_is_one = isinstance(a_dim, tvm_tirx.ir.expr.IntImm) and a_dim == 1
+                            b_dim_is_one = isinstance(b_dim, tvm_tirx.ir.expr.IntImm) and b_dim == 1
                             a_indices.append(0 if a_dim_is_one else idx_spatial[i])
                             b_indices.append(0 if b_dim_is_one else idx_spatial[i])
                         else:

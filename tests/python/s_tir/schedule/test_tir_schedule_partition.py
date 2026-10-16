@@ -30,8 +30,8 @@ from tvm.s_tir.schedule.testing import (
     verify_trace_roundtrip,
 )
 from tvm_tirx import tirx
+from tvm_tirx.ir.expr import IntImm
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx.expr import IntImm
 
 # pylint: disable=no-member,invalid-name,unused-variable
 

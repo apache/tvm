@@ -22,9 +22,9 @@ from functools import cache
 
 from tvm_tirx.backend.trn.layout import is_trainium_layout
 from tvm_tirx.ir import TensorRegion
+from tvm_tirx.ir.expr import FloatImm
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.sym.analyzer import Analyzer
-from tvm_tirx.tirx import FloatImm
 from tvm_tirx.tirx.tile.common import MapOpType
 
 from ..dim_utils import get_ewise_dim_map

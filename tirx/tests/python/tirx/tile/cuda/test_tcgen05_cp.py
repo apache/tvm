@@ -1084,7 +1084,7 @@ def _make_2d_kernel(
                     T.ptx["tcgen05.ld.sync.aligned.32x32b.x1.b32"](
                         reg[i],
                         T.cuda.get_tmem_addr(
-                            T.cast(T.reinterpret(tmem.data, ty="uint64"), "uint32"), 0, i
+                            T.cast(T.reinterpret(tmem.data, ty="uint64"), ty="uint32"), 0, i
                         ),
                     )
                 T.ptx.tcgen05.wait__ld.sync.aligned()
@@ -1155,7 +1155,7 @@ def _make_3d_4tile_kernel(s_full, t_full, s_full_shape, t_full_shape, dtype, cta
                     T.ptx["tcgen05.ld.sync.aligned.32x32b.x1.b32"](
                         reg[i],
                         T.cuda.get_tmem_addr(
-                            T.cast(T.reinterpret(tmem.data, ty="uint64"), "uint32"), 0, i
+                            T.cast(T.reinterpret(tmem.data, ty="uint64"), ty="uint32"), 0, i
                         ),
                     )
                 T.ptx.tcgen05.wait__ld.sync.aligned()
@@ -1352,7 +1352,7 @@ def test_align_middle_2_to_1_nvfp4_sfb():
                     T.ptx["tcgen05.ld.sync.aligned.32x32b.x1.b32"](
                         reg[i],
                         T.cuda.get_tmem_addr(
-                            T.cast(T.reinterpret(tmem.data, ty="uint64"), "uint32"), 0, i
+                            T.cast(T.reinterpret(tmem.data, ty="uint64"), ty="uint32"), 0, i
                         ),
                     )
                 T.ptx.tcgen05.wait__ld.sync.aligned()

@@ -1007,7 +1007,7 @@ def _get_valid_box_count(scores, score_threshold):
                     elif len(score_threshold.shape) == 1 and score_threshold.shape[0] > 0:
                         score_thresh_scalar = score_thresh_buf[0]
                     else:
-                        score_thresh_scalar = tvm_tirx.tirx.FloatImm("float32", 0.0)
+                        score_thresh_scalar = tvm_tirx.ir.expr.FloatImm("float32", 0.0)
                 else:
                     score_thresh_scalar = score_threshold
                 binary_search(i, num_boxes, scores_buf, score_thresh_scalar, valid_count_buf)
@@ -1050,9 +1050,11 @@ def _get_valid_box_count(scores, score_threshold):
                         elif len(score_threshold.shape) == 1 and score_threshold.shape[0] == 1:
                             score_thresh_tir = score_threshold[0]
                         else:
-                            score_thresh_tir = tvm_tirx.tirx.FloatImm("float32", 0.0)
+                            score_thresh_tir = tvm_tirx.ir.expr.FloatImm("float32", 0.0)
                     else:
-                        score_thresh_tir = tvm_tirx.tirx.FloatImm("float32", float(score_threshold))
+                        score_thresh_tir = tvm_tirx.ir.expr.FloatImm(
+                            "float32", float(score_threshold)
+                        )
                     binary_search(i, num_boxes, scores_buf, score_thresh_tir, valid_count_buf)
 
                 return ib.get()
@@ -1093,7 +1095,7 @@ def _collect_selected_indices_ir(
 
             if isinstance(max_output_boxes_per_class, int):
                 limit = tvm_tirx.tirx.min(
-                    num_detections[i], tvm_tirx.tirx.IntImm("int32", max_output_boxes_per_class)
+                    num_detections[i], tvm_tirx.ir.expr.IntImm("int32", max_output_boxes_per_class)
                 )
             elif isinstance(max_output_boxes_per_class, te.Tensor):
                 if len(max_output_boxes_per_class.shape) == 0:
@@ -1274,14 +1276,14 @@ def all_class_non_max_suppression(
 
         def _sum_clamped_total():
             if isinstance(max_output_boxes_per_class, int):
-                k_expr = tvm_tirx.tirx.IntImm("int32", int(max_output_boxes_per_class))
+                k_expr = tvm_tirx.ir.expr.IntImm("int32", int(max_output_boxes_per_class))
                 clamped = te.compute(
                     num_detections.shape,
                     lambda i: tvm_tirx.tirx.min(num_detections[i], k_expr),
                     name="clamped_num",
                 )
                 return reduction.sum(cast(clamped, "int64"), axis=0)
-            if isinstance(max_output_boxes_per_class, tvm_tirx.tirx.IntImm):
+            if isinstance(max_output_boxes_per_class, tvm_tirx.ir.expr.IntImm):
                 k_expr = tvm_tirx.tirx.Cast(max_output_boxes_per_class, "int32")
                 clamped = te.compute(
                     num_detections.shape,

@@ -573,7 +573,7 @@ def conv_forward(
 
     x_shape = list(x.shape)
 
-    if isinstance(x.shape[0], tvm_tirx.tirx.expr.IntImm):
+    if isinstance(x.shape[0], tvm_tirx.ir.expr.IntImm):
         oshape = conv_output_shape(
             tensor_format,
             pad,
@@ -723,7 +723,7 @@ def conv_backward_data(
     conv_dtype = dy.dtype if conv_dtype is None else conv_dtype
     pad, stride, dilation, _, _ = _prepare_global_func_params(dims - 2, pad, stride, dilation)
 
-    assert isinstance(dy.shape[0], tvm_tirx.tirx.expr.IntImm), (
+    assert isinstance(dy.shape[0], tvm_tirx.ir.expr.IntImm), (
         "Dynamic batch is not supported for cudnn conv2d backwad data yet."
     )
 
@@ -817,7 +817,7 @@ def conv_backward_filter(
 
     x_shape = list(x.shape)
 
-    assert isinstance(x.shape[0], tvm_tirx.tirx.expr.IntImm), (
+    assert isinstance(x.shape[0], tvm_tirx.ir.expr.IntImm), (
         "Dynamic batch is not supported for cudnn conv2d backwad filter yet."
     )
 

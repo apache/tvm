@@ -325,18 +325,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def(tvm::ffi::type_attr::kDataFromJson.name, &Op::Get);
   // clang-format off
   refl::GlobalDef()
-      .def("ir.GetOp", &Op::Get)
-      .def("ir.ListOpNames", &Op::ListNames)
       .def("ir.RegisterOp",
            [](ffi::String name, ffi::String doc) {
              TVM_FFI_CHECK(!OpRegistry::Global()->Contains(name), AttributeError)
                  << "Operator " << name << " is registered before";
              OpDef(name, doc);
-           })
-      .def("ir.RegisterOpAttr", [](ffi::String name, ffi::String key, ffi::Any value, bool override) {
-        OpDef(name)
-            .set_attr(key, value, override);
-      });
+           });
   // clang-format on
 }
 

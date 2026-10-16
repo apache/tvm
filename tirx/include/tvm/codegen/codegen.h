@@ -75,10 +75,8 @@ TVM_TIRX_DLL void PackImportsToObjectFile(const ffi::Module& mod, bool system_li
                                           const std::string& c_symbol_prefix = "");
 
 namespace attr {
-constexpr const char* kParallelStridePattern = "parallel_stride_pattern";
-
-constexpr const char* kRunnerFunction = "runner_function";
-
+inline constexpr ffi::reflection::AttrKey<bool> kParallelStridePattern{
+    "codegen.parallel_stride_pattern"};
 }  // namespace attr
 
 }  // namespace codegen

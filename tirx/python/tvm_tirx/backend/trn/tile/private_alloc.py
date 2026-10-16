@@ -20,9 +20,10 @@ from typing import Any
 
 from tvm_tirx.backend.trn.tile.common import nki_dim
 from tvm_tirx.ir import Bind, Call, DictAttrs, Stmt, Tuple
+from tvm_tirx.ir.expr import FloatImm, IntImm
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import FloatImm, IntImm, Var
+from tvm_tirx.tirx import Var
 from tvm_tirx.tirx.tile import DispatchContext
 from tvm_tirx.tirx.tile.dispatch import run_dispatch
 from tvm_tirx.tirx.tile.instruction import TensorCall

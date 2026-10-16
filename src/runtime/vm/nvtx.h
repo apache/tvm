@@ -17,15 +17,15 @@
  * under the License.
  */
 /*!
- * \file tvm/support/cuda/nvtx.h
+ * \file src/runtime/vm/nvtx.h
  * \brief NVTX scoped range utility (header-only).
  *
  * Provides NVTXScopedRange: a lightweight RAII wrapper over
  * nvtxRangePush/Pop.  When TVM_NVTX_ENABLED is not defined or is 0,
  * all methods are no-ops compiled away by the optimizer.
  */
-#ifndef TVM_SUPPORT_CUDA_NVTX_H_
-#define TVM_SUPPORT_CUDA_NVTX_H_
+#ifndef TVM_RUNTIME_VM_NVTX_H_
+#define TVM_RUNTIME_VM_NVTX_H_
 
 #include <string>
 
@@ -68,4 +68,4 @@ class NVTXScopedRange {
 }  // namespace support
 }  // namespace tvm
 
-#endif  // TVM_SUPPORT_CUDA_NVTX_H_
+#endif  // TVM_RUNTIME_VM_NVTX_H_

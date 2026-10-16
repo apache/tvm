@@ -28,6 +28,7 @@ import pytest
 # ruff: noqa: F841
 from minilang import Value
 
+import tvm_tirx
 from tvm_tirx import ir
 from tvm_tirx.ir import prim
 from tvm_tirx.script import ir as I
@@ -285,7 +286,7 @@ def test_nested_function_failure_preserves_error_and_recovers(located_language):
         ("outer_before", outer.params[0], outer.params[0], 1),
         ("inner", outer.params[0], inner.params[0], 2),
     ]
-    M.node = lambda value: prim.IntImm("int32", value)
+    M.node = lambda value: tvm_tirx.ir.expr.IntImm("int32", value)
 
     @M.function
     def recovered(value: M.Tensor((2,))):

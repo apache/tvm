@@ -163,7 +163,7 @@ class Tensor(_TensorOp):
         """
         new_shape = []
         for expr in shape:
-            if isinstance(expr, int | tirx.IntImm):
+            if isinstance(expr, int | tvm_tirx.ir.expr.IntImm):
                 expr = int(expr)
                 assert expr >= 0
                 new_shape.append(expr)
@@ -201,7 +201,7 @@ class Tensor(_TensorOp):
         """
 
         def _simplify(expr: tirx.Expr):
-            return expr.value if isinstance(expr, tirx.IntImm) else expr
+            return expr.value if isinstance(expr, tvm_tirx.ir.expr.IntImm) else expr
 
         shape_ty: ShapeType = self._expr.ty.shape.ty
         return [_simplify(x) for x in shape_ty.values]

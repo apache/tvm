@@ -283,17 +283,6 @@ class Device(tvm_ffi.core.Device):
         """
         return self.get_attr("available_global_memory")
 
-    def texture_spatial_limit(self):
-        """Returns limits for textures by spatial dimensions
-
-        Returns
-        -------
-        limit : int or None
-            Maximum size of the texture by spatial dimensions
-
-        """
-        return self.get_attr("driver_version")
-
     def create_raw_stream(self):
         """Create a new runtime stream at the context.
 
@@ -304,7 +293,7 @@ class Device(tvm_ffi.core.Device):
         stream : TVMStreamHandle
             The created runtime stream.
         """
-        return _ffi_api.Device_StreamCreate(self)
+        return _ffi_api.DeviceStreamCreate(self)
 
     def free_raw_stream(self, stream):
         """Free a created stream handle.
@@ -314,7 +303,7 @@ class Device(tvm_ffi.core.Device):
         stream : TVMStreamHandle
             The stream which should to be released.
         """
-        _ffi_api.Device_StreamFree(self, stream)
+        _ffi_api.DeviceStreamFree(self, stream)
 
     def set_raw_stream(self, stream):
         """Set a created stream handle.
@@ -324,7 +313,7 @@ class Device(tvm_ffi.core.Device):
         stream : TVMStreamHandle
             The stream which should to be set to the device.
         """
-        _ffi_api.Device_SetStream(self, stream)
+        _ffi_api.DeviceSetStream(self, stream)
 
     def sync(self, stream=None):
         """Synchronize until jobs finished at the context.
@@ -334,7 +323,7 @@ class Device(tvm_ffi.core.Device):
         stream : TVMStreamHandle
             Jobs in this stream should be finished.
         """
-        _ffi_api.Device_StreamSync(self, stream or 0)
+        _ffi_api.DeviceStreamSync(self, stream or 0)
 
     def __device_type_name__(self):
         return Device._DEVICE_TYPE_TO_NAME[self.dlpack_device_type()]

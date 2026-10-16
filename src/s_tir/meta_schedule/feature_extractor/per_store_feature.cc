@@ -1295,7 +1295,7 @@ namespace group5 {
 struct Feature {
   int64_t outer_prod;        // The product of lengths of outer loops
   int num_loops;             // The number of outer loops
-  int auto_unroll_max_step;  // The value of annotation "auto_unroll_max_step"
+  int auto_unroll_max_step;  // The value of annotation "tirx.auto_unroll_max_step"
 
   static constexpr int64_t kCount = 3;
 

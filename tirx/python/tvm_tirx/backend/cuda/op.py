@@ -24,6 +24,7 @@ from functools import cache
 
 import tvm_ffi
 
+import tvm_tirx
 from tvm_tirx import DataType, tirx
 from tvm_tirx.ir import Attrs, Call, Op, StringImm, const
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
@@ -45,7 +46,10 @@ def _tmem_address(tensor):
     """Recover the encoded 32-bit address from an explicit TMEM backing pointer."""
     if tensor.scope() != _scope_tmem():
         raise ValueError("Expected a TMEM tensor")
-    return tirx.Cast(tirx.reinterpret("uint64", tensor.data), "uint32")
+    return tirx.Cast(
+        tirx.reinterpret(tensor.data, ty="uint64"),
+        "uint32",
+    )
 
 
 ########################################################
@@ -53,44 +57,44 @@ def _tmem_address(tensor):
 ########################################################
 
 
-def cuda_iket_mark(name, payload=None):
+def iket_mark(name, payload=None):
     """Create an NVIDIA IKET marker annotation."""
     if payload is not None:
-        return call_intrin("", "tirx.cuda.iket_mark", name, payload)
-    return call_intrin("", "tirx.cuda.iket_mark", name)
+        return call_intrin("tirx.cuda.iket_mark", name, payload, ty="")
+    return call_intrin("tirx.cuda.iket_mark", name, ty="")
 
 
-def cuda_iket_range_start(name, payload=None):
+def iket_range_start(name, payload=None):
     """Create an NVIDIA IKET token-range start annotation."""
     if payload is not None:
-        return call_intrin("uint32", "tirx.cuda.iket_range_start", name, payload)
-    return call_intrin("uint32", "tirx.cuda.iket_range_start", name)
+        return call_intrin("tirx.cuda.iket_range_start", name, payload, ty="uint32")
+    return call_intrin("tirx.cuda.iket_range_start", name, ty="uint32")
 
 
-def cuda_iket_range_end(token, payload=None):
+def iket_range_end(token, payload=None):
     """Create an NVIDIA IKET token-range end annotation."""
     if payload is not None:
-        return call_intrin("", "tirx.cuda.iket_range_end", token, payload)
-    return call_intrin("", "tirx.cuda.iket_range_end", token)
+        return call_intrin("tirx.cuda.iket_range_end", token, payload, ty="")
+    return call_intrin("tirx.cuda.iket_range_end", token, ty="")
 
 
-def cuda_iket_range_push(name, payload=None):
+def iket_range_push(name, payload=None):
     """Create an NVIDIA IKET stack-range push annotation."""
     if payload is not None:
-        return call_intrin("", "tirx.cuda.iket_range_push", name, payload)
-    return call_intrin("", "tirx.cuda.iket_range_push", name)
+        return call_intrin("tirx.cuda.iket_range_push", name, payload, ty="")
+    return call_intrin("tirx.cuda.iket_range_push", name, ty="")
 
 
-def cuda_iket_official_event(event_id, source_code="", payload=None):
+def iket_official_event(event_id, source_code="", payload=None):
     """Create an NVIDIA IKET official range-end event."""
     if payload is not None:
         return call_intrin(
-            "uint32", "tirx.cuda.iket_official_event", event_id, source_code, payload
+            "tirx.cuda.iket_official_event", event_id, source_code, payload, ty="uint32"
         )
-    return call_intrin("uint32", "tirx.cuda.iket_official_event", event_id, source_code)
+    return call_intrin("tirx.cuda.iket_official_event", event_id, source_code, ty="uint32")
 
 
-def cuda_func_call(func_name, *args, ty=None, loc: Location = UNKNOWN_LOC):
+def func_call(func_name, *args, ty=None, loc: Location = UNKNOWN_LOC):
     """Call a CUDA function with its source code as the final operand.
 
     ``args`` contains the function arguments followed by the source string.
@@ -99,7 +103,7 @@ def cuda_func_call(func_name, *args, ty=None, loc: Location = UNKNOWN_LOC):
     return Call("tirx.cuda.func_call", [func_name, *args], ty=ty, loc=loc)
 
 
-def cuda_warp_reduce(value, op, width=32, *, ty=None, loc: Location = UNKNOWN_LOC):
+def warp_reduce(value, op, width=32, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Warp-level butterfly shuffle-XOR reduction.
 
     Reduces ``value`` across ``width`` adjacent lanes using the specified
@@ -131,22 +135,22 @@ def cuda_warp_reduce(value, op, width=32, *, ty=None, loc: Location = UNKNOWN_LO
     )
 
 
-def cuda_warp_sum(value, width=32):
-    """Convenience wrapper: ``cuda_warp_reduce(value, "sum", width)``."""
-    return cuda_warp_reduce(value, "sum", width)
+def warp_sum(value, width=32):
+    """Convenience wrapper: ``warp_reduce(value, "sum", width)``."""
+    return warp_reduce(value, "sum", width)
 
 
-def cuda_warp_max(value, width=32):
-    """Convenience wrapper: ``cuda_warp_reduce(value, "max", width)``."""
-    return cuda_warp_reduce(value, "max", width)
+def warp_max(value, width=32):
+    """Convenience wrapper: ``warp_reduce(value, "max", width)``."""
+    return warp_reduce(value, "max", width)
 
 
-def cuda_warp_min(value, width=32):
-    """Convenience wrapper: ``cuda_warp_reduce(value, "min", width)``."""
-    return cuda_warp_reduce(value, "min", width)
+def warp_min(value, width=32):
+    """Convenience wrapper: ``warp_reduce(value, "min", width)``."""
+    return warp_reduce(value, "min", width)
 
 
-def cuda_cta_reduce(value, op, num_warps, scratch, *, ty=None, loc: Location = UNKNOWN_LOC):
+def cta_reduce(value, op, num_warps, scratch, *, ty=None, loc: Location = UNKNOWN_LOC):
     """CTA-wide reduction via warp shuffle + shared memory.
 
     Two-step reduction: (1) intra-warp shuffle reduction, (2) warp-0
@@ -180,19 +184,19 @@ def cuda_cta_reduce(value, op, num_warps, scratch, *, ty=None, loc: Location = U
     )
 
 
-def cuda_cta_sum(value, num_warps, scratch):
-    """Convenience wrapper: ``cuda_cta_reduce(value, "sum", num_warps, scratch)``."""
-    return cuda_cta_reduce(value, "sum", num_warps, scratch)
+def cta_sum(value, num_warps, scratch):
+    """Convenience wrapper: ``cta_reduce(value, "sum", num_warps, scratch)``."""
+    return cta_reduce(value, "sum", num_warps, scratch)
 
 
-def cuda_cta_max(value, num_warps, scratch):
-    """Convenience wrapper: ``cuda_cta_reduce(value, "max", num_warps, scratch)``."""
-    return cuda_cta_reduce(value, "max", num_warps, scratch)
+def cta_max(value, num_warps, scratch):
+    """Convenience wrapper: ``cta_reduce(value, "max", num_warps, scratch)``."""
+    return cta_reduce(value, "max", num_warps, scratch)
 
 
-def cuda_cta_min(value, num_warps, scratch):
-    """Convenience wrapper: ``cuda_cta_reduce(value, "min", num_warps, scratch)``."""
-    return cuda_cta_reduce(value, "min", num_warps, scratch)
+def cta_min(value, num_warps, scratch):
+    """Convenience wrapper: ``cta_reduce(value, "min", num_warps, scratch)``."""
+    return cta_reduce(value, "min", num_warps, scratch)
 
 
 _WAIT_UNTIL_SCOPE = ("cta", "cluster", "gpu", "sys")
@@ -256,7 +260,7 @@ def _reject_wide_word_for_predicate(ptx_type, what):
         )
 
 
-def cuda_wait_until(
+def wait_until(
     dst,
     ptr,
     predicate,
@@ -389,13 +393,13 @@ def ptx_cp_async_legacy(
 def _is_static_unicast_cta_mask(cta_mask):
     if isinstance(cta_mask, int):
         return cta_mask == 0 or cta_mask & (cta_mask - 1) == 0
-    if isinstance(cta_mask, tirx.IntImm):
+    if isinstance(cta_mask, tvm_tirx.ir.expr.IntImm):
         value = int(cta_mask)
         return value == 0 or value & (value - 1) == 0
     return False
 
 
-def cuda_mov_sreg(bits, reg_name, *, ty=None, loc: Location = UNKNOWN_LOC):
+def mov_sreg(bits, reg_name, *, ty=None, loc: Location = UNKNOWN_LOC):
     """TVM intrinsic to tvm instrinsics to fetch PTX pre-defined registers
 
     Parameters
@@ -509,7 +513,6 @@ def bmma_sync(
         The call expression.
     """
     return call_intrin(
-        ty,
         "tirx.cuda.bmma_sync",
         fragment_d,
         index_d,
@@ -520,19 +523,20 @@ def bmma_sync(
         fragment_c,
         index_c,
         loc=loc,
+        ty=ty,
     )
 
 
-def mma_store(dtype, m, n, dst_ptr, src_ptr, src_offset, dst_stride):
+def mma_store(m, n, dst_ptr, src_ptr, src_offset, dst_stride, *, ty):
     """Store the result of PTX MMA into a destination pointer."""
 
-    return call_intrin(dtype, "tirx.cuda.mma_store", m, n, dst_ptr, src_ptr, src_offset, dst_stride)
+    return call_intrin("tirx.cuda.mma_store", m, n, dst_ptr, src_ptr, src_offset, dst_stride, ty=ty)
 
 
-def mma_fill(dtype, local_size, local_ptr, offset):
+def mma_fill(local_size, local_ptr, offset, *, ty):
     """Zero-initialize an MMA accumulation register."""
 
-    return call_intrin(dtype, "tirx.cuda.mma_fill", local_size, local_ptr, offset)
+    return call_intrin("tirx.cuda.mma_fill", local_size, local_ptr, offset, ty=ty)
 
 
 _PTX_TO_NUMPY_DTYPE = {
@@ -615,7 +619,7 @@ _encode_instr_descriptor_block_scaled = _make_op_api(
 )
 
 
-def cuda_tcgen05_encode_instr_descriptor(
+def tcgen05_encode_instr_descriptor(
     desc,
     *,
     d_dtype,
@@ -699,7 +703,7 @@ def cuda_tcgen05_encode_instr_descriptor(
     )
 
 
-def cuda_tcgen05_encode_instr_descriptor_block_scaled(
+def tcgen05_encode_instr_descriptor_block_scaled(
     desc,
     *,
     d_dtype,
@@ -1015,7 +1019,7 @@ def timer_finalize(
     )
 
 
-def cuda_atomic_add(res_addr, value, *, ty=None, loc: Location = UNKNOWN_LOC):
+def atomic_add(res_addr, value, *, ty=None, loc: Location = UNKNOWN_LOC):
     """TVM intrinsic to call cuda atomic add instruction
 
     Parameters
@@ -1040,7 +1044,7 @@ def cuda_atomic_add(res_addr, value, *, ty=None, loc: Location = UNKNOWN_LOC):
     )
 
 
-def cuda_sm100_2sm_leader_smem_addr(ptr):
+def sm100_2sm_leader_smem_addr(ptr):
     """Return the SM100 2SM leader CTA shared-address operand.
 
     The input is a generic pointer to shared memory.
@@ -1168,7 +1172,7 @@ def _validate_ptx_address(addr, space, op_name):
             )
 
 
-def cuda_atomic_cas(ptr, old_val, new_val, *, ty=None, loc: Location = UNKNOWN_LOC):
+def atomic_cas(ptr, old_val, new_val, *, ty=None, loc: Location = UNKNOWN_LOC):
     """TVM intrinsic to call cuda atomic cas instruction
 
     Parameters
@@ -1643,9 +1647,6 @@ def nvshmem_barrier_all(*, ty=None, loc: Location = UNKNOWN_LOC):
     return Call("tirx.nvshmem.barrier_all", [], ty=ty, loc=loc)
 
 
-# Canonical Op builders also supply the historical direct-import aliases.
-
-
 @tvm_ffi.register_object("tirx.cuda.TensorMapEncodeTiledAttr")
 class TensorMapEncodeTiledAttr(Attrs):
     """Descriptor dtype and fixed options for tiled tensor-map encoding."""
@@ -1704,8 +1705,3 @@ def tensormap_encode_tiled(
 
 
 _init_op_api("tirx.cuda", __name__)
-for _name in Op.list_op_names():
-    if _name.startswith("tirx.cuda."):
-        _suffix = _name.removeprefix("tirx.cuda.")
-        if "." not in _suffix:
-            globals().setdefault("cuda_" + _suffix, globals()[_suffix])

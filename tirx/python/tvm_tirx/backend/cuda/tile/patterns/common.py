@@ -40,11 +40,12 @@ from tvm_tirx.ir import (
     TensorRegion,
     Var,
 )
+from tvm_tirx.ir.expr import IntImm
 from tvm_tirx.ir.prim import Let
 from tvm_tirx.runtime import DataType, MemoryScope
 from tvm_tirx.script import tirx as T
 from tvm_tirx.sym import Analyzer
-from tvm_tirx.tirx import Function, IntImm
+from tvm_tirx.tirx import Function
 from tvm_tirx.tirx.layout import TileLayout
 
 
@@ -107,7 +108,7 @@ class Context:
             self.owners["cbx" if name == "cta_id" else name] = var + offset
             # A singleton group coordinate is known without a CUDA index
             # read, including the sole warp in a block smaller than 32 lanes.
-            coordinate = T.int32(0) if extent == 1 else T.cast(index(), "int32") - offset
+            coordinate = T.int32(0) if extent == 1 else T.cast(index(), ty="int32") - offset
             self.bindings.append(Bind(var, coordinate))
         self.repeat = None
         self.repeat_shape = None

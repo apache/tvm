@@ -49,14 +49,16 @@ def test_vector():
     base = 10
     stride = 3
     lanes = 2
-    s = tvm_tirx.sym.IntSet.vector(tvm_tirx.tirx.Ramp(base, stride, lanes))
+    s = tvm_tirx.sym.IntSet.vector(tvm_tirx.ir.prim.vector_expr.Ramp(base, stride, lanes))
     assert s.min_value.value == base
     assert s.max_value.value == base + stride * (lanes - 1)
 
 
 def test_scalable_vector():
     base = 5
-    s = tvm_tirx.sym.IntSet.vector(tvm_tirx.tirx.Ramp(base, 2, tvm_tirx.tirx.vscale() * 4))
+    s = tvm_tirx.sym.IntSet.vector(
+        tvm_tirx.ir.prim.vector_expr.Ramp(base, 2, tvm_tirx.tirx.vscale() * 4)
+    )
 
     assert s.min_value.same_as(tvm_tirx.sym.int_set.neg_inf())
     assert s.max_value.same_as(tvm_tirx.sym.int_set.pos_inf())
@@ -164,7 +166,7 @@ def check_region_bound(expect_region, var_dom, mode, predicate=None):
         Extra predicate, defaults to True.
     """
     if predicate is None:
-        predicate = tvm_tirx.tirx.IntImm("bool", 1)
+        predicate = tvm_tirx.ir.expr.IntImm("bool", 1)
     region = []
     expect = []
     for k, v in expect_region.items():

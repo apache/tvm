@@ -16,7 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
+/*!
+ * \file tvm/runtime/memory_scope.h
+ * \brief Memory scopes and allocation properties for runtime storage.
+ */
 #ifndef TVM_RUNTIME_MEMORY_SCOPE_H_
 #define TVM_RUNTIME_MEMORY_SCOPE_H_
 
@@ -69,17 +72,7 @@ class MemoryScope : public ffi::Enum {
   const ffi::String& name() const { return get()->_str_index; }
   /*! \brief Test whether a name is registered, without initializing memory scopes. */
   static bool IsDefined(const ffi::String& name) {
-    namespace refl = ffi::reflection;
-    constexpr auto key = refl::AsByteArray(ffi::type_attr::kEnumState.name);
-    if (TVMFFIGetTypeAttrColumn(&key) == nullptr) return false;
-    auto value = refl::TypeAttrColumn(
-        ffi::type_attr::kEnumState)[MemoryScopeObj::_GetOrAllocRuntimeTypeIndex()];
-    if (value == nullptr) return false;
-    TVM_FFI_CHECK(value.type_index() == ffi::EnumStateObj::_GetOrAllocRuntimeTypeIndex(), TypeError)
-        << "Expected enum state for memory scopes";
-    // The derived EnumState type index may still be deferred during static initialization.
-    auto* state = static_cast<const ffi::EnumStateObj*>(value.cast<ffi::ObjectRef>().get());
-    return state->indexes.count(name) != 0;
+    return ffi::reflection::EnumDef<MemoryScopeObj>::IsDefined(name);
   }
   /*! \brief Look up a registered name. Unknown names raise ValueError. */
   TVM_RUNTIME_DLL static MemoryScope Get(const ffi::String& name);

@@ -35,16 +35,12 @@ from .ir import _get_sblock_name_suffix
 
 def function(is_private=False, persistent=False, *, private=None):
     """Create an S-TIR function frame."""
-    return _ffi_api.Function(is_private if private is None else private, persistent)
+    return _ffi_api.Function(is_private if private is None else private, persistent, False)
 
 
 def function_(*, private=False, persistent=False, decl=False, loc=None):
     """Enter an S-TIR declaration or definition frame."""
-    native = (
-        _ffi_api.DeclFunction(private, persistent)
-        if decl
-        else _ffi_api.Function(private, persistent)
-    )
+    native = _ffi_api.Function(private, persistent, decl)
     return _base.at_(loc, native)
 
 

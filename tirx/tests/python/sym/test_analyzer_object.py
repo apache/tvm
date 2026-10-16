@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import json
-
 import pytest
 
 import tvm_tirx
@@ -276,29 +274,6 @@ def test_failed_iter_map_has_absent_padding_predicate():
     assert result.padding_predicate is None
     restored = tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(result))
     assert restored.padding_predicate is None
-
-
-def test_symbolic_analysis_legacy_json_load():
-    # Historical symbolic-analysis objects must load through the existing JSON upgrader.
-    graph = {
-        "root_index": 2,
-        "nodes": [
-            {"type": "arith.ConstIntBound", "data": {"min_value": 2, "max_value": 7}},
-            {"type": "arith.ModularSet", "data": {"coeff": 4, "base": 1}},
-            {"type": "ffi.Array", "data": [0, 1, 0]},
-        ],
-        "metadata": {"tvm_version": tvm_tirx.__version__},
-    }
-    restored = tvm_tirx.ir.load_json(json.dumps(graph))
-    bound, modular, shared_bound = restored
-    assert isinstance(bound, tvm_tirx.sym.ConstIntBound)
-    assert (bound.min_value, bound.max_value) == (2, 7)
-    assert isinstance(modular, tvm_tirx.sym.ModularSet)
-    assert (modular.coeff, modular.base) == (4, 1)
-    assert bound.same_as(shared_bound)
-    saved_types = {node["type"] for node in json.loads(tvm_tirx.ir.save_json(restored))["nodes"]}
-    assert {"sym.ConstIntBound", "sym.ModularSet"} <= saved_types
-    assert not any(key.startswith("arith.") for key in saved_types)
 
 
 if __name__ == "__main__":

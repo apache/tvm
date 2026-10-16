@@ -65,6 +65,8 @@ def custom_op(define_normalization):
     if define_normalization:
         op_attrs["FNormalize"] = normalize
 
+    if op_name not in tvm_tirx.ir.Op.list_op_names():
+        tvm_tirx.ir._ffi_api.RegisterOp(op_name, "Custom Relax test operator")
     for key, value in op_attrs.items():
         tvm_tirx.ir.register_op_attr(op_name, key, value)
 

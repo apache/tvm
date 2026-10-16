@@ -98,10 +98,6 @@ constexpr int kTempAllocaAlignment = 64;
 /*! \brief Maximum size that can be allocated on stack */
 constexpr int kMaxStackAlloca = 1024;
 
-/*! \brief Number of bytes each allocation must align to by default in the workspace buffer to
- * service intermediate tensors */
-constexpr int kDefaultWorkspaceAlignment = 1;
-
 /*!
  *  \brief TVM Runtime Device API, abstracts the device
  *  specific interface for memory management.
@@ -238,7 +234,7 @@ class TVM_RUNTIME_DLL DeviceAPI {
   static DeviceAPI* Get(Device dev, bool allow_missing = false);
 
   /*!
-   * \brief Whether a certian device type requires set device device
+   * \brief Whether a certain device type requires setting the device
    *        before launching the kernel function.
    * \param device_type The device type.
    */
@@ -265,7 +261,7 @@ class TVM_RUNTIME_DLL DeviceAPI {
   /*!
    * \brief copy data from one place to another
    * \param from The source array.
-   * \param from_offset The byte offeset in the from.
+   * \param from_offset The byte offset in the from.
    * \param to The target array.
    * \param to_offset The byte offset in the to.
    * \param num_bytes The size of the memory in bytes

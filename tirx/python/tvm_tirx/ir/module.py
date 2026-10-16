@@ -54,7 +54,7 @@ class IRModule(Node, Scriptable):
 
         attrs = None if not attrs else attrs
         if attrs is not None:
-            attrs = make_node("ir.DictAttrs", **attrs)
+            attrs = make_node("ir.DictAttrs", dict={**attrs})
         if global_infos is None:
             global_infos = {}
         self.__init_handle_by_constructor__(
@@ -66,7 +66,7 @@ class IRModule(Node, Scriptable):
         self.__pyfuncs__ = {}
 
     def clone(self) -> "IRModule":
-        return _ffi_api.Module_Clone(self)
+        return _ffi_api.IRModuleClone(self)
 
     def functions_items(self):
         """Get items in self.functions.items() in alphabetical order.
@@ -96,11 +96,11 @@ class IRModule(Node, Scriptable):
     def _add(self, var, val, update=True):
         if isinstance(val, BaseFunc):
             if isinstance(var, str):
-                if _ffi_api.Module_ContainGlobalVar(self, var):
-                    var = _ffi_api.Module_GetGlobalVar(self, var)
+                if _ffi_api.IRModuleContainGlobalVar(self, var):
+                    var = _ffi_api.IRModuleGetGlobalVar(self, var)
                 else:
                     var = _expr.GlobalVar(var)
-            _ffi_api.Module_Add(self, var, val, update)
+            _ffi_api.IRModuleAdd(self, var, val, update)
 
     def __getitem__(self, var):
         """Lookup a global definition by name or by variable.
@@ -116,15 +116,15 @@ class IRModule(Node, Scriptable):
             The definition referenced by :code:`var` (either a function or type).
         """
         if isinstance(var, str):
-            return _ffi_api.Module_Lookup_str(self, var)
+            return _ffi_api.IRModuleLookupStr(self, var)
         assert isinstance(var, _expr.GlobalVar)
-        return _ffi_api.Module_Lookup(self, var)
+        return _ffi_api.IRModuleLookup(self, var)
 
     def __delitem__(self, var: str | _expr.GlobalVar):
-        _ffi_api.Module_Remove(self, var)
+        _ffi_api.IRModuleRemove(self, var)
 
     def __contains__(self, var: str | _expr.GlobalVar) -> bool:
-        return _ffi_api.Module_Contains(self, var)
+        return _ffi_api.IRModuleContains(self, var)
 
     def update(self, other):
         """Insert functions in another Module to current one.
@@ -137,7 +137,7 @@ class IRModule(Node, Scriptable):
         if isinstance(other, dict):
             other = IRModule(other)
 
-        return _ffi_api.Module_Update(self, other)
+        return _ffi_api.IRModuleUpdate(self, other)
 
     def update_func(self, var, func):
         """Update the function corresponding to a global variable in the
@@ -151,7 +151,7 @@ class IRModule(Node, Scriptable):
         func: tvm_tirx.ir.BaseFunc
             The function to be inserted.
         """
-        return _ffi_api.Module_UpdateFunction(self, var, func)
+        return _ffi_api.IRModuleUpdateFunction(self, var, func)
 
     def update_global_info(self, name, global_info):
         """Update global info in the module
@@ -164,7 +164,7 @@ class IRModule(Node, Scriptable):
         global_info: List[GlobalInfo]
             The global info to be updated.
         """
-        return _ffi_api.Module_UpdateGlobalInfo(self, name, global_info)
+        return _ffi_api.IRModuleUpdateGlobalInfo(self, name, global_info)
 
     def get_global_var(self, name):
         """Get a global variable in the function by name.
@@ -183,7 +183,7 @@ class IRModule(Node, Scriptable):
         ------
         RuntimeError if we cannot find corresponding global var.
         """
-        return _ffi_api.Module_GetGlobalVar(self, name)
+        return _ffi_api.IRModuleGetGlobalVar(self, name)
 
     def get_global_vars(self):
         """Collect all global vars defined in this module.
@@ -193,7 +193,7 @@ class IRModule(Node, Scriptable):
         global_vars: Array[GlobalVar]
             An array of global vars.
         """
-        return _ffi_api.Module_GetGlobalVars(self)
+        return _ffi_api.IRModuleGetGlobalVars(self)
 
     @staticmethod
     def from_expr(expr, functions=None):
@@ -215,7 +215,7 @@ class IRModule(Node, Scriptable):
             (wrapped in a function if necessary)
         """
         funcs = functions if functions is not None else {}
-        return _ffi_api.Module_FromExpr(expr, funcs)
+        return _ffi_api.IRModuleFromExpr(expr, funcs)
 
     def get_attr(self, attr_key):
         """Get the IRModule attribute.
@@ -231,7 +231,7 @@ class IRModule(Node, Scriptable):
             Attribute value
         """
 
-        return _ffi_api.Module_GetAttr(self, attr_key)
+        return _ffi_api.IRModuleGetAttr(self, attr_key)
 
     def with_attr(self, attr_key, attr_value):
         """Copy the IRModule and add an attribute to it.
@@ -250,7 +250,7 @@ class IRModule(Node, Scriptable):
             A new copy of the IRModule with the attribute
         """
 
-        return _ffi_api.Module_WithAttr(self, attr_key, attr_value)
+        return _ffi_api.IRModuleWithAttr(self, attr_key, attr_value)
 
     def without_attr(self, attr_key: str) -> "IRModule":
         """Copy the IRModule and remove an attribute key and its associated value.
@@ -264,7 +264,7 @@ class IRModule(Node, Scriptable):
             A new copy of the IRModule without the attribute
         """
 
-        return _ffi_api.Module_WithoutAttr(self, attr_key)
+        return _ffi_api.IRModuleWithoutAttr(self, attr_key)
 
     def with_attrs(self, attr_map: DictAttrs | dict[str, Object]) -> "IRModule":
         """Copy the IRModule and add the given attribute map to it.
@@ -278,6 +278,6 @@ class IRModule(Node, Scriptable):
             A new copy of the IRModule with the attribute
         """
         if isinstance(attr_map, DictAttrs):
-            attr_map = attr_map._dict()
+            attr_map = attr_map.dict
 
-        return _ffi_api.Module_WithAttrs(self, attr_map)
+        return _ffi_api.IRModuleWithAttrs(self, attr_map)

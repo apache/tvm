@@ -27,7 +27,6 @@ import tvm
 import tvm_tirx
 from tvm import relax, topi
 from tvm.relax.op.grad.grad import end_checkpoint, start_checkpoint
-from tvm_tirx import tirx
 
 
 def emit(expr: relax.Expr, name_hint: str = "") -> relax.Var:
@@ -289,7 +288,7 @@ def init_params(mod: tvm_tirx.IRModule) -> list[tvm_tirx.runtime.Tensor]:
         if isinstance(v, relax.ShapeExpr):
             shape = []
             for i in v:
-                if isinstance(i, tirx.IntImm):
+                if isinstance(i, tvm_tirx.ir.expr.IntImm):
                     shape.append(int(i))
                 else:
                     raise TypeError("cannot initialize for unknown-shape parameters.")

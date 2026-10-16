@@ -133,16 +133,6 @@ Target::Target(Target target, ffi::Optional<Target> host) {
   data_ = std::move(n);
 }
 
-Target::Target(TargetKind kind, ffi::Optional<ffi::ObjectRef> host, ffi::String tag,
-               ffi::Array<ffi::String> keys, ffi::Map<ffi::String, ffi::Any> attrs) {
-  auto data = ffi::make_object<TargetObj>(std::move(kind));
-  data->host = std::move(host);
-  data->tag = std::move(tag);
-  data->keys = std::move(keys);
-  data->attrs = std::move(attrs);
-  data_ = std::move(data);
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TargetObj::RegisterReflection();

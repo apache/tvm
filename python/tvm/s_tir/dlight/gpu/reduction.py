@@ -87,7 +87,7 @@ def _get_spatial_domains_in_access_order(
             # `_normalize` fuses the outer loop produced by this split.
             if split_expr.lower_factor > 1:
                 extent = split_expr.extent
-                extent = int(extent) if isinstance(extent, tirx.IntImm) else extent
+                extent = int(extent) if isinstance(extent, tvm_tirx.ir.expr.IntImm) else extent
                 spatial_domains.append(extent)
             else:
                 spatial_domains.append(info.dom)
@@ -273,8 +273,8 @@ class Reduction(GPUScheduleRule):
         sch.reorder(bx, tx, r)
         sch.bind(bx, "blockIdx.x")
         sch.bind(tx, "threadIdx.x")
-        sch.annotate(tx, ann_key="auto_unroll_max_step", ann_val=256)
-        sch.annotate(tx, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(tx, ann_key="tirx.auto_unroll_max_step", ann_val=256)
+        sch.annotate(tx, ann_key="tirx.unroll_explicit", ann_val=1)
         sch.set_scope(rf, 0, "local")
         sch.decompose_reduction(rf, r)
         # Schedule the write back block

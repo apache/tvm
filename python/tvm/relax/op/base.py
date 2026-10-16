@@ -111,9 +111,9 @@ def _wrap_tir_arg_tuple(func, args) -> Expr:
             if type(value) in (int, bool) and ty.matches_code(
                 DataTypeCode.INT, DataTypeCode.UINT, DataTypeCode.BOOL
             ):
-                value = tvm_tirx.tirx.IntImm(ty, value)
+                value = tvm_tirx.ir.expr.IntImm(ty, value)
             elif type(value) is float and ty.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
-                value = tvm_tirx.tirx.FloatImm(ty, value)
+                value = tvm_tirx.ir.expr.FloatImm(ty, value)
         values.append(convert_to_expr(value))
     return tvm_tirx.ir.Tuple(values)
 

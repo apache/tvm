@@ -66,7 +66,9 @@ def test_raw_call_preserves_provisional_fields(ty):
 
 
 def test_raw_call_preserves_checked_fields():
-    call = ir.Call("prim.exp", [tirx.FloatImm("float32", 0)], attrs={"tag": 7}, ty="float32")
+    call = ir.Call(
+        "prim.exp", [tvm_tirx.ir.expr.FloatImm("float32", 0)], attrs={"tag": 7}, ty="float32"
+    )
     source = call.script()
     assert "T.Call(" in source
     ir.assert_structural_equal(call, eval(source, {"I": I, "R": R, "T": T}))
@@ -142,7 +144,7 @@ def test_prim_value_boolean_and_symbolic_conversion():
 
 
 def test_tuple_constructor_materializes_raw_call_arguments():
-    value = tirx.IntImm("int64", 1)
+    value = tvm_tirx.ir.expr.IntImm("int64", 1)
     nested = R.tuple(R.tuple(), R.tuple(value))
     ir.assert_structural_equal(nested, ir.Tuple([ir.Tuple([]), ir.Tuple([value])]))
     call = ir.Call("relax.add", [nested], attrs={"tag": 1}, ty=ir.Type.missing())

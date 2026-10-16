@@ -205,7 +205,9 @@ def test_avg_pool2d():
                 for vi in T.vectorized(T.int64(0), T.int64(32)):
                     PAVG[(((j * T.int64(1120)) + (i * T.int64(32))) + vi)] = T.cast(
                         T.Div(
-                            T.cast(PSUM[(((j * T.int64(1120)) + (i * T.int64(32))) + vi)], "int64"),
+                            T.cast(
+                                PSUM[(((j * T.int64(1120)) + (i * T.int64(32))) + vi)], ty="int64"
+                            ),
                             T.max(
                                 (
                                     (
@@ -228,7 +230,7 @@ def test_avg_pool2d():
                                 T.int64(1),
                             ),
                         ),
-                        "int32",
+                        ty="int32",
                     )
 
     @T.function

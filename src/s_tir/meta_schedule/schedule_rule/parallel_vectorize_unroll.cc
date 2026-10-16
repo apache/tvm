@@ -119,7 +119,7 @@ class ParallelizeVectorizeUnrollObj : public ScheduleRuleObj {
         .def_ro("max_jobs_per_core", &ParallelizeVectorizeUnrollObj::max_jobs_per_core)
         .def_ro("max_vectorize_extent", &ParallelizeVectorizeUnrollObj::max_vectorize_extent)
         .def_ro("unroll_max_steps", &ParallelizeVectorizeUnrollObj::unroll_max_steps)
-        .def_ro("unroll_explicit", &ParallelizeVectorizeUnrollObj::unroll_explicit);
+        .def_ro("tirx.unroll_explicit", &ParallelizeVectorizeUnrollObj::unroll_explicit);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.ParallelizeVectorizeUnroll",
                                     ParallelizeVectorizeUnrollObj, ScheduleRuleObj);

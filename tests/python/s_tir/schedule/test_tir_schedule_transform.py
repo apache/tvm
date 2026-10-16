@@ -41,8 +41,8 @@ class DenseTIRModule:
                     Ts.writes(compute[i, j])
                     with Ts.init():
                         compute[i, j] = 0
-                    compute[i, j] = compute[i, j] + T.cast(placeholder[i, k], "int32") * T.cast(
-                        placeholder_1[j // 16, k // 4, j % 16, k % 4], "int32"
+                    compute[i, j] = compute[i, j] + T.cast(placeholder[i, k], ty="int32") * T.cast(
+                        placeholder_1[j // 16, k // 4, j % 16, k % 4], ty="int32"
                     )
 
 
@@ -67,8 +67,8 @@ class DenseTIRModuleTiled:
                 Ts.writes(compute[i, j])
                 with Ts.init():
                     compute[i, j] = 0
-                compute[i, j] = compute[i, j] + T.cast(placeholder[i, k], "int32") * T.cast(
-                    placeholder_1[j // 16, k // 4, j % 16, k % 4], "int32"
+                compute[i, j] = compute[i, j] + T.cast(placeholder[i, k], ty="int32") * T.cast(
+                    placeholder_1[j // 16, k // 4, j % 16, k % 4], ty="int32"
                 )
 
 
@@ -106,10 +106,10 @@ class Conv2dNCHWcTIRModule:
                     n, oc_chunk, oh, ow, oc_block
                 ] + T.cast(
                     placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
-                    "int32",
+                    ty="int32",
                 ) * T.cast(
                     placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
-                    "int32",
+                    ty="int32",
                 )
 
 
@@ -144,10 +144,10 @@ class Conv2dNCHWcTIRModuleTiled:
                     n, oc_chunk, oh, ow, oc_block
                 ] + T.cast(
                     placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
-                    "int32",
+                    ty="int32",
                 ) * T.cast(
                     placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
-                    "int32",
+                    ty="int32",
                 )
 
 

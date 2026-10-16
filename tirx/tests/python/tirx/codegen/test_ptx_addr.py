@@ -21,9 +21,10 @@ import tvm_ffi
 
 import tvm_tirx
 from tvm_tirx.ir import Call, Op, const
+from tvm_tirx.ir.expr import CallEffectKind
+from tvm_tirx.ir.prim.vector_expr import Broadcast
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
-from tvm_tirx.tirx.expr import Broadcast, CallEffectKind
 
 TARGET = tvm_tirx.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
 

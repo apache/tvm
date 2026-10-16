@@ -399,7 +399,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
         batch_tiles: T.let[T.int32] = T.ceildiv(qo_len * group_size, tile_x)
 
         # kernel code
-        for lbx in T.parallel(T.cast(batch_size, "int32") * batch_tiles, annotations={"thread_binding": "blockIdx.x"}):
+        for lbx in T.parallel(T.cast(batch_size, ty="int32") * batch_tiles, annotations={"thread_binding": "blockIdx.x"}):
             for lby in T.parallel(h_kv, annotations={"thread_binding": "blockIdx.y"}):
                 for lty in T.parallel(num_warps, annotations={"thread_binding": "threadIdx.y"}):
                     for ltx in T.parallel(bdx, annotations={"thread_binding": "threadIdx.x"}):
@@ -559,7 +559,7 @@ def _attention_sequence_prefill_with_mask(
 
         batch_tiles: T.let[T.int32] = T.ceildiv(qo_len * group_size, tile_x)
 
-        for lbx in T.parallel(T.cast(batch_size, "int32") * batch_tiles, annotations={"thread_binding": "blockIdx.x"}):
+        for lbx in T.parallel(T.cast(batch_size, ty="int32") * batch_tiles, annotations={"thread_binding": "blockIdx.x"}):
             for lby in T.parallel(h_kv, annotations={"thread_binding": "blockIdx.y"}):
                 for lty in T.parallel(num_warps, annotations={"thread_binding": "threadIdx.y"}):
                     for ltx in T.parallel(bdx, annotations={"thread_binding": "threadIdx.x"}):

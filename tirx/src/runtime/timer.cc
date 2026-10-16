@@ -56,7 +56,7 @@ class DefaultTimerObj : public TimerObj {
   virtual ~DefaultTimerObj() {}
 
   explicit DefaultTimerObj(Device dev) : device_(dev) {}
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.DefaultTimerNode", DefaultTimerObj, TimerObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.DefaultTimer", DefaultTimerObj, TimerObj);
 
  private:
   std::chrono::high_resolution_clock::time_point start_;
@@ -74,7 +74,7 @@ class CPUTimerObj : public TimerObj {
   virtual void Stop() { duration_ = std::chrono::high_resolution_clock::now() - start_; }
   virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
   virtual ~CPUTimerObj() {}
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.CPUTimerNode", CPUTimerObj, TimerObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.CPUTimer", CPUTimerObj, TimerObj);
 
  private:
   std::chrono::high_resolution_clock::time_point start_;
@@ -115,10 +115,10 @@ Timer Timer::Start(Device dev) {
   }
 }
 
-ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int repeat,
-                                int min_repeat_ms, int limit_zero_time_iterations,
-                                int cooldown_interval_ms, int repeats_to_cooldown,
-                                int cache_flush_bytes, ffi::Function f_preproc) {
+static ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int repeat,
+                                       int min_repeat_ms, int limit_zero_time_iterations,
+                                       int cooldown_interval_ms, int repeats_to_cooldown,
+                                       int cache_flush_bytes, ffi::Function f_preproc) {
   TVM_FFI_ICHECK(pf != nullptr);
 
   auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
@@ -268,7 +268,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         repeats_to_cooldown, cache_flush_bytes, f_preproc_name)
                  .cast<ffi::Function>();
            })
-      .def_packed("cache_flush_cpu_non_first_arg",
+      .def_packed("runtime.CacheFlushCPUArguments",
                   [](ffi::PackedArgs args, ffi::Any* rv) { CPUCacheFlush(1, args); });
 }
 

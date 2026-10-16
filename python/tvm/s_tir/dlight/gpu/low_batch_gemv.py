@@ -61,9 +61,9 @@ def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
 def _has_pad_einsum_compatible_access(block: s_tir.SBlock) -> bool:
     """Check the point-access restriction required by ``Schedule.pad_einsum``."""
     return all(
-        isinstance(dim.extent, tirx.IntImm)
+        isinstance(dim.extent, tvm_tirx.ir.expr.IntImm)
         and int(dim.extent) == 1
-        and isinstance(dim.min, tirx.IntImm | tirx.Var)
+        and isinstance(dim.min, tvm_tirx.ir.expr.IntImm | tirx.Var)
         for region in [*block.reads, *block.writes]
         for dim in region.region
     )
@@ -105,14 +105,14 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Var] | Non
     const_iter_vars = set(
         iter_var.var
         for iter_var in block_stmt.iter_vars
-        if isinstance(iter_var.dom.extent, tirx.IntImm)
+        if isinstance(iter_var.dom.extent, tvm_tirx.ir.expr.IntImm)
     )
     if len(block_stmt.iter_vars) - len(const_iter_vars) != 1:
         return None
     symbolic_iter_var = next(
         iter_var
         for iter_var in block_stmt.iter_vars
-        if not isinstance(iter_var.dom.extent, tirx.IntImm)
+        if not isinstance(iter_var.dom.extent, tvm_tirx.ir.expr.IntImm)
     )
     if symbolic_iter_var.iter_type != s_tir.IterVar.DataPar:
         return None
@@ -156,7 +156,7 @@ def normalize(
     const_iter_vars = set(
         iter_var.var
         for iter_var in block_stmt.iter_vars
-        if isinstance(iter_var.dom.extent, tirx.IntImm)
+        if isinstance(iter_var.dom.extent, tvm_tirx.ir.expr.IntImm)
     )
     dynamic_iter_vars = set(
         iter_var.var for iter_var in block_stmt.iter_vars if iter_var.var not in const_iter_vars
@@ -370,13 +370,13 @@ class LowBatchGEMV(GPUScheduleRule):
             shared_mem_usage = 0
             for tensor in vector_input_tensors:
                 tensor_size = reduce(
-                    lambda x, y: x * y, tensor.shape, tirx.IntImm(tensor.shape[0].ty, 1)
+                    lambda x, y: x * y, tensor.shape, tvm_tirx.ir.expr.IntImm(tensor.shape[0].ty, 1)
                 ) * get_bytes(tensor.dtype)
                 shared_mem_usage += tensor_size
             max_smem = get_max_shared_memory_per_block(target)
             LOAD_V_SHARED = (
                 LOAD_V_SHARED
-                and isinstance(shared_mem_usage, tirx.IntImm)
+                and isinstance(shared_mem_usage, tvm_tirx.ir.expr.IntImm)
                 and shared_mem_usage.value <= max_smem
             )
 
@@ -401,7 +401,7 @@ class LowBatchGEMV(GPUScheduleRule):
                 sch.compute_at(V_shared, tr, preserve_unit_loops=True)
                 l = sch.get_loops(block=V_shared)[-1]
                 loop: tvm_tirx.ir.For = sch.get(l)
-                if isinstance(loop.extent, tirx.IntImm):
+                if isinstance(loop.extent, tvm_tirx.ir.expr.IntImm):
                     # avoid introducing predicates when vector length is too large
                     vec_length = max(
                         min(
@@ -474,22 +474,26 @@ class LowBatchGEMV(GPUScheduleRule):
 
             sch.annotate(
                 block_or_loop=sch.get_loops(rf)[4],
-                ann_key="auto_unroll_max_step",
+                ann_key="tirx.auto_unroll_max_step",
                 ann_val=unroll_factor,
             )
-            sch.annotate(block_or_loop=sch.get_loops(rf)[4], ann_key="unroll_explicit", ann_val=1)
+            sch.annotate(
+                block_or_loop=sch.get_loops(rf)[4], ann_key="tirx.unroll_explicit", ann_val=1
+            )
 
             sch.annotate(
                 block_or_loop=sch.get_loops(rf2)[4],
-                ann_key="auto_unroll_max_step",
+                ann_key="tirx.auto_unroll_max_step",
                 ann_val=unroll_factor,
             )
-            sch.annotate(block_or_loop=sch.get_loops(rf2)[4], ann_key="unroll_explicit", ann_val=1)
+            sch.annotate(
+                block_or_loop=sch.get_loops(rf2)[4], ann_key="tirx.unroll_explicit", ann_val=1
+            )
 
             if LOAD_V_SHARED:
                 sch.annotate(
                     block_or_loop=sch.get_loops(V_shared)[-4],
-                    ann_key="unroll_explicit",
+                    ann_key="tirx.unroll_explicit",
                     ann_val=unroll_factor,
                 )
 

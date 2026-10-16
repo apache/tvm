@@ -54,7 +54,7 @@ def test_transpose():
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
             rxplaceholder_shared = Ts.sblock_alloc_tensor((T.int64(512), T.int64(4096)), scope="shared")
-            for ax0_0_0 in T.parallel(T.int64(512), annotations={"thread_binding": "blockIdx.y", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+            for ax0_0_0 in T.parallel(T.int64(512), annotations={"thread_binding": "blockIdx.y", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                 for ax1_0 in T.parallel(T.int64(32), annotations={"thread_binding": "blockIdx.x"}):
                     for ax0_ax1_fused_0 in range(T.int64(1)):
                         for ax0_ax1_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.y"}):
@@ -108,7 +108,7 @@ def test_decode_transpose():
         def main(rxplaceholder: T.Tensor((T.int64(512), T.int64(4096)), "uint32"), rxplaceholder_1: T.Tensor((T.int64(128), T.int64(4096)), "uint32"), T_transpose: T.Tensor((T.int64(4096), T.int64(4096)), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             decode_shared = Ts.sblock_alloc_tensor((T.int64(4096), T.int64(4096)), scope="shared")
-            for ax0_0_0 in T.parallel(T.int64(64), annotations={"thread_binding": "blockIdx.y", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+            for ax0_0_0 in T.parallel(T.int64(64), annotations={"thread_binding": "blockIdx.y", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                 for ax1_0 in T.parallel(T.int64(256), annotations={"thread_binding": "blockIdx.x"}):
                     for ax0_ax1_fused_0 in range(T.int64(1)):
                         for ax0_ax1_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.y"}):
@@ -163,7 +163,7 @@ def test_decode_int3_transpose():
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
             decode_1_shared = Ts.sblock_alloc_tensor((T.int64(4096), T.int64(4096)), "float16", scope="shared")
-            for ax0_0_0 in T.parallel(T.int64(52), annotations={"thread_binding": "blockIdx.y", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+            for ax0_0_0 in T.parallel(T.int64(52), annotations={"thread_binding": "blockIdx.y", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                 for ax1_0 in T.parallel(T.int64(256), annotations={"thread_binding": "blockIdx.x"}):
                     for ax0_ax1_fused_0 in range(T.int64(2)):
                         for ax0_ax1_fused_1 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.y"}):

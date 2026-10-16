@@ -259,7 +259,7 @@ def rnn_state_set(
                     vi, *vs = Ts.axis.remap("S" * (len(shape) + 1), [i, *s])
                     seq_id: T.let[T.int32] = seq_slot_ids[vi]
                     history_id: T.let[T.int32] = (history_slot_ids[vi] + 1) % T.cast(
-                        max_history, "int32"
+                        max_history, ty = "int32"
                     )
                     # The following line is equivalent to:
                     # `storage[seq_id, history_id, *vs] = data[vi, *vs]`

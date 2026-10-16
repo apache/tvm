@@ -23,6 +23,7 @@ import triton
 from packaging import version
 from triton.runtime.jit import type_canonicalisation_dict
 
+import tvm_tirx
 from tvm_tirx import tirx
 from tvm_tirx.ir import PrimType, PtrType, is_prim_expr
 from tvm_tirx.runtime import Module
@@ -138,5 +139,7 @@ class TritonKernel(BaseKernel):
             if size is not None:
                 if size != 0:
                     raise ValueError(f"Triton kernels requiring {scratch}={size} are not supported")
-                kernel_args.append(tirx.reinterpret("handle", tirx.IntImm("uint64", 0)))
+                kernel_args.append(
+                    tirx.reinterpret(tvm_tirx.ir.expr.IntImm("uint64", 0), ty="handle")
+                )
         return compiled, kernel_args

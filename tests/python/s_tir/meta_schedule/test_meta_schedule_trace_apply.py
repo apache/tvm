@@ -187,7 +187,7 @@ class DenseAdd_cpu_no_write_cache:
                 Ts.writes(p1_global[v1 // 16, v0 // 32, v1 % 16, v0 % 32])
                 Ts.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
                 p1_global[v1 // 16, v0 // 32, v1 % 16, v0 % 32] = p1[v0, v1]
-        for i0_0_i1_0_i0_1_i1_1_fused in T.parallel(16, annotations={"auto_unroll_max_step":16, "unroll_explicit":1}):
+        for i0_0_i1_0_i0_1_i1_1_fused in T.parallel(16, annotations={"tirx.auto_unroll_max_step":16, "tirx.unroll_explicit":1}):
             for i0_2_init, i1_2_init, i0_3_init in T.grid(4, 4, 2):
                 for i1_3_fused_init in T.vectorized(32):
                     with Ts.sblock("T_matmul_NT_init"):
@@ -230,7 +230,7 @@ class DenseAdd_scheduled_gpu:
         T_matmul_NT_local = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="local")
         p0_shared = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="shared")
         p1_shared = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="shared")
-        for i0_0_i1_0_fused in T.parallel(32, annotations={"thread_binding": "blockIdx.x", "auto_unroll_max_step": 64, "unroll_explicit": 1}):
+        for i0_0_i1_0_fused in T.parallel(32, annotations={"thread_binding": "blockIdx.x", "tirx.auto_unroll_max_step": 64, "tirx.unroll_explicit": 1}):
             for i0_1_i1_1_fused in T.parallel(1, annotations={"thread_binding": "vthread.x"}):
                 for i0_2_i1_2_fused in T.parallel(128, annotations={"thread_binding": "threadIdx.x"}):
                     for i0_3_init, i1_3_init, i0_4_init, i1_4_init in T.grid(1, 4, 1, 1):
@@ -399,7 +399,7 @@ class Conv2dInt8:
                 Ts.writes(conv2d_nhwc[nn, yy, xx, ff])
                 with Ts.init():
                     conv2d_nhwc[nn, yy, xx, ff] = 0
-                conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], "int32") * T.cast(p1[ff, ry, rx, rc], "int32")
+                conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], ty="int32") * T.cast(p1[ff, ry, rx, rc], ty="int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_subtract"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -417,7 +417,7 @@ class Conv2dInt8:
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(T_add[ax0, ax1, ax2, ax3])
                 Ts.writes(T_cast[ax0, ax1, ax2, ax3])
-                T_cast[ax0, ax1, ax2, ax3] = T.cast(T_add[ax0, ax1, ax2, ax3], "int64")
+                T_cast[ax0, ax1, ax2, ax3] = T.cast(T_add[ax0, ax1, ax2, ax3], ty="int64")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_multiply"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -441,7 +441,7 @@ class Conv2dInt8:
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(T_right_shift[ax0, ax1, ax2, ax3])
                 Ts.writes(T_cast_1[ax0, ax1, ax2, ax3])
-                T_cast_1[ax0, ax1, ax2, ax3] = T.cast(T_right_shift[ax0, ax1, ax2, ax3], "int32")
+                T_cast_1[ax0, ax1, ax2, ax3] = T.cast(T_right_shift[ax0, ax1, ax2, ax3], ty="int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_add_2"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -459,13 +459,13 @@ class Conv2dInt8:
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
                 Ts.reads(compute_1[ax0, ax1, ax2, ax3])
                 Ts.writes(T_cast_2[ax0, ax1, ax2, ax3])
-                T_cast_2[ax0, ax1, ax2, ax3] = T.cast(compute_1[ax0, ax1, ax2, ax3], "uint8")
+                T_cast_2[ax0, ax1, ax2, ax3] = T.cast(compute_1[ax0, ax1, ax2, ax3], ty="uint8")
         for i0_4, i1_4, i2_4, i3_4 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_cast_3"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_4, i1_4, i2_4, i3_4])
                 Ts.reads(T_cast_2[ax0, ax1, ax2, ax3])
                 Ts.writes(T_cast_3[ax0, ax1, ax2, ax3])
-                T_cast_3[ax0, ax1, ax2, ax3] = T.cast(T_cast_2[ax0, ax1, ax2, ax3], "int32")
+                T_cast_3[ax0, ax1, ax2, ax3] = T.cast(T_cast_2[ax0, ax1, ax2, ax3], ty="int32")
         for i0_5, i1_5, i2_5, i3_5 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_subtract_1"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_5, i1_5, i2_5, i3_5])
@@ -518,7 +518,7 @@ class Conv2dInt8_target:
                 Ts.writes(conv2d_nhwc[nn, yy, xx, ff])
                 with Ts.init():
                     conv2d_nhwc[nn, yy, xx, ff] = 0
-                conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], "int32") * T.cast(p1[ff, ry, rx, rc], "int32")
+                conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], ty="int32") * T.cast(p1[ff, ry, rx, rc], ty="int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_subtract"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -536,7 +536,7 @@ class Conv2dInt8_target:
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(T_add[ax0, ax1, ax2, ax3])
                 Ts.writes(T_cast[ax0, ax1, ax2, ax3])
-                T_cast[ax0, ax1, ax2, ax3] = T.cast(T_add[ax0, ax1, ax2, ax3], "int64")
+                T_cast[ax0, ax1, ax2, ax3] = T.cast(T_add[ax0, ax1, ax2, ax3], ty="int64")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_multiply"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -560,7 +560,7 @@ class Conv2dInt8_target:
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(T_right_shift[ax0, ax1, ax2, ax3])
                 Ts.writes(T_cast_1[ax0, ax1, ax2, ax3])
-                T_cast_1[ax0, ax1, ax2, ax3] = T.cast(T_right_shift[ax0, ax1, ax2, ax3], "int32")
+                T_cast_1[ax0, ax1, ax2, ax3] = T.cast(T_right_shift[ax0, ax1, ax2, ax3], ty="int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_add_2"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -578,13 +578,13 @@ class Conv2dInt8_target:
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
                 Ts.reads(compute_1[ax0, ax1, ax2, ax3])
                 Ts.writes(T_cast_2[ax0, ax1, ax2, ax3])
-                T_cast_2[ax0, ax1, ax2, ax3] = T.cast(compute_1[ax0, ax1, ax2, ax3], "uint8")
+                T_cast_2[ax0, ax1, ax2, ax3] = T.cast(compute_1[ax0, ax1, ax2, ax3], ty="uint8")
         for i0_4, i1_4, i2_4, i3_4 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_cast_3"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_4, i1_4, i2_4, i3_4])
                 Ts.reads(T_cast_2[ax0, ax1, ax2, ax3])
                 Ts.writes(T_cast_3[ax0, ax1, ax2, ax3])
-                T_cast_3[ax0, ax1, ax2, ax3] = T.cast(T_cast_2[ax0, ax1, ax2, ax3], "int32")
+                T_cast_3[ax0, ax1, ax2, ax3] = T.cast(T_cast_2[ax0, ax1, ax2, ax3], ty="int32")
         for i0_5, i1_5, i2_5, i3_5 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_subtract_1"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_5, i1_5, i2_5, i3_5])
@@ -614,7 +614,7 @@ class Conv2dInt8_target:
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_11, i1_11, i2_11, i3_11])
                 Ts.reads(compute_3[ax0, ax1, ax2, ax3])
                 Ts.writes(T_cast_4[ax0, ax1, ax2, ax3])
-                T_cast_4[ax0, ax1, ax2, ax3] = T.cast(compute_3[ax0, ax1, ax2, ax3], "uint8")
+                T_cast_4[ax0, ax1, ax2, ax3] = T.cast(compute_3[ax0, ax1, ax2, ax3], ty="uint8")
         for i0_12, i1_12, i2_12, i3_12 in T.grid(16, 56, 56, 256):
             with Ts.sblock("compute_3"):
                 i0_13, i1_13, i2_13, i3_13 = Ts.axis.remap("SSSS", [i0_12, i1_12, i2_12, i3_12])
@@ -686,7 +686,7 @@ class Conv2dInt8_NCHWc:
                 Ts.sblock_attr({"schedule_rule":"meta_schedule.conv2d_NCHWc_int8", "workload":["conv2d_NCHWc_int8.x86", ["TENSOR", [1, 32, 7, 7, 16], "uint8"], ["TENSOR", [128, 32, 1, 1, 4, 16, 4], "int8"], [1, 1], [0, 0, 0, 0], [1, 1], "NCHW16c", "NCHW16c", "int32"]})
                 with Ts.init():
                     conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = 0
-                conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] + T.cast(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner], "int32") * T.cast(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner], "int32")
+                conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] + T.cast(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner], ty="int32") * T.cast(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner], ty="int32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_add"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -698,7 +698,7 @@ class Conv2dInt8_NCHWc:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_add[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_cast[ax0, ax1, ax2, ax3, ax4])
-                T_cast[ax0, ax1, ax2, ax3, ax4] = T.cast(T_add[ax0, ax1, ax2, ax3, ax4], "float32")
+                T_cast[ax0, ax1, ax2, ax3, ax4] = T.cast(T_add[ax0, ax1, ax2, ax3, ax4], ty="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_multiply"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -727,7 +727,7 @@ class Conv2dInt8_NCHWc:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_floor[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_cast_1[ax0, ax1, ax2, ax3, ax4])
-                T_cast_1[ax0, ax1, ax2, ax3, ax4] = T.cast(T_floor[ax0, ax1, ax2, ax3, ax4], "int32")
+                T_cast_1[ax0, ax1, ax2, ax3, ax4] = T.cast(T_floor[ax0, ax1, ax2, ax3, ax4], ty="int32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("compute"):
                 i0_1, i1_1, i2_1, i3_1, i4_1 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -739,13 +739,13 @@ class Conv2dInt8_NCHWc:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(compute_1[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_cast_2[ax0, ax1, ax2, ax3, ax4])
-                T_cast_2[ax0, ax1, ax2, ax3, ax4] = T.cast(compute_1[ax0, ax1, ax2, ax3, ax4], "uint8")
+                T_cast_2[ax0, ax1, ax2, ax3, ax4] = T.cast(compute_1[ax0, ax1, ax2, ax3, ax4], ty="uint8")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_cast_3"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_cast_2[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_cast_3[ax0, ax1, ax2, ax3, ax4])
-                T_cast_3[ax0, ax1, ax2, ax3, ax4] = T.cast(T_cast_2[ax0, ax1, ax2, ax3, ax4], "float32")
+                T_cast_3[ax0, ax1, ax2, ax3, ax4] = T.cast(T_cast_2[ax0, ax1, ax2, ax3, ax4], ty="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_subtract"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -780,7 +780,7 @@ class Conv2dInt8_NCHWc:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_floor_1[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_cast_4[ax0, ax1, ax2, ax3, ax4])
-                T_cast_4[ax0, ax1, ax2, ax3, ax4] = T.cast(T_floor_1[ax0, ax1, ax2, ax3, ax4], "int32")
+                T_cast_4[ax0, ax1, ax2, ax3, ax4] = T.cast(T_floor_1[ax0, ax1, ax2, ax3, ax4], ty="int32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_add_3"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -798,7 +798,7 @@ class Conv2dInt8_NCHWc:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0_3, i1_3, i2_3, i3_3, i4_3])
                 Ts.reads(compute_2[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_cast_5[ax0, ax1, ax2, ax3, ax4])
-                T_cast_5[ax0, ax1, ax2, ax3, ax4] = T.cast(compute_2[ax0, ax1, ax2, ax3, ax4], "uint8")
+                T_cast_5[ax0, ax1, ax2, ax3, ax4] = T.cast(compute_2[ax0, ax1, ax2, ax3, ax4], ty="uint8")
         for i0_4, i1_4, i2_4, i3_4, i4_4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("compute_2"):
                 i0_5, i1_5, i2_5, i3_5, i4_5 = Ts.axis.remap("SSSSS", [i0_4, i1_4, i2_4, i3_4, i4_4])
@@ -856,7 +856,7 @@ class Conv2dInt8_NCHWc_target:
                 Ts.sblock_attr({"schedule_rule":"meta_schedule.conv2d_NCHWc_int8", "workload":["conv2d_NCHWc_int8.x86", ["TENSOR", [1, 32, 7, 7, 16], "uint8"], ["TENSOR", [128, 32, 1, 1, 4, 16, 4], "int8"], [1, 1], [0, 0, 0, 0], [1, 1], "NCHW16c", "NCHW16c", "int32"]})
                 with Ts.init():
                     conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = 0
-                conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] + T.cast(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner], "int32") * T.cast(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner], "int32")
+                conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] + T.cast(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner], ty="int32") * T.cast(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner], ty="int32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_add"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -868,7 +868,7 @@ class Conv2dInt8_NCHWc_target:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_add[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_cast_1[ax0, ax1, ax2, ax3, ax4])
-                T_cast_1[ax0, ax1, ax2, ax3, ax4] = T.cast(T_add[ax0, ax1, ax2, ax3, ax4], "float32")
+                T_cast_1[ax0, ax1, ax2, ax3, ax4] = T.cast(T_add[ax0, ax1, ax2, ax3, ax4], ty="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_multiply"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -897,7 +897,7 @@ class Conv2dInt8_NCHWc_target:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_floor[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_cast_2[ax0, ax1, ax2, ax3, ax4])
-                T_cast_2[ax0, ax1, ax2, ax3, ax4] = T.cast(T_floor[ax0, ax1, ax2, ax3, ax4], "int32")
+                T_cast_2[ax0, ax1, ax2, ax3, ax4] = T.cast(T_floor[ax0, ax1, ax2, ax3, ax4], ty="int32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("compute"):
                 i0_1, i1_1, i2_1, i3_1, i4_1 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -909,13 +909,13 @@ class Conv2dInt8_NCHWc_target:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(compute[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_cast_3[ax0, ax1, ax2, ax3, ax4])
-                T_cast_3[ax0, ax1, ax2, ax3, ax4] = T.cast(compute[ax0, ax1, ax2, ax3, ax4], "uint8")
+                T_cast_3[ax0, ax1, ax2, ax3, ax4] = T.cast(compute[ax0, ax1, ax2, ax3, ax4], ty="uint8")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_cast_3"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_cast_3[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_cast_4[ax0, ax1, ax2, ax3, ax4])
-                T_cast_4[ax0, ax1, ax2, ax3, ax4] = T.cast(T_cast_3[ax0, ax1, ax2, ax3, ax4], "float32")
+                T_cast_4[ax0, ax1, ax2, ax3, ax4] = T.cast(T_cast_3[ax0, ax1, ax2, ax3, ax4], ty="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_subtract"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -950,7 +950,7 @@ class Conv2dInt8_NCHWc_target:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_floor_1[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_cast_5[ax0, ax1, ax2, ax3, ax4])
-                T_cast_5[ax0, ax1, ax2, ax3, ax4] = T.cast(T_floor_1[ax0, ax1, ax2, ax3, ax4], "int32")
+                T_cast_5[ax0, ax1, ax2, ax3, ax4] = T.cast(T_floor_1[ax0, ax1, ax2, ax3, ax4], ty="int32")
         with Ts.sblock("compile_engine_const_3"):
             vi = Ts.axis.spatial(1, 0)
             Ts.reads()
@@ -961,7 +961,7 @@ class Conv2dInt8_NCHWc_target:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(p5[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_cast_6[ax0, ax1, ax2, ax3, ax4])
-                T_cast_6[ax0, ax1, ax2, ax3, ax4] = T.cast(p5[ax0, ax1, ax2, ax3, ax4], "float32")
+                T_cast_6[ax0, ax1, ax2, ax3, ax4] = T.cast(p5[ax0, ax1, ax2, ax3, ax4], ty="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_multiply_2"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -990,7 +990,7 @@ class Conv2dInt8_NCHWc_target:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_floor_2[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_cast_7[ax0, ax1, ax2, ax3, ax4])
-                T_cast_7[ax0, ax1, ax2, ax3, ax4] = T.cast(T_floor_2[ax0, ax1, ax2, ax3, ax4], "int32")
+                T_cast_7[ax0, ax1, ax2, ax3, ax4] = T.cast(T_floor_2[ax0, ax1, ax2, ax3, ax4], ty="int32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_add_4"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -1008,7 +1008,7 @@ class Conv2dInt8_NCHWc_target:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0_3, i1_3, i2_3, i3_3, i4_3])
                 Ts.reads(compute_1[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_cast_8[ax0, ax1, ax2, ax3, ax4])
-                T_cast_8[ax0, ax1, ax2, ax3, ax4] = T.cast(compute_1[ax0, ax1, ax2, ax3, ax4], "uint8")
+                T_cast_8[ax0, ax1, ax2, ax3, ax4] = T.cast(compute_1[ax0, ax1, ax2, ax3, ax4], ty="uint8")
         for i0_4, i1_4, i2_4, i3_4, i4_4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("compute_2"):
                 i0_5, i1_5, i2_5, i3_5, i4_5 = Ts.axis.remap("SSSSS", [i0_4, i1_4, i2_4, i3_4, i4_4])
@@ -1020,7 +1020,7 @@ class Conv2dInt8_NCHWc_target:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0_6, i1_6, i2_6, i3_6, i4_6])
                 Ts.reads(compute_2[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_cast[ax0, ax1, ax2, ax3, ax4])
-                T_cast[ax0, ax1, ax2, ax3, ax4] = T.cast(compute_2[ax0, ax1, ax2, ax3, ax4], "int32")
+                T_cast[ax0, ax1, ax2, ax3, ax4] = T.cast(compute_2[ax0, ax1, ax2, ax3, ax4], ty="int32")
 
 def get_conv2d_vnni_mod(intrin_id):
     @tvm_tirx.script.ir_module
@@ -1032,7 +1032,7 @@ def get_conv2d_vnni_mod(intrin_id):
             # body
             # with Ts.sblock("root")
             conv2d_NCHWc_int8 = Ts.sblock_alloc_tensor([1, 128, 7, 7, 16], dtype="int32")
-            for i0_0_i1_0_i2_0_i3_0_i4_0_0_i0_1_i1_1_fused in T.parallel(128, annotations={"auto_unroll_max_step":64, "unroll_explicit":1}):
+            for i0_0_i1_0_i2_0_i3_0_i4_0_0_i0_1_i1_1_fused in T.parallel(128, annotations={"tirx.auto_unroll_max_step":64, "tirx.unroll_explicit":1}):
                 for i2_1, i3_1, i4_0_1 in T.grid(7, 1, 1):
                     for i0_2_init, i1_2_init, i2_2_init, i3_2_init, i4_0_2_init, i0_3_init, i1_3_init, i2_3_init, i3_3_init, i4_0_3_init in T.grid(1, 1, 1, 1, 1, 1, 1, 1, 7, 1):
                         with Ts.sblock("conv2d_NCHWc_int8_o_init"):
@@ -1086,7 +1086,7 @@ def get_conv2d_vnni_mod(intrin_id):
                                 ax3_1, ax4 = Ts.axis.remap("SS", [ax3, ax4_fused])
                                 Ts.reads(conv2d_NCHWc_int8[ax0_1, ax1_1, ax2_1, ax3_1, ax4], p2[ax0_1, ax1_1, 0, 0, ax4], p3[ax0_1, ax1_1, 0, 0, ax4], p4[0], p5[ax0_1, ax1_1, ax2_1, ax3_1, ax4])
                                 Ts.writes(T_cast[ax0_1, ax1_1, ax2_1, ax3_1, ax4])
-                                T_cast[ax0_1, ax1_1, ax2_1, ax3_1, ax4] = T.cast(T.max(T.min(T.cast(T.max(T.min(T.cast(T.floor(T.float32(0.95489668846130371) * (T.cast(T.cast(T.max(T.min(T.cast(T.floor(T.cast(conv2d_NCHWc_int8[ax0_1, ax1_1, ax2_1, ax3_1, ax4] + p2[ax0_1, ax1_1, 0, 0, ax4], "float32") * p3[ax0_1, ax1_1, 0, 0, ax4] + T.float32(65.5)), "int32"), 255), 0), "uint8"), "float32") - p4[0]) + T.float32(0.5)), "int32") + T.cast(T.floor(T.float32(0.71245479583740234) * T.cast(p5[ax0_1, ax1_1, ax2_1, ax3_1, ax4], "float32") + T.float32(0.5)), "int32"), 255), 0), "uint8"), T.uint8(255)), T.uint8(0)), "int32")
+                                T_cast[ax0_1, ax1_1, ax2_1, ax3_1, ax4] = T.cast(T.max(T.min(T.cast(T.max(T.min(T.cast(T.floor(T.float32(0.95489668846130371) * (T.cast(T.cast(T.max(T.min(T.cast(T.floor(T.cast(conv2d_NCHWc_int8[ax0_1, ax1_1, ax2_1, ax3_1, ax4] + p2[ax0_1, ax1_1, 0, 0, ax4], ty="float32") * p3[ax0_1, ax1_1, 0, 0, ax4] + T.float32(65.5)), ty="int32"), 255), 0), ty="uint8"), ty="float32") - p4[0]) + T.float32(0.5)), ty="int32") + T.cast(T.floor(T.float32(0.71245479583740234) * T.cast(p5[ax0_1, ax1_1, ax2_1, ax3_1, ax4], ty="float32") + T.float32(0.5)), ty="int32"), 255), 0), ty="uint8"), T.uint8(255)), T.uint8(0)), ty="int32")
 
     return Conv2dInt8_NCHWc_scheduled
 
@@ -1294,7 +1294,7 @@ class Conv2dWinogradAddResidualRelu_scheduled:
         bgemm_local = Ts.sblock_alloc_tensor([6, 6, 196, 64], dtype="float32", scope="local")
         data_pack_shared = Ts.sblock_alloc_tensor([6, 6, 196, 64], dtype="float32", scope="shared")
         p1_shared = Ts.sblock_alloc_tensor([6, 6, 64, 64], dtype="float32", scope="shared")
-        for i2_0_i3_0_i2_1_i3_1_fused_0 in T.parallel(98, annotations={"thread_binding": "blockIdx.x", "auto_unroll_max_step":1024, "unroll_explicit":1}):
+        for i2_0_i3_0_i2_1_i3_1_fused_0 in T.parallel(98, annotations={"thread_binding": "blockIdx.x", "tirx.auto_unroll_max_step":1024, "tirx.unroll_explicit":1}):
             for i2_0_i3_0_i2_1_i3_1_fused_1 in T.parallel(128, annotations={"thread_binding": "threadIdx.x"}):
                 for ax0, ax1, ax2, ax3 in T.grid(6, 6, 1, 1):
                     with Ts.sblock("input_tile"):
@@ -1326,7 +1326,7 @@ class Conv2dWinogradAddResidualRelu_scheduled:
                                     Ts.writes(data_pack[eps, nu, p, ci])
                                     Ts.sblock_attr({"auto_scheduler_simplify_const_tensor_indices":["eps", "nu", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_data_pack.cuda"})
                                     data_pack[eps, nu, p, ci] = data_pack[eps, nu, p, ci] + input_tile_local[r_a, r_b, p, ci] * T.Select(r_a % 6 == 5 and eps % 6 == 5, T.float32(1), T.Select(r_a % 6 == 5 and eps % 6 == 4, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 3, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 2, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 1, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 0, T.float32(0), T.Select(r_a % 6 == 4 and eps % 6 == 5, T.float32(1.5), T.Select(r_a % 6 == 4 and eps % 6 == 4, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 3, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 2, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 1, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 0, T.float32(1), T.Select(r_a % 6 == 3 and eps % 6 == 5, T.float32(-2), T.Select(r_a % 6 == 3 and eps % 6 == 4, T.float32(-0.5), T.Select(r_a % 6 == 3 and eps % 6 == 3, T.float32(2), T.Select(r_a % 6 == 3 and eps % 6 == 2, T.float32(2.5), T.Select(r_a % 6 == 3 and eps % 6 == 1, T.float32(0.5), T.Select(r_a % 6 == 3 and eps % 6 == 0, T.float32(1.5), T.Select(r_a % 6 == 2 and eps % 6 == 5, T.float32(-1.5), T.Select(r_a % 6 == 2 and eps % 6 == 4, T.float32(-1), T.Select(r_a % 6 == 2 and eps % 6 == 3, T.float32(-1), T.Select(r_a % 6 == 2 and eps % 6 == 2, T.float32(0.5), T.Select(r_a % 6 == 2 and eps % 6 == 1, T.float32(-2.5), T.Select(r_a % 6 == 2 and eps % 6 == 0, T.float32(-2), T.Select(r_a % 6 == 1 and eps % 6 == 5, T.float32(1), T.Select(r_a % 6 == 1 and eps % 6 == 4, T.float32(0.5), T.Select(r_a % 6 == 1 and eps % 6 == 3, T.float32(-2), T.Select(r_a % 6 == 1 and eps % 6 == 2, T.float32(-1), T.Select(r_a % 6 == 1 and eps % 6 == 1, T.float32(1), T.Select(r_a % 6 == 1 and eps % 6 == 0, T.float32(-1.5), T.Select(r_a % 6 == 0 and eps % 6 == 5, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 4, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 3, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 2, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 1, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 0, T.float32(1), T.float32(0))))))))))))))))))))))))))))))))))))) * T.Select(r_b % 6 == 5 and nu % 6 == 5, T.float32(1), T.Select(r_b % 6 == 5 and nu % 6 == 4, T.float32(0), T.Select(r_b % 6 == 5 and nu % 6 == 3, T.float32(0), T.Select(r_b % 6 == 5 and nu % 6 == 2, T.float32(0), T.Select(r_b % 6 == 5 and nu % 6 == 1, T.float32(0), T.Select(r_b % 6 == 5 and nu % 6 == 0, T.float32(0), T.Select(r_b % 6 == 4 and nu % 6 == 5, T.float32(1.5), T.Select(r_b % 6 == 4 and nu % 6 == 4, T.float32(1), T.Select(r_b % 6 == 4 and nu % 6 == 3, T.float32(1), T.Select(r_b % 6 == 4 and nu % 6 == 2, T.float32(1), T.Select(r_b % 6 == 4 and nu % 6 == 1, T.float32(1), T.Select(r_b % 6 == 4 and nu % 6 == 0, T.float32(1), T.Select(r_b % 6 == 3 and nu % 6 == 5, T.float32(-2), T.Select(r_b % 6 == 3 and nu % 6 == 4, T.float32(-0.5), T.Select(r_b % 6 == 3 and nu % 6 == 3, T.float32(2), T.Select(r_b % 6 == 3 and nu % 6 == 2, T.float32(2.5), T.Select(r_b % 6 == 3 and nu % 6 == 1, T.float32(0.5), T.Select(r_b % 6 == 3 and nu % 6 == 0, T.float32(1.5), T.Select(r_b % 6 == 2 and nu % 6 == 5, T.float32(-1.5), T.Select(r_b % 6 == 2 and nu % 6 == 4, T.float32(-1), T.Select(r_b % 6 == 2 and nu % 6 == 3, T.float32(-1), T.Select(r_b % 6 == 2 and nu % 6 == 2, T.float32(0.5), T.Select(r_b % 6 == 2 and nu % 6 == 1, T.float32(-2.5), T.Select(r_b % 6 == 2 and nu % 6 == 0, T.float32(-2), T.Select(r_b % 6 == 1 and nu % 6 == 5, T.float32(1), T.Select(r_b % 6 == 1 and nu % 6 == 4, T.float32(0.5), T.Select(r_b % 6 == 1 and nu % 6 == 3, T.float32(-2), T.Select(r_b % 6 == 1 and nu % 6 == 2, T.float32(-1), T.Select(r_b % 6 == 1 and nu % 6 == 1, T.float32(1), T.Select(r_b % 6 == 1 and nu % 6 == 0, T.float32(-1.5), T.Select(r_b % 6 == 0 and nu % 6 == 5, T.float32(0), T.Select(r_b % 6 == 0 and nu % 6 == 4, T.float32(0), T.Select(r_b % 6 == 0 and nu % 6 == 3, T.float32(0), T.Select(r_b % 6 == 0 and nu % 6 == 2, T.float32(0), T.Select(r_b % 6 == 0 and nu % 6 == 1, T.float32(0), T.Select(r_b % 6 == 0 and nu % 6 == 0, T.float32(1), T.float32(0)))))))))))))))))))))))))))))))))))))
-        for i0_0_i1_0_i2_0_i3_0_fused in T.parallel(168, annotations={"thread_binding": "blockIdx.x", "auto_unroll_max_step":1024, "unroll_explicit":1}):
+        for i0_0_i1_0_i2_0_i3_0_fused in T.parallel(168, annotations={"thread_binding": "blockIdx.x", "tirx.auto_unroll_max_step":1024, "tirx.unroll_explicit":1}):
             for i0_1_i1_1_i2_1_i3_1_fused in T.parallel(4, annotations={"thread_binding": "vthread.x"}):
                 for i0_2_i1_2_i2_2_i3_2_fused in T.parallel(48, annotations={"thread_binding": "threadIdx.x"}):
                     for i0_3_init, i1_3_init, i2_3_init, i3_3_init, i0_4_init, i1_4_init, i2_4_init, i3_4_init in T.grid(1, 1, 14, 1, 1, 1, 1, 1):
@@ -1382,7 +1382,7 @@ class Conv2dWinogradAddResidualRelu_scheduled:
                             Ts.reads(bgemm_local[v0, v1, v2, v3])
                             Ts.writes(bgemm[v0, v1, v2, v3])
                             bgemm[v0, v1, v2, v3] = bgemm_local[v0, v1, v2, v3]
-        for i2_0_i3_0_i2_1_i3_1_fused_0 in T.parallel(25, annotations={"thread_binding": "blockIdx.x", "auto_unroll_max_step":1024, "unroll_explicit":1}):
+        for i2_0_i3_0_i2_1_i3_1_fused_0 in T.parallel(25, annotations={"thread_binding": "blockIdx.x", "tirx.auto_unroll_max_step":1024, "tirx.unroll_explicit":1}):
             for i2_0_i3_0_i2_1_i3_1_fused_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
                 for i0 in T.unroll(4):
                     for i1 in T.unroll(4):
@@ -1407,7 +1407,7 @@ class Conv2dWinogradAddResidualRelu_scheduled:
                                     Ts.writes(inverse[vh, vw, p, co])
                                     Ts.sblock_attr({"auto_scheduler_simplify_const_tensor_indices":["vh", "vw", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_inverse.cuda"})
                                     inverse[vh, vw, p, co] = inverse[vh, vw, p, co] + bgemm[r_a, r_b, p, co] * T.Select(r_a % 6 == 5 and vh % 4 == 3, T.float32(1), T.Select(r_a % 6 == 5 and vh % 4 == 2, T.float32(0), T.Select(r_a % 6 == 5 and vh % 4 == 1, T.float32(0), T.Select(r_a % 6 == 5 and vh % 4 == 0, T.float32(0), T.Select(r_a % 6 == 4 and vh % 4 == 3, T.float32(-8), T.Select(r_a % 6 == 4 and vh % 4 == 2, T.float32(4), T.Select(r_a % 6 == 4 and vh % 4 == 1, T.float32(-2), T.Select(r_a % 6 == 4 and vh % 4 == 0, T.float32(1), T.Select(r_a % 6 == 3 and vh % 4 == 3, T.float32(0.125), T.Select(r_a % 6 == 3 and vh % 4 == 2, T.float32(0.25), T.Select(r_a % 6 == 3 and vh % 4 == 1, T.float32(0.5), T.Select(r_a % 6 == 3 and vh % 4 == 0, T.float32(1), T.Select(r_a % 6 == 2 and vh % 4 == 3, T.float32(1), T.Select(r_a % 6 == 2 and vh % 4 == 2, T.float32(1), T.Select(r_a % 6 == 2 and vh % 4 == 1, T.float32(1), T.Select(r_a % 6 == 2 and vh % 4 == 0, T.float32(1), T.Select(r_a % 6 == 1 and vh % 4 == 3, T.float32(-1), T.Select(r_a % 6 == 1 and vh % 4 == 2, T.float32(1), T.Select(r_a % 6 == 1 and vh % 4 == 1, T.float32(-1), T.Select(r_a % 6 == 1 and vh % 4 == 0, T.float32(1), T.Select(r_a % 6 == 0 and vh % 4 == 3, T.float32(0), T.Select(r_a % 6 == 0 and vh % 4 == 2, T.float32(0), T.Select(r_a % 6 == 0 and vh % 4 == 1, T.float32(0), T.Select(r_a % 6 == 0 and vh % 4 == 0, T.float32(1), T.float32(0))))))))))))))))))))))))) * T.Select(r_b % 6 == 5 and vw % 4 == 3, T.float32(1), T.Select(r_b % 6 == 5 and vw % 4 == 2, T.float32(0), T.Select(r_b % 6 == 5 and vw % 4 == 1, T.float32(0), T.Select(r_b % 6 == 5 and vw % 4 == 0, T.float32(0), T.Select(r_b % 6 == 4 and vw % 4 == 3, T.float32(-8), T.Select(r_b % 6 == 4 and vw % 4 == 2, T.float32(4), T.Select(r_b % 6 == 4 and vw % 4 == 1, T.float32(-2), T.Select(r_b % 6 == 4 and vw % 4 == 0, T.float32(1), T.Select(r_b % 6 == 3 and vw % 4 == 3, T.float32(0.125), T.Select(r_b % 6 == 3 and vw % 4 == 2, T.float32(0.25), T.Select(r_b % 6 == 3 and vw % 4 == 1, T.float32(0.5), T.Select(r_b % 6 == 3 and vw % 4 == 0, T.float32(1), T.Select(r_b % 6 == 2 and vw % 4 == 3, T.float32(1), T.Select(r_b % 6 == 2 and vw % 4 == 2, T.float32(1), T.Select(r_b % 6 == 2 and vw % 4 == 1, T.float32(1), T.Select(r_b % 6 == 2 and vw % 4 == 0, T.float32(1), T.Select(r_b % 6 == 1 and vw % 4 == 3, T.float32(-1), T.Select(r_b % 6 == 1 and vw % 4 == 2, T.float32(1), T.Select(r_b % 6 == 1 and vw % 4 == 1, T.float32(-1), T.Select(r_b % 6 == 1 and vw % 4 == 0, T.float32(1), T.Select(r_b % 6 == 0 and vw % 4 == 3, T.float32(0), T.Select(r_b % 6 == 0 and vw % 4 == 2, T.float32(0), T.Select(r_b % 6 == 0 and vw % 4 == 1, T.float32(0), T.Select(r_b % 6 == 0 and vw % 4 == 0, T.float32(1), T.float32(0)))))))))))))))))))))))))
-        for i0_i1_i2_i3_fused_0 in T.parallel(1568, annotations={"thread_binding": "blockIdx.x", "auto_unroll_max_step":1024, "unroll_explicit":1}):
+        for i0_i1_i2_i3_fused_0 in T.parallel(1568, annotations={"thread_binding": "blockIdx.x", "tirx.auto_unroll_max_step":1024, "tirx.unroll_explicit":1}):
             for i0_i1_i2_i3_fused_1 in T.parallel(128, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("conv2d_winograd"):
                     n = Ts.axis.spatial(1, 0)
@@ -1447,7 +1447,7 @@ class Conv2dInt8_with_predicate:
                 Ts.writes(conv2d_nhwc[nn, yy, xx, ff])
                 with Ts.init():
                     conv2d_nhwc[nn, yy, xx, ff] = 0
-                conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], "int32") * T.cast(p1[ff, ry, rx, rc], "int32")
+                conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], ty="int32") * T.cast(p1[ff, ry, rx, rc], ty="int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_subtract"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1523,7 +1523,7 @@ class Conv2dInt8_with_predicate_target:
                 Ts.writes(conv2d_nhwc[nn, yy, xx, ff])
                 with Ts.init():
                     conv2d_nhwc[nn, yy, xx, ff] = 0
-                conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], "int32") * T.cast(p1[ff, ry, rx, rc], "int32")
+                conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], ty="int32") * T.cast(p1[ff, ry, rx, rc], ty="int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_subtract"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1817,8 +1817,8 @@ def test_dense_add_cpu_no_write_cache():
         sch.parallel(loop=l38)
         l39 = sch.fuse(l37, preserve_unit_iters=True)
         sch.vectorize(loop=l39)
-        sch.annotate(block_or_loop=l38, ann_key="auto_unroll_max_step", ann_val=16)
-        sch.annotate(block_or_loop=l38, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(block_or_loop=l38, ann_key="tirx.auto_unroll_max_step", ann_val=16)
+        sch.annotate(block_or_loop=l38, ann_key="tirx.unroll_explicit", ann_val=1)
         b40 = sch.get_sblock(name="T_matmul_NT", func_name="main")
         l41, l42, l43, l44, l45, l46, l47 = sch.get_loops(block=b40)
         b48 = sch.decompose_reduction(block=b40, loop=l42)
@@ -1933,17 +1933,17 @@ def test_dense_add_gpu():
         sch.unannotate(block_or_loop=b70, ann_key="meta_schedule.unroll_explicit")
         b71, b72, b73, b74 = sch.get_child_blocks(b70)
         l75, l76, l77, l78, l79, l80, l81 = sch.get_loops(block=b71)
-        sch.annotate(block_or_loop=l75, ann_key="auto_unroll_max_step", ann_val=64)
-        sch.annotate(block_or_loop=l75, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(block_or_loop=l75, ann_key="tirx.auto_unroll_max_step", ann_val=64)
+        sch.annotate(block_or_loop=l75, ann_key="tirx.unroll_explicit", ann_val=1)
         l82, l83, l84, l85, l86, l87, l88 = sch.get_loops(block=b72)
-        sch.annotate(block_or_loop=l82, ann_key="auto_unroll_max_step", ann_val=64)
-        sch.annotate(block_or_loop=l82, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(block_or_loop=l82, ann_key="tirx.auto_unroll_max_step", ann_val=64)
+        sch.annotate(block_or_loop=l82, ann_key="tirx.unroll_explicit", ann_val=1)
         l89, l90, l91, l92, l93, l94, l95, l96, l97, l98 = sch.get_loops(block=b73)
-        sch.annotate(block_or_loop=l89, ann_key="auto_unroll_max_step", ann_val=64)
-        sch.annotate(block_or_loop=l89, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(block_or_loop=l89, ann_key="tirx.auto_unroll_max_step", ann_val=64)
+        sch.annotate(block_or_loop=l89, ann_key="tirx.unroll_explicit", ann_val=1)
         l99, l100, l101, l102, l103 = sch.get_loops(block=b74)
-        sch.annotate(block_or_loop=l99, ann_key="auto_unroll_max_step", ann_val=64)
-        sch.annotate(block_or_loop=l99, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(block_or_loop=l99, ann_key="tirx.auto_unroll_max_step", ann_val=64)
+        sch.annotate(block_or_loop=l99, ann_key="tirx.unroll_explicit", ann_val=1)
         b104 = sch.get_sblock(name="T_matmul_NT", func_name="main")
         l105, l106, l107, l108, l109, l110, l111, l112, l113, l114 = sch.get_loops(block=b104)
         b115 = sch.decompose_reduction(block=b104, loop=l108)
@@ -2132,13 +2132,13 @@ def test_conv2d_int8_vnni():
         ) = sch.get_loops(block=b122)
         l154 = sch.fuse(l124, l125, l126, l127, l128, l129, l130, preserve_unit_iters=True)
         sch.parallel(loop=l154)
-        sch.annotate(block_or_loop=l154, ann_key="auto_unroll_max_step", ann_val=64)
-        sch.annotate(block_or_loop=l154, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(block_or_loop=l154, ann_key="tirx.auto_unroll_max_step", ann_val=64)
+        sch.annotate(block_or_loop=l154, ann_key="tirx.unroll_explicit", ann_val=1)
         l155, l156, l157, l158, l159, l160, l161, l162, l163 = sch.get_loops(block=b123)
         l164 = sch.fuse(l163, preserve_unit_iters=True)
         sch.vectorize(loop=l164)
-        sch.annotate(block_or_loop=l155, ann_key="auto_unroll_max_step", ann_val=64)
-        sch.annotate(block_or_loop=l155, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(block_or_loop=l155, ann_key="tirx.auto_unroll_max_step", ann_val=64)
+        sch.annotate(block_or_loop=l155, ann_key="tirx.unroll_explicit", ann_val=1)
         b165 = sch.get_sblock(name="conv2d_NCHWc_int8_o", func_name="main")
         (
             l166,
@@ -2397,17 +2397,17 @@ def test_winograd_gpu():
         sch.unannotate(block_or_loop=b165, ann_key="meta_schedule.unroll_explicit")
         b166, b167, b168, b169, b170, b171, b172, b173 = sch.get_child_blocks(b165)
         l174, l175, l176, l177, l178, l179 = sch.get_loops(block=b166)
-        sch.annotate(block_or_loop=l174, ann_key="auto_unroll_max_step", ann_val=1024)
-        sch.annotate(block_or_loop=l174, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(block_or_loop=l174, ann_key="tirx.auto_unroll_max_step", ann_val=1024)
+        sch.annotate(block_or_loop=l174, ann_key="tirx.unroll_explicit", ann_val=1)
         l180, l181, l182, l183, l184, l185 = sch.get_loops(block=b167)
-        sch.annotate(block_or_loop=l180, ann_key="auto_unroll_max_step", ann_val=1024)
-        sch.annotate(block_or_loop=l180, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(block_or_loop=l180, ann_key="tirx.auto_unroll_max_step", ann_val=1024)
+        sch.annotate(block_or_loop=l180, ann_key="tirx.unroll_explicit", ann_val=1)
         l186, l187, l188, l189, l190, l191, l192 = sch.get_loops(block=b168)
-        sch.annotate(block_or_loop=l186, ann_key="auto_unroll_max_step", ann_val=1024)
-        sch.annotate(block_or_loop=l186, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(block_or_loop=l186, ann_key="tirx.auto_unroll_max_step", ann_val=1024)
+        sch.annotate(block_or_loop=l186, ann_key="tirx.unroll_explicit", ann_val=1)
         l193, l194, l195, l196, l197, l198, l199 = sch.get_loops(block=b169)
-        sch.annotate(block_or_loop=l193, ann_key="auto_unroll_max_step", ann_val=1024)
-        sch.annotate(block_or_loop=l193, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(block_or_loop=l193, ann_key="tirx.auto_unroll_max_step", ann_val=1024)
+        sch.annotate(block_or_loop=l193, ann_key="tirx.unroll_explicit", ann_val=1)
         (
             l200,
             l201,
@@ -2424,17 +2424,17 @@ def test_winograd_gpu():
             l212,
             l213,
         ) = sch.get_loops(block=b170)
-        sch.annotate(block_or_loop=l200, ann_key="auto_unroll_max_step", ann_val=1024)
-        sch.annotate(block_or_loop=l200, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(block_or_loop=l200, ann_key="tirx.auto_unroll_max_step", ann_val=1024)
+        sch.annotate(block_or_loop=l200, ann_key="tirx.unroll_explicit", ann_val=1)
         l214, l215, l216, l217, l218, l219, l220 = sch.get_loops(block=b171)
-        sch.annotate(block_or_loop=l214, ann_key="auto_unroll_max_step", ann_val=1024)
-        sch.annotate(block_or_loop=l214, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(block_or_loop=l214, ann_key="tirx.auto_unroll_max_step", ann_val=1024)
+        sch.annotate(block_or_loop=l214, ann_key="tirx.unroll_explicit", ann_val=1)
         l221, l222, l223, l224, l225, l226 = sch.get_loops(block=b172)
-        sch.annotate(block_or_loop=l221, ann_key="auto_unroll_max_step", ann_val=1024)
-        sch.annotate(block_or_loop=l221, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(block_or_loop=l221, ann_key="tirx.auto_unroll_max_step", ann_val=1024)
+        sch.annotate(block_or_loop=l221, ann_key="tirx.unroll_explicit", ann_val=1)
         l227, l228 = sch.get_loops(block=b173)
-        sch.annotate(block_or_loop=l227, ann_key="auto_unroll_max_step", ann_val=1024)
-        sch.annotate(block_or_loop=l227, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(block_or_loop=l227, ann_key="tirx.auto_unroll_max_step", ann_val=1024)
+        sch.annotate(block_or_loop=l227, ann_key="tirx.unroll_explicit", ann_val=1)
         b229 = sch.get_sblock(name="data_pack", func_name="main")
         l230, l231, l232, l233, l234, l235 = sch.get_loops(block=b229)
         b236 = sch.decompose_reduction(block=b229, loop=l234)

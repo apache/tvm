@@ -17,6 +17,7 @@
 """Common expressions data structures in the IR."""
 
 from collections.abc import Callable
+from enum import IntEnum
 from functools import partial
 from inspect import getattr_static
 from numbers import Number
@@ -30,6 +31,7 @@ from ..runtime import Object
 from . import _ffi_api, _tensor_expr_overload
 from ._constant import const
 from .base import Node, Scriptable
+from .type import PrimType
 
 _ATTRIBUTE_MISSING = object()
 
@@ -148,12 +150,15 @@ class GlobalVar(Expr):
     ----------
     name_hint: str
         The name of the variable.
+
+    loc : Location, optional
+        The location of this node in the source code.
     """
 
     name_hint: str
 
-    def __init__(self, name_hint: str):
-        self.__init_handle_by_constructor__(_ffi_api.GlobalVar, name_hint)
+    def __init__(self, name_hint: str, loc: Location = UNKNOWN_LOC):
+        self.__init_handle_by_constructor__(_ffi_api.GlobalVar, name_hint, loc)
 
     def __call__(self, *args: Expr) -> Expr:
         """Call the global variable.
@@ -513,6 +518,85 @@ class Constant(ExprWithOp):
     """Base class of literal constants."""
 
 
+@tvm_ffi.register_object("ir.FloatImm")
+class FloatImm(Constant):
+    """Float constant.
+
+    Parameters
+    ----------
+    dtype : str
+        The data type
+
+    value : float
+        The constant value.
+
+    loc : Location, optional
+        The location of this expression in the source code.
+    """
+
+    value: float
+
+    def __init__(self, dtype: str | PrimType, value: float, loc: Location = UNKNOWN_LOC) -> None:
+        if isinstance(dtype, PrimType):
+            dtype = dtype.dtype
+        self.__init_handle_by_constructor__(
+            _ffi_api.FloatImm,
+            dtype,
+            value,
+            loc,  # type: ignore
+        )
+
+    def __float__(self) -> float:
+        return self.value
+
+
+@tvm_ffi.register_object("ir.IntImm")
+class IntImm(Constant):
+    """Int constant.
+
+    Parameters
+    ----------
+    dtype : str
+        The data type
+
+    value : int
+        The constant value.
+
+    loc : Location, optional
+        The location of this expression in the source code.
+    """
+
+    value: int
+
+    def __init__(self, dtype: str | PrimType, value: int, loc: Location = UNKNOWN_LOC) -> None:
+        if isinstance(dtype, PrimType):
+            dtype = dtype.dtype
+        self.__init_handle_by_constructor__(
+            _ffi_api.IntImm,
+            dtype,
+            value,
+            loc,  # type: ignore
+        )
+
+    def __hash__(self) -> int:
+        return self.value
+
+    def __int__(self) -> int:
+        return self.value
+
+    def __nonzero__(self) -> bool:
+        return self.value != 0
+
+    def __eq__(self, other: Expr) -> Expr:
+        return _prim_ffi_api._OpEQ(self, other, UNKNOWN_LOC)  # type: ignore
+
+    def __ne__(self, other: Expr) -> Expr:
+        return _prim_ffi_api._OpNE(self, other, UNKNOWN_LOC)  # type: ignore
+
+    def __bool__(self) -> bool:
+        return self.__nonzero__()
+
+
 @tvm_ffi.register_object("ir.GenericConst")
 class GenericConst(_ExprCallable, Constant):
     """A literal payload with an explicit expression type."""
@@ -558,6 +642,19 @@ class StringImm(Constant):
         return not self.__eq__(other)
 
     __hash__ = Expr.__hash__
+
+
+class CallEffectKind(IntEnum):
+    """Possible call effects, matching the shared C++ IR effect kinds."""
+
+    ExprAnnotation = 0
+    Pure = 1
+    ReadState = 2
+    UpdateState = 3
+    Opaque = UpdateState
+    SpecialCallArg = 4
+    EmbedInfo = 5
+    ControlJump = 6
 
 
 @tvm_ffi.register_object("ir.Call")
@@ -757,19 +854,23 @@ class LambdaExpr(StagingExpr, Scriptable):
         Tuple/list results become shared IR Tuple expressions.
     ret_type : Type, optional
         An exact return-type check. No implicit conversion or cast is inserted.
+    loc : Location, optional
+        The location of this node in the source code.
     """
 
     vars: list[Var]
     body: Expr
 
-    def __init__(self, parameter_types, function: Callable, *, ret_type=None):
+    def __init__(
+        self, parameter_types, function: Callable, *, ret_type=None, loc: Location = UNKNOWN_LOC
+    ):
         variables = [Var(f"arg{i}", _lambda_type(ty)) for i, ty in enumerate(parameter_types)]
         body = _lambda_result(function(*variables))
         if ret_type is not None:
             expected = _lambda_type(ret_type)
             if not tvm_ffi.structural_equal(expected, body.ty):
                 raise TypeError("LambdaExpr return annotation does not match the body type")
-        self.__init_handle_by_constructor__(_ffi_api.LambdaExpr, variables, body)
+        self.__init_handle_by_constructor__(_ffi_api.LambdaExpr, variables, body, loc)
 
     def apply(self, arguments: list[Expr]) -> Expr:
         """Substitute arguments simultaneously for the lambda's bound variables."""
@@ -786,8 +887,8 @@ class Range(Node, Scriptable):
     Parameters
     ----------
     begin : Expr
-        The begin value of the range when end is None.
-        Otherwise it is the length of the range.
+        The begin value of the range when end is not None.
+        Otherwise it is the extent of the range ``[0, begin)``.
 
     end : Optional[Expr]
         The end value of the range.
@@ -842,3 +943,4 @@ class Range(Node, Scriptable):
 # Primitive overloads also initialize the concrete primitive nodes, whose bases
 # must be defined before importing them.
 from . import _overload_prim_expr  # noqa: E402  # pylint: disable=wrong-import-position
+from .prim import _ffi_api as _prim_ffi_api  # noqa: E402  # pylint: disable=wrong-import-position

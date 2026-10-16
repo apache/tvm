@@ -21,8 +21,6 @@ import tvm_ffi._ffi_api as _tvm_ffi_api
 
 from tvm_tirx.runtime import Object
 
-from . import _ffi_api
-
 
 @tvm_ffi.register_object("ir.Attrs")
 class Attrs(Object):
@@ -79,20 +77,6 @@ class Attrs(Object):
 class DictAttrs(Attrs):
     """Dictionary attributes."""
 
-    @property
-    def __dict__(self):
-        """Return the underlying key-value map as a Python dict.
-
-        Defined explicitly so that tvm_ffi's _add_class_attrs skips registering
-        the C++ reflection field named '__dict__' (Python forbids adding a class
-        attribute named '__dict__' via setattr on extension-type subclasses).
-        """
-        return dict(self._dict())
-
-    def _dict(self):
-        """Get internal dict"""
-        return _ffi_api.DictAttrsGetDict(self)
-
     def keys(self):
         """Get list of names in the attribute.
 
@@ -104,27 +88,27 @@ class DictAttrs(Attrs):
         return [k for k, _ in self.items()]
 
     def __getitem__(self, k):
-        return self._dict().__getitem__(k)
+        return self.dict.__getitem__(k)
 
     def get(self, key, default=None):
         """Get an element with a default value."""
-        return self._dict().get(key, default)
+        return self.dict.get(key, default)
 
     def __contains__(self, k):
-        return self._dict().__contains__(k)
+        return self.dict.__contains__(k)
 
     def __getattr__(self, name):
         try:
-            return self._dict().__getitem__(name)
+            return self.dict.__getitem__(name)
         except KeyError:
             raise AttributeError(f"DictAttrs has no attribute {name}")
 
     def items(self):
         """Get items from the map."""
-        return self._dict().items()
+        return self.dict.items()
 
     def __len__(self):
-        return self._dict().__len__()
+        return self.dict.__len__()
 
 
 def make_node(type_key, **kwargs):
@@ -158,13 +142,9 @@ def make_node(type_key, **kwargs):
        x = tvm_tirx.ir.make_node(
            "ir.IntImm", ty=tvm_tirx.ir.PrimType("int32"), value=10, loc=tvm_tirx.ir.UnknownLoc()
        )
-       assert isinstance(x, tvm_tirx.ir.prim.IntImm)
+       assert isinstance(x, tvm_tirx.ir.IntImm)
        assert x.value == 10
     """
-    if type_key == "ir.DictAttrs":
-        # DictAttrs stores kwargs as a key-value dict, not as named fields.
-        # MakeObjectFromPackedArgs would look for a field named "__dict__".
-        return _tvm_ffi_api.MakeObjectFromPackedArgs("ir.DictAttrs", "__dict__", kwargs)
     args = [type_key]
     for k, v in kwargs.items():
         args += [k, v]

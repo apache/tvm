@@ -37,12 +37,11 @@
 
 namespace tvm {
 
-IRModule::IRModule(tvm::ffi::Map<GlobalVar, BaseFunc> functions, SourceMap source_map,
-                   DictAttrs attrs, ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos) {
+IRModule::IRModule(tvm::ffi::Map<GlobalVar, BaseFunc> functions, DictAttrs attrs,
+                   ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos) {
   auto n = ffi::make_object<IRModuleNode>();
   n->functions = std::move(functions);
   n->global_var_map_ = {};
-  n->source_map = source_map;
   n->attrs = std::move(attrs);
   n->global_infos = std::move(global_infos);
 
@@ -129,7 +128,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           }
         }();
 
-        return IRModule(funcs, {}, dict_attrs, global_infos);
+        return IRModule(funcs, dict_attrs, global_infos);
       });
 }
 
@@ -220,7 +219,7 @@ void IRModuleNode::Update(const IRModule& mod) {
 }
 
 IRModule IRModuleNode::ShallowCopy() {
-  return IRModule(this->functions, this->source_map, this->attrs, this->global_infos);
+  return IRModule(this->functions, this->attrs, this->global_infos);
 }
 
 IRModule IRModule::FromExpr(const Expr& expr,
@@ -256,19 +255,19 @@ IRModule IRModule::FromExpr(const Expr& expr,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("ir.Module_Clone",
+      .def("ir.IRModuleClone",
            [](IRModule mod) -> IRModule {
              IRModule clone = mod;
              clone.CopyOnWrite();
              return clone;
            })
-      .def("ir.Module_Add",
+      .def("ir.IRModuleAdd",
            [](IRModule mod, GlobalVar var, ffi::ObjectRef val, bool update) -> IRModule {
              TVM_FFI_ICHECK(val->IsInstance<BaseFuncNode>());
              mod->Add(var, val.as_or_throw<BaseFunc>(), update);
              return mod;
            })
-      .def("ir.Module_Remove",
+      .def("ir.IRModuleRemove",
            [](IRModule mod, ffi::Variant<ffi::String, GlobalVar> var) -> IRModule {
              GlobalVar gvar = [&]() {
                if (auto opt = var.as<GlobalVar>()) {
@@ -282,7 +281,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              mod->Remove(gvar);
              return mod;
            })
-      .def("ir.Module_Contains",
+      .def("ir.IRModuleContains",
            [](IRModule mod, ffi::Variant<ffi::String, GlobalVar> var) -> bool {
              if (auto opt = var.as<GlobalVar>()) {
                return mod->functions.count(opt.value());
@@ -292,35 +291,35 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                TVM_FFI_THROW(InternalError) << "Variant didn't contain any of the allowed types";
              }
            })
-      .def_method("ir.Module_GetGlobalVar", &IRModuleNode::GetGlobalVar)
-      .def_method("ir.Module_GetGlobalVars", &IRModuleNode::GetGlobalVars)
-      .def_method("ir.Module_ContainGlobalVar", &IRModuleNode::ContainGlobalVar)
-      .def("ir.Module_Lookup", [](IRModule mod, GlobalVar var) { return mod->Lookup(var); })
-      .def("ir.Module_Lookup_str", [](IRModule mod, ffi::String var) { return mod->Lookup(var); })
-      .def("ir.Module_FromExpr", &IRModule::FromExpr)
-      .def("ir.Module_Update", [](IRModule mod, IRModule from) { mod->Update(from); })
-      .def("ir.Module_UpdateFunction",
+      .def_method("ir.IRModuleGetGlobalVar", &IRModuleNode::GetGlobalVar)
+      .def_method("ir.IRModuleGetGlobalVars", &IRModuleNode::GetGlobalVars)
+      .def_method("ir.IRModuleContainGlobalVar", &IRModuleNode::ContainGlobalVar)
+      .def("ir.IRModuleLookup", [](IRModule mod, GlobalVar var) { return mod->Lookup(var); })
+      .def("ir.IRModuleLookupStr", [](IRModule mod, ffi::String var) { return mod->Lookup(var); })
+      .def("ir.IRModuleFromExpr", &IRModule::FromExpr)
+      .def("ir.IRModuleUpdate", [](IRModule mod, IRModule from) { mod->Update(from); })
+      .def("ir.IRModuleUpdateFunction",
            [](IRModule mod, GlobalVar gv, BaseFunc func) { mod->Update(gv, func); })
-      .def("ir.Module_UpdateGlobalInfo",
+      .def("ir.IRModuleUpdateGlobalInfo",
            [](IRModule mod, ffi::String name, ffi::Array<GlobalInfo> global_info) {
              mod->UpdateGlobalInfo(name, global_info);
            })
-      .def("ir.Module_GetAttrs", [](IRModule mod) -> ffi::ObjectRef { return mod->GetAttrs(); })
-      .def("ir.Module_WithAttr",
+      .def("ir.IRModuleWithAttr",
            [](ffi::RValueRef<IRModule> mod, ffi::String key, ffi::Any value) -> IRModule {
              return WithAttr(*std::move(mod), key, value);
            })
-      .def("ir.Module_WithoutAttr",
+      .def("ir.IRModuleWithoutAttr",
            [](ffi::RValueRef<IRModule> mod, ffi::String key) -> IRModule {
              return WithoutAttr(*std::move(mod), key);
            })
-      .def("ir.Module_WithAttrs",
+      .def("ir.IRModuleWithAttrs",
            [](ffi::RValueRef<IRModule> mod, ffi::Map<ffi::String, ffi::Any> attr_map) -> IRModule {
              return WithAttrs(*std::move(mod), attr_map);
            })
-      .def("ir.Module_GetAttr", [](IRModule mod, ffi::String key) -> ffi::Optional<ffi::ObjectRef> {
-        return mod->GetAttr<ffi::ObjectRef>(key);
-      });
+      .def("ir.IRModuleGetAttr",
+           [](IRModule mod, ffi::String key) -> ffi::Optional<ffi::ObjectRef> {
+             return mod->GetAttr<ffi::ObjectRef>(key);
+           });
 }
 
 }  // namespace tvm

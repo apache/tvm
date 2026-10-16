@@ -101,7 +101,7 @@ def populuate_input_shape(
             for dim in tensor_shape:
                 if isinstance(dim, int):
                     shape.append(dim)
-                elif isinstance(dim, tvm_tirx.tirx.IntImm):
+                elif isinstance(dim, tvm_tirx.ir.expr.IntImm):
                     shape.append(dim.value)
                 else:
                     key = dim.name if isinstance(dim, tvm_tirx.ir.Var) else str(dim)

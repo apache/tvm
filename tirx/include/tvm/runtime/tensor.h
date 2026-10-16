@@ -99,105 +99,19 @@ TVM_RUNTIME_DLL void CopyToBytes(ffi::TensorView source, void* destination_bytes
 /*! \brief Magic number for Tensor file */
 constexpr uint64_t kTVMTensorMagic = 0xDD5E40F096B4A13F;
 
-/*! \brief Save a tensor in the portable CPU tensor format. */
-inline void SaveTensor(ffi::TensorView source, support::Stream* strm) {
-  const DLTensor* tensor = ffi::AnyView(source).cast<DLTensor*>();
-  uint64_t header = kTVMTensorMagic, reserved = 0;
-  strm->Write(header);
-  strm->Write(reserved);
-  // Always save data as CPU context
-  //
-  // Parameters that get serialized should be in CPU by default.
-  // So even the array's context is GPU, it will be stored as CPU array.
-  // This is used to prevent case when another user loads the parameters
-  // back on machine that do not have GPU or related context.
-  //
-  // We can always do array.CopyTo(target_dev) to get a corresponding
-  // array in the target context.
-  Device cpu_dev;
-  cpu_dev.device_type = kDLCPU;
-  cpu_dev.device_id = 0;
-  strm->Write(cpu_dev);
-  strm->Write(tensor->ndim);
-  strm->Write(tensor->dtype);
-  int ndim = tensor->ndim;
-  strm->WriteArray(tensor->shape, ndim);
-  int type_bytes = (tensor->dtype.bits + 7) / 8;
-  int64_t num_elems = 1;
-  for (int i = 0; i < ndim; ++i) {
-    num_elems *= tensor->shape[i];
-  }
-  int64_t data_byte_size = type_bytes * num_elems;
-  strm->Write(data_byte_size);
-
-  if (TVM_FFI_IO_NO_ENDIAN_SWAP && tensor->device.device_type == kDLCPU &&
-      ffi::IsContiguous(*tensor) && tensor->byte_offset == 0) {
-    // quick path
-    strm->Write(tensor->data, data_byte_size);
-  } else {
-    std::vector<uint8_t> bytes(data_byte_size);
-    CopyToBytes(source, bytes.data(), data_byte_size);
-    if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
-      ffi::ByteSwap(bytes.data(), type_bytes, num_elems);
-    }
-    strm->Write(bytes.data(), data_byte_size);
-  }
-}
-
-/*! \brief Load a tensor from the portable format into CPU storage. */
-inline ffi::Tensor LoadTensor(support::Stream* strm) {
-  uint64_t header, reserved;
-  TVM_FFI_ICHECK(strm->Read(&header)) << "Invalid DLTensor file format";
-  TVM_FFI_ICHECK(strm->Read(&reserved)) << "Invalid DLTensor file format";
-  TVM_FFI_ICHECK(header == kTVMTensorMagic) << "Invalid DLTensor file format";
-  Device dev;
-  int ndim;
-  DLDataType dtype;
-  TVM_FFI_ICHECK(strm->Read(&dev)) << "Invalid DLTensor file format";
-  TVM_FFI_ICHECK(strm->Read(&ndim)) << "Invalid DLTensor file format";
-  TVM_FFI_ICHECK(strm->Read(&dtype)) << "Invalid DLTensor file format";
-  TVM_FFI_ICHECK_EQ(dev.device_type, kDLCPU)
-      << "Invalid DLTensor device: can only save as CPU tensor";
-  std::vector<int64_t> shape(ndim);
-  if (ndim != 0) {
-    TVM_FFI_ICHECK(strm->ReadArray(&shape[0], ndim)) << "Invalid DLTensor file format";
-  }
-  ffi::Tensor ret = Empty(ffi::Shape(shape), dtype, dev);
-  int64_t num_elems = 1;
-  int elem_bytes = (ret.GetDLTensorPtr()->dtype.bits + 7) / 8;
-  for (int i = 0; i < ret.GetDLTensorPtr()->ndim; ++i) {
-    num_elems *= ret.shape()[i];
-  }
-  int64_t data_byte_size;
-  TVM_FFI_ICHECK(strm->Read(&data_byte_size)) << "Invalid DLTensor file format";
-  TVM_FFI_ICHECK(data_byte_size == num_elems * elem_bytes) << "Invalid DLTensor file format";
-  auto read_ret = strm->Read(ret.GetDLTensorPtr()->data, data_byte_size);
-  // Only check non-empty data
-  if (ndim > 0 && shape[0] != 0) {
-    TVM_FFI_ICHECK(read_ret) << "Invalid DLTensor file format";
-  }
-  if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
-    ffi::ByteSwap(ret.GetDLTensorPtr()->data, elem_bytes, num_elems);
-  }
-  return ret;
-}
+/*!
+ * \brief Save a tensor in the portable CPU tensor format.
+ * \param source The tensor to save. Non-CPU tensors are copied to the host first.
+ * \param strm The output stream.
+ */
+TVM_RUNTIME_DLL void SaveTensor(ffi::TensorView source, support::Stream* strm);
 
 /*!
- * \brief Get the preferred host device from the input device.
- * - For CUDA and ROCm, CUDAHost and ROCMHost will be returned for pinned memory,
- * since pinned memory reduces copy overhead.
- * - For other devices, CPU is returned as a fallback.
+ * \brief Load a tensor from the portable format into CPU storage.
+ * \param strm The input stream.
+ * \return The loaded CPU tensor.
  */
-inline Device GetPreferredHostDevice(Device device) {
-  if (device.device_type == DLDeviceType::kDLCUDA) {
-    return Device{DLDeviceType::kDLCUDAHost, 0};
-  } else if (device.device_type == DLDeviceType::kDLROCM) {
-    return Device{DLDeviceType::kDLROCMHost, 0};
-  } else {
-    // Fallback to CPU.
-    return Device{DLDeviceType::kDLCPU, 0};
-  }
-}
+TVM_RUNTIME_DLL ffi::Tensor LoadTensor(support::Stream* strm);
 
 class TensorMemoryPool;
 

@@ -26,13 +26,12 @@ import tvm_ffi
 
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
-from . import _ffi_api
 from .expr import Expr
 
 
 def _make_op_api(op, module_name):
     """Build a callable whose operands and result are governed by its Op."""
-    from .attrs import make_node  # pylint: disable=import-outside-toplevel
+    from .attrs import DictAttrs, make_node  # pylint: disable=import-outside-toplevel
     from .expr import Call  # pylint: disable=import-outside-toplevel
 
     def call(
@@ -61,7 +60,11 @@ def _make_op_api(op, module_name):
                 raise TypeError(f"{op.name}: unexpected keyword operands {tuple(kwargs)}")
             if attrs is not None:
                 raise TypeError(f"{op.name}: cannot mix attrs with attribute keywords")
-            attrs = make_node(op.attrs_type_key, **kwargs)
+            attrs = (
+                DictAttrs(dict=kwargs)
+                if op.attrs_type_key == "ir.DictAttrs"
+                else make_node(op.attrs_type_key, **kwargs)
+            )
         if is_region:
             from tvm_tirx.script.ir_builder.stmt import region
 
@@ -151,33 +154,6 @@ class Op(Expr):
 
     def __init__(self):
         raise RuntimeError("Cannot create op, use get instead")
-
-    @staticmethod
-    def get(op_name):
-        """Get a registered operator by name.
-
-        Parameters
-        ----------
-        op_name : str
-            The canonical operator name.
-
-        Returns
-        -------
-        Op
-            A handle to the registered operator.
-        """
-        return _ffi_api.GetOp(op_name)
-
-    @staticmethod
-    def list_op_names():
-        """List registered operator names in unspecified order.
-
-        Returns
-        -------
-        list[str]
-            The registered operator names.
-        """
-        return _ffi_api.ListOpNames()
 
     def set_attr(self, attr_name, value, override=False):
         """Set an operator attribute.
@@ -271,12 +247,12 @@ def register_op_attr(op_name, attr_key, value=None, override=False):
     -------
     result : object or function
         The registered value when supplied, or a decorator that registers and
-        returns its argument. The named Op is created if it does not exist.
+        returns its argument. The named Op must already be registered.
     """
 
     def _register(v):
         """internal register function"""
-        _ffi_api.RegisterOpAttr(op_name, attr_key, v, override)
+        Op.get(op_name).set_attr(attr_key, v, override)
         return v
 
     return _register(value) if value is not None else _register
