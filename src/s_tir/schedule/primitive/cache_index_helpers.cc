@@ -26,12 +26,12 @@
 #include "cache_index_helpers.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/analyzer.h>  // For the sym::Analyzer::Simplify() method simplifying terms
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt.h>
 
 #include <algorithm>      // For std::find_if
@@ -244,9 +244,9 @@ ffi::Optional<VisitInterrupt> ComputationsDoneBy::Visit(ffi::AnyView expr_value)
 }
 
 /*!
- * \brief The method which overrides the specific treatment for an IfThenElseNode
+ * \brief The method which overrides the specific treatment for an IfNode
  */
-ffi::Optional<VisitInterrupt> ComputationsDoneBy::Visit_(const IfThenElseNode* op) {
+ffi::Optional<VisitInterrupt> ComputationsDoneBy::Visit_(const IfNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->condition));
   ComputationTable computations_done_by_cond = table_of_computations_;
   table_of_computations_.clear();

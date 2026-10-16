@@ -15,7 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.runtime
------------
-.. automodule:: tvm.runtime
+tvm_tirx.runtime
+----------------
+.. automodule:: tvm_tirx.runtime
    :members:

@@ -27,27 +27,28 @@ import pytest
 import tvm_ffi
 
 import tvm
-import tvm.testing
-from tvm import tirx
-from tvm.ir.module import IRModule
-from tvm.ir.utils import derived_object
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.database import TuningRecord, Workload
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir.utils import derived_object
+from tvm_tirx import tirx
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Matmul:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        A: T.Buffer((1024, 1024), "float32"),
-        B: T.Buffer((1024, 1024), "float32"),
-        C: T.Buffer((1024, 1024), "float32"),
+        A: T.Tensor((1024, 1024), "float32"),
+        B: T.Tensor((1024, 1024), "float32"),
+        C: T.Tensor((1024, 1024), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "main"})
 
@@ -58,17 +59,17 @@ class Matmul:
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MatmulRelu:
-    @Ts.prim_func
+    @Ts.function
     def main(
-        A: T.Buffer((16, 16), "float32"),
-        B: T.Buffer((16, 16), "float32"),
-        D: T.Buffer((16, 16), "float32"),
+        A: T.Tensor((16, 16), "float32"),
+        B: T.Tensor((16, 16), "float32"),
+        D: T.Tensor((16, 16), "float32"),
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
-        C = Ts.sblock_alloc_buffer((16, 16), "float32")
+        C = Ts.sblock_alloc_tensor((16, 16), "float32")
         for i, j, k in T.grid(16, 16, 16):
             with Ts.sblock("matmul"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -113,7 +114,7 @@ def _equal_record(a: ms.database.TuningRecord, b: ms.database.TuningRecord):
     assert str(a.run_secs) == str(b.run_secs)
     # AWAIT(@zxybazh): change to export after fixing "(bool)0"
     assert str(a.target) == str(b.target)
-    tvm.ir.assert_structural_equal(a.workload.mod, b.workload.mod)
+    tvm_tirx.ir.assert_structural_equal(a.workload.mod, b.workload.mod)
     for arg0, arg1 in zip(a.args_info, b.args_info):
         assert str(arg0.as_json()) == str(arg1.as_json())
 
@@ -244,8 +245,8 @@ def test_meta_schedule_tuning_record_round_trip():
             _create_schedule(mod, _schedule_matmul).trace,
             workload,
             [T.float32(1.5), T.float32(2.5), T.float32(1.8)],
-            tvm.target.Target("llvm"),
-            ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+            tvm_tirx.target.Target("llvm"),
+            ms.arg_info.ArgInfo.from_function(func=mod["main"]),
         )
         database.commit_tuning_record(record)
         new_record = ms.database.TuningRecord.from_json(record.as_json(), workload)
@@ -269,8 +270,8 @@ def test_meta_schedule_database_has_workload():
             _create_schedule(mod, _schedule_matmul).trace,
             workload,
             [1.5, 2.5, 1.8],
-            tvm.target.Target("llvm"),
-            ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+            tvm_tirx.target.Target("llvm"),
+            ms.arg_info.ArgInfo.from_function(func=mod["main"]),
         )
         database.commit_tuning_record(record)
         assert len(database) == 1
@@ -287,8 +288,8 @@ def test_meta_schedule_database_add_entry():
             _create_schedule(mod, _schedule_matmul).trace,
             workload,
             [1.5, 2.5, 1.8],
-            tvm.target.Target("llvm"),
-            ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+            tvm_tirx.target.Target("llvm"),
+            ms.arg_info.ArgInfo.from_function(func=mod["main"]),
         )
         database.commit_tuning_record(record)
         assert len(database) == 1
@@ -307,8 +308,8 @@ def test_meta_schedule_database_missing():
             _create_schedule(mod, _schedule_matmul).trace,
             workload,
             [1.5, 2.5, 1.8],
-            tvm.target.Target("llvm"),
-            ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+            tvm_tirx.target.Target("llvm"),
+            ms.arg_info.ArgInfo.from_function(func=mod["main"]),
         )
         database.commit_tuning_record(record)
         ret = database.get_top_k(workload_2, 3)
@@ -326,43 +327,43 @@ def test_meta_schedule_database_sorting():
                 trace,
                 token,
                 [7.0, 8.0, 9.0],
-                tvm.target.Target("llvm"),
-                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+                tvm_tirx.target.Target("llvm"),
+                ms.arg_info.ArgInfo.from_function(func=mod["main"]),
             ),
             ms.database.TuningRecord(
                 trace,
                 token,
                 [1.0, 2.0, 3.0],
-                tvm.target.Target("llvm"),
-                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+                tvm_tirx.target.Target("llvm"),
+                ms.arg_info.ArgInfo.from_function(func=mod["main"]),
             ),
             ms.database.TuningRecord(
                 trace,
                 token,
                 [4.0, 5.0, 6.0],
-                tvm.target.Target("llvm"),
-                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+                tvm_tirx.target.Target("llvm"),
+                ms.arg_info.ArgInfo.from_function(func=mod["main"]),
             ),
             ms.database.TuningRecord(
                 trace,
                 token,
                 [1.1, 1.2, 600.0],
-                tvm.target.Target("llvm"),
-                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+                tvm_tirx.target.Target("llvm"),
+                ms.arg_info.ArgInfo.from_function(func=mod["main"]),
             ),
             ms.database.TuningRecord(
                 trace,
                 token,
                 [1.0, 100.0, 6.0],
-                tvm.target.Target("llvm"),
-                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+                tvm_tirx.target.Target("llvm"),
+                ms.arg_info.ArgInfo.from_function(func=mod["main"]),
             ),
             ms.database.TuningRecord(
                 trace,
                 token,
                 [4.0, 9.0, 8.0],
-                tvm.target.Target("llvm"),
-                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+                tvm_tirx.target.Target("llvm"),
+                ms.arg_info.ArgInfo.from_function(func=mod["main"]),
             ),
         ]
         for record in records:
@@ -388,22 +389,22 @@ def test_meta_schedule_database_reload():
                 trace,
                 token,
                 [7.0, 8.0, 9.0],
-                tvm.target.Target("llvm"),
-                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+                tvm_tirx.target.Target("llvm"),
+                ms.arg_info.ArgInfo.from_function(func=mod["main"]),
             ),
             ms.database.TuningRecord(
                 trace,
                 token,
                 [1.0, 2.0, 3.0],
-                tvm.target.Target("llvm"),
-                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+                tvm_tirx.target.Target("llvm"),
+                ms.arg_info.ArgInfo.from_function(func=mod["main"]),
             ),
             ms.database.TuningRecord(
                 trace,
                 token,
                 [4.0, 5.0, 6.0],
-                tvm.target.Target("llvm"),
-                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+                tvm_tirx.target.Target("llvm"),
+                ms.arg_info.ArgInfo.from_function(func=mod["main"]),
             ),
         ]
         for record in records:
@@ -425,8 +426,8 @@ def test_meta_schedule_database_reload():
 
 def test_meta_schedule_database_union():
     mod: IRModule = Matmul
-    target = tvm.target.Target("llvm")
-    arg_info = ms.arg_info.ArgInfo.from_prim_func(func=mod["main"])
+    target = tvm_tirx.target.Target("llvm")
+    arg_info = ms.arg_info.ArgInfo.from_function(func=mod["main"])
     db_1 = ms.database.MemoryDatabase()
     db_2 = ms.database.MemoryDatabase()
     trace = _create_schedule(mod, _schedule_matmul).trace
@@ -462,8 +463,8 @@ def test_meta_schedule_database_union():
 
 def test_meta_schedule_pydatabase_default_query():
     mod: IRModule = Matmul
-    target = tvm.target.Target("llvm")
-    arg_info = ms.arg_info.ArgInfo.from_prim_func(func=mod["main"])
+    target = tvm_tirx.target.Target("llvm")
+    arg_info = ms.arg_info.ArgInfo.from_function(func=mod["main"])
     db = PyMemoryDatabaseDefault()  # pylint: disable=invalid-name
     sch = _create_schedule(mod, _schedule_matmul)
     trace = sch.trace
@@ -501,8 +502,8 @@ def test_meta_schedule_pydatabase_default_query():
 
 def test_meta_schedule_pydatabase_override_query():
     mod: IRModule = Matmul
-    target = tvm.target.Target("llvm")
-    arg_info = ms.arg_info.ArgInfo.from_prim_func(func=mod["main"])
+    target = tvm_tirx.target.Target("llvm")
+    arg_info = ms.arg_info.ArgInfo.from_function(func=mod["main"])
     db = PyMemoryDatabaseOverride()  # pylint: disable=invalid-name
     sch = _create_schedule(mod, _schedule_matmul)
     trace = sch.trace
@@ -552,8 +553,8 @@ def call_get_top_k(run_secs_list, database, k):
             _create_schedule(mod, _schedule_matmul).trace,
             workload,
             run_secs,
-            tvm.target.Target("llvm"),
-            ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+            tvm_tirx.target.Target("llvm"),
+            ms.arg_info.ArgInfo.from_function(func=mod["main"]),
         )
         database.commit_tuning_record(record)
     return [[v.value for v in record.run_secs] for record in database.get_top_k(workload, k)]
@@ -591,11 +592,11 @@ def test_json_database_get_top_k(k, expected):
     assert result == expected
 
 
-def MatmulPrimFunc() -> IRModule:
+def MatmulFunction() -> IRModule:
     return Matmul
 
 
-@pytest.mark.parametrize("f_mod", [MatmulPrimFunc])
+@pytest.mark.parametrize("f_mod", [MatmulFunction])
 @pytest.mark.parametrize("mod_eq", ["structural", "ignore-tensor", "anchor-block"])
 def test_json_database_commit_workload(f_mod, mod_eq):
     mod: IRModule = f_mod()
@@ -604,7 +605,7 @@ def test_json_database_commit_workload(f_mod, mod_eq):
         database.commit_workload(mod)
 
 
-@pytest.mark.parametrize("f_mod", [MatmulPrimFunc])
+@pytest.mark.parametrize("f_mod", [MatmulFunction])
 @pytest.mark.parametrize("mod_eq", ["structural", "ignore-tensor", "anchor-block"])
 def test_memory_database_commit_workload(f_mod, mod_eq):
     mod: IRModule = f_mod()
@@ -613,4 +614,4 @@ def test_memory_database_commit_workload(f_mod, mod_eq):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -1,0 +1,148 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file codegen_cuda.h
+ * \brief Utility to generate CUDA code
+ */
+#ifndef TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
+#define TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
+
+#include <tvm/backend/cuda/op_attr_types.h>
+#include <tvm/codegen/codegen.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
+
+#include <array>
+#include <optional>
+#include <string>
+#include <unordered_map>
+
+#include "../../../codegen/c/codegen_c.h"
+
+namespace tvm {
+namespace codegen {
+
+class CodeGenCUDA final : public CodeGenC {
+ public:
+  CodeGenCUDA(Target target);
+  std::string Finish();
+  bool need_include_path() {
+    std::vector<std::string> tag_list{"fp16", "bf16", "int8",           "fp8",
+                                      "fp6",  "fp4",  "math_constants", "mma"};
+    return std::any_of(tag_list.begin(), tag_list.end(), [this](const std::string& tag) {
+      return codegen_tags_.find(tag) != codegen_tags_.end();
+    });
+  }
+  // override behavior
+  void DeclareFunction(const GlobalVar& gvar, const Function& func) final;
+  void AddFunction(const GlobalVar& gvar, const Function& func) final;
+  void InitFuncState(const Function& func) final;
+  void PrintFunctionSignature(const ffi::String& function_name, const Function& func,
+                              std::ostream& os) final;
+  void PrintExtraAttrs(const Function& f, std::ostream& os) final;  // NOLINT(*)
+  void Dispatch_(const ForNode* op) final;
+  void Dispatch_(const WhileNode* op) final;
+  void PrintStorageSync(const CallNode* op) final;
+  void PrintStorageScope(const runtime::MemoryScope& scope, std::ostream& os) final;  // NOLINT(*)
+  using CodeGenC::PrintType;
+  void PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimExpr lhs, PrimExpr rhs,
+                        std::ostream& os) final;              // NOLINT(*)
+  void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)
+  void PrintVecConstructor(const PrimType& t, std::ostream& os) final;
+  void PrintVecElemLoad(const std::string& vec, const PrimType& t, int i,
+                        std::ostream& os) final;  // NOLINT(*)
+  void PrintVecElemStore(const std::string& vec, const PrimType& t, int i,
+                         const std::string& value) final;
+  void BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final;  // NOLINT(*)
+  void PrintVecElemLoadExpr(const PrimType& t, int i, const std::string& value,
+                            std::ostream& os) final;
+  std::string CastFromTo(std::string value, const PrimType& from, const PrimType& target) final;
+  void AddUtilFunction(const std::string& name, const std::string& code);
+  // overload visitor
+  void Dispatch_(const prim::RampNode* op, std::ostream& os) final;       // NOLINT(*)
+  void Dispatch_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
+  void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void Dispatch_(const FloatImmNode* op, std::ostream& os) final;
+  void Dispatch_(const CallNode* op, std::ostream& os) final;
+  void Dispatch_(const prim::CastNode* op, std::ostream& os) final;
+  void Dispatch_(const EvaluateNode* op) final;
+  void Dispatch_(const ReturnNode* op) final;
+  void Dispatch_(const BindNode* op) final;
+  void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
+
+  // Target
+  Target target;
+
+ protected:
+  void PrintCallExtern(Type ret_type, ffi::String global_symbol, const ffi::Array<Expr>& args,
+                       bool skip_first_arg, std::ostream& os) final;  // NOLINT(*)
+
+ private:
+  void PrintFunctionPrefix(const Function& func, std::ostream& os);
+  std::array<PrimExpr, 6> launch_dimensions_{IntImm::Int32(1), IntImm::Int32(1), IntImm::Int32(1),
+                                             IntImm::Int32(1), IntImm::Int32(1), IntImm::Int32(1)};
+  std::optional<int64_t> min_blocks_per_sm_;
+  std::optional<int64_t> max_blocks_per_cluster_;
+  std::optional<int64_t> max_registers_per_thread_;
+  std::optional<std::array<int64_t, 6>> required_block_size_;
+
+  // Handle volatile loads
+  void HandleVolatileLoads(const std::string& value, const TensorLoadNode* op,
+                           std::ostream& os) final;
+
+  // Whether scope such as "__shared__" or "__constant__"  is part of type.
+  bool IsScopePartOfType() const final { return false; }
+
+  // Whether clusterCtaIdx.x can be emitted as the linear cluster CTA rank.
+  // This is only semantics-preserving for effectively 1-D clusters where the
+  // y/z cluster-CTA extents are both one.
+  bool cluster_cta_x_is_linear_rank_{false};
+
+  // Whether the function being generated is a __global__ kernel entry
+  // (kDeviceKernelLaunch); __device__ subroutines return real values.
+  bool in_kernel_launch_{false};
+
+  // Codegen tags
+  std::unordered_set<std::string> codegen_tags_;
+
+  // Op attribute map
+  decltype(Op::GetAttrMap(tvm::backend::cuda::op_attr::kNeedWarpShuffle)) op_need_warp_shuffle_ =
+      Op::GetAttrMap(tvm::backend::cuda::op_attr::kNeedWarpShuffle);
+
+  // The name of the barrier array in shared memory
+  const std::string barrier_name_ = "barrier";
+  // The size of the barrier array in shared memory
+  std::unordered_map<int, int> barrier_count_;
+  // Functions to be added to the util functions during codegen
+  std::unordered_map<std::string, std::string> util_funcs_;
+
+  // The name prefix of the cuda::barrier array in shared memory
+  const std::string cuda_barrier_name_ = "cubar";
+  // The name prefix of the cuda::barrier::arrival_token array in registers
+  const std::string cuda_barrier_arrival_token_name_ = "cubar_tok";
+
+  friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p);
+};
+
+}  // namespace codegen
+}  // namespace tvm
+
+#endif  // TVM_TARGET_CUDA_CODEGEN_CUDA_H_

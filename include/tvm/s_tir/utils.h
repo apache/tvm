@@ -65,7 +65,7 @@ namespace tirx {
  */
 #define TVM_SREF_TO_FOR(SRef)                                                          \
   [&]() {                                                                              \
-    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::tirx::ForNode)             \
+    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::ForNode)                   \
                   << "Expects StmtSRef `" << #SRef << "` points to `Loop`, but gets: " \
                   << ((SRef)->stmt ? (SRef)->stmt->GetTypeKey() : "None");             \
     return result;                                                                     \
@@ -97,7 +97,7 @@ namespace tirx {
   }()
 
 /*!
- * \brief Set the `StmtSRefNode::seq_index` field for stmt
+ * \brief Set the `StmtSRefObj::seq_index` field for stmt
  * \param stmt2ref The stmt2ref map to be updated with seq_index
  * \param stmt The statement, or the realize node of the statement whose sref to be set
  * \param seq_index The seq_index to be set

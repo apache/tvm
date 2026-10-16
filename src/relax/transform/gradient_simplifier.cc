@@ -51,9 +51,9 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op/manipulate.h>
 
 #include "../op/tensor/linear_algebra.h"
 #include "../op/tensor/manipulate.h"
@@ -166,7 +166,7 @@ class GradientSimplifier : private ExprMutator {
     if (IsTransposeOp(prev_call_node)) {
       // rewrite rule #1: permute_dims(permute_dims(a)) -> a
       if (prev_call_node->args[0]->IsInstance<VarNode>()) {
-        var_remap_[binding->var] = prev_call_node->args[0].as_or_throw<Var>();
+        var_remap_.insert_or_assign(binding->var, prev_call_node->args[0].as_or_throw<Var>());
         return;
       } else {
         return reemit_and_return();

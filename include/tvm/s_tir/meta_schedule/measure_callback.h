@@ -39,14 +39,14 @@ namespace meta_schedule {
 class TaskScheduler;
 
 /*! \brief Rules to apply after measure results is available. */
-class MeasureCallbackNode : public ffi::Object {
+class MeasureCallbackObj : public ffi::Object {
  public:
   /*! \brief Virtual destructor. */
-  virtual ~MeasureCallbackNode() = default;
+  virtual ~MeasureCallbackObj() = default;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<MeasureCallbackNode>();
+    refl::ObjectDef<MeasureCallbackObj>();
   }
 
   /*!
@@ -64,12 +64,12 @@ class MeasureCallbackNode : public ffi::Object {
                      const ffi::Array<RunnerResult>& runner_results) = 0;
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.MeasureCallback", MeasureCallbackNode,
+  TVM_FFI_DECLARE_OBJECT_INFO("s_tir.meta_schedule.MeasureCallback", MeasureCallbackObj,
                               ffi::Object);
 };
 
 /*! \brief The measure callback with customized methods on the python-side. */
-class PyMeasureCallbackNode : public MeasureCallbackNode {
+class PyMeasureCallbackObj : public MeasureCallbackObj {
  public:
   /*!
    * \brief Apply a measure callback to the given schedule.
@@ -91,7 +91,7 @@ class PyMeasureCallbackNode : public MeasureCallbackNode {
   static void RegisterReflection() {
     // `f_apply` is not registered
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PyMeasureCallbackNode>();
+    refl::ObjectDef<PyMeasureCallbackObj>();
   }
 
   void Apply(const TaskScheduler& task_scheduler,                     //
@@ -99,16 +99,21 @@ class PyMeasureCallbackNode : public MeasureCallbackNode {
              const ffi::Array<MeasureCandidate>& measure_candidates,  //
              const ffi::Array<BuilderResult>& builds,                 //
              const ffi::Array<RunnerResult>& results);
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PyMeasureCallback", PyMeasureCallbackNode,
-                                    MeasureCallbackNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PyMeasureCallback", PyMeasureCallbackObj,
+                                    MeasureCallbackObj);
 };
 
 /*!
- * \brief Managed reference to MeasureCallbackNode
- * \sa MeasureCallbackNode
+ * \brief Managed reference to MeasureCallbackObj
+ * \sa MeasureCallbackObj
  */
 class MeasureCallback : public ffi::ObjectRef {
  public:
+  explicit MeasureCallback(ffi::UnsafeInit tag, ffi::ObjectPtr<MeasureCallbackObj> data)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
+  }
+
   /*!
    * \brief Create a measure callback that adds the measurement results into the database
    * \return The measure callback created.
@@ -129,10 +134,11 @@ class MeasureCallback : public ffi::ObjectRef {
    * \param f_apply The packed function of `Apply`.
    * \return The measure callback created.
    */
-  TVM_DLL static MeasureCallback PyMeasureCallback(PyMeasureCallbackNode::FApply f_apply);
+  TVM_DLL static MeasureCallback PyMeasureCallback(PyMeasureCallbackObj::FApply f_apply);
   /*! \brief The default list of measure callbacks. */
   TVM_DLL static ffi::Array<MeasureCallback, void> Default();
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MeasureCallback, ffi::ObjectRef, MeasureCallbackNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MeasureCallback, ffi::ObjectRef,
+                                                MeasureCallbackObj);
 };
 
 }  // namespace meta_schedule

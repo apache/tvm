@@ -19,6 +19,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/support/gpu_thread_tag.h>
 
 #include "../utils.h"
 
@@ -41,9 +42,9 @@ struct ReductionBlockFinder : public StmtExprVisitor {
     for (const auto& kv : self->mod->functions) {
       GlobalVar g_var = kv.first;
       BaseFunc base_func = kv.second;
-      if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
+      if (const auto* function = base_func.as<FunctionNode>()) {
         auto finder = ffi::make_object<ReductionBlockFinder>();
-        finder->Visit(prim_func->body);
+        finder->Visit(function->body);
         for (const SBlockNode* block : finder->results_) {
           results.emplace_back(self->stmt2ref.at(block), g_var->name_hint);
         }
@@ -54,7 +55,7 @@ struct ReductionBlockFinder : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
-    runtime::ThreadScope thread_scope = GetThreadScope(loop);
+    support::GPUThreadTag thread_scope = GetThreadBindingTag(loop);
     if (IsThreadIdx(thread_scope) || IsBlockIdx(thread_scope)) {
       thread_bound_loop_vars_.insert(loop->loop_var.get());
     }
@@ -83,7 +84,7 @@ struct ReductionBlockFinder : public StmtExprVisitor {
     for (int i = 0; i < n; ++i) {
       IterVar iter_var = block->iter_vars[i];
       PrimExpr binding = realize->iter_values[i];
-      if (iter_var->iter_type == tirx::kCommReduce) {
+      if (iter_var->iter_type == s_tir::kCommReduce) {
         if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(binding, walkfn).has_value()) {
           return false;
         }
@@ -123,29 +124,28 @@ namespace s_tir {
 namespace meta_schedule {
 
 /*! \brief Rewrite reduction block by moving the init block out */
-class RewriteReductionBlockNode : public PostprocNode {
+class RewriteReductionBlockObj : public PostprocObj {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RewriteReductionBlockNode>();
+    refl::ObjectDef<RewriteReductionBlockObj>();
   }
 
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   void InitializeWithTuneContext(const TuneContext& context) final {}
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   bool Apply(const s_tir::Schedule& sch) final;
 
   Postproc Clone() const {
-    ffi::ObjectPtr<RewriteReductionBlockNode> n =
-        ffi::make_object<RewriteReductionBlockNode>(*this);
-    return Postproc(n);
+    ffi::ObjectPtr<RewriteReductionBlockObj> n = ffi::make_object<RewriteReductionBlockObj>(*this);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RewriteReductionBlock",
-                                    RewriteReductionBlockNode, PostprocNode);
+                                    RewriteReductionBlockObj, PostprocObj);
 };
 
-bool RewriteReductionBlockNode::Apply(const s_tir::Schedule& sch) {
+bool RewriteReductionBlockObj::Apply(const s_tir::Schedule& sch) {
   for (;;) {
     std::vector<std::pair<tirx::StmtSRef, ffi::String>> results =
         s_tir::ReductionBlockFinder::Find(sch->state());
@@ -162,20 +162,20 @@ bool RewriteReductionBlockNode::Apply(const s_tir::Schedule& sch) {
       s_tir::SBlockRV init_block_rv = sch->DecomposeReduction(block_rv, loop_rvs[decompose_point]);
 
       // Rewrite auto tensorization related annotations
-      if (s_tir::GetAnn<ffi::String>(block_sref, s_tir::attr::meta_schedule_auto_tensorize)
+      if (s_tir::GetAnn<ffi::String>(block_sref, tvm::s_tir::attr::kMetaScheduleAutoTensorize)
               .has_value()) {
         // Remove tensorization annotation as it shouldn't be propagated to the init block.
-        sch->Unannotate(init_block_rv, s_tir::attr::meta_schedule_auto_tensorize);
-        ffi::Optional<ffi::String> tensorize_init =
-            s_tir::GetAnn<ffi::String>(block_sref, s_tir::attr::meta_schedule_auto_tensorize_init);
+        sch->Unannotate(init_block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorize);
+        ffi::Optional<ffi::String> tensorize_init = s_tir::GetAnn<ffi::String>(
+            block_sref, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit);
         // The annotation of tensorization of the init statement should be moved to the init block
         // after 'DecomposeReduction'.
         // Annotate to hint `RewriteTensorize` postprocessor even if tensorize_init is std::nullopt.
-        sch->Annotate(init_block_rv, s_tir::attr::meta_schedule_auto_tensorize,
+        sch->Annotate(init_block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorize,
                       tensorize_init.value_or(""));
         if (tensorize_init.has_value()) {
-          sch->Unannotate(block_rv, s_tir::attr::meta_schedule_auto_tensorize_init);
-          sch->Unannotate(init_block_rv, s_tir::attr::meta_schedule_auto_tensorize_init);
+          sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit);
+          sch->Unannotate(init_block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit);
         }
       }
       ++rewritten;
@@ -188,13 +188,13 @@ bool RewriteReductionBlockNode::Apply(const s_tir::Schedule& sch) {
 }
 
 Postproc Postproc::RewriteReductionBlock() {
-  ffi::ObjectPtr<RewriteReductionBlockNode> n = ffi::make_object<RewriteReductionBlockNode>();
-  return Postproc(n);
+  ffi::ObjectPtr<RewriteReductionBlockObj> n = ffi::make_object<RewriteReductionBlockObj>();
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  RewriteReductionBlockNode::RegisterReflection();
+  RewriteReductionBlockObj::RegisterReflection();
   refl::GlobalDef().def("s_tir.meta_schedule.PostprocRewriteReductionBlock",
                         Postproc::RewriteReductionBlock);
 }

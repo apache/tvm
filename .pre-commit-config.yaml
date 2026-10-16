@@ -23,6 +23,13 @@ repos:
   # ---------- Local hooks ----------
   - repo: local
     hooks:
+      - id: cuda-launch-generated
+        name: check CUDA launch generated files
+        entry: python tirx/python/tvm_tirx/backend/cuda/launch/generate.py --check
+        language: python
+        additional_dependencies: [ruff==0.12.3, clang-format==20.1.8]
+        pass_filenames: false
+        files: ^(tirx/python/tvm_tirx/backend/cuda/launch/|tirx/src/backend/cuda/launch/|docs/tirx/api/cuda_launch.rst)
       - id: check-asf-header
         name: check ASF Header
         entry: python tests/lint/check_asf_header.py --check
@@ -46,13 +53,13 @@ repos:
       - id: check-merge-conflict
       - id: check-symlinks
       - id: end-of-file-fixer
-        exclude: ^3rdparty/
+        exclude: ^(tirx/)?3rdparty/
       - id: mixed-line-ending
-        exclude: ^3rdparty/
+        exclude: ^(tirx/)?3rdparty/
       - id: requirements-txt-fixer
         exclude: ^docker/python/bootstrap
       - id: trailing-whitespace
-        exclude: ^3rdparty/
+        exclude: ^(tirx/)?3rdparty/
       - id: check-yaml
       - id: check-toml
 
@@ -88,7 +95,7 @@ repos:
     hooks:
       - id: clang-format
         types_or: [c, c++, cuda, objective-c++]
-        exclude: ^3rdparty/
+        exclude: ^(tirx/)?3rdparty/
 
   # ---------- Cython ----------
   - repo: https://github.com/MarcoGorelli/cython-lint

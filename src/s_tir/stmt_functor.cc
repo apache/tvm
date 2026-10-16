@@ -49,20 +49,26 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const SBlockNode* op) {
 ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlock(tirx::StmtExprVisitor* visitor,
                                                           const SBlockNode* op) {
   for (const IterVar& iter_var : op->iter_vars) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom->min));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom->extent));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom.value()->min));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom.value()->extent));
   }
-  for (const BufferVar& buf : op->alloc_buffers) {
+  for (const TensorVar& tensor : op->alloc_tensors) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
-        kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(buf); }));
+        kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(tensor); }));
   }
-  // Define match-buffer targets before visiting reads/writes that may use them.
+  // Define match-tensor targets before visiting reads/writes that may use them.
   // This differs from the old TIRX native order (reads/writes before matches)
   // and agrees with structural traversal's definition-before-use contract.
-  for (const MatchBufferRegion& match_buffer_region : op->match_buffers) {
+  for (const MatchTensorRegion& match_tensor_region : op->match_tensors) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
-        kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(match_buffer_region->buffer); }));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(match_buffer_region->source));
+        kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(match_tensor_region->tensor); }));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(match_tensor_region->source));
+  }
+  if (auto addresses = op->annotations.Get(attr::kTensorAllocatedAddr)) {
+    // The owner reference identifies the allocation; it is not a data access.
+    for (const auto& entry : addresses.value().cast<TensorAllocatedAddresses>()) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(entry.get<1>()));
+    }
   }
   for (const TensorRegion& region : op->reads) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(region));
@@ -101,9 +107,10 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
   std::vector<std::pair<size_t, IterVar>> replacements;
   for (size_t i = 0; i < iters->size(); ++i) {
     const auto* iter = (*iters)[i].as<IterVarNode>();
+    if (!iter->dom.has_value()) continue;
     InplaceMode domain_mode = iter->unique() ? iter_mode : InplaceMode::kDisallow;
-    auto domain = mutator->Mutate(iter->dom, domain_mode).as_or_throw<UnchangedOr<Range>>();
-    if (domain.UnchangedOrSameAs(iter->dom)) continue;
+    auto domain = mutator->Mutate(iter->dom.value(), domain_mode).as_or_throw<UnchangedOr<Range>>();
+    if (domain.UnchangedOrSameAs(iter->dom.value())) continue;
     if (domain_mode == InplaceMode::kAllow) {
       const_cast<IterVarNode*>(iter)->dom = std::move(domain).ValueUnchecked();
     } else {
@@ -124,44 +131,53 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
       iter_vars = std::move(updated);
     }
   }
-  auto alloc_buffers =
+  auto alloc_tensors =
       mutator
           ->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
-                              [&] { return mutator->Mutate(op->alloc_buffers, inplace_mode); })
-          .as_or_throw<UnchangedOr<ffi::Array<BufferVar>>>();
-  auto match_buffers = mutator->Mutate(op->match_buffers, inplace_mode)
-                           .as_or_throw<UnchangedOr<ffi::Array<MatchBufferRegion>>>();
+                              [&] { return mutator->Mutate(op->alloc_tensors, inplace_mode); })
+          .as_or_throw<UnchangedOr<ffi::Array<TensorVar>>>();
+  auto match_tensors = mutator->Mutate(op->match_tensors, inplace_mode)
+                           .as_or_throw<UnchangedOr<ffi::Array<MatchTensorRegion>>>();
+  auto annotations = op->annotations;
+  if (auto addresses = annotations.Get(attr::kTensorAllocatedAddr)) {
+    auto updated = mutator->Mutate(addresses.value(), InplaceMode::kDisallow);
+    if (!updated.IsUnchanged()) {
+      annotations.Set(attr::kTensorAllocatedAddr, std::move(updated).ValueUnchecked());
+    }
+  }
   auto reads =
       mutator->Mutate(op->reads, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<TensorRegion>>>();
   auto writes = mutator->Mutate(op->writes, inplace_mode)
                     .as_or_throw<UnchangedOr<ffi::Array<TensorRegion>>>();
-  auto init =
-      mutator->Mutate(op->init, inplace_mode).as_or_throw<UnchangedOr<ffi::Optional<Stmt>>>();
+  auto init = mutator->Mutate(op->init, inplace_mode);
   auto body = mutator->Mutate(op->body, inplace_mode);
   if (iter_vars.UnchangedOrSameAs(op->iter_vars) &&
-      alloc_buffers.UnchangedOrSameAs(op->alloc_buffers) && reads.UnchangedOrSameAs(op->reads) &&
-      writes.UnchangedOrSameAs(op->writes) && match_buffers.UnchangedOrSameAs(op->match_buffers) &&
-      init.UnchangedOrSameAs(op->init) && body.UnchangedOrSameAs(op->body))
+      alloc_tensors.UnchangedOrSameAs(op->alloc_tensors) && reads.UnchangedOrSameAs(op->reads) &&
+      writes.UnchangedOrSameAs(op->writes) && match_tensors.UnchangedOrSameAs(op->match_tensors) &&
+      init.UnchangedOrSameAs(op->init) && body.UnchangedOrSameAs(op->body) &&
+      annotations.same_as(op->annotations))
     return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<SBlockNode*>(op);
+    writable->annotations = std::move(annotations);
     if (!iter_vars.IsUnchanged()) writable->iter_vars = std::move(iter_vars).ValueUnchecked();
-    if (!alloc_buffers.IsUnchanged())
-      writable->alloc_buffers = std::move(alloc_buffers).ValueUnchecked();
+    if (!alloc_tensors.IsUnchanged())
+      writable->alloc_tensors = std::move(alloc_tensors).ValueUnchecked();
     if (!reads.IsUnchanged()) writable->reads = std::move(reads).ValueUnchecked();
     if (!writes.IsUnchanged()) writable->writes = std::move(writes).ValueUnchecked();
-    if (!match_buffers.IsUnchanged())
-      writable->match_buffers = std::move(match_buffers).ValueUnchecked();
+    if (!match_tensors.IsUnchanged())
+      writable->match_tensors = std::move(match_tensors).ValueUnchecked();
     if (!init.IsUnchanged()) writable->init = std::move(init).ValueUnchecked();
     if (!body.IsUnchanged()) writable->body = std::move(body).ValueUnchecked();
     return ffi::Unchanged();
   }
   auto copy = ffi::make_object<SBlockNode>(*op);
+  copy->annotations = std::move(annotations);
   if (!iter_vars.IsUnchanged()) copy->iter_vars = std::move(iter_vars).ValueUnchecked();
-  if (!alloc_buffers.IsUnchanged()) copy->alloc_buffers = std::move(alloc_buffers).ValueUnchecked();
+  if (!alloc_tensors.IsUnchanged()) copy->alloc_tensors = std::move(alloc_tensors).ValueUnchecked();
   if (!reads.IsUnchanged()) copy->reads = std::move(reads).ValueUnchecked();
   if (!writes.IsUnchanged()) copy->writes = std::move(writes).ValueUnchecked();
-  if (!match_buffers.IsUnchanged()) copy->match_buffers = std::move(match_buffers).ValueUnchecked();
+  if (!match_tensors.IsUnchanged()) copy->match_tensors = std::move(match_tensors).ValueUnchecked();
   if (!init.IsUnchanged()) copy->init = std::move(init).ValueUnchecked();
   if (!body.IsUnchanged()) copy->body = std::move(body).ValueUnchecked();
   return Stmt(std::move(copy));

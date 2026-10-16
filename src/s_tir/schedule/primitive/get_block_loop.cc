@@ -54,15 +54,15 @@ ffi::Array<StmtSRef> GetSBlocks(const ScheduleState& self, const ffi::String& na
   };
 
   BaseFunc func = self->mod->Lookup(gv);
-  const auto* prim_func = TVM_TYPE_AS(func, PrimFuncNode);
+  const auto* function = TVM_TYPE_AS(func, FunctionNode);
   auto finder = ffi::make_object<Finder>(self, name);
-  finder->Visit(prim_func->body);
+  finder->Visit(function->body);
   return std::move(finder->results_);
 }
 
 ffi::Array<StmtSRef> GetLoops(const StmtSRef& block_sref) {
   std::vector<StmtSRef> result;
-  for (StmtSRefNode* parent = block_sref->parent; parent && parent->stmt->IsInstance<ForNode>();
+  for (StmtSRefObj* parent = block_sref->parent; parent && parent->stmt->IsInstance<ForNode>();
        parent = parent->parent) {
     result.push_back(ffi::GetRef<StmtSRef>(parent));
   }

@@ -24,12 +24,13 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 @pytest.mark.gpu
@@ -45,22 +46,22 @@ def test_callback():
 
     @I.ir_module
     class Module:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice_A(
-            A: T.Buffer((4, 4), "int32"),
+            A: T.Tensor((4, 4), "int32"),
             rank: T.int64,
-            A_sharded: T.Buffer((2, 4), "int32"),
+            A_sharded: T.Tensor((2, 4), "int32"),
         ):
             for i, j in T.grid(2, 4):
                 with Ts.sblock("slice_A"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     A_sharded[vi, vj] = A[rank * 2 + vi, vj]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice_B(
-            B: T.Buffer((2, 2), "float32"),
+            B: T.Tensor((2, 2), "float32"),
             rank: T.int64,
-            B_sharded: T.Buffer((2, 1), "float32"),
+            B_sharded: T.Tensor((2, 1), "float32"),
         ):
             for i in range(2):
                 with Ts.sblock("slice_B"):
@@ -79,7 +80,7 @@ def test_callback():
             A = R.call_tir(
                 cls.slice_A,
                 (A, rank_arg),
-                out_ty=R.Tensor([2, 4], "int32"),
+                ty_args=[R.Tensor([2, 4], "int32")],
             )
 
             B = fget_item(R.str("B"), R.prim_value(1))
@@ -87,12 +88,12 @@ def test_callback():
             B = R.call_tir(
                 cls.slice_B,
                 (B, rank_arg),
-                out_ty=R.Tensor([2, 1], "float32"),
+                ty_args=[R.Tensor([2, 1], "float32")],
             )
 
             return (A, B)
 
-    pipeline = tvm.ir.transform.Sequential(
+    pipeline = tvm_tirx.ir.transform.Sequential(
         [
             tvm.relax.transform.LegalizeOps(),
             tvm.s_tir.dlight.ApplyDefaultSchedule(tvm.s_tir.dlight.gpu.Fallback()),
@@ -100,7 +101,7 @@ def test_callback():
         name="pipeline",
     )
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         mod = Module
         mod = pipeline(mod)
         built = tvm.compile(mod, "cuda")
@@ -135,8 +136,8 @@ def test_callback():
                 # `debug_get_from_remote(0)` returns the Tensor containing
                 # the output.
                 params_gpu0 = params.debug_get_from_remote(0)
-                assert params_gpu0[0].device == tvm.cuda(0)
-                assert params_gpu0[1].device == tvm.cuda(0)
+                assert params_gpu0[0].device == tvm_tirx.cuda(0)
+                assert params_gpu0[1].device == tvm_tirx.cuda(0)
                 np.testing.assert_array_equal(
                     params_gpu0[0].numpy(),
                     [
@@ -153,8 +154,8 @@ def test_callback():
                 # `debug_get_from_remote(1)` returns a new Tensor within the
                 # calling scope's PID.
                 params_gpu1 = params.debug_get_from_remote(1)
-                assert params_gpu1[0].device == tvm.cpu()
-                assert params_gpu1[1].device == tvm.cpu()
+                assert params_gpu1[0].device == tvm_tirx.cpu()
+                assert params_gpu1[1].device == tvm_tirx.cpu()
                 np.testing.assert_array_equal(
                     params_gpu1[0].numpy(),
                     [
@@ -169,8 +170,8 @@ def test_callback():
             finally:
                 session.shutdown()
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
+        tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -1,0 +1,168 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Normal IR constructors retain their contracts in TVMScript."""
+
+import inspect
+import linecache
+
+import pytest
+
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import relax
+from tvm.relax import script as R
+from tvm_tirx import ir, tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+
+
+def test_call_type_and_validation_contract():
+    x = ir.Var("x", "float32")
+    loc = ir.SourceLoc(ir.SourceName("constructor"), 1, 1, 1, 5)
+    for constructor in (ir.Call, I.Call):
+        call = constructor("prim.exp", [x], loc=loc)
+        assert isinstance(call, I.Call)
+        assert call.ty == ir.PrimType("float32")
+        assert call.loc.same_as(loc)
+        unlocated = constructor("prim.exp", [x], ty="float32")
+        assert unlocated.loc.same_as(ir.UNKNOWN_LOC)
+        assert inspect.signature(constructor).parameters["loc"].default is ir.UNKNOWN_LOC
+        with pytest.raises(TypeError):
+            constructor("prim.exp", [x], ty="float32", loc=None)
+        ir.assert_structural_equal(
+            unlocated,
+            ir.Call("prim.exp", [x], ty=ir.PrimType("float32")),
+        )
+        with pytest.raises(TypeError):
+            constructor("prim.exp", [], ty="float32").validate()
+        provisional = constructor("prim.exp", [], ty="float32", loc=loc)
+        assert not provisional.args
+        assert provisional.loc.same_as(loc)
+        assert provisional.ty.dtype == "float32"
+
+
+@pytest.mark.parametrize("ty", [ir.Type.missing(), "float32", "handle"])
+def test_raw_call_preserves_provisional_fields(ty):
+    # Invalid arguments and type arguments must survive the raw representation.
+    call = ir.Call("prim.exp", [], attrs={"tag": 7}, ty_args=[ir.StringType()], ty=ty)
+    source = call.script()
+    assert "T.Call(" in source
+    restored = eval(source, {"I": I, "R": R, "T": T})
+    ir.assert_structural_equal(call, restored)
+
+
+def test_raw_call_preserves_checked_fields():
+    call = ir.Call("prim.exp", [tirx.FloatImm("float32", 0)], attrs={"tag": 7}, ty="float32")
+    source = call.script()
+    assert "T.Call(" in source
+    ir.assert_structural_equal(call, eval(source, {"I": I, "R": R, "T": T}))
+
+
+def test_range_and_value_constructor_parameters():
+    loc = ir.SourceLoc(ir.SourceName("constructor"), 1, 1, 1, 5)
+    for args in [(5,), (2, 5)]:
+        actual = T.Range(*args, loc=loc)
+        ir.assert_structural_equal(actual, ir.Range(*args, loc=loc))
+        assert actual.loc.same_as(loc)
+    ir.assert_structural_equal(T.Range.from_min_extent(2, 3), ir.Range(2, 5))
+    for actual, expected in [
+        (R.shape([2, 3], loc=loc), relax.ShapeExpr([2, 3], loc=loc)),
+        (R.str("value", loc=loc), ir.StringImm("value", loc=loc)),
+    ]:
+        ir.assert_structural_equal(actual, expected)
+        assert actual.loc.same_as(loc)
+    ir.assert_structural_equal(R.prim_value(3, dtype="int32"), relax.prim_value(3, dtype="int32"))
+
+
+def test_operation_dtype_keywords_match_normal_constructors():
+    for name in ("min_value", "max_value", "infinity"):
+        ir.assert_structural_equal(
+            getattr(T, name)(dtype="float32"), getattr(tirx, name)(dtype="float32")
+        )
+    x = ir.Var("x", "float32")
+    for operation in (T.exp, tirx.exp):
+        with pytest.raises(TypeError):
+            operation(x, dtype="float32")
+    vector = ir.Var("v", "int8x4")
+    ir.assert_structural_equal(T.gpu_dp4a(vector, vector), tirx.gpu_dp4a(vector, vector))
+
+
+def test_normal_constructors_in_parsed_function():
+    @T.function
+    def function(x: ir.PrimType("float32")):
+        T.evaluate(ir.Call("prim.exp", [x], ty="float32"))
+
+    call = function.body[0].value
+    ir.assert_structural_equal(
+        call, ir.Call("prim.exp", [function.params[0]], ty=ir.PrimType("float32"))
+    )
+    loc = call.loc
+    assert isinstance(loc, ir.SourceLoc)
+    assert loc.source_name.name == __file__
+    assert loc.start_line == loc.end_line
+    assert (
+        linecache.getline(__file__, loc.start_line)[loc.start_column - 1 : loc.end_column - 1]
+        == 'ir.Call("prim.exp", [x], ty="float32")'
+    )
+
+    @R.function
+    def identity(x: relax.TensorType([2], "float32")) -> relax.TensorType([2], "float32"):
+        return x
+
+    ir.assert_structural_equal(identity.params[0].ty, relax.TensorType([2], "float32"))
+
+
+@pytest.mark.parametrize("dtype,value", [("int32", 3), ("float32", 1.5), ("bool", True)])
+def test_prim_value_explicit_dtype_and_identity(dtype, value):
+    converted = R.prim_value(value, dtype=dtype)
+    assert converted.ty.dtype == dtype
+    assert R.prim_value(converted, dtype="float64").same_as(converted)
+
+
+def test_prim_value_boolean_and_symbolic_conversion():
+    assert R.prim_value(True).ty.dtype == "bool"
+    assert relax.utils.convert_to_expr(True).ty.dtype == "int64"
+    n = tirx.Var("n", "int64")
+    value = n + 1
+    assert R.prim_value(value).same_as(value)
+
+
+def test_tuple_constructor_materializes_raw_call_arguments():
+    value = tirx.IntImm("int64", 1)
+    nested = R.tuple(R.tuple(), R.tuple(value))
+    ir.assert_structural_equal(nested, ir.Tuple([ir.Tuple([]), ir.Tuple([value])]))
+    call = ir.Call("relax.add", [nested], attrs={"tag": 1}, ty=ir.Type.missing())
+    assert call.args[0].same_as(nested)
+    from_python = ir.Call("relax.add", [((), (value,))], attrs={"tag": 1}, ty=ir.Type.missing())
+    ir.assert_structural_equal(call, from_python)
+    source = call.script()
+    ir.assert_structural_equal(call, eval(source, {"I": I, "R": R, "T": T}))
+
+
+@pytest.mark.parametrize(
+    "value,constructor_dtype,parser_dtype",
+    [(1, "int32", "int64"), (1.0, "float32", "float64"), (True, "bool", "int64")],
+)
+def test_tuple_numeric_conversion_depends_on_context(value, constructor_dtype, parser_dtype):
+    constructed = R.tuple(value)
+    converted = relax.utils.convert_to_expr((value,))
+    assert constructed.fields[0].ty.dtype == constructor_dtype
+    assert converted.fields[0].ty.dtype == parser_dtype
+
+
+if __name__ == "__main__":
+    tvm_tirx.testing.main()

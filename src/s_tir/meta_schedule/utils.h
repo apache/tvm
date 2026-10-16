@@ -41,6 +41,8 @@
 #include <tvm/s_tir/meta_schedule/tune_context.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/support/base64.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
 #include <tvm/sym/analyzer.h>
@@ -53,9 +55,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../support/base64.h"
-#include "../../support/bytes_io.h"
-#include "../../support/utils.h"
 #include "../schedule/primitive.h"
 #include "../schedule/utils.h"
 #include "../support/array_utils.h"
@@ -180,12 +179,12 @@ using TRandState = LinearCongruentialEngine::TRandState;
  * \return The base64 encoded string.
  */
 inline std::string Base64Encode(std::string str) {
-  std::string m_buffer;
-  support::BytesOutStream m_stream(&m_buffer);
+  std::string m_tensor;
+  support::BytesOutStream m_stream(&m_tensor);
   support::Base64OutStream b64stream(&m_stream);
   static_cast<support::Stream*>(&b64stream)->Write(str);
   b64stream.Finish();
-  return m_buffer;
+  return m_tensor;
 }
 
 /*!
@@ -332,7 +331,7 @@ struct ThreadedTraceApply {
    */
   ffi::Optional<s_tir::Schedule> Apply(const IRModule& mod, const s_tir::Trace& trace,
                                        TRandState* rand_state) {
-    s_tir::Schedule sch{nullptr};
+    s_tir::Schedule sch{ffi::UnsafeInit{}};
     try {
       sch = s_tir::Schedule::Traced(mod,
                                     /*rand_state=*/ForkSeed(rand_state),
@@ -537,7 +536,7 @@ struct SortTuningRecordByMeanRunSecs {
  * \param src The source space generator.
  * \param dst The destination space generator.
  */
-inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
+inline void CloneRules(const SpaceGeneratorObj* src, SpaceGeneratorObj* dst) {
   if (src->sch_rules.has_value()) {
     ffi::Array<ScheduleRule> original = src->sch_rules.value();
     ffi::Array<ScheduleRule> sch_rules;
@@ -579,7 +578,7 @@ inline bool IsGPUTarget(const std::string& target_name) {
  * \return The AutoInline schedule rule for the given target.
  */
 inline ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
-  ffi::Array<ScheduleRule> rules{nullptr};
+  ffi::Array<ScheduleRule> rules;
   if (target_name == "llvm") {
     rules = ScheduleRule::DefaultLLVM();
   } else if (target_name == "hexagon") {
@@ -631,7 +630,7 @@ class SBlockCollector : public s_tir::StmtExprVisitor {
   /*! \brief Entry point */
   ffi::Array<s_tir::SBlockRV> Run() {
     std::vector<s_tir::SBlockRV> results;
-    auto f_collect = [this, &results](tirx::PrimFunc func, ffi::String func_name) {
+    auto f_collect = [this, &results](tirx::Function func, ffi::String func_name) {
       func_name_ = func_name;
       block_names_.clear();
       blocks_to_collect_.clear();
@@ -643,14 +642,14 @@ class SBlockCollector : public s_tir::StmtExprVisitor {
 
     if (sch_->func_working_on().has_value()) {
       GlobalVar gv = sch_->func_working_on().value();
-      tirx::PrimFunc func = sch_->mod()->functions[gv].as_or_throw<tirx::PrimFunc>();
+      tirx::Function func = sch_->mod()->functions[gv].as_or_throw<tirx::Function>();
       f_collect(func, gv->name_hint);
     } else {
       for (const auto& [gv, base_func] : sch_->mod()->functions) {
         // `gv->name_hint` is the name of the function
-        // `base_func` can be PrimFunc or relax::Function
-        if (const auto* func = base_func.as<tirx::PrimFuncNode>()) {
-          f_collect(ffi::GetRef<tirx::PrimFunc>(func), gv->name_hint);
+        // `base_func` can be Function or relax::Function
+        if (const auto* func = base_func.as<tirx::FunctionNode>()) {
+          f_collect(ffi::GetRef<tirx::Function>(func), gv->name_hint);
         }
       }
     }
@@ -690,7 +689,7 @@ class SBlockCollector : public s_tir::StmtExprVisitor {
   std::unordered_set<ffi::String> block_names_;
   /* \brief The list of blocks to collect in order */
   ffi::Array<ffi::String> blocks_to_collect_;
-  /*! \brief Name of the current PrimFunc */
+  /*! \brief Name of the current Function */
   ffi::String func_name_;
 };
 

@@ -20,8 +20,8 @@ from collections.abc import Callable
 
 from tvm_ffi import register_object
 
-from tvm.ir import IRModule
-from tvm.runtime import Object
+from tvm_tirx.ir import IRModule
+from tvm_tirx.runtime import Object
 
 from ..expr import Expr, Function, Var
 from . import _ffi as ffi

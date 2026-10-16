@@ -24,7 +24,9 @@ if(USE_EXAMPLE_NPU_CODEGEN)
 
     tvm_file_glob(GLOB RUNTIME_EXAMPLE_NPU_SRCS src/runtime/extra/contrib/example_npu/*.cc)
     if(NOT USE_EXAMPLE_NPU_RUNTIME)
-        list(APPEND COMPILER_SRCS ${RUNTIME_EXAMPLE_NPU_SRCS})
+        add_library(tvm_example_npu_objs OBJECT ${RUNTIME_EXAMPLE_NPU_SRCS})
+        target_link_libraries(tvm_example_npu_objs PRIVATE tvm_runtime_extra_defs)
+        target_link_libraries(tvm_runtime_extra PRIVATE tvm_example_npu_objs)
     endif()
 endif()
 

@@ -1,0 +1,128 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*
+ * \file tvm/runtime/base.h
+ * \brief base macros
+ */
+#ifndef TVM_RUNTIME_BASE_H_
+#define TVM_RUNTIME_BASE_H_
+
+// TVM runtime fully relies on TVM FFI C API
+// we will avoid defining extra C APIs here
+#include <tvm/ffi/c_api.h>
+
+// TVM version. Overridable at build time via -DTVM_VERSION="..." (scikit-build-core
+// passes the setuptools_scm-resolved version through CMake). The literal below is the
+// fallback for a bare build with no override.
+#ifndef TVM_VERSION
+#define TVM_VERSION "0.1.0a0"
+#endif
+
+// The compiler, core runtime and runtime-extra libraries expose independent
+// DLL policies so downstream embedders can override their visibility separately.
+//
+// TVM_DLL / TVM_DLL_EXPORT: symbols in libtvm_compiler.
+//   - TVM_DLL is dllexport when TVM_EXPORTS is defined (compiler build),
+//     dllimport otherwise (downstream consumers, runtime TUs).
+//   - TVM_DLL_EXPORT is always dllexport.
+//
+// TVM_RUNTIME_DLL / TVM_RUNTIME_DLL_EXPORT: symbols in libtvm_runtime.
+//   - TVM_RUNTIME_DLL is dllexport when TVM_RUNTIME_EXPORTS is defined
+//     (runtime build), dllimport otherwise.
+//   - TVM_RUNTIME_DLL_EXPORT is always dllexport.
+//
+// TVM_RUNTIME_EXTRA_DLL: symbols in libtvm_runtime_extra.
+//   - dllexport when TVM_RUNTIME_EXTRA_EXPORTS is defined (extra build),
+//     dllimport otherwise, including core-runtime and compiler builds.
+//
+// On non-MSVC platforms the import/export decision is made by the dynamic
+// loader, so the macros expand to visibility("default"). Under
+// Emscripten they expand to EMSCRIPTEN_KEEPALIVE.
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
+// --- TVM_DLL family (libtvm_compiler) ---
+#if !defined(TVM_DLL) && defined(__EMSCRIPTEN__)
+#define TVM_DLL EMSCRIPTEN_KEEPALIVE
+#define TVM_DLL_EXPORT EMSCRIPTEN_KEEPALIVE
+#endif
+#if !defined(TVM_DLL) && defined(_MSC_VER)
+#ifdef TVM_EXPORTS
+#define TVM_DLL __declspec(dllexport)
+#else
+#define TVM_DLL __declspec(dllimport)
+#endif
+#define TVM_DLL_EXPORT __declspec(dllexport)
+#endif
+#ifndef TVM_DLL
+#define TVM_DLL __attribute__((visibility("default")))
+#define TVM_DLL_EXPORT __attribute__((visibility("default")))
+#endif
+
+// Core IR, TIRx and shared compiler infrastructure live in libtvm_tirx.
+#ifndef TVM_TIRX_DLL
+#if defined(__EMSCRIPTEN__)
+#define TVM_TIRX_DLL EMSCRIPTEN_KEEPALIVE
+#elif defined(_MSC_VER)
+#ifdef TVM_TIRX_EXPORTS
+#define TVM_TIRX_DLL __declspec(dllexport)
+#else
+#define TVM_TIRX_DLL __declspec(dllimport)
+#endif
+#else
+#define TVM_TIRX_DLL __attribute__((visibility("default")))
+#endif
+#endif
+
+// --- TVM_RUNTIME_DLL family (libtvm_runtime) ---
+#if !defined(TVM_RUNTIME_DLL) && defined(__EMSCRIPTEN__)
+#define TVM_RUNTIME_DLL EMSCRIPTEN_KEEPALIVE
+#define TVM_RUNTIME_DLL_EXPORT EMSCRIPTEN_KEEPALIVE
+#endif
+#if !defined(TVM_RUNTIME_DLL) && defined(_MSC_VER)
+#ifdef TVM_RUNTIME_EXPORTS
+#define TVM_RUNTIME_DLL __declspec(dllexport)
+#else
+#define TVM_RUNTIME_DLL __declspec(dllimport)
+#endif
+#define TVM_RUNTIME_DLL_EXPORT __declspec(dllexport)
+#endif
+#ifndef TVM_RUNTIME_DLL
+#define TVM_RUNTIME_DLL __attribute__((visibility("default")))
+#define TVM_RUNTIME_DLL_EXPORT __attribute__((visibility("default")))
+#endif
+
+// --- TVM_RUNTIME_EXTRA_DLL (libtvm_runtime_extra) ---
+#ifndef TVM_RUNTIME_EXTRA_DLL
+#if defined(__EMSCRIPTEN__)
+#define TVM_RUNTIME_EXTRA_DLL EMSCRIPTEN_KEEPALIVE
+#elif defined(_MSC_VER)
+#ifdef TVM_RUNTIME_EXTRA_EXPORTS
+#define TVM_RUNTIME_EXTRA_DLL __declspec(dllexport)
+#else
+#define TVM_RUNTIME_EXTRA_DLL __declspec(dllimport)
+#endif
+#else
+#define TVM_RUNTIME_EXTRA_DLL __attribute__((visibility("default")))
+#endif
+#endif
+
+#endif  // TVM_RUNTIME_BASE_H_

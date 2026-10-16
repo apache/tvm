@@ -127,7 +127,7 @@ void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
 
   // find parent block
   const SBlockNode* parent_block_n = nullptr;
-  const StmtSRefNode* p = block_sref.get()->parent;
+  const StmtSRefObj* p = block_sref.get()->parent;
   while (p != nullptr) {
     if (p->stmt->IsInstance<SBlockNode>()) {
       parent_block_n = TVM_SREF_TO_SBLOCK(ffi::GetRef<StmtSRef>(p));

@@ -16,13 +16,14 @@
 # under the License.
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import relax, tirx
-from tvm.ir import Op
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import relax
 from tvm.relax import VDevice
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm_tirx import tirx
+from tvm_tirx.ir import Op
+from tvm_tirx.script import tirx as T
 
 
 def test_op_correctness():
@@ -41,7 +42,7 @@ def test_op_correctness():
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.Type):
     ret = bb.normalize(call)
-    tvm.ir.assert_structural_equal(ret.ty, expected_ty)
+    tvm_tirx.ir.assert_structural_equal(ret.ty, expected_ty)
 
 
 def test_full_infer_ty():
@@ -570,7 +571,7 @@ def test_arange_infer_ty():
     _check_inference(bb, relax.op.arange(1, 10, 2.3), relax.TensorType((4,), "float32"))
     _check_inference(
         bb,
-        relax.op.arange(0, 10, 1, tvm.ir.PrimType("float32")),
+        relax.op.arange(0, 10, 1, tvm_tirx.ir.PrimType("float32")),
         relax.TensorType((10,), "float32"),
     )
 
@@ -741,4 +742,4 @@ def test_tril_triu_infer_ty_wrong_input_type():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

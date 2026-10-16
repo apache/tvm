@@ -20,7 +20,7 @@
 from tvm import relax
 from tvm.relax import DataflowVar, PyExprMutator
 from tvm.relax.transform import PatternCheckContext
-from tvm.target import Target
+from tvm_tirx.target import Target
 
 
 class BackendDispatcher(PyExprMutator):

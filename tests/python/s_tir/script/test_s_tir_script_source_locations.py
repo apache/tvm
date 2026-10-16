@@ -16,10 +16,10 @@
 # under the License.
 """S-TIR script source locations."""
 
-import tvm
-import tvm.testing
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 
 def test_nesting_parsing():
@@ -28,14 +28,14 @@ def test_nesting_parsing():
 
     for i in range(1):
 
-        @tvm.script.ir_module
+        @tvm_tirx.script.ir_module
         class Module:
-            @Ts.prim_func
+            @Ts.function
             def impl(
-                A: T.Buffer((12, 196, 64), "float32"),
+                A: T.Tensor((12, 196, 64), "float32"),
             ) -> None:
                 T.evaluate(0)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

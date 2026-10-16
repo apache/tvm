@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-if(USE_CUDA AND USE_CUTLASS)
+if(TVM_TIRX_USE_CUDA AND USE_CUTLASS)
   tvm_file_glob(GLOB CUTLASS_CONTRIB_SRC
     src/relax/backend/contrib/cutlass/*.cc
   )
@@ -30,7 +30,7 @@ if(USE_CUDA AND USE_CUTLASS)
     ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm
     ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm/cutlass/include
   )
-  target_link_libraries(fpA_intB_gemm_tvm PRIVATE tvm_ffi_header)
+  target_link_libraries(fpA_intB_gemm_tvm PRIVATE tvm_runtime_extra_defs)
 
   set(CUTLASS_FPA_INTB_RUNTIME_SRCS "")
   list(APPEND CUTLASS_FPA_INTB_RUNTIME_SRCS src/runtime/extra/contrib/cutlass/weight_preprocess.cc)

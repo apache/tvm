@@ -45,7 +45,8 @@ ffi::Array<PrimExpr> PlaceholderOpNode::output_shape(size_t i) const {
   return shape;
 }
 
-PlaceholderOp::PlaceholderOp(std::string name, ffi::Array<PrimExpr> shape, PrimType dtype) {
+PlaceholderOp::PlaceholderOp(std::string name, ffi::Array<PrimExpr> shape, PrimType dtype)
+    : Operation(ffi::UnsafeInit{}) {
   auto n = ffi::make_object<PlaceholderOpNode>();
   n->name = name;
   n->shape = shape;

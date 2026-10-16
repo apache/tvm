@@ -20,13 +20,14 @@
 from functools import reduce
 from operator import mul
 
-from tvm import DataType, relax, topi
+from tvm import relax, topi
 from tvm.contrib.thrust import can_use_thrust
-from tvm.ir import GlobalVar, Op
-from tvm.ir.module import IRModule
-from tvm.ir.transform import PassContext, module_pass
 from tvm.relax import expr_functor
-from tvm.target import Target
+from tvm_tirx import DataType
+from tvm_tirx.ir import GlobalVar, Op
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.ir.transform import PassContext, module_pass
+from tvm_tirx.target import Target
 
 from .utils import BackendDispatcher
 
@@ -204,7 +205,7 @@ class SortScanDispatcher(BackendDispatcher):
                 cumsum = relax.call_tir(
                     gv,
                     reshape,
-                    out_ty=relax.TensorType(kernel_shape, out_dtype, vdevice=call.ty.vdevice),
+                    ty_args=[relax.TensorType(kernel_shape, out_dtype, vdevice=call.ty.vdevice)],
                 )
                 return relax.call_pure_packed(
                     "vm.builtin.reshape",

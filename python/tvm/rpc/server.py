@@ -42,9 +42,9 @@ from pathlib import Path
 
 import tvm_ffi
 
-from tvm.runtime.module import load_module as _load_module
-from tvm.support import utils
-from tvm.support.popen_pool import PopenWorker
+from tvm_tirx.runtime.module import load_module as _load_module
+from tvm_tirx.support import utils
+from tvm_tirx.support.popen_pool import PopenWorker
 
 # pylint: disable=unused-import
 from . import _ffi_api, base, testing
@@ -90,14 +90,14 @@ def _server_env(load_library, work_path=None):
 
         if path.endswith(".o"):
             # Extra dependencies during runtime.
-            from tvm.support import cc as _cc
+            from tvm_tirx.support import cc as _cc
 
             _cc.create_shared(path + ".so", path)
             path += ".so"
         elif path.endswith(".tar"):
             # Extra dependencies during runtime.
-            from tvm.support import cc as _cc
-            from tvm.support import tar as _tar
+            from tvm_tirx.support import cc as _cc
+            from tvm_tirx.support import tar as _tar
 
             tar_temp = utils.tempdir(custom_path=path.replace(".tar", ""))
             _tar.untar(path, tar_temp.temp_dir)
@@ -492,11 +492,11 @@ class Server:
     .. code:: python
 
         def server_init_callback():
-            import tvm
+            import tvm, tvm_tirx
             # must import mypackage here
             import mypackage
 
-            tvm.register_global_func("function", mypackage.func)
+            tvm_tirx.register_global_func("function", mypackage.func)
 
         server = rpc.Server(host, server_init_callback=server_init_callback)
     """

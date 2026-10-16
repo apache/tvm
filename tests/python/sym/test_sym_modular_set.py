@@ -17,14 +17,14 @@
 # ruff: noqa: F841
 import pytest
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import te
 
 
 def test_cast():
-    analyzer = tvm.sym.Analyzer()
-    x = tvm.tirx.Var("x", "int8")
+    analyzer = tvm_tirx.sym.Analyzer()
+    x = tvm_tirx.tirx.Var("x", "int8")
     m = analyzer.modular_set((x * 3).astype("uint32"))
     assert m.coeff == 3
     assert m.base == 0
@@ -34,8 +34,8 @@ def test_cast():
 
 
 def test_add_sub():
-    analyzer = tvm.sym.Analyzer()
-    x, y = tvm.tirx.Var("x", "int64"), tvm.tirx.Var("y", "int64")
+    analyzer = tvm_tirx.sym.Analyzer()
+    x, y = tvm_tirx.tirx.Var("x", "int64"), tvm_tirx.tirx.Var("y", "int64")
     m = analyzer.modular_set(x * 6 + y * 4)
     assert m.coeff == 2
     assert m.base == 0
@@ -47,15 +47,15 @@ def test_add_sub():
 
 
 def test_mul():
-    analyzer = tvm.sym.Analyzer()
-    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
+    analyzer = tvm_tirx.sym.Analyzer()
+    x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
     m = analyzer.modular_set((x * 4 + 2) * (y * 6 + 1))
     assert m.coeff == 4
     assert m.base == 2
 
 
 def test_shift_left():
-    analyzer = tvm.sym.Analyzer()
+    analyzer = tvm_tirx.sym.Analyzer()
     x, y = te.var("x"), te.var("y")
     m = analyzer.modular_set((x * 4 + 2) << 2)
     assert m.coeff == 16
@@ -63,18 +63,18 @@ def test_shift_left():
 
 
 def test_floormod():
-    analyzer = tvm.sym.Analyzer()
-    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
-    m = analyzer.modular_set(tvm.tirx.floormod(x * 128 + y * 4, 256))
+    analyzer = tvm_tirx.sym.Analyzer()
+    x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
+    m = analyzer.modular_set(tvm_tirx.tirx.floormod(x * 128 + y * 4, 256))
     assert m.coeff == 4
     assert m.base == 0
 
 
 def test_div_shift():
-    analyzer = tvm.sym.Analyzer()
-    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
+    analyzer = tvm_tirx.sym.Analyzer()
+    x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
     # not sure if x is non-negative
-    tdiv = tvm.tirx.truncdiv
+    tdiv = tvm_tirx.tirx.truncdiv
     m = analyzer.modular_set(tdiv(x * 4 + 2, 2))
     assert m.coeff == 1
     assert m.base == 0
@@ -82,22 +82,22 @@ def test_div_shift():
     m = analyzer.modular_set((x * 4 + 2) >> 1)
     assert m.coeff == 2
     assert m.base == 1
-    fld = tvm.tirx.floordiv
+    fld = tvm_tirx.tirx.floordiv
     m = analyzer.modular_set(fld(x * 4 + 2, 2))
     assert m.coeff == 2
     assert m.base == 1
     # x is non-negative
-    analyzer.update(x, tvm.sym.ConstIntBound(0, 100))
+    analyzer.update(x, tvm_tirx.sym.ConstIntBound(0, 100))
     m = analyzer.modular_set(tdiv(x * 4 + 2, 2))
     assert m.coeff == 2
     assert m.base == 1
 
 
 def test_mod():
-    analyzer = tvm.sym.Analyzer()
-    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
-    tmod = tvm.tirx.truncmod
-    fmod = tvm.tirx.floormod
+    analyzer = tvm_tirx.sym.Analyzer()
+    x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
+    tmod = tvm_tirx.tirx.truncmod
+    fmod = tvm_tirx.tirx.floormod
     # not sure if x is non-negative
     m = analyzer.modular_set(tmod(x * 4 + 1, 4))
     assert m.coeff == 1
@@ -114,33 +114,33 @@ def test_mod():
     assert m.coeff == 4
     assert m.base == 3
     # x is non-negative
-    analyzer.update(x, tvm.sym.ConstIntBound(0, 100))
+    analyzer.update(x, tvm_tirx.sym.ConstIntBound(0, 100))
     m = analyzer.modular_set(tmod(x * 4 + 3, 2))
     assert m.coeff == 2
     assert m.base == 1
 
 
 def test_min_max_select():
-    analyzer = tvm.sym.Analyzer()
-    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
-    m = analyzer.modular_set(tvm.tirx.min(x * 3, y * 9))
+    analyzer = tvm_tirx.sym.Analyzer()
+    x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
+    m = analyzer.modular_set(tvm_tirx.tirx.min(x * 3, y * 9))
     assert m.coeff == 3
     assert m.base == 0
 
-    m = analyzer.modular_set(tvm.tirx.max(x * 3 + 1, y * 9 + 4))
+    m = analyzer.modular_set(tvm_tirx.tirx.max(x * 3 + 1, y * 9 + 4))
     assert m.coeff == 3
     assert m.base == 1
 
-    m = analyzer.modular_set(tvm.tirx.Select(x > 0, x * 3 + 1, y * 9 + 2))
+    m = analyzer.modular_set(tvm_tirx.tirx.Select(x > 0, x * 3 + 1, y * 9 + 2))
     assert m.coeff == 1
     assert m.base == 0
 
 
 def test_mix_index():
-    a = tvm.tirx.Var("a", "int32")
-    b = tvm.tirx.Var("b", "int32")
-    analyzer = tvm.sym.Analyzer()
-    tdiv = tvm.tirx.truncdiv
+    a = tvm_tirx.tirx.Var("a", "int32")
+    b = tvm_tirx.tirx.Var("b", "int32")
+    analyzer = tvm_tirx.sym.Analyzer()
+    tdiv = tvm_tirx.tirx.truncdiv
     m = analyzer.modular_set(a * 4 + b * 6 + 7)
     assert m.coeff == 2
     assert m.base == 1
@@ -161,16 +161,16 @@ def test_mix_index():
     assert m.coeff == 3
     assert m.base == 2
 
-    m = analyzer.modular_set(a * 12 + tvm.tirx.min(b * 3 * 7, 2))
+    m = analyzer.modular_set(a * 12 + tvm_tirx.tirx.min(b * 3 * 7, 2))
     assert m.coeff == 1
     assert m.base == 0
 
 
 def test_constraint_scope():
-    a = tvm.tirx.Var("a", "int32")
-    b = tvm.tirx.Var("b", "int32")
-    analyzer = tvm.sym.Analyzer()
-    tmod = tvm.tirx.truncmod
+    a = tvm_tirx.tirx.Var("a", "int32")
+    b = tvm_tirx.tirx.Var("b", "int32")
+    analyzer = tvm_tirx.sym.Analyzer()
+    tmod = tvm_tirx.tirx.truncmod
 
     with analyzer.constraint_scope(tmod(b, 4) == 2):
         m = analyzer.modular_set(b + 1)
@@ -190,9 +190,9 @@ def test_constraint_scope():
 
 
 def test_intersect():
-    a = tvm.tirx.Var("a", "int32")
-    analyzer = tvm.sym.Analyzer()
-    tmod = tvm.tirx.truncmod
+    a = tvm_tirx.tirx.Var("a", "int32")
+    analyzer = tvm_tirx.sym.Analyzer()
+    tmod = tvm_tirx.tirx.truncmod
     with analyzer.constraint_scope(tmod(a, 4) == 1):
         with analyzer.constraint_scope(tmod(a, 3) == 1):
             m = analyzer.modular_set(a)
@@ -208,18 +208,18 @@ def test_intersect():
 
 
 def test_let():
-    analyzer = tvm.sym.Analyzer()
-    x = tvm.tirx.Var("x", "int32")
-    y = tvm.tirx.Var("y", "int32")
-    m = analyzer.modular_set(tvm.tirx.Let(x, y * 10, x + 1))
+    analyzer = tvm_tirx.sym.Analyzer()
+    x = tvm_tirx.tirx.Var("x", "int32")
+    y = tvm_tirx.tirx.Var("y", "int32")
+    m = analyzer.modular_set(tvm_tirx.tirx.Let(x, y * 10, x + 1))
     assert m.coeff == 10
     assert m.base == 1
 
 
 def test_bitwise_and():
-    analyzer = tvm.sym.Analyzer()
-    x = tvm.tirx.Var("x", "int32")
-    y = tvm.tirx.Var("y", "int32")
+    analyzer = tvm_tirx.sym.Analyzer()
+    x = tvm_tirx.tirx.Var("x", "int32")
+    y = tvm_tirx.tirx.Var("y", "int32")
 
     # RHS of bitwise_and is 2^p - 1
     m = analyzer.modular_set((x * 16 + y * 4) & 31)
@@ -244,12 +244,12 @@ def test_bitwise_and():
     ],
 )
 def test_bitwise_and_large_mask(dtype, mask, expected_coeff, expected_base):
-    analyzer = tvm.sym.Analyzer()
-    x = tvm.tirx.Var("x", dtype)
-    m = analyzer.modular_set((x * 4 + 2) & tvm.tirx.const(mask, dtype))
+    analyzer = tvm_tirx.sym.Analyzer()
+    x = tvm_tirx.tirx.Var("x", dtype)
+    m = analyzer.modular_set((x * 4 + 2) & tvm_tirx.tirx.const(mask, dtype))
     assert m.coeff == expected_coeff
     assert m.base == expected_base
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

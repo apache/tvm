@@ -29,9 +29,9 @@ from typing import Literal
 # isort: on
 from tvm_ffi import register_object
 
-from tvm.ir import IRModule
-from tvm.runtime import Object
 from tvm.s_tir.schedule import Schedule
+from tvm_tirx.ir import IRModule
+from tvm_tirx.runtime import Object
 
 from .. import _ffi_api
 
@@ -133,15 +133,9 @@ class SpaceGenerator(Object):
 
 
 ScheduleFnType = SpaceGenerator.ScheduleFnType
-ScheduleRuleType = (
-    list["ScheduleRule"] | Literal["llvm", "cuda", "cuda-tensorcore", "hexagon", "from-target"]
-)
-PostprocType = (
-    list["Postproc"] | Literal["llvm", "cuda", "cuda-tensorcore", "hexagon", "from-target"]
-)
-MutatorProbType = (
-    dict["Mutator", float] | Literal["llvm", "cuda", "cuda-tensorcore", "hexagon", "from-target"]
-)
+ScheduleRuleType = list["ScheduleRule"] | Literal["llvm", "cuda", "hexagon", "from-target"]
+PostprocType = list["Postproc"] | Literal["llvm", "cuda", "hexagon", "from-target"]
+MutatorProbType = dict["Mutator", float] | Literal["llvm", "cuda", "hexagon", "from-target"]
 create = SpaceGenerator.create  # pylint: disable=invalid-name
 
 

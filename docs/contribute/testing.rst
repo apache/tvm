@@ -185,27 +185,6 @@ persistent lock file that every contender can write, or enforce exclusivity
 through the runner.  A per-user lock path cannot protect a GPU shared across
 users because each user would lock a different file.
 
-There also exists a ``tvm.testing.enabled_targets()`` that returns
-all targets that are enabled and runnable on the current machine,
-based on the environment variable ``TVM_TEST_TARGETS``, the build
-configuration, and the physical hardware present.  Some legacy tests
-explicitly loop over the targets returned from ``enabled_targets()``,
-but this style should not be used for new tests.  The pytest output
-for this style silently skips runtimes that are disabled in
-``config.cmake``, or do not have a device on which they can run.  In
-addition, the test halts on the first target to fail, which is
-ambiguous as to whether the error occurs on a particular target, or on
-every target.
-
-.. code-block:: python
-
-    # Old style, do not use.
-    def test_function():
-        for target, dev in tvm.testing.enabled_targets():
-            # Test code goes here
-
-
-
 Running Locally
 ~~~~~~~~~~~~~~~
 
@@ -254,22 +233,28 @@ Running in a Local Docker Container
 The ``docker/bash.sh`` script can be used to run unit tests inside the
 same docker image as is used by the CI.  The first argument should
 specify which docker image to run (e.g. ``docker/bash.sh ci_gpu``).
-Allowed image names are defined in ``ci/jenkins/data.py`` in the TVM source directory,
+Allowed image names are defined in ``ci/jenkins/docker-images.ini`` in the TVM source directory,
 and map to images at `tlcpack`_.
 
 If no additional arguments are given, the docker image will be loaded
-with an interactive bash session.  If a script is passed as an
-optional argument (e.g. ``docker/bash.sh ci_gpu tests/scripts/task_python_unittest.sh``), then that script will be
-executed inside the docker image.
+with an interactive bash session. Additional arguments run a command inside
+the container. First build the platform wheels as described in
+:ref:`pr-testing`, then source the installation helper before running tests:
 
-Note: The docker images contain all system dependencies, but do not
-include the ``build/config.cmake`` configuration file for those
-systems.  The TVM source directory is used as the home directory of
-the docker image, and so this will default to using the same
-config/build directories as the local config.  One solution is to
-maintain separate ``build_local`` and ``build_docker`` directories,
-and make a symlink from ``build`` to the appropriate folder when
-entering/exiting docker.
+.. code-block:: bash
+
+    docker/bash.sh ci_gpu bash -euo pipefail -c '
+        source tests/scripts/test_task_install_dist_wheels.sh
+        tests/scripts/task_python_unittest_gpuonly.sh
+    '
+
+The helper installs the wheels from ``dist/`` into ``.local/python`` and sets
+``PYTHONPATH`` for subsequent commands in the same shell. In an interactive
+container, source the helper before invoking pytest or a test script.
+
+The checkout is shared with the container. Native builds use ``build/`` and
+wheel artifacts use ``dist/``; clean these directories and rebuild when
+switching platform configurations.
 
 Running in CI
 ~~~~~~~~~~~~~
@@ -288,22 +273,23 @@ in which stages.
 
 - Compile-time configuration
 
-  The docker image does not have the ``config.cmake`` file built into
-  it, so this is the first step in each of the ``BUILD`` tasks.  This
-  is done using the ``tests/scripts/task_config_build_*.sh`` scripts.
-  Which script is used depends on the build being tested, and is
-  specified in the Jenkinsfile.
+  The Jenkinsfile sources ``tests/scripts/task_install_build_dependencies.sh``
+  once to clean ``dist/`` and install build prerequisites. It then invokes
+  ``tests/scripts/task_build_<platform>.sh``, which sets the full platform CMake
+  options and builds FFI, TIRx, and TVM wheels in that order. All three wheel
+  builds use the root CMake source and the same ``build/`` directory, with
+  package-specific install components. Enabled C++ tests run from that same
+  native build.
 
-  Each ``BUILD`` task concludes by packing a library for use in later
-  tests.
+  The three wheels in ``dist/`` are transferred to the test nodes.
 
 - Which tests run
 
   The ``Unit Test`` stage of the Jenkinsfile determines how ``pytest``
-  is called.  Each task starts by unpacking a
-  compiled library that was previous compiled in the ``BUILD`` stage,
-  then runs a test script
-  (e.g. ``tests/scripts/task_python_unittest.sh``).  These scripts set
+  is called. Each consumer downloads the wheels from the ``BUILD`` stage
+  and sources ``tests/scripts/test_task_install_dist_wheels.sh`` before
+  running a test script (e.g. ``tests/scripts/task_python_unittest.sh``).
+  These scripts set
   the files/folders and command-line options that are passed to
   ``pytest``.
 
