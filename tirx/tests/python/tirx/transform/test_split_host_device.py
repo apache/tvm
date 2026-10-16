@@ -169,7 +169,7 @@ def test_device_kernel_nonzero_return_is_rejected():
             )
             return 1
 
-    with pytest.raises(tvm_tirx.error.InternalError, match="successful return"):
+    with pytest.raises(RuntimeError, match="successful return"):
         tvm_tirx.tirx.transform.SplitHostDevice()(Before)
 
 

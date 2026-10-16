@@ -25,7 +25,7 @@ from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 
-llvm_version = tvm_tirx.codegen.llvm_version_major()
+llvm_version = tvm_tirx.codegen.llvm.version_major()
 machine = platform.machine()
 
 if machine not in ["x86_64", "AMD64", "amd64"]:

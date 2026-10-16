@@ -59,8 +59,8 @@ def test_tir_invalid_intimm(dtype, literals):
     for l in literals:
         # Out-of-range positive literals raise a builtin ValueError from
         # the IntImm range check; negative-into-unsigned raises an
-        # InternalError ("cannot make uint from negative value") which is a
-        # RuntimeError subclass. Accept either.
+        # InternalError ("cannot make uint from negative value") mapped to
+        # RuntimeError. Accept either.
         with pytest.raises((RuntimeError, ValueError)):
             tirx.const(l, dtype)
 

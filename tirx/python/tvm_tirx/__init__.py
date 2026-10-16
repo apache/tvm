@@ -49,9 +49,6 @@ if TYPE_CHECKING or not _is_config_mode():
     from .runtime._tensor import vpi, rocm, ext_dev, hexagon
     from .runtime import DataType, DataTypeCode
 
-    # tvm.error
-    from . import error
-
     # tvm.ir
     from .ir import IRModule, transform
     from . import ir
@@ -83,35 +80,12 @@ if TYPE_CHECKING or not _is_config_mode():
     # Side-effect imports: register CUDA/ROCm FFI callbacks at TVM startup
     from .support import rocm as _rocm, nvcc as _nvcc
 
-    # NOTE: This file should be python2 compatible so we can
-    # raise proper error message when user run the package using
-    # an older version of the python
-
-    def _should_print_backtrace():
-        in_pytest = "PYTEST_CURRENT_TEST" in os.environ
-        tvm_backtrace = os.environ.get("TVM_BACKTRACE", "0")
-
-        try:
-            tvm_backtrace = bool(int(tvm_backtrace))
-        except ValueError:
-            raise ValueError(
-                f"invalid value for TVM_BACKTRACE {tvm_backtrace}, please set to 0 or 1."
-            )
-
-        return in_pytest or tvm_backtrace
-
     def tvm_wrap_excepthook(exception_hook):
         """Wrap given excepthook with TVM additional work."""
 
         def wrapper(exctype, value, trbk):
             """Clean subprocesses when TVM is interrupted."""
-            if exctype is error.DiagnosticError and not _should_print_backtrace():
-                # TODO(@jroesch): consider moving to C++?
-                print(
-                    "note: run with `TVM_BACKTRACE=1` environment variable to display a backtrace."
-                )
-            else:
-                exception_hook(exctype, value, trbk)
+            exception_hook(exctype, value, trbk)
 
             if hasattr(multiprocessing, "active_children"):
                 # pylint: disable=not-callable

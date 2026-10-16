@@ -18,7 +18,7 @@ import pytest
 
 import tvm_tirx
 import tvm_tirx.testing
-from tvm_tirx.codegen import llvm_version_major
+from tvm_tirx.codegen import llvm
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
@@ -84,7 +84,7 @@ def test_vectorize_vector_scalable_error():
                 A[T.ramp(j * 4, 1, 4)] = T.Broadcast(T.float32(1), 4)
 
     error_msg = "Creating scalable vectors from existing vectors is not supported."
-    with pytest.raises(tvm_tirx.error.InternalError, match=error_msg):
+    with pytest.raises(RuntimeError, match=error_msg):
         tvm_tirx.tirx.transform.VectorizeLoop()(Module)
 
 
@@ -97,7 +97,7 @@ def test_vectorize_vector_scalable_error2():
                 A[j] = T.Broadcast(T.float32(1), T.vscale() * 4)
 
     error_msg = "Vectorizing over scalable tensor elements is not supported in vectorizer."
-    with pytest.raises(tvm_tirx.error.InternalError, match=error_msg):
+    with pytest.raises(RuntimeError, match=error_msg):
         tvm_tirx.tirx.transform.VectorizeLoop()(Module)
 
 
@@ -113,7 +113,7 @@ def test_vectorize_vector_scalable_error3():
                 )
 
     error_msg = "Vectorizing over existing scalable vectors is not supported."
-    with pytest.raises(tvm_tirx.error.InternalError, match=error_msg):
+    with pytest.raises(RuntimeError, match=error_msg):
         tvm_tirx.tirx.transform.VectorizeLoop()(Module)
 
 
@@ -129,7 +129,7 @@ def test_vectorize_vector_scalable_error4():
                 )
 
     error_msg = "Creating scalable vectors from existing vectors is not supported."
-    with pytest.raises(tvm_tirx.error.InternalError, match=error_msg):
+    with pytest.raises(RuntimeError, match=error_msg):
         tvm_tirx.tirx.transform.VectorizeLoop()(Module)
 
 
@@ -509,7 +509,7 @@ def test_illegal_extent():
                 A[j] = 3
 
     error_msg = r"Failed to vectorize loop with extent n for target None"
-    with pytest.raises(tvm_tirx.error.InternalError, match=error_msg):
+    with pytest.raises(RuntimeError, match=error_msg):
         tvm_tirx.tirx.transform.VectorizeLoop()(Mod)
 
 
@@ -523,7 +523,7 @@ def test_illegal_vscale_in_non_sve_compilation():
                 A[j] = 13
 
     msg = "Failed to vectorize loop with extent T.vscale\\(\\) \\* 4 for target"
-    with pytest.raises(tvm_tirx.error.InternalError, match=msg):
+    with pytest.raises(RuntimeError, match=msg):
         tvm_tirx.tirx.transform.VectorizeLoop()(Mod)
 
 
@@ -877,7 +877,7 @@ def test_vectorize_llvm_pure_intrin_fail(extent, vec_str, target):
     # LLVM 20 added vector support for llvm.lround/llvm.llround.  The IR Verifier's
     # "Intrinsic does not support vectors" check was removed in release/20.x, so
     # compilation only fails on LLVM <= 19.
-    if llvm_version_major() >= 20:
+    if llvm.version_major() >= 20:
         tvm_tirx.tirx.compile(mod, target=target)
     else:
         with pytest.raises(Exception, match="Intrinsic does not support vectors"):

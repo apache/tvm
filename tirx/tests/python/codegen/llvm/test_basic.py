@@ -25,7 +25,7 @@ import pytest
 
 import tvm_tirx
 import tvm_tirx.testing
-from tvm_tirx.codegen import llvm_get_intrinsic_name, llvm_lookup_intrinsic_id
+from tvm_tirx.codegen import llvm
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.support import utils
@@ -46,9 +46,7 @@ def test_duplicate_function_global_symbol_diagnostic():
             T.func_attr({"global_symbol": "dup_symbol", "tirx.noalias": True})
             A[0] = T.float32(2)
 
-    with pytest.raises(
-        tvm_tirx.error.InternalError, match="Duplicate Function global_symbol 'dup_symbol'"
-    ) as err:
+    with pytest.raises(RuntimeError, match="Duplicate Function global_symbol 'dup_symbol'") as err:
         tvm_tirx.tirx.compile(Module, target="llvm")
     assert "first_unique_key" in str(err.value)
     assert "second_unique_key" in str(err.value)
@@ -98,8 +96,8 @@ def test_llvm_void_intrin():
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_intrinsic_id():
     orig_name = "llvm.x86.sse2.pmadd.wd"
-    intrin_id = llvm_lookup_intrinsic_id(orig_name)
-    name = llvm_get_intrinsic_name(intrin_id)
+    intrin_id = llvm.lookup_intrinsic_id(orig_name)
+    name = llvm.get_intrinsic_name(intrin_id)
     assert orig_name == name
 
 
@@ -107,7 +105,7 @@ def test_llvm_intrinsic_id():
 def test_llvm_overloaded_intrin():
     # Name lookup for overloaded intrinsics in LLVM 4- requires a name
     # that includes the overloaded types.
-    if tvm_tirx.codegen.llvm_version_major() < 5:
+    if tvm_tirx.codegen.llvm.version_major() < 5:
         return
 
     # int1 is the type for the is_zero_undef parameter
@@ -448,7 +446,7 @@ def test_alignment():
                 return True
         return False
 
-    if tvm_tirx.codegen.llvm_version_major() >= 5:
+    if tvm_tirx.codegen.llvm.version_major() >= 5:
         assert has_param_alignment()
 
     # Check for assume intrinsics. This isn't 100% accurate, since it just
@@ -681,9 +679,9 @@ def test_dwarf_debug_information():
                     C[i0_0 * 4 + i0_1] = A[i0_0 * 4 + i0_1] + B[i0_0 * 4 + i0_1]
 
     def check_llvm_object():
-        if tvm_tirx.codegen.llvm_version_major() < 5:
+        if tvm_tirx.codegen.llvm.version_major() < 5:
             return
-        if tvm_tirx.codegen.llvm_version_major() > 6:
+        if tvm_tirx.codegen.llvm.version_major() > 6:
             return
         # build two functions
         mod = tvm_tirx.IRModule(
@@ -719,9 +717,9 @@ def test_dwarf_debug_information():
             assert re.search(r"""DW_AT_name.*fadd2""", str(output))
 
     def check_llvm_ir():
-        if tvm_tirx.codegen.llvm_version_major() < 5:
+        if tvm_tirx.codegen.llvm.version_major() < 5:
             return
-        if tvm_tirx.codegen.llvm_version_major() > 6:
+        if tvm_tirx.codegen.llvm.version_major() > 6:
             return
         # build two functions
         mod = tvm_tirx.IRModule(

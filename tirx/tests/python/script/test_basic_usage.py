@@ -28,7 +28,7 @@ import pytest
 from minilang import Value
 
 import tvm_tirx
-from tvm_tirx import DataType, error, ir
+from tvm_tirx import DataType, ir
 from tvm_tirx.ir import prim
 from tvm_tirx.ir._overload_prim_expr import EqualOp
 from tvm_tirx.script import ir as I
@@ -291,7 +291,7 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
     invalid = tirx.Function(params=[], body=tvm_tirx.ir.Break())
     ir.assert_structural_equal(invalid.body, tvm_tirx.ir.SeqStmt([tvm_tirx.ir.Break()]))
     assert not tirx.analysis.verify_well_formed(invalid, assert_mode=False)
-    with pytest.raises(error.InternalError, match="requires an enclosing loop"):
+    with pytest.raises(RuntimeError, match="requires an enclosing loop"):
         tirx.analysis.verify_well_formed(invalid)
 
     @T.function

@@ -24,13 +24,13 @@ import re
 import pytest
 
 import tvm_tirx
-from tvm_tirx.codegen import llvm_version_major
+from tvm_tirx.codegen import llvm
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+    llvm.version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.parametrize(
     "dtype",
@@ -68,7 +68,7 @@ def test_mul(dtype):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+    llvm.version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.parametrize(
     "dtype",
@@ -106,7 +106,7 @@ def test_add(dtype):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+    llvm.version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.parametrize(
     "dtype",
@@ -144,7 +144,7 @@ def test_sub(dtype):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+    llvm.version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.parametrize(
     "dtype",
@@ -181,7 +181,7 @@ def test_muladd(dtype):
         assembly,
     )
 
-    if llvm_version_major() >= 18 and dtype in ("float", "float16"):
+    if llvm.version_major() >= 18 and dtype in ("float", "float16"):
         # Newer LLVM cost models (observed with LLVM 20) prefer a fixed-width
         # NEON main loop over a scalable SVE loop for floating-point fmuladd
         # on generic AArch64 targets, so also accept the NEON form.
@@ -193,7 +193,7 @@ def test_muladd(dtype):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+    llvm.version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.parametrize(
     "dtype",
@@ -235,7 +235,7 @@ def test_max(dtype):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+    llvm.version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.parametrize(
     "dtype",
@@ -277,7 +277,7 @@ def test_min(dtype):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+    llvm.version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.parametrize(
     "dtype",
@@ -315,7 +315,7 @@ def test_div(dtype):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+    llvm.version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.parametrize(
     "dtype", ["uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"]
@@ -352,7 +352,7 @@ def test_mod(dtype):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+    llvm.version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.parametrize(
     "dtype",
@@ -393,7 +393,7 @@ def test_eq(dtype):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+    llvm.version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.parametrize(
     "dtype",
@@ -434,7 +434,7 @@ def test_neq(dtype):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+    llvm.version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.parametrize(
     "dtype", ["uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"]
@@ -471,7 +471,7 @@ def test_or(dtype):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+    llvm.version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.parametrize(
     "dtype", ["uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"]
@@ -508,7 +508,7 @@ def test_and(dtype):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+    llvm.version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.parametrize(
     "dtype", ["uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"]
@@ -541,7 +541,7 @@ def test_not(dtype):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+    llvm.version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.xfail(
     reason="Awaiting llvm support for gathered loads",
@@ -578,7 +578,7 @@ def test_memcpy(dtype):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 13,
+    llvm.version_major() < 13,
     reason="Function attribute vscale_range() is not supported in earlier versions of LLVM",
 )
 @pytest.mark.parametrize(
@@ -589,7 +589,7 @@ def test_memcpy(dtype):
         # Since LLVM 19, SVE/SVE2 are optional extensions of Armv9.0-A, so
         # "+v9a" no longer implies "+sve" and no vscale_range() is added:
         # https://releases.llvm.org/19.1.0/docs/ReleaseNotes.html#changes-to-the-aarch64-backend
-        ("+v9a", llvm_version_major() < 19),
+        ("+v9a", llvm.version_major() < 19),
         ("+sme", True),
     ],
 )

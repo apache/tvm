@@ -44,7 +44,7 @@ def find_clang(required=True):
     matches the major llvm version that built with tvm
     """
     cc_list = []
-    major = tvm_tirx.codegen.llvm_version_major(allow_none=True)
+    major = tvm_tirx.codegen.llvm.version_major(allow_none=True)
     if major is not None:
         cc_list += [f"clang-{major}.0"]
         cc_list += [f"clang-{major}"]
