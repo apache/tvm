@@ -515,7 +515,7 @@ def call_llvm_intrin(name, *args, ty, loc: Location = UNKNOWN_LOC):
     from tvm_tirx import codegen
 
     if isinstance(name, str):
-        llvm_id = codegen.llvm_lookup_intrinsic_id(name)
+        llvm_id = codegen.llvm.lookup_intrinsic_id(name)
     elif isinstance(name, IntImm):
         llvm_id = name.value
     else:
@@ -559,7 +559,7 @@ def call_llvm_pure_intrin(name, *args, ty, loc: Location = UNKNOWN_LOC):
     from tvm_tirx import codegen
 
     if isinstance(name, str):
-        llvm_id = codegen.llvm_lookup_intrinsic_id(name)
+        llvm_id = codegen.llvm.lookup_intrinsic_id(name)
     elif isinstance(name, IntImm):
         llvm_id = name.value
     else:

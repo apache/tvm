@@ -203,7 +203,7 @@ def check_well_formed_(function: _tir.Function) -> None:
 def _check_module_well_formed(module: _ir.IRModule) -> None:
     """Validate completed functions belonging to the TIRx dialect."""
     for function in module.functions.values():
-        if isinstance(function, _tir.Function) and function.is_tirx:
+        if isinstance(function, _tir.Function) and not function.attrs.get("s_tir", False):
             check_well_formed_(function)
 
 

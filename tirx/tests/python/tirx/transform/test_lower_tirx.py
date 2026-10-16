@@ -897,7 +897,7 @@ def test_lower_layout():
 @pytest.mark.parametrize(
     "target,error,message",
     [
-        (None, tvm_tirx.error.InternalError, "Target context required"),
+        (None, RuntimeError, "Target context required"),
         ("cuda", RuntimeError, "An explicit layout is required for shared tensors"),
     ],
     ids=["missing-target", "missing-shared-layout"],

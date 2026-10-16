@@ -26,7 +26,7 @@ from tvm_tirx import tirx as _tir
 from tvm_tirx import tirx as tir
 
 # pylint: disable=unused-import
-from tvm_tirx.codegen import llvm_lookup_intrinsic_id
+from tvm_tirx.codegen.llvm import lookup_intrinsic_id as llvm_lookup_intrinsic_id
 from tvm_tirx.ir import Call, CallEffectKind, Var
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.ir.prim import _ffi_api as _prim_ffi

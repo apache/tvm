@@ -22,7 +22,7 @@ from tvm_tirx import codegen
 from tvm_tirx.codegen import target_has_features
 from tvm_tirx.target import Target
 
-LLVM_VERSION = codegen.llvm_version_major()
+LLVM_VERSION = codegen.llvm.version_major()
 
 # Some x86 features have been removed from upstream LLVM. Tests for these
 # features only meaningfully run on LLVM versions that still recognise them.
@@ -197,7 +197,7 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
     try:
         assert target_has_features(x86_feature) == is_supported
         assert False
-    except tvm_tirx.error.InternalError as e:
+    except RuntimeError as e:
         msg = str(e)
         assert msg.find("Check failed: (allow_not_defined) is false: Target context required") != -1
 
@@ -209,7 +209,7 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
                 == is_supported
             )
             assert False
-        except tvm_tirx.error.InternalError as e:
+        except RuntimeError as e:
             msg = str(e)
             assert (
                 msg.find("Check failed: (allow_not_defined) is false: Target context required")
@@ -253,4 +253,4 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
         ) == is_supported
         # check for feature in target's llvm full x86 CPU feature list
         if (not list(Target(tvm_target).attrs.get("mattr", []))) and isinstance(x86_feature, str):
-            assert (x86_feature in codegen.llvm_get_cpu_features()) == is_supported
+            assert (x86_feature in codegen.llvm.get_cpu_features()) == is_supported

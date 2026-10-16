@@ -118,7 +118,7 @@ def test_rvv_vscale_llvm_dbginfo(target):
         redsum = T.call_llvm_intrin( 'llvm.riscv.vfredusum', T.Broadcast(T.float32(0.0), T.vscale() * 2), prod, zero, T.uint64(7), T.uint64(8), ty='float32xvscalex2')
     # fmt: on
 
-    # tvm.error.InternalError: Can't fetch the lanes of a scalable vector at a compile time.
+    # tvm.RuntimeError: Can't fetch the lanes of a scalable vector at a compile time.
     with tvm_tirx.target.Target(target):
         f = tvm_tirx.tirx.compile(rvv_with_vscale, target).mod
 

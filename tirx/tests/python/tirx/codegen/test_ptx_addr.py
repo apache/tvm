@@ -225,9 +225,7 @@ def test_ptx_addr_unrolled_expression_and_dynamic_rejection():
                 T.ptx.ld.global_.b32(value, T.ptx.addr(src.data, i * 4))
 
     for func in (thread_dynamic, loop_dynamic):
-        with pytest.raises(
-            (ValueError, tvm_tirx.error.InternalError), match="must become a compile-time"
-        ):
+        with pytest.raises((ValueError, RuntimeError), match="must become a compile-time"):
             _cuda_source(func)
 
 
