@@ -23,7 +23,10 @@ image_platforms = [ci_arm: 'ARM', ci_cpu: 'CPU', ci_gpu: 'GPU', ci_wasm: 'CPU']
 // Resolve Hub inputs through the caller account ECR cache; false keeps public names.
 enable_docker_hub_cache = true
 max_time = 180
-docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TEST_STEP_NAME'
+// Temporarily bypass image sccache wrappers and inherited compiler launchers.
+docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TEST_STEP_NAME' +
+  ' --env CC=/usr/bin/gcc --env CXX=/usr/bin/g++' +
+  ' --env CMAKE_C_COMPILER_LAUNCHER= --env CMAKE_CXX_COMPILER_LAUNCHER='
 docker_build = 'docker/build.sh'
 s3_bucket = 'tvm-jenkins-artifacts-prod'
 jenkins_scripts_root = 'ci/jenkins/scripts'
@@ -348,6 +351,8 @@ def download_artifacts(tag) {
 }
 
 def docker_init(image) {
+  // Forget compiler wrappers cached before the temporary sccache bypass.
+  sh 'rm -f build/CMakeCache.txt tirx/3rdparty/tvm-ffi/build/CMakeCache.txt'
   // Clear out all Docker images that aren't going to be used
   sh(
     script: """
@@ -386,6 +391,16 @@ def start() {
   } catch (Exception ex) {
     prepare('CPU-SMALL')
   }
+}
+
+// Preserve caller limits, otherwise share the node among its executors.
+def build_environment() {
+  def parallel_limit = env.CMAKE_BUILD_PARALLEL_LEVEL ?: sh(
+    script: 'n=$(( $(getconf _NPROCESSORS_ONLN) / ${CI_NUM_EXECUTORS:-1} )); if [ "$n" -lt 1 ]; then n=1; fi; echo "$n"',
+    returnStdout: true,
+    label: 'Determine build parallelism',
+  ).trim()
+  return ["CMAKE_BUILD_PARALLEL_LEVEL=${parallel_limit}"]
 }
 
 return this

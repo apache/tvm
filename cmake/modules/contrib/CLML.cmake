@@ -18,7 +18,15 @@
 if(USE_CLML)
     file(GLOB CLML_RELAX_CONTRIB_SRC src/relax/backend/contrib/clml/*.cc)
     file(GLOB CLML_RUNTIME_MODULE src/runtime/extra/contrib/clml/clml_runtime.cc)
-    include_directories(SYSTEM "3rdparty/OpenCL-Headers")
+    if(TARGET tvm_runtime_opencl)
+        get_target_property(_clml_opencl_headers tvm_runtime_opencl INTERFACE_INCLUDE_DIRECTORIES)
+    endif()
+    if(NOT _clml_opencl_headers)
+        find_path(_clml_opencl_headers CL/cl.h
+            HINTS "${TVM_OPENCL_HEADERS_ROOT}" ENV OPENCL_SDK
+            PATH_SUFFIXES include REQUIRED)
+    endif()
+    include_directories(SYSTEM ${_clml_opencl_headers})
     list(APPEND COMPILER_SRCS ${CLML_RELAX_CONTRIB_SRC})
     if(NOT USE_CLML_GRAPH_EXECUTOR)
         add_library(tvm_clml_objs OBJECT ${CLML_RUNTIME_MODULE})

@@ -207,7 +207,7 @@ respective component directories for their licenses.
 Apache Software Foundation License 2.0
 --------------------------------------
 
-3rdparty/OpenCL-Headers
+OpenCL-Headers (downloaded when OpenCL is enabled)
 3rdparty/cutlass_fpA_intB_gemm
 3rdparty/tensorrt_llm
 

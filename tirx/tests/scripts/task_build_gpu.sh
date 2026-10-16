@@ -18,14 +18,13 @@
 
 set -euxo pipefail
 
-BUILD_DIR=$1
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
-cp ../cmake/config.cmake .
-
-echo set\(USE_SORT ON\) >> config.cmake
-echo set\(TVM_TIRX_USE_LLVM llvm-config-15\) >> config.cmake
-echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
-echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
-echo set\(USE_CCACHE OFF\) >> config.cmake
-echo set\(SUMMARIZE ON\) >> config.cmake
+export CMAKE_ARGS="
+    -DTVM_TIRX_USE_CUDA=ON
+    -DTVM_TIRX_USE_VULKAN=ON
+    -DTVM_TIRX_USE_OPENCL=ON
+    -DTVM_TIRX_USE_OPENCL_GTEST=/googletest
+    -DTVM_TIRX_USE_LLVM='/usr/bin/llvm-config-15 --link-static'
+    -DCMAKE_CXX_FLAGS=-Werror
+    -DCMAKE_CUDA_ARCHITECTURES=75
+"
+uv build --wheel --no-build-isolation --offline --python python3 --out-dir dist ./tirx

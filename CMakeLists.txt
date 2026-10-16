@@ -91,9 +91,6 @@ if(TVM_USE_INSTALLED_TIRX)
     message(FATAL_ERROR "TVM requires apache-tvm-tirx 0.1.0a0")
   endif()
 else()
-  if(NOT TVM_OPENCL_HEADERS_ROOT AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/OpenCL-Headers/CL/cl.h")
-    set(TVM_OPENCL_HEADERS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/OpenCL-Headers")
-  endif()
   # Keep source-built core libraries beside the parent libraries.
   set(_tirx_output_defaults "")
   foreach(_kind ARCHIVE LIBRARY RUNTIME)
@@ -332,6 +329,13 @@ foreach(_target tvm_compiler tvm_runtime_extra)
   elseif(UNIX)
     set_property(TARGET ${_target} APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../../tvm_tirx/lib")
   endif()
+  if(TVM_BUILD_PYTHON_MODULE)
+    if(APPLE)
+      set_property(TARGET ${_target} APPEND PROPERTY INSTALL_RPATH "@loader_path/../../tvm_ffi/lib")
+    elseif(UNIX)
+      set_property(TARGET ${_target} APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../../tvm_ffi/lib")
+    endif()
+  endif()
   tvm_ffi_add_apple_dsymutil(${_target})
 endforeach()
 add_subdirectory(tests/cpp)
@@ -364,6 +368,9 @@ install(TARGETS tvm_compiler tvm_runtime_extra
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm
   RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm)
 if(TVM_TIRX_USE_CUDA AND USE_CUTLASS)
+  foreach(_target fpA_intB_gemm flash_attn)
+    tvm_configure_target_library(${_target})
+  endforeach()
   install(TARGETS fpA_intB_gemm flash_attn
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm

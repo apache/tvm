@@ -18,20 +18,8 @@
 
 set -euxo pipefail
 
-BUILD_DIR=$1
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
-cp ../cmake/config.cmake .
-
-echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_DNNL ON\) >> config.cmake
-echo set\(USE_EXAMPLE_NPU_CODEGEN ON\) >> config.cmake
-echo set\(USE_EXAMPLE_NPU_RUNTIME ON\) >> config.cmake
-echo set\(TVM_TIRX_USE_LLVM \"/usr/bin/llvm-config-17 --link-static\"\) >> config.cmake
-echo set\(CMAKE_CXX_FLAGS \"-Wno-error=range-loop-construct -Wno-error=comment\"\) >> config.cmake
-echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
-echo set\(USE_TENSORFLOW_PATH \"/tensorflow\"\) >> config.cmake
-echo set\(USE_TFLITE \"/opt/tflite\"\) >> config.cmake
-echo set\(USE_FLATBUFFERS_PATH \"/flatbuffers\"\) >> config.cmake
-echo set\(USE_CCACHE OFF\) >> config.cmake
-echo set\(SUMMARIZE ON\) >> config.cmake
+export CMAKE_ARGS="
+    -DTVM_TIRX_USE_LLVM='/usr/bin/llvm-config-17 --link-static'
+    -DCMAKE_CXX_FLAGS='-Wno-error=range-loop-construct -Wno-error=comment'
+"
+uv build --wheel --no-build-isolation --offline --python python3 --out-dir dist ./tirx

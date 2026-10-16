@@ -236,6 +236,14 @@ function validate_mount() {
 break_joined_flag='if (( ${#1} == 2 )); then shift; else set -- -"${1#-i}" "${@:2}"; fi'
 
 DOCKER_ENV=( )
+# Forward build settings selected by the caller without overriding explicit values.
+BUILD_ENV_VARS=(SCCACHE_BUCKET SCCACHE_REGION CMAKE_BUILD_PARALLEL_LEVEL
+                CMAKE_C_COMPILER_LAUNCHER CMAKE_CXX_COMPILER_LAUNCHER)
+for build_var in "${BUILD_ENV_VARS[@]}"; do
+    if [ "${!build_var+x}" = "x" ]; then
+        DOCKER_ENV+=( --env "$build_var=${!build_var}" )
+    fi
+done
 DOCKER_FLAGS=( )
 
 while (( $# )); do
