@@ -577,6 +577,8 @@ class StripIket : public StmtExprMutator {
   explicit StripIket(TokenTensorSet token_tensors) : token_tensors_(std::move(token_tensors)) {}
 
  private:
+  using StmtExprMutator::Mutate_;
+
   UnchangedOr<Stmt> Mutate_(const BindNode* alloc, InplaceMode inplace_mode) final {
     if (const auto* call = alloc->value.as<CallNode>(); call &&
                                                         call->op.same_as(tirx::alloc_tensor_op()) &&
@@ -1083,6 +1085,8 @@ class InstrumentOfficialKernel : public StmtExprMutator {
   }
 
  private:
+  using StmtExprMutator::Mutate_;
+
   const Declaration& Lookup(DeclarationKind kind, const CallNode* call) const {
     DeclarationKey key{kind, GetName(call)};
     auto it = info_.declarations.find(key);

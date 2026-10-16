@@ -219,6 +219,8 @@ class TryPredicateTensorAccesses : public StmtExprMutator {
   }
 
  private:
+  using StmtExprMutator::Mutate_;
+
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     auto load = StmtExprMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
@@ -340,6 +342,8 @@ class TryPredicateTensorAccesses : public StmtExprMutator {
 //
 class VecAllocAccess : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate_;
+
   VecAllocAccess(const VarNode* buf, Var var, PrimExpr var_lanes)
       : buf_(buf), var_(var), var_lanes_(var_lanes) {}
 

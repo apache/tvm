@@ -64,6 +64,7 @@ class CodeGenC : public tvm::ExprFunctor<void(const Expr&, std::ostream&)>,
                  public CodeGenSourceBase {
  public:
   using tvm::ExprFunctor<void(const Expr&, std::ostream&)>::Dispatch;
+  using tvm::ExprFunctor<void(const Expr&, std::ostream&)>::Dispatch_;
   using StmtFunctor::Dispatch;
 
   /*!

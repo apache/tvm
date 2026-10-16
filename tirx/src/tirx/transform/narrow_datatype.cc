@@ -75,6 +75,8 @@ using sym::ConstIntBound;
 // Otherwise, `var` is not narrowed, that is, `vmap[var] = var.dtype.bits()`
 class DataTypeVisitor final : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   explicit DataTypeVisitor(int target_bits) : bits_(target_bits), target_bits_(target_bits) {}
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView expr) final {

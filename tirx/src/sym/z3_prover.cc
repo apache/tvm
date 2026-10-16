@@ -102,7 +102,7 @@ struct Namespace {
 
 }  // namespace
 
-class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
+class Z3Prover::Impl final : tvm::ExprFunctor<z3::expr(const Expr&)> {
  public:
   using Base = tvm::ExprFunctor<z3::expr(const Expr&)>;
   using Self = Z3Prover::Impl;

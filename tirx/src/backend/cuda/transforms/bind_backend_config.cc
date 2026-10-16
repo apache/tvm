@@ -112,6 +112,8 @@ class DeviceHelperSpecializer : public StmtExprMutator {
   std::unordered_set<const GlobalVarNode*> originals;
 
  private:
+  using StmtExprMutator::Mutate_;
+
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     if (op->op->name != "tirx.device_entry") {
       return StmtExprMutator::Mutate_(op, inplace_mode);

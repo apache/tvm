@@ -47,6 +47,8 @@ namespace codegen {
 
 class CodeGenCUDAHost : public CodeGenCHost {
  public:
+  using CodeGenCHost::Dispatch_;
+
   void Init(Target target) {
     CodeGenCHost::Init(false, true, true, target->str(), {});
     // Retain C-host wrapper initialization, with an FFI/CUDA-only prelude.
