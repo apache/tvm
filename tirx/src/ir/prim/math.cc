@@ -251,6 +251,7 @@ PrimExpr infinity(PrimType value_ty, Location loc) {
     }
   }
   TVM_FFI_THROW(InternalError) << "Cannot decide infinity for type " << dtype;
+  TVM_FFI_UNREACHABLE();
 }
 
 PrimExpr pow(PrimExpr x, PrimExpr y, Location loc) {

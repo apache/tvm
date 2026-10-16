@@ -477,6 +477,7 @@ inline ffi::Optional<ExprDoc> DocTranslatorObj::DefaultTranslate(ffi::AnyView va
                                    ? std::string("printer has no Doc hook for ") +
                                          value.GetTypeKey()
                                    : "printer Doc hook must be a native pointer or ffi.Function");
+  TVM_FFI_UNREACHABLE();
 }
 
 }  // namespace printer

@@ -177,6 +177,7 @@ class PassContext : public ffi::ObjectRef {
           TVM_FFI_THROW(AttributeError)
               << "Expect config " << key << " to have type " << type_str << ", but instead get "
               << ffi::details::AnyUnsafe::GetMismatchTypeInfo<ValueType>(value);
+          TVM_FFI_UNREACHABLE();
         } else {
           return *opt_val;
         }

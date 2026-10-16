@@ -92,7 +92,7 @@ struct ConstIntBoundAnalyzer::Entry {
   }
 };
 
-class ConstIntBoundAnalyzer::Impl
+class ConstIntBoundAnalyzer::Impl final
     : public tvm::ExprFunctor<ConstIntBoundAnalyzer::Entry(const Expr&)> {
  public:
   explicit Impl(AnalyzerObj* parent) : parent_(parent) {}
