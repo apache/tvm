@@ -1,0 +1,62 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Setup TVM CI environment
+description: Set up the cached conda build environment and install tvm-ffi.
+
+runs:
+ using: "composite"
+ steps:
+  - uses: actions/cache@v5.0.5
+    env:
+      CACHE_NUMBER: 2
+    with:
+      path: ~/conda_pkgs_dir
+      key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('ci/wheel/build-environment.yaml') }}
+  - uses: conda-incubator/setup-miniconda@v4.0.1
+    continue-on-error: true
+    id: conda1
+    with:
+      activate-environment: tvm-build
+      channel-priority: strict
+      environment-file: ci/wheel/build-environment.yaml
+      auto-activate-base: false
+      miniforge-version: latest
+      python-version: "3.10"
+      conda-remove-defaults: true
+  - uses: conda-incubator/setup-miniconda@v4.0.1
+    if: steps.conda1.outcome == 'failure'
+    with:
+      activate-environment: tvm-build
+      channel-priority: strict
+      environment-file: ci/wheel/build-environment.yaml
+      auto-activate-base: false
+      miniforge-version: latest
+      use-only-tar-bz2: true
+      python-version: "3.10"
+      conda-remove-defaults: true
+  - name: Conda info
+    shell: pwsh
+    run: |
+      mamba info
+      mamba list
+      mamba info --envs
+      mamba list --name base
+  - name: Install tvm-ffi pip package
+    shell: bash -l {0}
+    run: |
+      pip install -v ./3rdparty/tvm-ffi

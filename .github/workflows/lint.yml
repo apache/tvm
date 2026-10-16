@@ -19,7 +19,7 @@ name: Lint
 
 on:
   push:
-    branches: [main]
+    branches: [main, tirx-standalone-root]
   pull_request:
     branches: [main]
 
