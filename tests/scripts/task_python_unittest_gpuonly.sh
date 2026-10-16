@@ -27,6 +27,11 @@ export TVM_TEST_TARGETS='cuda;metal;rocm;nvptx'
 
 ./tests/scripts/task_python_unittest.sh
 
+# The existing export case also exercises CUDA AOT when a GPU is available.
+# It remains a CPU runtime test, so select it explicitly outside the gpu marker.
+TVM_TEST_MARKER="not gpu" ./tests/scripts/task_python_unittest.sh \
+    tirx/tests/python/runtime/test_module.py::test_executable_export_library
+
 # Kept separate to avoid increasing time needed to run CI, testing
 # only minimal functionality of Vulkan runtime.
 export TVM_TEST_TARGETS='{"kind":"vulkan","from_device":0}'
