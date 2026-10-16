@@ -16,6 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/*!
+ * \file tvm/script/ir_builder/ir.h
+ * \brief Shared IRBuilder APIs for IRModule construction.
+ */
 #ifndef TVM_SCRIPT_IR_BUILDER_IR_H_
 #define TVM_SCRIPT_IR_BUILDER_IR_H_
 

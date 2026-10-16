@@ -81,7 +81,7 @@ def test_tir_large_py_int_literals(dtype, literals):
     """Large unsigned values are ordinary integer immediates."""
     for l in literals:
         x = tirx.const(l, dtype)
-        assert isinstance(x, tirx.IntImm)
+        assert isinstance(x, tvm_tirx.ir.IntImm)
         assert x.value == literals[l]
 
 
@@ -227,7 +227,7 @@ def check_tir_const_fold(
 
     if skip_overflow:
         py_res = foldf(x, y)
-        if isinstance(py_res, tirx.IntImm | tirx.FloatImm):
+        if isinstance(py_res, tvm_tirx.ir.IntImm | tvm_tirx.ir.FloatImm):
             py_res = py_res.value
         if not (ninfo.min <= py_res <= ninfo.max):
             # If the result overflow, certain arithmetics is non-defined
@@ -351,8 +351,12 @@ def test_tir_int8_const_fold():
         check_tir_const_fold("int8", lambda x, y: tirx.truncdiv(x, y), ftruncdiv, 1, 0)
 
     # i8 mod folding is not implemented
-    assert not isinstance(tirx.floormod(tirx.const(7, "int8"), tirx.const(3, "int8")), tirx.IntImm)
-    assert not isinstance(tirx.truncmod(tirx.const(7, "int8"), tirx.const(3, "int8")), tirx.IntImm)
+    assert not isinstance(
+        tirx.floormod(tirx.const(7, "int8"), tirx.const(3, "int8")), tvm_tirx.ir.IntImm
+    )
+    assert not isinstance(
+        tirx.truncmod(tirx.const(7, "int8"), tirx.const(3, "int8")), tvm_tirx.ir.IntImm
+    )
 
     # randomized check
     check_tir_const_fold("int8", lambda x, y: x * y, fmul)
@@ -411,12 +415,12 @@ def test_tir_uint8_const_fold():
 
     # u8 floormod folding is overflow-free and implemented
     folded_floormod = tirx.floormod(tirx.const(7, "uint8"), tirx.const(3, "uint8"))
-    assert isinstance(folded_floormod, tirx.IntImm)
+    assert isinstance(folded_floormod, tvm_tirx.ir.IntImm)
     assert int(folded_floormod) == 1
 
     # u8 truncmod folding is not implemented
     assert not isinstance(
-        tirx.truncmod(tirx.const(7, "uint8"), tirx.const(3, "uint8")), tirx.IntImm
+        tirx.truncmod(tirx.const(7, "uint8"), tirx.const(3, "uint8")), tvm_tirx.ir.IntImm
     )
 
     # randomized check
@@ -560,12 +564,12 @@ def test_tir_uint32_const_fold():
 
     # u32 floormod folding is overflow-free and implemented
     folded_floormod = tirx.floormod(tirx.const(7, "uint32"), tirx.const(3, "uint32"))
-    assert isinstance(folded_floormod, tirx.IntImm)
+    assert isinstance(folded_floormod, tvm_tirx.ir.IntImm)
     assert int(folded_floormod) == 1
 
     # u32 truncmod folding is not implemented
     assert not isinstance(
-        tirx.truncmod(tirx.const(7, "uint32"), tirx.const(3, "uint32")), tirx.IntImm
+        tirx.truncmod(tirx.const(7, "uint32"), tirx.const(3, "uint32")), tvm_tirx.ir.IntImm
     )
 
     # randomized check

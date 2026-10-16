@@ -193,7 +193,7 @@ def lower(opcode, entry, modifiers, args, params, sctx):
         neg_a=neg_a,
         neg_b=neg_b,
     )
-    accum = Or(ctx.repeat[-1] != 0, T.cast(params.pop("accum", False), "bool"))
+    accum = Or(ctx.repeat[-1] != 0, T.cast(params.pop("accum", False), ty="bool"))
     pred = params.pop("pred", None)
     if block_scale:
         vec = int(modifiers["scale_vec"].split("::")[1][:-1])
@@ -210,8 +210,8 @@ def lower(opcode, entry, modifiers, args, params, sctx):
         descriptor = encode_instr_descriptor_block_scaled_uint32(**common, sf_dtype=a_dtype)
         idesc = (
             T.uint32(descriptor)
-            | (T.cast(a_id, "uint32") << T.uint32(29))
-            | (T.cast(b_id, "uint32") << T.uint32(4))
+            | (T.cast(a_id, ty="uint32") << T.uint32(29))
+            | (T.cast(b_id, ty="uint32") << T.uint32(4))
         )
         native = [da, aa, ba, idesc, sfa, sfb, accum]
     else:
@@ -227,7 +227,7 @@ def lower(opcode, entry, modifiers, args, params, sctx):
             masks = sequence(params.pop("disable_output_lane", (0,) * (4 * cta_group)))
             if len(masks) != 4 * cta_group:
                 raise ValueError("disable_output_lane has four entries per CTA")
-            native = [da, aa, ba, idesc, *(T.cast(x, "uint32") for x in masks), accum]
+            native = [da, aa, ba, idesc, *(T.cast(x, ty="uint32") for x in masks), accum]
     if modifiers["kind"] != "kind::" + kind:
         raise ValueError("explicit MMA kind disagrees with operand formats")
     if params:

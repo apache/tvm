@@ -501,7 +501,7 @@ def test_ceil_log2_int():
 
     @T.function(private=True)
     def before(A: T.Tensor(1, "int32")):
-        A[0] = T.cast(T.ceil(T.log2(T.cast(14, "float64"))), dtype="int32")
+        A[0] = T.cast(T.ceil(T.log2(T.cast(14, ty="float64"))), ty="int32")
 
     @T.function(private=True)
     def expected(A: T.Tensor(1, "int32")):
@@ -522,8 +522,7 @@ def test_left_ceil_log2_lower_bound():
     def before(A: T.Tensor(16, "float32")):
         for i in T.serial(16):
             x: T.let[T.int32] = T.cast(
-                T.ceil(T.log2(T.cast(i + 1024 + 1, "float64"))),
-                dtype="int32",
+                T.ceil(T.log2(T.cast(i + 1024 + 1, ty="float64"))), ty="int32"
             )
             if x == 11:
                 A[i] = 0.0

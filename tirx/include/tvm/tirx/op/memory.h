@@ -154,8 +154,8 @@ TVM_TIRX_DLL const Op& undef_op();
  *
  * Arguments, in order:
  * - args[0]: tensor, The tensor.
- * - args[1]: index, The index.
- * - args[2...]: args, trailing PrimExpr operands.
+ * - args[1...n-2]: The tensor indices (at least one).
+ * - args[n-1]: The boolean lane mask, matching the lanes of the loaded vector.
  */
 TVM_TIRX_DLL const Op& masked_load_op();
 
@@ -164,9 +164,9 @@ TVM_TIRX_DLL const Op& masked_load_op();
  *
  * Arguments, in order:
  * - args[0]: tensor, The tensor.
- * - args[1]: value, The value to use.
- * - args[2]: index, The index.
- * - args[3...]: args, trailing PrimExpr operands.
+ * - args[1]: value, The vector value to store.
+ * - args[2...n-2]: The tensor indices (at least one).
+ * - args[n-1]: The boolean lane mask, matching the lanes of value.
  */
 TVM_TIRX_DLL const Op& masked_store_op();
 

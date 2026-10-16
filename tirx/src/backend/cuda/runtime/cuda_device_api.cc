@@ -372,7 +372,7 @@ class CUDATimerObj : public TimerObj {
     TVM_FFI_CHECK_CUDA_ERROR(cudaEventCreate(&start_));
     TVM_FFI_CHECK_CUDA_ERROR(cudaEventCreate(&stop_));
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.cuda.CUDATimerNode", CUDATimerObj, TimerObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.cuda.CUDATimer", CUDATimerObj, TimerObj);
 
  private:
   cudaEvent_t start_;

@@ -62,10 +62,10 @@ def test_ptx_cp_async_bulk_s2c_codegen():
         dst_ptr = mapped[0]
         mbar_ptr = mapped[1]
         T.ptx["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
-            T.cast(dst_ptr, "uint32"),
+            T.cast(dst_ptr, ty="uint32"),
             A_smem.ptr_to([0]),
             T.uint32(256),  # 128 elements * 2 bytes
-            T.cast(mbar_ptr, "uint32"),
+            T.cast(mbar_ptr, ty="uint32"),
         )
         # fmt: on
 
@@ -92,10 +92,10 @@ def test_ptx_cp_async_bulk_s2c_codegen_address_conversion():
         dst_ptr = mapped[0]
         mbar_ptr = mapped[1]
         T.ptx["cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes"](
-            T.cast(dst_ptr, "uint32"),
+            T.cast(dst_ptr, ty="uint32"),
             A_smem.ptr_to([0]),
             T.uint32(256),  # 64 * 4 bytes
-            T.cast(mbar_ptr, "uint32"),
+            T.cast(mbar_ptr, ty="uint32"),
         )
         # fmt: on
 

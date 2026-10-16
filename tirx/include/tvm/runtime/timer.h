@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file include/tvm/runtime/timer.h
- * \brief Runtime timer primitives: Timer, TimerObj, WrapTimeEvaluator.
+ * \file tvm/runtime/timer.h
+ * \brief Runtime timer primitives: Timer, TimerObj.
  */
 #ifndef TVM_RUNTIME_TIMER_H_
 #define TVM_RUNTIME_TIMER_H_
@@ -65,7 +65,7 @@ class TimerObj : public ffi::Object {
   virtual ~TimerObj() {}
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("runtime.TimerNode", TimerObj, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("runtime.Timer", TimerObj, ffi::Object);
 };
 
 /*! \brief Timer for a specific device.
@@ -139,58 +139,6 @@ class Timer : public ffi::ObjectRef {
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Timer, ffi::ObjectRef, TimerObj);
 };
-
-/*!
- * \brief Wrap a timer function to measure the time cost of a given packed function.
- *
- * Approximate implementation:
- * \code{.py}
- * f() // warmup
- * for i in range(repeat)
- *   f_preproc()
- *   while True:
- *     start = time()
- *     for j in range(number):
- *       f()
- *     duration_ms = time() - start
- *     if duration_ms >= min_repeat_ms:
- *       break
- *     else:
- *        number = (min_repeat_ms / (duration_ms / number) + 1
- *   if cooldown_interval_ms and i % repeats_to_cooldown == 0:
- *     sleep(cooldown_interval_ms)
- * \endcode
- *
- * \param f The function argument.
- * \param dev The device.
- * \param number The number of times to run this function for taking average.
- *        We call these runs as one `repeat` of measurement.
- * \param repeat The number of times to repeat the measurement.
- *        In total, the function will be invoked (1 + number x repeat) times,
- *        where the first one is warm up and will be discarded.
- *        The returned result contains `repeat` costs,
- *        each of which is an average of `number` costs.
- * \param min_repeat_ms The minimum duration of one `repeat` in milliseconds.
- *        By default, one `repeat` contains `number` runs. If this parameter is set,
- *        the parameters `number` will be dynamically adjusted to meet the
- *        minimum duration requirement of one `repeat`.
- *        i.e., When the run time of one `repeat` falls below this time,
- *        the `number` parameter will be automatically increased.
- * \param limit_zero_time_iterations The maximum number of repeats when
- *        measured time is equal to 0.  It helps to avoid hanging during measurements.
- * \param cooldown_interval_ms The cooldown interval in milliseconds between the number of repeats
- *        defined by `repeats_to_cooldown`.
- * \param repeats_to_cooldown The number of repeats before the
- *        cooldown is activated.
- * \param cache_flush_bytes The number of bytes to flush from cache before
- * \param f_preproc The function to be executed before we execute time
- *        evaluator.
- * \return f_timer A timer function.
- */
-ffi::Function WrapTimeEvaluator(ffi::Function f, Device dev, int number, int repeat,
-                                int min_repeat_ms, int limit_zero_time_iterations,
-                                int cooldown_interval_ms, int repeats_to_cooldown,
-                                int cache_flush_bytes = 0, ffi::Function f_preproc = nullptr);
 
 }  // namespace runtime
 }  // namespace tvm

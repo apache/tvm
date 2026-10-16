@@ -428,7 +428,7 @@ def test_build_with_optional_unroll_explicit(value):
     class Before:
         @T.function
         def main(A: T.Tensor((4, 5, 6), "int16"), B: T.Tensor((4, 5, 6), "int16")):
-            for ax0 in T.serial(4, annotations={"unroll_explicit": value}):
+            for ax0 in T.serial(4, annotations={"tirx.unroll_explicit": value}):
                 for ax1, ax2 in T.grid(5, 6):
                     B[ax0, ax1, ax2] = A[ax0, ax1, ax2]
 
@@ -442,7 +442,7 @@ def test_build_with_optional_unroll_explicit(value):
             B_1 = T.decl_tensor(
                 B.data, ty_args=[T.Tensor((120,), "int16", layout=None, data=B.data)]
             )
-            for ax0 in T.serial(4, annotations={"unroll_explicit": value}):
+            for ax0 in T.serial(4, annotations={"tirx.unroll_explicit": value}):
                 for ax1, ax2 in T.grid(5, 6):
                     B_1[ax0 * 30 + ax1 * 6 + ax2] = A_1[ax0 * 30 + ax1 * 6 + ax2]
 

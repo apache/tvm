@@ -343,7 +343,7 @@ def test_vectorized_index_ramp():
     """Test vectorized copy with ramp indices (load N values, write to N locations)"""
     target = {"kind": "vulkan", "from_device": 0}
     n = 4
-    ramp_index = tvm_tirx.tirx.Ramp(0, 1, 4)
+    ramp_index = tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4)
 
     @I.ir_module
     class Module:
@@ -381,8 +381,8 @@ def test_vectorized_index_broadcast():
     """Test broadcast index (load 1 value, write to N locations)"""
     target = {"kind": "vulkan", "from_device": 0}
     n = 4
-    broadcast_index = tvm_tirx.tirx.Broadcast(0, 4)
-    ramp_index = tvm_tirx.tirx.Ramp(0, 1, 4)
+    broadcast_index = tvm_tirx.ir.prim.vector_expr.Broadcast(0, 4)
+    ramp_index = tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4)
 
     @I.ir_module
     class Module:

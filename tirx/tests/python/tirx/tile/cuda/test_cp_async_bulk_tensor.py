@@ -31,10 +31,10 @@ import tvm_ffi
 import tvm_tirx
 import tvm_tirx.testing
 from tvm_tirx.backend.cuda.layout import mma_atom_layout, mma_atom_shape, mma_shared_layout
-from tvm_tirx.ir import PrimType, PtrType, Range, TensorRegion, TensorRegionType
+from tvm_tirx.ir import IntImm, PrimType, PtrType, Range, TensorRegion, TensorRegionType
 from tvm_tirx.script import tirx as T
 from tvm_tirx.sym import Analyzer
-from tvm_tirx.tirx import IntImm, Var
+from tvm_tirx.tirx import Var
 from tvm_tirx.tirx.layout import ComposeLayout, S, TileLayout
 from tvm_tirx.tirx.thread_scope import ThreadScope
 from tvm_tirx.tirx.tile.dispatch import DispatchContext, run_dispatch
@@ -1222,7 +1222,7 @@ def test_dynamic_global_dimension_and_coordinates_remain_runtime_values():
     sig = _encode_signature(_collect_encodes(host)[0])
     assert Analyzer().can_prove_equal(sig["dims"][1], seq_len * T.uint32(64))
     _, operands = _ptx_call_parts(_count_tma(impl).calls[0])
-    tvm_tirx.ir.assert_structural_equal(operands["coords"][1], T.cast(row, "int32"))
+    tvm_tirx.ir.assert_structural_equal(operands["coords"][1], T.cast(row, ty="int32"))
 
 
 @pytest.mark.parametrize(

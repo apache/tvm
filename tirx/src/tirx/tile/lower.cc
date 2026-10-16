@@ -242,7 +242,7 @@ class TileDispatcher : public StmtExprMutator {
     launch_params_.clear();
     cluster_bounds_.clear();
     variable_cluster_ = false;
-    native_launch_ = entry_node->attrs->dict.count(tvm::backend::cuda::attr::kLaunchFields);
+    native_launch_ = entry_node->attrs->dict.count(tvm::backend::cuda::attr::kLaunchFields.name);
     TVM_FFI_CHECK(is_first_block || !native_launch_, ValueError)
         << "Nested CUDA device_entry regions are not supported";
     if (native_launch_) PrepareCudaLaunchParams(entry_node);
@@ -533,7 +533,7 @@ class TileDispatcher : public StmtExprMutator {
   void PrepareCudaLaunchParams(const RegionStmtNode* entry) {
     TVM_FFI_CHECK(target_->kind->name == "cuda", ValueError)
         << "CUDA LaunchConfig requires a CUDA target";
-    auto fields = entry->attrs->dict.at(tvm::backend::cuda::attr::kLaunchFields)
+    auto fields = entry->attrs->dict.at(tvm::backend::cuda::attr::kLaunchFields.name)
                       .as_or_throw<ffi::Array<ffi::String>>();
     TVM_FFI_ICHECK_EQ(fields.size(), entry->args.size());
     for (size_t i = 0; i < fields.size(); ++i) {

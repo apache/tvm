@@ -53,7 +53,7 @@ class StmtFrame(IRBuilderFrame):
     """A frame containing a sequence of core IR statements."""
 
 
-@_register_object("script.ir_builder.tirx.ForFrame")
+@_register_object("script.ir_builder.ForFrame")
 class ForFrame(StmtFrame):
     def set_names(self, names: str | Sequence[str] | None) -> None:
         """Configure final variable names before entry, preserving native identities.
@@ -70,27 +70,27 @@ class ForFrame(StmtFrame):
         return self.vars[0] if len(self.vars) == 1 else self.vars
 
 
-@_register_object("script.ir_builder.tirx.AssertFrame")
+@_register_object("script.ir_builder.AssertFrame")
 class AssertFrame(StmtFrame): ...
 
 
-@_register_object("script.ir_builder.tirx.WhileFrame")
+@_register_object("script.ir_builder.WhileFrame")
 class WhileFrame(StmtFrame): ...
 
 
-@_register_object("script.ir_builder.tirx.IfFrame")
+@_register_object("script.ir_builder.IfFrame")
 class IfFrame(StmtFrame): ...
 
 
-@_register_object("script.ir_builder.tirx.ThenFrame")
+@_register_object("script.ir_builder.ThenFrame")
 class ThenFrame(StmtFrame): ...
 
 
-@_register_object("script.ir_builder.tirx.ElseFrame")
+@_register_object("script.ir_builder.ElseFrame")
 class ElseFrame(StmtFrame): ...
 
 
-@_register_object("script.ir_builder.tirx.RegionFrame")
+@_register_object("script.ir_builder.RegionFrame")
 class RegionFrame(StmtFrame):
     """A result-free region whose body parameters are lexical bindings."""
 

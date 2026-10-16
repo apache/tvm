@@ -25,8 +25,8 @@
  * packed function arguments. The caller (make_packed_api.cc) creates
  * an TVMFFIABIBuilder and calls DecodeParam(i) for each parameter.
  */
-#ifndef TVM_TIR_TRANSFORM_TVM_FFI_BINDER_H_
-#define TVM_TIR_TRANSFORM_TVM_FFI_BINDER_H_
+#ifndef TVM_TIRX_TRANSFORM_TVM_FFI_BINDER_H_
+#define TVM_TIRX_TRANSFORM_TVM_FFI_BINDER_H_
 
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ir/prim/expr.h>
@@ -421,4 +421,4 @@ class TVMFFIABIBuilder {
 
 }  // namespace tirx
 }  // namespace tvm
-#endif  // TVM_TIR_TRANSFORM_TVM_FFI_BINDER_H_
+#endif  // TVM_TIRX_TRANSFORM_TVM_FFI_BINDER_H_

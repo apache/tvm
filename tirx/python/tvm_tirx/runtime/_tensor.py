@@ -146,7 +146,7 @@ class Tensor(tvm_ffi.core.Tensor):
         assert source_array.flags["C_CONTIGUOUS"]
         data = source_array.ctypes.data_as(ctypes.c_void_p)
         nbytes = source_array.size * source_array.dtype.itemsize
-        _ffi_api.TVMTensorCopyFromBytes(self, data, nbytes)
+        _ffi_api.TensorCopyFromBytes(self, data, nbytes)
         return self
 
     def __repr__(self):
@@ -205,7 +205,7 @@ class Tensor(tvm_ffi.core.Tensor):
         # TODO(kathy): revisit and get a mirrored function of ffi::GetDataSize
         # in Python to replace line below
         nbytes = np_arr.size if dtype == "bool" else (np_arr.size * old_dtype.bits + 7) // 8
-        _ffi_api.TVMTensorCopyToBytes(self, data, nbytes)
+        _ffi_api.TensorCopyToBytes(self, data, nbytes)
 
         if old_dtype == "int4" or old_dtype.startswith("float4_e2m1fn"):
             length = np_arr.size
@@ -240,7 +240,7 @@ class Tensor(tvm_ffi.core.Tensor):
 
     def _copyto(self, target_nd):
         """Internal function that implements copy to target ndarray."""
-        _ffi_api.TVMTensorCopyFromTo(self, target_nd)
+        _ffi_api.TensorCopyFromTo(self, target_nd)
         return target_nd
 
     def _create_view(self, shape, dtype: str | None = None, relative_byte_offset: int = 0):
@@ -288,7 +288,7 @@ class Tensor(tvm_ffi.core.Tensor):
         if dtype is None:
             dtype = self.dtype
 
-        return _ffi_api.TVMTensorCreateView(self, shape, dtype, relative_byte_offset)
+        return _ffi_api.TensorCreateView(self, shape, dtype, relative_byte_offset)
 
 
 def empty(shape, dtype="float32", device=None, mem_scope=None):
@@ -317,7 +317,7 @@ def empty(shape, dtype="float32", device=None, mem_scope=None):
     if not isinstance(shape, tvm_ffi.Shape):
         shape = tvm_ffi.Shape([int(dim) for dim in shape])
     dtype = tvm_ffi.dtype(dtype)
-    arr = _ffi_api.TVMTensorAllocWithScope(shape, dtype, device, mem_scope)
+    arr = _ffi_api.TensorAllocWithScope(shape, dtype, device, mem_scope)
     return arr
 
 

@@ -21,8 +21,8 @@
  * \file tvm/tirx/transform.h
  * \brief TIR specific transformation passes.
  */
-#ifndef TVM_TIR_TRANSFORM_H_
-#define TVM_TIR_TRANSFORM_H_
+#ifndef TVM_TIRX_TRANSFORM_H_
+#define TVM_TIRX_TRANSFORM_H_
 
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
@@ -327,4 +327,4 @@ TVM_TIRX_DLL Pass LowerTIRx();
 }  // namespace tirx
 }  // namespace tvm
 
-#endif  // TVM_TIR_TRANSFORM_H_
+#endif  // TVM_TIRX_TRANSFORM_H_

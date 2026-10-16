@@ -24,6 +24,7 @@ import tvm_tirx
 def test_dict_attrs():
     dattr = tvm_tirx.ir.make_node("ir.DictAttrs", x=1, y=10, name="xyz", padding=(0, 0))
     assert dattr.x == 1
+    assert dattr.dict["x"] == 1
     datrr = tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(dattr))
     assert dattr.name == "xyz"
     assert isinstance(dattr, tvm_tirx.ir.DictAttrs)
@@ -32,6 +33,19 @@ def test_dict_attrs():
     assert len(dattr) == 4
     assert len([x for x in dattr.keys()]) == 4
     assert len(dattr.items()) == 4
+
+
+def test_dict_attrs_dictionary_entry():
+    attrs = tvm_tirx.ir.make_node(
+        "ir.DictAttrs", dict={"nested": 1}, label="entry", type_key="metadata"
+    )
+    assert set(attrs.keys()) == {"dict", "label", "type_key"}
+    assert attrs["dict"]["nested"] == 1
+    assert attrs["label"] == "entry"
+    assert attrs["type_key"] == "metadata"
+    module = tvm_tirx.IRModule(attrs={"type_key": "metadata"})
+    assert module.attrs["type_key"] == "metadata"
+    assert len(tvm_tirx.ir.make_node("ir.DictAttrs")) == 0
 
 
 def test_attrs_equal():
@@ -113,6 +127,21 @@ def test_op_set_signature_checks_counts_without_types_or_attrs():
         ty_args=[tvm_tirx.ir.StringType()],
     )
     assert call.attrs is not None
+
+
+def test_generated_op_api_constructs_dictionary_attrs():
+    name = "test.python_dict_attrs_api"
+    tvm_tirx.ir._ffi_api.RegisterOp(name, "Dictionary attribute API test")
+    op = tvm_tirx.ir.Op.get(name)
+    op.set_signature(args=[])
+    op.set_attrs_type_key("ir.DictAttrs")
+    tvm_tirx.ir.register_op_attr(name, "TFixedReturnType", tvm_tirx.ir.PrimType("int32"))
+    api = tvm_tirx.ir.op._make_op_api(op, __name__)
+    assert len(api().attrs) == 0
+    call = api(label="preserved", axis=2)
+    assert call.attrs["label"] == "preserved"
+    assert call.attrs["axis"] == 2
+    assert call.ty == tvm_tirx.ir.PrimType("int32")
 
 
 if __name__ == "__main__":

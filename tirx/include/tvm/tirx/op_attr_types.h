@@ -25,8 +25,8 @@
  *
  * \sa tvm/ir/op.h
  */
-#ifndef TVM_TIR_OP_ATTR_TYPES_H_
-#define TVM_TIR_OP_ATTR_TYPES_H_
+#ifndef TVM_TIRX_OP_ATTR_TYPES_H_
+#define TVM_TIRX_OP_ATTR_TYPES_H_
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/native_function.h>
@@ -58,10 +58,6 @@ inline constexpr ffi::reflection::AttrKey<ffi::String> kGlobalSymbol{"TGlobalSym
 inline constexpr ffi::reflection::AttrKey<bool> kVectorizable{"TVectorizable"};
 }  // namespace op_attr
 
-// Compatibility names; new callers can deduce the value type from the key.
-using TGlobalSymbol = decltype(op_attr::kGlobalSymbol)::ValueType;
-using TVectorizable = decltype(op_attr::kVectorizable)::ValueType;
-
 }  // namespace tirx
 }  // namespace tvm
-#endif  // TVM_TIR_OP_ATTR_TYPES_H_
+#endif  // TVM_TIRX_OP_ATTR_TYPES_H_

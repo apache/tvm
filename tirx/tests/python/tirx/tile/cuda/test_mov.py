@@ -137,7 +137,7 @@ def test_mov_handles_scalar_regions():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
         src = T.alloc_local((1,), "float32", layout="default")
         dst = T.alloc_local((4,), "float32", layout="default")
-        src[0] = T.cast(7, "float32")
+        src[0] = T.cast(7, ty="float32")
         T.cuda.tile.apply(T.ptx["mov.b32"], dst[2:3], src[:])
         B[0] = dst[2]
 

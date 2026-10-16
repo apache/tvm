@@ -17,8 +17,8 @@
 import pytest
 
 import tvm_tirx
-from tvm_tirx.ir.supply import UniqueNameSupply
 from tvm_tirx.ir.transform.instrument import PrintAfterAll, PrintBeforeAll
+from tvm_tirx.ir.unique_name_supply import UniqueNameSupply
 
 
 @pytest.mark.parametrize(

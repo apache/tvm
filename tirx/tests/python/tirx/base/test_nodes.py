@@ -24,13 +24,13 @@ from tvm_tirx import ir
 def test_const():
     x = tvm_tirx.tirx.const(1, "int32")
     assert x.ty.dtype == "int32"
-    assert isinstance(x, tvm_tirx.tirx.IntImm)
+    assert isinstance(x, tvm_tirx.ir.IntImm)
 
 
 def test_te_const():
     x = tvm_tirx.tirx.const(1, "int32")
     assert x.ty.dtype == "int32"
-    assert isinstance(x, tvm_tirx.tirx.IntImm)
+    assert isinstance(x, tvm_tirx.ir.IntImm)
 
 
 def test_tir_const_dtype_inference():
@@ -66,7 +66,7 @@ def test_make():
 
 def test_ir():
     x = tvm_tirx.tirx.const(1, "int32")
-    y = tvm_tirx.tirx.IntImm("int32", 1)
+    y = tvm_tirx.ir.IntImm("int32", 1)
     z = x + y
     stmt = tvm_tirx.ir.Evaluate(z)
     assert isinstance(stmt, tvm_tirx.ir.Evaluate)
@@ -99,7 +99,7 @@ def test_cast():
     y = x.astype("int32")
     z = x.astype("float32x4")
     assert isinstance(y, tvm_tirx.tirx.Cast)
-    assert isinstance(z, tvm_tirx.tirx.Broadcast)
+    assert isinstance(z, tvm_tirx.ir.prim.vector_expr.Broadcast)
     assert z.lanes == 4
 
     s = tvm_tirx.ir.StringImm("s")
@@ -266,9 +266,9 @@ def test_divide_by_zero():
 
 
 def test_infinity():
-    assert str(tvm_tirx.tirx.infinity("float16")) == 'T.float16("inf")'
-    assert str(tvm_tirx.tirx.infinity("float32")) == 'T.float32("inf")'
-    assert str(tvm_tirx.tirx.infinity("float64")) == 'T.float64("inf")'
+    assert str(tvm_tirx.tirx.infinity(ty="float16")) == 'T.float16("inf")'
+    assert str(tvm_tirx.tirx.infinity(ty="float32")) == 'T.float32("inf")'
+    assert str(tvm_tirx.tirx.infinity(ty="float64")) == 'T.float64("inf")'
 
 
 def test_isnan():
@@ -358,7 +358,7 @@ def test_tensor_load_store():
     tensor = tvm_tirx.tirx.decl_tensor((4, 8), "float32", elem_offset=100)
     tvm_tirx.ir.assert_structural_equal(
         tensor[2, 3].indices,
-        [tvm_tirx.ir.prim.IntImm("int32", 2), tvm_tirx.ir.prim.IntImm("int32", 3)],
+        [tvm_tirx.ir.IntImm("int32", 2), tvm_tirx.ir.IntImm("int32", 3)],
     )
 
 
@@ -368,7 +368,7 @@ def test_tensor_load_validation(constructor):
     with pytest.raises(RuntimeError, match="dimensional"):
         constructor(tensor, [0])
     with pytest.raises(RuntimeError, match="Only the last index"):
-        constructor(tensor, [tvm_tirx.tirx.Ramp(0, 1, 4), 0])
+        constructor(tensor, [tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4), 0])
     with pytest.raises(TypeError, match="does not support TensorLoad"):
         constructor(tvm_tirx.tirx.Var("scalar", "float32"), [0])
 
@@ -384,14 +384,16 @@ def test_tensor_load_validation(constructor):
 def test_tensor_load_vector_elements(element_dtype, index_lanes, result_dtype):
     tensor = tvm_tirx.tirx.decl_tensor((32,), element_dtype)
     lanes = 4 * tvm_tirx.tirx.vscale() if index_lanes == "scalable" else index_lanes
-    load = tvm_tirx.ir.TensorLoad(tensor, [tvm_tirx.tirx.Ramp(0, 1, lanes)])
+    load = tvm_tirx.ir.TensorLoad(tensor, [tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, lanes)])
     assert load.ty.dtype == result_dtype
 
 
 def test_tensor_load_rejects_two_scalable_types():
     tensor = tvm_tirx.tirx.decl_tensor((32,), "float32xvscalex2")
     with pytest.raises(RuntimeError, match="can't both be scalable"):
-        tvm_tirx.ir.TensorLoad(tensor, [tvm_tirx.tirx.Ramp(0, 1, 4 * tvm_tirx.tirx.vscale())])
+        tvm_tirx.ir.TensorLoad(
+            tensor, [tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4 * tvm_tirx.tirx.vscale())]
+        )
 
 
 def test_intimm_cond():
@@ -408,14 +410,14 @@ def test_intimm_cond():
 
 
 def _create_ramp(lanes):
-    return tvm_tirx.tirx.Ramp(0, 1, lanes)
+    return tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, lanes)
 
 
 def _create_broadcast(lanes):
-    return tvm_tirx.tirx.Broadcast(0, lanes)
+    return tvm_tirx.ir.prim.vector_expr.Broadcast(0, lanes)
 
 
-@pytest.mark.parametrize("lanes", [tvm_tirx.tirx.IntImm(dtype="int64", value=11)])
+@pytest.mark.parametrize("lanes", [tvm_tirx.ir.IntImm(dtype="int64", value=11)])
 @pytest.mark.parametrize("node_func", [_create_ramp, _create_broadcast])
 def test_lane_types(lanes, node_func):
     def _check_dtype(node):
@@ -446,10 +448,10 @@ def test_scalable_vec_error(lanes, node_func):
 
 
 def test_broadcast_to_scalable_vec():
-    vec = tvm_tirx.tirx.expr.Ramp(0, 1, 4 * tvm_tirx.tirx.vscale()) + 3
+    vec = tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4 * tvm_tirx.tirx.vscale()) + 3
     broadcast = vec.b
 
-    assert isinstance(broadcast, tvm_tirx.tirx.expr.Broadcast)
+    assert isinstance(broadcast, tvm_tirx.ir.prim.vector_expr.Broadcast)
     assert broadcast.value == 3
     assert broadcast.lanes.a.equal(tvm_tirx.tirx.vscale())
     assert broadcast.lanes.b == 4
@@ -457,7 +459,7 @@ def test_broadcast_to_scalable_vec():
 
 def test_tensor_load_scalable_vec():
     buf = tvm_tirx.tirx.decl_tensor((24,), "float32")
-    index = tvm_tirx.tirx.expr.Ramp(1, 1, 8 * tvm_tirx.tirx.vscale())
+    index = tvm_tirx.ir.prim.vector_expr.Ramp(1, 1, 8 * tvm_tirx.tirx.vscale())
     load = tvm_tirx.tirx.TensorLoad(buf, [index])
 
     assert isinstance(load, tvm_tirx.ir.TensorLoad)
@@ -466,8 +468,8 @@ def test_tensor_load_scalable_vec():
 
 def test_tensor_store_scalable_vec():
     b = tvm_tirx.tirx.decl_tensor((24,), "int32")
-    value = tvm_tirx.tirx.expr.Broadcast(1, 4 * tvm_tirx.tirx.vscale())
-    index = tvm_tirx.tirx.expr.Ramp(0, 1, 4 * tvm_tirx.tirx.vscale())
+    value = tvm_tirx.ir.prim.vector_expr.Broadcast(1, 4 * tvm_tirx.tirx.vscale())
+    index = tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4 * tvm_tirx.tirx.vscale())
     store = tvm_tirx.ir.TensorStore(b, [index], value)
 
     assert isinstance(store, tvm_tirx.ir.TensorStore)
@@ -476,12 +478,14 @@ def test_tensor_store_scalable_vec():
 
 def test_scalable_vec_cast():
     b = tvm_tirx.tirx.decl_tensor((24,), "float32")
-    value = tvm_tirx.tirx.expr.Broadcast(1, 12 * tvm_tirx.tirx.vscale()).astype("float32xvscalex12")
-    index = tvm_tirx.tirx.expr.Ramp(0, 1, 12 * tvm_tirx.tirx.vscale())
+    value = tvm_tirx.ir.prim.vector_expr.Broadcast(1, 12 * tvm_tirx.tirx.vscale()).astype(
+        "float32xvscalex12"
+    )
+    index = tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 12 * tvm_tirx.tirx.vscale())
 
     store = tvm_tirx.ir.TensorStore(b, [index], value)
 
-    assert isinstance(store.value.value, tvm_tirx.tirx.expr.FloatImm)
+    assert isinstance(store.value.value, tvm_tirx.ir.FloatImm)
 
 
 @pytest.mark.parametrize("dtype", ["float16", "float16x2", "float32x4", "int32", "int32x2"])

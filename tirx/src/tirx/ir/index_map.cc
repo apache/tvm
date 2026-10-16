@@ -252,9 +252,9 @@ ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges,
     // For example, [N] mapped through i=>[i//4,i%4] should have shape
     // [ceildiv(N,4), 4].  However, for N<4, this method instead
     // results in a shape [1, N].
-    std::unordered_map<const VarNode*, sym::IntSet> dom_map;
+    ffi::Map<Var, sym::IntSet> dom_map;
     for (size_t i = 0; i < initial_indices.size(); i++) {
-      dom_map.insert_or_assign(initial_indices[i].get(), sym::IntSet::FromRange(ranges[i]));
+      dom_map.Set(initial_indices[i], sym::IntSet::FromRange(ranges[i]));
     }
 
     for (const auto& final_index : final_indices) {

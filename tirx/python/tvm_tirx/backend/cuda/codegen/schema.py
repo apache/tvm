@@ -43,7 +43,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from tvm_tirx.backend.cuda.op import cuda_func_call
+from tvm_tirx.backend.cuda.op import func_call
 
 from .registry import register_codegen
 
@@ -119,7 +119,7 @@ def device_intrinsic(
         prerequisite snippets.
     """
     if helper_name is None:
-        helper_name = f"tvm_builtin_{op_name}"
+        helper_name = "tvm_builtin_" + op_name.replace(".", "_")
     extra_deps = tuple(extra_deps)
 
     def codegen(*args):
@@ -137,7 +137,7 @@ def device_intrinsic(
             kwargs["ty"] = tvm_return_type(*args) if callable(tvm_return_type) else tvm_return_type
         elif ret_type != "void":
             kwargs["ty"] = _C_TO_TVM_DTYPE.get(ret_type, ret_type)
-        result = cuda_func_call(name, *forward, source_code, **kwargs)
+        result = func_call(name, *forward, source_code, **kwargs)
         return (result, list(extra_deps)) if extra_deps else result
 
     codegen.__name__ = f"codegen_{op_name}"

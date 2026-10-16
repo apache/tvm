@@ -16,7 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-/*! \brief Operator registration contracts for tile instructions. */
+/*!
+ * \file tvm/tirx/tile/op.h
+ * \brief Operator registration contracts for tile instructions.
+ */
 #ifndef TVM_TIRX_TILE_OP_H_
 #define TVM_TIRX_TILE_OP_H_
 

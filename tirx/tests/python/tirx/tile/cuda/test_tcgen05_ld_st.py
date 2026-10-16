@@ -1706,7 +1706,7 @@ def test_copy_tmem2reg_async(dtype, width_32b):
                     scope="thread",
                 )
             for i in range(WIDTH):
-                B_reg[i] = T.cast(0, dtype)
+                B_reg[i] = T.cast(0, ty=dtype)
             T.cuda.cta_sync()
 
             # A_local -> tmem (async)
@@ -1831,7 +1831,7 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
                     scope="thread",
                 )
             for i in range(WIDTH):
-                B_reg[i] = T.cast(0, dtype)
+                B_reg[i] = T.cast(0, ty=dtype)
             T.cuda.cta_sync()
 
             # A_local -> tmem
@@ -1958,7 +1958,7 @@ def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
                     scope="thread",
                 )
             for i in range(TOTAL_LOCAL_WIDTH):
-                B_reg[i] = T.cast(0, dtype)
+                B_reg[i] = T.cast(0, ty=dtype)
             T.cuda.cta_sync()
 
             # A_local[sliced] -> tmem (use sliced region)

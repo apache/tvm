@@ -286,7 +286,7 @@ def test_ptx_predicated_destination_preserves_old_value():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
         value: T.float32 = T.float32(0)
-        pred: T.uint32 = T.cast(tx == 0, "uint32")
+        pred: T.uint32 = T.cast(tx == 0, ty="uint32")
         T.ptx.ld.global_.f32(value, A.ptr_to([0]), pred=pred, preserve_dst=True)
         T.ptx.ex2.approx.ftz.f32(value, value, pred=pred, preserve_dst=True)
         Out[tx] = value
@@ -305,7 +305,7 @@ def test_ptx_predicated_destination_is_undefined_by_default():
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         tx = T.cuda.thread_idx("x")
         value = T.local_scalar("float32")
-        pred: T.uint32 = T.cast(tx == 0, "uint32")
+        pred: T.uint32 = T.cast(tx == 0, ty="uint32")
         T.ptx.ld.global_.f32(value, A.ptr_to([0]), pred=pred)
         Out[tx] = T.if_then_else(pred != 0, value, T.float32(0))
 
@@ -2209,7 +2209,7 @@ def test_ptx_wgmma_scale_d_runtime_predicate_roundtrip():
     def kernel(Out: T.Tensor((128,), "uint32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         tx = T.cuda.thread_idx("x")
-        scale_d: T.uint32 = T.cast(tx < 128, "uint32")
+        scale_d: T.uint32 = T.cast(tx < 128, ty="uint32")
         d0: T.uint32 = T.uint32(0)
         d1: T.uint32 = T.uint32(0)
         d2: T.uint32 = T.uint32(0)
@@ -2300,7 +2300,7 @@ def test_ptx_tcgen05_mma_ws_collector_dispatch(form, collector):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         T.ptx[opcode](
             T.uint32(0),
-            T.cast(0, a_dtype),
+            T.cast(0, ty=a_dtype),
             T.uint64(0),
             T.uint32(0),
             T.ptx.pred(T.uint32(0)),

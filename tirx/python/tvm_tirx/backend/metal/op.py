@@ -147,14 +147,7 @@ def cooperative_tensor_fill(
     loc: Location = UNKNOWN_LOC,
 ):
     return call_intrin(
-        ty,
-        "tirx.metal.cooperative_tensor_fill",
-        d,
-        index,
-        value,
-        rows,
-        cols,
-        loc=loc,
+        "tirx.metal.cooperative_tensor_fill", d, index, value, rows, cols, loc=loc, ty=ty
     )
 
 
@@ -175,7 +168,6 @@ def cooperative_tensor_load(
     loc: Location = UNKNOWN_LOC,
 ):
     return call_intrin(
-        ty,
         "tirx.metal.cooperative_tensor_load",
         d,
         index,
@@ -189,6 +181,7 @@ def cooperative_tensor_load(
         mma_K,
         operand_role,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -209,7 +202,6 @@ def cooperative_tensor_store(
     loc: Location = UNKNOWN_LOC,
 ):
     return call_intrin(
-        ty,
         "tirx.metal.cooperative_tensor_store",
         d,
         index,
@@ -223,6 +215,7 @@ def cooperative_tensor_store(
         mma_K,
         operand_role,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -245,7 +238,6 @@ def cooperative_tensor_multiply_accumulate(
     loc: Location = UNKNOWN_LOC,
 ):
     return call_intrin(
-        ty,
         "tirx.metal.cooperative_tensor_multiply_accumulate",
         d,
         index_d,
@@ -261,4 +253,5 @@ def cooperative_tensor_multiply_accumulate(
         transpose_a,
         transpose_b,
         loc=loc,
+        ty=ty,
     )

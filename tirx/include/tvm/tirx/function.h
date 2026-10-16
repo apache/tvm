@@ -21,8 +21,8 @@
  * \file tvm/tirx/function.h
  * \brief TIR Function.
  */
-#ifndef TVM_TIR_FUNCTION_H_
-#define TVM_TIR_FUNCTION_H_
+#ifndef TVM_TIRX_FUNCTION_H_
+#define TVM_TIRX_FUNCTION_H_
 
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/container/variant.h>
@@ -145,18 +145,16 @@ TVM_TIRX_DLL Function RenewDef(Function func);
  * \param func The Function to be specialized.
  * \param param_map The mapping from function params to the instance.
  * \return The new function with parameter specialized.
- * \note We can define a Meta TIR function with symbolic shape:
+ * \note We can define a TIRx function with symbolic shape:
  *
  * \code{.py}
  *  from __future__ import annotations
  *
- *  @Ts.function
+ *  @T.function
  *  def mem_copy(A: T.Tensor((m, n), "float32"), B: T.Tensor((m, n), "float32"),
  *               m: T.int32, n: T.int32) -> None:
  *      for i, j in T.grid(m, n):
- *          with Ts.sblock():
- *              vi, vj = Ts.axis.remap("SS", [i, j])
- *              B[vi, vj] = A[vi, vj]
+ *          B[i, j] = A[i, j]
  * \endcode
  *
  * Then we can make it specialized with given shapes or tensors.
@@ -169,13 +167,11 @@ TVM_TIRX_DLL Function RenewDef(Function func);
  * \endcode
  *
  * \code{.py}
- *  @Ts.function
+ *  @T.function
  *  def mem_copy_16_16(A: T.Tensor((16, 16), "float32"),
  *                     B: T.Tensor((16, 16), "float32")) -> None:
  *      for i, j in T.grid(16, 16):
- *          with Ts.sblock():
- *              vi, vj = Ts.axis.remap("SS", [i, j])
- *              B[vi, vj] = A[vi, vj]
+ *          B[i, j] = A[i, j]
  * \endcode
  */
 TVM_TIRX_DLL Function Specialize(Function func,
@@ -279,4 +275,4 @@ constexpr const char* kPersistentKernel = "tirx.persistent_kernel";
 }  // namespace attr
 }  // namespace tirx
 }  // namespace tvm
-#endif  // TVM_TIR_FUNCTION_H_
+#endif  // TVM_TIRX_FUNCTION_H_

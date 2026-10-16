@@ -186,14 +186,14 @@ def payload_bfloat16(out: T.Tensor((32,), "int32")):
 def payload_pointer(out: T.Tensor((32,), "int32")):
     T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
     tx = T.cuda.thread_idx("x")
-    T.evaluate(tvm_tirx.tirx.call_intrin("", "tirx.cuda.iket_mark", "bad", out.data))
+    T.evaluate(tvm_tirx.tirx.call_intrin("tirx.cuda.iket_mark", "bad", out.data, ty=""))
     out[tx] = tx
 
 
 @T.function
 def payload_vector(out: T.Tensor((1,), "int32x4")):
     T.device_entry()
-    T.evaluate(tvm_tirx.tirx.call_intrin("", "tirx.cuda.iket_mark", "bad", out[0]))
+    T.evaluate(tvm_tirx.tirx.call_intrin("tirx.cuda.iket_mark", "bad", out[0], ty=""))
 
 
 @T.function

@@ -459,11 +459,11 @@ TVM_TIRX_DLL PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr 
  * \return The marked expression.
  */
 TVM_TIRX_DLL PrimExpr likely(PrimExpr cond, Location loc = UnknownLoc());
+namespace prim {
 /*! \brief Round up to the nearest integral value, preserving the input type. */
 TVM_TIRX_DLL PrimExpr ceil(PrimExpr x, Location loc = UnknownLoc());
 /*! \brief Construct a base-two logarithm with the input's primitive type. */
 TVM_TIRX_DLL PrimExpr log2(PrimExpr x, Location loc = UnknownLoc());
-namespace prim {
 /*! \brief Count leading zero bits, preserving the input primitive type. */
 TVM_TIRX_DLL PrimExpr clz(PrimExpr x, Location loc = UnknownLoc());
 /*!

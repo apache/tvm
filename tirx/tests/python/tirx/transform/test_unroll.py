@@ -82,7 +82,7 @@ def test_unroll_loop_annotation():
     class Before:
         @T.function
         def main(Ab: T.Tensor((n,), "int64"), n: T.int64):  # noqa: F821
-            for i in T.serial(n, n + 2, annotations={"auto_unroll_max_step": 16}):
+            for i in T.serial(n, n + 2, annotations={"tirx.auto_unroll_max_step": 16}):
                 for j in T.unroll(8):
                     Ab[j + 1] = Ab[i] + T.int64(1)
             for i in T.serial(n, n + 2):

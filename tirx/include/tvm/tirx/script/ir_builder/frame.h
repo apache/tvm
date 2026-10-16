@@ -16,6 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/*!
+ * \file tvm/tirx/script/ir_builder/frame.h
+ * \brief IRBuilder frames for TIRx functions and statements.
+ */
 #ifndef TVM_TIRX_SCRIPT_IR_BUILDER_FRAME_H_
 #define TVM_TIRX_SCRIPT_IR_BUILDER_FRAME_H_
 
@@ -32,22 +36,6 @@ namespace tvm {
 namespace script {
 namespace ir_builder {
 namespace tirx {
-
-// Retain dialect imports as aliases of the shared canonical frames.
-using ir::AssertFrame;
-using ir::AssertFrameObj;
-using ir::ElseFrame;
-using ir::ElseFrameObj;
-using ir::ForFrame;
-using ir::ForFrameObj;
-using ir::IfFrame;
-using ir::IfFrameObj;
-using ir::RegionFrame;
-using ir::RegionFrameObj;
-using ir::ThenFrame;
-using ir::ThenFrameObj;
-using ir::WhileFrame;
-using ir::WhileFrameObj;
 
 /*!
  * \brief A frame that represents the Function containing TIR statements.

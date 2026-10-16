@@ -19,8 +19,9 @@
 
 /*!
  * \file tensor.cc
- * \brief Tensor container infratructure.
+ * \brief Tensor container infrastructure.
  */
+#include <tvm/ffi/endian.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/extra/base64.h>
 #include <tvm/ffi/extra/serialization.h>
@@ -29,11 +30,11 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/support/base64.h>
 #include <tvm/support/bytes_io.h>
 
 #include <algorithm>
 #include <limits>
+#include <vector>
 
 #include "tvm/ffi/dtype.h"
 
@@ -44,9 +45,8 @@ void CopyToBytes(ffi::TensorView source, void* data, size_t nbytes, TVMStreamHan
   const DLTensor* handle = ffi::AnyView(source).cast<DLTensor*>();
   TVM_FFI_ICHECK(data != nullptr || nbytes == 0);
   size_t arr_size = ffi::GetDataSize(*handle);
-  TVM_FFI_ICHECK_EQ(arr_size, nbytes) << "ArrayCopyToBytes: size mismatch";
-  TVM_FFI_ICHECK(ffi::IsContiguous(*handle))
-      << "ArrayCopyToBytes only support contiguous array for now";
+  TVM_FFI_ICHECK_EQ(arr_size, nbytes) << "CopyToBytes: size mismatch";
+  TVM_FFI_ICHECK(ffi::IsContiguous(*handle)) << "CopyToBytes only supports contiguous tensors";
 
   DLTensor to;
   to.data = const_cast<void*>(data);
@@ -67,9 +67,8 @@ void CopyFromBytes(ffi::TensorView destination, const void* data, size_t nbytes,
   const DLTensor* handle = ffi::AnyView(destination).cast<DLTensor*>();
   TVM_FFI_ICHECK(data != nullptr || nbytes == 0);
   size_t arr_size = ffi::GetDataSize(*handle);
-  TVM_FFI_ICHECK_EQ(arr_size, nbytes) << "ArrayCopyToBytes: size mismatch";
-  TVM_FFI_ICHECK(ffi::IsContiguous(*handle))
-      << "ArrayCopyToBytes only support contiguous array for now";
+  TVM_FFI_ICHECK_EQ(arr_size, nbytes) << "CopyFromBytes: size mismatch";
+  TVM_FFI_ICHECK(ffi::IsContiguous(*handle)) << "CopyFromBytes only supports contiguous tensors";
 
   DLTensor from;
   from.data = const_cast<void*>(data);
@@ -176,8 +175,7 @@ void CopyFromTo(ffi::TensorView source, ffi::TensorView destination, TVMStreamHa
   const DLTensor* to = ffi::AnyView(destination).cast<DLTensor*>();
   size_t from_size = ffi::GetDataSize(*from);
   size_t to_size = ffi::GetDataSize(*to);
-  TVM_FFI_ICHECK_EQ(from_size, to_size)
-      << "TVMTensorCopyFromTo: The size in bytes must exactly match.";
+  TVM_FFI_ICHECK_EQ(from_size, to_size) << "CopyFromTo: The size in bytes must exactly match.";
 
   TVM_FFI_ICHECK(from->device.device_type == to->device.device_type ||
                  from->device.device_type == kDLCPU || to->device.device_type == kDLCPU ||
@@ -194,6 +192,80 @@ void CopyFromTo(ffi::TensorView source, ffi::TensorView destination, TVMStreamHa
                                       stream);
 }
 
+namespace {
+
+/*! \brief Swap the byte order of every scalar lane stored in a packed buffer. */
+void SwapTensorBytes(void* data, DLDataType dtype, size_t nbytes) {
+  // Sub-byte and single-byte lanes have no byte order.
+  if (dtype.bits <= 8) return;
+  size_t lane_bytes = dtype.bits / 8;
+  ffi::ByteSwap(data, lane_bytes, nbytes / lane_bytes);
+}
+
+}  // namespace
+
+void SaveTensor(ffi::TensorView source, support::Stream* strm) {
+  const DLTensor* tensor = ffi::AnyView(source).cast<DLTensor*>();
+  uint64_t header = kTVMTensorMagic, reserved = 0;
+  strm->Write(header);
+  strm->Write(reserved);
+  // Serialized tensors are always recorded as CPU tensors, so they can be loaded on
+  // machines without the source device. Callers copy the result to the target device.
+  Device cpu_dev{kDLCPU, 0};
+  strm->Write(cpu_dev);
+  strm->Write(tensor->ndim);
+  strm->Write(tensor->dtype);
+  strm->WriteArray(tensor->shape, tensor->ndim);
+  size_t data_size = ffi::GetDataSize(*tensor);
+  int64_t data_byte_size = static_cast<int64_t>(data_size);
+  strm->Write(data_byte_size);
+
+  if (TVM_FFI_IO_NO_ENDIAN_SWAP && tensor->device.device_type == kDLCPU &&
+      ffi::IsContiguous(*tensor) && tensor->byte_offset == 0) {
+    strm->Write(tensor->data, data_size);
+  } else {
+    std::vector<uint8_t> bytes(data_size);
+    CopyToBytes(source, bytes.data(), data_size);
+    if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
+      SwapTensorBytes(bytes.data(), tensor->dtype, data_size);
+    }
+    strm->Write(bytes.data(), data_size);
+  }
+}
+
+ffi::Tensor LoadTensor(support::Stream* strm) {
+  uint64_t header, reserved;
+  TVM_FFI_CHECK(strm->Read(&header), ValueError) << "Invalid DLTensor file format";
+  TVM_FFI_CHECK(strm->Read(&reserved), ValueError) << "Invalid DLTensor file format";
+  TVM_FFI_CHECK(header == kTVMTensorMagic, ValueError) << "Invalid DLTensor file format";
+  Device dev;
+  int ndim;
+  DLDataType dtype;
+  TVM_FFI_CHECK(strm->Read(&dev), ValueError) << "Invalid DLTensor file format";
+  TVM_FFI_CHECK(strm->Read(&ndim), ValueError) << "Invalid DLTensor file format";
+  TVM_FFI_CHECK(strm->Read(&dtype), ValueError) << "Invalid DLTensor file format";
+  TVM_FFI_CHECK_EQ(dev.device_type, kDLCPU, ValueError)
+      << "Invalid DLTensor device: can only save as CPU tensor";
+  TVM_FFI_CHECK_GE(ndim, 0, ValueError) << "Invalid DLTensor file format";
+  std::vector<int64_t> shape(ndim);
+  if (ndim != 0) {
+    TVM_FFI_CHECK(strm->ReadArray(shape.data(), ndim), ValueError)
+        << "Invalid DLTensor file format";
+  }
+  ffi::Tensor ret = Empty(ffi::Shape(shape), dtype, dev);
+  size_t data_size = ffi::GetDataSize(*ret.GetDLTensorPtr());
+  int64_t data_byte_size;
+  TVM_FFI_CHECK(strm->Read(&data_byte_size), ValueError) << "Invalid DLTensor file format";
+  TVM_FFI_CHECK_EQ(data_byte_size, static_cast<int64_t>(data_size), ValueError)
+      << "Invalid DLTensor file format";
+  TVM_FFI_CHECK_EQ(strm->Read(ret.GetDLTensorPtr()->data, data_size), data_size, ValueError)
+      << "Invalid DLTensor file format: truncated data";
+  if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
+    SwapTensorBytes(ret.GetDLTensorPtr()->data, dtype, data_size);
+  }
+  return ret;
+}
+
 }  // namespace runtime
 }  // namespace tvm
 
@@ -206,24 +278,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](const tvm::ffi::TensorObj* node) {
              std::string result;
              tvm::support::BytesOutStream mstrm(&result);
-             tvm::support::Base64OutStream b64strm(&mstrm);
-             tvm::runtime::SaveTensor(node, &b64strm);
-             b64strm.Finish();
-             return tvm::ffi::String(std::move(result));
+             tvm::runtime::SaveTensor(node, &mstrm);
+             return tvm::ffi::Base64Encode(tvm::ffi::Bytes(result));
            })
       .def(tvm::ffi::type_attr::kDataFromJson.name, [](const std::string& blob) {
-        tvm::support::BytesInStream mstrm(blob);
-        tvm::support::Base64InStream b64strm(&mstrm);
-        b64strm.InitPosition();
-        return tvm::runtime::LoadTensor(&b64strm);
+        tvm::ffi::Bytes bytes = tvm::ffi::Base64Decode(blob);
+        tvm::support::BytesInStream mstrm(bytes.data(), bytes.size());
+        return tvm::runtime::LoadTensor(&mstrm);
       });
   refl::GlobalDef()
-      .def("runtime.TVMTensorAllocWithScope", Empty)
-      .def("runtime.TVMTensorCreateView", CreateView)
-      .def("runtime.TVMTensorCopyFromBytes",
+      .def("runtime.TensorAllocWithScope", Empty)
+      .def("runtime.TensorCreateView", CreateView)
+      .def("runtime.TensorCopyFromBytes",
            [](DLTensor* arr, void* data, size_t nbytes) { CopyFromBytes(arr, data, nbytes); })
-      .def("runtime.TVMTensorCopyToBytes",
+      .def("runtime.TensorCopyToBytes",
            [](DLTensor* arr, void* data, size_t nbytes) { CopyToBytes(arr, data, nbytes); })
-      .def("runtime.TVMTensorCopyFromTo",
-           [](DLTensor* from, DLTensor* to) { CopyFromTo(from, to); });
+      .def("runtime.TensorCopyFromTo", [](DLTensor* from, DLTensor* to) { CopyFromTo(from, to); });
 }

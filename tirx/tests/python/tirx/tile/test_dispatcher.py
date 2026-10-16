@@ -85,8 +85,9 @@ def test_instruction_scope_contract(backend, scope):
 
 def _custom_call(name):
     op_name = f"test.tile_dispatch.{name}"
+    tvm_tirx.ir._ffi_api.RegisterOp(op_name, "Tile dispatch test")
     register_op_attr(op_name, "TFixedReturnType", PrimType("void"))
-    register_op_attr(op_name, "TCallEffectKind", 3)
+    register_op_attr(op_name, "TCallEffectKind", tvm_tirx.ir.CallEffectKind.UpdateState)
     op = Op.get(op_name)
     op.set_signature(args=["token"])
     op.set_attrs_type_key("tirx.tensor.ScopeAttrs")

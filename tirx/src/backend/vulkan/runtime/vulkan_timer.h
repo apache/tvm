@@ -65,7 +65,7 @@ class VulkanTimerObj : public TimerObj {
    */
   int64_t SyncAndGetElapsedNanos() override;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.vulkan.VulkanTimerNode", VulkanTimerObj, TimerObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.vulkan.VulkanTimer", VulkanTimerObj, TimerObj);
 
  private:
   Device dev_;                              ///< The TVM device being used.

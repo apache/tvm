@@ -27,7 +27,7 @@ import hashlib
 import json
 
 import tvm_tirx
-from tvm_tirx.backend.cuda.op import cuda_func_call
+from tvm_tirx.backend.cuda.op import func_call
 
 from ..codegen.registry import register_codegen
 from ..codegen.schema import device_intrinsic
@@ -111,14 +111,14 @@ device_intrinsic(
 # =============================================================================
 # Official IKET NativeDump placeholder.
 # =============================================================================
-@register_codegen("cuda_iket_official_event")
+@register_codegen("cuda.iket_official_event")
 def codegen_cuda_iket_official_event(event_id, source_code, payload=None):
     if isinstance(source_code, tvm_tirx.ir.StringImm):
         source_code = source_code.value
     else:
         source_code = parse_str(source_code)
     args = (event_id,) if payload is None else (event_id, payload)
-    return cuda_func_call(
+    return func_call(
         "tvm_builtin_iket_official_event",
         *args,
         source_code,
@@ -130,13 +130,13 @@ def codegen_cuda_iket_official_event(event_id, source_code, payload=None):
 # Debug helpers — ``printf`` (variadic templated) and ``trap`` on assert.
 # =============================================================================
 device_intrinsic(
-    "cuda_trap_when_assert_failed",
+    "cuda.trap_when_assert_failed",
     c_signature="(bool cond)",
     body='    do {\n        if (not (cond))\n            asm("trap;");\n    } while (0);',
 )
 
 
-@register_codegen("cuda_printf")
+@register_codegen("cuda.printf")
 def codegen_cuda_printf(fmt, *args):
     if isinstance(fmt, tvm_tirx.ir.StringImm):
         fmt = fmt.value
@@ -175,11 +175,11 @@ __noinline__ __device__ void {func_name}({params}) {{
     printf({fmt_literal}{comma_call_args});
 }}
 """
-    return cuda_func_call(func_name, *args, source_code)
+    return func_call(func_name, *args, source_code)
 
 
 device_intrinsic(
-    "cuda_clock64",
+    "cuda.clock64",
     helper_name="tvm_builtin_clock64",
     return_type="unsigned long long",
     body="    return clock64();",

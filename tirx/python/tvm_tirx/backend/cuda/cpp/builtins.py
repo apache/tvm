@@ -29,7 +29,7 @@ inline asm; anything that needs a hand-written PTX body lives in
 * thread queries, scheduling hints, and the CUDA-side sync helpers
 """
 
-from tvm_tirx.backend.cuda.op import cuda_func_call
+from tvm_tirx.backend.cuda.op import func_call
 
 from ..codegen.registry import register_codegen
 from ..codegen.schema import device_intrinsic
@@ -39,7 +39,7 @@ from ..codegen.utils import parse_str, validate_power_of_two_range
 # Scalar float math.
 # =============================================================================
 device_intrinsic(
-    "cuda_fdividef",
+    "cuda.fdividef",
     helper_name="tvm_builtin_cuda_fdividef",
     c_signature="(float x, float y)",
     return_type="float",
@@ -50,7 +50,7 @@ device_intrinsic(
 
 # =============================================================================
 # CUDA-side warp / CTA reductions (templated butterfly shuffle-XOR).
-# Emitted directly via ``cuda_func_call`` — the helper signature uses a
+# Emitted directly via ``func_call`` — the helper signature uses a
 # single template parameter ``T`` for both arg and return, which doesn't
 # match the operand-driven C signature pattern.
 # =============================================================================
@@ -83,7 +83,7 @@ def _warp_reduce_source(func_name, width_int, step_expr):
     )
 
 
-@register_codegen("cuda_warp_reduce")
+@register_codegen("cuda.warp_reduce")
 def codegen_cuda_warp_reduce(value, op, width):
     op_str = parse_str(op)
     width_int = validate_power_of_two_range(width, 2, 32, "warp_reduce width")
@@ -91,10 +91,10 @@ def codegen_cuda_warp_reduce(value, op, width):
 
     func_name = f"tvm_builtin_cuda_warp_reduce_{op_str}_{width_int}"
     source_code = _warp_reduce_source(func_name, width_int, step_expr)
-    return cuda_func_call(func_name, value, source_code, ty=value.ty)
+    return func_call(func_name, value, source_code, ty=value.ty)
 
 
-@register_codegen("cuda_cta_reduce")
+@register_codegen("cuda.cta_reduce")
 def codegen_cuda_cta_reduce(value, op, num_warps, scratch):
     op_str = parse_str(op)
     nw = validate_power_of_two_range(num_warps, 1, 32, "cta_reduce num_warps")
@@ -124,14 +124,14 @@ def codegen_cuda_cta_reduce(value, op, num_warps, scratch):
         "    return scratch[0];\n"
         "}\n"
     )
-    return cuda_func_call(func_name, value, scratch, cta_body, ty=value.ty)
+    return func_call(func_name, value, scratch, cta_body, ty=value.ty)
 
 
 # =============================================================================
 # FP8 / BF16 packing, integer, and activation helpers.
 # =============================================================================
 device_intrinsic(
-    "cuda_ffs_u32",
+    "cuda.ffs_u32",
     helper_name="tvm_builtin_ffs_u32",
     c_signature="(unsigned int value)",
     return_type="int",
@@ -139,7 +139,7 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "cuda_make_float2",
+    "cuda.make_float2",
     helper_name="tvm_builtin_make_float2",
     c_signature="(float x, float y)",
     return_type="unsigned long long",
@@ -150,7 +150,7 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "cuda_float2_x",
+    "cuda.float2_x",
     helper_name="tvm_builtin_float2_x",
     c_signature="(unsigned long long packed)",
     return_type="float",
@@ -158,7 +158,7 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "cuda_float2_y",
+    "cuda.float2_y",
     helper_name="tvm_builtin_float2_y",
     c_signature="(unsigned long long packed)",
     return_type="float",
@@ -166,7 +166,7 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "cuda_fmul2_rn",
+    "cuda.fmul2_rn",
     helper_name="tvm_builtin_fmul2_rn",
     c_signature="(unsigned long long a, unsigned long long b)",
     return_type="unsigned long long",
@@ -179,7 +179,7 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "cuda_fadd2_rn",
+    "cuda.fadd2_rn",
     helper_name="tvm_builtin_fadd2_rn",
     c_signature="(unsigned long long a, unsigned long long b)",
     return_type="unsigned long long",
@@ -192,7 +192,7 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "cuda_float22bfloat162_rn",
+    "cuda.float22bfloat162_rn",
     helper_name="tvm_builtin_float22bfloat162_rn",
     c_signature="(float x, float y)",
     return_type="unsigned int",
@@ -204,7 +204,7 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "cuda_float22bfloat162_rn_from_float2",
+    "cuda.float22bfloat162_rn_from_float2",
     helper_name="tvm_builtin_float22bfloat162_rn_from_float2",
     c_signature="(unsigned long long packed)",
     return_type="unsigned int",
@@ -217,7 +217,7 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "cuda_bfloat1622float2",
+    "cuda.bfloat1622float2",
     helper_name="tvm_builtin_bfloat1622float2",
     c_signature="(unsigned int packed)",
     return_type="unsigned long long",
@@ -231,7 +231,7 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "cuda_hmin2",
+    "cuda.hmin2",
     helper_name="tvm_builtin_hmin2",
     c_signature="(unsigned int a, unsigned int b)",
     return_type="unsigned int",
@@ -247,7 +247,7 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "cuda_hmax2",
+    "cuda.hmax2",
     helper_name="tvm_builtin_hmax2",
     c_signature="(unsigned int a, unsigned int b)",
     return_type="unsigned int",
@@ -263,7 +263,7 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "cuda_fp8x4_e4m3_from_float4",
+    "cuda.fp8x4_e4m3_from_float4",
     helper_name="tvm_builtin_fp8x4_e4m3_from_float4",
     c_signature="(float x, float y, float z, float w)",
     return_type="unsigned int",
@@ -279,7 +279,7 @@ device_intrinsic(
 # Atomics — templated wrappers around CUDA's ``atomicAdd`` / ``atomicCAS``.
 # =============================================================================
 device_intrinsic(
-    "cuda_atomic_add",
+    "cuda.atomic_add",
     helper_name="tvm_builtin_cuda_atomic_add",
     c_signature="(T* addr, T value)",
     body="    return atomicAdd(addr, value);",
@@ -288,7 +288,7 @@ device_intrinsic(
     tvm_return_type=lambda _addr, value: value.ty,
 )
 device_intrinsic(
-    "cuda_atomic_cas",
+    "cuda.atomic_cas",
     helper_name="tvm_builtin_cuda_atomic_cas",
     c_signature="(T* address, T compare, T val)",
     body="    return atomicCAS(address, compare, val);",
@@ -302,21 +302,21 @@ device_intrinsic(
 # half / bfloat16 ↔ float type-punned conversions.
 # =============================================================================
 device_intrinsic(
-    "cuda_half2float",
+    "cuda.half2float",
     c_signature="(half src)",
     body="    return __half2float(src);",
     return_type="float",
     tvm_return_type="float32",
 )
 device_intrinsic(
-    "cuda_bfloat162float",
+    "cuda.bfloat162float",
     c_signature="(nv_bfloat16 src)",
     body="    return __bfloat162float(src);",
     return_type="float",
     tvm_return_type="float32",
 )
 device_intrinsic(
-    "cuda_float22half2",
+    "cuda.float22half2",
     c_signature="(void* dst, void* src)",
     body=(
         "    half2* dst_p = (half2*) dst;\n"
@@ -325,7 +325,7 @@ device_intrinsic(
     ),
 )
 device_intrinsic(
-    "cuda_half8tofloat8",
+    "cuda.half8tofloat8",
     c_signature="(void* src_addr, void* dst_addr)",
     body=(
         "    half2* source = (half2*) src_addr;\n"
@@ -336,7 +336,7 @@ device_intrinsic(
     ),
 )
 device_intrinsic(
-    "cuda_float8tohalf8",
+    "cuda.float8tohalf8",
     c_signature="(void* src_addr, void* dst_addr)",
     body=(
         "    float2* source = (float2*) src_addr;\n"
@@ -354,7 +354,7 @@ device_intrinsic(
 # typed scalar input (instead of doing the conversion inside the asm helper).
 # =============================================================================
 device_intrinsic(
-    "cuda_cvta_generic_to_shared",
+    "cuda.cvta_generic_to_shared",
     c_signature="(void* p)",
     body="    return __cvta_generic_to_shared(p);",
     return_type="unsigned int",
@@ -362,7 +362,7 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "cuda_smem_addr_from_uint64",
+    "cuda.smem_addr_from_uint64",
     c_signature="(uint64_t cluster_addr)",
     body="    return static_cast<unsigned int>(cluster_addr);",
     return_type="unsigned int",
@@ -370,14 +370,14 @@ device_intrinsic(
 )
 
 device_intrinsic(
-    "cuda_uint_as_float",
+    "cuda.uint_as_float",
     helper_name="tvm_builtin_uint_as_float",
     c_signature="(unsigned int bits)",
     return_type="float",
     body="    return __uint_as_float(bits);",
 )
 device_intrinsic(
-    "cuda_float_as_uint",
+    "cuda.float_as_uint",
     helper_name="tvm_builtin_float_as_uint",
     c_signature="(float x)",
     return_type="unsigned int",
@@ -389,7 +389,7 @@ device_intrinsic(
 # Per-thread queries / scheduling hints.
 # =============================================================================
 device_intrinsic(
-    "cuda_thread_rank",
+    "cuda.thread_rank",
     body=(
         "    namespace cg = cooperative_groups;\n    return cg::this_thread_block().thread_rank();"
     ),
@@ -397,7 +397,7 @@ device_intrinsic(
     tvm_return_type="int32",
     extra_deps=("cooperative_groups",),
 )
-device_intrinsic("cuda_nano_sleep", c_signature="(uint64_t time)", body="    __nanosleep(time);")
+device_intrinsic("cuda.nano_sleep", c_signature="(uint64_t time)", body="    __nanosleep(time);")
 
 
 # =============================================================================
@@ -405,7 +405,7 @@ device_intrinsic("cuda_nano_sleep", c_signature="(uint64_t time)", body="    __n
 # helper (declared in the CUDA header tags), not direct PTX.
 # =============================================================================
 device_intrinsic(
-    "cuda_elect_sync",
+    "cuda.elect_sync",
     helper_name="tvm_builtin_elect_one_sync_op",
     return_type="uint32_t",
     body="    return tvm_builtin_elect_one_sync();",
@@ -417,7 +417,7 @@ device_intrinsic(
 # __any_sync — warp-vote (pure CUDA helper).
 # =============================================================================
 device_intrinsic(
-    "cuda_any_sync",
+    "cuda.any_sync",
     c_signature="(unsigned mask, int pred)",
     body="    return __any_sync(mask, pred);",
     return_type="int",
@@ -428,23 +428,23 @@ device_intrinsic(
 # =============================================================================
 # CUDA-side sync helpers (zero-arg void unless noted).
 # =============================================================================
-device_intrinsic("cuda_thread_fence", body="    __threadfence();")
-device_intrinsic("cuda_warp_sync", body="    __syncwarp();")
-device_intrinsic("cuda_cta_sync", body="    __syncthreads();")
+device_intrinsic("cuda.thread_fence", body="    __threadfence();")
+device_intrinsic("cuda.warp_sync", body="    __syncwarp();")
+device_intrinsic("cuda.cta_sync", body="    __syncthreads();")
 device_intrinsic(
-    "cuda_grid_sync",
+    "cuda.grid_sync",
     body="    namespace cg = cooperative_groups;\n    cg::this_grid().sync();",
     extra_deps=("cooperative_groups",),
 )
 device_intrinsic(
-    "cuda_syncthreads_and",
+    "cuda.syncthreads_and",
     c_signature="(int predicate)",
     body="    return __syncthreads_and(predicate);",
     return_type="int",
     tvm_return_type="int32",
 )
 device_intrinsic(
-    "cuda_syncthreads_or",
+    "cuda.syncthreads_or",
     c_signature="(int predicate)",
     body="    return __syncthreads_or(predicate);",
     return_type="int",
@@ -456,21 +456,21 @@ device_intrinsic(
 # Warp collectives — ballot and the hardware ``__reduce_*_sync`` reductions.
 # =============================================================================
 device_intrinsic(
-    "cuda_ballot_sync",
+    "cuda.ballot_sync",
     helper_name="tvm_builtin_ballot_sync",
     c_signature="(unsigned int mask, int pred)",
     return_type="unsigned int",
     body="    return __ballot_sync(mask, pred);",
 )
 device_intrinsic(
-    "cuda_reduce_add_sync_u32",
+    "cuda.reduce_add_sync_u32",
     helper_name="tvm_builtin_reduce_add_sync_u32",
     c_signature="(unsigned int mask, unsigned int value)",
     return_type="unsigned int",
     body="    return __reduce_add_sync(mask, value);",
 )
 device_intrinsic(
-    "cuda_reduce_min_sync_u32",
+    "cuda.reduce_min_sync_u32",
     helper_name="tvm_builtin_reduce_min_sync_u32",
     c_signature="(unsigned int mask, unsigned int value)",
     return_type="unsigned int",

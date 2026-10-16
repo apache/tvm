@@ -23,10 +23,13 @@ import threading
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, TypeVar
 
+import tvm_tirx
 from tvm_tirx import DataType, ir
 from tvm_tirx import ir as _ir
 from tvm_tirx import tirx as tir
-from tvm_tirx.ir import Range, TensorRegion, Type
+
+# import tirx.expr for direct ir construction to pass structural_equal comparison
+from tvm_tirx.ir import FloatImm, IntImm, Range, TensorRegion, Type
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.ir.type import _init_type_api, _normalize_type
 from tvm_tirx.runtime import MemoryScope
@@ -42,13 +45,7 @@ from tvm_tirx.target import Target
 
 # pylint: disable=unused-import
 from tvm_tirx.tirx import Expr, IndexMap, Var, is_tensor_var, tile
-
-# import tirx.expr for direct ir construction to pass structural_equal comparison
-from tvm_tirx.tirx.expr import (
-    FloatImm,
-    IntImm,
-    TensorLoad,
-)
+from tvm_tirx.tirx.expr import TensorLoad
 from tvm_tirx.tirx.layout import Axis, ComposeLayout, Iter, Layout, R, S, TileLayout
 from tvm_tirx.tirx.thread_scope import ThreadScope
 
@@ -229,11 +226,11 @@ def alloc_tensor(
 
     def normalize(value):
         if isinstance(value, bool):
-            return tir.IntImm("bool", int(value))
+            return tvm_tirx.ir.IntImm("bool", int(value))
         if isinstance(value, int):
-            return tir.IntImm("int32", value)
+            return tvm_tirx.ir.IntImm("int32", value)
         if isinstance(value, float):
-            return tir.FloatImm("float32", value)
+            return tvm_tirx.ir.FloatImm("float32", value)
         return value
 
     if attrs is None:

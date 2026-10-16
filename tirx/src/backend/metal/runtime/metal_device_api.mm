@@ -426,7 +426,7 @@ class MetalTimerObj : public TimerObj {
     [mtl_dev_ sampleTimestamps:&stop_cpu_time_ gpuTimestamp:&stop_gpu_time_];
   }
   virtual int64_t SyncAndGetElapsedNanos() { return stop_gpu_time_ - start_gpu_time_; }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.metal.MetalTimerNode", MetalTimerObj, TimerObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.metal.MetalTimer", MetalTimerObj, TimerObj);
 
  private:
   Device dev_;

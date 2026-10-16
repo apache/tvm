@@ -16,6 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/*!
+ * \file tvm/script/printer/doc.h
+ * \brief Doc nodes used by the TVMScript printer.
+ */
 #ifndef TVM_SCRIPT_PRINTER_DOC_H_
 #define TVM_SCRIPT_PRINTER_DOC_H_
 

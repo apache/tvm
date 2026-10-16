@@ -31,10 +31,10 @@ import tvm_ffi
 import tvm_tirx
 import tvm_tirx.testing
 from tvm_tirx.backend.cuda.lang import SMEMPool
-from tvm_tirx.ir import TensorRegion, TensorRegionType
+from tvm_tirx.ir import IntImm, TensorRegion, TensorRegionType
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
-from tvm_tirx.tirx import IntImm, Var
+from tvm_tirx.tirx import Var
 from tvm_tirx.tirx.layout import S, TileLayout
 from tvm_tirx.tirx.thread_scope import ThreadScope
 from tvm_tirx.tirx.tile.dispatch import DispatchContext, run_dispatch

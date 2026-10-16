@@ -34,9 +34,11 @@ import tvm_tirx
 # isort: on
 from tvm_tirx import ir as _ir
 from tvm_tirx import tirx as _tir
-from tvm_tirx.ir import is_prim_expr
+from tvm_tirx.ir import IntImm, is_prim_expr
 from tvm_tirx.ir.type import _PrimTypeArrayAnnotation
+from tvm_tirx.script.ir_builder import _ffi_api as _shared_ffi_api
 from tvm_tirx.script.ir_builder import base as _base
+from tvm_tirx.script.ir_builder import frame as _shared_frame
 from tvm_tirx.script.ir_builder.base import AlreadyEmitted
 from tvm_tirx.script.ir_builder.base import IRBuilder as _IRBuilder
 from tvm_tirx.script.ir_builder.stmt import (
@@ -85,9 +87,6 @@ from tvm_tirx.script.ir_builder.stmt import (
     while_ as while_,
 )
 from tvm_tirx.tirx import Expr
-from tvm_tirx.tirx.expr import (
-    IntImm,
-)
 
 from . import _ffi_api, frame
 from . import ir as _native
@@ -134,7 +133,7 @@ def function(
     """
     if private is not None:
         is_private = private
-    return _ffi_api.Function(is_private, persistent)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Function(is_private, persistent, False)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def function_(
@@ -149,11 +148,7 @@ def function_(
     Private/persistent options pass to the native TIRx function frame.
     The same frame supports declaration and body entry.
     """
-    native = (
-        _ffi_api.DeclFunction(private, persistent)
-        if decl
-        else _ffi_api.Function(private, persistent)
-    )
+    native = _ffi_api.Function(private, persistent, decl)
     return _base.at_(loc, native)
 
 
@@ -365,7 +360,7 @@ def set_mutable_cell_(
     elif (
         _tir.is_tensor_var(target)
         and len(target.ty.shape) == 1
-        and isinstance(target.ty.shape[0], _tir.IntImm)
+        and isinstance(target.ty.shape[0], tvm_tirx.ir.IntImm)
         and target.ty.shape[0].value == 1
     ):
         return _base.at_(loc, tensor_store(target, [0], value))
@@ -489,7 +484,7 @@ def tensor_store(
 
 def for_(
     iterable: Any, *, names: str | Sequence[str] | None = None, loc: _Loc = None
-) -> frame.ForFrame:
+) -> _shared_frame.ForFrame:
     """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.for_`.
 
     A single native loop returns its scalar Var; multiple loops return their
@@ -497,13 +492,13 @@ def for_(
     """
     if isinstance(iterable, _python.range):
         iterable = serial(iterable.start, iterable.stop, step=iterable.step)
-    if not isinstance(iterable, frame.ForFrame):
+    if not isinstance(iterable, _shared_frame.ForFrame):
         raise TypeError("A primitive for loop requires an iteration specification")
     iterable.set_names(names)
     return _base.at_(loc, iterable)
 
 
-def range_(*args: Any, annotations: dict[str, Any] | None = None) -> frame.ForFrame:
+def range_(*args: Any, annotations: dict[str, Any] | None = None) -> _shared_frame.ForFrame:
     """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.range_`."""
     if len(args) == 1:
         # serial constructs the omitted zero in the stop expression's dtype.
@@ -526,12 +521,12 @@ def _for(
     step: Expr | None = None,
     dtype: str | None = None,
     annotations: dict[str, Any] | None = None,
-) -> frame.ForFrame:
+) -> _shared_frame.ForFrame:
     if stop is None:
         stop = start
         # Preserve the endpoint dtype when the lower bound is omitted.
         start = IntImm(start.ty, 0) if is_prim_expr(start) else 0
-    return _ffi_api.For(kind, start, stop, step, dtype, annotations)
+    return _shared_ffi_api.For(kind, start, stop, step, dtype, annotations)
 
 
 def serial(
@@ -542,7 +537,7 @@ def serial(
     step: Expr | None = None,
     unroll: bool | int | None = None,
     dtype: str | None = None,
-) -> frame.ForFrame:
+) -> _shared_frame.ForFrame:
     """The serial For statement.
 
     Parameters
@@ -560,9 +555,9 @@ def serial(
         The optional step value of iteration.
 
     unroll : bool or int, optional
-        If True, adds ``{"pragma_unroll": True}`` annotation, which asks CUDA codegen
+        If True, adds ``{"tirx.pragma_unroll": True}`` annotation, which asks CUDA codegen
         to emit ``#pragma unroll`` while preserving the loop as a C++ ``for``.
-        If False, adds ``{"disable_unroll": True}`` annotation.
+        If False, adds ``{"tirx.disable_unroll": True}`` annotation.
         If a positive integer, emits ``#pragma unroll N``. Boolean values are
         handled separately from integers, so ``False`` keeps disabling unrolling.
 
@@ -573,20 +568,20 @@ def serial(
 
     Returns
     -------
-    res : frame.ForFrame
+    res : _shared_frame.ForFrame
         The ForFrame.
     """
     if unroll is not None:
         annotations = dict(annotations) if annotations else {}
         if isinstance(unroll, bool):
             if unroll:
-                annotations["pragma_unroll"] = True
+                annotations["tirx.pragma_unroll"] = True
             else:
-                annotations["disable_unroll"] = True
+                annotations["tirx.disable_unroll"] = True
         elif isinstance(unroll, int):
             if unroll < 1:
                 raise ValueError("unroll must be a positive integer")
-            annotations["pragma_unroll"] = unroll
+            annotations["tirx.pragma_unroll"] = unroll
         else:
             raise TypeError("unroll must be a bool, a positive integer, or None")
     return _for(_ir.ForKind.DEFAULT, start, stop, step=step, dtype=dtype, annotations=annotations)
@@ -599,7 +594,7 @@ def parallel(
     annotations: dict[str, Any] | None = None,
     step: Expr | None = None,
     dtype: str | None = None,
-) -> frame.ForFrame:
+) -> _shared_frame.ForFrame:
     """The parallel For statement.
 
     Parameters
@@ -612,7 +607,7 @@ def parallel(
 
     annotations : Dict[str, Any]
         The optional annotations of the For statement. On CPU,
-        ``{"parallel_stride_pattern": True}`` assigns iterations cyclically:
+        ``{"codegen.parallel_stride_pattern": True}`` assigns iterations cyclically:
         worker ``t`` executes ``t, t + P, t + 2 * P, ...`` for ``P`` workers.
         Absent or false selects contiguous chunks. Each loop selects its own
         policy. When migrating ``pragma_parallel_stride_pattern``, annotate
@@ -628,7 +623,7 @@ def parallel(
 
     Returns
     -------
-    res : frame.ForFrame
+    res : _shared_frame.ForFrame
         The ForFrame.
     """
     return _for(_ir.ForKind.PARALLEL, start, stop, step=step, dtype=dtype, annotations=annotations)
@@ -641,7 +636,7 @@ def vectorized(
     annotations: dict[str, Any] | None = None,
     step: Expr | None = None,
     dtype: str | None = None,
-) -> frame.ForFrame:
+) -> _shared_frame.ForFrame:
     """The vectorized For statement.
 
     Parameters
@@ -664,7 +659,7 @@ def vectorized(
 
     Returns
     -------
-    res : frame.ForFrame
+    res : _shared_frame.ForFrame
         The ForFrame.
     """
     return _for(
@@ -679,7 +674,7 @@ def unroll(
     annotations: dict[str, Any] | None = None,
     step: Expr | None = None,
     dtype: str | None = None,
-) -> frame.ForFrame:
+) -> _shared_frame.ForFrame:
     """The unrolled For statement.
 
     Parameters
@@ -702,7 +697,7 @@ def unroll(
 
     Returns
     -------
-    res : frame.ForFrame
+    res : _shared_frame.ForFrame
         The ForFrame.
     """
     return _for(_ir.ForKind.UNROLLED, start, stop, step=step, dtype=dtype, annotations=annotations)
@@ -715,7 +710,7 @@ def device_entry(
     backend_config=None,
     attrs=None,
     body_params=None,
-) -> frame.RegionFrame:
+) -> _shared_frame.RegionFrame:
     """Enter a device kernel with independent CUDA launch and compile settings.
 
     LaunchConfig values are ordinary region operands. BackendConfig supplies
@@ -746,7 +741,7 @@ def device_entry(
 
 def device_context(
     device_type: Expr, device_id: Expr, *, attrs=None, body_params=None
-) -> frame.RegionFrame:
+) -> _shared_frame.RegionFrame:
     """Supply lexical device context for allocation and packed-call lowering.
 
     This region does not change the active runtime device.
@@ -756,19 +751,19 @@ def device_context(
     )
 
 
-def compute_scope(name: str, *, attrs=None, body_params=None) -> frame.RegionFrame:
+def compute_scope(name: str, *, attrs=None, body_params=None) -> _shared_frame.RegionFrame:
     """Outline the body as a named CPU compute helper."""
     return region("tirx.compute_scope", [name], attrs=attrs, body_params=body_params)
 
 
-def parallel_launch(*, attrs=None, body_params=None) -> frame.RegionFrame:
+def parallel_launch(*, attrs=None, body_params=None) -> _shared_frame.RegionFrame:
     """Launch a CPU worker team around parallel loops and team barriers."""
     return region("tirx.parallel_launch", [], attrs=attrs, body_params=body_params)
 
 
 def launch_thread(
     thread_tag: str, extent: Expr, *, attrs=None, body_params=None
-) -> frame.RegionFrame:
+) -> _shared_frame.RegionFrame:
     """Launch a hardware or virtual thread with a fresh lexical variable.
 
     The extent determines the variable's scalar integer type. Tags starting with
