@@ -42,7 +42,7 @@ tvm_tirx_option(TVM_TIRX_USE_CUSTOM_LOGGING BOOL OFF "Use user-defined logging i
 
 # ######### LLVM ##########
 
-tvm_tirx_option(TVM_TIRX_USE_LLVM STRING OFF "Build with LLVM (OFF, ON, or llvm-config command)")
+tvm_tirx_option(TVM_TIRX_USE_LLVM STRING ON "Build with LLVM (OFF, ON, or llvm-config command)")
 
 # ######### Z3 ##########
 
@@ -51,7 +51,7 @@ set_property(CACHE TVM_TIRX_USE_Z3 PROPERTY STRINGS OFF ON AUTO)
 
 # ######### CUDA ##########
 
-tvm_tirx_option(TVM_TIRX_USE_CUDA STRING OFF "Build with CUDA (OFF, ON, or SDK path)")
+tvm_tirx_option(TVM_TIRX_USE_CUDA STRING AUTO "Build with CUDA (OFF, ON, AUTO, or SDK path)")
 
 # ######### Other device runtimes ##########
 
