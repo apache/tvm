@@ -21,7 +21,6 @@ import tvm
 import tvm_tirx
 from tvm import te
 from tvm_tirx import DataTypeCode
-from tvm_tirx.ir._constant import _convert_scalar
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from . import cpp, tag
@@ -769,7 +768,7 @@ def ceil_log2(x):
         The result.
     """
     if not tvm_tirx.ir.is_prim_expr(x):
-        x = _convert_scalar(x)
+        x = tvm_tirx.ir.const(x)
 
     if x.ty.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
         return tvm_tirx.tirx.ceil(tvm_tirx.tirx.log2(x))

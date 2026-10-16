@@ -21,7 +21,6 @@
 import tvm
 import tvm_tirx
 from tvm import te
-from tvm_tirx.ir._constant import _convert_scalar
 from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.tirx.script import ir_builder as T
 
@@ -314,7 +313,7 @@ def _all_class_nms_ir(
                 iou_threshold = tvm_tirx.ir.FloatImm("float32", 0.5)
 
         if isinstance(max_output_size_per_class, int):
-            max_output_size_per_class = _convert_scalar(max_output_size_per_class)
+            max_output_size_per_class = tvm_tirx.ir.const(max_output_size_per_class)
         elif isinstance(max_output_size_per_class, te.Tensor):
             if len(max_output_size_per_class.shape) == 0:
                 max_output_size_per_class = max_output_size_per_class()

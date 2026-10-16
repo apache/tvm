@@ -252,7 +252,7 @@ def test_cuda_vectorize_load(*, backend_config):
 def test_cuda_make_int8(*, backend_config):
     def check_cuda(n, value, lanes):
         dtype = "int8"
-        const_value = tvm_tirx.tirx.const(value, dtype=dtype)
+        const_value = tvm_tirx.tirx.const(value, ty=dtype)
 
         @I.ir_module
         class Module:
@@ -291,7 +291,7 @@ def test_cuda_make_int8(*, backend_config):
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_inf_nan(*, backend_config):
     def check_inf_nan(n, value, dtype):
-        inf_value = tvm_tirx.tirx.const(value, dtype=dtype)
+        inf_value = tvm_tirx.tirx.const(value, ty=dtype)
 
         @I.ir_module
         class Module:
@@ -509,7 +509,7 @@ def test_cuda_const_float_to_half(*, backend_config):
     # This import is required to use nvcc to perform code gen;
     # otherwise it is found that the code gen is done by nvrtc.
 
-    half_const = tvm_tirx.tirx.const(0.5, dtype="float16")
+    half_const = tvm_tirx.tirx.const(0.5, ty="float16")
 
     @I.ir_module
     class Module:
@@ -822,7 +822,7 @@ def test_round_ties_to_even(*, backend_config):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_vectorized_intrin2(dtype="float32", *, backend_config):
-    c2 = tvm_tirx.tirx.const(2, dtype=dtype)
+    c2 = tvm_tirx.tirx.const(2, ty=dtype)
     test_funcs = [
         (tvm_tirx.tirx.power, lambda x: np.power(x, 2.0)),
         (tvm_tirx.tirx.fmod, lambda x: np.fmod(x, 2.0)),

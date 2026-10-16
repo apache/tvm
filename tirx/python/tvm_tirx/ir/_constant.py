@@ -18,6 +18,8 @@
 
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from . import _ffi_api
@@ -26,37 +28,23 @@ if TYPE_CHECKING:
     from .expr import Expr
 
 
-def _scalar_type_inference(value):
-    if hasattr(value, "dtype"):
-        return str(value.dtype)
-    elif isinstance(value, bool):
-        return "bool"
-    elif isinstance(value, float):
-        # We intentionally prefer convert the float to float32 since it's more common in DL.
-        if -3.40282347e38 <= value <= 3.40282347e38:
-            return "float32"
-        else:
-            return "float64"
-    elif isinstance(value, int):
-        # We intentionally prefer convert the python int to int32 since it's more common in DL.
-        if -2147483648 <= value <= 2147483647:
-            return "int32"
-        else:
-            return "int64"
-    else:
-        raise NotImplementedError(f"Cannot automatically inference the type. value={value}")
+def const(value, ty=None, loc: Location = UNKNOWN_LOC) -> "Expr":
+    """Construct a constant with an explicit or inferred primitive type.
 
-
-def const(value, dtype, loc: Location = UNKNOWN_LOC) -> "Expr":
-    """Construct a constant with an explicit dtype.
+    When ``ty`` is omitted or None, boolean, integer and floating-point
+    scalars use ``bool``, ``int32`` and ``float32``, respectively. The same
+    defaults apply to NumPy scalars, regardless of their original width.
+    Values outside the inferred type's range raise an error; the type never
+    widens automatically. NaN and infinity are accepted floating-point values.
+    Specify ``ty`` explicitly to select another width or a vector type.
 
     Parameters
     ----------
     value : number
         The content of the constant number.
 
-    dtype : str, DataType or tvm_tirx.ir.PrimType
-        The required data type. None is not accepted.
+    ty : str, DataType or tvm_tirx.ir.PrimType, optional
+        The primitive type. None uses the scalar-kind defaults above.
 
     loc : Location, optional
         The location of the constant value in the source.
@@ -65,12 +53,24 @@ def const(value, dtype, loc: Location = UNKNOWN_LOC) -> "Expr":
     -------
     const_val : tvm_tirx.ir.Expr
         The result expression.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        ir.const(True)                 # bool
+        ir.const(1)                    # int32
+        ir.const(1.0)                  # float32
+        ir.const(1 << 31)              # raises ValueError: exceeds int32 range
+        ir.const(1 << 31, ty="int64")  # explicit wider type
     """
-    if dtype is None:
-        raise TypeError("const requires an explicit, non-None dtype")
-    return _ffi_api._const(value, dtype, loc)
-
-
-def _convert_scalar(value, loc: Location = UNKNOWN_LOC) -> "Expr":
-    """Convert a Python scalar at an implicit IR conversion boundary."""
-    return const(value, _scalar_type_inference(value), loc)
+    if ty is None:
+        if isinstance(value, bool | np.bool_):
+            ty = "bool"
+        elif isinstance(value, int | np.integer):
+            ty = "int32"
+        elif isinstance(value, float | np.floating):
+            ty = "float32"
+        else:
+            raise TypeError(f"Cannot infer a constant type from {type(value).__name__}")
+    return _ffi_api._const(value, ty, loc)

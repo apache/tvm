@@ -14,28 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy as np
 import pytest
 
 import tvm
 import tvm_tirx
 import tvm_tirx.testing
-
-
-@pytest.mark.parametrize(
-    "value,dtype,expected",
-    [
-        (8, "int32", 3),
-        (2**32, "int64", 32),
-        (np.int64(8), "int64", 3),
-        (np.float64(8), "float64", 3.0),
-        (3.402e39, "float64", 132.0),
-    ],
-)
-def test_topi_ceil_log2_scalar_conversion(value, dtype, expected):
-    result = tvm.topi.ceil_log2(value)
-    assert result.ty.dtype == dtype
-    assert tvm_tirx.sym.Analyzer().simplify(result).value == expected
 
 
 def check_throws(f):
@@ -196,8 +179,8 @@ def test_binary_dtype_match():
     verify_callop_float_only(lambda a, b: tvm_tirx.tirx.power(a, b))
 
     # verify bool & int32 constant folding
-    assert tvm_tirx.tirx.const(1, "int32") == tvm_tirx.tirx.const(True, "bool")
-    assert tvm_tirx.tirx.const(2, "int32") != tvm_tirx.tirx.const(True, "bool")
+    assert tvm_tirx.tirx.const(1) == tvm_tirx.tirx.const(True)
+    assert tvm_tirx.tirx.const(2) != tvm_tirx.tirx.const(True)
 
 
 def test_if_then_else():

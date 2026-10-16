@@ -68,7 +68,7 @@ def test_expr_constructor():
     assert x.ty == tvm_tirx.ir.PrimType("float32")
     assert x.value.value == 1
 
-    a = tvm_tirx.tirx.const(1.0, dtype="float32")
+    a = tvm_tirx.tirx.const(1.0, ty="float32")
     b = tvm_tirx.tirx.Var("x", "float32")
 
     for cls in [

@@ -175,7 +175,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         n = te.var("n")
         m = te.var("m")
         mysum = te.comm_reducer(lambda x, y: x+y,
-            lambda t: tvm_tirx.tirx.const(0, dtype=t), name="mysum")
+            lambda t: tvm_tirx.tirx.const(0, ty=t), name="mysum")
         A = te.placeholder((n, m), name="A")
         k = te.reduce_axis((0, m), name="k")
         B = te.compute((n,), lambda i: mysum(A[i, k], axis=k), name="B")
@@ -288,7 +288,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     return reducer
 
 
-sum = comm_reducer(lambda x, y: x + y, lambda t: const(0, dtype=t), name="sum")
+sum = comm_reducer(lambda x, y: x + y, lambda t: const(0, ty=t), name="sum")
 min = comm_reducer(
     lambda x, y: _prim_ffi_api._OpMin(x, y, UNKNOWN_LOC),
     lambda dtype: max_value(ty=dtype),

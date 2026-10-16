@@ -17,7 +17,6 @@
 """Trainium tensor instructions with explicit NKI instruction identity."""
 
 from tvm_tirx.ir import Expr, LambdaExpr, PrimType, Tuple, const
-from tvm_tirx.ir._constant import _convert_scalar
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.tirx.tile.instruction import Instruction, Operand, namespace
 
@@ -102,7 +101,7 @@ def _select(view, sctx):
 
 
 def _axes(attrs):
-    return Tuple([_convert_scalar(i) for i in attrs.axes])
+    return Tuple([const(i) for i in attrs.axes])
 
 
 def make_namespace():

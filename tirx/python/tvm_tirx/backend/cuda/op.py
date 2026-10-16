@@ -1049,7 +1049,7 @@ def sm100_2sm_leader_smem_addr(ptr):
 
     The input is a generic pointer to shared memory.
     """
-    return bitwise_and(globals()["cvta_generic_to_shared"](ptr), const(0xFEFFFFFF, dtype="uint32"))
+    return bitwise_and(globals()["cvta_generic_to_shared"](ptr), const(0xFEFFFFFF, ty="uint32"))
 
 
 _PTX_CVT_TYPES = {
@@ -1132,8 +1132,8 @@ def _resolve_cache_policy(cache_hint, cache_policy, choices=_CP_ASYNC_BULK_CACHE
             raise ValueError(
                 f"Unsupported built-in cache policy {cache_hint!r}; pass cache_policy explicitly"
             )
-        return const(_PTX_CACHE_POLICY[cache_hint], dtype="uint64"), True
-    return const(0, dtype="uint64"), False
+        return const(_PTX_CACHE_POLICY[cache_hint], ty="uint64"), True
+    return const(0, ty="uint64"), False
 
 
 def _ptx_vec_len(vec):

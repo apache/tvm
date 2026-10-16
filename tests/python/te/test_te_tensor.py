@@ -16,21 +16,12 @@
 # under the License.
 # ruff: noqa: E741, F401, F821, F841
 import numpy as np
-import pytest
 
 import tvm
 import tvm_tirx
 import tvm_tirx.testing
 from tvm import te
 from tvm.topi.nn.pooling import pool2d
-
-
-def test_const_default_dtype():
-    assert te.const(0).ty.dtype == "int32"
-    with pytest.raises(TypeError, match="dtype"):
-        te.const(0, None)
-    with pytest.raises(TypeError, match="dtype"):
-        te.const(0, dtype=None)
 
 
 def test_tensor():
@@ -103,14 +94,14 @@ def test_tensor_comm_reducer():
     n = te.var("n")
     A = te.placeholder((m, n), name="A")
     k = te.reduce_axis((0, n), "k")
-    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm_tirx.tirx.const(0, dtype=t))
+    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm_tirx.tirx.const(0, ty=t))
     C = te.compute((m,), lambda i: mysum(A[i, k], axis=k))
 
 
 def test_tensor_comm_reducer_overload():
     m = te.var("m")
     n = te.var("n")
-    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm_tirx.tirx.const(0, dtype=t))
+    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm_tirx.tirx.const(0, ty=t))
     sum_res = mysum(m, n)
 
 
