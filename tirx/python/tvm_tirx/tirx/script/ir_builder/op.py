@@ -27,8 +27,7 @@ from tvm_tirx import tirx as tir
 
 # pylint: disable=unused-import
 from tvm_tirx.codegen import llvm_lookup_intrinsic_id
-from tvm_tirx.ir import Call, Var
-from tvm_tirx.ir.expr import CallEffectKind
+from tvm_tirx.ir import Call, CallEffectKind, Var
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.ir.prim import _ffi_api as _prim_ffi
 from tvm_tirx.ir.prim import _ffi_api as _prim_ffi_api
@@ -95,8 +94,12 @@ def _call_global(func: ir.GlobalVar, *args: Expr) -> Call:
     return Call(func, args)
 
 
-def cast(value, *, ty, loc: Location = UNKNOWN_LOC):
-    """Cast an expression to the requested data type."""
+def cast(value, ty, *, loc: Location = UNKNOWN_LOC):
+    """Cast an expression to the requested data type.
+
+    The result type may be passed positionally as ``cast(value, ty)`` or
+    explicitly as ``cast(value, ty=ty)``. The source location is keyword-only.
+    """
     return _prim_ffi_api._cast(value, ty, loc)  # type: ignore[attr-defined]
 
 

@@ -166,7 +166,7 @@ def check_region_bound(expect_region, var_dom, mode, predicate=None):
         Extra predicate, defaults to True.
     """
     if predicate is None:
-        predicate = tvm_tirx.ir.expr.IntImm("bool", 1)
+        predicate = tvm_tirx.ir.IntImm("bool", 1)
     region = []
     expect = []
     for k, v in expect_region.items():

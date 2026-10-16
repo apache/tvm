@@ -147,9 +147,9 @@ def test_var_name_legacy_json_load(legacy_json, expected_type):
 @pytest.mark.parametrize(
     "value",
     [
-        tvm_tirx.ir.expr.IntImm("int32", 1) + tvm_tirx.ir.expr.IntImm("int32", 10),
+        tvm_tirx.ir.IntImm("int32", 1) + tvm_tirx.ir.IntImm("int32", 10),
         *[
-            tvm_tirx.ir.expr.FloatImm(dtype, value)
+            tvm_tirx.ir.FloatImm(dtype, value)
             for dtype in ("float32", "float64")
             for value in (float("inf"), float("-inf"))
         ],
@@ -172,13 +172,13 @@ def test_json_containers():
     objects = tvm_tirx.runtime.convert({a: 2, b: 3})
     assert a in objects and b in dict(objects.items())
     assert len(objects) == 2
-    assert tvm_tirx.ir.prim.Add(a, tvm_tirx.ir.expr.IntImm("int32", 1)) not in objects
+    assert tvm_tirx.ir.prim.Add(a, tvm_tirx.ir.IntImm("int32", 1)) not in objects
     assert set(objects) == set(objects.keys()) == {a, b}
     assert set(objects.values()) == {2, 3}
     restored = tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(objects))
     assert {key.name: value for key, value in restored.items()} == {"a": 2, "b": 3}
-    x = tvm_tirx.ir.expr.IntImm("int32", 1)
-    z = tvm_tirx.ir.prim.Add(x, tvm_tirx.ir.expr.IntImm("int32", 10))
+    x = tvm_tirx.ir.IntImm("int32", 1)
+    z = tvm_tirx.ir.prim.Add(x, tvm_tirx.ir.IntImm("int32", 10))
     graph = [{"z": z, "x": x}]
     saved = tvm_tirx.ir.save_json(graph)
     restored = tvm_tirx.ir.load_json(saved)
@@ -191,7 +191,7 @@ def test_json_containers():
 @pytest.mark.parametrize("dtype", ["int32", tvm_ffi.core.String("int32")])
 def test_make_node_default_location(dtype):
     value = tvm_tirx.ir.make_node("ir.IntImm", ty=tvm_tirx.ir.PrimType(dtype), value=10)
-    assert isinstance(value, tvm_tirx.ir.expr.IntImm)
+    assert isinstance(value, tvm_tirx.ir.IntImm)
     assert value.value == 10
     assert set(dir(value.__class__)) <= set(dir(value))
     assert value.loc.same_as(tvm_tirx.ir.UnknownLoc())

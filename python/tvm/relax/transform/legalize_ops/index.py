@@ -54,7 +54,7 @@ def _strided_slice(bb: BlockBuilder, call: Call) -> Expr:
 
     if len(call.args) == 4:
         data, axes, begin, end = call.args
-        strides = [tvm_tirx.ir.expr.IntImm("int64", 1)] * len(axes.ty.fields)
+        strides = [tvm_tirx.ir.IntImm("int64", 1)] * len(axes.ty.fields)
     elif len(call.args) == 5:
         data, axes, begin, end, strides = call.args
         strides = _relax_tuple_to_tir(strides)

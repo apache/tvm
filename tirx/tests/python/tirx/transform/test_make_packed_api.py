@@ -674,7 +674,7 @@ def test_pointer_return():
         if not isinstance(node, tvm_tirx.ir.Call) or node.op.name != "tirx.abi_field_set":
             return
         field = node.args[2]
-        if isinstance(field, tvm_tirx.ir.expr.IntImm) and int(field) == 13:
+        if isinstance(field, tvm_tirx.ir.IntImm) and int(field) == 13:
             return_type_indices.append(int(node.args[3]))
 
     tvm_ffi.structural_walk(after.body, collect)

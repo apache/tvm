@@ -161,7 +161,7 @@ def stft(
 def dft(
     re_data: te.Tensor,
     im_data: te.Tensor,
-    inverse: tvm_tirx.ir.expr.IntImm,
+    inverse: tvm_tirx.ir.IntImm,
 ):
     """
     Computes the discrete Fourier transform of input (calculation along the last axis).

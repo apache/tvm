@@ -398,9 +398,9 @@ def _line_of(function, statement):
 def test_non_call_expression_reads_keep_their_source_range():
     # Bare name, property, item and literal emissions must retain their written
     # ranges in actual IR, with each host read evaluated once.
-    value = tvm_tirx.ir.expr.IntImm("int32", 1)
-    attribute = tvm_tirx.ir.expr.IntImm("int32", 2)
-    item = tvm_tirx.ir.expr.IntImm("int32", 3)
+    value = tvm_tirx.ir.IntImm("int32", 1)
+    attribute = tvm_tirx.ir.IntImm("int32", 2)
+    item = tvm_tirx.ir.IntImm("int32", 3)
     reads = []
 
     class Holder:

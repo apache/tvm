@@ -120,15 +120,26 @@ def test_masked_memory_wrapper_parity_and_inference():
     )
 
 
-def test_cast_result_type_keyword():
+@pytest.mark.parametrize("ty", ["float32", tvm_tirx.ir.PrimType("float32")])
+def test_cast_positional_and_keyword_result_type(ty):
     from tvm_tirx.script import tirx as T
 
     value = tirx.Var("x", ty="int32")
-    ty = tvm_tirx.ir.PrimType("float32")
-    assert T.cast(value, ty=ty).ty == ty
-    assert tirx.reinterpret(value, ty=ty).ty == ty
+    loc = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("op.py"), 3, 0, 3, 8)
+    positional = T.cast(value, ty, loc=loc)
+    keyword = T.cast(value, ty=ty, loc=loc)
+    assert positional.ty == tvm_tirx.ir.PrimType("float32")
+    assert positional.loc.same_as(loc)
+    assert keyword.loc.same_as(loc)
+    tvm_tirx.ir.assert_structural_equal(positional, keyword)
+    assert T.cast(value, ty).loc.same_as(tvm_tirx.ir.UNKNOWN_LOC)
+    assert tirx.reinterpret(value, ty=ty).ty == positional.ty
     with pytest.raises(TypeError):
-        T.cast(value, "float32")
+        T.cast(value, ty, loc)
+    with pytest.raises(TypeError):
+        T.cast(value, ty, ty=ty)
+    with pytest.raises(TypeError):
+        T.cast(value)
     with pytest.raises(TypeError):
         tirx.reinterpret("float32", value)
 

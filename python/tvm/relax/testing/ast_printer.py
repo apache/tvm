@@ -27,7 +27,7 @@ from collections.abc import Iterable
 import tvm_tirx
 from tvm import relax
 from tvm.relax import ExprFunctor
-from tvm_tirx.ir.expr import Expr
+from tvm_tirx.ir import Expr
 
 
 def wrap_quotes(text: str) -> str:
@@ -175,7 +175,7 @@ class ASTPrinter(ExprFunctor):
                     # we want to wrap strings in quotes
                     # (__repr__ would work but it uses single quotes)
                     attr_val = wrap_quotes(attr_val)
-                elif isinstance(attr_val, tvm_tirx.ir.expr.IntImm):
+                elif isinstance(attr_val, tvm_tirx.ir.IntImm):
                     if attr_val.dtype == "bool":
                         attr_val = bool(attr_val.value)
                     else:

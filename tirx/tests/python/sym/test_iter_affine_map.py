@@ -395,17 +395,16 @@ def test_predicate():
                 64,
                 0,
                 1,
-                (i * 16 + j) // 23 * 8
-                + ((i * 16 + j) % 23 + tvm_tirx.ir.expr.IntImm("int32", -15)),
+                (i * 16 + j) // 23 * 8 + ((i * 16 + j) % 23 + tvm_tirx.ir.IntImm("int32", -15)),
             )
         },
         var_dom([(i, 12), (j, 16)]),
         predicate=tvm_tirx.tirx.And(
             tvm_tirx.tirx.And(
                 i * 16 + j < 184,
-                tvm_tirx.tirx.LE(tvm_tirx.ir.expr.IntImm("int32", 8), (i * 16 + j) % 23),
+                tvm_tirx.tirx.LE(tvm_tirx.ir.IntImm("int32", 8), (i * 16 + j) % 23),
             ),
-            tvm_tirx.tirx.LE(tvm_tirx.ir.expr.IntImm("int32", 15), (i * 16 + j) % 23),
+            tvm_tirx.tirx.LE(tvm_tirx.ir.IntImm("int32", 15), (i * 16 + j) % 23),
         ),
     )
 

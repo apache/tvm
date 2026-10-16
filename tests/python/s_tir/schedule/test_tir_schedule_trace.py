@@ -331,8 +331,8 @@ def test_apply_json_to_schedule_sample_categorical():
                 kind=InstructionKind.get("SampleCategorical"),
                 inputs=[],
                 attrs=[
-                    [tvm_tirx.ir.expr.IntImm("int32", 3)],
-                    [tvm_tirx.ir.expr.FloatImm("float32", 1.0)],
+                    [tvm_tirx.ir.IntImm("int32", 3)],
+                    [tvm_tirx.ir.FloatImm("float32", 1.0)],
                 ],
                 outputs=[var],
             )

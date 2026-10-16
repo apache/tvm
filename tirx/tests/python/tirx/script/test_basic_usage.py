@@ -565,7 +565,7 @@ def test_thread_return_is_distinct_from_function_return():
     assert isinstance(thread_exit.body[0], tvm_tirx.ir.Evaluate)
     assert thread_exit.body[0].value.op.name == "tirx.gpu_thread_return"
     assert isinstance(function_exit.body[0], tvm_tirx.ir.Return)
-    assert isinstance(function_exit.body[0].value, tvm_tirx.ir.expr.IntImm)
+    assert isinstance(function_exit.body[0].value, tvm_tirx.ir.IntImm)
     assert function_exit.body[0].value.value == 0
 
 

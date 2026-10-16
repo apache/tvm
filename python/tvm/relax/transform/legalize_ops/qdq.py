@@ -34,7 +34,7 @@ def clip_cast(val, dtype):
 
 
 def is_const_scalar(x):
-    return isinstance(x, tvm_tirx.ir.expr.IntImm | tvm_tirx.ir.expr.FloatImm)
+    return isinstance(x, tvm_tirx.ir.IntImm | tvm_tirx.ir.FloatImm)
 
 
 def _is_singleton_qparam(qparam: te.Tensor) -> bool:
@@ -44,7 +44,7 @@ def _is_singleton_qparam(qparam: te.Tensor) -> bool:
     if len(qparam.shape) == 0:
         return True
     for dim in qparam.shape:
-        if not isinstance(dim, tvm_tirx.ir.expr.IntImm) or dim.value != 1:
+        if not isinstance(dim, tvm_tirx.ir.IntImm) or dim.value != 1:
             return False
     return True
 
@@ -60,8 +60,8 @@ def _quantize(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_quantize(
         data: te.Tensor,
-        scale: te.Tensor | tvm_tirx.ir.expr.IntImm | tvm_tirx.ir.expr.FloatImm,
-        zp: te.Tensor | tvm_tirx.ir.expr.IntImm | tvm_tirx.ir.expr.FloatImm,
+        scale: te.Tensor | tvm_tirx.ir.IntImm | tvm_tirx.ir.FloatImm,
+        zp: te.Tensor | tvm_tirx.ir.IntImm | tvm_tirx.ir.FloatImm,
     ):
         scale_singleton = _is_singleton_qparam(scale) if isinstance(scale, te.Tensor) else False
         zp_singleton = _is_singleton_qparam(zp) if isinstance(zp, te.Tensor) else False
@@ -122,8 +122,8 @@ def _dequantize(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_dequantize(
         data: te.Tensor,
-        scale: te.Tensor | tvm_tirx.ir.expr.IntImm | tvm_tirx.ir.expr.FloatImm,
-        zp: te.Tensor | tvm_tirx.ir.expr.IntImm | tvm_tirx.ir.expr.FloatImm,
+        scale: te.Tensor | tvm_tirx.ir.IntImm | tvm_tirx.ir.FloatImm,
+        zp: te.Tensor | tvm_tirx.ir.IntImm | tvm_tirx.ir.FloatImm,
     ):
         scale_singleton = _is_singleton_qparam(scale) if isinstance(scale, te.Tensor) else False
         zp_singleton = _is_singleton_qparam(zp) if isinstance(zp, te.Tensor) else False

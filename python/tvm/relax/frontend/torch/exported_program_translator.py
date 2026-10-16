@@ -485,13 +485,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         else:
             seq_len, batch_size, input_size = input_shape
 
-        seq_len = int(seq_len) if isinstance(seq_len, tvm_tirx.ir.expr.IntImm) else seq_len
-        batch_size = (
-            int(batch_size) if isinstance(batch_size, tvm_tirx.ir.expr.IntImm) else batch_size
-        )
-        input_size = (
-            int(input_size) if isinstance(input_size, tvm_tirx.ir.expr.IntImm) else input_size
-        )
+        seq_len = int(seq_len) if isinstance(seq_len, tvm_tirx.ir.IntImm) else seq_len
+        batch_size = int(batch_size) if isinstance(batch_size, tvm_tirx.ir.IntImm) else batch_size
+        input_size = int(input_size) if isinstance(input_size, tvm_tirx.ir.IntImm) else input_size
         # Extract hidden size from the LSTM parameters
         # The parameters are: [weight_ih, weight_hh, bias_ih, bias_hh]
         # weight_ih shape: (4 * hidden_size, input_size)
@@ -793,13 +789,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         else:
             seq_len, batch_size, input_size = input_shape
 
-        seq_len = int(seq_len) if isinstance(seq_len, tvm_tirx.ir.expr.IntImm) else seq_len
-        batch_size = (
-            int(batch_size) if isinstance(batch_size, tvm_tirx.ir.expr.IntImm) else batch_size
-        )
-        input_size = (
-            int(input_size) if isinstance(input_size, tvm_tirx.ir.expr.IntImm) else input_size
-        )
+        seq_len = int(seq_len) if isinstance(seq_len, tvm_tirx.ir.IntImm) else seq_len
+        batch_size = int(batch_size) if isinstance(batch_size, tvm_tirx.ir.IntImm) else batch_size
+        input_size = int(input_size) if isinstance(input_size, tvm_tirx.ir.IntImm) else input_size
 
         # Extract hidden size from parameters
         # For bidirectional: params has weights for both directions
@@ -1476,8 +1468,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         assert storage_offset == 0, "as_strided with non-zero storage_offset is not supported yet"
 
         # Only handle view-like cases where the provided strides align with a contiguous layout.
-        can_check = all(isinstance(dim, int | tvm_tirx.ir.expr.IntImm) for dim in size) and all(
-            isinstance(st, int | tvm_tirx.ir.expr.IntImm) for st in stride
+        can_check = all(isinstance(dim, int | tvm_tirx.ir.IntImm) for dim in size) and all(
+            isinstance(st, int | tvm_tirx.ir.IntImm) for st in stride
         )
         if can_check:
             expected_stride = []
@@ -2119,7 +2111,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         tir_expr = None
         for arg in symbol.args:
             if isinstance(arg, sympy.Integer):
-                term = tvm_tirx.ir.expr.IntImm("int64", int(arg))
+                term = tvm_tirx.ir.IntImm("int64", int(arg))
             elif isinstance(arg, sympy.Symbol):
                 term = torch_symbol_to_relax_var.setdefault(
                     str(arg), tvm_tirx.tirx.Var(str(arg), "int64")
@@ -2139,12 +2131,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         if isinstance(tir_expr, tvm_tirx.tirx.Add):
             for const, var in [(tir_expr.a, tir_expr.b), (tir_expr.b, tir_expr.a)]:
-                if isinstance(const, tvm_tirx.ir.expr.IntImm) and tvm_tirx.ir.is_prim_var(var):
+                if isinstance(const, tvm_tirx.ir.IntImm) and tvm_tirx.ir.is_prim_var(var):
                     return f"{var.name}___{const.value}", tir_expr
 
         if isinstance(tir_expr, tvm_tirx.tirx.Mul):
             for const, var in [(tir_expr.a, tir_expr.b), (tir_expr.b, tir_expr.a)]:
-                if isinstance(const, tvm_tirx.ir.expr.IntImm) and tvm_tirx.ir.is_prim_var(var):
+                if isinstance(const, tvm_tirx.ir.IntImm) and tvm_tirx.ir.is_prim_var(var):
                     return f"{var.name}_{const.value}", tir_expr
 
         return str(symbol), tir_expr

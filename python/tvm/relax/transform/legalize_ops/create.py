@@ -123,7 +123,7 @@ def _arange(bb: BlockBuilder, call: Call) -> Expr:
     dtype = call.attrs.dtype
 
     def is_const_scalar(x: tirx.Expr):
-        return isinstance(x, tvm_tirx.ir.expr.IntImm | tvm_tirx.ir.expr.FloatImm)
+        return isinstance(x, tvm_tirx.ir.IntImm | tvm_tirx.ir.FloatImm)
 
     if all([is_const_scalar(x) for x in call.args]):
         return const(np.arange(start.value, end.value, step.value, dtype=dtype), dtype=dtype)
@@ -139,11 +139,11 @@ def _shape_to_tensor(bb: BlockBuilder, call: Call) -> Expr:
         return call
     values = list(values)
     n = len(values)
-    symbolic = [v for v in values if not isinstance(v, tvm_tirx.ir.expr.IntImm)]
+    symbolic = [v for v in values if not isinstance(v, tvm_tirx.ir.IntImm)]
 
     def te_shape_to_tensor(*sym):
         sym = list(sym)
-        resolved = [v if isinstance(v, tvm_tirx.ir.expr.IntImm) else sym.pop(0) for v in values]
+        resolved = [v if isinstance(v, tvm_tirx.ir.IntImm) else sym.pop(0) for v in values]
 
         def fcompute(i):
             result = tirx.const(0, "int64")

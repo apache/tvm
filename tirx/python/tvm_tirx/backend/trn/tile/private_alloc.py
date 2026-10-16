@@ -19,8 +19,7 @@ from functools import cache
 from typing import Any
 
 from tvm_tirx.backend.trn.tile.common import nki_dim
-from tvm_tirx.ir import Bind, Call, DictAttrs, Stmt, Tuple
-from tvm_tirx.ir.expr import FloatImm, IntImm
+from tvm_tirx.ir import Bind, Call, DictAttrs, FloatImm, IntImm, Stmt, Tuple
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx import Var

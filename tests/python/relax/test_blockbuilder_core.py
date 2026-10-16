@@ -544,8 +544,8 @@ def test_emit_te_prim_value():
     bb = rx.BlockBuilder()
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
     x = rx.Var("x", R.Tensor([n, m], "float32"))
-    a_min = tvm_tirx.ir.expr.IntImm("int64", 0)
-    a_max = tvm_tirx.ir.expr.IntImm("int64", 6)
+    a_min = tvm_tirx.ir.IntImm("int64", 0)
+    a_max = tvm_tirx.ir.IntImm("int64", 6)
 
     with bb.function("rx_clip", [x]):
         out = bb.emit_te(topi.clip, x, a_min, a_max)
@@ -703,10 +703,10 @@ def test_finalize_public_private_name_conflict():
     bb = rx.BlockBuilder()
 
     def te_zero():
-        return topi.full((), "int64", tvm_tirx.ir.expr.IntImm("int64", 0))
+        return topi.full((), "int64", tvm_tirx.ir.IntImm("int64", 0))
 
     def te_one():
-        return topi.full((), "int64", tvm_tirx.ir.expr.IntImm("int64", 1))
+        return topi.full((), "int64", tvm_tirx.ir.IntImm("int64", 1))
 
     with bb.function("func", []):
         gv0 = bb.emit_te(te_zero, function_name_hint="func")

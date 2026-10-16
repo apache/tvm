@@ -139,7 +139,5 @@ class TritonKernel(BaseKernel):
             if size is not None:
                 if size != 0:
                     raise ValueError(f"Triton kernels requiring {scratch}={size} are not supported")
-                kernel_args.append(
-                    tirx.reinterpret(tvm_tirx.ir.expr.IntImm("uint64", 0), ty="handle")
-                )
+                kernel_args.append(tirx.reinterpret(tvm_tirx.ir.IntImm("uint64", 0), ty="handle"))
         return compiled, kernel_args

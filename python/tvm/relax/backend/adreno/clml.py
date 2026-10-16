@@ -645,7 +645,7 @@ def _check_dequantize_matmul(ctx: relax.transform.PatternCheckContext) -> bool:
 
     if not (
         (len(root.ty.shape) == 3)
-        and isinstance(root.ty.shape[0], tvm_tirx.ir.expr.IntImm)
+        and isinstance(root.ty.shape[0], tvm_tirx.ir.IntImm)
         and (_dtype_str(root.ty.dtype) == "float16")
         and (root.ty.shape[0] == 1)
     ):

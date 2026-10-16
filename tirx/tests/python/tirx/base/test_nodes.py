@@ -24,13 +24,13 @@ from tvm_tirx import ir
 def test_const():
     x = tvm_tirx.tirx.const(1, "int32")
     assert x.ty.dtype == "int32"
-    assert isinstance(x, tvm_tirx.ir.expr.IntImm)
+    assert isinstance(x, tvm_tirx.ir.IntImm)
 
 
 def test_te_const():
     x = tvm_tirx.tirx.const(1, "int32")
     assert x.ty.dtype == "int32"
-    assert isinstance(x, tvm_tirx.ir.expr.IntImm)
+    assert isinstance(x, tvm_tirx.ir.IntImm)
 
 
 def test_tir_const_dtype_inference():
@@ -66,7 +66,7 @@ def test_make():
 
 def test_ir():
     x = tvm_tirx.tirx.const(1, "int32")
-    y = tvm_tirx.ir.expr.IntImm("int32", 1)
+    y = tvm_tirx.ir.IntImm("int32", 1)
     z = x + y
     stmt = tvm_tirx.ir.Evaluate(z)
     assert isinstance(stmt, tvm_tirx.ir.Evaluate)
@@ -358,7 +358,7 @@ def test_tensor_load_store():
     tensor = tvm_tirx.tirx.decl_tensor((4, 8), "float32", elem_offset=100)
     tvm_tirx.ir.assert_structural_equal(
         tensor[2, 3].indices,
-        [tvm_tirx.ir.expr.IntImm("int32", 2), tvm_tirx.ir.expr.IntImm("int32", 3)],
+        [tvm_tirx.ir.IntImm("int32", 2), tvm_tirx.ir.IntImm("int32", 3)],
     )
 
 
@@ -417,7 +417,7 @@ def _create_broadcast(lanes):
     return tvm_tirx.ir.prim.vector_expr.Broadcast(0, lanes)
 
 
-@pytest.mark.parametrize("lanes", [tvm_tirx.ir.expr.IntImm(dtype="int64", value=11)])
+@pytest.mark.parametrize("lanes", [tvm_tirx.ir.IntImm(dtype="int64", value=11)])
 @pytest.mark.parametrize("node_func", [_create_ramp, _create_broadcast])
 def test_lane_types(lanes, node_func):
     def _check_dtype(node):
@@ -485,7 +485,7 @@ def test_scalable_vec_cast():
 
     store = tvm_tirx.ir.TensorStore(b, [index], value)
 
-    assert isinstance(store.value.value, tvm_tirx.ir.expr.FloatImm)
+    assert isinstance(store.value.value, tvm_tirx.ir.FloatImm)
 
 
 @pytest.mark.parametrize("dtype", ["float16", "float16x2", "float32x4", "int32", "int32x2"])

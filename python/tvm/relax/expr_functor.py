@@ -211,9 +211,9 @@ class ExprFunctor:
             ret = self.visit_broadcast_(expr)
         elif isinstance(expr, tvm_tirx.ir.prim.vector_expr.Shuffle):
             ret = self.visit_shuffle_(expr)
-        elif isinstance(expr, tvm_tirx.ir.expr.IntImm):
+        elif isinstance(expr, tvm_tirx.ir.IntImm):
             ret = self.visit_int_imm_(expr)
-        elif isinstance(expr, tvm_tirx.ir.expr.FloatImm):
+        elif isinstance(expr, tvm_tirx.ir.FloatImm):
             ret = self.visit_float_imm_(expr)
         elif isinstance(expr, SeqExpr):
             ret = self.visit_seq_expr_(expr)
@@ -355,10 +355,10 @@ class ExprFunctor:
     def visit_shuffle_(self, op: tvm_tirx.ir.prim.vector_expr.Shuffle):
         return self.visit_expr_fallback_(op)
 
-    def visit_int_imm_(self, op: tvm_tirx.ir.expr.IntImm):
+    def visit_int_imm_(self, op: tvm_tirx.ir.IntImm):
         return self.visit_expr_fallback_(op)
 
-    def visit_float_imm_(self, op: tvm_tirx.ir.expr.FloatImm):
+    def visit_float_imm_(self, op: tvm_tirx.ir.FloatImm):
         return self.visit_expr_fallback_(op)
 
     def visit_seq_expr_(self, op: SeqExpr):

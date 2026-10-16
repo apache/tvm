@@ -20,8 +20,7 @@ from collections.abc import Callable
 
 import tvm_tirx
 from tvm import te
-from tvm_tirx.ir import Call, GenericConst
-from tvm_tirx.ir.expr import FloatImm, IntImm
+from tvm_tirx.ir import Call, FloatImm, GenericConst, IntImm
 from tvm_tirx.runtime import DataTypeCode
 
 from ...block_builder import BlockBuilder
@@ -81,9 +80,9 @@ def _try_convert_to_scalar_const(
             return value
         # preserve the data type of the constant
         if dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
-            return tvm_tirx.ir.expr.FloatImm(dtype_str, value)
+            return tvm_tirx.ir.FloatImm(dtype_str, value)
         elif dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT, DataTypeCode.BOOL):
-            return tvm_tirx.ir.expr.IntImm(dtype_str, value)
+            return tvm_tirx.ir.IntImm(dtype_str, value)
     return expr
 
 

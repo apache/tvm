@@ -351,7 +351,7 @@ class BasePyModule:
         for idx, dim in enumerate(shape):
             if isinstance(dim, int | np.integer):
                 concrete.append(int(dim))
-            elif isinstance(dim, tvm_tirx.ir.expr.IntImm):
+            elif isinstance(dim, tvm_tirx.ir.IntImm):
                 concrete.append(int(dim.value))
             else:
                 concrete.append(None)

@@ -123,24 +123,18 @@ class TestVector(BaseCompare):
         # int64 lanes
         TestCase(
             tvm_tirx.ir.prim.vector_expr.Broadcast(x, 4)
-            + tvm_tirx.ir.prim.vector_expr.Ramp(
-                0, 1, tvm_tirx.ir.expr.IntImm(dtype="int64", value=4)
-            ),
+            + tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, tvm_tirx.ir.IntImm(dtype="int64", value=4)),
             tvm_tirx.ir.prim.vector_expr.Ramp(x, 1, 4),
         ),
         TestCase(
-            tvm_tirx.ir.prim.vector_expr.Broadcast(
-                x, tvm_tirx.ir.expr.IntImm(dtype="int64", value=4)
-            )
+            tvm_tirx.ir.prim.vector_expr.Broadcast(x, tvm_tirx.ir.IntImm(dtype="int64", value=4))
             + tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4),
             tvm_tirx.ir.prim.vector_expr.Ramp(x, 1, 4),
         ),
         # int64 iterators with int32 lanes
         TestCase(
             tvm_tirx.ir.prim.vector_expr.Broadcast(x64, 4)
-            + tvm_tirx.ir.prim.vector_expr.Ramp(
-                tvm_tirx.ir.expr.IntImm(dtype="int64", value=0), 1, 4
-            ),
+            + tvm_tirx.ir.prim.vector_expr.Ramp(tvm_tirx.ir.IntImm(dtype="int64", value=0), 1, 4),
             tvm_tirx.ir.prim.vector_expr.Ramp(x64, 1, 4),
         ),
         TestCase(
@@ -1644,21 +1638,19 @@ class TestCLZ(BaseCompare):
             T.int32(24),
         ),
         TestCase(
-            tvm_tirx.tirx.call_intrin("prim.clz", tvm_tirx.ir.expr.IntImm("int64", 0), ty="int32"),
+            tvm_tirx.tirx.call_intrin("prim.clz", tvm_tirx.ir.IntImm("int64", 0), ty="int32"),
             T.int32(64),
         ),
         TestCase(
-            tvm_tirx.tirx.call_intrin("prim.clz", tvm_tirx.ir.expr.IntImm("int64", 1), ty="int32"),
+            tvm_tirx.tirx.call_intrin("prim.clz", tvm_tirx.ir.IntImm("int64", 1), ty="int32"),
             T.int32(63),
         ),
         TestCase(
-            tvm_tirx.tirx.call_intrin("prim.clz", tvm_tirx.ir.expr.IntImm("int64", 2), ty="int32"),
+            tvm_tirx.tirx.call_intrin("prim.clz", tvm_tirx.ir.IntImm("int64", 2), ty="int32"),
             T.int32(62),
         ),
         TestCase(
-            tvm_tirx.tirx.call_intrin(
-                "prim.clz", tvm_tirx.ir.expr.IntImm("int64", 128), ty="int32"
-            ),
+            tvm_tirx.tirx.call_intrin("prim.clz", tvm_tirx.ir.IntImm("int64", 128), ty="int32"),
             T.int32(56),
         ),
     )

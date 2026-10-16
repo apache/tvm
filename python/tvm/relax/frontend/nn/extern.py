@@ -57,9 +57,9 @@ class ExternModule:
                 if isinstance(arg, core.Tensor):
                     return arg._expr  # pylint: disable=protected-access
                 if isinstance(arg, int):
-                    return rx.prim_value(tvm_tirx.ir.expr.IntImm("int64", arg))
+                    return rx.prim_value(tvm_tirx.ir.IntImm("int64", arg))
                 if isinstance(arg, float):
-                    return rx.prim_value(tvm_tirx.ir.expr.FloatImm("float64", arg))
+                    return rx.prim_value(tvm_tirx.ir.FloatImm("float64", arg))
                 if isinstance(arg, str):
                     return tvm_tirx.ir.StringImm(arg)
                 if tvm_tirx.ir.is_prim_expr(arg):

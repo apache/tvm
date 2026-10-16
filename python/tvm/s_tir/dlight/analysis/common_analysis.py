@@ -62,7 +62,7 @@ class IterInfo:
     @property
     def dom(self) -> int | tirx.Expr:
         """The iteration domain of the loop."""
-        return int(self._dom) if isinstance(self._dom, tvm_tirx.ir.expr.IntImm) else self._dom
+        return int(self._dom) if isinstance(self._dom, tvm_tirx.ir.IntImm) else self._dom
 
     def __str__(self) -> str:
         return f'Iter("{self.kind}", {self.dom})'
@@ -114,7 +114,7 @@ class TensorInfo:
                     if (
                         isinstance(expr, tirx.expr.Mul)
                         and ir.is_prim_var(expr.a)
-                        and isinstance(expr.b, tvm_tirx.ir.expr.IntImm)
+                        and isinstance(expr.b, tvm_tirx.ir.IntImm)
                     ):
                         mul = expr.b
                         var_mul = expr.a
@@ -122,13 +122,13 @@ class TensorInfo:
                 elif (
                     isinstance(expr, tirx.expr.FloorMod)
                     and ir.is_prim_var(expr.a)
-                    and isinstance(expr.b, tvm_tirx.ir.expr.IntImm)
+                    and isinstance(expr.b, tvm_tirx.ir.IntImm)
                 ):
                     dim = RemIndex(expr.a, expr.b)
                 elif (
                     isinstance(expr, tirx.expr.FloorDiv)
                     and ir.is_prim_var(expr.a)
-                    and isinstance(expr.b, tvm_tirx.ir.expr.IntImm)
+                    and isinstance(expr.b, tvm_tirx.ir.IntImm)
                 ):
                     dim = DivIndex(expr.a, expr.b)
                 elif ir.is_prim_var(expr):
@@ -452,9 +452,7 @@ def _tensor_region_offset(region):
             offset += bounds.min * tensor.strides[axis]
         else:
             offset = offset * tensor.shape[axis] + bounds.min
-    if not (
-        isinstance(tensor.elem_offset, tvm_tirx.ir.expr.IntImm) and tensor.elem_offset.value == 0
-    ):
+    if not (isinstance(tensor.elem_offset, tvm_tirx.ir.IntImm) and tensor.elem_offset.value == 0):
         offset += tensor.elem_offset
     return tvm_tirx.sym.Analyzer().simplify(offset)
 

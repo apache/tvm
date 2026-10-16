@@ -23,8 +23,7 @@ from typing import TYPE_CHECKING, Any
 from tvm_ffi import Array, Map
 from tvm_ffi import register_object as _register_object
 
-from tvm_tirx.ir import save_json
-from tvm_tirx.ir.expr import FloatImm, IntImm
+from tvm_tirx.ir import FloatImm, IntImm, save_json
 from tvm_tirx.runtime import Object
 from tvm_tirx.tirx.function import IndexMap
 

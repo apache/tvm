@@ -61,7 +61,7 @@ def _resize2d_pattern() -> Pattern:
         if not isinstance(size_expr, ShapeExpr) or len(size_expr.values) != 2:
             return False
         if not all(
-            isinstance(dim, tvm_tirx.ir.expr.IntImm) and dim.value > 0 for dim in size_expr.values
+            isinstance(dim, tvm_tirx.ir.IntImm) and dim.value > 0 for dim in size_expr.values
         ):
             return False
 

@@ -56,7 +56,7 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
         b_relax = relax.Var("b", relax.TensorType(b.shape))
         f_infer_ty = call.op.get_attr("relax.FInferTypeWithBuilder")
         output_shape = f_infer_ty(relax.op.matmul(a_relax, b_relax), bb).shape
-        if isinstance(a_shape[-1], tvm_tirx.ir.expr.IntImm) and a_shape[-1] == 0:
+        if isinstance(a_shape[-1], tvm_tirx.ir.IntImm) and a_shape[-1] == 0:
             return te.compute(
                 output_shape,
                 lambda *_: tirx.const(0, call.ty.dtype),
@@ -79,9 +79,9 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
                     a_dim = a_shape[i if is_a_larger else i - offset]
                     b_dim = b_shape[i if not is_a_larger else i - offset]
                     dim_equal = a_dim == b_dim
-                    if not isinstance(dim_equal, tvm_tirx.ir.expr.IntImm) or dim_equal == 0:
-                        a_dim_is_one = isinstance(a_dim, tvm_tirx.ir.expr.IntImm) and a_dim == 1
-                        b_dim_is_one = isinstance(b_dim, tvm_tirx.ir.expr.IntImm) and b_dim == 1
+                    if not isinstance(dim_equal, tvm_tirx.ir.IntImm) or dim_equal == 0:
+                        a_dim_is_one = isinstance(a_dim, tvm_tirx.ir.IntImm) and a_dim == 1
+                        b_dim_is_one = isinstance(b_dim, tvm_tirx.ir.IntImm) and b_dim == 1
                         a_indices.append(0 if a_dim_is_one else idx_spatial[i])
                         b_indices.append(0 if b_dim_is_one else idx_spatial[i])
                     else:

@@ -141,7 +141,7 @@ class IterTrait:
 
 
 def _is_one(x: Expr) -> bool:
-    return isinstance(x, tvm_tirx.ir.expr.IntImm) and x.value == 1
+    return isinstance(x, tvm_tirx.ir.IntImm) and x.value == 1
 
 
 def make_iter_fusion_index_map(
@@ -163,8 +163,7 @@ def make_iter_fusion_index_map(
             fused_iters[trait.kind] = v_i
 
     final_indices: list[tirx.Expr] = [
-        fused_iters.get(kind, tvm_tirx.ir.expr.IntImm(traits[0].extent.ty, 0))
-        for kind in kind_order
+        fused_iters.get(kind, tvm_tirx.ir.IntImm(traits[0].extent.ty, 0)) for kind in kind_order
     ]
 
     return tirx.IndexMap(input_iters, final_indices, None)
@@ -686,9 +685,9 @@ class Matmul(GPUScheduleRule):
 
         mb, ms, n, k = reduction_loops
         if not (
-            isinstance(sch.get(n).extent, tvm_tirx.ir.expr.IntImm)
-            and isinstance(sch.get(mb).extent, tvm_tirx.ir.expr.IntImm)
-            and not isinstance(sch.get(ms).extent, tvm_tirx.ir.expr.IntImm)
+            isinstance(sch.get(n).extent, tvm_tirx.ir.IntImm)
+            and isinstance(sch.get(mb).extent, tvm_tirx.ir.IntImm)
+            and not isinstance(sch.get(ms).extent, tvm_tirx.ir.IntImm)
         ):
             return None
 

@@ -17,7 +17,7 @@
 
 """Implementation of binary operator dispatches."""
 
-from tvm_tirx.ir.expr import FloatImm
+from tvm_tirx.ir import FloatImm
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx import Function
 from tvm_tirx.tirx.tile import DispatchContext, fail

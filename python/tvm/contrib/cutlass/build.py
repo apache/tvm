@@ -418,7 +418,7 @@ def is_shape_valid_for_cutlass_matmul(
     as well as ND x 2D and 2D x ND. For example, it cannot handle matmul with shape
     (2, 1, 4, 8) x (2, 3, 8, 16), because the batch stride of lhs is not constant.
     """
-    if not isinstance(lhs_shape[-1], tvm_tirx.ir.expr.IntImm | int):
+    if not isinstance(lhs_shape[-1], tvm_tirx.ir.IntImm | int):
         # Reduction axis must be constant
         return False
 

@@ -786,8 +786,8 @@ def test_gpu():
         _, b_j = sch.split(b_ij, factors=[None, 16])  # outer: 8
         sch.bind(b_j, "threadIdx.x")
         # auto unroll
-        sch.annotate(i0_j0, "tirx.auto_unroll_max_step", tvm_tirx.ir.expr.IntImm("int32", 1024))
-        sch.annotate(i0_j0, "tirx.unroll_explicit", tvm_tirx.ir.expr.IntImm("int32", 1))
+        sch.annotate(i0_j0, "tirx.auto_unroll_max_step", tvm_tirx.ir.IntImm("int32", 1024))
+        sch.annotate(i0_j0, "tirx.unroll_explicit", tvm_tirx.ir.IntImm("int32", 1))
         return sch
 
     extractor = ms.feature_extractor.PerStoreFeature()

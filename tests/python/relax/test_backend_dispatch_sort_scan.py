@@ -687,7 +687,7 @@ def test_dispatch_cumsum_webgpu_axes_and_dtypes(
         tvm_ffi.structural_walk(cumsum.body, collect_floor_divisors)
         assert floor_divisors
         assert all(
-            isinstance(divisor, tvm_tirx.ir.expr.IntImm)
+            isinstance(divisor, tvm_tirx.ir.IntImm)
             and divisor.value > 0
             and divisor.value & (divisor.value - 1) == 0
             for divisor in floor_divisors

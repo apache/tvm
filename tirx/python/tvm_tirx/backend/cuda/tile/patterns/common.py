@@ -33,6 +33,7 @@ from tvm_tirx.ir import (
     Evaluate,
     For,
     ForKind,
+    IntImm,
     Op,
     PrimType,
     Range,
@@ -40,7 +41,6 @@ from tvm_tirx.ir import (
     TensorRegion,
     Var,
 )
-from tvm_tirx.ir.expr import IntImm
 from tvm_tirx.ir.prim import Let
 from tvm_tirx.runtime import DataType, MemoryScope
 from tvm_tirx.script import tirx as T

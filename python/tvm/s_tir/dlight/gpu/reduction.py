@@ -87,7 +87,7 @@ def _get_spatial_domains_in_access_order(
             # `_normalize` fuses the outer loop produced by this split.
             if split_expr.lower_factor > 1:
                 extent = split_expr.extent
-                extent = int(extent) if isinstance(extent, tvm_tirx.ir.expr.IntImm) else extent
+                extent = int(extent) if isinstance(extent, tvm_tirx.ir.IntImm) else extent
                 spatial_domains.append(extent)
             else:
                 spatial_domains.append(info.dom)

@@ -25,8 +25,7 @@ selection is performed. PTX ISA 9.7.18.3.1 and 9.7.18.4.1.
 import tvm_ffi
 
 from tvm_tirx.backend.cuda.cpp.descriptors import encode_smem_descriptor_base_uint64
-from tvm_tirx.ir import Var
-from tvm_tirx.ir.expr import IntImm
+from tvm_tirx.ir import IntImm, Var
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx.layout import ComposeLayout
 

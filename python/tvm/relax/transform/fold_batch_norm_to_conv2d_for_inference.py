@@ -83,7 +83,7 @@ class FoldBatchnormToConv2D:
 
             bn_variance = relax.op.add(
                 bn_variance,
-                relax.prim_value(tvm_tirx.ir.expr.FloatImm("float32", bn_attrs["epsilon"])),
+                relax.prim_value(tvm_tirx.ir.FloatImm("float32", bn_attrs["epsilon"])),
             )
             dino = relax.op.sqrt(bn_variance)
             wt = relax.op.divide(bn_weight, dino)

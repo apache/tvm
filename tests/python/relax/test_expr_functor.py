@@ -418,8 +418,8 @@ def test_shape_expr():
 
 
 def test_prim_expr():
-    basic_check(tvm_tirx.ir.expr.IntImm("int64", 1), "", "")
-    basic_check(tvm_tirx.ir.expr.FloatImm("float32", 1.0), "", "")
+    basic_check(tvm_tirx.ir.IntImm("int64", 1), "", "")
+    basic_check(tvm_tirx.ir.FloatImm("float32", 1.0), "", "")
     basic_check(m + n, "\n".join(["Var", "Var"]), "\n".join(["Var", "Var"]))
     basic_check(
         tvm_tirx.tirx.call_extern("test", ty="int32"),

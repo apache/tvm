@@ -550,7 +550,7 @@ def test_predicated_tensor_load_store():
         tensors[b],
         0,
         tvm_tirx.ir.prim.vector_expr.Ramp(0, 4, 4),
-        tvm_tirx.ir.prim.vector_expr.Broadcast(tvm_tirx.ir.expr.IntImm("bool", 0), 4),
+        tvm_tirx.ir.prim.vector_expr.Broadcast(tvm_tirx.ir.IntImm("bool", 0), 4),
         ty="float32x4",
     )
     body = tvm_tirx.ir.Evaluate(
@@ -560,7 +560,7 @@ def test_predicated_tensor_load_store():
             tensor_load,
             0,
             tvm_tirx.ir.prim.vector_expr.Ramp(0, 2, 4),
-            tvm_tirx.ir.prim.vector_expr.Broadcast(tvm_tirx.ir.expr.IntImm("bool", 0), 4),
+            tvm_tirx.ir.prim.vector_expr.Broadcast(tvm_tirx.ir.IntImm("bool", 0), 4),
             ty="void",
         )
     )

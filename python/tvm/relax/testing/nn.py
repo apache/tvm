@@ -288,7 +288,7 @@ def init_params(mod: tvm_tirx.IRModule) -> list[tvm_tirx.runtime.Tensor]:
         if isinstance(v, relax.ShapeExpr):
             shape = []
             for i in v:
-                if isinstance(i, tvm_tirx.ir.expr.IntImm):
+                if isinstance(i, tvm_tirx.ir.IntImm):
                     shape.append(int(i))
                 else:
                     raise TypeError("cannot initialize for unknown-shape parameters.")

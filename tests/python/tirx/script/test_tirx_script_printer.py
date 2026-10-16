@@ -504,8 +504,8 @@ a {sign} b"""
 
 
 def test_binary_arith_const():
-    a = tvm_tirx.ir.expr.IntImm("int64", 3)
-    b = tvm_tirx.ir.expr.IntImm("int64", 4)
+    a = tvm_tirx.ir.IntImm("int64", 3)
+    b = tvm_tirx.ir.IntImm("int64", 4)
     for op, name in [
         (tirx.Add, "Add"),
         (tirx.Sub, "Sub"),
@@ -640,7 +640,7 @@ Ts.comm_reducer(lambda x, y: x + y, [T.float32(0.0)])
 
 
 def test_int_imm():
-    _assert_print(tvm_tirx.ir.expr.IntImm("int64", 1), "T.int64(1)")
+    _assert_print(tvm_tirx.ir.IntImm("int64", 1), "T.int64(1)")
     obj = TB.int16(1)
     _assert_print(
         obj,
@@ -766,7 +766,7 @@ def f(A: T.Tensor((1,), T.float32)):
 
 
 def test_printer_cuda_namespace_printf():
-    node = tvm_tirx.ir.Evaluate(cuda_op.printf("x=%d", tvm_tirx.ir.expr.IntImm("int32", 1)))
+    node = tvm_tirx.ir.Evaluate(cuda_op.printf("x=%d", tvm_tirx.ir.IntImm("int32", 1)))
     _assert_namespace_print(node, 'T.cuda.printf("x=%d", 1)')
 
 
@@ -783,9 +783,7 @@ def test_printer_cuda_cluster_sync():
 
 def test_printer_cuda_namespace_mbarrier_wait():
     node = tvm_tirx.ir.Evaluate(
-        cuda_op.mbarrier_wait(
-            tvm_tirx.ir.expr.IntImm("int32", 0), tvm_tirx.ir.expr.IntImm("int32", 0)
-        )
+        cuda_op.mbarrier_wait(tvm_tirx.ir.IntImm("int32", 0), tvm_tirx.ir.IntImm("int32", 0))
     )
     _assert_namespace_print(node, "T.cuda.mbarrier_wait(0, 0)")
 
@@ -879,7 +877,7 @@ def test_printer_cuda_more():
     _assert_namespace_print(cuda_op.syncthreads_or(1), "T.cuda.syncthreads_or(1)")
     _assert_namespace_print(cuda_op.nano_sleep(100), "T.cuda.nano_sleep(100)")
     _assert_namespace_print(
-        cuda_op.atomic_add(p, tvm_tirx.ir.expr.IntImm("int32", 1)),
+        cuda_op.atomic_add(p, tvm_tirx.ir.IntImm("int32", 1)),
         """
 p = T.Var("p", T.Ptr(T.void))
 T.cuda.atomic_add(p, 1)

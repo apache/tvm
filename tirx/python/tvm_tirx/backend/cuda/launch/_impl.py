@@ -27,7 +27,7 @@ def _integer(value):
     if isinstance(value, Integral):
         return int(value)
     # Avoid importing TVM while the generated configuration module is loaded.
-    from tvm_tirx.ir.expr import IntImm
+    from tvm_tirx.ir import IntImm
 
     return int(value) if isinstance(value, IntImm) else None
 

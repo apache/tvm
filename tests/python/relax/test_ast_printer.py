@@ -297,9 +297,7 @@ def test_ty():
     assert printer.visit_ty_(empty_ssi) == "ShapeType(ndim=-1)"
 
     # include some dimensions
-    shape_info = rx.ShapeType(
-        [tvm_tirx.ir.expr.IntImm("int64", 1), tvm_tirx.ir.expr.IntImm("int64", 2)]
-    )
+    shape_info = rx.ShapeType([tvm_tirx.ir.IntImm("int64", 1), tvm_tirx.ir.IntImm("int64", 2)])
     assert strip_whitespace(printer.visit_ty_(shape_info)) == strip_whitespace(
         """
         ShapeType(
@@ -673,7 +671,7 @@ def test_tuple_get_item():
 
 
 def test_prim_value():
-    prim_value = tvm_tirx.ir.expr.IntImm("int64", 1)
+    prim_value = tvm_tirx.ir.IntImm("int64", 1)
     prim_str = strip_whitespace(dump_ast(prim_value))
     assert prim_str == strip_whitespace(
         """

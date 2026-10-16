@@ -20,7 +20,7 @@ These classes emit TIR via @T.inline. Decorate with @T.meta_class so that
 instances are automatically treated as meta values inside @T.function.
 """
 
-from tvm_tirx.ir.expr import IntImm as _IntImm
+from tvm_tirx.ir import IntImm as _IntImm
 from tvm_tirx.script import tirx as T
 
 

@@ -393,7 +393,7 @@ def ptx_cp_async_legacy(
 def _is_static_unicast_cta_mask(cta_mask):
     if isinstance(cta_mask, int):
         return cta_mask == 0 or cta_mask & (cta_mask - 1) == 0
-    if isinstance(cta_mask, tvm_tirx.ir.expr.IntImm):
+    if isinstance(cta_mask, tvm_tirx.ir.IntImm):
         value = int(cta_mask)
         return value == 0 or value & (value - 1) == 0
     return False

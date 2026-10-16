@@ -27,7 +27,7 @@ extent without a warp-memory lowering pass.
 """
 
 from tvm.s_tir import script as Ts
-from tvm_tirx.ir.expr import IntImm
+from tvm_tirx.ir import IntImm
 from tvm_tirx.runtime import convert
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx.expr import Cast

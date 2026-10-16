@@ -1720,17 +1720,17 @@ def test_iterative_rewrite_without_trivial_binding():
         end = end[0]
         stride = strides[0]
 
-        if not isinstance(axis, tvm_tirx.ir.expr.IntImm) or axis.value != 0:
+        if not isinstance(axis, tvm_tirx.ir.IntImm) or axis.value != 0:
             return expr
 
-        if not isinstance(stride, tvm_tirx.ir.expr.IntImm) or stride.value != 1:
+        if not isinstance(stride, tvm_tirx.ir.IntImm) or stride.value != 1:
             return expr
 
         size = arg.ty.shape[0]
         if (
-            isinstance(size, tvm_tirx.ir.expr.IntImm)
-            and isinstance(begin, tvm_tirx.ir.expr.IntImm)
-            and isinstance(end, tvm_tirx.ir.expr.IntImm)
+            isinstance(size, tvm_tirx.ir.IntImm)
+            and isinstance(begin, tvm_tirx.ir.IntImm)
+            and isinstance(end, tvm_tirx.ir.IntImm)
         ):
             size = size.value
             begin = begin.value

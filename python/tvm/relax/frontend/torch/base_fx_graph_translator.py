@@ -2044,7 +2044,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         for ax in axes:
             ax = ax + rank if ax < 0 else ax
             s = shape[ax]
-            if not isinstance(s, tvm_tirx.ir.expr.IntImm):
+            if not isinstance(s, tvm_tirx.ir.IntImm):
                 return None
             n *= int(s.value)
         return n
@@ -2427,15 +2427,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             max_index_val = 9223372036854775807
 
             def _adjust(val):
-                if isinstance(val, int | tvm_tirx.ir.expr.IntImm):
+                if isinstance(val, int | tvm_tirx.ir.IntImm):
                     int_val = int(val)
                     if int_val >= max_index_val:
                         return input_shape[axis]
                     if int_val < 0:
                         return input_shape[axis] + int_val
-                    if isinstance(
-                        input_shape[axis], int | tvm_tirx.ir.expr.IntImm
-                    ) and int_val > int(input_shape[axis]):
+                    if isinstance(input_shape[axis], int | tvm_tirx.ir.IntImm) and int_val > int(
+                        input_shape[axis]
+                    ):
                         return input_shape[axis]
                 return val
 
@@ -2483,7 +2483,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         original_shape = self.shape_of(input_tensor)
 
         def to_int(val):
-            if isinstance(val, tvm_tirx.ir.expr.IntImm):
+            if isinstance(val, tvm_tirx.ir.IntImm):
                 return int(val.value)
             elif isinstance(val, int):
                 return val

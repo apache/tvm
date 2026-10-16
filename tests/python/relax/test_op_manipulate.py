@@ -3451,8 +3451,8 @@ def test_one_hot_infer_ty():
         bb,
         relax.op.one_hot(
             i0,
-            tvm_tirx.ir.expr.FloatImm("float32", 1.0),
-            tvm_tirx.ir.expr.FloatImm("float32", 0.0),
+            tvm_tirx.ir.FloatImm("float32", 1.0),
+            tvm_tirx.ir.FloatImm("float32", 0.0),
             5,
         ),
         relax.TensorType((3, 5), "float32"),
@@ -3463,7 +3463,7 @@ def test_one_hot_infer_ty():
     _check_inference(
         bb,
         relax.op.one_hot(
-            i1, tvm_tirx.ir.expr.IntImm("int64", 1), tvm_tirx.ir.expr.IntImm("int64", 0), 3, axis=1
+            i1, tvm_tirx.ir.IntImm("int64", 1), tvm_tirx.ir.IntImm("int64", 0), 3, axis=1
         ),
         relax.TensorType((2, 3, 2), "int64"),
     )
@@ -3475,8 +3475,8 @@ def test_one_hot_infer_ty():
         bb,
         relax.op.one_hot(
             i2,
-            tvm_tirx.ir.expr.FloatImm("float32", 1.0),
-            tvm_tirx.ir.expr.FloatImm("float32", 0.0),
+            tvm_tirx.ir.FloatImm("float32", 1.0),
+            tvm_tirx.ir.FloatImm("float32", 0.0),
             4,
         ),
         relax.TensorType((n, 4), "float32"),
@@ -3488,8 +3488,8 @@ def test_one_hot_infer_ty():
         bb,
         relax.op.one_hot(
             i3,
-            tvm_tirx.ir.expr.FloatImm("float32", 1.0),
-            tvm_tirx.ir.expr.FloatImm("float32", 0.0),
+            tvm_tirx.ir.FloatImm("float32", 1.0),
+            tvm_tirx.ir.FloatImm("float32", 0.0),
             6,
         ),
         relax.TensorType(dtype="float32"),
@@ -3501,8 +3501,8 @@ def test_one_hot_infer_ty():
         bb.normalize(
             relax.op.one_hot(
                 i3,
-                tvm_tirx.ir.expr.FloatImm("float32", 1.0),
-                tvm_tirx.ir.expr.IntImm("int64", 0),
+                tvm_tirx.ir.FloatImm("float32", 1.0),
+                tvm_tirx.ir.IntImm("int64", 0),
                 5,
             )
         )
@@ -3513,8 +3513,8 @@ def test_one_hot_infer_ty():
         bb.normalize(
             relax.op.one_hot(
                 i4,
-                tvm_tirx.ir.expr.FloatImm("float32", 1.0),
-                tvm_tirx.ir.expr.FloatImm("float32", 0.0),
+                tvm_tirx.ir.FloatImm("float32", 1.0),
+                tvm_tirx.ir.FloatImm("float32", 0.0),
                 5,
             )
         )
@@ -3525,8 +3525,8 @@ def test_one_hot_infer_ty():
         bb.normalize(
             relax.op.one_hot(
                 i5,
-                tvm_tirx.ir.expr.FloatImm("float32", 1.0),
-                tvm_tirx.ir.expr.FloatImm("float32", 0.0),
+                tvm_tirx.ir.FloatImm("float32", 1.0),
+                tvm_tirx.ir.FloatImm("float32", 0.0),
                 -1,
             )
         )

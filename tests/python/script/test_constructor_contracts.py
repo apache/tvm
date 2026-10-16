@@ -27,7 +27,33 @@ from tvm import relax
 from tvm.relax import script as R
 from tvm_tirx import ir, tirx
 from tvm_tirx.script import ir as I
+from tvm_tirx.script import s_tir as S
 from tvm_tirx.script import tirx as T
+
+
+@pytest.mark.parametrize("namespace", [T, S])
+def test_cast_script_positional_and_keyword_type(namespace):
+    @namespace.function(private=True)
+    def positional(x: namespace.int32):
+        namespace.evaluate(namespace.cast(x, "float32"))
+
+    @namespace.function(private=True)
+    def keyword(x: namespace.int32):
+        namespace.evaluate(namespace.cast(x, ty="float32"))
+
+    ir.assert_structural_equal(positional, keyword)
+    cast_expr = positional.body[0].value
+    assert cast_expr.ty == ir.PrimType("float32")
+    assert isinstance(cast_expr.loc, ir.SourceLoc)
+    ir.assert_structural_equal(
+        positional, tvm_tirx.script.from_source(positional.script(), extra_vars={"T": T, "Ts": S})
+    )
+    value = tirx.Var("x", "int32")
+    loc = ir.SourceLoc(ir.SourceName("cast"), 1, 1, 1, 8)
+    assert namespace.cast(value, "float32", loc=loc).loc.same_as(loc)
+    assert namespace.cast(value, ty="float32", loc=loc).loc.same_as(loc)
+    with pytest.raises(TypeError):
+        namespace.cast(value, "float32", loc)
 
 
 def test_call_type_and_validation_contract():
@@ -66,9 +92,7 @@ def test_raw_call_preserves_provisional_fields(ty):
 
 
 def test_raw_call_preserves_checked_fields():
-    call = ir.Call(
-        "prim.exp", [tvm_tirx.ir.expr.FloatImm("float32", 0)], attrs={"tag": 7}, ty="float32"
-    )
+    call = ir.Call("prim.exp", [tvm_tirx.ir.FloatImm("float32", 0)], attrs={"tag": 7}, ty="float32")
     source = call.script()
     assert "T.Call(" in source
     ir.assert_structural_equal(call, eval(source, {"I": I, "R": R, "T": T}))
@@ -144,7 +168,7 @@ def test_prim_value_boolean_and_symbolic_conversion():
 
 
 def test_tuple_constructor_materializes_raw_call_arguments():
-    value = tvm_tirx.ir.expr.IntImm("int64", 1)
+    value = tvm_tirx.ir.IntImm("int64", 1)
     nested = R.tuple(R.tuple(), R.tuple(value))
     ir.assert_structural_equal(nested, ir.Tuple([ir.Tuple([]), ir.Tuple([value])]))
     call = ir.Call("relax.add", [nested], attrs={"tag": 1}, ty=ir.Type.missing())

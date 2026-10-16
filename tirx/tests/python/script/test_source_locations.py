@@ -47,7 +47,7 @@ def loc_lines(value):
 
 @pytest.fixture
 def located(located_language):
-    located_language.M.node = lambda value: tvm_tirx.ir.expr.IntImm("int32", value)
+    located_language.M.node = lambda value: tvm_tirx.ir.IntImm("int32", value)
     return located_language
 
 
@@ -63,7 +63,7 @@ def test_module_source_calls_have_context_before_annotations(located):
     seen = []
 
     def record():
-        node = tvm_tirx.ir.expr.IntImm("int32", 3)
+        node = tvm_tirx.ir.IntImm("int32", 3)
         seen.append(node)
         return node
 
@@ -100,7 +100,7 @@ def test_source_inline_keeps_caller_and_each_definition_location(located):
     def main():
         inner(1)
 
-    statements = [value for _, value in main.body if isinstance(value, tvm_tirx.ir.expr.IntImm)]
+    statements = [value for _, value in main.body if isinstance(value, tvm_tirx.ir.IntImm)]
     assert len(statements) == 2
     assert [int(value) for value in statements] == [1, 2]
     test = test_source_inline_keeps_caller_and_each_definition_location
@@ -202,7 +202,7 @@ def gallery(monkeypatch, located_language):
     monkeypatch.setitem(globals(), "__name__", "__main__")
     M = located_language.M
     M.store = lambda value: ir.Call(
-        ir.GlobalVar("store"), [tvm_tirx.ir.expr.IntImm("int32", value)], ty="int32"
+        ir.GlobalVar("store"), [tvm_tirx.ir.IntImm("int32", value)], ty="int32"
     )
     return M
 

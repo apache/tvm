@@ -31,7 +31,7 @@ def _convert_scalar(scalar, ref) -> "Tensor":
 
     if isinstance(scalar, Tensor):
         return scalar
-    if isinstance(scalar, tvm_tirx.ir.expr.FloatImm | tvm_tirx.ir.expr.IntImm):
+    if isinstance(scalar, tvm_tirx.ir.FloatImm | tvm_tirx.ir.IntImm):
         return Tensor.from_scalar(scalar.value, dtype=ref.dtype)
     if isinstance(scalar, int | float):
         return Tensor.from_scalar(scalar, dtype=ref.dtype)

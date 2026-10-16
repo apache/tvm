@@ -153,7 +153,7 @@ class GEMV(GPUScheduleRule):
                     reduce(
                         lambda x, y: x * y,
                         tensor.shape,
-                        tvm_tirx.ir.expr.IntImm(tensor.shape[0].ty, 1),
+                        tvm_tirx.ir.IntImm(tensor.shape[0].ty, 1),
                     )
                     * dtype_bytes
                 )
@@ -166,7 +166,7 @@ class GEMV(GPUScheduleRule):
             max_smem = get_max_shared_memory_per_block(target)
             LOAD_V_SHARED = (
                 LOAD_V_SHARED
-                and isinstance(shared_mem_usage, tvm_tirx.ir.expr.IntImm)
+                and isinstance(shared_mem_usage, tvm_tirx.ir.IntImm)
                 and shared_mem_usage.value <= max_smem
             )
 
@@ -192,7 +192,7 @@ class GEMV(GPUScheduleRule):
                 sch.compute_at(V_shared, tr, preserve_unit_loops=True)
                 l = sch.get_loops(block=V_shared)[-1]
                 loop: tvm_tirx.ir.For = sch.get(l)
-                if isinstance(loop.extent, tvm_tirx.ir.expr.IntImm):
+                if isinstance(loop.extent, tvm_tirx.ir.IntImm):
                     # avoid introducing predicates when vector length is too large
                     vec_length = max(
                         min(

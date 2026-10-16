@@ -141,7 +141,7 @@ class Layout(Object):
         # Python ``int`` -> int32 IntImm and breaks structural-equal).
         for t in data:
             if tvm_tirx.ir.is_prim_expr(t) and t.ty.dtype != "int32":
-                from tvm_tirx.ir.expr import IntImm  # pylint: disable=import-outside-toplevel
+                from tvm_tirx.ir import IntImm  # pylint: disable=import-outside-toplevel
 
                 stride = IntImm(t.ty, stride)
                 break

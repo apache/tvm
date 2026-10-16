@@ -92,10 +92,10 @@ def convert_to_expr(value: Any) -> Expr:
     4. Return `relax.Tuple` if the input is a tuple/list of `Expr`.
     """
     if isinstance(value, int):
-        return tvm_tirx.ir.expr.IntImm("int64", value)
+        return tvm_tirx.ir.IntImm("int64", value)
 
     if isinstance(value, float):
-        return tvm_tirx.ir.expr.FloatImm("float64", value)
+        return tvm_tirx.ir.FloatImm("float64", value)
 
     tvm_value = tvm_ffi.convert(value)
     # Case 1

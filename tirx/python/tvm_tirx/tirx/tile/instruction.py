@@ -30,7 +30,9 @@ import tvm_ffi
 from tvm_tirx.ir import (
     Attrs,
     Call,
+    CallEffectKind,
     Expr,
+    IntImm,
     Op,
     PrimType,
     PtrType,
@@ -41,7 +43,6 @@ from tvm_tirx.ir import (
     const,
     make_node,
 )
-from tvm_tirx.ir.expr import CallEffectKind, IntImm
 from tvm_tirx.ir.location import UNKNOWN_LOC
 from tvm_tirx.ir.op import register_op_attr
 from tvm_tirx.tirx.thread_scope import ThreadScope

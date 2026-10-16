@@ -480,7 +480,7 @@ def test_cuda_gemm_mma_lowers_to_mma_sync(dtype):
     for dst, value in zip(operands[:4], operands[10:14]):
         assert isinstance(value, tvm_tirx.ir.Call) and value.op.name.endswith("if_then_else")
         initial, previous = value.args[1:]
-        assert isinstance(initial, tvm_tirx.ir.expr.FloatImm) and initial.value == 0
+        assert isinstance(initial, tvm_tirx.ir.FloatImm) and initial.value == 0
         tvm_tirx.ir.assert_structural_equal(dst, previous)
 
 

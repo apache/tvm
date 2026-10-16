@@ -22,7 +22,7 @@ import importlib
 import tvm_ffi
 
 from tvm_tirx import ir
-from tvm_tirx.ir.expr import CallEffectKind, FloatImm, IntImm
+from tvm_tirx.ir import CallEffectKind, FloatImm, IntImm
 from tvm_tirx.ir.prim.vector_expr import Broadcast, Ramp, Shuffle
 from tvm_tirx.ir.unique_name_supply import UniqueNameSupply
 

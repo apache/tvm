@@ -31,8 +31,7 @@ import tvm_ffi
 import tvm_tirx
 import tvm_tirx.testing
 from tvm_tirx.backend.cuda.layout import mma_atom_layout, mma_atom_shape, mma_shared_layout
-from tvm_tirx.ir import PrimType, PtrType, Range, TensorRegion, TensorRegionType
-from tvm_tirx.ir.expr import IntImm
+from tvm_tirx.ir import IntImm, PrimType, PtrType, Range, TensorRegion, TensorRegionType
 from tvm_tirx.script import tirx as T
 from tvm_tirx.sym import Analyzer
 from tvm_tirx.tirx import Var

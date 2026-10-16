@@ -34,8 +34,7 @@ import tvm_tirx
 # isort: on
 from tvm_tirx import ir as _ir
 from tvm_tirx import tirx as _tir
-from tvm_tirx.ir import is_prim_expr
-from tvm_tirx.ir.expr import IntImm
+from tvm_tirx.ir import IntImm, is_prim_expr
 from tvm_tirx.ir.type import _PrimTypeArrayAnnotation
 from tvm_tirx.script.ir_builder import _ffi_api as _shared_ffi_api
 from tvm_tirx.script.ir_builder import base as _base
@@ -361,7 +360,7 @@ def set_mutable_cell_(
     elif (
         _tir.is_tensor_var(target)
         and len(target.ty.shape) == 1
-        and isinstance(target.ty.shape[0], tvm_tirx.ir.expr.IntImm)
+        and isinstance(target.ty.shape[0], tvm_tirx.ir.IntImm)
         and target.ty.shape[0].value == 1
     ):
         return _base.at_(loc, tensor_store(target, [0], value))

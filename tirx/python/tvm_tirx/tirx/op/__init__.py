@@ -32,6 +32,7 @@ from tvm_tirx.ir import (
     Call,
     Expr,
     ExprWithOp,
+    IntImm,
     PrimType,
     PtrType,
     TensorLoad,
@@ -39,7 +40,6 @@ from tvm_tirx.ir import (
     Var,
     const,
 )
-from tvm_tirx.ir.expr import IntImm
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.ir.prim import clz as clz
 from tvm_tirx.ir.prim import max_value as max_value

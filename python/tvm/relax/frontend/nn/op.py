@@ -1546,7 +1546,7 @@ def full(
     result : Tensor
         The result tensor.
     """
-    if isinstance(fill_value, tvm_tirx.ir.expr.FloatImm | tvm_tirx.ir.expr.IntImm):
+    if isinstance(fill_value, tvm_tirx.ir.FloatImm | tvm_tirx.ir.IntImm):
         fill_value = rx.const(fill_value.value, dtype=dtype)
     elif isinstance(fill_value, int | float):
         fill_value = rx.const(fill_value, dtype=dtype)
@@ -2206,9 +2206,9 @@ def extern(
         if isinstance(arg, Tensor):
             return arg._expr  # pylint: disable=protected-access
         if isinstance(arg, int):
-            return rx.prim_value(tvm_tirx.ir.expr.IntImm("int64", arg))
+            return rx.prim_value(tvm_tirx.ir.IntImm("int64", arg))
         if isinstance(arg, float):
-            return rx.prim_value(tvm_tirx.ir.expr.FloatImm("float64", arg))
+            return rx.prim_value(tvm_tirx.ir.FloatImm("float64", arg))
         if isinstance(arg, str):
             return tvm_tirx.ir.StringImm(arg)
         if tvm_tirx.ir.is_prim_expr(arg):
@@ -2272,9 +2272,9 @@ def debug_func(
         if isinstance(arg, Tensor):
             converted_args.append(arg._expr)  # pylint: disable=protected-access
         elif isinstance(arg, int):
-            converted_args.append(rx.prim_value(tvm_tirx.ir.expr.IntImm("int64", arg)))
+            converted_args.append(rx.prim_value(tvm_tirx.ir.IntImm("int64", arg)))
         elif isinstance(arg, float):
-            converted_args.append(rx.prim_value(tvm_tirx.ir.expr.FloatImm("float32", arg)))
+            converted_args.append(rx.prim_value(tvm_tirx.ir.FloatImm("float32", arg)))
         elif tvm_tirx.ir.is_prim_expr(arg):
             converted_args.append(rx.prim_value(arg))
         elif isinstance(arg, str):

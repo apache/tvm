@@ -20,8 +20,7 @@
 from functools import cache
 
 from tvm_tirx.backend.trn.layout import is_trainium_layout
-from tvm_tirx.ir import TensorRegion
-from tvm_tirx.ir.expr import FloatImm
+from tvm_tirx.ir import FloatImm, TensorRegion
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
 from tvm_tirx.sym.analyzer import Analyzer

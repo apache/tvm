@@ -32,7 +32,7 @@ from tvm_tirx.tirx.layout import S, TileLayout
 
 def _splat_f32(value):
     """Prepare the two equal f32 fields of a native b64 packed operand."""
-    if isinstance(value, tvm_tirx.ir.expr.FloatImm):
+    if isinstance(value, tvm_tirx.ir.FloatImm):
         bits = struct.unpack("I", struct.pack("f", value.value))[0]
         return T.uint64(bits) | (T.uint64(bits) << T.uint64(32))
     bits = T.cast(T.reinterpret(value, ty="uint32"), ty="uint64")

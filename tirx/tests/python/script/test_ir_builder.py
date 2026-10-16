@@ -67,7 +67,7 @@ def test_attach_loc_normalizes_full_stack_and_preserves_identity():
     outer = _source_loc("definition.py", 1, end_line=10)
     inner = _source_loc("definition.py", 3)
     leaf = _source_loc("leaf.py", 5)
-    node = tvm_tirx.ir.expr.IntImm("int32", 1)
+    node = tvm_tirx.ir.IntImm("int32", 1)
     with IRBuilder() as ib:
         with ib.with_loc(caller), ib.with_loc(outer), ib.with_loc(ir.UnknownLoc()):
             with ib.with_loc(ir.CallSiteLoc(inner, caller)):
@@ -80,7 +80,7 @@ def test_attach_loc_preserves_shared_prefix_and_receipt_identity():
 
     caller = _source_loc("caller.py", 2)
     callee = _source_loc("definition.py", 3)
-    node = tvm_tirx.ir.expr.IntImm("int32", 1)
+    node = tvm_tirx.ir.IntImm("int32", 1)
     receipt = AlreadyEmitted(node)
     container = [node]
     with IRBuilder() as ib:
@@ -98,7 +98,7 @@ def test_unknown_attachment_and_scope_exception_restore_context():
 
     caller = _source_loc("caller.py", 2)
     callee = _source_loc("definition.py", 3)
-    node = tvm_tirx.ir.expr.IntImm("int32", 1)
+    node = tvm_tirx.ir.IntImm("int32", 1)
     with IRBuilder() as ib:
         assert ib._attach_loc(node) is node
         assert isinstance(node.loc, ir.UnknownLoc)
@@ -110,7 +110,7 @@ def test_unknown_attachment_and_scope_exception_restore_context():
                     raise RuntimeError("scope failure")
             ib._attach_loc(node)
         assert node.loc.same_as(caller)
-        untouched = tvm_tirx.ir.expr.IntImm("int32", 2)
+        untouched = tvm_tirx.ir.IntImm("int32", 2)
         ib._attach_loc(untouched)
         assert isinstance(untouched.loc, ir.UnknownLoc)
     assert not IRBuilder.is_in_scope()

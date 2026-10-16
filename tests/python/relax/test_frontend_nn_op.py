@@ -467,7 +467,7 @@ def test_create():
             triu_out = op.triu(x)
             full_with_scalar_out = op.full([10, 10], fill_value=10)  # type: ignore
             full_with_FloatImm_out = op.full(
-                [10, 10], fill_value=tvm_tirx.ir.expr.FloatImm(dtype="float32", value=10)
+                [10, 10], fill_value=tvm_tirx.ir.FloatImm(dtype="float32", value=10)
             )
             full_with_Tensor_out = op.full(
                 [10, 10], fill_value=Tensor.from_scalar(10, dtype="float32")
