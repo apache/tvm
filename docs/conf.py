@@ -278,6 +278,7 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx_gallery.gen_gallery",
     "autodocsumm",
+    "ffi_autodoc",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
