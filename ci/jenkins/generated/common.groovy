@@ -22,10 +22,11 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 image_platforms = [ci_arm: 'ARM', ci_cpu: 'CPU', ci_gpu: 'GPU', ci_wasm: 'CPU']
 // Resolve Hub inputs through the caller account ECR cache; false keeps public names.
 enable_docker_hub_cache = true
-env.SCCACHE_BUCKET = 'tvm-sccache-prod'
-env.SCCACHE_REGION = 'us-west-2'
 max_time = 180
-docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TEST_STEP_NAME'
+// Temporarily bypass image sccache wrappers and inherited compiler launchers.
+docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TEST_STEP_NAME' +
+  ' --env CC=/usr/bin/gcc --env CXX=/usr/bin/g++' +
+  ' --env CMAKE_C_COMPILER_LAUNCHER= --env CMAKE_CXX_COMPILER_LAUNCHER='
 docker_build = 'docker/build.sh'
 s3_bucket = 'tvm-jenkins-artifacts-prod'
 jenkins_scripts_root = 'ci/jenkins/scripts'

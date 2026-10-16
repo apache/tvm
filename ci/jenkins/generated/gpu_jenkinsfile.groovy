@@ -38,7 +38,6 @@ stage('Build') {
         script: """${docker_run} --no-gpu ${images.ci_gpu} bash -euo pipefail -c '
           source ./tests/scripts/task_install_build_dependencies.sh
           ./tests/scripts/task_build_gpu.sh
-          sccache --show-stats
         '""",
         label: 'Build gpu',
       )

@@ -36,7 +36,6 @@ stage('Build') {
         script: """${docker_run} ${images.ci_wasm} bash -euo pipefail -c '
           source ./tests/scripts/task_install_build_dependencies.sh
           ./tests/scripts/task_build_wasm.sh
-          sccache --show-stats
         '""",
         label: 'Build wasm wheels and C++ tests',
       )
