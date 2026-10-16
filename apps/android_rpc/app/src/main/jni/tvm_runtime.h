@@ -54,6 +54,7 @@
 #include "../src/runtime/rpc/rpc_server_env.cc"
 #include "../src/runtime/rpc/rpc_session.cc"
 #include "../src/runtime/rpc/rpc_socket_impl.cc"
+#include "../src/runtime/timer.cc"
 #include "../src/runtime/vm/params.cc"
 #include "../tirx/src/runtime/cpu_device_api.cc"
 #include "../tirx/src/runtime/device_api.cc"
@@ -63,7 +64,6 @@
 #include "../tirx/src/runtime/tensor.cc"
 #include "../tirx/src/runtime/thread_pool.cc"
 #include "../tirx/src/runtime/threading_backend.cc"
-#include "../tirx/src/runtime/timer.cc"
 #include "../tirx/src/runtime/workspace_pool.cc"
 // clang-format on
 

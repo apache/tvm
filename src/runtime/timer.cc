@@ -117,9 +117,9 @@ Timer StartTimer(Device dev) {
 }
 
 ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int repeat,
-                                       int min_repeat_ms, int limit_zero_time_iterations,
-                                       int cooldown_interval_ms, int repeats_to_cooldown,
-                                       int cache_flush_bytes, ffi::Function f_preproc) {
+                                int min_repeat_ms, int limit_zero_time_iterations,
+                                int cooldown_interval_ms, int repeats_to_cooldown,
+                                int cache_flush_bytes, ffi::Function f_preproc) {
   TVM_FFI_ICHECK(pf != nullptr);
 
   auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
