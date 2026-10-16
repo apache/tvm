@@ -20,7 +20,8 @@ if(USE_CLML)
     file(GLOB CLML_RUNTIME_MODULE src/runtime/extra/contrib/clml/clml_runtime.cc)
     if(TARGET tvm_runtime_opencl)
         get_target_property(_clml_opencl_headers tvm_runtime_opencl INTERFACE_INCLUDE_DIRECTORIES)
-    else()
+    endif()
+    if(NOT _clml_opencl_headers)
         find_path(_clml_opencl_headers CL/cl.h
             HINTS "${TVM_OPENCL_HEADERS_ROOT}" ENV OPENCL_SDK
             PATH_SUFFIXES include REQUIRED)
