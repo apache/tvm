@@ -27,6 +27,7 @@ import tarfile
 from pathlib import Path
 
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -191,9 +192,14 @@ def _check_aot_object_link(device, tmp_path):
     child_env[loader_path] = os.pathsep.join(library_dirs)
     consumer = r"""
 import importlib.abc
+import importlib.util
 import sys
 class NoCompiler(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
+        # Resolve only FFI when the producer uses a PYTHONPATH install.
+        # Do not expose sibling compiler packages to this isolated consumer.
+        if fullname == 'tvm_ffi':
+            return importlib.util.spec_from_file_location(fullname, sys.argv[3])
         if fullname.split('.')[0] == 'torch':
             raise ImportError('Torch is not part of the FFI consumer')
         if fullname.split('.')[0] in ('tvm', 'tvm_tirx'):
@@ -228,7 +234,7 @@ np.testing.assert_array_equal(b, expected)
 assert not any(name.split('.')[0] in ('tvm', 'tvm_tirx', 'torch') for name in sys.modules)
 """
     subprocess.run(
-        [sys.executable, "-I", "-c", consumer, str(output), device],
+        [sys.executable, "-I", "-c", consumer, str(output), device, tvm_ffi.__file__],
         env=child_env,
         cwd=tmp_path,
         check=True,
@@ -251,7 +257,7 @@ assert not any(name.split('.')[0] in ('tvm', 'tvm_tirx', 'torch') for name in sy
             check=True,
         )
         result = subprocess.run(
-            [sys.executable, "-I", "-c", consumer, str(unretained), device],
+            [sys.executable, "-I", "-c", consumer, str(unretained), device, tvm_ffi.__file__],
             env=child_env,
             cwd=tmp_path,
             capture_output=True,
