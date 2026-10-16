@@ -1,0 +1,95 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+default_install_hook_types:
+  - pre-commit
+repos:
+  # ---------- Local hooks ----------
+  - repo: local
+    hooks:
+      - id: cuda-launch-generated
+        name: check CUDA launch generated files
+        entry: python python/tvm_tirx/backend/cuda/launch/generate.py --check
+        language: python
+        additional_dependencies: [ruff==0.12.3, clang-format==20.1.8]
+        pass_filenames: false
+        files: ^(python/tvm_tirx/backend/cuda/launch/|src/backend/cuda/launch/)
+      - id: check-asf-header
+        name: check ASF Header
+        entry: python tests/lint/check_asf_header.py --check
+        language: python
+        language_version: python3
+        pass_filenames: false
+        verbose: false
+      - id: check-file-type
+        name: check file types
+        entry: python tests/lint/check_file_type.py
+        language: python
+        language_version: python3
+        pass_filenames: false
+        verbose: false
+  # ---------- General file checks ----------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: end-of-file-fixer
+        exclude: ^3rdparty/
+      - id: mixed-line-ending
+        exclude: ^3rdparty/
+      - id: requirements-txt-fixer
+      - id: trailing-whitespace
+        exclude: ^3rdparty/
+      - id: check-yaml
+      - id: check-toml
+
+  # ---------- YAML lint ----------
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        args:
+          - --config-file
+          - .yamllint.yaml
+        exclude: ^\.github/
+
+  # ---------- TOML format ----------
+  - repo: https://github.com/ComPWA/taplo-pre-commit
+    rev: v0.9.3
+    hooks:
+      - id: taplo-format
+
+  # ---------- Python: ruff ----------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.3
+    hooks:
+      - id: ruff-check
+        types_or: [python, pyi, jupyter]
+        args: [--fix]
+      - id: ruff-format
+        types_or: [python, pyi, jupyter]
+
+  # ---------- C/C++: clang-format ----------
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: "v20.1.8"
+    hooks:
+      - id: clang-format
+        types_or: [c, c++, cuda, objective-c++]
+        exclude: ^3rdparty/
