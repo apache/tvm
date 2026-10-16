@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, wildcard-import
-"""TVM: Open Deep Learning Compiler Stack."""
+"""Tensor-level intermediate representations, compilation, and runtime execution."""
 
 import sys
 import os

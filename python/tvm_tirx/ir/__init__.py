@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-import
-"""Common data structures across all IR variants."""
+"""Shared IR types, expressions, statements, source locations, and modules."""
 
 from ._constant import const
 from .attrs import Attrs, DictAttrs, make_node

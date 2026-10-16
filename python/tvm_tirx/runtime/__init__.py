@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM runtime namespace."""
+"""Runtime tensors, devices, executable modules, and thread information."""
 
 from tvm_ffi import load_module
 from tvm_ffi._dtype import DataTypeCode

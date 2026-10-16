@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-import, redefined-builtin
-"""Namespace for Tensor-level IR"""
+"""Tensor-level IR nodes, layouts, operators, analysis, and compilation."""
 
 import tvm_tirx.script
 

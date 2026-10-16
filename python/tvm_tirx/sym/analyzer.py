@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-"""Arithmetic data structure and utility"""
+"""Analyze and simplify symbolic expressions using bounds, modular sets, and constraints."""
 
 import enum
 from contextlib import contextmanager

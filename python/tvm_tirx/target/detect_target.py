@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Detect target."""
+"""Detect compilation targets from available runtime devices and system capabilities."""
 
 from collections.abc import Callable
 

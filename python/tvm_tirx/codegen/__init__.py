@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Code generation related functions."""
+"""Compile IR modules into executable runtime modules and query target features."""
 
 from tvm_ffi import Array, get_global_func
 

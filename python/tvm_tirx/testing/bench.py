@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""Benchmark and profile GPU launch callables, including distributed execution."""
+
 import argparse
 import gc
 import inspect

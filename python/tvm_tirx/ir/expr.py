@@ -934,7 +934,7 @@ class LambdaExpr(StagingExpr, Scriptable):
 
 @tvm_ffi.register_object("ir.Range")
 class Range(Node, Scriptable):
-    """A half-open interval stored as ``min`` and ``extent``.
+    """A half-open interval stored as ``begin`` and ``extent``.
 
     Use :meth:`from_min_extent` when the extent is already known.
 

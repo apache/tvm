@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Implementation of TIR operator."""
+"""Typed views of tensor instruction operands during tile lowering."""
 
 from tvm_tirx.tirx import Expr
 from tvm_tirx.tirx.tile.instruction import TensorCall

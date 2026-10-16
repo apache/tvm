@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Detect common patterns."""
+"""Detect bounds, affine forms, and other patterns in symbolic expressions."""
 
 from . import _ffi_api
 
