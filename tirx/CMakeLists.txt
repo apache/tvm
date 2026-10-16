@@ -47,7 +47,6 @@ tvm_tirx_option(TVM_TIRX_USE_LLVM STRING OFF "Build with LLVM (OFF, ON, or llvm-
 # ######### Z3 ##########
 
 tvm_tirx_option(TVM_TIRX_USE_Z3 STRING AUTO "Build with Z3 SMT solver support (OFF, ON, AUTO)")
-set_property(CACHE TVM_TIRX_USE_Z3 PROPERTY STRINGS OFF ON AUTO)
 
 # ######### CUDA ##########
 
