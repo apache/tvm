@@ -87,8 +87,10 @@ jobs:
 
       - name: Test
         shell: bash -l {0}
+        env:
+          PYTHONFAULTHANDLER: "1"
         run: >-
-          python -m pytest -v tests/python/all-platform-minimal-test tests/python/script
+          python -m pytest -v -s tests/python/all-platform-minimal-test tests/python/script
           tirx/tests/python/all-platform-minimal-test tirx/tests/python/script
           tirx/tests/python/runtime/test_tirx_config.py
           tirx/tests/python/codegen/test_executable.py::test_executable_export_library
