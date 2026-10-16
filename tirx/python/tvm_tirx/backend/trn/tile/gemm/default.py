@@ -22,11 +22,10 @@ import operator
 from functools import cache
 
 from tvm_tirx.backend.trn.layout import is_trainium_layout
-from tvm_tirx.ir import TensorRegion, assert_structural_equal
+from tvm_tirx.ir import Stmt, TensorRegion, assert_structural_equal
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
 from tvm_tirx.sym.analyzer import Analyzer
-from tvm_tirx.tirx import Function
 from tvm_tirx.tirx.tile import DispatchContext, fail
 from tvm_tirx.tirx.tile.instruction import TensorCall
 
@@ -117,7 +116,7 @@ def get_pf_dim_from_tensor_region(
     return p_dim, f_dim
 
 
-def matmul_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
+def matmul_trn(op: TensorCall, sctx: DispatchContext) -> Stmt:
     """Schedule GEMM operation on Trainium."""
     # Basic validation checks
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
@@ -254,7 +253,7 @@ def matmul_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
         def impl_C_psum():
             for lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(lhs_b_extent, rhs_b_extent, reduction_b_extent):  # noqa: E501
                 matmul_inst_macro(lhs_b_loop, rhs_b_loop, reduction_b_loop, C, True, None)
-        return impl_C_psum
+        return impl_C_psum.body
 
     # todo: generalize the process of generating composite matmul + another_op pattern
     # by generating TIR op and reusing existing dispatch rule
@@ -292,4 +291,4 @@ def matmul_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
                             acc_indices = T.meta_var(inst_gen.generate_indices(C_tensor_region))
                             T.evaluate(T.nki.tensor_copy(C[acc_indices], acc_psum[(lhs_b_loop * rhs_b_extent + rhs_b_loop) % max_psum_slots, lhs_f_loop, rhs_f_loop]))  # noqa: E501
     # fmt: on
-    return impl_C_sbuf
+    return impl_C_sbuf.body

@@ -20,9 +20,9 @@
 from functools import cache
 
 from tvm_tirx.backend.trn.layout import is_trainium_layout
+from tvm_tirx.ir import Stmt
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import Function
 from tvm_tirx.tirx.tile import DispatchContext, fail
 from tvm_tirx.tirx.tile.instruction import TensorCall
 
@@ -43,7 +43,7 @@ def _scope_trn_sbuf():
     return MemoryScope("trn.sbuf")
 
 
-def copy_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
+def copy_trn(op: TensorCall, sctx: DispatchContext) -> Stmt:
     """Schedule copy operation between global and shared memory on CUDA."""
     # Basic validation checks
     if sctx.scope_kind != "thread":
@@ -148,4 +148,4 @@ def copy_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
                             dst_indices = T.meta_var(inst_gen.generate_indices(dst_region))
                             func(dst[tuple(dst_indices)], src[tuple(src_indices)])
     # fmt: on
-    return impl
+    return impl.body

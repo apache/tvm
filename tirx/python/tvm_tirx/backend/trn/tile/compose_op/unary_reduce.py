@@ -17,9 +17,8 @@
 
 """Implementation of UnaryReduce dispatch."""
 
-from tvm_tirx.ir import TensorRegion
+from tvm_tirx.ir import Stmt, TensorRegion
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import Function
 from tvm_tirx.tirx.tile import DispatchContext
 from tvm_tirx.tirx.tile.instruction import TensorCall
 from tvm_tirx.tirx.tile.views import UnaryReduce
@@ -33,7 +32,7 @@ from ..unary.utils import get_const_bias_tensor, try_find_inst_unary
 from .utils import opcode_table
 
 
-def unary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
+def unary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Stmt:
     """Generate a TRN schedule for unary reduction operations."""
     op = TensorCall.decode(op)
     assert isinstance(op, UnaryReduce), f"invalid operator downcast: {op}"
@@ -129,7 +128,7 @@ def unary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
 
         mod = tvm_tirx.IRModule({"main": impl})
         mod = tvm_tirx.tirx.transform.StmtSimplify()(mod)
-        return mod["main"]
+        return mod["main"].body
     else:
         # fmt: off
         # This fragment captures tensors and indices from its insertion scope.
@@ -159,4 +158,4 @@ def unary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
                                 T.evaluate(T.nki.tensorreduce(dst2[tuple(dst_2_indices)], intermediate_tensor[p_loop, f_loop], reduce_opcode, False, -1))  # noqa: E501
         # fmt: on
 
-        return impl
+        return impl.body

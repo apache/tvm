@@ -17,8 +17,7 @@
 
 """Implementation of unary with bias and scale operator dispatches."""
 
-from tvm_tirx.ir import TensorRegion
-from tvm_tirx.tirx import Function
+from tvm_tirx.ir import Stmt, TensorRegion
 from tvm_tirx.tirx.tile import DispatchContext, fail
 from tvm_tirx.tirx.tile.common import MapOpType
 from tvm_tirx.tirx.tile.instruction import TensorCall
@@ -26,12 +25,12 @@ from tvm_tirx.tirx.tile.instruction import TensorCall
 from ..binary import try_find_inst_nary
 from ..common import init_analyzer
 from ..instruction_generator import InstructionGenerator
-from .utils import activation_map_ops, generate_unary_func, try_find_inst_unary
+from .utils import activation_map_ops, generate_unary_stmt, try_find_inst_unary
 
 
 def unary_with_bias_scale_trn(
     op: TensorCall, unary_op: MapOpType = MapOpType.SQRT, sctx: DispatchContext = None
-) -> Function | None:
+) -> Stmt:
     """Schedule unary operation with bias and scale on Trainium."""
     # Check execution environment
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
@@ -61,8 +60,8 @@ def unary_with_bias_scale_trn(
         # Handle scalar bias
         inst_repr = try_find_inst_unary(dst_tensor_region, src_tensor_region, analyzer, inst_gen)
 
-    # Generate and return the implementation function
-    return generate_unary_func(
+    # Generate and return the implementation statement
+    return generate_unary_stmt(
         dst_tensor_region,
         src_tensor_region,
         inst_gen,

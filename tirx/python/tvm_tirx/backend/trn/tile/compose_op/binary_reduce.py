@@ -17,9 +17,8 @@
 
 """Implementation of BinaryReduce dispatch."""
 
-from tvm_tirx.ir import TensorRegion
+from tvm_tirx.ir import Stmt, TensorRegion
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import Function
 from tvm_tirx.tirx.tile import DispatchContext
 from tvm_tirx.tirx.tile.instruction import TensorCall
 from tvm_tirx.tirx.tile.views import BinaryReduce
@@ -32,7 +31,7 @@ from ..reduction.utils import generate_intermediate_tensor
 from .utils import opcode_table
 
 
-def binary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
+def binary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Stmt:
     """Generate a TRN schedule for binary reduction operations."""
     op = TensorCall.decode(op)
     assert isinstance(op, BinaryReduce), f"invalid operator downcast: {op}"
@@ -151,4 +150,4 @@ def binary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
                                 T.nki.tensorreduce(dst2[tuple(dst_2_indices)], intermediate_tensor[p_loop, f_loop], reduce_opcode, False, -1)  # noqa: E501
         # fmt: on
 
-    return impl
+    return impl.body
