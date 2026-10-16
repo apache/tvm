@@ -109,6 +109,7 @@ def test_executable_export_library(source_module, native_compile_options, tmp_pa
             objects_dir = tmp_path / device
             objects_dir.mkdir()
             _check_aot_object_link(device, objects_dir)
+            print(f"AOT object-link execution passed: {device}")
 
 
 def _check_aot_object_link(device, tmp_path):
