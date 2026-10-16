@@ -97,7 +97,7 @@ its bundled FFI dependency, then use native CMake options (CMake 3.26 or newer):
 
     git submodule update --init --recursive tirx/3rdparty/tvm-ffi
     cmake -S tirx -B tirx/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-        -DTVM_TIRX_USE_LLVM=ON -DTVM_TIRX_BUILD_TESTS=ON
+        -DTVM_TIRX_BUILD_TESTS=ON
     cmake --build tirx/build
     ctest --test-dir tirx/build
     cmake --install tirx/build --prefix /path/to/install
@@ -106,11 +106,29 @@ Core feature options use the ``TVM_TIRX_USE_`` prefix. SDK selectors such as
 ``TVM_TIRX_USE_CUDA`` and ``TVM_TIRX_USE_LLVM`` also accept an SDK path or
 ``llvm-config`` command. Compiler caches, linkers, and toolchain flags use
 standard CMake settings. The standalone core does not read ``config.cmake``.
+
+LLVM is enabled by default and requires LLVM 15 or newer with development
+headers and libraries. Install ``llvm-dev`` on Debian/Ubuntu, ``llvm-devel``
+on Fedora, or ``llvmdev`` from conda-forge. Explicitly set
+``TVM_TIRX_USE_LLVM=OFF`` to omit LLVM support.
+
+CUDA defaults to ``AUTO``: a usable toolkit, including its compiler, runtime,
+and driver library or stub, enables CUDA; otherwise the build continues
+without CUDA.
+
 C++ tests are off by default; enabling them supplies GTest in the test subtree.
 Installation includes public headers, libraries, and CMake package targets.
 
-For a Python core package build, pass these options through the ``CMAKE_ARGS``
-environment variable. Quote values containing spaces inside the variable::
+With the dependencies above installed and the FFI submodule initialized,
+build and install the Python core package using the same defaults::
+
+    python -m pip install ./tirx
+    python -c "import tvm_tirx"
+
+This installs the ``apache-tvm-tirx`` distribution and its Python dependencies.
+To override the defaults, pass CMake options through ``CMAKE_ARGS`` or pip's
+``--config-settings=cmake.define.<OPTION>=<VALUE>``. Quote values containing
+spaces inside ``CMAKE_ARGS``::
 
     CMAKE_ARGS='-DTVM_TIRX_USE_LLVM="llvm-config --link-static"' \
         python -m pip install -v ./tirx
