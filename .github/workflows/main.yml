@@ -91,7 +91,7 @@ jobs:
           python -m pytest -v tests/python/all-platform-minimal-test tests/python/script
           tirx/tests/python/all-platform-minimal-test tirx/tests/python/script
           tirx/tests/python/runtime/test_tirx_config.py
-          tirx/tests/python/runtime/test_module.py::test_executable_export_library
+          tirx/tests/python/codegen/test_executable.py::test_executable_export_library
       - name: Minimal Metal Compile-Only
         shell: bash -l {0}
         run: |
