@@ -22,8 +22,8 @@ from collections.abc import Callable
 
 import tvm
 import tvm_tirx
+from tvm_tirx.codegen import Executable
 from tvm_tirx.ir.module import IRModule
-from tvm_tirx.runtime import Executable
 from tvm_tirx.target import Target
 from tvm_tirx.tirx import Function
 

@@ -19,8 +19,8 @@
 
 import tvm_tirx
 from tvm import relax
+from tvm_tirx.codegen import Executable
 from tvm_tirx.ir.module import IRModule
-from tvm_tirx.runtime import Executable
 from tvm_tirx.tirx.function import Function
 
 from . import _ffi_api

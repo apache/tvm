@@ -50,7 +50,7 @@ def _rename_exported_func_names(source_paths: list[Path], prefix: str):
 
 def _load_flashinfer_modules(object_files: list[Path]) -> list[tvm_tirx.runtime.Module]:
     return [
-        tvm_tirx.runtime.load_static_library(str(obj_path.absolute()), func_names=[])
+        tvm_tirx.codegen.load_static_library(str(obj_path.absolute()), func_names=[])
         for obj_path in object_files
     ]
 

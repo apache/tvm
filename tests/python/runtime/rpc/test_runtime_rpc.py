@@ -73,9 +73,11 @@ void add_one(tvm::ffi::TensorView a, tvm::ffi::TensorView b) {
 }
 int64_t answer() { return 42; }
 int64_t with_arg(int64_t) { return 42; }
+void callback(tvm::ffi::Function func) { func(); }
 TVM_FFI_DLL_EXPORT_TYPED_FUNC(main, add_one);
 TVM_FFI_DLL_EXPORT_TYPED_FUNC(answer, answer);
 TVM_FFI_DLL_EXPORT_TYPED_FUNC(with_arg, with_arg);
+TVM_FFI_DLL_EXPORT_TYPED_FUNC(callback, callback);
 """
 
 
@@ -253,31 +255,32 @@ def test_rpc_file_exchange():
     tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_rpc_remote_module(native_object, system_library_source, tmp_path):
-    module = tvm_tirx.runtime.load_static_library(
+    module = tvm_tirx.codegen.load_static_library(
         str(native_object), ["main", "answer", "with_arg"]
     )
     path_dso = tmp_path / "dev_lib.so"
     path_tar = tmp_path / "dev_lib.tar"
-    module.export_library(str(path_dso))
-    module.export_library(str(path_tar))
+    tvm_tirx.codegen.Executable(module).export_library(str(path_dso))
+    tvm_tirx.codegen.Executable(module).export_library(str(path_tar))
 
     def check_remote(remote, name):
         dev = remote.cpu(0)
-        remote.upload(str(path_dso))
-        loaded = remote.load_module("dev_lib.so")
-        a = dev.tensor(np.random.uniform(size=102).astype("float32"))
-        b = dev.tensor(np.zeros(102, dtype="float32"))
-        rpc.time_evaluator(loaded, "main", dev, number=10)(a, b)
-        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+        for artifact in (path_dso, path_tar, native_object):
+            remote.upload(str(artifact))
+            loaded = remote.load_module(artifact.name)
+            a = dev.tensor(np.random.uniform(size=102).astype("float32"))
+            b = dev.tensor(np.zeros(102, dtype="float32"))
+            rpc.time_evaluator(loaded, "main", dev, number=10)(a, b)
+            np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
-        remote.upload(str(path_tar))
-        path = tmp_path / f"download-{name}.so"
-        path.write_bytes(remote.download_linked_module("dev_lib.tar"))
-        downloaded = tvm_tirx.runtime.load_module(str(path))
-        a = tvm_tirx.runtime.tensor(np.random.uniform(size=102).astype("float32"))
-        b = tvm_tirx.runtime.tensor(np.zeros(102, dtype="float32"))
-        downloaded(a, b)
-        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+        for artifact in (path_tar, native_object):
+            path = tmp_path / f"download-{name}-{artifact.name}.so"
+            path.write_bytes(remote.download_linked_module(artifact.name))
+            downloaded = tvm_tirx.runtime.load_module(str(path))
+            a = tvm_tirx.runtime.tensor(np.random.uniform(size=102).astype("float32"))
+            b = tvm_tirx.runtime.tensor(np.zeros(102, dtype="float32"))
+            downloaded(a, b)
+            np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
     server0 = rpc.Server(key="x0")
     server1 = rpc.Server(key="x1")
@@ -679,3 +682,28 @@ def test_remote_function_with_zero_arguments(native_library, call_with_unused_ar
         del module, client
     finally:
         server.terminate()
+
+
+def test_min_repeat_ms(native_library):
+    calls = []
+
+    def callback():
+        time.sleep(0.1)
+        calls.append(1)
+
+    module = tvm_tirx.runtime.load_module(str(native_library))
+    tvm.runtime.time_evaluator(module, "callback", tvm_tirx.cpu(), number=1, repeat=1)(callback)
+    assert len(calls) == 2
+    tvm.runtime.time_evaluator(
+        module, "callback", tvm_tirx.cpu(), number=1, repeat=1, min_repeat_ms=1000
+    )(callback)
+    assert len(calls) > 12
+
+
+def test_benchmark_result():
+    result = tvm.runtime.BenchmarkResult([1, 2, 2, 5])
+    assert result.mean == 2.5
+    assert result.median == 2.0
+    assert result.min == 1
+    assert result.max == 5
+    assert result.std == 1.5

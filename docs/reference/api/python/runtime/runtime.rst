@@ -19,3 +19,16 @@ tvm_tirx.runtime
 ----------------
 .. automodule:: tvm_tirx.runtime
    :members:
+
+tvm.runtime
+-----------
+
+Benchmarking belongs to the parent runtime. Use
+``tvm.runtime.time_evaluator(module, func_name, device, ...)`` with an ordinary
+``tvm_ffi.Module`` and either a local device or an RPC remote device. The returned
+callable reports a ``BenchmarkResult`` containing the repeated measurements.
+
+.. autofunction:: tvm.runtime.time_evaluator
+
+.. autoclass:: tvm.runtime.BenchmarkResult
+   :members:

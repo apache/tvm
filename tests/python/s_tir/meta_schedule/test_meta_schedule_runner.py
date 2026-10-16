@@ -650,9 +650,10 @@ def test_meta_schedule_runner_matmul_test():
     ) -> list[float]:
         global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
         repeated_args_after = []
-        evaluator = rt_mod.time_evaluator(
+        evaluator = tvm.runtime.time_evaluator(
+            rt_mod,
             func_name=rt_mod.entry_name,
-            dev=device,
+            device=device,
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
@@ -763,9 +764,10 @@ def test_meta_schedule_runner_add_test():
     ) -> list[float]:
         global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
         repeated_args_after = []
-        evaluator = rt_mod.time_evaluator(
+        evaluator = tvm.runtime.time_evaluator(
+            rt_mod,
             func_name=rt_mod.entry_name,
-            dev=device,
+            device=device,
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
@@ -869,9 +871,10 @@ def test_meta_schedule_local_runner_add_test():
     ) -> list[float]:
         global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
         repeated_args_after = []
-        evaluator = rt_mod.time_evaluator(
+        evaluator = tvm.runtime.time_evaluator(
+            rt_mod,
             func_name=rt_mod.entry_name,
-            dev=device,
+            device=device,
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,

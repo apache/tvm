@@ -17,8 +17,11 @@
 """The config command must work without importing native runtime dependencies."""
 
 import os
+import shlex
+import shutil
 import subprocess
 import sys
+import sysconfig
 from pathlib import Path
 
 import tvm_tirx
@@ -35,7 +38,7 @@ def test_config_without_native_imports(tmp_path):
         "            raise AssertionError(fullname)\n"
         "sys.meta_path.insert(0, BlockNative())\n"
         "def audit(event, args):\n"
-        "    if event == 'ctypes.dlopen': raise AssertionError(args)\n"
+        "    if event == 'ctypes.dlopen' and args[0] is not None: raise AssertionError(args)\n"
         "sys.addaudithook(audit)\n"
     )
     env = dict(os.environ)
@@ -45,14 +48,39 @@ def test_config_without_native_imports(tmp_path):
             str(Path(tvm_tirx.__file__).parent.parent),
         )
     )
-    command = [sys.executable, "-m", "tvm_tirx.config"]
-    include = subprocess.check_output([*command, "--includedir"], env=env, text=True).strip()
-    assert (Path(include) / "tvm" / "runtime").is_dir()
-    libraries = subprocess.check_output([*command, "--libfiles"], env=env, text=True).splitlines()
-    assert len(libraries) == 2
-    assert all(Path(library).is_file() for library in libraries)
-    cmake_dir = subprocess.check_output([*command, "--cmakedir"], env=env, text=True).strip()
-    assert (Path(cmake_dir) / "tvm_tirx-config.cmake").is_file()
+    for entry in ("module", "console"):
+        command = [sys.executable, "-m", "tvm_tirx.config"]
+        if entry == "console":
+            executable = Path(sysconfig.get_path("scripts")) / "tvm-tirx-config"
+            if not executable.is_file():
+                continue
+            command = [str(executable)]
+        include = subprocess.check_output([*command, "--includedir"], env=env, text=True).strip()
+        assert (Path(include) / "tvm" / "runtime").is_dir()
+        libraries = subprocess.check_output(
+            [*command, "--libfiles", "runtime"], env=env, text=True
+        ).strip()
+        libraries = shlex.split(libraries)
+        assert len(libraries) == 2
+        assert all(Path(library).is_file() for library in libraries)
+        cmake_dir = subprocess.check_output([*command, "--cmakedir"], env=env, text=True).strip()
+        assert (Path(cmake_dir) / "tvm_tirx-config.cmake").is_file()
+    if shutil.which("c++") and sys.platform != "win32":
+        _check_config_public_headers_compile()
+
+
+def _check_config_public_headers_compile():
+    flags = shlex.split(
+        subprocess.check_output(
+            [sys.executable, "-m", "tvm_tirx.config", "--cxxflags", "runtime"], text=True
+        )
+    )
+    subprocess.run(
+        ["c++", *flags, "-x", "c++", "-fsyntax-only", "-"],
+        input="#include <tvm/runtime/base.h>\n#include <tvm/ffi/container/tensor.h>\n",
+        text=True,
+        check=True,
+    )
 
 
 if __name__ == "__main__":

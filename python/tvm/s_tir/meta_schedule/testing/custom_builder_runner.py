@@ -22,7 +22,8 @@ from collections.abc import Callable
 import numpy as np  # type: ignore
 
 from tvm.s_tir.meta_schedule.runner import RPCConfig
-from tvm_tirx.runtime import Executable, Module
+from tvm_tirx.codegen import Executable
+from tvm_tirx.runtime import Module
 
 
 def run_module_via_rpc(
@@ -43,7 +44,8 @@ def run_module_via_rpc(
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         filename = os.path.join(tmp_dir, "tvm_tmp_mod." + tar.output_format)
-        lib.export_library(filename, fcompile=tar)
+        executable = lib if isinstance(lib, Executable) else Executable(lib)
+        executable.export_library(filename, fcompile=tar)
         session = rpc_config.connect_server()
         session.upload(filename)
         _, filename = os.path.split(filename)

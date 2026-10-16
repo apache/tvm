@@ -22,8 +22,8 @@ import sys
 import tvm
 import tvm_tirx
 from tvm import relax, te
+from tvm.relax import script as R
 from tvm_tirx.script import ir as I
-from tvm_tirx.script import relax as R
 
 
 def prepare_relax_lib(base_path):
@@ -56,7 +56,7 @@ def prepare_cpu_lib(base_path):
     mod = tvm_tirx.IRModule.from_expr(
         te.create_function([A, B, C]).with_attr("global_symbol", "myadd")
     )
-    fadd = tvm_tirx.tirx.compile(mod, target).mod
+    fadd = tvm_tirx.tirx.compile(mod, target)
     lib_path = os.path.join(base_path, "add_cpu.so")
     fadd.export_library(lib_path)
 
@@ -78,7 +78,7 @@ def prepare_gpu_lib(base_path):
     i0, i1 = sch.split(i, [None, 32])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")
-    fadd = tvm_tirx.tirx.compile(sch.mod, "cuda").mod
+    fadd = tvm_tirx.tirx.compile(sch.mod, "cuda")
     lib_path = os.path.join(base_path, "add_cuda.so")
     fadd.export_library(lib_path)
 

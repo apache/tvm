@@ -19,15 +19,12 @@
 
 /*!
  * \file tvm/runtime/timer.h
- * \brief Runtime timer primitives: Timer, TimerObj.
+ * \brief Device timer interface and object reference.
  */
 #ifndef TVM_RUNTIME_TIMER_H_
 #define TVM_RUNTIME_TIMER_H_
 
-#include <tvm/ffi/function.h>
-#include <tvm/runtime/base.h>
-#include <tvm/runtime/device_api.h>
-#include <tvm/runtime/tensor.h>
+#include <tvm/ffi/object.h>
 
 namespace tvm {
 namespace runtime {
@@ -76,63 +73,6 @@ class TimerObj : public ffi::Object {
  */
 class Timer : public ffi::ObjectRef {
  public:
-  /*!
-   * \brief Get a device specific timer.
-   * \param dev The device to time.
-   * \return A `Timer` that has already been started.
-   *
-   * Use this function to time runtime of arbitrary regions of code on a specific
-   * device. The code that you want to time should be running on the device
-   * otherwise the timer will not return correct results. This is a lower level
-   * interface than TimeEvaluator and only runs the timed code once
-   * (TimeEvaluator runs the code multiple times).
-   *
-   * A default timer is used if a device specific one does not exist. This
-   * timer performs synchronization between the device and CPU, which can lead
-   * to overhead in the reported results.
-   *
-   * Example usage:
-   * \code{.cpp}
-   * Timer t = Timer::Start(Device::cpu());
-   * my_long_running_function();
-   * t->Stop();
-   * ... // some more computation
-   * int64_t nanosecs = t->SyncAndGetElapsedNanos() // elapsed time in nanoseconds
-   * \endcode
-   *
-   * To add a new device-specific timer, register a new function
-   * "runtime.timer.my_device" (where `my_device` is the `DeviceName` of your
-   * device). This function should accept a `Device` and return a new `Timer`
-   * that has already been started.
-   *
-   * For example, this is how the CPU timer is implemented:
-   * \code{.cpp}
-   *  class CPUTimerObj : public TimerObj {
-   *   public:
-   *    virtual void Start() { start_ = std::chrono::high_resolution_clock::now(); }
-   *    virtual void Stop() { duration_ = std::chrono::high_resolution_clock::now() - start_; }
-   *    virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
-   *    virtual ~CPUTimerObj() {}
-   *
-   *    static constexpr const char* _type_key = "runtime.CPUTimerObj";
-   *    TVM_FFI_DECLARE_OBJECT_INFO_FINAL(CPUTimerObj, TimerObj);
-   *
-   *   private:
-   *    std::chrono::high_resolution_clock::time_point start_;
-   *    std::chrono::duration<int64_t, std::nano> duration_;
-   *  };
-   *
-   *
-   *  TVM_FFI_STATIC_INIT_BLOCK() {
-   *    namespace refl = tvm::ffi::reflection;
-   *    refl::GlobalDef().def("runtime.timer.cpu", [](Device dev) {
-   *      return Timer(ffi::UnsafeInit{}, ffi::make_object<CPUTimerObj>());
-   *    });
-   *  }
-   * \endcode
-   */
-  static TVM_RUNTIME_DLL Timer Start(Device dev);
-
   explicit Timer(ffi::UnsafeInit tag, ffi::ObjectPtr<TimerObj> n) : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }

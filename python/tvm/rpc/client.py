@@ -201,9 +201,11 @@ class RPCSession:
         --------
         .. code-block:: python
 
+            from tvm_tirx.codegen import Executable
+
             mod = build_module_with_cross_compilation()
             # export the module as tar because a local linker is not available
-            mod.export_library("lib.tar")
+            Executable(mod).export_library("lib.tar")
             remote.upload("lib.tar")
             # invoke the linker on the remote to link the module as a library
             # note that the library can only run on the same env as the remote

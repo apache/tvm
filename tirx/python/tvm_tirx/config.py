@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -21,13 +22,26 @@ there with an exact library directory, independently of Python package search.
 """
 
 import argparse
+import importlib.machinery
+import importlib.util
 import json
+import os
+import shlex
 import sys
 from pathlib import Path
 
 __version__ = "0.1.0a0"
 
-_LIBRARY_NAMES = ("tvm_tirx", "tvm_runtime")
+_LIBRARY_NAMES = ("tvm_tirx_compiler", "tvm_runtime")
+_COMPONENTS = {
+    "compiler": "tvm_tirx_compiler",
+    "runtime": "tvm_runtime",
+    "cuda": "tvm_runtime_cuda",
+    "metal": "tvm_runtime_metal",
+    "opencl": "tvm_runtime_opencl",
+    "vulkan": "tvm_runtime_vulkan",
+    "rocm": "tvm_runtime_rocm",
+}
 
 
 def _find_prefix(start: Path) -> Path:
@@ -38,19 +52,25 @@ def _find_prefix(start: Path) -> Path:
 
 
 def _paths(prefix: Path | None, library_dir: Path | None) -> tuple[Path, Path]:
+    explicit_prefix = prefix is not None
     if library_dir is not None:
         library_dir = library_dir.resolve()
         prefix = prefix.resolve() if prefix is not None else _find_prefix(library_dir)
     else:
         prefix = prefix.resolve() if prefix is not None else _find_prefix(Path(__file__).parent)
         library_dir = prefix / "lib"
-        for candidate in (prefix / "lib", prefix / "lib64", prefix / "build/lib"):
+        candidates = [prefix / "lib", prefix / "lib64", prefix / "build/lib"]
+        if prefix.name == "tirx":
+            candidates.append(prefix.parent / "build/lib")
+        if not explicit_prefix and os.environ.get("TVM_TIRX_LIBRARY_PATH"):
+            candidates.insert(0, Path(os.environ["TVM_TIRX_LIBRARY_PATH"]))
+        for candidate in candidates:
             if all(
                 any(
                     (candidate / filename).is_file()
                     for filename in (f"lib{name}.so", f"lib{name}.dylib", f"{name}.dll")
                 )
-                for name in _LIBRARY_NAMES
+                for name in ("tvm_runtime",)
             ):
                 library_dir = candidate
                 break
@@ -59,11 +79,11 @@ def _paths(prefix: Path | None, library_dir: Path | None) -> tuple[Path, Path]:
     return prefix, library_dir
 
 
-def _libraries(library_dir: Path, platform: str) -> dict[str, dict[str, str]]:
+def _libraries(library_dir: Path, platform: str, names=_LIBRARY_NAMES) -> dict[str, dict[str, str]]:
     libraries = {}
     windows = platform in ("Windows", "win32")
     apple = platform in ("Darwin", "iOS", "darwin")
-    for name in _LIBRARY_NAMES:
+    for name in names:
         if windows:
             filenames = (f"{name}.dll",)
         elif apple:
@@ -102,47 +122,162 @@ def configuration(
     }
 
 
+def _ffi_info():
+    """Read the selected FFI package's pure Python helper without importing its runtime."""
+    spec = importlib.machinery.PathFinder.find_spec("tvm_ffi")
+    if spec is None or spec.origin is None:
+        raise RuntimeError("Cannot find the matching apache-tvm-ffi Python package")
+    helper = Path(spec.origin).parent / "libinfo.py"
+    spec = importlib.util.spec_from_file_location("_tvm_ffi_libinfo", helper)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _available(library_dir, platform):
+    available = []
+    for component, name in _COMPONENTS.items():
+        try:
+            _libraries(library_dir, platform, (name,))
+        except RuntimeError:
+            continue
+        available.append(component)
+    return available
+
+
+def _link_inputs(library_dir, platform, components):
+    available = _available(library_dir, platform)
+    selected = list(dict.fromkeys(components or ["all"]))
+    if "all" in selected:
+        selected = [*available, *(name for name in selected if name != "all")]
+    for name in selected:
+        if name != "ffi" and name not in available:
+            raise RuntimeError(
+                f"Component '{name}' is unavailable; available: {' '.join(available)} ffi"
+            )
+    # Dependents precede their dependencies even if the command line lists runtime first.
+    ordered = [name for name in selected if name not in ("runtime", "ffi")]
+    if any(name != "ffi" for name in selected):
+        ordered.append("runtime")
+    libraries = _libraries(library_dir, platform, [_COMPONENTS[name] for name in ordered])
+    ffi = _ffi_info()
+    ffi_library = (
+        ffi.find_windows_implib() if platform in ("Windows", "win32") else ffi.find_libtvm_ffi()
+    )
+    return [
+        *(Path(lib["implib"] or lib["location"]) for lib in libraries.values()),
+        Path(ffi_library),
+    ]
+
+
 def __main__() -> None:
-    """Print installed include, library, or CMake package paths."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--prefix", type=Path, help="Use this exact installation prefix")
-    parser.add_argument("--library-dir", type=Path, help="Use this exact native library directory")
+    """Print LLVM-style component configuration without loading native libraries."""
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="Components default to all available components. Examples: --libs runtime; "
+        "--libs runtime cuda; --libs compiler. Shared linking is the default.",
+    )
+    parser.add_argument("components", nargs="*", help="Components to link (default: all)")
+    parser.add_argument("--install-prefix", type=Path, help="Query this exact installation prefix")
+    parser.add_argument(
+        "--library-dir", type=Path, help="Query this exact native library directory"
+    )
     parser.add_argument("--platform", default=sys.platform, help=argparse.SUPPRESS)
-    outputs = parser.add_mutually_exclusive_group()
-    outputs.add_argument(
-        "--includedir", action="store_true", help="Print the public include directory"
+    outputs = (
+        "version",
+        "prefix",
+        "includedir",
+        "libdir",
+        "cmakedir",
+        "components",
+        "cflags",
+        "cxxflags",
+        "ldflags",
+        "libs",
+        "libnames",
+        "libfiles",
+        "json",
     )
-    outputs.add_argument("--libdir", action="store_true", help="Print the native library directory")
-    outputs.add_argument(
-        "--libfiles", action="store_true", help="Print library files, one per line"
-    )
-    outputs.add_argument(
-        "--cmakedir", action="store_true", help="Print the CMake package directory"
-    )
-    outputs.add_argument(
-        "--json", action="store_true", help="Print all consumer configuration as JSON"
+    for output in outputs:
+        parser.add_argument("--" + output, dest="show_" + output, action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--link-shared", action="store_true", help="Use shared libraries (default)")
+    mode.add_argument(
+        "--link-static", action="store_true", help="Require a complete static closure"
     )
     args = parser.parse_args()
-    if not any((args.includedir, args.libdir, args.libfiles, args.cmakedir, args.json)):
+    if not any(getattr(args, "show_" + output) for output in outputs):
         parser.print_help()
         return
     try:
-        if args.json or args.libfiles:
-            result = configuration(args.prefix, args.library_dir, args.platform)
-            if args.json:
-                print(json.dumps(result))
-            else:
-                for library in result["libraries"].values():
-                    print(library["implib"] or library["location"])
-        else:
-            prefix, library_dir = _paths(args.prefix, args.library_dir)
-            if args.includedir:
-                print(prefix / "include")
-            elif args.libdir:
-                print(library_dir)
-            else:
-                print(library_dir / "cmake/tvm_tirx")
-    except RuntimeError as error:
+        if args.link_static:
+            raise RuntimeError(
+                "Static linking is unavailable: this package does not provide a "
+                "complete static dependency closure (including TVM FFI and its dependencies)"
+            )
+        if args.show_version:
+            print(__version__)
+        if all(not getattr(args, "show_" + output) for output in outputs if output != "version"):
+            return
+        prefix, library_dir = _paths(args.install_prefix, args.library_dir)
+        paths = {
+            "prefix": prefix,
+            "includedir": prefix / "include",
+            "libdir": library_dir,
+            "cmakedir": library_dir / "cmake/tvm_tirx",
+        }
+        if not paths["cmakedir"].is_dir() and (prefix / "cmake/tvm_tirx-config.cmake").is_file():
+            paths["cmakedir"] = prefix / "cmake"
+        for output, path in paths.items():
+            if getattr(args, "show_" + output):
+                print(path)
+        if args.show_components:
+            print(" ".join([*_available(library_dir, args.platform), "ffi"]))
+        if args.show_json:
+            print(json.dumps(configuration(prefix, library_dir, args.platform)))
+        if args.show_cflags or args.show_cxxflags:
+            ffi = _ffi_info()
+            includes = dict.fromkeys(
+                [str(prefix / "include"), ffi.find_include_path(), ffi.find_dlpack_include_path()]
+            )
+            flags = [*("-I" + path for path in includes), "-DTVM_INDEX_DEFAULT_I64=1"]
+            if args.show_cflags:
+                print(shlex.join(flags))
+            if args.show_cxxflags:
+                print(shlex.join([*flags, "-std=c++20"]))
+        if any((args.show_ldflags, args.show_libs, args.show_libnames, args.show_libfiles)):
+            libraries = _link_inputs(library_dir, args.platform, args.components)
+            apple = args.platform in ("Darwin", "iOS", "darwin")
+            if args.show_ldflags:
+                print(
+                    shlex.join(
+                        [
+                            "-L" + str(path)
+                            for path in dict.fromkeys(lib.parent for lib in libraries)
+                        ]
+                    )
+                )
+            if args.show_libnames:
+                print(shlex.join([lib.name for lib in libraries]))
+            if args.show_libfiles:
+                print(shlex.join([str(lib) for lib in libraries]))
+            if args.show_libs:
+                if apple:
+                    flags = [
+                        flag
+                        for lib in libraries
+                        for flag in ("-Xlinker", "-needed_library", "-Xlinker", str(lib))
+                    ]
+                elif args.platform.startswith("linux") or args.platform == "Linux":
+                    flags = [
+                        "-Wl,--push-state,--no-as-needed",
+                        *map(str, libraries),
+                        "-Wl,--pop-state",
+                    ]
+                else:
+                    raise RuntimeError(f"--libs retention flags are unsupported on {args.platform}")
+                print(shlex.join(flags))
+    except (RuntimeError, OSError) as error:
         parser.exit(1, f"{error}\n")
 
 

@@ -26,8 +26,8 @@ import pytest
 import tvm_tirx
 import tvm_tirx.testing
 import tvm_tirx.tirx as tirx
+from tvm_tirx.codegen import Executable
 from tvm_tirx.ir.module import IRModule
-from tvm_tirx.runtime.executable import Executable
 from tvm_tirx.script import tirx as T
 from tvm_tirx.support.nvcc import have_fp16
 from tvm_tirx.testing import env

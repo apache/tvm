@@ -38,7 +38,7 @@ using ``tvm.relax`` APIs.
 ######################################################################
 # Introduction
 # ------------
-# TVM builds Relax programs into ``tvm.runtime.Executable`` objects. These
+# TVM builds Relax programs into ``tvm_tirx.codegen.Executable`` objects. These
 # contain VM bytecode, compiled kernels, and constants. By exporting the
 # executable with :py:meth:`export_library`, you obtain a shared library (for
 # example ``.so`` on Linux) that can be shipped to another machine, uploaded

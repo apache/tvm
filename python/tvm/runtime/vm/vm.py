@@ -21,13 +21,18 @@
 from collections.abc import Callable
 from enum import IntEnum
 from numbers import Integral, Number
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np  # type: ignore
 from tvm_ffi import Function, register_global_func
 
 import tvm_tirx
 from tvm_tirx.runtime import Device, Object
+
+from ..benchmark import BenchmarkResult, time_evaluator
+
+if TYPE_CHECKING:
+    from tvm_tirx.codegen import Executable
 
 
 class VMInstrumentReturnKind(IntEnum):
@@ -41,7 +46,7 @@ class VirtualMachine:
 
     def __init__(
         self,
-        rt_mod: tvm_tirx.runtime.Module | tvm_tirx.runtime.Executable,
+        rt_mod: "tvm_tirx.runtime.Module | Executable",
         device: Device | list[Device],
     ) -> None:
         """
@@ -49,14 +54,16 @@ class VirtualMachine:
 
         Parameters
         ----------
-        rt_mod: Union[tvm_tirx.runtime.Module, tvm_tirx.runtime.Executable]
+        rt_mod: Union[tvm_tirx.runtime.Module, tvm_tirx.codegen.Executable]
             Runtime module exported by the result of build.
 
         device : Union[Device, List[Device]]
             The device to deploy the module.
         """
         if not isinstance(rt_mod, tvm_tirx.runtime.Module):
-            if isinstance(rt_mod, tvm_tirx.runtime.Executable):
+            from tvm_tirx.codegen import Executable  # pylint: disable=import-outside-toplevel
+
+            if isinstance(rt_mod, Executable):
                 rt_mod = rt_mod.jit()
             else:
                 raise ValueError("Expect the rt_mod to be an runtime.Module")
@@ -343,10 +350,10 @@ class VirtualMachine:
         cooldown_interval_ms: int = 0,
         repeats_to_cooldown: int = 1,
         f_preproc: str = "",
-    ) -> Callable[..., tvm_tirx.runtime.module.BenchmarkResult]:
+    ) -> Callable[..., BenchmarkResult]:
         """
         Returns an evaluator that times a function in the module.
-        This follows the same convention as time_evaluator in tvm_tirx.runtime.module.
+        This follows the same convention as tvm.runtime.time_evaluator.
         This can be used in combination with save_function() so that the
         timings avoid extra dictionary lookups.
 
@@ -431,7 +438,8 @@ class VirtualMachine:
             The ProfileResult reports `repeat` time costs in seconds.
 
         """
-        return self.module.time_evaluator(
+        return time_evaluator(
+            self.module,
             func_name,
             dev,
             number=number,

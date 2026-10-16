@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, wildcard-import
-"""Parent runtime extensions: virtual machines and distributed execution."""
+"""Parent runtime extensions: benchmarking, virtual machines and distributed execution."""
 
+from .benchmark import BenchmarkResult, time_evaluator
 from . import disco, vm

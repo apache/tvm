@@ -29,7 +29,8 @@ import tvm_ffi
 import tvm
 import tvm_tirx
 from tvm_tirx import libinfo
-from tvm_tirx.runtime import Module, load_static_library
+from tvm_tirx.codegen import load_static_library
+from tvm_tirx.runtime import Module
 from tvm_tirx.support import cc as _cc
 
 from ...op import call_dps_packed

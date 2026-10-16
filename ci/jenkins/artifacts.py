@@ -40,7 +40,7 @@ ARTIFACTS = {
     # compiler files
     "tvm_lib": [
         "build/lib/libtvm_compiler.so",
-        "build/lib/libtvm_tirx.so",
+        "build/lib/libtvm_tirx_compiler.so",
         "build/lib/libtvm_runtime.so",
         "python/tvm_ffi",
         *glob("python/apache_tvm_ffi-*.dist-info"),

@@ -146,7 +146,7 @@ its separate source-FFI Python package build keeps its own defaults. Direct
 itself does not read ``CMAKE_ARGS``.
 
 A parent project can use ``add_subdirectory(path/to/tirx)`` and link to
-``tvm_tirx::shared`` or ``tvm_runtime::shared``. This builds the bundled FFI
+``tvm_tirx_compiler::shared`` or ``tvm_runtime::shared``. This builds the bundled FFI
 source targets and leaves tests, packaging, and installation to the parent.
 TIRx registers installation rules only when it is the top-level project.
 An embedding parent owns the installation rules for the libraries, public
@@ -173,9 +173,9 @@ the consumer. Its CMakeLists.txt uses both packages directly:
     find_package(tvm_tirx CONFIG REQUIRED)
     find_package(tvm_ffi CONFIG REQUIRED)
     add_executable(app main.cc)
-    target_link_libraries(app PRIVATE tvm_tirx::shared tvm_ffi::shared)
+    target_link_libraries(app PRIVATE tvm_tirx_compiler::shared tvm_ffi::shared)
 
-The public TIRx targets are ``tvm_tirx::header``, ``tvm_tirx::shared``, and
+The public TIRx targets are ``tvm_tirx::header``, ``tvm_tirx_compiler::shared``, and
 ``tvm_runtime::shared``. The package config describes the normal Python build;
 it does not reconstruct build options, expose static or backend targets, or
 find/link FFI implicitly. Enabled backend libraries are still installed and
@@ -188,3 +188,76 @@ installation, use its ``lib/cmake/tvm_tirx`` directory (or the configured
 library directory). The handwritten config queries that exact prefix, so a
 separately installed TIRx wheel cannot override the selected installation.
 ``Python_EXECUTABLE`` selects the Python interpreter used for discovery.
+
+Component configuration CLI
+---------------------------
+
+``tvm-tirx-config`` (also ``python -m tvm_tirx.config``) prints shell-quoted
+compiler and linker arguments without initializing TVM, device runtimes, or a
+device driver. The compiler library is named ``libtvm_tirx_compiler``; the
+Python package remains ``tvm_tirx``. For example::
+
+    tvm-tirx-config --version --prefix --includedir --libdir --cmakedir
+    tvm-tirx-config --components
+    tvm-tirx-config --cxxflags --ldflags --libs compiler
+    tvm-tirx-config --ldflags --libs runtime
+    tvm-tirx-config --ldflags --libs runtime cuda
+
+Positional components select ``compiler``, ``runtime``, ``ffi``, or an enabled
+device runtime (``cuda``, ``metal``, ``opencl``, ``vulkan``, ``rocm``). Dependencies
+are included once, after their dependents: compiler and device runtimes depend
+on runtime, which depends on FFI. Selecting compiler does not select any device
+runtime. Like ``llvm-config``, omitting components or selecting ``all`` means
+all available components. Select components explicitly when optional device
+libraries are unwanted.
+
+``--cflags`` and ``--cxxflags`` include the matching FFI and DLPack headers;
+``--ldflags`` supplies library search directories. ``--libs`` supplies the
+complete shared-library inputs, including scoped retention flags for runtime
+registrations (ELF ``--push-state,--no-as-needed`` / ``--pop-state`` or Mach-O
+``-needed_library``). ``--libnames`` and ``--libfiles`` print only filenames and
+full paths, respectively, without retention switches. Use ``shlex.split`` when
+consuming these outputs from Python, including paths containing spaces::
+
+    flags = shlex.split(subprocess.check_output(
+        ["tvm-tirx-config", "--libs", "runtime"], text=True))
+
+``--link-shared`` is the default. ``--link-static`` reports an unavailable mode:
+the distributed runtime archive alone is not a complete static dependency
+closure, and the FFI package does not distribute all of its static dependencies.
+The CLI never substitutes shared libraries for an explicit static request.
+``--install-prefix PATH`` and ``--library-dir PATH`` query an explicit native
+installation. The FFI dependency is selected from the invoking Python environment.
+
+For ahead-of-time deployment, export an LLVM-host module with
+``tvm_tirx.codegen.Executable(module).export_library("model.tar")``, extract every
+object in the archive,
+and link those objects into a shared library with the CLI's ``--ldflags`` and
+``--libs runtime`` (plus the device component when required). CUDA exports also
+contain host-format objects packing imported device code. Do not assume an
+object count or filename. A fresh process can then use
+``tvm_ffi.load_module("model.so")`` without importing ``tvm_tirx``. Make the
+reported library directories available to the platform loader, for example
+through the deployment's loader search path; runtime preloading is unnecessary.
+
+
+Export and runtime APIs
+-----------------------
+
+``tvm_tirx.codegen.Executable`` owns compiler-side export, import packing, and
+JIT linking. It accepts an ordinary ``tvm_ffi.Module``; compilation entry points
+return this executable wrapper. Use ``executable.mod`` to inspect the underlying
+FFI module and ``executable.jit()`` for a runnable module.
+``tvm_tirx.codegen.load_static_library`` wraps an existing object for inclusion
+in an executable's import graph.
+
+``tvm_tirx.runtime.Module``, ``load_module``, and ``system_lib`` directly alias
+the FFI APIs. Loading no longer invokes a linker for objects or archives; export
+and link explicitly before loading. Parent TVM's RPC server retains remote
+object/archive linking through its registered server hook.
+
+Benchmarking belongs to parent TVM: use
+``tvm.runtime.time_evaluator(module, name, device, ...)`` and
+``tvm.runtime.BenchmarkResult``. The standalone runtime and device libraries
+retain the small device-timer interface but do not acquire parent benchmarking
+policy or a dependency on ``libtvm_runtime_extra``.

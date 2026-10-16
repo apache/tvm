@@ -89,7 +89,7 @@ def evaluate(mod: tvm_tirx.IRModule):
     lib(a_nd, b_nd, c_nd)
     np.testing.assert_allclose(c_nd.numpy(), c_np, rtol=1e-5)
     # evaluate performance
-    f_timer = lib.time_evaluator("main", tvm_tirx.cpu())
+    f_timer = tvm.runtime.time_evaluator(lib, "main", tvm_tirx.cpu())
     print(f_timer(a_nd, b_nd, c_nd))
 
 

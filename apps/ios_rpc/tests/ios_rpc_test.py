@@ -75,7 +75,7 @@ def test_rpc_module(host, port, key, mode):
     a_np = np.random.uniform(size=1024).astype(A.dtype)
     a = dev.tensor(a_np)
     b = dev.tensor(np.zeros(1024, dtype=A.dtype))
-    time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
+    time_f = tvm.runtime.time_evaluator(f1, f1.entry_name, dev, number=10)
     cost = time_f(a, b).mean
     print(f"Metal: {cost:g} secs/op")
     np.testing.assert_equal(b.numpy(), a.numpy() + 1)

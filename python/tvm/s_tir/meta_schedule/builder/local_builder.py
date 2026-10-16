@@ -26,6 +26,7 @@ from tvm_ffi import register_global_func
 
 from tvm.runtime.vm import load_param_dict, save_param_dict
 from tvm.s_tir.utils import derived_object
+from tvm_tirx.codegen import Executable
 from tvm_tirx.ir import IRModule
 from tvm_tirx.runtime import Module, Tensor
 from tvm_tirx.support.popen_pool import MapResult, PopenPoolExecutor, StatusKind
@@ -285,7 +286,7 @@ def default_export(mod: Module) -> str:
     from tvm_tirx.support.tar import tar  # pylint: disable=import-outside-toplevel
 
     artifact_path = os.path.join(tempfile.mkdtemp(), "tvm_tmp_mod." + tar.output_format)
-    mod.export_library(artifact_path, fcompile=tar)
+    Executable(mod).export_library(artifact_path, fcompile=tar)
     return artifact_path
 
 
