@@ -120,7 +120,7 @@ from .manipulate import (
 from .mask import masked_fill
 from .qdq import dequantize, quantize
 from .sampling import multinomial_from_uniform
-from .search import argmax, argmin, where, bucketize
+from .search import argmax, argmin, where, bucketize, searchsorted
 from .set import nonzero, unique
 from .sorting import argsort, sort, topk
 from .statistical import cumprod, cumsum, max, mean, min, prod, std, sum, variance, median

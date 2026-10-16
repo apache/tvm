@@ -126,3 +126,29 @@ def bucketize(input_tensor, boundaries, out_int32=False, right=False):
         The computed result with same shape as input_tensor.
     """
     return _ffi_api.bucketize(input_tensor, boundaries, out_int32, right)
+
+
+def searchsorted(sorted_sequence, values, out_int32=False, right=False):
+    """Find indices where elements should be inserted to maintain order. 
+    Similar to torch.searchsorted.
+
+    Parameters
+    ----------
+    sorted_sequence : relax.Expr
+        N-D or 1-D tensor, containing monotonically increasing sequence on the innermost dimension.
+
+    values : relax.Expr
+        N-D tensor containing the search values.
+
+    out_int32 : Optional[bool]
+        Indicate the output data type. int32 if True, int64 otherwise. Default=False.
+
+    right : Optional[bool]
+        Controls which index is returned if a value lands exactly on one of sorted values. Default=False.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result with same shape as values.
+    """
+    return _ffi_api.searchsorted(sorted_sequence, values, out_int32, right)
