@@ -18,7 +18,9 @@
 
 from tvm_ffi import Array, get_global_func
 
-from .target import Target
+from tvm_tirx.target import Target
+
+from .executable import Executable, load_static_library
 
 
 def build_module(mod, target):

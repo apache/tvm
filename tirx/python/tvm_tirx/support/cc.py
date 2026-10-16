@@ -296,14 +296,16 @@ def cross_compiler(
 
        from tvm_tirx.support import cc, ndk
        # export using arm gcc
+       from tvm_tirx.codegen import Executable
+
        mod = build_runtime_module()
-       mod.export_library(path_dso,
+       Executable(mod).export_library(path_dso,
                           fcompile=cc.cross_compiler("arm-linux-gnueabihf-gcc"))
        # specialize ndk compilation options.
        specialized_ndk = cc.cross_compiler(
            ndk.create_shared,
            ["--sysroot=/path/to/sysroot", "-shared", "-fPIC", "-lm"])
-       mod.export_library(path_dso, fcompile=specialized_ndk)
+       Executable(mod).export_library(path_dso, fcompile=specialized_ndk)
     """
     base_options = [] if options is None else options
     kwargs = {}

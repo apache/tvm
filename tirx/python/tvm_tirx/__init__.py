@@ -19,13 +19,14 @@
 """TVM: Open Deep Learning Compiler Stack."""
 
 import sys
+import os
 from typing import TYPE_CHECKING
 
 
 def _is_config_mode():
     """Keep the configuration CLI independent of native library loading."""
     argv = getattr(sys, "orig_argv", ())
-    return any(
+    return os.path.basename(sys.argv[0]) in ("tvm-tirx-config", "tvm-tirx-config.exe") or any(
         arg == "-m" and argv[index + 1 : index + 2] == ["tvm_tirx.config"]
         for index, arg in enumerate(argv)
     )

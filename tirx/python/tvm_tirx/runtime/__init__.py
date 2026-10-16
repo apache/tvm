@@ -17,19 +17,54 @@
 # under the License.
 """TVM runtime namespace."""
 
-from tvm_ffi import convert, Object
+from tvm_ffi import convert, Object, Module, load_module, system_lib
 from tvm_ffi._dtype import dtype as DataType, DataTypeCode
 
 # class exposures
 from .device import Device
 from .memory_scope import MemoryScope
 from ._tensor import Tensor, tensor, empty
-from .module import Module
-from .executable import Executable
 
 # function exposures
 from ._tensor import device, cpu, cuda, opencl, vulkan, metal
 from ._tensor import vpi, rocm, ext_dev, from_dlpack
-from .module import load_module, enabled, system_lib, load_static_library, num_threads
+from . import _ffi_api
 
 from tvm_ffi import Shape as ShapeTuple
+
+
+def enabled(target):
+    """Whether module runtime is enabled for target
+
+    Parameters
+    ----------
+    target : str or Dict[str, Any] or tvm_tirx.target.Target
+        The target device type.
+
+    Returns
+    -------
+    enabled : bool
+        Whether runtime is enabled.
+
+    Examples
+    --------
+    The following code checks if gpu is enabled.
+
+    >>> tvm_tirx.runtime.enabled("gpu")
+    """
+    if isinstance(target, dict):
+        target = target.get("kind", "")
+    elif hasattr(target, "kind"):
+        target = target.kind.name
+    return _ffi_api.RuntimeEnabled(target)
+
+
+def num_threads() -> int:
+    """Get the number of threads in use by the TVM runtime.
+
+    Returns
+    -------
+    int
+        Number of threads in use.
+    """
+    return _ffi_api.NumThreads()

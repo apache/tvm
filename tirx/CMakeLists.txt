@@ -223,31 +223,31 @@ include(cmake/modules/ROCM.cmake)
 include(cmake/modules/LLVM.cmake)
 include(cmake/modules/contrib/Z3.cmake)
 include(cmake/modules/Git.cmake)
-# ######### Target: `tvm_tirx` ##########
+# ######### Target: `tvm_tirx_compiler` ##########
 
-add_library(tvm_tirx_objs OBJECT ${COMPILER_SRCS})
-target_link_libraries(tvm_tirx_objs PUBLIC tvm_tirx_header)
+add_library(tvm_tirx_compiler_objs OBJECT ${COMPILER_SRCS})
+target_link_libraries(tvm_tirx_compiler_objs PUBLIC tvm_tirx_header)
 if(TARGET tvm_llvm_header)
-  target_link_libraries(tvm_tirx_objs PRIVATE tvm_llvm_header)
+  target_link_libraries(tvm_tirx_compiler_objs PRIVATE tvm_llvm_header)
 endif()
 if(MSVC)
-  target_compile_definitions(tvm_tirx_objs PRIVATE TVM_TIRX_EXPORTS TVM_FFI_EXPORTS)
+  target_compile_definitions(tvm_tirx_compiler_objs PRIVATE TVM_TIRX_EXPORTS TVM_FFI_EXPORTS)
 endif()
-add_library(tvm_tirx SHARED $<TARGET_OBJECTS:tvm_tirx_objs>)
-add_library(tvm_tirx::shared ALIAS tvm_tirx)
-target_link_libraries(tvm_tirx PUBLIC tvm_runtime tvm_tirx_header)
-target_link_libraries(tvm_tirx PRIVATE ${TVM_LINKER_LIBS})
+add_library(tvm_tirx_compiler SHARED $<TARGET_OBJECTS:tvm_tirx_compiler_objs>)
+add_library(tvm_tirx_compiler::shared ALIAS tvm_tirx_compiler)
+target_link_libraries(tvm_tirx_compiler PUBLIC tvm_runtime tvm_tirx_header)
+target_link_libraries(tvm_tirx_compiler PRIVATE ${TVM_LINKER_LIBS})
 
 # Avoid GNU ld relaxation of LLVM's GOT calls into incorrect direct calls.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT "${TVM_TIRX_USE_LLVM}" MATCHES ${IS_FALSE_PATTERN})
-  target_link_options(tvm_tirx PRIVATE "-Wl,--no-relax" "-Wl,--as-needed")
+  target_link_options(tvm_tirx_compiler PRIVATE "-Wl,--no-relax" "-Wl,--as-needed")
 endif()
 include(cmake/modules/Logging.cmake)
 include(cmake/modules/ClangFlags.cmake)
 
 # ######### Library configuration ##########
 
-foreach(_target tvm_runtime_objs tvm_tirx_objs tvm_runtime tvm_runtime_static tvm_tirx)
+foreach(_target tvm_runtime_objs tvm_tirx_compiler_objs tvm_runtime tvm_runtime_static tvm_tirx_compiler)
   tvm_tirx_configure_target(${_target})
   tvm_ffi_add_prefix_map(${_target} "${CMAKE_CURRENT_SOURCE_DIR}")
 endforeach()
@@ -255,7 +255,7 @@ foreach(_target IN LISTS TVM_RUNTIME_BACKEND_LIBS)
   tvm_ffi_add_prefix_map(${_target}_objs "${CMAKE_CURRENT_SOURCE_DIR}")
   tvm_ffi_add_prefix_map(${_target} "${CMAKE_CURRENT_SOURCE_DIR}")
 endforeach()
-foreach(_target tvm_runtime tvm_tirx ${TVM_RUNTIME_BACKEND_LIBS})
+foreach(_target tvm_runtime tvm_tirx_compiler ${TVM_RUNTIME_BACKEND_LIBS})
   if(TVM_TIRX_BUILD_PYTHON_MODULE)
     if(APPLE)
       set_property(TARGET ${_target} APPEND PROPERTY INSTALL_RPATH "@loader_path/../../tvm_ffi/lib")
@@ -284,7 +284,7 @@ foreach(_header IN LISTS _headers)
 endforeach()
 
 # Libraries
-install(TARGETS tvm_tirx_header tvm_tirx tvm_runtime tvm_runtime_static
+install(TARGETS tvm_tirx_header tvm_tirx_compiler tvm_runtime tvm_runtime_static
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm_tirx
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm_tirx
   RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm_tirx)
@@ -296,6 +296,11 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/tvm_tirx-config.cmake"
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils/"
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tvm_tirx/utils"
   COMPONENT tvm_tirx FILES_MATCHING PATTERN "Find*.cmake")
+
+if(NOT TVM_TIRX_BUILD_PYTHON_MODULE)
+  install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_tirx/config.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}" RENAME tvm-tirx-config COMPONENT tvm_tirx)
+endif()
 
 # Python package artifacts and licenses
 if(TVM_TIRX_BUILD_PYTHON_MODULE)

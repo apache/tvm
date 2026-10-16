@@ -14,12 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Runtime module loading, properties, exports, timing, and Executable wrappers."""
+"""Runtime and FFI module loading and properties."""
 
 import os
 import subprocess
 import sys
-import time
 
 import numpy as np
 import pytest
@@ -27,60 +26,7 @@ import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
-from tvm_tirx.runtime import Executable
-from tvm_tirx.runtime.module import BenchmarkResult
 from tvm_tirx.support import cc
-
-
-@pytest.fixture(scope="module")
-def native_source():
-    return r"""
-#include <tvm/ffi/container/tensor.h>
-#include <tvm/ffi/function.h>
-void add_one(tvm::ffi::TensorView a, tvm::ffi::TensorView b) {
-  for (int64_t i = 0; i < a.size(0); ++i) {
-    static_cast<float*>(b.data_ptr())[i] = static_cast<float*>(a.data_ptr())[i] + 1;
-  }
-}
-int64_t answer() { return 42; }
-void callback(tvm::ffi::Function func) { func(); }
-TVM_FFI_DLL_EXPORT_TYPED_FUNC(main, add_one);
-TVM_FFI_DLL_EXPORT_TYPED_FUNC(answer, answer);
-TVM_FFI_DLL_EXPORT_TYPED_FUNC(callback, callback);
-"""
-
-
-@pytest.fixture(scope="module")
-def native_compile_options():
-    return [
-        "-std=c++17",
-        "-I" + tvm_ffi.libinfo.find_include_path(),
-        "-I" + tvm_ffi.libinfo.find_dlpack_include_path(),
-    ]
-
-
-@pytest.fixture
-def source_module(native_source):
-    return tvm_tirx.runtime._ffi_api.CSourceModuleCreate(
-        native_source, "cc", ["main", "answer", "callback"], None
-    )
-
-
-@pytest.fixture(scope="module")
-def native_object(tmp_path_factory, native_source, native_compile_options):
-    directory = tmp_path_factory.mktemp("runtime_module")
-    source = directory / "module.cc"
-    source.write_text(native_source)
-    path = directory / "module.o"
-    cc.create_shared(str(path), [str(source)], options=["-c", *native_compile_options])
-    return path
-
-
-@pytest.fixture(scope="module")
-def native_library(native_object):
-    path = native_object.with_suffix(".so")
-    cc.create_shared(str(path), [str(native_object)])
-    return path
 
 
 @pytest.fixture(scope="module")
@@ -101,6 +47,11 @@ static RegisterSystemLibrary register_system_library;
 
 
 def test_module_properties(source_module, native_library):
+    assert tvm_tirx.runtime.Module is tvm_ffi.Module
+    assert tvm_tirx.runtime.load_module is tvm_ffi.load_module
+    assert tvm_tirx.runtime.system_lib is tvm_ffi.system_lib
+    assert not hasattr(source_module, "export_library")
+    assert not hasattr(source_module, "time_evaluator")
     assert source_module.is_binary_serializable()
     assert not source_module.is_runnable()
     assert source_module.is_compilation_exportable()
@@ -141,30 +92,6 @@ np.testing.assert_equal(b.numpy(), a.numpy() + 1)
     )
 
 
-def test_import_static_library(source_module, native_compile_options, tmp_path):
-    source = tmp_path / "other.cc"
-    source.write_text(
-        "#include <tvm/ffi/function.h>\n"
-        "int other() { return 17; }\n"
-        "TVM_FFI_DLL_EXPORT_TYPED_FUNC(other, other);\n"
-    )
-    obj = tmp_path / "other.o"
-    cc.create_shared(str(obj), [str(source)], options=["-c", *native_compile_options])
-    imported = tvm_tirx.runtime.load_static_library(str(obj), ["other"])
-    assert imported.implements_function("other")
-    assert imported.is_compilation_exportable()
-    source_module.import_module(imported)
-    path = tmp_path / "combined.so"
-    source_module.export_library(str(path), options=native_compile_options)
-    loaded = tvm_tirx.runtime.load_module(str(path))
-    assert loaded.kind == "library"
-    assert len(loaded.imports) == 0
-    for name, expected in (("answer", 42), ("other", 17)):
-        assert loaded.implements_function(name)
-        assert loaded.get_function(name)() == expected
-    assert not loaded.is_compilation_exportable()
-
-
 @pytest.mark.skipif(sys.platform == "win32", reason="system library registration on Unix")
 def test_system_library(system_library_source, native_compile_options, tmp_path):
     source = tmp_path / "system.cc"
@@ -192,73 +119,6 @@ np.testing.assert_equal(b.numpy(), a.numpy() + 1)
         ],
         check=True,
     )
-
-
-def test_min_repeat_ms(native_library):
-    calls = []
-
-    def callback():
-        time.sleep(0.1)
-        calls.append(1)
-
-    module = tvm_tirx.runtime.load_module(str(native_library))
-    module.time_evaluator("callback", tvm_tirx.cpu(), number=1, repeat=1)(callback)
-    assert len(calls) == 2
-    module.time_evaluator("callback", tvm_tirx.cpu(), number=1, repeat=1, min_repeat_ms=1000)(
-        callback
-    )
-    assert len(calls) > 12
-
-
-def test_benchmark_result():
-    result = BenchmarkResult([1, 2, 2, 5])
-    assert result.mean == 2.5
-    assert result.median == 2.0
-    assert result.min == 1
-    assert result.max == 5
-    assert result.std == 1.5
-
-
-def test_executable_init(source_module):
-    executable = Executable(source_module)
-    assert executable.mod is source_module
-    assert executable._jitted_mod is None
-
-
-def test_executable_getitem(source_module, native_compile_options):
-    executable = Executable(source_module)
-    executable.jit(options=native_compile_options)
-    assert executable["answer"]() == 42
-
-
-def test_executable_jit_already_runnable(native_library):
-    module = tvm_tirx.runtime.load_module(str(native_library))
-    executable = Executable(module)
-    assert executable.jit() is module
-    assert executable.jit(force_recompile=True) is module
-    assert executable["answer"]() == 42
-
-
-def test_executable_jit_force_recompile(source_module, native_compile_options):
-    executable = Executable(source_module)
-    first = executable.jit(options=native_compile_options)
-    assert executable.jit() is first
-    rebuilt = executable.jit(force_recompile=True, options=native_compile_options)
-    assert rebuilt is not first
-    assert first["answer"]() == rebuilt["answer"]() == 42
-
-
-@pytest.mark.parametrize("use_workspace", [False, True])
-def test_executable_export_library(source_module, native_compile_options, tmp_path, use_workspace):
-    kwargs = {"options": native_compile_options}
-    if use_workspace:
-        workspace = tmp_path / "workspace"
-        workspace.mkdir()
-        kwargs["workspace_dir"] = str(workspace)
-    path = tmp_path / "module.so"
-    Executable(source_module).export_library(str(path), **kwargs)
-    assert path.is_file()
-    assert tvm_tirx.runtime.load_module(str(path))["answer"]() == 42
 
 
 if __name__ == "__main__":

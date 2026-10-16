@@ -21,9 +21,9 @@ include(FindPackageHandleStandardArgs)
 
 if(TVM_TIRX_USE_CUSTOM_LOGGING)
   # Set and propagate TVM_LOG_CUSTOMIZE flag is custom logging has been requested
-  target_compile_definitions(tvm_tirx_objs PUBLIC TVM_LOG_CUSTOMIZE=1)
+  target_compile_definitions(tvm_tirx_compiler_objs PUBLIC TVM_LOG_CUSTOMIZE=1)
   target_compile_definitions(tvm_runtime_objs PUBLIC TVM_LOG_CUSTOMIZE=1)
-  target_compile_definitions(tvm_tirx PUBLIC TVM_LOG_CUSTOMIZE=1)
+  target_compile_definitions(tvm_tirx_compiler PUBLIC TVM_LOG_CUSTOMIZE=1)
   target_compile_definitions(tvm_runtime PUBLIC TVM_LOG_CUSTOMIZE=1)
   target_compile_definitions(tvm_runtime_static INTERFACE TVM_LOG_CUSTOMIZE=1)
 endif()

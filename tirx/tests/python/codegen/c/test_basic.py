@@ -230,7 +230,7 @@ def test_workspace_allocation_cast():
     assert "((float*)TVMBackendAllocWorkspace(" in built.inspect_source()
 
     temp = utils.tempdir()
-    built.export_library(temp.relpath("workspace.so"))
+    tvm_tirx.codegen.Executable(built).export_library(temp.relpath("workspace.so"))
 
 
 def test_local_alloc_buffer_uses_plain_c_pointer():
@@ -248,7 +248,7 @@ def test_local_alloc_buffer_uses_plain_c_pointer():
 
     temp = utils.tempdir()
     path_dso = temp.relpath("local_alloc.so")
-    built.export_library(path_dso)
+    tvm_tirx.codegen.Executable(built).export_library(path_dso)
     loaded = tvm_tirx.runtime.load_module(path_dso)
 
     data = tvm_tirx.runtime.tensor(np.array([1.0], dtype="float32"))
@@ -288,7 +288,7 @@ def test_if_then_else_avoids_extraneous_parentheses():
 
     temp = utils.tempdir()
     path_dso = temp.relpath("if_then_else.so")
-    built.export_library(path_dso)
+    tvm_tirx.codegen.Executable(built).export_library(path_dso)
     loaded = tvm_tirx.runtime.load_module(path_dso)
 
     a = tvm_tirx.runtime.tensor(np.arange(8, dtype="int32"))

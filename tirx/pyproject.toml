@@ -51,6 +51,9 @@ dependencies = [
   "packaging",
 ]
 
+[project.scripts]
+tvm-tirx-config = "tvm_tirx.config:__main__"
+
 [project.optional-dependencies]
 torch = ["torch"]
 cuda = ["cuda-bindings"]
