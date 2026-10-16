@@ -177,6 +177,41 @@ void PixelShuffleAttrs::RegisterReflection() {
                                               "Scale factor for spatial upsampling.");
 }
 
+void CorrelationAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<CorrelationAttrs>()
+      .def_ro("kernel_size", &CorrelationAttrs::kernel_size,
+              "Kernel size for correlation, must be a positive odd number.")
+      .def_ro("max_displacement", &CorrelationAttrs::max_displacement,
+              "Max displacement of correlation.")
+      .def_ro("stride1", &CorrelationAttrs::stride1,
+              "Stride for sampling data1 positions.")
+      .def_ro("stride2", &CorrelationAttrs::stride2,
+              "Stride for sampling data2 within the neighborhood.")
+      .def_ro("padding", &CorrelationAttrs::padding, "Padding size for both dimensions.")
+      .def_ro("is_multiply", &CorrelationAttrs::is_multiply,
+              "If true, compute product; otherwise compute absolute difference.")
+      .def_ro("data_layout", &CorrelationAttrs::data_layout, "Layout of the input data.");
+}
+
+void LRNAattrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<LRNAattrs>()
+      .def_ro("size", &LRNAattrs::size, "Normalization window size.")
+      .def_ro("axis", &LRNAattrs::axis, "The axis along which normalization is applied.")
+      .def_ro("alpha", &LRNAattrs::alpha, "The scaling factor.")
+      .def_ro("beta", &LRNAattrs::beta, "The exponent.")
+      .def_ro("bias", &LRNAattrs::bias, "Offset to avoid dividing by zero.");
+}
+
+void DilateAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<DilateAttrs>()
+      .def_ro("strides", &DilateAttrs::strides, "Dilation stride for each dimension.")
+      .def_ro("dilation_value", &DilateAttrs::dilation_value,
+              "The value used to fill the inserted positions.");
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   SoftmaxAttrs::RegisterReflection();
   LeakyReluAttrs::RegisterReflection();
@@ -191,6 +226,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   DropoutAttrs::RegisterReflection();
   PadAttrs::RegisterReflection();
   PixelShuffleAttrs::RegisterReflection();
+  CorrelationAttrs::RegisterReflection();
+  LRNAattrs::RegisterReflection();
+  DilateAttrs::RegisterReflection();
 }
 
 /* relax.nn.relu */
