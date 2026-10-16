@@ -229,7 +229,7 @@ from tvm_tirx.script import tirx as T
 def func():
     x: T.handle = T.int64(0)
 """
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         from_source(src_handle)
 
     # 3. Banned: non-PrimType annotation without T.let
@@ -240,7 +240,7 @@ from tvm_tirx.ir import PtrType, PrimType
 def func():
     x: T.Var(name="x", ty=PtrType(PrimType("float16"))) = T.int64(0)
 """
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         from_source(src_ptr)
 
     # 4. An explicit mutable scalar declaration retains updates — round-trip
@@ -571,14 +571,14 @@ def test_thread_return_is_distinct_from_function_return():
 
 def test_loop_control_validation_preserves_valid_and_unchecked_ir():
     # Invalid loop placement must be rejected, while disabled checks preserve the original IR.
-    from tvm_tirx import error, ir, tirx
+    from tvm_tirx import ir, tirx
 
     invalid = tirx.Function(params=[], body=tvm_tirx.ir.Break())
 
     # Direct construction retains the native statement for an explicit verifier pass.
     ir.assert_structural_equal(invalid.body, tvm_tirx.ir.SeqStmt([tvm_tirx.ir.Break()]))
     assert not tirx.analysis.verify_well_formed(invalid, assert_mode=False)
-    with pytest.raises(error.InternalError, match="requires an enclosing loop"):
+    with pytest.raises(RuntimeError, match="requires an enclosing loop"):
         tirx.analysis.verify_well_formed(invalid)
 
     @T.function

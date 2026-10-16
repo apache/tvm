@@ -1771,7 +1771,7 @@ def test_nll_loss_infer_ty_wrong_reduction():
     y = relax.Var("x", R.Tensor((3, 10, 10), "int64"))
     w = relax.Var("w", R.Tensor((5,), "float32"))
 
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.nn.nll_loss(x, y, w, reduction="foo"))
 
 

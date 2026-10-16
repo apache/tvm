@@ -22,7 +22,6 @@ import tvm
 import tvm_tirx
 import tvm_tirx.testing
 from tvm.topi.utils import get_const_tuple
-from tvm_tirx.error import InternalError
 
 
 def test_layout():
@@ -86,15 +85,15 @@ def test_layout():
     assert layout[3] == "W"
     assert layout[4] == "4o4i"
 
-    with pytest.raises(InternalError):
+    with pytest.raises(RuntimeError):
         layout = tvm.s_tir.slayout("[N4o]C")
-    with pytest.raises(InternalError):
+    with pytest.raises(RuntimeError):
         layout = tvm.s_tir.slayout("[O4o]")
-    with pytest.raises(InternalError):
+    with pytest.raises(RuntimeError):
         layout = tvm.s_tir.slayout("C4o")
-    with pytest.raises(InternalError):
+    with pytest.raises(RuntimeError):
         layout = tvm.s_tir.slayout("OI[4o4i][]")
-    with pytest.raises(InternalError):
+    with pytest.raises(RuntimeError):
         layout = tvm.s_tir.slayout("C4c[4c]")
 
 

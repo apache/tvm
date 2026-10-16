@@ -36,7 +36,7 @@ def test_explicit_matrix_ab_access_is_rejected(scope, shape, access_kind):
     block = s_tir.SBlock([], [], [], "root", body, alloc_tensors=[tensor])
     func = tirx.Function([], s_tir.SBlockRealize([], True, block))
 
-    with pytest.raises(tvm_tirx.error.InternalError, match=f"{scope}.*explicit"):
+    with pytest.raises(RuntimeError, match=f"{scope}.*explicit"):
         s_tir.transform.TransformMmaTensorLayout()(tvm_tirx.IRModule.from_expr(func))
 
 

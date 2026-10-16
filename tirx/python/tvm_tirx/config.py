@@ -22,88 +22,21 @@ there with an exact library directory, independently of Python package search.
 """
 
 import argparse
-import importlib.machinery
 import importlib.util
 import json
-import os
 import shlex
 import sys
 from pathlib import Path
 
-__version__ = "0.1.0a0"
-
-_LIBRARY_NAMES = ("tvm_tirx_compiler", "tvm_runtime")
-_COMPONENTS = {
-    "compiler": "tvm_tirx_compiler",
-    "runtime": "tvm_runtime",
-    "cuda": "tvm_runtime_cuda",
-    "metal": "tvm_runtime_metal",
-    "opencl": "tvm_runtime_opencl",
-    "vulkan": "tvm_runtime_vulkan",
-    "rocm": "tvm_runtime_rocm",
-}
-
-
-def _find_prefix(start: Path) -> Path:
-    for candidate in (start, *start.parents):
-        if (candidate / "include/tvm/runtime/base.h").is_file():
-            return candidate
-    raise RuntimeError(f"Cannot find TIRx public headers above {start}")
-
-
-def _paths(prefix: Path | None, library_dir: Path | None) -> tuple[Path, Path]:
-    explicit_prefix = prefix is not None
-    if library_dir is not None:
-        library_dir = library_dir.resolve()
-        prefix = prefix.resolve() if prefix is not None else _find_prefix(library_dir)
-    else:
-        prefix = prefix.resolve() if prefix is not None else _find_prefix(Path(__file__).parent)
-        library_dir = prefix / "lib"
-        candidates = [prefix / "lib", prefix / "lib64", prefix / "build/lib"]
-        if prefix.name == "tirx":
-            candidates.append(prefix.parent / "build/lib")
-        if not explicit_prefix and os.environ.get("TVM_TIRX_LIBRARY_PATH"):
-            candidates.insert(0, Path(os.environ["TVM_TIRX_LIBRARY_PATH"]))
-        for candidate in candidates:
-            if all(
-                any(
-                    (candidate / filename).is_file()
-                    for filename in (f"lib{name}.so", f"lib{name}.dylib", f"{name}.dll")
-                )
-                for name in ("tvm_runtime",)
-            ):
-                library_dir = candidate
-                break
-    if not (prefix / "include/tvm/runtime/base.h").is_file():
-        raise RuntimeError(f"Cannot find TIRx public headers in {prefix / 'include'}")
-    return prefix, library_dir
-
-
-def _libraries(library_dir: Path, platform: str, names=_LIBRARY_NAMES) -> dict[str, dict[str, str]]:
-    libraries = {}
-    windows = platform in ("Windows", "win32")
-    apple = platform in ("Darwin", "iOS", "darwin")
-    for name in names:
-        if windows:
-            filenames = (f"{name}.dll",)
-        elif apple:
-            filenames = (f"lib{name}.dylib", f"lib{name}.so")
-        else:
-            filenames = (f"lib{name}.so",)
-        location = next((library_dir / f for f in filenames if (library_dir / f).is_file()), None)
-        if location is None:
-            raise RuntimeError(f"Cannot find TIRx library {name} in {library_dir}")
-        implib = ""
-        if windows:
-            import_names = (f"{name}.lib", f"lib{name}.dll.a")
-            import_library = next(
-                (library_dir / f for f in import_names if (library_dir / f).is_file()), None
-            )
-            if import_library is None:
-                raise RuntimeError(f"Missing import library for {location}")
-            implib = str(import_library)
-        libraries[name] = {"location": str(location), "implib": implib}
-    return libraries
+if __package__:
+    from . import libinfo
+else:
+    # The native CMake package installs the pure Python helper beside this file.
+    spec = importlib.util.spec_from_file_location(
+        "_tvm_tirx_libinfo", Path(__file__).with_name("libinfo.py")
+    )
+    libinfo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(libinfo)
 
 
 def configuration(
@@ -112,62 +45,7 @@ def configuration(
     platform: str = sys.platform,
 ) -> dict:
     """Return the public include and core shared-library paths for one installation."""
-    prefix, library_dir = _paths(prefix, library_dir)
-    return {
-        "version": __version__,
-        "include_dir": str(prefix / "include"),
-        "library_dir": str(library_dir),
-        "cmake_dir": str(library_dir / "cmake/tvm_tirx"),
-        "libraries": _libraries(library_dir, platform),
-    }
-
-
-def _ffi_info():
-    """Read the selected FFI package's pure Python helper without importing its runtime."""
-    spec = importlib.machinery.PathFinder.find_spec("tvm_ffi")
-    if spec is None or spec.origin is None:
-        raise RuntimeError("Cannot find the matching apache-tvm-ffi Python package")
-    helper = Path(spec.origin).parent / "libinfo.py"
-    spec = importlib.util.spec_from_file_location("_tvm_ffi_libinfo", helper)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def _available(library_dir, platform):
-    available = []
-    for component, name in _COMPONENTS.items():
-        try:
-            _libraries(library_dir, platform, (name,))
-        except RuntimeError:
-            continue
-        available.append(component)
-    return available
-
-
-def _link_inputs(library_dir, platform, components):
-    available = _available(library_dir, platform)
-    selected = list(dict.fromkeys(components or ["all"]))
-    if "all" in selected:
-        selected = [*available, *(name for name in selected if name != "all")]
-    for name in selected:
-        if name != "ffi" and name not in available:
-            raise RuntimeError(
-                f"Component '{name}' is unavailable; available: {' '.join(available)} ffi"
-            )
-    # Dependents precede their dependencies even if the command line lists runtime first.
-    ordered = [name for name in selected if name not in ("runtime", "ffi")]
-    if any(name != "ffi" for name in selected):
-        ordered.append("runtime")
-    libraries = _libraries(library_dir, platform, [_COMPONENTS[name] for name in ordered])
-    ffi = _ffi_info()
-    ffi_library = (
-        ffi.find_windows_implib() if platform in ("Windows", "win32") else ffi.find_libtvm_ffi()
-    )
-    return [
-        *(Path(lib["implib"] or lib["location"]) for lib in libraries.values()),
-        Path(ffi_library),
-    ]
+    return libinfo.configuration(prefix, library_dir, platform)
 
 
 def __main__() -> None:
@@ -216,10 +94,10 @@ def __main__() -> None:
                 "complete static dependency closure (including TVM FFI and its dependencies)"
             )
         if args.show_version:
-            print(__version__)
+            print(libinfo.__version__)
         if all(not getattr(args, "show_" + output) for output in outputs if output != "version"):
             return
-        prefix, library_dir = _paths(args.install_prefix, args.library_dir)
+        prefix, library_dir = libinfo._paths(args.install_prefix, args.library_dir)
         paths = {
             "prefix": prefix,
             "includedir": prefix / "include",
@@ -232,11 +110,11 @@ def __main__() -> None:
             if getattr(args, "show_" + output):
                 print(path)
         if args.show_components:
-            print(" ".join([*_available(library_dir, args.platform), "ffi"]))
+            print(" ".join([*libinfo._available(library_dir, args.platform), "ffi"]))
         if args.show_json:
             print(json.dumps(configuration(prefix, library_dir, args.platform)))
         if args.show_cflags or args.show_cxxflags:
-            ffi = _ffi_info()
+            ffi = libinfo._ffi_info()
             includes = dict.fromkeys(
                 [str(prefix / "include"), ffi.find_include_path(), ffi.find_dlpack_include_path()]
             )
@@ -246,7 +124,7 @@ def __main__() -> None:
             if args.show_cxxflags:
                 print(shlex.join([*flags, "-std=c++20"]))
         if any((args.show_ldflags, args.show_libs, args.show_libnames, args.show_libfiles)):
-            libraries = _link_inputs(library_dir, args.platform, args.components)
+            libraries = libinfo._link_inputs(library_dir, args.platform, args.components)
             apple = args.platform in ("Darwin", "iOS", "darwin")
             if args.show_ldflags:
                 print(

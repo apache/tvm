@@ -96,7 +96,7 @@ def test_sync_inside_condition():
             for i, j in T.grid(4, 4):
                 A[i, j] = A_shared[i, j] + 1.0
 
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         s_tir.transform.ThreadSync("shared")(tvm_tirx.IRModule.from_expr(func1))
 
     for func in (func2, func3):

@@ -14,9 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Post-install runtime and AOT checks.
+"""Post-install wheel library and AOT checks.
 
-These live in ``tests/python/all-platform-minimal-test`` so the standard suite and
+These live in ``tests/python/runtime`` so the standard suite and
 the cibuildwheel ``test-command`` run a single pytest invocation. The assertions
 for wheel packaging check things the rest of the suite cannot check -- that LLVM is
 enabled (the other LLVM test merely *skips* when LLVM is absent) and that the CUDA

@@ -665,11 +665,11 @@ def test_strided_slice_begin_end_strides_int64():
 def test_strided_slice_inconsistent_axes_begin_end_strides_length():
     x = relax.Var("x", R.Tensor((8, 9), "float32"))
 
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.strided_slice(x, axes=[1], begin=[], end=[9])
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.strided_slice(x, axes=[1], begin=[0], end=[])
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.strided_slice(x, axes=[1], begin=[0], end=[9], strides=[])
 
 
@@ -698,9 +698,9 @@ def test_strided_slice_infer_ty_wrong_input_type():
     x0 = relax.Var("x", relax.ShapeType((8, 9)))
     x1 = relax.Var("x", relax.FuncType([], R.Tensor((8, 9), "float32")))
 
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.strided_slice(x0, axes=[0], begin=[0], end=[8]))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.strided_slice(x1, axes=[0], begin=[0], end=[8]))
 
 
@@ -873,7 +873,7 @@ def test_dynamic_strided_slice_infer_ty_arg_wrong_dtype():
     e0 = relax.Var("end", R.Tensor((4,), "float32"))
     s0 = relax.Var("stride", R.Tensor((4,), "float32"))
 
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.strided_slice(x0, b0, e0, s0))
 
 
@@ -890,13 +890,13 @@ def test_dynamic_strided_slice_infer_ty_arg_wrong_shape_info():
     e0 = relax.Var("end", R.Tensor((4,), "int64"))
     s0 = relax.Var("stride", R.Tensor((4,), "int64"))
 
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.strided_slice(x0, b0, e0, s0))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.strided_slice(x0, b1, e0, s0))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.strided_slice(x0, b2, e0, s0))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.strided_slice(x0, b3, e0, s0))
 
 

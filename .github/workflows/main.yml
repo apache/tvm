@@ -89,7 +89,7 @@ jobs:
         shell: bash -l {0}
         run: >-
           python -m pytest -v tests/python/all-platform-minimal-test tests/python/script
-          tirx/tests/python/all-platform-minimal-test tirx/tests/python/script
+          tirx/tests/python/runtime/test_validate_wheel_library.py tirx/tests/python/script
       - name: Minimal Metal Compile-Only
         shell: bash -l {0}
         run: |
@@ -143,4 +143,4 @@ jobs:
         shell: cmd /C call {0}
         run: >-
           python -m pytest -v tests/python/all-platform-minimal-test tests/python/script
-          tirx/tests/python/all-platform-minimal-test tirx/tests/python/script
+          tirx/tests/python/runtime/test_validate_wheel_library.py tirx/tests/python/script

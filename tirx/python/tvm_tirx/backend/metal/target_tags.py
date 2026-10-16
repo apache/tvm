@@ -23,9 +23,9 @@ _METAL_HOST_TRIPLE = "arm64-apple-macos"
 
 def _register_metal_tag(name, max_threads, shared_mem, warp_size, mcpu):
     try:
-        from tvm_tirx.codegen import llvm_is_valid_cpu
+        from tvm_tirx.codegen import llvm
 
-        if not llvm_is_valid_cpu(mcpu, _METAL_HOST_TRIPLE):
+        if not llvm.is_valid_cpu(mcpu, _METAL_HOST_TRIPLE):
             return
     except Exception:  # pylint: disable=broad-except
         pass  # LLVM not available; register unconditionally

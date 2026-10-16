@@ -25,12 +25,12 @@ import pytest
 
 import tvm_tirx
 import tvm_tirx.testing
-from tvm_tirx.codegen import llvm_version_major
+from tvm_tirx.codegen import llvm
 from tvm_tirx.script import tirx as T
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
+    llvm.version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
 )
 @pytest.mark.parametrize(
     "target",
@@ -63,7 +63,7 @@ def test_codegen_vscale(target):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
+    llvm.version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
 )
 @pytest.mark.parametrize(
     "target",
@@ -96,7 +96,7 @@ def test_scalable_buffer_load_store(target):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
+    llvm.version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
 )
 @pytest.mark.parametrize(
     "target",

@@ -158,7 +158,7 @@ def test_residual_tile_call_is_rejected():
         call.op.name, "FTileOpDispatch", lambda call, context: Function([], Evaluate(0))
     )
     # Dispatch expands statement-boundary Calls; other positions must be rejected.
-    with pytest.raises(tvm_tirx.error.InternalError, match="Failed to lower the TIRx program"):
+    with pytest.raises(RuntimeError, match="Failed to lower the TIRx program"):
         _lower(Return(call))
 
 

@@ -1842,7 +1842,7 @@ def test_ptx_logic_shift_dispatch():
             d = T.local_scalar("uint32")
             T.ptx.lop3.b32(d, A[0], A[0], A[0], A[0])
 
-    with pytest.raises((ValueError, tvm_tirx.error.InternalError), match="compile-time constants"):
+    with pytest.raises((ValueError, RuntimeError), match="compile-time constants"):
         _cuda_source(lut_runtime)
 
     @T.function

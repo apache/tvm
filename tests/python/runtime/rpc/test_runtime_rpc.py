@@ -361,7 +361,7 @@ def test_rpc_session_constructor_args():
         assert nd.numpy()[1] == 2
 
     def check_error_handling():
-        with pytest.raises(tvm_tirx.error.RPCError):
+        with pytest.raises(RuntimeError):
             client = rpc.connect(
                 "127.0.0.1",
                 server0.port,
@@ -655,7 +655,7 @@ def test_rpc_session_timeout_error(with_proxy):
         rpc_sess = rpc.connect_tracker(*tracker_addr).request(key="x1", session_timeout=5)
         f1 = rpc_sess.get_function("rpc.test.addone")
         time.sleep(6)
-        with pytest.raises(tvm_tirx.error.RPCSessionTimeoutError):
+        with pytest.raises(RuntimeError):
             f1(10)
     finally:
         server.terminate()

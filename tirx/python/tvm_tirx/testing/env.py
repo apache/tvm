@@ -404,7 +404,7 @@ def has_nvcc_version(major: int, minor: int = 0, release: int = 0) -> bool:
 def _llvm_version_major() -> int:
     """Return the major LLVM version, or 0 if LLVM is unavailable."""
     try:
-        return int(tvm_tirx.codegen.llvm_version_major())
+        return int(tvm_tirx.codegen.llvm.version_major())
     except Exception:  # pylint: disable=broad-except
         return 0
 
@@ -451,7 +451,7 @@ def has_hexagon_toolchain() -> bool:
     try:
         return (
             _runtime_enabled("llvm")
-            and "hexagon" in tvm_tirx.codegen.llvm_get_targets()
+            and "hexagon" in tvm_tirx.codegen.llvm.get_targets()
             and "HEXAGON_TOOLCHAIN" in os.environ
         )
     except Exception:  # pylint: disable=broad-except
@@ -485,8 +485,8 @@ def _has_cpu_feature(features) -> bool:
     """True if the host CPU advertises the given LLVM target ``features``."""
     try:
         codegen = tvm_tirx.codegen
-        cpu = codegen.llvm_get_system_cpu()
-        triple = codegen.llvm_get_system_triple()
+        cpu = codegen.llvm.get_system_cpu()
+        triple = codegen.llvm.get_system_triple()
         target = tvm_tirx.target.Target({"kind": "llvm", "mtriple": triple, "mcpu": cpu})
         return bool(codegen.target_has_features(features, target))
     except Exception:  # pylint: disable=broad-except

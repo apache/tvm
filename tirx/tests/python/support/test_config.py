@@ -139,6 +139,7 @@ def test_cmake_targets_without_ffi(tmp_path):
     libdir = _installation(tmp_path / "install")
     cmake_dir = libdir / "cmake/tvm_tirx"
     shutil.copy2(_CONFIG_PATH, cmake_dir / "config.py")
+    shutil.copy2(_CONFIG_PATH.with_name("libinfo.py"), cmake_dir / "libinfo.py")
     shutil.copy2(
         _CONFIG_PATH.parents[2] / "cmake/tvm_tirx-config.cmake",
         cmake_dir / "tvm_tirx-config.cmake",
@@ -186,13 +187,13 @@ def _check_component_closure_and_artifacts(tmp_path, monkeypatch):
     for filename in ("libtvm_runtime_cuda.so", "libtvm_runtime_metal.so", "libtvm_ffi.so"):
         (libdir / filename).touch()
     monkeypatch.setattr(
-        config,
+        config.libinfo,
         "_ffi_info",
         lambda: SimpleNamespace(find_libtvm_ffi=lambda: str(libdir / "libtvm_ffi.so")),
     )
 
     def names(components):
-        return [path.name for path in config._link_inputs(libdir, "linux", components)]
+        return [path.name for path in config.libinfo._link_inputs(libdir, "linux", components)]
 
     assert names(["runtime", "cuda", "runtime", "ffi"]) == [
         "libtvm_runtime_cuda.so",
@@ -214,7 +215,7 @@ def _check_cli_link_flags_and_raw_inputs(tmp_path, monkeypatch, capsys, platform
     for name in ("tvm_runtime", "tvm_tirx_compiler", "tvm_ffi"):
         (libdir / f"lib{name}.{suffix}").touch()
     monkeypatch.setattr(
-        config,
+        config.libinfo,
         "_ffi_info",
         lambda: SimpleNamespace(find_libtvm_ffi=lambda: str(libdir / f"libtvm_ffi.{suffix}")),
     )
@@ -280,5 +281,5 @@ def _check_runtime_only_lib64_and_explicit_prefix_ignore_environment(tmp_path, m
     (libdir / "libtvm_tirx_compiler.so").unlink()
     unrelated = _installation(tmp_path / "unrelated")
     monkeypatch.setenv("TVM_TIRX_LIBRARY_PATH", str(unrelated))
-    assert config._paths(prefix, None) == (prefix, libdir)
-    assert config._available(libdir, "linux") == ["runtime"]
+    assert config.libinfo._paths(prefix, None) == (prefix, libdir)
+    assert config.libinfo._available(libdir, "linux") == ["runtime"]

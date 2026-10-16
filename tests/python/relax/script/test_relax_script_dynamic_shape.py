@@ -162,7 +162,7 @@ def test_symbolic_shape():
         )
         return gv0
 
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         m = T.dynamic("m", "int64")
         n = T.dynamic("n", "int32")
 
@@ -470,7 +470,7 @@ def test_bound_prim_param_reused_in_declared_function_signature():
 
 
 def test_non_int64_prim_param_rejected_in_shape_annotation():
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
 
         @R.function
         def main(n: T.int32, x: R.Tensor([n], "float32")):  # noqa: F821

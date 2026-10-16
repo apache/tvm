@@ -20,7 +20,6 @@ from collections.abc import Callable
 
 import tvm_ffi
 
-from tvm_tirx.error import InternalError as _InternalError
 from tvm_tirx.ir import Attrs, FloatImm, IntImm, is_prim_expr
 from tvm_tirx.ir import Call as _Call
 from tvm_tirx.ir.attrs import make_node as _make_attrs
@@ -326,7 +325,7 @@ def split(
         indices_or_sections = [IntImm("int64", int(index)) for index in indices_or_sections]
     if isinstance(indices_or_sections, IntImm):
         if int(indices_or_sections) <= 0:
-            raise _InternalError("The number of split sections must be positive")
+            raise RuntimeError("The number of split sections must be positive")
     elif not isinstance(indices_or_sections, list | tuple):
         raise TypeError("indices_or_sections must be an integer or a list of integers")
     return _Call(
@@ -1219,7 +1218,7 @@ def one_hot(
     on_value = prim_value(on_value)
     off_value = prim_value(off_value)
     if depth <= 0:
-        raise _InternalError("one_hot: depth must be positive")
+        raise RuntimeError("one_hot: depth must be positive")
     return _Call(
         "relax.one_hot",
         [indices, on_value, off_value],

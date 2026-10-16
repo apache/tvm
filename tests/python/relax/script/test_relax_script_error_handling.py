@@ -60,7 +60,7 @@ def _check(
 
 
 def test_call_tir_requires_global_var():
-    with pytest.raises(tvm_tirx.error.InternalError, match="first argument to be a GlobalVar"):
+    with pytest.raises(RuntimeError, match="first argument to be a GlobalVar"):
 
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
@@ -206,7 +206,7 @@ def test_unassigned_call_fail():
 
 
 def test_incorrect_tensor_shape():
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
 
         @R.function
         def f(x: R.Tensor([16])):
@@ -322,7 +322,7 @@ def test_annotate_override():
     assert isinstance(y_bind.var.ty, relax.TensorType)
     assert isinstance(z_bind.var.ty, relax.AnyType)
 
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
 
         @R.function
         def test(x: R.Tensor):

@@ -55,7 +55,7 @@ def test_dataflowblock_pass_rejects_deleting_binding_role_of_symbolic_var():
     def delete_ordinary_binding(block, _mod, _ctx):
         return relax.DataflowBlock([block.bindings[1]])
 
-    with pytest.raises(tvm_tirx.error.InternalError, match="global-scope Var"):
+    with pytest.raises(RuntimeError, match="global-scope Var"):
         delete_ordinary_binding(mod)
 
 
@@ -74,7 +74,7 @@ def test_dataflowblock_pass_rejects_rewriting_match_cast_role_of_binding_var():
         )
         return relax.DataflowBlock([block.bindings[0], new_match_cast])
 
-    with pytest.raises(tvm_tirx.error.InternalError, match="symbolic Var declared by a MatchCast"):
+    with pytest.raises(RuntimeError, match="symbolic Var declared by a MatchCast"):
         rewrite_match_cast_symbol(mod)
 
 

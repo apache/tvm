@@ -599,7 +599,7 @@ def test_legacy_payloads():
     current = old_binary + string(snapshot.encode())
     assert load(current).inspect_source("backend_config") == snapshot
     for malformed in (old_binary + b"x", current[:-1], current + b"x"):
-        with pytest.raises(tvm_tirx.error.InternalError):
+        with pytest.raises(RuntimeError):
             load(malformed)
 
 

@@ -66,7 +66,7 @@ def test_error_for_out_of_scope_usage():
     func = tvm_tirx.tirx.Function([], body)
 
     with pytest.raises(
-        (ValueError, tvm_tirx.error.InternalError),
+        (ValueError, RuntimeError),
         match="Invalid use of undefined variable i at .* no longer in-scope.",
     ):
         tvm_tirx.tirx.analysis.verify_well_formed(func)
@@ -84,7 +84,7 @@ def test_error_for_nested_rebind_usage():
         T.evaluate(i)
 
     with pytest.raises(
-        (ValueError, tvm_tirx.error.InternalError),
+        (ValueError, RuntimeError),
         match="ill-formed, due to multiple nested definitions of variable i",
     ):
         tvm_tirx.tirx.analysis.verify_well_formed(func)
@@ -108,7 +108,7 @@ def test_error_for_repeated_binding():
         T.evaluate(i)
 
     with pytest.raises(
-        (ValueError, tvm_tirx.error.InternalError),
+        (ValueError, RuntimeError),
         match="multiple nested definitions of variable i",
     ):
         tvm_tirx.tirx.analysis.verify_well_formed(func)
@@ -131,9 +131,7 @@ def test_error_for_cross_function_reuse():
             T.bind(42, var=i)
             T.evaluate(i)
 
-    with pytest.raises(
-        (ValueError, tvm_tirx.error.InternalError), match="multiple definitions of variable i"
-    ):
+    with pytest.raises((ValueError, RuntimeError), match="multiple definitions of variable i"):
         tvm_tirx.tirx.analysis.verify_well_formed(mod)
 
 
@@ -177,7 +175,7 @@ def test_reuse_of_region_parameter_across_functions_is_ill_formed():
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
     with pytest.raises(
-        (ValueError, tvm_tirx.error.InternalError),
+        (ValueError, RuntimeError),
         match="multiple definitions of variable threadIdx_x",
     ):
         tvm_tirx.tirx.analysis.verify_well_formed(mod)
@@ -222,7 +220,7 @@ def test_error_message_without_previous_definition_location():
         T.bind(99, var=x)  # This should trigger the error
         T.evaluate(x)
 
-    with pytest.raises((ValueError, tvm_tirx.error.InternalError)) as exc_info:
+    with pytest.raises((ValueError, RuntimeError)) as exc_info:
         tvm_tirx.tirx.analysis.verify_well_formed(func, assert_mode=True)
 
     error_msg = str(exc_info.value)
@@ -247,7 +245,7 @@ def test_error_message_with_previous_definition_location():
         T.bind(99, var=x)  # This should trigger the error
         T.evaluate(x)
 
-    with pytest.raises((ValueError, tvm_tirx.error.InternalError)) as exc_info:
+    with pytest.raises((ValueError, RuntimeError)) as exc_info:
         tvm_tirx.tirx.analysis.verify_well_formed(func, assert_mode=True)
 
     error_msg = str(exc_info.value)
@@ -278,7 +276,7 @@ def test_sequential_redefinition_with_location():
         T.bind(2, var=x)  # This should trigger the error
         T.evaluate(x)
 
-    with pytest.raises((ValueError, tvm_tirx.error.InternalError)) as exc_info:
+    with pytest.raises((ValueError, RuntimeError)) as exc_info:
         tvm_tirx.tirx.analysis.verify_well_formed(func, assert_mode=True)
 
     error_msg = str(exc_info.value)
@@ -349,7 +347,7 @@ def test_tensor_load_asserted_type_matches_source_and_indices():
     malformed = tvm_tirx.ir.load_json(json.dumps(graph))
 
     assert not tvm_tirx.tirx.analysis.verify_well_formed(malformed, assert_mode=False)
-    with pytest.raises(tvm_tirx.error.InternalError, match="asserts result type"):
+    with pytest.raises(RuntimeError, match="asserts result type"):
         tvm_tirx.tirx.analysis.verify_well_formed(malformed)
 
 
@@ -368,13 +366,13 @@ def test_tensor_load_malformed_indices_return_false_without_asserting():
     rank_mismatch_indices.pop()
     rank_mismatch = tvm_tirx.ir.load_json(json.dumps(rank_mismatch_graph))
     assert not tvm_tirx.tirx.analysis.verify_well_formed(rank_mismatch, assert_mode=False)
-    with pytest.raises(tvm_tirx.error.InternalError, match="indexes 2-dimensional tensor"):
+    with pytest.raises(RuntimeError, match="indexes 2-dimensional tensor"):
         tvm_tirx.tirx.analysis.verify_well_formed(rank_mismatch)
 
     indices[0], indices[1] = indices[1], indices[0]
     non_final_vector = tvm_tirx.ir.load_json(json.dumps(graph))
     assert not tvm_tirx.tirx.analysis.verify_well_formed(non_final_vector, assert_mode=False)
-    with pytest.raises(tvm_tirx.error.InternalError, match="only the final index"):
+    with pytest.raises(RuntimeError, match="only the final index"):
         tvm_tirx.tirx.analysis.verify_well_formed(non_final_vector)
 
 

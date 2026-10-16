@@ -387,7 +387,7 @@ def test_error_reporting():
     try:
         te.create_function(te_scan())
         assert False
-    except (TypeError, tvm_tirx.error.InternalError) as e:
+    except (TypeError, RuntimeError) as e:
         error_message = str(e)
         assert error_message.find("Unsupported Operation: te.ScanOp.") != -1
         return

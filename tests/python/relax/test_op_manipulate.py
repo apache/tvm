@@ -239,13 +239,13 @@ def test_reshape_infer_ty_inference_not_deducible():
     x2 = relax.Var("x", relax.TensorType(s0, "float32"))
     x3 = relax.Var("x", relax.TensorType(s1, "float32"))
 
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.reshape(x0, (2, 3, -1)))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.reshape(x1, (2, 3, -1)))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.reshape(x2, (2, 3, -1)))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.reshape(x3, (2, 3, -1)))
 
 
@@ -260,11 +260,11 @@ def test_reshape_infer_ty_new_shape_not_integer():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
 
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.reshape(x, (2.0, 3, 4, 5)))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.reshape(x, (2, 3, -1.0)))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.reshape(x, (2, 3, 4.0, -1)))
 
 
@@ -272,9 +272,9 @@ def test_reshape_infer_ty_multiple_dim_inference():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
 
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.reshape(x, (2, -1, -1, 5)))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.reshape(x, (-1, -1, -1, -1)))
 
 
@@ -282,7 +282,7 @@ def test_reshape_infer_ty_non_positive_new_shape():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
 
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.reshape(x, (-2, -3, -4, -5)))
 
 
@@ -433,9 +433,9 @@ def test_permute_dims_infer_ty_unknown_ndim_with_axes():
     x0 = relax.Var("x", R.Tensor("float32"))
     x1 = relax.Var("x", relax.TensorType(s, "float32"))
 
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.permute_dims(x0, [2, 3, 1, 0]))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(relax.op.permute_dims(x1, [2, 3, 1, 0]))
 
 
@@ -2199,9 +2199,9 @@ def test_split_invalid_n_section():
     n = tirx.Var("n", "int64")
     x = relax.Var("x", R.Tensor((3, 4), "float32"))
 
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.split(x, 0, axis=1)
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.split(x, -1, axis=1)
     with pytest.raises(TypeError):
         relax.op.split(x, n, axis=1)
@@ -3497,7 +3497,7 @@ def test_one_hot_infer_ty():
 
     # Test case 5: With different on_value and off_value dtypes
     i3 = relax.Var("indices", R.Tensor((2, 3), "int32"))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(
             relax.op.one_hot(
                 i3,
@@ -3521,7 +3521,7 @@ def test_one_hot_infer_ty():
 
     # Test case 7: With invalid depth
     i5 = relax.Var("indices", R.Tensor((2, 3), "int32"))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         bb.normalize(
             relax.op.one_hot(
                 i5,

@@ -102,7 +102,7 @@ def test_vm_compile_unlowered_operator_error():
 
     mod = relax.transform.LegalizeOps()(Conv2dTranspose)
     with pytest.raises(
-        tvm_tirx.error.InternalError,
+        RuntimeError,
         match=r"(?s)Offending call:.*(?:R|relax)\.nn\.conv2d_transpose.*data_layout.*NHWC",
     ):
         relax.build(mod, target="llvm")

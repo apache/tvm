@@ -292,14 +292,19 @@ install(TARGETS tvm_tirx_header tvm_tirx_compiler tvm_runtime tvm_runtime_static
 # CMake package and dependency helpers
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/tvm_tirx-config.cmake"
   "${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_tirx/config.py"
+  "${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_tirx/libinfo.py"
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tvm_tirx" COMPONENT tvm_tirx)
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils/"
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/tvm_tirx/utils"
   COMPONENT tvm_tirx FILES_MATCHING PATTERN "Find*.cmake")
 
 if(NOT TVM_TIRX_BUILD_PYTHON_MODULE)
-  install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_tirx/config.py"
-    DESTINATION "${CMAKE_INSTALL_BINDIR}" RENAME tvm-tirx-config COMPONENT tvm_tirx)
+  file(RELATIVE_PATH TVM_TIRX_CONFIG_PREFIX_RELATIVE
+    "${CMAKE_INSTALL_FULL_BINDIR}" "${CMAKE_INSTALL_PREFIX}")
+  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/tvm-tirx-config.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/tvm-tirx-config" @ONLY)
+  install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/tvm-tirx-config"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT tvm_tirx)
 endif()
 
 # Python package artifacts and licenses

@@ -5178,9 +5178,7 @@ def _build_tflite_operator_marker_model(builtin_name):
 @pytest.mark.parametrize("builtin_name", ["DELEGATE", "PLACEHOLDER_FOR_GREATER_OP_CODES"])
 def test_operator_marker_unsupported(builtin_name):
     """TFLite marker builtins report explicit unsupported diagnostics."""
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match=f"TFLite operator marker {builtin_name}"
-    ):
+    with pytest.raises(NotImplementedError, match=f"TFLite operator marker {builtin_name}"):
         _load_model_from_buffer(_build_tflite_operator_marker_model(builtin_name))
 
 
@@ -5584,7 +5582,7 @@ def test_rfft2d_mismatched_fft_length_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="fft_length"):
+    with pytest.raises(NotImplementedError, match="fft_length"):
         from_tflite(tflite_model)
 
 
@@ -5610,7 +5608,7 @@ def test_rfft2d_dynamic_fft_length_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="requires a constant fft_length"):
+    with pytest.raises(NotImplementedError, match="requires a constant fft_length"):
         from_tflite(tflite_model)
 
 
@@ -5948,23 +5946,19 @@ def test_call_subgraph_nested_call():
 
 def test_call_subgraph_invalid_index_unsupported():
     """Test CALL rejects invalid subgraph indices before lowering."""
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="CALL requires a valid subgraph index"
-    ):
+    with pytest.raises(NotImplementedError, match="CALL requires a valid subgraph index"):
         _load_model_from_buffer(_build_tflite_call_model(call_subgraph_index=2))
 
 
 def test_call_subgraph_io_mismatch_unsupported():
     """Test CALL rejects callees whose input arity does not match the call site."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="CALL subgraph input count mismatch"):
+    with pytest.raises(NotImplementedError, match="CALL subgraph input count mismatch"):
         _load_model_from_buffer(_build_tflite_call_model(callee_inputs=[]))
 
 
 def test_call_subgraph_output_metadata_mismatch_unsupported():
     """Test CALL rejects callees whose output metadata does not match the call site."""
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="CALL subgraph output tensor metadata mismatch"
-    ):
+    with pytest.raises(NotImplementedError, match="CALL subgraph output tensor metadata mismatch"):
         _load_model_from_buffer(_build_tflite_call_model(callee_output_shape=[2]))
 
 
@@ -6292,37 +6286,31 @@ def test_if_subgraphs_multi_output():
 
 def test_if_subgraphs_non_bool_condition_unsupported():
     """Test IF rejects non-bool condition tensors."""
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="IF requires a scalar bool condition"
-    ):
+    with pytest.raises(NotImplementedError, match="IF requires a scalar bool condition"):
         _load_model_from_buffer(_build_tflite_if_model(condition_type=_tfl_tensor_type.INT32))
 
 
 def test_if_subgraphs_invalid_index_unsupported():
     """Test IF rejects invalid branch subgraph indices before lowering."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="IF requires a valid subgraph index"):
+    with pytest.raises(NotImplementedError, match="IF requires a valid subgraph index"):
         _load_model_from_buffer(_build_tflite_if_model(then_subgraph_index=3))
 
 
 def test_if_subgraphs_output_count_mismatch_unsupported():
     """Test IF rejects branches whose output arity does not match the call site."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="IF subgraph output count mismatch"):
+    with pytest.raises(NotImplementedError, match="IF subgraph output count mismatch"):
         _load_model_from_buffer(_build_tflite_if_model(else_outputs=[]))
 
 
 def test_if_subgraphs_input_metadata_mismatch_unsupported():
     """Test IF rejects branches whose input metadata does not match the call site."""
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="IF subgraph input tensor metadata mismatch"
-    ):
+    with pytest.raises(NotImplementedError, match="IF subgraph input tensor metadata mismatch"):
         _load_model_from_buffer(_build_tflite_if_model(else_input_shape=[2]))
 
 
 def test_if_subgraphs_output_metadata_mismatch_unsupported():
     """Test IF rejects branches whose output metadata does not match the call site."""
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="IF subgraph output tensor metadata mismatch"
-    ):
+    with pytest.raises(NotImplementedError, match="IF subgraph output tensor metadata mismatch"):
         _load_model_from_buffer(_build_tflite_if_model(else_output_shape=[2]))
 
 
@@ -6764,31 +6752,25 @@ def test_while_subgraphs_two_loop_vars():
 
 def test_while_subgraphs_non_bool_condition_unsupported():
     """Test WHILE rejects cond subgraphs that do not return scalar bool."""
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="WHILE requires a scalar bool condition"
-    ):
+    with pytest.raises(NotImplementedError, match="WHILE requires a scalar bool condition"):
         _load_model_from_buffer(_build_tflite_while_model(cond_output_type=_tfl_tensor_type.INT32))
 
 
 def test_while_subgraphs_invalid_index_unsupported():
     """Test WHILE rejects invalid cond/body subgraph indices before lowering."""
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="WHILE requires a valid subgraph index"
-    ):
+    with pytest.raises(NotImplementedError, match="WHILE requires a valid subgraph index"):
         _load_model_from_buffer(_build_tflite_while_model(cond_subgraph_index=3))
 
 
 def test_while_subgraphs_zero_loop_vars_unsupported():
     """Test WHILE rejects operators without loop-carried tensors."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="WHILE requires loop-carried inputs"):
+    with pytest.raises(NotImplementedError, match="WHILE requires loop-carried inputs"):
         _load_model_from_buffer(_build_tflite_zero_var_while_model())
 
 
 def test_while_subgraphs_loop_state_metadata_mismatch_unsupported():
     """Test WHILE rejects loop outputs whose metadata does not match loop inputs."""
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="WHILE loop state tensor metadata mismatch"
-    ):
+    with pytest.raises(NotImplementedError, match="WHILE loop state tensor metadata mismatch"):
         _load_model_from_buffer(
             _build_tflite_while_model(main_output_type=_tfl_tensor_type.FLOAT32)
         )
@@ -6796,25 +6778,19 @@ def test_while_subgraphs_loop_state_metadata_mismatch_unsupported():
 
 def test_while_subgraphs_output_count_mismatch_unsupported():
     """Test WHILE rejects body subgraphs whose output arity does not match loop vars."""
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="WHILE subgraph output count mismatch"
-    ):
+    with pytest.raises(NotImplementedError, match="WHILE subgraph output count mismatch"):
         _load_model_from_buffer(_build_tflite_while_model(body_outputs=[]))
 
 
 def test_while_subgraphs_input_metadata_mismatch_unsupported():
     """Test WHILE rejects cond subgraph inputs whose metadata does not match loop vars."""
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="WHILE subgraph input tensor metadata mismatch"
-    ):
+    with pytest.raises(NotImplementedError, match="WHILE subgraph input tensor metadata mismatch"):
         _load_model_from_buffer(_build_tflite_while_model(cond_input_type=_tfl_tensor_type.FLOAT32))
 
 
 def test_while_subgraphs_output_metadata_mismatch_unsupported():
     """Test WHILE rejects body outputs whose metadata does not match loop vars."""
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="WHILE subgraph output tensor metadata mismatch"
-    ):
+    with pytest.raises(NotImplementedError, match="WHILE subgraph output tensor metadata mismatch"):
         _load_model_from_buffer(
             _build_tflite_while_model(body_output_type=_tfl_tensor_type.FLOAT32)
         )
@@ -6917,13 +6893,13 @@ def test_call_once_empty_init_subgraph():
 
 def test_call_once_non_empty_init_subgraph_unsupported():
     """Test CALL_ONCE rejects init subgraphs with side-effect-like bodies."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="CALL_ONCE"):
+    with pytest.raises(NotImplementedError, match="CALL_ONCE"):
         _load_model_from_buffer(_build_tflite_call_once_model(init_has_op=True))
 
 
 def test_call_once_inputs_outputs_unsupported():
     """Test CALL_ONCE rejects operator inputs and outputs."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="CALL_ONCE with inputs or outputs"):
+    with pytest.raises(NotImplementedError, match="CALL_ONCE with inputs or outputs"):
         _load_model_from_buffer(
             _build_tflite_call_once_model(call_once_inputs=[0], call_once_outputs=[0])
         )
@@ -6931,17 +6907,13 @@ def test_call_once_inputs_outputs_unsupported():
 
 def test_call_once_init_subgraph_io_unsupported():
     """Test CALL_ONCE rejects init subgraphs with inputs or outputs."""
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="CALL_ONCE with non-empty init subgraph I/O"
-    ):
+    with pytest.raises(NotImplementedError, match="CALL_ONCE with non-empty init subgraph I/O"):
         _load_model_from_buffer(_build_tflite_call_once_model(init_inputs=[0], init_outputs=[0]))
 
 
 def test_call_once_invalid_index_unsupported():
     """Test CALL_ONCE rejects invalid init subgraph indices before lowering."""
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="CALL_ONCE requires a valid subgraph index"
-    ):
+    with pytest.raises(NotImplementedError, match="CALL_ONCE requires a valid subgraph index"):
         _load_model_from_buffer(_build_tflite_call_once_model(init_subgraph_index=2))
 
 
@@ -7685,13 +7657,13 @@ def test_resource_variable_call_once_init_read():
 
 def test_assign_variable_main_subgraph_unsupported():
     """Test ASSIGN_VARIABLE remains unsupported outside CALL_ONCE initialization."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="ASSIGN_VARIABLE outside CALL_ONCE"):
+    with pytest.raises(NotImplementedError, match="ASSIGN_VARIABLE outside CALL_ONCE"):
         _load_model_from_buffer(_build_tflite_resource_assign_in_main_model())
 
 
 def test_read_variable_uninitialized_unsupported():
     """Test READ_VARIABLE rejects resource handles without supported initialization."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="READ_VARIABLE requires a resource"):
+    with pytest.raises(NotImplementedError, match="READ_VARIABLE requires a resource"):
         _load_model_from_buffer(_build_tflite_resource_read_uninitialized_model())
 
 
@@ -7736,13 +7708,13 @@ def test_hashtable_call_once_import_find_string_to_int64_2d_query():
 
 def test_hashtable_call_once_import_find_int64_to_string_unsupported():
     """Test HASHTABLE_FIND rejects int64-to-string tables until string outputs exist."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="string -> int64"):
+    with pytest.raises(NotImplementedError, match="string -> int64"):
         _load_model_from_buffer(_build_tflite_hashtable_find_int64_to_string_model())
 
 
 def test_hashtable_call_once_import_find_runtime_query_unsupported():
     """Test HASHTABLE_FIND rejects runtime string queries."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="string queries|STRING graph inputs"):
+    with pytest.raises(NotImplementedError, match="string queries|STRING graph inputs"):
         _load_model_from_buffer(
             _build_tflite_hashtable_find_string_to_int64_model(query_is_input=True)
         )
@@ -7750,7 +7722,7 @@ def test_hashtable_call_once_import_find_runtime_query_unsupported():
 
 def test_hashtable_call_once_import_duplicate_keys_unsupported():
     """Test HASHTABLE_IMPORT rejects duplicate static keys."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="duplicate keys"):
+    with pytest.raises(NotImplementedError, match="duplicate keys"):
         _load_model_from_buffer(
             _build_tflite_hashtable_find_string_to_int64_model(
                 table_keys=["alpha", "alpha"], table_values=[10, 20]
@@ -7777,13 +7749,13 @@ def test_hashtable_call_once_import_size():
 
 def test_hashtable_import_main_subgraph_unsupported():
     """Test HASHTABLE_IMPORT remains unsupported outside CALL_ONCE initialization."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="HASHTABLE_IMPORT outside CALL_ONCE"):
+    with pytest.raises(NotImplementedError, match="HASHTABLE_IMPORT outside CALL_ONCE"):
         _load_model_from_buffer(_build_tflite_hashtable_import_in_main_model())
 
 
 def test_hashtable_size_uninitialized_unsupported():
     """Test HASHTABLE_SIZE rejects tables without supported initialization."""
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="HASHTABLE_SIZE requires a table"):
+    with pytest.raises(NotImplementedError, match="HASHTABLE_SIZE requires a table"):
         _load_model_from_buffer(_build_tflite_hashtable_size_uninitialized_model())
 
 
@@ -7944,7 +7916,7 @@ def test_hashtable_lookup_2d_value():
 
 def test_hashtable_lookup_string_value_unsupported():
     string_type = _get_string_tensor_type()
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="STRING graph inputs"):
+    with pytest.raises(NotImplementedError, match="STRING graph inputs"):
         _load_model_from_buffer(
             _build_tflite_hashtable_lookup_model(value_shape=[3], value_type=string_type)
         )
@@ -8737,7 +8709,7 @@ def test_stablehlo_reduce_unsupported_reducer():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="reducer"):
+    with pytest.raises(NotImplementedError, match="reducer"):
         from_tflite(tflite_model)
 
 
@@ -8749,7 +8721,7 @@ def test_stablehlo_reduce_non_identity_init_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="init value"):
+    with pytest.raises(NotImplementedError, match="init value"):
         from_tflite(tflite_model)
 
 
@@ -8792,7 +8764,7 @@ def test_stablehlo_sort_unsupported_comparator():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="LT or GT"):
+    with pytest.raises(NotImplementedError, match="LT or GT"):
         from_tflite(tflite_model)
 
 
@@ -8805,7 +8777,7 @@ def test_stablehlo_sort_stable_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="stable sort"):
+    with pytest.raises(NotImplementedError, match="stable sort"):
         from_tflite(tflite_model)
 
 
@@ -8845,7 +8817,7 @@ def test_stablehlo_reduce_window_unsupported_reducer():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="MAXIMUM"):
+    with pytest.raises(NotImplementedError, match="MAXIMUM"):
         from_tflite(tflite_model)
 
 
@@ -8857,7 +8829,7 @@ def test_stablehlo_reduce_window_base_dilation_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="base dilation"):
+    with pytest.raises(NotImplementedError, match="base dilation"):
         from_tflite(tflite_model)
 
 
@@ -8901,7 +8873,7 @@ def test_stablehlo_scatter_unsupported_reducer():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="reducer"):
+    with pytest.raises(NotImplementedError, match="reducer"):
         from_tflite(tflite_model)
 
 
@@ -8913,7 +8885,7 @@ def test_stablehlo_scatter_update_window_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="point updates"):
+    with pytest.raises(NotImplementedError, match="point updates"):
         from_tflite(tflite_model)
 
 
@@ -8938,7 +8910,7 @@ def test_stablehlo_custom_call_unsupported_target():
     """TFLite StableHLO CUSTOM_CALL rejects unknown external call targets."""
     buf = _build_stablehlo_custom_call_model(call_target_name="custom_backend")
     with pytest.raises(
-        tvm_tirx.error.OpNotImplemented,
+        NotImplementedError,
         match="STABLEHLO_CUSTOM_CALL target custom_backend is not supported",
     ):
         _load_model_from_buffer(buf)
@@ -8947,14 +8919,14 @@ def test_stablehlo_custom_call_unsupported_target():
 def test_stablehlo_custom_call_sharding_side_effect_unsupported():
     """TFLite StableHLO CUSTOM_CALL rejects side-effecting Sharding calls."""
     buf = _build_stablehlo_custom_call_model(has_side_effect=True)
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="side effects"):
+    with pytest.raises(NotImplementedError, match="side effects"):
         _load_model_from_buffer(buf)
 
 
 def test_stablehlo_custom_call_sharding_metadata_mismatch_unsupported():
     """TFLite StableHLO CUSTOM_CALL rejects Sharding calls that change tensor metadata."""
     buf = _build_stablehlo_custom_call_model(output_tensor_type=_tfl_tensor_type.INT32)
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="Sharding tensor metadata mismatch"):
+    with pytest.raises(NotImplementedError, match="Sharding tensor metadata mismatch"):
         _load_model_from_buffer(buf)
 
 
@@ -8962,7 +8934,7 @@ def test_stablehlo_options_missing_payload_unsupported():
     """A StableHLO op that declares an options type but omits the payload fails cleanly."""
     buf = _build_stablehlo_custom_call_model(include_options=False)
     with pytest.raises(
-        tvm_tirx.error.OpNotImplemented,
+        NotImplementedError,
         match="StablehloCustomCallOptions is required but missing from the operator",
     ):
         _load_model_from_buffer(buf)
@@ -9163,16 +9135,14 @@ def test_stablehlo_rng_bit_generator_constant_state():
 def test_stablehlo_rng_bit_generator_unsupported_output_dtype():
     """TFLite STABLEHLO_RNG_BIT_GENERATOR rejects non-integer output dtypes."""
     buf = _build_stablehlo_rng_model(_tfl_rng_algorithm.PHILOX, 3, [2, 3], _tfl_tensor_type.FLOAT32)
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="output dtype float32 is not supported"
-    ):
+    with pytest.raises(NotImplementedError, match="output dtype float32 is not supported"):
         _load_model_from_buffer(buf)
 
 
 def test_stablehlo_rng_bit_generator_threefry_invalid_state_unsupported():
     """TFLite STABLEHLO_RNG_BIT_GENERATOR rejects a u64[3] state for THREEFRY."""
     buf = _build_stablehlo_rng_model(_tfl_rng_algorithm.THREEFRY, 3, [2, 3], _tfl_tensor_type.INT32)
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="THREEFRY requires a u64.2. state"):
+    with pytest.raises(NotImplementedError, match="THREEFRY requires a u64.2. state"):
         _load_model_from_buffer(buf)
 
 
@@ -9207,7 +9177,7 @@ def test_stablehlo_rng_bit_generator_non_uint64_state_unsupported():
     buf = _finish_tflite_model(
         builder, subgraph=subgraph, operator_codes=[rng_code], buffers=buffers
     )
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="requires a uint64 initial state"):
+    with pytest.raises(NotImplementedError, match="requires a uint64 initial state"):
         _load_model_from_buffer(buf)
 
 
@@ -9272,7 +9242,7 @@ def test_stablehlo_while():
 def test_stablehlo_while_non_bool_condition_unsupported():
     """STABLEHLO_WHILE rejects cond subgraphs that do not return scalar bool."""
     with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="STABLEHLO_WHILE requires a scalar bool condition"
+        NotImplementedError, match="STABLEHLO_WHILE requires a scalar bool condition"
     ):
         _load_model_from_buffer(
             _build_stablehlo_while_model(cond_output_type=_tfl_tensor_type.INT32)
@@ -9282,23 +9252,21 @@ def test_stablehlo_while_non_bool_condition_unsupported():
 def test_stablehlo_while_invalid_index_unsupported():
     """STABLEHLO_WHILE rejects invalid cond/body subgraph indices before lowering."""
     with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="STABLEHLO_WHILE requires a valid subgraph index"
+        NotImplementedError, match="STABLEHLO_WHILE requires a valid subgraph index"
     ):
         _load_model_from_buffer(_build_stablehlo_while_model(cond_subgraph_index=3))
 
 
 def test_stablehlo_while_output_count_mismatch_unsupported():
     """STABLEHLO_WHILE rejects body subgraphs whose output arity does not match loop vars."""
-    with pytest.raises(
-        tvm_tirx.error.OpNotImplemented, match="STABLEHLO_WHILE subgraph output count mismatch"
-    ):
+    with pytest.raises(NotImplementedError, match="STABLEHLO_WHILE subgraph output count mismatch"):
         _load_model_from_buffer(_build_stablehlo_while_model(body_outputs=[]))
 
 
 def test_stablehlo_while_input_metadata_mismatch_unsupported():
     """STABLEHLO_WHILE rejects cond subgraph inputs whose metadata does not match loop vars."""
     with pytest.raises(
-        tvm_tirx.error.OpNotImplemented,
+        NotImplementedError,
         match="STABLEHLO_WHILE subgraph input tensor metadata mismatch",
     ):
         _load_model_from_buffer(
@@ -9309,7 +9277,7 @@ def test_stablehlo_while_input_metadata_mismatch_unsupported():
 def test_stablehlo_while_output_metadata_mismatch_unsupported():
     """STABLEHLO_WHILE rejects body outputs whose metadata does not match loop vars."""
     with pytest.raises(
-        tvm_tirx.error.OpNotImplemented,
+        NotImplementedError,
         match="STABLEHLO_WHILE subgraph output tensor metadata mismatch",
     ):
         _load_model_from_buffer(
@@ -9362,7 +9330,7 @@ def test_stablehlo_composite_attributes_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="composite attributes"):
+    with pytest.raises(NotImplementedError, match="composite attributes"):
         from_tflite(tflite_model)
 
 
@@ -10054,7 +10022,7 @@ def test_stablehlo_compare(direction_enum, relax_op):
 
 
 def test_stablehlo_compare_totalorder_unsupported():
-    """STABLEHLO_COMPARE with TOTALORDER type raises OpNotImplemented."""
+    """STABLEHLO_COMPARE with TOTALORDER type raises NotImplementedError."""
     builder = flatbuffers.Builder(1024)
 
     _DIR = _tfl_stablehlo_comp_dir.StablehloComparisonDirection
@@ -10103,7 +10071,7 @@ def test_stablehlo_compare_totalorder_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="TOTALORDER"):
+    with pytest.raises(NotImplementedError, match="TOTALORDER"):
         from_tflite(tflite_model)
 
 
@@ -10246,7 +10214,7 @@ def test_stablehlo_gather_complex_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="start_index_map"):
+    with pytest.raises(NotImplementedError, match="start_index_map"):
         from_tflite(tflite_model)
 
 
@@ -10342,7 +10310,7 @@ def test_stablehlo_pad():
 
 
 def test_stablehlo_pad_interior_unsupported():
-    """STABLEHLO_PAD with interior padding raises OpNotImplemented."""
+    """STABLEHLO_PAD with interior padding raises NotImplementedError."""
     builder = flatbuffers.Builder(1024)
 
     lo_vec = _pad_vector(
@@ -10402,12 +10370,12 @@ def test_stablehlo_pad_interior_unsupported():
         tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="interior"):
+    with pytest.raises(NotImplementedError, match="interior"):
         from_tflite(tflite_model)
 
 
 def test_stablehlo_pad_negative_unsupported():
-    """STABLEHLO_PAD with negative edge padding raises OpNotImplemented."""
+    """STABLEHLO_PAD with negative edge padding raises NotImplementedError."""
     builder = flatbuffers.Builder(1024)
 
     lo_vec = _pad_vector(
@@ -10467,7 +10435,7 @@ def test_stablehlo_pad_negative_unsupported():
         tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="negative"):
+    with pytest.raises(NotImplementedError, match="negative"):
         from_tflite(tflite_model)
 
 
@@ -10607,7 +10575,7 @@ def test_stablehlo_dynamic_slice_dynamic_starts_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="dynamic start"):
+    with pytest.raises(NotImplementedError, match="dynamic start"):
         from_tflite(tflite_model)
 
 
@@ -10619,7 +10587,7 @@ def test_stablehlo_dynamic_slice_out_of_bounds_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="out-of-bounds"):
+    with pytest.raises(NotImplementedError, match="out-of-bounds"):
         from_tflite(tflite_model)
 
 
@@ -10793,7 +10761,7 @@ def test_stablehlo_dynamic_update_slice_out_of_bounds_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="out-of-bounds"):
+    with pytest.raises(NotImplementedError, match="out-of-bounds"):
         from_tflite(tflite_model)
 
 
@@ -10893,7 +10861,7 @@ def test_stablehlo_dot_general_noncanonical_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="contracting"):
+    with pytest.raises(NotImplementedError, match="contracting"):
         from_tflite(tflite_model)
 
 
@@ -11035,7 +11003,7 @@ def test_stablehlo_convolution_feature_group_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="feature_group_count"):
+    with pytest.raises(NotImplementedError, match="feature_group_count"):
         from_tflite(tflite_model)
 
 
@@ -11047,7 +11015,7 @@ def test_stablehlo_convolution_dimension_numbers_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="dimension numbers"):
+    with pytest.raises(NotImplementedError, match="dimension numbers"):
         from_tflite(tflite_model)
 
 
@@ -12062,7 +12030,7 @@ def test_quantized_add_fused_relu6_uses_float_clip_before_quantize():
 
 
 def test_quantized_add_without_output_qparams_invalid():
-    """Quantized ADD with missing output qparams raises OpAttributeInvalid."""
+    """Quantized ADD with missing output qparams raises AttributeError."""
     builder = flatbuffers.Builder(1024)
 
     in_q = _build_quantization_parameters(
@@ -12105,7 +12073,7 @@ def test_quantized_add_without_output_qparams_invalid():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm_tirx.error.OpAttributeInvalid, match="output must have quantization"):
+    with pytest.raises(AttributeError, match="output must have quantization"):
         from_tflite(tflite_model)
 
 
@@ -12139,7 +12107,7 @@ def test_quantized_square_unsupported():
         buffers=[_build_buffer(builder)] * 2,
     )
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="SQUARE"):
+    with pytest.raises(NotImplementedError, match="SQUARE"):
         _load_model_from_buffer(buf)
 
 
@@ -13784,7 +13752,7 @@ def test_lstm_rejects_unsupported_features():
     zeros_r = np.zeros((num_units, num_units), dtype=np.float32)
     zeros_b = np.zeros(num_units, dtype=np.float32)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="not supported yet"):
+    with pytest.raises(NotImplementedError, match="not supported yet"):
         _load_model_from_buffer(
             _build_lstm_model(
                 batch,
@@ -14407,7 +14375,7 @@ def test_unidirectional_sequence_lstm_rejects_projection():
     recurrent = np.eye(num_units, dtype=np.float32)
     bias = np.zeros(num_units, dtype=np.float32)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="projection LSTM"):
+    with pytest.raises(NotImplementedError, match="projection LSTM"):
         _load_model_from_buffer(
             _build_unidirectional_sequence_lstm_model(
                 batch,
@@ -14681,7 +14649,7 @@ def test_bidirectional_sequence_rnn_rejects_aux_input():
     recurrent = np.eye(num_units, dtype=np.float32)
     bias = np.zeros(num_units, dtype=np.float32)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="aux input"):
+    with pytest.raises(NotImplementedError, match="aux input"):
         _load_model_from_buffer(
             _build_bidirectional_sequence_rnn_model(
                 batch,
@@ -14989,7 +14957,7 @@ def test_bidirectional_sequence_lstm_rejects_aux_input():
     recurrent = np.eye(num_units, dtype=np.float32)
     bias = np.zeros(num_units, dtype=np.float32)
 
-    with pytest.raises(tvm_tirx.error.OpNotImplemented, match="aux input"):
+    with pytest.raises(NotImplementedError, match="aux input"):
         _load_model_from_buffer(
             _build_bidirectional_sequence_lstm_model(
                 batch,

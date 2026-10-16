@@ -152,7 +152,5 @@ def test_error_undeclared_tensor_in_schedulable_tir():
     )
 
     # B is used in the block but was never declared — should fail.
-    with pytest.raises(
-        (ValueError, tvm_tirx.error.InternalError), match="tensor B.*without a prior DeclTensor"
-    ):
+    with pytest.raises((ValueError, RuntimeError), match="tensor B.*without a prior DeclTensor"):
         tvm.s_tir.analysis.verify_well_formed(function)

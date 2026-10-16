@@ -722,7 +722,7 @@ def test_py_func_registry_is_scoped_to_its_module():
 
     assert module_ref() is None, "the registry must not keep the module alive"
     assert get_func("registry_probe") is not None, "another owner's function was dropped"
-    with pytest.raises(tvm_tirx.error.InternalError, match="not found in registry"):
+    with pytest.raises(RuntimeError, match="not found in registry"):
         get_func("registry_owned")
     tvm_tirx.get_global_func("vm.builtin.unregister_py_func")("registry_probe")
 

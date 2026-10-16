@@ -20,7 +20,6 @@ import tvm_ffi
 
 from tvm import relax
 from tvm_tirx import DataType
-from tvm_tirx.error import InternalError as _InternalError
 from tvm_tirx.ir import Attrs, FloatImm
 from tvm_tirx.ir import Call as _Call
 from tvm_tirx.ir import PrimType as _PrimType
@@ -126,13 +125,13 @@ def conv1d(
     if len(padding) == 1:
         padding = tuple(padding) + tuple(padding)
     if groups <= 0:
-        raise _InternalError("The number of groups must be positive")
+        raise RuntimeError("The number of groups must be positive")
     if len(strides) != 1:
-        raise _InternalError("strides must contain 1 values")
+        raise RuntimeError("strides must contain 1 values")
     if len(padding) != 2:
-        raise _InternalError("padding must contain 2 values")
+        raise RuntimeError("padding must contain 2 values")
     if len(dilation) != 1:
-        raise _InternalError("dilation must contain 1 values")
+        raise RuntimeError("dilation must contain 1 values")
     return _Call(
         "relax.nn.conv1d",
         [data, weight],
@@ -253,13 +252,13 @@ def conv2d(
     if len(dilation) == 1:
         dilation = tuple(dilation) * 2
     if groups <= 0:
-        raise _InternalError("The number of groups must be positive")
+        raise RuntimeError("The number of groups must be positive")
     if len(strides) != 2:
-        raise _InternalError("strides must contain 2 values")
+        raise RuntimeError("strides must contain 2 values")
     if len(padding) != 4:
-        raise _InternalError("padding must contain 4 values")
+        raise RuntimeError("padding must contain 4 values")
     if len(dilation) != 2:
-        raise _InternalError("dilation must contain 2 values")
+        raise RuntimeError("dilation must contain 2 values")
     return _Call(
         "relax.nn.conv2d",
         [data, weight],
@@ -386,13 +385,13 @@ def conv3d(
     if len(dilation) == 1:
         dilation = tuple(dilation) * 3
     if groups <= 0:
-        raise _InternalError("The number of groups must be positive")
+        raise RuntimeError("The number of groups must be positive")
     if len(strides) != 3:
-        raise _InternalError("strides must contain 3 values")
+        raise RuntimeError("strides must contain 3 values")
     if len(padding) != 6:
-        raise _InternalError("padding must contain 6 values")
+        raise RuntimeError("padding must contain 6 values")
     if len(dilation) != 3:
-        raise _InternalError("dilation must contain 3 values")
+        raise RuntimeError("dilation must contain 3 values")
     return _Call(
         "relax.nn.conv3d",
         [data, weight],
@@ -501,15 +500,15 @@ def conv1d_transpose(
     if len(padding) == 1:
         padding = tuple(padding) + tuple(padding)
     if groups <= 0:
-        raise _InternalError("The number of groups must be positive")
+        raise RuntimeError("The number of groups must be positive")
     if len(strides) != 1:
-        raise _InternalError("strides must contain 1 values")
+        raise RuntimeError("strides must contain 1 values")
     if len(padding) != 2:
-        raise _InternalError("padding must contain 2 values")
+        raise RuntimeError("padding must contain 2 values")
     if len(dilation) != 1:
-        raise _InternalError("dilation must contain 1 values")
+        raise RuntimeError("dilation must contain 1 values")
     if len(output_padding) != 1:
-        raise _InternalError("output_padding must contain 1 values")
+        raise RuntimeError("output_padding must contain 1 values")
     return _Call(
         "relax.nn.conv1d_transpose",
         [data, weight],
@@ -636,15 +635,15 @@ def conv2d_transpose(
     if len(output_padding) == 1:
         output_padding = tuple(output_padding) * 2
     if groups <= 0:
-        raise _InternalError("The number of groups must be positive")
+        raise RuntimeError("The number of groups must be positive")
     if len(strides) != 2:
-        raise _InternalError("strides must contain 2 values")
+        raise RuntimeError("strides must contain 2 values")
     if len(padding) != 4:
-        raise _InternalError("padding must contain 4 values")
+        raise RuntimeError("padding must contain 4 values")
     if len(dilation) != 2:
-        raise _InternalError("dilation must contain 2 values")
+        raise RuntimeError("dilation must contain 2 values")
     if len(output_padding) != 2:
-        raise _InternalError("output_padding must contain 2 values")
+        raise RuntimeError("output_padding must contain 2 values")
     return _Call(
         "relax.nn.conv2d_transpose",
         [data, weight],
@@ -772,15 +771,15 @@ def conv3d_transpose(
     if len(output_padding) == 1:
         output_padding = tuple(output_padding) * 3
     if groups <= 0:
-        raise _InternalError("The number of groups must be positive")
+        raise RuntimeError("The number of groups must be positive")
     if len(strides) != 3:
-        raise _InternalError("strides must contain 3 values")
+        raise RuntimeError("strides must contain 3 values")
     if len(padding) != 6:
-        raise _InternalError("padding must contain 6 values")
+        raise RuntimeError("padding must contain 6 values")
     if len(dilation) != 3:
-        raise _InternalError("dilation must contain 3 values")
+        raise RuntimeError("dilation must contain 3 values")
     if len(output_padding) != 3:
-        raise _InternalError("output_padding must contain 3 values")
+        raise RuntimeError("output_padding must contain 3 values")
     return _Call(
         "relax.nn.conv3d_transpose",
         [data, weight],
@@ -977,13 +976,13 @@ def max_pool1d(
     if len(padding) == 1:
         padding = tuple(padding) + tuple(padding)
     if len(strides) != 1:
-        raise _InternalError("strides must contain 1 values")
+        raise RuntimeError("strides must contain 1 values")
     if len(padding) != 2:
-        raise _InternalError("padding must contain 2 values")
+        raise RuntimeError("padding must contain 2 values")
     if len(dilation) != 1:
-        raise _InternalError("dilation must contain 1 values")
+        raise RuntimeError("dilation must contain 1 values")
     if len(pool_size) != 1:
-        raise _InternalError("pool_size must contain 1 values")
+        raise RuntimeError("pool_size must contain 1 values")
     return _Call(
         "relax.nn.max_pool1d",
         [data],
@@ -1096,13 +1095,13 @@ def max_pool2d(
     if len(pool_size) == 1:
         pool_size = tuple(pool_size) * 2
     if len(strides) != 2:
-        raise _InternalError("strides must contain 2 values")
+        raise RuntimeError("strides must contain 2 values")
     if len(padding) != 4:
-        raise _InternalError("padding must contain 4 values")
+        raise RuntimeError("padding must contain 4 values")
     if len(dilation) != 2:
-        raise _InternalError("dilation must contain 2 values")
+        raise RuntimeError("dilation must contain 2 values")
     if len(pool_size) != 2:
-        raise _InternalError("pool_size must contain 2 values")
+        raise RuntimeError("pool_size must contain 2 values")
     return _Call(
         "relax.nn.max_pool2d",
         [data],
@@ -1209,13 +1208,13 @@ def max_pool3d(
     if len(pool_size) == 1:
         pool_size = tuple(pool_size) * 3
     if len(strides) != 3:
-        raise _InternalError("strides must contain 3 values")
+        raise RuntimeError("strides must contain 3 values")
     if len(padding) != 6:
-        raise _InternalError("padding must contain 6 values")
+        raise RuntimeError("padding must contain 6 values")
     if len(dilation) != 3:
-        raise _InternalError("dilation must contain 3 values")
+        raise RuntimeError("dilation must contain 3 values")
     if len(pool_size) != 3:
-        raise _InternalError("pool_size must contain 3 values")
+        raise RuntimeError("pool_size must contain 3 values")
     return _Call(
         "relax.nn.max_pool3d",
         [data],
@@ -1308,13 +1307,13 @@ def avg_pool1d(
     if len(padding) == 1:
         padding = tuple(padding) + tuple(padding)
     if len(strides) != 1:
-        raise _InternalError("strides must contain 1 values")
+        raise RuntimeError("strides must contain 1 values")
     if len(padding) != 2:
-        raise _InternalError("padding must contain 2 values")
+        raise RuntimeError("padding must contain 2 values")
     if len(dilation) != 1:
-        raise _InternalError("dilation must contain 1 values")
+        raise RuntimeError("dilation must contain 1 values")
     if len(pool_size) != 1:
-        raise _InternalError("pool_size must contain 1 values")
+        raise RuntimeError("pool_size must contain 1 values")
     return _Call(
         "relax.nn.avg_pool1d",
         [data],
@@ -1421,13 +1420,13 @@ def avg_pool2d(
     if len(pool_size) == 1:
         pool_size = tuple(pool_size) * 2
     if len(strides) != 2:
-        raise _InternalError("strides must contain 2 values")
+        raise RuntimeError("strides must contain 2 values")
     if len(padding) != 4:
-        raise _InternalError("padding must contain 4 values")
+        raise RuntimeError("padding must contain 4 values")
     if len(dilation) != 2:
-        raise _InternalError("dilation must contain 2 values")
+        raise RuntimeError("dilation must contain 2 values")
     if len(pool_size) != 2:
-        raise _InternalError("pool_size must contain 2 values")
+        raise RuntimeError("pool_size must contain 2 values")
     return _Call(
         "relax.nn.avg_pool2d",
         [data],
@@ -1528,13 +1527,13 @@ def avg_pool3d(
     if len(pool_size) == 1:
         pool_size = tuple(pool_size) * 3
     if len(strides) != 3:
-        raise _InternalError("strides must contain 3 values")
+        raise RuntimeError("strides must contain 3 values")
     if len(padding) != 6:
-        raise _InternalError("padding must contain 6 values")
+        raise RuntimeError("padding must contain 6 values")
     if len(dilation) != 3:
-        raise _InternalError("dilation must contain 3 values")
+        raise RuntimeError("dilation must contain 3 values")
     if len(pool_size) != 3:
-        raise _InternalError("pool_size must contain 3 values")
+        raise RuntimeError("pool_size must contain 3 values")
     return _Call(
         "relax.nn.avg_pool3d",
         [data],
@@ -1613,7 +1612,7 @@ def adaptive_avg_pool1d(
     if isinstance(output_size, int):
         output_size = (output_size,)
     if output_size is not None and len(output_size) != 1:
-        raise _InternalError("output_size must contain 1 values")
+        raise RuntimeError("output_size must contain 1 values")
     return _Call(
         "relax.nn.adaptive_avg_pool1d",
         [data],
@@ -1691,7 +1690,7 @@ def adaptive_avg_pool2d(
     if isinstance(output_size, int):
         output_size = (output_size, output_size)
     if output_size is not None and len(output_size) != 2:
-        raise _InternalError("output_size must contain 2 values")
+        raise RuntimeError("output_size must contain 2 values")
     return _Call(
         "relax.nn.adaptive_avg_pool2d",
         [data],
@@ -1769,7 +1768,7 @@ def adaptive_avg_pool3d(
     if isinstance(output_size, int):
         output_size = (output_size, output_size, output_size)
     if output_size is not None and len(output_size) != 3:
-        raise _InternalError("output_size must contain 3 values")
+        raise RuntimeError("output_size must contain 3 values")
     return _Call(
         "relax.nn.adaptive_avg_pool3d",
         [data],
@@ -2642,7 +2641,7 @@ def nll_loss(
       The computed result.
     """
     if reduction not in ("none", "sum", "mean"):
-        raise _InternalError("reduction must be none, sum, or mean")
+        raise RuntimeError("reduction must be none, sum, or mean")
     return _Call(
         "relax.nn.nll_loss",
         [predictions, targets, *([] if weights is None else [weights])],

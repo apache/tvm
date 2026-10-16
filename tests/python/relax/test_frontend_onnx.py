@@ -8699,7 +8699,7 @@ def test_pad_opset18_axes():
 
     # mode="wrap" was only added in Pad-19 and must be rejected for opset 18.
     model = make_model((1, 3, 4), [2, 2], [2], "wrap", opset=18)
-    with pytest.raises(tvm_tirx.error.OpAttributeInvalid):
+    with pytest.raises(AttributeError):
         from_onnx(model, opset=18, keep_params_in_input=True)
 
 

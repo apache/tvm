@@ -23,7 +23,6 @@ from tvm_ffi import Shape
 import tvm_tirx
 import tvm_tirx.testing
 from tvm.relax.frontend.nn.llm.kv_cache import AttnKind, RopeMode
-from tvm_tirx.error import InternalError
 
 reserved_nseq = 4
 maximum_total_seq_length = 128
@@ -170,7 +169,7 @@ def test_checkpoint_metadata_reports_layout_pages_and_groups():
         prefill_chunk_size_value=prefill_chunk_size // 2,
     )
     fprepare_import(import_cache, 0, metadata_json)
-    with pytest.raises(InternalError, match="until checkpoint import is finished"):
+    with pytest.raises(RuntimeError, match="until checkpoint import is finished"):
         fget_sequence_length(import_cache, 0)
     for group_metadata, group in zip(metadata["groups"], exported_groups):
         fimport_page_group(import_cache, 0, group_metadata["group_index"], group)
@@ -223,21 +222,21 @@ def test_checkpoint_metadata_rejects_unsupported_layouts_and_sequence_ids():
         (1, 1, 2, num_kv_heads, page_size, head_dim), "float16", device=device
     )
 
-    with pytest.raises(InternalError, match="sliding-window"):
+    with pytest.raises(RuntimeError, match="sliding-window"):
         fget_layout_hash(sliding_cache)
-    with pytest.raises(InternalError, match="sliding-window"):
+    with pytest.raises(RuntimeError, match="sliding-window"):
         fget_checkpoint_metadata(sliding_cache, 0)
-    with pytest.raises(InternalError, match="sliding-window"):
+    with pytest.raises(RuntimeError, match="sliding-window"):
         fexport_page_group(sliding_cache, 0, 0, dst)
-    with pytest.raises(InternalError, match="sequence id 0"):
+    with pytest.raises(RuntimeError, match="sequence id 0"):
         fget_checkpoint_metadata(create_kv_cache(), 1)
-    with pytest.raises(InternalError, match="full-context MHA/GQA"):
+    with pytest.raises(RuntimeError, match="full-context MHA/GQA"):
         fget_layout_hash(mla_cache)
-    with pytest.raises(InternalError, match="full-context MHA/GQA"):
+    with pytest.raises(RuntimeError, match="full-context MHA/GQA"):
         fexport_page_group(mla_cache, 0, 0, dst)
-    with pytest.raises(InternalError, match="qk_head_dim to equal v_head_dim"):
+    with pytest.raises(RuntimeError, match="qk_head_dim to equal v_head_dim"):
         fget_layout_hash(asymmetric_cache)
-    with pytest.raises(InternalError, match="RoPE extension factors"):
+    with pytest.raises(RuntimeError, match="RoPE extension factors"):
         fget_layout_hash(rope_ext_cache)
 
     tree_cache = create_kv_cache()
@@ -245,7 +244,7 @@ def test_checkpoint_metadata_rejects_unsupported_layouts_and_sequence_ids():
     tvm_tirx.get_global_func("vm.builtin.kv_state_begin_forward")(
         tree_cache, Shape([0]), Shape([2]), Shape([-1, 0])
     )
-    with pytest.raises(InternalError, match="committed token-chain state"):
+    with pytest.raises(RuntimeError, match="committed token-chain state"):
         fexport_page_group(tree_cache, 0, 0, dst)
 
 
@@ -260,7 +259,7 @@ def test_checkpoint_export_page_group_validates_group_shape():
     metadata = json.loads(fget_checkpoint_metadata(kv_cache, 0))
     shape = metadata["groups"][0]["shape"]
 
-    with pytest.raises(InternalError, match="group id"):
+    with pytest.raises(RuntimeError, match="group id"):
         fexport_page_group(
             kv_cache,
             0,
@@ -270,7 +269,7 @@ def test_checkpoint_export_page_group_validates_group_shape():
 
     bad_shape = shape.copy()
     bad_shape[-1] += 1
-    with pytest.raises(InternalError, match="ExportPageGroup expects"):
+    with pytest.raises(RuntimeError, match="ExportPageGroup expects"):
         fexport_page_group(
             kv_cache,
             0,
@@ -278,7 +277,7 @@ def test_checkpoint_export_page_group_validates_group_shape():
             tvm_tirx.runtime.empty(tuple(bad_shape), "float16", device=device),
         )
 
-    with pytest.raises(InternalError, match="dtype mismatches"):
+    with pytest.raises(RuntimeError, match="dtype mismatches"):
         fexport_page_group(
             kv_cache,
             0,
@@ -298,33 +297,33 @@ def test_checkpoint_prepare_import_validates_metadata():
     metadata_json = fget_checkpoint_metadata(kv_cache, 0)
     metadata = json.loads(metadata_json)
 
-    with pytest.raises(InternalError, match="sequence id 0"):
+    with pytest.raises(RuntimeError, match="sequence id 0"):
         fprepare_import(create_kv_cache(), 1, metadata_json)
 
-    with pytest.raises(InternalError, match="dtype"):
+    with pytest.raises(RuntimeError, match="dtype"):
         fprepare_import(create_kv_cache(dtype="float32"), 0, metadata_json)
 
     bad_length = json.loads(metadata_json)
     bad_length["seq_length"] = page_size * 2 + 1
-    with pytest.raises(InternalError, match="sequence length"):
+    with pytest.raises(RuntimeError, match="sequence length"):
         fprepare_import(create_kv_cache(), 0, json.dumps(bad_length))
 
     bad_group = json.loads(metadata_json)
     bad_group["groups"][0]["shape"][-1] += 1
-    with pytest.raises(InternalError, match="shape"):
+    with pytest.raises(RuntimeError, match="shape"):
         fprepare_import(create_kv_cache(), 0, json.dumps(bad_group))
 
     bad_nbytes = json.loads(metadata_json)
     bad_nbytes["groups"][0]["nbytes"] += 1
-    with pytest.raises(InternalError, match="nbytes"):
+    with pytest.raises(RuntimeError, match="nbytes"):
         fprepare_import(create_kv_cache(), 0, json.dumps(bad_nbytes))
 
     bad_version = json.loads(metadata_json)
     bad_version["format_version"] += 1
-    with pytest.raises(InternalError, match="format_version"):
+    with pytest.raises(RuntimeError, match="format_version"):
         fprepare_import(create_kv_cache(), 0, json.dumps(bad_version))
 
-    with pytest.raises(InternalError, match="only has 1 pages"):
+    with pytest.raises(RuntimeError, match="only has 1 pages"):
         fprepare_import(
             create_kv_cache(maximum_total_seq_length_value=0),
             0,
@@ -332,7 +331,7 @@ def test_checkpoint_prepare_import_validates_metadata():
         )
 
     metadata["layout_hash"] = "bad-layout-hash"
-    with pytest.raises(InternalError, match="layout hash mismatch"):
+    with pytest.raises(RuntimeError, match="layout hash mismatch"):
         fprepare_import(create_kv_cache(), 0, json.dumps(metadata))
 
 
@@ -352,7 +351,7 @@ def test_checkpoint_import_page_group_validates_group_shape():
     import_cache = create_kv_cache()
     fprepare_import(import_cache, 0, metadata_json)
 
-    with pytest.raises(InternalError, match="group id"):
+    with pytest.raises(RuntimeError, match="group id"):
         fimport_page_group(
             import_cache,
             0,
@@ -362,7 +361,7 @@ def test_checkpoint_import_page_group_validates_group_shape():
 
     bad_shape = shape.copy()
     bad_shape[-1] += 1
-    with pytest.raises(InternalError, match="ImportPageGroup expects"):
+    with pytest.raises(RuntimeError, match="ImportPageGroup expects"):
         fimport_page_group(
             import_cache,
             0,
@@ -370,7 +369,7 @@ def test_checkpoint_import_page_group_validates_group_shape():
             tvm_tirx.runtime.empty(tuple(bad_shape), "float16", device=device),
         )
 
-    with pytest.raises(InternalError, match="dtype mismatches"):
+    with pytest.raises(RuntimeError, match="dtype mismatches"):
         fimport_page_group(
             import_cache,
             0,
@@ -403,17 +402,17 @@ def test_checkpoint_import_requires_all_groups_and_explicit_finish():
     fprepare_import(import_cache, 0, metadata_json)
     fimport_page_group(import_cache, 0, 0, groups[0])
 
-    with pytest.raises(InternalError, match="already imported"):
+    with pytest.raises(RuntimeError, match="already imported"):
         fimport_page_group(import_cache, 0, 0, groups[0])
-    with pytest.raises(InternalError, match="missing group 1"):
+    with pytest.raises(RuntimeError, match="missing group 1"):
         ffinish_import(import_cache, 0)
-    with pytest.raises(InternalError, match="before checkpoint import is finished"):
+    with pytest.raises(RuntimeError, match="before checkpoint import is finished"):
         fbegin_forward(import_cache, Shape([0]), Shape([1]), None)
 
     for group_id in range(1, num_layers):
         fimport_page_group(import_cache, 0, group_id, groups[group_id])
     ffinish_import(import_cache, 0)
-    with pytest.raises(InternalError, match="has not been prepared"):
+    with pytest.raises(RuntimeError, match="has not been prepared"):
         ffinish_import(import_cache, 0)
 
 

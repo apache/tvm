@@ -170,7 +170,7 @@ def test_eager_requires_runtime():
 )
 def test_reject_malformed_engine_trailer(trailer, message):
     module = _external_modules(_codegen(_relu_partition()))[0]
-    with pytest.raises(tvm_tirx.error.InternalError, match=message):
+    with pytest.raises(RuntimeError, match=message):
         _load_bytes(_legacy_bytes(module) + trailer)
 
 
@@ -186,7 +186,7 @@ def test_eager_requires_static_positive_dimensions(batch):
 def test_eager_rejects_int8_calibration(monkeypatch):
     monkeypatch.setenv("TVM_TENSORRT_USE_INT8", "1")
     monkeypatch.setenv("TENSORRT_NUM_CALI_INT8", "1")
-    with pytest.raises(tvm_tirx.error.InternalError, match="INT8 calibration"):
+    with pytest.raises(RuntimeError, match="INT8 calibration"):
         _codegen(_relu_partition(), eager=True)
 
 
@@ -267,7 +267,7 @@ def test_failed_engine_build_can_be_retried():
 
     def check():
         for _ in range(2):
-            with pytest.raises(tvm_tirx.error.InternalError, match="Unsupported operator"):
+            with pytest.raises(RuntimeError, match="Unsupported operator"):
                 failing["build_engine"](constants)
             assert _module_bytes(failing) == legacy
             assert _module_bytes(_load_bytes(legacy)) == legacy
@@ -396,9 +396,7 @@ def test_exported_engines_run_without_builder(
                 calibration.setenv("TVM_TENSORRT_USE_INT8", use_int8)
                 calibration.setenv("TENSORRT_NUM_CALI_INT8", "1")
                 loaded = _load_bytes(_module_bytes(module))
-                with pytest.raises(
-                    tvm_tirx.error.InternalError, match="prebuilt TensorRT.*INT8 calibration"
-                ):
+                with pytest.raises(RuntimeError, match="prebuilt TensorRT.*INT8 calibration"):
                     loaded["__init_" + loaded["get_symbol"]()](constants)
 
         # A corrupt plan must fail deserialization instead of rebuilding from the JSON.
@@ -412,9 +410,7 @@ def test_exported_engines_run_without_builder(
         device = tvm_tirx.cpu() if execution_device == "cpu" else tvm_tirx.cuda(device_id)
         argument = tvm_tirx.runtime.tensor(np.zeros(data.shape[1:], dtype=dtype), device)
         output = tvm_tirx.runtime.tensor(np.zeros(expected.shape[1:], dtype=dtype), device)
-        with pytest.raises(
-            tvm_tirx.error.InternalError, match="deserialize the embedded TensorRT engine"
-        ):
+        with pytest.raises(RuntimeError, match="deserialize the embedded TensorRT engine"):
             corrupt[symbol](argument, output)
 
     tvm_tirx.testing.run_with_gpu_lock(check)

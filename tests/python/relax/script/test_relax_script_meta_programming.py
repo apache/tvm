@@ -460,7 +460,7 @@ def test_shared_meta_var_uses_ordinary_relax_bindings():
     _check(func)
 
     symbol = T.dynamic("symbol", "int64")
-    with pytest.raises(tvm_tirx.error.InternalError, match="Invalid annotation"):
+    with pytest.raises(RuntimeError, match="Invalid annotation"):
 
         @R.function(private=True)
         def mismatched_binding():
