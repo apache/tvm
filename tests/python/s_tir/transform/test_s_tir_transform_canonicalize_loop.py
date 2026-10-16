@@ -71,7 +71,7 @@ def test_canonicalize_negative_step():
             B[i] = A[i] + 1.0
 
     mod = tvm_tirx.IRModule.from_expr(before)
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         mod = s_tir.transform.CanonicalizeLoop()(mod)
 
 
@@ -85,7 +85,7 @@ def test_canonicalize_dynamic_step():
             B[i] = A[i] + 1.0
 
     mod = tvm_tirx.IRModule.from_expr(before)
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         mod = s_tir.transform.CanonicalizeLoop()(mod)
 
 

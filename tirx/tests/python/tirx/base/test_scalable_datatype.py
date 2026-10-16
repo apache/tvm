@@ -19,7 +19,7 @@ import pytest
 
 import tvm_tirx
 from tvm_tirx import tirx
-from tvm_tirx.codegen import llvm_version_major
+from tvm_tirx.codegen import llvm
 from tvm_tirx.script import tirx as T
 
 """
@@ -36,11 +36,11 @@ def test_create_scalable_data_type_python_api():
 # the old name from the intrinsic table:
 # https://releases.llvm.org/20.1.0/docs/ReleaseNotes.html
 _STEPVECTOR_NAME = (
-    "llvm.stepvector" if llvm_version_major() >= 20 else "llvm.experimental.stepvector"
+    "llvm.stepvector" if llvm.version_major() >= 20 else "llvm.experimental.stepvector"
 )
 
 
-@pytest.mark.skipif(llvm_version_major() < 13, reason="Stepvector intrinsic was added in LLVM 13.")
+@pytest.mark.skipif(llvm.version_major() < 13, reason="Stepvector intrinsic was added in LLVM 13.")
 def test_create_scalable_tir_intrin():
     intrin = tirx.call_llvm_intrin(_STEPVECTOR_NAME, ty="int32xvscalex4")
     assert intrin.ty.dtype == "int32xvscalex4"
@@ -49,7 +49,7 @@ def test_create_scalable_tir_intrin():
     )
 
 
-@pytest.mark.skipif(llvm_version_major() < 13, reason="Stepvector intrinsic was added in LLVM 13.")
+@pytest.mark.skipif(llvm.version_major() < 13, reason="Stepvector intrinsic was added in LLVM 13.")
 def test_tvm_script_create_scalable_tir_intrin():
     @T.function
     def my_func():

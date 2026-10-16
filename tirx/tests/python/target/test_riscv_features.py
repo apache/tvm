@@ -19,10 +19,10 @@ import pytest
 
 import tvm_tirx
 from tvm_tirx import codegen
-from tvm_tirx.codegen import llvm_get_vector_width, target_has_features
+from tvm_tirx.codegen import llvm, target_has_features
 from tvm_tirx.target import Target
 
-LLVM_VERSION = codegen.llvm_version_major()
+LLVM_VERSION = codegen.llvm.version_major()
 
 
 # fmt: off
@@ -63,4 +63,4 @@ def test_riscv_rvv_features(min_llvm_version, tvm_target, vec_width):
         return
 
     with Target(tvm_target):
-        assert llvm_get_vector_width() == vec_width
+        assert llvm.get_vector_width() == vec_width

@@ -133,8 +133,8 @@ def test_inconsistent_binding():
             vi, vj = Ts.axis.remap("S", [i, j])  # error
             T.evaluate(1.0)
 
-    check_error(inconsistent_binding_value, 3, tvm_tirx.error.InternalError)
-    check_error(inconsistent_binding_type, 3, tvm_tirx.error.InternalError)
+    check_error(inconsistent_binding_value, 3, RuntimeError)
+    check_error(inconsistent_binding_type, 3, RuntimeError)
 
 
 def test_error_remap_args():
@@ -150,8 +150,8 @@ def test_error_remap_args():
                 vi, vj = Ts.axis.remap("SS", [i + j, j])  # error
                 T.evaluate(1.0)
 
-    check_error(error_remap_type, 4, tvm_tirx.error.InternalError)
-    check_error(error_remap_value, 4, tvm_tirx.error.InternalError)
+    check_error(error_remap_type, 4, RuntimeError)
+    check_error(error_remap_value, 4, RuntimeError)
 
 
 def test_invalid_block_axes():
@@ -295,15 +295,15 @@ def test_duplicate_block_signature():
                 Ts.sblock_attr({"key1": "block2"})  # error
                 T.evaluate(1.0)
 
-    check_error(duplicate_reads, 7, tvm_tirx.error.InternalError)
-    check_error(duplicate_writes, 7, tvm_tirx.error.InternalError)
-    check_error(duplicate_predicate, 6, tvm_tirx.error.InternalError)
+    check_error(duplicate_reads, 7, RuntimeError)
+    check_error(duplicate_writes, 7, RuntimeError)
+    check_error(duplicate_predicate, 6, RuntimeError)
     check_error(duplicate_init, 7, ValueError)
     parsed = duplicate_axes
     axes = parsed.body[0].block.body[0].body[0].body[0].block.iter_vars
     assert len(axes) == 3
     assert not axes[0].var.same_as(axes[2].var)
-    check_error(duplicate_sblock_attrs_with_same_key_diff_value, 6, tvm_tirx.error.InternalError)
+    check_error(duplicate_sblock_attrs_with_same_key_diff_value, 6, RuntimeError)
 
 
 def test_opaque_access_during_complete():
@@ -346,14 +346,14 @@ def test_tvm_exception_catch_from_bare_intrin():
     def intrin_except_unassign(A: T.Tensor((16, 16), "float32")) -> None:
         T.evaluate(A)  # error
 
-    check_error(intrin_except_unassign, 2, tvm_tirx.error.InternalError)
+    check_error(intrin_except_unassign, 2, RuntimeError)
 
 
 def test_tvm_exception_catch_from_assigned_intrin():
     def intrin_except_assign(A: T.Tensor((16, 16), "float32")) -> None:
         A[0, 0] = A[A]  # error
 
-    check_error(intrin_except_assign, 2, tvm_tirx.error.InternalError)
+    check_error(intrin_except_assign, 2, RuntimeError)
 
 
 def test_match_tensor_shape_mismatch():
@@ -368,7 +368,7 @@ def test_match_tensor_shape_mismatch():
                 for jj in range(0, 4):
                     sub_A[i, j * 4 + jj] = 1
 
-    check_error(tensor_shape_mismatch, 6, tvm_tirx.error.InternalError)
+    check_error(tensor_shape_mismatch, 6, RuntimeError)
 
 
 def test_high_dim_store():
@@ -378,7 +378,7 @@ def test_high_dim_store():
             for i, j in T.grid(16, 16):
                 B[i, j] = 1.0  # error: Store is only allowed with one index
 
-    check_error(high_dim_store, 5, tvm_tirx.error.InternalError)
+    check_error(high_dim_store, 5, RuntimeError)
 
 
 def test_block_has_option_vars():
@@ -412,9 +412,9 @@ def test_implicit_root_has_attrs():
 
     check_error(implicit_root_has_read, 2, ValueError)
     check_error(implicit_root_has_write, 2, ValueError)
-    check_error(implicit_root_has_attrs, 2, tvm_tirx.error.InternalError)
+    check_error(implicit_root_has_attrs, 2, RuntimeError)
     check_error(implicit_root_has_predicate, 2, ValueError)
-    check_error(implicit_root_has_axes, 2, tvm_tirx.error.InternalError)
+    check_error(implicit_root_has_axes, 2, RuntimeError)
 
 
 @Ts.function
@@ -551,7 +551,7 @@ def test_non_integer_typed_block_iter():
         with Ts.sblock():
             i = Ts.axis.S(0.1, 0.1)  # error IterVar requires an integer dtype
 
-    check_error(non_integer_typed_block_iter, 3, tvm_tirx.error.InternalError)
+    check_error(non_integer_typed_block_iter, 3, RuntimeError)
 
 
 def test_illegal_tensor_slice():
@@ -575,7 +575,7 @@ def test_illegal_tensor_slice():
             T.evaluate(A[0:i:1])  # error
 
     check_error(strided_tensor_region, 6, ValueError)
-    check_error(access_reversed_slice, 4, tvm_tirx.error.InternalError)
+    check_error(access_reversed_slice, 4, RuntimeError)
     check_error(access_non_const_slice_length, 5, TypeError)
 
 
@@ -605,7 +605,7 @@ def test_multi_line_error_report():
         ]
     )
 
-    with pytest.raises(tvm_tirx.error.InternalError) as caught:
+    with pytest.raises(RuntimeError) as caught:
         from_source(source_code, extra_vars={"T": T, "Ts": Ts})
     frames = [
         frame
@@ -628,7 +628,7 @@ def test_multi_line_error_report():
 
 
 def test_tir_func_private_manual_global_symbol_fail():
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
 
         @Ts.function(private=True)
         def matmul(

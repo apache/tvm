@@ -20,14 +20,14 @@ import inspect
 from collections.abc import Callable
 from typing import Literal
 
+from tvm_ffi import register_error
 from tvm_ffi import register_object as _register_object
 
 from tvm.s_tir import SBlock
-from tvm_tirx.error import register_error
 from tvm_tirx.ir import Expr, FloatImm, For, GlobalVar, IntImm, IRModule, is_prim_expr
 from tvm_tirx.runtime import DataTypeCode, MemoryScope, Object
 from tvm_tirx.tirx import Function, Var, is_tensor_var
-from tvm_tirx.tirx.function import IndexMap
+from tvm_tirx.tirx.index_map import IndexMap
 
 from . import _ffi_api
 from ._type_checker import type_checked

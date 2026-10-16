@@ -190,13 +190,13 @@ def test_max_pool1d_stride_padding_dilation_int64():
 
 def test_max_pool1d_wrong_pool_size_strides_padding_dilation_length():
     x = relax.Var("x", R.Tensor((2, 3, 28), "float32"))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.max_pool1d(x, pool_size=(1, 2))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.max_pool1d(x, strides=(1, 2))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.max_pool1d(x, padding=(1, 2, 3))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.max_pool1d(x, dilation=(1, 2))
 
 
@@ -413,13 +413,13 @@ def test_max_pool2d_stride_padding_dilation_int64():
 
 def test_max_pool2d_wrong_pool_size_strides_padding_dilation_length():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.max_pool2d(x, pool_size=(1, 2, 3))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.max_pool2d(x, strides=(1, 2, 3))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.max_pool2d(x, padding=(1, 2, 3))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.max_pool2d(x, dilation=(1, 2, 3))
 
 
@@ -660,13 +660,13 @@ def test_max_pool3d_stride_padding_dilation_int64():
 
 def test_max_pool3d_wrong_pool_size_strides_padding_dilation_length():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28, 28), "float32"))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.max_pool3d(x, pool_size=(1, 2, 3, 4))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.max_pool3d(x, strides=(1, 2, 3, 4))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.max_pool3d(x, padding=(1, 2, 3, 4))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.max_pool3d(x, dilation=(1, 2, 3, 4))
 
 
@@ -860,13 +860,13 @@ def test_avg_pool1d_stride_padding_dilation_int64():
 
 def test_avg_pool1d_wrong_pool_size_strides_padding_dilation_length():
     x = relax.Var("x", R.Tensor((2, 3, 28), "float32"))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.avg_pool1d(x, pool_size=(1, 2))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.avg_pool1d(x, strides=(1, 2))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.avg_pool1d(x, padding=(1, 2, 3))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.avg_pool1d(x, dilation=(1, 2))
 
 
@@ -1080,13 +1080,13 @@ def test_avg_pool2d_stride_padding_dilation_int64():
 
 def test_avg_pool2d_wrong_pool_size_strides_padding_dilation_length():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.avg_pool2d(x, pool_size=(1, 2, 3))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.avg_pool2d(x, strides=(1, 2, 3))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.avg_pool2d(x, padding=(1, 2, 3))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.avg_pool2d(x, dilation=(1, 2, 3))
 
 
@@ -1326,13 +1326,13 @@ def test_avg_pool3d_stride_padding_dilation_int64():
 
 def test_avg_pool3d_wrong_pool_size_strides_padding_dilation_length():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28, 28), "float32"))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.avg_pool3d(x, pool_size=(1, 2, 3, 4))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.avg_pool3d(x, strides=(1, 2, 3, 4))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.avg_pool3d(x, padding=(1, 2, 3, 4))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.avg_pool3d(x, dilation=(1, 2, 3, 4))
 
 
@@ -1475,7 +1475,7 @@ def test_adaptive_avg_pool1d_infer_ty_more_input_dtype():
 
 def test_adaptive_avg_pool1d_wrong_output_size_ndim():
     x = relax.Var("x", R.Tensor((2, 3, 64), "float32"))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.adaptive_avg_pool1d(x, output_size=(32, 32))
 
 
@@ -1645,7 +1645,7 @@ def test_adaptive_avg_pool2d_infer_ty_more_input_dtype():
 
 def test_adaptive_avg_pool2d_wrong_output_size_ndim():
     x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.adaptive_avg_pool2d(x, (32, 32, 32))
 
 
@@ -1830,7 +1830,7 @@ def test_adaptive_avg_pool3d_infer_ty_more_input_dtype():
 def test_adaptive_avg_pool3d_wrong_output_size_ndim():
     x = relax.Var("x", R.Tensor((2, 3, 32, 32, 32), "float32"))
 
-    with pytest.raises(tvm_tirx.error.InternalError):
+    with pytest.raises(RuntimeError):
         relax.op.nn.adaptive_avg_pool3d(x, (32, 32, 32, 32))
 
 

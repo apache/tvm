@@ -19,7 +19,6 @@
 import tvm_ffi
 
 from tvm.relax.expr import Tuple as _Tuple
-from tvm_tirx.error import InternalError as _InternalError
 from tvm_tirx.ir import Attrs
 from tvm_tirx.ir import Call as _Call
 from tvm_tirx.ir.attrs import make_node as _make_attrs
@@ -142,7 +141,7 @@ def strided_slice(
         len(value.fields) for value in (axes, begin, end, strides) if isinstance(value, _Tuple)
     ]
     if lengths and any(length != lengths[0] for length in lengths):
-        raise _InternalError("axes, begin, end, and strides must have the same length")
+        raise RuntimeError("axes, begin, end, and strides must have the same length")
     return _Call(
         "relax.strided_slice",
         [x, axes, begin, end, *([] if strides is None else [strides])],

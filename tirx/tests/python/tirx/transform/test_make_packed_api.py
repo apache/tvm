@@ -692,9 +692,7 @@ def test_return_from_parallel_scope_is_rejected():
             for i in T.parallel(2):
                 return i
 
-    with pytest.raises(
-        tvm_tirx.error.InternalError, match="Return cannot be used in parallel scope"
-    ):
+    with pytest.raises(RuntimeError, match="Return cannot be used in parallel scope"):
         tvm_tirx.tirx.transform.MakePackedAPI()(Before)
 
 

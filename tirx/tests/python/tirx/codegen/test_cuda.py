@@ -187,9 +187,7 @@ def test_legacy_tensorcore_ops_require_downstream_codegen(op_name):
         "global_symbol", "main"
     )
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_80"})
-    with pytest.raises(
-        tvm_tirx.error.InternalError, match="Unresolved call.*" + re.escape(call.op.name)
-    ):
+    with pytest.raises(RuntimeError, match="Unresolved call.*" + re.escape(call.op.name)):
         tvm_tirx.get_global_func("target.build.cuda")(tvm_tirx.IRModule.from_expr(func), target)
 
 
@@ -204,7 +202,7 @@ def test_warp_storage_requires_explicit_local_layout(target_kind):
         output[0] = fragment[0]
 
     target = tvm_tirx.target.Target(target_kind)
-    with pytest.raises(tvm_tirx.error.InternalError, match="warp storage is unsupported"):
+    with pytest.raises(RuntimeError, match="warp storage is unsupported"):
         tvm_tirx.get_global_func("target.build." + target_kind)(
             tvm_tirx.IRModule.from_expr(main), target
         )

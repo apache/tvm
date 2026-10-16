@@ -18,7 +18,7 @@
 
 from tvm import s_tir
 from tvm_tirx import tirx
-from tvm_tirx.codegen import llvm_get_vector_width
+from tvm_tirx.codegen import llvm
 from tvm_tirx.target import Target
 
 from ..analysis import normalize_function
@@ -89,7 +89,7 @@ class Reduction(CPUScheduleRule):
         dtype_bits = last_block_stmt.writes[0].source.dtype.bits if last_block_stmt.writes else 32
 
         # Determine vector lanes from target VLEN.
-        vlen_bits = llvm_get_vector_width(target)
+        vlen_bits = llvm.get_vector_width(target)
         if vlen_bits <= 0:
             vlen_bits = 128
         vec_lanes = max(vlen_bits // dtype_bits, 2)

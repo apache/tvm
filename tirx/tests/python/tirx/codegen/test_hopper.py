@@ -608,7 +608,7 @@ def test_cp_async_bulk_tensor_global_to_shared_unicast(dtype, inputs):
     ],
 )
 def test_tensormap_encode_tiled_runtime_validation(shape, dtype, encode_args, error_msg):
-    with pytest.raises(tvm_tirx.error.InternalError, match=error_msg):
+    with pytest.raises(RuntimeError, match=error_msg):
         _run_tensormap_encode(shape, dtype, encode_args)
 
 

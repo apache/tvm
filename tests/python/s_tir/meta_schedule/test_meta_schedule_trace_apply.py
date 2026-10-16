@@ -24,7 +24,7 @@ import tvm_tirx.testing
 from tvm.s_tir import Schedule
 from tvm.s_tir import script as Ts
 from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
-from tvm_tirx.codegen import llvm_lookup_intrinsic_id
+from tvm_tirx.codegen import llvm
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 from tvm_tirx.tirx import floordiv, floormod
@@ -2178,7 +2178,7 @@ def test_conv2d_int8_vnni():
         sch.unannotate(block_or_loop=b194, ann_key="meta_schedule.auto_tensorize")
         sch.tensorize(block_or_loop=b194, tensor_intrin=VNNI_INTRIN)
 
-    vnni_id = llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512")
+    vnni_id = llvm.lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512")
     verify(
         Conv2dInt8_NCHWc,
         apply_trace,

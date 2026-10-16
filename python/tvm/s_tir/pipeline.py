@@ -125,7 +125,11 @@ def _partition_dialects(mod):
     scheduled = {}
     native = {}
     for gv, func in mod.functions.items():
-        group = scheduled if isinstance(func, tirx.Function) and not func.is_tirx else native
+        group = (
+            scheduled
+            if isinstance(func, tirx.Function) and func.attrs.get("s_tir", False)
+            else native
+        )
         group[gv] = func
     return scheduled, native
 

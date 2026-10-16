@@ -2205,7 +2205,7 @@ class Conv(OnnxOpConverter):
                 msg = (
                     f'Value {attr["auto_pad"]} in attribute "auto_pad" of operator Conv is invalid.'
                 )
-                raise tvm_tirx.error.OpAttributeInvalid(msg)
+                raise AttributeError(msg)
             attr.pop("auto_pad")
 
         conv_out = bb.normalize(
@@ -2295,7 +2295,7 @@ class ConvTranspose(OnnxOpConverter):
             elif auto_pad == "NOTSET":
                 pass
             else:
-                raise tvm_tirx.error.OpAttributeInvalid(
+                raise AttributeError(
                     f'Value {auto_pad} in attribute "auto_pad" of operator '
                     "ConvTranspose is invalid."
                 )
@@ -3299,7 +3299,7 @@ class Pad(OnnxOpConverter):
 
         pad_mode = attr.get("mode", b"constant").decode("utf-8")
         if pad_mode not in ["constant", "edge", "reflect"]:
-            raise tvm_tirx.error.OpAttributeInvalid(
+            raise AttributeError(
                 "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
             )
 
@@ -3364,7 +3364,7 @@ class Pad(OnnxOpConverter):
         pad_before, pad_after, constant_value = cls._parse_pads_and_axes(inputs, params)
         pad_mode = attr.get("mode", b"constant").decode("utf-8")
         if pad_mode not in allowed_modes:
-            raise tvm_tirx.error.OpAttributeInvalid(
+            raise AttributeError(
                 "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
             )
 
@@ -6487,7 +6487,7 @@ class ONNXGraphImporter:
         if unsupported_ops:
             msg = "The following operators are not supported for frontend ONNX: "
             msg += ", ".join(unsupported_ops)
-            raise tvm_tirx.error.OpNotImplemented(msg)
+            raise NotImplementedError(msg)
 
     def _construct_nodes(self, graph: onnx.onnx_ml_pb2.GraphProto):
         """Nodes are stored as directed acyclic graph."""

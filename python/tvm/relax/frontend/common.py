@@ -114,7 +114,7 @@ def autopad(
     pad = _np.concatenate([_np.zeros([2, 2], dtype="int64"), pad], axis=0)
 
     if pad_type not in ["constant", "edge", "reflect"]:
-        raise tvm_tirx.error.OpAttributeInvalid(
+        raise AttributeError(
             "Value " + pad_type + ' in attribute "mode" is invalid for operator Pad.'
         )
 

@@ -93,10 +93,10 @@ def test_error_without_resolvable_node_is_not_masked():
     class ThrowUnresolvable:
         def transform_module(self, mod, ctx):
             # A bare error with no VisitErrorContext payload -> nothing to resolve.
-            raise tvm_tirx.error.InternalError("deliberate failure with no resolvable location")
+            raise RuntimeError("deliberate failure with no resolvable location")
 
     mod = _bad_matmul_module()
-    with pytest.raises(tvm_tirx.error.InternalError) as excinfo:
+    with pytest.raises(RuntimeError) as excinfo:
         ThrowUnresolvable()(mod)
     msg = str(excinfo.value)
     assert "deliberate failure with no resolvable location" in msg

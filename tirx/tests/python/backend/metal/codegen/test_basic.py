@@ -316,7 +316,7 @@ def test_bound_symbolic_stack_allocation(bounded):
         assert "thread float scratch[128]" in source
     else:
         with pytest.raises(
-            tvm_tirx.error.InternalError,
+            RuntimeError,
             match="Metal allocation extent requires a finite compile-time upper bound",
         ):
             _build_metal(Module)
@@ -363,7 +363,7 @@ def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
         assert "scratch[31] =" in source
     else:
         with pytest.raises(
-            tvm_tirx.error.InternalError,
+            RuntimeError,
             match="Metal allocation extent requires a finite compile-time upper bound",
         ):
             _build_metal(Module)
@@ -411,7 +411,7 @@ def test_unbounded_symbolic_stack_allocation_rejected():
             T.evaluate(scratch[0])
 
     with pytest.raises(
-        tvm_tirx.error.InternalError,
+        RuntimeError,
         match="Metal allocation extent requires a finite compile-time upper bound",
     ):
         _build_metal(Module)
@@ -436,7 +436,7 @@ def test_unbounded_uint64_symbolic_stack_allocation_rejected():
             T.evaluate(scratch[0])
 
     with pytest.raises(
-        tvm_tirx.error.InternalError,
+        RuntimeError,
         match="Metal allocation extent requires a finite compile-time upper bound",
     ):
         _build_metal(Module)
@@ -461,7 +461,7 @@ def test_nonpositive_stack_allocation_rejected(extent):
             T.evaluate(scratch.data)
 
     with pytest.raises(
-        tvm_tirx.error.InternalError,
+        RuntimeError,
         match="Metal allocation extent requires a positive compile-time upper bound",
     ):
         _build_metal(Module)
@@ -493,7 +493,7 @@ def test_stack_allocation_element_count_overflow_rejected():
             T.evaluate(scratch.data)
 
     with pytest.raises(
-        tvm_tirx.error.InternalError,
+        RuntimeError,
         match="Metal allocation element count is too large to represent",
     ):
         _build_metal(Module)

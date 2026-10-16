@@ -44,7 +44,8 @@ from .expr import Select, TensorLoad
 from .expr import Let
 
 
-from .function import Function, IndexMap, renew_def
+from .function import Function, renew_def
+from .index_map import IndexMap
 
 from .op import call_packed_lowered, call_cpacked_lowered, register_intrin_lowering
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
@@ -84,7 +85,6 @@ from .thread_scope import ThreadScope
 from .layout import TileLayout, Layout, ComposeLayout
 from . import transform
 from . import analysis
-from . import backend
 
 # Compiler-only submodules. Skip under `TVM_USE_RUNTIME_LIB=1` since they
 # perform compiler-side FFI at module load (schema engine looks up
