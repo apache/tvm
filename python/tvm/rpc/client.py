@@ -547,7 +547,7 @@ def connect(
             raise TypeError("Expect the session constructor to be a list or tuple")
         sess = _ffi_api.Connect(url, port, key, enable_logging, *session_constructor_args)
     except NameError:
-        raise RuntimeError("Please compile with USE_RPC=1")
+        raise RuntimeError("Please compile with TVM_USE_RPC=1")
     return RPCSession(sess)
 
 

@@ -149,7 +149,7 @@ def test_default_preserves_legacy_bytes():
 
 @pytest.mark.skipif(_has_runtime, reason="This test requires a codegen-only TensorRT build")
 def test_eager_requires_runtime():
-    with pytest.raises(RuntimeError, match="USE_TENSORRT_RUNTIME"):
+    with pytest.raises(RuntimeError, match="TVM_USE_TENSORRT_RUNTIME"):
         _codegen(_relu_partition(), eager=True)
 
 

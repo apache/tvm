@@ -512,9 +512,9 @@ class Server:
     ):
         try:
             if _ffi_api.ServerLoop is None:
-                raise RuntimeError("Please compile with USE_RPC=1")
+                raise RuntimeError("Please compile with TVM_USE_RPC=1")
         except NameError:
-            raise RuntimeError("Please compile with USE_RPC=1")
+            raise RuntimeError("Please compile with TVM_USE_RPC=1")
         self.proc = PopenWorker()
         # send the function
         self.proc.send(

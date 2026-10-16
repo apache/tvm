@@ -43,14 +43,7 @@ This is an educational template that demonstrates real NPU concepts without requ
 Add the following flags when configuring TVM with CMake:
 
 ```bash
-cmake -DUSE_EXAMPLE_NPU_CODEGEN=ON -DUSE_EXAMPLE_NPU_RUNTIME=ON ..
-```
-
-Or set them in your `config.cmake`:
-
-```cmake
-set(USE_EXAMPLE_NPU_CODEGEN ON)
-set(USE_EXAMPLE_NPU_RUNTIME ON)
+cmake -DTVM_USE_EXAMPLE_NPU_CODEGEN=ON -DTVM_USE_EXAMPLE_NPU_RUNTIME=ON ..
 ```
 
 ## Quick Start

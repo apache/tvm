@@ -54,8 +54,8 @@ For a fresh checkout, initialize submodules and configure CMake first:
 ```bash
 git submodule update --init --recursive
 mkdir -p build
-cp cmake/config.cmake build/config.cmake
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DTVM_TIRX_USE_LLVM=OFF -DTVM_TIRX_USE_CUDA=OFF
 cmake --build build --parallel
 ```
 

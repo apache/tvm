@@ -41,8 +41,8 @@ visible with nothing hidden.  TensorRT then runs the identical flow for real, so
 we cross-check its result against a reference.
 
 **Prerequisites**: the example NPU sections need TVM built with
-``USE_EXAMPLE_NPU_CODEGEN=ON`` and ``USE_EXAMPLE_NPU_RUNTIME=ON``; the TensorRT
-sections need ``USE_TENSORRT_CODEGEN=ON``, ``USE_TENSORRT_RUNTIME=ON`` and
+``TVM_USE_EXAMPLE_NPU_CODEGEN=ON`` and ``TVM_USE_EXAMPLE_NPU_RUNTIME=ON``; the TensorRT
+sections need ``TVM_USE_TENSORRT_CODEGEN=ON``, ``TVM_USE_TENSORRT_RUNTIME=ON`` and
 ``TVM_TIRX_USE_CUDA=ON`` plus a CUDA GPU and a matching TensorRT install (from NVIDIA's
 ``pip install tensorrt`` packages or the TensorRT archive); the final deployment
 section also needs PyTorch.  Each section degrades gracefully when its backend is
