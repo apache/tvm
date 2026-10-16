@@ -95,6 +95,7 @@ class CodeGenLLVM : public tvm::ExprFunctor<llvm::Value*(const Expr&)>,
                     public StmtFunctor<void(const Stmt&)> {
  public:
   using tvm::ExprFunctor<llvm::Value*(const Expr&)>::Dispatch;
+  using tvm::ExprFunctor<llvm::Value*(const Expr&)>::Dispatch_;
   using StmtFunctor::Dispatch;
 
   CodeGenLLVM();           // Do not make it default here.
