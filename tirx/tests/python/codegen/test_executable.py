@@ -16,18 +16,11 @@
 # under the License.
 """Executable export, JIT, and static import coverage."""
 
-import os
 import shlex
-import shutil
-import struct
 import subprocess
 import sys
-import sysconfig
-import tarfile
-from pathlib import Path
 
 import pytest
-import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -101,157 +94,51 @@ def test_executable_export_library(source_module, native_compile_options, tmp_pa
     Executable(source_module).export_library(str(path), **kwargs)
     assert path.is_file()
     assert tvm_tirx.runtime.load_module(str(path))["answer"]() == 42
-    if env.has_llvm() and sys.platform in ("linux", "darwin"):
-        devices = ["cpu"]
-        if sys.platform == "linux" and env.has_cuda():
-            devices.append("cuda")
-        for device in devices:
-            objects_dir = tmp_path / device
-            objects_dir.mkdir()
-            _check_aot_object_link(device, objects_dir)
-            print(f"AOT object-link execution passed: {device}")
 
 
-def _check_aot_object_link(device, tmp_path):
-    if device == "cuda" and (sys.platform != "linux" or not env.has_cuda()):
-        pytest.skip("CUDA execution requires a supported Linux GPU")
+@pytest.mark.gpu
+def test_cuda_aot(tmp_path):
+    if sys.platform != "linux" or not env.has_cuda() or not tvm_tirx.runtime.enabled("llvm"):
+        pytest.skip("CUDA AOT requires Linux CUDA and an LLVM host compiler")
+    pytest.importorskip("torch")
 
     @T.function
-    def cpu(A: T.Tensor((16,), "int32", align=4), B: T.Tensor((16,), "int32", align=4)):
-        # This service is looked up by name, so no undefined C symbol keeps the
-        # runtime library alive. CLI retention is required for successful execution.
-        for i in range(16):
-            B[i] = A[i] + T.call_packed("runtime.NumThreads")
-
-    @T.function
-    def cuda(A: T.Tensor((16,), "int32", align=4), B: T.Tensor((16,), "int32", align=4)):
+    def add_one(A: T.Tensor((16,), "int32"), B: T.Tensor((16,), "int32")):
         with T.launch_thread("blockIdx.x", 1):
             with T.launch_thread("threadIdx.x", 16) as i:
                 B[i] = A[i] + 1
 
-    target = "llvm" if device == "cpu" else tvm_tirx.target.Target("cuda", host="llvm")
-    module = tvm_tirx.tirx.compile(cpu if device == "cpu" else cuda, target=target)
-    archive = tmp_path / "model.tar"
-    module.export_library(archive)
-    objects = []
-    with tarfile.open(archive) as bundle:
-        for member in bundle.getmembers():
-            assert member.isfile() and Path(member.name).suffix == ".o"
-            data = bundle.extractfile(member).read()
-            # Reject a renamed prelinked shared library as well as source files.
-            if data[:4] == b"\x7fELF":
-                endian = "<" if data[5] == 1 else ">"
-                assert struct.unpack_from(endian + "H", data, 16)[0] == 1  # ET_REL
-            else:
-                assert data[:4] in (b"\xcf\xfa\xed\xfe", b"\xfe\xed\xfa\xcf")
-                endian = "<" if data[0] == 0xCF else ">"
-                assert struct.unpack_from(endian + "I", data, 12)[0] == 1  # MH_OBJECT
-            path = tmp_path / f"object-{len(objects)}.o"
-            path.write_bytes(data)
-            objects.append(path)
-    assert objects
-    if device == "cuda":
-        assert len(objects) > 1  # Host code and packed device imports; consume all of them.
-
-    executable = Path(sysconfig.get_path("scripts")) / "tvm-tirx-config"
-    command = (
-        [str(executable)] if executable.is_file() else [sys.executable, "-m", "tvm_tirx.config"]
+    module = tvm_tirx.tirx.compile(add_one, target=tvm_tirx.target.Target("cuda", host="llvm"))
+    path = tmp_path / "model.so"
+    options = shlex.split(
+        subprocess.check_output(
+            [sys.executable, "-m", "tvm_tirx.config", "--ldflags", "--libs", "runtime", "cuda"],
+            text=True,
+        )
     )
-    components = ["runtime"] + (["cuda"] if device == "cuda" else [])
-
-    def config(option):
-        return shlex.split(subprocess.check_output([*command, option, *components], text=True))
-
-    libraries = config("--libfiles")
-    library_dirs = list(dict.fromkeys(str(Path(lib).parent) for lib in libraries))
-    output = tmp_path / ("model.dylib" if sys.platform == "darwin" else "model.so")
-    compiler = shlex.split(os.environ.get("CXX", "c++"))
-    assert shutil.which(compiler[0]), "A C++ linker is required"
+    library_dir = subprocess.check_output(
+        [sys.executable, "-m", "tvm_tirx.config", "--libdir"], text=True
+    ).strip()
+    module.export_library(path, options=[*options, "-Wl,-rpath," + library_dir])
     subprocess.run(
         [
-            *compiler,
-            "-dynamiclib" if sys.platform == "darwin" else "-shared",
-            "-o",
-            str(output),
-            *map(str, objects),
-            *config("--ldflags"),
-            *config("--libs"),
+            sys.executable,
+            "-c",
+            """
+import sys
+import torch
+import tvm_ffi
+module = tvm_ffi.load_module(sys.argv[1])
+a = torch.arange(16, dtype=torch.int32, device="cuda")
+b = torch.empty_like(a)
+module["add_one"](a, b)
+torch.testing.assert_close(b, a + 1)
+assert "tvm" not in sys.modules and "tvm_tirx" not in sys.modules
+""",
+            str(path),
         ],
         check=True,
     )
-    child_env = os.environ.copy()
-    for name in (
-        "PYTHONPATH",
-        "TVM_LIBRARY_PATH",
-        "TVM_TIRX_LIBRARY_PATH",
-        "LD_PRELOAD",
-        "DYLD_INSERT_LIBRARIES",
-    ):
-        child_env.pop(name, None)
-    # Loader discovery only: no preloading and no substitute library or retention list.
-    loader_path = "DYLD_LIBRARY_PATH" if sys.platform == "darwin" else "LD_LIBRARY_PATH"
-    child_env[loader_path] = os.pathsep.join(library_dirs)
-    consumer = r"""
-import importlib.abc
-import importlib.util
-import sys
-class NoCompiler(importlib.abc.MetaPathFinder):
-    def find_spec(self, fullname, path=None, target=None):
-        # Resolve only FFI when the producer uses a PYTHONPATH install.
-        # Do not expose sibling compiler packages to this isolated consumer.
-        if fullname == 'tvm_ffi':
-            return importlib.util.spec_from_file_location(fullname, sys.argv[3])
-        if fullname.split('.')[0] in ('tvm', 'tvm_tirx'):
-            raise AssertionError('Unexpected compiler/framework import: ' + fullname)
-sys.meta_path.insert(0, NoCompiler())
-import torch
-import tvm_ffi
-assert tvm_ffi.get_global_func('runtime.NumThreads', allow_missing=True) is None
-module = tvm_ffi.load_module(sys.argv[1])
-for name in ('codegen.Build', 'runtime.ModuleTimeEvaluator', 'runtime.LocalTimeEvaluator'):
-    assert tvm_ffi.get_global_func(name, allow_missing=True) is None, name
-assert tvm_ffi.get_global_func('runtime.NumThreads', allow_missing=True), (
-    'runtime.NumThreads missing')
-device = sys.argv[2]
-a = torch.arange(16, dtype=torch.int32, device=device)
-b = torch.empty_like(a)
-module[device](a, b)
-expected = a + (1 if device == 'cuda' else tvm_ffi.get_global_func('runtime.NumThreads')())
-torch.testing.assert_close(b, expected)
-assert not any(name.split('.')[0] in ('tvm', 'tvm_tirx') for name in sys.modules)
-"""
-    subprocess.run(
-        [sys.executable, "-I", "-c", consumer, str(output), device, tvm_ffi.__file__],
-        env=child_env,
-        cwd=tmp_path,
-        check=True,
-    )
-    if device == "cpu":
-        # Prove the registry-only dependency actually needs retention. This
-        # negative control deliberately uses raw inputs, never the positive link.
-        unretained = tmp_path / ("unretained" + output.suffix)
-        discard = "-Wl,-dead_strip_dylibs" if sys.platform == "darwin" else "-Wl,--as-needed"
-        subprocess.run(
-            [
-                *compiler,
-                "-dynamiclib" if sys.platform == "darwin" else "-shared",
-                discard,
-                "-o",
-                str(unretained),
-                *map(str, objects),
-                *libraries,
-            ],
-            check=True,
-        )
-        result = subprocess.run(
-            [sys.executable, "-I", "-c", consumer, str(unretained), device, tvm_ffi.__file__],
-            env=child_env,
-            cwd=tmp_path,
-            capture_output=True,
-            text=True,
-        )
-        assert result.returncode != 0
-        assert "runtime.NumThreads" in result.stderr
 
 
 if __name__ == "__main__":

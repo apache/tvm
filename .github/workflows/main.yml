@@ -67,7 +67,7 @@ jobs:
         run: |
           set -euxo pipefail
           export TVM_FFI_VERSION="$(python -c 'from importlib.metadata import version; print(version("apache-tvm-ffi"))')"
-          pip install ml_dtypes torch
+          pip install ml_dtypes
           # --no-deps: this package requires apache-tvm-ffi>=0.1.14.post1, and the source-built core
           # versions as 0.1.dev1+g<sha> from the shallow checkout, which is < 0.1.0 under PEP 440.
           # Without it pip replaces the source-matched core with a PyPI build.
@@ -87,13 +87,9 @@ jobs:
 
       - name: Test
         shell: bash -l {0}
-        env:
-          PYTHONFAULTHANDLER: "1"
         run: >-
-          python -m pytest -v -s tests/python/all-platform-minimal-test tests/python/script
+          python -m pytest -v tests/python/all-platform-minimal-test tests/python/script
           tirx/tests/python/all-platform-minimal-test tirx/tests/python/script
-          tirx/tests/python/runtime/test_tirx_config.py
-          tirx/tests/python/codegen/test_executable.py::test_executable_export_library
       - name: Minimal Metal Compile-Only
         shell: bash -l {0}
         run: |

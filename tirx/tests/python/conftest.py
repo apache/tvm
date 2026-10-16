@@ -16,8 +16,6 @@
 # under the License.
 """Shared native module fixtures for runtime and code generation coverage."""
 
-import sys
-
 import pytest
 
 
@@ -41,9 +39,6 @@ TVM_FFI_DLL_EXPORT_TYPED_FUNC(callback, callback);
 
 @pytest.fixture(scope="module")
 def native_compile_options():
-    if sys.platform == "win32":
-        pytest.skip("Native module fixtures use the Unix C++ object and shared-library toolchain")
-
     import tvm_ffi
 
     return [
