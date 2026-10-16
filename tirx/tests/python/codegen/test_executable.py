@@ -218,8 +218,8 @@ a = np.arange(16, dtype='int32')
 b = np.zeros_like(a)
 a_ffi, b_ffi = tvm_ffi.from_dlpack(a), tvm_ffi.from_dlpack(b)
 if sys.argv[2] == 'cuda':
-    allocate = tvm_ffi.get_global_func('runtime.TVMTensorAllocWithScope')
-    copy = tvm_ffi.get_global_func('runtime.TVMTensorCopyFromTo')
+    allocate = tvm_ffi.get_global_func('runtime.TensorAllocWithScope')
+    copy = tvm_ffi.get_global_func('runtime.TensorCopyFromTo')
     def empty():
         return allocate(tvm_ffi.Shape([16]), tvm_ffi.dtype('int32'),
                         tvm_ffi.device('cuda', 0), None)
