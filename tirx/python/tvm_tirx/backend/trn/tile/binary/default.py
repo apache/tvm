@@ -17,9 +17,8 @@
 
 """Implementation of binary operator dispatches."""
 
-from tvm_tirx.ir import FloatImm
+from tvm_tirx.ir import FloatImm, Stmt
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import Function
 from tvm_tirx.tirx.tile import DispatchContext, fail
 from tvm_tirx.tirx.tile.common import MapOpType
 from tvm_tirx.tirx.tile.instruction import TensorCall
@@ -29,7 +28,7 @@ from ..instruction_generator import InstructionGenerator
 from .utils import InstType, binary_map_ops, try_find_inst_nary
 
 
-def binary_trn(op: TensorCall, binary_op: MapOpType, sctx: DispatchContext) -> Function | None:
+def binary_trn(op: TensorCall, binary_op: MapOpType, sctx: DispatchContext) -> Stmt:
     """Generate a binary operation schedule for Trainium."""
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
         fail("requires Trainium target and thread scope")
@@ -106,4 +105,4 @@ def binary_trn(op: TensorCall, binary_op: MapOpType, sctx: DispatchContext) -> F
                                     )
                                 )
 
-    return impl
+    return impl.body

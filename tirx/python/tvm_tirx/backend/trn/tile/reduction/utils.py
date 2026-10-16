@@ -20,9 +20,9 @@
 from functools import cache
 
 from tvm_tirx.backend.trn.layout import is_trainium_layout
+from tvm_tirx.ir import Stmt
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import Function
 from tvm_tirx.tirx.tile import DispatchContext, fail
 from tvm_tirx.tirx.tile.common import ReduceOpType
 from tvm_tirx.tirx.tile.instruction import TensorCall
@@ -74,7 +74,7 @@ def generate_intermediate_tensor(
 
 def reduction_trn(
     op: TensorCall, reduce_op: ReduceOpType, sctx: DispatchContext, negate: bool = False
-) -> Function | None:
+) -> Stmt:
     """Schedule reduction operation on Trainium.
 
     Args:
@@ -84,7 +84,7 @@ def reduction_trn(
         negate: Whether to negate the result.
 
     Returns:
-        Optional[Function]: The scheduled function, or None if not applicable.
+        Stmt: The implementation statement.
     """
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
         fail("requires Trainium target and thread scope")
@@ -156,7 +156,7 @@ def reduction_trn(
                                 src_indices = T.meta_var(inst_gen.generate_indices(src_tensor_region))  # noqa: E501
                                 dst_indices = T.meta_var(inst_gen.generate_indices(dst_tensor_region))  # noqa: E501
                                 T.evaluate(T.nki.tensorreduce(dst[tuple(dst_indices)], src[tuple(src_indices)], opcode, negate, -1))  # noqa: E501
-        return impl
+        return impl.body
     # Two-stage reduction implementation
     else:
         # This fragment captures tensors and indices from its insertion scope.
@@ -179,5 +179,5 @@ def reduction_trn(
                             if inst_gen.make_guard(src_tensor_region):
                                 dst_indices = T.meta_var(inst_gen.generate_indices(dst_tensor_region))  # noqa: E501
                                 T.evaluate(T.nki.tensorreduce(dst[dst_indices], intermediate_tensor[p_loop, f_loop], opcode, negate, -1))  # noqa: E501
-        return two_stage_reduction
+        return two_stage_reduction.body
     # fmt: on

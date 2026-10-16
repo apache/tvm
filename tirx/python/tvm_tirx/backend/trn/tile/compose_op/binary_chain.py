@@ -17,9 +17,8 @@
 
 """Implementation of BinaryChain dispatch."""
 
-from tvm_tirx.ir import TensorRegion
+from tvm_tirx.ir import Stmt, TensorRegion
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import Function
 from tvm_tirx.tirx.tile import DispatchContext
 from tvm_tirx.tirx.tile.instruction import TensorCall
 from tvm_tirx.tirx.tile.views import BinaryChain
@@ -30,7 +29,7 @@ from ..instruction_generator import InstructionGenerator
 from .utils import opcode_table
 
 
-def binary_chain_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
+def binary_chain_trn(op: TensorCall, sctx: DispatchContext) -> Stmt:
     """Generate a TRN schedule for binary chain operations."""
     op = TensorCall.decode(op)
     assert isinstance(op, BinaryChain), f"invalid operator downcast: {op}"
@@ -114,4 +113,4 @@ def binary_chain_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
                             T.evaluate(func(dst[tuple(dst_indices)], *srcs, opcode0, opcode1, reverse[0], reverse[1]))  # noqa: E501
     # fmt: on
 
-    return impl
+    return impl.body

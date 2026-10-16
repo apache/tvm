@@ -20,10 +20,9 @@
 from functools import cache
 
 from tvm_tirx.backend.trn.layout import is_trainium_layout
-from tvm_tirx.ir import FloatImm, TensorRegion
+from tvm_tirx.ir import FloatImm, Stmt, TensorRegion
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import Function
 from tvm_tirx.tirx.tile import DispatchContext, fail
 from tvm_tirx.tirx.tile.instruction import TensorCall
 from tvm_tirx.tirx.tile.views import Select
@@ -38,7 +37,7 @@ def _scope_trn_sbuf():
     return MemoryScope("trn.sbuf")
 
 
-def select_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
+def select_trn(op: TensorCall, sctx: DispatchContext) -> Stmt:
     """Generate schedule for select operation on Trainium."""
     if sctx.scope_kind != "thread":
         fail("requires thread scope for TRN select")
@@ -127,4 +126,4 @@ def select_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
                             T.evaluate(T.nki.affine_select(dst_tensor[tuple(dst_indices)], analyzer.simplify(op.predicate.apply(inst_gen.generate_axes(dst))), true_value_tensor[tuple(true_value_indices)], false_value))  # noqa: E501
     # fmt: on
 
-    return impl
+    return impl.body

@@ -35,9 +35,9 @@ from tvm_tirx.ir import (
     ForKind,
     IntImm,
     Op,
-    PrimType,
     Range,
     SeqStmt,
+    Stmt,
     TensorRegion,
     Var,
 )
@@ -45,7 +45,6 @@ from tvm_tirx.ir.prim import Let
 from tvm_tirx.runtime import DataType, MemoryScope
 from tvm_tirx.script import tirx as T
 from tvm_tirx.sym import Analyzer
-from tvm_tirx.tirx import Function
 from tvm_tirx.tirx.layout import TileLayout
 
 
@@ -211,7 +210,7 @@ class Context:
     def region(self, name, region, atom_shape, scopes, *, repeat_axes=None, bounds=True):
         return Region(self, name, region, atom_shape, scopes, repeat_axes, bounds)
 
-    def finish(self, statements):
+    def finish(self, statements) -> Stmt:
         body = SeqStmt(
             [
                 Evaluate(s) if not isinstance(s, Bind | SeqStmt) and hasattr(s, "ty") else s
@@ -220,7 +219,7 @@ class Context:
         )
         for var, extent in reversed(list(zip(self.repeat or (), self.repeat_shape or ()))):
             body = For(var, 0, extent, ForKind.UNROLLED, body)
-        return Function([], [*self.bindings, body], ret_type=PrimType("void"))
+        return SeqStmt([*self.bindings, body])
 
 
 class Region:
