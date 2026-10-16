@@ -29,8 +29,9 @@ export TVM_TEST_TARGETS='cuda;metal;rocm;nvptx'
 
 # The existing export case also exercises CUDA AOT when a GPU is available.
 # Enable its LLVM host target as well as the CUDA device target.
+# Run these two cases in process so their per-device completion output is visible.
 TVM_TEST_TARGETS="llvm;cuda" TVM_TEST_MARKER="not gpu" ./tests/scripts/task_python_unittest.sh \
-    tirx/tests/python/codegen/test_executable.py::test_executable_export_library
+    -n 0 tirx/tests/python/codegen/test_executable.py::test_executable_export_library
 
 # Kept separate to avoid increasing time needed to run CI, testing
 # only minimal functionality of Vulkan runtime.
