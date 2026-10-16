@@ -22,7 +22,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "apache-tvm-tirx"
-version = "0.1.0a0"
+version = "0.1.0a1"
 description = "TVM TIRx compiler and runtime"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
