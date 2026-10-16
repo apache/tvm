@@ -16,7 +16,20 @@
 # under the License.
 
 # CUDA Module
-find_cuda(${TVM_TIRX_USE_CUDA} OFF)
+if("${TVM_TIRX_USE_CUDA}" MATCHES "^[Aa][Uu][Tt][Oo]$")
+  find_cuda(ON OFF)
+  # Keep AUTO in the cache, but resolve it before any backend build guards.
+  # FindCUDA requires nvcc and headers, but may accept only static cudart.
+  # Our runtime needs shared cudart and the driver library (or its toolkit stub).
+  if(CUDA_FOUND AND CUDA_CUDART_LIBRARY AND CUDA_CUDA_LIBRARY)
+    set(TVM_TIRX_USE_CUDA ON)
+  else()
+    set(TVM_TIRX_USE_CUDA OFF)
+    message(STATUS "CUDA AUTO: usable toolkit not found; building without CUDA")
+  endif()
+else()
+  find_cuda(${TVM_TIRX_USE_CUDA} OFF)
+endif()
 
 if(CUDA_FOUND)
   # always set the includedir when CUDA is available
@@ -48,13 +61,8 @@ if(TVM_TIRX_USE_CUDA)
   # [0] https://github.com/Kitware/CMake/commit/6377a438
   set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
 
-  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-    if(CMAKE_VERSION VERSION_LESS "3.24")
-      message(FATAL_ERROR "CMAKE_CUDA_ARCHITECTURES not set. Please upgrade CMake to 3.24 to use native, or set CMAKE_CUDA_ARCHITECTURES manually")
-    endif()
-    message(STATUS "CMAKE_CUDA_ARCHITECTURES not set, using native")
-    set(CMAKE_CUDA_ARCHITECTURES native)
-  endif()
+  # Use CMake's compiler-selected architectures unless the user overrides them.
+  # Unlike 'native', this also works on build hosts without a visible GPU.
 endif(TVM_TIRX_USE_CUDA)
 
 if(TVM_TIRX_USE_CUDA)
