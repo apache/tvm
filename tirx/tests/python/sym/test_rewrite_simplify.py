@@ -1570,12 +1570,14 @@ class TestBitwiseConstants(BaseCompare):
             (tvm_tirx.tirx.BitwiseXor, 6),
         ):
             yield TestCase(
-                op(tvm_tirx.tirx.const(10), tvm_tirx.tirx.const(12)), tvm_tirx.tirx.const(expected)
+                op(tvm_tirx.tirx.const(10, "int32"), tvm_tirx.tirx.const(12, "int32")),
+                tvm_tirx.tirx.const(expected, "int32"),
             )
         x = tvm_tirx.tirx.Var("x", "int32")
         # Children must simplify before folding the enclosing bitwise node.
         yield TestCase(
-            tvm_tirx.tirx.BitwiseXor(x - x + 5, tvm_tirx.tirx.const(7)), tvm_tirx.tirx.const(2)
+            tvm_tirx.tirx.BitwiseXor(x - x + 5, tvm_tirx.tirx.const(7, "int32")),
+            tvm_tirx.tirx.const(2, "int32"),
         )
 
     test_case = tvm_tirx.testing.parameter(*_generate_tests())

@@ -40,9 +40,9 @@ from tvm_tirx.ir import (
     TensorLoad,
     TensorRegion,
     Tuple,
-    const,
     make_node,
 )
+from tvm_tirx.ir._constant import _convert_scalar
 from tvm_tirx.ir.location import UNKNOWN_LOC
 from tvm_tirx.ir.op import register_op_attr
 from tvm_tirx.tirx.thread_scope import ThreadScope
@@ -221,7 +221,7 @@ def _expr(value):
         return StringImm(value)
     if hasattr(value, "__tvm_ffi_object__"):
         return value.__tvm_ffi_object__()
-    return const(value)
+    return _convert_scalar(value)
 
 
 def _static(value):

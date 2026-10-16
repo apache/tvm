@@ -33,7 +33,7 @@ def test_te_const():
     assert isinstance(x, tvm_tirx.ir.IntImm)
 
 
-def test_tir_const_dtype_inference():
+def test_lambda_scalar_dtype_inference():
     for data in [
         True,
         bool(1),
@@ -49,11 +49,11 @@ def test_tir_const_dtype_inference():
         np.float32(1),
         np.float64(1),
     ]:
-        assert tvm_tirx.tirx.const(data).ty.dtype == str(np.array(data).dtype)
+        assert ir.LambdaExpr([], lambda: data).body.ty.dtype == str(np.array(data).dtype)
 
-    assert tvm_tirx.tirx.const(True).ty.dtype == "bool"
-    assert tvm_tirx.tirx.const(1).ty.dtype == "int32"
-    assert tvm_tirx.tirx.const(1.0).ty.dtype == "float32"
+    assert ir.LambdaExpr([], lambda: True).body.ty.dtype == "bool"
+    assert ir.LambdaExpr([], lambda: 1).body.ty.dtype == "int32"
+    assert ir.LambdaExpr([], lambda: 1.0).body.ty.dtype == "float32"
 
 
 def test_make():

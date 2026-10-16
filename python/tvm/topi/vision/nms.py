@@ -325,7 +325,7 @@ def _classic_nms_ir(
                         tvm_tirx.tirx.Select(
                             max_output_size > 0,
                             num_valid_boxes[T.tensor_indices(num_valid_boxes, 0)] < max_output_size,
-                            tvm_tirx.tirx.const(True),
+                            tvm_tirx.tirx.const(True, "bool"),
                         )
                     ):
                         with T.then_():
@@ -446,9 +446,9 @@ def _classic_nms_ir(
                                             )
                                         ):
                                             with T.then_():
-                                                do_suppress = tvm_tirx.tirx.const(False)
+                                                do_suppress = tvm_tirx.tirx.const(False, "bool")
                                                 if force_suppress:
-                                                    do_suppress = tvm_tirx.tirx.const(True)
+                                                    do_suppress = tvm_tirx.tirx.const(True, "bool")
                                                 elif id_index >= 0:
                                                     do_suppress = (
                                                         out_data[
@@ -465,7 +465,7 @@ def _classic_nms_ir(
                                                         == out_data[(i, j, id_index)]
                                                     )
                                                 else:
-                                                    do_suppress = tvm_tirx.tirx.const(True)
+                                                    do_suppress = tvm_tirx.tirx.const(True, "bool")
 
                                                 with T.if_(do_suppress):
                                                     with T.then_():
@@ -560,7 +560,7 @@ def _classic_nms_ir(
                                 max_output_size > 0,
                                 num_valid_boxes[T.tensor_indices(num_valid_boxes, 0)]
                                 < max_output_size,
-                                tvm_tirx.tirx.const(True),
+                                tvm_tirx.tirx.const(True, "bool"),
                             ),
                         )
                     ):
@@ -579,16 +579,16 @@ def _classic_nms_ir(
                                     )
                                 ):
                                     with T.then_():
-                                        do_suppress = tvm_tirx.tirx.const(False)
+                                        do_suppress = tvm_tirx.tirx.const(False, "bool")
                                         if force_suppress:
-                                            do_suppress = tvm_tirx.tirx.const(True)
+                                            do_suppress = tvm_tirx.tirx.const(True, "bool")
                                         elif id_index >= 0:
                                             do_suppress = (
                                                 out_data[(i, j, id_index)]
                                                 == out_data[(i, k, id_index)]
                                             )
                                         else:
-                                            do_suppress = tvm_tirx.tirx.const(True)
+                                            do_suppress = tvm_tirx.tirx.const(True, "bool")
 
                                         with T.if_(do_suppress):
                                             with T.then_():

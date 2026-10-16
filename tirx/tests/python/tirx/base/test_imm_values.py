@@ -23,9 +23,11 @@ import pytest
 
 import tvm_tirx
 import tvm_tirx.testing
-from tvm_tirx import tirx
+from tvm_tirx import ir, tirx
 from tvm_tirx.script import tirx as T
+from tvm_tirx.script.ir_builder.stmt import _as_expr
 from tvm_tirx.testing import env
+from tvm_tirx.tirx.tile.instruction import _expr
 
 
 @pytest.mark.parametrize(
@@ -157,6 +159,7 @@ def test_tir_too_large_literal_f64():
 @pytest.mark.parametrize(
     "literal, expect_dtype",
     [
+        (True, "bool"),
         (256, "int32"),
         (2147483647, "int32"),
         (-2147483648, "int32"),
@@ -167,12 +170,43 @@ def test_tir_too_large_literal_f64():
         (np.finfo("float32").max, "float32"),
         (-3.402e39, "float64"),
         (3.402e39, "float64"),
+        (float("inf"), "float64"),
+        (float("nan"), "float64"),
+        (np.int64(1), "int64"),
+        (np.float64(1.0), "float64"),
     ],
 )
-def test_tir_const_auto_dtype(literal, expect_dtype):
-    x = tirx.const(literal, dtype=None)
+@pytest.mark.parametrize(
+    "convert",
+    [lambda value: ir.LambdaExpr([], lambda: value).body, _as_expr, _expr],
+    ids=["lambda", "statement", "tile"],
+)
+def test_scalar_conversion_dtype(literal, expect_dtype, convert):
+    x = convert(literal)
     assert x.ty.dtype == expect_dtype
-    assert x.value == literal
+    if isinstance(literal, float) and math.isnan(literal):
+        assert math.isnan(x.value)
+    else:
+        assert x.value == literal
+
+
+@pytest.mark.parametrize("constructor", [ir.const, ir.prim.const, tirx.const, tirx.expr.const])
+def test_const_requires_dtype(constructor):
+    with pytest.raises(TypeError, match="dtype"):
+        constructor(1)
+    with pytest.raises(TypeError, match="dtype"):
+        constructor(1, None)
+    with pytest.raises(TypeError, match="dtype"):
+        constructor(1, dtype=None)
+
+
+@pytest.mark.parametrize("dtype", ["int64", tvm_tirx.DataType("int64"), ir.PrimType("int64")])
+def test_const_dtype_and_location(dtype):
+    loc = ir.SourceLoc(ir.SourceName("constant.py"), 4, 2, 4, 3)
+    for value in [ir.const(7, dtype, loc), ir.const(7, dtype=dtype, loc=loc)]:
+        assert value.ty.dtype == "int64"
+        assert value.value == 7
+        assert value.loc.same_as(loc)
 
 
 def check_tir_const_fold(

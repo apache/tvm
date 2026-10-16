@@ -16,9 +16,14 @@
 # under the License.
 """Construction of primitive IR constants."""
 
+from typing import TYPE_CHECKING
+
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from . import _ffi_api
+
+if TYPE_CHECKING:
+    from .expr import Expr
 
 
 def _scalar_type_inference(value):
@@ -42,25 +47,30 @@ def _scalar_type_inference(value):
         raise NotImplementedError(f"Cannot automatically inference the type. value={value}")
 
 
-def const(value, dtype=None, loc: Location = UNKNOWN_LOC):
-    """construct a constant
+def const(value, dtype, loc: Location = UNKNOWN_LOC) -> "Expr":
+    """Construct a constant with an explicit dtype.
 
     Parameters
     ----------
     value : number
         The content of the constant number.
 
-    dtype : str or None, optional
-        The data type.
+    dtype : str, DataType or tvm_tirx.ir.PrimType
+        The required data type. None is not accepted.
 
     loc : Location, optional
         The location of the constant value in the source.
 
     Returns
     -------
-    const_val: tvm.Expr
+    const_val : tvm_tirx.ir.Expr
         The result expression.
     """
     if dtype is None:
-        dtype = _scalar_type_inference(value)
+        raise TypeError("const requires an explicit, non-None dtype")
     return _ffi_api._const(value, dtype, loc)
+
+
+def _convert_scalar(value, loc: Location = UNKNOWN_LOC) -> "Expr":
+    """Convert a Python scalar at an implicit IR conversion boundary."""
+    return const(value, _scalar_type_inference(value), loc)

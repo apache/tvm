@@ -29,7 +29,7 @@ from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..runtime import Object
 from . import _ffi_api, _tensor_expr_overload
-from ._constant import const
+from ._constant import _convert_scalar
 from .base import Node, Scriptable
 from .type import PrimType
 
@@ -42,7 +42,7 @@ def _convert_subscript_index(index):
     def convert(value):
         if value is None or is_prim_expr(value):
             return value
-        return const(value)
+        return _convert_scalar(value)
 
     if isinstance(index, slice):
         return (convert(index.start), convert(index.stop), convert(index.step))
@@ -820,7 +820,7 @@ def _lambda_result(value):
     if isinstance(value, tuple | list):
         return Tuple([_lambda_result(field) for field in value])
     if isinstance(value, Number):
-        value = const(value)
+        value = _convert_scalar(value)
     elif isinstance(value, str):
         value = StringImm(value)
     else:

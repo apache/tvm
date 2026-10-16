@@ -32,6 +32,7 @@ import tvm_tirx
 from tvm_tirx import ir as _ir
 from tvm_tirx.ir import Expr, IntImm, TensorRegion, Type, Var
 from tvm_tirx.ir import StringImm as _StringImm
+from tvm_tirx.ir._constant import _convert_scalar
 from tvm_tirx.script.ir_builder import base as _base
 from tvm_tirx.script.ir_builder.base import AlreadyEmitted
 
@@ -49,7 +50,7 @@ def _as_expr(value):
         return _ir.StringImm(value)
     if isinstance(value, list | tuple):
         return _ir.Tuple([_as_expr(item) for item in value])
-    return _ir.const(value)
+    return _convert_scalar(value)
 
 
 def _enter_concise(frame: _base.IRBuilderFrame) -> Any:

@@ -94,7 +94,7 @@ def test_cast_between_types():
 
 
 def test_return_const():
-    a = tirx.const(0)
+    a = tirx.const(0, "int32")
     b = tvm_tirx.ir.Return(a)
     func = tirx.Function([], b)
     func = build_tir_func(func)

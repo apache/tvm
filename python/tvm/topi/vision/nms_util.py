@@ -21,6 +21,7 @@
 import tvm
 import tvm_tirx
 from tvm import te
+from tvm_tirx.ir._constant import _convert_scalar
 from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.tirx.script import ir_builder as T
 
@@ -313,7 +314,7 @@ def _all_class_nms_ir(
                 iou_threshold = tvm_tirx.ir.FloatImm("float32", 0.5)
 
         if isinstance(max_output_size_per_class, int):
-            max_output_size_per_class = tvm_tirx.tirx.const(max_output_size_per_class)
+            max_output_size_per_class = _convert_scalar(max_output_size_per_class)
         elif isinstance(max_output_size_per_class, te.Tensor):
             if len(max_output_size_per_class.shape) == 0:
                 max_output_size_per_class = max_output_size_per_class()
@@ -323,7 +324,7 @@ def _all_class_nms_ir(
             ):
                 max_output_size_per_class = max_output_size_per_class[0]
             else:
-                max_output_size_per_class = tvm_tirx.tirx.const(1000)
+                max_output_size_per_class = tvm_tirx.tirx.const(1000, "int32")
 
         def calc_overlap(i, j, k):
             offset_j = sorted_indices[i, j] * 4
@@ -355,7 +356,7 @@ def _all_class_nms_ir(
             pass
 
         def needs_bbox_check(*_):
-            return tvm_tirx.tirx.const(True)
+            return tvm_tirx.tirx.const(True, "bool")
 
         nms_loop(
             batch_class,

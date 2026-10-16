@@ -357,19 +357,19 @@ def test_simplify_normalize_min_value_expr():
     ck.verify(
         tvm_tirx.tirx.min_value(ty="int32") - x == 0, x == tvm_tirx.tirx.min_value(ty="int32")
     )
-    ck.verify(tvm_tirx.tirx.min_value(ty="int32") + x == 0, tirx.const(False))
+    ck.verify(tvm_tirx.tirx.min_value(ty="int32") + x == 0, tirx.const(False, "bool"))
     ck.verify(
         0 == tvm_tirx.tirx.min_value(ty="int32") - x, x == tvm_tirx.tirx.min_value(ty="int32")
     )
-    ck.verify(0 == tvm_tirx.tirx.min_value(ty="int32") + x, tirx.const(False))
+    ck.verify(0 == tvm_tirx.tirx.min_value(ty="int32") + x, tirx.const(False, "bool"))
     ck.verify(
         -x + tvm_tirx.tirx.min_value(ty="int32") == 0, x == tvm_tirx.tirx.min_value(ty="int32")
     )
-    ck.verify(x + tvm_tirx.tirx.min_value(ty="int32") == 0, tirx.const(False))
+    ck.verify(x + tvm_tirx.tirx.min_value(ty="int32") == 0, tirx.const(False, "bool"))
     ck.verify(
         0 == -x + tvm_tirx.tirx.min_value(ty="int32"), x == tvm_tirx.tirx.min_value(ty="int32")
     )
-    ck.verify(0 == x + tvm_tirx.tirx.min_value(ty="int32"), tirx.const(False))
+    ck.verify(0 == x + tvm_tirx.tirx.min_value(ty="int32"), tirx.const(False, "bool"))
 
 
 def test_proddiv_simplify():

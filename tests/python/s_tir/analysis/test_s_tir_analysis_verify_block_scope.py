@@ -140,7 +140,7 @@ def test_error_undeclared_tensor_in_schedulable_tir():
     )
     block_realize = tvm.s_tir.SBlockRealize(
         iter_values=[i],
-        predicate=tvm_tirx.tirx.const(True),
+        predicate=tvm_tirx.tirx.const(True, "bool"),
         block=block,
     )
 

@@ -93,7 +93,7 @@ def _custom_call(name):
     op.set_attrs_type_key("tirx.tensor.ScopeAttrs")
     return Call(
         op,
-        [const(7)],
+        [const(7, "int32")],
         attrs=make_node("tirx.tensor.ScopeAttrs", scope=T.ThreadScope("cuda.thread")),
     )
 
