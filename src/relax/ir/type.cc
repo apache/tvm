@@ -49,9 +49,9 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PackedFuncTypeMaybeInpl
 
 }  // namespace
 
-PackedFuncType::PackedFuncType(Span span) : Type(ffi::UnsafeInit{}) {
+PackedFuncType::PackedFuncType(Location loc) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<PackedFuncTypeNode> n = ffi::make_object<PackedFuncTypeNode>();
-  n->span = span;
+  n->loc = loc;
   data_ = std::move(n);
 }
 
@@ -59,14 +59,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   PackedFuncTypeNode::RegisterReflection();
   refl::TypeAttrDef<PackedFuncTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&PackedFuncTypeVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&PackedFuncTypeMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&PackedFuncTypeMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("relax.PackedFuncType", [](Span span) { return PackedFuncType(span); });
+  refl::GlobalDef().def("relax.PackedFuncType", [](Location loc) { return PackedFuncType(loc); });
 }
 
 }  // namespace relax

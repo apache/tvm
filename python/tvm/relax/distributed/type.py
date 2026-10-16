@@ -21,9 +21,10 @@ import enum
 
 import tvm_ffi
 
-from tvm.ir import Span
 from tvm.relax.type import TensorType, Type
-from tvm.runtime import Object
+from tvm_tirx.ir import Location
+from tvm_tirx.ir.location import UNKNOWN_LOC
+from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 from .global_info import DeviceMesh
@@ -135,12 +136,12 @@ class DTensorType(Type):
         tensor_ty: TensorType,
         device_mesh: DeviceMesh,
         placement: Placement,
-        span: Span = None,
+        loc: Location = UNKNOWN_LOC,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.DTensorType,
             tensor_ty,
             device_mesh,
             placement,
-            span,  # type: ignore
+            loc,  # type: ignore
         )

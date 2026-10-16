@@ -1,0 +1,1723 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file codegen_cuda.cc
+ */
+
+#include "codegen_cuda.h"
+
+#include <tvm/backend/cuda/attr.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
+#include <tvm/support/gpu_thread_tag.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
+#include <tvm/tirx/stmt.h>
+#include <tvm/tirx/stmt_functor.h>
+
+#include <cmath>
+#include <iomanip>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "../../../codegen/build_common.h"
+#include "cuda_fallback_module.h"
+#include "literal/cuda_half_t.h"
+#include "literal/cuda_int8_t.h"
+
+namespace tvm {
+namespace codegen {
+using namespace tvm::prim;
+
+namespace {
+
+TVM_FFI_INLINE bool IsFloat8(const PrimType& ty) {
+  return ty.MatchesCode(DLDataTypeCode::kDLFloat8_e3m4, DLDataTypeCode::kDLFloat8_e4m3,
+                        DLDataTypeCode::kDLFloat8_e4m3b11fnuz, DLDataTypeCode::kDLFloat8_e4m3fn,
+                        DLDataTypeCode::kDLFloat8_e4m3fnuz, DLDataTypeCode::kDLFloat8_e5m2,
+                        DLDataTypeCode::kDLFloat8_e5m2fnuz, DLDataTypeCode::kDLFloat8_e8m0fnu);
+}
+
+TVM_FFI_INLINE bool IsFloat6(const PrimType& ty) {
+  return ty.MatchesCode(DLDataTypeCode::kDLFloat6_e2m3fn, DLDataTypeCode::kDLFloat6_e3m2fn);
+}
+
+TVM_FFI_INLINE bool IsFloat4(const PrimType& ty) {
+  return ty.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn);
+}
+
+TVM_FFI_INLINE bool IsPackedFloat(const PrimType& ty) {
+  return IsFloat8(ty) || IsFloat6(ty) || IsFloat4(ty);
+}
+
+}  // namespace
+
+std::string GetFP8Type(const PrimType& type_ty) {
+  std::stringstream stream;
+  int32_t lanes = type_ty.lanes();
+  std::string vec;
+  if (type_ty.IsScalar()) {
+    vec = "";
+  } else if (lanes == 2) {
+    vec = "x2";
+  } else if (lanes == 4) {
+    vec = "x4";
+  } else if (lanes == 8) {
+    vec = "x8";
+  } else if (lanes == 16) {
+    vec = "x16";
+  } else {
+    TVM_FFI_THROW(InternalError)
+        << "Only support scalar and vector types of width (2, 4, 8, 16) for FP8";
+  }
+  stream << "__nv_fp8";
+  std::string suffix;
+  if (type_ty.MatchesCode(DLDataTypeCode::kDLFloat8_e4m3fn)) {
+    suffix = "_e4m3";
+  } else if (type_ty.MatchesCode(DLDataTypeCode::kDLFloat8_e5m2)) {
+    suffix = "_e5m2";
+  } else if (type_ty.MatchesCode(DLDataTypeCode::kDLFloat8_e8m0fnu)) {
+    suffix = "_e8m0";
+  } else {
+    TVM_FFI_THROW(InternalError) << "Unsupported FP8 type in CUDA codegen";
+  }
+  stream << vec << suffix;
+  return stream.str();
+}
+
+std::string GetFP6Type(const PrimType& type_ty) {
+  std::stringstream stream;
+  int32_t lanes = type_ty.lanes();
+  std::string vec;
+  if (type_ty.IsScalar()) {
+    vec = "";
+  } else if (lanes == 2) {
+    vec = "x2";
+  } else if (lanes == 4) {
+    vec = "x4";
+  } else if (lanes == 8) {
+    vec = "x8";
+  } else if (lanes == 16) {
+    vec = "x16";
+  } else {
+    TVM_FFI_THROW(InternalError) << "Only support scalar and vector types of width (2, 4) for FP6";
+  }
+  stream << "__nv_fp6";
+  std::string suffix;
+  if (type_ty.MatchesCode(DLDataTypeCode::kDLFloat6_e2m3fn)) {
+    suffix = "_e2m3";
+  } else if (type_ty.MatchesCode(DLDataTypeCode::kDLFloat6_e3m2fn)) {
+    suffix = "_e3m2";
+  } else {
+    TVM_FFI_THROW(InternalError) << "Unsupported FP6 type in CUDA codegen";
+  }
+  stream << vec << suffix;
+  return stream.str();
+}
+
+std::string GetFP4Type(const PrimType& type_ty) {
+  std::stringstream stream;
+  int32_t lanes = type_ty.lanes();
+  std::string vec;
+  if (type_ty.IsScalar()) {
+    vec = "";
+  } else if (lanes == 2) {
+    vec = "x2";
+  } else if (lanes == 4) {
+    vec = "x4";
+  } else if (lanes == 8) {
+    vec = "x8";
+  } else if (lanes == 16) {
+    vec = "x16";
+  } else {
+    TVM_FFI_THROW(InternalError) << "Only support scalar and vector types of width (2, 4) for FP4";
+  }
+  stream << "__nv_fp4";
+  std::string suffix;
+  if (type_ty.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn)) {
+    suffix = "_e2m1";
+  } else {
+    TVM_FFI_THROW(InternalError) << "Unsupported FP4 type in CUDA codegen";
+  }
+  stream << vec << suffix;
+  return stream.str();
+}
+
+CodeGenCUDA::CodeGenCUDA(Target target) : target(target) { restrict_keyword_ = "__restrict__"; }
+
+void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const Function& func,
+                                         std::ostream& os) {
+  PrintFunctionPrefix(func, os);
+  CodeGenC::PrintFunctionSignature(function_name, func, os);
+}
+
+void CodeGenCUDA::PrintFunctionPrefix(const Function& func, std::ostream& os) {
+  CallingConv calling_conv =
+      func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
+  in_kernel_launch_ = (calling_conv == CallingConv::kDeviceKernelLaunch);
+  if (calling_conv == CallingConv::kDeviceKernelLaunch) {
+    os << "extern \"C\" __global__ ";
+  } else if (calling_conv == CallingConv::kDefault) {
+    os << "extern \"C\" __device__ ";
+  } else {
+    TVM_FFI_THROW(InternalError) << "Unsupported calling convention for cuda codegen: "
+                                 << static_cast<int>(calling_conv);
+  }
+}
+
+class ThreadIdxExtractor : public tirx::StmtExprVisitor {
+ public:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<tvm::ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
+ private:
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (op->op.same_as(tirx::launch_thread_op())) {
+      TVM_FFI_CHECK(!op->args[0].as_or_throw<StringImm>()->value.starts_with("vthread"), ValueError)
+          << "Virtual thread launches must be lowered before code generation";
+      ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
+      PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
+      auto [it, inserted] = thread_extents_.emplace(tag, extent);
+      TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
+          << "Conflicting launch extents for " << tag;
+      if (tag == "threadIdx.x") {
+        threadIdx_x_ext = extent;
+      } else if (tag == "threadIdx.y") {
+        threadIdx_y_ext = extent;
+      } else if (tag == "threadIdx.z") {
+        threadIdx_z_ext = extent;
+      } else if (tag == "clusterCtaIdx.x") {
+        clusterCtaIdx_x_ext = extent;
+      } else if (tag == "clusterCtaIdx.y") {
+        clusterCtaIdx_y_ext = extent;
+      } else if (tag == "clusterCtaIdx.z") {
+        clusterCtaIdx_z_ext = extent;
+      }
+      return StmtExprVisitor::Visit_(op);
+    } else {
+      TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
+    }
+  }
+
+  sym::Analyzer analyzer_;
+  std::unordered_map<std::string, PrimExpr> thread_extents_;
+
+ public:
+  PrimExpr threadIdx_x_ext = IntImm::Int32(1);
+  PrimExpr threadIdx_y_ext = IntImm::Int32(1);
+  PrimExpr threadIdx_z_ext = IntImm::Int32(1);
+  PrimExpr clusterCtaIdx_x_ext = IntImm::Int32(1);
+  PrimExpr clusterCtaIdx_y_ext = IntImm::Int32(1);
+  PrimExpr clusterCtaIdx_z_ext = IntImm::Int32(1);
+};
+
+void CodeGenCUDA::InitFuncState(const Function& func) {
+  CodeGenC::InitFuncState(func);
+  min_blocks_per_sm_.reset();
+  max_blocks_per_cluster_.reset();
+  max_registers_per_thread_.reset();
+  required_block_size_.reset();
+  in_kernel_launch_ =
+      func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value() ==
+      CallingConv::kDeviceKernelLaunch;
+  // Thread metadata is also needed while emitting cluster index accesses.
+  auto extractor = ffi::make_object<ThreadIdxExtractor>();
+  extractor->Visit(func->body);
+  launch_dimensions_ = {extractor->threadIdx_x_ext,     extractor->threadIdx_y_ext,
+                        extractor->threadIdx_z_ext,     extractor->clusterCtaIdx_x_ext,
+                        extractor->clusterCtaIdx_y_ext, extractor->clusterCtaIdx_z_ext};
+  if (auto dimensions =
+          func->GetAttr<ffi::Array<PrimExpr>>(tvm::backend::cuda::attr::kLaunchDimensions)) {
+    TVM_FFI_ICHECK_EQ(dimensions.value().size(), launch_dimensions_.size());
+    for (size_t i = 0; i < launch_dimensions_.size(); ++i)
+      launch_dimensions_[i] = dimensions.value()[i];
+  }
+  if (auto kernel_attrs =
+          func->GetAttr<ffi::Map<ffi::String, int64_t>>(tvm::backend::cuda::attr::kKernelAttrs)) {
+    if (auto value = kernel_attrs.value().Get("min_blocks_per_sm")) min_blocks_per_sm_ = *value;
+    if (auto value = kernel_attrs.value().Get("max_blocks_per_cluster"))
+      max_blocks_per_cluster_ = *value;
+    if (auto value = kernel_attrs.value().Get("max_registers_per_thread"))
+      max_registers_per_thread_ = *value;
+    if (kernel_attrs.value().Get("required_block_size").value_or(0)) {
+      std::array<int64_t, 6> dimensions;
+      size_t i = 0;
+      for (const char* prefix : {"required_block_", "required_cluster_"}) {
+        for (char axis : {'x', 'y', 'z'})
+          dimensions[i++] = kernel_attrs.value().at(std::string(prefix) + axis);
+      }
+      required_block_size_ = dimensions;
+    }
+  }
+  sym::Analyzer analyzer;
+  cluster_cta_x_is_linear_rank_ =
+      IsOne(analyzer->Simplify(launch_dimensions_[4] * launch_dimensions_[5]));
+}
+
+void CodeGenCUDA::DeclareFunction(const GlobalVar& gvar, const Function& func) {
+  if (!RegisterFunctionName(gvar, func)) return;
+  // Definitions supply their body-derived qualifiers in AddFunction.
+  if (!func->body.has_value()) {
+    InitFuncState(func);
+    PrintFunctionSignature(GetFunctionName(gvar), func, fwd_decl_stream);
+    fwd_decl_stream << ";\n";
+  }
+}
+
+void CodeGenCUDA::AddFunction(const GlobalVar& gvar, const Function& func) {
+  DeclareFunction(gvar, func);
+  if (!func->body.has_value()) return;
+  InitFuncState(func);
+  std::ostringstream parameters;
+  PrintFunctionParameters(func, parameters);
+
+  // Generate the body once before assembling the complete definition.
+  std::ostringstream previous_functions;
+  stream.swap(previous_functions);
+  stream << " {\n";
+  PreFunctionBody(func);
+  int func_scope = BeginScope();
+  PrintStmt(func->body.value());
+  EndScope(func_scope);
+  PrintIndent();
+  stream << "}\n\n";
+  std::string body = stream.str();
+  stream.swap(previous_functions);
+
+  std::ostringstream signature;
+  PrintFunctionPrefix(func, signature);
+  PrintType(func->ret_type, signature);
+  PrintExtraAttrs(func, signature);
+  signature << " " << GetFunctionName(gvar) << parameters.str();
+  fwd_decl_stream << signature.str() << ";\n";
+  stream << signature.str() << body;
+}
+
+void CodeGenCUDA::PrintExtraAttrs(const Function& f, std::ostream& os) {
+  TVM_FFI_ICHECK(!max_blocks_per_cluster_ || min_blocks_per_sm_)
+      << "CUDA maximum blocks per cluster requires minimum blocks per SM";
+  TVM_FFI_ICHECK(!max_registers_per_thread_ || (!min_blocks_per_sm_ && !max_blocks_per_cluster_))
+      << "Maximum registers per thread cannot be combined with CUDA launch bounds";
+  TVM_FFI_ICHECK(!max_registers_per_thread_ || !required_block_size_)
+      << "Required block size cannot be combined with maximum registers";
+  if (required_block_size_) {
+    for (size_t i = 0; i < launch_dimensions_.size(); ++i) {
+      const auto* dim = launch_dimensions_[i].as<IntImmNode>();
+      TVM_FFI_ICHECK(dim) << "Required block size requires static thread and cluster dimensions";
+      TVM_FFI_ICHECK_EQ(dim->value, (*required_block_size_)[i])
+          << "Required block size must agree with declared launch extents";
+    }
+    const auto& dims = *required_block_size_;
+    os << " __block_size__((" << dims[0] << ", " << dims[1] << ", " << dims[2] << "), (" << dims[3]
+       << ", " << dims[4] << ", " << dims[5] << "))";
+    if (!min_blocks_per_sm_) return;
+  }
+  if (max_registers_per_thread_) {
+    os << " __maxnreg__(" << *max_registers_per_thread_ << ")";
+    return;
+  }
+  sym::Analyzer analyzer;
+  PrimExpr threads =
+      analyzer->Simplify(launch_dimensions_[0] * launch_dimensions_[1] * launch_dimensions_[2]);
+  const auto* count = threads.as<IntImmNode>();
+  TVM_FFI_CHECK(!min_blocks_per_sm_ || (count && count->value > 0), ValueError)
+      << "min_blocks_per_sm requires static block dimensions";
+  if (count && count->value > 0 && (count->value != 1 || min_blocks_per_sm_)) {
+    os << " __launch_bounds__(" << count->value;
+    if (min_blocks_per_sm_) {
+      os << ", " << *min_blocks_per_sm_;
+      if (max_blocks_per_cluster_) os << ", " << *max_blocks_per_cluster_;
+    }
+    os << ")";
+  }
+}
+
+void CodeGenCUDA::Dispatch_(const ReturnNode* op) {
+  if (!in_kernel_launch_) {
+    // __device__ subroutines return real values.
+    CodeGenC::Dispatch_(op);
+    return;
+  }
+  const auto* value = op->value.as<IntImmNode>();
+  TVM_FFI_ICHECK(value && value->value == 0)
+      << "CUDA device kernel may only contain a successful early return, return 0";
+  PrintIndent();
+  stream << "return;\n";
+}
+
+std::string CodeGenCUDA::Finish() {
+  // Generate header
+  auto header_generator = ffi::Function::GetGlobal("tirx.intrinsics.cuda.header_generator");
+  TVM_FFI_ICHECK(header_generator.has_value())
+      << "tirx.intrinsics.cuda.header_generator is not defined";
+  ffi::Array<ffi::String> tags;
+  for (const auto& tag : codegen_tags_) tags.push_back(ffi::String(tag));
+  std::string header = header_generator.value()(tags).cast<ffi::String>().operator std::string();
+  decl_stream << header;
+
+  // Generate util functions
+  for (const auto& [name, code] : util_funcs_) {
+    decl_stream << code;
+  }
+
+  return CodeGenC::Finish();
+}
+
+void CodeGenCUDA::Dispatch_(const ForNode* op) {
+  // Materialize the loop bounds before emitting an unroll pragma.  PrintExpr
+  // may introduce temporaries (for example, for a Select expression).  CUDA
+  // requires #pragma unroll to immediately precede the loop it controls; if
+  // those declarations are printed between the pragma and the for statement,
+  // nvcc is free to unroll the loop despite disable_unroll.
+  std::string begin_str = PrintExpr(op->min);
+  PrimExpr end = IsZero(op->min) ? op->extent : sym::Analyzer()->Simplify(op->min + op->extent);
+  std::string end_str = PrintExpr(end);
+  std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
+  if (op->annotations.count(tvm::tirx::attr::kDisableUnroll)) {
+    PrintIndent();
+    stream << "#pragma unroll 1\n";
+  } else if (op->kind == ForKind::kUnrolled) {
+    PrintIndent();
+    stream << "#pragma unroll\n";
+  } else if (auto it = op->annotations.find(tvm::tirx::attr::kPragmaUnroll);
+             it != op->annotations.end()) {
+    PrintIndent();
+    stream << "#pragma unroll";
+    if (auto count = (*it).second.as<int64_t>()) {
+      stream << " " << count.value();
+    } else if (const auto* count = (*it).second.as<IntImmNode>()) {
+      stream << " " << count->value;
+    }
+    stream << "\n";
+  }
+  PrintIndent();
+  std::string vid = AllocVarID(op->loop_var.get());
+  stream << "for (";
+  PrintType(op->loop_var.ty(), stream);
+  stream << ' ' << vid << " = " << begin_str << "; " << vid << " < " << end_str << "; ";
+  if (step_str.empty()) {
+    stream << "++" << vid;
+  } else {
+    stream << vid << " += " << step_str;
+  }
+  stream << ") {\n";
+  int for_scope = BeginScope();
+  PrintStmt(op->body);
+  this->EndScope(for_scope);
+  PrintIndent();
+  stream << "}\n";
+}
+
+void CodeGenCUDA::Dispatch_(const WhileNode* op) {
+  PrintIndent();
+  // Match CodeGenC: dynamic-trip-count loops must not be unrolled.
+  stream << "#pragma unroll 1\n";
+  PrintIndent();
+  stream << "while (1) {\n";
+  int while_scope = BeginScope();
+  std::string cond = PrintExpr(op->condition);
+  PrintIndent();
+  stream << "if (!(" << cond << ")) { break; }\n";
+  PrintStmt(op->body);
+  this->EndScope(while_scope);
+  PrintIndent();
+  stream << "}\n";
+}
+
+void CodeGenCUDA::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {
+  TVM_FFI_ICHECK(!var_idmap_.count(var.get()));
+  const auto& scope = support::GPUThreadTag::Parse(thread_tag);
+  TVM_FFI_ICHECK_GE(scope.dim_index, 0);
+  TVM_FFI_ICHECK_LT(scope.dim_index, 3);
+  if (scope.rank == 2) {
+    const char dim = static_cast<char>('x' + scope.dim_index);
+    const std::string sreg = (scope.dim_index == 0 && cluster_cta_x_is_linear_rank_)
+                                 ? "cluster_ctarank"
+                                 : "cluster_ctaid." + std::string(1, dim);
+    const std::string func_name = std::string("tvm_builtin_cluster_ctaid_") + dim;
+    AddUtilFunction(func_name, "__forceinline__ __device__ unsigned int " + func_name +
+                                   "() {\n"
+                                   "  unsigned int ctaid;\n"
+                                   "  asm volatile(\"mov.u32 %0, %%" +
+                                   sreg +
+                                   ";\" : \"=r\"(ctaid) :);\n"
+                                   "  return ctaid;\n"
+                                   "}\n");
+    var_idmap_[var.get()] = CastFromTo(func_name + "()", PrimType::UInt(32), var.ty());
+  } else {
+    var_idmap_[var.get()] = CastFromTo(thread_tag, PrimType::UInt(32), var.ty());
+  }
+}
+
+void CodeGenCUDA::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
+  int lanes = t.lanes();
+  if (t.IsVoid()) {
+    os << "void";
+    return;
+  }
+
+  bool fail = false;
+  if (t.MatchesCode(DLDataTypeCode::kDLFloat)) {
+    switch (t.bits()) {
+      case 16:
+        codegen_tags_.insert("fp16");
+        if (t.IsScalar()) {
+          os << "half";
+        } else if (lanes <= 8) {
+          TVM_FFI_ICHECK_EQ(lanes % 2, 0) << "Only support an even number of lanes for half type";
+          if (lanes <= 4) {
+            os << "half" << lanes;
+          } else {
+            os << "uint" << lanes / 2;
+          }
+        } else {
+          fail = true;
+        }
+        break;
+      case 32:
+        if (lanes <= 4) {
+          os << "float";
+        } else if (lanes <= 8) {
+          // Emit CUDA code to access fp32 vector elements for 4 < lanes <= 8.
+          //
+          // float8 is stored as ulonglong4
+          //
+          // f8.v1 is emitted as *(float2*)(&(ul4.x)).x
+          // f8.v2 is emitted as *(float2*)(&(ul4.x)).y
+          //
+          TVM_FFI_ICHECK_EQ(lanes % 2, 0) << "only support even lane for float type with lanes > 4";
+          os << "ulonglong" << lanes / 2;
+        } else {
+          fail = true;
+        }
+        break;
+      case 64:
+        os << "double";
+        break;
+      default:
+        fail = true;
+        break;
+    }
+    if (!fail && (t.IsScalar() || t.bits() == 16)) return;
+    if (!fail && (lanes > 4 && lanes <= 8 && t.bits() == 32)) return;
+    if (!fail && (lanes >= 2 && lanes <= 4)) {
+      os << lanes;
+      return;
+    }
+  } else if (t.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
+    codegen_tags_.insert("bf16");
+    if (t.IsScalar()) {
+      os << "nv_bfloat16";
+    } else if (lanes <= 8) {
+      TVM_FFI_ICHECK_EQ(lanes % 2, 0) << "only support even lane for bfloat16 type";
+      if (lanes <= 4) {
+        os << "nv_bfloat16" << lanes;
+      } else {
+        os << "uint" << lanes / 2;
+      }
+    } else {
+      fail = true;
+    }
+    if (!fail) return;
+  } else if (IsFloat8(t)) {
+    codegen_tags_.insert("fp8");
+    if (lanes <= 4) {
+      os << GetFP8Type(t);
+    } else {
+      os << "uint" << lanes / 4;
+    }
+    return;
+  } else if (IsFloat6(t)) {
+    codegen_tags_.insert("fp6");
+    if (lanes <= 4) {
+      os << GetFP6Type(t);
+    } else {
+      fail = true;
+    }
+    return;
+  } else if (IsFloat4(t)) {
+    codegen_tags_.insert("fp4");
+    if (lanes <= 4) {
+      os << GetFP4Type(t);
+    } else {
+      fail = true;
+    }
+    return;
+  } else if (t == PrimType::Bool()) {
+    os << "bool";
+    return;
+  } else if (t.MatchesCode(DLDataTypeCode::kDLBool) && lanes > 1) {
+    // CUDA does not support bool vectors.
+    // Use ushort vectors to represent instead.
+    int n = lanes;
+    if (n <= 4) {
+      os << "ushort" << n;
+      return;
+    }
+  } else if (t.MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt)) {
+    if (t.bits() == 128 && t.IsScalar()) {
+      // nvcc's 128-bit integer, which is what a PTX .b128 operand binds to
+      // through the "q" constraint. Handled before the "u" prefix below,
+      // because the spelling is `__uint128_t`, not `u` + a signed name.
+      os << (t.MatchesCode(DLDataTypeCode::kDLUInt) ? "__uint128_t" : "__int128_t");
+      return;
+    }
+    if (t.MatchesCode(DLDataTypeCode::kDLUInt)) {
+      os << "u";
+    }
+    switch (t.bits()) {
+      case 1: {
+        if (t.IsScalar()) {
+          os << "int";
+          return;
+        } else if (lanes == 8) {
+          os << "int8_t";
+          return;
+        } else if (lanes == 16) {
+          os << "int16_t";
+          return;
+        } else if (lanes == 32) {
+          os << "int";
+          return;
+        } else {
+          TVM_FFI_THROW(InternalError) << "Cannot convert type " << t << " to CUDA type!";
+        }
+      }
+      case 4: {
+        if (t.IsScalar()) {
+          os << "int";
+          return;
+        } else if (lanes == 4) {
+          os << "int16_t";
+          return;
+        } else if (lanes == 8) {
+          // directly 8 4-bit int in integer.
+          os << "int";
+          return;
+        } else if (lanes == 16) {
+          os << "int2";
+          return;
+        } else if (lanes == 32) {
+          os << "int4";
+          return;
+        } else if (lanes == 64) {
+          os << "int8";
+          return;
+        } else {
+          TVM_FFI_THROW(InternalError) << "Cannot convert type " << t << " to CUDA type!";
+        }
+      }
+      case 8: {
+        if (lanes == 4) {
+          // directly 4 8 bit int in integer.
+          codegen_tags_.insert("int8");
+
+          // We use int for int8x4 instead of char4 because using char4 is
+          // likely to produce extra instructions to pack four int8 elements
+          // into 32-bit data.
+          os << "int";
+          return;
+        } else if (lanes == 8) {
+          codegen_tags_.insert("int8");
+          os << "int2";
+          return;
+        } else if (lanes == 16) {
+          codegen_tags_.insert("int8");
+          os << "int4";
+          return;
+        } else if (!t.MatchesCode(DLDataTypeCode::kDLUInt) && t.IsScalar()) {
+          os << "signed char";
+          break;
+        } else {
+          os << "char";
+          break;
+        }
+      }
+      case 16: {
+        if (t.IsScalar()) {
+          os << "short";
+        } else if (lanes <= 4) {
+          os << "short" << lanes;
+        } else if (lanes <= 8) {
+          // Emit CUDA code to access int16 vector elements.
+          //
+          // short4 is stored as int2
+          //
+          // s4.x is emitted as *(short2*)(&(i2.x)).x
+          // s4.y is emitted as *(short2*)(&(i2.x)).y
+          // s4.z is emitted as *(short2*)(&(i2.y)).x
+          // s4.w is emitted as *(short2*)(&(i2.y)).y
+          //
+          TVM_FFI_ICHECK_EQ(lanes % 2, 0) << "only support even lane for shorT type with lanes > 4";
+          os << "int" << lanes / 2;
+        } else {
+          fail = true;
+        }
+        if (!fail) {
+          return;
+        }
+        break;
+      }
+      case 32: {
+        if (t.IsScalar()) {
+          os << "int";
+        } else if (lanes <= 4) {
+          os << "int" << lanes;
+        } else if (lanes <= 8) {
+          // Emit CUDA code to access int32 vector elements for 4 < lanes <= 8.
+          //
+          // int8 is stored as longlong4
+          //
+          // i8.v1 is emitted as *(int2*)(&(l4.x)).x
+          // i8.v2 is emitted as *(int2*)(&(l4.x)).y
+          //
+          TVM_FFI_ICHECK_EQ(lanes % 2, 0) << "only support even lane for int32 type with lanes > 4";
+          os << "longlong" << lanes / 2;
+        } else {
+          fail = true;
+        }
+        if (!fail) {
+          return;
+        }
+        break;
+      }
+      case 64: {
+        if (t.IsScalar()) {
+          os << "int64_t";
+        } else if (lanes == 2) {
+          os << "longlong2";
+        } else if (lanes == 3) {
+          os << "longlong3";
+        } else if (lanes == 4) {
+          os << "longlong4";
+        }
+        return;
+      }
+
+      default:
+        fail = true;
+        break;
+    }
+    if (!fail && lanes == 1) {
+      return;
+    }
+    if (!fail && (lanes >= 2 && lanes <= 4)) {
+      os << lanes;
+      return;
+    }
+  }
+  TVM_FFI_THROW(InternalError) << "Cannot convert type " << t << " to CUDA type";
+}
+
+void CodeGenCUDA::PrintVecConstructor(const PrimType& t, std::ostream& os) {
+  os << "make_";
+  PrintType(t, os);
+}
+
+void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimExpr lhs,
+                                   PrimExpr rhs, std::ostream& os) {  // NOLINT(*)
+  // Declare the result.
+  std::string sret = name_supply_->FreshName("_");
+  this->PrintIndent();
+  this->PrintType(t, stream);
+  stream << ' ' << sret << ";\n";
+  int ssa_scope = BeginScope();
+  {
+    // Unpack into individual ops.
+    std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.ty());
+    std::string vrhs = SSAGetID(PrintExpr(rhs), rhs.ty());
+
+    for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
+      std::ostringstream value_temp;
+      if (isalpha(op[0])) {
+        value_temp << op << "(";
+        PrintVecElemLoad(vlhs, lhs.ty(), i, value_temp);
+        value_temp << ", ";
+        PrintVecElemLoad(vrhs, rhs.ty(), i, value_temp);
+        value_temp << ")";
+      } else {
+        value_temp << "(";
+        PrintVecElemLoad(vlhs, lhs.ty(), i, value_temp);
+        value_temp << op;
+        PrintVecElemLoad(vrhs, rhs.ty(), i, value_temp);
+        value_temp << ")";
+      }
+      PrintVecElemStore(sret, t, i, value_temp.str());
+    }
+  }
+  EndScope(ssa_scope);
+  os << sret;
+}
+
+void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, const PrimType& t, int i,
+                                   std::ostream& os) {  // NOLINT(*)
+  int lanes = t.lanes();
+  if (t.IsScalar()) {
+    os << vec;
+    return;
+  }
+
+  static const char access[] = {'x', 'y', 'z', 'w'};
+  TVM_FFI_ICHECK(i >= 0 && i < (t.bits() == 8 ? 16 : (t.bits() == 16 || t.bits() == 32) ? 8 : 4));
+  if (t.bits() == 8 && (t.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))) {
+    std::string type_name = t.MatchesCode(DLDataTypeCode::kDLInt) ? "signed char" : "unsigned char";
+    if (lanes == 2 || lanes == 3) {
+      os << vec << "." << access[i % lanes];
+    } else {
+      std::string ac = lanes == 4 ? vec : (vec + "." + access[i / 4]);
+      os << "(reinterpret_cast<const " << type_name << "*>(&(" << ac << "))[" << (i % 4) << "])";
+    }
+  } else if (t.MatchesElementType(DLDataTypeCode::kDLFloat, 16)) {
+    if (lanes <= 4) {
+      os << vec << "." << access[i];
+    } else {
+      os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+    }
+  } else if (t.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
+    if (lanes <= 4) {
+      os << vec << "." << access[i];
+    } else {
+      os << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+    }
+  } else if (lanes > 4 && lanes <= 8) {
+    std::string type_name;
+    if (t.bits() == 16) {
+      if (t.MatchesCode(DLDataTypeCode::kDLInt)) {
+        type_name = "short";
+      } else if (t.MatchesCode(DLDataTypeCode::kDLUInt)) {
+        type_name = "ushort";
+      }
+    } else if (t.bits() == 32) {
+      if (t.MatchesCode(DLDataTypeCode::kDLInt)) {
+        type_name = "int";
+      } else if (t.MatchesCode(DLDataTypeCode::kDLUInt)) {
+        type_name = "uint";
+      } else if (t.MatchesCode(DLDataTypeCode::kDLFloat)) {
+        type_name = "float";
+      }
+    }
+    TVM_FFI_ICHECK(!type_name.empty());
+    os << "((" << type_name << "2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+  } else if (IsFloat4(t)) {
+    os << "([](__nv_fp4_storage_t v) { __nv_fp4_e2m1 t; t.__x = v; return t; })((" << vec
+       << ".__x >> " << i * 4 << ") & 0xF)";
+  } else {
+    os << vec << "." << access[i];
+  }
+}
+
+void CodeGenCUDA::PrintVecElemStore(const std::string& vec, const PrimType& t, int i,
+                                    const std::string& value) {
+  int lanes = t.lanes();
+  this->PrintIndent();
+  static const char access[] = {'x', 'y', 'z', 'w'};
+  TVM_FFI_ICHECK(i >= 0 && i < (t.bits() == 8 ? 16 : (t.bits() == 16 || t.bits() == 32) ? 8 : 4));
+  if (t.bits() == 8 && (t.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))) {
+    if (lanes == 2 || lanes == 3) {
+      stream << vec << '.' << access[i % lanes] << "="
+             << "(" << value << ");\n";
+    } else {
+      std::string ac = lanes == 4 ? vec : (vec + "." + access[i / 4]);
+      std::string type_name =
+          t.MatchesCode(DLDataTypeCode::kDLInt) ? "signed char" : "unsigned char";
+      stream << "reinterpret_cast<" << type_name << "*>(&(" << ac << "))[" << (i % 4) << "] = ("
+             << type_name << ")(" << value << ");\n";
+    }
+  } else if (t.MatchesElementType(DLDataTypeCode::kDLFloat, 16)) {
+    if (lanes <= 4) {
+      stream << vec << "." << access[i] << " = " << value << ";\n";
+    } else {
+      stream << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2] << " = "
+             << value << ";\n";
+    }
+
+  } else if (t.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
+    if (lanes <= 4) {
+      stream << vec << "." << access[i] << " = " << value << ";\n";
+    } else {
+      stream << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2]
+             << " = " << value << ";\n";
+    }
+  } else if (lanes > 4 && lanes <= 8) {
+    std::string type_name;
+    if (t.bits() == 16) {
+      if (t.MatchesCode(DLDataTypeCode::kDLInt)) {
+        type_name = "short";
+      } else if (t.MatchesCode(DLDataTypeCode::kDLUInt)) {
+        type_name = "ushort";
+      }
+    } else if (t.bits() == 32) {
+      if (t.MatchesCode(DLDataTypeCode::kDLInt)) {
+        type_name = "int";
+      } else if (t.MatchesCode(DLDataTypeCode::kDLUInt)) {
+        type_name = "uint";
+      } else if (t.MatchesCode(DLDataTypeCode::kDLFloat)) {
+        type_name = "float";
+      }
+    }
+    TVM_FFI_ICHECK(!type_name.empty());
+    stream << "((" << type_name << "2*)(&(" << vec << "." << access[i / 2] << ")))->"
+           << access[i % 2] << " = " << value << ";\n";
+  } else {
+    stream << vec << "." << access[i] << " = " << value << ";\n";
+  }
+}
+
+void CodeGenCUDA::PrintStorageSync(const CallNode* op) {
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
+  if (sync == "warp") {
+    // DO nothing.
+  } else if (sync == "shared" || sync == "shared.dyn") {
+    this->PrintIndent();
+    this->stream << "__syncthreads();\n";
+  } else if (sync == "global") {
+    TVM_FFI_THROW(InternalError) << "Global storage synchronization is unsupported";
+  }
+}
+
+void CodeGenCUDA::PrintStorageScope(const runtime::MemoryScope& scope,
+                                    std::ostream& os) {  // NOLINT(*)
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+  static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+  TVM_FFI_ICHECK(scope != runtime::MemoryScope::Global())
+      << "Cannot allocate global memory when targeting CUDA. You must pass "
+         "all global arrays as input instead";
+  TVM_FFI_ICHECK(scope != runtime::MemoryScope::Get("warp"))
+      << "CUDA warp storage is unsupported; use explicit per-thread local storage and shuffles";
+  if (scope == scope_shared) {
+    os << "__shared__ ";
+  } else if (scope == scope_shared_dyn) {
+    os << "extern __shared__ ";
+  }
+}
+
+std::string CodeGenCUDA::CastFromTo(std::string value, const PrimType& from,
+                                    const PrimType& target) {
+  if (from == target) return value;
+  std::ostringstream os;
+  os << "((";
+  this->PrintType(target, os);
+  os << ")";
+  if (from.MatchesElementType(DLDataTypeCode::kDLFloat, 16) &&
+      (target.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && target.bits() == 8) {
+    os << "(";
+    if (target.MatchesCode(DLDataTypeCode::kDLUInt)) {
+      os << "u";
+    }
+    os << "int)";
+  }
+  os << value << ")";
+  return os.str();
+}
+
+void CodeGenCUDA::AddUtilFunction(const std::string& func_name, const std::string& code) {
+  auto it = this->util_funcs_.find(func_name);
+  if (it != this->util_funcs_.end()) {
+    TVM_FFI_ICHECK_EQ(it->second, code)
+        << "Function " << func_name << " already exists with different code";
+    return;
+  }
+  this->util_funcs_.insert({func_name, code});
+}
+
+void CodeGenCUDA::Dispatch_(const prim::CastNode* op, std::ostream& os) {
+  PrimType from_ty = op->value.ty();
+  PrimType target_ty = op->ty.as_or_throw<PrimType>();
+  TVM_FFI_ICHECK_EQ(target_ty.lanes(), from_ty.lanes());
+
+  // Emit simple C-style type conversion.
+  if (from_ty.IsScalar()) return CodeGenC::Dispatch_(op, os);
+
+  if (IsPackedFloat(target_ty) || IsPackedFloat(from_ty)) {
+    std::ostringstream val;
+    if (target_ty.MatchesCode(DLDataTypeCode::kDLBfloat) && target_ty.lanes() == 2) {
+      val << "cast_to_nv_bfloat162(" << PrintExpr(op->value) << ")";
+    } else {
+      val << "(";
+      PrintType(target_ty, val);
+      val << ")(" << PrintExpr(op->value) << ")";
+    }
+    os << val.str();
+    return;
+  }
+
+  // We could emit make_float4 like calls, but the emitted code looks
+  // too compact to read. Emit this as vectorized unary ops.
+  std::string sret = name_supply_->FreshName("_");
+  this->PrintIndent();
+  this->PrintType(target_ty, stream);
+  stream << ' ' << sret << ";\n";
+  {
+    std::string src = SSAGetID(PrintExpr(op->value), from_ty);
+    for (int i = 0, lanes = from_ty.lanes(); i < lanes; ++i) {
+      std::ostringstream val;
+      val << "(";
+      PrintType(target_ty.WithLanes(1), val);
+      val << ")(";
+      PrintVecElemLoad(src, from_ty, i, val);
+      val << ")";
+      PrintVecElemStore(sret, target_ty, i, val.str());
+    }
+  }
+  os << sret;
+}
+
+void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
+                                  const ffi::Array<Expr>& args, bool skip_first_arg,
+                                  std::ostream& os) {  // NOLINT(*)
+  auto ret_prim_type = ret_type.as<PrimType>();
+  if (ret_prim_type && ret_prim_type.value().IsFixedLengthVector()) {
+    PrimType ret_ty = ret_prim_type.value();
+    //
+    // Emit an unsupported vector call
+    //
+    // v = intrin_f((float4*)A[0], (float4*)B[0])
+    //
+    // as
+    //
+    // float4 __ret;
+    // {
+    //   float4 __arg0 = ((float4*)A)[0];
+    //   float4 __arg1 = ((float4*)B)[0];
+    //   __ret.x = intrin_f(__arg0.x, __arg1.x);
+    //   __ret.y = intrin_f(__arg0.y, __arg1.y);
+    //   __ret.z = intrin_f(__arg0.z, __arg1.z);
+    //   __ret.w = intrin_f(__arg0.w, __arg1.w);
+    // }
+    // v = __ret;
+    //
+    // Declare the result vector.
+    std::string sret = name_supply_->FreshName("_");
+    this->PrintIndent();
+    this->PrintType(ret_ty, stream);
+    stream << ' ' << sret << ";\n";
+    {
+      // Load arguments.
+      std::vector<std::string> sargs;
+      size_t arg_begin = static_cast<size_t>(skip_first_arg);
+      for (size_t i = arg_begin; i < args.size(); ++i) {
+        Expr arg = args[i];
+        std::string val = SSAGetID(PrintExpr(arg), arg->ty);
+        sargs.push_back(std::move(val));
+      }
+
+      // Emit a scalar call for each lane.
+      for (int i = 0; i < ret_ty.lanes(); ++i) {
+        std::ostringstream scall;
+        scall << global_symbol << "(";
+        for (size_t j = 0; j < sargs.size(); ++j) {
+          if (j > 0) scall << ", ";
+          Type arg_type = args[arg_begin + j]->ty;
+          if (auto prim_type = arg_type.as<PrimType>()) {
+            PrintVecElemLoad(sargs[j], prim_type.value(), i, scall);
+          } else {
+            TVM_FFI_ICHECK(arg_type.as<PtrTypeNode>());
+            scall << sargs[j];
+          }
+        }
+        scall << ")";
+        PrintVecElemStore(sret, ret_ty, i, scall.str());
+      }
+    }
+    os << sret;
+  } else {
+    CodeGenC::PrintCallExtern(ret_type, global_symbol, args, skip_first_arg, os);
+  }
+}
+
+void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
+  if (auto intrinsic = op->op.as<OpNode>()) {
+    const std::string name(intrinsic->name);
+    const char* vector = nullptr;
+    if (name == "tirx.cuda.block_idx") vector = "blockIdx";
+    if (name == "tirx.cuda.thread_idx") vector = "threadIdx";
+    if (name == "tirx.cuda.block_dim") vector = "blockDim";
+    if (name == "tirx.cuda.grid_dim") vector = "gridDim";
+    if (vector) {
+      os << "((int)" << vector << "." << op->args[0].as_or_throw<StringImm>()->value << ")";
+      return;
+    }
+  }
+
+  if (op->op.same_as(prim::isnan_op()) && op->ty.as_or_throw<PrimType>().lanes() > 1) {
+    // CUDA vector comparisons do not produce a lane-wise boolean vector.
+    // Reuse the scalar comparison path for every lane, including packed half.
+    PrimExpr value = op->args[0].as_or_throw<PrimExpr>();
+    PrintVecBinaryOp("!=", op->ty.as_or_throw<PrimType>(), value, value, os);
+    return;
+  }
+  if (auto opt_call_opt = op->op.as<Op>()) {
+    Op call_op = opt_call_opt.value();
+    // This is only for backward compatibility with __shfl_{up/down}.
+    // A macro will be used to replace *_sync calls to legacy ones.
+    if (op_need_warp_shuffle_.get(call_op, false)) {
+      codegen_tags_.insert("warp_shuffle");
+    }
+  }
+
+  auto print_cuda_func_call = [&](const CallNode* op, std::ostream& os) {
+    TVM_FFI_ICHECK_GE(op->args.size(), 2U);
+    size_t num_args = op->args.size() - 2;
+    std::vector<std::string> args;
+    for (size_t i = 1; i < num_args + 1; i++) {
+      args.push_back(this->PrintExpr(op->args[i]));
+    }
+    std::string source_code = op->args[num_args + 1].as<StringImmNode>()->value;
+    std::string func_name = op->args[0].as<StringImmNode>()->value;
+    os << func_name << "(";
+    for (size_t i = 0; i < num_args; i++) {
+      const auto& arg = args[i];
+      os << arg;
+      if (i < num_args - 1) {
+        os << ", ";
+      }
+    }
+    os << ")";
+    AddUtilFunction(func_name, source_code);
+  };
+
+  if (auto opt_call_opt = op->op.as<Op>()) {
+    Op call_op = opt_call_opt.value();
+    auto codegen_getter = tvm::ffi::Function::GetGlobal("tirx.intrinsics.cuda.get_codegen");
+    TVM_FFI_ICHECK(codegen_getter.has_value())
+        << "tirx.intrinsics.cuda.get_codegen is not registered";
+    // either codegen is registered or not
+    auto codegen = codegen_getter.value()(call_op->name).cast<ffi::Optional<tvm::ffi::Function>>();
+    if (codegen.has_value()) {
+      // codegen is registered, it should return a Call to cuda_func_call
+      auto func_call = codegen.value()(op->args, op->attrs);
+      auto res = func_call.cast<ffi::Tuple<Call, ffi::Array<ffi::String>>>();
+      print_cuda_func_call(res.get<0>().get(), os);
+      for (const auto& tag : res.get<1>()) {
+        codegen_tags_.insert(tag.operator std::string());
+      }
+      return;
+    }
+  }
+
+  static const Op cuda_func_call_op = Op::Get("tirx.cuda.func_call");
+
+  if (op->op.same_as(tirx::reinterpret_op())) {
+    // Compile-time pointer reinterpret of a literal (e.g. a tcgen05 descriptor
+    // template encoded at address 0): emit C++-style reinterpret_cast<T*>(...)
+    // to match the encoded template. Runtime pointer reinterprets fall through
+    // to CodeGenC, which emits the C-style (T*)... cast.
+    if (op->ty.as<PtrTypeNode>() && op->args[0].as<IntImmNode>()) {
+      os << "reinterpret_cast<";
+      if (const auto* pt = op->ty.as<PtrTypeNode>()) {
+        if (const auto* et = pt->element_type.as<PrimTypeNode>()) {
+          this->PrintType(ffi::GetRef<PrimType>(et), os);
+        } else {
+          os << "void";
+        }
+      }
+      os << "*>(" << PrintExpr(op->args[0]) << ")";
+      return;
+    }
+    auto tgt_prim_type = op->ty.as<PrimType>();
+    auto src_prim_type = op->args[0]->ty.as<PrimType>();
+
+    if (op->args[0]->ty.as<PtrTypeNode>() && tgt_prim_type && tgt_prim_type.value().IsScalar() &&
+        tgt_prim_type.value().MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt) &&
+        tgt_prim_type.value().bits() == 64) {
+      os << "reinterpret_cast<";
+      this->PrintType(tgt_prim_type.value(), os);
+      os << ">(" << PrintExpr(op->args[0]) << ")";
+      return;
+    }
+
+    if (!tgt_prim_type || !src_prim_type) {
+      return CodeGenC::Dispatch_(op, os);
+    }
+
+    PrimType tgt_ty = op->ty.as_or_throw<PrimType>();
+    PrimExpr value = op->args[0].as_or_throw<PrimExpr>();
+    PrimType src_ty = value.ty();
+
+    // Handle float4_e2m1fn reinterpret
+    if (!IsFloat4(src_ty) && !IsFloat4(tgt_ty)) {
+      return CodeGenC::Dispatch_(op, os);
+    }
+    if (src_ty == tgt_ty || tgt_ty.lanes() * tgt_ty.bits() == src_ty.lanes() * src_ty.bits()) {
+      return CodeGenC::Dispatch_(op, os);
+    }
+    TVM_FFI_ICHECK_EQ(tgt_ty.lanes(), src_ty.lanes())
+        << "E2M1 float4 reinterpret expects source and target to have the same number of lanes. "
+        << "Source dtype: " << src_ty << ", Target dtype: " << tgt_ty;
+    TVM_FFI_ICHECK_EQ(tgt_ty.StorageBytes(), src_ty.StorageBytes())
+        << "E2M1 float4 reinterpret expects source and target to have the same number of bytes. "
+        << "Source dtype: " << src_ty << ", Target dtype: " << tgt_ty;
+
+    int lanes = tgt_ty.lanes();
+
+    int ssa_scope = BeginScope();
+    if (lanes == 1) {
+      // The case of lane=1 is same as the normal reinterpret,
+      // except that we allow the src and dst dtype to have different number of bits.
+      std::string rhs = SSAGetID(PrintExpr(value), src_ty);
+      os << "(*(";
+      this->PrintType(tgt_ty, os);
+      os << " *)(&(" << rhs << ")))";
+    } else if (lanes == 2) {
+      if (IsFloat4(tgt_ty)) {
+        // We view the source as an uint16, and then extract bits of two fp4 numbers,
+        // and finally reinterpret the result as fp4x2.
+        value = Call(PrimType::UInt(16), tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>();
+        PrimVar temp_var("temp_var", PrimType::UInt(16));
+        value = prim::Let(temp_var, value,
+                          prim::Cast((temp_var & IntImm(PrimType::UInt(16), 0xF)) |
+                                         ((temp_var >> 4) & IntImm(PrimType::UInt(16), 0xF0)),
+                                     PrimType::UInt(8)));
+      } else {
+        value = prim::Cast(
+            Call(PrimType::UInt(8), tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>(),
+            PrimType::UInt(16));
+        PrimVar temp_var("temp_var", PrimType::UInt(16));
+        value = prim::Let(temp_var, value,
+                          (temp_var & IntImm(PrimType::UInt(16), 0xF)) |
+                              ((temp_var & IntImm(PrimType::UInt(16), 0xF0)) << 4));
+      }
+      os << PrintExpr(Call(tgt_ty, tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>());
+    } else if (lanes == 4) {
+      if (IsFloat4(tgt_ty)) {
+        // We view the source as an uint32, and then extract bits of four fp4 numbers,
+        // and finally reinterpret the result as fp4x4.
+        value = Call(PrimType::UInt(32), tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>();
+        PrimVar temp_var("temp_var", PrimType::UInt(32));
+        value = prim::Let(temp_var, value,
+                          prim::Cast((temp_var & IntImm(PrimType::UInt(32), 0xF)) |
+                                         ((temp_var >> 4) & IntImm(PrimType::UInt(32), 0xF0)) |
+                                         ((temp_var >> 8) & IntImm(PrimType::UInt(32), 0xF00)) |
+                                         ((temp_var >> 12) & IntImm(PrimType::UInt(32), 0xF000)),
+                                     PrimType::UInt(16)));
+      } else {
+        value = prim::Cast(
+            Call(PrimType::UInt(16), tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>(),
+            PrimType::UInt(32));
+        PrimVar temp_var("temp_var", PrimType::UInt(32));
+        value = prim::Let(temp_var, value,
+                          (temp_var & IntImm(PrimType::UInt(32), 0xF)) |
+                              ((temp_var & IntImm(PrimType::UInt(32), 0xF0)) << 4) |
+                              ((temp_var & IntImm(PrimType::UInt(32), 0xF00)) << 8) |
+                              ((temp_var & IntImm(PrimType::UInt(32), 0xF000)) << 12));
+      }
+      os << PrintExpr(Call(tgt_ty, tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>());
+    } else {
+      TVM_FFI_THROW(InternalError)
+          << "Invalid number of lanes for float4_e2m1fn reinterpret: " << lanes;
+    }
+    EndScope(ssa_scope);
+  } else if (op->op.same_as(cuda_func_call_op) ||
+             (op->op.as<Op>() && op->op.as<Op>().value()->name == "tirx.cuda.func_call")) {
+    print_cuda_func_call(op, os);
+  } else if (op->op.same_as(tirx::gpu_thread_return_op())) {
+    os << "return";
+  } else {
+    CodeGenC::Dispatch_(op, os);
+  }
+}
+
+void CodeGenCUDA::Dispatch_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>(); call) {
+    if (call->op.same_as(tirx::alloc_tensor_op())) return DispatchAllocTensor(op, call);
+  }
+  CodeGenC::Dispatch_(op);
+}
+
+void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
+  static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+  tvm::Tuple shape = tvm::Tuple(buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->shape);
+  DLDataType dtype = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->dtype->dtype;
+  runtime::MemoryScope scope = buffer_call->ty_args[0].as_or_throw<tirx::TensorType>()->scope;
+  TensorVar buffer = op->var.as_or_throw<TensorVar>();
+  DictAttrs annotations = buffer_call->attrs.value().as_or_throw<DictAttrs>();
+  TVM_FFI_ICHECK(buffer.defined());
+  std::string vid = AllocVarID(buffer.get(), buffer->name + "_ptr");
+
+  this->PrintIndent();
+  PrintStorageScope(scope, stream);
+  int align = buffer.ty()->data_alignment;
+  auto it = annotations->dict.find(tvm::tirx::attr::kTensorDataAlignment);
+  if (it != annotations->dict.end()) {
+    if (const auto* n = (*it).second.as<IntImmNode>()) {
+      align = n->value.as<int>().value();
+    }
+  }
+  if (align > 0 && scope == scope_shared_dyn) {
+    stream << "__align__(" << align << ") ";
+  } else if (align > 0) {
+    stream << "alignas(" << align << ") ";
+  }
+  PrintType(PrimType(dtype), stream);
+
+  if (scope == scope_shared_dyn) {
+    stream << ' ' << vid << "[];\n";
+  } else {
+    // Compute constant_size from buffer shape
+    size_t constant_size = 1;
+    for (const auto& dim : shape->fields) {
+      const IntImmNode* dim_imm = dim.as<IntImmNode>();
+      TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
+      constant_size *= dim_imm->value.as<size_t>().value();
+    }
+    TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
+
+    bool is_packed_integer_dtype = PrimType(dtype) == PrimType::Int(4) ||
+                                   PrimType(dtype) == PrimType::UInt(4) ||
+                                   PrimType(dtype) == PrimType::Int(1);
+    if (is_packed_integer_dtype && scope == scope_shared) {
+      constant_size = constant_size / (32 / dtype.bits);
+    }
+    stream << ' ' << vid << '[' << constant_size << "];\n";
+  }
+
+  RegisterHandleType(buffer.get(), PrimType(dtype));
+  if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
+    MarkVolatile(buffer.get());
+  }
+}
+
+void CodeGenCUDA::Dispatch_(const EvaluateNode* op) {
+  if (auto value = op->value.as<PrimExpr>(); value && IsConstInt(value.value())) return;
+  CodeGenC::Dispatch_(op);
+}
+
+void CodeGenCUDA::Dispatch_(const prim::RampNode* op, std::ostream& os) {
+  PrimType op_ty = op->ty.as_or_throw<PrimType>();
+  int lanes = op_ty.lanes();
+  if (lanes <= 4) {
+    PrintVecConstructor(op_ty, os);
+    os << "(";
+    for (int i = 0; i < lanes; i++) {
+      os << "(" << PrintExpr(op->base) << ")"
+         << "+(" << PrintExpr(op->stride) << "*" << i << ")";
+      if (i != lanes - 1) os << ", ";
+    }
+    os << ")";
+    return;
+  }
+
+  // Use lane-wise stores for wide vectors (e.g. fp16x8/int32x8), where CUDA
+  // constructor argument layout does not match TIR vector lane layout.
+  std::string sret = name_supply_->FreshName("_");
+  this->PrintIndent();
+  this->PrintType(op_ty, stream);
+  stream << ' ' << sret << ";\n";
+  int ssa_scope = BeginScope();
+  {
+    std::string vbase = SSAGetID(PrintExpr(op->base), op->base.ty());
+    std::string vstride = SSAGetID(PrintExpr(op->stride), op->stride.ty());
+    for (int i = 0; i < lanes; ++i) {
+      std::ostringstream value_temp;
+      value_temp << "(" << vbase << ")+(" << vstride << "*" << i << ")";
+      PrintVecElemStore(sret, op_ty, i, value_temp.str());
+    }
+  }
+  EndScope(ssa_scope);
+  os << sret;
+}
+
+void CodeGenCUDA::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+  PrimType op_ty = op->ty.as_or_throw<PrimType>();
+  int lanes = op_ty.lanes();
+  if ((op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && op_ty.bits() == 8 &&
+      lanes == 4) {
+    // make_int8x4
+    const auto* imm = op->value.as<IntImmNode>();
+    auto p = imm ? imm->value.as<int64_t>() : std::nullopt;
+    TVM_FFI_ICHECK(p.has_value());
+    int64_t v = *p & 0xFF;
+    v = (v << 24) | (v << 16) | (v << 8) | v;
+    if (op_ty.MatchesCode(DLDataTypeCode::kDLUInt)) {
+      os << "(uint)" << v;
+    } else {
+      os << "(int)" << v;
+    }
+    return;
+  }
+
+  if (op_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16)) {
+    std::string v = PrintExpr(op->value);
+    PrintVecConstructor(op_ty, os);
+    os << '(';
+    if (lanes <= 4) {
+      for (int i = 0; i < lanes / 2; ++i) {
+        if (i != 0) os << ", ";
+        os << v << ", " << v;
+      }
+    } else {
+      for (int i = 0; i < lanes / 2; ++i) {
+        if (i != 0) os << ", ";
+        os << "__pack_half2(" << v << ", " << v << ")";
+      }
+    }
+    os << ')';
+    return;
+  }
+
+  if (op_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
+    std::string v = PrintExpr(op->value);
+    PrintVecConstructor(op_ty, os);
+    os << '(';
+    if (lanes > 4) {
+      for (int i = 0; i < lanes / 2; ++i) {
+        if (i != 0) os << ", ";
+        os << "__pack_nv_bfloat162(" << v << ", " << v << ")";
+      }
+    } else {
+      for (int i = 0; i < lanes; ++i) {
+        if (i != 0) os << ", ";
+        os << v;
+      }
+    }
+    os << ')';
+    return;
+  }
+
+  if (IsFloat8(op_ty) || IsFloat4(op_ty)) {
+    TVM_FFI_ICHECK(lanes == 1 || lanes == 2 || lanes == 4);
+    std::string v = PrintExpr(op->value);
+    // Implicit conversion from float back to fp8
+    PrintType(op_ty, os);
+    os << "(make_float" << lanes << "(";
+    for (int i = 0; i < lanes; ++i) {
+      if (i != 0) os << ", ";
+      os << "static_cast<float>(" << v << ")";
+    }
+    os << "))";
+    return;
+  }
+
+  if ((op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && op_ty.bits() == 4) {
+    bool fail = false;
+    const auto* imm = op->value.as<IntImmNode>();
+    auto p = imm ? imm->value.as<int64_t>() : std::nullopt;
+    TVM_FFI_ICHECK(p.has_value());
+    int64_t v = *p & 0xF;
+
+    if (lanes == 4) {
+      v = (v << 12) | (v << 8) | (v << 4) | v;
+      if (op_ty.MatchesCode(DLDataTypeCode::kDLUInt)) {
+        os << "(uint16_t)" << v;
+      } else {
+        os << "(int16_t)" << v;
+      }
+    } else {
+      v = (v << 28) | (v << 24) | (v << 20) | (v << 16) | (v << 12) | (v << 8) | (v << 4) | v;
+      if (lanes == 8) {
+        if (op_ty.MatchesCode(DLDataTypeCode::kDLUInt)) {
+          os << "(uint)" << v;
+        } else {
+          os << "(int)" << v;
+        }
+      } else if (lanes == 16 || lanes == 32) {
+        PrintVecConstructor(op_ty, os);
+        os << '(';
+        for (int i = 0; i < lanes / 8; ++i) {
+          if (i != 0) os << ", ";
+          if (op_ty.MatchesCode(DLDataTypeCode::kDLUInt)) {
+            os << "(uint)" << v;
+          } else {
+            os << "(int)" << v;
+          }
+        }
+        os << ')';
+      } else {
+        fail = true;
+      }
+    }
+
+    if (!fail) {
+      return;
+    }
+  }
+
+  std::string v = PrintExpr(op->value);
+  PrintVecConstructor(op_ty, os);
+  os << '(';
+  for (int i = 0; i < lanes; ++i) {
+    if (i != 0) os << ", ";
+    os << v;
+  }
+  os << ')';
+}
+
+void CodeGenCUDA::Dispatch_(const prim::SelectNode* op, std::ostream& os) {
+  PrimType op_ty = op->ty.as_or_throw<PrimType>();
+  // Non-vector cases.
+  if (!op_ty.IsFixedLengthVector()) {
+    CodeGenC::Dispatch_(op, os);
+    return;
+  }
+
+  // Codegen vector condition case by serializing the select op.
+  TVM_FFI_ICHECK(op->false_value.ty() == op_ty && op->true_value.ty() == op_ty &&
+                 op_ty.lanes() == op->condition.ty().lanes());
+
+  std::string r_var = name_supply_->FreshName("_");
+  this->PrintIndent();
+  this->PrintType(op_ty, stream);
+  stream << ' ' << r_var << ";\n";
+  {
+    std::string c_var = SSAGetID(PrintExpr(op->condition), op_ty);
+    std::string t_var = SSAGetID(PrintExpr(op->true_value), op_ty);
+    std::string f_var = SSAGetID(PrintExpr(op->false_value), op_ty);
+
+    // The condition is stored as an ushort vector.
+    int lanes = op_ty.lanes();
+    PrimType memory_ty = PrimType::UInt(16, lanes);
+
+    for (int i = 0; i < lanes; ++i) {
+      std::ostringstream item;
+      item << "(bool(";
+      PrintVecElemLoad(c_var, memory_ty, i, item);
+      item << ")?";
+      PrintVecElemLoad(t_var, op_ty, i, item);
+      item << ':';
+      PrintVecElemLoad(f_var, op_ty, i, item);
+      item << ')';
+      PrintVecElemStore(r_var, op_ty, i, item.str());
+    }
+  }
+  os << r_var;
+}
+
+inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p) {  // NOLINT(*)
+  PrimType op_ty = op->ty.as_or_throw<PrimType>();
+  // Type code is kBFloat
+  if (op_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
+    os << "__float2bfloat16_rn";
+    os << '(' << std::hexfloat << op->value << 'f';
+    os << "/*" << std::scientific << op->value << "*/";
+    os << ')';
+    return;
+  }
+  // Type code is kFloat8_e5m2 or kE4M4Float
+  if (IsFloat8(op_ty) || IsFloat4(op_ty)) {
+    p->PrintType(op_ty, os);
+    os << '(' << std::hexfloat << op->value << 'f';
+    os << "/*" << std::scientific << op->value << "*/";
+    os << ')';
+    return;
+  }
+  // Type code is kFloat
+  switch (op_ty.bits()) {
+    case 64: {
+      std::ostringstream temp;
+      if (std::isinf(op->value)) {
+        if (op->value < 0) {
+          temp << "-";
+        }
+        temp << "CUDART_INF";
+        p->codegen_tags_.insert("math_constants");
+      } else if (std::isnan(op->value)) {
+        temp << "CUDART_NAN";
+        p->codegen_tags_.insert("math_constants");
+      } else {
+        temp << std::fixed << std::setprecision(15) << op->value;
+      }
+      p->MarkConst(temp.str());
+      os << temp.str();
+      break;
+    }
+    case 32: {
+      std::ostringstream temp;
+      if (std::isinf(op->value)) {
+        if (op->value < 0) {
+          temp << "-";
+        }
+        temp << "CUDART_INF_F";
+        p->codegen_tags_.insert("math_constants");
+      } else if (std::isnan(op->value)) {
+        temp << "CUDART_NAN_F";
+        p->codegen_tags_.insert("math_constants");
+      } else {
+        temp << std::hexfloat << op->value << 'f';
+        temp << "/*" << std::scientific << op->value << "*/";
+      }
+      p->MarkConst(temp.str());
+      os << temp.str();
+      break;
+    }
+    case 16: {
+      os << "__float2half_rn" << '(';
+      FloatImm const_f32 = FloatImm(PrimType::Float(32), op->value);
+      PrintConst(const_f32.get(), os, p);
+      os << ')';
+      break;
+    }
+    default:
+      TVM_FFI_THROW(InternalError) << "Bad bit-width for float: " << op_ty << "\n";
+  }
+}
+
+void CodeGenCUDA::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintConst(op, os, this);
+}
+
+void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const TensorLoadNode* op,
+                                      std::ostream& os) {
+  // Cast away volatile qualifier for fp16 types. That is, only loads and
+  // stores are volatile. The loaded objects are not marked as volatile.
+  //
+  PrimType op_ty = op->ty.as_or_throw<PrimType>();
+  if ((op_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16) ||
+       op_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) &&
+      IsVolatile(op->source.as_or_throw<tvm::tirx::TensorVar>().get())) {
+    os << "(";
+    PrintType(op_ty, os);
+    os << ")(" << value << ")";
+  } else {
+    os << value;
+  }
+}
+
+void CodeGenCUDA::PrintVecElemLoadExpr(const PrimType& t, int i, const std::string& value,
+                                       std::ostream& os) {
+  int lanes = t.lanes();
+  TVM_FFI_ICHECK_GT(lanes, 1);
+  if (t.bits() == 8 && (t.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))) {
+    if (!(lanes == 2 || lanes == 3)) {
+      if (i != 0) {
+        os << "|";
+      }
+      os << "((0x000000ff << " << i * 8 << ") & (" << value << " << " << i * 8 << "))";
+      return;
+    }
+  }
+
+  if (t.MatchesElementType(DLDataTypeCode::kDLFloat, 16)) {
+    if (i == 0) {
+      PrintVecConstructor(t, os);
+      os << '(';
+    }
+    if (i == lanes - 1) {
+      os << value << ")";
+    } else {
+      os << value << ",";
+    }
+    return;
+  }
+
+  if (t.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
+    if (i == 0) {
+      PrintVecConstructor(t, os);
+      os << '(';
+    }
+    if (i == lanes - 1) {
+      os << value << ")";
+    } else {
+      os << value << ",";
+    }
+    return;
+  }
+
+  if (i == 0) {
+    PrintVecConstructor(t, os);
+    os << "(";
+  }
+  os << value;
+  if (i != lanes - 1) {
+    os << ",";
+  } else {
+    os << ")";
+  }
+  return;
+}
+
+// CUDA codegen entry point.  Generates CUDA C++ source, optionally lets a
+// Python postproc hook rewrite it, and hands the source bytes off to the
+// fallback-aware module factory.  The factory may JIT to PTX/cubin via
+// `tvm_callback_cuda_compile` when
+// USE_CUDA=ON; on USE_CUDA=OFF builds (or when TVM_COMPILE_FORCE_FALLBACK is
+// set), it returns a `CUDAFallbackModuleObj` carrying the raw source for
+// later cross-compile.
+ffi::Module BuildCUDA(IRModule mod, Target target) {
+  bool output_ssa = false;
+  CodeGenCUDA cg(target);
+  cg.Init(output_ssa);
+
+  ffi::Map<GlobalVar, Function> functions;
+  for (auto [gvar, base_func] : mod->functions) {
+    TVM_FFI_ICHECK(base_func->IsInstance<FunctionNode>()) << "CodeGenCUDA: Can only take Function";
+    auto function = base_func.as_or_throw<Function>();
+    CallingConv calling_conv =
+        function->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
+    TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch ||
+                   calling_conv == CallingConv::kDefault)
+        << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch or "
+           "CallingConv::kDefault";
+    functions.Set(gvar, function);
+  }
+
+  for (auto [gvar, function] : functions) {
+    cg.DeclareFunction(gvar, function);
+  }
+  for (auto [gvar, function] : functions) {
+    cg.AddFunction(gvar, function);
+  }
+
+  std::string code = cg.Finish();
+
+  if (auto f = ffi::Function::GetGlobal("tvm_callback_cuda_postproc")) {
+    code = (*f)(code, target).cast<std::string>();
+  }
+
+  // Hand off raw CUDA source to the fallback-aware factory.  When the real
+  // CUDA runtime is registered (USE_CUDA=ON and not forced-fallback) the
+  // factory invokes tvm_callback_cuda_compile and
+  // builds a real CUDAModuleObj.  Otherwise it stores the source in a
+  // CUDAFallbackModuleObj for later cross-compile.
+  ffi::Map<ffi::String, ffi::String> source_map;
+  auto config = mod->GetAttr<ffi::String>("backend_config");
+  if (!config.has_value()) {
+    // Direct codegen callers still resolve an explicit target, without relying
+    // on a current Target scope or compiler environment variables.
+    auto resolve = ffi::Function::GetGlobalRequired("cuda.resolve_backend_config");
+    auto resolved = resolve("", "", target).cast<ffi::Array<ffi::Any>>();
+    config = resolved[1].cast<ffi::String>();
+  }
+  source_map.Set("backend_config", config.value());
+  return ::tvm::target::CUDAModuleCreateWithFallback(
+      ffi::Bytes(code.data(), code.size()), ffi::String("cuda"), ExtractFuncInfo(mod), source_map);
+}
+
+void RegisterCudaCodegen() {
+  static bool registered = false;
+  if (registered) return;
+  registered = true;
+
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("target.build.cuda", BuildCUDA);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterCudaCodegen(); }
+
+}  // namespace codegen
+}  // namespace tvm

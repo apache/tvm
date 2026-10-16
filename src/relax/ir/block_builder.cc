@@ -24,6 +24,7 @@
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr_functor.h>
@@ -58,7 +59,7 @@ using namespace tvm::prim;
 //---------------------------------------
 // ctx and scope management.
 //---------------------------------------
-class BlockBuilderImpl : public BlockBuilderNode {
+class BlockBuilderImpl : public BlockBuilderObj {
  public:
   explicit BlockBuilderImpl(IRModule context_mod) : context_mod_(std::move(context_mod)) {}
 
@@ -90,13 +91,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
       GlobalVar gvar(func_name);
 
       Type finfo = Type::Missing();
-      if (!func->ty.IsMissing()) {
+      if (!func->ty.as<MissingType>().has_value()) {
         finfo = GetType(func);
-      } else if (auto* prim_func = func.as<tirx::PrimFuncNode>()) {
-        // NOTE: use a slightly different type than checked type
-        // in PrimFunc so handle can turn into Tensor.
-        // TODO(relax-team): add fine-grained PrimFunc type signature generation.
-        finfo = FuncType::OpaqueFunc(TypeFromStaticType(prim_func->ret_type));
       } else {
         TVM_FFI_THROW(RuntimeError) << "Expect ty field to be populated";
       }
@@ -275,8 +271,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
             << "Cannot emit dataflow var in non-dataflow block";
       }
       // normalized check
-      TVM_FFI_ICHECK(!var_binding->var->ty.IsMissing());
-      TVM_FFI_ICHECK(!var_binding->value->ty.IsMissing());
+      TVM_FFI_ICHECK(!var_binding->var->ty.as<MissingType>().has_value());
+      TVM_FFI_ICHECK(!var_binding->value->ty.as<MissingType>().has_value());
       cur_frame->bindings.push_back(binding);
       binding_table_.insert_or_assign(var_binding->var, var_binding->value);
     } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
@@ -285,8 +281,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
             << "Cannot emit dataflow var in non-dataflow block";
       }
       // normalized check
-      TVM_FFI_ICHECK(!match_cast->var->ty.IsMissing());
-      TVM_FFI_ICHECK(!match_cast->value->ty.IsMissing());
+      TVM_FFI_ICHECK(!match_cast->var->ty.as<MissingType>().has_value());
+      TVM_FFI_ICHECK(!match_cast->value->ty.as<MissingType>().has_value());
       // NOTE match shape do not follow simple binding rule
       // as a result should not appear in binding table.
       cur_frame->bindings.push_back(binding);
@@ -444,7 +440,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   };
 
   /*!
-   * \brief A hashmap to store the mapping of Relax functions and TIR PrimFuncs
+   * \brief A hashmap to store the mapping of Relax functions and TIR Functions
    * in context_mod to their GlobalVar to avoid generating duplicated functions.
    * We use a custom hash to avoid hashing constants that may be bound to each BaseFunc.
    */
@@ -532,7 +528,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     // After Normalize: an Expr always have
     // ty (with the exception of Op).
     if (!normalized->IsInstance<OpNode>()) {
-      TVM_FFI_ICHECK(!normalized->ty.IsMissing())
+      TVM_FFI_ICHECK(!normalized->ty.as<MissingType>().has_value())
           << "The ty of an Expr except OpNode after "
              "normalization must not be missing. However, this Expr does not have ty: "
           << normalized;
@@ -590,7 +586,8 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   Expr VisitVar_(const typename T::ContainerType* var) {
     // Parameters and free-vars must be present with type
     // Other vars must have already been normalized through binding
-    TVM_FFI_ICHECK(!var->ty.IsMissing()) << "Var " << var->name << " does not have type.";
+    TVM_FFI_ICHECK(!var->ty.template as<MissingType>().has_value())
+        << "Var " << var->name << " does not have type.";
     return ffi::GetRef<Var>(var);
   }
 
@@ -627,14 +624,14 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       unchanged &= new_field.same_as(field);
     }
 
-    Tuple tuple = unchanged ? ffi::GetRef<Tuple>(op) : Tuple(new_fields, op->span);
+    Tuple tuple = unchanged ? ffi::GetRef<Tuple>(op) : Tuple(new_fields, op->loc);
     // Update tuple fields.
-    if (tuple->ty.IsMissing()) {
+    if (tuple->ty.as<MissingType>().has_value()) {
       ffi::Array<Type> tuple_ty;
       for (Expr field : tuple->fields) {
         tuple_ty.push_back(GetType(field));
       }
-      UpdateType(tuple, TupleType(tuple_ty, op->span));
+      UpdateType(tuple, TupleType(tuple_ty, op->loc));
     }
     return tuple;
   }
@@ -650,6 +647,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    TVM_FFI_CHECK(op->op.as<OpNode>() || !op->op->ty.as<tvm::FuncTypeNode>(), TypeError)
+        << "Ordinary Relax calls cannot invoke a native TIRx function; "
+        << "use R.call_tir for destination passing or R.call_tir_packed for a direct result";
     Expr new_op = this->NormalizeArgument(op->op);
 
     ffi::Array<Expr> new_args =
@@ -659,11 +659,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       if (new_op.same_as(op->op) && new_args.same_as(op->args)) {
         return ffi::GetRef<Call>(op);
       } else {
-        return Call::Unchecked(Type::Missing(), new_op, new_args, op->attrs, op->ty_args);
+        return Call(Type::Missing(), new_op, new_args, op->attrs, op->ty_args);
       }
     }();
 
-    if (call->ty.IsMissing()) {
+    if (call->ty.as<MissingType>().has_value()) {
       auto inferred_ty = InferType(call);
       UpdateType(call, inferred_ty);
     }
@@ -727,31 +727,31 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       if (unchanged) {
         return ffi::GetRef<SeqExpr>(op);
       } else {
-        return SeqExpr(normalized_blocks, new_body, op->span);
+        return SeqExpr(normalized_blocks, new_body, op->loc);
       }
     }();
 
     // only do shape/type inference if the SeqExpr does not have shape/type
-    if (seq_expr->ty.IsMissing()) {
+    if (seq_expr->ty.as<MissingType>().has_value()) {
       UpdateType(seq_expr, EraseToWellDefinedInScope(GetType(seq_expr->body)));
     }
     return seq_expr;
   }
 
-  Expr VisitExpr_(const IfNode* op) final {
+  Expr VisitExpr_(const IfExprNode* op) final {
     Expr new_cond = this->NormalizeArgument(op->cond);
     Expr new_true = this->VisitWithNewScope(op->true_branch);
     Expr new_false = this->VisitWithNewScope(op->false_branch);
 
-    If if_node = [&]() -> If {
+    IfExpr if_node = [&]() -> IfExpr {
       if (new_cond.same_as(op->cond) && new_true.same_as(op->true_branch) &&
           new_false.same_as(op->false_branch)) {
-        return ffi::GetRef<If>(op);
+        return ffi::GetRef<IfExpr>(op);
       } else {
-        return If(new_cond, new_true, new_false, op->span);
+        return IfExpr(new_cond, new_true, new_false, op->loc);
       }
     }();
-    if (if_node->ty.IsMissing()) {
+    if (if_node->ty.as<MissingType>().has_value()) {
       auto true_info = EraseToWellDefinedInScope(GetType(new_true));
       auto false_info = EraseToWellDefinedInScope(GetType(new_false));
       UpdateType(if_node, TypeLCA(true_info, false_info));
@@ -765,7 +765,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     TupleGetItem node = new_tuple.same_as(op->tuple) ? ffi::GetRef<TupleGetItem>(op)
                                                      : TupleGetItem(new_tuple, op->index);
 
-    if (node->ty.IsMissing()) {
+    if (node->ty.as<MissingType>().has_value()) {
       auto opt = MatchType<TupleType>(node->tuple);
       TVM_FFI_ICHECK(opt) << "The type of Tuple must be TupleType, "
                           << "but expression " << node->tuple << " has type " << node->tuple->ty;
@@ -788,9 +788,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   VarBinding VisitVarBinding(VarBinding binding) {
     Expr new_value = this->VisitExpr(binding->value);
     if (!new_value.same_as(binding->value)) {
-      binding = VarBinding(binding->var, new_value, binding->span);
+      binding = VarBinding(binding->var, new_value, binding->loc);
     }
-    if (binding->var->ty.IsMissing()) {
+    if (binding->var->ty.as<MissingType>().has_value()) {
       UpdateType(binding->var, GetType(new_value));
     }
     return binding;
@@ -799,9 +799,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   MatchCast VisitMatchCast(MatchCast binding) {
     Expr new_value = this->VisitExpr(binding->value);
     if (!new_value.same_as(binding->value)) {
-      binding = MatchCast(binding->var, new_value, binding->ty, binding->span);
+      binding = MatchCast(binding->var, new_value, binding->ty, binding->loc);
     }
-    if (binding->var->ty.IsMissing()) {
+    if (binding->var->ty.as<MissingType>().has_value()) {
       UpdateType(binding->var, binding->ty);
     }
     return binding;
@@ -865,7 +865,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       return op_map_infer_ty[op](call, ffi::GetRef<BlockBuilder>(this));
     } else {
       // derive using function parameters
-      TVM_FFI_ICHECK(!call->op->ty.IsMissing());
+      TVM_FFI_ICHECK(!call->op->ty.as<MissingType>().has_value());
       auto opt = MatchType<FuncType>(call->op);
       TVM_FFI_ICHECK(opt) << "Call->op must contains a function type";
       FuncType finfo = opt.value();
@@ -1023,16 +1023,16 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
         changed = true;
       } else if (!ret.empty() && ret.back()->type_index() == block->type_index()) {
         // Case 2. Merge with previous block if possible
-        BindingBlock merged;
+        BindingBlock merged(ffi::UnsafeInit{});
         // NOTE: should check DataflowBlockNode first.
         if (const auto* dataflow_block = ret.back().as<DataflowBlockNode>()) {
           auto n = ffi::make_object<DataflowBlockNode>(*dataflow_block);
           n->bindings.insert(n->bindings.end(), block->bindings.begin(), block->bindings.end());
-          merged = DataflowBlock(n);
+          merged = DataflowBlock(ffi::UnsafeInit{}, std::move(n));
         } else if (const auto* binding_block = ret.back().as<BindingBlockNode>()) {
           auto n = ffi::make_object<BindingBlockNode>(*binding_block);
           n->bindings.insert(n->bindings.end(), block->bindings.begin(), block->bindings.end());
-          merged = BindingBlock(n);
+          merged = BindingBlock(ffi::UnsafeInit{}, std::move(n));
         } else {
           TVM_FFI_THROW(InternalError) << "Unknown block type: " << ret.back()->GetTypeKey();
         }
@@ -1048,29 +1048,31 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   }
 
   /*! \brief Operator type inference map. */
-  tvm::OpAttrMap<FInferType> op_map_context_free_infer_ty =
-      Op::GetAttrMap<FInferType>("FInferType");
-  tvm::OpAttrMap<FInferTypeWithBuilder> op_map_infer_ty =
-      Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
-  tvm::OpAttrMap<FInferTypeWithBuilder> op_map_dist_infer_ty =
-      Op::GetAttrMap<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder");
+  decltype(Op::GetAttrMap(tvm::op_attr::kInferType)) op_map_context_free_infer_ty =
+      Op::GetAttrMap(tvm::op_attr::kInferType);
+  decltype(Op::GetAttrMap(tvm::relax::op_attr::kInferTypeWithBuilder)) op_map_infer_ty =
+      Op::GetAttrMap(tvm::relax::op_attr::kInferTypeWithBuilder);
+  decltype(Op::GetAttrMap(
+      tvm::relax::distributed::op_attr::kInferTypeWithBuilder)) op_map_dist_infer_ty =
+      Op::GetAttrMap(tvm::relax::distributed::op_attr::kInferTypeWithBuilder);
   /*! \brief Operator normalization function */
-  tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
+  decltype(Op::GetAttrMap(tvm::relax::op_attr::kNormalize)) op_map_normalize_ =
+      Op::GetAttrMap(tvm::relax::op_attr::kNormalize);
 
   /*! \brief Whether the FNormalize function should be applied */
   bool apply_f_normalize_{true};
 };
 
 BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod) {
-  ffi::ObjectPtr<BlockBuilderNode> n = ffi::make_object<Normalizer>(mod.value_or(IRModule()));
-  return BlockBuilder(n);
+  ffi::ObjectPtr<BlockBuilderObj> n = ffi::make_object<Normalizer>(mod.value_or(IRModule()));
+  return BlockBuilder(ffi::UnsafeInit{}, std::move(n));
 }
 
 BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod,
                                   BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript) {
-  ffi::ObjectPtr<BlockBuilderNode> n = ffi::make_object<Normalizer>(
+  ffi::ObjectPtr<BlockBuilderObj> n = ffi::make_object<Normalizer>(
       mod.value_or(IRModule()), BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript());
-  return BlockBuilder(n);
+  return BlockBuilder(ffi::UnsafeInit{}, std::move(n));
 }
 
 //---------------------------------------
@@ -1079,14 +1081,14 @@ BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<BlockBuilderNode>();
+  refl::ObjectDef<BlockBuilderObj>();
   refl::GlobalDef()
       .def("relax.BlockBuilderCreate",
            [](ffi::Optional<IRModule> mod) { return BlockBuilder::Create(mod); })
-      .def_method("relax.BlockBuilderBeginDataflowBlock", &BlockBuilderNode::BeginDataflowBlock)
-      .def_method("relax.BlockBuilderBeginBindingBlock", &BlockBuilderNode::BeginBindingBlock)
-      .def_method("relax.BlockBuilderEndBlock", &BlockBuilderNode::EndBlock)
-      .def_method("relax.BlockBuilderNormalize", &BlockBuilderNode::Normalize)
+      .def_method("relax.BlockBuilderBeginDataflowBlock", &BlockBuilderObj::BeginDataflowBlock)
+      .def_method("relax.BlockBuilderBeginBindingBlock", &BlockBuilderObj::BeginBindingBlock)
+      .def_method("relax.BlockBuilderEndBlock", &BlockBuilderObj::EndBlock)
+      .def_method("relax.BlockBuilderNormalize", &BlockBuilderObj::Normalize)
       .def("relax.BlockBuilderEmit",
            [](BlockBuilder builder, Expr expr, ffi::String name_hint) {
              return builder->Emit(expr, name_hint);
@@ -1106,15 +1108,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return builder->name_supply()->FreshName(name_hint, /*add_prefix*/ false,
                                                       /*add_underscore*/ false);
            })
-      .def_method("relax.BlockBuilderAddFunction", &BlockBuilderNode::AddFunction)
-      .def_method("relax.BlockBuilderUpdateFunction", &BlockBuilderNode::UpdateFunction)
-      .def_method("relax.BlockBuilderGetContextIRModule", &BlockBuilderNode::GetContextIRModule)
-      .def_method("relax.BlockBuilderFinalize", &BlockBuilderNode::Finalize)
+      .def_method("relax.BlockBuilderAddFunction", &BlockBuilderObj::AddFunction)
+      .def_method("relax.BlockBuilderUpdateFunction", &BlockBuilderObj::UpdateFunction)
+      .def_method("relax.BlockBuilderGetContextIRModule", &BlockBuilderObj::GetContextIRModule)
+      .def_method("relax.BlockBuilderFinalize", &BlockBuilderObj::Finalize)
       .def_method("relax.BlockBuilderCurrentBlockIsDataFlow",
-                  &BlockBuilderNode::CurrentBlockIsDataFlow)
-      .def_method("relax.BlockBuilderLookupBinding", &BlockBuilderNode::LookupBinding)
-      .def_method("relax.BlockBuilderBeginScope", &BlockBuilderNode::BeginScope)
-      .def_method("relax.BlockBuilderEndScope", &BlockBuilderNode::EndScope);
+                  &BlockBuilderObj::CurrentBlockIsDataFlow)
+      .def_method("relax.BlockBuilderLookupBinding", &BlockBuilderObj::LookupBinding)
+      .def_method("relax.BlockBuilderBeginScope", &BlockBuilderObj::BeginScope)
+      .def_method("relax.BlockBuilderEndScope", &BlockBuilderObj::EndScope);
 }
 }  // namespace relax
 }  // namespace tvm

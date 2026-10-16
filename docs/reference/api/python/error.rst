@@ -15,9 +15,9 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.error
----------
-.. automodule:: tvm.error
+tvm_tirx.error
+--------------
+.. automodule:: tvm_tirx.error
    :members:
    :imported-members:
    :autosummary:

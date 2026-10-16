@@ -294,8 +294,7 @@ ffi::Optional<ffi::Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
                                                    const ffi::Array<Binding>& binding_arr,
                                                    const ffi::Map<Var, Expr>& bindings) {
   // TODO(@ganler): Handle non-may external use.
-  TVM_FFI_ICHECK(ctx->allow_extern_use == PatternContextNode::kMay)
-      << "Only kMay is supported yet.";
+  TVM_FFI_ICHECK(ctx->allow_extern_use == PatternContextObj::kMay) << "Only kMay is supported yet.";
   DFPatternMatcher matcher(bindings);
 
   MatcherUseDefAnalysis ud_analysis;
@@ -373,7 +372,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       [](const PatternContext& ctx, const DataflowBlock& dfb) { return MatchGraph(ctx, dfb); });
 }
 
-class PatternContextRewriterNode : public PatternMatchingRewriterNode {
+class PatternContextRewriterObj : public PatternMatchingRewriterObj {
  public:
   PatternContext pattern;
   ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, Expr>)>
@@ -383,12 +382,12 @@ class PatternContextRewriterNode : public PatternMatchingRewriterNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PatternContextRewriterNode>()
-        .def_ro("pattern", &PatternContextRewriterNode::pattern)
-        .def_ro("rewriter_func", &PatternContextRewriterNode::rewriter_func);
+    refl::ObjectDef<PatternContextRewriterObj>()
+        .def_ro("pattern", &PatternContextRewriterObj::pattern)
+        .def_ro("rewriter_func", &PatternContextRewriterObj::rewriter_func);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.PatternContextRewriter", PatternContextRewriterNode,
-                                    PatternMatchingRewriterNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.PatternContextRewriter", PatternContextRewriterObj,
+                                    PatternMatchingRewriterObj);
 
  private:
   ffi::Optional<ffi::Map<Var, Expr>> MatchBindings(const ffi::Array<Binding>& bindings) const {
@@ -415,11 +414,11 @@ class PatternContextRewriter : public PatternMatchingRewriter {
       ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, Expr>)>
           rewriter_func);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PatternContextRewriter, PatternMatchingRewriter,
-                                             PatternContextRewriterNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PatternContextRewriter, PatternMatchingRewriter,
+                                                PatternContextRewriterObj);
 };
 
-RewriteSpec PatternContextRewriterNode::RewriteBindings(const ffi::Array<Binding>& bindings) const {
+RewriteSpec PatternContextRewriterObj::RewriteBindings(const ffi::Array<Binding>& bindings) const {
   std::vector<Binding> remaining_bindings{bindings.begin(), bindings.end()};
 
   ffi::Map<Var, Expr> variable_rewrites;
@@ -441,8 +440,9 @@ RewriteSpec PatternContextRewriterNode::RewriteBindings(const ffi::Array<Binding
 PatternContextRewriter::PatternContextRewriter(
     PatternContext pattern,
     ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, Expr>)>
-        rewriter_func) {
-  auto node = ffi::make_object<PatternContextRewriterNode>();
+        rewriter_func)
+    : PatternMatchingRewriter(ffi::UnsafeInit{}) {
+  auto node = ffi::make_object<PatternContextRewriterObj>();
   node->pattern = std::move(pattern);
   node->rewriter_func = std::move(rewriter_func);
   data_ = std::move(node);
@@ -461,7 +461,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.dpl.rewrite_bindings", RewriteBindings);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { PatternContextRewriterNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { PatternContextRewriterObj::RegisterReflection(); }
 
 }  // namespace relax
 }  // namespace tvm

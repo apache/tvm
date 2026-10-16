@@ -91,12 +91,12 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma,
     }
     auto square = [is_float16, f32_ty](const PrimExpr& x) {
       if (is_float16) {
-        return prim::Cast(f32_ty, x) * prim::Cast(f32_ty, x);
+        return prim::Cast(x, f32_ty) * prim::Cast(x, f32_ty);
       }
       return x * x;
     };
     if (is_float16) {
-      return func({prim::Cast(f32_ty, data(eval_range)), square(data(eval_range))}, reduce_axes,
+      return func({prim::Cast(data(eval_range), f32_ty), square(data(eval_range))}, reduce_axes,
                   nullptr);
     } else {
       return func({data(eval_range), square(data(eval_range))}, reduce_axes, nullptr);
@@ -104,7 +104,7 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma,
   };
 
   auto temp_x_x2 =
-      tvm::te::compute(target_shape, compute, data->op->name + "_red_temp", kCommReduce);
+      tvm::te::compute(target_shape, compute, data->op.value()->name + "_red_temp", kCommReduce);
 
   auto temp_x = temp_x_x2[0];
   auto temp_x2 = temp_x_x2[1];
@@ -129,7 +129,7 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma,
     auto instance_norm =
         (data(indices) - mean) * tvm::prim::rsqrt(var + MakeConst(var.ty(), epsilon));
     if (is_float16) {
-      instance_norm = prim::Cast(PrimType::Float(16), instance_norm);
+      instance_norm = prim::Cast(instance_norm, PrimType::Float(16));
     }
     instance_norm = topi::multiply(instance_norm, gamma(channel));
     if (beta.has_value()) {

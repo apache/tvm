@@ -19,8 +19,9 @@
 
 from collections.abc import Callable
 
-from tvm import te, tirx, topi
-from tvm.ir import Call
+from tvm import te, topi
+from tvm_tirx import tirx
+from tvm_tirx.ir import Call
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr, ShapeExpr
@@ -134,7 +135,7 @@ def _te_median(
 @register_legalize("relax.mean")
 def _mean(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(
-        _te_mean, call.args[0], call.attrs.axis, call.attrs.keepdims, primfunc_name_hint="mean"
+        _te_mean, call.args[0], call.attrs.axis, call.attrs.keepdims, function_name_hint="mean"
     )
 
 
@@ -144,7 +145,7 @@ def _std(bb: BlockBuilder, call: Call) -> Expr:
         return topi.sqrt(_te_variance(x, axis, keepdims))
 
     return bb.call_te(
-        te_std, call.args[0], call.attrs.axis, call.attrs.keepdims, primfunc_name_hint="std"
+        te_std, call.args[0], call.attrs.axis, call.attrs.keepdims, function_name_hint="std"
     )
 
 
@@ -155,7 +156,7 @@ def _variance(bb: BlockBuilder, call: Call) -> Expr:
         call.args[0],
         call.attrs.axis,
         call.attrs.keepdims,
-        primfunc_name_hint="variance",
+        function_name_hint="variance",
     )
 
 
@@ -166,7 +167,7 @@ def _median(bb: BlockBuilder, call: Call) -> Expr:
         call.args[0],
         call.attrs.axis,
         call.attrs.keepdims,
-        primfunc_name_hint="median",
+        function_name_hint="median",
     )
 
 

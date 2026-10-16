@@ -26,6 +26,8 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/relax/op_attr_types.h>
 
 #include <algorithm>
 #include <utility>
@@ -40,13 +42,12 @@ Expr unique(Expr x, PrimExpr sorted, PrimExpr return_index, PrimExpr return_inve
             PrimExpr return_counts, ffi::Optional<PrimExpr> axis) {
   static const Op op = Op::Get("relax.unique");
   if (!axis) {
-    return Call::Unchecked(Type::Missing(), op,
-                           {std::move(x), sorted, return_index, return_inverse, return_counts});
+    return Call(Type::Missing(), op,
+                {std::move(x), sorted, return_index, return_inverse, return_counts});
   } else {
     PrimExpr pv_axis = axis.value();
-    return Call::Unchecked(
-        Type::Missing(), op,
-        {std::move(x), sorted, return_index, return_inverse, return_counts, pv_axis});
+    return Call(Type::Missing(), op,
+                {std::move(x), sorted, return_index, return_inverse, return_counts, pv_axis});
   }
 }
 
@@ -64,7 +65,7 @@ Type InferTypeUnique(const CallNode* call_node) {
       axis = prim_value.value();
     }
   }
-  if (!data_ty->IsUnknownNdim() && axis.defined()) {
+  if (!data_ty->IsUnknownNdim() && axis.has_value()) {
     // Normalize the axis for sanity check purpose.
     if (const auto* axis_int = axis.as<IntImmNode>()) {
       NormalizeAxis(call, data_ty->ndim, axis_int->value.as<int>().value());
@@ -96,7 +97,7 @@ Type InferTypeUnique(const CallNode* call_node) {
   if (data_ty->ndim == 0) {
     output_ty.push_back(
         TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), data_ty->dtype, data_ty->vdevice));
-  } else if (axis.defined()) {
+  } else if (axis.has_value()) {
     output_ty.push_back(TensorType(data_ty->dtype, data_ty->ndim, data_ty->vdevice));
   } else {
     output_ty.push_back(TensorType(data_ty->dtype, /*ndim=*/1, data_ty->vdevice));
@@ -159,15 +160,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("return_counts",
                    "Whether to return an additional tensor with counts of each unique elements"),
           sig::var_args("args"))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeUnique>())
-      .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
-      .set_attr<bool>("FPurity", true);
+      .set_native_fn_attr<&InferTypeUnique>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kCallPacked, "relax.run.unique")
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nonzero */
 Expr nonzero(Expr x) {
   static const Op op = Op::Get("relax.nonzero");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)});
+  return Call(Type::Missing(), op, {std::move(x)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -184,9 +185,9 @@ Type InferTypeNonzero(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nonzero")
       .signature(sig::arg("x", "The input tensor"))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeNonzero>())
-      .set_attr<FCallPacked>("FCallPacked", "relax.run.nonzero")
-      .set_attr<bool>("FPurity", true);
+      .set_native_fn_attr<&InferTypeNonzero>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kCallPacked, "relax.run.nonzero")
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

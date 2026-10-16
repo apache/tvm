@@ -17,15 +17,16 @@
 # ruff: noqa: F841
 import tvm_ffi
 
-import tvm
-import tvm.testing
-from tvm import te, tirx
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import te
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 
 class CanonicalChecker:
     def __init__(self):
-        self.analyzer = tvm.sym.Analyzer()
+        self.analyzer = tvm_tirx.sym.Analyzer()
 
     def _convert(self, expr):
         # TODO(Lunderberg): Make utility functions `tirx.convert` and
@@ -47,20 +48,24 @@ class CanonicalChecker:
 
 def test_mul_sum_simplify():
     ck = CanonicalChecker()
-    x, y, z = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32"), tvm.tirx.Var("z", "int32")
+    x, y, z = (
+        tvm_tirx.tirx.Var("x", "int32"),
+        tvm_tirx.tirx.Var("y", "int32"),
+        tvm_tirx.tirx.Var("z", "int32"),
+    )
 
     ck.verify(2 + (3 * x + z + y + 1) * 4 + x, x * 13 + z * 4 + y * 4 + 6)
     ck.verify(x * 3 - 4 * x + 1, 1 - x)
     ck.verify(y + x * 3 - 5 * x + 1 + y, y * 2 + 1 - x * 2)
-    tdiv = tvm.tirx.truncdiv
-    tmod = tvm.tirx.truncmod
+    tdiv = tvm_tirx.tirx.truncdiv
+    tmod = tvm_tirx.tirx.truncmod
     # trucdiv
     ck.verify(tdiv(x + y + x + y * 3, 2), y * 2 + x)
     ck.verify(tmod(x + y + x + y * 3, 2), 0)
 
     # floordiv
-    fld = tvm.tirx.floordiv
-    flm = tvm.tirx.floormod
+    fld = tvm_tirx.tirx.floordiv
+    flm = tvm_tirx.tirx.floormod
     ck.verify(flm(x + x + y * 3, 2), flm(y * 3, 2))
     ck.verify(fld(x + y + x + y * 3, 2), y * 2 + x)
     ck.verify(flm(x + y + x + y * 3, 2), 0)
@@ -69,11 +74,15 @@ def test_mul_sum_simplify():
 
 def test_split_index_simplify():
     ck = CanonicalChecker()
-    x, y, z = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32"), tvm.tirx.Var("z", "int32")
+    x, y, z = (
+        tvm_tirx.tirx.Var("x", "int32"),
+        tvm_tirx.tirx.Var("y", "int32"),
+        tvm_tirx.tirx.Var("z", "int32"),
+    )
 
     # trucdiv
-    tdiv = tvm.tirx.truncdiv
-    tmod = tvm.tirx.truncmod
+    tdiv = tvm_tirx.tirx.truncdiv
+    tmod = tvm_tirx.tirx.truncmod
 
     # split div const
     ck.verify(tdiv(x, 3) * 3 + tmod(x, 3), x)
@@ -88,19 +97,19 @@ def test_split_index_simplify():
     ck.verify(tmod(x * 8, 2), 0)
 
     # simplify then fold
-    ck.analyzer.update(x, tvm.sym.ConstIntBound(0, 1000))
-    ck.analyzer.update(y, tvm.sym.ConstIntBound(0, 1000))
+    ck.analyzer.update(x, tvm_tirx.sym.ConstIntBound(0, 1000))
+    ck.analyzer.update(y, tvm_tirx.sym.ConstIntBound(0, 1000))
     ck.verify(tdiv(x * 4 + y, 2) * 2 + tmod(x * 4 + y, 2), x * 4 + y)
     # complex fold
     ck.verify(tdiv(z * 9 + y, 2) * 2 + tmod(z * 9 + y, 2), z * 9 + y)
 
-    ck.analyzer.update(x, tvm.sym.ConstIntBound(-100, 1000), True)
-    ck.analyzer.update(y, tvm.sym.ConstIntBound(-100, 1000), True)
+    ck.analyzer.update(x, tvm_tirx.sym.ConstIntBound(-100, 1000), True)
+    ck.analyzer.update(y, tvm_tirx.sym.ConstIntBound(-100, 1000), True)
     ck.verify(tdiv(x * 4 + y, 2) * 2 + tmod(x * 4 + y, 2), x * 4 + y)
 
     # floordiv
-    fld = tvm.tirx.floordiv
-    flm = tvm.tirx.floormod
+    fld = tvm_tirx.tirx.floordiv
+    flm = tvm_tirx.tirx.floormod
     ck.verify(fld(x * 5, 2), fld(x * 5, 2))
     ck.verify(fld(x, 3) * 3 + flm(x, 3), x)
     ck.verify(fld(x, 6) * 6 + flm(fld(x, 3), 2) * 3 + flm(x, 3), x)
@@ -114,9 +123,9 @@ def test_split_index_simplify():
     d_tile = te.var("d_tile")
     i = te.var("i")
     v = te.var("v")
-    ck.analyzer.update(d_tile, tvm.sym.ConstIntBound(0, 7), True)
-    ck.analyzer.update(i, tvm.sym.ConstIntBound(0, 1), True)
-    ck.analyzer.update(v, tvm.sym.ConstIntBound(0, 7), True)
+    ck.analyzer.update(d_tile, tvm_tirx.sym.ConstIntBound(0, 7), True)
+    ck.analyzer.update(i, tvm_tirx.sym.ConstIntBound(0, 1), True)
+    ck.analyzer.update(v, tvm_tirx.sym.ConstIntBound(0, 7), True)
     ck.verify(fld(flm(d_tile * 16 + i * 8 + v, 64), 8), flm(d_tile * 2 + i, 8))
 
     # cannot simplify mixed case, unless we canonicalize into one mode.
@@ -130,7 +139,7 @@ def test_bigint_coefficients_and_factors():
     ck = CanonicalChecker()
     x = tirx.Var("x", "int64")
     offset = 2**61
-    ck.analyzer.update(x, tvm.sym.ConstIntBound(offset, offset + 1))
+    ck.analyzer.update(x, tvm_tirx.sym.ConstIntBound(offset, offset + 1))
     # The canonical base 16 - 48 * offset is wider than int64.
     ck.verify(
         tirx.truncdiv(16 + 48 * (x - offset), 16),
@@ -150,8 +159,8 @@ def test_bigint_coefficients_and_factors():
 
 def test_div_simplify():
     ck = CanonicalChecker()
-    x = tvm.tirx.Var("x", "int32")
-    tdiv = tvm.tirx.truncdiv
+    x = tvm_tirx.tirx.Var("x", "int32")
+    tdiv = tvm_tirx.tirx.truncdiv
 
     # truc div
     ck.verify(tdiv(16 + 48 * x, 16), x * 3 + 1)
@@ -159,14 +168,14 @@ def test_div_simplify():
     # (17+48*x)/16 != 1+3*x
     ck.verify(tdiv(17 + 48 * x, 16), tdiv(x * 48 + 17, 16))
     # However, when x >= 0, then 17+48*x >= 0 and (17+48*x)/16 can be simplified
-    ck.analyzer.update(x, tvm.sym.ConstIntBound(0, 10))
+    ck.analyzer.update(x, tvm_tirx.sym.ConstIntBound(0, 10))
     ck.verify(tdiv(17 + 48 * x, 16), x * 3 + 1)
     # Trying expressions that are not simplifiable for any values of the variables
     ck.verify(tdiv(17 + 47 * x, 16), tdiv(x * 47 + 17, 16))
 
     # floordiv
-    fld = tvm.tirx.floordiv
-    ck.analyzer.update(x, tvm.sym.ConstIntBound(-1000, 10000), True)
+    fld = tvm_tirx.tirx.floordiv
+    ck.analyzer.update(x, tvm_tirx.sym.ConstIntBound(-1000, 10000), True)
     ck.verify(fld(16 + 48 * x, 16), x * 3 + 1)
     ck.verify(fld(17 + 48 * x, 16), x * 3 + 1)
     ck.verify(fld(17 + 47 * x, 16), fld(x * 47 + 17, 16))
@@ -174,9 +183,9 @@ def test_div_simplify():
 
 def test_fp16_const_fold():
     ck = CanonicalChecker()
-    zero = tvm.tirx.const(0, "float16")
-    one = tvm.tirx.const(1, "float16")
-    half = tvm.tirx.const(0.5, "float16")
+    zero = tvm_tirx.tirx.const(0, "float16")
+    one = tvm_tirx.tirx.const(1, "float16")
+    half = tvm_tirx.tirx.const(0.5, "float16")
 
     ck.verify(zero + half, half)
     ck.verify(half - zero, half)
@@ -190,8 +199,8 @@ def test_fp16_const_fold():
 
 def test_floormod_simplify():
     ck = CanonicalChecker()
-    flm = tvm.tirx.floormod
-    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
+    flm = tvm_tirx.tirx.floormod
+    x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
     ck.verify(flm(flm((x * 4) + y - 466036, 24528) - 24512, 16), flm((x * 4) + y + 12, 16))
     ck.verify(flm(flm((x * 4), 16), 8), flm(x, 2) * 4)
 
@@ -200,33 +209,33 @@ def test_floormod_simplify():
 
 def test_canonical_mixed():
     ck = CanonicalChecker()
-    x = tvm.tirx.Var("x", "int32")
-    z = tvm.tirx.const(3, "int32")
-    tdiv = tvm.tirx.truncdiv
-    tmod = tvm.tirx.truncmod
+    x = tvm_tirx.tirx.Var("x", "int32")
+    z = tvm_tirx.tirx.const(3, "int32")
+    tdiv = tvm_tirx.tirx.truncdiv
+    tmod = tvm_tirx.tirx.truncmod
     ck.verify(tdiv(x, (z * z)) - tdiv(x, (z * z)), 0)
     ck.verify(tdiv(x, (z + z)) - tdiv(x, (z + z)), 0)
     ck.verify(x - 2 < 3, x < 5)
-    ck.verify(tvm.tirx.max(x, 1) - tvm.tirx.max(x, 1), 0)
-    ck.verify(tvm.tirx.min(x, 1) - tvm.tirx.min(x, 1), 0)
+    ck.verify(tvm_tirx.tirx.max(x, 1) - tvm_tirx.tirx.max(x, 1), 0)
+    ck.verify(tvm_tirx.tirx.min(x, 1) - tvm_tirx.tirx.min(x, 1), 0)
     ck.verify(x * x - x * x, 0)
     ck.verify(tmod(tdiv(tmod(x, 20), 2) * 2, 4), tdiv(tmod(x, 4), 2) * 2)
 
-    fld = tvm.tirx.floordiv
+    fld = tvm_tirx.tirx.floordiv
     ck.verify(fld(x, (z * z)) - fld(x, (z * z)), 0)
     ck.verify(fld(x, (z + z)) - fld(x, (z + z)), 0)
 
 
 def test_simplify_if_then_else():
     ck = CanonicalChecker()
-    x = tvm.tirx.Var("x", "int32")
-    y = tvm.tirx.Var("y", "int32")
-    tdiv = tvm.tirx.truncdiv
-    tmod = tvm.tirx.truncmod
+    x = tvm_tirx.tirx.Var("x", "int32")
+    y = tvm_tirx.tirx.Var("y", "int32")
+    tdiv = tvm_tirx.tirx.truncdiv
+    tmod = tvm_tirx.tirx.truncmod
     # simplification that takes condition into account.
-    res = tvm.tirx.if_then_else(
+    res = tvm_tirx.tirx.if_then_else(
         (x * 4 + y) >= 466036,
-        tvm.tirx.if_then_else(
+        tvm_tirx.tirx.if_then_else(
             24512 <= tmod(((x * 4) + y) - 466036, 24528),
             tmod(tmod(((x * 4) + y) - 466036, 24528) - 24512, 16),
             x,
@@ -234,54 +243,58 @@ def test_simplify_if_then_else():
         y,
     )
 
-    res2 = tvm.tirx.if_then_else(
+    res2 = tvm_tirx.tirx.if_then_else(
         (x * 4) >= 466036 - y,
-        tvm.tirx.if_then_else(
+        tvm_tirx.tirx.if_then_else(
             24512 <= tmod(((x * 4) + y) - 466036, 24528),
             tmod(tmod(((x * 4) + y) - 466036, 24528) - 24512, 16),
             x,
         ),
         y,
     )
-    expected = tvm.tirx.if_then_else(
-        tvm.tirx.LE(466036, (x * 4 + y)),
-        tvm.tirx.if_then_else(
-            tvm.tirx.LE(24512, tmod(((x * 4) + y) - 4, 24528)), tmod(((x * 4) + y) - 4, 16), x
+    expected = tvm_tirx.tirx.if_then_else(
+        tvm_tirx.tirx.LE(466036, (x * 4 + y)),
+        tvm_tirx.tirx.if_then_else(
+            tvm_tirx.tirx.LE(24512, tmod(((x * 4) + y) - 4, 24528)), tmod(((x * 4) + y) - 4, 16), x
         ),
         y,
     )
     ck.verify(res, expected)
     ck.verify(res2, expected)
     # can only simplify if condition
-    res = tvm.tirx.Select(tvm.tirx.all(x >= -1, y >= 0), tmod(x + y + 100, 3), tmod(x + 100, 3))
-    expected = tvm.tirx.Select(tvm.tirx.all(x >= -1, y >= 0), tmod(x + y + 1, 3), tmod(x + 100, 3))
+    res = tvm_tirx.tirx.Select(
+        tvm_tirx.tirx.all(x >= -1, y >= 0), tmod(x + y + 100, 3), tmod(x + 100, 3)
+    )
+    expected = tvm_tirx.tirx.Select(
+        tvm_tirx.tirx.all(x >= -1, y >= 0), tmod(x + y + 1, 3), tmod(x + 100, 3)
+    )
     ck.verify(res, ck.analyzer.canonical_simplify(expected))
 
-    res = tvm.tirx.Select(x >= 10, tvm.tirx.if_then_else(tdiv(x, 3) > 2, x, 0), 0)
-    expected = tvm.tirx.Select(x >= 10, x, 0)
+    res = tvm_tirx.tirx.Select(x >= 10, tvm_tirx.tirx.if_then_else(tdiv(x, 3) > 2, x, 0), 0)
+    expected = tvm_tirx.tirx.Select(x >= 10, x, 0)
     ck.verify(res, ck.analyzer.canonical_simplify(expected))
 
-    res = tvm.tirx.Select(x >= 10, tvm.tirx.if_then_else(tdiv(x, 3) < 2, x, 0), 0)
+    res = tvm_tirx.tirx.Select(x >= 10, tvm_tirx.tirx.if_then_else(tdiv(x, 3) < 2, x, 0), 0)
     ck.verify(res, 0)
 
 
 def test_complex_cases():
     ck = CanonicalChecker()
-    x = tvm.tirx.Var("x", "int32")
-    y = tvm.tirx.Var("y", "int32")
-    tdiv = tvm.tirx.truncdiv
-    tmod = tvm.tirx.truncmod
+    x = tvm_tirx.tirx.Var("x", "int32")
+    y = tvm_tirx.tirx.Var("y", "int32")
+    tdiv = tvm_tirx.tirx.truncdiv
+    tmod = tvm_tirx.tirx.truncmod
     res2 = (
         tdiv(tdiv(tmod(x * 128 + y, 1296), 36) * 2 + 1, 2) * 36
         + tdiv(tmod((x * 128) + y, 36) * 2 + 1, 2)
         - tmod((x * 128) + y, 1296)
         + 1
     )
-    ck.analyzer.update(x, tvm.sym.ConstIntBound(0, 5))
-    ck.analyzer.update(y, tvm.sym.ConstIntBound(0, 127))
+    ck.analyzer.update(x, tvm_tirx.sym.ConstIntBound(0, 5))
+    ck.analyzer.update(y, tvm_tirx.sym.ConstIntBound(0, 127))
     ck.verify(res2, 1)
 
-    ck.analyzer.update(y, tvm.sym.ConstIntBound(0, 1024), True)
+    ck.analyzer.update(y, tvm_tirx.sym.ConstIntBound(0, 1024), True)
     res3 = (
         tdiv(x * 1024 + y, 65536)
         + tdiv(tmod(x * 1024 + y, 65536), 256)
@@ -297,66 +310,72 @@ def test_complex_cases():
 
 def test_simplify_cast():
     ck = CanonicalChecker()
-    tcast = tvm.tirx.Cast
-    fld = tvm.tirx.floordiv
-    flm = tvm.tirx.floormod
-    # cast(i64, i + j + 1) - cast(i64, i)
-    i = tvm.tirx.Var("i", "int32")
-    j = tvm.tirx.Var("j", "int32")
-    res = tcast("int64", i + j + 1) - tcast("int64", i)
-    ck.verify(res, tcast("int64", j) + tvm.tirx.const(1, "int64"))
-    # cast(i32, i + j + 1) - cast(i32, i)
-    i = tvm.tirx.Var("i", "int64")
-    j = tvm.tirx.Var("j", "int64")
-    ck.analyzer.update(i, tvm.sym.ConstIntBound(0, 10))
-    ck.analyzer.update(j, tvm.sym.ConstIntBound(0, 10))
-    res = tcast("int32", i + j + 1) - tcast("int32", i)
-    ck.verify(res, tcast("int32", j) + 1)
-    # cast(i32, i + j - 100)
-    i = tvm.tirx.Var("i", "int64")
-    j = tvm.tirx.Var("j", "int64")
-    ck.analyzer.update(i, tvm.sym.ConstIntBound(0, 2**31 - 1))
-    ck.analyzer.update(j, tvm.sym.ConstIntBound(0, 10))
-    res = tcast("int32", i + j - 100)
+    tcast = tvm_tirx.tirx.Cast
+    fld = tvm_tirx.tirx.floordiv
+    flm = tvm_tirx.tirx.floormod
+    # cast(i + j + 1, i64) - cast(i, i64)
+    i = tvm_tirx.tirx.Var("i", "int32")
+    j = tvm_tirx.tirx.Var("j", "int32")
+    res = tcast(i + j + 1, "int64") - tcast(i, "int64")
+    ck.verify(res, tcast(j, "int64") + tvm_tirx.tirx.const(1, "int64"))
+    # cast(i + j + 1, i32) - cast(i, i32)
+    i = tvm_tirx.tirx.Var("i", "int64")
+    j = tvm_tirx.tirx.Var("j", "int64")
+    ck.analyzer.update(i, tvm_tirx.sym.ConstIntBound(0, 10))
+    ck.analyzer.update(j, tvm_tirx.sym.ConstIntBound(0, 10))
+    res = tcast(i + j + 1, "int32") - tcast(i, "int32")
+    ck.verify(res, tcast(j, "int32") + 1)
+    # cast(i + j - 100, i32)
+    i = tvm_tirx.tirx.Var("i", "int64")
+    j = tvm_tirx.tirx.Var("j", "int64")
+    ck.analyzer.update(i, tvm_tirx.sym.ConstIntBound(0, 2**31 - 1))
+    ck.analyzer.update(j, tvm_tirx.sym.ConstIntBound(0, 10))
+    res = tcast(i + j - 100, "int32")
     ck.verify(res, res)
-    # cast(i32, flm(axis, 7i64) * 2i64 + 1i64) + 1i32
-    # - cast(i32, flm(axis, 7i64) * 2i64)
-    axis = tvm.tirx.Var("axis", "int64")
-    ck.analyzer.update(axis, tvm.sym.ConstIntBound(0, 42))
+    # cast(flm(axis, 7i64) * 2i64 + 1i64, i32) + 1i32
+    # - cast(flm(axis, 7i64) * 2i64, i32)
+    axis = tvm_tirx.tirx.Var("axis", "int64")
+    ck.analyzer.update(axis, tvm_tirx.sym.ConstIntBound(0, 42))
     res = (
         tcast(
+            flm(axis, tvm_tirx.tirx.const(7, "int64")) * tvm_tirx.tirx.const(2, "int64")
+            + tvm_tirx.tirx.const(1, "int64"),
             "int32",
-            flm(axis, tvm.tirx.const(7, "int64")) * tvm.tirx.const(2, "int64")
-            + tvm.tirx.const(1, "int64"),
         )
-        + tvm.tirx.const(1, "int32")
-        - tcast("int32", flm(axis, tvm.tirx.const(7, "int64")) * tvm.tirx.const(2, "int64"))
+        + tvm_tirx.tirx.const(1, "int32")
+        - tcast(
+            flm(axis, tvm_tirx.tirx.const(7, "int64")) * tvm_tirx.tirx.const(2, "int64"), "int32"
+        )
     )
     ck.verify(res, 2)
 
 
 def test_simplify_normalize_min_value_expr():
     ck = CanonicalChecker()
-    x = tvm.tirx.Var("x", "int32")
+    x = tvm_tirx.tirx.Var("x", "int32")
 
-    ck.verify(tvm.tirx.min_value("int32") - x == 0, x == tvm.tirx.min_value("int32"))
-    ck.verify(tvm.tirx.min_value("int32") + x == 0, tirx.const(False))
-    ck.verify(0 == tvm.tirx.min_value("int32") - x, x == tvm.tirx.min_value("int32"))
-    ck.verify(0 == tvm.tirx.min_value("int32") + x, tirx.const(False))
-    ck.verify(-x + tvm.tirx.min_value("int32") == 0, x == tvm.tirx.min_value("int32"))
-    ck.verify(x + tvm.tirx.min_value("int32") == 0, tirx.const(False))
-    ck.verify(0 == -x + tvm.tirx.min_value("int32"), x == tvm.tirx.min_value("int32"))
-    ck.verify(0 == x + tvm.tirx.min_value("int32"), tirx.const(False))
+    ck.verify(tvm_tirx.tirx.min_value("int32") - x == 0, x == tvm_tirx.tirx.min_value("int32"))
+    ck.verify(tvm_tirx.tirx.min_value("int32") + x == 0, tirx.const(False))
+    ck.verify(0 == tvm_tirx.tirx.min_value("int32") - x, x == tvm_tirx.tirx.min_value("int32"))
+    ck.verify(0 == tvm_tirx.tirx.min_value("int32") + x, tirx.const(False))
+    ck.verify(-x + tvm_tirx.tirx.min_value("int32") == 0, x == tvm_tirx.tirx.min_value("int32"))
+    ck.verify(x + tvm_tirx.tirx.min_value("int32") == 0, tirx.const(False))
+    ck.verify(0 == -x + tvm_tirx.tirx.min_value("int32"), x == tvm_tirx.tirx.min_value("int32"))
+    ck.verify(0 == x + tvm_tirx.tirx.min_value("int32"), tirx.const(False))
 
 
 def test_proddiv_simplify():
     ck = CanonicalChecker()
-    flm = tvm.tirx.floormod
-    fld = tvm.tirx.floordiv
-    tdiv = tvm.tirx.truncdiv
-    tmod = tvm.tirx.truncmod
+    flm = tvm_tirx.tirx.floormod
+    fld = tvm_tirx.tirx.floordiv
+    tdiv = tvm_tirx.tirx.truncdiv
+    tmod = tvm_tirx.tirx.truncmod
 
-    x, y, z = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32"), tvm.tirx.Var("y", "int32")
+    x, y, z = (
+        tvm_tirx.tirx.Var("x", "int32"),
+        tvm_tirx.tirx.Var("y", "int32"),
+        tvm_tirx.tirx.Var("y", "int32"),
+    )
 
     ck.verify(flm(x * 32 * x, x), 0)
     ck.verify(flm(z * x * 32 * x * y, x * z), 0)
@@ -380,17 +399,21 @@ def test_proddiv_simplify():
 
 def test_floormod_two():
     ck = CanonicalChecker()
-    flm = tvm.tirx.floormod
-    x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
+    flm = tvm_tirx.tirx.floormod
+    x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
     ck.verify(flm(x * 10 + 1 + y * 2 + 2, 2), 1)
 
 
 def test_simplify_le():
     ck = CanonicalChecker()
     # Case 1. Ignore the extra expr if it's small than the division number
-    x, y, z = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32"), tvm.tirx.Var("z", "int32")
-    ck.analyzer.bind(y, tvm.ir.Range(0, 8))
-    ck.analyzer.bind(z, tvm.ir.Range(0, 2))
+    x, y, z = (
+        tvm_tirx.tirx.Var("x", "int32"),
+        tvm_tirx.tirx.Var("y", "int32"),
+        tvm_tirx.tirx.Var("z", "int32"),
+    )
+    ck.analyzer.bind(y, tvm_tirx.ir.Range(0, 8))
+    ck.analyzer.bind(z, tvm_tirx.ir.Range(0, 2))
     ck.verify(x * 8 + y < 16, x < 2)
     ck.verify(x * 8 + z * 4 < 16, x < 2)
     ck.verify(x * 8 + z * 4 < 16, x < 2)
@@ -401,22 +424,22 @@ def test_simplify_le():
 
     ck.verify(x * 8 + y + z < 16, x * 8 + y + z < 16)
 
-    n = tvm.tirx.Var("n", "int32")
+    n = tvm_tirx.tirx.Var("n", "int32")
     ck.verify(x * 8 + y < n, x * 8 + y < n)
 
     # Case 2. Simplify the extra expr
     x1, x2, ty, tx, vec = (
-        tvm.tirx.Var("x1", "int32"),
-        tvm.tirx.Var("x2", "int32"),
-        tvm.tirx.Var("ty", "int32"),
-        tvm.tirx.Var("tx", "int32"),
-        tvm.tirx.Var("vec", "int32"),
+        tvm_tirx.tirx.Var("x1", "int32"),
+        tvm_tirx.tirx.Var("x2", "int32"),
+        tvm_tirx.tirx.Var("ty", "int32"),
+        tvm_tirx.tirx.Var("tx", "int32"),
+        tvm_tirx.tirx.Var("vec", "int32"),
     )
-    ck.analyzer.bind(x1, tvm.ir.Range(0, 2))
-    ck.analyzer.bind(x2, tvm.ir.Range(0, 3))
-    ck.analyzer.bind(ty, tvm.ir.Range(0, 8))
-    ck.analyzer.bind(tx, tvm.ir.Range(0, 32))
-    ck.analyzer.bind(vec, tvm.ir.Range(0, 8))
+    ck.analyzer.bind(x1, tvm_tirx.ir.Range(0, 2))
+    ck.analyzer.bind(x2, tvm_tirx.ir.Range(0, 3))
+    ck.analyzer.bind(ty, tvm_tirx.ir.Range(0, 8))
+    ck.analyzer.bind(tx, tvm_tirx.ir.Range(0, 32))
+    ck.analyzer.bind(vec, tvm_tirx.ir.Range(0, 8))
     ck.verify(
         x1 * 5632 + (((x2 * 8 + ty) * 32 + tx) * 8 + vec) % 5632 < 11008,
         x1 * 22 + (x2 * 8 + ty) % 22 < 43,
@@ -424,8 +447,12 @@ def test_simplify_le():
     ck.verify(tx // 2 % 8 + vec < 8, tx % 16 // 2 + vec < 8)
 
     # Case 3. No failure
-    x, y, z = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32"), tvm.tirx.Var("z", "int32")
-    ck.analyzer.bind(y, tvm.ir.Range(0, 1024))
+    x, y, z = (
+        tvm_tirx.tirx.Var("x", "int32"),
+        tvm_tirx.tirx.Var("y", "int32"),
+        tvm_tirx.tirx.Var("z", "int32"),
+    )
+    ck.analyzer.bind(y, tvm_tirx.ir.Range(0, 1024))
     ck.verify(x * 1024 + y < z * 7168, x - z * 7 < 0)
 
 
@@ -442,10 +469,10 @@ def test_simplify_le_negative_scale_extra():
     boundary warp).
     """
     ck = CanonicalChecker()
-    tx = tvm.tirx.Var("tx", "int32")
-    warp = tvm.tirx.Var("warp", "int32")
-    ck.analyzer.bind(tx, tvm.ir.Range(0, 128))
-    ck.analyzer.bind(warp, tvm.ir.Range(0, 4))
+    tx = tvm_tirx.tirx.Var("tx", "int32")
+    warp = tvm_tirx.tirx.Var("warp", "int32")
+    ck.analyzer.bind(tx, tvm_tirx.ir.Range(0, 128))
+    ck.analyzer.bind(warp, tvm_tirx.ir.Range(0, 4))
 
     # Same-source joint projection: the comparison genuinely depends on tx
     # at warp == 0 (e.g. tx == 4 ⇒ 0 < 1 = True; tx == 1 ⇒ 2 < 0 = False),
@@ -462,16 +489,16 @@ def test_simplify_le_negative_scale_extra():
 
     # The corresponding ``scale = +1`` Case 2 path (the rewrite this guards)
     # must still optimize — verifies we did not over-restrict.
-    x1 = tvm.tirx.Var("x1", "int32")
-    y1 = tvm.tirx.Var("y1", "int32")
+    x1 = tvm_tirx.tirx.Var("x1", "int32")
+    y1 = tvm_tirx.tirx.Var("y1", "int32")
     ck.verify(x1 * 64 + (y1 % 64) < 120, x1 * 8 + (y1 % 64) // 8 < 15)
 
     # The truly-always-true comparison that arises from the same kernel
     # (``r = 2 / va = 1`` in the tcgen05.ld.16x256b readback) must still
     # fold to True so the masked store can be elided.
     expr_true = (tx % 4) * 2 < warp * 16 + (tx % 32) // 4 + 8
-    ck.verify(expr_true, tvm.tirx.const(True, "bool"))
+    ck.verify(expr_true, tvm_tirx.tirx.const(True, "bool"))
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

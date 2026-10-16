@@ -19,19 +19,21 @@
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import te, tirx, topi
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import te, topi
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_matmul(
     A: T.Tensor([128, 128], dtype="float32"),
     B: T.Tensor([128, 128], dtype="float32"),
@@ -48,7 +50,7 @@ def transformed_matmul(
             C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_matmul_with_let(
     A: T.Tensor([128, 128], dtype="float32"),
     B: T.Tensor([128, 128], dtype="float32"),
@@ -66,13 +68,13 @@ def transformed_matmul_with_let(
             C[vi, vj] = v_C
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_rfactor(
     A: T.Tensor([128, 128], dtype="float32"),
     B: T.Tensor([128, 128], dtype="float32"),
     C: T.Tensor([128, 128], dtype="float32"),
 ) -> None:
-    C_rf = Ts.sblock_alloc_buffer([4, 128, 128], dtype="float32")
+    C_rf = Ts.sblock_alloc_tensor([4, 128, 128], dtype="float32")
 
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
         with Ts.sblock("update_rf"):
@@ -96,11 +98,13 @@ def matmul_rfactor(
             C[vi_1, vj_1] = C[vi_1, vj_1] + C_rf[vi2_inner_inner_1, vi_1, vj_1]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_not_stage_pipeline(
-    A: T.Tensor([256, 256]), B: T.Tensor([256, 256]), D: T.Tensor([256, 256])
+    A: T.Tensor([256, 256], "float32"),
+    B: T.Tensor([256, 256], "float32"),
+    D: T.Tensor([256, 256], "float32"),
 ) -> None:
-    C = Ts.sblock_alloc_buffer([256, 256])
+    C = Ts.sblock_alloc_tensor([256, 256])
 
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("C"):
@@ -115,9 +119,11 @@ def matmul_not_stage_pipeline(
             D[vi, vj] = C[vi, vj]
 
 
-@Ts.prim_func
-def matmul_not_same_buffer_access(
-    A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
+@Ts.function
+def matmul_not_same_tensor_access(
+    A: T.Tensor((128, 128), "float32"),
+    B: T.Tensor((128, 128), "float32"),
+    C: T.Tensor((128, 128), "float32"),
 ) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("C"):
@@ -127,12 +133,12 @@ def matmul_not_same_buffer_access(
             C[vj, vi] = C[vj, vi] + A[vi, vk] * B[vk, vj]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_loop_multiple_children(
-    A: T.Tensor([128, 128]),
-    B: T.Tensor([128, 128]),
-    C: T.Tensor([128, 128]),
-    D: T.Tensor([128, 128]),
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
+    D: T.Tensor([128, 128], "float32"),
 ) -> None:
     for k, i, j in T.grid(128, 128, 128):
         with Ts.sblock("C"):
@@ -147,8 +153,8 @@ def matmul_loop_multiple_children(
             D[di, dj] = D[di, dj] + B[di, dk] * A[dk, dj]
 
 
-@Ts.prim_func
-def square_sum(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
+@Ts.function
+def square_sum(A: T.Tensor([16, 256, 256], "float32"), C: T.Tensor([16], "float32")) -> None:
     for b0, i0, j0 in T.grid(16, 256, 256):
         with Ts.sblock("C"):
             b, i, j = Ts.axis.remap("SRR", [b0, i0, j0])
@@ -157,9 +163,11 @@ def square_sum(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
             C[b] = C[b] + A[b, i, j] * A[b, i, j]
 
 
-@Ts.prim_func
-def square_sum_rfactor(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
-    C_rf = Ts.sblock_alloc_buffer([16, 256])
+@Ts.function
+def square_sum_rfactor(
+    A: T.Tensor([16, 256, 256], "float32"), C: T.Tensor([16], "float32")
+) -> None:
+    C_rf = Ts.sblock_alloc_tensor([16, 256])
 
     for i0, i1, i2 in T.grid(16, 256, 256):
         with Ts.sblock("C_rf"):
@@ -176,9 +184,11 @@ def square_sum_rfactor(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
             C[b_1] = C[b_1] + C_rf[b_1, vi2_1]
 
 
-@Ts.prim_func
-def transformed_square_sum_square_root(A: T.Tensor([16, 256, 256]), D: T.Tensor([16])) -> None:
-    C = Ts.sblock_alloc_buffer([16])
+@Ts.function
+def transformed_square_sum_square_root(
+    A: T.Tensor([16, 256, 256], "float32"), D: T.Tensor([16], "float32")
+) -> None:
+    C = Ts.sblock_alloc_tensor([16])
 
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 65536, 1):
         with Ts.sblock("C"):
@@ -198,10 +208,12 @@ def transformed_square_sum_square_root(A: T.Tensor([16, 256, 256]), D: T.Tensor(
             D[b_1] = T.sqrt(C[b_1])
 
 
-@Ts.prim_func
-def square_sum_square_root_rfactor(A: T.Tensor([16, 256, 256]), D: T.Tensor([16])) -> None:
-    C = Ts.sblock_alloc_buffer([16])
-    C_rf = Ts.sblock_alloc_buffer([1, 16])
+@Ts.function
+def square_sum_square_root_rfactor(
+    A: T.Tensor([16, 256, 256], "float32"), D: T.Tensor([16], "float32")
+) -> None:
+    C = Ts.sblock_alloc_tensor([16])
+    C_rf = Ts.sblock_alloc_tensor([1, 16])
 
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 65536, 1):
         with Ts.sblock("C_rf"):
@@ -225,11 +237,11 @@ def square_sum_square_root_rfactor(A: T.Tensor([16, 256, 256]), D: T.Tensor([16]
             D[b_2] = T.sqrt(C[b_2])
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_square_sum_square_root_factor_one_1(
-    A: T.Tensor([16, 256, 256]), D: T.Tensor([16])
+    A: T.Tensor([16, 256, 256], "float32"), D: T.Tensor([16], "float32")
 ) -> None:
-    C = Ts.sblock_alloc_buffer([16])
+    C = Ts.sblock_alloc_tensor([16])
 
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 65536, 1):
         with Ts.sblock("C"):
@@ -245,12 +257,12 @@ def transformed_square_sum_square_root_factor_one_1(
             D[b_1] = T.sqrt(C[b_1])
 
 
-@Ts.prim_func
+@Ts.function
 def square_sum_square_root_factor_one_1_rfactor(
     A: T.Tensor((16, 256, 256), "float32"), D: T.Tensor((16,), "float32")
 ) -> None:
-    C = Ts.sblock_alloc_buffer([16], dtype="float32")
-    C_rf = Ts.sblock_alloc_buffer([1, 16], dtype="float32")
+    C = Ts.sblock_alloc_tensor([16], dtype="float32")
+    C_rf = Ts.sblock_alloc_tensor([1, 16], dtype="float32")
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 65536, 1):
         with Ts.sblock("C_rf"):
             b = Ts.axis.spatial(16, i0)
@@ -272,11 +284,11 @@ def square_sum_square_root_factor_one_1_rfactor(
             D[b_1] = T.sqrt(C[b_1])
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_square_sum_square_root_factor_one_2(
-    A: T.Tensor([16, 256, 256]), D: T.Tensor([16])
+    A: T.Tensor([16, 256, 256], "float32"), D: T.Tensor([16], "float32")
 ) -> None:
-    C = Ts.sblock_alloc_buffer([16])
+    C = Ts.sblock_alloc_tensor([16])
 
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 1, 65536):
         with Ts.sblock("C"):
@@ -292,12 +304,12 @@ def transformed_square_sum_square_root_factor_one_2(
             D[b_1] = T.sqrt(C[b_1])
 
 
-@Ts.prim_func
+@Ts.function
 def square_sum_square_root_factor_one_2_rfactor(
     A: T.Tensor((16, 256, 256), "float32"), D: T.Tensor((16,), "float32")
 ) -> None:
-    C = Ts.sblock_alloc_buffer([16], dtype="float32")
-    C_rf = Ts.sblock_alloc_buffer([16, 1], dtype="float32")
+    C = Ts.sblock_alloc_tensor([16], dtype="float32")
+    C_rf = Ts.sblock_alloc_tensor([16, 1], dtype="float32")
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 1, 65536):
         with Ts.sblock("C_rf"):
             b = Ts.axis.spatial(16, i0)
@@ -319,8 +331,10 @@ def square_sum_square_root_factor_one_2_rfactor(
             D[b_1] = T.sqrt(C[b_1])
 
 
-@Ts.prim_func
-def square_sum_with_annotation(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
+@Ts.function
+def square_sum_with_annotation(
+    A: T.Tensor([16, 256, 256], "float32"), C: T.Tensor([16], "float32")
+) -> None:
     for b0, i0, j0 in T.grid(16, 256, 256):
         with Ts.sblock("C"):
             Ts.sblock_attr({"test_annotation": 1})
@@ -330,9 +344,11 @@ def square_sum_with_annotation(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -
             C[b] = C[b] + A[b, i, j] * A[b, i, j]
 
 
-@Ts.prim_func
-def square_sum_with_annotation_rfactor(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
-    C_rf = Ts.sblock_alloc_buffer([16, 256])
+@Ts.function
+def square_sum_with_annotation_rfactor(
+    A: T.Tensor([16, 256, 256], "float32"), C: T.Tensor([16], "float32")
+) -> None:
+    C_rf = Ts.sblock_alloc_tensor([16, 256])
 
     for i0, i1, i2 in T.grid(16, 256, 256):
         with Ts.sblock("C_rf"):
@@ -351,16 +367,16 @@ def square_sum_with_annotation_rfactor(A: T.Tensor([16, 256, 256]), C: T.Tensor(
             C[b_1] = C[b_1] + C_rf[b_1, vi2_1]
 
 
-@Ts.prim_func
-def element_wise(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+@Ts.function
+def element_wise(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
 
-@Ts.prim_func
-def rowsum(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+@Ts.function
+def rowsum(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -369,8 +385,10 @@ def rowsum(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
             B[vi] = B[vi] + A[vi, vk]
 
 
-@Ts.prim_func
-def rowsum_not_quasi_affine(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+@Ts.function
+def rowsum_not_quasi_affine(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")
+) -> None:
     for i, k in T.grid(128, 16):
         with Ts.sblock("B"):
             vi = Ts.axis.S(128, i)
@@ -380,8 +398,10 @@ def rowsum_not_quasi_affine(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> Non
             B[vi] = B[vi] + A[vi, vk]
 
 
-@Ts.prim_func
-def rowsum_not_dominant(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+@Ts.function
+def rowsum_not_dominant(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
+) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -390,8 +410,8 @@ def rowsum_not_dominant(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> Non
             B[vi, vk] = B[vi, vk] + A[vi, vk]
 
 
-@Ts.prim_func
-def rowsum_not_serial(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+@Ts.function
+def rowsum_not_serial(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")) -> None:
     for i in T.serial(0, 128):
         for k in T.parallel(0, 128):
             with Ts.sblock("B"):
@@ -401,8 +421,10 @@ def rowsum_not_serial(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
                 B[vi] = B[vi] + A[vi, vk]
 
 
-@Ts.prim_func
-def rowsum_wrong_reduce_pattern1(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+@Ts.function
+def rowsum_wrong_reduce_pattern1(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")
+) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -411,8 +433,10 @@ def rowsum_wrong_reduce_pattern1(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -
             B[vi] = B[vi] + A[vi, vk]
 
 
-@Ts.prim_func
-def rowsum_wrong_reduce_pattern2(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+@Ts.function
+def rowsum_wrong_reduce_pattern2(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")
+) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -421,8 +445,10 @@ def rowsum_wrong_reduce_pattern2(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -
             B[vi] = B[vi] - A[vi, vk]
 
 
-@Ts.prim_func
-def rowsum_init_not_bufferstore(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+@Ts.function
+def rowsum_init_not_tensorstore(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")
+) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -432,8 +458,8 @@ def rowsum_init_not_bufferstore(A: T.Tensor((128, 128)), B: T.Tensor((128,))) ->
             B[vi] = B[vi] + A[vi, vk]
 
 
-@Ts.prim_func
-def rowsum_transformed(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+@Ts.function
+def rowsum_transformed(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")) -> None:
     for io, ii_ko_fused, ki in T.grid(32, 128, 4):
         with Ts.sblock("B"):
             vi = Ts.axis.S(128, io * 4 + T.floordiv(ii_ko_fused, 32))
@@ -443,8 +469,8 @@ def rowsum_transformed(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
             B[vi] = B[vi] + A[vi, vk]
 
 
-@Ts.prim_func
-def rowsum_zero_dim(A: T.Tensor([128]), B: T.Tensor([])) -> None:
+@Ts.function
+def rowsum_zero_dim(A: T.Tensor([128], "float32"), B: T.Tensor([], "float32")) -> None:
     for k0 in range(128):
         with Ts.sblock("B"):
             k = Ts.axis.R(128, k0)
@@ -453,9 +479,9 @@ def rowsum_zero_dim(A: T.Tensor([128]), B: T.Tensor([])) -> None:
             B[()] = B[()] + A[k]
 
 
-@Ts.prim_func
-def rowsum_zero_dim_rfactor(A: T.Tensor([128]), B: T.Tensor([])) -> None:
-    B_rf = Ts.sblock_alloc_buffer([128], elem_offset=T.int64(0))
+@Ts.function
+def rowsum_zero_dim_rfactor(A: T.Tensor([128], "float32"), B: T.Tensor([], "float32")) -> None:
+    B_rf = Ts.sblock_alloc_tensor([128], elem_offset=T.int64(0))
 
     for i in range(128):
         with Ts.sblock("B_rf"):
@@ -470,7 +496,7 @@ def rowsum_zero_dim_rfactor(A: T.Tensor([128]), B: T.Tensor([])) -> None:
             B[()] = B[()] + B_rf[vi0_1]
 
 
-@Ts.prim_func
+@Ts.function
 def rowsum_predicate(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
@@ -484,11 +510,11 @@ def rowsum_predicate(
             B[vi] = B[vi] + A[vi, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def rowsum_predicate_rfactor(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
-    B_rf = Ts.sblock_alloc_buffer([128, 13], dtype="float32")
+    B_rf = Ts.sblock_alloc_tensor([128, 13], dtype="float32")
     for i, k_0, k_1 in T.grid(128, 13, 10):
         with Ts.sblock("B_rf"):
             vk_0, vi, vk_1 = Ts.axis.remap("SSR", [k_0, i, k_1])
@@ -504,11 +530,13 @@ def rowsum_predicate_rfactor(
             B[vi] = B[vi] + B_rf[vi, vk_0]
 
 
-@Ts.prim_func
-def multiple_reduction_blocks(A: T.Tensor((16, 16, 16)), F: T.Tensor((16, 16))) -> None:
-    C = Ts.sblock_alloc_buffer((16, 16))
-    D = Ts.sblock_alloc_buffer((16, 16))
-    E = Ts.sblock_alloc_buffer((16, 16))
+@Ts.function
+def multiple_reduction_blocks(
+    A: T.Tensor((16, 16, 16), "float32"), F: T.Tensor((16, 16), "float32")
+) -> None:
+    C = Ts.sblock_alloc_tensor((16, 16))
+    D = Ts.sblock_alloc_tensor((16, 16))
+    E = Ts.sblock_alloc_tensor((16, 16))
 
     for i in T.serial(0, 16):
         for j1 in T.serial(0, 16):
@@ -543,13 +571,15 @@ def multiple_reduction_blocks(A: T.Tensor((16, 16, 16)), F: T.Tensor((16, 16))) 
                     F[fi, fj] = F[fi, fj] + A[fi, fj, fk] + E[fi, fj]
 
 
-@Ts.prim_func
-def multiple_reduction_blocks_rfactor(A: T.Tensor([16, 16, 16]), F: T.Tensor([16, 16])) -> None:
-    C = Ts.sblock_alloc_buffer([16, 16])
-    D = Ts.sblock_alloc_buffer([16, 16])
-    E = Ts.sblock_alloc_buffer([16, 16])
+@Ts.function
+def multiple_reduction_blocks_rfactor(
+    A: T.Tensor([16, 16, 16], "float32"), F: T.Tensor([16, 16], "float32")
+) -> None:
+    C = Ts.sblock_alloc_tensor([16, 16])
+    D = Ts.sblock_alloc_tensor([16, 16])
+    E = Ts.sblock_alloc_tensor([16, 16])
 
-    C_rf = Ts.sblock_alloc_buffer([16, 16, 4])
+    C_rf = Ts.sblock_alloc_tensor([16, 16, 4])
 
     for i, j1, k1o, k1i in T.grid(16, 16, 4, 4):
         with Ts.sblock("C_rf"):
@@ -589,7 +619,7 @@ def multiple_reduction_blocks_rfactor(A: T.Tensor([16, 16, 16]), F: T.Tensor([16
                     F[fi, fj] = (F[fi, fj] + A[fi, fj, fk]) + E[fi, fj]
 
 
-@Ts.prim_func
+@Ts.function
 def rfactor_spatial_only(
     A: T.Tensor((1, 512, 7, 7), "float32"),
     B: T.Tensor((1, 512, 1, 1), "float32"),
@@ -611,14 +641,14 @@ def rfactor_spatial_only(
             )
 
 
-@Ts.prim_func
+@Ts.function
 def rfactor_spatial_only_after(
     A: T.Tensor((1, 512, 7, 7), "float32"),
     B: T.Tensor((1, 512, 1, 1), "float32"),
 ) -> None:
     # body
     # with Ts.sblock("root")
-    B_rf = Ts.sblock_alloc_buffer([1, 512, 1, 1, 49], dtype="float32")
+    B_rf = Ts.sblock_alloc_tensor([1, 512, 1, 1, 49], dtype="float32")
     for _i0, i1, _i2, _i3, i4, _i5 in T.grid(1, 512, 1, 1, 49, 1):
         with Ts.sblock("acc_rf"):
             vi4 = Ts.axis.spatial(49, i4)
@@ -639,7 +669,7 @@ def rfactor_spatial_only_after(
             B[ax0, ax1, ax2, ax3] = B[ax0, ax1, ax2, ax3] + B_rf[ax0, ax1, ax2, ax3, vi4]
 
 
-@Ts.prim_func
+@Ts.function
 def argmax_split(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
@@ -665,7 +695,7 @@ def argmax_split(
             argmax_v1[i] = v_argmax_v1
 
 
-@Ts.prim_func
+@Ts.function
 def argmin_split_init_update_reordered(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
@@ -691,7 +721,7 @@ def argmin_split_init_update_reordered(
             argmin_v0[i] = v_argmin_v0
 
 
-@Ts.prim_func
+@Ts.function
 def argmax_split_different_shape(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
@@ -717,7 +747,7 @@ def argmax_split_different_shape(
             argmax_v1[i] = v_argmax_v1
 
 
-@Ts.prim_func
+@Ts.function
 def argmax_split_different_indices(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
@@ -743,8 +773,8 @@ def argmax_split_different_indices(
             argmax_v1[i + 1] = v_argmax_v1
 
 
-@Ts.prim_func
-def argmax_split_init_not_bufferstore(
+@Ts.function
+def argmax_split_init_not_tensorstore(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmax_v0: T.Tensor((128,), "int32"),
@@ -770,8 +800,8 @@ def argmax_split_init_not_bufferstore(
             argmax_v1[i] = v_argmax_v1
 
 
-@Ts.prim_func
-def argmax_split_init_buffer_duplicate(
+@Ts.function
+def argmax_split_init_tensor_duplicate(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmax_v0: T.Tensor((128,), "int32"),
@@ -796,7 +826,7 @@ def argmax_split_init_buffer_duplicate(
             argmax_v1[i] = v_argmax_v1
 
 
-@Ts.prim_func
+@Ts.function
 def argmax_split_bind_fewer_than_init(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
@@ -819,7 +849,7 @@ def argmax_split_bind_fewer_than_init(
             argmax_v1[i] = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
 
 
-@Ts.prim_func
+@Ts.function
 def argmax_split_bind_more_than_init(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
@@ -844,8 +874,8 @@ def argmax_split_bind_more_than_init(
             argmax_v1[i] = v_argmax_v1
 
 
-@Ts.prim_func
-def argmax_split_let_body_neither_seqstmt_nor_bufferstore(
+@Ts.function
+def argmax_split_let_body_neither_seqstmt_nor_tensorstore(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmax_v0: T.Tensor((128,), "int32"),
@@ -869,8 +899,8 @@ def argmax_split_let_body_neither_seqstmt_nor_bufferstore(
             T.evaluate(0)
 
 
-@Ts.prim_func
-def argmax_split_init_update_inconsistent_bufferstore_number(
+@Ts.function
+def argmax_split_init_update_inconsistent_tensorstore_number(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmax_v0: T.Tensor((128,), "int32"),
@@ -896,8 +926,8 @@ def argmax_split_init_update_inconsistent_bufferstore_number(
             argmax_v1[i] = v_argmax_v1
 
 
-@Ts.prim_func
-def argmax_split_body_seq_not_bufferstore(
+@Ts.function
+def argmax_split_body_seq_not_tensorstore(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmax_v0: T.Tensor((128,), "int32"),
@@ -922,8 +952,8 @@ def argmax_split_body_seq_not_bufferstore(
             T.evaluate(0)
 
 
-@Ts.prim_func
-def argmax_split_body_bufferstore_value_not_var(
+@Ts.function
+def argmax_split_body_tensorstore_value_not_var(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmax_v0: T.Tensor((128,), "int32"),
@@ -952,8 +982,8 @@ def argmax_split_body_bufferstore_value_not_var(
 v_unbound = T.dynamic("v_unbound", "int32")
 
 
-@Ts.prim_func(check_well_formed=False)
-def argmax_split_body_bufferstore_value_unbound_var(
+@Ts.function(check_well_formed=False)
+def argmax_split_body_tensorstore_value_unbound_var(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmax_v0: T.Tensor((128,), "int32"),
@@ -978,7 +1008,7 @@ def argmax_split_body_bufferstore_value_unbound_var(
             argmax_v1[i] = v_argmax_v1
 
 
-@Ts.prim_func
+@Ts.function
 def argmax_split_one_let_var_used_multi_times(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "int32"),
@@ -1004,8 +1034,8 @@ def argmax_split_one_let_var_used_multi_times(
             argmax_v1[i] = v_argmax_v0
 
 
-@Ts.prim_func
-def argmax_split_body_one_buffer_updated_multi_times(
+@Ts.function
+def argmax_split_body_one_tensor_updated_multi_times(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "int32"),
     argmax_v0: T.Tensor((128,), "int32"),
@@ -1030,8 +1060,8 @@ def argmax_split_body_one_buffer_updated_multi_times(
             argmax_v0[i] = v_argmax_v1
 
 
-@Ts.prim_func
-def argmax_split_init_buffer_not_match(
+@Ts.function
+def argmax_split_init_tensor_not_match(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmax_v0: T.Tensor((128,), "int32"),
@@ -1057,15 +1087,15 @@ def argmax_split_init_buffer_not_match(
             argmax_v1[i] = v_argmax_v1
 
 
-@Ts.prim_func
+@Ts.function
 def argmax_split_rfactor(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmax_v0: T.Tensor((128,), "int32"),
     argmax_v1: T.Tensor((128,), "float32"),
 ) -> None:
-    argmax_v0_rf = Ts.sblock_alloc_buffer([128, 32], dtype="int32")
-    argmax_v1_rf = Ts.sblock_alloc_buffer([128, 32], dtype="float32")
+    argmax_v0_rf = Ts.sblock_alloc_tensor([128, 32], dtype="int32")
+    argmax_v1_rf = Ts.sblock_alloc_tensor([128, 32], dtype="float32")
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with Ts.sblock("argmax_rf"):
             vi1_1, i, vi1_0 = Ts.axis.remap("SSR", [i1_1, i0, i1_0])
@@ -1104,15 +1134,15 @@ def argmax_split_rfactor(
             argmax_v1[i] = v_argmax_v1
 
 
-@Ts.prim_func
+@Ts.function
 def argmin_split_rfactor(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmin_v0: T.Tensor((128,), "int32"),
     argmin_v1: T.Tensor((128,), "float32"),
 ) -> None:
-    argmin_v0_rf = Ts.sblock_alloc_buffer([128, 32], dtype="int32")
-    argmin_v1_rf = Ts.sblock_alloc_buffer([128, 32], dtype="float32")
+    argmin_v0_rf = Ts.sblock_alloc_tensor([128, 32], dtype="int32")
+    argmin_v1_rf = Ts.sblock_alloc_tensor([128, 32], dtype="float32")
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with Ts.sblock("argmin_rf"):
             vi1_1, i, vi1_0 = Ts.axis.remap("SSR", [i1_1, i0, i1_0])
@@ -1151,15 +1181,15 @@ def argmin_split_rfactor(
             argmin_v1[i] = v_argmin_v1
 
 
-@Ts.prim_func
+@Ts.function
 def argmax_topi_rfactor(
     placeholder: T.Tensor((1, 32), "int32"), placeholder_red: T.Tensor(1, "int32")
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    placeholder_red_temp_v0 = Ts.sblock_alloc_buffer([1], dtype="int32")
-    placeholder_red_temp_v1 = Ts.sblock_alloc_buffer([1], dtype="int32")
-    placeholder_red_temp_v0_rf = Ts.sblock_alloc_buffer([1, 8], dtype="int32")
-    placeholder_red_temp_v1_rf = Ts.sblock_alloc_buffer([1, 8], dtype="int32")
+    placeholder_red_temp_v0 = Ts.sblock_alloc_tensor([1], dtype="int32")
+    placeholder_red_temp_v1 = Ts.sblock_alloc_tensor([1], dtype="int32")
+    placeholder_red_temp_v0_rf = Ts.sblock_alloc_tensor([1, 8], dtype="int32")
+    placeholder_red_temp_v1_rf = Ts.sblock_alloc_tensor([1, 8], dtype="int32")
     for i0, i1_0, i1_1 in T.grid(1, 4, 8):
         with Ts.sblock("placeholder_red_temp_rf"):
             vi1_1, ax0, vi1_0 = Ts.axis.remap("SSR", [i1_1, i0, i1_0])
@@ -1218,15 +1248,15 @@ def argmax_topi_rfactor(
             placeholder_red[ax0] = placeholder_red_temp_v0[ax0]
 
 
-@Ts.prim_func
+@Ts.function
 def argmin_topi_rfactor(
     placeholder: T.Tensor((1, 32), "int32"), placeholder_red: T.Tensor(1, "int32")
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    placeholder_red_temp_v0 = Ts.sblock_alloc_buffer([1], dtype="int32")
-    placeholder_red_temp_v1 = Ts.sblock_alloc_buffer([1], dtype="int32")
-    placeholder_red_temp_v0_rf = Ts.sblock_alloc_buffer([1, 8], dtype="int32")
-    placeholder_red_temp_v1_rf = Ts.sblock_alloc_buffer([1, 8], dtype="int32")
+    placeholder_red_temp_v0 = Ts.sblock_alloc_tensor([1], dtype="int32")
+    placeholder_red_temp_v1 = Ts.sblock_alloc_tensor([1], dtype="int32")
+    placeholder_red_temp_v0_rf = Ts.sblock_alloc_tensor([1, 8], dtype="int32")
+    placeholder_red_temp_v1_rf = Ts.sblock_alloc_tensor([1, 8], dtype="int32")
     for i0, i1_0, i1_1 in T.grid(1, 4, 8):
         with Ts.sblock("placeholder_red_temp_rf"):
             vi1_1, ax0, vi1_0 = Ts.axis.remap("SSR", [i1_1, i0, i1_0])
@@ -1285,15 +1315,15 @@ def argmin_topi_rfactor(
             placeholder_red[ax0] = placeholder_red_temp_v0[ax0]
 
 
-@Ts.prim_func
+@Ts.function
 def argmax_topi_select_last_rfactor(
     placeholder: T.Tensor((1, 32), "int32"), placeholder_red: T.Tensor(1, "int32")
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    placeholder_red_temp_v0 = Ts.sblock_alloc_buffer([1], dtype="int32")
-    placeholder_red_temp_v1 = Ts.sblock_alloc_buffer([1], dtype="int32")
-    placeholder_red_temp_v0_rf = Ts.sblock_alloc_buffer([1, 8], dtype="int32")
-    placeholder_red_temp_v1_rf = Ts.sblock_alloc_buffer([1, 8], dtype="int32")
+    placeholder_red_temp_v0 = Ts.sblock_alloc_tensor([1], dtype="int32")
+    placeholder_red_temp_v1 = Ts.sblock_alloc_tensor([1], dtype="int32")
+    placeholder_red_temp_v0_rf = Ts.sblock_alloc_tensor([1, 8], dtype="int32")
+    placeholder_red_temp_v1_rf = Ts.sblock_alloc_tensor([1, 8], dtype="int32")
     for i0, i1_0, i1_1 in T.grid(1, 4, 8):
         with Ts.sblock("placeholder_red_temp_rf"):
             vi1_1, ax0, vi1_0 = Ts.axis.remap("SSR", [i1_1, i0, i1_0])
@@ -1352,15 +1382,15 @@ def argmax_topi_select_last_rfactor(
             placeholder_red[ax0] = placeholder_red_temp_v0[ax0]
 
 
-@Ts.prim_func
+@Ts.function
 def argmin_topi_select_last_rfactor(
     placeholder: T.Tensor((1, 32), "int32"), placeholder_red: T.Tensor(1, "int32")
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    placeholder_red_temp_v0 = Ts.sblock_alloc_buffer([1], dtype="int32")
-    placeholder_red_temp_v1 = Ts.sblock_alloc_buffer([1], dtype="int32")
-    placeholder_red_temp_v0_rf = Ts.sblock_alloc_buffer([1, 8], dtype="int32")
-    placeholder_red_temp_v1_rf = Ts.sblock_alloc_buffer([1, 8], dtype="int32")
+    placeholder_red_temp_v0 = Ts.sblock_alloc_tensor([1], dtype="int32")
+    placeholder_red_temp_v1 = Ts.sblock_alloc_tensor([1], dtype="int32")
+    placeholder_red_temp_v0_rf = Ts.sblock_alloc_tensor([1, 8], dtype="int32")
+    placeholder_red_temp_v1_rf = Ts.sblock_alloc_tensor([1, 8], dtype="int32")
     for i0, i1_0, i1_1 in T.grid(1, 4, 8):
         with Ts.sblock("placeholder_red_temp_rf"):
             vi1_1, ax0, vi1_0 = Ts.axis.remap("SSR", [i1_1, i0, i1_0])
@@ -1508,8 +1538,8 @@ def test_reduction_rfactor_not_serial_loop():
         s.rfactor(k, 0)
 
 
-def test_reduction_rfactor_not_same_buffer_access():
-    s = tvm.s_tir.Schedule(matmul_not_same_buffer_access, debug_mask="all")
+def test_reduction_rfactor_not_same_tensor_access():
+    s = tvm.s_tir.Schedule(matmul_not_same_tensor_access, debug_mask="all")
     _, _, k = s.get_loops(s.get_sblock("C"))
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.rfactor(k, 0)
@@ -1549,8 +1579,8 @@ def test_reduction_rfactor_wrong_reduce_pattern2():
         s.rfactor(k, 0)
 
 
-def test_reduction_rfactor_init_not_bufferstore():
-    s = tvm.s_tir.Schedule(rowsum_init_not_bufferstore, debug_mask="all")
+def test_reduction_rfactor_init_not_tensorstore():
+    s = tvm.s_tir.Schedule(rowsum_init_not_tensorstore, debug_mask="all")
     _, k = s.get_loops(s.get_sblock("B"))
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.rfactor(k, 0)
@@ -1664,7 +1694,7 @@ def test_reduction_rfactor_argmin_init_update_reordeded():
     verify_trace_roundtrip(s, mod=argmin_split_init_update_reordered)
 
 
-def test_reduction_rfactor_argmax_reduction_buffer_different_shape():
+def test_reduction_rfactor_argmax_reduction_tensor_different_shape():
     s = tvm.s_tir.Schedule(argmax_split_different_shape, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
@@ -1680,16 +1710,16 @@ def test_reduction_rfactor_argmax_different_access_indices():
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_init_not_bufferstore():
-    s = tvm.s_tir.Schedule(argmax_split_init_not_bufferstore, debug_mask="all")
+def test_reduction_rfactor_argmax_init_not_tensorstore():
+    s = tvm.s_tir.Schedule(argmax_split_init_not_tensorstore, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_init_buffer_duplicate():
-    s = tvm.s_tir.Schedule(argmax_split_init_buffer_duplicate, debug_mask="all")
+def test_reduction_rfactor_argmax_init_tensor_duplicate():
+    s = tvm.s_tir.Schedule(argmax_split_init_tensor_duplicate, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):
@@ -1712,17 +1742,17 @@ def test_reduction_rfactor_argmax_bind_more_than_init():
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_let_body_neither_seqstmt_nor_bufferstore():
-    s = tvm.s_tir.Schedule(argmax_split_let_body_neither_seqstmt_nor_bufferstore, debug_mask="all")
+def test_reduction_rfactor_argmax_let_body_neither_seqstmt_nor_tensorstore():
+    s = tvm.s_tir.Schedule(argmax_split_let_body_neither_seqstmt_nor_tensorstore, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_init_update_inconsistent_bufferstore_number():
+def test_reduction_rfactor_argmax_init_update_inconsistent_tensorstore_number():
     s = tvm.s_tir.Schedule(
-        argmax_split_init_update_inconsistent_bufferstore_number, debug_mask="all"
+        argmax_split_init_update_inconsistent_tensorstore_number, debug_mask="all"
     )
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
@@ -1730,16 +1760,16 @@ def test_reduction_rfactor_argmax_init_update_inconsistent_bufferstore_number():
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_body_seq_not_bufferstore():
-    s = tvm.s_tir.Schedule(argmax_split_body_seq_not_bufferstore, debug_mask="all")
+def test_reduction_rfactor_argmax_body_seq_not_tensorstore():
+    s = tvm.s_tir.Schedule(argmax_split_body_seq_not_tensorstore, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_body_bufferstore_value_not_var():
-    s = tvm.s_tir.Schedule(argmax_split_body_bufferstore_value_not_var, debug_mask="all")
+def test_reduction_rfactor_argmax_body_tensorstore_value_not_var():
+    s = tvm.s_tir.Schedule(argmax_split_body_tensorstore_value_not_var, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):
@@ -1747,8 +1777,8 @@ def test_reduction_rfactor_argmax_body_bufferstore_value_not_var():
 
 
 @pytest.mark.xfail(reason="The input IR is not well-formed")
-def test_reduction_rfactor_argmax_body_bufferstore_value_unbound_var():
-    s = tvm.s_tir.Schedule(argmax_split_body_bufferstore_value_unbound_var, debug_mask="all")
+def test_reduction_rfactor_argmax_body_tensorstore_value_unbound_var():
+    s = tvm.s_tir.Schedule(argmax_split_body_tensorstore_value_unbound_var, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):
@@ -1763,16 +1793,16 @@ def test_reduction_rfactor_argmax_one_let_var_used_multi_times():
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_body_one_buffer_updated_multi_times():
-    s = tvm.s_tir.Schedule(argmax_split_body_one_buffer_updated_multi_times, debug_mask="all")
+def test_reduction_rfactor_argmax_body_one_tensor_updated_multi_times():
+    s = tvm.s_tir.Schedule(argmax_split_body_one_tensor_updated_multi_times, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_init_buffer_not_match():
-    s = tvm.s_tir.Schedule(argmax_split_init_buffer_not_match, debug_mask="all")
+def test_reduction_rfactor_argmax_init_tensor_not_match():
+    s = tvm.s_tir.Schedule(argmax_split_init_tensor_not_match, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):
@@ -1782,7 +1812,7 @@ def test_reduction_rfactor_argmax_init_buffer_not_match():
 def test_reduction_rfactor_topi_argmax():
     A = te.placeholder((1, 32), dtype="int32")
     B = topi.argmax(A, axis=1)
-    argmax_topi = te.create_prim_func([A, B])
+    argmax_topi = te.create_function([A, B])
     s = tvm.s_tir.Schedule(argmax_topi, debug_mask="all")
     argmax = s.get_sblock("placeholder_red_temp")
     _, k = s.get_loops(argmax)
@@ -1797,7 +1827,7 @@ def test_reduction_rfactor_topi_argmax():
 def test_reduction_rfactor_topi_argmin():
     A = te.placeholder((1, 32), dtype="int32")
     B = topi.argmin(A, axis=1)
-    argmin_topi = te.create_prim_func([A, B])
+    argmin_topi = te.create_function([A, B])
     s = tvm.s_tir.Schedule(argmin_topi, debug_mask="all")
     argmin = s.get_sblock("placeholder_red_temp")
     _, k = s.get_loops(argmin)
@@ -1812,7 +1842,7 @@ def test_reduction_rfactor_topi_argmin():
 def test_reduction_rfactor_topi_argmax_select_last_index():
     A = te.placeholder((1, 32), dtype="int32")
     B = topi.argmax(A, axis=1, select_last_index=True)
-    argmax_topi = te.create_prim_func([A, B])
+    argmax_topi = te.create_function([A, B])
     s = tvm.s_tir.Schedule(argmax_topi, debug_mask="all")
     argmax = s.get_sblock("placeholder_red_temp")
     _, k = s.get_loops(argmax)
@@ -1827,7 +1857,7 @@ def test_reduction_rfactor_topi_argmax_select_last_index():
 def test_reduction_rfactor_topi_argmin_select_last_index():
     A = te.placeholder((1, 32), dtype="int32")
     B = topi.argmin(A, axis=1, select_last_index=True)
-    argmin_topi = te.create_prim_func([A, B])
+    argmin_topi = te.create_function([A, B])
     s = tvm.s_tir.Schedule(argmin_topi, debug_mask="all")
     argmin = s.get_sblock("placeholder_red_temp")
     _, k = s.get_loops(argmin)
@@ -1841,7 +1871,7 @@ def test_reduction_rfactor_topi_argmin_select_last_index():
 
 def test_reduction_rfactor_int64():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def before(
         A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         B: T.Tensor((T.int64(128), T.int64(128)), "float32"),
@@ -1860,12 +1890,12 @@ def test_reduction_rfactor_int64():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
 
-    @Ts.prim_func
+    @Ts.function
     def expected(A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         B: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         C: T.Tensor((T.int64(128), T.int64(128)), "float32"),
     ):
-        C_rf = Ts.sblock_alloc_buffer((T.int64(4), T.int64(128), T.int64(128)), "float32")
+        C_rf = Ts.sblock_alloc_tensor((T.int64(4), T.int64(128), T.int64(128)), "float32")
 
         for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(T.int64(128), T.int64(128), T.int64(4), T.int64(8), T.int64(4)):
             with Ts.sblock("update_rf"):
@@ -1896,4 +1926,4 @@ def test_reduction_rfactor_int64():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

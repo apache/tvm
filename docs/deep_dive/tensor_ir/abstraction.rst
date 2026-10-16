@@ -32,7 +32,7 @@ the compute statements themselves.
     from tvm.script import tirx as T
     from tvm.script import s_tir as Ts
 
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((128,), "float32"),
         B: T.Tensor((128,), "float32"),

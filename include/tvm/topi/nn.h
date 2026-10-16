@@ -25,9 +25,9 @@
 #define TVM_TOPI_NN_H_
 
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/op.h>
 #include <tvm/topi/detail/constant_utils.h>
 #include <tvm/topi/reduction.h>
 #include <tvm/topi/tags.h>
@@ -172,10 +172,10 @@ inline tvm::te::Tensor pad(
   tvm::ffi::Array<tvm::PrimExpr> pad_after_int32;
 
   for (const auto& ele : pad_before) {
-    pad_before_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
+    pad_before_int32.push_back(tvm::prim::cast(ele, tvm::PrimType::Int(32)));
   }
   for (const auto& ele : pad_after) {
-    pad_after_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
+    pad_after_int32.push_back(tvm::prim::cast(ele, tvm::PrimType::Int(32)));
   }
 
   tvm::ffi::Array<tvm::PrimExpr> output_shape;
@@ -233,12 +233,12 @@ inline tvm::te::Tensor pad(
     if (sel.size() != 0) {
       if (pad_mode == "constant") {
         return tvm::if_then_else(
-            foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); },
+            foldl([](PrimExpr a, PrimExpr b, Location loc) { return tvm::logical_and(a, b, loc); },
                   IntImm::Bool(true), sel),
             t(indices), pad_value.value());
       } else if (pad_mode == "edge" || pad_mode == "reflect") {
         return tvm::if_then_else(
-            foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); },
+            foldl([](PrimExpr a, PrimExpr b, Location loc) { return tvm::logical_and(a, b, loc); },
                   IntImm::Bool(true), sel),
             t(indices), t(pad_idx));
       }
@@ -498,14 +498,14 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
   tvm::ffi::Array<tvm::PrimExpr> pad_after_int32;
 
   // pad size for batch dimension is 0
-  pad_before_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), 0));
-  pad_after_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), 0));
+  pad_before_int32.push_back(tvm::prim::cast(0, tvm::PrimType::Int(32)));
+  pad_after_int32.push_back(tvm::prim::cast(0, tvm::PrimType::Int(32)));
   // insert pad sizes given for spatial dimensions
   for (const auto& ele : pad_before) {
-    pad_before_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
+    pad_before_int32.push_back(tvm::prim::cast(ele, tvm::PrimType::Int(32)));
   }
   for (const auto& ele : pad_after) {
-    pad_after_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
+    pad_after_int32.push_back(tvm::prim::cast(ele, tvm::PrimType::Int(32)));
   }
 
   // pad the input with paddings provided
@@ -724,10 +724,9 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
                                    tvm::prim::MakeConst(tvm::PrimType(predictions->dtype), 0));
         },
         name, tag);
-    return topi::divide(topi::sum(T, tvm::ffi::Array<int64_t>(nullptr)),
-                        topi::sum(W, tvm::ffi::Array<int64_t>(nullptr)));
+    return topi::divide(topi::sum(T, std::nullopt), topi::sum(W, std::nullopt));
   } else if (reduction == "sum") {
-    return topi::sum(T, tvm::ffi::Array<int64_t>(nullptr));
+    return topi::sum(T, std::nullopt);
   } else {  // reduction == "none"
     return T;
   }

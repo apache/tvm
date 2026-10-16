@@ -27,8 +27,9 @@ import time
 import tvm_ffi
 from tvm_ffi import DLDeviceType
 
-import tvm.runtime
-from tvm.support import utils
+import tvm
+import tvm_tirx.runtime
+from tvm_tirx.support import utils
 
 from . import _ffi_api, base, server
 
@@ -42,7 +43,6 @@ class RPCSession:
     # pylint: disable=invalid-name
     def __init__(self, sess):
         self._sess = sess
-        self._tbl_index = _ffi_api.SessTableIndex(sess)
         self._remote_funcs = {}
 
     def system_lib(self):
@@ -55,7 +55,7 @@ class RPCSession:
 
         See Also
         --------
-        tvm.runtime.system_lib
+        tvm_tirx.runtime.system_lib
         """
         return self.get_function("ffi.SystemLib")()
 
@@ -85,14 +85,14 @@ class RPCSession:
 
         Returns
         -------
-        dev: Device
-            The corresponding encoded remote device.
+        dev: RemoteDevice
+            The session-owned device.
         """
-        dev = tvm.runtime.device(dev_type, dev_id)
-        encode = (self._tbl_index + 1) * base.RPC_SESS_MASK
-        dev = tvm.runtime.device(dev.dlpack_device_type() + encode, dev.index)
-        dev._rpc_sess = self
-        return dev
+        return _ffi_api.RemoteDevice(self._sess, tvm_tirx.runtime.device(dev_type, dev_id))
+
+    def close(self):
+        """Close this session; existing remote values reject further operations."""
+        self._sess.get_function("CloseRPCConnection")()
 
     def upload(self, data, target=None):
         """Upload file to remote runtime temp folder

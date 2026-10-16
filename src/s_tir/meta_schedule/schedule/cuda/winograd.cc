@@ -84,7 +84,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              }
              {
                sch->ComputeAt(input_tile, /*loop_rv=*/loops.back(), /*preserve_unit_loops=*/true);
-               sch->SetScope(input_tile, /*buffer_index=*/0, /*storage_scope=*/"local");
+               sch->SetScope(input_tile, /*tensor_index=*/0, /*storage_scope=*/"local");
                sch->ComputeInline(data_pad);
              }
              {
@@ -134,7 +134,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              }
              {
                sch->ComputeAt(input_tile, /*loop_rv=*/outer, /*preserve_unit_loops=*/true);
-               sch->SetScope(input_tile, /*buffer_index=*/0, /*storage_scope=*/"local");
+               sch->SetScope(input_tile, /*tensor_index=*/0, /*storage_scope=*/"local");
                sch->ComputeInline(data_pad);
              }
              return {sch};
@@ -146,8 +146,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             // loops on top of the inverse block: [CO, P, tile_size, tile_size, alpha, alpha]
             ffi::BigInt tile_size = sch->Get(inverse)
                                         ->writes[0]
-                                        ->source.as_or_throw<tvm::tirx::BufferVar>()
-                                        ->shape[2]
+                                        ->source.as_or_throw<tvm::tirx::TensorVar>()
+                                        .shape()[2]
                                         .as_or_throw<IntImm>()
                                         ->value;
             LoopRV outer{ffi::UnsafeInit()};
@@ -162,7 +162,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             }
             {
               sch->ComputeAt(inverse, /*loop_rv=*/outer, /*preserve_unit_loops=*/true);
-              sch->SetScope(inverse, /*buffer_index=*/0, /*storage_scope=*/"local");
+              sch->SetScope(inverse, /*tensor_index=*/0, /*storage_scope=*/"local");
               ffi::Array<LoopRV> loops = sch->GetLoops(inverse);
               TVM_FFI_ICHECK_EQ(loops.size(), 10);
               sch->Unroll(loops[6]);

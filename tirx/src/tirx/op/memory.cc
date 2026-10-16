@@ -1,0 +1,364 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file tirx/op/memory.cc
+ * \brief TIRx memory operations.
+ */
+#include <tvm/ffi/function.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/type.h>
+
+namespace tvm {
+namespace tirx {
+
+template <size_t DataIndex, int ElementIndex>
+Type InferTypePointerOffset(const CallNode* call) {
+  TVM_FFI_CHECK_GT(call->args.size(), DataIndex, ValueError);
+  Type element_type = PrimType::Void();
+  if constexpr (ElementIndex >= 0) {
+    TVM_FFI_CHECK_GT(call->args.size(), static_cast<size_t>(ElementIndex), ValueError);
+    element_type = call->args[ElementIndex]->ty;
+    if (element_type.as<MissingType>()) return Type::Missing();
+  }
+  auto pointer = call->args[DataIndex]->ty.as<PtrType>();
+  return PtrType(element_type, pointer ? pointer.value()->scope : runtime::MemoryScope::Global());
+}
+
+Type InferTypeAddressOf(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 1U, ValueError) << "Address type requires an object";
+  if (const auto* load = call->args[0].as<TensorLoadNode>()) {
+    return load->source.as_or_throw<TensorVar>().ty()->DataPtrType();
+  }
+  Var variable = call->args[0].as_or_throw<Var>();
+  if (auto pointer = variable->ty.as<PtrType>();
+      pointer && pointer.value()->element_type.as<TensorMapType>()) {
+    return PrimType::UInt(64);
+  }
+  return PtrType(variable->ty.as_or_throw<PrimType>());
+}
+
+Type InferTypeMaskedLoad(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 2U, ValueError)
+      << "Masked load type requires a tensor and index operands";
+  TensorVar tensor = call->args[0].as_or_throw<TensorVar>();
+  ffi::Array<PrimExpr> indices;
+  for (size_t i = 1; i + 1 < call->args.size(); ++i) {
+    indices.push_back(call->args[i].as_or_throw<PrimExpr>());
+  }
+  // Ordinary load typing computes vector elements and scalable index lanes.
+  return TensorLoad(tensor, indices).ty();
+}
+
+ffi::Expected<Type> InferTypeTensorDataPtr(const CallNode* call) noexcept try {
+  TVM_FFI_CHECK_EQ(call->args.size(), 1U, ValueError)
+      << "tirx.tensor_data_ptr expects one TensorVar argument";
+  Type inferred = call->args[0].as_or_throw<TensorVar>().ty()->DataPtrType();
+  if (call->ty.same_as(inferred) || ffi::StructuralEqual()(call->ty, inferred)) return call->ty;
+  return inferred;
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
+}
+
+// Allocation and declaration share the complete, explicit tensor type argument.
+template <bool is_alloc>
+Type InferTypeTensor(const CallNode* call) {
+  TVM_FFI_CHECK_EQ(call->ty_args.size(), 1U, ValueError)
+      << "Tensor allocation and declaration require exactly one TensorType argument";
+  auto type = call->ty_args[0].as_or_throw<TensorType>();
+  if constexpr (is_alloc) {
+    TVM_FFI_CHECK_LE(call->args.size(), 1U, ValueError)
+        << "alloc_tensor accepts at most one placement tuple";
+    if (!call->args.empty()) {
+      auto placement = call->args[0].as_or_throw<tvm::Tuple>();
+      for (const Expr& address : placement->fields) address.as_or_throw<PrimExpr>();
+    }
+  } else {
+    TVM_FFI_CHECK_EQ(call->args.size(), 1U, ValueError)
+        << "decl_tensor requires one backing data operand";
+  }
+  return type;
+}
+
+template <bool is_alloc>
+void ValidateTensorProducer(const CallNode* call) {
+  Type inferred = InferTypeTensor<is_alloc>(call);
+  TVM_FFI_CHECK(ffi::StructuralEqual()(call->ty, inferred), TypeError)
+      << "Tensor producer result must match its TensorType argument";
+  if constexpr (is_alloc) {
+    TVM_FFI_CHECK(!call->attrs.has_value() || call->attrs.as<DictAttrsNode>(), ValueError)
+        << "alloc_tensor annotations must be DictAttrs";
+  } else {
+    TVM_FFI_CHECK(!call->attrs.has_value(), ValueError) << "decl_tensor does not accept attributes";
+  }
+}
+
+const Op& reinterpret_op() {
+  static const Op op = Op::Get("tirx.reinterpret");
+  return op;
+}
+
+Expr reinterpret(Type target_ty, Expr value, Location loc) {
+  if (value.as<StringImmNode>()) {
+    TVM_FFI_CHECK(target_ty.as<PtrTypeNode>(), TypeError)
+        << "String reinterpret requires a pointer target, but got " << target_ty;
+    return Call(std::move(target_ty), tirx::reinterpret_op(), {std::move(value)}, {}, {},
+                std::move(loc));
+  }
+  if (auto target_dtype = target_ty.as<PrimType>()) {
+    if (auto prim_value = value.as<PrimExpr>()) {
+      PrimType target_prim = target_dtype.value();
+      PrimType value_dtype = prim_value.value().ty();
+      if (value_dtype == target_prim) return value;
+      if (!target_prim.IsScalableVector() && !value_dtype.IsScalableVector()) {
+        int value_bits = value_dtype.bits() * value_dtype.lanes();
+        int target_bits = target_prim.bits() * target_prim.lanes();
+        TVM_FFI_ICHECK(value_bits == target_bits ||
+                       ((value_dtype.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn) ||
+                         target_prim.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn)) &&
+                        value_dtype.StorageBytes() == target_prim.StorageBytes()))
+            << "Reinterpret requires size match " << target_prim << " vs " << value_dtype;
+      }
+    } else {
+      TVM_FFI_CHECK(value->ty.as<PtrTypeNode>(), TypeError)
+          << "Reinterpret source must be PrimType or PtrType, but got " << value->ty;
+      TVM_FFI_CHECK(
+          target_dtype.value().IsScalar() && target_dtype.value().bits() == 64 &&
+              target_dtype.value().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
+          TypeError)
+          << "Pointer reinterpret requires a scalar 64-bit integer target, but got "
+          << target_dtype.value();
+    }
+  } else {
+    TVM_FFI_CHECK(target_ty.as<PtrTypeNode>(), TypeError)
+        << "Reinterpret target must be PrimType or PtrType, but got " << target_ty;
+    if (auto source_dtype = value->ty.as<PrimType>()) {
+      TVM_FFI_CHECK(
+          source_dtype.value().IsScalar() && source_dtype.value().bits() == 64 &&
+              source_dtype.value().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
+          TypeError)
+          << "Pointer reinterpret requires a scalar 64-bit integer source, but got "
+          << source_dtype.value();
+    } else {
+      TVM_FFI_CHECK(value->ty.as<PtrTypeNode>(), TypeError)
+          << "Reinterpret source must be PrimType or PtrType, but got " << value->ty;
+    }
+  }
+  return Call(std::move(target_ty), tirx::reinterpret_op(), {std::move(value)}, {}, {},
+              std::move(loc));
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.reinterpret")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+}
+
+const Op& address_of_op() {
+  static const Op op = Op::Get("tirx.address_of");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.address_of")
+      .signature(sig::arg("obj", "The referenced object."))
+      .set_native_fn_attr<&InferTypeAddressOf>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+}
+
+const Op& isnullptr_op() {
+  static const Op op = Op::Get("tirx.isnullptr");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.isnullptr")
+      .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Bool())
+      .signature(sig::arg("x", "The input value."))
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+}
+
+const Op& prefetch_op() {
+  static const Op op = Op::Get("tirx.prefetch");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.prefetch")
+      .signature(sig::arg("ptr", "The pointer."), sig::arg<IntExpr>("rw", "The read/write mode."),
+                 sig::arg<IntExpr>("locality", "The locality hint."),
+                 sig::arg<IntExpr>("cache_type", "The cache policy."))
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+}
+
+const Op& ptr_byte_offset_op() {
+  static const Op op = Op::Get("tirx.ptr_byte_offset");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.ptr_byte_offset")
+      .signature(sig::arg("data", "Base pointer."),
+                 sig::arg<IntExpr>("byte_offset", "Offset in bytes."))
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+}
+
+const Op& static_handle_op() {
+  static const Op op = Op::Get("tirx.static_handle");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.static_handle")
+      .set_attr(tvm::op_attr::kCallEffectKind,
+                static_cast<int64_t>(CallEffectKind::kSpecialCallArg));
+}
+
+const Op& handle_add_byte_offset_op() {
+  static const Op op = Op::Get("tirx.handle_add_byte_offset");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.handle_add_byte_offset")
+      .signature(sig::arg("handle", "The handle."), sig::arg<IntExpr>("offset", "The offset."))
+      .set_native_fn_attr<&InferTypePointerOffset<0, -1>>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+}
+
+const Op& atomic_add_op() {
+  static const Op op = Op::Get("tirx.atomic_add");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.atomic_add")
+      .signature(sig::arg("ptr", "The pointer."), sig::arg("value", "The value to use."))
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+}
+
+const Op& assume_aligned_op() {
+  static const Op op = Op::Get("tirx.assume_aligned");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.assume_aligned")
+      .signature(sig::arg<TensorVar>("tensor", "The tensor whose base address is aligned."),
+                 sig::arg<IntImm>("alignment_bytes", "The constant byte alignment."))
+      .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kEmbedInfo));
+}
+
+const Op& undef_op() {
+  static const Op op = Op::Get("tirx.undef");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.undef")
+      .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Int(32))
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kReadState));
+}
+
+const Op& masked_load_op() {
+  static const Op op = Op::Get("tirx.masked_load");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.masked_load")
+      .signature(sig::arg<TensorVar>("tensor", "The tensor."),
+                 sig::arg<PrimExpr>("index", "The index."), sig::var_args<PrimExpr>("args"))
+      .set_native_fn_attr<&InferTypeMaskedLoad>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kReadState));
+}
+
+const Op& masked_store_op() {
+  static const Op op = Op::Get("tirx.masked_store");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.masked_store")
+      .signature(sig::arg<TensorVar>("tensor", "The tensor."),
+                 sig::arg<PrimExpr>("value", "The value to use."),
+                 sig::arg<PrimExpr>("index", "The index."), sig::var_args<PrimExpr>("args"))
+      .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kUpdateState));
+}
+
+const Op& alloc_tensor_op() {
+  static const Op op = Op::Get("tirx.alloc_tensor");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.alloc_tensor")
+      .set_native_fn_attr<&InferTypeTensor<true>>(tvm::op_attr::kInferType)
+      .set_validator(ffi::reflection::NativeFunctionView<void(
+                         const CallNode*)>::FromNative<&ValidateTensorProducer<true>>(),
+                     true)
+      .signature(sig::var_args<tvm::Tuple>("placement", "Optional producer-owned placement."),
+                 sig::ty_arg<TensorType>("tensor_type"))
+      .set_attrs_type_key(DictAttrsNode::_type_key)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+}
+
+const Op& decl_tensor_op() {
+  static const Op op = Op::Get("tirx.decl_tensor");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.decl_tensor")
+      .set_native_fn_attr<&InferTypeTensor<false>>(tvm::op_attr::kInferType)
+      .set_validator(ffi::reflection::NativeFunctionView<void(
+                         const CallNode*)>::FromNative<&ValidateTensorProducer<false>>(),
+                     true)
+      .signature(sig::arg("data", "The existing data pointer."),
+                 sig::ty_arg<TensorType>("tensor_type"))
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+}
+
+const Op& tensor_data_ptr_op() {
+  static const Op op = Op::Get("tirx.tensor_data_ptr");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.tensor_data_ptr")
+      .signature(sig::arg("tensor", "The tensor variable."))
+      .set_native_fn_attr<&InferTypeTensorDataPtr>(tvm::op_attr::kInferType)
+      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::GlobalDef().def("tirx.reinterpret", [](Type dtype, Expr value, Location loc) {
+    return reinterpret(dtype, value, loc);
+  });
+}
+
+}  // namespace tirx
+}  // namespace tvm

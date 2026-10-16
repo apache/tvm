@@ -23,16 +23,18 @@ import pytest
 from numpy.testing import assert_allclose
 
 import tvm
-import tvm.testing
-from tvm import s_tir, te, tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import s_tir, te
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 N_FEATURES = 164
 
 
-@Ts.prim_func
+@Ts.function
 def matmul(
     A: T.Tensor((512, 512), "float32"),
     B: T.Tensor((512, 512), "float32"),
@@ -56,15 +58,15 @@ def matmul(
 # fmt: off
 
 # from tvm.script import tirx as T
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class LayoutTransform:
-    @Ts.prim_func
+    @Ts.function
     def main(placeholder: T.Tensor((1, 16, 7, 7, 32), "float32"), placeholder_1: T.Tensor((25088,), "float32"), T_layout_trans: T.Tensor((1, 1, 7, 7, 512), "float32")) -> None:
         # function attr dict
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # body
         # with Ts.sblock("root")
-        for i0_i1_i2_i3_i4_fused in T.parallel(25088, annotations={"pragma_auto_unroll_max_step":64, "pragma_unroll_explicit":1}):
+        for i0_i1_i2_i3_i4_fused in T.parallel(25088, annotations={"auto_unroll_max_step":64, "unroll_explicit":1}):
             with Ts.sblock("T_layout_trans_1"):
                 ax0 = Ts.axis.spatial(1, 0)
                 ax1 = Ts.axis.spatial(1, 0)
@@ -91,7 +93,7 @@ def _make_candidate(f_sch: Callable[[], s_tir.Schedule]) -> ms.MeasureCandidate:
 
 
 def _feature_names(  # pylint: disable=invalid-name
-    buffers_per_store: int = 5,
+    tensors_per_store: int = 5,
     arith_intensity_curve_num_samples: int = 10,
 ) -> list[str]:
     result = [
@@ -153,7 +155,7 @@ def _feature_names(  # pylint: disable=invalid-name
         "threadIdx_z_len",
         "vthread_len",
     ]
-    for i in range(buffers_per_store):
+    for i in range(tensors_per_store):
         result.extend(
             f"B{i}.{s}"
             for s in [
@@ -224,7 +226,7 @@ def test_cpu_matmul():
 
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
-        _make_context(tvm.target.Target("llvm")),
+        _make_context(tvm_tirx.target.Target("llvm")),
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
@@ -285,7 +287,7 @@ def test_cpu_matmul():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.1: Buffer A
+    # Group 2.1: Tensor A
     assert_allclose(
         actual=f[57:75],
         desired=[
@@ -311,7 +313,7 @@ def test_cpu_matmul():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.2: Buffer C
+    # Group 2.2: Tensor C
     assert_allclose(
         actual=f[75:93],
         desired=[
@@ -337,7 +339,7 @@ def test_cpu_matmul():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.3: Buffer B
+    # Group 2.3: Tensor B
     assert_allclose(
         actual=f[93:111],
         desired=[
@@ -417,7 +419,7 @@ def test_cpu_matmul():
 
 def test_cpu_fusion():
     # pylint: disable=all
-    @Ts.prim_func
+    @Ts.function
     def func(
         A: T.Tensor([64, 32], dtype="float32"),
         B: T.Tensor([64, 32], dtype="float32"),
@@ -443,12 +445,12 @@ def test_cpu_fusion():
 
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
-        _make_context(tvm.target.Target("llvm")),
+        _make_context(tvm_tirx.target.Target("llvm")),
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
     assert feature.shape == (2, N_FEATURES)
-    ## Features for BufferStore(B)
+    ## Features for TensorStore(B)
     f = feature[0]
     # Group 1.1: arith
     assert_allclose(
@@ -485,7 +487,7 @@ def test_cpu_fusion():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.1: Buffer A
+    # Group 2.1: Tensor A
     assert_allclose(
         actual=f[57:75],
         desired=[
@@ -511,7 +513,7 @@ def test_cpu_fusion():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.2: Buffer B
+    # Group 2.2: Tensor B
     assert_allclose(
         actual=f[75:93],
         desired=[
@@ -580,7 +582,7 @@ def test_cpu_fusion():
         rtol=1e-5,
         atol=1e-5,
     )
-    ## Features for BufferStore(C)
+    ## Features for TensorStore(C)
     f = feature[1]
     # Group 1.1: arith
     assert_allclose(
@@ -617,7 +619,7 @@ def test_cpu_fusion():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.1: Buffer B
+    # Group 2.1: Tensor B
     assert_allclose(
         actual=f[57:75],
         desired=[
@@ -643,7 +645,7 @@ def test_cpu_fusion():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.2: Buffer C
+    # Group 2.2: Tensor C
     assert_allclose(
         actual=f[75:93],
         desired=[
@@ -715,7 +717,7 @@ def test_cpu_fusion():
 
 
 def test_empty_feature():
-    @Ts.prim_func
+    @Ts.function
     def full(T_full: T.Tensor((T.int64(2), T.int64(3)), "float32")):
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
             with Ts.sblock("T_full"):
@@ -729,7 +731,7 @@ def test_empty_feature():
 
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
-        _make_context(tvm.target.Target("llvm")),
+        _make_context(tvm_tirx.target.Target("llvm")),
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
@@ -784,18 +786,18 @@ def test_gpu():
         _, b_j = sch.split(b_ij, factors=[None, 16])  # outer: 8
         sch.bind(b_j, "threadIdx.x")
         # auto unroll
-        sch.annotate(i0_j0, "pragma_auto_unroll_max_step", tirx.IntImm("int32", 1024))
-        sch.annotate(i0_j0, "pragma_unroll_explicit", tirx.IntImm("int32", 1))
+        sch.annotate(i0_j0, "auto_unroll_max_step", tirx.IntImm("int32", 1024))
+        sch.annotate(i0_j0, "unroll_explicit", tirx.IntImm("int32", 1))
         return sch
 
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
-        _make_context(tvm.target.Target("cuda")),
+        _make_context(tvm_tirx.target.Target("cuda")),
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
     assert feature.shape == (4, N_FEATURES)
-    ### Check feature[0]: BufferStore(A_shared) <= A[...]
+    ### Check feature[0]: TensorStore(A_shared) <= A[...]
     f = feature[0]
     # Group 1.1: arith
     assert_allclose(
@@ -849,7 +851,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.1: Buffer A
+    # Group 2.1: Tensor A
     assert_allclose(
         actual=f[57:75],
         desired=[
@@ -875,7 +877,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.2: Buffer A.shared
+    # Group 2.2: Tensor A.shared
     assert_allclose(
         actual=f[75:93],
         desired=[
@@ -1001,7 +1003,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    ### Check feature[1]: BufferStore(B_shared) <= B[...]
+    ### Check feature[1]: TensorStore(B_shared) <= B[...]
     f = feature[1]
     # Group 1.1: arith
     assert_allclose(
@@ -1055,7 +1057,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.1: Buffer B
+    # Group 2.1: Tensor B
     assert_allclose(
         actual=f[57:75],
         desired=[
@@ -1081,7 +1083,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.2: Buffer B.shared
+    # Group 2.2: Tensor B.shared
     assert_allclose(
         actual=f[75:93],
         desired=[
@@ -1207,7 +1209,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    ### Check feature[2]: BufferStore(C_local) <= C_local[...] + A_shared[...] * B_shared[...]
+    ### Check feature[2]: TensorStore(C_local) <= C_local[...] + A_shared[...] * B_shared[...]
     f = feature[2]
     # Group 1.1: arith
     assert_allclose(
@@ -1261,7 +1263,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.1: Buffer B.shared
+    # Group 2.1: Tensor B.shared
     assert_allclose(
         actual=f[57:75],
         desired=[
@@ -1287,7 +1289,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.2: Buffer C.local
+    # Group 2.2: Tensor C.local
     assert_allclose(
         actual=f[75:93],
         desired=[
@@ -1313,7 +1315,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.3: Buffer A.shared
+    # Group 2.3: Tensor A.shared
     assert_allclose(
         actual=f[93:111],
         desired=[
@@ -1393,7 +1395,7 @@ def test_gpu():
     )
     # Group 3: Arithmetic intensity
     # Arithmetic intensity is high here because of repeated use of a shared
-    # buffer. Multiple accesses to the same memory location are counted as a
+    # tensor. Multiple accesses to the same memory location are counted as a
     # single byte, skewing these numbers towards higher intensity.
     assert_allclose(
         actual=f[147:157],
@@ -1427,7 +1429,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    ### Check feature[3]: BufferStore(C) <= C_local[...]
+    ### Check feature[3]: TensorStore(C) <= C_local[...]
     f = feature[3]
     # Group 1.1: arith
     assert_allclose(
@@ -1464,7 +1466,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.1: Buffer C
+    # Group 2.1: Tensor C
     assert_allclose(
         actual=f[57:75],
         desired=[
@@ -1490,7 +1492,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    # Group 2.2: Buffer C.local
+    # Group 2.2: Tensor C.local
     assert_allclose(
         actual=f[75:93],
         desired=[
@@ -1621,12 +1623,12 @@ def test_gpu():
 def test_cpu_layout_transform():
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
-        _make_context(tvm.target.Target("llvm")),
+        _make_context(tvm_tirx.target.Target("llvm")),
         candidates=[_make_candidate(lambda: s_tir.Schedule(LayoutTransform))],
     )
 
 
-@Ts.prim_func
+@Ts.function
 def negative_extent(A: T.Tensor((1,), "float32")):
     for j in range(0, -1):
         A[j] = A[j] + 1.0
@@ -1635,7 +1637,7 @@ def negative_extent(A: T.Tensor((1,), "float32")):
 def test_negative_extent():
     extractor = ms.feature_extractor.PerStoreFeature()
     (features,) = extractor.extract_from(
-        _make_context(tvm.target.Target("llvm")),
+        _make_context(tvm_tirx.target.Target("llvm")),
         candidates=[_make_candidate(lambda: s_tir.Schedule(negative_extent))],
     )
     named_features = dict(zip(_feature_names(), list(features.numpy()[0, :])))
@@ -1643,4 +1645,4 @@ def test_negative_extent():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

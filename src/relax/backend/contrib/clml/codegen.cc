@@ -25,6 +25,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 
@@ -41,28 +42,31 @@ namespace relax {
 namespace contrib {
 
 /*! \brief Attributes to store the compiler options for OpenCLML. */
-struct OpenCLMLCompilerConfigNode : public ffi::Object {
+struct OpenCLMLCompilerConfigObj : public ffi::Object {
   IntImm clml_version = IntImm::Int32(3);
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<OpenCLMLCompilerConfigNode>().def_ro(
-        "clml_version", &OpenCLMLCompilerConfigNode::clml_version,
+    refl::ObjectDef<OpenCLMLCompilerConfigObj>().def_ro(
+        "clml_version", &OpenCLMLCompilerConfigObj::clml_version,
         "OpenCLML version as (major, minor, patch).", refl::DefaultValue(IntImm::Int32(3)));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.OpenCLMLCompilerConfig",
-                                    OpenCLMLCompilerConfigNode, ffi::Object);
+                                    OpenCLMLCompilerConfigObj, ffi::Object);
 };
 
 class OpenCLMLCompilerConfig : public ffi::ObjectRef {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OpenCLMLCompilerConfig, ffi::ObjectRef,
-                                                OpenCLMLCompilerConfigNode);
+                                                OpenCLMLCompilerConfigObj);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { OpenCLMLCompilerConfigNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { OpenCLMLCompilerConfigObj::RegisterReflection(); }
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.ext.clml.options", OpenCLMLCompilerConfig);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<OpenCLMLCompilerConfig>(
+      "relax.ext.clml.options");
+}
 
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
@@ -136,7 +140,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     TVM_FFI_ICHECK(fn_var);
     const auto fn = bindings_[ffi::GetRef<Var>(fn_var)].as_or_throw<Function>();
 
-    auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
+    auto opt_composite = fn->GetAttr<ffi::String>(tvm::relax::attr::kComposite);
     TVM_FFI_ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
@@ -188,7 +192,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     const auto* fn_var = cn->op.as<VarNode>();
     TVM_FFI_ICHECK(fn_var);
     const auto fn = bindings_[ffi::GetRef<Var>(fn_var)].as_or_throw<Function>();
-    auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
+    auto opt_composite = fn->GetAttr<ffi::String>(tvm::relax::attr::kComposite);
     TVM_FFI_ICHECK(opt_composite.has_value());
 
     nodes.pad = backend::TryGetOpInFunction(fn, "relax.nn.pad");
@@ -217,7 +221,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     const auto* fn_var = cn->op.as<VarNode>();
     TVM_FFI_ICHECK(fn_var);
     const auto fn = bindings_[ffi::GetRef<Var>(fn_var)].as_or_throw<Function>();
-    auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
+    auto opt_composite = fn->GetAttr<ffi::String>(tvm::relax::attr::kComposite);
     TVM_FFI_ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
@@ -265,11 +269,8 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
 
   static void SaveGlobalAttributes(std::shared_ptr<JSONGraphNode> node) {
     auto ctx = transform::PassContext::Current();
-    auto cfg = ctx->GetConfig<OpenCLMLCompilerConfig>("relax.ext.clml.options");
-    if (!cfg.has_value()) {
-      cfg = transform::PassConfigWithDefaults<OpenCLMLCompilerConfig>();
-    }
-    node->SetAttr("clml_version", static_cast<int64_t>(cfg.value()->clml_version->value));
+    auto cfg = ctx->GetConfigOrDefault<OpenCLMLCompilerConfig>("relax.ext.clml.options");
+    node->SetAttr("clml_version", static_cast<int64_t>(cfg->clml_version->value));
   }
 
  private:

@@ -37,7 +37,9 @@ namespace tvm {
 namespace relax {
 namespace transform {
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.fallback_device_type", IntImm);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<IntImm>("relax.fallback_device_type");
+}
 
 class FunctionPass;
 
@@ -50,7 +52,7 @@ class FunctionPass;
  * we cannot add or delete a function through these passes as they are not aware
  * of the global information.
  */
-class FunctionPassNode : public tvm::transform::PassNode {
+class FunctionPassObj : public tvm::transform::PassObj {
  public:
   /* \brief The pass meta data.*/
   PassInfo pass_info;
@@ -62,11 +64,11 @@ class FunctionPassNode : public tvm::transform::PassNode {
    */
   std::function<Function(Function, IRModule, PassContext)> pass_func;
 
-  FunctionPassNode() = default;
+  explicit FunctionPassObj(PassInfo info) : pass_info(std::move(info)) {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<FunctionPassNode>().def_ro("pass_info", &FunctionPassNode::pass_info);
+    refl::ObjectDef<FunctionPassObj>().def_ro("pass_info", &FunctionPassObj::pass_info);
   }
 
   /*!
@@ -83,7 +85,7 @@ class FunctionPassNode : public tvm::transform::PassNode {
    * \brief Get the pass information/meta data.
    */
   PassInfo Info() const override { return pass_info; }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.FunctionPass", FunctionPassNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.FunctionPass", FunctionPassObj, PassObj);
 
  private:
 };
@@ -98,19 +100,19 @@ class FunctionPass : public Pass {
   TVM_DLL FunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
                        PassInfo pass_info);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FunctionPass, Pass, FunctionPassNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionPass, Pass, FunctionPassObj);
 };
 
 FunctionPass::FunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
-                           PassInfo pass_info) {
-  auto n = ffi::make_object<FunctionPassNode>();
+                           PassInfo pass_info)
+    : Pass(ffi::UnsafeInit{}) {
+  auto n = ffi::make_object<FunctionPassObj>(std::move(pass_info));
   n->pass_func = std::move(pass_func);
-  n->pass_info = std::move(pass_info);
   data_ = std::move(n);
 }
 
 // Perform IRModule -> IRModule optimizations at the Function level.
-IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
+IRModule FunctionPassObj::operator()(IRModule mod, const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
 
   TVM_FFI_ICHECK(mod.defined());
@@ -150,9 +152,8 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
 }
 
 Pass CreateFunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
-                        int opt_level, ffi::String name, tvm::ffi::Array<ffi::String> required,
-                        bool traceable) {
-  PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
+                        int opt_level, ffi::String name) {
+  PassInfo pass_info = PassInfo(opt_level, name);
   return FunctionPass(std::move(pass_func), pass_info);
 }
 
@@ -169,7 +170,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-// Pattern A (RM): auto-default repr from reflection for FunctionPassNode.
+// Pattern A (RM): auto-default repr from reflection for FunctionPassObj.
 
 class DataflowBlockPass;
 
@@ -181,7 +182,7 @@ class DataflowBlockPass;
  * Note that the scope of passes at this level is a Relax DataflowBlock. Therefore,
  * we cannot modify the global scope Vars and symbolic shape Vars defined inside the dataflow block.
  */
-class DataflowBlockPassNode : public tvm::transform::PassNode {
+class DataflowBlockPassObj : public tvm::transform::PassObj {
  public:
   /* \brief The pass meta data.*/
   PassInfo pass_info;
@@ -193,17 +194,17 @@ class DataflowBlockPassNode : public tvm::transform::PassNode {
    */
   std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func;
 
-  DataflowBlockPassNode() = default;
+  explicit DataflowBlockPassObj(PassInfo info) : pass_info(std::move(info)) {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DataflowBlockPassNode>().def_ro("pass_info", &DataflowBlockPassNode::pass_info);
+    refl::ObjectDef<DataflowBlockPassObj>().def_ro("pass_info", &DataflowBlockPassObj::pass_info);
   }
 
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
 
   PassInfo Info() const override { return pass_info; }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DataflowBlockPass", DataflowBlockPassNode, PassNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.DataflowBlockPass", DataflowBlockPassObj, PassObj);
 };
 
 /*! \brief Helper to apply the passed function to dataflow blocks.*/
@@ -252,7 +253,7 @@ class DataflowBlockMutator : public ExprMutator {
     PreservedVars vars;
     for (const Binding& binding : bindings) {
       if (const auto* match_cast = binding.as<MatchCastNode>()) {
-        for (const tirx::Var& var : DefinableTIRVarsInType(match_cast->ty)) {
+        for (const tvm::Var& var : DefinableTIRVarsInType(match_cast->ty)) {
           vars.match_cast_symbolic_vars.insert(var.get());
         }
       }
@@ -279,20 +280,20 @@ class DataflowBlockPass : public Pass {
       std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
       PassInfo pass_info);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowBlockPass, Pass, DataflowBlockPassNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DataflowBlockPass, Pass, DataflowBlockPassObj);
 };
 
 DataflowBlockPass::DataflowBlockPass(
     std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
-    PassInfo pass_info) {
-  auto n = ffi::make_object<DataflowBlockPassNode>();
+    PassInfo pass_info)
+    : Pass(ffi::UnsafeInit{}) {
+  auto n = ffi::make_object<DataflowBlockPassObj>(std::move(pass_info));
   n->pass_func = std::move(pass_func);
-  n->pass_info = std::move(pass_info);
   data_ = std::move(n);
 }
 
 // Perform IRModule -> IRModule transformations at the DataflowBlock level.
-IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
+IRModule DataflowBlockPassObj::operator()(IRModule mod, const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
 
   TVM_FFI_ICHECK(mod.defined());
@@ -334,8 +335,8 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
 
 Pass CreateDataflowBlockPass(
     std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func, int opt_level,
-    ffi::String name, tvm::ffi::Array<ffi::String> required, bool traceable) {
-  PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
+    ffi::String name) {
+  PassInfo pass_info = PassInfo(opt_level, name);
   return DataflowBlockPass(std::move(pass_func), pass_info);
 }
 
@@ -353,11 +354,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-// Pattern A (RM): auto-default repr from reflection for DataflowBlockPassNode.
+// Pattern A (RM): auto-default repr from reflection for DataflowBlockPassObj.
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  FunctionPassNode::RegisterReflection();
-  DataflowBlockPassNode::RegisterReflection();
+  FunctionPassObj::RegisterReflection();
+  DataflowBlockPassObj::RegisterReflection();
 }
 
 }  // namespace transform

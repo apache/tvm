@@ -21,6 +21,8 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/relax/op_attr_types.h>
 
 #include <utility>
 #include <vector>
@@ -28,6 +30,165 @@
 namespace tvm {
 namespace relax {
 using namespace tvm::prim;
+
+void Pool1DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<Pool1DAttrs>()
+      .def_ro("pool_size", &Pool1DAttrs::pool_size, "Size of the pooling windows.",
+              refl::DefaultValue(ffi::Array<int64_t>{1}))
+      .def_ro("strides", &Pool1DAttrs::strides, "Specifies the strides of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1}))
+      .def_ro("dilation", &Pool1DAttrs::dilation, "Specifies the dilation of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1}))
+      .def_ro("padding", &Pool1DAttrs::padding,
+              "If padding is non-zero, then the input is implicitly zero-padded"
+              "Padding support both symmetric and asymmetric as"
+              "one int : same padding used on all sides"
+              "two int : padding width in the order of (left, right)",
+              refl::DefaultValue(ffi::Array<int64_t>{0, 0}))
+      .def_ro(
+          "ceil_mode", &Pool1DAttrs::ceil_mode,
+          "A boolean indicating if use ceil or floor to compute the output shape. By using ceil, "
+          "every element in the input tensor will be covered by a sliding window.",
+          refl::DefaultValue(false))
+      .def_ro("count_include_pad", &Pool1DAttrs::count_include_pad,
+              "When true, will include padding to compute the average")
+      .def_ro("layout", &Pool1DAttrs::layout,
+              "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
+              "'N', 'C', 'W' stands for batch, channel, and width"
+              "dimensions respectively. Pooling is applied on the 'W' dimensions.",
+              refl::DefaultValue("NCW"))
+      .def_ro("out_layout", &Pool1DAttrs::out_layout,
+              "Dimension ordering of output data. Can be 'NCW', 'NWC', etc."
+              "'N', 'C', 'W' stands for batch, channel, and width"
+              "dimensions respectively. Pooling is applied on the 'W' dimensions.");
+}
+
+void Pool2DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<Pool2DAttrs>()
+      .def_ro("pool_size", &Pool2DAttrs::pool_size, "Size of the pooling windows.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
+      .def_ro("strides", &Pool2DAttrs::strides, "Specifies the strides of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
+      .def_ro("dilation", &Pool2DAttrs::dilation, "Specifies the dilation of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
+      .def_ro("padding", &Pool2DAttrs::padding,
+              "If padding is non-zero, then the input is implicitly zero-padded"
+              "Padding support both symmetric and asymmetric as"
+              "one int : same padding used on all sides"
+              "two int : bottom, right will use same padding as top, left"
+              "four int : padding width in the order of (top, left, bottom, right)",
+              refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0}))
+      .def_ro(
+          "ceil_mode", &Pool2DAttrs::ceil_mode,
+          "A boolean indicating if use ceil or floor to compute the output shape. By using ceil, "
+          "every element in the input tensor will be covered by a sliding window.",
+          refl::DefaultValue(false))
+      .def_ro("count_include_pad", &Pool2DAttrs::count_include_pad,
+              "When true, will include padding to compute the average", refl::DefaultValue(false))
+      .def_ro("layout", &Pool2DAttrs::layout,
+              "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+              "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+              "dimensions respectively. Pooling is applied on the 'H' and"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCHW")))
+      .def_ro("out_layout", &Pool2DAttrs::out_layout,
+              "Dimension ordering of output data. Can be 'NCHW', 'NHWC', etc."
+              "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+              "dimensions respectively. Pooling is applied on the 'H' and"
+              "'W' dimensions.");
+}
+
+void Pool3DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<Pool3DAttrs>()
+      .def_ro("pool_size", &Pool3DAttrs::pool_size, "Size of the pooling windows.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
+      .def_ro("strides", &Pool3DAttrs::strides, "Specifies the strides of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
+      .def_ro("dilation", &Pool3DAttrs::dilation, "Specifies the dilation of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
+      .def_ro("padding", &Pool3DAttrs::padding,
+              "If padding is non-zero, then the input is implicitly zero-padded"
+              "Padding support both symmetric and asymmetric as"
+              "one int : same padding used on all sides"
+              "three int : back, bottom, right will use same padding as front, top, left"
+              "four int : padding width in the order of (front, top, left, back, bottom, right)",
+              refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0, 0, 0}))
+      .def_ro(
+          "ceil_mode", &Pool3DAttrs::ceil_mode,
+          "A boolean indicating if use ceil or floor to compute the output shape. By using ceil, "
+          "every element in the input tensor will be covered by a sliding window.",
+          refl::DefaultValue(false))
+      .def_ro("count_include_pad", &Pool3DAttrs::count_include_pad,
+              "When true, will include padding to compute the average")
+      .def_ro("layout", &Pool3DAttrs::layout,
+              "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
+              "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+              "dimensions respectively. Pooling is applied on the 'D', 'H' and"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCDHW")))
+      .def_ro("out_layout", &Pool3DAttrs::out_layout,
+              "Dimension ordering of output data. Can be 'NCDHW', 'NDHWC', etc."
+              "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+              "dimensions respectively. Pooling is applied on the 'D', 'H' and"
+              "'W' dimensions.");
+}
+
+void AdaptivePool1DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<AdaptivePool1DAttrs>()
+      .def_ro("output_size", &AdaptivePool1DAttrs::output_size, "Output width.",
+              refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}))
+      .def_ro("layout", &AdaptivePool1DAttrs::layout,
+              "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
+              "'N', 'C', 'W' stands for batch, channel and width"
+              "dimensions respectively. Pooling is applied on the"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCW")))
+      .def_ro("out_layout", &AdaptivePool1DAttrs::out_layout,
+              "Dimension ordering of output data. Can be 'NCW', 'NWC', etc."
+              "'N', 'C', 'W' stands for batch, channel and width"
+              "dimensions respectively. Pooling is applied on the"
+              "'W' dimensions.");
+}
+
+void AdaptivePool2DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<AdaptivePool2DAttrs>()
+      .def_ro("output_size", &AdaptivePool2DAttrs::output_size, "Output height and width.",
+              refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}))
+      .def_ro("layout", &AdaptivePool2DAttrs::layout,
+              "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+              "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+              "dimensions respectively. Pooling is applied on the 'H' and"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCHW")))
+      .def_ro("out_layout", &AdaptivePool2DAttrs::out_layout,
+              "Dimension ordering of output data. Can be 'NCHW', 'NHWC', etc."
+              "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+              "dimensions respectively. Pooling is applied on the 'H' and"
+              "'W' dimensions.");
+}
+
+void AdaptivePool3DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<AdaptivePool3DAttrs>()
+      .def_ro("output_size", &AdaptivePool3DAttrs::output_size, "Output depth, height and width.",
+              refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}))
+      .def_ro("layout", &AdaptivePool3DAttrs::layout,
+              "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
+              "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+              "dimensions respectively. Pooling is applied on 'D', 'H' and"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCDHW")))
+      .def_ro("out_layout", &AdaptivePool3DAttrs::out_layout,
+              "Dimension ordering of output data. Can be 'NCDHW', 'NDHWC', etc."
+              "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+              "dimensions respectively. Pooling is applied on 'D', 'H' and"
+              "'W' dimensions.");
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   Pool1DAttrs::RegisterReflection();
@@ -65,7 +226,7 @@ Expr MakePool1d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   const Op op = Op::Get(op_name);
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 Expr max_pool1d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -140,18 +301,20 @@ InferLayoutOutput InferLayoutPool1d(
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<Pool1DAttrs> new_attrs = ffi::make_object<Pool1DAttrs>(*attrs);
-  new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(3), layout->layout).name();
-  new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(3), layout->layout).name();
+  new_attrs->layout =
+      TransposeLike(SLayout::Create(attrs->layout), InitialLayout(3), layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(3), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.max_pool1d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool1DAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool1D)
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool1D)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutPool1d)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.max_pool2d */
@@ -190,7 +353,7 @@ Expr MakePool2d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   const Op op = Op::Get(op_name);
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 Expr max_pool2d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -278,26 +441,30 @@ InferLayoutOutput InferLayoutPool2d(
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<Pool2DAttrs> new_attrs = ffi::make_object<Pool2DAttrs>(*attrs);
 
-  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+  if ((layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0)) {
     tvm::PrimType i64_ty = tvm::PrimType::Int(64);
     tirx::SLayout in_layout(attrs->layout, i64_ty);
-    auto desired_layout = TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout);
+    auto desired_layout =
+        TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout.value());
     auto data_si = GetType(call->args[0]);
     TensorType data_ty = data_si.as<TensorType>().value();
     ffi::Optional<ShapeExpr> data_shape =
         ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprNode>());
     if (CanProveLayoutTransform(in_layout, desired_layout, data_shape.value()->values)) {
       // Not handling out_layout being different from in_layout now. Any use case ?
-      new_attrs->layout = desired_layout.name();
-      new_attrs->out_layout = desired_layout.name();
+      new_attrs->layout = desired_layout.value().name();
+      new_attrs->out_layout = desired_layout.value().name();
       return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
     } else {
       layout = InitialLayout(4);
     }
   }
 
-  new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), layout->layout).name();
-  new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(4), layout->layout).name();
+  new_attrs->layout =
+      TransposeLike(SLayout::Create(attrs->layout), InitialLayout(4), layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(4), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
@@ -306,10 +473,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("data", "The input tensor"), sig::call_attrs<Pool2DAttrs>(),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool2D)
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool2D)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutPool2d)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.max_pool3d */
@@ -351,7 +518,7 @@ Expr MakePool3d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   const Op op = Op::Get(op_name);
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 Expr max_pool3d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -450,18 +617,20 @@ InferLayoutOutput InferLayoutPool3d(
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<Pool3DAttrs> new_attrs = ffi::make_object<Pool3DAttrs>(*attrs);
-  new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(5), layout->layout).name();
-  new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(5), layout->layout).name();
+  new_attrs->layout =
+      TransposeLike(SLayout::Create(attrs->layout), InitialLayout(5), layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(5), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.max_pool3d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool3DAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool3D)
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool3D)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutPool3d)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.avg_pool1d */
@@ -478,10 +647,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.nn.avg_pool1d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool1DAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool1D)
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool1D)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutPool1d)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.avg_pool2d */
@@ -498,10 +667,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.nn.avg_pool2d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool2DAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool2D)
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool2D)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutPool2d)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.avg_pool3d */
@@ -518,10 +687,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.nn.avg_pool3d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool3DAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool3D)
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool3D)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutPool3d)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.adaptive_avg_pool1d */
@@ -540,7 +709,7 @@ Expr adaptive_avg_pool1d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
   }
 
   static const Op op = Op::Get("relax.nn.adaptive_avg_pool1d");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -592,18 +761,20 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<AdaptivePool1DAttrs> new_attrs = ffi::make_object<AdaptivePool1DAttrs>(*attrs);
-  new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(3), layout->layout).name();
-  new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(3), layout->layout).name();
+  new_attrs->layout =
+      TransposeLike(SLayout::Create(attrs->layout), InitialLayout(3), layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(3), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.adaptive_avg_pool1d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool1DAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAdaptiveAvgPool1D>())
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool1D)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true);
+      .set_native_fn_attr<&InferTypeAdaptiveAvgPool1D>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutAdaptiveAvgPool1D)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.adaptive_avg_pool2d */
@@ -625,7 +796,7 @@ Expr adaptive_avg_pool2d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
   }
 
   static const Op op = Op::Get("relax.nn.adaptive_avg_pool2d");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -678,25 +849,29 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<AdaptivePool2DAttrs> new_attrs = ffi::make_object<AdaptivePool2DAttrs>(*attrs);
-  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+  if ((layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0)) {
     tvm::PrimType i64_ty = tvm::PrimType::Int(64);
     tirx::SLayout in_layout(attrs->layout, i64_ty);
-    auto desired_layout = TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout);
+    auto desired_layout =
+        TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout.value());
     auto data_si = GetType(call->args[0]);
     TensorType data_ty = data_si.as<TensorType>().value();
     ffi::Optional<ShapeExpr> data_shape =
         ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprNode>());
     if (CanProveLayoutTransform(in_layout, desired_layout, data_shape.value()->values)) {
       // Not handling out_layout being different from in_layout now. Any use case ?
-      new_attrs->layout = desired_layout.name();
-      new_attrs->out_layout = desired_layout.name();
+      new_attrs->layout = desired_layout.value().name();
+      new_attrs->out_layout = desired_layout.value().name();
       return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
     } else {
       layout = InitialLayout(4);
     }
   }
-  new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), layout->layout).name();
-  new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(4), layout->layout).name();
+  new_attrs->layout =
+      TransposeLike(SLayout::Create(attrs->layout), InitialLayout(4), layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(4), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
@@ -705,10 +880,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool2DAttrs>(),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAdaptiveAvgPool2D>())
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool2D)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true);
+      .set_native_fn_attr<&InferTypeAdaptiveAvgPool2D>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutAdaptiveAvgPool2D)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.adaptive_avg_pool3d */
@@ -730,7 +905,7 @@ Expr adaptive_avg_pool3d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
   }
 
   static const Op op = Op::Get("relax.nn.adaptive_avg_pool3d");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -784,18 +959,20 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool3D(
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<AdaptivePool3DAttrs> new_attrs = ffi::make_object<AdaptivePool3DAttrs>(*attrs);
-  new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(5), layout->layout).name();
-  new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(5), layout->layout).name();
+  new_attrs->layout =
+      TransposeLike(SLayout::Create(attrs->layout), InitialLayout(5), layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(5), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.adaptive_avg_pool3d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool3DAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAdaptiveAvgPool3D>())
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool3D)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true);
+      .set_native_fn_attr<&InferTypeAdaptiveAvgPool3D>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutAdaptiveAvgPool3D)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

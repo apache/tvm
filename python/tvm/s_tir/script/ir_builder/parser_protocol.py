@@ -17,11 +17,11 @@
 # pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name
 """S-TIR construction and validation over shared TIRx syntax."""
 
-from tvm import ir as _ir
-from tvm import tirx as _tir
-from tvm.script.ir_builder import base as _base
-from tvm.tirx.script.ir_builder.parser_protocol import arg_ as _shared_arg
-from tvm.tirx.script.ir_builder.parser_protocol import bind_ as _shared_bind
+from tvm_tirx import ir as _ir
+from tvm_tirx import tirx as _tir
+from tvm_tirx.script.ir_builder import base as _base
+from tvm_tirx.tirx.script.ir_builder.parser_protocol import arg_ as _shared_arg
+from tvm_tirx.tirx.script.ir_builder.parser_protocol import bind_ as _shared_bind
 
 from . import _ffi_api
 from .frame import BlockInitFrame, SBlockFrame
@@ -33,28 +33,28 @@ from .ir import _get_sblock_name_suffix
 # --------------------------------------
 
 
-def prim_func(is_private=False, persistent=False, *, private=None):
+def function(is_private=False, persistent=False, *, private=None):
     """Create an S-TIR function frame."""
-    return _ffi_api.PrimFunc(is_private if private is None else private, persistent)
+    return _ffi_api.Function(is_private if private is None else private, persistent)
 
 
-def function_(*, private=False, persistent=False, decl=False, span=None):
+def function_(*, private=False, persistent=False, decl=False, loc=None):
     """Enter an S-TIR declaration or definition frame."""
     native = (
         _ffi_api.DeclFunction(private, persistent)
         if decl
-        else _ffi_api.PrimFunc(private, persistent)
+        else _ffi_api.Function(private, persistent)
     )
-    return _base.at_(span, native)
+    return _base.at_(loc, native)
 
 
-def arg_(name, annotation, *, span=None):
+def arg_(name, annotation, *, loc=None):
     """Preserve parameter annotations, including explicitly constructed layouts.
 
-    Buffer annotations are evaluated inside the function frame, which already
+    Tensor annotations are evaluated inside the function frame, which already
     supplies the S-TIR default layout when the constructor omits it.
     """
-    return _shared_arg(name, annotation, span=span)
+    return _shared_arg(name, annotation, loc=loc)
 
 
 def check_well_formed_(function):
@@ -77,7 +77,7 @@ def _check_module_well_formed(module):
     functions = {
         gv: fn
         for gv, fn in module.functions.items()
-        if isinstance(fn, _tir.PrimFunc) and fn.attrs.get("s_tir", False)
+        if isinstance(fn, _tir.Function) and fn.attrs.get("s_tir", False)
     }
     if functions:
         analysis.verify_well_formed(_ir.IRModule(functions))
@@ -147,4 +147,4 @@ def init() -> BlockInitFrame:
 # --------------------------------------
 # Operator hooks are inherited from TIRx.
 
-__all__ = ["arg_", "bind_", "check_well_formed_", "function_", "init", "prim_func", "sblock"]
+__all__ = ["arg_", "bind_", "check_well_formed_", "function", "function_", "init", "sblock"]

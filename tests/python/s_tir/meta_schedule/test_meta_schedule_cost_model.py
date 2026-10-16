@@ -27,8 +27,9 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
-from tvm.ir.utils import derived_object
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.cost_model import PyCostModel, RandomModel, XGBModel
 from tvm.s_tir.meta_schedule.cost_model.xgb_model import PackSum, _get_custom_call_back
 from tvm.s_tir.meta_schedule.feature_extractor import RandomFeatureExtractor
@@ -36,8 +37,8 @@ from tvm.s_tir.meta_schedule.runner import RunnerResult
 from tvm.s_tir.meta_schedule.search_strategy import MeasureCandidate
 from tvm.s_tir.meta_schedule.tune_context import TuneContext
 from tvm.s_tir.schedule.schedule import Schedule
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir.utils import derived_object
+from tvm_tirx.script import tirx as T
 
 requires_xgboost = pytest.mark.skipif(
     find_spec("xgboost") is None, reason="xgboost is not installed"
@@ -45,9 +46,9 @@ requires_xgboost = pytest.mark.skipif(
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Matmul:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((1024, 1024), "float32"),
         B: T.Tensor((1024, 1024), "float32"),
@@ -63,9 +64,9 @@ class Matmul:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class FullModule:
-    @Ts.prim_func
+    @Ts.function
     def main(T_full: T.Tensor((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
@@ -333,4 +334,4 @@ def test_meta_schedule_xgb_model_callback_as_function():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

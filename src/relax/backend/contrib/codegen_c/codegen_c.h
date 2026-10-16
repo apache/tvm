@@ -219,8 +219,7 @@ class CodegenCBase {
       // constant copying process used packed imports in other external
       // codegen. Moreover, in microTVM we dont expect this part to be generated.
       code_stream_ << "#ifdef __cplusplus\n";
-      code_stream_ << "int " << func_name
-                   << "_init_wrapper_(tvm::ffi::Array<tvm::runtime::Tensor> arr) {\n";
+      code_stream_ << "int " << func_name << "_init_wrapper_(tvm::ffi::Array<tvm::Tensor> arr) {\n";
       EnterScope();
       PrintIndents();
       code_stream_ << func_name << "_consts = arr;\n";
@@ -391,7 +390,7 @@ class CodegenCBase {
    * \return The created declaration
    */
   std::string CreateTensorPool(const std::string& symbol) const {
-    return "tvm::ffi::Array<tvm::runtime::Tensor> " + symbol + "_consts;";
+    return "tvm::ffi::Array<tvm::Tensor> " + symbol + "_consts;";
   }
 
   /*!

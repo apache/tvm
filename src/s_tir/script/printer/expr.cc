@@ -17,35 +17,38 @@
  * under the License.
  */
 #include <tvm/ir/op.h>
-
-#include "../../../tirx/script/printer/utils.h"
+#include <tvm/s_tir/iter_var.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/script/printer/doc_translator.h>
+#include <tvm/script/printer/support.h>
 
 namespace tvm {
 namespace script {
 namespace printer {
 namespace details {
+
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterScriptRepr<s_tir::IterVarNode>(); }
 namespace {
 
-ffi::Optional<ExprDoc> CpAsyncRawDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object*) {
-  const auto* call =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  // This constructor takes an element dtype followed by the five stored operands.
-  // The dtype is carried by the Call itself, not derived from a pointer argument.
-  if (!CanTranslateExplicitResultCall(call) || call->args.size() != 5) {
-    return RawCall(d, call);
+ffi::Optional<ExprDoc> IterVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                           const ffi::Object*) {
+  const auto* iter =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const s_tir::IterVarNode>(input);
+  ExprDoc domain = d->Translate(iter->dom).value();
+  if (iter->dom.has_value()) {
+    domain.as_or_throw<CallDoc>()->callee = NamespaceDoc("tirx")->Attr("Range");
   }
-  ffi::Array<ExprDoc> args = {TypeValue(d, call->ty)};
-  for (const Expr& arg : call->args) {
-    args.push_back(MaterializeCallArgument(d, arg, d->Translate(arg).value()));
-  }
-  return NamespaceDoc("tirx")->Attr("s_tir")->Attr("cp_async_raw")->Call(args);
+  return NamespaceDoc("s_tir")
+      ->Attr("iter_var")
+      ->Call({d->Translate(iter->var).value(), domain,
+              LiteralDoc::Str(s_tir::IterVarType2String(iter->iter_type), std::nullopt),
+              LiteralDoc::Str(iter->thread_tag, std::nullopt)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.s_tir.cp_async_raw")
-      .set_attr<FDocTranslate>(kOpCallDocTranslate,
-                               FDocTranslate::FromNative<&CpAsyncRawDocTranslate>());
+  ffi::reflection::TypeAttrDef<s_tir::IterVarNode>().attr(
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&IterVarDocTranslate>());
 }
 
 }  // namespace

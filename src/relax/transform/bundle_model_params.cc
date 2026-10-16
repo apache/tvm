@@ -44,7 +44,7 @@ class ModelParamBundler : public ExprMutator {
 
   Expr VisitExpr_(const FunctionNode* op) override {
     Function func = ffi::GetRef<Function>(op);
-    auto opt_num_input = func->attrs.GetAttr<int64_t>(attr::kNumInput);
+    auto opt_num_input = func->attrs.GetAttr<int64_t>(tvm::relax::attr::kNumInput);
     if (!opt_num_input) return func;
     auto signed_num_input = opt_num_input.value();
 
@@ -60,7 +60,7 @@ class ModelParamBundler : public ExprMutator {
     }
 
     std::unordered_set<const VarNode*> signature_vars;
-    for (const tirx::Var& var : DefinableTIRVarsInType(TupleType(params.Map(GetType)))) {
+    for (const tvm::Var& var : DefinableTIRVarsInType(TupleType(params.Map(GetType)))) {
       signature_vars.insert(var.get());
     }
 
@@ -191,7 +191,7 @@ Pass BundleModelParams(ffi::Optional<ffi::String> param_tuple_name) {
     }
     return mod;
   };
-  return CreateModulePass(pass_func, 1, "BundleModelParams", {});
+  return CreateModulePass(pass_func, 1, "BundleModelParams");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

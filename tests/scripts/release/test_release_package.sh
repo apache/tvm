@@ -119,5 +119,5 @@ python3 -m pip install ${deps}
 
 echo "[10/10] Import TVM and print path ..."
 export TVM_HOME=$(pwd)
-export PYTHONPATH=$TVM_HOME/python:${PYTHONPATH:-}
+export PYTHONPATH=$TVM_HOME/tirx/python:$TVM_HOME/python:${PYTHONPATH:-}
 python3 -c "import tvm; print(tvm.__path__)"

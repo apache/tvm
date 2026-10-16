@@ -116,14 +116,14 @@ We want to specifically tweak the following flags by appending them to the end o
     echo "set(CMAKE_BUILD_TYPE RelWithDebInfo)" >> config.cmake
 
     # LLVM is a must dependency for compiler end
-    echo "set(USE_LLVM \"llvm-config --ignore-libllvm --link-static\")" >> config.cmake
+    echo "set(TVM_TIRX_USE_LLVM \"llvm-config --ignore-libllvm --link-static\")" >> config.cmake
     echo "set(HIDE_PRIVATE_SYMBOLS ON)" >> config.cmake
 
     # GPU SDKs, turn on if needed
-    echo "set(USE_CUDA   OFF)" >> config.cmake
-    echo "set(USE_METAL  OFF)" >> config.cmake
-    echo "set(USE_VULKAN OFF)" >> config.cmake
-    echo "set(USE_OPENCL OFF)" >> config.cmake
+    echo "set(TVM_TIRX_USE_CUDA   OFF)" >> config.cmake
+    echo "set(TVM_TIRX_USE_METAL  OFF)" >> config.cmake
+    echo "set(TVM_TIRX_USE_VULKAN OFF)" >> config.cmake
+    echo "set(TVM_TIRX_USE_OPENCL OFF)" >> config.cmake
 
     # cuBLAS, cuDNN, cutlass support, turn on if needed
     echo "set(USE_CUBLAS OFF)" >> config.cmake
@@ -158,7 +158,7 @@ Therefore, after we finish the build, we need to install the tvm-ffi package.
 
 .. code-block:: bash
 
-    cd 3rdparty/tvm-ffi; pip install .; cd ..
+    cd tirx/3rdparty/tvm-ffi; pip install .; cd ..
 
 
 Leaving the build environment ``tvm-build-venv``, there are two ways to install the successful build into your environment:
@@ -168,7 +168,7 @@ Leaving the build environment ``tvm-build-venv``, there are two ways to install 
 .. code-block:: bash
 
     export TVM_HOME=/path-to-tvm
-    pip install --target=$TVM_HOME/python $TVM_HOME/3rdparty/tvm-ffi
+    pip install --target=$TVM_HOME/python $TVM_HOME/tirx/3rdparty/tvm-ffi
     export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
 
 - Install via pip local project
@@ -332,7 +332,7 @@ Building ROCm support
 
 Currently, ROCm is supported only on linux, so all the instructions are written with linux in mind.
 
-- Set ``set(USE_ROCM ON)``, set ROCM_PATH to the correct path.
+- Set ``set(TVM_TIRX_USE_ROCM ON)``, set TVM_TIRX_ROCM_PATH to the correct path.
 - You need to first install HIP runtime from ROCm. Make sure the installation system has ROCm installed in it.
 - Install LLVM (>= 15), and LLD, make sure ``ld.lld`` is available via command line.
 

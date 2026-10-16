@@ -20,21 +20,22 @@ import pytest
 import tvm_ffi
 
 import tvm
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 m = T.dynamic("m", "int32")
 
 
-@Ts.prim_func
-def scalar_func(A: T.Tensor((100, m)), B: T.Tensor((100, m))):
+@Ts.function
+def scalar_func(A: T.Tensor((100, m), "float32"), B: T.Tensor((100, m), "float32")):
     for i, j in T.grid(100, m):
         A[i, j] = B[i - 1, j + 1] + A[i - 1, j - 1]
 
 
 def test_domain_touched():
     func = scalar_func
-    a, b = [var for var in func.params if tvm.tirx.is_buffer_var(var)]
+    a, b = [var for var in func.params if tvm_tirx.tirx.is_tensor_var(var)]
     ir = func.body
 
     a_domain_r = tvm.s_tir._ffi_api.DomainTouched(ir, a, True, False)
@@ -54,7 +55,7 @@ def test_domain_touched():
     assert a_domain_rw[0].min.value == -1
     assert a_domain_rw[0].extent.value == 101
     assert a_domain_rw[1].min.value == -1
-    assert isinstance(a_domain_rw[1].extent, tvm.tirx.Add)
+    assert isinstance(a_domain_rw[1].extent, tvm_tirx.tirx.Add)
     assert a_domain_rw[1].extent.a.name == "m"
     assert a_domain_rw[1].extent.b.value == 1
 
@@ -71,15 +72,15 @@ def test_domain_touched():
 
 
 def test_domain_touched_vector():
-    pytest.skip("BufferRegion arithmetic in expressions not supported")
-    m = tvm.runtime.convert(128)
+    pytest.skip("TensorRegion arithmetic in expressions not supported")
+    m = tvm_tirx.runtime.convert(128)
 
-    @Ts.prim_func
-    def func(A: T.Tensor((n * m,)), B: T.Tensor((n * m,)), n: T.int32):  # noqa: F821
+    @Ts.function
+    def func(A: T.Tensor((n * m,), "float32"), B: T.Tensor((n * m,), "float32"), n: T.int32):  # noqa: F821
         for i in T.serial(n):
             A[i * m : (i + 1) * m : 1] = A[i * m : (i + 1) * m : 1] + B[i * m : (i + 1) * m : 1]
 
-    a, b = [var for var in func.params[:2] if tvm.tirx.is_buffer_var(var)]
+    a, b = [var for var in func.params[:2] if tvm_tirx.tirx.is_tensor_var(var)]
 
     assert tvm.s_tir._ffi_api.DomainTouched(func.body, a, True, False)[0].extent.value == 128
     assert tvm.s_tir._ffi_api.DomainTouched(func.body, a, True, False)[0].extent.value == 128

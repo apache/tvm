@@ -47,7 +47,7 @@ context; symbolic IR values are created and resolved by builders.
 
 Function construction, JIT and macro decorators require ``@`` application at the
 function definition site. Later application to an existing function is rejected.
-Use a registered namespace, such as ``@T.prim_func`` or ``@Ts.prim_func(private=True)``.
+Use a registered namespace, such as ``@T.function`` or ``@Ts.function(private=True)``.
 Python definitions support namespace aliases such as ``Alias = T``; bare callable
 aliases and preconfigured decorator aliases are unsupported. Source strings resolve
 namespace aliases from imports or ``extra_vars``, not executable prefix assignments.
@@ -65,12 +65,14 @@ are read only when needed, including conditional and optional annotations.
 Annotations read concrete values from their definition scope, preserving missing-name
 errors when a value is used. Create external symbols with ``n = I.dynamic("n")``
 or the identical ``T.dynamic`` and ``Ts.dynamic`` constructors. Each call creates a
-fresh native variable, defaulting to int64. Reuse that object in ordinary Python shape,
+fresh native variable, defaulting to int32. Reuse that object in ordinary Python shape,
 stride and offset expressions to share identity; strings in those fields are not
 parsed as expressions. On Python 3.12+, explicit headers such as
-``def f[n, k: T.int32](...)`` declare local symbols; ``n: int`` retains the int64
-default. Use ``from __future__ import annotations`` to defer eager Python evaluation
-of header symbols. Explicit whole quoted annotations are rejected in script source;
+``def f[n, k: T.int64](...)`` declare local symbols; ``n: int`` retains the int32
+default. Relax symbolic shapes require explicit int64 symbols, such as
+``I.dynamic("n", "int64")`` or ``def f[n: T.int64](...)``; Relax integer shape
+constants continue to normalize to int64. Use ``from __future__ import annotations``
+to defer eager Python evaluation of header symbols. Explicit whole quoted annotations are rejected in script source;
 normal string arguments inside annotation constructors remain valid. Captured runtime ``typing.TypeVar``
 objects are not script symbols; ordinary Python typing uses remain unaffected.
 
@@ -95,8 +97,8 @@ separate parser setting.
 canonical namespace paths rooted at ``tirx``, ``relax``, ``ir`` and ``s_tir``.
 Source code selects its own aliases through imports or explicit environments; the parser
 does not provide implicit ``T``, ``R``, ``I`` or ``Ts`` bindings. For example,
-``from tvm.script import tirx as X`` makes ``X.prim_func`` resolve to
-``tirx.prim_func`` without changing the callable. Printed scripts show suggested imports
+``from tvm.script import tirx as X`` makes ``X.function`` resolve to
+``tirx.function`` without changing the callable. Printed scripts show suggested imports
 as comments: include those imports in executable source or pass equivalent
 ``extra_vars`` when parsing a printed script. The public registration helpers
 identify scalar annotations and mutable
@@ -104,7 +106,7 @@ declarations. Entry factories populate ``DEFINITION_KIND`` with ``DefinitionKind
 values: ``FUNCTION`` for regular and JIT IR definitions, ``MACRO`` for inline and macro
 expansion, and ``PYTHON`` for retained ``I.pyfunc`` runtime callables. Macro bodies
 construct IR in the caller's context; Python bodies retain ordinary execution and do
-not need builder span context.
+not need builder loc context.
 All calls retain their source context, with binding hooks owning result attachment.
 Symbolic shapes use concrete expressions. Source aliases resolve to those paths;
 ordinary Python calls remain calls in the generated program. Explicit ``constexpr``
@@ -138,11 +140,15 @@ protocol.
 
 Ordinary IR constructors can be used directly in parsed source. Shared exports
 such as ``I.Call`` and ``T.Range`` use the same constructor contracts as
-``tvm.ir.Call`` and ``tvm.ir.Range``, including keyword arguments, source spans
-and validation. ``Call(..., ty=...)`` supplies an explicit result type; omission
-leaves ``Type.missing()`` for subsequent normalization. Use ``Call.unchecked``
-explicitly for provisional calls that require later validation. Raw printed calls
-use this form with their stored result type to preserve all fields.
+``tvm.ir.Call`` and ``tvm.ir.Range``, including keyword arguments, source locations
+and validation. ``Call(..., ty=...)`` preserves an explicit result type, including
+``Type.missing()``. Omitted or ``None`` results use available inference and retain
+``Type.missing()`` when no deduction is available; inference errors propagate.
+Construction permits provisional IR, and ``call.validate()`` checks the registered
+operator contract separately. Raw printed calls use ``I.Call`` with an explicit
+stored result type to preserve every field. Canonical named operations use the same
+``args``, ``attrs``, ``ty_args`` and ``ty`` construction contract. Concrete printer
+hooks handle representation-changing syntax; ordinary calls share one formatter.
 
 Operations likewise retain their normal argument contracts. A dtype inferred from
 operands is not an extra ``dtype`` keyword; operations with an explicit dtype
@@ -158,11 +164,12 @@ Printing and round trips
 of expressions and statements. The translation engine tracks scopes, names and each
 Doc's original IR object. The script entry point maps these origins to diagnostic
 paths; the private Doc printer formats the tree, annotations and underlines as Python
-text. Printer configuration stays read-only throughout. ``DocToPythonScript`` also
-formats an existing Doc directly. This tree is separate from the parser's Python AST.
+text. Printer configuration stays read-only throughout. The Python document printer
+helper also formats an existing Doc directly for document-level tests. This tree is
+separate from the parser's Python AST.
 
-The public ``Script`` text entry points are declared in
-``tvm/script/printer/printer.h``. Their orchestration and diagnostic path mapping
+The public ``tvm::Script`` text entry point is declared in
+``tvm/script/printer/printer.h``. Its orchestration and diagnostic path mapping
 live in ``src/script/printer/printer.cc``; ``doc_translator.h`` exposes the
 IR-to-Doc translation protocol.
 
@@ -173,7 +180,7 @@ For example, a small function can be authored, printed and parsed again:
    import tvm
    from tvm.script import tirx as T
 
-   @T.prim_func
+   @T.function
    def increment(A: T.Tensor((4,), "float32")):
        for i in T.serial(4):
            A[i] = A[i] + 1.0

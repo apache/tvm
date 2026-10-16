@@ -18,19 +18,20 @@
 import numpy as np
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.transform import LazyTransformParams
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_lazy_transform_params():
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -57,7 +58,7 @@ def test_lazy_transform_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                ty_args=[R.Tensor((16, 3, 3, 3), dtype="float32")],
             )
             gv: R.Tuple(
                 R.Tensor((16, 16, 3, 3), dtype="float32"),
@@ -67,7 +68,7 @@ def test_lazy_transform_params():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -97,21 +98,21 @@ def test_lazy_transform_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1_m,),
-                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                ty_args=[R.Tensor((16, 3, 3, 3), dtype="float32")],
             )
             _2: R.Tuple = R.vm.kill_object(lv1_m)
             _3: R.Any = R.call_packed("set_item", R.prim_value(1), lv2, ty_args=(R.Any,))
-            gv: R.Tuple = R.tuple()
+            gv: R.Tuple = ()
             return gv
 
     after = LazyTransformParams()(Before)
-    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
 def test_get_item_only():
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -138,7 +139,7 @@ def test_get_item_only():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                ty_args=[R.Tensor((16, 3, 3, 3), dtype="float32")],
             )
             lv3 = R.add(lv2, R.const(1, "float32"))
             gv: R.Tuple(
@@ -149,7 +150,7 @@ def test_get_item_only():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -179,7 +180,7 @@ def test_get_item_only():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                ty_args=[R.Tensor((16, 3, 3, 3), dtype="float32")],
             )
             lv3: R.Tensor((16, 3, 3, 3), dtype="float32") = R.add(lv2, R.const(1, "float32"))
             gv_1: R.Tuple(
@@ -188,13 +189,13 @@ def test_get_item_only():
             return gv_1
 
     after = LazyTransformParams(fget_item="get_item_0", fset_item=None)(Before)
-    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
 def test_extra_get_item_params():
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -221,7 +222,7 @@ def test_extra_get_item_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                ty_args=[R.Tensor((16, 3, 3, 3), dtype="float32")],
             )
             lv3 = R.add(lv2, R.const(1, "float32"))
             gv: R.Tuple(
@@ -232,7 +233,7 @@ def test_extra_get_item_params():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -262,24 +263,24 @@ def test_extra_get_item_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                ty_args=[R.Tensor((16, 3, 3, 3), dtype="float32")],
             )
             _2: R.Tuple = R.vm.kill_object(lv1)
             lv3: R.Tensor((16, 3, 3, 3), dtype="float32") = R.add(lv2, R.const(1, "float32"))
             _3: R.Any = R.call_packed("set_item", R.prim_value(1), lv3, ty_args=(R.Any,))
-            gv_1: R.Tuple = R.tuple()
+            gv_1: R.Tuple = ()
             return gv_1
 
     after = LazyTransformParams(extra_get_item_params=[relax.Var("loader", relax.AnyType())])(
         Before
     )
-    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
 def test_extra_set_item_params():
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -306,7 +307,7 @@ def test_extra_set_item_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                ty_args=[R.Tensor((16, 3, 3, 3), dtype="float32")],
             )
             lv3 = R.add(lv2, R.const(1, "float32"))
             gv: R.Tuple(
@@ -317,7 +318,7 @@ def test_extra_set_item_params():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -347,18 +348,18 @@ def test_extra_set_item_params():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                ty_args=[R.Tensor((16, 3, 3, 3), dtype="float32")],
             )
             _2: R.Tuple = R.vm.kill_object(lv1)
             lv3: R.Tensor((16, 3, 3, 3), dtype="float32") = R.add(lv2, R.const(1, "float32"))
             _3: R.Any = R.call_packed("set_item", setter, R.prim_value(1), lv3, ty_args=(R.Any,))
-            gv_1: R.Tuple = R.tuple()
+            gv_1: R.Tuple = ()
             return gv_1
 
     after = LazyTransformParams(extra_set_item_params=[relax.Var("setter", relax.AnyType())])(
         Before
     )
-    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
 def test_extra_set_item_params_with_const_output():
@@ -379,7 +380,7 @@ def test_extra_set_item_params_with_const_output():
     class Expected:
         @R.function(pure=False)
         def main_transform_params(setter: R.Any) -> R.Tuple:
-            output = R.tuple()
+            output = ()
             _ = R.call_packed(
                 "set_item",
                 setter,
@@ -399,11 +400,11 @@ def test_extra_set_item_params_with_const_output():
     after = LazyTransformParams(extra_set_item_params=[relax.Var("setter", relax.AnyType())])(
         Before
     )
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_lazy_transform_params_with_symbolic_vars():
-    slice_index = T.dynamic("slice_index")
+    slice_index = T.dynamic("slice_index", "int64")
 
     @I.ir_module
     class Before:
@@ -424,12 +425,12 @@ def test_lazy_transform_params_with_symbolic_vars():
             transformed = R.call_tir(
                 cls.slice_buffer,
                 (param, slice_index),
-                out_ty=R.Tensor((16,), dtype="float32"),
+                ty_args=[R.Tensor((16,), dtype="float32")],
             )
             output = (transformed,)
             return output
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice_buffer(
             Input: T.Tensor((16, 16), "float32"),
             slice_index: T.int64,
@@ -440,7 +441,7 @@ def test_lazy_transform_params_with_symbolic_vars():
                     vi = Ts.axis.remap("S", [i])
                     Output[vi] = Input[slice_index, vi]
 
-    slice_index = T.dynamic("slice_index")
+    slice_index = T.dynamic("slice_index", "int64")
 
     @I.ir_module
     class Expected:
@@ -456,15 +457,15 @@ def test_lazy_transform_params_with_symbolic_vars():
             transformed = R.call_tir(
                 cls.slice_buffer,
                 (param_m, slice_index),
-                out_ty=R.Tensor((16,), dtype="float32"),
+                ty_args=[R.Tensor((16,), dtype="float32")],
             )
             unused_1_ = R.vm.kill_object(param_m)
             unused_2_ = R.call_packed("set_item", R.prim_value(0), transformed, ty_args=(R.Any,))
 
-            output = R.tuple()
+            output = ()
             return output
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice_buffer(
             Input: T.Tensor((16, 16), "float32"),
             slice_index: T.int64,
@@ -476,16 +477,16 @@ def test_lazy_transform_params_with_symbolic_vars():
                     Output[vi] = Input[slice_index, vi]
 
     after = LazyTransformParams()(Before)
-    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
 def test_param_shape_symbolic():
     ic_transform_layout_IOHW_to_OIHW = T.dynamic("ic", "int32")
-    ic_main_transform_params = T.dynamic("ic")
+    ic_main_transform_params = T.dynamic("ic", "int64")
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((ic_transform_layout_IOHW_to_OIHW, 16, 3, 3), "float32"),
             out: T.Tensor((16, ic_transform_layout_IOHW_to_OIHW, 3, 3), "float32"),
@@ -515,7 +516,7 @@ def test_param_shape_symbolic():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_ty=R.Tensor((ic_main_transform_params, 3, 3, 3), dtype="float32"),
+                ty_args=[R.Tensor((ic_main_transform_params, 3, 3, 3), dtype="float32")],
             )
             gv: R.Tuple(
                 R.Tensor((16, 16, 3, 3), dtype="float32"),
@@ -524,11 +525,11 @@ def test_param_shape_symbolic():
             return gv
 
     ic_transform_layout_IOHW_to_OIHW = T.dynamic("ic", "int32")
-    ic_main_transform_params = T.dynamic("ic")
+    ic_main_transform_params = T.dynamic("ic", "int64")
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((ic_transform_layout_IOHW_to_OIHW, 16, 3, 3), "float32"),
             out: T.Tensor((16, ic_transform_layout_IOHW_to_OIHW, 3, 3), "float32"),
@@ -558,21 +559,21 @@ def test_param_shape_symbolic():
             lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
                 (lv1,),
-                out_ty=R.Tensor((ic_main_transform_params, 3, 3, 3), dtype="float32"),
+                ty_args=[R.Tensor((ic_main_transform_params, 3, 3, 3), dtype="float32")],
             )
             _2: R.Tuple = R.vm.kill_object(lv1)
             _3: R.Any = R.call_packed("set_item", R.prim_value(1), lv2, ty_args=(R.Any,))
-            gv4: R.Tuple = R.tuple()
+            gv4: R.Tuple = ()
             return gv4
 
     after = LazyTransformParams()(Before)
-    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
 def test_output_with_use_site():
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def copy(x: T.Tensor((), "float32"), y: T.Tensor((), "float32")):
             with Ts.sblock("block"):
                 Ts.reads(x[()])
@@ -587,14 +588,14 @@ def test_output_with_use_site():
             R.func_attr({"relax.force_pure": True})
             cls = Module
             x: R.Tensor((), dtype="float32") = params[0]
-            y = R.call_tir(cls.copy, (x,), out_ty=R.Tensor((), dtype="float32"))
-            z = R.call_tir(cls.copy, (y,), out_ty=R.Tensor((), dtype="float32"))
+            y = R.call_tir(cls.copy, (x,), ty_args=[R.Tensor((), dtype="float32")])
+            z = R.call_tir(cls.copy, (y,), ty_args=[R.Tensor((), dtype="float32")])
             gv: R.Tuple(R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")) = (y, z)
             return gv
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def copy(x: T.Tensor((), "float32"), y: T.Tensor((), "float32")):
             with Ts.sblock("block"):
                 Ts.reads(x[()])
@@ -607,23 +608,23 @@ def test_output_with_use_site():
             x: R.Any = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Any,))
             gv: R.Tensor((), dtype="float32") = R.match_cast(x, R.Tensor((), dtype="float32"))
             x_m: R.Tensor((), dtype="float32") = gv
-            y = R.call_tir(cls.copy, (x_m,), out_ty=R.Tensor((), dtype="float32"))
+            y = R.call_tir(cls.copy, (x_m,), ty_args=[R.Tensor((), dtype="float32")])
             _: R.Tuple = R.vm.kill_object(x_m)
-            z = R.call_tir(cls.copy, (y,), out_ty=R.Tensor((), dtype="float32"))
+            z = R.call_tir(cls.copy, (y,), ty_args=[R.Tensor((), dtype="float32")])
             _1: R.Any = R.call_packed("set_item", R.prim_value(0), y, ty_args=(R.Any,))
             _2: R.Any = R.call_packed("set_item", R.prim_value(1), z, ty_args=(R.Any,))
-            gv: R.Tuple = R.tuple()
+            gv: R.Tuple = ()
             return gv
 
     after = LazyTransformParams()(Module)
-    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
 def test_output():
     target = "llvm"
-    dev = tvm.cpu()
+    dev = tvm_tirx.cpu()
 
-    ic = T.dynamic("ic")
+    ic = T.dynamic("ic", "int64")
 
     @I.ir_module
     class TransformModule:
@@ -655,11 +656,11 @@ def test_output():
     transformed = {}
     expected = [params[0].transpose(1, 0, 2, 3), params[1]]
 
-    @tvm.register_global_func("get_item", override=True)
+    @tvm_tirx.register_global_func("get_item", override=True)
     def get_item(i):
-        return tvm.runtime.tensor(params[i], dev)
+        return tvm_tirx.runtime.tensor(params[i], dev)
 
-    @tvm.register_global_func("set_item", override=True)
+    @tvm_tirx.register_global_func("set_item", override=True)
     def set_item(i, value):
         assert i not in transformed, f"Set item called multiple times for index {i}"
         transformed[i] = value.numpy()
@@ -672,7 +673,7 @@ def test_output():
     assert len(transformed) == len(expected)
 
     for expected_i, transformed_i in zip(expected, transformed):
-        tvm.testing.assert_allclose(expected_i, transformed_i)
+        tvm_tirx.testing.assert_allclose(expected_i, transformed_i)
 
 
 def test_duplicate_outputs():
@@ -716,11 +717,11 @@ def test_duplicate_outputs():
             transformed1: R.Tensor((16,), dtype="int32") = R.add(param1, R.const(2, "int32"))
             _ = R.vm.kill_object(param1)
             _ = R.call_packed("set_item", R.prim_value(1), transformed1, ty_args=(R.Any,))
-            output = R.tuple()
+            output = ()
             return output
 
     after = LazyTransformParams()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_params_without_tuple():
@@ -746,7 +747,7 @@ def test_params_without_tuple():
             return (D, B)
 
     After = LazyTransformParams(fset_item=None)(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_params_without_tuple_with_symbolic_var():
@@ -766,7 +767,7 @@ def test_params_without_tuple_with_symbolic_var():
             return (A,)
 
     After = LazyTransformParams(fset_item=None)(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_get_item_callback():
@@ -793,12 +794,12 @@ def test_get_item_callback():
             return (D, B)
 
     After = relax.transform.LazyGetInput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_get_item_callback_dynamic_shape():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -810,8 +811,8 @@ def test_get_item_callback_dynamic_shape():
             D = R.add(C, B)
             return (D, B)
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -831,7 +832,7 @@ def test_get_item_callback_dynamic_shape():
             return (D, B)
 
     After = relax.transform.LazyGetInput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_set_output_callback():
@@ -861,10 +862,10 @@ def test_set_output_callback():
             fset_output(R.prim_value(1), C)
             D = R.add(C, B)
             fset_output(R.prim_value(0), D)
-            return R.tuple()
+            return ()
 
     After = relax.transform.LazySetOutput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_set_output_callback_of_param():
@@ -895,10 +896,10 @@ def test_set_output_callback_of_param():
             C = R.multiply(A, R.const(2, "float32"))
             D = R.add(C, B)
             fset_output(R.prim_value(0), D)
-            return R.tuple()
+            return ()
 
     After = relax.transform.LazySetOutput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_set_output_callback_num_input():
@@ -930,10 +931,10 @@ def test_set_output_callback_num_input():
             C = R.multiply(A, R.const(2, "float32"))
             D = R.add(C, B)
             fset_output(R.prim_value(0), D)
-            return R.tuple()
+            return ()
 
     After = relax.transform.LazySetOutput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_set_output_callback_with_duplicate_output():
@@ -964,17 +965,17 @@ def test_set_output_callback_with_duplicate_output():
             D = R.add(C, B)
             fset_output(R.prim_value(0), D)
             fset_output(R.prim_value(1), D)
-            return R.tuple()
+            return ()
 
     After = relax.transform.LazySetOutput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_set_output_callback_with_inline_const():
     """fset_output may be called for inline objects
 
     The return tuple may contain inline leaf nodes, such as
-    `Expr` or `tvm.ir.GenericConst`.  A call to `fset_output`
+    `Expr` or `tvm_tirx.ir.GenericConst`.  A call to `fset_output`
     must be generated, even though they do not have an associated
     `relax.VarBinding`.
     """
@@ -1001,10 +1002,10 @@ def test_set_output_callback_with_inline_const():
             fset_output(R.prim_value(1), D)
             fset_output(R.prim_value(2), R.prim_value(42))
             fset_output(R.prim_value(3), R.const(17.5, "float16"))
-            return R.tuple()
+            return ()
 
     After = relax.transform.LazySetOutput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_set_output_callback_with_non_tuple_output():
@@ -1029,11 +1030,11 @@ def test_set_output_callback_with_non_tuple_output():
             C = R.multiply(A, R.const(2, "float32"))
             D = R.add(C, B)
             fset_output(R.prim_value(0), D)
-            return R.tuple()
+            return ()
 
     After = relax.transform.LazySetOutput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

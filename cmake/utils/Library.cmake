@@ -78,9 +78,9 @@ function(tvm_configure_target_library target_name)
       RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
       ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
     )
-    install(TARGETS ${target_name} DESTINATION lib${LIB_SUFFIX})
+    install(TARGETS ${target_name} DESTINATION lib${LIB_SUFFIX} COMPONENT tvm)
     if(TVM_BUILD_PYTHON_MODULE)
-      install(TARGETS ${target_name} DESTINATION "lib")
+      install(TARGETS ${target_name} DESTINATION "lib" COMPONENT tvm)
     endif()
   endif()
 endfunction()

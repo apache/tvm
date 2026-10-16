@@ -121,7 +121,7 @@ inline Tensor group_norm(const Tensor& data, const ffi::Optional<Tensor>& gamma,
   };
 
   auto temp_x_x2 =
-      tvm::te::compute(target_shape, compute, data->op->name + "_red_temp", kCommReduce);
+      tvm::te::compute(target_shape, compute, data->op.value()->name + "_red_temp", kCommReduce);
 
   auto temp_x = temp_x_x2[0];
   auto temp_x2 = temp_x_x2[1];
@@ -144,7 +144,7 @@ inline Tensor group_norm(const Tensor& data, const ffi::Optional<Tensor>& gamma,
     PrimExpr group_norm = (data_reshaped(indices) - mean) *
                           tvm::prim::rsqrt(var + MakeConst(PrimType(data->dtype), epsilon));
     if (is_float16) {
-      group_norm = prim::Cast(PrimType::Float(16), group_norm);
+      group_norm = prim::Cast(group_norm, PrimType::Float(16));
     }
     if (gamma.has_value()) {
       group_norm = topi::multiply(group_norm, gamma_reshaped.value()(gamma_indices));

@@ -21,8 +21,8 @@ from collections.abc import Callable
 
 import numpy as np  # type: ignore
 
-from tvm.runtime import Executable, Module
 from tvm.s_tir.meta_schedule.runner import RPCConfig
+from tvm_tirx.runtime import Executable, Module
 
 
 def run_module_via_rpc(
@@ -32,13 +32,12 @@ def run_module_via_rpc(
     args: dict[int, np.ndarray] | dict[str, np.ndarray],
     continuation: Callable,
 ):
-    """Execute a tvm.runtime.Module on RPC remote"""
+    """Execute a tvm_tirx.runtime.Module on RPC remote"""
     # pylint: disable=import-outside-toplevel
     import os
     import tempfile
 
-    from tvm.runtime import ndarray
-    from tvm.support.tar import tar
+    from tvm_tirx.support.tar import tar
 
     # pylint: enable=import-outside-toplevel
 
@@ -50,5 +49,5 @@ def run_module_via_rpc(
         _, filename = os.path.split(filename)
         rt_mod = session.load_module(filename)
         dev = session.device(dev_type, 0)
-        nd_args = {k: ndarray.array(v, dev) for k, v in args.items()}
+        nd_args = {k: dev.tensor(v) for k, v in args.items()}
         return continuation(rt_mod, dev, nd_args)

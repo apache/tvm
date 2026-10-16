@@ -16,27 +16,27 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
-import tvm
+import tvm_tirx
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
-from tvm.te import create_prim_func
+from tvm.te import create_function
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Softmax_mn_after_inline:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
-        T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
-        T_softmax_expsum = Ts.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_maxelem = Ts.sblock_alloc_tensor([256], dtype="float32")
+        T_softmax_expsum = Ts.sblock_alloc_tensor([256], dtype="float32")
         for i0, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_maxelem"):
                 i0_1, k = Ts.axis.remap("SR", [i0, i1])
@@ -61,7 +61,7 @@ class Softmax_mn_after_inline:
 
 
 def test_gpu_softmax_mn():
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_0(
         A: T.Tensor((256, 256), "float32"),
         T_softmax_norm: T.Tensor((256, 256), "float32"),
@@ -70,9 +70,9 @@ def test_gpu_softmax_mn():
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
-        T_softmax_exp = Ts.sblock_alloc_buffer([256, 256], dtype="float32")
-        T_softmax_expsum = Ts.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_maxelem = Ts.sblock_alloc_tensor([256], dtype="float32")
+        T_softmax_exp = Ts.sblock_alloc_tensor([256, 256], dtype="float32")
+        T_softmax_expsum = Ts.sblock_alloc_tensor([256], dtype="float32")
         for i0, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_maxelem"):
                 i0_1, k = Ts.axis.remap("SR", [i0, i1])
@@ -103,7 +103,7 @@ def test_gpu_softmax_mn():
                 Ts.sblock_attr({"axis": 1})
                 T_softmax_norm[i0_6, i1_2] = T_softmax_exp[i0_6, i1_2] / T_softmax_expsum[i0_6]
 
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_1(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
@@ -111,12 +111,12 @@ def test_gpu_softmax_mn():
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        T_softmax_maxelem_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
-        T_softmax_exp = Ts.sblock_alloc_buffer([256, 256], dtype="float32")
-        T_softmax_expsum = Ts.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_maxelem_shared = Ts.sblock_alloc_tensor([256], dtype="float32", scope="shared")
+        T_softmax_exp = Ts.sblock_alloc_tensor([256, 256], dtype="float32")
+        T_softmax_expsum = Ts.sblock_alloc_tensor([256], dtype="float32")
         for i0 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 1):
-                for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
+                for ax1_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_softmax_maxelem"):
                         Ts.where(ax1_0 * 512 + ax1_1 < 256)
                         i0_1 = Ts.axis.spatial(256, i0 + ax0)
@@ -129,7 +129,7 @@ def test_gpu_softmax_mn():
                             T_softmax_maxelem_shared[i0_1], A[i0_1, k]
                         )
             for i1_0 in T.serial(1):
-                for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
+                for i1_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_softmax_exp"):
                         Ts.where(i1_0 * 512 + i1_1 < 256)
                         i0_2 = Ts.axis.spatial(256, i0)
@@ -155,7 +155,7 @@ def test_gpu_softmax_mn():
                 Ts.sblock_attr({"axis": 1})
                 T_softmax_norm[i0_6, i1_2] = T_softmax_exp[i0_6, i1_2] / T_softmax_expsum[i0_6]
 
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_2(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
@@ -163,9 +163,9 @@ def test_gpu_softmax_mn():
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
-        T_softmax_exp = Ts.sblock_alloc_buffer([256, 256], dtype="float32")
-        T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+        T_softmax_maxelem = Ts.sblock_alloc_tensor([256], dtype="float32")
+        T_softmax_exp = Ts.sblock_alloc_tensor([256, 256], dtype="float32")
+        T_softmax_expsum_shared = Ts.sblock_alloc_tensor([256], dtype="float32", scope="shared")
         for i0, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_maxelem"):
                 i0_1, k = Ts.axis.remap("SR", [i0, i1])
@@ -182,7 +182,7 @@ def test_gpu_softmax_mn():
                 T_softmax_exp[i0_2, i1_1] = T.exp(A[i0_2, i1_1] - T_softmax_maxelem[i0_2])
         for i0_3 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 32):
-                for ax1_1 in T.thread_binding(8, thread="threadIdx.x"):
+                for ax1_1 in T.parallel(8, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_softmax_expsum"):
                         i0_4 = Ts.axis.spatial(256, i0_3 + ax0)
                         k = Ts.axis.reduce(256, ax1_0 * 8 + ax1_1)
@@ -194,7 +194,7 @@ def test_gpu_softmax_mn():
                             T_softmax_expsum_shared[i0_4] + T_softmax_exp[i0_4, k]
                         )
             for i1_0 in T.serial(32):
-                for i1_1_1 in T.thread_binding(8, thread="threadIdx.x"):
+                for i1_1_1 in T.parallel(8, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_softmax_norm"):
                         i0_5 = Ts.axis.spatial(256, i0_3)
                         i1 = Ts.axis.spatial(256, i1_0 * 8 + i1_1_1)
@@ -205,7 +205,7 @@ def test_gpu_softmax_mn():
                             T_softmax_exp[i0_5, i1] / T_softmax_expsum_shared[i0_5]
                         )
 
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_3(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
@@ -213,12 +213,12 @@ def test_gpu_softmax_mn():
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        T_softmax_maxelem_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
-        T_softmax_exp = Ts.sblock_alloc_buffer([256, 256], dtype="float32")
-        T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+        T_softmax_maxelem_shared = Ts.sblock_alloc_tensor([256], dtype="float32", scope="shared")
+        T_softmax_exp = Ts.sblock_alloc_tensor([256, 256], dtype="float32")
+        T_softmax_expsum_shared = Ts.sblock_alloc_tensor([256], dtype="float32", scope="shared")
         for i0 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 1):
-                for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
+                for ax1_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_softmax_maxelem"):
                         Ts.where(ax1_0 * 512 + ax1_1 < 256)
                         i0_1 = Ts.axis.spatial(256, i0 + ax0)
@@ -231,7 +231,7 @@ def test_gpu_softmax_mn():
                             T_softmax_maxelem_shared[i0_1], A[i0_1, k]
                         )
             for i1_0 in T.serial(1):
-                for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
+                for i1_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_softmax_exp"):
                         Ts.where(i1_0 * 512 + i1_1 < 256)
                         i0_2 = Ts.axis.spatial(256, i0)
@@ -243,7 +243,7 @@ def test_gpu_softmax_mn():
                         )
         for i0_3 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 32):
-                for ax1_1 in T.thread_binding(8, thread="threadIdx.x"):
+                for ax1_1 in T.parallel(8, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_softmax_expsum"):
                         i0_4 = Ts.axis.spatial(256, i0_3 + ax0)
                         k = Ts.axis.reduce(256, ax1_0 * 8 + ax1_1)
@@ -255,7 +255,7 @@ def test_gpu_softmax_mn():
                             T_softmax_expsum_shared[i0_4] + T_softmax_exp[i0_4, k]
                         )
             for i1_0 in T.serial(32):
-                for i1_1 in T.thread_binding(8, thread="threadIdx.x"):
+                for i1_1 in T.parallel(8, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_softmax_norm"):
                         i0_5 = Ts.axis.spatial(256, i0_3)
                         i1 = Ts.axis.spatial(256, i1_0 * 8 + i1_1)
@@ -277,7 +277,7 @@ def test_gpu_softmax_mn():
         ("SampleCategorical", 1),
         ("SampleCategorical", 7),
     ]
-    mod = create_prim_func(te_workload.softmax_mn(n=256, m=256))
+    mod = create_function(te_workload.softmax_mn(n=256, m=256))
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
@@ -293,12 +293,12 @@ def test_gpu_softmax_mn():
 
 
 def test_gpu_softmax_mn_after_inline():
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_after_inline_0(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
-        T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
-        T_softmax_expsum = Ts.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_maxelem = Ts.sblock_alloc_tensor([256], dtype="float32")
+        T_softmax_expsum = Ts.sblock_alloc_tensor([256], dtype="float32")
         for i0, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_maxelem"):
                 i0_1, k = Ts.axis.remap("SR", [i0, i1])
@@ -327,14 +327,14 @@ def test_gpu_softmax_mn_after_inline():
                     T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4]) / T_softmax_expsum[i0_4]
                 )
 
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_after_inline_1(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
-        T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
-        T_softmax_expsum = Ts.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_maxelem = Ts.sblock_alloc_tensor([256], dtype="float32")
+        T_softmax_expsum = Ts.sblock_alloc_tensor([256], dtype="float32")
         for i0, i1_0 in T.grid(256, 4):
-            for i1_1 in T.thread_binding(64, thread="threadIdx.x"):
+            for i1_1 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("T_softmax_maxelem"):
                     i0_1 = Ts.axis.spatial(256, i0)
                     k = Ts.axis.reduce(256, i1_0 * 64 + i1_1)
@@ -363,12 +363,12 @@ def test_gpu_softmax_mn_after_inline():
                     T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4]) / T_softmax_expsum[i0_4]
                 )
 
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_after_inline_2(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
-        T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
-        T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+        T_softmax_maxelem = Ts.sblock_alloc_tensor([256], dtype="float32")
+        T_softmax_expsum_shared = Ts.sblock_alloc_tensor([256], dtype="float32", scope="shared")
         for i0, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_maxelem"):
                 i0_1, k = Ts.axis.remap("SR", [i0, i1])
@@ -379,7 +379,7 @@ def test_gpu_softmax_mn_after_inline():
                 T_softmax_maxelem[i0_1] = T.max(T_softmax_maxelem[i0_1], A[i0_1, k])
         for i0_3 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 1):
-                for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
+                for ax1_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_softmax_expsum"):
                         Ts.where(ax1_0 * 512 + ax1_1 < 256)
                         i0_2 = Ts.axis.spatial(256, i0_3 + ax0)
@@ -392,7 +392,7 @@ def test_gpu_softmax_mn_after_inline():
                             A[i0_2, k] - T_softmax_maxelem[i0_2]
                         )
             for i1_0 in T.serial(1):
-                for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
+                for i1_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_softmax_norm"):
                         Ts.where(i1_0 * 512 + i1_1 < 256)
                         i0_4 = Ts.axis.spatial(256, i0_3)
@@ -407,15 +407,15 @@ def test_gpu_softmax_mn_after_inline():
                             / T_softmax_expsum_shared[i0_4]
                         )
 
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_after_inline_3(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
-        T_softmax_maxelem_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
-        T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+        T_softmax_maxelem_shared = Ts.sblock_alloc_tensor([256], dtype="float32", scope="shared")
+        T_softmax_expsum_shared = Ts.sblock_alloc_tensor([256], dtype="float32", scope="shared")
         for i0_3 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 1):
-                for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
+                for ax1_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_softmax_maxelem"):
                         Ts.where(ax1_0 * 512 + ax1_1 < 256)
                         i0_1 = Ts.axis.spatial(256, i0_3 + ax0)
@@ -428,7 +428,7 @@ def test_gpu_softmax_mn_after_inline():
                             T_softmax_maxelem_shared[i0_1], A[i0_1, k]
                         )
             for ax0, ax1_0 in T.grid(1, 1):
-                for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
+                for ax1_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_softmax_expsum"):
                         Ts.where(ax1_0 * 512 + ax1_1 < 256)
                         i0_2 = Ts.axis.spatial(256, i0_3 + ax0)
@@ -441,7 +441,7 @@ def test_gpu_softmax_mn_after_inline():
                             A[i0_2, k] - T_softmax_maxelem_shared[i0_2]
                         )
             for i1_0 in T.serial(1):
-                for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
+                for i1_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_softmax_norm"):
                         Ts.where(i1_0 * 512 + i1_1 < 256)
                         i0_4 = Ts.axis.spatial(256, i0_3)
@@ -491,13 +491,13 @@ def test_gpu_softmax_mn_after_inline():
 
 
 def test_gpu_batch_norm_bmn():
-    @Ts.prim_func
+    @Ts.function
     def batch_norm_bmn_0(A: T.Tensor((1, 512, 512), "float32"), D: T.Tensor(1, "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        C = Ts.sblock_alloc_buffer([1], dtype="float32")
+        C = Ts.sblock_alloc_tensor([1], dtype="float32")
         for i0, i1, i2 in T.grid(1, 512, 512):
             with Ts.sblock("C"):
                 b, i, j = Ts.axis.remap("SRR", [i0, i1, i2])
@@ -513,16 +513,18 @@ def test_gpu_batch_norm_bmn():
                 Ts.writes(D[b])
                 D[b] = T.sqrt(C[b])
 
-    @Ts.prim_func
+    @Ts.function
     def batch_norm_bmn_1(A: T.Tensor((1, 512, 512), "float32"), D: T.Tensor(1, "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
         # with Ts.sblock("root")
-        C_shared = Ts.sblock_alloc_buffer([1], dtype="float32", scope="shared")
+        C_shared = Ts.sblock_alloc_tensor([1], dtype="float32", scope="shared")
         for i0_0 in T.serial(1):
             for ax0, ax1_ax2_fused_0 in T.grid(1, 1024):
-                for ax1_ax2_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
+                for ax1_ax2_fused_1 in T.parallel(
+                    256, annotations={"thread_binding": "threadIdx.x"}
+                ):
                     with Ts.sblock("C"):
                         b = Ts.axis.spatial(1, ax0)
                         i = Ts.axis.reduce(512, (ax1_ax2_fused_0 * 256 + ax1_ax2_fused_1) // 512)
@@ -532,7 +534,7 @@ def test_gpu_batch_norm_bmn():
                         with Ts.init():
                             C_shared[b] = T.float32(0)
                         C_shared[b] = C_shared[b] + A[b, i, j] * A[b, i, j]
-            for i0_1 in T.thread_binding(256, thread="threadIdx.x"):
+            for i0_1 in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("D"):
                     Ts.where(i0_0 * 256 + i0_1 < 1)
                     b = Ts.axis.spatial(1, i0_0 * 256 + i0_1)
@@ -545,7 +547,7 @@ def test_gpu_batch_norm_bmn():
         ("SampleCategorical", 6),
     ]
 
-    mod = create_prim_func(te_workload.norm_bmn(B=1, M=512, N=512))
+    mod = create_function(te_workload.norm_bmn(B=1, M=512, N=512))
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
@@ -560,7 +562,7 @@ def test_gpu_batch_norm_bmn():
     )
 
 
-@Ts.prim_func
+@Ts.function
 def argmax(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
@@ -586,7 +588,7 @@ def argmax(
             argmax_v1[i] = v_argmax_v1
 
 
-@Ts.prim_func
+@Ts.function
 def argmax_32(
     idx: T.Tensor((1, 32), "int32"),
     val: T.Tensor((1, 32), "float32"),
@@ -613,7 +615,7 @@ def argmax_32(
 
 
 def test_gpu_argmax():
-    @Ts.prim_func
+    @Ts.function
     def argmax_0(
         idx: T.Tensor((128, 128), "int32"),
         val: T.Tensor((128, 128), "float32"),
@@ -639,7 +641,7 @@ def test_gpu_argmax():
                 argmax_v0[i] = v_argmax_v0
                 argmax_v1[i] = v_argmax_v1
 
-    @Ts.prim_func
+    @Ts.function
     def argmax_1(
         idx: T.Tensor((128, 128), "int32"),
         val: T.Tensor((128, 128), "float32"),
@@ -649,7 +651,7 @@ def test_gpu_argmax():
         # body
         # with Ts.sblock("root")
         for i0, i1_0 in T.grid(128, 2):
-            for i1_1 in T.thread_binding(64, thread="threadIdx.x"):
+            for i1_1 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("argmax"):
                     i = Ts.axis.spatial(128, i0)
                     k = Ts.axis.reduce(128, i1_0 * 64 + i1_1)
@@ -688,7 +690,7 @@ def test_gpu_argmax():
 
 
 def test_gpu_argmax_32():
-    @Ts.prim_func
+    @Ts.function
     def argmax_0(
         idx: T.Tensor((1, 32), "int32"),
         val: T.Tensor((1, 32), "float32"),
@@ -714,7 +716,7 @@ def test_gpu_argmax_32():
                 argmax_v0[i] = v_argmax_v0
                 argmax_v1[i] = v_argmax_v1
 
-    @Ts.prim_func
+    @Ts.function
     def argmax_1(
         idx: T.Tensor((1, 32), "int32"),
         val: T.Tensor((1, 32), "float32"),
@@ -724,7 +726,7 @@ def test_gpu_argmax_32():
         # body
         # with Ts.sblock("root")
         for i0, i1_0 in T.grid(1, 1):
-            for i1_1 in T.thread_binding(64, thread="threadIdx.x"):
+            for i1_1 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("argmax"):
                     i = Ts.axis.spatial(1, i0)
                     k = Ts.axis.reduce(32, i1_0 * 64 + i1_1)

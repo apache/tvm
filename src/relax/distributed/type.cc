@@ -100,14 +100,14 @@ PlacementSpec PlacementSpec::Sharding(int axis) {
   ffi::ObjectPtr<PlacementSpecNode> n = ffi::make_object<PlacementSpecNode>();
   n->axis = axis;
   n->kind = PlacementSpecKind::kSharding;
-  return PlacementSpec(n);
+  return PlacementSpec(ffi::UnsafeInit{}, std::move(n));
 }
 
 PlacementSpec PlacementSpec::Replica() {
   ffi::ObjectPtr<PlacementSpecNode> n = ffi::make_object<PlacementSpecNode>();
   n->axis = -1;
   n->kind = PlacementSpecKind::kReplica;
-  return PlacementSpec(n);
+  return PlacementSpec(ffi::UnsafeInit{}, std::move(n));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -181,7 +181,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // DTensor
 DTensorType::DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement,
-                         Span span)
+                         Location loc)
     : Type(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(device_mesh.defined(), ValueError) << "device_mesh must be defined";
   TVM_FFI_CHECK(placement.defined(), ValueError) << "placement must be defined";
@@ -195,7 +195,7 @@ DTensorType::DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement
   }
   ffi::ObjectPtr<DTensorTypeNode> n = ffi::make_object<DTensorTypeNode>(
       std::move(tensor_ty), std::move(device_mesh), std::move(placement));
-  n->span = span;
+  n->loc = loc;
   data_ = std::move(n);
 }
 
@@ -203,11 +203,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   DTensorTypeNode::RegisterReflection();
   refl::TypeAttrDef<DTensorTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit,
+      .attr(ffi::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&DTensorTypeVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
+      .attr(ffi::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&DTensorTypeMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&DTensorTypeMaybeInplaceMutate>());
 }
 
@@ -215,8 +215,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.distributed.DTensorType",
-      [](TensorType tensor_ty, DeviceMesh device_mesh, Placement placement, Span span) {
-        return DTensorType(tensor_ty, device_mesh, placement, span);
+      [](TensorType tensor_ty, DeviceMesh device_mesh, Placement placement, Location loc) {
+        return DTensorType(tensor_ty, device_mesh, placement, loc);
       });
 }
 

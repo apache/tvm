@@ -17,12 +17,12 @@
  * under the License.
  */
 #include <tvm/ir/module.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/target/target.h>
 
 #include <optional>
 #include <string>
 
-#include "../../../script/printer/ir/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -37,15 +37,16 @@ ffi::Optional<ffi::String> GlobalInfoSelector(DocTranslatorObj* d, const GlobalI
   if (!module.has_value()) return std::nullopt;
   const auto& infos = module.value()->global_infos;
   if (auto query = info.as<relax::VDevice>()) {
+    if (!query.value()->target.has_value()) return std::nullopt;
     if (auto devices = infos.Get("vdevice")) {
-      ffi::String kind = query.value()->target->kind->name;
+      ffi::String kind = query.value()->target.value()->kind->name;
       size_t index = 0;
       for (const GlobalInfo& entry : devices.value()) {
         if (auto device = entry.as<relax::VDevice>();
-            device && device.value()->target->kind->name == kind) {
+            device && device.value()->target.has_value() &&
+            device.value()->target.value()->kind->name == kind) {
           if (entry.same_as(info)) {
-            return ffi::String(std::string(kind) + ":" + std::to_string(index) + ":" +
-                               std::string(device.value()->memory_scope));
+            return ffi::String(std::string(kind) + ":" + std::to_string(index));
           }
           ++index;
         }
@@ -64,6 +65,22 @@ ffi::Optional<ffi::String> GlobalInfoSelector(DocTranslatorObj* d, const GlobalI
 
 namespace {
 
+ffi::Optional<ExprDoc> VDeviceDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                           const ffi::Object*) {
+  const auto* device =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::VDeviceNode>(input);
+  return NamespaceDoc("relax")->Attr("vdevice")->Call(
+      {d->Translate(device->target).value()}, {"vdevice_id", "memory_scope"},
+      {LiteralDoc::Int(device->vdevice_id, std::nullopt),
+       LiteralDoc::Str(device->memory_scope.name(), std::nullopt)});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<relax::VDeviceNode>().attr(
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&VDeviceDocTranslate>());
+}
+
 ffi::Optional<ExprDoc> DummyGlobalInfoDocTranslate(DocTranslatorObj*, ffi::AnyView,
                                                    const ffi::Object*) {
   return NamespaceDoc("relax")->Attr("dummy_global_info")->Call({});
@@ -71,7 +88,8 @@ ffi::Optional<ExprDoc> DummyGlobalInfoDocTranslate(DocTranslatorObj*, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::DummyGlobalInfoNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&DummyGlobalInfoDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&DummyGlobalInfoDocTranslate>());
 }
 
 }  // namespace

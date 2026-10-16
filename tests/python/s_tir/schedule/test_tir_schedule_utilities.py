@@ -21,21 +21,26 @@ import sys
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import tirx
-from tvm.ir import IRModule
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.ir import IRModule
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@Ts.prim_func
-def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
+@Ts.function
+def matmul(
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
+) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -46,11 +51,13 @@ def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 1
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_relu(
-    A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024)), D: T.Tensor((1024, 1024))
+    A: T.Tensor((1024, 1024), "float32"),
+    B: T.Tensor((1024, 1024), "float32"),
+    D: T.Tensor((1024, 1024), "float32"),
 ) -> None:
-    C = Ts.sblock_alloc_buffer((1024, 1024))
+    C = Ts.sblock_alloc_tensor((1024, 1024))
 
     for i, j, k in T.grid(1024, 1024, 1024):
         with Ts.sblock("matmul"):
@@ -64,11 +71,13 @@ def matmul_relu(
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_relu_ann1(
-    A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024)), D: T.Tensor((1024, 1024))
+    A: T.Tensor((1024, 1024), "float32"),
+    B: T.Tensor((1024, 1024), "float32"),
+    D: T.Tensor((1024, 1024), "float32"),
 ) -> None:
-    C = Ts.sblock_alloc_buffer((1024, 1024))
+    C = Ts.sblock_alloc_tensor((1024, 1024))
 
     for i in T.serial(0, 1024, annotations={"test1": "aaa", "test4": {"arr": [0, 0], "key": 3}}):
         for j in T.serial(0, 1024, annotations={"test2": 612, "test3": ["aa", 1]}):
@@ -84,11 +93,13 @@ def matmul_relu_ann1(
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_relu_ann2(
-    A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024)), D: T.Tensor((1024, 1024))
+    A: T.Tensor((1024, 1024), "float32"),
+    B: T.Tensor((1024, 1024), "float32"),
+    D: T.Tensor((1024, 1024), "float32"),
 ) -> None:
-    C = Ts.sblock_alloc_buffer((1024, 1024))
+    C = Ts.sblock_alloc_tensor((1024, 1024))
 
     for i, j, k in T.grid(1024, 1024, 1024):
         with Ts.sblock("matmul"):
@@ -104,9 +115,9 @@ def matmul_relu_ann2(
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class ModuleWithMultipleFuncs:
-    @Ts.prim_func
+    @Ts.function
     def vector_add(
         A: T.Tensor(128, "float32"),
         B: T.Tensor(128, "float32"),
@@ -116,7 +127,7 @@ class ModuleWithMultipleFuncs:
                 vi = Ts.axis.remap("S", [i])
                 B[vi] = A[vi]
 
-    @Ts.prim_func
+    @Ts.function
     def vector_add_2(
         A: T.Tensor(128, "float32"),
         B: T.Tensor(128, "float32"),
@@ -127,7 +138,7 @@ class ModuleWithMultipleFuncs:
                 B[vi] = A[vi]
 
 
-@Ts.prim_func
+@Ts.function
 def tuple_reduction(data: T.Tensor((4, 32), "float32"), T_add: T.Tensor((4,), "float32")) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -135,8 +146,8 @@ def tuple_reduction(data: T.Tensor((4, 32), "float32"), T_add: T.Tensor((4,), "f
     with Ts.sblock("root"):
         Ts.reads()
         Ts.writes()
-        data_red_temp_v0 = Ts.sblock_alloc_buffer([4], dtype="float32")
-        data_red_temp_v1 = Ts.sblock_alloc_buffer([4], dtype="float32")
+        data_red_temp_v0 = Ts.sblock_alloc_tensor([4], dtype="float32")
+        data_red_temp_v1 = Ts.sblock_alloc_tensor([4], dtype="float32")
         for i0, i1 in T.grid(4, 32):
             with Ts.sblock("data_red_temp"):
                 ax0, k1 = Ts.axis.remap("SR", [i0, i1])
@@ -161,12 +172,12 @@ def tuple_reduction(data: T.Tensor((4, 32), "float32"), T_add: T.Tensor((4,), "f
 
 # pylint: enable=no-member,invalid-name,unused-variable
 
-use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
 
 def test_tir_schedule_creation():
     # Tests:
-    # - Schedule.__init__ for PrimFunc and IRModule
+    # - Schedule.__init__ for Function and IRModule
     # - Schedule.mod
     # - Schedule.state
     sch_1 = tvm.s_tir.Schedule(matmul, debug_mask="all")
@@ -187,7 +198,7 @@ def test_tir_schedule_get_sblock():
     assert block.name_hint == "update"
     assert block_sref.stmt.same_as(block)
     assert sch.state.get_sref(block).same_as(block_sref)
-    assert block.same_as(matmul.body.block.body.body.body[1].body.block)
+    assert block.same_as(matmul.body[0].block.body[0].body[0].body[1].body[0].block)
 
 
 def test_tir_schedule_work_on():
@@ -290,18 +301,18 @@ def test_get_producers(use_block_name):
     sch = tvm.s_tir.Schedule(mod=matmul_relu, debug_mask="all")
     block = "relu" if use_block_name else sch.get_sblock("relu")
     (producer,) = sch.get_producers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(producer).stmt,
         sch.get_sref(sch.get_sblock("matmul")).stmt,
     )
     verify_trace_roundtrip(sch, mod=matmul_relu)
 
 
-def test_get_producers_multiple_buffer_depdencies(use_block_name):
+def test_get_producers_multiple_tensor_depdencies(use_block_name):
     sch = tvm.s_tir.Schedule(mod=tuple_reduction, debug_mask="all")
     block = "T_add" if use_block_name else sch.get_sblock("T_add")
     (producer,) = sch.get_producers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(producer).stmt,
         sch.get_sref(sch.get_sblock("data_red_temp")).stmt,
     )
@@ -311,18 +322,18 @@ def test_get_consumers(use_block_name):
     sch = tvm.s_tir.Schedule(mod=matmul_relu, debug_mask="all")
     block = "matmul" if use_block_name else sch.get_sblock("matmul")
     (consumer,) = sch.get_consumers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(consumer).stmt,
         sch.get_sref(sch.get_sblock("relu")).stmt,
     )
     verify_trace_roundtrip(sch, mod=matmul_relu)
 
 
-def test_get_consumers_multiple_buffer_depdencies(use_block_name):
+def test_get_consumers_multiple_tensor_depdencies(use_block_name):
     sch = tvm.s_tir.Schedule(mod=tuple_reduction, debug_mask="all")
     block = "data_red_temp" if use_block_name else sch.get_sblock("data_red_temp")
     (consumer,) = sch.get_consumers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(consumer).stmt,
         sch.get_sref(sch.get_sblock("T_add")).stmt,
     )
@@ -387,7 +398,7 @@ def test_get_output_blocks_multiple_outputs():
 
 
 def test_get_output_blocks_nested():
-    @Ts.prim_func
+    @Ts.function
     def blockized(
         A: T.Tensor((128, 128), "float32"),
         B: T.Tensor((128, 128), "float32"),
@@ -422,4 +433,4 @@ def test_get_output_blocks_nested():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

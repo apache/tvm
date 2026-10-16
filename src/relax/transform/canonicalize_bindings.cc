@@ -28,9 +28,9 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op/op.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/utils.h>
@@ -86,12 +86,12 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     if (unchanged) {
       return ffi::GetRef<Expr>(op);
     }
-    return Call(Type::Missing(), new_op, new_args, op->attrs, {out_ty}, op->span);
+    return Call(Type::Missing(), new_op, new_args, op->attrs, {out_ty}, op->loc);
   }
 
   /*!
    * \brief Keep each output of out_ty that follows from the implied type. For a tensor that
-   * does not, take the implied shape and keep the dtype and vdevice, since the PrimFunc
+   * does not, take the implied shape and keep the dtype and vdevice, since the tirx::Function
    * signature carries no vdevice and erases the shape of an output with a dimension the
    * arguments do not determine.
    */
@@ -106,13 +106,13 @@ class SymbolicVarCanonicalizer : public ExprMutator {
       for (size_t i = 0; i < out_tuple->fields.size(); ++i) {
         fields.push_back(ReconcileOutType(implied_tuple->fields[i], out_tuple->fields[i]));
       }
-      return TupleType(fields, out_tuple->span);
+      return TupleType(fields, out_tuple->loc);
     }
     const auto* implied_tensor = implied.as<TensorTypeNode>();
     const auto* out_tensor = out_ty.as<TensorTypeNode>();
     if (implied_tensor && out_tensor && implied_tensor->shape.has_value()) {
       return TensorType(implied_tensor->shape.value(), out_tensor->dtype, out_tensor->vdevice,
-                        out_tensor->span);
+                        out_tensor->loc);
     }
     return implied;
   }
@@ -124,7 +124,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     if (values.same_as(op->values)) {
       return ffi::GetRef<Expr>(op);
     }
-    return ShapeExpr(values, op->span);
+    return ShapeExpr(values, op->loc);
   }
 
   Expr VisitExpr_(const FunctionNode* func) override {
@@ -167,7 +167,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     canonicalize_shape_values_ = cached;
   }
 
-  Expr VisitExpr_(const IfNode* op) override {
+  Expr VisitExpr_(const IfExprNode* op) override {
     Expr guard = this->VisitExpr(op->cond);
 
     auto cached = known_values_;
@@ -214,13 +214,13 @@ class SymbolicVarCanonicalizer : public ExprMutator {
                         output_var);
     }
 
-    return If(guard, true_b, false_b, op->span);
+    return IfExpr(guard, true_b, false_b, op->loc);
   }
 
  private:
   class RuntimePrimVarCollector : public ExprVisitor {
    public:
-    static std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
+    static std::unordered_set<tvm::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
         const Expr& expr) {
       RuntimePrimVarCollector collector;
       collector.VisitExpr(expr);
@@ -239,7 +239,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     }
 
    private:
-    std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> uses_;
+    std::unordered_set<tvm::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> uses_;
   };
 
   PrimExpr CanonicalizeShapeValue(const PrimExpr& expr) {
@@ -260,8 +260,8 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     MatchCast source;
   };
 
-  std::unordered_map<tirx::Var, KnownValue, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> known_values_;
-  std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> runtime_prim_var_uses_;
+  std::unordered_map<tvm::Var, KnownValue, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> known_values_;
+  std::unordered_set<tvm::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> runtime_prim_var_uses_;
   bool canonicalize_shape_values_ = true;
 };
 
@@ -707,14 +707,14 @@ Pass CanonicalizeTIRVariables() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return CanonicalizeTIRVariables(f).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, 1, "CanonicalizeTIRVariables", {});
+  return CreateFunctionPass(pass_func, 1, "CanonicalizeTIRVariables");
 }
 
 Pass CanonicalizeRelaxBindings() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return CanonicalizeBindings(f).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, 1, "CanonicalizeRelaxBindings", {});
+  return CreateFunctionPass(pass_func, 1, "CanonicalizeRelaxBindings");
 }
 
 Pass CanonicalizeBindings() {

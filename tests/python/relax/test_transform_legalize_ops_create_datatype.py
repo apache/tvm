@@ -16,33 +16,33 @@
 # under the License.
 # ruff: noqa: E501, F841
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.relax import script as R
 from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 ##################### Creation #####################
 
 
 def test_full():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Full:
         @R.function
         def main(v: R.Tensor((), "int32")) -> R.Tensor((2, 3), "int32"):
             gv: R.Tensor((2, 3), "int32") = R.full((2, 3), v, dtype="int32")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(v: R.Tensor((), "int32")) -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(Expected.full, (v,), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.full, (v,), ty_args=[R.Tensor((2, 3), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(rxplaceholder: T.Tensor((), "int32"), T_full: T.Tensor((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -54,26 +54,26 @@ def test_full():
     # fmt: on
 
     mod = LegalizeOps()(Full)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_full_constant_scalar_fill_value():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Full:
         @R.function
         def main() -> R.Tensor((2, 3), "int32"):
             gv: R.Tensor((2, 3), "int32") = R.full((2, 3), R.const(3.5, "float32"), dtype="int32")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main() -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(Expected.full, R.tuple(), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.full, R.tuple(), ty_args=[R.Tensor((2, 3), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(T_full: T.Tensor((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -85,26 +85,26 @@ def test_full_constant_scalar_fill_value():
     # fmt: on
 
     mod = LegalizeOps()(Full)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_full_different_dtype():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Full:
         @R.function
         def main(v: R.Tensor((), "int32")) -> R.Tensor((2, 3), "float32"):
             gv: R.Tensor((2, 3), "float32") = R.full((2, 3), v, dtype="float32")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(v: R.Tensor((), "int32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.full, (v,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.full, (v,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(rxplaceholder: T.Tensor((), "int32"), T_full: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -112,38 +112,38 @@ def test_full_different_dtype():
                     ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(rxplaceholder[()])
                     Ts.writes(T_full[ax0, ax1])
-                    T_full[ax0, ax1] = T.Cast("float32", rxplaceholder[()])
+                    T_full[ax0, ax1] = T.Cast(rxplaceholder[()], "float32")
     # fmt: on
 
     mod = LegalizeOps()(Full)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_full_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Full:
         @R.function
         def main(dumb_param: R.Tensor((m, n)), v: R.Tensor((), "int32")) -> R.Tensor((m, n), "int32"):
             gv: R.Tensor((m, n), "int32") = R.full((m, n), v, dtype="int32")
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_full = T.dynamic("m")
-    n_full = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_full = T.dynamic("m", "int64")
+    n_full = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor((m_main, n_main)), v: R.Tensor((), "int32")) -> R.Tensor((m_main, n_main), "int32"):
-            gv = R.call_tir(Expected.full, (v,), R.Tensor((m_main, n_main), dtype="int32"))
+            gv = R.call_tir(Expected.full, (v,), ty_args=[R.Tensor((m_main, n_main), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(rxplaceholder: T.Tensor((), "int32"), T_full: T.Tensor([m_full, n_full], dtype='int32')):
             T.func_attr({"tirx.noalias": True})
 
@@ -156,26 +156,26 @@ def test_full_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Full)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_full_like():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class FullLike:
         @R.function
         def main(x: R.Tensor((2, 3), "int32"), v: R.Tensor((), "float32")) -> R.Tensor((2, 3), "int32"):
             gv: R.Tensor((2, 3), "int32") = R.full_like(x, v)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "int32"), v: R.Tensor((), "float32")) -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(Expected.full, (v,), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.full, (v,), ty_args=[R.Tensor((2, 3), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(rxplaceholder: T.Tensor((), "float32"), T_full: T.Tensor((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -187,26 +187,26 @@ def test_full_like():
     # fmt: on
 
     mod = LegalizeOps()(FullLike)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_full_like_constant_scalar_fill_value():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class FullLike:
         @R.function
         def main(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "int32"):
             gv: R.Tensor((2, 3), "int32") = R.full_like(x, R.const(-5, "float32"))
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(Expected.full, R.tuple(), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.full, R.tuple(), ty_args=[R.Tensor((2, 3), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(T_full: T.Tensor((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -218,26 +218,26 @@ def test_full_like_constant_scalar_fill_value():
     # fmt: on
 
     mod = LegalizeOps()(FullLike)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_full_like_different_dtype():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class FullLike:
         @R.function
         def main(x: R.Tensor((2, 3), "int32"), v: R.Tensor((), "float32")) -> R.Tensor((2, 3), "float64"):
             gv: R.Tensor((2, 3), "float64") = R.full_like(x, v, dtype="float64")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "int32"), v: R.Tensor((), "float32")) -> R.Tensor((2, 3), "float64"):
-            gv = R.call_tir(Expected.full, (v,), R.Tensor((2, 3), dtype="float64"))
+            gv = R.call_tir(Expected.full, (v,), ty_args=[R.Tensor((2, 3), dtype="float64")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(rxplaceholder: T.Tensor((), "float32"), T_full: T.Tensor((T.int64(2), T.int64(3)), "float64")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -245,38 +245,38 @@ def test_full_like_different_dtype():
                     ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(rxplaceholder[()])
                     Ts.writes(T_full[ax0, ax1])
-                    T_full[ax0, ax1] = T.Cast("float64", rxplaceholder[()])
+                    T_full[ax0, ax1] = T.Cast(rxplaceholder[()], "float64")
     # fmt: on
 
     mod = LegalizeOps()(FullLike)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_full_like_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class FullLike:
         @R.function
         def main(x: R.Tensor((m, n), "int32"), v: R.Tensor((), "float32")) -> R.Tensor((m, n), "int32"):
             gv: R.Tensor((m, n), "int32") = R.full_like(x, v)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_full = T.dynamic("m")
-    n_full = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_full = T.dynamic("m", "int64")
+    n_full = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "int32"), v: R.Tensor((), "float32")) -> R.Tensor((m_main, n_main), "int32"):
-            gv = R.call_tir(Expected.full, (v,), R.Tensor((m_main, n_main), dtype="int32"))
+            gv = R.call_tir(Expected.full, (v,), ty_args=[R.Tensor((m_main, n_main), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def full(rxplaceholder: T.Tensor((), "float32"), T_full: T.Tensor([m_full, n_full], dtype='int32')):
             T.func_attr({"tirx.noalias": True})
 
@@ -289,26 +289,26 @@ def test_full_like_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(FullLike)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_ones():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Ones:
         @R.function
         def main() -> R.Tensor((2, 3), "float32"):
             gv: R.Tensor((2, 3), "float32") = R.ones((2, 3), "float32")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main() -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.ones, R.tuple(), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.ones, R.tuple(), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def ones(T_full: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -320,34 +320,34 @@ def test_ones():
     # fmt: on
 
     mod = LegalizeOps()(Ones)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_ones_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Ones:
         @R.function
         def main(dumb_param: R.Tensor((m, n))) -> R.Tensor((m, n), "float32"):
             gv: R.Tensor((m, n), "float32") = R.ones((m, n), "float32")
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_ones = T.dynamic("m")
-    n_ones = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_ones = T.dynamic("m", "int64")
+    n_ones = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor((m_main, n_main))) -> R.Tensor((m_main, n_main), "float32"):
-            gv = R.call_tir(Expected.ones, R.tuple(), R.Tensor((m_main, n_main), dtype="float32"))
+            gv = R.call_tir(Expected.ones, R.tuple(), ty_args=[R.Tensor((m_main, n_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def ones(T_full: T.Tensor([m_ones, n_ones], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
@@ -360,26 +360,26 @@ def test_ones_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Ones)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_ones_like():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class OnesLike:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "int32"):
             gv: R.Tensor((2, 3), "int32") = R.ones_like(x, "int32")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(Expected.ones, R.tuple(), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.ones, R.tuple(), ty_args=[R.Tensor((2, 3), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def ones(T_full: T.Tensor((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -391,34 +391,34 @@ def test_ones_like():
     # fmt: on
 
     mod = LegalizeOps()(OnesLike)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_ones_like_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class OnesLike:
         @R.function
         def main(x: R.Tensor((m, n), "float32")) -> R.Tensor((m, n), "float32"):
             gv: R.Tensor((m, n), "float32") = R.ones_like(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_ones = T.dynamic("m")
-    n_ones = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_ones = T.dynamic("m", "int64")
+    n_ones = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "float32")) -> R.Tensor((m_main, n_main), "float32"):
-            gv = R.call_tir(Expected.ones, R.tuple(), R.Tensor((m_main, n_main), dtype="float32"))
+            gv = R.call_tir(Expected.ones, R.tuple(), ty_args=[R.Tensor((m_main, n_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def ones(T_full: T.Tensor([m_ones, n_ones], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
@@ -431,26 +431,26 @@ def test_ones_like_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(OnesLike)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_zeros():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Zeros:
         @R.function
         def main() -> R.Tensor((2, 3), "float32"):
             gv: R.Tensor((2, 3), "float32") = R.zeros((2, 3), "float32")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main() -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.zeros, R.tuple(), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.zeros, R.tuple(), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def zeros(T_full: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -462,34 +462,34 @@ def test_zeros():
     # fmt: on
 
     mod = LegalizeOps()(Zeros)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_zeros_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Zeros:
         @R.function
         def main(dumb_param: R.Tensor((m, n))) -> R.Tensor((m, n), "float32"):
             gv: R.Tensor((m, n), "float32") = R.zeros((m, n), "float32")
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_zeros = T.dynamic("m")
-    n_zeros = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_zeros = T.dynamic("m", "int64")
+    n_zeros = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor((m_main, n_main))) -> R.Tensor((m_main, n_main), "float32"):
-            gv = R.call_tir(Expected.zeros, R.tuple(), R.Tensor((m_main, n_main), dtype="float32"))
+            gv = R.call_tir(Expected.zeros, R.tuple(), ty_args=[R.Tensor((m_main, n_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def zeros(T_full: T.Tensor([m_zeros, n_zeros], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
@@ -502,26 +502,26 @@ def test_zeros_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Zeros)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_zeros_like():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class ZerosLike:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "int32"):
             gv: R.Tensor((2, 3), "int32") = R.zeros_like(x, "int32")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "int32"):
-            gv = R.call_tir(Expected.zeros, R.tuple(), R.Tensor((2, 3), dtype="int32"))
+            gv = R.call_tir(Expected.zeros, R.tuple(), ty_args=[R.Tensor((2, 3), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def zeros(T_full: T.Tensor((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -533,34 +533,34 @@ def test_zeros_like():
     # fmt: on
 
     mod = LegalizeOps()(ZerosLike)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_zeros_like_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class ZerosLike:
         @R.function
         def main(x: R.Tensor((m, n), "float32")) -> R.Tensor((m, n), "float32"):
             gv: R.Tensor((m, n), "float32") = R.zeros_like(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_zeros = T.dynamic("m")
-    n_zeros = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_zeros = T.dynamic("m", "int64")
+    n_zeros = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "float32")) -> R.Tensor((m_main, n_main), "float32"):
-            gv = R.call_tir(Expected.zeros, R.tuple(), R.Tensor((m_main, n_main), dtype="float32"))
+            gv = R.call_tir(Expected.zeros, R.tuple(), ty_args=[R.Tensor((m_main, n_main), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def zeros(T_full: T.Tensor([m_zeros, n_zeros], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
@@ -573,19 +573,19 @@ def test_zeros_like_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(ZerosLike)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_arange_const():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Arange:
         @R.function
         def main():
             gv = R.arange(1, 10, 2)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main():
@@ -594,33 +594,33 @@ def test_arange_const():
     # fmt: on
 
     mod = LegalizeOps()(Arange)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_arange_symbolic():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Arange:
         @R.function
         def main(x: R.Tensor([n], "float32")):
             gv = R.arange(1, R.prim_value(n), 2)
             return gv
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor([n], "float32")):
             cls = Expected
-            gv = R.call_tir(cls.arange, (n,), out_ty=R.Tensor((n // 2,), dtype="int64"))
+            gv = R.call_tir(cls.arange, (n,), ty_args=[R.Tensor((n // 2,), dtype="int64")])
             return gv
 
         arange_n = T.int64()
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def arange(n: arange_n, T_arange: T.Tensor((arange_n // T.int64(2),), 'int64')):
             T.func_attr({"tirx.noalias": True})
 
@@ -631,28 +631,28 @@ def test_arange_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Arange)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_shape_to_tensor():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class ShapeToTensor:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")):
             gv = R.shape_to_tensor(R.shape_of(x))
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((3,), "int64"):
             cls = Expected
             gv: R.Shape([2, 3, 4]) = R.shape_of(x)
-            gv_1 = R.call_tir(cls.shape_to_tensor, R.tuple(), out_ty=R.Tensor((3,), dtype="int64"))
+            gv_1 = R.call_tir(cls.shape_to_tensor, R.tuple(), ty_args=[R.Tensor((3,), dtype="int64")])
             return gv_1
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def shape_to_tensor(shape_to_tensor: T.Tensor((T.int64(3),), "int64")):
             T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(3)):
@@ -662,34 +662,34 @@ def test_shape_to_tensor():
     # fmt: on
 
     mod = LegalizeOps()(ShapeToTensor)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_shape_to_tensor_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class ShapeToTensor:
         @R.function
         def main(x: R.Tensor((m, n), "float32")):
             gv = R.shape_to_tensor(R.shape_of(x))
             return gv
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m, n), "float32")) -> R.Tensor((2,), "int64"):
             cls = Expected
             gv: R.Shape([m, n]) = R.shape_of(x)
-            gv_1 = R.call_tir(cls.shape_to_tensor, (m, n), out_ty=R.Tensor((2,), dtype="int64"))
+            gv_1 = R.call_tir(cls.shape_to_tensor, (m, n), ty_args=[R.Tensor((2,), dtype="int64")])
             return gv_1
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def shape_to_tensor(m: T.int64, n: T.int64, shape_to_tensor: T.Tensor((T.int64(2),), "int64")):
             T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(2)):
@@ -699,32 +699,32 @@ def test_shape_to_tensor_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(ShapeToTensor)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_shape_to_tensor_mixed():
     # fmt: off
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class ShapeToTensor:
         @R.function
         def main(x: R.Tensor((m, 3), "float32")):
             gv = R.shape_to_tensor(R.shape_of(x))
             return gv
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m, 3), "float32")) -> R.Tensor((2,), "int64"):
             cls = Expected
             gv: R.Shape([m, 3]) = R.shape_of(x)
-            gv_1 = R.call_tir(cls.shape_to_tensor, (m,), out_ty=R.Tensor((2,), dtype="int64"))
+            gv_1 = R.call_tir(cls.shape_to_tensor, (m,), ty_args=[R.Tensor((2,), dtype="int64")])
             return gv_1
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def shape_to_tensor(m: T.int64, shape_to_tensor: T.Tensor((T.int64(2),), "int64")):
             T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(2)):
@@ -734,18 +734,18 @@ def test_shape_to_tensor_mixed():
     # fmt: on
 
     mod = LegalizeOps()(ShapeToTensor)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_shape_to_tensor_unknown_values():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class ShapeToTensor:
         @R.function
         def main(s: R.Shape(ndim=2)):
             gv = R.shape_to_tensor(s)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(s: R.Shape(ndim=2)) -> R.Tensor((2,), "int64"):
@@ -755,26 +755,26 @@ def test_shape_to_tensor_unknown_values():
             return gv
 
     mod = LegalizeOps()(ShapeToTensor)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_tril():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Tril:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 3, 4), "float32"):
             gv: R.Tensor((2, 3, 4), "float32") = R.tril(x, k=1)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 3, 4), "float32"):
-            gv = R.call_tir(Expected.tril, (x,), R.Tensor((2, 3, 4), dtype="float32"))
+            gv = R.call_tir(Expected.tril, (x,), ty_args=[R.Tensor((2, 3, 4), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tril(rxplaceholder: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "float32"), trilu: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(3), T.int64(4)):
@@ -786,37 +786,37 @@ def test_tril():
     # fmt: on
 
     mod = LegalizeOps()(Tril)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_tril_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
-    k = T.dynamic("k")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    k = T.dynamic("k", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Tril:
         @R.function
         def main(x: R.Tensor((m, n, k), "int8")) -> R.Tensor((m, n, k), "int8"):
             gv: R.Tensor((m, n, k), "int8") = R.tril(x, k=-2)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    k_main = T.dynamic("k")
-    k_tril = T.dynamic("k")
-    m_tril = T.dynamic("m")
-    n_tril = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    k_main = T.dynamic("k", "int64")
+    k_tril = T.dynamic("k", "int64")
+    m_tril = T.dynamic("m", "int64")
+    n_tril = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main, k_main), "int8")) -> R.Tensor((m_main, n_main, k_main), "int8"):
-            gv = R.call_tir(Expected.tril, (x,), R.Tensor((m_main, n_main, k_main), dtype="int8"))
+            gv = R.call_tir(Expected.tril, (x,), ty_args=[R.Tensor((m_main, n_main, k_main), dtype="int8")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tril(rxplaceholder: T.Tensor([m_tril, n_tril, k_tril], dtype='int8'), trilu: T.Tensor([m_tril, n_tril, k_tril], dtype='int8')):
             T.func_attr({"tirx.noalias": True})
 
@@ -829,26 +829,26 @@ def test_tril_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Tril)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_triu():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Triu:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 3, 4), "float32"):
             gv: R.Tensor((2, 3, 4), "float32") = R.triu(x, k=1)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 3, 4), "float32"):
-            gv = R.call_tir(Expected.triu, (x,), R.Tensor((2, 3, 4), dtype="float32"))
+            gv = R.call_tir(Expected.triu, (x,), ty_args=[R.Tensor((2, 3, 4), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def triu(rxplaceholder: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "float32"), trilu: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(3), T.int64(4)):
@@ -860,37 +860,37 @@ def test_triu():
     # fmt: on
 
     mod = LegalizeOps()(Triu)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_triu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
-    k = T.dynamic("k")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    k = T.dynamic("k", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Triu:
         @R.function
         def main(x: R.Tensor((m, n, k), "int8")) -> R.Tensor((m, n, k), "int8"):
             gv: R.Tensor((m, n, k), "int8") = R.triu(x, k=-2)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    k_main = T.dynamic("k")
-    k_triu = T.dynamic("k")
-    m_triu = T.dynamic("m")
-    n_triu = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    k_main = T.dynamic("k", "int64")
+    k_triu = T.dynamic("k", "int64")
+    m_triu = T.dynamic("m", "int64")
+    n_triu = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main, k_main), "int8")) -> R.Tensor((m_main, n_main, k_main), "int8"):
-            gv = R.call_tir(Expected.triu, (x,), R.Tensor((m_main, n_main, k_main), dtype="int8"))
+            gv = R.call_tir(Expected.triu, (x,), ty_args=[R.Tensor((m_main, n_main, k_main), dtype="int8")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def triu(rxplaceholder: T.Tensor([m_triu, n_triu, k_triu], dtype='int8'), trilu: T.Tensor([m_triu, n_triu, k_triu], dtype='int8')):
             T.func_attr({"tirx.noalias": True})
 
@@ -903,7 +903,7 @@ def test_triu_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Triu)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 ##################### Datatype #####################
@@ -911,21 +911,21 @@ def test_triu_symbolic():
 
 def test_astype():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Astype:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 3, 4), "int32"):
             gv: R.Tensor((2, 3, 4), "int32") = R.astype(x, "int32")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 3, 4), "int32"):
-            gv = R.call_tir(Expected.cast, (x,), R.Tensor((2, 3, 4), dtype="int32"))
+            gv = R.call_tir(Expected.cast, (x,), ty_args=[R.Tensor((2, 3, 4), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def cast(rxplaceholder: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(3), T.int64(4)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(3), T.int64(4)):
@@ -933,23 +933,23 @@ def test_astype():
                     i0_1, i1_1, i2_1 = Ts.axis.remap("SSS", [i0, i1, i2])
                     Ts.reads(rxplaceholder[i0_1, i1_1, i2_1])
                     Ts.writes(compute[i0_1, i1_1, i2_1])
-                    compute[i0_1, i1_1, i2_1] = T.Cast("int32", rxplaceholder[i0_1, i1_1, i2_1])
+                    compute[i0_1, i1_1, i2_1] = T.Cast(rxplaceholder[i0_1, i1_1, i2_1], "int32")
     # fmt: on
 
     mod = LegalizeOps()(Astype)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_astype_input_constant_scalar():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Astype:
         @R.function
         def main() -> R.Tensor((), "int32"):
             gv: R.Tensor((), "int32") = R.astype(R.const(1.5, "float32"), "int32")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main() -> R.Tensor((), "int32"):
@@ -958,34 +958,34 @@ def test_astype_input_constant_scalar():
     # fmt: on
 
     mod = LegalizeOps()(Astype)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_astype_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Astype:
         @R.function
         def main(x: R.Tensor((m, n), "float32")) -> R.Tensor((m, n), "int32"):
             gv: R.Tensor((m, n), "int32") = R.astype(x, "int32")
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_cast = T.dynamic("m")
-    n_cast = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_cast = T.dynamic("m", "int64")
+    n_cast = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "float32")) -> R.Tensor((m_main, n_main), "int32"):
-            gv = R.call_tir(Expected.cast, (x,), R.Tensor((m_main, n_main), dtype="int32"))
+            gv = R.call_tir(Expected.cast, (x,), ty_args=[R.Tensor((m_main, n_main), dtype="int32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def cast(rxplaceholder: T.Tensor([m_cast, n_cast], dtype='float32'), compute: T.Tensor([m_cast, n_cast], dtype='int32')):
             T.func_attr({"tirx.noalias": True})
 
@@ -994,12 +994,12 @@ def test_astype_symbolic():
                     i0_1, i1_1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(rxplaceholder[i0_1, i1_1])
                     Ts.writes(compute[i0_1, i1_1])
-                    compute[i0_1, i1_1] = T.Cast("int32", rxplaceholder[i0_1, i1_1])
+                    compute[i0_1, i1_1] = T.Cast(rxplaceholder[i0_1, i1_1], "int32")
     # fmt: on
 
     mod = LegalizeOps()(Astype)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

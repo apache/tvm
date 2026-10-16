@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -324,7 +325,7 @@ Pass RemoveUnusedOutputs() {
     }
     return mod;
   };
-  auto inner_pass = CreateModulePass(pass_func, 0, "RemoveUnusedOutputsInner", {});
+  auto inner_pass = CreateModulePass(pass_func, 0, "RemoveUnusedOutputsInner");
   return tvm::transform::Sequential(
       {
           inner_pass,

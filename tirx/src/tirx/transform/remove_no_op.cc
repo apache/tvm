@@ -1,0 +1,281 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file remove_no_op.cc
+ * \brief Remove no op from the stmt
+ */
+#include <tvm/ffi/cast.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/tirx/analysis.h>
+#include <tvm/tirx/stmt.h>
+#include <tvm/tirx/stmt_functor.h>
+#include <tvm/tirx/stmt_functor_with_analyzer.h>
+#include <tvm/tirx/transform.h>
+
+#include <unordered_map>
+
+#include "../../sym/const_fold.h"
+#include "ir_utils.h"
+
+namespace tvm {
+namespace tirx {
+using namespace tvm::prim;
+
+struct RemoveNoOpConfigObj : public ffi::Object {
+  int64_t max_simplification_steps;
+  bool ignore_profiler_call;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RemoveNoOpConfigObj>()
+        .def_ro("max_simplification_steps", &RemoveNoOpConfigObj::max_simplification_steps,
+                "If non-zero, RewriteSimplifier will throw an error "
+                "after the number of steps specified.  "
+                "For use in debug and testing purposes.",
+                refl::DefaultValue(0))
+        .def_ro("ignore_profiler_call", &RemoveNoOpConfigObj::ignore_profiler_call,
+                "If true, profiler calls are rendered as no-ops.", refl::DefaultValue(false));
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.RemoveNoOpConfig", RemoveNoOpConfigObj,
+                                    ffi::Object);
+};
+
+class RemoveNoOpConfig : public ffi::ObjectRef {
+ public:
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RemoveNoOpConfig, ffi::ObjectRef,
+                                                RemoveNoOpConfigObj);
+};
+
+TVM_FFI_STATIC_INIT_BLOCK() { RemoveNoOpConfigObj::RegisterReflection(); }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<RemoveNoOpConfig>("tirx.RemoveNoOp");
+}
+
+// Mark the statement of each stage.
+class NoOpRemover : public StmtExprMutatorWithAnalyzer {
+ public:
+  using StmtExprMutatorWithAnalyzer::Mutate;
+  using StmtExprMutatorWithAnalyzer::Mutate_;
+  static Stmt Apply(Stmt stmt, const sym::Analyzer& analyzer, bool ignore_profiler_call = false) {
+    auto visitor = ffi::make_object<NoOpRemover>(analyzer, ignore_profiler_call);
+    return visitor->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
+  }
+
+ private:
+  using Parent = StmtExprMutatorWithAnalyzer;
+
+ public:
+  NoOpRemover(const sym::Analyzer& analyzer, bool ignore_profiler_call = false)
+      : Parent(analyzer), ignore_profiler_call_(ignore_profiler_call) {}
+
+ private:
+  UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    op = stmt.as<IfNode>();
+    // Sometimes the condition can be statically determined,
+    // in which the type of the `stmt` will not be IfNode.
+    if (!op) {
+      return stmt;
+    }
+    if (op->else_case) {
+      bool no_op_else = tirx::IsNoOp(op->else_case.value());
+      bool no_op_then = tirx::IsNoOp(op->then_case);
+      if (no_op_else && no_op_then) {
+        return MakeEvaluate(op->condition);
+      } else if (no_op_else) {
+        return If(op->condition, op->then_case);
+      } else if (no_op_then) {
+        return If(!op->condition, op->else_case.value());
+      } else {
+        return stmt;
+      }
+    } else {
+      if (tirx::IsNoOp(op->then_case)) {
+        return MakeEvaluate(op->condition);
+      } else {
+        return stmt;
+      }
+    }
+  }
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    auto extent_range = sym::EvalSet(op->extent, var_range_map_);
+    if (!sym::is_neg_inf(extent_range.max()) && !sym::is_pos_inf(extent_range.max()) &&
+        analyzer_->CanProve(extent_range.max() <= 0)) {
+      return Evaluate(0);
+    }
+    var_range_map_.insert_or_assign(op->loop_var.get(),
+                                    sym::IntSet::FromMinExtent(op->min, op->extent));
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    var_range_map_.erase(op->loop_var.get());
+    op = stmt.as<ForNode>();
+    if (IsZero(op->extent)) {
+      return Evaluate(0);
+    }
+    return tirx::IsNoOp(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
+  }
+
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
+    if (HasSideEffect(op->value)) {
+      return ffi::Unchanged();
+    } else {
+      return Evaluate(0);
+    }
+  }
+
+  bool HasSideEffect(const Expr& value) {
+    if (auto prim = value.as<PrimExpr>()) return HasSideEffect(prim.value());
+    // Variables and string literals are pure.  Preserve non-primitive calls
+    // conservatively because their effect metadata is independent of the
+    // call's semantic return type.
+    return value.as<CallNode>() != nullptr;
+  }
+
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+    TensorStore store = ffi::GetRef<TensorStore>(op);
+
+    // Helper function that returns a statement containing only the
+    // side effects of evaluating this TensorStore, but not the store
+    // itself.
+    auto only_side_effects = [&]() {
+      ffi::Array<Stmt> statements;
+      statements.push_back(MakeEvaluate(store->value));
+      for (const auto& index : store->indices) {
+        statements.push_back(MakeEvaluate(index));
+      }
+      Stmt input = SeqStmt(statements);
+      return this->Mutate(input, inplace_mode).ValueOrUnchanged(input);
+    };
+
+    // A write whose destination is known to already contain the
+    // values to be written is a no-op.
+    PrimExpr stores_existing_value =
+        store->value - TensorLoad(store->dest.as_or_throw<TensorVar>(), store->indices) == 0;
+    stores_existing_value = analyzer_->Simplify(stores_existing_value);
+    if (IsOne(stores_existing_value)) {
+      return only_side_effects();
+    }
+
+    // If the stored value is a load from the same location, the
+    // statement is a no-op, regardless of contextual information.
+    if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
+      TensorVar tensor = load->source.as_or_throw<tvm::tirx::TensorVar>();
+      if (tensor.same_as(store->dest.as_or_throw<TensorVar>()) &&
+          analyzer_->CanProveEqual(tensor.elem_offset(),
+                                   store->dest.as_or_throw<TensorVar>().elem_offset()) &&
+          ArrayValueEqual(tensor.shape(), store->dest.as_or_throw<TensorVar>().shape()) &&
+          ArrayValueEqual(tensor.strides(), store->dest.as_or_throw<TensorVar>().strides()) &&
+          ArrayValueEqual(load->indices, store->indices)) {
+        return only_side_effects();
+      }
+    }
+
+    return store;
+  }
+
+  bool ArrayValueEqual(const ffi::Array<PrimExpr>& a, const ffi::Array<PrimExpr>& b) {
+    if (a.size() != b.size()) {
+      return false;
+    }
+    for (size_t i = 0; i < a.size(); i++) {
+      if (!analyzer_->CanProveEqual(a[i], b[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool HasSideEffect(const PrimExpr& value) {
+    if (ignore_profiler_call_) {
+      if (const CallNode* call = value.as<CallNode>()) {
+        static const Op timer_init_op = Op::Get("tirx.cuda.timer_init");
+        static const Op timer_start_op = Op::Get("tirx.cuda.timer_start");
+        static const Op timer_end_op = Op::Get("tirx.cuda.timer_end");
+        static const Op timer_finalize_op = Op::Get("tirx.cuda.timer_finalize");
+        if (call->op.same_as(timer_init_op) || call->op.same_as(timer_start_op) ||
+            call->op.same_as(timer_end_op) || call->op.same_as(timer_finalize_op)) {
+          return false;
+        }
+      }
+    }
+    return SideEffect(value) > CallEffectKind::kReadState;
+  }
+
+  Stmt MakeEvaluate(Expr value) {
+    if (SideEffect(value) > CallEffectKind::kReadState) {
+      return Evaluate(value);
+    } else {
+      return Evaluate(0);
+    }
+  }
+  Stmt MakeEvaluate(const ffi::Array<PrimExpr>& values) {
+    ffi::Array<Stmt> stmts;
+    for (PrimExpr e : values) {
+      if (SideEffect(e) > CallEffectKind::kReadState) {
+        stmts.push_back(Evaluate(e));
+      }
+    }
+
+    return SeqStmt(stmts);
+  }
+
+  std::unordered_map<const VarNode*, sym::IntSet> var_range_map_;
+  bool ignore_profiler_call_{false};
+};
+
+Stmt RemoveNoOp(Stmt stmt, const sym::Analyzer& analyzer, bool ignore_profiler_call) {
+  return NoOpRemover::Apply(std::move(stmt), analyzer, ignore_profiler_call);
+}
+
+namespace transform {
+
+Pass RemoveNoOp() {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
+    RemoveNoOpConfig config = ctx->GetConfigOrDefault<RemoveNoOpConfig>("tirx.RemoveNoOp");
+
+    sym::Analyzer analyzer;
+    analyzer->rewrite_simplify.SetMaximumRewriteSteps(config->max_simplification_steps);
+
+    bool ignore_profiler_call = config->ignore_profiler_call;
+
+    {
+      auto* write_ptr = f.CopyOnWrite();
+      write_ptr->body =
+          NoOpRemover::Apply(std::move(write_ptr->body).value(), analyzer, ignore_profiler_call);
+    }
+    return f;
+  };
+  return CreateFunctionPass(pass_func, 0, "tirx.RemoveNoOp");
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.transform.RemoveNoOp", RemoveNoOp);
+}
+
+}  // namespace transform
+
+}  // namespace tirx
+}  // namespace tvm

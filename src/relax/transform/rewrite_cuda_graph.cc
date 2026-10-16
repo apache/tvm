@@ -52,12 +52,13 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/backend.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/utils.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
@@ -65,11 +66,12 @@
 
 #include "../../support/arena.h"
 #include "../../support/ordered_set.h"
-#include "../../support/utils.h"
 namespace tvm {
 namespace relax {
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.backend.use_cuda_graph", bool);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("relax.backend.use_cuda_graph");
+}
 
 /*! \brief The rewriting plan of lifting a region for either allocation or capturing for cuda graph
  * execution
@@ -160,7 +162,7 @@ class FuncBuilder : public ExprMutator {
     auto block = builder_->EndBlock();
     auto body = builder_->Normalize(SeqExpr({block}, output));
     ffi::Map<ffi::String, Any> attrs;
-    attrs.Set(relax::attr::kForcePure, true);
+    attrs.Set(tvm::relax::attr::kForcePure, true);
     auto func = Function(params, body, output->ty.as_or_throw<Type>(),
                          /*is_pure=*/true, /*attrs=*/DictAttrs(attrs));
     return func;
@@ -245,10 +247,10 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
         // these names are extracted from the type for the capturing.
         const auto& func = pair.second.as_or_throw<Function>();
         int64_t num_inputs =
-            func->attrs.GetAttr<int64_t>(attr::kNumInput).value_or(func->params.size());
+            func->attrs.GetAttr<int64_t>(tvm::relax::attr::kNumInput).value_or(func->params.size());
         auto capture_symbolic_var_name_hints = ExtractSymbolicVarHints(func);
         for (int i = 0; i < static_cast<int>(func->params.size()); ++i) {
-          ffi::Array<tirx::Var> symbolic_vars =
+          ffi::Array<tvm::Var> symbolic_vars =
               DefinableTIRVarsInType(func->params[i]->ty.as_or_throw<Type>());
           if (i < num_inputs) {
             for (const auto& symbolic_var : symbolic_vars) {
@@ -307,15 +309,15 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
    */
   std::unordered_set<ffi::String> ExtractSymbolicVarHints(const Function& func) {
     auto symbolic_var_names =
-        func->attrs
-            .GetAttr<ffi::Array<ffi::String>>("relax.rewrite_cuda_graph.capture_symbolic_vars")
+        func->attrs.GetAttr<ffi::Array<ffi::String>>(tvm::relax::attr::kCaptureSymbolicVars)
             .value_or(ffi::Array<ffi::String>());
     return {symbolic_var_names.begin(), symbolic_var_names.end()};
   }
 
   /*!
    *\brief Start a new static region. This method should be called when encountering a
-   * CUDA kernel launch (calls to PrimFunc or ExternFunc) that only depends on static parameters.
+   * CUDA kernel launch (calls to tirx::Function or ExternFunc) that only depends on static
+   *parameters.
    */
   void StartRegion() { current_block_scope_.capture_builder = arena_->make<FuncBuilder>(); }
 
@@ -364,8 +366,8 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     }
 
     const auto* call_gv = call->op.as<GlobalVarNode>();
-    bool call_prim_func =
-        call_gv ? mod_->Lookup(ffi::GetRef<GlobalVar>(call_gv))->IsInstance<tirx::PrimFuncNode>()
+    bool call_function =
+        call_gv ? mod_->Lookup(ffi::GetRef<GlobalVar>(call_gv))->IsInstance<tirx::FunctionNode>()
                 : false;
 
     // Check whether the call can be lifted to the capture function. It requires all the arguments
@@ -376,12 +378,12 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       if (!IsStatic(call->args, &args, &tir_vars)) {
         return false;
       }
-      if (call_gv != nullptr && !call_prim_func) {
+      if (call_gv != nullptr && !call_function) {
         // calls to other Relax functions are not allowed
         return false;
       }
       if (const auto* extern_func = call->op.as<ExternFuncNode>();
-          extern_func != nullptr && support::StartsWith(extern_func->global_symbol, "vm.builtin")) {
+          extern_func != nullptr && extern_func->global_symbol.starts_with("vm.builtin")) {
         return false;
       }
       return true;
@@ -391,16 +393,15 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       bool is_kernel_launch = [&]() {
         static const auto null_value_op = Op::Get("relax.null_value");
 
-        if (call_prim_func) {
+        if (call_function) {
           return true;
         }
         if (call->op.as<ExternFuncNode>()) {
           return true;
         }
         if (const auto* op = call->op.as<OpNode>()) {
-          return !support::StartsWith(op->name, "relax.memory") &&
-                 !support::StartsWith(op->name, "relax.builtin") && op->name != "relax.reshape" &&
-                 !ffi::GetRef<Op>(op).same_as(null_value_op) &&
+          return !op->name.starts_with("relax.memory") && !op->name.starts_with("relax.builtin") &&
+                 op->name != "relax.reshape" && !ffi::GetRef<Op>(op).same_as(null_value_op) &&
                  !ffi::GetRef<Op>(op).same_as(call_builtin_with_ctx_op);
         }
         return false;
@@ -496,7 +497,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
                 std::vector<PrimVar>* tir_vars_collector = nullptr) {
     bool is_static = true;
     std::unordered_set<const ffi::Object*> visited;
-    auto walk_fn = [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+    auto walk_fn = [&](const tvm::Var& var) -> ffi::Expected<ffi::WalkResult> {
       auto prim_var = var.as<PrimVar>();
       if (!prim_var || !visited.insert(prim_var.value().get()).second) {
         return ffi::WalkResult::Advance();
@@ -807,10 +808,9 @@ class CUDAGraphRewriter : public ExprMutator {
         TVM_FFI_ICHECK(plan->inputs.empty());
         auto gv_alloc = gv_global_alloc_.value();
         auto ret_ty = gv_alloc->ty.as_or_throw<FuncType>()->ret;
-        return Call::Unchecked(
-            Type::Missing(), call_builtin_with_ctx_op,
-            {builtin_get_cached_alloc, Tuple({gv_alloc, PrimExpr(IntImm::Int64(0))})}, Attrs(),
-            {ret_ty});
+        return Call(Type::Missing(), call_builtin_with_ctx_op,
+                    {builtin_get_cached_alloc, Tuple({gv_alloc, PrimExpr(IntImm::Int64(0))})},
+                    std::nullopt, {ret_ty});
       } else {
         auto gv_func = builder_->AddFunction(
             plan->func, current_func_.value()->name_hint + "_cuda_graph_capture");
@@ -844,9 +844,8 @@ class CUDAGraphRewriter : public ExprMutator {
           // Explicitly passing it twice simplifies the handling during the capture phase.
           tuple_arg_fields.push_back(plan->propogated_tir_vars.value());
         }
-        return Call::Unchecked(Type::Missing(), call_builtin_with_ctx_op,
-                               {builtin_run_or_capture, Tuple(tuple_arg_fields)}, Attrs(),
-                               {call_ty});
+        return Call(Type::Missing(), call_builtin_with_ctx_op,
+                    {builtin_run_or_capture, Tuple(tuple_arg_fields)}, std::nullopt, {call_ty});
       }
     }();
     Expr ret_value = builder_->Emit(launch_subgraph);
@@ -921,7 +920,7 @@ Pass RewriteCUDAGraph() {
 
         return mod;
       };
-  return CreateModulePass(pass_func, 0, "RewriteCUDAGraph", {});
+  return CreateModulePass(pass_func, 0, "RewriteCUDAGraph");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

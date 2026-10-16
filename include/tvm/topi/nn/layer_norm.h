@@ -98,11 +98,11 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const ffi::Opt
         auto eval_range = make_eval_range(indices);
         PrimExpr x = data(eval_range);
         if (is_float16) {
-          x = prim::Cast(f32_ty, x);
+          x = prim::Cast(x, f32_ty);
         }
         return prim::sum(x, reduce_axes);
       },
-      data->op->name + "_sum", kCommReduce);
+      data->op.value()->name + "_sum", kCommReduce);
 
   PrimType reduce_dtype = is_float16 ? PrimType::Float(32) : PrimType(data->dtype);
   PrimExpr reduce_extent = MakeConst(reduce_dtype, 1);
@@ -114,7 +114,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const ffi::Opt
       [&temp_sum, &reduce_extent](const ffi::Array<PrimVar>& indices) {
         return temp_sum(indices) / reduce_extent;
       },
-      data->op->name + "_mean", kInjective);
+      data->op.value()->name + "_mean", kInjective);
 
   Tensor temp_var_sum = te::compute(
       target_shape,
@@ -123,12 +123,12 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const ffi::Opt
         auto eval_range = make_eval_range(indices);
         PrimExpr x = data(eval_range);
         if (is_float16) {
-          x = prim::Cast(f32_ty, x);
+          x = prim::Cast(x, f32_ty);
         }
         PrimExpr diff = x - temp_mean(indices);
         return prim::sum(diff * diff, reduce_axes);
       },
-      data->op->name + "_var_sum", kCommReduce);
+      data->op.value()->name + "_var_sum", kCommReduce);
 
   auto layer_norm_func = [&](const ffi::Array<PrimVar>& indices) {
     ffi::Array<PrimVar> reduce_indices, non_reduce_indices;
@@ -143,7 +143,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const ffi::Opt
     auto var = temp_var_sum(non_reduce_indices) / reduce_extent;
     auto layer_norm = (data(indices) - mean) * prim::rsqrt(var + MakeConst(var.ty(), epsilon));
     if (is_float16) {
-      layer_norm = prim::Cast(PrimType::Float(16), layer_norm);
+      layer_norm = prim::Cast(layer_norm, PrimType::Float(16));
     }
     layer_norm = topi::multiply(layer_norm, gamma(reduce_indices));
     if (beta.has_value()) {

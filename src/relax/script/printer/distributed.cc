@@ -17,10 +17,10 @@
  * under the License.
  */
 #include <tvm/relax/distributed/type.h>
+#include <tvm/script/printer/doc_translator.h>
 
 #include <optional>
 
-#include "../../../script/printer/ir/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -39,7 +39,8 @@ ffi::Optional<ExprDoc> PlacementDocTranslate(DocTranslatorObj*, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::distributed::PlacementNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&PlacementDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&PlacementDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> DTensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -94,7 +95,8 @@ ffi::Optional<ExprDoc> DTensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::distributed::DTensorTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&DTensorTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&DTensorTypeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> DeviceMeshDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -107,9 +109,7 @@ ffi::Optional<ExprDoc> DeviceMeshDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   }
   ExprDoc devices = LiteralDoc::None(std::nullopt);
   if (mesh->device_range.has_value()) {
-    CallDoc range = d->Translate(mesh->device_range.value()).value().as_or_throw<CallDoc>();
-    range->callee = NamespaceDoc("relax")->Attr("Range");
-    devices = range;
+    devices = d->Translate(mesh->device_range.value()).value();
   } else {
     ffi::Array<ExprDoc> ids;
     for (int64_t value : mesh->device_ids) ids.push_back(LiteralDoc::Int(value, std::nullopt));
@@ -120,7 +120,8 @@ ffi::Optional<ExprDoc> DeviceMeshDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::distributed::DeviceMeshNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&DeviceMeshDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&DeviceMeshDocTranslate>());
 }
 
 }  // namespace

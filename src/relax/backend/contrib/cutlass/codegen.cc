@@ -27,7 +27,8 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/nn.h>
+#include <tvm/relax/expr.h>
+#include <tvm/relax/op/nn.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 
@@ -77,34 +78,33 @@ ffi::Module Finalize(const std::string& code, const ffi::Array<ffi::String>& fun
       .cast<ffi::Module>();
 }
 
-class CodegenResultNode : public ffi::Object {
+class CodegenResultObj : public ffi::Object {
  public:
   ffi::String code;
   ffi::Array<ffi::String> headers;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CodegenResultNode>()
-        .def_ro("code", &CodegenResultNode::code)
-        .def_ro("headers", &CodegenResultNode::headers);
+    refl::ObjectDef<CodegenResultObj>()
+        .def_ro("code", &CodegenResultObj::code)
+        .def_ro("headers", &CodegenResultObj::headers);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("contrib.cutlass.CodegenResult", CodegenResultNode,
-                                    ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("contrib.cutlass.CodegenResult", CodegenResultObj, ffi::Object);
 };
 
 class CodegenResult : public ffi::ObjectRef {
  public:
   CodegenResult(ffi::String code, ffi::Array<ffi::String> headers) {
-    auto n = ffi::make_object<CodegenResultNode>();
+    auto n = ffi::make_object<CodegenResultObj>();
     n->code = std::move(code);
     n->headers = std::move(headers);
     data_ = std::move(n);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CodegenResult, ffi::ObjectRef, CodegenResultNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CodegenResult, ffi::ObjectRef, CodegenResultObj);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { CodegenResultNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { CodegenResultObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -214,7 +214,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
     const auto* fn_var = call->op.as<VarNode>();
     TVM_FFI_ICHECK(fn_var);
     const auto func = bindings_[ffi::GetRef<Var>(fn_var)].as_or_throw<Function>();
-    const auto pattern_name_opt = func->GetAttr<ffi::String>(attr::kComposite);
+    const auto pattern_name_opt = func->GetAttr<ffi::String>(tvm::relax::attr::kComposite);
     TVM_FFI_ICHECK(pattern_name_opt) << "Only composite function is supported for CUTLASS.";
     auto ret = GenerateBody(call, pattern_name_opt.value(), func->attrs->dict);
     ext_func_body_.push_back(ret.decl);
@@ -223,7 +223,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
   }
 
   OutputType VisitExpr_(const FunctionNode* fn) final {
-    TVM_FFI_ICHECK(fn->GetAttr<ffi::String>(attr::kComposite).has_value())
+    TVM_FFI_ICHECK(fn->GetAttr<ffi::String>(tvm::relax::attr::kComposite).has_value())
         << "JSON runtime only supports composite functions";
     // FunctionNode should be handled by the caller.
     return {};

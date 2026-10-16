@@ -42,10 +42,13 @@ Stmt GetEnclosingLoop(const s_tir::SBlockNode* block, Stmt func_body) {
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq) override {
+      if (seq->size() == 1) {
+        return Visit(seq->seq[0]);
+      }
       result = seq;
       return std::nullopt;
     }
-    const SeqStmtNode* result;
+    const SeqStmtNode* result = nullptr;
   };
 
   struct BlockFinder : public s_tir::StmtExprVisitor {
@@ -107,9 +110,9 @@ const s_tir::SBlockNode* FindAnchorBlock(const IRModule& mod) {
     std::vector<const s_tir::SBlockNode*> blocks;
   };
 
-  if (auto prim_func = FindEntryFunc(mod, nullptr)) {
+  if (auto function = FindEntryFunc(mod, nullptr)) {
     auto collector = ffi::make_object<ReductionSBlockCollector>();
-    collector->Visit(prim_func->body);
+    collector->Visit(function->body);
 
     const auto& candidates = collector->blocks;
 
@@ -122,7 +125,7 @@ const s_tir::SBlockNode* FindAnchorBlock(const IRModule& mod) {
     double best_flops = -1;
     int best_idx = 0;
     for (size_t i = 0; i < candidates.size(); ++i) {
-      auto loop = GetEnclosingLoop(candidates[i], prim_func->body.value());
+      auto loop = GetEnclosingLoop(candidates[i], function->body.value());
       auto flops = s_tir::EstimateTIRFlops(loop);
       if (flops > best_flops) {
         best_flops = flops;

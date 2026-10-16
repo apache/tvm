@@ -39,8 +39,8 @@ bool IsAnnotateWithUnroll(const Instruction& inst) {
   }
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String ann_key = inst->attrs[0].as_or_throw<ffi::String>();
-  return ann_key == s_tir::attr::meta_schedule_unroll_explicit ||
-         ann_key == s_tir::attr::meta_schedule_unroll_implicit;
+  return ann_key == tvm::s_tir::attr::kMetaScheduleUnrollExplicit ||
+         ann_key == tvm::s_tir::attr::kMetaScheduleUnrollImplicit;
 }
 
 }  // namespace s_tir
@@ -54,32 +54,32 @@ using s_tir::Instruction;
 using s_tir::Trace;
 
 /*! \brief Create a Mutator that mutates auto unroll step */
-class MutateUnrollNode : public MutatorNode {
+class MutateUnrollObj : public MutatorObj {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<MutateUnrollNode>();
+    refl::ObjectDef<MutateUnrollObj>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.MutateUnroll", MutateUnrollNode,
-                                    MutatorNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.MutateUnroll", MutateUnrollObj,
+                                    MutatorObj);
 
  public:
   struct Candidate;
-  // Inherit from `MutatorNode`
+  // Inherit from `MutatorObj`
   void InitializeWithTuneContext(const TuneContext& context) final {}
-  // Inherit from `MutatorNode`
+  // Inherit from `MutatorObj`
   ffi::Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
-  // Inherit from `MutatorNode`
+  // Inherit from `MutatorObj`
   Mutator Clone() const final {
-    ffi::ObjectPtr<MutateUnrollNode> n = ffi::make_object<MutateUnrollNode>(*this);
-    return Mutator(n);
+    ffi::ObjectPtr<MutateUnrollObj> n = ffi::make_object<MutateUnrollObj>(*this);
+    return Mutator(ffi::UnsafeInit{}, n);
   }
 };
 
 /*! \brief A candidate to be mutated */
-struct MutateUnrollNode::Candidate {
+struct MutateUnrollObj::Candidate {
   /*! \brief The sampling instruction to be mutated */
-  Instruction inst;
+  ffi::Optional<Instruction> inst;
   /*! \brief The probability */
   std::vector<double> probs;
   /*! \brief The decision made */
@@ -94,7 +94,7 @@ struct MutateUnrollNode::Candidate {
  * \return Whether a decision is found
  */
 bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
-                        MutateUnrollNode::Candidate* candidate) {
+                        MutateUnrollObj::Candidate* candidate) {
   using s_tir::InstructionKind;
   using s_tir::InstructionNode;
   static const InstructionKind& inst_sample_categorical = InstructionKind::Get("SampleCategorical");
@@ -129,7 +129,7 @@ bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
   return true;
 }
 
-ffi::Optional<Trace> MutateUnrollNode::Apply(const Trace& trace, TRandState* rand_state) {
+ffi::Optional<Trace> MutateUnrollObj::Apply(const Trace& trace, TRandState* rand_state) {
   Candidate candidate;
   if (!FindUnrollDecision(trace, rand_state, &candidate)) {
     return std::nullopt;
@@ -142,13 +142,15 @@ ffi::Optional<Trace> MutateUnrollNode::Apply(const Trace& trace, TRandState* ran
   if (result >= candidate.decision) {
     result += 1;
   }
-  return trace->WithDecision(candidate.inst, static_cast<int64_t>(result),
+  return trace->WithDecision(candidate.inst.value(), static_cast<int64_t>(result),
                              /*remove_postproc=*/true);
 }
 
-Mutator Mutator::MutateUnroll() { return Mutator(ffi::make_object<MutateUnrollNode>()); }
+Mutator Mutator::MutateUnroll() {
+  return Mutator(ffi::UnsafeInit{}, ffi::make_object<MutateUnrollObj>());
+}
 
-TVM_FFI_STATIC_INIT_BLOCK() { MutateUnrollNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { MutateUnrollObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

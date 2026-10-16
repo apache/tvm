@@ -27,9 +27,10 @@ from pathlib import Path
 import tvm_ffi
 
 import tvm
-from tvm import libinfo, tirx
-from tvm.runtime import Module, load_static_library
-from tvm.support import cc as _cc
+import tvm_tirx
+from tvm_tirx import libinfo, tirx
+from tvm_tirx.runtime import Module, load_static_library
+from tvm_tirx.support import cc as _cc
 
 from ...op import call_dps_packed
 from . import core
@@ -60,8 +61,8 @@ class ExternModule:
                 if isinstance(arg, float):
                     return rx.prim_value(tirx.FloatImm("float64", arg))
                 if isinstance(arg, str):
-                    return tvm.ir.StringImm(arg)
-                if tvm.ir.is_prim_expr(arg):
+                    return tvm_tirx.ir.StringImm(arg)
+                if tvm_tirx.ir.is_prim_expr(arg):
                     return rx.prim_value(arg)
                 if isinstance(arg, tuple | list):
                     return rx.Tuple([_convert(e, f"{name}_{i}") for i, e in enumerate(arg)])
@@ -69,7 +70,12 @@ class ExternModule:
 
             rx_inputs = _convert(input_args, "input")
             rx_outputs_ty = _convert(_inference_function(*input_args), "dummy").ty
-            return wrap_nested(call_dps_packed(func_name, rx_inputs, rx_outputs_ty), func_name)
+            return wrap_nested(
+                call_dps_packed(
+                    tvm.relax.ExternFunc(func_name), rx_inputs, ty_args=[rx_outputs_ty]
+                ),
+                func_name,
+            )
 
         return _call
 
@@ -272,7 +278,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
                 f"Using environment variable `TVM_HOME`, but it is not a directory: {tvm_path!s}"
             )
         else:
-            import tvm  # pylint: disable=import-outside-toplevel
+            import tvm
 
             tvm_path = Path(tvm.__file__).parent
             assert tvm_path.is_dir()
@@ -310,6 +316,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
             The list of include paths.
         """
         results = [
+            Path(tvm.libinfo.find_include_path()),
             Path(libinfo.find_include_path()),
             Path(tvm_ffi.libinfo.find_include_path()),
             Path(tvm_ffi.libinfo.find_dlpack_include_path()),

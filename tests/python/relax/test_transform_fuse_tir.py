@@ -18,17 +18,19 @@
 from __future__ import annotations
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax, topi
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.relax import ExternFunc as _ExternFunc
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def _check(mod_before, mod_expected):
     mod_after = relax.transform.FuseTIR()(mod_before)
-    tvm.ir.assert_structural_equal(mod_expected, mod_after)
+    tvm_tirx.ir.assert_structural_equal(mod_expected, mod_after)
 
 
 def test_simple():
@@ -90,10 +92,10 @@ def test_conv2d_fuse():
                     strides=1,
                     padding=1,
                     dilation=1,
-                    primfunc_name_hint="conv2d",
+                    function_name_hint="conv2d",
                 )
-                lv1 = bb.emit_te(topi.add, p0, lv0, primfunc_name_hint="add1")
-                gv = bb.emit_output(bb.call_te(topi.add, lv0, lv1, primfunc_name_hint="add2"))
+                lv1 = bb.emit_te(topi.add, p0, lv0, function_name_hint="add1")
+                gv = bb.emit_output(bb.call_te(topi.add, lv0, lv1, function_name_hint="add2"))
             bb.emit_func_output(gv)
 
         # Grouped function 2
@@ -109,9 +111,9 @@ def test_conv2d_fuse():
                     strides=1,
                     padding=0,
                     dilation=1,
-                    primfunc_name_hint="conv2d1",
+                    function_name_hint="conv2d1",
                 )
-                gv = bb.emit_output(bb.call_te(topi.add, lv0, y, primfunc_name_hint="add2"))
+                gv = bb.emit_output(bb.call_te(topi.add, lv0, y, function_name_hint="add2"))
             bb.emit_func_output(gv)
 
         # Get the global variables of the grouped functions
@@ -218,7 +220,7 @@ def test_two_subfunction():
     _check(before(), expected())
 
 
-def test_fuse_same_primfunc():
+def test_fuse_same_function():
     def before():
         bb = relax.BlockBuilder()
         x1 = relax.Var("x1", R.Tensor([10, 20], "float32"))
@@ -498,7 +500,7 @@ def test_fuse_with_immediate_tuple():
         y = relax.Var("y", R.Tensor([10, 20], "float32"))
         with bb.function("main", [x, y]):
             with bb.dataflow():
-                gv = bb.emit_output(bb.call_te(topi.add, x, y, primfunc_name_hint="fused_add"))
+                gv = bb.emit_output(bb.call_te(topi.add, x, y, function_name_hint="fused_add"))
             bb.emit_func_output(gv)
         return bb.get()
 
@@ -510,12 +512,12 @@ def test_fuse_return_partial_result():
         from tvm import te
 
         def f_combine(x, y):
-            lhs = tvm.tirx.Select((x[1] >= y[1]), x[0], y[0])
-            rhs = tvm.tirx.Select((x[1] >= y[1]), x[1], y[1])
+            lhs = tvm_tirx.tirx.Select((x[1] >= y[1]), x[0], y[0])
+            rhs = tvm_tirx.tirx.Select((x[1] >= y[1]), x[1], y[1])
             return lhs, rhs
 
-        def f_identity(dtype0: tvm.DataType, dtype1: tvm.DataType):
-            return tvm.tirx.const(-1, dtype0), tvm.te.min_value(dtype1)
+        def f_identity(dtype0: tvm_tirx.DataType, dtype1: tvm_tirx.DataType):
+            return tvm_tirx.tirx.const(-1, dtype0), tvm.te.min_value(dtype1)
 
         argmax = te.comm_reducer(f_combine, f_identity, name="argmax")
         m, n = val.shape
@@ -616,7 +618,7 @@ def test_multiple_relax_functions():
                 gv2 = R.call_tir(
                     Expected.fused_add_exp_squeeze,
                     (x, R.const(1, "float32")),
-                    out_ty=R.Tensor((10, 20), dtype="float32"),
+                    ty_args=[R.Tensor((10, 20), dtype="float32")],
                 )
                 R.output(gv2)
             return gv2
@@ -627,20 +629,20 @@ def test_multiple_relax_functions():
                 gv3 = R.call_tir(
                     Expected.fused_add1_exp1_squeeze1,
                     (x, R.const(1, "float32")),
-                    out_ty=R.Tensor((20, 10), dtype="float32"),
+                    ty_args=[R.Tensor((20, 10), dtype="float32")],
                 )
                 R.output(gv3)
             return gv3
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused_add1_exp1_squeeze1(
             x: T.Tensor((T.int64(20), T.int64(10)), "float32"),
             p0: T.Tensor((), "float32"),
             T_squeeze: T.Tensor((T.int64(20), T.int64(10)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            T_add = Ts.sblock_alloc_buffer((T.int64(20), T.int64(10)))
-            compute = Ts.sblock_alloc_buffer((T.int64(20), T.int64(10)))
+            T_add = Ts.sblock_alloc_tensor((T.int64(20), T.int64(10)))
+            compute = Ts.sblock_alloc_tensor((T.int64(20), T.int64(10)))
             for ax0, ax1 in T.grid(T.int64(20), T.int64(10)):
                 with Ts.sblock("T_add"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -660,15 +662,15 @@ def test_multiple_relax_functions():
                     Ts.writes(T_squeeze[v_ax0, v_ax1])
                     T_squeeze[v_ax0, v_ax1] = compute[v_ax0, v_ax1]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused_add_exp_squeeze(
             x: T.Tensor((T.int64(10), T.int64(20)), "float32"),
             p0: T.Tensor((), "float32"),
             T_squeeze: T.Tensor((T.int64(10), T.int64(20)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            T_add = Ts.sblock_alloc_buffer((T.int64(10), T.int64(20)))
-            compute = Ts.sblock_alloc_buffer((T.int64(10), T.int64(20)))
+            T_add = Ts.sblock_alloc_tensor((T.int64(10), T.int64(20)))
+            compute = Ts.sblock_alloc_tensor((T.int64(10), T.int64(20)))
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with Ts.sblock("T_add"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -697,7 +699,9 @@ def test_skip_call_dps_packed():
         @R.function
         def main(x: R.Tensor((2, 3), "float32")):
             with R.dataflow():
-                y = R.call_dps_packed("func_packed_dps", x, R.Tensor((2, 3), "float32"))
+                y = R.call_dps_packed(
+                    _ExternFunc("func_packed_dps"), x, ty_args=[R.Tensor((2, 3), "float32")]
+                )
                 R.output(y)
             return y
 
@@ -706,10 +710,10 @@ def test_skip_call_dps_packed():
 
 
 def test_symbolic_shape_aware_fuse():
-    n_fused_add_exp_squeeze = T.dynamic("n")
-    m_fused_add_exp_squeeze = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_main = T.dynamic("m")
+    n_fused_add_exp_squeeze = T.dynamic("n", "int64")
+    m_fused_add_exp_squeeze = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -739,8 +743,8 @@ def test_symbolic_shape_aware_fuse():
     def fused_add_exp_squeeze(x, p0):
         return topi.squeeze(topi.exp(topi.add(x, p0)))
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -755,12 +759,12 @@ def test_symbolic_shape_aware_fuse():
 
 
 def test_fuse_of_dynamic_kernel_with_var_params_and_static_args():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def dynamic_tir_kernel(A: T.Tensor([m, n], "float32"), B: T.Tensor([m, n], "float32")):
             for (*iters,) in T.grid(m, n):
                 with Ts.sblock("compute"):
@@ -772,8 +776,8 @@ def test_fuse_of_dynamic_kernel_with_var_params_and_static_args():
             R.func_attr({"Primitive": True})
             cls = Before
             with R.dataflow():
-                y = R.call_tir(cls.dynamic_tir_kernel, [x], out_ty=R.Tensor([16, 32], "float32"))
-                z = R.call_tir(cls.dynamic_tir_kernel, [y], out_ty=R.Tensor([16, 32], "float32"))
+                y = R.call_tir(cls.dynamic_tir_kernel, [x], ty_args=[R.Tensor([16, 32], "float32")])
+                z = R.call_tir(cls.dynamic_tir_kernel, [y], ty_args=[R.Tensor([16, 32], "float32")])
                 R.output(z)
             return z
 
@@ -787,13 +791,13 @@ def test_fuse_of_dynamic_kernel_with_var_params_and_static_args():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused_function(
             X: T.Tensor([T.int64(16), T.int64(32)], "float32"),
             Z: T.Tensor([T.int64(16), T.int64(32)], "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            Y = Ts.sblock_alloc_buffer(X.shape, "float32")
+            Y = Ts.sblock_alloc_tensor(X.shape, "float32")
             for (*iters,) in T.grid(*X.shape):
                 with Ts.sblock("compute_Y"):
                     i, j = Ts.axis.remap("SS", iters)
@@ -808,7 +812,7 @@ def test_fuse_of_dynamic_kernel_with_var_params_and_static_args():
         def main(x: R.Tensor([16, 32], "float32")) -> R.Tensor([16, 32], dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.fused_function, [x], out_ty=R.Tensor([16, 32], "float32"))
+                gv = R.call_tir(cls.fused_function, [x], ty_args=[R.Tensor([16, 32], "float32")])
                 R.output(gv)
             return gv
 
@@ -821,12 +825,12 @@ def test_fuse_of_dynamic_kernel_with_expression_params_and_static_args():
     Here, the kernel requires arguments (m*n), and is provided
     """
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def dynamic_tir_kernel(
             A: T.Tensor([m * n], "float32"),
             B: T.Tensor([m], "float32"),
@@ -848,10 +852,10 @@ def test_fuse_of_dynamic_kernel_with_expression_params_and_static_args():
             cls = Before
             with R.dataflow():
                 y = R.call_tir(
-                    cls.dynamic_tir_kernel, [x, B, C], out_ty=R.Tensor([16 * 32], "float32")
+                    cls.dynamic_tir_kernel, [x, B, C], ty_args=[R.Tensor([16 * 32], "float32")]
                 )
                 z = R.call_tir(
-                    cls.dynamic_tir_kernel, [y, B, C], out_ty=R.Tensor([16 * 32], "float32")
+                    cls.dynamic_tir_kernel, [y, B, C], ty_args=[R.Tensor([16 * 32], "float32")]
                 )
                 R.output(z)
             return z
@@ -870,7 +874,7 @@ def test_fuse_of_dynamic_kernel_with_expression_params_and_static_args():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused_function(
             X: T.Tensor(T.int64(512), "float32"),
             B: T.Tensor(T.int64(16), "float32"),
@@ -878,7 +882,7 @@ def test_fuse_of_dynamic_kernel_with_expression_params_and_static_args():
             Z: T.Tensor(T.int64(512), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            Y = Ts.sblock_alloc_buffer((T.int64(512),))
+            Y = Ts.sblock_alloc_tensor((T.int64(512),))
             for i, j in T.grid(T.int64(16), T.int64(32)):
                 with Ts.sblock("compute"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -898,7 +902,7 @@ def test_fuse_of_dynamic_kernel_with_expression_params_and_static_args():
             cls = Expected
             with R.dataflow():
                 gv = R.call_tir(
-                    cls.fused_function, (x, B, C), out_ty=R.Tensor((512,), dtype="float32")
+                    cls.fused_function, (x, B, C), ty_args=[R.Tensor((512,), dtype="float32")]
                 )
                 R.output(gv)
             return gv
@@ -910,8 +914,8 @@ def test_symbolic_shape_aware_fuse_with_allocation():
     def te_mean(x, axis):
         return topi.divide(topi.sum(x, axis, keepdims=True), 4096)
 
-    n_fused_mean_add_tir_sqrt_divide_multiply = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_fused_mean_add_tir_sqrt_divide_multiply = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -950,7 +954,7 @@ def test_symbolic_shape_aware_fuse_with_allocation():
         lv3 = topi.divide(y, lv2)
         return topi.multiply(rms_norm_weight, lv3)
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -969,12 +973,12 @@ def test_symbolic_shape_aware_fuse_with_allocation():
 
 
 def test_symbolic_var_in_call_tir_args():
-    m_fused = T.dynamic("m")
-    m_main = T.dynamic("m")
+    m_fused = T.dynamic("m", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def foo(
             X: T.Tensor((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
             Y: T.Tensor((T.int64(2048), T.int64(128)), "float32"),
@@ -999,7 +1003,7 @@ def test_symbolic_var_in_call_tir_args():
                 gv = R.call_tir(
                     cls.foo,
                     [lv1, y, m_fused],
-                    out_ty=R.Tensor((1, 1, 32, 128), dtype="float32"),
+                    ty_args=[R.Tensor((1, 1, 32, 128), dtype="float32")],
                 )
                 R.output(gv)
             return gv
@@ -1016,11 +1020,11 @@ def test_symbolic_var_in_call_tir_args():
                 R.output(gv)
             return gv
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused(
             X: T.Tensor((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
             Y: T.Tensor((T.int64(2048), T.int64(128)), "float32"),
@@ -1028,7 +1032,7 @@ def test_symbolic_var_in_call_tir_args():
             rotary: T.Tensor((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            T_add = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)))
+            T_add = Ts.sblock_alloc_tensor((T.int64(1), T.int64(1), T.int64(32), T.int64(128)))
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(1), T.int64(32), T.int64(128)):
                 with Ts.sblock("T_add"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -1051,7 +1055,7 @@ def test_symbolic_var_in_call_tir_args():
                 gv = R.call_tir(
                     cls.fused,
                     (x, y, m),
-                    out_ty=R.Tensor([1, 1, 32, 128], "float32"),
+                    ty_args=[R.Tensor([1, 1, 32, 128], "float32")],
                 )
                 R.output(gv)
             return gv
@@ -1062,7 +1066,7 @@ def test_symbolic_var_in_call_tir_args():
 def test_same_buffer_multiple_read():
     @I.ir_module
     class Module:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def concatenate(
             rxplaceholder: T.Tensor((T.int64(1), T.int64(4), T.int64(64), T.int64(64)), "float32"),
             rxplaceholder_1: T.Tensor(
@@ -1085,7 +1089,7 @@ def test_same_buffer_multiple_read():
                         rxplaceholder[v_ax0, v_ax1, v_ax2, v_ax3],
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def transpose2(
             rxplaceholder: T.Tensor((T.int64(2), T.int64(4), T.int64(64), T.int64(64)), "float32"),
             T_transpose: T.Tensor((T.int64(2), T.int64(64), T.int64(64), T.int64(4)), "float32"),
@@ -1110,10 +1114,10 @@ def test_same_buffer_multiple_read():
                 lv = R.call_tir(
                     cls.concatenate,
                     (inp_0, inp_0),
-                    out_ty=R.Tensor((2, 4, 64, 64), dtype="float32"),
+                    ty_args=[R.Tensor((2, 4, 64, 64), dtype="float32")],
                 )
                 gv = R.call_tir(
-                    cls.transpose2, (lv,), out_ty=R.Tensor((2, 64, 64, 4), dtype="float32")
+                    cls.transpose2, (lv,), ty_args=[R.Tensor((2, 64, 64, 4), dtype="float32")]
                 )
                 R.output(gv)
             return gv
@@ -1131,7 +1135,7 @@ def test_same_buffer_multiple_read():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused_concatenate_transpose2(
             inp_0: T.Tensor((T.int64(1), T.int64(4), T.int64(64), T.int64(64)), "float32"),
             T_transpose_handle_intermediate: T.Tensor(
@@ -1139,7 +1143,7 @@ def test_same_buffer_multiple_read():
             ),
         ):
             T.func_attr({"tirx.noalias": True})
-            T_concat_handle_intermediate = Ts.sblock_alloc_buffer(
+            T_concat_handle_intermediate = Ts.sblock_alloc_tensor(
                 (T.int64(2), T.int64(4), T.int64(64), T.int64(64))
             )
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(4), T.int64(64), T.int64(64)):
@@ -1171,7 +1175,7 @@ def test_same_buffer_multiple_read():
                 lv = R.call_tir(
                     cls.fused_concatenate_transpose2,
                     (inp_0,),
-                    out_ty=R.Tensor((2, 64, 64, 4), dtype="float32"),
+                    ty_args=[R.Tensor((2, 64, 64, 4), dtype="float32")],
                 )
                 R.output(lv)
             return lv
@@ -1180,8 +1184,8 @@ def test_same_buffer_multiple_read():
 
 
 def test_tir_expression_in_shape():
-    n_fused_transpose_matmul = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_fused_transpose_matmul = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -1210,24 +1214,24 @@ def test_tir_expression_in_shape():
                 R.output(lv)
             return lv
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
         fused_transpose_matmul_n = T.int64()
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused_transpose_matmul(
             x: T.Tensor((T.int64(3), T.int64(4)), "float32"),
-            y: T.Tensor((fused_transpose_matmul_n - T.int64(1), T.int64(4))),
+            y: T.Tensor((fused_transpose_matmul_n - T.int64(1), T.int64(4)), "float32"),
             n: fused_transpose_matmul_n,
             var_T_matmul_intermediate: T.Tensor(
-                (fused_transpose_matmul_n - T.int64(1), T.int64(3))
+                (fused_transpose_matmul_n - T.int64(1), T.int64(3)), "float32"
             ),
         ):
             T.func_attr({"tirx.noalias": True})
 
-            var_T_transpose_intermediate = Ts.sblock_alloc_buffer((T.int64(4), T.int64(3)))
+            var_T_transpose_intermediate = Ts.sblock_alloc_tensor((T.int64(4), T.int64(3)))
             for ax0, ax1 in T.grid(T.int64(4), T.int64(3)):
                 with Ts.sblock("T_transpose"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -1253,7 +1257,7 @@ def test_tir_expression_in_shape():
                 lv = R.call_tir(
                     cls.fused_transpose_matmul,
                     (x, y, n),
-                    out_ty=R.Tensor((n - 1, 3), dtype="float32"),
+                    ty_args=[R.Tensor((n - 1, 3), dtype="float32")],
                 )
                 R.output(lv)
             return lv
@@ -1264,7 +1268,7 @@ def test_tir_expression_in_shape():
 def test_tuple_input_unused_field():
     @I.ir_module
     class Module:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape(
             A: T.Tensor((T.int64(4), T.int64(8), T.int64(2048)), "float32"),
             T_reshape: T.Tensor((T.int64(4), T.int64(8), T.int64(32), T.int64(64)), "float32"),
@@ -1308,7 +1312,7 @@ def test_tuple_input_unused_field():
             with R.dataflow():
                 lv1: R.Tensor((4, 8, 2048), dtype="float32") = lv[0]
                 gv = R.call_tir(
-                    cls.reshape, (lv1,), out_ty=R.Tensor((4, 8, 32, 64), dtype="float32")
+                    cls.reshape, (lv1,), ty_args=[R.Tensor((4, 8, 32, 64), dtype="float32")]
                 )
                 R.output(gv)
             return gv
@@ -1327,7 +1331,7 @@ def test_tuple_input_unused_field():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused_reshape(
             lv_0: T.Tensor((T.int64(4), T.int64(8), T.int64(2048)), "float32"),
             T_reshape_handle_intermediate: T.Tensor(
@@ -1372,7 +1376,7 @@ def test_tuple_input_unused_field():
             with R.dataflow():
                 lv: R.Tensor((4, 8, 2048), dtype="float32") = tup[0]
                 lv_1 = R.call_tir(
-                    cls.fused_reshape, (lv,), out_ty=R.Tensor((4, 8, 32, 64), dtype="float32")
+                    cls.fused_reshape, (lv,), ty_args=[R.Tensor((4, 8, 32, 64), dtype="float32")]
                 )
                 R.output(lv_1)
             return lv_1
@@ -1383,7 +1387,7 @@ def test_tuple_input_unused_field():
 def test_unique_duplicated_buffer_allocation():
     @I.ir_module
     class Module:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add(
             A: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
             Out: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
@@ -1393,7 +1397,7 @@ def test_unique_duplicated_buffer_allocation():
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     Out[vi, vj] = A[vi, vj] + T.float16(1.0)
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add1(
             A: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
             Out: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
@@ -1421,21 +1425,21 @@ def test_unique_duplicated_buffer_allocation():
             cls = Module
             with R.dataflow():
                 lv = R.call_tir(
-                    cls.add, (input_embeds,), out_ty=R.Tensor((4096, 4096), dtype="float16")
+                    cls.add, (input_embeds,), ty_args=[R.Tensor((4096, 4096), dtype="float16")]
                 )
-                gv = R.call_tir(cls.add1, (lv,), out_ty=R.Tensor((4096, 4096), dtype="float16"))
+                gv = R.call_tir(cls.add1, (lv,), ty_args=[R.Tensor((4096, 4096), dtype="float16")])
                 R.output(gv)
             return gv
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused_func(
             input_embeds: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
             Out_intermediate_1: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            Out_intermediate = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
+            Out_intermediate = Ts.sblock_alloc_tensor((T.int64(4096), T.int64(4096)), "float16")
             for i, j in T.grid(T.int64(4096), T.int64(4096)):
                 with Ts.sblock("add"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1458,7 +1462,7 @@ def test_unique_duplicated_buffer_allocation():
                 gv = R.call_tir(
                     cls.fused_func,
                     (input_embeds,),
-                    out_ty=R.Tensor((4096, 4096), dtype="float16"),
+                    ty_args=[R.Tensor((4096, 4096), dtype="float16")],
                 )
                 R.output(gv)
             return gv
@@ -1475,23 +1479,23 @@ def test_extern_func():
 
 
 def test_symbolic_var_in_buffer_shape():
-    """A PrimFunc may have dynamic buffer shapes
+    """A Function may have dynamic buffer shapes
 
-    Symbolic variables in a PrimFunc may be present in the buffer
+    Symbolic variables in a Function may be present in the buffer
     shape without a corresponding parameter.  These symbolic variables
     are inferred from the buffer's shape.  (Or, at runtime, they are
     typically determined from the DLTensor's known shape.)
     """
 
-    sequence_length_foo = T.dynamic("sequence_length")
-    sequence_length_fused = T.dynamic("sequence_length")
-    m_fused = T.dynamic("m")
-    sequence_length_main = T.dynamic("sequence_length")
-    m_main = T.dynamic("m")
+    sequence_length_foo = T.dynamic("sequence_length", "int64")
+    sequence_length_fused = T.dynamic("sequence_length", "int64")
+    m_fused = T.dynamic("m", "int64")
+    sequence_length_main = T.dynamic("sequence_length", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def foo(
             X: T.Tensor([T.int64(1), sequence_length_foo, T.int64(32), T.int64(128)], "float32"),
             Y: T.Tensor((T.int64(2048), T.int64(128)), "float32"),
@@ -1520,7 +1524,7 @@ def test_symbolic_var_in_buffer_shape():
                 gv = R.call_tir(
                     cls.foo,
                     [lv1, y, m_fused],
-                    out_ty=R.Tensor((1, sequence_length_fused, 32, 128), dtype="float32"),
+                    ty_args=[R.Tensor((1, sequence_length_fused, 32, 128), dtype="float32")],
                 )
                 R.output(gv)
             return gv
@@ -1537,13 +1541,13 @@ def test_symbolic_var_in_buffer_shape():
                 R.output(gv)
             return gv
 
-    sequence_length_fused = T.dynamic("sequence_length")
-    sequence_length_main = T.dynamic("sequence_length")
-    m = T.dynamic("m")
+    sequence_length_fused = T.dynamic("sequence_length", "int64")
+    sequence_length_main = T.dynamic("sequence_length", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused(
             X: T.Tensor([T.int64(1), sequence_length_fused, T.int64(32), T.int64(128)], "float32"),
             Y: T.Tensor((T.int64(2048), T.int64(128)), "float32"),
@@ -1554,7 +1558,7 @@ def test_symbolic_var_in_buffer_shape():
         ):
             T.func_attr({"tirx.noalias": True})
 
-            T_add = Ts.sblock_alloc_buffer(
+            T_add = Ts.sblock_alloc_tensor(
                 (T.int64(1), sequence_length_fused, T.int64(32), T.int64(128))
             )
             for ax0, ax1, ax2, ax3 in T.grid(
@@ -1583,7 +1587,7 @@ def test_symbolic_var_in_buffer_shape():
                 gv = R.call_tir(
                     cls.fused,
                     (x, y, m),
-                    out_ty=R.Tensor([1, sequence_length_main, 32, 128], "float32"),
+                    ty_args=[R.Tensor([1, sequence_length_main, 32, 128], "float32")],
                 )
                 R.output(gv)
             return gv
@@ -1592,13 +1596,13 @@ def test_symbolic_var_in_buffer_shape():
 
 
 def test_symbolic_var_called_with_static_shape():
-    """A dynamic PrimFunc may be called with a static shape"""
+    """A dynamic Function may be called with a static shape"""
 
-    num_elements = T.dynamic("num_elements")
+    num_elements = T.dynamic("num_elements", "int64")
 
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def sum_1d(
             X: T.Tensor([num_elements], "float32"),
             Y: T.Tensor([T.int64(1)], "float32"),
@@ -1620,7 +1624,7 @@ def test_symbolic_var_called_with_static_shape():
                 gv = R.call_tir(
                     cls.sum_1d,
                     [x],
-                    out_ty=R.Tensor([1], dtype="float32"),
+                    ty_args=[R.Tensor([1], dtype="float32")],
                 )
                 R.output(gv)
             return gv
@@ -1637,7 +1641,7 @@ def test_symbolic_var_called_with_static_shape():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused(
             X: T.Tensor([T.int64(64)], "float32"),
             Y: T.Tensor([T.int64(1)], "float32"),
@@ -1657,7 +1661,7 @@ def test_symbolic_var_called_with_static_shape():
         ) -> R.Tensor([1], dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.fused, (x,), out_ty=R.Tensor((1,), dtype="float32"))
+                gv = R.call_tir(cls.fused, (x,), ty_args=[R.Tensor((1,), dtype="float32")])
                 R.output(gv)
             return gv
 
@@ -1665,13 +1669,13 @@ def test_symbolic_var_called_with_static_shape():
 
 
 def test_symbolic_var_called_with_multiple_static_shapes():
-    """A dynamic PrimFunc may be called with different shapes each time"""
+    """A dynamic Function may be called with different shapes each time"""
 
-    num_elements = T.dynamic("num_elements")
+    num_elements = T.dynamic("num_elements", "int64")
 
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def sum_1d(
             X: T.Tensor([num_elements], "float32"),
             Sum: T.Tensor([T.int64(1)], "float32"),
@@ -1683,7 +1687,7 @@ def test_symbolic_var_called_with_multiple_static_shapes():
                         Sum[0] = 0.0
                     Sum[0] = Sum[0] + X[vi]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def sum_scalar(
             X: T.Tensor([T.int64(1)], "float32"),
             Y: T.Tensor([T.int64(1)], "float32"),
@@ -1705,17 +1709,17 @@ def test_symbolic_var_called_with_multiple_static_shapes():
                 x_sum = R.call_tir(
                     cls.sum_1d,
                     [x],
-                    out_ty=R.Tensor([1], dtype="float32"),
+                    ty_args=[R.Tensor([1], dtype="float32")],
                 )
                 y_sum = R.call_tir(
                     cls.sum_1d,
                     [y],
-                    out_ty=R.Tensor([1], dtype="float32"),
+                    ty_args=[R.Tensor([1], dtype="float32")],
                 )
                 gv = R.call_tir(
                     cls.sum_scalar,
                     [x_sum, y_sum],
-                    out_ty=R.Tensor([1], dtype="float32"),
+                    ty_args=[R.Tensor([1], dtype="float32")],
                 )
                 R.output(gv)
             return gv
@@ -1733,7 +1737,7 @@ def test_symbolic_var_called_with_multiple_static_shapes():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused(
             X: T.Tensor([T.int64(64)], "float32"),
             Y: T.Tensor([T.int64(16)], "float32"),
@@ -1741,8 +1745,8 @@ def test_symbolic_var_called_with_multiple_static_shapes():
         ):
             T.func_attr({"tirx.noalias": True})
 
-            XSum = Ts.sblock_alloc_buffer([T.int64(1)], "float32")
-            YSum = Ts.sblock_alloc_buffer([T.int64(1)], "float32")
+            XSum = Ts.sblock_alloc_tensor([T.int64(1)], "float32")
+            YSum = Ts.sblock_alloc_tensor([T.int64(1)], "float32")
 
             for i in range(T.int64(64)):
                 with Ts.sblock("XSum"):
@@ -1770,7 +1774,7 @@ def test_symbolic_var_called_with_multiple_static_shapes():
         ) -> R.Tensor([1], dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.fused, (x, y), out_ty=R.Tensor((1,), dtype="float32"))
+                gv = R.call_tir(cls.fused, (x, y), ty_args=[R.Tensor((1,), dtype="float32")])
                 R.output(gv)
             return gv
 
@@ -1778,7 +1782,7 @@ def test_symbolic_var_called_with_multiple_static_shapes():
 
 
 def test_symbolic_var_called_with_static_argument():
-    """A dynamic PrimFunc may accept a static argument
+    """A dynamic Function may accept a static argument
 
     Primitive arguments in `R.call_tir` contain definitions for all TIR
     variables explicitly listed in the function signature, and contain
@@ -1791,7 +1795,7 @@ def test_symbolic_var_called_with_static_argument():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def sum_1d(
             X: T.Tensor([num_elements], "float32"),  # noqa: F821
             num_elements: T.int64,
@@ -1814,7 +1818,7 @@ def test_symbolic_var_called_with_static_argument():
                 gv = R.call_tir(
                     cls.sum_1d,
                     [x, 64],
-                    out_ty=R.Tensor([1], dtype="float32"),
+                    ty_args=[R.Tensor([1], dtype="float32")],
                 )
                 R.output(gv)
             return gv
@@ -1831,7 +1835,7 @@ def test_symbolic_var_called_with_static_argument():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused(
             X: T.Tensor([T.int64(64)], "float32"),
             Y: T.Tensor([T.int64(1)], "float32"),
@@ -1851,7 +1855,7 @@ def test_symbolic_var_called_with_static_argument():
         ) -> R.Tensor([1], dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.fused, (x,), out_ty=R.Tensor((1,), dtype="float32"))
+                gv = R.call_tir(cls.fused, (x,), ty_args=[R.Tensor((1,), dtype="float32")])
                 R.output(gv)
             return gv
 
@@ -1861,7 +1865,7 @@ def test_symbolic_var_called_with_static_argument():
 def test_gather():
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add(
             A: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
             Out: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
@@ -1871,7 +1875,7 @@ def test_gather():
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     Out[vi, vj] = A[vi, vj] + T.float16(1.0)
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def take(
             A: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
             B: T.Tensor((T.int64(1),), "int32"),
@@ -1902,24 +1906,24 @@ def test_gather():
             cls = Before
             with R.dataflow():
                 lv = R.call_tir(
-                    cls.add, (input_embeds,), out_ty=R.Tensor((4096, 4096), dtype="float16")
+                    cls.add, (input_embeds,), ty_args=[R.Tensor((4096, 4096), dtype="float16")]
                 )
                 gv = R.call_tir(
-                    cls.take, (lv, input_ids), out_ty=R.Tensor((1, 4096), dtype="float16")
+                    cls.take, (lv, input_ids), ty_args=[R.Tensor((1, 4096), dtype="float16")]
                 )
                 R.output(gv)
             return gv
 
     @I.ir_module
     class After:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused_func(
             input_ids: T.Tensor((T.int64(1),), "int32"),
             input_embeds: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
             T_take: T.Tensor((T.int64(1), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
-            Out_handle_intermediate = Ts.sblock_alloc_buffer(
+            Out_handle_intermediate = Ts.sblock_alloc_tensor(
                 (T.int64(4096), T.int64(4096)), "float16"
             )
             for i, j in T.grid(T.int64(4096), T.int64(4096)):
@@ -1941,7 +1945,7 @@ def test_gather():
                 gv = R.call_tir(
                     cls.fused_func,
                     (input_ids, input_embeds),
-                    out_ty=R.Tensor((1, 4096), dtype="float16"),
+                    ty_args=[R.Tensor((1, 4096), dtype="float16")],
                 )
                 R.output(gv)
             return gv
@@ -1954,7 +1958,7 @@ def test_inplace_simple():
     class Module:
         I.module_attrs({"foo": "bar"})
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add_inplace(
             A: T.Tensor((T.int64(10), T.int64(20)), "float32"), B: T.Tensor((), "float32")
         ):
@@ -1966,7 +1970,7 @@ def test_inplace_simple():
                     # Ts.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[()]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def exp_inplace(A: T.Tensor((T.int64(10), T.int64(20)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(10), T.int64(20)):
@@ -1976,7 +1980,7 @@ def test_inplace_simple():
                     # Ts.writes(A[v_i0, v_i1])
                     A[v_i0, v_i1] = T.exp(A[v_i0, v_i1])
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def squeeze_inplace(A: T.Tensor((T.int64(10), T.int64(20)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
@@ -2002,19 +2006,19 @@ def test_inplace_simple():
                     cls.add_inplace,
                     (x, p0),
                     inplace_indices=[0],
-                    out_ty=R.Tensor((10, 20), dtype="float32"),
+                    ty_args=[R.Tensor((10, 20), dtype="float32")],
                 )
                 lv1 = R.call_tir_inplace(
                     cls.exp_inplace,
                     (lv,),
                     inplace_indices=[0],
-                    out_ty=R.Tensor((10, 20), dtype="float32"),
+                    ty_args=[R.Tensor((10, 20), dtype="float32")],
                 )
                 gv = R.call_tir_inplace(
                     cls.squeeze_inplace,
                     (lv1,),
                     inplace_indices=[0],
-                    out_ty=R.Tensor((10, 20), dtype="float32"),
+                    ty_args=[R.Tensor((10, 20), dtype="float32")],
                 )
                 R.output(gv)
             return gv
@@ -2033,7 +2037,7 @@ def test_inplace_simple():
     class Expected:
         I.module_attrs({"foo": "bar"})
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused_add_exp_squeeze(
             x: T.Tensor((T.int64(10), T.int64(20)), "float32"), p0: T.Tensor((), "float32")
         ):
@@ -2061,7 +2065,7 @@ def test_inplace_simple():
                 gv1: R.Tensor((10, 20), dtype="float32") = R.call_tir_inplace(
                     cls.fused_add_exp_squeeze,
                     (x, p0),
-                    out_ty=R.Tensor((10, 20), dtype="float32"),
+                    ty_args=[R.Tensor((10, 20), dtype="float32")],
                     inplace_indices=[0],
                 )
                 R.output(gv1)
@@ -2075,7 +2079,7 @@ def test_fuse_inplace_and_non_inplace():
     class Module:
         I.module_attrs({"foo": "bar"})
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add(
             A: T.Tensor((T.int64(10), T.int64(20)), "float32"),
             B: T.Tensor((), "float32"),
@@ -2087,7 +2091,7 @@ def test_fuse_inplace_and_non_inplace():
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
                     Out[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[()]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def exp_inplace(A: T.Tensor((T.int64(10), T.int64(20)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(10), T.int64(20)):
@@ -2095,7 +2099,7 @@ def test_fuse_inplace_and_non_inplace():
                     v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
                     A[v_i0, v_i1] = T.exp(A[v_i0, v_i1])
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def squeeze_inplace(A: T.Tensor((T.int64(10), T.int64(20)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
@@ -2113,19 +2117,19 @@ def test_fuse_inplace_and_non_inplace():
                 lv = R.call_tir(
                     cls.add,
                     (x, p0),
-                    out_ty=R.Tensor((10, 20), dtype="float32"),
+                    ty_args=[R.Tensor((10, 20), dtype="float32")],
                 )
                 lv1 = R.call_tir_inplace(
                     cls.exp_inplace,
                     (lv,),
                     inplace_indices=[0],
-                    out_ty=R.Tensor((10, 20), dtype="float32"),
+                    ty_args=[R.Tensor((10, 20), dtype="float32")],
                 )
                 gv = R.call_tir_inplace(
                     cls.squeeze_inplace,
                     (lv1,),
                     inplace_indices=[0],
-                    out_ty=R.Tensor((10, 20), dtype="float32"),
+                    ty_args=[R.Tensor((10, 20), dtype="float32")],
                 )
                 R.output(gv)
             return gv
@@ -2144,7 +2148,7 @@ def test_fuse_inplace_and_non_inplace():
     class Expected:
         I.module_attrs({"foo": "bar"})
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused_add_exp_squeeze(
             x: T.Tensor((T.int64(10), T.int64(20)), "float32"),
             p0: T.Tensor((), "float32"),
@@ -2173,7 +2177,7 @@ def test_fuse_inplace_and_non_inplace():
                 gv1: R.Tensor((10, 20), dtype="float32") = R.call_tir(
                     cls.fused_add_exp_squeeze,
                     (x, p0),
-                    out_ty=R.Tensor((10, 20), dtype="float32"),
+                    ty_args=[R.Tensor((10, 20), dtype="float32")],
                 )
                 R.output(gv1)
             return gv1
@@ -2185,7 +2189,7 @@ def test_use_as_inplace_and_dps():
     @I.ir_module
     class Module:
         # we will use it both in-place and normally (DPS)
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add(
             A: T.Tensor((T.int64(10), T.int64(20)), "float32"),
             B: T.Tensor((), "float32"),
@@ -2207,19 +2211,19 @@ def test_use_as_inplace_and_dps():
                 lv = R.call_tir(
                     cls.add,
                     (x, p0),
-                    out_ty=R.Tensor((10, 20), dtype="float32"),
+                    ty_args=[R.Tensor((10, 20), dtype="float32")],
                 )
                 lv1 = R.call_tir_inplace(
                     cls.add,
                     (x, p0, lv),
                     inplace_indices=[2],
-                    out_ty=R.Tensor((10, 20), dtype="float32"),
+                    ty_args=[R.Tensor((10, 20), dtype="float32")],
                 )
                 lv2 = R.call_tir_inplace(
                     cls.add,
                     (x, p0, lv1),
                     inplace_indices=[2],
-                    out_ty=R.Tensor((10, 20), dtype="float32"),
+                    ty_args=[R.Tensor((10, 20), dtype="float32")],
                 )
                 R.output(lv2)
             return lv2
@@ -2236,7 +2240,7 @@ def test_use_as_inplace_and_dps():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused_sums(
             x: T.Tensor((T.int64(10), T.int64(20)), "float32"),
             p0: T.Tensor((), "float32"),
@@ -2265,7 +2269,7 @@ def test_use_as_inplace_and_dps():
                 gv1: R.Tensor((10, 20), dtype="float32") = R.call_tir(
                     cls.fused_sums,
                     (x, p0),
-                    out_ty=R.Tensor((10, 20), dtype="float32"),
+                    ty_args=[R.Tensor((10, 20), dtype="float32")],
                 )
                 R.output(gv1)
             return gv1
@@ -2301,15 +2305,15 @@ def test_private_nonprimitive_func():
             cls = Before
             with R.dataflow():
                 lv = R.call_tir(
-                    cls.add, (input_embeds,), out_ty=R.Tensor((4096, 4096), dtype="float16")
+                    cls.add, (input_embeds,), ty_args=[R.Tensor((4096, 4096), dtype="float16")]
                 )
                 gv = R.call_tir(
-                    cls.take, (lv, input_ids), out_ty=R.Tensor((1, 4096), dtype="float16")
+                    cls.take, (lv, input_ids), ty_args=[R.Tensor((1, 4096), dtype="float16")]
                 )
                 R.output(gv)
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add(
             A: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
             Out: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
@@ -2319,7 +2323,7 @@ def test_private_nonprimitive_func():
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     Out[vi, vj] = A[vi, vj] + T.float16(1.0)
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def take(
             A: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
             B: T.Tensor((T.int64(1),), "int32"),
@@ -2336,7 +2340,7 @@ def test_private_nonprimitive_func():
 def test_block_name_numeric_suffix_deduplication():
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add1(x: T.Tensor((10,), "float32"), y: T.Tensor((10,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i in range(10):
@@ -2344,7 +2348,7 @@ def test_block_name_numeric_suffix_deduplication():
                     vi = Ts.axis.spatial(10, i)
                     y[vi] = x[vi] + T.float32(1.0)
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def mul1(x: T.Tensor((10,), "float32"), y: T.Tensor((10,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i in range(10):
@@ -2357,8 +2361,8 @@ def test_block_name_numeric_suffix_deduplication():
             R.func_attr({"Primitive": True})
             cls = Before
             with R.dataflow():
-                lv1 = R.call_tir(cls.add1, (x,), out_ty=R.Tensor((10,), dtype="float32"))
-                lv2 = R.call_tir(cls.mul1, (lv1,), out_ty=R.Tensor((10,), dtype="float32"))
+                lv1 = R.call_tir(cls.add1, (x,), ty_args=[R.Tensor((10,), dtype="float32")])
+                lv2 = R.call_tir(cls.mul1, (lv1,), ty_args=[R.Tensor((10,), dtype="float32")])
                 R.output(lv2)
             return lv2
 
@@ -2372,17 +2376,17 @@ def test_block_name_numeric_suffix_deduplication():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused_add_mul(
-            x: T.Tensor((T.int64(10),)),
-            y_intermediate_1: T.Tensor((T.int64(10),), elem_offset=T.int32(0)),
+            x: T.Tensor((T.int64(10),), "float32"),
+            y_intermediate_1: T.Tensor((T.int64(10),), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):
                 Ts.reads()
                 Ts.writes()
-                y_intermediate = Ts.sblock_alloc_buffer((T.int64(10),), elem_offset=T.int32(0))
+                y_intermediate = Ts.sblock_alloc_tensor((T.int64(10),))
                 for i in range(10):
                     with Ts.sblock("compute1"):
                         vi = Ts.axis.spatial(10, i)
@@ -2400,7 +2404,7 @@ def test_block_name_numeric_suffix_deduplication():
         def main(x: R.Tensor((10,), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.fused_add_mul, (x,), out_ty=R.Tensor((10,), dtype="float32"))
+                gv = R.call_tir(cls.fused_add_mul, (x,), ty_args=[R.Tensor((10,), dtype="float32")])
                 R.output(gv)
             return gv
 
@@ -2410,7 +2414,7 @@ def test_block_name_numeric_suffix_deduplication():
 def test_primitive_scalar_parameter_preserves_identity():
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add_scalar(x: T.Tensor((4,), "int64"), p: T.int64, y: T.Tensor((1,), "int64")):
             for i in range(1):
                 with Ts.sblock("add"):
@@ -2424,7 +2428,7 @@ def test_primitive_scalar_parameter_preserves_identity():
             out = R.call_tir(
                 cls.add_scalar,
                 (x, p),
-                out_ty=R.Tensor((1,), "int64"),
+                ty_args=[R.Tensor((1,), "int64")],
             )
             return out
 
@@ -2442,7 +2446,7 @@ def test_primitive_scalar_parameter_preserves_identity():
 def test_inplace_argument_after_primitive_scalar():
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add_scalar_inplace(p: T.int64, x: T.Tensor((4,), "int64")):
             for i in range(4):
                 with Ts.sblock("add"):
@@ -2457,7 +2461,7 @@ def test_inplace_argument_after_primitive_scalar():
                 cls.add_scalar_inplace,
                 (p, x),
                 inplace_indices=[1],
-                out_ty=R.Tensor((4,), "int64"),
+                ty_args=[R.Tensor((4,), "int64")],
             )
             return out
 
@@ -2473,4 +2477,4 @@ def test_inplace_argument_after_primitive_scalar():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

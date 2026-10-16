@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -228,7 +229,7 @@ Pass InlinePrivateFunctions() {
     write_ptr->Update(updates);
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "InlinePrivateFunctions", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "InlinePrivateFunctions");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

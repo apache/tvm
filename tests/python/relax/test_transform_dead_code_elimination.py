@@ -19,20 +19,21 @@
 import pytest
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.transform import DeadCodeElimination
-from tvm.script import s_tir as Ts
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def verify(input, expected):
-    tvm.ir.assert_structural_equal(DeadCodeElimination()(input), expected)
+    tvm_tirx.ir.assert_structural_equal(DeadCodeElimination()(input), expected)
 
 
 def test_simple():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Input:
         @R.function
         def main(
@@ -93,7 +94,7 @@ def test_simple():
 
 
 def test_2block():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Input:
         @R.function
         def main(
@@ -161,9 +162,9 @@ def check_if_func_exists(mod, func_name):
 
 
 def test_unused_relax_func():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
-        @Ts.prim_func
+        @Ts.function
         def tir_add(
             x: T.Tensor((16, 16), "float32"),
             y: T.Tensor((16, 16), "float32"),
@@ -183,7 +184,9 @@ def test_unused_relax_func():
         def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
             (16, 16), "float32"
         ):
-            gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
+            gv0 = R.call_tir(
+                InputModule.tir_add, (x, w), ty_args=[R.Tensor((16, 16), dtype="float32")]
+            )
             return gv0
 
     mod = InputModule
@@ -194,13 +197,13 @@ def test_unused_relax_func():
     assert not check_if_func_exists(new_mod, "unused_func")
 
 
-provide_entry_func_name = tvm.testing.parameter(True, False)
+provide_entry_func_name = tvm_tirx.testing.parameter(True, False)
 
 
 def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_add(
             x: T.Tensor((16, 16), "float32"),
             y: T.Tensor((16, 16), "float32"),
@@ -220,7 +223,9 @@ def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
         def foo(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
             (16, 16), "float32"
         ):
-            gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
+            gv0 = R.call_tir(
+                InputModule.tir_add, (x, w), ty_args=[R.Tensor((16, 16), dtype="float32")]
+            )
             return gv0
 
     mod = InputModule
@@ -239,9 +244,9 @@ def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
 
 
 def test_tracking_through_externally_exposed_func(provide_entry_func_name):
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_add(
             x: T.Tensor((16, 16), "float32"),
             y: T.Tensor((16, 16), "float32"),
@@ -261,7 +266,9 @@ def test_tracking_through_externally_exposed_func(provide_entry_func_name):
         def foo(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
             (16, 16), "float32"
         ):
-            gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
+            gv0 = R.call_tir(
+                InputModule.tir_add, (x, w), ty_args=[R.Tensor((16, 16), dtype="float32")]
+            )
             return gv0
 
         @R.function
@@ -281,19 +288,19 @@ def test_tracking_through_externally_exposed_func(provide_entry_func_name):
 
 def test_unused_relax_func_symbolic_shape():
     # Test with relax function w/ symbolic shape.
-    m_tir_matmul = T.dynamic("m")
-    n_tir_matmul = T.dynamic("n")
-    k_tir_matmul = T.dynamic("k")
-    m_unused_func = T.dynamic("m")
-    n_unused_func = T.dynamic("n")
-    k_unused_func = T.dynamic("k")
-    m_main = T.dynamic("m")
-    k_main = T.dynamic("k")
-    n_main = T.dynamic("n")
+    m_tir_matmul = T.dynamic("m", "int64")
+    n_tir_matmul = T.dynamic("n", "int64")
+    k_tir_matmul = T.dynamic("k", "int64")
+    m_unused_func = T.dynamic("m", "int64")
+    n_unused_func = T.dynamic("n", "int64")
+    k_unused_func = T.dynamic("k", "int64")
+    m_main = T.dynamic("m", "int64")
+    k_main = T.dynamic("k", "int64")
+    n_main = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module(check_well_formed=False)
+    @tvm_tirx.script.ir_module(check_well_formed=False)
     class InputModule:
-        @Ts.prim_func
+        @Ts.function
         def tir_matmul(
             x: T.Tensor((m_tir_matmul, n_tir_matmul), "float32"),
             y: T.Tensor((n_tir_matmul, k_tir_matmul), "float32"),
@@ -319,7 +326,9 @@ def test_unused_relax_func_symbolic_shape():
             x: R.Tensor((m_main, n_main), "float32"), w: R.Tensor((n_main, k_main), "float32")
         ):
             gv0 = R.call_tir(
-                InputModule.tir_matmul, (x, w), R.Tensor((m_main, k_main), dtype="float32")
+                InputModule.tir_matmul,
+                (x, w),
+                ty_args=[R.Tensor((m_main, k_main), dtype="float32")],
             )
             return gv0
 
@@ -332,10 +341,10 @@ def test_unused_relax_func_symbolic_shape():
     assert not check_if_func_exists(new_mod, "unused_func")
 
 
-def test_unused_prim_func():
-    @tvm.script.ir_module
+def test_unused_function():
+    @tvm_tirx.script.ir_module
     class InputModule:
-        @Ts.prim_func
+        @Ts.function
         def unused_func(
             x: T.Tensor((16, 16), "float32"),
             y: T.Tensor((16, 16), "float32"),
@@ -368,8 +377,8 @@ def test_unused_prim_func():
     assert check_if_func_exists(new_mod, "unused_func")
 
 
-def test_preserve_indirectly_used_prim_func():
-    @tvm.script.ir_module
+def test_preserve_indirectly_used_function():
+    @tvm_tirx.script.ir_module
     class InputModule:
         @R.function
         def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
@@ -378,11 +387,11 @@ def test_preserve_indirectly_used_prim_func():
             gv0 = R.call_tir(
                 InputModule.tir_add_tensors,
                 [x, w],
-                out_ty=R.Tensor((16, 16), "float32"),
+                ty_args=[R.Tensor((16, 16), "float32")],
             )
             return gv0
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_add_tensors(
             x: T.Tensor((16, 16), "float32"),
             y: T.Tensor((16, 16), "float32"),
@@ -393,7 +402,7 @@ def test_preserve_indirectly_used_prim_func():
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     z[vi, vj] = InputModule.tir_add_float32(x[vi, vj], y[vi, vj])
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_add_float32(x: T.float32, y: T.float32) -> T.float32:
             return x + y
 
@@ -401,13 +410,13 @@ def test_preserve_indirectly_used_prim_func():
     assert mod
     new_mod = DeadCodeElimination()(mod)
 
-    tvm.ir.assert_structural_equal(mod, new_mod)
+    tvm_tirx.ir.assert_structural_equal(mod, new_mod)
 
 
 def test_multiple_unused_funcs():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
-        @Ts.prim_func
+        @Ts.function
         def unused_func1(
             x: T.Tensor((16, 16), "float32"),
             y: T.Tensor((16, 16), "float32"),
@@ -443,7 +452,7 @@ def test_multiple_unused_funcs():
 
 def test_unused_dfb():
     # test if an unused dataflow block can be removed.
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Input:
         @R.function
         def main(
@@ -476,7 +485,7 @@ def test_unused_dfb():
                 R.output(lv4)
             return gv3
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -505,7 +514,7 @@ def test_unused_dfb():
 
 def test_unused_dfb2():
     # test if an unused dataflow block can be removed.
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Input:
         @R.function
         def main(
@@ -543,7 +552,7 @@ def test_unused_dfb2():
                 R.output(lv3)
             return lv3
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -665,4 +674,4 @@ def test_recursively_defined_closure():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

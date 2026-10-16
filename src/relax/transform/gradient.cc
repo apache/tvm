@@ -27,10 +27,12 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
+#include <tvm/ir/op.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
+#include <tvm/relax/op/op.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
 
@@ -76,8 +78,8 @@ class CallTIRWithGradEliminator : private ExprMutator {
     if (!call_node->op.same_as(Op::Get("relax.call_tir_with_grad"))) {
       return ExprMutator::VisitExpr_(call_node);
     }
-    return Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir"), call_node->args, {},
-                           call_node->ty_args, call_node->span);
+    return Call(Type::Missing(), Op::Get("relax.call_tir"), call_node->args, {}, call_node->ty_args,
+                call_node->loc);
   }
 };
 
@@ -269,9 +271,9 @@ class CheckpointGenerator : private ExprMutator {
     Type ret_ty = Type::Missing();
     if (call_node->ty.as<PrimTypeNode>()) {
       if (auto op = call_node->op.as<Op>()) {
-        static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
+        static auto infer_type_map = Op::GetAttrMap(tvm::op_attr::kInferType);
         static auto infer_type_with_builder_map =
-            Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
+            Op::GetAttrMap(tvm::relax::op_attr::kInferTypeWithBuilder);
         if (!infer_type_map.count(op.value()) && !infer_type_with_builder_map.count(op.value())) {
           ret_ty = call_node->ty.as_or_throw<Type>();
         }
@@ -364,8 +366,7 @@ class BackwardBindingGenerator : private ExprVisitor {
       return;
     }
 
-    static const OpAttrMap<FPrimalGradient>& gradient_op_map =
-        Op::GetAttrMap<FPrimalGradient>("FPrimalGradient");
+    static const auto& gradient_op_map = Op::GetAttrMap(tvm::relax::op_attr::kPrimalGradient);
     static const constexpr char* te_grad_func_prefix = "tvm.relax.te_grad._register.";
 
     Var adjoint_var = adjoint_var_map_[binding->var];
@@ -804,8 +805,7 @@ Pass Gradient(ffi::String func_name, ffi::Optional<ffi::Array<Var>> require_grad
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"Gradient",
-                          /*required=*/{});
+                          /*pass_name=*/"Gradient");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

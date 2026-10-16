@@ -17,8 +17,8 @@
 # pylint: disable=invalid-name,missing-function-docstring
 """Dot product related intrinsics."""
 
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 from .. import TensorIntrin
 
@@ -26,14 +26,12 @@ from .. import TensorIntrin
 def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
     if dtype_c == "uint32":
         assert dtype_a == dtype_b == "uint8"
-    vec_type_a = "int8x4" if dtype_a == "int8" else "uint8x4"
-    vec_type_b = "int8x4" if dtype_b == "int8" else "uint8x4"
 
-    @Ts.prim_func
+    @Ts.function
     def dp4a_desc(
-        A: T.Tensor((4,), dtype_a, offset_factor=1, align=4, scope="shared"),
-        B: T.Tensor((4,), dtype_b, offset_factor=1, align=4, scope="shared"),
-        C: T.Tensor((1,), dtype_c, offset_factor=1, align=4, scope="local"),
+        A: T.Tensor((4,), dtype_a, offset_factor=1, elem_offset=T.int32(), align=4, scope="shared"),
+        B: T.Tensor((4,), dtype_b, offset_factor=1, elem_offset=T.int32(), align=4, scope="shared"),
+        C: T.Tensor((1,), dtype_c, offset_factor=1, elem_offset=T.int32(), align=4, scope="local"),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0], A[0:4], B[0:4])
@@ -43,11 +41,11 @@ def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
                     vi = Ts.axis.remap("R", [i])
                     C[0] = C[0] + T.cast(A[vi], dtype_c) * T.cast(B[vi], dtype_c)
 
-    @Ts.prim_func
+    @Ts.function
     def dp4a_impl(
-        A: T.Tensor((4,), dtype_a, offset_factor=1, align=4, scope="shared"),
-        B: T.Tensor((4,), dtype_b, offset_factor=1, align=4, scope="shared"),
-        C: T.Tensor((1,), dtype_c, offset_factor=1, align=4, scope="local"),
+        A: T.Tensor((4,), dtype_a, offset_factor=1, elem_offset=T.int32(), align=4, scope="shared"),
+        B: T.Tensor((4,), dtype_b, offset_factor=1, elem_offset=T.int32(), align=4, scope="shared"),
+        C: T.Tensor((1,), dtype_c, offset_factor=1, elem_offset=T.int32(), align=4, scope="local"),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0], A[0:4], B[0:4])
@@ -55,10 +53,10 @@ def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
 
             C[0] += T.call_pure_extern(
                 "__dp4a",
-                A.vload([0], vec_type_a),
-                B.vload([0], vec_type_b),
+                A[T.Ramp(0, 1, 4)],
+                B[T.Ramp(0, 1, 4)],
                 T.uint32(0) if T.constexpr(dtype_c == "uint32") else T.int32(0),
-                dtype=dtype_c,
+                ty=dtype_c,
             )
 
     return dp4a_desc, dp4a_impl

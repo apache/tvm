@@ -18,7 +18,9 @@
  */
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/function.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/script/printer/printer.h>
+#include <tvm/script/printer/support.h>
 #include <tvm/tirx/type.h>
 
 #include <algorithm>
@@ -26,7 +28,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../../script/printer/ir/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -42,83 +43,111 @@ ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView in
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::FunctionNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
-  VarScope vars(d);
 
-  ffi::String name = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or("main");
-  ffi::Array<AssignDoc> args;
-  ffi::Array<IdDoc> param_ids;
-  // A prior annotation may depend on a later scalar parameter.
-  for (const Var& param : func->params) {
-    param_ids.push_back(VarDoc(d, param));
-  }
-  size_t param_index = 0;
-  for (const Var& param : func->params) {
-    IdDoc lhs = param_ids[param_index++];
-    ffi::Optional<ExprDoc> annotation = std::nullopt;
-    if (!param->ty.IsMissing()) annotation = d->Translate(param->ty).value();
-    AssignDoc argument(lhs, std::nullopt, annotation);
-    d->RecordOrigin(argument, param);
-    args.push_back(argument);
-  }
-  auto signature_candidates = CopyImplicitDefs(d);
-  ffi::Optional<ExprDoc> ret_type = std::nullopt;
-  if (!func->ret_ty.IsMissing()) {
-    if (auto tensor = func->ret_ty.as<relax::TensorTypeNode>()) {
-      ret_type = RelaxTensorTypeDoc(d, tensor, true);
-    } else {
-      ret_type = d->Translate(func->ret_ty).value();
-    }
-  }
-  ffi::Array<ffi::String> decorator_keys;
-  ffi::Array<ExprDoc> decorator_values;
-  if (!func->is_pure) {
-    decorator_keys.push_back("pure");
-    decorator_values.push_back(LiteralDoc::Boolean(false, std::nullopt));
-  }
-  if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
-    decorator_keys.push_back("private");
-    decorator_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
-  }
-  ExprDoc decorator = NamespaceDoc("relax")->Attr("function");
-  if (!decorator_keys.empty()) decorator = decorator->Call({}, decorator_keys, decorator_values);
-  auto docs = d->WithDocScope([&]() {
-    std::vector<std::pair<ffi::String, ffi::Any>> attrs;
-    for (const auto& [key, value] : func->attrs->dict) {
-      if (key != tvm::attr::kGlobalSymbol) attrs.emplace_back(key, value);
-    }
-    if (!attrs.empty()) {
-      std::sort(attrs.begin(), attrs.end(),
-                [](const auto& a, const auto& b) { return a.first < b.first; });
-      ffi::Array<ExprDoc> keys;
-      ffi::Array<ExprDoc> values;
-      for (const auto& [key, value] : attrs) {
-        keys.push_back(LiteralDoc::Str(key, std::nullopt));
-        values.push_back(AnyValue(d, value));
+  auto bound_name = d->GetOrCreateExtraState<ffi::Optional<ffi::String>>("ir.function_name");
+  d->WithExtraStateScope<ffi::Optional<ffi::String>>("ir.function_name", std::nullopt, [&]() {
+    auto completed = d->WithVarScope([&]() {
+      auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+      ffi::String name = bound_name.value_or(global_symbol.value_or("main"));
+      ffi::Array<AssignDoc> args;
+      ffi::Array<IdDoc> param_ids;
+      // A prior annotation may depend on a later scalar parameter.
+      for (const Var& param : func->params) {
+        param_ids.push_back(VarDoc(d, param));
       }
-      d->Emit(ExprStmtDoc(NamespaceDoc("relax")->Attr("func_attr")->Call({DictDoc(keys, values)})),
+      size_t param_index = 0;
+      for (const Var& param : func->params) {
+        IdDoc lhs = param_ids[param_index++];
+        ffi::Optional<ExprDoc> annotation = std::nullopt;
+        if (!param->ty.as<MissingType>().has_value()) annotation = d->Translate(param->ty).value();
+        AssignDoc argument(lhs, std::nullopt, annotation);
+        d->RecordOrigin(argument, param);
+        args.push_back(argument);
+      }
+      ffi::Map<Var, IdDoc> signature_candidates;
+      // GetImplicitDefs is live: keep an owning snapshot before translating the body.
+      for (const auto& [var, id] : d->GetImplicitDefs()) signature_candidates.Set(var, id);
+      ffi::Optional<ExprDoc> ret_type = std::nullopt;
+      if (!func->ret_ty.as<MissingType>().has_value()) {
+        ret_type = d->Translate(func->ret_ty).value();
+      }
+      ffi::Array<ffi::String> decorator_keys;
+      ffi::Array<ExprDoc> decorator_values;
+      if (!func->is_pure) {
+        decorator_keys.push_back("pure");
+        decorator_values.push_back(LiteralDoc::Boolean(false, std::nullopt));
+      }
+      if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+        decorator_keys.push_back("private");
+        decorator_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
+      }
+      ExprDoc decorator = NamespaceDoc("relax")->Attr("function");
+      if (!decorator_keys.empty())
+        decorator = decorator->Call({}, decorator_keys, decorator_values);
+      auto docs = d->WithDocScope([&]() {
+        std::vector<std::pair<ffi::String, ffi::Any>> attrs;
+        for (const auto& [key, value] : func->attrs->dict) {
+          if (key != tvm::attr::kGlobalSymbol) attrs.emplace_back(key, value);
+        }
+        if (!attrs.empty()) {
+          std::sort(attrs.begin(), attrs.end(),
+                    [](const auto& a, const auto& b) { return a.first < b.first; });
+          ffi::Array<ExprDoc> keys;
+          ffi::Array<ExprDoc> values;
+          for (const auto& [key, value] : attrs) {
+            keys.push_back(LiteralDoc::Str(key, std::nullopt));
+            values.push_back(d->WithExtraStateScope<bool>(
+                "ir.explicit_value_type", true, [&] { return d->Translate(value).value(); }));
+          }
+          d->Emit(
+              ExprStmtDoc(NamespaceDoc("relax")->Attr("func_attr")->Call({DictDoc(keys, values)})),
               ffi::GetRef<ffi::ObjectRef>(func));
-    }
-    for (const relax::BindingBlock& block : func->body->blocks) d->Translate(block);
-    ExprDoc result = d->Translate(func->body->body).value();
-    if (auto integer = func->body->body.as<IntImmNode>();
-        integer && ffi::StructuralEqual()(integer->ty, func->ret_ty)) {
-      // The declared primitive return type reconstructs this literal's dtype.
-      result = LiteralDoc::Int(ffi::GetRef<IntImm>(integer), std::nullopt);
-    }
-    d->Emit(ReturnDoc(result), ffi::GetRef<ffi::ObjectRef>(func));
+        }
+        for (const relax::BindingBlock& block : func->body->blocks) d->Translate(block);
+        ExprDoc result = d->Translate(func->body->body).value();
+        if (auto integer = func->body->body.as<IntImmNode>();
+            integer && ffi::StructuralEqual()(integer->ty, func->ret_ty)) {
+          // The declared primitive return type reconstructs this literal's dtype.
+          result = LiteralDoc::Int(ffi::GetRef<IntImm>(integer), std::nullopt);
+        }
+        d->Emit(ReturnDoc(result), ffi::GetRef<ffi::ObjectRef>(func));
+      });
+      auto body = ToStmtDocArray(docs);
+      if (bound_name && global_symbol && global_symbol.value() != bound_name.value()) {
+        body.insert(body.begin(),
+                    ExprStmtDoc(NamespaceDoc("relax")
+                                    ->Attr("func_attr")
+                                    ->Call({DictDoc(
+                                        {LiteralDoc::Str(tvm::attr::kGlobalSymbol, std::nullopt)},
+                                        {LiteralDoc::Str(global_symbol.value(), std::nullopt)})})));
+      }
+      FunctionDoc function(IdDoc(name), args, {decorator}, ret_type, body);
+      auto module = d->GetOrCreateExtraState<ffi::Optional<IRModule>>("ir.module");
+      auto pending = d->GetImplicitDefs();
+      if (!module.has_value()) {
+        for (const auto& [var, signature_id] : signature_candidates) {
+          if (!pending.count(var) || !var->ty.as<PrimTypeNode>()) continue;
+          IdDoc id = VarDoc(d, var);
+          if (var->ty.as_or_throw<PrimType>()->dtype == (DLDataType{kDLInt, 32, 1})) {
+            function->type_params.push_back(id);
+          } else {
+            function->type_params.push_back(
+                AssignDoc(id, std::nullopt, d->Translate(var->ty).value()));
+          }
+        }
+      }
+      return function;
+    });
+    d->Emit(completed, ffi::GetRef<ffi::ObjectRef>(func));
   });
-  auto body = ToStmtDocArray(docs);
-  FunctionDoc function(IdDoc(name), args, {decorator}, ret_type, body);
-  FinalizeFunctionDefinitions(d, signature_candidates, function);
-  vars.Close();
-  d->Emit(function, ffi::GetRef<ffi::ObjectRef>(func));
   return std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterNamespaceAlias("relax.prefix", "R");
   ffi::reflection::TypeAttrDef<relax::FunctionNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&FunctionDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&FunctionDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> ExternFuncDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -145,7 +174,8 @@ ffi::Optional<ExprDoc> ExternFuncDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::ExternFuncNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&ExternFuncDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&ExternFuncDocTranslate>());
 }
 
 }  // namespace

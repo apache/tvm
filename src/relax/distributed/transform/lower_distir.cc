@@ -27,10 +27,10 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/attrs/ccl.h>
 #include <tvm/relax/distributed/axis_group_graph.h>
 #include <tvm/relax/distributed/transform.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op/ccl.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include "../../../s_tir/schedule/transform.h"
@@ -114,7 +114,7 @@ class DistIRSharder : public ExprMutator {
   }
 
   Expr ShardInputParamTensorAndConstant(Expr input) {
-    TVM_FFI_ICHECK(!input->ty.IsMissing());
+    TVM_FFI_ICHECK(!input->ty.as<MissingType>().has_value());
     Type old_ty = GetType(input);
     Type new_ty = ConvertType(old_ty, false);
     if (const auto* var = input.as<VarNode>()) {
@@ -124,7 +124,7 @@ class DistIRSharder : public ExprMutator {
       for (const auto& spec : old_ty.as_or_throw<DTensorType>()->placement->dim_specs) {
         TVM_FFI_ICHECK(spec->kind == PlacementSpecKind::kReplica);
       }
-      GenericConst new_constant(constant->value.cast<runtime::Tensor>(), new_ty);
+      GenericConst new_constant(constant->value.cast<ffi::Tensor>(), new_ty);
       return new_constant;
     } else {
       TVM_FFI_THROW(InternalError)
@@ -268,7 +268,7 @@ namespace transform {
 
 Pass LowerDistIR() {
   auto pass_func = [=](IRModule m, PassContext pc) { return DistIRSharder::LowerDistIR(m); };
-  return CreateModulePass(pass_func, 1, "LowerDistIR", {});
+  return CreateModulePass(pass_func, 1, "LowerDistIR");
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

@@ -38,22 +38,27 @@ import tvm_ffi
 
 import tvm
 import tvm.s_tir.meta_schedule as ms
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.ir import transform
-from tvm.ir.module import IRModule
-from tvm.ir.transform import PassContext
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import transform
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.ir.transform import PassContext
+from tvm_tirx.script import tirx as T
 
-target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
+target = tvm_tirx.target.Target({"kind": "llvm", "num-cores": 16})
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class InputModule:
-    @Ts.prim_func
-    def tir_matmul(A: T.Tensor((32, 32)), B: T.Tensor((32, 32)), C: T.Tensor((32, 32))) -> None:
+    @Ts.function
+    def tir_matmul(
+        A: T.Tensor((32, 32), "float32"),
+        B: T.Tensor((32, 32), "float32"),
+        C: T.Tensor((32, 32), "float32"),
+    ) -> None:
         T.func_attr({"global_symbol": "tir_matmul"})
 
         for i0, j0, k0 in T.grid(32, 32, 32):
@@ -63,8 +68,8 @@ class InputModule:
                     C[i, j] = 0.0
                 C[i, j] += A[i, k] * B[j, k]
 
-    @Ts.prim_func
-    def tir_relu(A: T.Tensor((32, 32)), B: T.Tensor((32, 32))):
+    @Ts.function
+    def tir_relu(A: T.Tensor((32, 32), "float32"), B: T.Tensor((32, 32), "float32")):
         T.func_attr({"global_symbol": "tir_relu"})
 
         for i, j in T.grid(32, 32):
@@ -76,8 +81,8 @@ class InputModule:
     def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
         cls = InputModule
         with R.dataflow():
-            lv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_tir(cls.tir_relu, (lv0), R.Tensor((32, 32), dtype="float32"))
+            lv0 = R.call_tir(cls.tir_matmul, (x, w), ty_args=[R.Tensor((32, 32), dtype="float32")])
+            lv1 = R.call_tir(cls.tir_relu, (lv0), ty_args=[R.Tensor((32, 32), dtype="float32")])
             R.output(lv1)
         return lv1
 
@@ -100,7 +105,7 @@ def test_ms_tuning_irmodule():
             out_mod = tuning_pass(mod)
             assert PassContext.current().get_trace_stack_size() == 1
             assert PassContext.current().get_current_trace().size == 1
-            tvm.ir.assert_structural_equal(mod, out_mod)
+            tvm_tirx.ir.assert_structural_equal(mod, out_mod)
         """
 
         with target, PassContext(opt_level=0):
@@ -115,7 +120,7 @@ def test_ms_tuning_irmodule():
             assert not tvm_ffi.structural_equal(mod, out_mod)
 
 
-def test_ms_tuning_primfunc():
+def test_ms_tuning_function():
     mod = InputModule
     assert isinstance(mod, IRModule)
     with tempfile.TemporaryDirectory() as work_dir:
@@ -129,7 +134,7 @@ def test_ms_tuning_primfunc():
             assert PassContext.current().get_trace_stack_size() == 1
             # TODO (@sunggg): Need to determine how to track subgraph-level tuning traces.
             # Currently, we don't track this so the trace size. Revisit this later.
-            tvm.ir.assert_structural_equal(mod, out_mod)
+            tvm_tirx.ir.assert_structural_equal(mod, out_mod)
         """
         with target, PassContext(opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneIRMod(
@@ -162,9 +167,9 @@ def test_ms_tuning_primfunc():
                 assert rec.workload.mod["main"].attrs["global_symbol"] == "tir_matmul"
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class DefaultScheduledModule:
-    @Ts.prim_func
+    @Ts.function
     def tir_matmul(
         A: T.Tensor((32, 32), "float32"),
         B: T.Tensor((32, 32), "float32"),
@@ -172,8 +177,8 @@ class DefaultScheduledModule:
     ):
         T.func_attr({"global_symbol": "tir_matmul", "tirx.is_scheduled": True})
         # with Ts.sblock("root"):
-        for i0_j0_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
-            for i0_j0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+        for i0_j0_fused_0 in T.parallel(1, annotations={"thread_binding": "blockIdx.x"}):
+            for i0_j0_fused_1 in T.parallel(1024, annotations={"thread_binding": "threadIdx.x"}):
                 for k0 in range(32):
                     with Ts.sblock(""):
                         i = Ts.axis.spatial(32, (i0_j0_fused_0 * 1024 + i0_j0_fused_1) // 32)
@@ -185,12 +190,12 @@ class DefaultScheduledModule:
                             C[i, j] = T.float32(0)
                         C[i, j] = C[i, j] + A[i, k] * B[j, k]
 
-    @Ts.prim_func
+    @Ts.function
     def tir_relu(A: T.Tensor((32, 32), "float32"), B: T.Tensor((32, 32), "float32")):
         T.func_attr({"global_symbol": "tir_relu", "tirx.is_scheduled": True})
         # with Ts.sblock("root"):
-        for i_j_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
-            for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+        for i_j_fused_0 in T.parallel(1, annotations={"thread_binding": "blockIdx.x"}):
+            for i_j_fused_1 in T.parallel(1024, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock(""):
                     vi = Ts.axis.spatial(32, (i_j_fused_0 * 1024 + i_j_fused_1) // 32)
                     vj = Ts.axis.spatial(32, (i_j_fused_0 * 1024 + i_j_fused_1) % 32)
@@ -206,12 +211,12 @@ class DefaultScheduledModule:
             lv0 = R.call_tir(
                 DefaultScheduledModule.tir_matmul,
                 (x, w),
-                out_ty=R.Tensor((32, 32), dtype="float32"),
+                ty_args=[R.Tensor((32, 32), dtype="float32")],
             )
             lv1 = R.call_tir(
                 DefaultScheduledModule.tir_relu,
                 (lv0,),
-                out_ty=R.Tensor((32, 32), dtype="float32"),
+                ty_args=[R.Tensor((32, 32), dtype="float32")],
             )
             R.output(lv1)
         return lv1
@@ -219,7 +224,7 @@ class DefaultScheduledModule:
 
 def test_ms_database_apply_fallback():
     mod = InputModule
-    target_cuda = tvm.target.Target("nvidia/geforce-rtx-3090-ti")
+    target_cuda = tvm_tirx.target.Target("nvidia/geforce-rtx-3090-ti")
     assert isinstance(mod, IRModule)
     with tempfile.TemporaryDirectory() as work_dir:
         """
@@ -228,7 +233,7 @@ def test_ms_database_apply_fallback():
                 work_dir=work_dir, max_trials_global=0
             )
             out_mod = tuning_pass(mod)
-            tvm.ir.assert_structural_equal(mod, out_mod)
+            tvm_tirx.ir.assert_structural_equal(mod, out_mod)
         """
         with target_cuda, PassContext(opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneTIR(
@@ -237,8 +242,8 @@ def test_ms_database_apply_fallback():
             out_mod = tuning_pass(mod)
             default_pass = tvm.s_tir.transform.DefaultGPUSchedule()
             out_mod = default_pass(mod)
-            tvm.ir.assert_structural_equal(out_mod, DefaultScheduledModule)
+            tvm_tirx.ir.assert_structural_equal(out_mod, DefaultScheduledModule)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

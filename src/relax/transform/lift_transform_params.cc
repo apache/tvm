@@ -26,6 +26,7 @@
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -44,7 +45,9 @@ namespace relax {
 using namespace tvm::prim;
 
 constexpr const char* kLiftTransformConsumeParams = "relax.lift_transform_params.consume_params";
-TVM_REGISTER_PASS_CONFIG_OPTION(kLiftTransformConsumeParams, bool);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>(kLiftTransformConsumeParams);
+}
 
 namespace {
 struct BaseCollectInfo {
@@ -95,13 +98,13 @@ struct BaseCollectInfo {
 
   Function MakeCompileTimeFunctionHelper(const ffi::Array<Var> params,
                                          const ffi::Array<Binding>& bindings,
-                                         const ffi::Array<tirx::Var>& output_symbolic_vars,
+                                         const ffi::Array<tvm::Var>& output_symbolic_vars,
                                          const ffi::Array<Var>& outputs) const {
     ffi::Array<Binding> output_var_binding;
     ffi::Array<Expr> output_exprs;
     if (output_symbolic_vars.size()) {
       output_exprs.push_back(ShapeExpr(
-          output_symbolic_vars.Map([](tirx::Var var) { return var.as_or_throw<PrimExpr>(); })));
+          output_symbolic_vars.Map([](tvm::Var var) { return var.as_or_throw<PrimExpr>(); })));
     }
 
     for (const auto& var : outputs) {
@@ -120,7 +123,7 @@ struct BaseCollectInfo {
         },
         tuple_var);
     Function func(params, body, GetType(tuple_var));
-    func = WithAttr(func, attr::kNumInput, 0);
+    func = WithAttr(func, tvm::relax::attr::kNumInput, 0);
     func = CopyWithNewVars(func);
     func = BundleModelParams(func);
     func = CanonicalizeBindings(func).as_or_throw<Function>();
@@ -137,14 +140,14 @@ struct GlobalCollectInfo : public BaseCollectInfo {
   ffi::Array<Var> params;
   // The cross-function mapping between variables.
   ffi::Map<Var, Expr> var_remap;
-  ffi::Array<tirx::Var> GetPropagatedSymbolicVariables() const {
+  ffi::Array<tvm::Var> GetPropagatedSymbolicVariables() const {
     auto vars_from_original_params = DefinableTIRVarsInType(TupleType(params.Map(GetType)));
-    auto vars_from_transformed_params = [&]() -> std::unordered_set<tirx::Var> {
+    auto vars_from_transformed_params = [&]() -> std::unordered_set<tvm::Var> {
       auto tir_vars = DefinableTIRVarsInType(TupleType(GetCompileTimeOutputs().Map(GetType)));
       return {tir_vars.begin(), tir_vars.end()};
     }();
 
-    ffi::Array<tirx::Var> output;
+    ffi::Array<tvm::Var> output;
     for (const auto& tir_var : vars_from_original_params) {
       if (required_at_runtime.count(tir_var) && !vars_from_transformed_params.count(tir_var)) {
         output.push_back(tir_var);
@@ -178,20 +181,20 @@ struct LocalCollectInfo : public BaseCollectInfo {
                            orig_func->params.begin() + num_runtime_params);
   }
 
-  ffi::Array<tirx::Var> GetPropagatedSymbolicVariables() const {
+  ffi::Array<tvm::Var> GetPropagatedSymbolicVariables() const {
     auto vars_from_any_param = DefinableTIRVarsInType(TupleType(orig_func->params.Map(GetType)));
 
-    auto vars_from_runtime_params = [&]() -> std::unordered_set<tirx::Var> {
+    auto vars_from_runtime_params = [&]() -> std::unordered_set<tvm::Var> {
       auto tir_var_vec = DefinableTIRVarsInType(TupleType(GetRuntimeInputs().Map(GetType)));
       return {tir_var_vec.begin(), tir_var_vec.end()};
     }();
 
-    auto vars_from_transformed_params = [&]() -> std::unordered_set<tirx::Var> {
+    auto vars_from_transformed_params = [&]() -> std::unordered_set<tvm::Var> {
       auto tir_var_vec = DefinableTIRVarsInType(TupleType(GetCompileTimeOutputs().Map(GetType)));
       return {tir_var_vec.begin(), tir_var_vec.end()};
     }();
 
-    ffi::Array<tirx::Var> output;
+    ffi::Array<tvm::Var> output;
     for (const auto& tir_var : vars_from_any_param) {
       if (required_at_runtime.count(tir_var) && !vars_from_runtime_params.count(tir_var) &&
           !vars_from_transformed_params.count(tir_var)) {
@@ -220,7 +223,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
     // serve as the parameter.  This trivial binding will later be
     // removed with CanonicalizeBindings.
     ffi::Array<Var> params = GetRuntimeInputs();
-    ffi::Array<tirx::Var> local_tir_vars = GetPropagatedSymbolicVariables();
+    ffi::Array<tvm::Var> local_tir_vars = GetPropagatedSymbolicVariables();
     ffi::Array<Var> local_outputs = GetCompileTimeOutputs();
     ffi::Map<Var, Var> global_to_local;
     if (global_info) {
@@ -239,8 +242,8 @@ struct LocalCollectInfo : public BaseCollectInfo {
       }
       // When global lifting is enabled, the compile-time outputs are the global outputs, but the
       // variables in the global outputs to the local variables.
-      ffi::Array<tirx::Var> global_tir_vars = global_info->GetPropagatedSymbolicVariables();
-      global_tir_vars = global_tir_vars.Map([&](const tirx::Var& var) -> tirx::Var {
+      ffi::Array<tvm::Var> global_tir_vars = global_info->GetPropagatedSymbolicVariables();
+      global_tir_vars = global_tir_vars.Map([&](const tvm::Var& var) -> tvm::Var {
         if (auto it = global_to_local.find(var); it != global_to_local.end()) {
           return (*it).second.as_or_throw<PrimVar>();
         } else {
@@ -253,7 +256,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
     }();
     if (propagated_tir_vars.size()) {
       ShapeType shape_ty(propagated_tir_vars.Map(
-          [](tirx::Var var) { return var.as_or_throw<PrimVar>().as_or_throw<PrimExpr>(); }));
+          [](tvm::Var var) { return var.as_or_throw<PrimVar>().as_or_throw<PrimExpr>(); }));
       Var shape_expr("vars_from_compile_time_params", shape_ty);
       params.push_back(shape_expr);
     }
@@ -411,7 +414,7 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
   }
   void VisitExpr_(const FunctionNode* func) override {
     size_t num_runtime_params = func->params.size();
-    if (auto opt = func->attrs.GetAttr<int64_t>(attr::kNumInput)) {
+    if (auto opt = func->attrs.GetAttr<int64_t>(tvm::relax::attr::kNumInput)) {
       num_runtime_params = opt.value();
     }
 
@@ -491,10 +494,10 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
   static ffi::Map<Var, Expr> GetParamMapping(const ffi::Array<Function>& functions) {
     ParamRemapper mapper;
     if (functions.size()) {
-      auto num_inputs_0 = functions[0]->GetAttr<int64_t>(attr::kNumInput).value();
+      auto num_inputs_0 = functions[0]->GetAttr<int64_t>(tvm::relax::attr::kNumInput).value();
       int num_params = static_cast<int>(functions[0]->params.size()) - num_inputs_0;
       for (int i = 0; i < static_cast<int>(functions.size()); i++) {
-        auto num_inputs_i = functions[i]->GetAttr<int64_t>(attr::kNumInput).value();
+        auto num_inputs_i = functions[i]->GetAttr<int64_t>(tvm::relax::attr::kNumInput).value();
         TVM_FFI_ICHECK_EQ(num_params, static_cast<int>(functions[i]->params.size()) - num_inputs_i)
             << "The number of parameters should be the same for all target functions";
 
@@ -544,15 +547,15 @@ class GlobalLiftableBindingCollector : public BaseLiftableBindingCollector {
     GlobalLiftableBindingCollector collector(var_remap);
     TVM_FFI_ICHECK(functions.size());
     for (const auto& func : functions) {
-      int num_inputs = func->GetAttr<int64_t>(attr::kNumInput).value();
+      int num_inputs = func->GetAttr<int64_t>(tvm::relax::attr::kNumInput).value();
       for (int i = num_inputs; i < static_cast<int>(func->params.size()); i++) {
         collector.liftable_vars_.insert(func->params[i]);
       }
       collector(func);
     }
-    ffi::Array<Var> params(
-        functions[0]->params.begin() + functions[0]->GetAttr<int64_t>(attr::kNumInput).value(),
-        functions[0]->params.end());
+    ffi::Array<Var> params(functions[0]->params.begin() +
+                               functions[0]->GetAttr<int64_t>(tvm::relax::attr::kNumInput).value(),
+                           functions[0]->params.end());
     // todo(@tvm-team): use c++20 designated initializers when windows CI supports it
     GlobalCollectInfo info = GlobalCollectInfo();
     info.orig_functions = functions;
@@ -647,17 +650,17 @@ class ConsumeBundledParams : public ExprMutator {
       ExprMutator::VisitBinding_(binding, tuple_get_item);
       auto new_var = VisitExpr(binding->var);
       param_remap_.insert_or_assign(tuple_get_item->index, new_var);
-      builder_->Emit(Call::Unchecked(
-          Type::Missing(), call_pure_packed,
-          {builtin_tuple_reset_item, tuple_get_item->tuple, PrimExpr(tuple_get_item->index)},
-          tvm::Attrs(), {TupleType(ffi::Array<Type>{})}));
+      builder_->Emit(
+          Call(Type::Missing(), call_pure_packed,
+               {builtin_tuple_reset_item, tuple_get_item->tuple, PrimExpr(tuple_get_item->index)},
+               std::nullopt, {TupleType(ffi::Array<Type>{})}));
     } else {
       ExprMutator::VisitBinding_(binding, tuple_get_item);
     }
   }
 
   Expr VisitExpr_(const FunctionNode* func) final {
-    auto opt_num_input = func->GetAttr<int64_t>(attr::kNumInput);
+    auto opt_num_input = func->GetAttr<int64_t>(tvm::relax::attr::kNumInput);
     TVM_FFI_ICHECK(opt_num_input.has_value());
     auto num_input = opt_num_input.value();
     TVM_FFI_ICHECK_EQ(func->params.size(), num_input + 1);
@@ -694,9 +697,9 @@ std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
                            << "only functions in the list must be relax functions.  "
                            << "However, the function " << name << " is of type "
                            << base_func.value()->GetTypeKey();
-      TVM_FFI_ICHECK(func.value()->GetAttr<int64_t>(attr::kNumInput))
+      TVM_FFI_ICHECK(func.value()->GetAttr<int64_t>(tvm::relax::attr::kNumInput))
           << "When LiftTransformParams is called with a list of function names, "
-          << "all functions in the list must have the kNumInput ('" << attr::kNumInput
+          << "all functions in the list must have the kNumInput ('" << tvm::relax::attr::kNumInput
           << "') attribute.  "
           << "However, the function " << name << " does not have the kNumInput attribute";
 
@@ -707,7 +710,7 @@ std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
     // are not already the result of `LiftTransformParams`.
     for (const auto& [gvar, func] : mod->functions) {
       if (func->IsInstance<FunctionNode>()) {
-        auto opt_num_input = func->GetAttr<int64_t>(attr::kNumInput);
+        auto opt_num_input = func->GetAttr<int64_t>(tvm::relax::attr::kNumInput);
         if (opt_num_input && !ends_with(gvar->name_hint, "transform_params")) {
           target_functions.emplace_back(gvar, func.as_or_throw<Function>());
         }
@@ -788,7 +791,7 @@ Pass PartitionTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared
 
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 1, "PartitionTransformParams", {});
+  return tvm::transform::CreateModulePass(pass_func, 1, "PartitionTransformParams");
 }
 
 Pass LiftTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared_transform) {
@@ -829,7 +832,7 @@ Pass LiftTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared_tran
     return mod;
   };
   auto post_proc =
-      tvm::transform::CreateModulePass(post_proc_func, 1, "LiftTransformParamsPostProc", {});
+      tvm::transform::CreateModulePass(post_proc_func, 1, "LiftTransformParamsPostProc");
 
   return tvm::transform::Sequential(
       {

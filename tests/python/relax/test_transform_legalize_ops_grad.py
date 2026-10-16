@@ -16,18 +16,18 @@
 # under the License.
 # ruff: noqa: E501, F841
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.relax import script as R
 from tvm.relax.transform import LegalizeOps
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_nll_loss_backward():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class NLLLossBackward:
         @R.function
         def main(output_grad: R.Tensor((), "float32"), predictions: R.Tensor((2, 3, 4, 5), "float32"), targets: R.Tensor((2, 4, 5), "int64"), weights: R.Tensor((4,), "float32")) -> R.Tensor((2, 3, 4, 5), "float32"):
@@ -36,14 +36,14 @@ def test_nll_loss_backward():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def nll_loss_backward(rxplaceholder: T.Tensor((), "float32"), rxplaceholder_1: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_2: T.Tensor((T.int64(2), T.int64(4), T.int64(5)), "int64"), rxplaceholder_3: T.Tensor((T.int64(4),), "float32"), pred_grad: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            all_weights = Ts.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
-            T_broadcast_to = Ts.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
-            all_weights_red = Ts.sblock_alloc_buffer(())
-            T_divide = Ts.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
+            all_weights = Ts.sblock_alloc_tensor((T.int64(2), T.int64(4), T.int64(5)))
+            T_broadcast_to = Ts.sblock_alloc_tensor((T.int64(2), T.int64(4), T.int64(5)))
+            all_weights_red = Ts.sblock_alloc_tensor(())
+            T_divide = Ts.sblock_alloc_tensor((T.int64(2), T.int64(4), T.int64(5)))
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
                 with Ts.sblock("all_weights"):
                     v_i0, v_i1, v_i2 = Ts.axis.remap("SSS", [i0, i1, i2])
@@ -80,12 +80,12 @@ def test_nll_loss_backward():
         @R.function
         def main(output_grad: R.Tensor((), dtype="float32"), predictions: R.Tensor((2, 3, 4, 5), dtype="float32"), targets: R.Tensor((2, 4, 5), dtype="int64"), weights: R.Tensor((4,), dtype="float32")) -> R.Tensor((2, 3, 4, 5), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.nll_loss_backward, (output_grad, predictions, targets, weights), out_ty=R.Tensor((2, 3, 4, 5), dtype="float32"))
+            gv = R.call_tir(cls.nll_loss_backward, (output_grad, predictions, targets, weights), ty_args=[R.Tensor((2, 3, 4, 5), dtype="float32")])
             return gv
     # fmt: on
 
     mod = LegalizeOps()(NLLLossBackward)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_nll_loss_backward_no_weight():
@@ -99,15 +99,15 @@ def test_nll_loss_backward_no_weight():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def te_nll_loss_backward_no_weight(rxplaceholder: T.Tensor((), "float32"), rxplaceholder_1: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_2: T.Tensor((T.int64(2), T.int64(4), T.int64(5)), "int64"), pred_grad: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            T_full = Ts.sblock_alloc_buffer((T.int64(3),))
-            all_weights = Ts.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
-            T_broadcast_to = Ts.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
-            all_weights_red = Ts.sblock_alloc_buffer(())
-            T_divide = Ts.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
+            T_full = Ts.sblock_alloc_tensor((T.int64(3),))
+            all_weights = Ts.sblock_alloc_tensor((T.int64(2), T.int64(4), T.int64(5)))
+            T_broadcast_to = Ts.sblock_alloc_tensor((T.int64(2), T.int64(4), T.int64(5)))
+            all_weights_red = Ts.sblock_alloc_tensor(())
+            T_divide = Ts.sblock_alloc_tensor((T.int64(2), T.int64(4), T.int64(5)))
             for ax0 in range(T.int64(3)):
                 with Ts.sblock("T_full"):
                     v_ax0 = Ts.axis.spatial(T.int64(3), ax0)
@@ -150,17 +150,17 @@ def test_nll_loss_backward_no_weight():
         @R.function
         def main(output_grad: R.Tensor((), dtype="float32"), predictions: R.Tensor((2, 3, 4, 5), dtype="float32"), targets: R.Tensor((2, 4, 5), dtype="int64")) -> R.Tensor((2, 3, 4, 5), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.te_nll_loss_backward_no_weight, (output_grad, predictions, targets), out_ty=R.Tensor((2, 3, 4, 5), dtype="float32"))
+            gv = R.call_tir(cls.te_nll_loss_backward_no_weight, (output_grad, predictions, targets), ty_args=[R.Tensor((2, 3, 4, 5), dtype="float32")])
             return gv
     # fmt: on
 
     mod = LegalizeOps()(NLLLossBackward)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_nll_loss_backward_no_batch():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class NLLLossBackward:
         @R.function
         def main(output_grad: R.Tensor((), "float32"), predictions: R.Tensor((4,), "float32"), targets: R.Tensor((), "int64"), weights: R.Tensor((4,), "float32")) -> R.Tensor((4,), "float32"):
@@ -172,16 +172,16 @@ def test_nll_loss_backward_no_batch():
         @R.function
         def main(output_grad: R.Tensor((), dtype="float32"), predictions: R.Tensor((4,), dtype="float32"), targets: R.Tensor((), dtype="int64"), weights: R.Tensor((4,), dtype="float32")) -> R.Tensor((4,), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.nll_loss_backward, (output_grad, predictions, targets, weights), out_ty=R.Tensor((4,), dtype="float32"))
+            gv = R.call_tir(cls.nll_loss_backward, (output_grad, predictions, targets, weights), ty_args=[R.Tensor((4,), dtype="float32")])
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def nll_loss_backward(rxplaceholder: T.Tensor((), "float32"), rxplaceholder_1: T.Tensor((T.int64(4),), "float32"), rxplaceholder_2: T.Tensor((), "int64"), rxplaceholder_3: T.Tensor((T.int64(4),), "float32"), pred_grad: T.Tensor((T.int64(4),), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            all_weights = Ts.sblock_alloc_buffer(())
-            T_broadcast_to = Ts.sblock_alloc_buffer(())
-            T_divide = Ts.sblock_alloc_buffer(())
+            all_weights = Ts.sblock_alloc_tensor(())
+            T_broadcast_to = Ts.sblock_alloc_tensor(())
+            T_divide = Ts.sblock_alloc_tensor(())
             with Ts.sblock("all_weights"):
                 vi = Ts.axis.spatial(T.int64(1), T.int64(0))
                 Ts.reads(rxplaceholder_3[rxplaceholder_2[()]], rxplaceholder_2[()])
@@ -206,12 +206,12 @@ def test_nll_loss_backward_no_batch():
     # fmt: on
 
     mod = LegalizeOps()(NLLLossBackward)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_max_pool2d_backward():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class MaxPool2DBackward:
         @R.function
         def main(output_grad: R.Tensor((3, 2, 6, 5), "float32"), data: R.Tensor((3, 2, 10, 10), "float32")):
@@ -220,13 +220,13 @@ def test_max_pool2d_backward():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def max_pool2d_backward(A: T.Tensor((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "float32"), B: T.Tensor((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32"), T_pool_grad: T.Tensor((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
-            pad_temp = Ts.sblock_alloc_buffer((T.int64(3), T.int64(2), T.int64(15), T.int64(13)))
-            maxpool_grad_argmax_v0 = Ts.sblock_alloc_buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "int64")
-            maxpool_grad_argmax_v1 = Ts.sblock_alloc_buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)))
+            pad_temp = Ts.sblock_alloc_tensor((T.int64(3), T.int64(2), T.int64(15), T.int64(13)))
+            maxpool_grad_argmax_v0 = Ts.sblock_alloc_tensor((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "int64")
+            maxpool_grad_argmax_v1 = Ts.sblock_alloc_tensor((T.int64(3), T.int64(2), T.int64(6), T.int64(5)))
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(3), T.int64(2), T.int64(15), T.int64(13)):
                 with Ts.sblock("pad_temp"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -241,7 +241,7 @@ def test_max_pool2d_backward():
                     with Ts.init():
                         maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] = T.int64(-1)
                         maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] = T.float32(-3.4028234663852886e+38)
-                    v_maxpool_grad_argmax_v0: T.let[T.int64] = T.Select(maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] > pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw] or (maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] == pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw] and maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] < v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(26) + v_dh * T.int64(13) + v_ax3 * T.int64(2) + v_dw), maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3], v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(26) + T.Cast("int64", v_dh) * T.int64(13) + v_ax3 * T.int64(2) + T.Cast("int64", v_dw))
+                    v_maxpool_grad_argmax_v0: T.let[T.int64] = T.Select(maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] > pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw] or (maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] == pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw] and maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] < v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(26) + v_dh * T.int64(13) + v_ax3 * T.int64(2) + v_dw), maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3], v_ax0 * T.int64(390) + v_ax1 * T.int64(195) + v_ax2 * T.int64(26) + T.Cast(v_dh, "int64") * T.int64(13) + v_ax3 * T.int64(2) + T.Cast(v_dw, "int64"))
                     v_maxpool_grad_argmax_v1: T.let[T.float32] = T.Select(maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] > pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw], maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3], pad_temp[v_ax0, v_ax1, v_ax2 * T.int64(2) + v_dh, v_ax3 * T.int64(2) + v_dw])
                     maxpool_grad_argmax_v0[v_ax0, v_ax1, v_ax2, v_ax3] = v_maxpool_grad_argmax_v0
                     maxpool_grad_argmax_v1[v_ax0, v_ax1, v_ax2, v_ax3] = v_maxpool_grad_argmax_v1
@@ -257,17 +257,17 @@ def test_max_pool2d_backward():
         @R.function
         def main(output_grad: R.Tensor((3, 2, 6, 5), dtype="float32"), data: R.Tensor((3, 2, 10, 10), dtype="float32")) -> R.Tensor((3, 2, 10, 10), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.max_pool2d_backward, (output_grad, data), out_ty=R.Tensor((3, 2, 10, 10), dtype="float32"))
+            gv = R.call_tir(cls.max_pool2d_backward, (output_grad, data), ty_args=[R.Tensor((3, 2, 10, 10), dtype="float32")])
             return gv
     # fmt: on
 
     mod = LegalizeOps()(MaxPool2DBackward)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_avg_pool2d_backward():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class AvgPool2DBackward:
         @R.function
         def main(output_grad: R.Tensor((3, 2, 6, 5), "float32"), data: R.Tensor((3, 2, 10, 10), "float32")):
@@ -276,7 +276,7 @@ def test_avg_pool2d_backward():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def avg_pool2d_backward(output_grad: T.Tensor((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "float32"), data: T.Tensor((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32"), T_pool_grad: T.Tensor((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -287,22 +287,22 @@ def test_avg_pool2d_backward():
                     Ts.writes(T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3])
                     with Ts.init():
                         T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] = T.float32(0)
-                    T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] = T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] + T.if_then_else(T.Select(v_ax2 < T.int64(3), T.int64(0), T.Div(v_ax2 - T.int64(3), T.int64(2)) + T.int64(1)) <= T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh and T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh < T.int64(6) and T.Select(v_ax3 < T.int64(4), T.int64(0), T.Div(v_ax3 - T.int64(4), T.int64(2)) + T.int64(1)) <= T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww and T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww < T.int64(5), output_grad[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww] / T.Cast("float32", T.max((T.min(T.Div(v_ax2 + T.int64(2), T.int64(2)) * T.int64(2) + T.int64(3) - T.Cast("int64", v_wh) * T.int64(2), T.int64(10)) - T.max(T.Div(v_ax2 + T.int64(2), T.int64(2)) - T.Cast("int64", v_wh) - T.int64(1), T.int64(0)) * T.int64(2)) * (T.min(T.Div(v_ax3 + T.int64(1), T.int64(2)) * T.int64(2) + T.int64(4) - T.Cast("int64", v_ww) * T.int64(2), T.int64(10)) - T.max(T.Div(v_ax3 + T.int64(1), T.int64(2)) * T.int64(2) - T.Cast("int64", v_ww) * T.int64(2) - T.int64(1), T.int64(0))), T.int64(1))), T.float32(0.0))
+                    T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] = T_pool_grad[v_ax0, v_ax1, v_ax2, v_ax3] + T.if_then_else(T.Select(v_ax2 < T.int64(3), T.int64(0), T.Div(v_ax2 - T.int64(3), T.int64(2)) + T.int64(1)) <= T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh and T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh < T.int64(6) and T.Select(v_ax3 < T.int64(4), T.int64(0), T.Div(v_ax3 - T.int64(4), T.int64(2)) + T.int64(1)) <= T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww and T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww < T.int64(5), output_grad[v_ax0, v_ax1, T.Div(v_ax2 + T.int64(2), T.int64(2)) - v_wh, T.Div(v_ax3 + T.int64(1), T.int64(2)) - v_ww] / T.Cast(T.max((T.min(T.Div(v_ax2 + T.int64(2), T.int64(2)) * T.int64(2) + T.int64(3) - T.Cast(v_wh, "int64") * T.int64(2), T.int64(10)) - T.max(T.Div(v_ax2 + T.int64(2), T.int64(2)) - T.Cast(v_wh, "int64") - T.int64(1), T.int64(0)) * T.int64(2)) * (T.min(T.Div(v_ax3 + T.int64(1), T.int64(2)) * T.int64(2) + T.int64(4) - T.Cast(v_ww, "int64") * T.int64(2), T.int64(10)) - T.max(T.Div(v_ax3 + T.int64(1), T.int64(2)) * T.int64(2) - T.Cast(v_ww, "int64") * T.int64(2) - T.int64(1), T.int64(0))), T.int64(1)), "float32"), T.float32(0.0))
 
         @R.function
         def main(output_grad: R.Tensor((3, 2, 6, 5), dtype="float32"), data: R.Tensor((3, 2, 10, 10), dtype="float32")) -> R.Tensor((3, 2, 10, 10), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.avg_pool2d_backward, (output_grad, data), out_ty=R.Tensor((3, 2, 10, 10), dtype="float32"))
+            gv = R.call_tir(cls.avg_pool2d_backward, (output_grad, data), ty_args=[R.Tensor((3, 2, 10, 10), dtype="float32")])
             return gv
     # fmt: on
 
     mod = LegalizeOps()(AvgPool2DBackward)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_take_backward():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TakeBackward:
         @R.function
         def main(output_grad: R.Tensor((3, 2, 5), "float32"), x: R.Tensor((3, 4, 5), "float32"), indices: R.Tensor((2,), "int32")):
@@ -311,71 +311,69 @@ def test_take_backward():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def take_backward(rxplaceholder: T.Tensor((T.int64(3), T.int64(2), T.int64(5)), offset_factor=1), rxplaceholder_1: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), offset_factor=1), rxplaceholder_2: T.Tensor((T.int64(2),), 'int32', offset_factor=1), out_buf: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32")):
+        @Ts.function(private=True)
+        def take_backward(rxplaceholder: T.Tensor((T.int64(3), T.int64(2), T.int64(5)), "float32", offset_factor=1, elem_offset=T.int64()), rxplaceholder_1: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32", offset_factor=1, elem_offset=T.int64()), rxplaceholder_2: T.Tensor((T.int64(2),), 'int32', offset_factor=1, elem_offset=T.int64()), out_buf: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("take_backward"):
-                T.attr(0, "pragma_scope", "seq")
                 for i_index in range(T.int64(60)):
                     out_buf[i_index // T.int64(5) // T.int64(4), i_index // T.int64(5) % T.int64(4), i_index % T.int64(5)] = T.float32(0)
                 for parallel, serial in T.grid(T.int64(15), T.int64(2)):
-                    out_buf[(parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) // T.int64(5) // T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) // T.int64(5) % T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) % T.int64(5)] = out_buf[(parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) // T.int64(5) // T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) // T.int64(5) % T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast("int64", rxplaceholder_2[serial]) * T.int64(5) + parallel % T.int64(5)) % T.int64(5)] + rxplaceholder[(parallel // T.int64(5) * T.int64(5) * T.int64(2) + serial * T.int64(5) + parallel % T.int64(5)) // T.int64(5) // T.int64(2), (parallel // T.int64(5) * T.int64(5) * T.int64(2) + serial * T.int64(5) + parallel % T.int64(5)) // T.int64(5) % T.int64(2), (parallel // T.int64(5) * T.int64(5) * T.int64(2) + serial * T.int64(5) + parallel % T.int64(5)) % T.int64(5)]
+                    out_buf[(parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast(rxplaceholder_2[serial], "int64") * T.int64(5) + parallel % T.int64(5)) // T.int64(5) // T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast(rxplaceholder_2[serial], "int64") * T.int64(5) + parallel % T.int64(5)) // T.int64(5) % T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast(rxplaceholder_2[serial], "int64") * T.int64(5) + parallel % T.int64(5)) % T.int64(5)] = out_buf[(parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast(rxplaceholder_2[serial], "int64") * T.int64(5) + parallel % T.int64(5)) // T.int64(5) // T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast(rxplaceholder_2[serial], "int64") * T.int64(5) + parallel % T.int64(5)) // T.int64(5) % T.int64(4), (parallel // T.int64(5) * T.int64(5) * T.int64(4) + T.Cast(rxplaceholder_2[serial], "int64") * T.int64(5) + parallel % T.int64(5)) % T.int64(5)] + rxplaceholder[(parallel // T.int64(5) * T.int64(5) * T.int64(2) + serial * T.int64(5) + parallel % T.int64(5)) // T.int64(5) // T.int64(2), (parallel // T.int64(5) * T.int64(5) * T.int64(2) + serial * T.int64(5) + parallel % T.int64(5)) // T.int64(5) % T.int64(2), (parallel // T.int64(5) * T.int64(5) * T.int64(2) + serial * T.int64(5) + parallel % T.int64(5)) % T.int64(5)]
 
         @R.function
         def main(output_grad: R.Tensor((3, 2, 5), dtype="float32"), x: R.Tensor((3, 4, 5), dtype="float32"), indices: R.Tensor((2,), dtype="int32")) -> R.Tensor((3, 4, 5), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.take_backward, (output_grad, x, indices), out_ty=R.Tensor((3, 4, 5), dtype="float32"))
+            gv = R.call_tir(cls.take_backward, (output_grad, x, indices), ty_args=[R.Tensor((3, 4, 5), dtype="float32")])
             return gv
     # fmt: on
 
     mod = LegalizeOps()(TakeBackward)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_take_backward_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    i = T.dynamic("i")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    i = T.dynamic("i", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TakeBackward:
         @R.function
         def main(output_grad: R.Tensor((m, i), "float32"), x: R.Tensor((m, n), "float32"), indices: R.Tensor((i,), "int32")):
             gv = R.grad.take_backward(output_grad, x, indices, axis=1)
             return gv
 
-    m_take_backward = T.dynamic("m")
-    i_take_backward = T.dynamic("i")
-    n_take_backward = T.dynamic("n")
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    i_main = T.dynamic("i")
+    m_take_backward = T.dynamic("m", "int64")
+    i_take_backward = T.dynamic("i", "int64")
+    n_take_backward = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    i_main = T.dynamic("i", "int64")
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def take_backward(rxplaceholder: T.Tensor((m_take_backward, i_take_backward), offset_factor=1), rxplaceholder_1: T.Tensor((m_take_backward, n_take_backward), offset_factor=1), rxplaceholder_2: T.Tensor((i_take_backward,), 'int32', offset_factor=1), out_buf: T.Tensor((m_take_backward, n_take_backward))):
+        @Ts.function(private=True)
+        def take_backward(rxplaceholder: T.Tensor((m_take_backward, i_take_backward), "float32", offset_factor=1, elem_offset=T.int64()), rxplaceholder_1: T.Tensor((m_take_backward, n_take_backward), "float32", offset_factor=1, elem_offset=T.int64()), rxplaceholder_2: T.Tensor((i_take_backward,), 'int32', offset_factor=1, elem_offset=T.int64()), out_buf: T.Tensor((m_take_backward, n_take_backward), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("take_backward"):
-                T.attr(0, "pragma_scope", "seq")
                 for i_1 in range(m_take_backward * n_take_backward):
                     out_buf[i_1 // n_take_backward, i_1 % n_take_backward] = T.float32(0)
                 for parallel, serial in T.grid(m_take_backward, i_take_backward):
-                    out_buf[(parallel * n_take_backward + T.Cast("int64", rxplaceholder_2[serial])) // n_take_backward, (parallel * n_take_backward + T.Cast("int64", rxplaceholder_2[serial])) % n_take_backward] = out_buf[(parallel * n_take_backward + T.Cast("int64", rxplaceholder_2[serial])) // n_take_backward, (parallel * n_take_backward + T.Cast("int64", rxplaceholder_2[serial])) % n_take_backward] + rxplaceholder[(parallel * i_take_backward + serial) // i_take_backward, (parallel * i_take_backward + serial) % i_take_backward]
+                    out_buf[(parallel * n_take_backward + T.Cast(rxplaceholder_2[serial], "int64")) // n_take_backward, (parallel * n_take_backward + T.Cast(rxplaceholder_2[serial], "int64")) % n_take_backward] = out_buf[(parallel * n_take_backward + T.Cast(rxplaceholder_2[serial], "int64")) // n_take_backward, (parallel * n_take_backward + T.Cast(rxplaceholder_2[serial], "int64")) % n_take_backward] + rxplaceholder[(parallel * i_take_backward + serial) // i_take_backward, (parallel * i_take_backward + serial) % i_take_backward]
 
         @R.function
         def main(output_grad: R.Tensor((m_main, i_main), dtype="float32"), x: R.Tensor((m_main, n_main), dtype="float32"), indices: R.Tensor((i_main,), dtype="int32")) -> R.Tensor((m_main, n_main), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.take_backward, (output_grad, x, indices), out_ty=R.Tensor((m_main, n_main), dtype="float32"))
+            gv = R.call_tir(cls.take_backward, (output_grad, x, indices), ty_args=[R.Tensor((m_main, n_main), dtype="float32")])
             return gv
     # fmt: on
 
     mod = LegalizeOps()(TakeBackward)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

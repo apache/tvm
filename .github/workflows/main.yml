@@ -50,17 +50,22 @@ jobs:
       - name: Detect environment variables
         uses: ./.github/actions/detect-env-vars
         id: env_vars
-      - name: Build TVM wheel
+      - name: Build TIRx and TVM wheels
         shell: bash -l {0}
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         run: |
-          pip install scikit-build-core
-          export CMAKE_ARGS="-DUSE_LLVM=ON -DBUILD_TESTING=OFF"
-          pip wheel --no-deps -w dist . -v
-      - name: Install TVM from wheel
+          set -euxo pipefail
+          pip install "scikit-build-core>=0.11" "setuptools-scm>=8"
+          export CMAKE_ARGS="-DTVM_TIRX_USE_LLVM=ON -DTVM_TIRX_USE_METAL=ON -DTVM_TIRX_BUILD_TESTS=OFF"
+          pip wheel --no-deps -w dist ./tirx -v
+          pip install --no-deps --force-reinstall dist/apache_tvm_tirx-*.whl
+          export CMAKE_ARGS="-DBUILD_TESTING=OFF"
+          pip wheel --no-deps --no-build-isolation -w dist . -v
+      - name: Install TIRx and TVM from wheels
         shell: bash -l {0}
         run: |
+          set -euxo pipefail
           export TVM_FFI_VERSION="$(python -c 'from importlib.metadata import version; print(version("apache-tvm-ffi"))')"
           pip install ml_dtypes
           # --no-deps: this package requires apache-tvm-ffi>=0.1.14.post1, and the source-built core
@@ -74,25 +79,30 @@ jobs:
           from importlib.metadata import requires, version
 
           assert version("apache-tvm-ffi") == os.environ["TVM_FFI_VERSION"]
-          assert "apache-tvm-ffi>=0.1.14.post1" in requires("apache-tvm")
-          assert "apache-tvm-ffi-orcjit==0.1.2" in requires("apache-tvm")
+          assert version("apache-tvm-tirx") == "0.1.0a0"
+          assert "apache-tvm-tirx==0.1.0a0" in requires("apache-tvm")
+          assert "apache-tvm-ffi>=0.1.15rc0" in requires("apache-tvm-tirx")
+          assert "apache-tvm-ffi-orcjit==0.1.2" in requires("apache-tvm-tirx")
           PY
 
       - name: Test
         shell: bash -l {0}
         run: >-
           python -m pytest -v tests/python/all-platform-minimal-test tests/python/script
+          tirx/tests/python/all-platform-minimal-test tirx/tests/python/script
       - name: Minimal Metal Compile-Only
         shell: bash -l {0}
         run: |
-          python -m pytest -v -s 'tests/python/codegen/test_gpu_codegen_allreduce.py::test_allreduce_sum_compile'
-          python -m pytest -v -s 'tests/python/codegen/test_target_codegen_metal.py::test_func_with_trailing_pod_params'
+          set -euxo pipefail
+          python -m pytest -v -s 'tirx/tests/python/codegen/gpu_common/test_allreduce.py::test_allreduce_sum_compile'
+          python -m pytest -v -s 'tirx/tests/python/backend/metal/codegen/test_basic.py::test_func_with_trailing_pod_params'
       - name: Minimal Metal Compile-and-Run
         shell: bash -l {0}
         run: |
-          python -m pytest -v -s 'tests/python/codegen/test_target_codegen_metal.py'
-          python -m pytest -v -s 'tests/python/codegen/test_target_codegen_gpu_common.py'
-          python -m pytest -v -s 'tests/python/codegen/test_gpu_codegen_allreduce.py::test_allreduce_sum[dims0-metal]'
+          set -euxo pipefail
+          python -m pytest -v -s tirx/tests/python/backend/metal
+          python -m pytest -v -s 'tirx/tests/python/codegen/gpu_common/test_intrinsics.py'
+          python -m pytest -v -s 'tirx/tests/python/codegen/gpu_common/test_allreduce.py::test_allreduce_sum[dims0-metal]'
 
   Windows:
     if: ${{ github.repository == 'apache/tvm' }}
@@ -106,18 +116,26 @@ jobs:
       - name: Detect environment variables
         uses: ./.github/actions/detect-env-vars
         id: env_vars
-      - name: Install TVM
+      - name: Build and install TIRx and TVM
         shell: cmd /C call {0}
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         run: |
-          pip install scikit-build-core
-          set CMAKE_ARGS=-DUSE_LLVM=ON -DBUILD_TESTING=OFF
-          pip install --no-deps . -v
+          pip install "scikit-build-core>=0.11" "setuptools-scm>=8" || exit /b 1
+          set CMAKE_ARGS=-DTVM_TIRX_USE_LLVM=ON -DTVM_TIRX_BUILD_TESTS=OFF
+          pip wheel --no-deps -w dist ./tirx -v || exit /b 1
+          for %%w in (dist\apache_tvm_tirx-*.whl) do (
+            pip install --no-deps --force-reinstall "%%w" || exit /b 1
+          )
+          set CMAKE_ARGS=-DBUILD_TESTING=OFF
+          pip wheel --no-deps --no-build-isolation -w dist . -v || exit /b 1
+          for %%w in (dist\*.whl) do (
+            pip install --no-deps "%%w" || exit /b 1
+          )
       - name: Install test dependencies
         shell: cmd /C call {0}
         run: |
-          pip install psutil cloudpickle ml_dtypes numpy packaging scipy tornado typing_extensions
+          pip install psutil cloudpickle ml_dtypes numpy packaging scipy tornado typing_extensions || exit /b 1
           rem --no-deps keeps the source-built apache-tvm-ffi (versioned below 0.1.14.post1 from the
           rem shallow checkout) from being replaced by a PyPI build.
           pip install --no-deps apache-tvm-ffi-orcjit==0.1.2
@@ -125,3 +143,4 @@ jobs:
         shell: cmd /C call {0}
         run: >-
           python -m pytest -v tests/python/all-platform-minimal-test tests/python/script
+          tirx/tests/python/all-platform-minimal-test tirx/tests/python/script

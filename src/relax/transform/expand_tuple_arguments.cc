@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 
@@ -167,7 +168,7 @@ Pass ExpandTupleArguments() {
     }
     return mod;
   };
-  auto inner_pass = CreateModulePass(pass_func, 0, "ExpandTupleArgumentsInner", {});
+  auto inner_pass = CreateModulePass(pass_func, 0, "ExpandTupleArgumentsInner");
 
   return tvm::transform::Sequential(
       {

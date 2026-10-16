@@ -19,12 +19,14 @@
 """Default legalization function for manipulate operators."""
 
 import tvm
-from tvm import DataTypeCode, relax, te, tirx, topi
-from tvm.ir import Call
+import tvm_tirx
+from tvm import relax, te, topi
 from tvm.relax.op.base import call_tir
 from tvm.relax.type import TensorType
 from tvm.relax.utils import gen_call_tir_inputs
-from tvm.tirx.expr import IntImm
+from tvm_tirx import DataTypeCode, tirx
+from tvm_tirx.ir import Call
+from tvm_tirx.tirx.expr import IntImm
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr, ShapeExpr, Tuple, TupleGetItem, Var
@@ -32,7 +34,7 @@ from .common import LegalizeFunc, TEFunc, register_legalize
 
 
 def _reshape(
-    te_func: TEFunc, primfunc_name: str, is_collapse_sum_like: bool = False
+    te_func: TEFunc, function_name: str, is_collapse_sum_like: bool = False
 ) -> LegalizeFunc:
     def reshape_call_te(bb: BlockBuilder, call: Call):
         tgt_shape = call.args[1].ty.shape if is_collapse_sum_like else call.args[1]
@@ -40,7 +42,7 @@ def _reshape(
         if isinstance(tgt_shape, Var):
             tgt_shape = bb.lookup_binding(tgt_shape)
             assert isinstance(tgt_shape, ShapeExpr)
-        return bb.call_te(te_func, call.args[0], tgt_shape, primfunc_name_hint=primfunc_name)
+        return bb.call_te(te_func, call.args[0], tgt_shape, function_name_hint=function_name)
 
     return reshape_call_te
 
@@ -78,7 +80,7 @@ def _concat(bb: BlockBuilder, call: Call) -> Expr:
 def _expand_dims(bb: BlockBuilder, call: Call) -> Expr:
     def te_expand_dims(data, axis):
         data_relax = relax.Var("data", relax.TensorType(data.shape))
-        output_ty = tvm.ir.reinfer_type(relax.op.expand_dims(data_relax, axis))
+        output_ty = tvm_tirx.ir.reinfer_type(relax.op.expand_dims(data_relax, axis))
         output_shape = output_ty.shape
         output_ndim = len(output_shape)
 
@@ -93,7 +95,7 @@ def _expand_dims(bb: BlockBuilder, call: Call) -> Expr:
         )
 
     return bb.call_te(
-        te_expand_dims, call.args[0], call.attrs.axis, primfunc_name_hint="expand_dims"
+        te_expand_dims, call.args[0], call.attrs.axis, function_name_hint="expand_dims"
     )
 
 
@@ -157,7 +159,7 @@ def _repeat(bb: BlockBuilder, call: Call) -> Expr:
         return topi.repeat(data, int(repeats), int(axis))
 
     return bb.call_te(
-        te_repeat, call.args[0], call.attrs.repeats, call.attrs.axis, primfunc_name_hint="repeat"
+        te_repeat, call.args[0], call.attrs.repeats, call.attrs.axis, function_name_hint="repeat"
     )
 
 
@@ -179,7 +181,7 @@ def _reverse_sequence(bb: BlockBuilder, call: Call) -> Expr:
         call.args[1],
         int(call.attrs.seq_axis),
         int(call.attrs.batch_axis),
-        primfunc_name_hint="reverse_sequence",
+        function_name_hint="reverse_sequence",
     )
 
 
@@ -249,7 +251,7 @@ def _meshgrid(bb: BlockBuilder, call: Call) -> Expr:
 
 
 def _is_gpu_target():
-    target = tvm.target.Target.current(allow_none=True)
+    target = tvm_tirx.target.Target.current(allow_none=True)
     return target is not None and "gpu" in target.keys
 
 
@@ -301,7 +303,7 @@ def _slice_scatter(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.one_hot")
 def _one_hot(bb: BlockBuilder, call: Call) -> Expr:
     indices, on_value, off_value = call.args
-    if not (tvm.ir.is_prim_expr(on_value) and tvm.ir.is_prim_expr(off_value)):
+    if not (tvm_tirx.ir.is_prim_expr(on_value) and tvm_tirx.ir.is_prim_expr(off_value)):
         raise ValueError("on_value and off_value must be Expr")
     if on_value.ty != off_value.ty:
         raise ValueError("on_value and off_value must have the same dtype")
@@ -329,7 +331,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
             name=name,
         )
 
-    index_map: tvm.tirx.IndexMap = call.attrs.index_map
+    index_map: tvm_tirx.tirx.IndexMap = call.attrs.index_map
     pad_value = call.attrs.pad_value
     if pad_value is not None:
         pad_value = pad_value.value
@@ -339,16 +341,16 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
         else:
             pad_value = 0.0
 
-    primfunc_name = "te_layout_transform"
+    function_name = "te_layout_transform"
     _, padding_predicate = index_map.non_surjective_inverse(call.args[0].ty.shape)
-    if not isinstance(padding_predicate, tvm.tirx.expr.IntImm):
-        primfunc_name += "_with_pad"
-    tir_func, call_args, _ = gen_call_tir_inputs(te_layout_transform, call.args[0], primfunc_name)
+    if not isinstance(padding_predicate, tvm_tirx.tirx.expr.IntImm):
+        function_name += "_with_pad"
+    tir_func, call_args, _ = gen_call_tir_inputs(te_layout_transform, call.args[0], function_name)
     # Create a TIR schedule to apply the layout change.
     sch = tvm.s_tir.Schedule(tir_func)
-    sch.transform_layout(primfunc_name, ("write", 0), index_map, pad_value)
-    gvar = bb.add_func(sch.mod["main"], primfunc_name)
+    sch.transform_layout(function_name, ("write", 0), index_map, pad_value)
+    gvar = bb.add_func(sch.mod["main"], function_name)
     output_shape = index_map.map_shape(list(call_args[0].ty.shape))
     output_dtype = call_args[0].ty.dtype
-    output_ty = [TensorType(output_shape, output_dtype)]
-    return call_tir(gvar, call_args, output_ty)
+    output_ty = TensorType(output_shape, output_dtype)
+    return call_tir(gvar, call_args, ty_args=[output_ty])

@@ -26,10 +26,11 @@
 
 #include <builtin_fp16.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/expr_functor.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/tirx/expr_functor.h>
 
 #include <algorithm>
 #include <string>
@@ -243,15 +244,16 @@ class SymbolicVarRenewMutator : public ExprMutator {
   using relax::ExprMutator::VisitExpr_;
 
   static Var CopyVar(const VarNode* op, Type ty) {
-    ffi::Optional<Type> ty_annotation = ty.IsMissing() ? std::nullopt : ffi::Optional<Type>(ty);
+    ffi::Optional<Type> ty_annotation =
+        ty.as<MissingType>().has_value() ? std::nullopt : ffi::Optional<Type>(ty);
     if (op->IsInstance<DataflowVarNode>()) {
-      return DataflowVar(op->name, std::move(ty_annotation), op->span);
+      return DataflowVar(op->name, std::move(ty_annotation), op->loc);
     }
-    return Var(op->name, std::move(ty_annotation), op->span);
+    return Var(op->name, std::move(ty_annotation), op->loc);
   }
 
   Type RenewType(const VarNode* op) {
-    return op->ty.IsMissing() ? op->ty : this->VisitExprDepTypeField(op->ty);
+    return op->ty.as<MissingType>().has_value() ? op->ty : this->VisitExprDepTypeField(op->ty);
   }
 
   Var RenewVarDefinition(const VarNode* op) {
@@ -357,40 +359,40 @@ class FunctionCopier : public SymbolicVarRenewMutator {
  */
 template <typename T>
 inline GenericConst MakeConstantScalar(T value, DLDataType dtype) {
-  runtime::Tensor arr = runtime::Tensor::Empty({}, dtype, {kDLCPU, 0});
+  ffi::Tensor arr = runtime::Empty({}, dtype, {kDLCPU, 0});
   if (dtype == DLDataType{kDLFloat, 32, 1}) {
-    *static_cast<float*>(arr->data) = static_cast<float>(value);
+    *static_cast<float*>(arr.data_ptr()) = static_cast<float>(value);
   } else if (dtype == DLDataType{kDLFloat, 64, 1}) {
-    *static_cast<double*>(arr->data) = static_cast<double>(value);
+    *static_cast<double*>(arr.data_ptr()) = static_cast<double>(value);
   } else if (dtype == DLDataType{kDLInt, 32, 1}) {
-    *static_cast<int32_t*>(arr->data) = static_cast<int32_t>(value);
+    *static_cast<int32_t*>(arr.data_ptr()) = static_cast<int32_t>(value);
   } else if (dtype == DLDataType{kDLInt, 64, 1}) {
-    *static_cast<int64_t*>(arr->data) = static_cast<int64_t>(value);
+    *static_cast<int64_t*>(arr.data_ptr()) = static_cast<int64_t>(value);
   } else if (dtype == DLDataType{kDLBool, 8, 1}) {
-    *static_cast<bool*>(arr->data) = static_cast<bool>(value);
+    *static_cast<bool*>(arr.data_ptr()) = static_cast<bool>(value);
   } else if (dtype == DLDataType{kDLUInt, 8, 1}) {
-    *static_cast<uint8_t*>(arr->data) = static_cast<uint8_t>(value);
+    *static_cast<uint8_t*>(arr.data_ptr()) = static_cast<uint8_t>(value);
   } else if (dtype == DLDataType{kDLUInt, 16, 1}) {
-    *static_cast<uint16_t*>(arr->data) = static_cast<uint16_t>(value);
+    *static_cast<uint16_t*>(arr.data_ptr()) = static_cast<uint16_t>(value);
   } else if (dtype == DLDataType{kDLUInt, 32, 1}) {
-    *static_cast<uint32_t*>(arr->data) = static_cast<uint32_t>(value);
+    *static_cast<uint32_t*>(arr.data_ptr()) = static_cast<uint32_t>(value);
   } else if (dtype == DLDataType{kDLUInt, 64, 1}) {
-    *static_cast<uint64_t*>(arr->data) = static_cast<uint64_t>(value);
+    *static_cast<uint64_t*>(arr.data_ptr()) = static_cast<uint64_t>(value);
   } else if (dtype == DLDataType{kDLInt, 8, 1}) {
-    *static_cast<int8_t*>(arr->data) = static_cast<int8_t>(value);
+    *static_cast<int8_t*>(arr.data_ptr()) = static_cast<int8_t>(value);
   } else if (dtype == DLDataType{kDLInt, 16, 1}) {
-    *static_cast<int16_t*>(arr->data) = static_cast<int16_t>(value);
+    *static_cast<int16_t*>(arr.data_ptr()) = static_cast<int16_t>(value);
   } else if (dtype == DLDataType{kDLInt, 32, 1}) {
-    *static_cast<int32_t*>(arr->data) = static_cast<int32_t>(value);
+    *static_cast<int32_t*>(arr.data_ptr()) = static_cast<int32_t>(value);
   } else if (dtype == DLDataType{kDLInt, 64, 1}) {
-    *static_cast<int64_t*>(arr->data) = static_cast<int64_t>(value);
+    *static_cast<int64_t*>(arr.data_ptr()) = static_cast<int64_t>(value);
   } else if (dtype == DLDataType{kDLFloat, 16, 1}) {
     // convert to float16 storage is uint16_t
-    *static_cast<uint16_t*>(arr->data) =
+    *static_cast<uint16_t*>(arr.data_ptr()) =
         __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(static_cast<float>(value));
   } else if (dtype == DLDataType{kDLBfloat, 16, 1}) {
     // convert to bfloat16 storage is uint16_t
-    *static_cast<uint16_t*>(arr->data) =
+    *static_cast<uint16_t*>(arr.data_ptr()) =
         __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(static_cast<float>(value));
   } else {
     TVM_FFI_THROW(InternalError) << "Unsupported dtype " << dtype;
@@ -425,7 +427,7 @@ inline ffi::String GetCodegenName(const std::string& composite_name) {
   return composite_name.substr(0, delim_pos);
 }
 
-inline int GetDeviceIndexByScope(const IRModule& mod, const ffi::String& scope) {
+inline int GetDeviceIndexByScope(const IRModule& mod, runtime::MemoryScope scope) {
   if (mod->global_infos.find("vdevice") == mod->global_infos.end()) {
     return 0;
   }

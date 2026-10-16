@@ -1,0 +1,92 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+if(TVM_TIRX_USE_OPENCL)
+  file(GLOB RUNTIME_OPENCL_SRCS CONFIGURE_DEPENDS src/backend/opencl/runtime/*.cc)
+
+  set(_opencl_libs "")
+  if(${TVM_TIRX_USE_OPENCL} MATCHES ${IS_TRUE_PATTERN})
+    message(STATUS "Enabled runtime search for OpenCL library location")
+    file(GLOB OPENCL_WRAPPER_SRCS CONFIGURE_DEPENDS "src/backend/opencl/runtime/opencl_wrapper/opencl_wrapper.cc"
+    )
+    list(APPEND RUNTIME_OPENCL_SRCS ${OPENCL_WRAPPER_SRCS})
+    find_path(TVM_OPENCL_HEADERS_DIR CL/cl.h
+      HINTS "${TVM_OPENCL_HEADERS_ROOT}" ENV OPENCL_SDK
+      PATH_SUFFIXES include)
+    if(NOT TVM_OPENCL_HEADERS_DIR)
+      include(FetchContent)
+      FetchContent_Declare(tvm_opencl_headers
+        GIT_REPOSITORY https://github.com/KhronosGroup/OpenCL-Headers.git
+        GIT_TAG b590a6bfe034ea3a418b7b523e3490956bcb367a
+        # Only consume headers; do not add the upstream build/install rules.
+        SOURCE_SUBDIR headers-only
+      )
+      FetchContent_MakeAvailable(tvm_opencl_headers)
+      set(TVM_OPENCL_HEADERS_DIR "${tvm_opencl_headers_SOURCE_DIR}")
+    endif()
+    set(_opencl_include_dirs "${TVM_OPENCL_HEADERS_DIR}")
+  else()
+    find_opencl(${TVM_TIRX_USE_OPENCL})
+    if(NOT OpenCL_FOUND)
+      message(FATAL_ERROR "Error! Cannot find specified OpenCL library")
+    endif()
+    message(STATUS "Build with OpenCL support")
+    set(_opencl_include_dirs ${OpenCL_INCLUDE_DIRS})
+    list(APPEND _opencl_libs ${OpenCL_LIBRARIES})
+  endif()
+
+  message(STATUS "Build opencl device runtime")
+
+  add_library(tvm_runtime_opencl_objs OBJECT ${RUNTIME_OPENCL_SRCS})
+  target_link_libraries(tvm_runtime_opencl_objs PUBLIC tvm_tirx_header)
+  target_include_directories(tvm_runtime_opencl_objs SYSTEM PRIVATE ${_opencl_include_dirs})
+  if(WIN32)
+    set(_opencl_export "__declspec(dllexport)")
+    set(_opencl_import "__declspec(dllimport)")
+  else()
+    set(_opencl_export "__attribute__((visibility(\"default\")))")
+    set(_opencl_import "${_opencl_export}")
+  endif()
+  target_compile_definitions(tvm_runtime_opencl_objs PRIVATE "TVM_OPENCL_DLL=${_opencl_export}")
+  set_target_properties(tvm_runtime_opencl_objs PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  add_library(tvm_runtime_opencl SHARED $<TARGET_OBJECTS:tvm_runtime_opencl_objs>)
+  install(TARGETS tvm_runtime_opencl DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm_tirx)
+  list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_opencl)
+  target_link_libraries(tvm_runtime_opencl PUBLIC tvm_runtime PRIVATE ${_opencl_libs})
+  target_compile_definitions(tvm_runtime_opencl INTERFACE "TVM_OPENCL_DLL=${_opencl_import}")
+  target_include_directories(tvm_runtime_opencl SYSTEM INTERFACE
+    "$<BUILD_INTERFACE:${_opencl_include_dirs}>")
+  tvm_tirx_configure_target(tvm_runtime_opencl_objs)
+  tvm_tirx_configure_target(tvm_runtime_opencl)
+
+
+
+  if(TVM_TIRX_USE_OPENCL_ENABLE_HOST_PTR)
+    target_compile_definitions(tvm_runtime_opencl_objs PRIVATE OPENCL_ENABLE_HOST_PTR)
+  endif(TVM_TIRX_USE_OPENCL_ENABLE_HOST_PTR)
+  if(TVM_TIRX_USE_OPENCL_EXTN_QCOM)
+    add_definitions(-DUSE_OPENCL_EXTN_QCOM)
+    find_path(ocl_header cl.h HINTS ${OpenCL_INCLUDE_DIRS} PATH_SUFFIXES CL)
+    set(OCL_VERSION_HEADER "${ocl_header}/cl.h")
+    if(EXISTS ${OCL_VERSION_HEADER})
+      file(READ ${OCL_VERSION_HEADER} ver)
+      string(REGEX MATCH "CL_TARGET_OPENCL_VERSION ([0-9]*)" _ ${ver})
+      add_definitions(-DCL_TARGET_OPENCL_VERSION=${CMAKE_MATCH_1})
+      message(STATUS "Set OpenCL Target version to " ${CMAKE_MATCH_1})
+    endif()
+  endif(TVM_TIRX_USE_OPENCL_EXTN_QCOM)
+endif(TVM_TIRX_USE_OPENCL)

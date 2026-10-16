@@ -17,15 +17,33 @@
 # pylint: disable=invalid-name
 """Relax linear algebra operators"""
 
-from tvm import DataType
+import tvm_ffi
+
+from tvm_tirx import DataType
+from tvm_tirx.ir import Attrs
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir import PrimType as _PrimType
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 from ..expr import Tuple as RxTuple
-from . import _ffi_api
 from .manipulate import permute_dims
 
 
-def matmul(x1: Expr, x2: Expr, out_dtype: str | DataType | None = None) -> Expr:
+@tvm_ffi.register_object("relax.attrs.MatmulAttrs")
+class MatmulAttrs(Attrs):
+    """Attributes for matmul operator"""
+
+
+def matmul(
+    x1: Expr,
+    x2: Expr,
+    out_dtype: str | DataType | None = None,
+    *,
+    ty=None,
+    loc: Location = UNKNOWN_LOC,
+) -> Expr:
     """General matrix multiplication of two tensors, with broadcasting on batched dimensions.
 
     The semantics and output shape deduction rule is specified as
@@ -48,7 +66,16 @@ def matmul(x1: Expr, x2: Expr, out_dtype: str | DataType | None = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.matmul(x1, x2, out_dtype)  # type: ignore
+    return _Call(
+        "relax.matmul",
+        [x1, x2],
+        attrs=_make_attrs(
+            "relax.attrs.MatmulAttrs",
+            out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
+        ),
+        ty=ty,
+        loc=loc,
+    )  # type: ignore
 
 
 def linear(
@@ -90,7 +117,12 @@ def linear(
     return x + bias if bias is not None else x
 
 
-def einsum(operands, subscripts):
+@tvm_ffi.register_object("relax.attrs.EinsumAttrs")
+class EinsumAttrs(Attrs):
+    """Attributes for einsum operator"""
+
+
+def einsum(operands, subscripts, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Evaluates the Einstein summation convention on data
 
     Parameters
@@ -109,10 +141,16 @@ def einsum(operands, subscripts):
     if isinstance(operands, list | tuple):
         operands = RxTuple(operands)
 
-    return _ffi_api.einsum(operands, subscripts)  # type: ignore
+    return _Call(
+        "relax.einsum",
+        [operands],
+        attrs=_make_attrs("relax.attrs.EinsumAttrs", subscripts=subscripts),
+        ty=ty,
+        loc=loc,
+    )  # type: ignore
 
 
-def outer(x1: Expr, x2: Expr) -> Expr:
+def outer(x1: Expr, x2: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     """
     Computes the outer product of two input expressions.
 
@@ -136,4 +174,4 @@ def outer(x1: Expr, x2: Expr) -> Expr:
     result : relax.Expr
         The resulting expression representing the outer product.
     """
-    return _ffi_api.outer(x1, x2)
+    return _Call("relax.outer", [x1, x2], ty=ty, loc=loc)

@@ -22,10 +22,11 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/op_attr_types.h>
+#include <tvm/ir/expr.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/index.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op/index.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/utils.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -44,7 +45,7 @@ class ExprBinder : public ExprMutator {
   Expr VisitExpr_(const ShapeExprNode* op) final {
     ffi::Array<PrimExpr> values =
         op->values.Map([this](const PrimExpr& value) { return BindShapeValue(value); });
-    return values.same_as(op->values) ? ffi::GetRef<Expr>(op) : ShapeExpr(values, op->span);
+    return values.same_as(op->values) ? ffi::GetRef<Expr>(op) : ShapeExpr(values, op->loc);
   }
 
   Expr VisitExpr_(const FunctionNode* op) final {
@@ -233,22 +234,25 @@ bool IsBoolType(const Type& ty, bool permit_unknown_rank, bool permit_unknown_dt
 
 bool IsLeafOrTuple(const Expr& expr) {
   return !expr.as<CallNode>() && !expr.as<TupleGetItemNode>() && !expr.as<SeqExprNode>() &&
-         !expr.as<IfNode>() && !expr.as<FunctionNode>();
+         !expr.as<IfExprNode>() && !expr.as<FunctionNode>();
 }
 
 bool IsImpureCall(const Call& call) {
   if (auto op_ptr = call->op.as<OpNode>()) {
     auto op = ffi::GetRef<Op>(op_ptr);
-    static auto purity_map = Op::GetAttrMap<bool>("FPurity");
+    static auto purity_map = Op::GetAttrMap(tvm::relax::op_attr::kPurity);
     if (purity_map.count(op)) {
       return !(purity_map[op]);
     }
-    static auto effect_map = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
+    static auto effect_map = Op::GetAttrMap(tvm::op_attr::kCallEffectKind);
     TVM_FFI_ICHECK(effect_map.count(op))
         << "Cannot find the registered purity or call effect of this op: " << op->name;
     auto effect = static_cast<CallEffectKind>(effect_map[op]);
     return effect > CallEffectKind::kPure;
   }
+  TVM_FFI_CHECK(!call->op->ty.as<tvm::FuncTypeNode>(), TypeError)
+      << "Ordinary Relax calls cannot invoke a native TIRx function; "
+      << "use R.call_tir or R.call_tir_packed";
   // the Type must be FuncType
   auto func_ty = GetTypeAs<FuncTypeNode>(call->op);
   return !func_ty->purity;

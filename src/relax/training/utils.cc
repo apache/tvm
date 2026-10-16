@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -192,7 +193,7 @@ class AppendLossMutator : private ExprMutator {
     for (int i = 0; i < num_backbone_outputs_; ++i) {
       auto var = backbone_return_arr_[i];
       if (other_outputs_var.count(var) == 0 && !var->ty.as<PrimTypeNode>()) {
-        auto new_var = DataflowVar(var->name, GetType(var), var->span);
+        auto new_var = DataflowVar(var->name, GetType(var), var->loc);
         this->var_remap_.insert_or_assign(var, new_var);
         backbone_return_arr_.Set(i, new_var);
       }
@@ -219,8 +220,7 @@ Pass AppendLoss(ffi::String func_name, Function loss_function, int num_backbone_
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"AppendLoss",
-                          /*required=*/{});
+                          /*pass_name=*/"AppendLoss");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
