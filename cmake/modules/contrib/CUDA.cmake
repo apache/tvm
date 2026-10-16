@@ -76,7 +76,11 @@ if(TVM_TIRX_USE_CUDA AND TVM_USE_THRUST)
   target_link_libraries(tvm_thrust_objs PRIVATE tvm_runtime_extra_defs)
   target_compile_options(tvm_thrust_objs PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>)
   if(NOT TVM_USE_THRUST MATCHES ${IS_TRUE_PATTERN})
-    find_package(CCCL REQUIRED COMPONENTS Thrust)
+    set(CCCL_DIR "${TVM_USE_THRUST}")
+    find_package(CCCL REQUIRED COMPONENTS Thrust
+      HINTS "${TVM_USE_THRUST}"
+      PATH_SUFFIXES lib/cmake/cccl lib64/cmake/cccl
+      NO_DEFAULT_PATH)
     target_link_libraries(tvm_thrust_objs PRIVATE CCCL::Thrust)
   endif()
   target_link_libraries(tvm_runtime_extra PRIVATE tvm_thrust_objs)
