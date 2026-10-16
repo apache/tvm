@@ -164,3 +164,52 @@ rm -rf "$DELOCATE_TMP_DIR" "$TMP_DIR"
 [tool.cibuildwheel.windows]
 before-build = 'python -m pip install "delvewheel>=1.12.0"'
 repair-wheel-command = 'delvewheel repair --analyze-existing --ignore-existing --exclude "*tvm_ffi*.dll" --exclude tvm_runtime_cuda.dll --exclude nvcuda.dll --exclude cudart64_13.dll --exclude nvrtc64_130_0.dll -w {dest_dir} {wheel}'
+
+[tool.ruff]
+include = [
+  "python/**/*.py",
+  "tests/**/*.py",
+  "docs/**/*.py",
+  "ci/**/*.py",
+  "conftest.py",
+]
+line-length = 100
+indent-width = 4
+target-version = "py310"
+exclude = ["3rdparty", "build", "dist", ".venv", ".ruff_cache", "node_modules"]
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors, https://docs.astral.sh/ruff/rules/#pycodestyle-e-w
+  "F",   # pyflakes, https://docs.astral.sh/ruff/rules/#pyflakes-f
+  "I",   # isort, https://docs.astral.sh/ruff/rules/#isort-i
+  "UP",  # pyupgrade, https://docs.astral.sh/ruff/rules/#pyupgrade-up
+  "RUF", # ruff, https://docs.astral.sh/ruff/rules/#ruff-specific-rules-ruf
+]
+ignore = [
+  # pyupgrade (style preference or low-value)
+  "UP028", # yield-in-for-loop — sometimes clearer to keep
+  "UP030", # format-literals — minor
+  "UP031", # printf-string-formatting — style preference
+  # ruff (preview rules, not yet stable)
+  "RUF043", # pytest-raises-ambiguous-pattern
+  "RUF059", # unused-unpacked-variable
+]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401", "F403", "F405"]
+# TIRx parser and lowering tests intentionally retain unused IR bindings.
+"tests/python/tirx/**/*.py" = ["F841"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tvm_tirx"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
