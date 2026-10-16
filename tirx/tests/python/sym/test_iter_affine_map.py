@@ -250,6 +250,28 @@ def test_compound_floormod_two_regression():
     )
 
 
+def test_non_positive_divisor_is_not_simplified():
+    # Dividing out a negative scale turns floordiv(63 - x, 2) into
+    # floordiv(x - 63, -2); padding with a negative divisor used to drop the
+    # remainder (e.g. x // -2 + 31, wrong for every odd x). Such expressions
+    # are left unchanged, as are directly written negative divisors.
+    x = tvm_tirx.tirx.Var("x", "int32")
+    fld = tvm_tirx.tirx.floordiv
+    flm = tvm_tirx.tirx.floormod
+    for index in [
+        fld(63 - x, 2),
+        flm(63 - x, 2),
+        fld(63 - x, 4),
+        flm(65 - x, 4),
+        fld(x + 1, -2),
+        flm(x + 1, -2),
+    ]:
+        assert_iter_map_simplify({index: index}, var_dom([(x, 64)]))
+
+    # A negative scale that divides out exactly is still simplified.
+    assert_iter_map_simplify({fld(x * -2 + 62, 2): x * -1 + 31}, var_dom([(x, 64)]))
+
+
 def test_nested_floormod_requires_divisible_extents():
     x = tvm_tirx.tirx.Var("x", "int32")
     flm = tvm_tirx.tirx.floormod
