@@ -323,6 +323,8 @@ if(NOT PROJECT_IS_TOP_LEVEL)
   # The parent checks the core version and reuses its dependency finders.
   set(TVM_TIRX_VERSION "${TVM_TIRX_VERSION}" PARENT_SCOPE)
   set(TVM_TIRX_CMAKE_DIR "${TVM_TIRX_CMAKE_DIR}" PARENT_SCOPE)
+  # Parent runtime extensions must use the resolved AUTO selection, not the cache.
+  set(TVM_TIRX_USE_CUDA "${TVM_TIRX_USE_CUDA}" PARENT_SCOPE)
   return()
 endif()
 

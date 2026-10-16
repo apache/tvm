@@ -35,7 +35,7 @@ def configure(tmp_path):
     if not (SOURCE / "3rdparty/tvm-ffi/CMakeLists.txt").is_file():
         pytest.skip("Initialize tirx/3rdparty/tvm-ffi before configuring")
 
-    def run(*options):
+    def run(*options, source=SOURCE):
         env = os.environ.copy()
         env.pop("CMAKE_ARGS", None)
         env["CUDA_VISIBLE_DEVICES"] = ""
@@ -43,7 +43,7 @@ def configure(tmp_path):
             [
                 cmake,
                 "-S",
-                str(SOURCE),
+                str(source),
                 "-B",
                 str(tmp_path / "build"),
                 "-DTVM_TIRX_USE_Z3=OFF",
@@ -154,3 +154,23 @@ def test_explicit_llvm_config(configure):
     assert result.returncode == 0, result.stdout
     assert f"Use llvm-config={llvm_config}" in result.stdout
     assert "Build with LLVM" in result.stdout
+
+
+@pytest.mark.parametrize("selection", [None, "AUTO", "OFF"])
+def test_embedded_cuda_without_toolkit(configure, tmp_path, selection):
+    parent = tmp_path / "parent"
+    parent.mkdir()
+    option = f"set(TVM_TIRX_USE_CUDA {selection})\n" if selection else ""
+    (parent / "CMakeLists.txt").write_text(
+        "cmake_minimum_required(VERSION 3.26)\n"
+        "project(embedding LANGUAGES C CXX)\n"
+        + option
+        + f'add_subdirectory("{SOURCE.as_posix()}" core)\n'
+        + 'if(TVM_TIRX_USE_CUDA)\nmessage(FATAL_ERROR "Parent CUDA must be disabled")\nendif()\n'
+        + 'if(TARGET tvm_runtime_cuda)\nmessage(FATAL_ERROR "Unexpected CUDA runtime")\nendif()\n'
+    )
+    result = configure("-DTVM_TIRX_USE_LLVM=OFF", source=parent)
+    assert result.returncode == 0, result.stdout
+    if selection != "OFF":
+        cache = (tmp_path / "build/CMakeCache.txt").read_text()
+        assert "TVM_TIRX_USE_CUDA:STRING=AUTO" in cache
