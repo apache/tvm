@@ -22,8 +22,8 @@ from tvm_ffi import DLDeviceType
 
 import tvm_tirx
 from tvm_tirx import ir
+from tvm_tirx.codegen import Executable
 from tvm_tirx.ir.module import IRModule
-from tvm_tirx.runtime import Executable
 from tvm_tirx.target import Target
 from tvm_tirx.tirx import Function
 
@@ -180,7 +180,7 @@ def compile(  # pylint: disable=redefined-builtin
 
     Returns
     -------
-    tvm_tirx.runtime.Executable
+    tvm_tirx.codegen.Executable
         An executable combining both host and device code.
     """
     # Convert Function to IRModule

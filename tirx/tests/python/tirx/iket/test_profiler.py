@@ -33,6 +33,7 @@ import pytest
 
 import tvm_tirx
 from tvm_tirx.backend.cuda import transforms as cuda_transforms
+from tvm_tirx.codegen import Executable
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 from tvm_tirx.tirx.cuda.iket import IketProfiler
@@ -305,7 +306,7 @@ def _compile(func, *, target=TARGET):
 
 
 def _cuda_source(executable):
-    modules = executable.mod._collect_from_import_tree(  # pylint: disable=protected-access
+    modules = Executable(executable.mod)._collect_from_import_tree(  # pylint: disable=protected-access
         lambda module: module.kind == "cuda"
     )
     assert len(modules) == 1
@@ -789,7 +790,7 @@ def test_multi_kernel_module_has_no_tvm_control_plane():
     assert "__iket_evt_decl_a_1_attrs" in source
     assert "__iket_evt_decl_b_2_attrs" in source
     assert "plain_entry_kernel" in source
-    for module in executable.mod._collect_from_import_tree(lambda _module: True):
+    for module in Executable(executable.mod)._collect_from_import_tree(lambda _module: True):
         for control_name in (
             "__tvm_iket_get_metadata",
             "__tvm_iket_set_context",

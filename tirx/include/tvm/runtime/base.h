@@ -77,7 +77,7 @@
 #define TVM_DLL_EXPORT __attribute__((visibility("default")))
 #endif
 
-// Core IR, TIRx and shared compiler infrastructure live in libtvm_tirx.
+// Core IR, TIRx and shared compiler infrastructure live in libtvm_tirx_compiler.
 #ifndef TVM_TIRX_DLL
 #if defined(__EMSCRIPTEN__)
 #define TVM_TIRX_DLL EMSCRIPTEN_KEEPALIVE

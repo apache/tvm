@@ -82,7 +82,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
       -Wno-gnu-anonymous-struct
       -Wno-nested-anon-types
     )
-  target_compile_options(tvm_tirx_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>: ${warning_opts}>)
+  target_compile_options(tvm_tirx_compiler_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>: ${warning_opts}>)
   target_compile_options(tvm_runtime_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>: ${warning_opts}>)
 
 
