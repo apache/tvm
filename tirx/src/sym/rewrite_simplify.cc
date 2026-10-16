@@ -429,7 +429,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::SubNode* op,
     // mul co-efficient folding: pefer co-effiicent to stay at rhs
     TVM_TRY_REWRITE(x - x, ZeroWithTypeLike(x));
     TVM_TRY_REWRITE(matches_one_of(x * y - x, y * x - x), (y - 1) * x);
-    TVM_TRY_REWRITE(matches_one_of(x - y * x, x - x * y), (1 - y) * x);
+    TVM_TRY_REWRITE(matches_one_of(x - x * y, x - y * x), (1 - y) * x);
     TVM_TRY_REWRITE(matches_one_of(x * y - x * z, y * x - x * z, x * y - z * x, y * x - z * x),
                     (y - z) * x);
 

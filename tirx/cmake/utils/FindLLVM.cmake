@@ -75,7 +75,16 @@ macro(find_llvm use_llvm)
     # [1] https://github.com/llvm/llvm-project/pull/83807
     include(GNUInstallDirs)
 
-    find_package(LLVM ${llvm_version_required} REQUIRED CONFIG)
+    find_package(LLVM ${llvm_version_required} QUIET CONFIG)
+    if(NOT LLVM_FOUND)
+      message(FATAL_ERROR
+        "LLVM development files were not found. Install LLVM 15 or newer, including "
+        "its development headers and libraries (for example, llvm-dev on Debian/Ubuntu "
+        "or llvm-devel on Fedora). Set LLVM_DIR to the directory containing "
+        "LLVMConfig.cmake, add the LLVM installation to CMAKE_PREFIX_PATH, or set "
+        "TVM_TIRX_USE_LLVM to the full path to llvm-config. To build without LLVM, "
+        "explicitly set TVM_TIRX_USE_LLVM=OFF.")
+    endif()
     llvm_map_components_to_libnames(LLVM_LIBS "all")
     if (NOT LLVM_LIBS)
       message(STATUS "Not found - LLVM_LIBS")
