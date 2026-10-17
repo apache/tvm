@@ -1516,5 +1516,27 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.correlation")
+      .signature(sig::arg("data1", "The first input tensor."), sig::arg("data2", "The second input tensor."),
+                 sig::call_attrs<CorrelationAttrs>())
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.lrn")
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<LRNAattrs>())
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.dilate")
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<DilateAttrs>())
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
+}
+
 }  // namespace relax
 }  // namespace tvm

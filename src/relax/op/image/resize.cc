@@ -592,6 +592,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   Dilation2DAttrs::RegisterReflection();
+
+  OpDef("relax.image.dilation2d")
+      .signature(sig::arg("input", "The input tensor."), sig::arg("filter", "The filter tensor."),
+                 sig::call_attrs<Dilation2DAttrs>())
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax
