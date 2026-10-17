@@ -777,8 +777,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     const te::Tensor& output_tensor = extern_op.output(i);
     TensorVar output_tir_tensor = info->transformer->NormalizeTensorType(placeholder);
     if (!info->IsArg(output_tensor)) {
-      PrimExpr zero_offset =
-          IntImm(tvm::tirx::MatchShapeStridePattern(placeholder.ty()).value().get<2>().ty(), 0);
+      PrimExpr zero_offset = IntImm(tirx::DefaultIndexType(), 0);
       if (auto offset_var =
               tvm::tirx::MatchShapeStridePattern(placeholder.ty()).value().get<2>().as<PrimVar>()) {
         var_map.insert_or_assign(offset_var.value().get(), zero_offset);
@@ -788,6 +787,15 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
       if (type->layout.has_value()) {
         auto tile = type->layout.value().as_or_throw<tirx::TileLayout>();
         type->layout = tirx::TileLayout(tile->shard, tile->replica, {});
+        sym::Analyzer analyzer;
+        bool contiguous = true;
+        PrimExpr stride = 1;
+        auto pattern = tirx::MatchShapeStridePattern(TensorType(type)).value();
+        for (size_t dim = type->shape.size(); dim > 0; --dim) {
+          contiguous &= analyzer->CanProveEqual(pattern.get<1>()[dim - 1], stride);
+          stride *= type->shape[dim - 1];
+        }
+        if (contiguous) type->layout = std::nullopt;
       }
       output_tir_tensor =
           TensorVar(output_tir_tensor->name, TensorType(std::move(type)), output_tir_tensor->loc);
