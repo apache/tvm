@@ -485,14 +485,14 @@ def test_vectorize_cast(extent, vec_str, target):
         def main(A: T.Tensor((25,), "int32"), B: T.Tensor((25,), "float32")):
             T.func_attr({"target": target})
             for j in T.vectorized(extent):
-                A[j] = T.Cast(B[j], "int32")
+                A[j] = T.Cast("int32", B[j])
 
     @I.ir_module
     class After:
         @T.function
         def main(A: T.Tensor((25,), "int32"), B: T.Tensor((25,), "float32")):
             T.func_attr({"target": target})
-            A[T.Ramp(0, 1, extent)] = T.Cast(B[T.Ramp(0, 1, extent)], vec_str)
+            A[T.Ramp(0, 1, extent)] = T.Cast(vec_str, B[T.Ramp(0, 1, extent)])
 
     mod = tvm_tirx.tirx.transform.VectorizeLoop()(Before)
     tvm_tirx.ir.assert_structural_equal(mod, After)

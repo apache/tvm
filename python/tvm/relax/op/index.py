@@ -77,8 +77,8 @@ def take(
         "relax.take",
         [x, indices],
         attrs=_make_attrs("relax.attrs.TakeAttrs", axis=axis, mode=mode),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -146,8 +146,8 @@ def strided_slice(
         "relax.strided_slice",
         [x, axes, begin, end, *([] if strides is None else [strides])],
         attrs=_make_attrs("relax.attrs.StridedSliceAttrs", assume_inbound=assume_inbound),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -185,6 +185,6 @@ def dynamic_strided_slice(
     return _Call(
         "relax.dynamic_strided_slice",
         [x, begin, end, strides],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore

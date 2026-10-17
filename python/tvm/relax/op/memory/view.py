@@ -111,8 +111,8 @@ def view(
             dtype,
             Tuple([]) if relative_byte_offset is None else relative_byte_offset,
         ],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -133,6 +133,6 @@ def ensure_zero_offset(data: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> E
     return _Call(
         "relax.memory.ensure_zero_offset",
         [data],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore

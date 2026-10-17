@@ -49,8 +49,8 @@ def test_scalar_add():
         # Input vars should be float32, we will cast to test for upcasting between them
         lhs_input = tirx.Var("lhs", "float32")
         rhs_input = tirx.Var("rhs", "float32")
-        lhs = tirx.Cast(lhs_input, lhs_type)
-        rhs = tirx.Cast(rhs_input, rhs_type)
+        lhs = tirx.Cast(lhs_type, lhs_input)
+        rhs = tirx.Cast(rhs_type, rhs_input)
         output = lhs + rhs
         output = tvm_tirx.ir.Return(output)
         func = tirx.Function([lhs_input, rhs_input], output)
@@ -94,7 +94,7 @@ def test_cast_between_types():
 
 
 def test_return_const():
-    a = tirx.const(0)
+    a = tirx.const(0, "int32")
     b = tvm_tirx.ir.Return(a)
     func = tirx.Function([], b)
     func = build_tir_func(func)

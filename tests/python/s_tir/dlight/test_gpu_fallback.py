@@ -100,7 +100,7 @@ def test_fallback_reduction():
                     Ts.writes(B[v0])
                     with Ts.init():
                         B[v0] = T.float32(0)
-                    B[v0] = B[v0] + T.Cast(A[v0, v1], "float32")
+                    B[v0] = B[v0] + T.Cast("float32", A[v0, v1])
 
     @I.ir_module
     class Expected:
@@ -124,7 +124,7 @@ def test_fallback_reduction():
                             Ts.where(ax0_fused_0 * T.int64(1024) + ax0_fused_1 < T.int64(1))
                             Ts.reads(B[0], A[0, v1])
                             Ts.writes(B[0])
-                            B[0] = B[0] + T.Cast(A[0, v1], "float32")
+                            B[0] = B[0] + T.Cast("float32", A[0, v1])
 
     with Target("apple/m1-gpu"):
         mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable

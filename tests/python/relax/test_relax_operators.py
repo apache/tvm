@@ -491,8 +491,8 @@ def test_call_dps_packed_canonical_roundtrip(tuple_size, callee_kind, result_kin
         "relax.call_dps_packed",
         [expected_callee, (x,)],
         ty_args=[output_type],
-        ty=result_type,
         loc=loc,
+        ty=result_type,
     )
     tvm_tirx.ir.assert_structural_equal(call, expected)
     assert call.loc.same_as(loc)
@@ -559,7 +559,11 @@ def test_call_py_func_canonical_roundtrip(tuple_size, result_kind, builder):
     x = relax.Var("x", tensor_type)
     call = builder("callback", (x,), ty_args=[output_type], ty=result_type, loc=loc)
     expected = tvm_tirx.ir.Call(
-        "relax.call_py_func", ["callback", (x,)], ty_args=[output_type], ty=result_type, loc=loc
+        "relax.call_py_func",
+        ["callback", (x,)],
+        ty_args=[output_type],
+        loc=loc,
+        ty=result_type,
     )
     tvm_tirx.ir.assert_structural_equal(call, expected)
     assert call.loc.same_as(loc)

@@ -109,7 +109,7 @@ def test_annotate_tensor_access_for_resize():
                 v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(x[v_i0, v_i1, 0:32, 0:32])
                 Ts.writes(resize[v_i0, v_i1, v_i2, v_i3])
-                resize[v_i0, v_i1, v_i2, v_i3] = T.Cast(T.Cast(x[v_i0, v_i1, T.max(T.min(T.Cast(T.floor((T.Cast(v_i2, "float32") + T.float32(0.5)) * T.float32(2) - T.float32(0.5) + T.float32(1.0000000000000001e-05)), "int32"), 31), 0), T.max(T.min(T.Cast(T.floor((T.Cast(v_i3, "float32") + T.float32(0.5)) * T.float32(2) - T.float32(0.5) + T.float32(1.0000000000000001e-05)), "int32"), 31), 0)], "float32"), "float16")
+                resize[v_i0, v_i1, v_i2, v_i3] = T.Cast("float16", T.Cast("float32", x[v_i0, v_i1, T.max(T.min(T.Cast("int32", T.floor((T.Cast("float32", v_i2) + T.float32(0.5)) * T.float32(2) - T.float32(0.5) + T.float32(1.0000000000000001e-05))), 31), 0), T.max(T.min(T.Cast("int32", T.floor((T.Cast("float32", v_i3) + T.float32(0.5)) * T.float32(2) - T.float32(0.5) + T.float32(1.0000000000000001e-05))), 31), 0)]))
 
     @Ts.function
     def resize_expected(x: T.Tensor((1, 1, 32, 32), "float16"), resize: T.Tensor((1, 1, 16, 16), "float16")):
@@ -119,7 +119,7 @@ def test_annotate_tensor_access_for_resize():
                 Ts.reads(x[v_i0, v_i1, v_i2 * 2 - 3:v_i2 * 2 + 3, v_i3 * 2 - 3:v_i3 * 2 + 3])
                 Ts.writes(resize[v_i0, v_i1, v_i2, v_i3])
                 Ts.sblock_attr({"explicit_read_region": [0]})
-                resize[v_i0, v_i1, v_i2, v_i3] = T.Cast(T.Cast(x[v_i0, v_i1, T.max(T.min(T.Cast(T.floor((T.Cast(v_i2, "float32") + T.float32(0.5)) * T.float32(2) - T.float32(0.5) + T.float32(1.0000000000000001e-05)), "int32"), 31), 0), T.max(T.min(T.Cast(T.floor((T.Cast(v_i3, "float32") + T.float32(0.5)) * T.float32(2) - T.float32(0.5) + T.float32(1.0000000000000001e-05)), "int32"), 31), 0)], "float32"), "float16")
+                resize[v_i0, v_i1, v_i2, v_i3] = T.Cast("float16", T.Cast("float32", x[v_i0, v_i1, T.max(T.min(T.Cast("int32", T.floor((T.Cast("float32", v_i2) + T.float32(0.5)) * T.float32(2) - T.float32(0.5) + T.float32(1.0000000000000001e-05))), 31), 0), T.max(T.min(T.Cast("int32", T.floor((T.Cast("float32", v_i3) + T.float32(0.5)) * T.float32(2) - T.float32(0.5) + T.float32(1.0000000000000001e-05))), 31), 0)]))
     # fmt: on
     sch = tvm.s_tir.Schedule(resize_before, debug_mask="all")
     block = sch.get_sblock("resize")
@@ -246,7 +246,7 @@ def test_annotate_tensor_access_with_compute_at_for_resize():
         for i0, i1, i2, i3 in T.grid(1, 3, 100, 100):
             with Ts.sblock("resize"):
                 v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
-                y[v_i0, v_i1, v_i2, v_i3] = x_global[v_i0, v_i1, T.Cast(T.floor(v_i2 * 2 + 0.5), "int32"), T.Cast(T.floor(v_i3 * 2 + 0.5), "int32")]
+                y[v_i0, v_i1, v_i2, v_i3] = x_global[v_i0, v_i1, T.Cast("int32", T.floor(v_i2 * 2 + 0.5)), T.Cast("int32", T.floor(v_i3 * 2 + 0.5))]
 
     @Ts.function
     def after(x: T.Tensor((1, 3, 200, 200), "float32"), y: T.Tensor((1, 3, 100, 100), "float32")):
@@ -270,7 +270,7 @@ def test_annotate_tensor_access_with_compute_at_for_resize():
                     Ts.reads(x_global[v_i0, v_i1, v_i2 * 2 - 3:v_i2 * 2 - 3 + 6, v_i3 * 2 - 3:v_i3 * 2 - 3 + 6])
                     Ts.writes(y[v_i0, v_i1, v_i2, v_i3])
                     Ts.sblock_attr({"explicit_read_region": [0]})
-                    y[v_i0, v_i1, v_i2, v_i3] = x_global[v_i0, v_i1, T.Cast(T.floor(T.Cast(v_i2 * 2, "float32") + T.float32(0.5)), "int32"), T.Cast(T.floor(T.Cast(v_i3 * 2, "float32") + T.float32(0.5)), "int32")]
+                    y[v_i0, v_i1, v_i2, v_i3] = x_global[v_i0, v_i1, T.Cast("int32", T.floor(T.Cast("float32", v_i2 * 2) + T.float32(0.5))), T.Cast("int32", T.floor(T.Cast("float32", v_i3 * 2) + T.float32(0.5)))]
 
     @Ts.function
     def after_without_annotate_tensor_access(x: T.Tensor((1, 3, 200, 200), "float32"), y: T.Tensor((1, 3, 100, 100), "float32")):
@@ -290,7 +290,7 @@ def test_annotate_tensor_access_with_compute_at_for_resize():
                     v_i3 = Ts.axis.spatial(100, i3_0 * 10 + i3_1)
                     Ts.reads(x_global[v_i0, v_i1, 0:200, 0:200])
                     Ts.writes(y[v_i0, v_i1, v_i2, v_i3])
-                    y[v_i0, v_i1, v_i2, v_i3] = x_global[v_i0, v_i1, T.Cast(T.floor(T.Cast(v_i2 * 2, "float32") + T.float32(0.5)), "int32"), T.Cast(T.floor(T.Cast(v_i3 * 2, "float32") + T.float32(0.5)), "int32")]
+                    y[v_i0, v_i1, v_i2, v_i3] = x_global[v_i0, v_i1, T.Cast("int32", T.floor(T.Cast("float32", v_i2 * 2) + T.float32(0.5))), T.Cast("int32", T.floor(T.Cast("float32", v_i3 * 2) + T.float32(0.5)))]
     # fmt: on
 
     # Schedule with annotate_tensor_access

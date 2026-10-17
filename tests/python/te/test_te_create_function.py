@@ -770,10 +770,10 @@ def tir_resize2d_symbolic(
                 T.max(
                     T.min(
                         T.Cast(
-                            T.round(
-                                T.float32(128) / T.Cast(oh, "float32") * T.Cast(v_i2, "float32"),
-                            ),
                             "int64",
+                            T.round(
+                                T.float32(128) / T.Cast("float32", oh) * T.Cast("float32", v_i2),
+                            ),
                         ),
                         T.int64(127),
                     ),
@@ -782,10 +782,10 @@ def tir_resize2d_symbolic(
                 T.max(
                     T.min(
                         T.Cast(
-                            T.round(
-                                T.float32(128) / T.Cast(ow, "float32") * T.Cast(v_i3, "float32"),
-                            ),
                             "int64",
+                            T.round(
+                                T.float32(128) / T.Cast("float32", ow) * T.Cast("float32", v_i3),
+                            ),
                         ),
                         T.int64(127),
                     ),
@@ -922,7 +922,7 @@ def test_loop_aware_reducer_combiner():
                 with Ts.init():
                     sum_red[v_i] = T.float32(0.0)
                 sum_red[v_i] = T.if_then_else(
-                    a[v_i, sum_red[v_i]] < a[v_i, v_ax], sum_red[v_i], T.Cast(v_ax, "float32")
+                    a[v_i, sum_red[v_i]] < a[v_i, v_ax], sum_red[v_i], T.Cast("float32", v_ax)
                 )
 
     def te_workload():
@@ -974,7 +974,7 @@ def test_adaptive_pooling_window():
                 Ts.reads(adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
                 Ts.writes(adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
                 Ts.sblock_attr({"schedule_rule": "meta_schedule.adaptive_pool_avg"})
-                adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / (T.Cast(T.Select((v_ax2 * 16 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12, "float32") * T.Cast(T.Select((v_ax3 * 40 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30, "float32"))
+                adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / (T.Cast("float32", T.Select((v_ax2 * 16 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12) * T.Cast("float32", T.Select((v_ax3 * 40 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30))
         # fmt: on
 
     def te_workload():

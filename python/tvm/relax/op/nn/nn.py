@@ -147,8 +147,8 @@ def conv1d(
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -274,8 +274,8 @@ def conv2d(
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -407,8 +407,8 @@ def conv3d(
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -525,8 +525,8 @@ def conv1d_transpose(
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -660,8 +660,8 @@ def conv2d_transpose(
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -796,8 +796,8 @@ def conv3d_transpose(
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -848,8 +848,8 @@ def pad(
         attrs=_make_attrs(
             "relax.attrs.PadAttrs", pad_width=pad_width, pad_mode=pad_mode, pad_value=pad_value
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -892,8 +892,8 @@ def pixel_shuffle(data: Expr, upscale_factor: int, *, ty=None, loc: Location = U
         "relax.nn.pixel_shuffle",
         [data],
         attrs=_make_attrs("relax.attrs.PixelShuffleAttrs", upscale_factor=upscale_factor),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -997,8 +997,8 @@ def max_pool1d(
             layout=layout,
             out_layout=(layout if out_layout is None else out_layout),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1117,8 +1117,8 @@ def max_pool2d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1229,8 +1229,8 @@ def max_pool3d(
             layout=layout,
             out_layout=(layout if out_layout is None else out_layout),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1328,8 +1328,8 @@ def avg_pool1d(
             layout=layout,
             out_layout=(layout if out_layout is None else out_layout),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1441,8 +1441,8 @@ def avg_pool2d(
             layout=layout,
             out_layout=(layout if out_layout is None else out_layout),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1548,8 +1548,8 @@ def avg_pool3d(
             layout=layout,
             out_layout=(layout if out_layout is None else out_layout),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1622,8 +1622,8 @@ def adaptive_avg_pool1d(
             layout=layout,
             out_layout=(layout if out_layout is None else out_layout),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -1701,8 +1701,8 @@ def adaptive_avg_pool2d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -1778,8 +1778,8 @@ def adaptive_avg_pool3d(
             layout=layout,
             out_layout=(layout if out_layout is None else out_layout),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -1799,7 +1799,7 @@ def relu(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> E
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.nn.relu", [data], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.nn.relu", [data], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def relu6(data: Expr) -> Expr:
@@ -1853,8 +1853,8 @@ def leakyrelu(
         [data],
         attrs=_make_attrs("relax.attrs.LeakyReluAttrs", alpha=alpha),
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -1880,7 +1880,7 @@ def gelu(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> E
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.nn.gelu", [data], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.nn.gelu", [data], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def gelu_tanh(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -1903,7 +1903,7 @@ def gelu_tanh(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC)
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.nn.gelu_tanh", [data], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.nn.gelu_tanh", [data], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def selu(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -1927,7 +1927,7 @@ def selu(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> E
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.nn.selu", [data], ty_args=ty_args, ty=ty, loc=loc)
+    return _Call("relax.nn.selu", [data], ty_args=ty_args, loc=loc, ty=ty)
 
 
 def silu(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -1950,7 +1950,7 @@ def silu(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> E
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.nn.silu", [data], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.nn.silu", [data], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.attrs.SoftmaxAttrs")
@@ -1986,8 +1986,8 @@ def softmax(data: Expr, axis: int = -1, *, ty=None, loc: Location = UNKNOWN_LOC)
         "relax.nn.softmax",
         [data],
         attrs=_make_attrs("relax.attrs.SoftmaxAttrs", axis=axis),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2031,8 +2031,8 @@ def softplus(
         [data],
         attrs=_make_attrs("relax.attrs.SoftplusAttrs", beta=beta, threshold=threshold),
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -2065,8 +2065,8 @@ def log_softmax(data: Expr, axis: int = -1, *, ty=None, loc: Location = UNKNOWN_
         "relax.nn.log_softmax",
         [data],
         attrs=_make_attrs("relax.attrs.SoftmaxAttrs", axis=axis),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2102,8 +2102,8 @@ def prelu(data: Expr, alpha: Expr, axis: int = 1, *, ty=None, loc: Location = UN
         "relax.nn.prelu",
         [data, alpha],
         attrs=_make_attrs("relax.attrs.PReluAttrs", axis=axis),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -2237,8 +2237,8 @@ def batch_norm(
             momentum=momentum,
             training=training,
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -2314,8 +2314,8 @@ def layer_norm(
         attrs=_make_attrs(
             "relax.attrs.LayerNormAttrs", axes=axes, epsilon=epsilon, center=center, scale=scale
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2392,8 +2392,8 @@ def group_norm(
             center=center,
             scale=scale,
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -2459,8 +2459,8 @@ def instance_norm(
             center=center,
             scale=scale,
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -2513,8 +2513,8 @@ def rms_norm(
         "relax.nn.rms_norm",
         [data, weight],
         attrs=_make_attrs("relax.attrs.RMSNormAttrs", axes=axes, epsilon=epsilon),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2549,8 +2549,8 @@ def dropout(data: Expr, rate: float = 0.5, *, ty=None, loc: Location = UNKNOWN_L
         "relax.nn.dropout",
         [data],
         attrs=_make_attrs("relax.attrs.DropoutAttrs", rate=rate),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2584,8 +2584,8 @@ def cross_entropy_with_logits(
         "relax.nn.cross_entropy_with_logits",
         [predictions, labels],
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2649,8 +2649,8 @@ def nll_loss(
             "relax.attrs.NLLLossAttrs", reduction=reduction, ignore_index=ignore_index
         ),
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2759,8 +2759,8 @@ def attention(
             causal_mask=causal_mask,
             window_size=window_size,
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2868,8 +2868,8 @@ def attention_bias(
             causal_mask=causal_mask,
             window_size=window_size,
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2986,8 +2986,8 @@ def attention_var_len(
             causal_mask=causal_mask,
             window_size=window_size,
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -3007,4 +3007,4 @@ def batch_flatten(data: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     result : relax.Expr
         The flattened result with shape `(batch_size, flattened_features)`.
     """
-    return _Call("relax.nn.batch_flatten", [data], ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.nn.batch_flatten", [data], loc=loc, ty=ty)  # type: ignore

@@ -4141,7 +4141,7 @@ class Range(OnnxOpConverter):
             if tvm_tirx.ir.is_prim_expr(x):
                 expr_dtype = str(getattr(x, "dtype", None) or x.ty)
                 if expr_dtype != "int64":
-                    x = tirx.Cast(x, "int64")
+                    x = tirx.Cast("int64", x)
                 x = bb.normalize(relax.op.shape_to_tensor(relax.ShapeExpr([x])))
                 x = bb.normalize(relax.op.reshape(x, ()))
                 if dtype != "int64":

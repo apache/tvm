@@ -73,8 +73,8 @@ def max(
         "relax.max",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -114,8 +114,8 @@ def mean(
         "relax.mean",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -155,8 +155,8 @@ def min(
         "relax.min",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -196,8 +196,8 @@ def prod(
         "relax.prod",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -237,8 +237,8 @@ def std(
         "relax.std",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -278,8 +278,8 @@ def sum(
         "relax.sum",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -356,8 +356,8 @@ def cumprod(
         attrs=_make_attrs(
             "relax.attrs.ScanopAttrs", axis=axis, dtype=_raw_dtype(dtype), exclusive=exclusive
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -429,8 +429,8 @@ def cumsum(
         attrs=_make_attrs(
             "relax.attrs.ScanopAttrs", axis=axis, dtype=_raw_dtype(dtype), exclusive=exclusive
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -470,8 +470,8 @@ def variance(
         "relax.variance",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -510,6 +510,6 @@ def median(
         "relax.median",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore

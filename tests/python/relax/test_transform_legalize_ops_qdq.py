@@ -52,14 +52,14 @@ def test_quantize_fp32_to_int8():
                     Ts.reads(A[v_i0, v_i1], B[v_i0], C[v_i0])
                     Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
+                        "int8",
                         T.max(
                             T.min(
-                                T.round(A[v_i0, v_i1] / B[v_i0]) + T.Cast(C[v_i0], "float32"),
+                                T.round(A[v_i0, v_i1] / B[v_i0]) + T.Cast("float32", C[v_i0]),
                                 T.float32(127),
                             ),
                             T.float32(-128),
                         ),
-                        "int8",
                     )
 
         @R.function
@@ -106,14 +106,14 @@ def test_quantize_fp16_to_uint8():
                     Ts.reads(A[v_i0, v_i1], B[v_i0], C[v_i0])
                     Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
+                        "uint8",
                         T.max(
                             T.min(
-                                T.round(A[v_i0, v_i1] / B[v_i0]) + T.Cast(C[v_i0], "float16"),
+                                T.round(A[v_i0, v_i1] / B[v_i0]) + T.Cast("float16", C[v_i0]),
                                 T.float16(255),
                             ),
                             T.float16(0),
                         ),
-                        "uint8",
                     )
 
         @R.function
@@ -166,14 +166,14 @@ def test_quantize_fp32_to_int8_symbolic():
                     Ts.reads(A[v_i0, v_i1], B[v_i1], C[v_i1])
                     Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
+                        "int8",
                         T.max(
                             T.min(
-                                T.round(A[v_i0, v_i1] / B[v_i1]) + T.Cast(C[v_i1], "float32"),
+                                T.round(A[v_i0, v_i1] / B[v_i1]) + T.Cast("float32", C[v_i1]),
                                 T.float32(127),
                             ),
                             T.float32(-128),
                         ),
-                        "int8",
                     )
 
         @R.function
@@ -216,6 +216,7 @@ def test_quantize_fp32_to_int8_scalar_param():
                     Ts.reads(A[v_i0, v_i1])
                     Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
+                        "int8",
                         T.max(
                             T.min(
                                 T.round(A[v_i0, v_i1] / T.float32(2)) + T.float32(1),
@@ -223,7 +224,6 @@ def test_quantize_fp32_to_int8_scalar_param():
                             ),
                             T.float32(-128),
                         ),
-                        "int8",
                     )
 
         @R.function
@@ -266,14 +266,14 @@ def test_quantize_fp32_to_int8_scalar_1d_param():
                     Ts.reads(A[v_i0, v_i1], B[v_i0], C[v_i0])
                     Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
+                        "int8",
                         T.max(
                             T.min(
-                                T.round(A[v_i0, v_i1] / B[v_i0]) + T.Cast(C[v_i0], "float32"),
+                                T.round(A[v_i0, v_i1] / B[v_i0]) + T.Cast("float32", C[v_i0]),
                                 T.float32(127),
                             ),
                             T.float32(-128),
                         ),
-                        "int8",
                     )
 
         @R.function
@@ -315,6 +315,7 @@ def test_quantize_fp16_to_int8_scalar_param():
                     Ts.reads(A[v_i0, v_i1])
                     Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
+                        "int8",
                         T.max(
                             T.min(
                                 T.round(A[v_i0, v_i1] / T.float16(2)) + T.float16(1),
@@ -322,7 +323,6 @@ def test_quantize_fp16_to_int8_scalar_param():
                             ),
                             T.float16(-128),
                         ),
-                        "int8",
                     )
 
         @R.function
@@ -363,7 +363,7 @@ def test_dequantize_int8_to_fp32():
                     Ts.reads(A[v_i0, v_i1], C[v_i0], B[v_i0])
                     Ts.writes(dequantized[v_i0, v_i1])
                     dequantized[v_i0, v_i1] = (
-                        T.Cast(T.Cast(A[v_i0, v_i1], "int32") - T.Cast(C[v_i0], "int32"), "float32")
+                        T.Cast("float32", T.Cast("int32", A[v_i0, v_i1]) - T.Cast("int32", C[v_i0]))
                         * B[v_i0]
                     )
 
@@ -407,7 +407,7 @@ def test_dequantize_int8_to_fp32_scalar_param():
                     Ts.reads(A[v_i0, v_i1])
                     Ts.writes(dequantized[v_i0, v_i1])
                     dequantized[v_i0, v_i1] = T.Cast(
-                        T.Cast(A[v_i0, v_i1], "int32") - 1, "float32"
+                        "float32", T.Cast("int32", A[v_i0, v_i1]) - 1
                     ) * T.float32(2)
 
         @R.function
@@ -455,7 +455,7 @@ def test_dequantize_int8_to_fp32_symbolic():
                     Ts.reads(A[v_i0, v_i1], C[v_i1], B[v_i1])
                     Ts.writes(dequantized[v_i0, v_i1])
                     dequantized[v_i0, v_i1] = (
-                        T.Cast(T.Cast(A[v_i0, v_i1], "int32") - T.Cast(C[v_i1], "int32"), "float32")
+                        T.Cast("float32", T.Cast("int32", A[v_i0, v_i1]) - T.Cast("int32", C[v_i1]))
                         * B[v_i1]
                     )
 
@@ -505,18 +505,18 @@ def test_dequantize_int8_to_fp16():
                     Ts.reads(A[v_i0, v_i1], C[v_i0], B[v_i0])
                     Ts.writes(dequantized[v_i0, v_i1])
                     dequantized[v_i0, v_i1] = T.Cast(
+                        "float16",
                         T.max(
                             T.min(
                                 T.Cast(
-                                    T.Cast(A[v_i0, v_i1], "int32") - T.Cast(C[v_i0], "int32"),
                                     "float32",
+                                    T.Cast("int32", A[v_i0, v_i1]) - T.Cast("int32", C[v_i0]),
                                 )
-                                * T.Cast(B[v_i0], "float32"),
+                                * T.Cast("float32", B[v_i0]),
                                 T.float32(65504),
                             ),
                             T.float32(-65504),
                         ),
-                        "float16",
                     )
 
         @R.function
@@ -559,15 +559,15 @@ def test_dequantize_int8_to_fp16_scalar_param():
                     Ts.reads(A[v_i0, v_i1])
                     Ts.writes(dequantized[v_i0, v_i1])
                     dequantized[v_i0, v_i1] = T.Cast(
+                        "float16",
                         T.max(
                             T.min(
-                                T.Cast(T.Cast(A[v_i0, v_i1], "int32") - 1, "float32")
+                                T.Cast("float32", T.Cast("int32", A[v_i0, v_i1]) - 1)
                                 * T.float32(2),
                                 T.float32(65504),
                             ),
                             T.float32(-65504),
                         ),
-                        "float16",
                     )
 
         @R.function

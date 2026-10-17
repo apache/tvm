@@ -63,7 +63,7 @@ def test_expr_constructor():
     assert isinstance(x, tvm_tirx.ir.StringImm)
     assert x.value == "xyza"
 
-    x = tvm_tirx.tirx.Cast(tvm_tirx.ir.IntImm("uint32", 1), "float32")
+    x = tvm_tirx.tirx.Cast("float32", tvm_tirx.ir.IntImm("uint32", 1))
     assert isinstance(x, tvm_tirx.tirx.Cast)
     assert x.ty == tvm_tirx.ir.PrimType("float32")
     assert x.value.value == 1
@@ -134,7 +134,11 @@ def test_expr_constructor():
     assert x.vectors[0] == a
     assert x.indices[0].value == 0
 
-    x = tvm_tirx.ir.Call("tirx.call_extern", [tvm_tirx.ir.StringImm("xyz"), a], ty="float32")
+    x = tvm_tirx.ir.Call(
+        "tirx.call_extern",
+        [tvm_tirx.ir.StringImm("xyz"), a],
+        ty="float32",
+    )
     assert isinstance(x, tvm_tirx.ir.Call)
     assert tvm_tirx.ir.is_prim_expr(x)
     assert x.ty == tvm_tirx.ir.PrimType("float32")
@@ -189,7 +193,9 @@ def test_expr_constructor():
 
     def call_with(arg):
         return tvm_tirx.ir.Call(
-            "tirx.call_extern", [tvm_tirx.ir.StringImm("tuple_arg"), arg], ty="int32"
+            "tirx.call_extern",
+            [tvm_tirx.ir.StringImm("tuple_arg"), arg],
+            ty="int32",
         )
 
     assert expr_deep_equal(call_with(tuple_arg), call_with(same_tuple_arg))
@@ -279,7 +285,7 @@ def test_operator_base_categories_have_primitive_type():
             None,
             0,
         ),
-        tvm_tirx.tirx.Cast(var, "float32"),
+        tvm_tirx.tirx.Cast("float32", var),
         tvm_tirx.tirx.Select(var < 1, var, 1),
         tvm_tirx.tirx.TensorLoad(tensor, [0]),
         tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4),

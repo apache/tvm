@@ -79,8 +79,8 @@ def quantize(
             axis=axis,
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -131,6 +131,6 @@ def dequantize(
             axis=axis,
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )

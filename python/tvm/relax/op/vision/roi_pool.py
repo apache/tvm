@@ -78,6 +78,6 @@ def roi_pool(
             spatial_scale=spatial_scale,
             layout=layout,
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )

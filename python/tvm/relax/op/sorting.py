@@ -64,8 +64,8 @@ def sort(
         "relax.sort",
         [x],
         attrs=_make_attrs("relax.attrs.SortAttrs", axis=axis, descending=descending),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -111,8 +111,8 @@ def argsort(
         attrs=_make_attrs(
             "relax.attrs.ArgsortAttrs", axis=axis, descending=descending, dtype=dtype
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -173,6 +173,6 @@ def topk(
         attrs=_make_attrs(
             "relax.attrs.TopKAttrs", k=k, axis=axis, ret_type=ret_type, largest=largest, dtype=dtype
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore

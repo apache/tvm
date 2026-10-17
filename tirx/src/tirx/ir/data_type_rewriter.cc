@@ -613,7 +613,7 @@ UnchangedOr<PrimExpr> IndexDataTypeNormalizer::Mutate_(const prim::CastNode* op,
   PrimType dtype = op->ty.as_or_throw<PrimType>();
   if (is_enabled_ && CanRewriteDType(dtype)) {
     PrimExpr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
-    return value.ty() == target_data_type_ ? value : prim::Cast(value, target_data_type_);
+    return value.ty() == target_data_type_ ? value : prim::Cast(target_data_type_, value);
   }
   return IndexDataTypeRewriter::Mutate_(op, inplace_mode);
 }

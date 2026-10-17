@@ -58,9 +58,9 @@ def test_fp8_conversions(input):
                 with T.launch_thread("blockIdx.x", 2) as i_0:
                     with T.launch_thread("threadIdx.x", 32) as i_1:
                         C[i_0 * 32 + i_1] = T.Cast(
-                            T.Cast(A[i_0 * 32 + i_1], "float16")
-                            + T.Cast(B[i_0 * 32 + i_1], "float16"),
                             dtype,
+                            T.Cast("float16", A[i_0 * 32 + i_1])
+                            + T.Cast("float16", B[i_0 * 32 + i_1]),
                         )
 
         return Module
@@ -165,9 +165,9 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
                 with T.launch_thread("blockIdx.x", 2) as i_0:
                     with T.launch_thread("threadIdx.x", 32) as i_1:
                         C[i_0 * 32 + i_1] = T.Cast(
-                            T.Cast(A[i_0 * 32 + i_1], promoted_dtype)
-                            + T.Cast(B[i_0 * 32 + i_1], promoted_dtype),
                             native_dtype,
+                            T.Cast(promoted_dtype, A[i_0 * 32 + i_1])
+                            + T.Cast(promoted_dtype, B[i_0 * 32 + i_1]),
                         )
 
         return Module
@@ -348,20 +348,20 @@ class BaseFP8E4M3QuantScaleOnly:
             with T.launch_thread("blockIdx.x", rows) as row:
                 with T.launch_thread("threadIdx.x", groups) as group:
                     maximum = T.alloc_tensor(ty_args=[T.Tensor((1,), model_dtype, scope="local")])
-                    maximum[0] = T.Cast(0, model_dtype)
+                    maximum[0] = T.Cast(model_dtype, 0)
                     for k in range(group_size):
                         if group * group_size + k < columns:
                             maximum[0] = T.max(maximum[0], T.abs(A[row, group * group_size + k]))
                     scale[row, group] = T.max(
-                        maximum[0] / T.Cast(max_int_value, model_dtype),
-                        T.Cast(1.0 / (max_int_value * 512.0), model_dtype),
+                        maximum[0] / T.Cast(model_dtype, max_int_value),
+                        T.Cast(model_dtype, 1.0 / (max_int_value * 512.0)),
                     )
                     for k in range(group_size // 4):
                         packed[row, group * (group_size // 4) + k] = T.reinterpret(
                             T.Cast(
+                                vec_quantized_dtype,
                                 A[row, T.ramp(group * group_size + k * 4, 1, 4)]
                                 / scale[row, group],
-                                vec_quantized_dtype,
                             ),
                             ty=storage_dtype,
                         )
@@ -375,7 +375,7 @@ class BaseFP8E4M3QuantScaleOnly:
             with T.launch_thread("blockIdx.x", rows) as row:
                 with T.launch_thread("threadIdx.x", packed_columns) as k:
                     output[row, T.ramp(k * 4, 1, 4)] = T.Cast(
-                        T.reinterpret(packed[row, k], ty=vec_quantized_dtype), vec_model_dtype
+                        vec_model_dtype, T.reinterpret(packed[row, k], ty=vec_quantized_dtype)
                     ) * T.Broadcast(scale[row, k * 4 // group_size], 4)
 
         quant_func = tvm_tirx.tirx.compile(quantize, target=target_str)
@@ -521,10 +521,10 @@ def test_moe_gemv_shfl_down_illegal_instr():
                         for k in range(reduce_size // 64):
                             partial[0] = partial[0] + x[0, k * 64 + reduction] * (
                                 T.Cast(
-                                    w[indptr[0, expert], block * 4 + spatial, k * 64 + reduction],
                                     "float16",
+                                    w[indptr[0, expert], block * 4 + spatial, k * 64 + reduction],
                                 )
-                                * T.Cast(scale[0], "float16")
+                                * T.Cast("float16", scale[0])
                             )
                         T.gpu_thread_allreduce(
                             T.Lambda([T.float16, T.float16], lambda x, y: (x + y,)),

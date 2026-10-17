@@ -68,8 +68,8 @@ def alloc_storage(
     return _Call(
         "relax.memory.alloc_storage",
         [size, virtual_device_index, storage_scope, dtype],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -118,8 +118,8 @@ def alloc_tensor(
     return _Call(
         "relax.memory.alloc_tensor",
         [storage, offset, shape, dtype, runtime_device_ind],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -139,8 +139,8 @@ def kill_storage(storage: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Call
     return _Call(
         "relax.memory.kill_storage",
         [storage],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -160,6 +160,6 @@ def kill_tensor(tensor: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Call:
     return _Call(
         "relax.memory.kill_tensor",
         [tensor],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore

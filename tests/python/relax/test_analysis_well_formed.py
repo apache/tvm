@@ -157,8 +157,8 @@ def test_global_var():
     globalvar = rx.GlobalVar("GlobalVar0")
     call_node = rx.Call(
         op=tvm_tirx.ir.Op.get("relax.call_tir"),
-        ty=tvm_tirx.ir.Type.missing(),
         args=[globalvar, rx.Tuple([x]), rx.ShapeExpr([m, n])],
+        ty=tvm_tirx.ir.Type.missing(),
     )
     bindings = [rx.VarBinding(gv0, call_node)]
     blocks = [rx.BindingBlock(bindings)]
@@ -180,7 +180,14 @@ def test_provisional_call_constructor():
     assert call.loc.same_as(loc)
     assert isinstance(call.attrs, tvm_tirx.ir.DictAttrs)
     assert len(call.ty_args) == 0
-    assert isinstance(tvm_tirx.ir.Call(op, [x], ty="handle").ty, tvm_tirx.ir.PtrType)
+    assert isinstance(
+        tvm_tirx.ir.Call(
+            op,
+            [x],
+            ty="handle",
+        ).ty,
+        tvm_tirx.ir.PtrType,
+    )
     with pytest.raises(TypeError, match="skip_validate"):
         tvm_tirx.ir.Call(op, [x], skip_validate=True)
 
@@ -468,12 +475,12 @@ def test_inline_function():
                             var=y,
                             value=rx.Call(
                                 op=tvm_tirx.ir.Op.get("relax.call_tir"),
-                                ty=tvm_tirx.ir.Type.missing(),
                                 args=[
                                     rx.GlobalVar("GlobalVar0"),
                                     rx.Tuple([x, tirx.Function([], tvm_tirx.ir.Evaluate(0))]),
                                     rx.ShapeExpr([]),
                                 ],
+                                ty=tvm_tirx.ir.Type.missing(),
                             ),
                         ),
                     ]
@@ -801,7 +808,7 @@ def test_call_tir_with_interspersed_primitive_argument():
             B: T.Tensor([T.int64(16)], "float16"),
         ):
             for i in range(T.int64(16)):
-                B[i] = A[i] + T.Cast(scale, "float16") * C[i]
+                B[i] = A[i] + T.Cast("float16", scale) * C[i]
 
     rx.analysis.well_formed(Module)
 
@@ -823,7 +830,7 @@ def test_call_tir_with_incorrect_primitive_argument_dtype():
             B: T.Tensor([T.int64(16)], "float16"),
         ):
             for i in range(T.int64(16)):
-                B[i] = A[i] * T.Cast(scale, "float16")
+                B[i] = A[i] * T.Cast("float16", scale)
 
     assert not rx.analysis.check_well_formed(Module)
     with pytest.raises(ValueError, match="Argument 1 type mismatch"):
@@ -846,7 +853,7 @@ def test_call_tir_shape_expr_is_not_a_primitive_argument():
 
         @Ts.function
         def make_tensor(m: T.int64, n: T.int64, B: T.Tensor([T.int64(1)], "float32")):
-            B[0] = T.Cast(m + n, "float32")
+            B[0] = T.Cast("float32", m + n)
 
     assert not rx.analysis.check_well_formed(Module)
 

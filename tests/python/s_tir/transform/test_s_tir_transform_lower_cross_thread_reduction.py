@@ -1621,7 +1621,7 @@ def thread_broadcast_2(lv1605: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.
             Ts.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n)
             Ts.reads(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1], lv1582[T.int64(0), T.int64(0), T.int64(0), v1])
             Ts.writes(var_compute_intermediate[T.int64(0), v0, T.int64(0), v1])
-            var_compute_intermediate[T.int64(0), v0, T.int64(0), v1] = T.Cast(T.min(T.max(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] * T.float16(0.088397790055248615), T.float16(-65504)), lv1582[T.int64(0), T.int64(0), T.int64(0), v1]), "float32")
+            var_compute_intermediate[T.int64(0), v0, T.int64(0), v1] = T.Cast("float32", T.min(T.max(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] * T.float16(0.088397790055248615), T.float16(-65504)), lv1582[T.int64(0), T.int64(0), T.int64(0), v1]))
 
 n = T.dynamic("n")
 
@@ -1683,7 +1683,7 @@ def lowered_thread_broadcast_2(lv1605: T.Tensor((T.int64(1), T.int64(32), T.int6
                 Ts.where(tx == T.int64(0) and (T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n))
                 Ts.reads(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1], lv1582[T.int64(0), T.int64(0), T.int64(0), v1])
                 Ts.writes(var_compute_intermediate[T.int64(0), v0, T.int64(0), v1])
-                var_compute_intermediate[T.int64(0), v0, T.int64(0), v1] = T.Cast(T.min(T.max(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] * T.float16(0.088397790055248615), T.float16(-65504)), lv1582[T.int64(0), T.int64(0), T.int64(0), v1]), "float32")
+                var_compute_intermediate[T.int64(0), v0, T.int64(0), v1] = T.Cast("float32", T.min(T.max(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] * T.float16(0.088397790055248615), T.float16(-65504)), lv1582[T.int64(0), T.int64(0), T.int64(0), v1]))
 # fmt: on
 
 

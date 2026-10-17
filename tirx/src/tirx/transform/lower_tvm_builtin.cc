@@ -597,7 +597,7 @@ class BuiltinLower : public StmtExprMutator {
       PrimType arg_ty = prim_arg.ty();
       PrimType api_ty = APIType(arg_ty);
       if (arg_ty != api_ty) {
-        arg = prim::Cast(prim_arg, api_ty);
+        arg = prim::Cast(api_ty, prim_arg);
       }
       if (api_ty.MatchesCode(DLDataTypeCode::kDLBool)) {
         arg_type_index = ffi::TypeIndex::kTVMFFIBool;

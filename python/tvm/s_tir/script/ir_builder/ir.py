@@ -75,13 +75,13 @@ def async_copy_scope():
 @auto_emit_void_call
 def async_commit(queue_id, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Commit the preceding asynchronous copies to a queue."""
-    return ir.Call("s_tir.async_commit", [queue_id], ty=ty, loc=loc)
+    return ir.Call("s_tir.async_commit", [queue_id], loc=loc, ty=ty)
 
 
 @auto_emit_void_call
 def async_wait(queue_id, inflight_count, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Wait until at most inflight_count committed groups remain in flight."""
-    return ir.Call("s_tir.async_wait", [queue_id, inflight_count], ty=ty, loc=loc)
+    return ir.Call("s_tir.async_wait", [queue_id, inflight_count], loc=loc, ty=ty)
 
 
 def manual_sync():

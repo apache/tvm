@@ -76,8 +76,8 @@ def alloc_tensor(
         "relax.builtin.alloc_tensor",
         [shape, dtype, runtime_device_index, storage_scope],
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -100,6 +100,6 @@ def stop_lift_params(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_
         "relax.builtin.stop_lift_params",
         [x],
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore

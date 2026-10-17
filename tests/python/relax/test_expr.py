@@ -395,14 +395,26 @@ def test_call_reinfer_type_from_current_inputs():
     assert tvm_tirx.ir.reinfer_type(initial).same_as(original_ty)
     _check_equal(initial.ty, original_ty)
 
-    unchanged = rx.Call("relax.abs", [x], ty=original_ty)
+    unchanged = rx.Call(
+        "relax.abs",
+        [x],
+        ty=original_ty,
+    )
     assert tvm_tirx.ir.reinfer_type(unchanged).same_as(unchanged.ty)
 
     equivalent_ty = rx.TensorType(original_ty.shape, original_ty.dtype)
-    equivalent = rx.Call("relax.abs", [x], ty=equivalent_ty)
+    equivalent = rx.Call(
+        "relax.abs",
+        [x],
+        ty=equivalent_ty,
+    )
     assert tvm_tirx.ir.reinfer_type(equivalent).same_as(equivalent_ty)
 
-    stale = rx.Call("relax.abs", [y], ty=original_ty)
+    stale = rx.Call(
+        "relax.abs",
+        [y],
+        ty=original_ty,
+    )
     _check_equal(tvm_tirx.ir.reinfer_type(stale), changed_ty)
     assert tvm_tirx.ir.reinfer_type(stale).same_as(changed_ty)
     _check_equal(stale.ty, original_ty)
@@ -410,7 +422,11 @@ def test_call_reinfer_type_from_current_inputs():
     untyped = rx.Call("relax.abs", [rx.Var("untyped")])
     _check_type_missing(tvm_tirx.ir.reinfer_type(untyped))
     _check_type_missing(untyped.ty)
-    untyped_explicit = rx.Call("relax.abs", [rx.Var("untyped")], ty=original_ty)
+    untyped_explicit = rx.Call(
+        "relax.abs",
+        [rx.Var("untyped")],
+        ty=original_ty,
+    )
     _check_type_missing(tvm_tirx.ir.reinfer_type(untyped_explicit))
     assert untyped_explicit.ty.same_as(original_ty)
     _check_type_missing(tvm_tirx.ir.reinfer_type(rx.Call("relax.matmul", [x, x])))
@@ -418,7 +434,9 @@ def test_call_reinfer_type_from_current_inputs():
     _check_type_missing(tvm_tirx.ir.reinfer_type(rx.Call(func, [x])))
 
     invalid = rx.Call(
-        "relax.abs", [rx.Var("scalar", tvm_tirx.ir.PrimType("int32"))], ty=original_ty
+        "relax.abs",
+        [rx.Var("scalar", tvm_tirx.ir.PrimType("int32"))],
+        ty=original_ty,
     )
     with pytest.raises(TypeError):
         tvm_tirx.ir.reinfer_type(invalid)

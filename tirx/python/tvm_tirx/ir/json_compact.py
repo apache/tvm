@@ -19,55 +19,6 @@
 import json
 
 
-def get_version(jgraph):
-    """
-    Get the tvm version from the json graph.
-
-    Parameters
-    ----------
-    jgraph : dict
-        The json graph.
-    """
-    return jgraph["metadata"]["tvm_version"]
-
-
-def create_updater(node_map, from_ver, to_ver):
-    """Create an updater to update json loaded data.
-
-    Parameters
-    ----------
-    node_map : Map[str, Function]
-        Map from type_key to updating function
-
-    from_ver : str
-        Prefix of version that we can accept,
-
-    to_ver : str
-        The target version.
-
-    Returns
-    -------
-    fupdater : function
-        The updater function
-    """
-
-    def _updater(data):
-        assert get_version(data).startswith(from_ver)
-        nodes = data["nodes"]
-        for idx, item in enumerate(nodes):
-            f = node_map.get(item["type"], None)
-            if isinstance(f, list):
-                for fpass in f:
-                    item = fpass(item, nodes)
-            elif f:
-                item = f(item, nodes)
-            nodes[idx] = item
-        data["metadata"]["tvm_version"] = to_ver
-        return data
-
-    return _updater
-
-
 def upgrade_json(json_str):
     """Update json from a historical version.
 

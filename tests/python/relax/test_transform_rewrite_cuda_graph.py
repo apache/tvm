@@ -475,11 +475,11 @@ def test_capture_fixed_inputs():
                         A_red_temp_v0[v_ax0, v_ax1, v_ax2] = T.float32(0)
                         A_red_temp_v1[v_ax0, v_ax1, v_ax2] = T.float32(0)
                     v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0[v_ax0, v_ax1, v_ax2] + T.Cast(
-                        A[v_ax0, v_ax1, v_ax2, v_k3], "float32"
+                        "float32", A[v_ax0, v_ax1, v_ax2, v_k3]
                     )
                     v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1[v_ax0, v_ax1, v_ax2] + T.Cast(
-                        A[v_ax0, v_ax1, v_ax2, v_k3], "float32"
-                    ) * T.Cast(A[v_ax0, v_ax1, v_ax2, v_k3], "float32")
+                        "float32", A[v_ax0, v_ax1, v_ax2, v_k3]
+                    ) * T.Cast("float32", A[v_ax0, v_ax1, v_ax2, v_k3])
                     A_red_temp_v0[v_ax0, v_ax1, v_ax2] = v_A_red_temp_v0
                     A_red_temp_v1[v_ax0, v_ax1, v_ax2] = v_A_red_temp_v1
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(16), T.int64(32), T.int64(32), T.int64(16)):
@@ -495,8 +495,9 @@ def test_capture_fixed_inputs():
                     Ts.writes(T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3] = (
                         T.Cast(
+                            "float16",
                             (
-                                T.Cast(A[v_ax0, v_ax1, v_ax2, v_ax3], "float32")
+                                T.Cast("float32", A[v_ax0, v_ax1, v_ax2, v_ax3])
                                 - A_red_temp_v0[v_ax0, v_ax1, v_ax2] * T.float32(0.0625)
                             )
                             * T.rsqrt(
@@ -506,7 +507,6 @@ def test_capture_fixed_inputs():
                                 * (A_red_temp_v0[v_ax0, v_ax1, v_ax2] * T.float32(0.0625))
                                 + T.float32(1.0000000000000001e-05)
                             ),
-                            "float16",
                         )
                         * B[v_ax3]
                         + C[v_ax3]

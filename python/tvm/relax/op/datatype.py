@@ -58,8 +58,8 @@ def astype(
         "relax.astype",
         [x],
         attrs=_make_attrs("relax.attrs.AstypeAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -92,6 +92,6 @@ def wrap_param(
         "relax.wrap_param",
         [data],
         attrs=_make_attrs("relax.attrs.WrapParamAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore

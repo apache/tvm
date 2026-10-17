@@ -112,7 +112,7 @@ def test_full_different_dtype():
                     ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(rxplaceholder[()])
                     Ts.writes(T_full[ax0, ax1])
-                    T_full[ax0, ax1] = T.Cast(rxplaceholder[()], "float32")
+                    T_full[ax0, ax1] = T.Cast("float32", rxplaceholder[()])
     # fmt: on
 
     mod = LegalizeOps()(Full)
@@ -245,7 +245,7 @@ def test_full_like_different_dtype():
                     ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(rxplaceholder[()])
                     Ts.writes(T_full[ax0, ax1])
-                    T_full[ax0, ax1] = T.Cast(rxplaceholder[()], "float64")
+                    T_full[ax0, ax1] = T.Cast("float64", rxplaceholder[()])
     # fmt: on
 
     mod = LegalizeOps()(FullLike)
@@ -933,7 +933,7 @@ def test_astype():
                     i0_1, i1_1, i2_1 = Ts.axis.remap("SSS", [i0, i1, i2])
                     Ts.reads(rxplaceholder[i0_1, i1_1, i2_1])
                     Ts.writes(compute[i0_1, i1_1, i2_1])
-                    compute[i0_1, i1_1, i2_1] = T.Cast(rxplaceholder[i0_1, i1_1, i2_1], "int32")
+                    compute[i0_1, i1_1, i2_1] = T.Cast("int32", rxplaceholder[i0_1, i1_1, i2_1])
     # fmt: on
 
     mod = LegalizeOps()(Astype)
@@ -994,7 +994,7 @@ def test_astype_symbolic():
                     i0_1, i1_1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(rxplaceholder[i0_1, i1_1])
                     Ts.writes(compute[i0_1, i1_1])
-                    compute[i0_1, i1_1] = T.Cast(rxplaceholder[i0_1, i1_1], "int32")
+                    compute[i0_1, i1_1] = T.Cast("int32", rxplaceholder[i0_1, i1_1])
     # fmt: on
 
     mod = LegalizeOps()(Astype)

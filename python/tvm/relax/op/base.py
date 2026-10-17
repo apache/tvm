@@ -73,7 +73,7 @@ def null_value(*, ty=None, loc: Location = UNKNOWN_LOC) -> Call:
     ret: Call
         The created call node.
     """
-    return Call("relax.null_value", [], ty=ty, loc=loc)  # type: ignore
+    return Call("relax.null_value", [], loc=loc, ty=ty)  # type: ignore
 
 
 def _wrap_inline_arg_tuple(args) -> Expr:
@@ -215,7 +215,7 @@ def call_tir_packed(gvar: GlobalVar, args: Expr, *, ty=None, loc: Location = UNK
         relax.call_tir_packed(copy, (source, destination))
     """
     args = _wrap_tir_arg_tuple(gvar, args)
-    return Call("relax.call_tir_packed", [gvar, args], ty=ty, loc=loc)
+    return Call("relax.call_tir_packed", [gvar, args], loc=loc, ty=ty)
 
 
 @tvm_ffi.register_object("relax.attrs.CallTIRWithGradAttrs")
@@ -316,7 +316,7 @@ def call_py_func(
     ``ty_args`` contains exactly one result type, including a TupleType for
     tuple-valued results. Omitted ``ty`` uses the registered result inference.
     """
-    return Call("relax.call_py_func", [func_name, args], ty_args=ty_args, ty=ty, loc=loc)
+    return Call("relax.call_py_func", [func_name, args], ty_args=ty_args, loc=loc, ty=ty)
 
 
 def call_builtin_with_ctx(
@@ -362,8 +362,8 @@ def call_builtin_with_ctx(
         "relax.call_builtin_with_ctx",
         [func, args],
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -388,7 +388,7 @@ def make_closure(func: Expr, args: Expr, *, ty=None, loc: Location = UNKNOWN_LOC
 
     args = _wrap_inline_arg_tuple(args)
 
-    return Call("relax.make_closure", [func, args], ty=ty, loc=loc)  # type: ignore
+    return Call("relax.make_closure", [func, args], loc=loc, ty=ty)  # type: ignore
 
 
 def invoke_closure(
@@ -422,8 +422,8 @@ def invoke_closure(
         "relax.invoke_closure",
         [closure, args],
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -490,7 +490,7 @@ def relax_print(format_str: str, *format_args: tvm_tirx.Object) -> None:
 
 def print(format: str | Expr, *values: Expr, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     """Print values using the canonical leading format-string operand."""
-    return Call("relax.print", [format, *values], ty=ty, loc=loc)
+    return Call("relax.print", [format, *values], loc=loc, ty=ty)
 
 
 @tvm_tirx.register_global_func("relax.run.assert_op")
@@ -584,7 +584,7 @@ def assert_op(
     result : Expr
         A Call to the Relax assert operation.
     """
-    return Call("relax.assert_op", [condition, format, *values], ty=ty, loc=loc)
+    return Call("relax.assert_op", [condition, format, *values], loc=loc, ty=ty)
 
 
 def shape_of(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -600,7 +600,7 @@ def shape_of(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     result : Expr
         A relax Call, which gets the shape of the input
     """
-    return Call("relax.shape_of", [expr], ty=ty, loc=loc)  # type: ignore # pylint: disable=no-member
+    return Call("relax.shape_of", [expr], loc=loc, ty=ty)  # type: ignore # pylint: disable=no-member
 
 
 def size(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -616,7 +616,7 @@ def size(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     result : Expr
         A scalar tensor of dtype int64 containing the total number of elements.
     """
-    return Call("relax.size", [expr], ty=ty, loc=loc)  # type: ignore # pylint: disable=no-member
+    return Call("relax.size", [expr], loc=loc, ty=ty)  # type: ignore # pylint: disable=no-member
 
 
 def tensor_to_shape(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -630,7 +630,7 @@ def tensor_to_shape(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr
     result : Expr
         A relax Call, which transforms the tensor values to the shape
     """
-    return Call("relax.tensor_to_shape", [expr], ty=ty, loc=loc)  # type: ignore # pylint: disable=no-member
+    return Call("relax.tensor_to_shape", [expr], loc=loc, ty=ty)  # type: ignore # pylint: disable=no-member
 
 
 def shape_to_tensor(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -644,7 +644,7 @@ def shape_to_tensor(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr
     result : Expr
         A relax Call, which transforms the shape values to the tensor
     """
-    return Call("relax.shape_to_tensor", [expr], ty=ty, loc=loc)  # type: ignore # pylint: disable=no-member
+    return Call("relax.shape_to_tensor", [expr], loc=loc, ty=ty)  # type: ignore # pylint: disable=no-member
 
 
 @tvm_ffi.register_object("relax.attrs.CallInplacePackedAttrs")
@@ -719,8 +719,8 @@ def call_inplace_packed(
         [op, *args],
         attrs=_make_attrs("relax.attrs.CallInplacePackedAttrs", inplace_indices=inplace_indices),
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore # pylint: disable=no-member
 
 
@@ -782,8 +782,8 @@ def call_pure_packed(
         "relax.call_pure_packed",
         [op, *args],
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore # pylint: disable=no-member
 
 
@@ -824,8 +824,8 @@ def invoke_pure_closure(
         "relax.invoke_pure_closure",
         [closure, args],
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -856,8 +856,8 @@ def to_vdevice(data, dst_vdevice, *, ty=None, loc: Location = UNKNOWN_LOC) -> Ex
         "relax.to_vdevice",
         [data],
         attrs=_make_attrs("relax.attrs.ToVDeviceAttrs", dst_vdevice=dst_vdevice),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -876,4 +876,4 @@ def hint_on_device(
         index=index,
         memory_scope=memory_scope,
     )
-    return Call("relax.hint_on_device", [data], attrs=attrs, ty=ty, loc=loc)
+    return Call("relax.hint_on_device", [data], attrs=attrs, loc=loc, ty=ty)

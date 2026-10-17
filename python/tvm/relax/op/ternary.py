@@ -45,4 +45,4 @@ def ewise_fma(
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.ewise_fma", [x1, x2, x3], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.ewise_fma", [x1, x2, x3], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore

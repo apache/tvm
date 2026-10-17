@@ -44,7 +44,7 @@ def test_batch_decode_gemv():
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
                 Ts.reads(lv429[v_i0, v_i1 // T.int64(8)])
                 Ts.writes(compute[v_i0, v_i1])
-                compute[v_i0, v_i1] = T.Cast(T.bitwise_and(T.shift_right(lv429[v_i0, v_i1 // T.int64(8)], T.Cast(v_i1 % T.int64(8) * T.int64(4), "uint32")), T.uint32(15)), "float16")
+                compute[v_i0, v_i1] = T.Cast("float16", T.bitwise_and(T.shift_right(lv429[v_i0, v_i1 // T.int64(8)], T.Cast("uint32", v_i1 % T.int64(8) * T.int64(4))), T.uint32(15)))
         for i0, i1 in T.grid(T.int64(4096), T.int64(28672)):
             with Ts.sblock("dequantize"):
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
@@ -92,7 +92,7 @@ def test_batch_decode_gemv():
                                         v1 = Ts.axis.spatial(T.int64(28672), ax2_fused_u_fused_0 * T.int64(256) + ax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0 * T.int64(8) + ax1)
                                         Ts.reads(lv429[v0, v1 // T.int64(8)], lv430[v0, v1 // T.int64(32)])
                                         Ts.writes(dequantize_intermediate_intermediate_local[v0, v1])
-                                        dequantize_intermediate_intermediate_local[v0, v1] = (T.Cast(T.bitwise_and(T.shift_right(lv429[v0, v1 // T.int64(8)], T.Cast(v1 % T.int64(8) * T.int64(4), "uint32")), T.uint32(15)), "float16") - T.float16(7)) * lv430[v0, v1 // T.int64(32)]
+                                        dequantize_intermediate_intermediate_local[v0, v1] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv429[v0, v1 // T.int64(8)], T.Cast("uint32", v1 % T.int64(8) * T.int64(4))), T.uint32(15))) - T.float16(7)) * lv430[v0, v1 // T.int64(32)]
                             for ax0_1, u_fused_ax1_fused_fused_2, ax2_fused_u_fused_2 in T.grid(T.int64(4), T.int64(2), T.int64(2)):
                                 for ax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_1 in T.vectorized(T.int64(4)):
                                     with Ts.sblock("NT_matmul_rf_update"):
@@ -408,7 +408,7 @@ def test_outer_reduction():
         for i0, i1 in T.grid(4096, 6144):
             with Ts.sblock("compute"):
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
-                compute[v_i0, v_i1] = T.Cast(T.bitwise_and(T.shift_right(B0[v_i0 // 8, v_i1], T.Cast(v_i0 % 8 * 4, "uint32")), T.uint32(15)), "float16")
+                compute[v_i0, v_i1] = T.Cast("float16", T.bitwise_and(T.shift_right(B0[v_i0 // 8, v_i1], T.Cast("uint32", v_i0 % 8 * 4)), T.uint32(15)))
         for i0, i1 in T.grid(4096, 6144):
             with Ts.sblock("dequantize"):
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
@@ -480,7 +480,7 @@ def test_outer_reduction():
                                             v1 = Ts.axis.spatial(6144, ax1_fused_0 * 64 + ax1_fused_1)
                                             Ts.reads(B0_local[v0 // 8, v1], B1_local[v0 // 32, v1])
                                             Ts.writes(B_local[v0, v1])
-                                            B_local[v0, v1] = (T.Cast(T.bitwise_and(T.shift_right(B0_local[v0 // 8, v1], T.Cast(v0 % 8 * 4, "uint32")), T.uint32(15)), "float16") - T.float16(7)) * B1_local[v0 // 32, v1]
+                                            B_local[v0, v1] = (T.Cast("float16", T.bitwise_and(T.shift_right(B0_local[v0 // 8, v1], T.Cast("uint32", v0 % 8 * 4)), T.uint32(15))) - T.float16(7)) * B1_local[v0 // 32, v1]
                                 for ax0_1, ax2_fused_1_ax2_fused_3_fused_1_0 in T.grid(4, 2):
                                     for ax2_fused_1_ax2_fused_3_fused_1_1 in T.vectorized(4):
                                         with Ts.sblock("matmul_rf_update"):
@@ -621,7 +621,7 @@ def test_low_batch_gemv_broadcast_epilogue():
                 Ts.reads(C_temp[v_i0, v_i1, T.int64(0), v_i4])
                 Ts.writes(C[v_i0, v_i1, v_i2, v_i3, v_i4])
                 C[v_i0, v_i1, v_i2, v_i3, v_i4] = T.Cast(
-                    C_temp[v_i0, v_i1, T.int64(0), v_i4], "float32"
+                    "float32", C_temp[v_i0, v_i1, T.int64(0), v_i4]
                 )
     # fmt: on
 

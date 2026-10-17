@@ -79,7 +79,7 @@ class GenericConstNode : public ConstantNode {
 /*! \brief Managed reference to a generic constant. */
 class GenericConst : public Constant {
  public:
-  TVM_TIRX_DLL GenericConst(ffi::Any value, Type ty, Location loc = UnknownLoc());
+  TVM_TIRX_DLL GenericConst(Type ty, ffi::Any value, Location loc = UnknownLoc());
 
   explicit GenericConst(ffi::ObjectPtr<GenericConstNode> node) : Constant(std::move(node)) {}
 

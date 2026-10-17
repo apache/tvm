@@ -640,12 +640,12 @@ def clip(x, a_min, a_max):
     def _compute(*indices):
         value = x(*indices)
         const_min = (
-            tvm_tirx.tirx.Cast(a_min, value.ty)
+            tvm_tirx.tirx.Cast(value.ty, a_min)
             if tvm_tirx.ir.is_prim_expr(a_min)
             else tvm_tirx.tirx.const(a_min, value.ty)
         )
         const_max = (
-            tvm_tirx.tirx.Cast(a_max, value.ty)
+            tvm_tirx.tirx.Cast(value.ty, a_max)
             if tvm_tirx.ir.is_prim_expr(a_max)
             else tvm_tirx.tirx.const(a_max, value.ty)
         )
@@ -768,7 +768,7 @@ def ceil_log2(x):
         The result.
     """
     if not tvm_tirx.ir.is_prim_expr(x):
-        x = tvm_tirx.tirx.const(x)
+        x = tvm_tirx.ir.const(x)
 
     if x.ty.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
         return tvm_tirx.tirx.ceil(tvm_tirx.tirx.log2(x))

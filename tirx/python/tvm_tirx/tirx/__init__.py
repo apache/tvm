@@ -99,12 +99,6 @@ if not _RUNTIME_ONLY_TIRX:
         register_tir_pipeline,
     )
 
-import tvm_tirx.script
-
-tvm_tirx.script.register_dialect(
-    "tirx", "tvm_tirx.tirx.script", builder_path="tvm_tirx.tirx.script.ir_builder"
-)
-
 
 def _check_script_module(module: "tvm_tirx.ir.IRModule") -> None:
     # Delay builder imports until validation, keeping dialect/runtime bootstrap safe.

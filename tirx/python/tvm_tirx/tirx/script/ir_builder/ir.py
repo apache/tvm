@@ -246,7 +246,14 @@ def alloc_tensor(
             placement = placement if isinstance(placement, list | tuple | ir.Array) else [placement]
             placement = ir.Tuple([normalize(value) for value in placement])
         args.append(placement)
-    return ir.Call("tirx.alloc_tensor", args, attrs=attrs, ty_args=ty_args, loc=loc, ty=ty)
+    return ir.Call(
+        "tirx.alloc_tensor",
+        args,
+        attrs=attrs,
+        ty_args=ty_args,
+        loc=loc,
+        ty=ty,
+    )
 
 
 def _bind_tensor(value):
@@ -345,7 +352,14 @@ def decl_tensor(
     ty=None,
 ) -> ir.Call:
     """Declare a pointer-backed tensor with one explicit ``Tensor`` type argument."""
-    return ir.Call("tirx.decl_tensor", [data], attrs=attrs, ty_args=ty_args, loc=loc, ty=ty)
+    return ir.Call(
+        "tirx.decl_tensor",
+        [data],
+        attrs=attrs,
+        ty_args=ty_args,
+        loc=loc,
+        ty=ty,
+    )
 
 
 alloc_shared = functools.partial(_alloc_tensor, scope="shared")

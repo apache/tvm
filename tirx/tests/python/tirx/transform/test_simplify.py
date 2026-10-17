@@ -531,8 +531,8 @@ def test_left_ceil_log2_lower_bound():
     def expected(A: T.Tensor(16, "float32")):
         for i in T.serial(16):
             x: T.let[T.int32] = T.Cast(
-                T.ceil(T.log2(T.Cast(i + 1025, "float64"))),
                 "int32",
+                T.ceil(T.log2(T.Cast("float64", i + 1025))),
             )
             A[i] = T.float32(0)
 

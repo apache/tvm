@@ -189,7 +189,7 @@ def make_namespace():
         ]
 
     def reduce_project(v, a):
-        return a.reduce_op, [v["dst"], v["src"], _axes(a), const(False)], {}
+        return a.reduce_op, [v["dst"], v["src"], _axes(a), const(False, "bool")], {}
 
     result += [
         spec(

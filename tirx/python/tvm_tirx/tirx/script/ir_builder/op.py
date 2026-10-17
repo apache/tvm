@@ -87,19 +87,34 @@ def _call_global(func: ir.GlobalVar, *args: Expr) -> Call:
                 declaration = module_frame.functions[func]
                 if isinstance(declaration, tir.Function):
                     # The Relax-facing signature may erase pointer results to Any.
-                    return Call(func, args, ty=declaration.ret_type)
+                    return Call(
+                        func,
+                        args,
+                        ty=declaration.ret_type,
+                    )
                 break
     if isinstance(func.ty, ir.FuncType):
-        return Call(func, args, ty=func.ty.ret_type)
+        return Call(
+            func,
+            args,
+            ty=func.ty.ret_type,
+        )
     return Call(func, args)
 
 
-def cast(value, ty, *, loc: Location = UNKNOWN_LOC):
+def cast(value, dtype=None, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Cast an expression to the requested data type.
 
-    The result type may be passed positionally as ``cast(value, ty)`` or
-    explicitly as ``cast(value, ty=ty)``. The source location is keyword-only.
+    The result type may be passed positionally as ``cast(value, dtype)``,
+    as ``cast(value, dtype=dtype)`` or as ``cast(value, ty=ty)``. Supply
+    exactly one non-None type. The source location is keyword-only.
     """
+    if dtype is not None:
+        if ty is not None:
+            raise TypeError("cast accepts only one of dtype and ty")
+        ty = dtype
+    if ty is None:
+        raise TypeError("cast requires a dtype or ty argument")
     return _prim_ffi_api._cast(value, ty, loc)  # type: ignore[attr-defined]
 
 
@@ -168,8 +183,8 @@ class WebGPUNamespace:
         return Call(
             "tirx.webgpu.subgroup_shuffle",
             [var, lane],
-            ty=ty,
             loc=loc,
+            ty=ty,
         )
 
     @staticmethod
@@ -180,8 +195,8 @@ class WebGPUNamespace:
         return Call(
             "tirx.webgpu.subgroup_shuffle_up",
             [var, delta],
-            ty=ty,
             loc=loc,
+            ty=ty,
         )
 
     @staticmethod
@@ -192,8 +207,8 @@ class WebGPUNamespace:
         return Call(
             "tirx.webgpu.subgroup_shuffle_down",
             [var, delta],
-            ty=ty,
             loc=loc,
+            ty=ty,
         )
 
 

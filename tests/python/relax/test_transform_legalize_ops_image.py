@@ -49,7 +49,7 @@ def test_image_resize2d():
                     i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder[i0_1, T.int64(0):T.int64(8), T.int64(0):T.int64(8), i3_1])
                     Ts.writes(resize[i0_1, i1_1, i2_1, i3_1])
-                    resize[i0_1, i1_1, i2_1, i3_1] = rxplaceholder[i0_1, T.max(T.min(T.Cast(T.round(T.float32(0.5) * T.Cast(i1_1, "float32")), "int64"), T.int64(7)), T.int64(0)), T.max(T.min(T.Cast(T.round(T.float32(0.5) * T.Cast(i2_1, "float32")), "int64"), T.int64(7)), T.int64(0)), i3_1]
+                    resize[i0_1, i1_1, i2_1, i3_1] = rxplaceholder[i0_1, T.max(T.min(T.Cast("int64", T.round(T.float32(0.5) * T.Cast("float32", i1_1))), T.int64(7)), T.int64(0)), T.max(T.min(T.Cast("int64", T.round(T.float32(0.5) * T.Cast("float32", i2_1))), T.int64(7)), T.int64(0)), i3_1]
     # fmt: on
 
     mod = LegalizeOps()(Resize2D)
@@ -101,7 +101,7 @@ def test_image_resize2d_symbolic():
                     i0_1, i1_1, i2_1, i3_1, i4_1 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                     Ts.reads(rxplaceholder[i0_1, i1_1, T.int64(0) : T.max(h_resize2d, T.int64(1)), T.int64(0) : T.max(w_resize2d, T.int64(1)), i4_1])
                     Ts.writes(resize[i0_1, i1_1, i2_1, i3_1, i4_1])
-                    resize[i0_1, i1_1, i2_1, i3_1, i4_1] = rxplaceholder[i0_1, i1_1, T.max(T.min(T.Cast(T.round(T.Cast(h_resize2d, "float32") / T.Cast(oh_resize2d, "float32") * T.Cast(i2_1, "float32")), "int64"), h_resize2d - T.int64(1)), T.int64(0)), T.max(T.min(T.Cast(T.round(T.Cast(w_resize2d, "float32") / T.Cast(ow_resize2d, "float32") * T.Cast(i3_1, "float32")), "int64"), w_resize2d - T.int64(1)), T.int64(0)), i4_1]
+                    resize[i0_1, i1_1, i2_1, i3_1, i4_1] = rxplaceholder[i0_1, i1_1, T.max(T.min(T.Cast("int64", T.round(T.Cast("float32", h_resize2d) / T.Cast("float32", oh_resize2d) * T.Cast("float32", i2_1))), h_resize2d - T.int64(1)), T.int64(0)), T.max(T.min(T.Cast("int64", T.round(T.Cast("float32", w_resize2d) / T.Cast("float32", ow_resize2d) * T.Cast("float32", i3_1))), w_resize2d - T.int64(1)), T.int64(0)), i4_1]
     # fmt: on
 
     mod = LegalizeOps()(Resize2D)
@@ -136,7 +136,7 @@ def test_image_affine_grid():
                         v_n, v_dim, v_i0, v_i1 = Ts.axis.remap("SSSS", [n_index, dim, i0, i1])
                         Ts.reads(theta[v_n, v_dim, T.int64(0):T.int64(3)])
                         Ts.writes(compute[v_n, v_dim, v_i0, v_i1])
-                        compute[v_n, v_dim, v_i0, v_i1] = theta[v_n, v_dim, T.int64(2)] + theta[v_n, v_dim, T.int64(1)] * (T.float32(-1.0) + T.Cast(v_i0, "float32") * T.float32(0.13333332666666667)) + theta[v_n, v_dim, T.int64(0)] * (T.float32(-1.0) + T.Cast(v_i1, "float32") * T.float32(0.13333332666666667))
+                        compute[v_n, v_dim, v_i0, v_i1] = theta[v_n, v_dim, T.int64(2)] + theta[v_n, v_dim, T.int64(1)] * (T.float32(-1.0) + T.Cast("float32", v_i0) * T.float32(0.13333332666666667)) + theta[v_n, v_dim, T.int64(0)] * (T.float32(-1.0) + T.Cast("float32", v_i1) * T.float32(0.13333332666666667))
     # fmt: on
 
     mod = LegalizeOps()(AffineGrid)

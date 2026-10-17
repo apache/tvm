@@ -88,8 +88,8 @@ def all_class_non_max_suppression(
         attrs=_make_attrs(
             "relax.attrs.AllClassNonMaximumSuppressionAttrs", output_format=output_format
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -141,8 +141,8 @@ def get_valid_counts(
             id_index=id_index,
             score_index=score_index,
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -255,6 +255,6 @@ def non_max_suppression(
             soft_nms_sigma=soft_nms_sigma,
             score_threshold=score_threshold,
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )

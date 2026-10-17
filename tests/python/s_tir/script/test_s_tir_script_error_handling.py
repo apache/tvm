@@ -112,7 +112,7 @@ def test_return_not_allowed():
     def return_not_allowed(a: T.handle) -> None:
         return T.evaluate(0)  # error
 
-    check_error(return_not_allowed, 2, NotImplementedError)
+    check_error(return_not_allowed, 2, TypeError)
 
 
 def test_no_body():
@@ -353,7 +353,7 @@ def test_tvm_exception_catch_from_assigned_intrin():
     def intrin_except_assign(A: T.Tensor((16, 16), "float32")) -> None:
         A[0, 0] = A[A]  # error
 
-    check_error(intrin_except_assign, 2, RuntimeError)
+    check_error(intrin_except_assign, 2, TypeError)
 
 
 def test_match_tensor_shape_mismatch():

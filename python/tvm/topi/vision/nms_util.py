@@ -73,7 +73,7 @@ def binary_search(y, num_boxes, scores, score_threshold, out):
     lo = lo_buf
     hi = hi_buf
     T.tensor_store(lo, T.tensor_indices(lo, 0), T.int32(0))
-    T.tensor_store(hi, T.tensor_indices(hi, 0), tvm_tirx.tirx.Cast(num_boxes, "int32"))
+    T.tensor_store(hi, T.tensor_indices(hi, 0), tvm_tirx.tirx.Cast("int32", num_boxes))
     with T.while_(lo[T.tensor_indices(lo, 0)] < hi[T.tensor_indices(hi, 0)]):
         mid = (hi[T.tensor_indices(hi, 0)] + lo[T.tensor_indices(lo, 0)]) >> 1
         with T.if_(scores[y, mid] > score_threshold):
@@ -313,7 +313,7 @@ def _all_class_nms_ir(
                 iou_threshold = tvm_tirx.ir.FloatImm("float32", 0.5)
 
         if isinstance(max_output_size_per_class, int):
-            max_output_size_per_class = tvm_tirx.tirx.const(max_output_size_per_class)
+            max_output_size_per_class = tvm_tirx.ir.const(max_output_size_per_class)
         elif isinstance(max_output_size_per_class, te.Tensor):
             if len(max_output_size_per_class.shape) == 0:
                 max_output_size_per_class = max_output_size_per_class()
@@ -323,7 +323,7 @@ def _all_class_nms_ir(
             ):
                 max_output_size_per_class = max_output_size_per_class[0]
             else:
-                max_output_size_per_class = tvm_tirx.tirx.const(1000)
+                max_output_size_per_class = tvm_tirx.tirx.const(1000, "int32")
 
         def calc_overlap(i, j, k):
             offset_j = sorted_indices[i, j] * 4
@@ -355,7 +355,7 @@ def _all_class_nms_ir(
             pass
 
         def needs_bbox_check(*_):
-            return tvm_tirx.tirx.const(True)
+            return tvm_tirx.tirx.const(True, "bool")
 
         nms_loop(
             batch_class,

@@ -445,7 +445,9 @@ def within_index(b, e, s, i):
     bc = tvm_tirx.tirx.Select(s < 0, i <= e, i < b)
     ec = tvm_tirx.tirx.Select(s < 0, i > b, i >= e)
     ss = te.if_then_else(s < 0, ((i - e) + (e % te.abs(s)) + 1) % te.abs(s), (i - b) % s)
-    return tvm_tirx.tirx.Select(tvm_tirx.tirx.Or(bc, ec), tvm_tirx.tirx.const(False), ss.equal(0))
+    return tvm_tirx.tirx.Select(
+        tvm_tirx.tirx.Or(bc, ec), tvm_tirx.tirx.const(False, "bool"), ss.equal(0)
+    )
 
 
 def make_idx(b, e, s, z, i):

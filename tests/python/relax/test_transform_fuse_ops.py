@@ -2224,7 +2224,7 @@ def test_packed_params():
                     v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(lv[v_i0, v_i1])
                     Ts.writes(compute[v_i0, v_i1])
-                    compute[v_i0, v_i1] = T.Cast(lv[v_i0, v_i1], "float32")
+                    compute[v_i0, v_i1] = T.Cast("float32", lv[v_i0, v_i1])
 
         @Ts.function(private=True)
         def matmul(x: T.Tensor((T.int64(16), T.int64(16)), "float32"), lv2: T.Tensor((T.int64(16), T.int64(16)), "float32"), T_matmul: T.Tensor((T.int64(16), T.int64(16)), "float32")):

@@ -27,7 +27,7 @@ import tvm_ffi
 from tvm_tirx import __version__ as tvm_version
 from tvm_tirx import libinfo, tirx
 from tvm_tirx.backend.config import backend_config_json, merge_backend_configs
-from tvm_tirx.ir import Expr, PtrType, const, is_prim_expr
+from tvm_tirx.ir import Expr, PtrType, is_prim_expr
 from tvm_tirx.runtime import Module
 
 
@@ -138,7 +138,7 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
             "threadIdx.y",
             "threadIdx.z",
         ][: len(grid[1])]
-        runtime_args = [arg if isinstance(arg, Expr) else const(arg) for arg in args]
+        runtime_args = [arg if isinstance(arg, Expr) else tirx.const(arg) for arg in args]
         kernel_arg_types = []
         for arg in runtime_args:
             if isinstance(arg.ty, PtrType):

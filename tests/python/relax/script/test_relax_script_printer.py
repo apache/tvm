@@ -258,7 +258,7 @@ def test_function_return_tensor_loc():
 
 def test_function_dependent_shape_locs():
     n = tirx.Var("n", "int64")
-    cast = tirx.Cast(n, "int64")
+    cast = tirx.Cast("int64", n)
     x = relax.Var("x", relax.TensorType([cast], "float32"))
     ret_ty = relax.TensorType(dtype="float32", ndim=1)
     func = relax.Function([x, n], x, ret_ty=ret_ty).with_attr("global_symbol", "main")
@@ -286,7 +286,7 @@ def test_function_dependent_shape_locs():
         assert "Access path:" not in lines[definition_index]
         return lines[definition_index], lines[definition_index + 1]
 
-    expression = 'T.Cast(n, "int64")'
+    expression = 'T.Cast("int64", n)'
     definition, underline = render(cast_path)
     expression_start = definition.index(expression)
     assert underline[expression_start : expression_start + len(expression)] == "^" * len(expression)
@@ -299,7 +299,7 @@ def test_function_dependent_shape_locs():
     assert underline.strip() == "^" * len(expression)
 
     definition, underline = render(cast_path.attr("value"))
-    variable_start = definition.index(expression) + expression.index("n")
+    variable_start = definition.index(expression) + expression.rindex("n")
     assert underline[variable_start] == "^"
     assert underline.strip() == "^"
 

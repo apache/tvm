@@ -78,8 +78,8 @@ def full(
         "relax.full",
         [shape, fill_value],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -117,8 +117,8 @@ def full_like(
         "relax.full_like",
         [x, fill_value],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -149,8 +149,8 @@ def ones(
         "relax.ones",
         [shape],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -178,8 +178,8 @@ def ones_like(
         "relax.ones_like",
         [x],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -210,8 +210,8 @@ def zeros(
         "relax.zeros",
         [shape],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -239,8 +239,8 @@ def zeros_like(
         "relax.zeros_like",
         [x],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -284,8 +284,8 @@ def eye(
         "relax.eye",
         [n, m, k],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -325,8 +325,8 @@ def eye_like(
         "relax.eye_like",
         [x, k],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -384,8 +384,8 @@ def arange(
         "relax.arange",
         [start, end, step],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -427,8 +427,8 @@ def hamming_window(
         "relax.hamming_window",
         [window_size, periodic, alpha, beta],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=dtype),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -460,7 +460,7 @@ def tril(x: Expr, k: int | Expr = 0, *, ty=None, loc: Location = UNKNOWN_LOC) ->
     if not is_prim_expr(k):
         k = prim_value(k)
 
-    return _Call("relax.tril", [x, k], ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.tril", [x, k], loc=loc, ty=ty)  # type: ignore
 
 
 def triu(x: Expr, k: int | Expr = 0, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -486,4 +486,4 @@ def triu(x: Expr, k: int | Expr = 0, *, ty=None, loc: Location = UNKNOWN_LOC) ->
     if not is_prim_expr(k):
         k = prim_value(k)
 
-    return _Call("relax.triu", [x, k], ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.triu", [x, k], loc=loc, ty=ty)  # type: ignore

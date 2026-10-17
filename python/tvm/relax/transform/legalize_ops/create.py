@@ -148,7 +148,7 @@ def _shape_to_tensor(bb: BlockBuilder, call: Call) -> Expr:
         def fcompute(i):
             result = tirx.const(0, "int64")
             for idx in range(n - 1, -1, -1):
-                result = tirx.if_then_else(i == idx, tirx.Cast(resolved[idx], "int64"), result)
+                result = tirx.if_then_else(i == idx, tirx.Cast("int64", resolved[idx]), result)
             return result
 
         return te.compute((n,), fcompute, name="shape_to_tensor")

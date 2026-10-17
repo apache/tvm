@@ -146,8 +146,8 @@ def resize2d(
             extrapolation_value=extrapolation_value,
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -206,8 +206,8 @@ def resize3d(
             extrapolation_value=extrapolation_value,
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -263,8 +263,8 @@ def grid_sample(
             padding_mode=padding_mode,
             align_corners=align_corners,
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -314,7 +314,7 @@ def affine_grid(
             "relax.image.affine_grid",
             [data, size],
             attrs=_make_attrs("relax.attrs.AffineGridAttrs", align_corners=align_corners),
-            ty=ty,
             loc=loc,
+            ty=ty,
         ),
     )

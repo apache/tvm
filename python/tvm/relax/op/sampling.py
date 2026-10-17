@@ -95,6 +95,6 @@ def multinomial_from_uniform(
         "relax.multinomial_from_uniform",
         [prob, uniform_sample, sample_indices],
         attrs=_make_attrs("relax.attrs.MultinomialFromUniformAttrs", dtype=dtype),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )

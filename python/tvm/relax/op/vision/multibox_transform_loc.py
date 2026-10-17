@@ -102,6 +102,6 @@ def multibox_transform_loc(
             keep_background=keep_background,
             apply_softmax=apply_softmax,
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )

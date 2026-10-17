@@ -73,8 +73,8 @@ def matmul(
             "relax.attrs.MatmulAttrs",
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -145,8 +145,8 @@ def einsum(operands, subscripts, *, ty=None, loc: Location = UNKNOWN_LOC):
         "relax.einsum",
         [operands],
         attrs=_make_attrs("relax.attrs.EinsumAttrs", subscripts=subscripts),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -174,4 +174,4 @@ def outer(x1: Expr, x2: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     result : relax.Expr
         The resulting expression representing the outer product.
     """
-    return _Call("relax.outer", [x1, x2], ty=ty, loc=loc)
+    return _Call("relax.outer", [x1, x2], loc=loc, ty=ty)
