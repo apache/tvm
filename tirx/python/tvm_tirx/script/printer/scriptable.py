@@ -16,7 +16,6 @@
 # under the License.
 """Configuration of TVMScript printer"""
 
-import os
 from collections.abc import Sequence
 
 import tvm_ffi
@@ -43,11 +42,11 @@ class PrinterConfig(tvm_ffi.Object):
     indent_spaces: int
     print_line_numbers: bool
     num_context_lines: int
-    extra_config: dict
     path_to_underline: list[AccessPath] | None
     path_to_annotate: dict[AccessPath, str] | None
-    obj_to_underline: list[AccessPath] | None
-    obj_to_annotate: dict[AccessPath, str] | None
+    obj_to_underline: list[tvm_ffi.Object] | None
+    obj_to_annotate: dict[tvm_ffi.Object, str] | None
+    extra_config: dict
 
     def __init__(
         self,
@@ -60,12 +59,11 @@ class PrinterConfig(tvm_ffi.Object):
         indent_spaces: int = 4,
         print_line_numbers: bool = False,
         num_context_lines: int | None = None,
-        show_all_ty: bool = True,
-        extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
         path_to_annotate: dict[AccessPath, str] | None = None,
         obj_to_underline: list[tvm_ffi.Object] | None = None,
         obj_to_annotate: dict[tvm_ffi.Object, str] | None = None,
+        extra_config: dict | None = None,
     ) -> None:
         if num_context_lines is None:
             num_context_lines = -1
@@ -81,8 +79,6 @@ class PrinterConfig(tvm_ffi.Object):
             "path_to_annotate": path_to_annotate,
             "obj_to_underline": obj_to_underline,
             "obj_to_annotate": obj_to_annotate,
-            # Dialect-specific config via dotted keys in extra_config
-            "relax.show_all_ty": show_all_ty,
         }
 
         if name is not None:
@@ -113,12 +109,11 @@ class _ScriptableMethods:
         indent_spaces: int = 4,
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
-        show_all_ty: bool = True,
-        extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
         path_to_annotate: dict[AccessPath, str] | None = None,
         obj_to_underline: list[tvm_ffi.Object] | None = None,
         obj_to_annotate: dict[tvm_ffi.Object, str] | None = None,
+        extra_config: dict | None = None,
     ) -> str:
         """Print TVM IR into TVMScript text format
 
@@ -140,15 +135,6 @@ class _ScriptableMethods:
             Whether to print line numbers
         num_context_lines : int = -1
             The number of lines of context to print before and after the line to underline.
-        show_all_ty: bool = True
-            If True (default), annotate all variable bindings with the struct
-            info of that variable.  If False, only add annotations where
-            required for unambiguous round-trip of Relax -> TVMScript -> Relax.
-        extra_config : Optional[dict] = None
-            Dialect-specific configuration passed through to PrinterConfig.extra_config,
-            including ``ir.prefix`` for the IR namespace alias (default ``"I"``).
-            Keys are conventionally namespaced as "<dialect>.<knob>", e.g.
-            ``{"tirx.prefix": "T"}``.
         path_to_underline : Optional[List[AccessPath]] = None
             Object path to be underlined
         path_to_annotate : Optional[Dict[AccessPath, str]] = None
@@ -157,6 +143,11 @@ class _ScriptableMethods:
             Object to be underlined
         obj_to_annotate : Optional[Dict[tvm_ffi.Object, str]] = None
             Object to be annotated
+        extra_config : Optional[dict] = None
+            Dialect-specific configuration passed through to PrinterConfig.extra_config,
+            including ``ir.prefix`` for the IR namespace alias (default ``"I"``).
+            Keys are conventionally namespaced as "<dialect>.<knob>", e.g.
+            ``{"tirx.prefix": "T"}``.
 
         Returns
         -------
@@ -182,19 +173,17 @@ class _ScriptableMethods:
                 indent_spaces=indent_spaces,
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
-                show_all_ty=show_all_ty,
-                extra_config=merged_extra if merged_extra else None,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,
                 obj_to_annotate=obj_to_annotate,
+                extra_config=merged_extra,
             ),
         )
 
     def show(
         self,
         style: str | None = None,
-        black_format: bool | None = None,
         *,
         name: str | None = None,
         show_meta: bool = False,
@@ -204,39 +193,19 @@ class _ScriptableMethods:
         indent_spaces: int = 4,
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
-        show_all_ty: bool = True,
-        extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
         path_to_annotate: dict[AccessPath, str] | None = None,
         obj_to_underline: list[tvm_ffi.Object] | None = None,
         obj_to_annotate: dict[tvm_ffi.Object, str] | None = None,
+        extra_config: dict | None = None,
     ) -> None:
-        """A sugar for print highlighted TVM script.
+        """Print highlighted TVMScript.
 
         Parameters
         ----------
         style : str, optional
             Pygmentize printing style, auto-detected if None.  See
             `tvm_tirx.script.printer.highlight.cprint` for more details.
-
-        black_format: Optional[bool]
-
-            If true, use the formatter Black to format the TVMScript.
-            If false, do not apply the auto-formatter.
-
-            If None (default), determine the behavior based on the
-            environment variable "TVM_BLACK_FORMAT".  If this
-            environment variable is unset, set to the empty string, or
-            set to the integer zero, black auto-formatting will be
-            disabled.  If the environment variable is set to a
-            non-zero integer, black auto-formatting will be enabled.
-
-            Note that the "TVM_BLACK_FORMAT" environment variable only
-            applies to the `.show()` method, and not the underlying
-            `.script()` method.  The `.show()` method is intended for
-            human-readable output based on individual user
-            preferences, while the `.script()` method is intended to
-            provided a consistent output regardless of environment.
 
         name : Optional[str] = None
             The name of the object
@@ -254,13 +223,6 @@ class _ScriptableMethods:
             Whether to print line numbers
         num_context_lines : int = -1
             The number of lines of context to print before and after the line to underline.
-        show_all_ty: bool = True
-            If True (default), annotate all variable bindings with the struct
-            info of that variable.  If False, only add annotations where
-            required for unambiguous round-trip of Relax -> TVMScript -> Relax.
-        extra_config : Optional[dict] = None
-            Dialect-specific configuration passed through to PrinterConfig.extra_config,
-            including ``ir.prefix`` for the IR namespace alias (default ``"I"``).
         path_to_underline : Optional[List[AccessPath]] = None
             Object path to be underlined
         path_to_annotate : Optional[Dict[AccessPath, str]] = None
@@ -269,15 +231,14 @@ class _ScriptableMethods:
             Object to be underlined
         obj_to_annotate : Optional[Dict[tvm_ffi.Object, str]] = None
             Object to be annotated
+        extra_config : Optional[dict] = None
+            Dialect-specific configuration passed through to PrinterConfig.extra_config,
+            including ``ir.prefix`` for the IR namespace alias (default ``"I"``).
 
         """
         from tvm_tirx.script.printer.highlight import (
             cprint,  # pylint: disable=import-outside-toplevel
         )
-
-        if black_format is None:
-            env = os.environ.get("TVM_BLACK_FORMAT")
-            black_format = env and int(env)
 
         cprint(
             self.script(
@@ -289,15 +250,13 @@ class _ScriptableMethods:
                 indent_spaces=indent_spaces,
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
-                show_all_ty=show_all_ty,
-                extra_config=extra_config,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,
                 obj_to_annotate=obj_to_annotate,
+                extra_config=extra_config,
             ),
             style=style,
-            black_format=black_format,
         )
 
 
