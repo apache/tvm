@@ -25,7 +25,6 @@ from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx import Var, decl_tensor
 from tvm_tirx.tirx.analysis import undefined_vars
-from tvm_tirx.tirx.transform.common import TensorReplacer
 
 
 def test_instruction_is_a_void_call():
@@ -91,7 +90,9 @@ def test_runtime_operands_are_seen_and_replaced():
     for value in (src, dst, mbar, row, mask, policy):
         assert any(v.same_as(value) for v in free)
     new_row = Var("new_row", "int32")
-    replacement = TensorReplacer(var_map={row: new_row})(Evaluate(call))
+    replacement = tvm_ffi.structural_map(
+        Evaluate(call), (Var, lambda var: new_row if var.same_as(row) else var), order="post"
+    )
     new_free = undefined_vars(replacement)
     assert not any(v.same_as(row) for v in new_free)
     assert any(v.same_as(new_row) for v in new_free)
@@ -118,18 +119,3 @@ def test_direct_call_validation_cannot_bypass_signature():
     ]:
         with pytest.raises((TypeError, ValueError, RuntimeError)):
             call.validate()
-
-
-def test_tensor_replacer_no_shared_default():
-    r1, r2 = TensorReplacer(), TensorReplacer()
-    a, b = decl_tensor((64,), "float32"), decl_tensor((64,), "float32")
-    r1.tensor_map[a] = b
-    assert not r2.tensor_map
-
-
-def test_tensor_replacer_replaces_strides_and_elem_offset():
-    n, m = Var("n", "int32"), Var("m", "int32")
-    a = decl_tensor((64,), "float32", strides=[n], elem_offset=n)
-    new = TensorReplacer(var_map={n: m})(tvm_tirx.ir.TensorStore(a, [0], 1.0))
-    assert new.dest.strides[0].same_as(m)
-    assert new.dest.elem_offset.same_as(m)
