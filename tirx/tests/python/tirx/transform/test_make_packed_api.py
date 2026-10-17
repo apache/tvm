@@ -1128,8 +1128,11 @@ def test_strides_and_linear_layout_offset():
     after = tvm_tirx.tirx.transform.MakePackedAPI()(Before)
     script = after.script()
     assert "A.strides" in script
-    assert "A.elem_offset" in script
-    assert "divisible" in script
+    offset_check = next(
+        line for line in script.splitlines() if '"A.elem_offset"' in line and "assert" in line
+    )
+    assert "T.int64(4)) == T.int64(0)" in offset_check
+    assert "divisible" in offset_check
     assert 'm: T.let[T.int64] = T.Div(T.Cast("int64", T.Div(' in script
     assert "T.uint64(4))), T.int64(4))" in script
     assert 'offset={"m": T.int64(4) * m}' in script

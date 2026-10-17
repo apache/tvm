@@ -58,7 +58,7 @@ def mma_desc(A: T.Tensor((16, 16), "float32", align=64,  elem_offset=T.int32()),
                 C[vii, vjj] = C[vii, vjj] + A[vii, vkk] * B[vjj, vkk]
 
 @Ts.function
-def mma_intrin(A: T.Tensor((16, 16), "float32", align=64,  elem_offset=T.int32()), B: T.Tensor((16, 16), "float32", align=64,  elem_offset=T.int32()), C: T.Tensor((16, 16), "float32", align=64,  elem_offset=T.int32())) -> None:
+def mma_intrin(A: T.Tensor((16, 16), "float32", strides=[T.int32(), 1], align=64,  elem_offset=T.int32()), B: T.Tensor((16, 16), "float32", strides=[T.int32(), 1], align=64,  elem_offset=T.int32()), C: T.Tensor((16, 16), "float32", strides=[T.int32(), 1], align=64,  elem_offset=T.int32())) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
@@ -143,7 +143,7 @@ def outer_product_desc(A: T.Tensor((16, 1), "float32",  elem_offset=T.int32()), 
                 C[vii, vjj] = C[vii, vjj] + A[vii, 0] * B[vjj, 0]
 
 @Ts.function
-def outer_product_intrin(A: T.Tensor((16, 1), "float32",  elem_offset=T.int32()), B: T.Tensor((16, 1), "float32",  elem_offset=T.int32()), C: T.Tensor((16, 16), "float32",  elem_offset=T.int32())) -> None:
+def outer_product_intrin(A: T.Tensor((16, 1), "float32",  strides=[T.int32(), 1], elem_offset=T.int32()), B: T.Tensor((16, 1), "float32",  strides=[T.int32(), 1], elem_offset=T.int32()), C: T.Tensor((16, 16), "float32",  strides=[T.int32(), 1], elem_offset=T.int32())) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(
@@ -205,17 +205,17 @@ def tensorized_matmul(A: T.Tensor([128, 128], "float32", elem_offset=0, align=64
                 A_sub = Ts.match_tensor(
                     A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
-                    elem_offset=A_elem_offset,
+                    strides=[T.int32(), 1], elem_offset=A_elem_offset,
                 )
                 B_sub = Ts.match_tensor(
                     B[vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
-                    elem_offset=B_elem_offset,
+                    strides=[T.int32(), 1], elem_offset=B_elem_offset,
                 )
                 C_sub = Ts.match_tensor(
                     C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                     [16, 16],
-                    elem_offset=C_elem_offset,
+                    strides=[T.int32(), 1], elem_offset=C_elem_offset,
                 )
                 T.evaluate(
                     T.gpu_mma_sync(
@@ -276,17 +276,17 @@ def tensorized_batch_matmul_mma(
                 A_sub = Ts.match_tensor(
                     A[vn : vn + 1, vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     (16, 16),
-                    elem_offset=A_elem_offset,
+                    strides=[T.int32(), 1], elem_offset=A_elem_offset,
                 )
                 B_sub = Ts.match_tensor(
                     B[vn : vn + 1, vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     (16, 16),
-                    elem_offset=B_elem_offset,
+                    strides=[T.int32(), 1], elem_offset=B_elem_offset,
                 )
                 C_sub = Ts.match_tensor(
                     C[vn : vn + 1, vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                     (16, 16),
-                    elem_offset=C_elem_offset,
+                    strides=[T.int32(), 1], elem_offset=C_elem_offset,
                 )
                 T.evaluate(
                     T.gpu_mma_sync(
@@ -362,11 +362,11 @@ def tensorized_batch_matmul_outer_product(
                 B[vn, vjo * 16 : vjo * 16 + 16, vk],
             )
             Ts.writes(C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
-            A_1 = Ts.match_tensor(A[vn, vio * 16 : vio * 16 + 16, vk], [16, 1], dtype="float32", elem_offset=T.int32())
-            B_1 = Ts.match_tensor(B[vn, vjo * 16 : vjo * 16 + 16, vk], [16, 1], dtype="float32", elem_offset=T.int32()
+            A_1 = Ts.match_tensor(A[vn, vio * 16 : vio * 16 + 16, vk], [16, 1], strides=[T.int32(), 1], dtype="float32", elem_offset=T.int32())
+            B_1 = Ts.match_tensor(B[vn, vjo * 16 : vjo * 16 + 16, vk], [16, 1], strides=[T.int32(), 1], dtype="float32", elem_offset=T.int32()
             )
             C_1 = Ts.match_tensor(
-                C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16], [16, 16], dtype="float32", elem_offset=T.int32()
+                C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16], [16, 16], strides=[T.int32(), 1], dtype="float32", elem_offset=T.int32()
             )
             T.evaluate(
                 T.call_extern("outer_product", C_1.data, match_shape_stride_pattern(C_1.ty)[2], A_1.data, match_shape_stride_pattern(A_1.ty)[2],
@@ -428,17 +428,17 @@ def annotated_tensorized_matmul(A: T.Tensor([128, 128], "float32", elem_offset=0
                 A_sub = Ts.match_tensor(
                     A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
-                    elem_offset=A_elem_offset,
+                    strides=[T.int32(), 1], elem_offset=A_elem_offset,
                 )
                 B_sub = Ts.match_tensor(
                     B[vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
-                    elem_offset=B_elem_offset,
+                    strides=[T.int32(), 1], elem_offset=B_elem_offset,
                 )
                 C_sub = Ts.match_tensor(
                     C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                     [16, 16],
-                    elem_offset=C_elem_offset,
+                    strides=[T.int32(), 1], elem_offset=C_elem_offset,
                 )
                 T.evaluate(
                     T.gpu_mma_sync(
@@ -750,17 +750,17 @@ def test_tensorize_matmul_mixed_dtype():
                     A_sub = Ts.match_tensor(
                         A[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vk * T.int64(16) : vk * T.int64(16) + T.int64(16)],
                         [T.int64(16), T.int64(16)],
-                        elem_offset=A_elem_offset,
+                        strides=[T.int64(), T.int64(1)], elem_offset=A_elem_offset,
                     )
                     B_sub = Ts.match_tensor(
                         B[vj * T.int64(16) : vj * T.int64(16) + T.int64(16), vk * T.int64(16) : vk * T.int64(16) + T.int64(16)],
                         [T.int64(16), T.int64(16)],
-                        elem_offset=B_elem_offset,
+                        strides=[T.int64(), T.int64(1)], elem_offset=B_elem_offset,
                     )
                     C_sub = Ts.match_tensor(
                         C[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vj * T.int64(16) : vj * T.int64(16) + T.int64(16)],
                         [T.int64(16), T.int64(16)],
-                        elem_offset=C_elem_offset,
+                        strides=[T.int64(), T.int64(1)], elem_offset=C_elem_offset,
                     )
                     T.evaluate(
                         T.gpu_mma_sync(

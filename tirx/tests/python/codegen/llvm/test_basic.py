@@ -264,7 +264,7 @@ def test_llvm_strides_and_linear_layout_offset():
 
     @T.function
     def copy(
-        A: T.Tensor((3, 4), "float32", layout=T.TileLayout(T.S[(3, 4) : (s, 1)] + 4 * m)),
+        A: T.Tensor((3, 4), "float32", layout=T.TileLayout(T.S[(3, 4) : (s, 1)] + 4 * m), align=4),
         B: T.Tensor((3, 4), "float32"),
     ):
         for i, j in T.grid(3, 4):
@@ -280,6 +280,9 @@ def test_llvm_strides_and_linear_layout_offset():
         lib(view, result)
         expected = data[offset : offset + 12].reshape(3, 4) + offset // 4 + 4
         np.testing.assert_equal(result.numpy(), expected)
+    strided = data.reshape(8, 8)[:3, :4]
+    lib(strided, result)
+    np.testing.assert_equal(result.numpy(), strided + 8)
     invalid = allocation._create_view((3, 4), relative_byte_offset=4)
     with pytest.raises(ValueError, match="divisible"):
         lib(invalid, result)
