@@ -1421,7 +1421,7 @@ def test_primitive_assignments_emit_fresh_bindings():
         assert tvm_tirx.ir.is_prim_expr(binding.value)
         assert not isinstance(binding.value, tvm_tirx.ir.GenericConst)
 
-    source = func.script(show_all_ty=False)
+    source = func.script(extra_config={"relax.show_all_ty": False})
     assert "R.prim_value" not in source
     for annotation in [
         "alias: T.int64",
@@ -1457,7 +1457,7 @@ def test_primitive_if_emits_fresh_result():
         assert not branch.blocks
         assert branch.body.same_as(param)
 
-    source = func.script(show_all_ty=False)
+    source = func.script(extra_config={"relax.show_all_ty": False})
     assert "R.prim_value" not in source
     assert source.count("output: T.int64") == 2
     _check(func)
@@ -1575,7 +1575,7 @@ def test_tuple_literals_preserve_expression_structure():
 
     tvm_tirx.ir.assert_structural_equal(literal, constructed)
     for show_all_ty in [False, True]:
-        source = literal.script(show_all_ty=show_all_ty)
+        source = literal.script(extra_config={"relax.show_all_ty": show_all_ty})
         assert "R.tuple" not in source
         tvm_tirx.ir.assert_structural_equal(
             literal, tvm_tirx.script.from_source(source, extra_vars={"I": I, "R": R, "T": T})

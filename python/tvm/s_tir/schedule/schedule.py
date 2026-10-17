@@ -290,12 +290,12 @@ class Schedule(tvm_ffi.Object):
 
         trace = self.trace
         if trace is not None:
-            # Trace.show only supports the style and black_format arguments
+            # Trace.show only supports the style argument
             param_binding = inspect.signature(mod.show).bind(*args, **kwargs)
             param_binding.apply_defaults()
             bound_args = param_binding.arguments
 
-            trace.show(style=bound_args["style"], black_format=bound_args["black_format"])
+            trace.show(style=bound_args["style"])
 
     ########## Lookup ##########
 
