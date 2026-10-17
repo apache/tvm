@@ -847,7 +847,7 @@ def test_llvm_large_stack_allocation_uses_64bit_extent(extent):
             ty_args=[T.Tensor((extent,), "float32", scope="global")],
             annotations={"disable_lower_builtin": True},
         )
-        A[0] = B[extent - 1]
+        A[0] = B[T.int64(extent - 1)]
 
     module = tvm_tirx.tirx.compile(
         main,
