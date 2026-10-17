@@ -17,10 +17,7 @@
 # ruff: noqa: F821, RUF012
 """Highlight printed TVM script."""
 
-import functools
 import os
-import shutil
-import subprocess
 import sys
 import warnings
 from typing import Any, Union
@@ -29,9 +26,8 @@ from typing import Any, Union
 def cprint(
     printable: Any | str,
     style: str | None = None,
-    black_format: bool = False,
 ) -> None:
-    """Print TVMScript string with Pygments highlight and Black auto-formatting.
+    """Print TVMScript string with Pygments highlighting.
 
     Parameters
     ----------
@@ -42,10 +38,6 @@ def cprint(
     style : str, optional
 
         Pygmentize printing style, auto-detected if None.
-
-    black_format: bool
-
-        If true, use the formatter Black to format the TVMScript
 
     Notes
     -----
@@ -67,9 +59,6 @@ def cprint(
         raise TypeError(
             f"Only can print strings or objects with `script` method, but got: {type(printable)}"
         )
-
-    if black_format:
-        printable = _format(printable)
 
     is_in_notebook = "ipykernel" in sys.modules  # in notebook env (support html display).
 
@@ -93,96 +82,6 @@ def cprint(
         display.display(display.HTML(html))
     else:
         print(highlight(printable, Python3Lexer(), Terminal256Formatter(style=style)))
-
-
-@functools.lru_cache
-def _get_formatter(formatter: str | None = None):
-    def get_ruff_formatter():
-        if shutil.which("ruff") is None:
-            return None
-
-        def formatter(code_str):
-            proc = subprocess.Popen(
-                ["ruff", "format", "--stdin-filename=TVMScript"],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                encoding="utf-8",
-            )
-            stdout, _stderr = proc.communicate(code_str)
-            return stdout
-
-        return formatter
-
-    def get_black_formatter():
-        try:
-            # pylint: disable=import-outside-toplevel
-            import black
-        except ImportError:
-            return None
-
-        def formatter(code_str):
-            return black.format_str(code_str, mode=black.FileMode())
-
-        return formatter
-
-    def get_fallback_formatter():
-        def formatter(code_str):
-            with warnings.catch_warnings():
-                warnings.simplefilter("once", UserWarning)
-                ruff_install_cmd = sys.executable + " -m pip install ruff"
-                black_install_cmd = (
-                    sys.executable + ' -m pip install "black==22.3.0" --upgrade --user'
-                )
-                warnings.warn(
-                    f"Neither the 'ruff' formatter nor the 'black' formatter is available.  "
-                    f"To print formatted TVM script, please a formatter.  \n"
-                    f"To install ruff: {ruff_install_cmd}\n"
-                    f"To install black: {black_install_cmd}",
-                    category=UserWarning,
-                )
-            return code_str
-
-        return formatter
-
-    # formatter = "black"
-    if formatter is None:
-        options = [get_ruff_formatter, get_black_formatter]
-    elif formatter == "ruff":
-        options = [get_ruff_formatter]
-    elif formatter == "black":
-        options = [get_black_formatter]
-    else:
-        raise ValueError(f"Unknown formatter: {formatter}")
-
-    for option in options:
-        func = option()
-        if func is not None:
-            return func
-    return get_fallback_formatter()
-
-
-def _format(code_str: str, formatter: str | None = None) -> str:
-    """Format a code string using Black.
-
-    Parameters
-    ----------
-    code_str: str
-
-        The string containing Python/TVMScript code to format
-
-    formatter: Optional[str]
-
-        The formatter to use.  Can specify `ruff`, `black`, or
-        auto-select by passing `None`.
-
-    Returns
-    -------
-    formatted: str
-
-        The formatted Python/TVMScript code
-
-    """
-    return _get_formatter(formatter)(code_str)
 
 
 def _get_pygments_style(

@@ -73,8 +73,6 @@ class PrinterConfigObj : public ffi::Object {
    * Keys are conventionally namespaced as "<dialect>.<knob>", e.g.:
    *   "ir.prefix"                — the IR prefix (default "I")
    *   "tirx.prefix"              — the TIR prefix (default "T")
-   *   "relax.prefix"             — the Relax prefix (default "R")
-   *   "relax.show_all_ty" — whether to show all Relax type annotations (default true)
    *
    * Use GetExtraConfig<T>(key, fallback) to read values with a typed fallback.
    */
@@ -84,7 +82,7 @@ class PrinterConfigObj : public ffi::Object {
    * \brief Look up a value in extra_config with type cast and fallback.
    *
    * Keys are conventionally namespaced as "<dialect>.<knob>"
-   * (e.g. "tirx.prefix", "relax.show_all_ty").
+   * (e.g. "ir.prefix", "tirx.prefix").
    */
   template <typename T>
   T GetExtraConfig(const ffi::String& key, T fallback) const {

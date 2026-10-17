@@ -42,3 +42,37 @@ def test_highlight_script():
     Module["main"].show(style="light")
     Module["main"].show(style="dark")
     Module["main"].show(style="ansi")
+
+
+def test_show_preserves_annotations(monkeypatch, capsys):
+    from tvm_tirx.script.printer import highlight
+
+    @T.function
+    def main(a: T.int32):
+        T.evaluate(a)
+
+    monkeypatch.setattr(highlight, "_get_pygments_style", lambda *_: None)
+    monkeypatch.setenv("TVM_BLACK_FORMAT", "1")
+    options = {
+        "print_line_numbers": True,
+        "obj_to_underline": [main.params[0]],
+        "obj_to_annotate": {main.params[0]: "argument"},
+        "extra_config": {"render_invisible_path_info": False},
+    }
+    expected = main.script(**options)
+    assert "^" in expected
+    assert "argument" in expected
+    main.show(**options)
+    assert capsys.readouterr().out == expected + "\n"
+
+
+def test_cprint_plain_output(monkeypatch, capsys):
+    from tvm_tirx.script.printer import highlight
+
+    monkeypatch.setattr(highlight, "_get_pygments_style", lambda *_: None)
+    source = "x=  1\n"
+    highlight.cprint(source)
+    assert capsys.readouterr().out == source + "\n"
+    value = tvm_tirx.ir.IntImm("int32", 1)
+    highlight.cprint(value)
+    assert capsys.readouterr().out == value.script() + "\n"

@@ -18,7 +18,6 @@
 """BasePyModule: Base class for IRModules with Python function support."""
 
 import inspect
-import os
 import sys
 import weakref
 from typing import Any, Optional, Union
@@ -557,6 +556,7 @@ class BasePyModule:
         This method extends the standard IRModule script() method to handle
         Python functions stored in the IRModule's ``__pyfuncs__`` attribute.
         """
+        merged_extra = {"relax.show_all_ty": show_all_ty, **(extra_config or {})}
         # First get the standard IRModule script
         base_script = self.ir_mod.script(
             name=name,
@@ -567,8 +567,7 @@ class BasePyModule:
             indent_spaces=indent_spaces,
             print_line_numbers=print_line_numbers,
             num_context_lines=num_context_lines,
-            show_all_ty=show_all_ty,
-            extra_config=extra_config,
+            extra_config=merged_extra,
         )
 
         # If there are no Python functions, return the base script
@@ -635,7 +634,7 @@ class BasePyModule:
 
         return "\n".join(formatted_lines)
 
-    def show(self, style: str | None = None, black_format: bool | None = None, **kwargs) -> None:
+    def show(self, style: str | None = None, **kwargs) -> None:
         """A sugar for print highlighted TVM script with Python function support.
 
         This method extends the standard IRModule show() method to handle
@@ -645,9 +644,5 @@ class BasePyModule:
             cprint,  # pylint: disable=import-outside-toplevel
         )
 
-        if black_format is None:
-            env = os.environ.get("TVM_BLACK_FORMAT")
-            black_format = env and int(env)
-
         script_content = self.script(**kwargs)
-        cprint(script_content, style=style, black_format=black_format)
+        cprint(script_content, style=style)

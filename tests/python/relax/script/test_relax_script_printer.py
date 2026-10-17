@@ -621,7 +621,7 @@ def test_primitive_bindings_roundtrip_without_prim_value_marker():
         return alias
 
     for show_all_ty in [False, True]:
-        source = func.script(show_all_ty=show_all_ty)
+        source = func.script(extra_config={"relax.show_all_ty": show_all_ty})
         assert "R.prim_value" not in source
         assert "plus_one: T.int64" in source
         assert "alias: T.int64" in source
@@ -1215,7 +1215,7 @@ def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype
 def test_hide_inferable_ty():
     """Redundant type annotations can be omitted
 
-    When `show_all_ty=False`, TVMScript type annotations that
+    When `extra_config={"relax.show_all_ty": False}`, TVMScript type annotations that
     provide redundant type can be omitted.
     """
 
@@ -1247,7 +1247,7 @@ def test_hide_inferable_ty():
         return E
 
     _assert_print_lines(
-        func.script(show_all_ty=False),
+        func.script(extra_config={"relax.show_all_ty": False}),
         """
 from __future__ import annotations
 
@@ -1285,7 +1285,7 @@ def relax_extern_func():
 def test_extern_func_roundtrip(show_all_ty):
     original = relax_extern_func()
     after_roundtrip = tvm_tirx.script.from_source(
-        original.script(show_meta=True, show_all_ty=show_all_ty),
+        original.script(show_meta=True, extra_config={"relax.show_all_ty": show_all_ty}),
         extra_vars={
             "I": tvm_tirx.script.ir,
             "T": tvm_tirx.script.tirx,
