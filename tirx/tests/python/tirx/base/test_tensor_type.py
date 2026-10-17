@@ -28,7 +28,7 @@ from tvm_tirx.script import tirx as T
 
 def test_tensor_pointer_type_derived_from_dtype_and_scope():
     data = tvm_tirx.ir.Var("storage", tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("uint8"), "local"))
-    tensor = tvm_tirx.tirx.decl_tensor((8,), "float16", data=data)
+    tensor = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((8,), "float16", data=data))
 
     assert tensor.ty.dtype == tvm_tirx.ir.PrimType("float16")
     assert tensor.ty.scope == tvm_tirx.runtime.MemoryScope("local")
@@ -39,14 +39,17 @@ def test_tensor_pointer_type_derived_from_dtype_and_scope():
 def test_tensor_type_constructor_scope_order(scope):
     direct = tvm_tirx.tirx.TensorType((4, 8), "float32", scope, (16, 1), 4, 64, 2)
     scripted = T.Tensor((4, 8), "float32", scope, (16, 1), 4, 64, 2)
-    declared = tvm_tirx.tirx.decl_tensor(
-        (4, 8),
-        "float32",
-        scope=scope,
-        strides=(16, 1),
-        elem_offset=4,
-        data_alignment=64,
-        offset_factor=2,
+    declared = tvm_tirx.tirx.Var(
+        "tensor",
+        tvm_tirx.tirx.TensorType(
+            (4, 8),
+            "float32",
+            scope=scope,
+            strides=(16, 1),
+            elem_offset=4,
+            data_alignment=64,
+            offset_factor=2,
+        ),
     )
     tvm_tirx.ir.assert_structural_equal(direct, scripted)
     tvm_tirx.ir.assert_structural_equal(direct, declared.ty)
@@ -60,11 +63,11 @@ def test_tensor_type_rejects_unregistered_scope(scope):
     with pytest.raises(ValueError):
         T.Tensor((4,), "float32", scope)
     with pytest.raises(ValueError):
-        tvm_tirx.tirx.decl_tensor((4,), "float32", scope=scope)
+        tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((4,), "float32", scope=scope))
 
 
 def test_decl_tensor_physical_data_binding():
-    tensor = tvm_tirx.tirx.decl_tensor((8,), "float32")
+    tensor = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((8,), "float32"))
     data = tvm_tirx.tirx.Var("data", tensor.data.ty)
 
     decl = tvm_tirx.ir.Bind(
@@ -82,13 +85,17 @@ def test_decl_tensor_physical_data_binding():
 def test_tensor_ptr_to():
     m = tvm_tirx.tirx.Var("m", "int32")
     n = tvm_tirx.tirx.Var("n", "int32")
-    tensor = tvm_tirx.tirx.decl_tensor((m, n), "float32", strides=[n + 1, 1], elem_offset=7)
+    tensor = tvm_tirx.tirx.Var(
+        "tensor", tvm_tirx.tirx.TensorType((m, n), "float32", strides=[n + 1, 1], elem_offset=7)
+    )
     pointer = tensor.ptr_to([2, 3])
     assert pointer.op.name == "tirx.address_of"
     assert pointer.ty == tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("float32"))
     assert pointer.args[0].source.same_as(tensor)
     tvm_tirx.ir.assert_structural_equal(pointer.args[0].indices, [T.int32(2), T.int32(3)])
-    shared = tvm_tirx.tirx.decl_tensor((m, n), "float32", scope="shared")
+    shared = tvm_tirx.tirx.Var(
+        "tensor", tvm_tirx.tirx.TensorType((m, n), "float32", scope="shared")
+    )
     assert shared.ptr_to([0, 0]).ty == tvm_tirx.ir.PtrType(
         tvm_tirx.ir.PrimType("float32"), "shared"
     )
@@ -100,7 +107,7 @@ def test_tensor_type_and_projection(dtype, scope):
         tvm_tirx.ir.Var("m", tvm_tirx.ir.PrimType("int32")),
         tvm_tirx.ir.Var("n", tvm_tirx.ir.PrimType("int32")),
     )
-    tensor = tvm_tirx.tirx.decl_tensor((m, n), dtype, scope=scope)
+    tensor = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((m, n), dtype, scope=scope))
     assert type(tensor) is tvm_tirx.ir.Var
     assert tvm_tirx.tirx.is_tensor_var(tensor)
     assert not tvm_tirx.tirx.is_tensor_var(m)
@@ -124,7 +131,9 @@ def test_tensor_type_and_projection(dtype, scope):
 
 
 def test_tensor_type_default_offset():
-    tensor = tvm_tirx.tirx.decl_tensor((8,), "float32", elem_offset=None)
+    tensor = tvm_tirx.tirx.Var(
+        "tensor", tvm_tirx.tirx.TensorType((8,), "float32", elem_offset=None)
+    )
     assert int(tensor.ty.elem_offset) == 0
 
 
@@ -145,7 +154,7 @@ def test_tensor_type_default_offset():
 def test_tensor_type_low_precision_dtype(dtype):
     m = tvm_tirx.ir.Var("m", tvm_tirx.ir.PrimType("int32"))
     n = tvm_tirx.ir.Var("n", tvm_tirx.ir.PrimType("int32"))
-    tensor = tvm_tirx.tirx.decl_tensor((m, n), dtype)
+    tensor = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((m, n), dtype))
     assert tensor.dtype == dtype
 
 
@@ -153,7 +162,7 @@ def test_memory_scope_typed_conversion():
     custom = MemoryScope.register("test.tensor.scope." + uuid.uuid4().hex)
     for scope in (custom, custom.name):
         ptr_ty = tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("float32"), scope)
-        tensor = tvm_tirx.tirx.decl_tensor((4,), "float32", scope=scope)
+        tensor = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((4,), "float32", scope=scope))
         tensor_ty = tvm_tirx.tirx.TensorType((4,), "float32", scope)
         assert tensor_ty.scope.same_as(custom)
         assert ptr_ty.scope.same_as(custom)
@@ -164,7 +173,9 @@ def test_memory_scope_typed_conversion():
     unknown = "test.memory_scope.unknown." + uuid.uuid4().hex
     for construct in (
         lambda: tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("float32"), unknown),
-        lambda: tvm_tirx.tirx.decl_tensor((4,), "float32", scope=unknown),
+        lambda: tvm_tirx.tirx.Var(
+            "tensor", tvm_tirx.tirx.TensorType((4,), "float32", scope=unknown)
+        ),
         lambda: T.Tensor((4,), "float32", scope=unknown),
     ):
         with pytest.raises(ValueError):
@@ -176,17 +187,25 @@ def test_memory_scope_typed_conversion():
 def test_memory_scope_global_defaults():
     global_scope = MemoryScope("global")
     assert tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("float32")).scope.same_as(global_scope)
-    assert tvm_tirx.tirx.decl_tensor((4,), "float32").scope().same_as(global_scope)
+    assert (
+        tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((4,), "float32"))
+        .scope()
+        .same_as(global_scope)
+    )
     for scope in ("global", global_scope):
         assert tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("float32"), scope).scope.same_as(
             global_scope
         )
-        assert tvm_tirx.tirx.decl_tensor((4,), "float32", scope=scope).scope().same_as(global_scope)
+        assert (
+            tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((4,), "float32", scope=scope))
+            .scope()
+            .same_as(global_scope)
+        )
         assert T.Tensor((4,), "float32", scope=scope).scope.same_as(global_scope)
     for construct in (
         lambda: MemoryScope(""),
         lambda: tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("float32"), ""),
-        lambda: tvm_tirx.tirx.decl_tensor((4,), "float32", scope=""),
+        lambda: tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((4,), "float32", scope="")),
         lambda: T.Tensor((4,), "float32", scope=""),
     ):
         with pytest.raises(ValueError):
@@ -200,6 +219,55 @@ def test_tensor_type_memory_scope_json_roundtrip():
         restored = tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(ty))
         assert restored.scope.same_as(scope)
         tvm_tirx.ir.assert_structural_equal(ty, restored)
+
+
+def test_tensor_type_pointer_validation_and_scope():
+    custom = MemoryScope.register("test.tensor.pointer." + uuid.uuid4().hex)
+    data = tvm_tirx.ir.Var("data", tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("uint8"), custom))
+    tensor = tvm_tirx.ir.Var(
+        "tensor", tvm_tirx.tirx.TensorType(8, "float32", scope="global", data=data)
+    )
+    assert tensor.scope().same_as(custom)
+    assert tensor.data.ty.scope.same_as(custom)
+    assert tensor.data.ty.element_type == tvm_tirx.ir.PrimType("float32")
+    for invalid in (0, tvm_tirx.ir.Var("scalar", "int32")):
+        with pytest.raises(TypeError, match="Tensor data must be an Expr with PtrType"):
+            tvm_tirx.tirx.TensorType(8, "float32", data=invalid)
+    pointer = tvm_tirx.ir.Var("pointer", tvm_tirx.ir.PtrType(tvm_tirx.ir.TupleType([])))
+    with pytest.raises(TypeError, match="Tensor data must point to a primitive type"):
+        tvm_tirx.tirx.TensorType(8, "float32", data=pointer)
+
+
+def test_tensor_type_explicit_location():
+    loc = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("tensor.py"), 2, 3, 2, 12)
+    ty = tvm_tirx.tirx.TensorType(8, "float32", loc=loc)
+    tensor = tvm_tirx.ir.Var("tensor", ty, loc=loc)
+    assert ty.loc.same_as(loc)
+    assert tensor.loc.same_as(loc)
+
+
+def test_tensor_scope_receiver_validation():
+    ty = tvm_tirx.tirx.TensorType(8, "float32")
+    tensor = tvm_tirx.ir.Var("tensor", ty)
+    assert ty._scope(tensor).same_as(ty.scope)
+    with pytest.raises(TypeError, match="Tensor methods expect a Var with TensorType"):
+        ty._scope(tvm_tirx.ir.Var("scalar", "int32"))
+    with pytest.raises(TypeError, match="Tensor method type must be the operand's type"):
+        tvm_tirx.tirx.TensorType(8, "float32")._scope(tensor)
+
+
+@pytest.mark.parametrize("alignment", [-1, 0, 64])
+def test_tensor_type_construction_offsets_and_alignment(alignment):
+    ty = tvm_tirx.tirx.TensorType(
+        (), "float32", data_alignment=alignment, byte_offset=16, strides=()
+    )
+    tensor = tvm_tirx.ir.Var("scalar", ty)
+    assert list(tensor.shape) == []
+    assert tensor.layout is None
+    assert int(tensor.elem_offset) == 4
+    assert int(tensor.byte_offset) == 16
+    assert tensor.data_alignment == 64
+    assert tensor.offset_factor == 1
 
 
 if __name__ == "__main__":

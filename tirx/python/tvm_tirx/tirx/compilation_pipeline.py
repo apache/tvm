@@ -158,12 +158,6 @@ def finalize_device_passes():  # pylint: disable=unused-argument
     return tvm_tirx.ir.transform.Sequential(device_pass_list)
 
 
-def finalize_device_passes_tirx():  # pylint: disable=unused-argument
-    """The TIRx finalization passes for TIR backend."""
-    device_pass_list = [tirx.transform.LowerIntrin()]
-    return tvm_tirx.ir.transform.Sequential(device_pass_list)
-
-
 # global map of pre-built pipelines
 PIPELINE_MAP = {"default": default_tir_pipeline, "tirx": tirx_pipeline}
 

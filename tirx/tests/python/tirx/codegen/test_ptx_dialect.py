@@ -3155,8 +3155,8 @@ def test_ptx_tcgen05_mapa_address_coercion():
     raw_u64 = tvm_tirx.tirx.Var("a64", "uint64")
     ncols = tvm_tirx.tirx.Var("n", "uint32")
     mask = tvm_tirx.tirx.Var("mask", "uint16")
-    out32 = tvm_tirx.tirx.decl_tensor((1,), "uint32", name="out32", scope="local")
-    out64 = tvm_tirx.tirx.decl_tensor((1,), "uint64", name="out64", scope="local")
+    out32 = tvm_tirx.tirx.Var("out32", tvm_tirx.tirx.TensorType((1,), "uint32", scope="local"))
+    out64 = tvm_tirx.tirx.Var("out64", tvm_tirx.tirx.TensorType((1,), "uint64", scope="local"))
 
     bare_alloc = T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.b32(generic_ptr, ncols)
     assert bare_alloc.args[0].same_as(generic_ptr)
@@ -3813,7 +3813,7 @@ def test_ptx_coercion_ir_forms():
     call = T.ptx.st.release.gpu.global_.b32(global_ptr, val, pred=flag)
     assert call.args[2].same_as(flag)
     assert len(call.args) == 2 + 1 + 8 + 1  # operands + pred + slot tokens + marker
-    out = tvm_tirx.tirx.decl_tensor((1,), "uint32", name="out", scope="local")
+    out = tvm_tirx.tirx.Var("out", tvm_tirx.tirx.TensorType((1,), "uint32", scope="local"))
     call = T.ptx.ld.global_.b32(out[0], global_ptr, pred=flag)
     assert str(call.args[-1]).strip('"') == "pred"
     call = T.ptx.ld.global_.b32(out[0], global_ptr, pred=flag, preserve_dst=True)

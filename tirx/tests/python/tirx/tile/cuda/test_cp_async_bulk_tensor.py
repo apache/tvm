@@ -848,35 +848,39 @@ def _recipe_views(kwargs, recipe):
     shape = tuple(reversed(recipe.dims))
     strides = tuple(reversed((1, *(s * 8 // bits for s in recipe.strides))))
     box = tuple(reversed(recipe.boxes))
-    g = tvm_tirx.tirx.decl_tensor(
-        kwargs["g_shape"], dtype, "global_storage", layout=kwargs.get("g_layout")
+    g = tvm_tirx.tirx.Var(
+        "global_storage",
+        tvm_tirx.tirx.TensorType(kwargs["g_shape"], dtype, layout=kwargs.get("g_layout")),
     )
     sshape = kwargs.get("s_shape", kwargs["g_shape"])
-    s = tvm_tirx.tirx.decl_tensor(
-        sshape,
-        dtype,
+    s = tvm_tirx.tirx.Var(
         "shared_storage",
-        scope="shared.dyn",
-        layout=kwargs.get("s_layout"),
-        data_alignment=1024,
+        tvm_tirx.tirx.TensorType(
+            sshape, dtype, scope="shared.dyn", layout=kwargs.get("s_layout"), data_alignment=1024
+        ),
     )
-    gv = tvm_tirx.tirx.decl_tensor(
-        shape, recipe.dtype, "global_view", data=g.data, layout=_plain_layout(shape, strides)
+    gv = tvm_tirx.tirx.Var(
+        "global_view",
+        tvm_tirx.tirx.TensorType(
+            shape, recipe.dtype, data=g.data, layout=_plain_layout(shape, strides)
+        ),
     )
     assert int(sa.min()) * original_bits % bits == 0
     base = int(sa.min()) * original_bits // bits
     layout = _plain_layout(box)
     if recipe.enums[1]:
         layout = ComposeLayout(7 - int(math.log2(bits)), recipe.enums[1], 3, layout)
-    sv = tvm_tirx.tirx.decl_tensor(
-        box,
-        recipe.dtype,
+    sv = tvm_tirx.tirx.Var(
         "shared_view",
-        data=s.data,
-        scope="shared.dyn",
-        layout=layout,
-        elem_offset=base,
-        data_alignment=1024,
+        tvm_tirx.tirx.TensorType(
+            box,
+            recipe.dtype,
+            data=s.data,
+            scope="shared.dyn",
+            layout=layout,
+            elem_offset=base,
+            data_alignment=1024,
+        ),
     )
     # Compare address PAIRS, not separate address sets: a transpose can preserve
     # both sets while copying every element to the wrong destination.
@@ -946,17 +950,22 @@ def _direct(
     **fields,
 ):
     s_shape = s_shape or g_shape
-    g = tvm_tirx.tirx.decl_tensor(
-        g_shape, dtype, "A", layout=g_layout or _plain_layout(g_shape), elem_offset=g_elem_offset
+    g = tvm_tirx.tirx.Var(
+        "A",
+        tvm_tirx.tirx.TensorType(
+            g_shape, dtype, layout=g_layout or _plain_layout(g_shape), elem_offset=g_elem_offset
+        ),
     )
-    s = tvm_tirx.tirx.decl_tensor(
-        s_shape,
-        dtype,
+    s = tvm_tirx.tirx.Var(
         "A_smem",
-        scope="shared.dyn",
-        layout=s_layout or _plain_layout(s_shape),
-        elem_offset=s_elem_offset,
-        data_alignment=1024,
+        tvm_tirx.tirx.TensorType(
+            s_shape,
+            dtype,
+            scope="shared.dyn",
+            layout=s_layout or _plain_layout(s_shape),
+            elem_offset=s_elem_offset,
+            data_alignment=1024,
+        ),
     )
     box = box or tuple(e for _, e in s_region) if s_region else box or s_shape
     coords = coords or (0,) * len(box)
@@ -1189,9 +1198,12 @@ def test_caller_descriptor_view_preserves_original_addresses(kwargs, recipe):
 def test_caller_explicit_issue_coordinates_and_pointer():
     # Original shape/layout retained, now explicitly ask for 512 one-row boxes.
     shape = (512, 64)
-    g = tvm_tirx.tirx.decl_tensor(shape, "float16", "A", layout="default")
-    s = tvm_tirx.tirx.decl_tensor(
-        (512, 1, 64), "float16", "S", scope="shared", layout="default", data_alignment=128
+    g = tvm_tirx.tirx.Var("A", tvm_tirx.tirx.TensorType(shape, "float16", layout="default"))
+    s = tvm_tirx.tirx.Var(
+        "S",
+        tvm_tirx.tirx.TensorType(
+            (512, 1, 64), "float16", scope="shared", layout="default", data_alignment=128
+        ),
     )
     impl, host, _ = _emit(_load(2), g, s, box=(1, 64), coords=(0, 0), coord_steps=((1, 0),))
     assert _count_tma(impl).total == 512
@@ -1493,11 +1505,17 @@ def test_caller_dynamic_stage_coordinates_and_pointer():
             stage: Range.from_min_extent(0, 3),
         }
     )
-    gv = tvm_tirx.tirx.decl_tensor(
-        (32, 4096, 64), "float16", "G", layout=_plain_layout((32, 4096, 64), (64, 2048, 1))
+    gv = tvm_tirx.tirx.Var(
+        "G",
+        tvm_tirx.tirx.TensorType(
+            (32, 4096, 64), "float16", layout=_plain_layout((32, 4096, 64), (64, 2048, 1))
+        ),
     )
-    sv = tvm_tirx.tirx.decl_tensor(
-        (3, 2, 128, 64), "float16", "S", scope="shared", layout="default", data_alignment=128
+    sv = tvm_tirx.tirx.Var(
+        "S",
+        tvm_tirx.tirx.TensorType(
+            (3, 2, 128, 64), "float16", scope="shared", layout="default", data_alignment=128
+        ),
     )
     impl, host, _ = _emit(
         _load(3),
@@ -1910,14 +1928,18 @@ def test_caller_tiles_nested_shared_layout(case_id):
 
 def test_caller_explicit_strided_outer_issues():
     kwargs = next(p.values[1] for p in TMA_CASES if p.values[0] == "g2s-3d-stride-gap-outer")
-    g = tvm_tirx.tirx.decl_tensor(kwargs["g_shape"], "float16", "A", layout=kwargs["g_layout"])
-    s = tvm_tirx.tirx.decl_tensor(
-        (8, 1, 32, 64),
-        "float16",
+    g = tvm_tirx.tirx.Var(
+        "A", tvm_tirx.tirx.TensorType(kwargs["g_shape"], "float16", layout=kwargs["g_layout"])
+    )
+    s = tvm_tirx.tirx.Var(
         "S",
-        scope="shared",
-        layout=_plain_layout((8, 1, 32, 64), (4096, 0, 64, 1)),
-        data_alignment=128,
+        tvm_tirx.tirx.TensorType(
+            (8, 1, 32, 64),
+            "float16",
+            scope="shared",
+            layout=_plain_layout((8, 1, 32, 64), (4096, 0, 64, 1)),
+            data_alignment=128,
+        ),
     )
     impl, _, _ = _emit(_load(3), g, s, box=(1, 32, 64), coords=(0, 0, 0), coord_steps=((1, 0, 0),))
     assert _count_tma(impl).total == 8
@@ -1952,9 +1974,14 @@ def test_descriptor_cache_distinguishes_explicit_dtype_views():
     data = Var("A", PtrType(PrimType("uint8"), "global"))
     sctx = _context()
     for dtype in ("uint8", "uint16"):
-        g = tvm_tirx.tirx.decl_tensor((256,), dtype, "A_view", data=data, layout="default")
-        s = tvm_tirx.tirx.decl_tensor(
-            (256,), dtype, "S", scope="shared", layout="default", data_alignment=128
+        g = tvm_tirx.tirx.Var(
+            "A_view", tvm_tirx.tirx.TensorType((256,), dtype, data=data, layout="default")
+        )
+        s = tvm_tirx.tirx.Var(
+            "S",
+            tvm_tirx.tirx.TensorType(
+                (256,), dtype, scope="shared", layout="default", data_alignment=128
+            ),
         )
         _emit(_load(1), g, s, box=(256,), coords=(0,), sctx=sctx)
         _emit(_load(1), g, s, box=(256,), coords=(0,), sctx=sctx)
