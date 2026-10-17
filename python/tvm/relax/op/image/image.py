@@ -331,7 +331,7 @@ def dilation2d(
     padding: int | tuple[int, int, int, int] | str = 0,
     dilations: int | tuple[int, int] = (1, 1),
     data_layout: str = "NCHW",
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -374,7 +374,7 @@ def dilation2d(
     data_layout : str
         Layout of the input data. Supported: "NCHW", "NHWC".
 
-    out_dtype : Optional[str | DataType]
+    out_dtype : Optional[str | tvm_ffi.dtype]
         Specifies the output data type. If None, uses the input dtype.
 
     Returns
