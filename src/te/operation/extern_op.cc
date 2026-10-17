@@ -24,9 +24,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/s_tir/layout.h>
-#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
+#include <tvm/tirx/type.h>
 
 namespace tvm {
 namespace te {
@@ -62,15 +61,8 @@ ExternOp::ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi:
     for (size_t dim = 0; dim < inputs[i]->shape.size(); ++dim) {
       TVM_FFI_ICHECK(inputs[i]->shape[dim].same_as(input_placeholders[i].shape()[dim]));
     }
-    auto pattern = MatchShapeStridePattern(input_placeholders[i].ty());
-    TVM_FFI_ICHECK(pattern.has_value()) << "External inputs require a regular memory layout";
-    sym::Analyzer analyzer;
-    PrimExpr stride = 1;
-    for (size_t dim = input_placeholders[i].shape().size(); dim > 0; --dim) {
-      TVM_FFI_ICHECK(analyzer->CanProveEqual(pattern.value().get<1>()[dim - 1], stride))
-          << "External inputs require contiguous strides";
-      stride *= input_placeholders[i].shape()[dim - 1];
-    }
+    TVM_FFI_ICHECK(tirx::IsContiguous(input_placeholders[i].ty()->layout))
+        << "External inputs require contiguous strides";
   }
   n->inputs = std::move(inputs);
   n->input_placeholders = std::move(input_placeholders);

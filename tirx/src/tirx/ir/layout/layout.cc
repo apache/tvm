@@ -16,10 +16,41 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/prim/op.h>
+#include <tvm/sym/analyzer.h>
+
+#include <memory>
+
 #include "utils.h"
 
 namespace tvm {
 namespace tirx {
+
+bool IsContiguous(const ffi::Optional<Layout>& layout) {
+  if (!layout.has_value()) return true;
+  const auto* tile = layout.as<TileLayoutNode>();
+  if (!tile || !tile->replica.empty()) return false;
+  static const Axis memory_axis = Axis::Get("m");
+  for (const auto& [axis, offset] : tile->offset) {
+    if (axis != memory_axis) return false;
+  }
+  prim::ExprDeepEqual deep_equal;
+  std::unique_ptr<sym::Analyzer> analyzer;
+  auto equal = [&](const PrimExpr& lhs, const PrimExpr& rhs) {
+    if (deep_equal(lhs, rhs)) return true;
+    if (!analyzer) analyzer = std::make_unique<sym::Analyzer>();
+    return (*analyzer)->CanProveEqual(lhs, rhs);
+  };
+  PrimExpr stride =
+      IntImm(tile->shard.empty() ? PrimType::Int(64) : tile->shard.back()->stride.ty(), 1);
+  for (size_t i = tile->shard.size(); i > 0; --i) {
+    const auto& iter = tile->shard[i - 1];
+    if (iter->axis != memory_axis) return false;
+    if (!prim::IsOne(iter->extent) && !equal(iter->stride, stride)) return false;
+    stride = stride * iter->extent;
+  }
+  return true;
+}
 
 /**************** Layout ****************/
 ffi::Map<ffi::String, PrimExpr> LayoutNode::Apply(const ffi::Array<PrimExpr>& coord,
@@ -32,6 +63,7 @@ ffi::Map<ffi::String, PrimExpr> LayoutNode::Apply(const ffi::Array<PrimExpr>& co
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   auto def = refl::GlobalDef();
+  def.def("tirx.IsContiguous", IsContiguous);
   def.def("tirx.LayoutVerifyWellFormed", [](Layout layout) { return layout->VerifyWellFormed(); });
   def.def("tirx.LayoutGetSize", [](Layout layout, ffi::Optional<ffi::String> axis_name) {
     return layout->GetSize(axis_name);

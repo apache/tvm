@@ -29,13 +29,13 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/s_tir/function.h>
-#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/type.h>
 #include <tvm/topi/tags.h>
 
 #include <algorithm>
@@ -787,15 +787,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
       if (type->layout.has_value()) {
         auto tile = type->layout.value().as_or_throw<tirx::TileLayout>();
         type->layout = tirx::TileLayout(tile->shard, tile->replica, {});
-        sym::Analyzer analyzer;
-        bool contiguous = true;
-        PrimExpr stride = 1;
-        auto pattern = tirx::MatchShapeStridePattern(TensorType(type)).value();
-        for (size_t dim = type->shape.size(); dim > 0; --dim) {
-          contiguous &= analyzer->CanProveEqual(pattern.get<1>()[dim - 1], stride);
-          stride *= type->shape[dim - 1];
-        }
-        if (contiguous) type->layout = std::nullopt;
+        if (tirx::IsContiguous(type->layout)) type->layout = std::nullopt;
       }
       output_tir_tensor =
           TensorVar(output_tir_tensor->name, TensorType(std::move(type)), output_tir_tensor->loc);
