@@ -383,11 +383,10 @@ Type TIRxPackedValueType(const Type& type, bool is_result) {
   if (type.as<PtrTypeNode>()) return AnyType();
   if (!is_result) {
     if (const auto* tensor = type.as<tirx::TensorTypeNode>()) {
-      bool default_layout =
-          !tensor->layout.has_value() ||
-          ffi::StructuralEqual()(tensor->layout.value(),
-                                 tirx::TileLayoutNode::DefaultLayout(tensor->shape));
-      TVM_FFI_CHECK(default_layout, TypeError)
+      bool regular_contiguous =
+          tirx::IsContiguous(tensor->layout) &&
+          tirx::MatchShapeStridePattern(ffi::GetRef<tirx::TensorType>(tensor)).has_value();
+      TVM_FFI_CHECK(regular_contiguous, TypeError)
           << "A Relax-to-TIRx call cannot implicitly convert tensor layout or allocated address: "
           << type;
       TVM_FFI_CHECK(IsGlobalMemoryScope(tensor->scope), TypeError)
@@ -517,8 +516,8 @@ void CheckTIRxArguments(const tvm::FuncType& signature, const ffi::Array<Expr>& 
 }
 
 void CheckFreshTIRxDestination(const tirx::TensorTypeNode* tensor) {
-  sym::Analyzer analyzer;
   if (!tensor->layout.has_value()) return;
+  sym::Analyzer analyzer;
   auto pattern = tirx::MatchShapeStridePattern(ffi::GetRef<tirx::TensorType>(tensor));
   TVM_FFI_CHECK(pattern.has_value(), TypeError)
       << "R.call_tir requires a regular memory destination layout";
