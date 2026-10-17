@@ -57,7 +57,7 @@ The canonical ``MemoryScope`` class is documented in :mod:`tvm_tirx.runtime`.
 .. automodule:: tvm_tirx.script.tirx
    :members:
    :exclude-members: AlreadyEmitted, DataTypeImm, FuncType, GenericConst, IRBuilder,
-      IRModuleFrame, MemoryScope, MissingType, Op, PrimType, StringImm, StringType, TensorRegion,
+      IRModuleFrame, MemoryScope, MissingType, Op, PrimType, StringImm, StringType, TensorLoad, TensorRegion,
       TensorRegionType, Type, Range, meta_var, Var, Call, CommReducer, Reduce, FloatImm, IntImm, Cast, Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod, LShift, RShift, BitwiseAnd, BitwiseOr, BitwiseXor, BitwiseNot, Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not, Select, Ramp, Broadcast, Shuffle, CallEffectKind, IterVar, ComposeLayout, DtypeConstructor, ThreadScope, Iter, Layout, LetAnnotation, LocalVectorAnnotation, TileLayout, CallFFIKernelAttr, TensorMapEncodeTiledAttr, function, jit, inline, macro
 
 .. autofunction:: tvm_tirx.script.tirx.function
