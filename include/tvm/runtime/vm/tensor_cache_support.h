@@ -21,6 +21,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
+#include <tvm/runtime/extra_base.h>
 #include <tvm/runtime/tensor.h>
 
 #include <string>

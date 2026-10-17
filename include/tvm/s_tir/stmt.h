@@ -27,6 +27,7 @@
 #ifndef TVM_S_TIR_STMT_H_
 #define TVM_S_TIR_STMT_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/container/tuple.h>
 #include <tvm/s_tir/iter_var.h>
 #include <tvm/tirx/stmt.h>

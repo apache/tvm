@@ -23,6 +23,7 @@
 #ifndef TVM_RELAX_EXEC_BUILDER_H_
 #define TVM_RELAX_EXEC_BUILDER_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>

@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/runtime/extra_base.h>
 #include <tvm/runtime/memory_scope.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>

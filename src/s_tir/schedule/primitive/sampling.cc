@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/base.h>
+
 #include <random>
 
 #include "../utils.h"

@@ -23,6 +23,7 @@
  *   into in-place versions.
  */
 
+#include <tvm/base.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>

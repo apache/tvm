@@ -25,6 +25,7 @@
 #define TVM_RELAX_TRANSFORM_UTILS_H_
 
 #include <builtin_fp16.h>
+#include <tvm/base.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/function.h>

@@ -49,11 +49,11 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
   emit_fwd_func_decl_ = emit_fwd_func_decl;
   declared_globals_.clear();
   decl_stream << "// tvm target: " << target_str << "\n";
-  decl_stream << "#define TVM_EXPORTS\n";
   decl_stream << "#include \"tvm/ffi/extra/c_env_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/base.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "#include \"tvm/ffi/c_api.h\"\n";
+  decl_stream << "#define TVM_DLL TVM_FFI_DLL_EXPORT\n";
   decl_stream << "#include <math.h>\n";
   decl_stream << "#include <stdbool.h>\n";
   CodeGenCHost::InitGlobalContext();

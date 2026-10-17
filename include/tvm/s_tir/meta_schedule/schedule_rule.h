@@ -20,6 +20,7 @@
 #ifndef TVM_S_TIR_META_SCHEDULE_SCHEDULE_RULE_H_
 #define TVM_S_TIR_META_SCHEDULE_SCHEDULE_RULE_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>

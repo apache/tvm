@@ -24,6 +24,7 @@
 #ifndef TVM_TE_TENSOR_H_
 #define TVM_TE_TENSOR_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
