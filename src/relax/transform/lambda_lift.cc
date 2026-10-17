@@ -29,7 +29,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/transform.h>
 
 #include <iostream>
@@ -63,7 +63,7 @@ class LambdaNameCollector : ExprVisitor {
 
  private:
   void VisitBinding_(const VarBindingNode* binding, const FunctionNode* func) override {
-    if (auto opt = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+    if (auto opt = func->GetAttr(tvm::attr::kGlobalSymbol)) {
       ffi::String public_name = opt.value();
 
       // If a kGlobalSymbol exists, we must use the name exactly as it
@@ -75,7 +75,7 @@ class LambdaNameCollector : ExprVisitor {
       // the error.
       TVM_FFI_ICHECK(!previous_global_vars_.count(public_name))
           << "Function " << name_stack_.front() << " contains a lambda with kGlobalSymbol (\""
-          << tvm::attr::kGlobalSymbol << "\" attribute of \"" << public_name << "\".  "
+          << tvm::attr::kGlobalSymbol.name << "\" attribute of \"" << public_name << "\".  "
           << "However, the module already contains a GlobalVar with this name.  "
           << "If present, the kGlobalSymbol attribute must match the name of the GlobalVar, "
           << "and GlobalVar names must be unique across an IRModule.  "
@@ -85,7 +85,7 @@ class LambdaNameCollector : ExprVisitor {
       auto it = new_public_names_.find(public_name);
       TVM_FFI_ICHECK(it == new_public_names_.end())
           << "Function " << name_stack_.front() << " contains a lambda with kGlobalSymbol (\""
-          << tvm::attr::kGlobalSymbol << "\" attribute of \"" << public_name << "\".  "
+          << tvm::attr::kGlobalSymbol.name << "\" attribute of \"" << public_name << "\".  "
           << "However, the function " << it->second.front()
           << " also contains a lambda with the same value for kGlobalSymbol.  "
           << "If present, the kGlobalSymbol attribute must match the name of the GlobalVar, "

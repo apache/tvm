@@ -47,7 +47,7 @@ ffi::Optional<ExprDoc> ShapeTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::ShapeTypeNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&ShapeTypeDocTranslate>());
 }
 
@@ -89,7 +89,7 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::TensorTypeNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&TensorTypeDocTranslate>());
 }
 
@@ -125,7 +125,7 @@ ffi::Optional<ExprDoc> RelaxFuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::FuncTypeNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&RelaxFuncTypeDocTranslate>());
 }
 

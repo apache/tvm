@@ -117,7 +117,7 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const Function& f, const std::s
   TVM_FFI_CHECK(f->body.has_value(), ValueError)
       << "Kernel code generation requires a function body";
   this->InitFuncState();
-  TVM_FFI_ICHECK(f->HasNonzeroAttr(tvm::tirx::attr::kNoAlias))
+  TVM_FFI_ICHECK(f->HasNonzeroAttr(tvm::tirx::attr::kNoAlias.name))
       << "SPIRV only takes restricted memory model";
   std::vector<Var> pod_args;
   uint32_t i_buffer = 0;
@@ -982,7 +982,7 @@ void CodeGenSPIRV::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
 
   TVM_FFI_ICHECK(!var_map_.count(var_node));
   var_map_[var_node] = buf;
-  if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
+  if (annotations->dict.count(tvm::tirx::attr::kVolatile.name)) {
     storage_info_[var_node].is_volatile = true;
   }
 }

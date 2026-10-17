@@ -26,7 +26,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op/index.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/utils.h>
 #include <tvm/tirx/stmt_functor.h>
 

@@ -24,7 +24,7 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
 #define TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
 
-#include <tvm/backend/cuda/op_attr_types.h>
+#include <tvm/backend/cuda/op_attr.h>
 #include <tvm/codegen/codegen.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>

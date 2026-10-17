@@ -47,7 +47,7 @@ ffi::Optional<ExprDoc> IterVarDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::IterVarNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&IterVarDocTranslate>());
 }
 

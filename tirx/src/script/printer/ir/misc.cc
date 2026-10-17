@@ -47,7 +47,7 @@ ffi::Optional<ExprDoc> DataTypeImmDocTranslate(DocTranslatorObj*, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<DataTypeImmNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&DataTypeImmDocTranslate>());
 }
 
@@ -98,15 +98,16 @@ ffi::Optional<ExprDoc> MetadataDocTranslate(DocTranslatorObj* d, ffi::AnyView in
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<ffi::ArrayObj>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&ArrayDocTranslate>());
-  ffi::reflection::TypeAttrDef<ffi::MapObj>().attr(tvm::script::printer::type_attr::kDocTranslate,
-                                                   FDocTranslate::FromNative<&MapDocTranslate>());
+  ffi::reflection::TypeAttrDef<ffi::MapObj>().attr(
+      tvm::script::printer::type_attr::kDocTranslate.name,
+      FDocTranslate::FromNative<&MapDocTranslate>());
   ffi::reflection::TypeAttrDef<ffi::ModuleObj>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&MetadataDocTranslate>());
   ffi::reflection::TypeAttrDef<ffi::TensorObj>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&MetadataDocTranslate>());
 }
 
@@ -127,7 +128,7 @@ ffi::Optional<ExprDoc> ShapeDocTranslate(DocTranslatorObj*, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<ffi::ShapeObj>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&ShapeDocTranslate>());
 }
 

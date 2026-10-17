@@ -119,7 +119,7 @@ class AlterOpImplMutator : public ExprMutator {
     const tirx::Function& old_func =
         mod_->Lookup(call->args[0].as_or_throw<GlobalVar>()).as_or_throw<tirx::Function>();
     ffi::Optional<ffi::String> maybe_op_kind =
-        old_func->attrs.GetAttr<ffi::String>(tvm::relax::attr::kOperatorName);
+        old_func->attrs.GetAttr(tvm::relax::attr::kOperatorName);
 
     // If the callee does not have kOperatorName attribute or no replacement is requested for
     // it, nothing to do here.
@@ -221,12 +221,12 @@ class AlterOpImplMutator : public ExprMutator {
     // Create tirx::Function and add op_name to func.attrs
     tirx::Function remove_pad_with_frozen_layout =
         WithAttr(CreateFunction({placeholder_tensor, output_tensor}),
-                 tvm::relax::attr::kOperatorName, op_name);
+                 tvm::relax::attr::kOperatorName.name, op_name);
     // Add tirx::Function to module
     GlobalVar gv_remove_pad = builder_->AddFunction(remove_pad_with_frozen_layout, op_name);
     // Mark the remove_pad tirx::Function as private by removing it from global scope
-    builder_->UpdateFunction(gv_remove_pad,
-                             WithoutAttr(remove_pad_with_frozen_layout, tvm::attr::kGlobalSymbol));
+    builder_->UpdateFunction(
+        gv_remove_pad, WithoutAttr(remove_pad_with_frozen_layout, tvm::attr::kGlobalSymbol.name));
 
     remove_pad_map_.insert_or_assign(t_shape, gv_remove_pad);
     return gv_remove_pad;
@@ -268,7 +268,7 @@ class AlterOpImplMutator : public ExprMutator {
     // future passes that use kOperatorName attribute to identify operator represented by a
     // tirx::Function.
     tirx::Function replacement_func_with_frozen_layout =
-        WithAttr(replacement_func, tvm::relax::attr::kOperatorName, op_kind);
+        WithAttr(replacement_func, tvm::relax::attr::kOperatorName.name, op_kind);
 
     GlobalVar gv_replacement =
         builder_->AddFunction(replacement_func_with_frozen_layout, op_kind + "_replacement");

@@ -39,8 +39,8 @@ bool IsAnnotateWithUnroll(const Instruction& inst) {
   }
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String ann_key = inst->attrs[0].as_or_throw<ffi::String>();
-  return ann_key == tvm::s_tir::attr::kMetaScheduleUnrollExplicit ||
-         ann_key == tvm::s_tir::attr::kMetaScheduleUnrollImplicit;
+  return ann_key == tvm::s_tir::attr::kMetaScheduleUnrollExplicit.name ||
+         ann_key == tvm::s_tir::attr::kMetaScheduleUnrollImplicit.name;
 }
 
 }  // namespace s_tir

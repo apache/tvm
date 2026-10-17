@@ -105,7 +105,7 @@ ffi::Optional<ExprDoc> GenericConstDocTranslate(DocTranslatorObj* d, ffi::AnyVie
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<GenericConstNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&GenericConstDocTranslate>());
 }
 
@@ -120,13 +120,13 @@ ffi::Optional<ExprDoc> ShapeExprDocTranslate(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::ShapeExprNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&ShapeExprDocTranslate>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::DataflowVarNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&VarDocTranslate>());
 }
 

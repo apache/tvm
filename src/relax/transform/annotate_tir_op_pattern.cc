@@ -32,11 +32,11 @@ namespace tvm {
 namespace relax {
 
 tirx::Function AnnotateOpPattern(tirx::Function f) {
-  if (f->HasNonzeroAttr(tvm::relax::attr::kOpPattern)) {
+  if (f->HasNonzeroAttr(tvm::relax::attr::kOpPattern.name)) {
     return f;
   } else {
     OpPatternKind kind = AnalyzeOpPatternKind(f);
-    return WithAttr(std::move(f), tvm::relax::attr::kOpPattern, static_cast<int>(kind));
+    return WithAttr(std::move(f), tvm::relax::attr::kOpPattern.name, static_cast<int>(kind));
   }
 }
 

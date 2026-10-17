@@ -29,7 +29,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/stmt.h>
 #include <tvm/runtime/base.h>
-#include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/op/attr.h>
 
 #include <initializer_list>
 #include <string>

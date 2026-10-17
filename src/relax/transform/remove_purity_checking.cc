@@ -39,7 +39,7 @@ class PurityRemover : public ExprMutator {
     bool purity = func->is_pure;
     auto ret = func;
     if (purity) {
-      ret = WithAttr<Function>(func, tvm::relax::attr::kForcePure, true);
+      ret = WithAttr<Function>(func, tvm::relax::attr::kForcePure.name, true);
     }
     auto new_body = VisitExpr(ret->body);
     if (!new_body.same_as(ret->body)) {

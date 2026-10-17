@@ -277,7 +277,7 @@ void CodeGenLLVM::InitFuncState() {
 
 std::tuple<std::string, llvm::Function::LinkageTypes> CodeGenLLVM::GetLinkage(
     const GlobalVar& gvar, const Function& func) {
-  if (auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+  if (auto global_symbol = func->GetAttr(tvm::attr::kGlobalSymbol)) {
     return {global_symbol.value(), llvm::Function::ExternalLinkage};
   }
 
@@ -302,7 +302,7 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
   }
 
   std::vector<llvm::Type*> param_types;
-  is_restricted_ = func->HasNonzeroAttr(tvm::tirx::attr::kNoAlias);
+  is_restricted_ = func->HasNonzeroAttr(tvm::tirx::attr::kNoAlias.name);
   for (Var param : func->params) {
     param_types.push_back(GetLLVMType(param->ty));
     if (!is_restricted_ && param->ty.as<PtrTypeNode>()) {
@@ -2261,7 +2261,7 @@ void CodeGenLLVM::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
 
   TVM_FFI_ICHECK(!var_map_.count(buffer.get()));
   var_map_[buffer.get()] = buf;
-  if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
+  if (annotations->dict.count(tvm::tirx::attr::kVolatile.name)) {
     volatile_buf_.insert(buffer.get());
   }
 }

@@ -86,7 +86,7 @@ ffi::Optional<ExprDoc> SeqExprDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::SeqExprNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&SeqExprDocTranslate>());
 }
 
@@ -103,7 +103,7 @@ ffi::Optional<ExprDoc> BindingBlockDocTranslate(DocTranslatorObj* d, ffi::AnyVie
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::BindingBlockNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&BindingBlockDocTranslate>());
 }
 
@@ -133,7 +133,7 @@ ffi::Optional<ExprDoc> DataflowBlockDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::DataflowBlockNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&DataflowBlockDocTranslate>());
 }
 

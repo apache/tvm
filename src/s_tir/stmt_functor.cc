@@ -64,7 +64,7 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlock(tirx::StmtExprVisitor*
         kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(match_tensor_region->tensor); }));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(match_tensor_region->source));
   }
-  if (auto addresses = op->annotations.Get(attr::kTensorAllocatedAddr)) {
+  if (auto addresses = op->annotations.Get(attr::kTensorAllocatedAddr.name)) {
     // The owner reference identifies the allocation; it is not a data access.
     for (const auto& entry : addresses.value().cast<TensorAllocatedAddresses>()) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(entry.get<1>()));
@@ -139,10 +139,10 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
   auto match_tensors = mutator->Mutate(op->match_tensors, inplace_mode)
                            .as_or_throw<UnchangedOr<ffi::Array<MatchTensorRegion>>>();
   auto annotations = op->annotations;
-  if (auto addresses = annotations.Get(attr::kTensorAllocatedAddr)) {
+  if (auto addresses = annotations.Get(attr::kTensorAllocatedAddr.name)) {
     auto updated = mutator->Mutate(addresses.value(), InplaceMode::kDisallow);
     if (!updated.IsUnchanged()) {
-      annotations.Set(attr::kTensorAllocatedAddr, std::move(updated).ValueUnchecked());
+      annotations.Set(attr::kTensorAllocatedAddr.name, std::move(updated).ValueUnchecked());
     }
   }
   auto reads =

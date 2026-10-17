@@ -75,7 +75,7 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
     // Only analyze externally exposed functions as potential callers
     // since they represent the entry points where host/device calls originate
     for (const auto& [gvar, func] : mod->functions) {
-      bool is_externally_exposed = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+      bool is_externally_exposed = func->GetAttr(tvm::attr::kGlobalSymbol).has_value();
       const auto* function = func.as<FunctionNode>();
 
       if (is_externally_exposed && function != nullptr) {
@@ -247,10 +247,9 @@ IRModule BindTarget(IRModule mod, const Target& target) {
     }
     auto function = ffi::GetRef<Function>(function_node);
 
-    bool is_externally_exposed =
-        function->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+    bool is_externally_exposed = function->GetAttr(tvm::attr::kGlobalSymbol).has_value();
 
-    if (auto func_target = func->GetAttr<Target>(tvm::attr::kTarget)) {
+    if (auto func_target = func->GetAttr(tvm::attr::kTarget)) {
       // Rule 1: If the function has a target, and the target has a host, and the function does not
       // have a host, then add the host to the function target
       auto func_target_host = func_target.value()->GetHost();
@@ -258,22 +257,22 @@ IRModule BindTarget(IRModule mod, const Target& target) {
 
       if (target_host && !func_target_host && is_externally_exposed) {
         auto new_target = Target::WithHost(func_target.value(), target_host.value());
-        new_mod->Update(gvar, WithAttr(std::move(function), tvm::attr::kTarget, new_target));
+        new_mod->Update(gvar, WithAttr(std::move(function), tvm::attr::kTarget.name, new_target));
       }
       continue;
     }
 
-    if (function->HasNonzeroAttr(tvm::tirx::attr::kIsHostFunc)) {
+    if (function->HasNonzeroAttr(tvm::tirx::attr::kIsHostFunc.name)) {
       // Rule 2: If the function is marked as host function, bind the host target to the function
-      function = WithAttr(std::move(function), tvm::attr::kTarget,
+      function = WithAttr(std::move(function), tvm::attr::kTarget.name,
                           Target::WithHost(target_host, target_host));
-      new_mod->Update(gvar, WithoutAttr(std::move(function), tvm::tirx::attr::kIsHostFunc));
+      new_mod->Update(gvar, WithoutAttr(std::move(function), tvm::tirx::attr::kIsHostFunc.name));
       continue;
     }
 
     if (is_externally_exposed) {
       // Rule 3: Externally exposed functions get the full target
-      new_mod->Update(gvar, WithAttr(std::move(function), tvm::attr::kTarget, target));
+      new_mod->Update(gvar, WithAttr(std::move(function), tvm::attr::kTarget.name, target));
     } else {
       const auto* gvar_node = gvar.get();
       bool called_by_host = host_called_global_vars.count(gvar_node);
@@ -283,11 +282,11 @@ IRModule BindTarget(IRModule mod, const Target& target) {
         // Rule 4.1: Called by both host and device
         // Bind device target to current function
         Function host_func = tirx::RenewDef(function);
-        new_mod->Update(gvar,
-                        WithAttr(std::move(function), tvm::attr::kTarget, target_without_host));
+        new_mod->Update(
+            gvar, WithAttr(std::move(function), tvm::attr::kTarget.name, target_without_host));
 
         // Create duplicate with host target for host callers
-        host_func = WithAttr(std::move(host_func), tvm::attr::kTarget, target_host);
+        host_func = WithAttr(std::move(host_func), tvm::attr::kTarget.name, target_host);
         ffi::String host_func_name = gvar->name_hint + "_host";
         GlobalVar host_gvar = GlobalVar(global_names->FreshName(host_func_name, false));
 
@@ -296,17 +295,17 @@ IRModule BindTarget(IRModule mod, const Target& target) {
 
       } else if (called_by_host) {
         // Rule 4.2: Called by host only
-        new_mod->Update(gvar, WithAttr(std::move(function), tvm::attr::kTarget, target_host));
+        new_mod->Update(gvar, WithAttr(std::move(function), tvm::attr::kTarget.name, target_host));
       } else if (called_by_device) {
         // Rule 4.3: Called by device only
-        new_mod->Update(gvar,
-                        WithAttr(std::move(function), tvm::attr::kTarget, target_without_host));
+        new_mod->Update(
+            gvar, WithAttr(std::move(function), tvm::attr::kTarget.name, target_without_host));
       } else {
         // Rule 4.4: Not called by any context
         // NOTE: To keep the current behavior, we bind the target to the full target, but it needs
         // further check
-        new_mod->Update(gvar,
-                        WithAttr(std::move(function), tvm::attr::kTarget, target_without_host));
+        new_mod->Update(
+            gvar, WithAttr(std::move(function), tvm::attr::kTarget.name, target_without_host));
       }
     }
   }
@@ -321,8 +320,7 @@ IRModule BindTarget(IRModule mod, const Target& target) {
         continue;
       }
 
-      bool is_externally_exposed =
-          function->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+      bool is_externally_exposed = function->GetAttr(tvm::attr::kGlobalSymbol).has_value();
       if (is_externally_exposed) {
         // Update calls in externally exposed functions to use host duplicates
         Function new_func = substitutor->Substitute(func.as_or_throw<Function>());

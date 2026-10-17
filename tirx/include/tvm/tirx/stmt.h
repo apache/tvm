@@ -41,24 +41,22 @@ inline bool IsNoOp(const Stmt& stmt) {
 namespace attr {
 constexpr const char* kPragmaUnroll = "tirx.pragma_unroll";
 
-constexpr const char* kDisableUnroll = "tirx.disable_unroll";
+inline constexpr ffi::reflection::AttrKey<bool> kDisableUnroll{"tirx.disable_unroll"};
 
 /*!
  * \brief For annotation: maximum work for automatic unrolling.
  *
  * Integer policy inherited by nested loops unless they override it. Consumed by UnrollLoop.
  */
-constexpr const char* kAutoUnrollMaxStep = "tirx.auto_unroll_max_step";
+inline constexpr ffi::reflection::AttrKey<int64_t> kAutoUnrollMaxStep{"tirx.auto_unroll_max_step"};
 /*!
  * \brief For annotation: expand unrolled bodies instead of preserving unrolled loops.
  *
  * Integer policy inherited by nested loops unless they override it. Consumed by UnrollLoop.
  */
-constexpr const char* kUnrollExplicit = "tirx.unroll_explicit";
+inline constexpr ffi::reflection::AttrKey<bool> kUnrollExplicit{"tirx.unroll_explicit"};
 /*! \brief Annotation key on AllocTensor marking the allocation as volatile. */
-constexpr const char* kVolatile = "tirx.volatile";
-/*! \brief Mark tensor initial addr alignment in bytes */
-constexpr const char* kTensorDataAlignment = "tirx.tensor_data_alignment";
+inline constexpr ffi::reflection::AttrKey<bool> kVolatile{"tirx.volatile"};
 
 }  // namespace attr
 

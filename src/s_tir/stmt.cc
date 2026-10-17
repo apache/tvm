@@ -30,7 +30,7 @@
 #include <tvm/ir/stmt.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/op/attr.h>
 
 namespace tvm {
 namespace s_tir {

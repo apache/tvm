@@ -255,8 +255,7 @@ void LLVMModuleObj::Init(const IRModule& mod, const Target& target) {
 
   std::string entry_func;
 
-  ffi::Optional<ffi::String> system_lib_prefix =
-      mod->GetAttr<ffi::String>(tvm::attr::kSystemLibPrefix);
+  ffi::Optional<ffi::String> system_lib_prefix = mod->GetAttr(tvm::attr::kSystemLibPrefix);
 
   for (auto kv : mod->functions) {
     if (!kv.second->IsInstance<tirx::FunctionNode>()) {
@@ -264,8 +263,8 @@ void LLVMModuleObj::Init(const IRModule& mod, const Target& target) {
       continue;
     }
     auto f = kv.second.as_or_throw<tirx::Function>();
-    auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-    bool is_entry_func = f->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc);
+    auto global_symbol = f->GetAttr(tvm::attr::kGlobalSymbol);
+    bool is_entry_func = f->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc.name);
 
     TVM_FFI_ICHECK(global_symbol || !is_entry_func) << "The entry func must be exposed externally.";
 

@@ -172,7 +172,7 @@ TVM_TIRX_DLL Pass MakePackedAPI();
  * lowers host-to-device calls into the device kernel launch ABI.
  *
  * The resulting host-side function will keep the same
- * `tvm::attr::kTarget` attribute (e.g. `T.target("cuda",
+ * `tvm::attr::kTarget.name` attribute (e.g. `T.target("cuda",
  * host=T.target("llvm"))`).  This ensures that `MakePackedAPI` knows
  * which device type should be used for the input tensors.
  *

@@ -782,7 +782,7 @@ class ReverseComputeInliner : public BaseInliner {
                            : nullptr;
     } else {
       producer_store = producer_body.as<TensorStoreNode>();
-      if (producer_block_->annotations.count(tvm::s_tir::attr::kAutoCopy) != 0) {
+      if (producer_block_->annotations.count(tvm::s_tir::attr::kAutoCopy.name) != 0) {
         const ForNode* producer_inner_loop = producer_body.as<ForNode>();
         if (producer_inner_loop == nullptr) return false;
         for (;;) {
@@ -823,7 +823,7 @@ class ReverseComputeInliner : public BaseInliner {
       analyzer_->Bind(iter->var,
                       Range::FromMinExtent(iter->dom.value()->min, iter->dom.value()->extent));
     }
-    if (producer_block->annotations.count(tvm::s_tir::attr::kAutoCopy) != 0) {
+    if (producer_block->annotations.count(tvm::s_tir::attr::kAutoCopy.name) != 0) {
       auto bind = [&](const ForNode* loop) {
         analyzer_->Bind(loop->loop_var,
                         Range::FromMinExtent(IntImm(loop->extent.ty(), 0), loop->extent));

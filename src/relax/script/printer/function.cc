@@ -47,7 +47,7 @@ ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   auto bound_name = d->GetOrCreateExtraState<ffi::Optional<ffi::String>>("ir.function_name");
   d->WithExtraStateScope<ffi::Optional<ffi::String>>("ir.function_name", std::nullopt, [&]() {
     auto completed = d->WithVarScope([&]() {
-      auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+      auto global_symbol = func->GetAttr(tvm::attr::kGlobalSymbol);
       ffi::String name = bound_name.value_or(global_symbol.value_or("main"));
       ffi::Array<AssignDoc> args;
       ffi::Array<IdDoc> param_ids;
@@ -77,7 +77,7 @@ ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView in
         decorator_keys.push_back("pure");
         decorator_values.push_back(LiteralDoc::Boolean(false, std::nullopt));
       }
-      if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+      if (!func->GetAttr(tvm::attr::kGlobalSymbol)) {
         decorator_keys.push_back("private");
         decorator_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
       }
@@ -87,7 +87,7 @@ ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView in
       auto docs = d->WithDocScope([&]() {
         std::vector<std::pair<ffi::String, ffi::Any>> attrs;
         for (const auto& [key, value] : func->attrs->dict) {
-          if (key != tvm::attr::kGlobalSymbol) attrs.emplace_back(key, value);
+          if (key != tvm::attr::kGlobalSymbol.name) attrs.emplace_back(key, value);
         }
         if (!attrs.empty()) {
           std::sort(attrs.begin(), attrs.end(),
@@ -114,12 +114,13 @@ ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView in
       });
       auto body = ToStmtDocArray(docs);
       if (bound_name && global_symbol && global_symbol.value() != bound_name.value()) {
-        body.insert(body.begin(),
-                    ExprStmtDoc(NamespaceDoc("relax")
-                                    ->Attr("func_attr")
-                                    ->Call({DictDoc(
-                                        {LiteralDoc::Str(tvm::attr::kGlobalSymbol, std::nullopt)},
-                                        {LiteralDoc::Str(global_symbol.value(), std::nullopt)})})));
+        body.insert(
+            body.begin(),
+            ExprStmtDoc(
+                NamespaceDoc("relax")
+                    ->Attr("func_attr")
+                    ->Call({DictDoc({LiteralDoc::Str(tvm::attr::kGlobalSymbol.name, std::nullopt)},
+                                    {LiteralDoc::Str(global_symbol.value(), std::nullopt)})})));
       }
       FunctionDoc function(IdDoc(name), args, {decorator}, ret_type, body);
       auto module = d->GetOrCreateExtraState<ffi::Optional<IRModule>>("ir.module");
@@ -146,7 +147,7 @@ ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView in
 TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterNamespaceAlias("relax.prefix", "R");
   ffi::reflection::TypeAttrDef<relax::FunctionNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&FunctionDocTranslate>());
 }
 
@@ -174,7 +175,7 @@ ffi::Optional<ExprDoc> ExternFuncDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::ExternFuncNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&ExternFuncDocTranslate>());
 }
 

@@ -64,7 +64,7 @@ class BuiltinLower : public StmtExprMutator {
     if (!func->body.has_value()) return func;
     ffi::Optional<PrimExpr> device_type = std::nullopt;
     bool preserve_ffi_kernel = false;
-    if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
+    if (auto target = func->GetAttr(tvm::attr::kTarget)) {
       device_type = IntImm::Int32(target.value()->kind->default_device_type);
       auto host = target.value()->GetHost().value_or(target.value());
       preserve_ffi_kernel = host->kind->name == "cuda_host";
@@ -805,9 +805,9 @@ namespace transform {
 
 Pass LowerTVMBuiltin() {
   auto pass_func = [](Function func, IRModule m, PassContext ctx) {
-    bool is_host = func->HasNonzeroAttr(tvm::tirx::attr::kIsHostFunc);
+    bool is_host = func->HasNonzeroAttr(tvm::tirx::attr::kIsHostFunc.name);
     if (!is_host) {
-      if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
+      if (auto target = func->GetAttr(tvm::attr::kTarget)) {
         is_host = target.value()->HasKey("cpu");
       }
     }

@@ -26,7 +26,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/s_tir/function.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/abi.h>
@@ -103,7 +103,8 @@ tirx::Function GetDLTensorField(tirx::TVMStructFieldKind field, PrimType field_t
                             .as_or_throw<PrimExpr>()),
        tvm::Return(value)});
 
-  DictAttrs attrs({{tvm::s_tir::attr::kIsScheduled, true}, {tvm::tirx::attr::kIsHostFunc, true}});
+  DictAttrs attrs(
+      {{tvm::s_tir::attr::kIsScheduled.name, true}, {tvm::tirx::attr::kIsHostFunc.name, true}});
 
   tirx::Function func(ffi::Array<tvm::Var>{dlpack_handle}, body, field_ty, attrs);
 
@@ -284,7 +285,8 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
          tvm::Bind(extent, TensorLoad(shape_buffer, {axis.as_or_throw<PrimExpr>()})),
          tvm::Return(extent)});
 
-    DictAttrs attrs({{tvm::s_tir::attr::kIsScheduled, true}, {tvm::tirx::attr::kIsHostFunc, true}});
+    DictAttrs attrs(
+        {{tvm::s_tir::attr::kIsScheduled.name, true}, {tvm::tirx::attr::kIsHostFunc.name, true}});
 
     tirx::Function func({dlpack_handle, axis}, body, field_ty, attrs);
 

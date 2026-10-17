@@ -230,7 +230,7 @@ IRModule IRModule::FromExpr(const Expr& expr,
   // All global definitions must be functions.
   BaseFunc func = expr.as_or_throw<BaseFunc>();
   {
-    if (auto opt = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+    if (auto opt = func->GetAttr(tvm::attr::kGlobalSymbol)) {
       // Function literal has been annotated with it's required global symbol.
       gv_name = opt.value();
     }

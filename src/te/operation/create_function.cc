@@ -246,7 +246,7 @@ class LayoutFreePlaceholdersNormalizer : public s_tir::StmtExprMutator {
     for (int i : this->layout_free_tensor_indices_) {
       indices.push_back(i);
     }
-    return WithAttr(std::move(func), tvm::s_tir::attr::kLayoutFreeTensors, indices);
+    return WithAttr(std::move(func), tvm::s_tir::attr::kLayoutFreeTensors.name, indices);
   }
 
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* _block, InplaceMode inplace_mode) final {
@@ -426,7 +426,7 @@ ffi::Map<ffi::String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& co
     }
   }
   // Set script_parsing_detect_access
-  annotations.Set(tvm::s_tir::attr::kScriptParsingDetectAccess, 3);
+  annotations.Set(tvm::s_tir::attr::kScriptParsingDetectAccess.name, 3);
   return annotations;
 }
 
@@ -906,9 +906,9 @@ Function GenerateAndCompleteFunction(const ffi::Array<te::Tensor>& arg_list,
   Function func = WithAttrs(Function(/*params=*/std::move(parameters),
                                      /*body=*/std::move(body),
                                      /*ret_type=*/VoidType()),
-                            {{tvm::attr::kGlobalSymbol, ffi::String("main")},
-                             {tvm::tirx::attr::kNoAlias, true},
-                             {tvm::attr::kSTir, true}});
+                            {{tvm::attr::kGlobalSymbol.name, ffi::String("main")},
+                             {tvm::tirx::attr::kNoAlias.name, true},
+                             {tvm::attr::kSTir.name, true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("s_tir.script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc).cast<Function>();
@@ -978,9 +978,9 @@ Function GenerateAndCompleteFunction(const ffi::Array<ffi::ObjectRef>& arg_tir_v
   Function func = WithAttrs(Function(/*params=*/std::move(parameters),
                                      /*body=*/std::move(body),
                                      /*ret_type=*/VoidType()),
-                            {{tvm::attr::kGlobalSymbol, ffi::String("main")},
-                             {tvm::tirx::attr::kNoAlias, true},
-                             {tvm::attr::kSTir, true}});
+                            {{tvm::attr::kGlobalSymbol.name, ffi::String("main")},
+                             {tvm::tirx::attr::kNoAlias.name, true},
+                             {tvm::attr::kSTir.name, true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("s_tir.script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc).cast<Function>();

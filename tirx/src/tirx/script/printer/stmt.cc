@@ -20,9 +20,9 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/script/printer/doc_translator.h>
+#include <tvm/tirx/op/attr.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
-#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 
 #include <algorithm>
@@ -60,7 +60,7 @@ ffi::Optional<ExprDoc> EvaluateDocTranslate(DocTranslatorObj* d, ffi::AnyView in
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<EvaluateNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&EvaluateDocTranslate>());
 }
 
@@ -78,7 +78,7 @@ ffi::Optional<ExprDoc> SeqStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<SeqStmtNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&SeqStmtDocTranslate>());
 }
 
@@ -121,7 +121,7 @@ ffi::Optional<ExprDoc> RegionStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<RegionStmtNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&RegionStmtDocTranslate>());
 }
 

@@ -32,12 +32,12 @@ namespace meta_schedule {
 
 /*!
  * \brief Find the entry function of the given IRModule, i.e, functions marked by
- * `tirx::attr::kIsEntryFunc`, whose name is `main` or being the only Function.
+ * `tirx::attr::kIsEntryFunc.name`, whose name is `main` or being the only Function.
  * \param mod The IRModule to find the entry function.
  * \return The entry function.
  */
 inline tirx::Function FindEntryFunc(const IRModule& mod) {
-  // Priority 1: Function marked as `tirx::attr::kIsEntryFunc`
+  // Priority 1: Function marked as `tirx::attr::kIsEntryFunc.name`
   int num_function = 0;
   const tirx::FunctionNode* main_func = nullptr;
   const tirx::FunctionNode* last_func = nullptr;
@@ -46,7 +46,7 @@ inline tirx::Function FindEntryFunc(const IRModule& mod) {
     BaseFunc base_func = kv.second;
     if (const auto* func = base_func.as<tirx::FunctionNode>()) {
       last_func = func;
-      if (func->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc)) {
+      if (func->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc.name)) {
         return ffi::GetRef<tirx::Function>(func);
       }
       if (gv->name_hint == "main") {

@@ -24,7 +24,34 @@
 using namespace tvm;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  TargetKindDef("TestTargetKind").set_default_device_type(kDLCPU).def_option<bool>("my_bool");
+  TargetKindDef("TestTargetKind")
+      .set_default_device_type(kDLCPU)
+      .def_option<bool>("my_bool")
+      .def_option<ffi::Map<ffi::String, ffi::Any>>(backend::attr::kBackendConfig.name);
+}
+
+TEST(TargetCreation, TypedBackendConfig) {
+  constexpr auto key = backend::attr::kBackendConfig;
+  using Config = decltype(key)::ValueType;
+  Config fallback{{"cuda", Config{{"arch", ffi::String("sm_80")}}}};
+  Target absent("TestTargetKind");
+  EXPECT_FALSE(absent->GetAttr(key).has_value());
+  EXPECT_TRUE(absent->GetAttr(key, fallback).value().same_as(fallback));
+  EXPECT_TRUE(absent->GetAttr(key, ffi::Optional<Config>(fallback)).value().same_as(fallback));
+  EXPECT_FALSE(absent->GetAttr(key, std::nullopt).has_value());
+
+  Config config{{"cuda", Config{{"arch", ffi::String("sm_100a")}}}};
+  Target present(
+      ffi::Map<ffi::String, ffi::Any>{{"kind", ffi::String("TestTargetKind")}, {key.name, config}});
+  auto result = present->GetAttr(key, fallback).value();
+  EXPECT_EQ(result.at("cuda").cast<Config>().at("arch").cast<ffi::String>(), "sm_100a");
+  Target round_trip(present->ToConfig());
+  EXPECT_EQ(
+      round_trip->GetAttr(key).value().at("cuda").cast<Config>().at("arch").cast<ffi::String>(),
+      "sm_100a");
+  constexpr ffi::reflection::AttrKey<ffi::String> wrong_type{key.name};
+  EXPECT_THROW(present->GetAttr(wrong_type), ffi::Error);
+  EXPECT_THROW(present->GetAttr(wrong_type, ffi::String("fallback")), ffi::Error);
 }
 
 ffi::Map<ffi::String, ffi::Any> TestTargetParser(ffi::Map<ffi::String, ffi::Any> target) {

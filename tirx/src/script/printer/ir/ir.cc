@@ -110,7 +110,7 @@ ffi::Optional<ExprDoc> IRModuleDocTranslate(DocTranslatorObj* d, ffi::AnyView in
 TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterNamespaceAlias("ir.prefix", "I");
   ffi::reflection::TypeAttrDef<IRModuleNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&IRModuleDocTranslate>());
 }
 
@@ -123,7 +123,7 @@ ffi::Optional<ExprDoc> DictAttrsDocTranslate(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<DictAttrsNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&DictAttrsDocTranslate>());
 }
 
@@ -136,7 +136,7 @@ ffi::Optional<ExprDoc> GlobalVarDocTranslate(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<GlobalVarNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&GlobalVarDocTranslate>());
 }
 
@@ -147,7 +147,7 @@ ffi::Optional<ExprDoc> OpDocTranslate(DocTranslatorObj*, ffi::AnyView input, con
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<OpNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
+  ffi::reflection::TypeAttrDef<OpNode>().attr(tvm::script::printer::type_attr::kDocTranslate.name,
                                               FDocTranslate::FromNative<&OpDocTranslate>());
 }
 
@@ -161,8 +161,9 @@ ffi::Optional<ExprDoc> RangeDocTranslate(DocTranslatorObj* d, ffi::AnyView input
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<RangeNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
-                                                 FDocTranslate::FromNative<&RangeDocTranslate>());
+  ffi::reflection::TypeAttrDef<RangeNode>().attr(
+      tvm::script::printer::type_attr::kDocTranslate.name,
+      FDocTranslate::FromNative<&RangeDocTranslate>());
 }
 
 }  // namespace

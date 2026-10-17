@@ -23,7 +23,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/tirx/analysis.h>
@@ -117,9 +117,9 @@ class PrimExprComputeInjector : public ExprMutator {
     tvm::Stmt body = tvm::Return(node);
 
     tirx::Function func(param_vars, tvm::SeqStmt(body), ret_ty,
-                        DictAttrs({{tvm::tirx::attr::kIsHostFunc, true},
-                                   {tvm::attr::kSTir, true},
-                                   {tvm::attr::kScriptNamespace, ffi::String("s_tir")}}));
+                        DictAttrs({{tvm::tirx::attr::kIsHostFunc.name, true},
+                                   {tvm::attr::kSTir.name, true},
+                                   {tvm::attr::kScriptNamespace.name, ffi::String("s_tir")}}));
     func = tirx::RenewDef(func);
 
     auto callee = builder_->AddFunction(func, "compute_symbolic_expr");

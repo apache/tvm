@@ -90,7 +90,7 @@ class MatchTensorLower : public StmtExprMutator {
       auto* n = stmt.CopyOnWrite();
       // Match tensors are aliases of their source region. Their placement belongs
       // to that alias definition, which disappears along with the match tensor.
-      if (auto value = n->annotations.Get(s_tir::attr::kTensorAllocatedAddr)) {
+      if (auto value = n->annotations.Get(s_tir::attr::kTensorAllocatedAddr.name)) {
         TensorAllocatedAddresses addresses;
         for (const auto& entry : value.value().cast<TensorAllocatedAddresses>()) {
           bool is_alias = false;
@@ -100,9 +100,9 @@ class MatchTensorLower : public StmtExprMutator {
           if (!is_alias) addresses.push_back(entry);
         }
         if (addresses.empty()) {
-          n->annotations.erase(s_tir::attr::kTensorAllocatedAddr);
+          n->annotations.erase(s_tir::attr::kTensorAllocatedAddr.name);
         } else {
-          n->annotations.Set(s_tir::attr::kTensorAllocatedAddr, addresses);
+          n->annotations.Set(s_tir::attr::kTensorAllocatedAddr.name, addresses);
         }
       }
       n->match_tensors = {};

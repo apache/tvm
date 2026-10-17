@@ -19,18 +19,22 @@
 #ifndef TVM_S_TIR_FUNCTION_H_
 #define TVM_S_TIR_FUNCTION_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/accessor.h>
+
 namespace tvm {
 namespace s_tir {
 namespace attr {
 /*!
  * \brief Mark the function as scheduled, so the default schedule will pass will skip it.
  *
- * Type: IntImm
+ * Type: bool
  */
-constexpr const char* kIsScheduled = "tirx.is_scheduled";
+inline constexpr ffi::reflection::AttrKey<bool> kIsScheduled{"tirx.is_scheduled"};
 
 /*! \brief Mark the tensors which is const access and can be transformed layout. */
-constexpr const char* kLayoutFreeTensors = "layout_free_tensors";
+inline constexpr ffi::reflection::AttrKey<ffi::Array<int64_t>> kLayoutFreeTensors{
+    "layout_free_tensors"};
 /*!
  * \brief Marks the layout transforms to be used for a tensor.
  *
@@ -38,7 +42,7 @@ constexpr const char* kLayoutFreeTensors = "layout_free_tensors";
  * Function attributes for TIR.
  */
 constexpr const char* kLayoutTransforms = "layout_transforms";
-constexpr const char* kEstimatedFlops = "estimated_flops";
+inline constexpr ffi::reflection::AttrKey<int64_t> kEstimatedFlops{"estimated_flops"};
 
 }  // namespace attr
 }  // namespace s_tir

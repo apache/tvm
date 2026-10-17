@@ -22,7 +22,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/op/attr.h>
 
 #include <cmath>
 

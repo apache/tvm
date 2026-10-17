@@ -19,7 +19,7 @@
 #include "tvm/relax/op/ccl.h"
 
 #include <tvm/relax/block_builder.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 
 #include "utils.h"
 

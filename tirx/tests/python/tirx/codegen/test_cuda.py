@@ -209,17 +209,28 @@ def test_warp_storage_requires_explicit_local_layout(target_kind):
         )
 
 
-def test_typed_buffer_bindings(monkeypatch):
+@pytest.mark.parametrize("alignment", [16, 64, 128])
+def test_typed_buffer_bindings(monkeypatch, alignment):
     @T.function
     def main(data: T.handle("float32"), output: T.handle):
         T.func_attr({"global_symbol": "main", "calling_conv": 2, "tirx.kernel_launch_params": []})
         A = T.decl_tensor(data, ty_args=[T.Tensor((1,), "float32")])
         B = T.decl_tensor(output, ty_args=[T.Tensor((1,), "float32")])
-        storage = T.alloc_tensor(ty_args=[T.Tensor((1,), "uint32", scope="shared")])
-        S = T.decl_tensor(storage.data, ty_args=[T.Tensor((1,), "float32", scope="shared")])
-        pool = T.alloc_tensor(ty_args=[T.Tensor((4,), "uint8", scope="shared.dyn")])
-        D = T.decl_tensor(pool.data, ty_args=[T.Tensor((1,), "float32", scope="shared.dyn")])
-        alias = T.decl_tensor(D.data, ty_args=[T.Tensor((1,), "float32", scope="shared.dyn")])
+        storage = T.alloc_tensor(
+            ty_args=[T.Tensor((1,), "uint32", scope="shared", align=alignment)]
+        )
+        S = T.decl_tensor(
+            storage.data, ty_args=[T.Tensor((1,), "float32", scope="shared", align=alignment)]
+        )
+        pool = T.alloc_tensor(
+            ty_args=[T.Tensor((4,), "uint8", scope="shared.dyn", align=alignment)]
+        )
+        D = T.decl_tensor(
+            pool.data, ty_args=[T.Tensor((1,), "float32", scope="shared.dyn", align=alignment)]
+        )
+        alias = T.decl_tensor(
+            D.data, ty_args=[T.Tensor((1,), "float32", scope="shared.dyn", align=alignment)]
+        )
         S[0] = A[0]
         D[0] = S[0]
         B[0] = alias[0]
@@ -232,9 +243,9 @@ def test_typed_buffer_bindings(monkeypatch):
     ).inspect_source()
     assert "float* data, void* output" in source
     assert "float* B = ((float*)output);" in source
-    assert "__shared__ alignas(64) uint storage_ptr[1];" in source
+    assert f"__shared__ alignas({alignment}) uint storage_ptr[1];" in source
     assert "float* S = ((float*)storage_ptr);" in source
-    assert "extern __shared__ __align__(64) uchar pool_ptr[];" in source
+    assert f"extern __shared__ __align__({alignment}) uchar pool_ptr[];" in source
     assert "float* D = ((float*)pool_ptr);" in source
     assert "S[0] = data[0];" in source
     assert "D[0] = S[0];" in source

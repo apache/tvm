@@ -755,7 +755,7 @@ bool CheckDataTypeSupport(const Target& target, const std::string& support_func_
 
 Pass BF16ComputeLegalize() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
-    auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
+    auto opt_target = f->GetAttr(tvm::attr::kTarget);
     if (opt_target.has_value() &&
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_bf16")) {
       return f;
@@ -772,7 +772,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Pass BF16StorageLegalize() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
-    auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
+    auto opt_target = f->GetAttr(tvm::attr::kTarget);
     if (opt_target.has_value() &&
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_bf16")) {
       return f;
@@ -789,7 +789,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Pass FP8ComputeLegalize(ffi::String promote_dtype) {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
-    auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
+    auto opt_target = f->GetAttr(tvm::attr::kTarget);
     if (opt_target.has_value() &&
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_fp8")) {
       return f;
@@ -807,7 +807,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Pass FP8StorageLegalize() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
-    auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
+    auto opt_target = f->GetAttr(tvm::attr::kTarget);
     if (opt_target.has_value() &&
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_fp8")) {
       return f;

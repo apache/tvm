@@ -20,7 +20,7 @@
 #include "nn.h"
 
 #include <tvm/ffi/extra/visit_error_context.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 
 namespace tvm {
 namespace relax {

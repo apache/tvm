@@ -25,7 +25,7 @@
 #include <tvm/relax/distributed/type.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op/op.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/utils.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>

@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/op_attr_types.h
- * \brief Data structures that can appear in operator attributes.
+ * \file tvm/relax/op_attr.h
+ * \brief Attribute keys and callback contracts for Relax operators.
  */
-#ifndef TVM_RELAX_OP_ATTR_TYPES_H_
-#define TVM_RELAX_OP_ATTR_TYPES_H_
+#ifndef TVM_RELAX_OP_ATTR_H_
+#define TVM_RELAX_OP_ATTR_H_
 
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
@@ -170,4 +170,4 @@ inline constexpr ffi::reflection::AttrKey<FInferTypeWithBuilder> kInferTypeWithB
 
 }  // namespace relax
 }  // namespace tvm
-#endif  // TVM_RELAX_OP_ATTR_TYPES_H_
+#endif  // TVM_RELAX_OP_ATTR_H_

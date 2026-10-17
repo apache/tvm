@@ -355,7 +355,7 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
 
 namespace {
 Target ResolveTarget(const Function& f) {
-  auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+  auto target = f->GetAttr(tvm::attr::kTarget);
   if (!target.has_value()) {
     target = Target::Current(false).value();
   }

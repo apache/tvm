@@ -131,7 +131,7 @@ TVM_DLL IRModule DeadCodeElimination(const IRModule& mod, ffi::Array<ffi::String
  * \return An external symbol.
  */
 inline std::string GetExtSymbol(const Function& func) {
-  const auto name_node = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+  const auto name_node = func->GetAttr(tvm::attr::kGlobalSymbol);
   TVM_FFI_ICHECK(name_node.has_value()) << "Fail to retrieve external symbol.";
   return std::string(name_node.value());
 }

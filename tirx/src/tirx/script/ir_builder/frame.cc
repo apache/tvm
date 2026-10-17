@@ -80,11 +80,11 @@ void FunctionFrameObj::ExitWithScope() {
   // Default attributes belong to the completed function. A declaration must
   // leave body-level func_attr free to supply those values on the same frame.
   if (!is_declaration && !is_private && name.has_value() &&
-      !attrs.count(tvm::attr::kGlobalSymbol)) {
-    insert_attr(tvm::attr::kGlobalSymbol, name.value());
+      !attrs.count(tvm::attr::kGlobalSymbol.name)) {
+    insert_attr(tvm::attr::kGlobalSymbol.name, name.value());
   }
   if (!is_declaration && persistent) {
-    insert_attr(tvm::tirx::attr::kPersistentKernel, true);
+    insert_attr(tvm::tirx::attr::kPersistentKernel.name, true);
   }
   TVM_FFI_CHECK(!is_declaration || stmts.empty(), ValueError)
       << "A function declaration cannot contain body statements";

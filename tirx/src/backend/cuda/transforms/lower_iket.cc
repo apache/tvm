@@ -652,15 +652,15 @@ class RemoveStrippedIketNoOps : public StmtExprMutator {
 };
 
 bool IsCudaDeviceFunction(const Function& function) {
-  auto target = function->GetAttr<Target>(tvm::attr::kTarget);
+  auto target = function->GetAttr(tvm::attr::kTarget);
   CallingConv calling_conv =
-      function->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
+      function->GetAttr(tvm::attr::kCallingConv, CallingConv::kDefault).value();
   return target.has_value() && target.value()->kind->name == "cuda" &&
          calling_conv == CallingConv::kDeviceKernelLaunch;
 }
 
 bool IsSm90OrNewer(const Function& function) {
-  auto target = function->GetAttr<Target>(tvm::attr::kTarget);
+  auto target = function->GetAttr(tvm::attr::kTarget);
   if (!target.has_value()) return false;
   auto arch = target.value()->GetAttr<ffi::String>("arch");
   if (!arch.has_value()) return false;
@@ -673,7 +673,7 @@ bool IsSm90OrNewer(const Function& function) {
 }
 
 std::string FunctionName(const GlobalVar& global_var, const Function& function) {
-  if (auto symbol = function->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+  if (auto symbol = function->GetAttr(tvm::attr::kGlobalSymbol)) {
     return symbol.value();
   }
   return global_var->name_hint;

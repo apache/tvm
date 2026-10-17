@@ -162,7 +162,7 @@ class FuncBuilder : public ExprMutator {
     auto block = builder_->EndBlock();
     auto body = builder_->Normalize(SeqExpr({block}, output));
     ffi::Map<ffi::String, Any> attrs;
-    attrs.Set(tvm::relax::attr::kForcePure, true);
+    attrs.Set(tvm::relax::attr::kForcePure.name, true);
     auto func = Function(params, body, output->ty.as_or_throw<Type>(),
                          /*is_pure=*/true, /*attrs=*/DictAttrs(attrs));
     return func;
@@ -247,7 +247,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
         // these names are extracted from the type for the capturing.
         const auto& func = pair.second.as_or_throw<Function>();
         int64_t num_inputs =
-            func->attrs.GetAttr<int64_t>(tvm::relax::attr::kNumInput).value_or(func->params.size());
+            func->attrs.GetAttr(tvm::relax::attr::kNumInput).value_or(func->params.size());
         auto capture_symbolic_var_name_hints = ExtractSymbolicVarHints(func);
         for (int i = 0; i < static_cast<int>(func->params.size()); ++i) {
           ffi::Array<tvm::Var> symbolic_vars =
@@ -308,9 +308,8 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
    * from the function attributes.
    */
   std::unordered_set<ffi::String> ExtractSymbolicVarHints(const Function& func) {
-    auto symbolic_var_names =
-        func->attrs.GetAttr<ffi::Array<ffi::String>>(tvm::relax::attr::kCaptureSymbolicVars)
-            .value_or(ffi::Array<ffi::String>());
+    auto symbolic_var_names = func->attrs.GetAttr(tvm::relax::attr::kCaptureSymbolicVars)
+                                  .value_or(ffi::Array<ffi::String>());
     return {symbolic_var_names.begin(), symbolic_var_names.end()};
   }
 

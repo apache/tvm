@@ -436,7 +436,7 @@ class FusedTIRConstructor : public ExprVisitor {
     BaseFunc f = mod->Lookup(gv);
     TVM_FFI_ICHECK(f->IsInstance<relax::FunctionNode>())
         << "Expected relax functions, but got: " << f->GetTypeKey();
-    TVM_FFI_ICHECK(f->HasNonzeroAttr(tvm::relax::attr::kPrimitive))
+    TVM_FFI_ICHECK(f->HasNonzeroAttr(tvm::relax::attr::kPrimitive.name))
         << "Expected a function with attr `kPrimitive`";
     visitor(f.as_or_throw<relax::Function>());
     ffi::Array<int64_t> inplace_indices;
@@ -865,9 +865,9 @@ class FusedTIRConstructor : public ExprVisitor {
    */
   tirx::Function ConstructFunc() {
     ffi::Map<ffi::String, Any> attr_map;
-    attr_map.Set(tvm::tirx::attr::kNoAlias, true);
-    attr_map.Set(tvm::attr::kSTir, true);
-    attr_map.Set(tvm::attr::kScriptNamespace, ffi::String("s_tir"));
+    attr_map.Set(tvm::tirx::attr::kNoAlias.name, true);
+    attr_map.Set(tvm::attr::kSTir.name, true);
+    attr_map.Set(tvm::attr::kScriptNamespace.name, ffi::String("s_tir"));
     auto subst = ffi::make_object<tirx::FuseTIRTensorSubstitutor>(func_info_.tensor_subst_map,
                                                                   func_info_.symbolic_var_remap);
     TVM_FFI_ICHECK(func_info_.global_name != "fused");
@@ -997,7 +997,7 @@ class TIRFuseMutator : public ExprMutator {
     for (const auto& gvar : mod->GetGlobalVars()) {
       const auto& base_func = mod->Lookup(gvar);
       // Only fuse primitive relax functions
-      if (base_func->HasNonzeroAttr(tvm::relax::attr::kPrimitive)) {
+      if (base_func->HasNonzeroAttr(tvm::relax::attr::kPrimitive.name)) {
         if (auto func = base_func.as<relax::Function>()) {
           primitive_relax.Set(gvar, func.value());
         }
@@ -1034,7 +1034,7 @@ class TIRFuseMutator : public ExprMutator {
 
     for (const auto& [gv, func] : mod->functions) {
       if (func->IsInstance<relax::FunctionNode>()) {
-        TVM_FFI_ICHECK(!func->HasNonzeroAttr(tvm::relax::attr::kPrimitive))
+        TVM_FFI_ICHECK(!func->HasNonzeroAttr(tvm::relax::attr::kPrimitive.name))
             << "Module should not contain any primitive relax functions at this point";
         relax::Function update_func = mutator.VisitExpr(func).as_or_throw<Function>();
         if (!update_func.same_as(func)) {

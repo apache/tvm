@@ -32,7 +32,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/transform.h>
 
 #include "../../support/ordered_set.h"
@@ -65,8 +65,7 @@ class CodeGenRunner : ExprMutator {
       std::vector<GlobalVar> attr_entry_functions;
       for (const auto& [gv, func] : mod->functions) {
         if (func->GetLinkageType() == LinkageType::kExternal &&
-            !func->GetAttr<ffi::String>(tvm::relax::attr::kCodegen) &&
-            func->IsInstance<relax::FunctionNode>()) {
+            !func->GetAttr(tvm::relax::attr::kCodegen) && func->IsInstance<relax::FunctionNode>()) {
           attr_entry_functions.push_back(gv);
         }
       }
@@ -87,11 +86,11 @@ class CodeGenRunner : ExprMutator {
     auto out_mod = builder_->GetContextIRModule();
 
     if (ext_mods.size()) {
-      if (auto opt_old_ext_mods = mod->GetAttr<ffi::Array<ffi::Module>>(tvm::attr::kExternalMods)) {
+      if (auto opt_old_ext_mods = mod->GetAttr(tvm::attr::kExternalMods)) {
         auto old_ext_mods = opt_old_ext_mods.value();
         ext_mods.insert(ext_mods.begin(), old_ext_mods.begin(), old_ext_mods.end());
       }
-      out_mod = WithAttr(out_mod, tvm::attr::kExternalMods, std::move(ext_mods));
+      out_mod = WithAttr(out_mod, tvm::attr::kExternalMods.name, std::move(ext_mods));
     }
 
     if (constant_names.size()) {
@@ -101,7 +100,7 @@ class CodeGenRunner : ExprMutator {
         TVM_FFI_ICHECK(!constants.count(name)) << "More than one constant with the name " << name;
         constants.Set(name, constant->value.cast<ffi::Tensor>());
       }
-      out_mod = WithAttr(out_mod, tvm::attr::kConstNameToConstant, std::move(constants));
+      out_mod = WithAttr(out_mod, tvm::attr::kConstNameToConstant.name, std::move(constants));
     }
 
     // TODO(@tvm-team): Implicit pass dependency. Revisit when we have a better way to handle this.
@@ -136,8 +135,8 @@ class CodeGenRunner : ExprMutator {
           extern_funcs_.insert_or_assign(gvar_node, new_func);
           // Remove the global symbol and codegen attributes from the function so that it can be
           // removed the module.
-          func = WithoutAttr(std::move(func), tvm::attr::kGlobalSymbol);
-          func = WithoutAttr(std::move(func), tvm::relax::attr::kCodegen);
+          func = WithoutAttr(std::move(func), tvm::attr::kGlobalSymbol.name);
+          func = WithoutAttr(std::move(func), tvm::relax::attr::kCodegen.name);
           builder_->UpdateFunction(gvar, func);
           return create_call_dps_packed(new_func, ret_ty);
         }
@@ -165,7 +164,7 @@ class CodeGenRunner : ExprMutator {
 
   Expr VisitExpr_(const FunctionNode* func_node) override {
     Function func = ffi::GetRef<Function>(func_node);
-    auto opt_codegen = func->GetAttr<ffi::String>(tvm::relax::attr::kCodegen);
+    auto opt_codegen = func->GetAttr(tvm::relax::attr::kCodegen);
     if (opt_codegen) {
       auto ext_symbol = GetExtSymbol(func);
       size_t count = 0;
@@ -195,7 +194,7 @@ class CodeGenRunner : ExprMutator {
       PostOrderVisit(entry.second, [&target_functions](Expr e) {
         if (e->IsInstance<FunctionNode>()) {
           auto f = e.as_or_throw<Function>();
-          if (auto target_opt = f->GetAttr<ffi::String>(tvm::relax::attr::kCodegen)) {
+          if (auto target_opt = f->GetAttr(tvm::relax::attr::kCodegen)) {
             ffi::String target = target_opt.value();
             target_functions[target].push_back(f);
           }

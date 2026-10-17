@@ -118,7 +118,7 @@ static bool IsVirtualThread(const ForNode* op) {
 }
 
 static bool HasPartitionHint(const ForNode* op) {
-  auto it = op->annotations.find(tvm::s_tir::attr::kLoopPartitionHint);
+  auto it = op->annotations.find(tvm::s_tir::attr::kLoopPartitionHint.name);
   return it != op->annotations.end() && IsOne((*it).second.as_or_throw<PrimExpr>());
 }
 
@@ -133,14 +133,14 @@ class NormalizePartitionHints : public StmtExprMutator {
     For loop = StmtExprMutator::Mutate_(op, inplace_mode)
                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                    .as_or_throw<For>();
-    auto it = loop->annotations.find(tvm::s_tir::attr::kLoopPartitionHint);
+    auto it = loop->annotations.find(tvm::s_tir::attr::kLoopPartitionHint.name);
     if (it != loop->annotations.end()) {
       auto value = (*it).second;
       if (value == nullptr) {
-        loop.CopyOnWrite()->annotations.erase(tvm::s_tir::attr::kLoopPartitionHint);
+        loop.CopyOnWrite()->annotations.erase(tvm::s_tir::attr::kLoopPartitionHint.name);
       } else {
         bool enabled = analyzer_->CanProve(value.cast<PrimExpr>());
-        loop.CopyOnWrite()->annotations.Set(tvm::s_tir::attr::kLoopPartitionHint,
+        loop.CopyOnWrite()->annotations.Set(tvm::s_tir::attr::kLoopPartitionHint.name,
                                             IntImm::Bool(enabled));
       }
     }
@@ -917,7 +917,7 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
 
   if (analyzer_->CanProve(extent == IntImm::Int32(1)) && !no_unroll_loop_with_extent_one_ &&
       for_node->annotations.size() ==
-          for_node->annotations.count(tvm::s_tir::attr::kLoopPartitionHint)) {
+          for_node->annotations.count(tvm::s_tir::attr::kLoopPartitionHint.name)) {
     // If the loop extent is 1, do not create the loop anymore
     auto f_substitute = [loop_var = for_node->loop_var](
                             const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -956,8 +956,8 @@ class RemoveLikelyTagsAndHints : public StmtExprMutator {
     For loop = StmtExprMutator::Mutate_(op, inplace_mode)
                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                    .as_or_throw<For>();
-    if (loop->annotations.count(tvm::s_tir::attr::kLoopPartitionHint)) {
-      loop.CopyOnWrite()->annotations.erase(tvm::s_tir::attr::kLoopPartitionHint);
+    if (loop->annotations.count(tvm::s_tir::attr::kLoopPartitionHint.name)) {
+      loop.CopyOnWrite()->annotations.erase(tvm::s_tir::attr::kLoopPartitionHint.name);
     }
     return loop;
   }

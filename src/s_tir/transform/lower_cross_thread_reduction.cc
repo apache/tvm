@@ -952,7 +952,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
           /*kind=*/ForKind::kParallel,                        //
           /*body=*/body,                                      //
                                                               /*annotations=*/
-          {{tvm::s_tir::attr::kThreadBinding, ffi::String("threadIdx." + dim_index)}},
+          {{tvm::s_tir::attr::kThreadBinding.name, ffi::String("threadIdx." + dim_index)}},
           /*step=*/std::nullopt);
     }
     return body;

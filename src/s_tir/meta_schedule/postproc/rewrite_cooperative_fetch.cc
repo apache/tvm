@@ -66,7 +66,7 @@ ffi::Optional<SBlockRV> ParseAnnotate(const Schedule& sch, const Instruction& in
   TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String ann_key = inst->attrs[0].as_or_throw<ffi::String>();
-  if (ann_key != tvm::s_tir::attr::kMetaScheduleCooperativeFetch) {
+  if (ann_key != tvm::s_tir::attr::kMetaScheduleCooperativeFetch.name) {
     return std::nullopt;
   }
   *vector_lane = static_cast<int64_t>(
@@ -88,7 +88,7 @@ bool ParseWarpExecutionAnn(const Schedule& sch, const Instruction& inst) {
   TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String ann_key = inst->attrs[0].as_or_throw<ffi::String>();
-  return ann_key == tvm::s_tir::attr::kWarpExecution;
+  return ann_key == tvm::s_tir::attr::kWarpExecution.name;
 }
 
 size_t GetMaxUsedDtypeBytes(SBlock block) {
@@ -178,7 +178,7 @@ bool RewriteCooperativeFetchObj::Apply(const s_tir::Schedule& sch) {
     }
     auto task = [thread_extent_x, thread_extent_y, vector_lane, sch,
                  block = opt_block_rv.value()]() mutable -> void {
-      sch->Unannotate(block, tvm::s_tir::attr::kMetaScheduleCooperativeFetch);
+      sch->Unannotate(block, tvm::s_tir::attr::kMetaScheduleCooperativeFetch.name);
       s_tir::LoopRV fused = sch->GetLoops(block).back();
       int64_t fused_extent = -1;
       const auto* extent_imm = sch->Get(fused)->extent.as<IntImmNode>();

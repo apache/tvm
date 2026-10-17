@@ -186,7 +186,7 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
 
 /// Interface of VerifyMemory pass
 std::vector<ffi::String> VerifyMemory_(const Function& func) {
-  auto target = func->GetAttr<Target>(tvm::attr::kTarget);
+  auto target = func->GetAttr(tvm::attr::kTarget);
   // Skip verification for functions without a target attribute, as they are
   // typically host-only helper functions that do not have device-memory constraints.
   if (!target.has_value()) return {};
@@ -195,7 +195,7 @@ std::vector<ffi::String> VerifyMemory_(const Function& func) {
           << "' for primitive:" << std::endl
           << func;
 
-  if (func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value() ==
+  if (func->GetAttr(tvm::attr::kCallingConv, CallingConv::kDefault).value() ==
       CallingConv::kDefault) {
     auto v = ffi::make_object<MemoryAccessVerifier>(func, target.value()->GetTargetDeviceType());
     v->Run();

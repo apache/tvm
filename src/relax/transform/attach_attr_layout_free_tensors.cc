@@ -51,7 +51,7 @@ class AttrAttacher : public ExprMutator {
 
   using ExprMutator::VisitExpr_;
   Expr VisitExpr_(const FunctionNode* op) final {
-    if (auto opt_num_input = op->attrs.GetAttr<int64_t>(tvm::relax::attr::kNumInput)) {
+    if (auto opt_num_input = op->attrs.GetAttr(tvm::relax::attr::kNumInput)) {
       TVM_FFI_ICHECK(layout_free_exprs_.empty())
           << "meet a non-global function with num_input attr";
       size_t num_input = opt_num_input.value();
@@ -84,7 +84,7 @@ class AttrAttacher : public ExprMutator {
     }
     // Attach the layout free tensors to the tirx::Function
     tirx::Function func = WithAttr(mod_->Lookup(gv).as_or_throw<tirx::Function>(),
-                                   tvm::s_tir::attr::kLayoutFreeTensors, layout_free_tensors);
+                                   tvm::s_tir::attr::kLayoutFreeTensors.name, layout_free_tensors);
     // Renew defs
     func = tirx::RenewDef(func);
     // Add the updated tirx::Function in the IRModule

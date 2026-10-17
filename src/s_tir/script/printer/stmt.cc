@@ -131,11 +131,11 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
     d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")->Attr("writes")->Call(writes)), block->writes);
     auto annotations = block->annotations;
     ffi::Map<Var, ffi::Array<PrimExpr>> addresses;
-    if (auto value = annotations.Get(s_tir::attr::kTensorAllocatedAddr)) {
+    if (auto value = annotations.Get(s_tir::attr::kTensorAllocatedAddr.name)) {
       for (const auto& entry : value.value().cast<s_tir::TensorAllocatedAddresses>()) {
         addresses.Set(entry.get<0>(), entry.get<1>());
       }
-      annotations.erase(s_tir::attr::kTensorAllocatedAddr);
+      annotations.erase(s_tir::attr::kTensorAllocatedAddr.name);
     }
     if (!annotations.empty()) {
       d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")
@@ -194,7 +194,7 @@ ffi::Optional<ExprDoc> SBlockRealizeDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::SBlockRealizeNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&SBlockRealizeDocTranslate>());
 }
 
@@ -215,7 +215,7 @@ ffi::Optional<ExprDoc> SBlockDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::SBlockNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&SBlockDocTranslate>());
 }
 
@@ -231,7 +231,7 @@ ffi::Optional<ExprDoc> MatchTensorRegionDocTranslate(DocTranslatorObj* d, ffi::A
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::MatchTensorRegionNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&MatchTensorRegionDocTranslate>());
 }
 

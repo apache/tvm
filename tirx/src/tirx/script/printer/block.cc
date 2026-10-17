@@ -44,7 +44,7 @@ ffi::Optional<ExprDoc> ThreadScopeDocTranslate(DocTranslatorObj*, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::ThreadScopeObj>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&ThreadScopeDocTranslate>());
 }
 

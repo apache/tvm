@@ -33,7 +33,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op/op.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/transform.h>
 
 #include <unordered_set>
@@ -674,7 +674,7 @@ class GradientMutator : private ExprMutator {
     // Step 4.4 mark the transformed function as public
     // because the original function may be public, and have gsymbol attribute as func_name
     auto new_func_name = func_name + "_adjoint";
-    auto new_func_with_gsymbol = WithAttr(new_func, tvm::attr::kGlobalSymbol, new_func_name);
+    auto new_func_with_gsymbol = WithAttr(new_func, tvm::attr::kGlobalSymbol.name, new_func_name);
 
     // Step 4.5 Add the transformed function to IRModule
     builder_->AddFunction(new_func_with_gsymbol, new_func_name);

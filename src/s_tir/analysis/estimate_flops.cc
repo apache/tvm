@@ -268,7 +268,7 @@ double EstimateTIRFlops(const IRModule& mod) {
   double cached_result = 0;
   for (const auto& [_, base_func] : mod->functions) {
     if (const auto* func = base_func.as<FunctionNode>()) {
-      if (auto cached = func->attrs.GetAttr<int64_t>(tvm::s_tir::attr::kEstimatedFlops)) {
+      if (auto cached = func->attrs.GetAttr(tvm::s_tir::attr::kEstimatedFlops)) {
         cached_result += cached.value();
       } else if (func->body.has_value()) {
         result += counter.Dispatch(func->body.value());

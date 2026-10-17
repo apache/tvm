@@ -116,11 +116,11 @@ class LoopUnroller : public StmtExprMutator {
     return unroll_policy_.WithNewScope([&]() {
       auto& policy = unroll_policy_.Current();
       policy = parent_policy;
-      if (auto value = op->annotations.Get(tvm::tirx::attr::kAutoUnrollMaxStep);
+      if (auto value = op->annotations.Get(tvm::tirx::attr::kAutoUnrollMaxStep.name);
           value.has_value() && value.value() != nullptr) {
         policy.auto_unroll_max_step = value.value().cast<IntImm>()->value.as<int>().value();
       }
-      if (auto value = op->annotations.Get(tvm::tirx::attr::kUnrollExplicit);
+      if (auto value = op->annotations.Get(tvm::tirx::attr::kUnrollExplicit.name);
           value.has_value() && value.value() != nullptr) {
         policy.unroll_explicit = static_cast<bool>(value.value().cast<IntImm>()->value);
       }
@@ -137,8 +137,8 @@ class LoopUnroller : public StmtExprMutator {
         inplace_mode = InplaceMode::kDisallow;
       }
     }
-    if (op->annotations.count(tvm::tirx::attr::kAutoUnrollMaxStep) ||
-        op->annotations.count(tvm::tirx::attr::kUnrollExplicit)) {
+    if (op->annotations.count(tvm::tirx::attr::kAutoUnrollMaxStep.name) ||
+        op->annotations.count(tvm::tirx::attr::kUnrollExplicit.name)) {
       ForNode* node;
       if (inplace_mode == InplaceMode::kAllow) {
         node = const_cast<ForNode*>(op);
@@ -147,8 +147,8 @@ class LoopUnroller : public StmtExprMutator {
         node = copy.get();
         result = For(std::move(copy));
       }
-      node->annotations.erase(tvm::tirx::attr::kAutoUnrollMaxStep);
-      node->annotations.erase(tvm::tirx::attr::kUnrollExplicit);
+      node->annotations.erase(tvm::tirx::attr::kAutoUnrollMaxStep.name);
+      node->annotations.erase(tvm::tirx::attr::kUnrollExplicit.name);
       op = node;
     }
     int value = GetExtent(op);
