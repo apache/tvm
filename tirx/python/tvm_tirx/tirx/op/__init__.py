@@ -662,7 +662,7 @@ def stack_make_dltensor(
     call : Expr
         The call expression.
     """
-    if isinstance(arr_dtype, str | tvm_tirx.DataType | tvm_tirx.ir.PrimType):
+    if isinstance(arr_dtype, str | tvm_ffi.dtype | tvm_tirx.ir.PrimType):
         arr_dtype = const(0, dtype=arr_dtype)
 
     return call_intrin(
@@ -1373,7 +1373,7 @@ def get_vscale_expr(dtype: str | tvm_ffi.dtype, min_size: int = 128) -> Expr:
 
     Parameters
     ----------
-    dtype : Union[str, tvm_ffi.DataType]
+    dtype : Union[str, tvm_ffi.dtype]
         Element data type.
     min_size : int
         The minimum size of the scalable vector in bits.

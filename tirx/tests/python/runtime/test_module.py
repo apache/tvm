@@ -47,9 +47,8 @@ static RegisterSystemLibrary register_system_library;
 
 
 def test_module_properties(source_module, native_library):
-    assert tvm_tirx.runtime.Module is tvm_ffi.Module
+    assert isinstance(source_module, tvm_ffi.Module)
     assert tvm_tirx.runtime.load_module is tvm_ffi.load_module
-    assert tvm_tirx.runtime.system_lib is tvm_ffi.system_lib
     assert not hasattr(source_module, "export_library")
     assert not hasattr(source_module, "time_evaluator")
     assert source_module.is_binary_serializable()
@@ -106,9 +105,10 @@ def test_system_library(system_library_source, native_compile_options, tmp_path)
 import ctypes
 import sys
 import numpy as np
+import tvm_ffi
 import tvm_tirx
 handle = ctypes.CDLL(sys.argv[1])
-module = tvm_tirx.runtime.system_lib()
+module = tvm_ffi.system_lib()
 assert module["answer"]() == 42
 a = tvm_tirx.runtime.tensor(np.arange(10, dtype="float32"))
 b = tvm_tirx.runtime.empty((10,), "float32")

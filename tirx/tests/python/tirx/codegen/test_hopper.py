@@ -19,6 +19,7 @@ import math
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -427,7 +428,7 @@ def test_cp_async_bulk_tensor_global_to_shared_unicast(dtype, inputs):
     import ml_dtypes
 
     def get_ir(shape, tma_args):
-        t_dtype = tvm_tirx.DataType(dtype)
+        t_dtype = tvm_ffi.dtype(dtype)
         total_bytes = math.prod(shape) * t_dtype.bits // 8
         coord = [0 for _ in shape]
         tma_args_copy = tma_args.copy()
@@ -618,7 +619,7 @@ def test_tensormap_encode_tiled_runtime_validation(shape, dtype, encode_args, er
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_cp_async_bulk_tensor_global_to_shared_swizzle(swizzle, dtype):
     def get_ir(swizzle, dtype):
-        dtype = tvm_tirx.DataType(dtype)
+        dtype = tvm_ffi.dtype(dtype)
         elem_bytes = dtype.bits // 8
 
         shape = [16, 64]
@@ -699,7 +700,7 @@ def test_cp_async_bulk_tensor_global_to_shared_swizzle(swizzle, dtype):
     A_np = [i for i in range(total_elems)]
     A_np = np.array(A_np).astype(dtype)
     B_np = np.zeros((total_elems,)).astype(dtype)
-    dtype = tvm_tirx.DataType(dtype)
+    dtype = tvm_ffi.dtype(dtype)
     layout = T.ComposeLayout(
         int(math.log2(128 // dtype.bits)),
         swizzle,
@@ -1046,8 +1047,8 @@ def test_wgmma_ss_nt():
     ):
         coordA = [0 for _ in shapeA]
         coordB = [0 for _ in shapeB]
-        A_bytes = tvm_tirx.DataType(in_dtype).bits // 8 * math.prod(shapeA)
-        B_bytes = tvm_tirx.DataType(in_dtype).bits // 8 * math.prod(shapeB)
+        A_bytes = tvm_ffi.dtype(in_dtype).bits // 8 * math.prod(shapeA)
+        B_bytes = tvm_ffi.dtype(in_dtype).bits // 8 * math.prod(shapeB)
 
         C_elems = math.prod(shapeC) // 128
 
@@ -1163,7 +1164,7 @@ def test_wgmma_ss_nt():
     transA = transB = True
     swizzleA = swizzleB = 3
 
-    t_in_dtype = tvm_tirx.DataType(in_dtype)
+    t_in_dtype = tvm_ffi.dtype(in_dtype)
     elem_bytes = t_in_dtype.bits // 8
 
     target = tvm_tirx.target.Target("cuda")
@@ -1222,7 +1223,7 @@ def test_wgmma_rs_nt():
         shapeA, shapeB, shapeC, B_tma_args, in_dtype, in_dtype_bits, out_dtype, B_encode_args
     ):
         coordB = [0 for _ in shapeB]
-        B_bytes = tvm_tirx.DataType(in_dtype).bits // 8 * math.prod(shapeB)
+        B_bytes = tvm_ffi.dtype(in_dtype).bits // 8 * math.prod(shapeB)
 
         A_elems = math.prod(shapeA) // 128
         C_elems = math.prod(shapeC) // 128
@@ -1350,7 +1351,7 @@ def test_wgmma_rs_nt():
     transB = True
     swizzleB = 3
 
-    t_in_dtype = tvm_tirx.DataType(in_dtype)
+    t_in_dtype = tvm_ffi.dtype(in_dtype)
     elem_bytes = t_in_dtype.bits // 8
 
     target = tvm_tirx.target.Target("cuda")

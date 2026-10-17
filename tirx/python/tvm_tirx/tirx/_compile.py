@@ -18,6 +18,7 @@
 # pylint: disable=invalid-name
 """Native TIRx compilation and target code generation."""
 
+import tvm_ffi
 from tvm_ffi import DLDeviceType
 
 import tvm_tirx
@@ -129,12 +130,12 @@ def _split_host_device_modules(
     return host_mod, device_mod_dict
 
 
-def _build_for_target(mod: IRModule, target: Target) -> tvm_tirx.runtime.Module:
+def _build_for_target(mod: IRModule, target: Target) -> tvm_ffi.Module:
     """Build a runtime module from an IRModule and a Target."""
     if tvm_tirx.ir.transform.PassContext.current().config.get("tirx.disable_assert", False):
         mod = tvm_tirx.tirx.transform.SkipAssert()(mod)
     build_f_name = "target.build." + target.kind.name
-    bf = tvm_tirx.get_global_func(build_f_name)
+    bf = tvm_ffi.get_global_func(build_f_name)
     if bf is None:
         raise ValueError(f"{build_f_name} is not enabled")
     return bf(mod, target)
@@ -142,7 +143,7 @@ def _build_for_target(mod: IRModule, target: Target) -> tvm_tirx.runtime.Module:
 
 def _codegen_host_and_device(
     host_mod: IRModule, device_mod_dict: dict[tuple[Target, str], IRModule], target_host: Target
-) -> tvm_tirx.runtime.Module:
+) -> tvm_ffi.Module:
     """Compile each device group and attach it to the host runtime module."""
 
     # Get the first module to get the attributes
@@ -252,4 +253,4 @@ def compile(  # pylint: disable=redefined-builtin
 
 
 # C++ compiler consumers link the generated runtime module directly.
-tvm_tirx.register_global_func("tirx.compile", lambda *args, **kwargs: compile(*args, **kwargs).mod)
+tvm_ffi.register_global_func("tirx.compile", lambda *args, **kwargs: compile(*args, **kwargs).mod)

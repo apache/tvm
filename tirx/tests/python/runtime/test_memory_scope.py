@@ -95,6 +95,7 @@ def test_runtime_only_registration():
             sys.executable,
             "-c",
             """
+import tvm_ffi
 import tvm_tirx
 from tvm_tirx.runtime import MemoryScope
 assert tvm_tirx.base._RUNTIME_ONLY
@@ -102,7 +103,7 @@ for name in ("global", "shared", "shared.dyn", "warp", "local"):
     assert MemoryScope(name).name == name
 for name, allocator in (("nvshmem", "runtime.disco.nvshmem.empty"),
                         ("ipc_memory", "runtime.disco.cuda_ipc.empty")):
-    if tvm_tirx.get_global_func(allocator, allow_missing=True) is not None:
+    if tvm_ffi.get_global_func(allocator, allow_missing=True) is not None:
         assert MemoryScope(name).name == name
     else:
         try:

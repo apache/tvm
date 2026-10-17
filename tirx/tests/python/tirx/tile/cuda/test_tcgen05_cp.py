@@ -26,6 +26,7 @@ import itertools
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -97,7 +98,7 @@ def _emit_cp(dst, src, t_region, s_region, shape, opcode):
     operand's physical layout. Each region retains its original row/column start.
     """
     atom_rows, atom_bits = _shape_dims(shape)
-    bits = tvm_tirx.DataType(src.dtype).bits
+    bits = tvm_ffi.dtype(src.dtype).bits
     words = atom_bits // 32
     s_row, s_col = s_region
     t_row, t_col = t_region
@@ -266,7 +267,7 @@ def _build_case(
     instruction_shape=None,
 ):
     """Assemble (kernel, host-check closure) for one cp configuration."""
-    bits = tvm_tirx.runtime.DataType(dtype).bits
+    bits = tvm_ffi.dtype(dtype).bits
     rows, atom_bits = _shape_dims(shape)
     epa = atom_bits // bits  # elems per lane per cp instruction
     C = epa * n_mid  # copied cols (elems)

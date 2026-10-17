@@ -20,8 +20,6 @@ import tvm_ffi
 from tvm_ffi import register_object
 from tvm_ffi.serialization import from_json_graph_str, to_json_graph_str
 
-from tvm_tirx.runtime import Object
-
 from ..libinfo import __version__
 from . import _ffi_api, json_compact
 
@@ -44,12 +42,12 @@ def register_dialect_script_method(name, method):
     setattr(Scriptable, name, method)
 
 
-class Node(Object):
+class Node(tvm_ffi.Object):
     """Base class of all IR Nodes."""
 
 
 @register_object("ir.EnvFunc")
-class EnvFunc(Object):
+class EnvFunc(tvm_ffi.Object):
     """Environment function.
 
     This is a global function object that can be serialized by its name.
@@ -70,7 +68,7 @@ class EnvFunc(Object):
         return _ffi_api.EnvFuncGet(name)  # type: ignore # pylint: disable=no-member
 
 
-def load_json(json_str) -> Object:
+def load_json(json_str) -> tvm_ffi.Object:
     """Load tvm object from json_str.
 
     Parameters
@@ -80,7 +78,7 @@ def load_json(json_str) -> Object:
 
     Returns
     -------
-    node : Object
+    node : tvm_ffi.Object
         The loaded tvm node.
     """
 
@@ -93,7 +91,7 @@ def save_json(node) -> str:
 
     Parameters
     ----------
-    node : Object
+    node : tvm_ffi.Object
         A TVM object to be saved.
 
     Returns
@@ -109,10 +107,10 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
 
     Parameters
     ----------
-    lhs : Object
+    lhs : tvm_ffi.Object
         The left operand.
 
-    rhs : Object
+    rhs : tvm_ffi.Object
         The left operand.
 
     map_free_vars : bool

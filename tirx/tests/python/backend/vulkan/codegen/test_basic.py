@@ -20,6 +20,7 @@ import re
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -527,7 +528,7 @@ def test_codegen_decl_buffer():
             T.evaluate(A_buf[0])
 
     target = tvm_tirx.target.Target("vulkan")
-    vulkan_codegen = tvm_tirx.get_global_func("target.build.vulkan")
+    vulkan_codegen = tvm_ffi.get_global_func("target.build.vulkan")
     vulkan_codegen(AllocationBacked, target)
 
     @I.ir_module

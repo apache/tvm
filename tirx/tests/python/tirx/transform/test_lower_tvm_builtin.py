@@ -17,6 +17,7 @@
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -25,7 +26,7 @@ from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 
 
-@tvm_tirx.register_global_func("tvm.test_matmul")
+@tvm_ffi.register_global_func("tvm.test_matmul")
 def my_matmul(a, b, c):
     c.copyfrom(np.dot(a.numpy(), b.numpy()))
 

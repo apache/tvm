@@ -18,6 +18,7 @@
 import re
 
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -43,7 +44,7 @@ def test_codegen_buffer_access_modes():
 
 
 def _build_webgpu(mod, target="webgpu"):
-    build = tvm_tirx.get_global_func("target.build.webgpu")
+    build = tvm_ffi.get_global_func("target.build.webgpu")
     return build(mod, tvm_tirx.target.Target(target))
 
 

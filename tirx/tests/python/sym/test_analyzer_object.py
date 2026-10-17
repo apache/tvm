@@ -16,11 +16,11 @@
 # under the License.
 
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
 from tvm_tirx import tirx
-from tvm_tirx.runtime import Object
 from tvm_tirx.sym.analyzer import CompareResult
 
 
@@ -28,7 +28,7 @@ def test_analyzer_is_ffi_object_with_persistent_state():
     analyzer = tvm_tirx.sym.Analyzer()
     x = tirx.Var("x", "int64")
 
-    assert isinstance(analyzer, Object)
+    assert isinstance(analyzer, tvm_ffi.Object)
 
     analyzer.bind(x, tvm_tirx.ir.Range(0, 8))
     assert analyzer.const_int_bound_is_bound(x)

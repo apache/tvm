@@ -19,7 +19,8 @@
 import copy
 from enum import Enum
 
-import tvm_tirx
+import tvm_ffi
+
 from tvm_tirx.tirx.layout import Axis, ComposeLayout, Iter, Layout, R, S, TileLayout
 
 # ============================================================================
@@ -311,11 +312,10 @@ def tmem_mma_operand_layout(
             layout = TileLayout(S[(m, K) : (1 @ tlane, 1 @ tcol)])
     else:
         raise ValueError(f"tmem_mma_operand_layout: operand must be 'A' or 'D', got {operand!r}")
+
     # PTX matrix D keeps sub-word accumulators in the low bits of a b32 cell.
     # A remains packed. TCol strides are expressed in tensor element units.
-    from tvm_tirx.runtime import DataType
-
-    if operand == "D" and DataType(dtype).bits == 16:
+    if operand == "D" and tvm_ffi.dtype(dtype).bits == 16:
         layout = TileLayout.from_iters(
             shard=[
                 Iter(i.extent, i.stride * (2 if i.axis.name == "TCol" else 1), i.axis)
@@ -339,7 +339,7 @@ class SwizzleMode(Enum):
 
 def mma_atom_layout(dtype: str, swizzle_mode: SwizzleMode | int) -> ComposeLayout:
     """Generate the MMA-compatible shared-memory atom layout."""
-    bits = tvm_tirx.DataType(dtype).bits
+    bits = tvm_ffi.dtype(dtype).bits
     if isinstance(swizzle_mode, int):
         swizzle_mode = SwizzleMode(swizzle_mode)
     per_element = (128 // bits).bit_length() - 1
@@ -351,7 +351,7 @@ def mma_atom_layout(dtype: str, swizzle_mode: SwizzleMode | int) -> ComposeLayou
 
 def mma_atom_shape(dtype: str, swizzle_mode: SwizzleMode | int, shape: list[int] | None = None):
     """Generate the MMA-compatible shared-memory atom shape."""
-    bits = tvm_tirx.DataType(dtype).bits
+    bits = tvm_ffi.dtype(dtype).bits
     if isinstance(swizzle_mode, int):
         swizzle_mode = SwizzleMode(swizzle_mode)
     atom_shape = {
@@ -376,7 +376,7 @@ def mma_shared_layout(dtype: str, swizzle_mode: SwizzleMode | int, shape) -> Lay
     if swizzle_mode == SwizzleMode.SWIZZLE_NONE:
         # No-swizzle MMA smem is the packed-16B atom: offset e16*m +
         # M*e16*(k//e16) + k%e16 (e16=128/bits); plain tile if K % e16 != 0.
-        bits = tvm_tirx.DataType(dtype).bits
+        bits = tvm_ffi.dtype(dtype).bits
         e16 = 128 // bits
         m, k = int(shape[-2]), int(shape[-1])
         if k % e16 == 0:

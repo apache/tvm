@@ -20,13 +20,13 @@ import tvm_ffi
 from tvm_ffi import Map
 from tvm_ffi.core import String
 
-from tvm_tirx.runtime import Device, Object, convert, device
+from tvm_tirx.runtime import Device
 
 from . import _ffi_api
 
 
 @tvm_ffi.register_object("target.TargetKind")
-class TargetKind(Object):
+class TargetKind(tvm_ffi.Object):
     """Kind of a compilation target"""
 
     @property
@@ -49,7 +49,7 @@ class TargetFeatures:
 
 
 @tvm_ffi.register_object("target.Target")
-class Target(Object):
+class Target(tvm_ffi.Object):
     """Target device information, use through TVM API.
 
     Targets can be constructed from:
@@ -132,9 +132,9 @@ class Target(Object):
             same as target.
         """
         if isinstance(target, dict | str):
-            target = convert(target)
+            target = tvm_ffi.convert(target)
         if isinstance(host, dict | str):
-            host = convert(host)
+            host = tvm_ffi.convert(host)
         if target is None or not isinstance(target, Map | String | Target | str):
             raise ValueError(f"target has to be a string or dictionary. instead get {type(target)}")
         if host is not None:
@@ -259,4 +259,4 @@ def device_from_target(target, index=None):
     """
     if not isinstance(target, Target):
         target = Target(target)
-    return device(target.get_target_device_type(), index)
+    return tvm_ffi.device(target.get_target_device_type(), index)

@@ -19,17 +19,17 @@
 import os
 from collections.abc import Sequence
 
+import tvm_ffi
 from tvm_ffi import register_object
 from tvm_ffi.access_path import AccessPath
 
 from tvm_tirx.ir.base import register_script_printer
-from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 
 
 @register_object("script.PrinterConfig")
-class PrinterConfig(Object):
+class PrinterConfig(tvm_ffi.Object):
     """Configuration of TVMScript printer.
 
     The ``int_dtype`` and ``float_dtype`` arguments populate the string-valued
@@ -64,8 +64,8 @@ class PrinterConfig(Object):
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
         path_to_annotate: dict[AccessPath, str] | None = None,
-        obj_to_underline: list[Object] | None = None,
-        obj_to_annotate: dict[Object, str] | None = None,
+        obj_to_underline: list[tvm_ffi.Object] | None = None,
+        obj_to_annotate: dict[tvm_ffi.Object, str] | None = None,
     ) -> None:
         if num_context_lines is None:
             num_context_lines = -1
@@ -95,7 +95,7 @@ class PrinterConfig(Object):
         )
 
 
-def _script(obj: Object, config: PrinterConfig) -> str:
+def _script(obj: tvm_ffi.Object, config: PrinterConfig) -> str:
     return _ffi_api.Script(obj, config)  # type: ignore # pylint: disable=no-member
 
 
@@ -117,8 +117,8 @@ class _ScriptableMethods:
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
         path_to_annotate: dict[AccessPath, str] | None = None,
-        obj_to_underline: list[Object] | None = None,
-        obj_to_annotate: dict[Object, str] | None = None,
+        obj_to_underline: list[tvm_ffi.Object] | None = None,
+        obj_to_annotate: dict[tvm_ffi.Object, str] | None = None,
     ) -> str:
         """Print TVM IR into TVMScript text format
 
@@ -153,9 +153,9 @@ class _ScriptableMethods:
             Object path to be underlined
         path_to_annotate : Optional[Dict[AccessPath, str]] = None
             Object path to be annotated
-        obj_to_underline : Optional[List[Object]] = None
+        obj_to_underline : Optional[List[tvm_ffi.Object]] = None
             Object to be underlined
-        obj_to_annotate : Optional[Dict[Object, str]] = None
+        obj_to_annotate : Optional[Dict[tvm_ffi.Object, str]] = None
             Object to be annotated
 
         Returns
@@ -208,8 +208,8 @@ class _ScriptableMethods:
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
         path_to_annotate: dict[AccessPath, str] | None = None,
-        obj_to_underline: list[Object] | None = None,
-        obj_to_annotate: dict[Object, str] | None = None,
+        obj_to_underline: list[tvm_ffi.Object] | None = None,
+        obj_to_annotate: dict[tvm_ffi.Object, str] | None = None,
     ) -> None:
         """A sugar for print highlighted TVM script.
 
@@ -265,9 +265,9 @@ class _ScriptableMethods:
             Object path to be underlined
         path_to_annotate : Optional[Dict[AccessPath, str]] = None
             Object path to be annotated
-        obj_to_underline : Optional[List[Object]] = None
+        obj_to_underline : Optional[List[tvm_ffi.Object]] = None
             Object to be underlined
-        obj_to_annotate : Optional[Dict[Object, str]] = None
+        obj_to_annotate : Optional[Dict[tvm_ffi.Object, str]] = None
             Object to be annotated
 
         """
@@ -308,7 +308,7 @@ def _repr(self) -> str:
             PrinterConfig(extra_config={"ir.comment_imports": True}),
         )
     except Exception:
-        return Object.__repr__(self)
+        return tvm_ffi.Object.__repr__(self)
 
 
 # The printer supplies its explicit display capability to existing IR wrappers.

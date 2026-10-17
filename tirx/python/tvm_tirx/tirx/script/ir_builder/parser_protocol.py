@@ -28,6 +28,8 @@ import builtins as _python
 from collections.abc import Sequence
 from typing import Any
 
+import tvm_ffi
+
 import tvm_tirx
 
 # isort: off
@@ -257,7 +259,7 @@ def bind_(
     """
     name_loc = loc if name_loc is None else name_loc
     if frame_value:
-        if isinstance(value, _python.list | _python.tuple | _ir.Array):
+        if isinstance(value, _python.list | _python.tuple | tvm_ffi.Array):
             for index, item in enumerate(value):
                 bind_(
                     item,
@@ -385,7 +387,7 @@ def emit_(value: Any, *, loc: _Loc = None) -> None:
         or getattr(type(value), "_is_meta_class", False)
     ):
         return
-    if isinstance(value, list | tuple | _ir.Array):
+    if isinstance(value, list | tuple | tvm_ffi.Array):
         for item in value:
             emit_(item, loc=loc)
         return
@@ -450,7 +452,7 @@ def tensor_store(
     """
     from tvm_tirx.sym import Analyzer  # pylint: disable=import-outside-toplevel
 
-    if not isinstance(indices, list | tuple | _ir.Array):
+    if not isinstance(indices, list | tuple | tvm_ffi.Array):
         indices = [indices]
 
     expr_indices = []

@@ -25,7 +25,6 @@ import tvm_tirx
 import tvm_tirx.runtime
 from tvm_tirx.ir import BaseFunc, Scriptable, SeqStmt, Stmt, Var
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
-from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 from .expr import Expr
@@ -67,7 +66,7 @@ class Function(BaseFunc, Scriptable):
             ret_type = tvm_tirx.ir.Type.missing()
         param_list = []
         for x in params:
-            x = tvm_tirx.runtime.convert(x) if not isinstance(x, Object) else x
+            x = tvm_ffi.convert(x) if not isinstance(x, tvm_ffi.Object) else x
             if not isinstance(x, Var):
                 raise TypeError("params can only contain Var or Var")
             param_list.append(x)

@@ -403,7 +403,7 @@ def test_tcgen05_ld_st_roundtrip():
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_tcgen05_cp_ld_roundtrip():
     dtype = "float32"
-    dtype_bits = tvm_tirx.DataType(dtype).bits
+    dtype_bits = tvm_ffi.dtype(dtype).bits
     HEIGHT = 128
     WIDTH = 64
     N_COLS = 512

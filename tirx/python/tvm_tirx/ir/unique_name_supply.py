@@ -18,13 +18,11 @@
 
 import tvm_ffi
 
-from tvm_tirx import Object
-
 from . import _ffi_api
 
 
 @tvm_ffi.register_object("ir.UniqueNameSupply")
-class UniqueNameSupply(Object):
+class UniqueNameSupply(tvm_ffi.Object):
     """UniqueNameSupply that can be used to generate unique names.
 
     Parameters

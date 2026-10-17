@@ -25,7 +25,7 @@ from functools import cache
 import tvm_ffi
 
 import tvm_tirx
-from tvm_tirx import DataType, tirx
+from tvm_tirx import tirx
 from tvm_tirx.ir import Attrs, Call, Op, StringImm, const
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.ir.op import _init_op_api, _make_op_api
@@ -383,7 +383,7 @@ def ptx_cp_async_legacy(
 
     ``elem_dtype`` scales element offsets independently of the call's result ``ty``.
     """
-    dtype = DataType(elem_dtype)
+    dtype = tvm_ffi.dtype(elem_dtype)
     elem_bits = dtype.bits * dtype.lanes
     dst_ptr = ptr_byte_offset(dst_ptr, dst_offset * elem_bits // 8, ty=dst_ptr.ty)
     src_ptr = ptr_byte_offset(src_ptr, src_offset * elem_bits // 8, ty=src_ptr.ty)

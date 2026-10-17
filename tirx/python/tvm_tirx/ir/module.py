@@ -18,8 +18,6 @@
 
 import tvm_ffi
 
-from tvm_tirx.runtime import Object
-
 from . import _ffi_api
 from . import expr as _expr
 from .attrs import DictAttrs, make_node
@@ -241,7 +239,7 @@ class IRModule(Node, Scriptable):
         attr_key : str
             The attribute key.
 
-        attr_value : Object
+        attr_value : tvm_ffi.Object
             The new attribute value.
 
         Returns
@@ -266,11 +264,11 @@ class IRModule(Node, Scriptable):
 
         return _ffi_api.IRModuleWithoutAttr(self, attr_key)
 
-    def with_attrs(self, attr_map: DictAttrs | dict[str, Object]) -> "IRModule":
+    def with_attrs(self, attr_map: DictAttrs | dict[str, tvm_ffi.Object]) -> "IRModule":
         """Copy the IRModule and add the given attribute map to it.
         Parameters
         ----------
-        attr_map: Union[DictAttrs, Dict[str, Object]]
+        attr_map: Union[DictAttrs, Dict[str, tvm_ffi.Object]]
             The attribute map
         Returns
         -------

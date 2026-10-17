@@ -17,6 +17,7 @@
 
 """TIRx script printer invisible path info."""
 
+import tvm_ffi
 from tvm_ffi.access_path import AccessPath
 
 import tvm_tirx
@@ -58,7 +59,7 @@ def test_render_invisible_path_info_exact_visible_path_omits_note():
 
 def test_render_invisible_path_info_without_visible_path():
     result = _script(
-        tvm_tirx.runtime.ShapeTuple([1, 2]),
+        tvm_ffi.Shape([1, 2]),
         PrinterConfig(path_to_underline=[AccessPath.root().attr("missing")]),
     )
     assert result == (
