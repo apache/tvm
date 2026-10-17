@@ -383,7 +383,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
   template <typename T>
   ffi::Array<Attrs> ExtractAttrs(const T& func) {
     ffi::Array<Attrs> op_attrs;
-    ffi::Optional<ffi::ObjectRef> attrs = func->template GetAttr(tvm::relax::attr::kOpAttrs);
+    ffi::Optional<ffi::ObjectRef> attrs = func->GetAttr(tvm::relax::attr::kOpAttrs);
     if (attrs) {
       if (auto val = attrs.value().as<Attrs>()) {
         op_attrs.push_back(val.value());
@@ -396,7 +396,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
 
   template <typename T>
   ffi::Optional<int64_t> ExtractPattern(const T& func) {
-    ffi::Optional<int64_t> op_pat = func->template GetAttr(tvm::relax::attr::kOpPattern);
+    ffi::Optional<int64_t> op_pat = func->GetAttr(tvm::relax::attr::kOpPattern);
     return op_pat;
   }
 
