@@ -29,6 +29,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/memory_scope.h>
+#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
@@ -303,8 +304,10 @@ class PipelineBodyRewriter : public StmtExprMutator {
       TensorVar tensor = op->args[0].as_or_throw<TensorVar>();
       if (auto replacement = VarRemapGet(tensor).as<TensorVar>()) {
         TensorVar new_tensor = replacement.value();
-        PrimExpr stride = new_tensor.strides().empty() ? PrimExpr(1) : new_tensor.strides()[0];
-        if (new_tensor.strides().empty()) {
+        PrimExpr stride = s_tir::GetStridesFromLayout(new_tensor.ty()->layout).empty()
+                              ? PrimExpr(1)
+                              : s_tir::GetStridesFromLayout(new_tensor.ty()->layout)[0];
+        if (s_tir::GetStridesFromLayout(new_tensor.ty()->layout).empty()) {
           for (const PrimExpr& extent : tensor.shape()) stride = stride * extent;
         }
         if ((scope_mma_matrixA && tensor.scope() == *scope_mma_matrixA) ||
@@ -565,14 +568,15 @@ class PipelineRewriter : public StmtExprMutator {
   TensorVar RewriteAllocTensor(const TensorVar& tensor, int num_versions) {
     ffi::ObjectPtr<TensorTypeNode> new_tensor =
         ffi::make_object<TensorTypeNode>(*tensor.ty().get());
-    auto strides = tensor.strides();
+    auto strides = s_tir::GetStridesFromLayout(tensor.ty()->layout);
     new_tensor->shape.insert(new_tensor->shape.begin(), PrimExpr(num_versions));
     if (!strides.empty()) {
       TVM_FFI_ICHECK(strides.size() + 1 == new_tensor->shape.size());
       PrimExpr stride_0 = strides[0] * new_tensor->shape[1];
       strides.insert(strides.begin(), stride_0);
     }
-    new_tensor->SetStrides(std::move(strides));
+    new_tensor->layout =
+        s_tir::WithStrides(new_tensor->layout, new_tensor->shape, std::move(strides));
     return TensorVar(tensor->name, TensorType(std::move(new_tensor)), tensor->loc);
   }
 

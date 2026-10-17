@@ -169,8 +169,12 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
       type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
       type->shape = new_shape;
       type->layout = std::nullopt;
-      auto origin = buf.elem_offset();
-      type->SetElemOffset(Mutate(origin, InplaceMode::kDisallow).ValueOrUnchanged(origin));
+      auto origin = trn_layout->memory_origin;
+      auto regular = TileLayoutNode::DefaultLayout(new_shape);
+      regular.CopyOnWrite()->compact = true;
+      regular.CopyOnWrite()->memory_origin =
+          Mutate(origin, InplaceMode::kDisallow).ValueOrUnchanged(origin);
+      type->layout = regular;
     } else if (is_alloc) {
       if (auto tile_layout = buf.ty()->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
@@ -289,7 +293,7 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
       TVM_FFI_ICHECK_EQ(res.size(), 1) << "Expected a single element offset";
       return {analyzer_->Simplify((*res.begin()).second)};
     }
-    auto flattened_indices = tensor.ty()->ElemOffset(indices, true);
+    auto flattened_indices = tensor.ty()->ElemOffset(indices);
     TVM_FFI_ICHECK_EQ(flattened_indices.size(), 1) << "Expected a single element offset";
     return {analyzer_->Simplify(flattened_indices[0])};
   }

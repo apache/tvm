@@ -207,8 +207,9 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
         flattened = buf;
         type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
         if (!prim::IsZero(tile_layout->memory_origin)) mem_span += tile_layout->memory_origin;
-        if (buf.ty()->IsRegularMemoryLayout() && !buf.strides().empty()) {
-          mem_span = max(mem_span, buf.strides()[0] * buf.shape()[0]);
+        if (tile_layout->IsRegularMemory(buf.shape()) && !tile_layout->shard.empty() &&
+            !(tile_layout->compact && tile_layout->IsContiguousMemory())) {
+          mem_span = max(mem_span, tile_layout->shard[0]->stride * buf.shape()[0]);
         }
         type->shape = {ana->Simplify(mem_span)};
         type->layout = std::nullopt;
@@ -302,7 +303,7 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
       PrimExpr offset = (*res.begin()).second;
       return {analyzer_->Simplify(offset)};
     }
-    auto flattened_indices = tensor.ty()->ElemOffset(indices, true);
+    auto flattened_indices = tensor.ty()->ElemOffset(indices);
     TVM_FFI_ICHECK_EQ(flattened_indices.size(), 1) << "Expected a single element offset";
     return {analyzer_->Simplify(flattened_indices[0])};
   }

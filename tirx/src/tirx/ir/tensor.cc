@@ -402,8 +402,7 @@ inline PrimExpr MergeMulMod(sym::AnalyzerObj* analyzer, const PrimExpr& base) {
 // The tensor offset in convention of number of elements of
 // original data ignoring number of lanes.
 // We also perform optimization to simplify the indexing expression.
-ffi::Array<PrimExpr> TensorTypeNode::ElemOffset(ffi::Array<PrimExpr> input_indices,
-                                                bool inner) const {
+ffi::Array<PrimExpr> TensorTypeNode::ElemOffset(ffi::Array<PrimExpr> input_indices) const {
   TVM_FFI_ICHECK_EQ(shape.size(), input_indices.size())
       << "TensorType is " << shape.size() << "-dimensional, cannot be indexed with the "
       << input_indices.size() << "-dimensional indices provided.";
@@ -411,13 +410,12 @@ ffi::Array<PrimExpr> TensorTypeNode::ElemOffset(ffi::Array<PrimExpr> input_indic
   sym::Analyzer ana;
   if (layout.has_value()) {
     auto mapped = layout.value()->Apply(input_indices, shape);
-    if (mapped.empty() && IsRegularMemoryLayout()) {
+    if (mapped.empty() && shape.empty()) {
       return {IntImm(DefaultIndexType(), 0)};
     }
     TVM_FFI_CHECK(mapped.size() == 1 && mapped.find("m") != mapped.end(), ValueError)
         << "Tensor indexing requires a memory-only layout";
     PrimExpr offset = mapped["m"];
-    if (inner && !IsZero(GetElemOffset())) offset = offset - GetElemOffset();
     return SimplifyArray(ana.get(), {offset});
   }
   PrimExpr output_index = 0;

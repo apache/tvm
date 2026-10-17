@@ -21,6 +21,7 @@ import tvm_tirx
 import tvm_tirx.testing
 from tvm.s_tir import dlight as dl
 from tvm.s_tir import script as Ts
+from tvm.s_tir.layout import get_elem_offset_from_layout, get_strides_from_layout
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 
@@ -186,7 +187,7 @@ def test_matmul_metal():
                                     Ts.reads()
                                     Ts.writes(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                     A_1 = Ts.match_tensor(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_s0, A_s1), scope="metal.simdgroup", offset_factor=1)
-                                    T.metal.make_filled_simdgroup_matrix(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, T.float32(0), 8, 8)
+                                    T.metal.make_filled_simdgroup_matrix(A_1.data, get_elem_offset_from_layout(A_1.layout) // get_strides_from_layout(A_1.layout)[0] // 8 * (get_strides_from_layout(A_1.layout)[0] // 8) + get_elem_offset_from_layout(A_1.layout) % get_strides_from_layout(A_1.layout)[0] // 8, T.float32(0), 8, 8)
                             for ax3_0 in range(128):
                                 for ax0_1, ax1_ax2_fused_0 in T.grid(1, 1):
                                     for ax1_ax2_fused_1 in T.parallel(4, annotations={"thread_binding": "threadIdx.z"}):
@@ -222,7 +223,7 @@ def test_matmul_metal():
                                             Ts.writes(A_reindex_pad_shared_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                             A_1 = Ts.match_tensor(A_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_1_s0, A_1_s1), scope="shared", offset_factor=1)
                                             C_1 = Ts.match_tensor(A_reindex_pad_shared_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_s0, C_s1), scope="metal.simdgroup", offset_factor=1)
-                                            T.metal.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.ptr_to([0] * len(A_1.shape)), A_1.strides[0], 8, 8, T.bool(False))
+                                            T.metal.simdgroup_load(C_1.data, get_elem_offset_from_layout(C_1.layout) // get_strides_from_layout(C_1.layout)[0] // 8 * (get_strides_from_layout(C_1.layout)[0] // 8) + get_elem_offset_from_layout(C_1.layout) % get_strides_from_layout(C_1.layout)[0] // 8, A_1.ptr_to([0] * len(A_1.shape)), get_strides_from_layout(A_1.layout)[0], 8, 8, T.bool(False))
                                     for ax0_0, ax1_0_1 in T.grid(2, 1):
                                         with Ts.sblock("B_reindex_shared_metal.simdgroup_o"):
                                             v0_o = Ts.axis.spatial(1, 0)
@@ -232,7 +233,7 @@ def test_matmul_metal():
                                             Ts.writes(B_reindex_shared_metal_simdgroup[v0_o, v2_o * 8:v2_o * 8 + 8, v1_o * 8:v1_o * 8 + 8])
                                             A_1 = Ts.match_tensor(B_reindex_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_2_s0, A_2_s1), scope="shared", offset_factor=1)
                                             C_1 = Ts.match_tensor(B_reindex_shared_metal_simdgroup[v0_o, v2_o * 8:v2_o * 8 + 8, v1_o * 8:v1_o * 8 + 8], (8, 8), "float16", strides=(C_1_s0, C_1_s1), scope="metal.simdgroup", offset_factor=1)
-                                            T.metal.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.ptr_to([0] * len(A_1.shape)), A_1.strides[0], 8, 8, T.bool(True))
+                                            T.metal.simdgroup_load(C_1.data, get_elem_offset_from_layout(C_1.layout) // get_strides_from_layout(C_1.layout)[0] // 8 * (get_strides_from_layout(C_1.layout)[0] // 8) + get_elem_offset_from_layout(C_1.layout) % get_strides_from_layout(C_1.layout)[0] // 8, A_1.ptr_to([0] * len(A_1.shape)), get_strides_from_layout(A_1.layout)[0], 8, 8, T.bool(True))
                                     for ax1_2, ax2_2 in T.grid(2, 2):
                                         with Ts.sblock("C_update_o"):
                                             v0_o = Ts.axis.spatial(1, ax0)
@@ -244,7 +245,7 @@ def test_matmul_metal():
                                             A_1 = Ts.match_tensor(A_reindex_pad_shared_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v3_o * 8:v3_o * 8 + 8], (8, 8), "float16", strides=(A_3_s0, A_3_s1), scope="metal.simdgroup", offset_factor=1)
                                             B_1 = Ts.match_tensor(B_reindex_shared_metal_simdgroup[0, v3_o * 8:v3_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(B_s0, B_s1), scope="metal.simdgroup", offset_factor=1)
                                             C_1 = Ts.match_tensor(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_2_s0, C_2_s1), scope="metal.simdgroup", offset_factor=1)
-                                            T.metal.simdgroup_multiply_accumulate(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, B_1.data, B_1.elem_offset // B_1.strides[0] // 8 * (B_1.strides[0] // 8) + B_1.elem_offset % B_1.strides[0] // 8, C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8)
+                                            T.metal.simdgroup_multiply_accumulate(C_1.data, get_elem_offset_from_layout(C_1.layout) // get_strides_from_layout(C_1.layout)[0] // 8 * (get_strides_from_layout(C_1.layout)[0] // 8) + get_elem_offset_from_layout(C_1.layout) % get_strides_from_layout(C_1.layout)[0] // 8, A_1.data, get_elem_offset_from_layout(A_1.layout) // get_strides_from_layout(A_1.layout)[0] // 8 * (get_strides_from_layout(A_1.layout)[0] // 8) + get_elem_offset_from_layout(A_1.layout) % get_strides_from_layout(A_1.layout)[0] // 8, B_1.data, get_elem_offset_from_layout(B_1.layout) // get_strides_from_layout(B_1.layout)[0] // 8 * (get_strides_from_layout(B_1.layout)[0] // 8) + get_elem_offset_from_layout(B_1.layout) % get_strides_from_layout(B_1.layout)[0] // 8, C_1.data, get_elem_offset_from_layout(C_1.layout) // get_strides_from_layout(C_1.layout)[0] // 8 * (get_strides_from_layout(C_1.layout)[0] // 8) + get_elem_offset_from_layout(C_1.layout) % get_strides_from_layout(C_1.layout)[0] // 8)
                             for ax0_1, ax1_0_1, ax2_0_1 in T.grid(1, 2, 2):
                                 with Ts.sblock("C_reindex_pad_metal.simdgroup_o"):
                                     v0_o = Ts.axis.spatial(1, ax0_1)
@@ -254,7 +255,7 @@ def test_matmul_metal():
                                     Ts.writes(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                     A_1 = Ts.match_tensor(C_reindex_pad_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_4_s0, A_4_s1), scope="metal.simdgroup", offset_factor=1)
                                     C_1 = Ts.match_tensor(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_3_s0, C_3_s1), scope="shared", offset_factor=1)
-                                    T.metal.simdgroup_store(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, C_1.ptr_to([0] * len(C_1.shape)), C_1.strides[0], 8, 8, T.bool(False))
+                                    T.metal.simdgroup_store(A_1.data, get_elem_offset_from_layout(A_1.layout) // get_strides_from_layout(A_1.layout)[0] // 8 * (get_strides_from_layout(A_1.layout)[0] // 8) + get_elem_offset_from_layout(A_1.layout) % get_strides_from_layout(A_1.layout)[0] // 8, C_1.ptr_to([0] * len(C_1.shape)), get_strides_from_layout(C_1.layout)[0], 8, 8, T.bool(False))
                     for ax0_1, ax1_ax2_fused_0 in T.grid(1, 2):
                         for ax1_ax2_fused_1 in T.parallel(4, annotations={"thread_binding": "threadIdx.z"}):
                             for ax1_ax2_fused_2 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
@@ -351,7 +352,7 @@ def test_matmul_metal_int4_quant():
                                     Ts.reads()
                                     Ts.writes(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                     A_1 = Ts.match_tensor(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_s0, A_s1), scope="metal.simdgroup", offset_factor=1)
-                                    T.metal.make_filled_simdgroup_matrix(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, T.float32(0), 8, 8)
+                                    T.metal.make_filled_simdgroup_matrix(A_1.data, get_elem_offset_from_layout(A_1.layout) // get_strides_from_layout(A_1.layout)[0] // 8 * (get_strides_from_layout(A_1.layout)[0] // 8) + get_elem_offset_from_layout(A_1.layout) % get_strides_from_layout(A_1.layout)[0] // 8, T.float32(0), 8, 8)
                             for ax3_0 in range(128):
                                 for ax0_1, ax1_ax2_fused_0 in T.grid(1, 1):
                                     for ax1_ax2_fused_1 in T.parallel(4, annotations={"thread_binding": "threadIdx.z"}):
@@ -387,7 +388,7 @@ def test_matmul_metal_int4_quant():
                                             Ts.writes(A_reindex_pad_shared_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                             A_1 = Ts.match_tensor(A_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_1_s0, A_1_s1), scope="shared", offset_factor=1)
                                             C_1 = Ts.match_tensor(A_reindex_pad_shared_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_s0, C_s1), scope="metal.simdgroup", offset_factor=1)
-                                            T.metal.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.ptr_to([0] * len(A_1.shape)), A_1.strides[0], 8, 8, T.bool(False))
+                                            T.metal.simdgroup_load(C_1.data, get_elem_offset_from_layout(C_1.layout) // get_strides_from_layout(C_1.layout)[0] // 8 * (get_strides_from_layout(C_1.layout)[0] // 8) + get_elem_offset_from_layout(C_1.layout) % get_strides_from_layout(C_1.layout)[0] // 8, A_1.ptr_to([0] * len(A_1.shape)), get_strides_from_layout(A_1.layout)[0], 8, 8, T.bool(False))
                                     for ax0_0, ax1_0_1 in T.grid(2, 1):
                                         with Ts.sblock("B_reindex_shared_metal.simdgroup_o"):
                                             v0_o = Ts.axis.spatial(1, 0)
@@ -397,7 +398,7 @@ def test_matmul_metal_int4_quant():
                                             Ts.writes(B_reindex_shared_metal_simdgroup[v0_o, v2_o * 8:v2_o * 8 + 8, v1_o * 8:v1_o * 8 + 8])
                                             A_1 = Ts.match_tensor(B_reindex_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_2_s0, A_2_s1), scope="shared", offset_factor=1)
                                             C_1 = Ts.match_tensor(B_reindex_shared_metal_simdgroup[v0_o, v2_o * 8:v2_o * 8 + 8, v1_o * 8:v1_o * 8 + 8], (8, 8), "float16", strides=(C_1_s0, C_1_s1), scope="metal.simdgroup", offset_factor=1)
-                                            T.metal.simdgroup_load(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.ptr_to([0] * len(A_1.shape)), A_1.strides[0], 8, 8, T.bool(True))
+                                            T.metal.simdgroup_load(C_1.data, get_elem_offset_from_layout(C_1.layout) // get_strides_from_layout(C_1.layout)[0] // 8 * (get_strides_from_layout(C_1.layout)[0] // 8) + get_elem_offset_from_layout(C_1.layout) % get_strides_from_layout(C_1.layout)[0] // 8, A_1.ptr_to([0] * len(A_1.shape)), get_strides_from_layout(A_1.layout)[0], 8, 8, T.bool(True))
                                     for ax1_2, ax2_2 in T.grid(2, 2):
                                         with Ts.sblock("NT_matmul_update_o"):
                                             v0_o = Ts.axis.spatial(1, ax0)
@@ -409,7 +410,7 @@ def test_matmul_metal_int4_quant():
                                             A_1 = Ts.match_tensor(A_reindex_pad_shared_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v3_o * 8:v3_o * 8 + 8], (8, 8), "float16", strides=(A_3_s0, A_3_s1), scope="metal.simdgroup", offset_factor=1)
                                             B = Ts.match_tensor(B_reindex_shared_metal_simdgroup[0, v3_o * 8:v3_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(B_s0, B_s1), scope="metal.simdgroup", offset_factor=1)
                                             C_1 = Ts.match_tensor(C_reindex_pad_metal_simdgroup[0, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_2_s0, C_2_s1), scope="metal.simdgroup", offset_factor=1)
-                                            T.metal.simdgroup_multiply_accumulate(C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8, A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, B.data, B.elem_offset // B.strides[0] // 8 * (B.strides[0] // 8) + B.elem_offset % B.strides[0] // 8, C_1.data, C_1.elem_offset // C_1.strides[0] // 8 * (C_1.strides[0] // 8) + C_1.elem_offset % C_1.strides[0] // 8)
+                                            T.metal.simdgroup_multiply_accumulate(C_1.data, get_elem_offset_from_layout(C_1.layout) // get_strides_from_layout(C_1.layout)[0] // 8 * (get_strides_from_layout(C_1.layout)[0] // 8) + get_elem_offset_from_layout(C_1.layout) % get_strides_from_layout(C_1.layout)[0] // 8, A_1.data, get_elem_offset_from_layout(A_1.layout) // get_strides_from_layout(A_1.layout)[0] // 8 * (get_strides_from_layout(A_1.layout)[0] // 8) + get_elem_offset_from_layout(A_1.layout) % get_strides_from_layout(A_1.layout)[0] // 8, B.data, get_elem_offset_from_layout(B.layout) // get_strides_from_layout(B.layout)[0] // 8 * (get_strides_from_layout(B.layout)[0] // 8) + get_elem_offset_from_layout(B.layout) % get_strides_from_layout(B.layout)[0] // 8, C_1.data, get_elem_offset_from_layout(C_1.layout) // get_strides_from_layout(C_1.layout)[0] // 8 * (get_strides_from_layout(C_1.layout)[0] // 8) + get_elem_offset_from_layout(C_1.layout) % get_strides_from_layout(C_1.layout)[0] // 8)
                             for ax0_1, ax1_0_1, ax2_0_1 in T.grid(1, 2, 2):
                                 with Ts.sblock("C_reindex_pad_metal.simdgroup_o"):
                                     v0_o = Ts.axis.spatial(1, ax0_1)
@@ -419,7 +420,7 @@ def test_matmul_metal_int4_quant():
                                     Ts.writes(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8])
                                     A_1 = Ts.match_tensor(C_reindex_pad_metal_simdgroup[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(A_4_s0, A_4_s1), scope="metal.simdgroup", offset_factor=1)
                                     C_1 = Ts.match_tensor(C_reindex_pad_shared[v0_o, v1_o * 8:v1_o * 8 + 8, v2_o * 8:v2_o * 8 + 8], (8, 8), "float16", strides=(C_3_s0, C_3_s1), scope="shared", offset_factor=1)
-                                    T.metal.simdgroup_store(A_1.data, A_1.elem_offset // A_1.strides[0] // 8 * (A_1.strides[0] // 8) + A_1.elem_offset % A_1.strides[0] // 8, C_1.ptr_to([0] * len(C_1.shape)), C_1.strides[0], 8, 8, T.bool(False))
+                                    T.metal.simdgroup_store(A_1.data, get_elem_offset_from_layout(A_1.layout) // get_strides_from_layout(A_1.layout)[0] // 8 * (get_strides_from_layout(A_1.layout)[0] // 8) + get_elem_offset_from_layout(A_1.layout) % get_strides_from_layout(A_1.layout)[0] // 8, C_1.ptr_to([0] * len(C_1.shape)), get_strides_from_layout(C_1.layout)[0], 8, 8, T.bool(False))
                     for ax0_1, ax1_ax2_fused_0 in T.grid(1, 2):
                         for ax1_ax2_fused_1 in T.parallel(4, annotations={"thread_binding": "threadIdx.z"}):
                             for ax1_ax2_fused_2 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):

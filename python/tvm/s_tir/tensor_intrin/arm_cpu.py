@@ -19,6 +19,7 @@
 """Intrinsics for ARM tensorization."""
 
 from tvm.s_tir import script as Ts
+from tvm.s_tir.layout import get_elem_offset_from_layout, get_strides_from_layout
 from tvm.s_tir.script.ir_builder import function as build_function
 from tvm_tirx import tirx
 from tvm_tirx.codegen import llvm
@@ -191,11 +192,13 @@ def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
         The active lane mask intrinsic.
     """
     vertical_offset, horizontal_offset = relative_offsets
-    stride = tensor.strides[0]
+    stride = get_strides_from_layout(tensor.layout)[0]
 
     # The base is the offset of the first value we wish to store
     base = T.int32(
-        tensor.elem_offset + vertical_offset * stride + horizontal_offset * tensor.strides[1]
+        get_elem_offset_from_layout(tensor.layout)
+        + vertical_offset * stride
+        + horizontal_offset * get_strides_from_layout(tensor.layout)[1]
     )
 
     # The limit is the maximum offset in the current row of 'base' that we wish to allow values
@@ -204,7 +207,10 @@ def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
     # the offset of the first value in the row of the output tensor that 'base' is in and add
     # 'stride' to it.
     limit = (
-        base - T.int32(horizontal_offset) - T.int32(tensor.elem_offset % stride) + T.int32(stride)
+        base
+        - T.int32(horizontal_offset)
+        - T.int32(get_elem_offset_from_layout(tensor.layout) % stride)
+        + T.int32(stride)
     )
     limit = T.Min(limit, T.Cast("int32", vertical_limit) * stride)
 

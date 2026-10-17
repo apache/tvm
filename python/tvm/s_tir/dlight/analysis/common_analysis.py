@@ -29,6 +29,7 @@ from tvm_ffi import get_global_func
 import tvm_tirx
 from tvm import s_tir
 from tvm.s_tir import Schedule
+from tvm.s_tir.layout import get_elem_offset_from_layout, get_strides_from_layout
 from tvm.s_tir.schedule import SBlockRV
 from tvm_tirx import ir, tirx
 from tvm_tirx.ir import TensorRegion
@@ -448,12 +449,15 @@ def _tensor_region_offset(region):
     tensor = region.source
     offset = 0
     for axis, bounds in enumerate(region.region):
-        if tensor.strides:
-            offset += bounds.min * tensor.strides[axis]
+        if get_strides_from_layout(tensor.layout):
+            offset += bounds.min * get_strides_from_layout(tensor.layout)[axis]
         else:
             offset = offset * tensor.shape[axis] + bounds.min
-    if not (isinstance(tensor.elem_offset, tvm_tirx.ir.IntImm) and tensor.elem_offset.value == 0):
-        offset += tensor.elem_offset
+    if not (
+        isinstance(get_elem_offset_from_layout(tensor.layout), tvm_tirx.ir.IntImm)
+        and get_elem_offset_from_layout(tensor.layout).value == 0
+    ):
+        offset += get_elem_offset_from_layout(tensor.layout)
     return tvm_tirx.sym.Analyzer().simplify(offset)
 
 

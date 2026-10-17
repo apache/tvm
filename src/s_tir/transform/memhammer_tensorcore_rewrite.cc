@@ -23,6 +23,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/memory_scope.h>
+#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
@@ -179,12 +180,17 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                   /*1:*/ PrimExpr(16),
                   /*2:*/ PrimExpr(16),
                   /*3:*/ PrimExpr(16),
-                  /*4:*/ floordiv(new_tgt_tensor.elem_offset(), 256) +
-                      floordiv(floormod(new_tgt_tensor.elem_offset(), 256), 16),
+                  /*4:*/
+                  floordiv(s_tir::GetElemOffsetFromLayout(new_tgt_tensor.ty()->layout), 256) +
+                      floordiv(floormod(s_tir::GetElemOffsetFromLayout(new_tgt_tensor.ty()->layout),
+                                        256),
+                               16),
                   /*5:*/
                   Call(new_src_tensor.data()->ty, tirx::address_of_op(),
                        {TensorLoad(new_src_tensor, {PrimExpr(0), PrimExpr(0)})}),
-                  /*6:*/ new_src_tensor.strides()[new_src_tensor.strides().size() - 2],
+                  /*6:*/
+                  s_tir::GetStridesFromLayout(new_src_tensor.ty()->layout)
+                      [s_tir::GetStridesFromLayout(new_src_tensor.ty()->layout).size() - 2],
                   /*7:*/ StringImm(layout),
               })),
           /*init=*/std::nullopt,
@@ -271,17 +277,21 @@ Stmt RewriteWmmaStore(Stmt stmt) {
           Evaluate(Call(
               /*data=*/PrimType::Void(),
               /*op=*/gpu_store_matrix_sync_op,
-              ffi::Array<Expr>{/*0:*/ new_src_tensor.data(),
-                               /*1:*/ PrimExpr(16),
-                               /*2:*/ PrimExpr(16),
-                               /*3:*/ PrimExpr(16),
-                               /*4:*/ floordiv(new_src_tensor.elem_offset(), 256) +
-                                   floordiv(floormod(new_src_tensor.elem_offset(), 256), 16),
-                               /*5:*/
-                               Call(new_tgt_tensor.data()->ty, tirx::address_of_op(),
-                                    {TensorLoad(new_tgt_tensor, {PrimExpr(0), PrimExpr(0)})}),
-                               /*6:*/ new_tgt_tensor.strides()[0],
-                               /*7:*/ StringImm("row_major")})),
+              ffi::Array<Expr>{
+                  /*0:*/ new_src_tensor.data(),
+                  /*1:*/ PrimExpr(16),
+                  /*2:*/ PrimExpr(16),
+                  /*3:*/ PrimExpr(16),
+                  /*4:*/
+                  floordiv(s_tir::GetElemOffsetFromLayout(new_src_tensor.ty()->layout), 256) +
+                      floordiv(floormod(s_tir::GetElemOffsetFromLayout(new_src_tensor.ty()->layout),
+                                        256),
+                               16),
+                  /*5:*/
+                  Call(new_tgt_tensor.data()->ty, tirx::address_of_op(),
+                       {TensorLoad(new_tgt_tensor, {PrimExpr(0), PrimExpr(0)})}),
+                  /*6:*/ s_tir::GetStridesFromLayout(new_tgt_tensor.ty()->layout)[0],
+                  /*7:*/ StringImm("row_major")})),
           /*init=*/std::nullopt,
           /*alloc_tensors=*/{},
           /*match_tensors=*/

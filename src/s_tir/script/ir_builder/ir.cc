@@ -19,6 +19,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/memory_scope.h>
+#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/script/ir_builder/ir.h>
 #include <tvm/sym/analyzer.h>
 
@@ -52,13 +53,17 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
   }
   // Matching/allocation builders retain their binding contract; TensorType itself
   // has a fixed zero offset and never invents a symbolic variable.
-  if (!elem_offset.has_value() && offset_factor) {
+  if (!elem_offset.has_value() && offset_factor && !layout.has_value()) {
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
     elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
   }
   TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset,
                                              align, offset_factor, layout));
-  TVM_FFI_CHECK(tensor.ty()->IsRegularMemoryLayout(), ValueError)
+  TVM_FFI_CHECK(
+      (!tensor.ty()->layout.has_value() ||
+       (tensor.ty()->layout.as<tvm::tirx::TileLayoutNode>() &&
+        tensor.ty()->layout.as<tvm::tirx::TileLayoutNode>()->IsRegularMemory(tensor.shape()))),
+      ValueError)
       << "S-TIR tensors require a regular memory layout without swizzles or thread axes";
   tvm::TensorRegion region{ffi::UnsafeInit{}};
   if (auto load = param.as<TensorLoad>()) {
@@ -206,13 +211,17 @@ TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
   }
   // Matching/allocation builders retain their binding contract; TensorType itself
   // has a fixed zero offset and never invents a symbolic variable.
-  if (!elem_offset.has_value() && offset_factor) {
+  if (!elem_offset.has_value() && offset_factor && !layout.has_value()) {
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
     elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
   }
   TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset,
                                              align, offset_factor, layout));
-  TVM_FFI_CHECK(tensor.ty()->IsRegularMemoryLayout(), ValueError)
+  TVM_FFI_CHECK(
+      (!tensor.ty()->layout.has_value() ||
+       (tensor.ty()->layout.as<tvm::tirx::TileLayoutNode>() &&
+        tensor.ty()->layout.as<tvm::tirx::TileLayoutNode>()->IsRegularMemory(tensor.shape()))),
+      ValueError)
       << "S-TIR tensors require a regular memory layout without swizzles or thread axes";
   IRBuilder builder = IRBuilder::Current();
   auto opt_func_frame = builder->FindFrame<tirx::FunctionFrame>();

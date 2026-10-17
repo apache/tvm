@@ -599,6 +599,14 @@ class TileLayout(Layout):
             offset = {Axis.get(k) if isinstance(k, str) else k: v for k, v in offset.items()}
         return _ffi_api.TileLayout(shard, replica, offset or {}, compact, memory_origin)  # pylint: disable=no-member
 
+    def is_regular_memory(self, shape) -> bool:
+        """Whether this is an affine memory map aligned with the logical shape."""
+        return _ffi_api.TileLayoutIsRegularMemory(self, shape)
+
+    def is_contiguous_memory(self) -> bool:
+        """Whether shard coordinates address contiguous row-major memory."""
+        return _ffi_api.TileLayoutIsContiguousMemory(self)
+
     def is_trivial(self) -> bool:
         """Check if the layout is trivial."""
         return _ffi_api.TileLayoutIsTrivial(self)  # pylint: disable=no-member

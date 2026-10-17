@@ -24,6 +24,7 @@ import tvm_tirx
 import tvm_tirx.testing
 from tvm import s_tir, te
 from tvm.s_tir import script as Ts
+from tvm.s_tir.layout import get_elem_offset_from_layout
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
@@ -65,13 +66,13 @@ def mma_intrin(A: T.Tensor((16, 16), "float32", align=64, offset_factor=1, elem_
         T.evaluate(
             T.gpu_mma_sync(
                 C.data,
-                C.elem_offset // 256,
+                get_elem_offset_from_layout(C.layout) // 256,
                 A.data,
-                A.elem_offset // 256,
+                get_elem_offset_from_layout(A.layout) // 256,
                 B.data,
-                B.elem_offset // 256,
+                get_elem_offset_from_layout(B.layout) // 256,
                 C.data,
-                C.elem_offset // 256,
+                get_elem_offset_from_layout(C.layout) // 256,
 
             )
         )
@@ -97,11 +98,11 @@ def dot_product_intrin(A: T.Tensor((4,), "float32", offset_factor=1, elem_offset
             T.call_extern(
                 "vec4add",
                 C.data,
-                C.elem_offset,
+                get_elem_offset_from_layout(C.layout),
                 A.data,
-                A.elem_offset,
+                get_elem_offset_from_layout(A.layout),
                 B.data,
-                B.elem_offset,
+                get_elem_offset_from_layout(B.layout),
                 ty="int32",
             )
         )
@@ -117,11 +118,11 @@ def dot_product_intrin_annotated(A: T.Tensor((4,), "float32", offset_factor=1, e
             T.call_extern(
                 "vec4add",
                 C.data,
-                C.elem_offset,
+                get_elem_offset_from_layout(C.layout),
                 A.data,
-                A.elem_offset,
+                get_elem_offset_from_layout(A.layout),
                 B.data,
-                B.elem_offset,
+                get_elem_offset_from_layout(B.layout),
                 ty="int32",
             )
         )
@@ -155,11 +156,11 @@ def outer_product_intrin(A: T.Tensor((16, 1), "float32", offset_factor=1, elem_o
             T.call_extern(
                 "outer_product",
                 C.data,
-                C.elem_offset,
+                get_elem_offset_from_layout(C.layout),
                 A.data,
-                A.elem_offset,
+                get_elem_offset_from_layout(A.layout),
                 B.data,
-                B.elem_offset,
+                get_elem_offset_from_layout(B.layout),
                 ty="int32",
             )
         )
@@ -219,13 +220,13 @@ def tensorized_matmul(A: T.Tensor([128, 128], "float32", elem_offset=0, align=64
                 T.evaluate(
                     T.gpu_mma_sync(
                         C_sub.data,
-                        T.floordiv(C_sub.elem_offset, 256),
+                        T.floordiv(get_elem_offset_from_layout(C_sub.layout), 256),
                         A_sub.data,
-                        T.floordiv(A_sub.elem_offset, 256),
+                        T.floordiv(get_elem_offset_from_layout(A_sub.layout), 256),
                         B_sub.data,
-                        T.floordiv(B_sub.elem_offset, 256),
+                        T.floordiv(get_elem_offset_from_layout(B_sub.layout), 256),
                         C_sub.data,
-                        T.floordiv(C_sub.elem_offset, 256),
+                        T.floordiv(get_elem_offset_from_layout(C_sub.layout), 256),
 
                     )
                 )
@@ -290,13 +291,13 @@ def tensorized_batch_matmul_mma(
                 T.evaluate(
                     T.gpu_mma_sync(
                         C_sub.data,
-                        T.floordiv(C_sub.elem_offset, 256),
+                        T.floordiv(get_elem_offset_from_layout(C_sub.layout), 256),
                         A_sub.data,
-                        T.floordiv(A_sub.elem_offset, 256),
+                        T.floordiv(get_elem_offset_from_layout(A_sub.layout), 256),
                         B_sub.data,
-                        T.floordiv(B_sub.elem_offset, 256),
+                        T.floordiv(get_elem_offset_from_layout(B_sub.layout), 256),
                         C_sub.data,
-                        T.floordiv(C_sub.elem_offset, 256),
+                        T.floordiv(get_elem_offset_from_layout(C_sub.layout), 256),
 
                     )
                 )
@@ -331,11 +332,11 @@ def tensorized_batch_matmul_dot_product(
                 T.call_extern(
                     "vec4add",
                     C_1.data,
-                    C_1.elem_offset,
+                    get_elem_offset_from_layout(C_1.layout),
                     A_1.data,
-                    A_1.elem_offset,
+                    get_elem_offset_from_layout(A_1.layout),
                     B_1.data,
-                    B_1.elem_offset,
+                    get_elem_offset_from_layout(B_1.layout),
                     ty="int32",
                 )
             )
@@ -368,8 +369,8 @@ def tensorized_batch_matmul_outer_product(
                 C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16], [16, 16], dtype="float32", offset_factor=1
             )
             T.evaluate(
-                T.call_extern("outer_product", C_1.data, C_1.elem_offset, A_1.data, A_1.elem_offset,
-                              B_1.data, B_1.elem_offset, ty="int32"
+                T.call_extern("outer_product", C_1.data, get_elem_offset_from_layout(C_1.layout), A_1.data, get_elem_offset_from_layout(A_1.layout),
+                              B_1.data, get_elem_offset_from_layout(B_1.layout), ty="int32"
                 )
             )
 
@@ -442,13 +443,13 @@ def annotated_tensorized_matmul(A: T.Tensor([128, 128], "float32", elem_offset=0
                 T.evaluate(
                     T.gpu_mma_sync(
                         C_sub.data,
-                        T.floordiv(C_sub.elem_offset, 256),
+                        T.floordiv(get_elem_offset_from_layout(C_sub.layout), 256),
                         A_sub.data,
-                        T.floordiv(A_sub.elem_offset, 256),
+                        T.floordiv(get_elem_offset_from_layout(A_sub.layout), 256),
                         B_sub.data,
-                        T.floordiv(B_sub.elem_offset, 256),
+                        T.floordiv(get_elem_offset_from_layout(B_sub.layout), 256),
                         C_sub.data,
-                        T.floordiv(C_sub.elem_offset, 256),
+                        T.floordiv(get_elem_offset_from_layout(C_sub.layout), 256),
 
                     )
                 )
@@ -764,13 +765,13 @@ def test_tensorize_matmul_mixed_dtype():
                     T.evaluate(
                         T.gpu_mma_sync(
                             C_sub.data,
-                            T.floordiv(C_sub.elem_offset, T.int64(256)),
+                            T.floordiv(get_elem_offset_from_layout(C_sub.layout), T.int64(256)),
                             A_sub.data,
-                            T.floordiv(A_sub.elem_offset, T.int64(256)),
+                            T.floordiv(get_elem_offset_from_layout(A_sub.layout), T.int64(256)),
                             B_sub.data,
-                            T.floordiv(B_sub.elem_offset, T.int64(256)),
+                            T.floordiv(get_elem_offset_from_layout(B_sub.layout), T.int64(256)),
                             C_sub.data,
-                            T.floordiv(C_sub.elem_offset, T.int64(256)),
+                            T.floordiv(get_elem_offset_from_layout(C_sub.layout), T.int64(256)),
 
                         )
                     )
@@ -858,8 +859,8 @@ def test_tensorize_arith_simplification():
                                 v1_o = Ts.axis.spatial(2048, ax1_0 * 64 + ax1_1)
                                 Ts.reads(B_local[v0_o, v1_o])
                                 Ts.writes(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8])
-                                Compressed = Ts.match_tensor(B_local[v0_o, v1_o], (1,), "int32", scope="local", elem_offset=T.int32(0))
-                                Decompressed = Ts.match_tensor(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8], (8,), "float16", scope="local", elem_offset=T.int32(0))
+                                Compressed = Ts.match_tensor(B_local[v0_o, v1_o], (1,), "int32", scope="local")
+                                Decompressed = Ts.match_tensor(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8], (8,), "float16", scope="local")
                                 T.call_extern( "test_decode_i4s_to_f16", Compressed.data, Decompressed.data, 8, ty="handle")
 
     s = tvm.s_tir.Schedule(decode_i4s_to_int32_to_f16, debug_mask="all")

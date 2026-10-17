@@ -28,6 +28,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/memory_scope.h>
+#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -822,7 +823,7 @@ Stmt TensorCompactorCompact(
     ffi::Array<PrimExpr> strides = CalcStrides(alloc_info, shape);
     ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
     n->shape = std::move(shape);
-    n->SetStrides(std::move(strides));
+    n->layout = s_tir::WithStrides(n->layout, n->shape, std::move(strides));
     alloc_info.new_tensor = TensorVar(tensor->name, TensorType(std::move(n)), tensor->loc);
     alloc_info.region = region;
     tensor_info.emplace(tensor, std::move(alloc_info));

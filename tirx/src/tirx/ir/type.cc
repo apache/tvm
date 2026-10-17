@@ -37,11 +37,10 @@ namespace tvm::tirx {
 
 bool TensorTypeNode::IsScalar(bool alloc_or_decl) const {
   // TODO(@bohan): logical scope is not considered
-  return shape.size() == 1 && tvm::prim::IsOne(shape[0]) && GetStrides().empty() &&
-         (!alloc_or_decl || tvm::prim::IsZero(GetElemOffset())) && data_alignment == 64 &&
+  return shape.size() == 1 && tvm::prim::IsOne(shape[0]) && data_alignment == 64 &&
          offset_factor == 1 &&
          (!layout.has_value() ||
-          (layout.as<TileLayoutNode>() &&
+          (layout.as<TileLayoutNode>() && layout.as<TileLayoutNode>()->compact &&
            layout.value()->Canonicalize().as_or_throw<TileLayout>()->IsTrivial()));
 }
 
@@ -131,112 +130,6 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorTypeMaybeInplaceM
 
 }  // namespace
 
-bool TensorTypeNode::IsRegularMemoryLayout() const {
-  if (!layout.has_value()) return true;
-  const auto* tile = layout.as<TileLayoutNode>();
-  if (!tile || !tile->replica.empty() || tile->shard.size() != shape.size()) return false;
-  sym::Analyzer analyzer;
-  for (size_t i = 0; i < shape.size(); ++i) {
-    if (tile->shard[i]->axis.name() != "m" ||
-        !analyzer->CanProveEqual(tile->shard[i]->extent, shape[i]))
-      return false;
-  }
-  for (const auto& [axis, offset] : tile->offset) {
-    if (axis.name() != "m") return false;
-  }
-  return true;
-}
-
-ffi::Array<PrimExpr> TensorTypeNode::GetStrides() const {
-  const auto* tile = layout.as<TileLayoutNode>();
-  if (!tile || !IsRegularMemoryLayout()) return {};
-  if (tile->compact) {
-    sym::Analyzer analyzer;
-    PrimExpr expected = IntImm(DefaultIndexType(), 1);
-    bool contiguous = true;
-    for (size_t i = shape.size(); i > 0; --i) {
-      const auto& iter = tile->shard[i - 1];
-      if (!analyzer->CanProveEqual(iter->extent, 1) &&
-          !analyzer->CanProveEqual(iter->stride, expected))
-        contiguous = false;
-      expected = expected * shape[i - 1];
-    }
-    if (contiguous) return {};
-  }
-  return tile->shard.Map([](const Iter& iter) { return iter->stride; });
-}
-
-PrimExpr TensorTypeNode::GetElemOffset() const {
-  if (const auto* tile = layout.as<TileLayoutNode>()) {
-    return tile->memory_origin;
-  } else if (const auto* compose = layout.as<ComposeLayoutNode>()) {
-    return compose->memory_origin;
-  }
-  return IntImm(tvm::tirx::DefaultIndexType(), 0);
-}
-
-void TensorTypeNode::SetStrides(ffi::Array<PrimExpr> strides) {
-  TVM_FFI_CHECK(strides.empty() || strides.size() == shape.size(), ValueError)
-      << "Tensor strides must match its rank";
-  PrimExpr origin = GetElemOffset();
-  ffi::Map<Axis, PrimExpr> offsets;
-  if (layout.has_value()) {
-    const auto* tile = layout.as<TileLayoutNode>();
-    TVM_FFI_CHECK(tile && tile->replica.empty(), ValueError)
-        << "Strides can only be replaced on regular memory layouts";
-    for (const auto& iter : tile->shard) {
-      TVM_FFI_CHECK(iter->axis.name() == "m", ValueError)
-          << "Strides can only be replaced on regular memory layouts";
-    }
-    for (const auto& [axis, offset] : tile->offset) {
-      TVM_FFI_CHECK(axis.name() == "m", ValueError)
-          << "Strides can only be replaced on regular memory layouts";
-    }
-    offsets = tile->offset;
-  }
-  if (strides.empty() && prim::IsZero(origin) &&
-      origin.ty() == tvm::tirx::DefaultIndexType() && offsets.empty()) {
-    layout = std::nullopt;
-    return;
-  }
-  bool compact = strides.empty();
-  if (compact) {
-    PrimExpr stride = IntImm(DefaultIndexType(), 1);
-    strides = ffi::Array<PrimExpr>(shape.size(), stride);
-    for (size_t i = shape.size(); i > 0; --i) {
-      strides.Set(i - 1, stride);
-      stride = stride * shape[i - 1];
-    }
-  }
-  ffi::Array<Iter> shard;
-  for (size_t i = 0; i < shape.size(); ++i) {
-    shard.push_back(Iter(shape[i], strides[i], Axis::Get("m")));
-  }
-  auto tile = TileLayout(std::move(shard), {}, offsets, origin);
-  tile.CopyOnWrite()->compact = compact;
-  layout = tile;
-}
-
-void TensorTypeNode::SetElemOffset(PrimExpr offset) {
-  if (!layout.has_value()) {
-    if (prim::IsZero(offset) && offset.ty() == tvm::tirx::DefaultIndexType()) return;
-    auto tile = TileLayoutNode::DefaultLayout(shape);
-    tile.CopyOnWrite()->compact = true;
-    layout = tile;
-  }
-  if (auto tile = layout.as<TileLayout>()) {
-    auto copy = tile.value();
-    copy.CopyOnWrite()->memory_origin = std::move(offset);
-    layout = copy;
-  } else if (auto compose = layout.as<ComposeLayout>()) {
-    auto copy = compose.value();
-    copy.CopyOnWrite()->memory_origin = std::move(offset);
-    layout = copy;
-  } else {
-    TVM_FFI_THROW(ValueError) << "Tensor memory origin requires a tile or composed layout";
-  }
-}
-
 TensorType::TensorType(ffi::Array<PrimExpr> shape, PrimType dtype, runtime::MemoryScope scope,
                        ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
                        int data_alignment, int offset_factor, ffi::Optional<Layout> layout,
@@ -253,7 +146,9 @@ TensorType::TensorType(ffi::Array<PrimExpr> shape, PrimType dtype, runtime::Memo
   n->layout = std::move(layout);
   if (!strides.empty()) {
     if (n->layout.has_value()) {
-      TVM_FFI_CHECK(n->IsRegularMemoryLayout(), ValueError)
+      TVM_FFI_CHECK(n->layout.as<TileLayoutNode>() &&
+                        n->layout.as<TileLayoutNode>()->IsRegularMemory(n->shape),
+                    ValueError)
           << "Explicit tensor strides require a regular memory layout";
       auto tile = n->layout.value().as_or_throw<TileLayout>();
       TVM_FFI_CHECK(tile->shard.size() == strides.size(), ValueError)
@@ -266,12 +161,35 @@ TensorType::TensorType(ffi::Array<PrimExpr> shape, PrimType dtype, runtime::Memo
       tile.CopyOnWrite()->compact = false;
       n->layout = tile;
     } else {
-      n->SetStrides(std::move(strides));
+      TVM_FFI_CHECK(strides.size() == n->shape.size(), ValueError)
+          << "Tensor strides must match its rank";
+      ffi::Array<Iter> shard;
+      for (size_t i = 0; i < strides.size(); ++i) {
+        shard.push_back(Iter(n->shape[i], strides[i], Axis::Get("m")));
+      }
+      n->layout = TileLayout(shard, {}, {});
     }
   }
-  if (elem_offset.has_value()) {
-    auto origin = n->GetElemOffset();
-    n->SetElemOffset(prim::IsZero(origin) ? offset : origin + offset);
+  if (elem_offset.has_value() &&
+      (n->layout.has_value() || !prim::IsZero(offset) || offset.ty() != DefaultIndexType())) {
+    if (!n->layout.has_value()) {
+      auto tile = TileLayoutNode::DefaultLayout(n->shape);
+      tile.CopyOnWrite()->compact = true;
+      n->layout = tile;
+    }
+    if (auto tile = n->layout.as<TileLayout>()) {
+      auto copy = tile.value();
+      auto origin = copy->memory_origin;
+      copy.CopyOnWrite()->memory_origin = prim::IsZero(origin) ? offset : origin + offset;
+      n->layout = copy;
+    } else if (auto compose = n->layout.as<ComposeLayout>()) {
+      auto copy = compose.value();
+      auto origin = copy->memory_origin;
+      copy.CopyOnWrite()->memory_origin = prim::IsZero(origin) ? offset : origin + offset;
+      n->layout = copy;
+    } else {
+      TVM_FFI_THROW(ValueError) << "Tensor memory origin requires a tile or composed layout";
+    }
   }
   n->loc = loc;
   data_ = std::move(n);
@@ -280,11 +198,6 @@ TensorType::TensorType(ffi::Array<PrimExpr> shape, PrimType dtype, runtime::Memo
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TensorTypeNode::RegisterReflection();
-  refl::GlobalDef()
-      .def("tirx.TensorTypeIsRegularMemoryLayout",
-           [](TensorType type) { return type->IsRegularMemoryLayout(); })
-      .def("tirx.TensorTypeStrides", [](TensorType type) { return type->GetStrides(); })
-      .def("tirx.TensorTypeElemOffset", [](TensorType type) { return type->GetElemOffset(); });
   refl::TypeAttrDef<TensorTypeNode>()
       .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&TensorTypeVisit>())
       .attr(ffi::type_attr::kStructuralMutate,

@@ -18,6 +18,7 @@
  */
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/memory_scope.h>
+#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/script/printer/doc_translator.h>
 #include <tvm/script/printer/support.h>
@@ -43,10 +44,12 @@ CallDoc TensorHelperCall(DocTranslatorObj* d, const Type& type, const ffi::Strin
   }
   // An explicit factor makes these helpers synthesize a symbolic offset.
   // Supply the fixed zero explicitly when the type printer omitted it.
-  if (has_factor && !has_offset) {
+  if (has_factor && !has_offset && !type.as_or_throw<tirx::TensorType>()->layout.has_value()) {
     rhs->kwargs_keys.push_back("elem_offset");
     rhs->kwargs_values.push_back(d->WithExtraStateScope<bool>("ir.explicit_value_type", true, [&] {
-      return d->Translate(type.as_or_throw<tirx::TensorType>()->GetElemOffset()).value();
+      return d
+          ->Translate(s_tir::GetElemOffsetFromLayout(type.as_or_throw<tirx::TensorType>()->layout))
+          .value();
     }));
   }
   rhs->callee = NamespaceDoc("s_tir")->Attr(helper);

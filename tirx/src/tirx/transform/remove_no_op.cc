@@ -179,10 +179,6 @@ class NoOpRemover : public StmtExprMutatorWithAnalyzer {
     if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
       TensorVar tensor = load->source.as_or_throw<tvm::tirx::TensorVar>();
       if (tensor.same_as(store->dest.as_or_throw<TensorVar>()) &&
-          analyzer_->CanProveEqual(tensor.elem_offset(),
-                                   store->dest.as_or_throw<TensorVar>().elem_offset()) &&
-          ArrayValueEqual(tensor.shape(), store->dest.as_or_throw<TensorVar>().shape()) &&
-          ArrayValueEqual(tensor.strides(), store->dest.as_or_throw<TensorVar>().strides()) &&
           ArrayValueEqual(load->indices, store->indices)) {
         return only_side_effects();
       }

@@ -25,6 +25,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/memory_scope.h>
+#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op/memory.h>
 
@@ -1657,7 +1658,7 @@ TensorVar CreateReindexTensor(const TensorVar& tensor, const ffi::Array<IterVar>
   }
   new_strides.clear();
   new_tensor->shape = new_shape;
-  new_tensor->SetStrides(new_strides);
+  new_tensor->layout = s_tir::WithStrides(new_tensor->layout, new_tensor->shape, new_strides);
   return TensorVar(tensor->name + "_reindex", TensorType(std::move(new_tensor)), tensor->loc);
 }
 

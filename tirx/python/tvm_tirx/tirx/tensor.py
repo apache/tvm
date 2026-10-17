@@ -130,20 +130,6 @@ class TensorType(Type):
         )
         at(loc, self)
 
-    def is_regular_memory_layout(self):
-        """Whether the layout is an ordinary shape-aligned strided memory view."""
-        return _ffi_api.TensorTypeIsRegularMemoryLayout(self)
-
-    @property
-    def strides(self):
-        """The explicit regular-memory strides; empty for compact binding."""
-        return _ffi_api.TensorTypeStrides(self)
-
-    @property
-    def elem_offset(self):
-        """The layout's memory origin."""
-        return _ffi_api.TensorTypeElemOffset(self)
-
     __expr_methods__ = (
         "is_scalar",
         "ptr_to",
@@ -155,14 +141,11 @@ class TensorType(Type):
     __expr_properties__: ClassVar[dict[str, Callable]] = {
         "scope": lambda ty, expr: lambda: ty._scope(expr),
         "shape": _tensor_type_field("shape"),
-        "strides": _tensor_type_field("strides"),
-        "elem_offset": _tensor_type_field("elem_offset"),
         "data_alignment": _tensor_type_field("data_alignment"),
         "offset_factor": _tensor_type_field("offset_factor"),
         "layout": _tensor_type_field("layout"),
         "data": lambda ty, expr: ty._data(expr),
         "dtype": lambda ty, expr: ty._dtype(expr),
-        "byte_offset": lambda ty, expr: ty._byte_offset(expr),
         "sub": lambda ty, expr: ty._sub(expr),
     }
 
@@ -178,19 +161,8 @@ class TensorType(Type):
         if self.scope != _SCOPE_GLOBAL:
             raise ValueError(f"An explicit layout is required for {self.scope} tensors")
 
-        from tvm_tirx.sym import Analyzer
-
         from .layout import S, TileLayout
 
-        analyzer = Analyzer()
-        expected = 1
-        if self.strides:
-            for extent, stride in reversed(list(zip(self.shape, self.strides))):
-                if not analyzer.can_prove_equal(extent, 1) and not analyzer.can_prove_equal(
-                    stride, expected
-                ):
-                    raise ValueError("An explicit layout is required for noncompact global tensors")
-                expected = analyzer.simplify(expected * extent)
         return TileLayout(S[tuple(self.shape)])
 
     def _scope(self, expr):
@@ -296,10 +268,6 @@ class TensorType(Type):
     def _dtype(self, expr):
         _check_tensor_property_receiver(self, expr)
         return self.dtype.dtype
-
-    def _byte_offset(self, expr):
-        _check_tensor_property_receiver(self, expr)
-        return self.elem_offset * tvm_ffi.dtype(self.dtype).bits // 8
 
     def _sub(self, expr):
         _check_tensor_property_receiver(self, expr)

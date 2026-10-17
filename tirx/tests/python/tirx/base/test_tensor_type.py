@@ -134,7 +134,7 @@ def test_tensor_type_default_offset():
     tensor = tvm_tirx.tirx.Var(
         "tensor", tvm_tirx.tirx.TensorType((8,), "float32", elem_offset=None)
     )
-    assert int(tensor.ty.elem_offset) == 0
+    assert tensor.ty.layout is None
 
 
 @pytest.mark.parametrize(
@@ -264,8 +264,8 @@ def test_tensor_type_construction_offsets_and_alignment(alignment):
     tensor = tvm_tirx.ir.Var("scalar", ty)
     assert list(tensor.shape) == []
     assert int(tensor.layout.memory_origin) == 4
-    assert int(tensor.elem_offset) == 4
-    assert int(tensor.byte_offset) == 16
+    assert int(tensor.layout.memory_origin) == 4
+    assert int(tensor.layout.memory_origin * 4) == 16
     assert tensor.data_alignment == 64
     assert tensor.offset_factor == 1
 

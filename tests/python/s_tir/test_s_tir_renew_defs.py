@@ -21,6 +21,7 @@ import tvm_tirx
 import tvm_tirx.testing
 from tvm.s_tir import SBlock
 from tvm.s_tir import script as Ts
+from tvm.s_tir.layout import get_elem_offset_from_layout, get_strides_from_layout
 from tvm_tirx.ir import Var
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx.function import Function
@@ -126,13 +127,27 @@ def test_match_tensor():
     matched_tensor1 = block1.match_tensors[0].tensor
     matched_tensor2 = block2.match_tensors[0].tensor
     # Stride var s should be remapped
-    assert matched_tensor1.strides[0] != matched_tensor2.strides[0]
-    assert matched_tensor1.strides[1] != matched_tensor2.strides[1]
+    assert (
+        get_strides_from_layout(matched_tensor1.layout)[0]
+        != get_strides_from_layout(matched_tensor2.layout)[0]
+    )
+    assert (
+        get_strides_from_layout(matched_tensor1.layout)[1]
+        != get_strides_from_layout(matched_tensor2.layout)[1]
+    )
     # s should be only remapped once
-    assert matched_tensor1.strides[0] == matched_tensor1.strides[1]
-    assert matched_tensor2.strides[0] == matched_tensor2.strides[1]
+    assert (
+        get_strides_from_layout(matched_tensor1.layout)[0]
+        == get_strides_from_layout(matched_tensor1.layout)[1]
+    )
+    assert (
+        get_strides_from_layout(matched_tensor2.layout)[0]
+        == get_strides_from_layout(matched_tensor2.layout)[1]
+    )
     # Element-offset var e should be remapped
-    assert matched_tensor1.elem_offset != matched_tensor2.elem_offset
+    assert get_elem_offset_from_layout(matched_tensor1.layout) != get_elem_offset_from_layout(
+        matched_tensor2.layout
+    )
 
 
 def test_undefined_tensor():

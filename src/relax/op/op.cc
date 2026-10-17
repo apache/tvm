@@ -518,19 +518,20 @@ void CheckTIRxArguments(const tvm::FuncType& signature, const ffi::Array<Expr>& 
 
 void CheckFreshTIRxDestination(const tirx::TensorTypeNode* tensor) {
   sym::Analyzer analyzer;
-  TVM_FFI_CHECK(!analyzer->CanProve(tensor->GetElemOffset() != 0), TypeError)
+  if (!tensor->layout.has_value()) return;
+  const auto* tile = tensor->layout.as<tirx::TileLayoutNode>();
+  TVM_FFI_CHECK(tile && tile->IsRegularMemory(tensor->shape), TypeError)
+      << "R.call_tir requires a regular memory destination layout";
+  PrimExpr origin = tile->memory_origin;
+  for (const auto& [axis, offset] : tile->offset) origin = origin + offset;
+  TVM_FFI_CHECK(!analyzer->CanProve(origin != 0), TypeError)
       << "R.call_tir allocates fresh destinations with zero element offset";
-  if (!tensor->GetStrides().empty()) {
-    PrimExpr compact_stride =
-        IntImm(tensor->shape.empty() ? PrimType::Int(64)
-                                     : tensor->shape.back()->ty.as_or_throw<PrimType>(),
-               1);
-    for (size_t i = tensor->shape.size(); i > 0; --i) {
-      TVM_FFI_CHECK(!analyzer->CanProve(tensor->GetStrides()[i - 1] != compact_stride), TypeError)
-          << "R.call_tir allocates compact destinations; incompatible native stride at dimension "
-          << i - 1;
-      compact_stride = compact_stride * tensor->shape[i - 1];
-    }
+  PrimExpr compact_stride = IntImm(tirx::DefaultIndexType(), 1);
+  for (size_t i = tensor->shape.size(); i > 0; --i) {
+    TVM_FFI_CHECK(!analyzer->CanProve(tile->shard[i - 1]->stride != compact_stride), TypeError)
+        << "R.call_tir allocates compact destinations; incompatible native stride at dimension "
+        << i - 1;
+    compact_stride = compact_stride * tensor->shape[i - 1];
   }
 }
 

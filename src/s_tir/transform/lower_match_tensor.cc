@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -201,17 +202,11 @@ class MatchTensorLower : public StmtExprMutator {
     const TensorRegion& source = VisitTensorRegion(match_tensor->source);
     const TensorVar& source_tensor = source->source.as_or_throw<tvm::tirx::TensorVar>();
 
-    auto memory_origin = [](const TensorVar& value) {
-      TVM_FFI_CHECK(value.ty()->IsRegularMemoryLayout(), ValueError)
-          << "S-TIR matching requires regular memory layouts";
-      ffi::Array<PrimExpr> zeros;
-      for (const auto& extent : value.shape()) zeros.push_back(IntImm(extent.ty(), 0));
-      return value.ty()->ElemOffset(zeros)[0];
-    };
-    PrimExpr target_origin = memory_origin(tensor);
-    PrimExpr source_origin = memory_origin(source_tensor);
+    PrimExpr target_origin = s_tir::GetElemOffsetFromLayout(tensor.ty()->layout);
+    PrimExpr source_origin = s_tir::GetElemOffsetFromLayout(source_tensor.ty()->layout);
+    const auto* tile = tensor.ty()->layout.as<TileLayoutNode>();
+    PrimExpr outer_origin = tile ? tile->memory_origin : IntImm(DefaultIndexType(), 0);
     auto bind_origin = [&](PrimExpr value) {
-      PrimExpr outer_origin = tensor.elem_offset();
       if (outer_origin.as<VarNode>() && !outer_origin.same_as(target_origin)) {
         Bind(outer_origin,
              cast(analyzer_->Simplify(value - (target_origin - outer_origin)), outer_origin.ty()),
@@ -255,8 +250,7 @@ class MatchTensorLower : public StmtExprMutator {
       ffi::Array<PrimExpr> tensor_start_indices = source_tensor.ty()->ElemOffset(indices);
       if (tensor_start_indices.size() == 1) {
         bind_origin(tensor_start_indices[0]);
-        PrimExpr aligned_origin =
-            IsZero(tensor.elem_offset()) ? target_origin : tensor.elem_offset();
+        PrimExpr aligned_origin = IsZero(outer_origin) ? target_origin : outer_origin;
         TVM_FFI_ICHECK(
             analyzer_->CanProve(truncmod(aligned_origin, tensor.ty()->offset_factor) == 0))
             << "The source elem_offset " << tensor_start_indices[0]
@@ -273,20 +267,25 @@ class MatchTensorLower : public StmtExprMutator {
     // Check if target tensor strides are defined
     TVM_FFI_ICHECK(source->region.size() >= tensor.shape().size());
     int offset = source->region.size() - tensor.shape().size();
-    if (!tensor.strides().empty()) {
-      TVM_FFI_ICHECK_EQ(tensor.strides().size(), tensor.shape().size());
-      if (source_tensor.strides().empty()) {
-        PrimExpr stride = prim::MakeConst(tensor.strides().back().ty(), 1);
+    if (!s_tir::GetStridesFromLayout(tensor.ty()->layout).empty()) {
+      TVM_FFI_ICHECK_EQ(s_tir::GetStridesFromLayout(tensor.ty()->layout).size(),
+                        tensor.shape().size());
+      if (s_tir::GetStridesFromLayout(source_tensor.ty()->layout).empty()) {
+        PrimExpr stride =
+            prim::MakeConst(s_tir::GetStridesFromLayout(tensor.ty()->layout).back().ty(), 1);
         for (size_t i = tensor.shape().size(); i > 0; --i) {
           const PrimExpr& shape = source_tensor.shape()[i - 1 + offset];
-          Bind(tensor.strides()[i - 1], stride, tensor->name + ".strides_" + std::to_string(i - 1));
+          Bind(s_tir::GetStridesFromLayout(tensor.ty()->layout)[i - 1], stride,
+               tensor->name + ".strides_" + std::to_string(i - 1));
           stride *= shape;
         }
       } else {
-        TVM_FFI_ICHECK_EQ(tensor.shape().size() + offset, source_tensor.strides().size());
+        TVM_FFI_ICHECK_EQ(tensor.shape().size() + offset,
+                          s_tir::GetStridesFromLayout(source_tensor.ty()->layout).size());
         for (size_t i = tensor.shape().size(); i > 0; --i) {
-          PrimExpr stride = source_tensor.strides()[i - 1 + offset];
-          Bind(tensor.strides()[i - 1], stride, tensor->name + ".strides_" + std::to_string(i - 1));
+          PrimExpr stride = s_tir::GetStridesFromLayout(source_tensor.ty()->layout)[i - 1 + offset];
+          Bind(s_tir::GetStridesFromLayout(tensor.ty()->layout)[i - 1], stride,
+               tensor->name + ".strides_" + std::to_string(i - 1));
         }
       }
     }

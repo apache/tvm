@@ -24,6 +24,7 @@ import tvm.s_tir
 import tvm_tirx
 import tvm_tirx.testing
 from tvm.s_tir import script as Ts
+from tvm.s_tir.layout import get_elem_offset_from_layout, get_strides_from_layout
 from tvm_tirx.script import tirx as T
 
 
@@ -99,9 +100,9 @@ def opaque_access(
             T.evaluate(
                 intrin_test(
                     sub_A.data,
-                    sub_A.elem_offset,
-                    sub_A.strides[0],
-                    sub_A.strides[1],
+                    get_elem_offset_from_layout(sub_A.layout),
+                    get_strides_from_layout(sub_A.layout)[0],
+                    get_strides_from_layout(sub_A.layout)[1],
                     sub_A.shape[0],
                     sub_A.shape[1],
                 )
@@ -119,9 +120,9 @@ def opaque_access(
             T.evaluate(
                 intrin_test(
                     sub_B.data,
-                    sub_B.elem_offset,
-                    sub_B.strides[0],
-                    sub_B.strides[1],
+                    get_elem_offset_from_layout(sub_B.layout),
+                    get_strides_from_layout(sub_B.layout)[0],
+                    get_strides_from_layout(sub_B.layout)[1],
                     sub_B.shape[0],
                     sub_B.shape[1],
                 )
@@ -168,7 +169,11 @@ def opaque_tensor_data_projection(A: T.Tensor((16,), "float32")) -> None:
         Ts.reads([])
         Ts.writes(A[4:8])
         sub_A = Ts.match_tensor(A[4:8], (4,), offset_factor=1)
-        T.evaluate(T.call_extern("consume", sub_A.data, sub_A.elem_offset, ty="int32"))
+        T.evaluate(
+            T.call_extern(
+                "consume", sub_A.data, get_elem_offset_from_layout(sub_A.layout), ty="int32"
+            )
+        )
 
 
 @Ts.function
@@ -198,9 +203,9 @@ def high_dim_opaque_access(A: T.Tensor((16, 32, 64), "float32")) -> None:
             T.evaluate(
                 intrin_test(
                     sub_A.data,
-                    sub_A.elem_offset,
-                    sub_A.strides[0],
-                    sub_A.strides[1],
+                    get_elem_offset_from_layout(sub_A.layout),
+                    get_strides_from_layout(sub_A.layout)[0],
+                    get_strides_from_layout(sub_A.layout)[1],
                     sub_A.shape[0],
                     sub_A.shape[1],
                 )
@@ -246,9 +251,9 @@ def high_dim_opaque_access_with_source_strides(
             T.evaluate(
                 intrin_test(
                     sub_A.data,
-                    sub_A.elem_offset,
-                    sub_A.strides[0],
-                    sub_A.strides[1],
+                    get_elem_offset_from_layout(sub_A.layout),
+                    get_strides_from_layout(sub_A.layout)[0],
+                    get_strides_from_layout(sub_A.layout)[1],
                     sub_A.shape[0],
                     sub_A.shape[1],
                 )
@@ -328,9 +333,9 @@ def recursive_match(
                     T.evaluate(
                         intrin_test(
                             sub_sub_A.data,
-                            sub_sub_A.elem_offset,
-                            sub_sub_A.strides[0],
-                            sub_sub_A.strides[1],
+                            get_elem_offset_from_layout(sub_sub_A.layout),
+                            get_strides_from_layout(sub_sub_A.layout)[0],
+                            get_strides_from_layout(sub_sub_A.layout)[1],
                             sub_sub_A.shape[0],
                             sub_sub_A.shape[1],
                         )
@@ -408,9 +413,9 @@ def symbolic_match(
                 T.evaluate(
                     intrin_test(
                         sub_B.data,
-                        sub_B.elem_offset,
-                        sub_B.strides[0],
-                        sub_B.strides[1],
+                        get_elem_offset_from_layout(sub_B.layout),
+                        get_strides_from_layout(sub_B.layout)[0],
+                        get_strides_from_layout(sub_B.layout)[1],
                         sub_B.shape[0],
                         sub_B.shape[1],
                     )
@@ -455,7 +460,7 @@ def rank0_tensor(A: T.Tensor((8, 8), "float32"), B: T.Tensor((8, 8), "float32"))
             T.evaluate(
                 intrin_test(
                     sub_B.data,
-                    sub_B.elem_offset,
+                    get_elem_offset_from_layout(sub_B.layout),
                     0,
                     0,
                     0,

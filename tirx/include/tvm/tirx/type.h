@@ -92,15 +92,6 @@ class TensorTypeNode : public TypeNode {
         .def_ro("layout", &TensorTypeNode::layout, refl::DefaultValue(nullptr));
   }
 
-  /*! \brief Extract the ordinary shape-aligned memory layout used by the ABI and S-TIR. */
-  TVM_TIRX_DLL bool IsRegularMemoryLayout() const;
-  /*! \brief Explicit binding strides, or empty for compact binding. */
-  TVM_TIRX_DLL ffi::Array<PrimExpr> GetStrides() const;
-  /*! \brief Memory origin (after swizzling for a composed layout). */
-  TVM_TIRX_DLL PrimExpr GetElemOffset() const;
-  TVM_TIRX_DLL void SetStrides(ffi::Array<PrimExpr> strides);
-  TVM_TIRX_DLL void SetElemOffset(PrimExpr offset);
-
   /*! \return preferred index type for this tensor node */
   PrimType DefaultIndexType() const {
     return !shape.empty() ? shape[0].ty() : tvm::tirx::DefaultIndexType();
@@ -122,10 +113,8 @@ class TensorTypeNode : public TypeNode {
    * float16x4 elements in a tensor of type float16x4.)
    *
    * \param index The index to be accessed.
-   * \param inner Ignore the elem_offset, return inner offset only
    */
-  TVM_TIRX_DLL ffi::Array<PrimExpr> ElemOffset(ffi::Array<PrimExpr> index,
-                                               bool inner = false) const;
+  TVM_TIRX_DLL ffi::Array<PrimExpr> ElemOffset(ffi::Array<PrimExpr> index) const;
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TensorType", TensorTypeNode, TypeNode);
 };

@@ -62,8 +62,16 @@ Type InferTypeDeclTmem(const CallNode* call) {
                     addr_type.bits() == 32,
                 TypeError)
       << "decl_tmem address must be a scalar 32-bit integer";
-  TVM_FFI_CHECK(prim::IsZero(type->GetElemOffset()) && type->GetStrides().empty(), ValueError)
-      << "decl_tmem addresses use physical columns; express tensor offsets through the layout";
+  if (const auto* tile = type->layout.as<TileLayoutNode>()) {
+    TVM_FFI_CHECK(
+        prim::IsZero(tile->memory_origin) &&
+            (!tile->IsRegularMemory(type->shape) || (tile->compact && tile->IsContiguousMemory())),
+        ValueError)
+        << "decl_tmem addresses use physical columns; express tensor offsets through the layout";
+  } else if (const auto* compose = type->layout.as<ComposeLayoutNode>()) {
+    TVM_FFI_CHECK(prim::IsZero(compose->memory_origin), ValueError)
+        << "decl_tmem addresses use physical columns; express tensor offsets through the layout";
+  }
   return type;
 }
 

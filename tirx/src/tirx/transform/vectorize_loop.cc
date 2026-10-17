@@ -395,22 +395,10 @@ class VecAllocAccess : public StmtExprMutator {
       // flattening, the strides are not technically necessary, but
       // are updated for consistency.
 
-      // Update strides if defined.
-      ffi::Array<PrimExpr> strides = node->dest.template as_or_throw<TensorVar>().strides();
-      for (size_t i = 0; i < strides.size(); i++) {
-        PrimExpr stride = strides[i];
-        if (i != strides.size() - 1) {
-          stride *= var_lanes_;
-        }
-        strides.Set(i, analyzer_->Simplify(stride));
-      }
-
-      // Copy everything into the new tensor.
       auto type = ffi::make_object<TensorTypeNode>(
           *node->dest.template as_or_throw<TensorVar>().ty().get());
-      bool regular_layout = type->IsRegularMemoryLayout();
+      WidenLayout(type.get(), shape);
       type->shape = shape;
-      if (!strides.empty() || regular_layout) type->SetStrides(strides);
       buf =
           TensorVar(node->dest.template as_or_throw<TensorVar>()->name, TensorType(std::move(type)),
                     node->dest.template as_or_throw<TensorVar>()->loc);
@@ -439,16 +427,9 @@ class VecAllocAccess : public StmtExprMutator {
     } else {
       ffi::Array<PrimExpr> shape = tensor.shape();
       shape.Set(shape.size() - 1, analyzer_->Simplify(shape.back() * var_lanes_));
-      ffi::Array<PrimExpr> strides = tensor.strides();
-      for (size_t i = 0; i < strides.size(); ++i) {
-        PrimExpr stride = strides[i];
-        if (i + 1 != strides.size()) stride *= var_lanes_;
-        strides.Set(i, analyzer_->Simplify(stride));
-      }
       auto type = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
-      bool regular_layout = type->IsRegularMemoryLayout();
+      WidenLayout(type.get(), shape);
       type->shape = shape;
-      if (!strides.empty() || regular_layout) type->SetStrides(strides);
       buf = TensorVar(tensor->name, TensorType(std::move(type)), tensor->loc);
       VarRemapSet(tensor, buf);
     }
@@ -456,6 +437,21 @@ class VecAllocAccess : public StmtExprMutator {
     indices.Set(indices.size() - 1,
                 analyzer_->Simplify(indices.back() * var_lanes_ + var_.as_or_throw<PrimExpr>()));
     return TensorLoad(buf, indices, node->loc);
+  }
+
+  void WidenLayout(TensorTypeNode* type, const ffi::Array<PrimExpr>& shape) {
+    if (!type->layout.has_value()) return;
+    auto tile = type->layout.value().as_or_throw<TileLayout>();
+    TVM_FFI_CHECK(tile->IsRegularMemory(type->shape), ValueError)
+        << "Vectorized allocation requires a regular memory layout";
+    ffi::Array<Iter> shard;
+    for (size_t i = 0; i < tile->shard.size(); ++i) {
+      PrimExpr stride = tile->shard[i]->stride;
+      if (i + 1 != tile->shard.size()) stride *= var_lanes_;
+      shard.push_back(Iter(shape[i], analyzer_->Simplify(stride), Axis::Get("m")));
+    }
+    tile.CopyOnWrite()->shard = std::move(shard);
+    type->layout = tile;
   }
 
   // tensor var

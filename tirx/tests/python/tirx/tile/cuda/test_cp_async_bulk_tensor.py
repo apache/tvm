@@ -1006,7 +1006,7 @@ def test_explicit_view_base_offset_is_encoded_without_coordinate_rewrite():
     assert isinstance(signature["base"], tvm_tirx.ir.Call)
     assert signature["base"].op.name == "tirx.address_of"
     base = signature["base"].args[0]
-    assert int(base.source.ty.elem_offset) * 2 == 16
+    assert int(base.source.ty.layout.memory_origin) * 2 == 16
     assert _ints(base.indices) == (0, 0)
     assert _ints(signature["dims"]) == (64, 64)
 

@@ -25,6 +25,7 @@
 #define TVM_TOPI_DETAIL_EXTERN_H_
 
 #include <tvm/ir/prim/op.h>
+#include <tvm/s_tir/layout.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/op/abi.h>
 
@@ -106,8 +107,9 @@ inline Expr pack_buffer(TensorVar buf) {
   TVM_FFI_ICHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
   Expr shape = Call(PtrType(PrimType::Int(64)), tvm::tirx::stack_make_shape_op(), buf->shape);
   Expr strides;
-  if (buf->GetStrides().size() > 0) {
-    strides = Call(PtrType(PrimType::Int(64)), tvm::tirx::stack_make_shape_op(), buf->GetStrides());
+  if (s_tir::GetStridesFromLayout(buf->layout).size() > 0) {
+    strides = Call(PtrType(PrimType::Int(64)), tvm::tirx::stack_make_shape_op(),
+                   s_tir::GetStridesFromLayout(buf->layout));
   } else {
     strides = PrimExpr(0);
   }
@@ -116,7 +118,7 @@ inline Expr pack_buffer(TensorVar buf) {
                              strides,
                              IntImm::Int32(static_cast<int64_t>(buf->shape.size())),
                              MakeConst(PrimType(buf->dtype), 0),
-                             buf->GetElemOffset()};
+                             s_tir::GetElemOffsetFromLayout(buf->layout)};
   return Call(PtrType::VoidPtrType(), tvm::tirx::stack_make_dltensor_op(), pack_args);
 }
 

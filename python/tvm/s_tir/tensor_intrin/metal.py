@@ -21,6 +21,7 @@ from typing import Literal
 
 from tvm.s_tir import TensorIntrin
 from tvm.s_tir import script as Ts
+from tvm.s_tir.layout import get_elem_offset_from_layout
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx import Expr, Function, Var
@@ -36,8 +37,8 @@ def get_simdgroup_index(tensor: Var, stride: Expr, col: int, row: int):
 
     # NOTE: Need further check the usage between `col`` and `row`
     # Currently, Metal only supports 8x8, which means the values of `col` and `row` are the same
-    frag_index_m = tensor.elem_offset // stride // col
-    frag_index_n = tensor.elem_offset % stride // row
+    frag_index_m = get_elem_offset_from_layout(tensor.layout) // stride // col
+    frag_index_n = get_elem_offset_from_layout(tensor.layout) % stride // row
 
     num_fragments_per_row = stride // row
     return frag_index_m * num_fragments_per_row + frag_index_n

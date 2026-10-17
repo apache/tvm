@@ -170,6 +170,11 @@ class TileLayoutNode : public LayoutNode {
                 refl::DefaultValue(IntImm(PrimType::Int(64), 0)));
   }
 
+  /*! \brief Whether this is an affine memory map aligned with the logical shape. */
+  TVM_TIRX_DLL bool IsRegularMemory(const ffi::Array<PrimExpr>& shape) const;
+  /*! \brief Whether shard coordinates form contiguous row-major memory, ignoring unit axes. */
+  TVM_TIRX_DLL bool IsContiguousMemory() const;
+
   /*! \brief Verify if the layout is well-formed */
   bool VerifyWellFormed() const final;
 
@@ -218,7 +223,8 @@ class TileLayout : public Layout {
  public:
   TVM_TIRX_DLL explicit TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
                                    ffi::Map<Axis, PrimExpr> offset,
-                                   ffi::Optional<PrimExpr> memory_origin = std::nullopt);
+                                   ffi::Optional<PrimExpr> memory_origin = std::nullopt,
+                                   bool compact = false);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TileLayout, Layout, TileLayoutNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TileLayoutNode);

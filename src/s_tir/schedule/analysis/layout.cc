@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/layout.h>
 
 #include "../utils.h"
 
@@ -32,9 +33,10 @@ using namespace tvm::tirx;
  * \return The strides
  */
 ffi::Array<PrimExpr> GetStrides(const TensorVar& tensor) {
-  if (!tensor.strides().empty()) {
-    TVM_FFI_ICHECK_EQ(tensor.strides().size(), tensor.shape().size());
-    return tensor.strides();
+  if (!s_tir::GetStridesFromLayout(tensor.ty()->layout).empty()) {
+    TVM_FFI_ICHECK_EQ(s_tir::GetStridesFromLayout(tensor.ty()->layout).size(),
+                      tensor.shape().size());
+    return s_tir::GetStridesFromLayout(tensor.ty()->layout);
   }
   int ndim = tensor.shape().size();
   if (ndim == 0) {

@@ -267,14 +267,20 @@ def test_tir_op_mma_store():
         tirx.TensorType([16, 16], "int32", scope="global", offset_factor=1, strides=[x, y]),
     )
     expr = _cuda_op.mma_store(
-        16, 16, tensor.ptr_to([0, 0]), tensor_w.data, tensor_w.ty.elem_offset, x, ty="int32"
+        16,
+        16,
+        tensor.ptr_to([0, 0]),
+        tensor_w.data,
+        0,
+        x,
+        ty="int32",
     )
     assert expr.op.name == "tirx.cuda.mma_store"
 
 
 def test_tir_op_mma_fill():
     tensor_w = tirx.Var("tensor", tirx.TensorType([16, 8], "int32", scope="warp", offset_factor=1))
-    expr = _cuda_op.mma_fill(8, tensor_w.data, tensor_w.ty.elem_offset, ty="int32")
+    expr = _cuda_op.mma_fill(8, tensor_w.data, 0, ty="int32")
     assert expr.op.name == "tirx.cuda.mma_fill"
 
 

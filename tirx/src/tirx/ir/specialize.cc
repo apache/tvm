@@ -350,7 +350,12 @@ void UpdateSpecializeVarMap(const Function& func, const Var& param, const Tensor
       }
       return lhs.same_as(rhs);
     };
-    if (!expr_equal(new_expr, old_expr)) {
+    Expr resolved = old_expr;
+    if (auto prim_expr = old_expr.as<PrimExpr>()) {
+      auto mutator = ffi::make_object<FunctionSpecializer>(*var_map);
+      resolved = mutator->Mutate(prim_expr.value()).ValueOrUnchanged(prim_expr.value());
+    }
+    if (!expr_equal(new_expr, resolved)) {
       auto maybe_var = old_expr.as<Var>();
       TVM_FFI_CHECK(maybe_var, TypeError)
           << "The signature of target tensor exprected an independent Var, but got " << old_expr
@@ -372,18 +377,54 @@ void UpdateSpecializeVarMap(const Function& func, const Var& param, const Tensor
       << "The tensor dimensions mismatched" << buf_to_specialize.shape().size() << " vs. "
       << specific_buf.shape().size() << ".";
 
-  TVM_FFI_CHECK(specific_buf.strides().size() == buf_to_specialize.strides().size(), ValueError)
-      << "The tensor strides dimensions mismatched" << buf_to_specialize.strides().size() << " vs. "
-      << specific_buf.strides().size() << ".";
-
-  // Updating var mapping using specific_expr
   for (size_t i = 0; i < specific_buf.shape().size(); ++i) {
     build_var_mapping(specific_buf.shape()[i], buf_to_specialize.shape()[i]);
   }
-  for (size_t i = 0; i < specific_buf.strides().size(); ++i) {
-    build_var_mapping(specific_buf.strides()[i], buf_to_specialize.strides()[i]);
+  auto default_layout = [](const TensorVar& tensor) -> Layout {
+    if (tensor.ty()->layout.has_value()) return tensor.ty()->layout.value();
+    auto tile = TileLayoutNode::DefaultLayout(tensor.shape());
+    tile.CopyOnWrite()->compact = true;
+    return tile;
+  };
+  auto match_tile = [&](const TileLayoutNode* specific, const TileLayoutNode* original) {
+    TVM_FFI_CHECK(specific && original && specific->compact == original->compact &&
+                      specific->shard.size() == original->shard.size() &&
+                      specific->replica.size() == original->replica.size() &&
+                      specific->offset.size() == original->offset.size(),
+                  ValueError)
+        << "The tensor layouts mismatched";
+    auto match_iters = [&](const ffi::Array<Iter>& lhs, const ffi::Array<Iter>& rhs) {
+      for (size_t i = 0; i < lhs.size(); ++i) {
+        TVM_FFI_CHECK(lhs[i]->axis == rhs[i]->axis, ValueError)
+            << "The tensor layout axes mismatched";
+        build_var_mapping(lhs[i]->extent, rhs[i]->extent);
+        build_var_mapping(lhs[i]->stride, rhs[i]->stride);
+      }
+    };
+    match_iters(specific->shard, original->shard);
+    match_iters(specific->replica, original->replica);
+    for (const auto& [axis, offset] : original->offset) {
+      TVM_FFI_CHECK(specific->offset.count(axis), ValueError)
+          << "The tensor layout offset axes mismatched";
+      build_var_mapping(specific->offset[axis], offset);
+    }
+    build_var_mapping(specific->memory_origin, original->memory_origin);
+  };
+  Layout specific_layout = default_layout(specific_buf);
+  Layout original_layout = default_layout(buf_to_specialize);
+  if (const auto* compose = original_layout.as<ComposeLayoutNode>()) {
+    const auto* specific = specific_layout.as<ComposeLayoutNode>();
+    TVM_FFI_CHECK(specific && specific->per_element == compose->per_element &&
+                      specific->swizzle_len == compose->swizzle_len &&
+                      specific->atom_len == compose->atom_len &&
+                      specific->swizzle_inner == compose->swizzle_inner,
+                  ValueError)
+        << "The tensor swizzle layouts mismatched";
+    match_tile(specific->tile_layout.get(), compose->tile_layout.get());
+    build_var_mapping(specific->memory_origin, compose->memory_origin);
+  } else {
+    match_tile(specific_layout.as<TileLayoutNode>(), original_layout.as<TileLayoutNode>());
   }
-  build_var_mapping(specific_buf.elem_offset(), buf_to_specialize.elem_offset());
   // The specializer distinguishes a concrete tensor constraint (which keeps
   // the parameter) from another function parameter (which aliases it).
   build_var_mapping(specific_buf, buf_to_specialize);

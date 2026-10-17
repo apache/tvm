@@ -29,6 +29,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/s_tir/function.h>
+#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/analyzer.h>
@@ -776,13 +777,18 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     const te::Tensor& output_tensor = extern_op.output(i);
     TensorVar output_tir_tensor = info->transformer->NormalizeTensorType(placeholder);
     if (!info->IsArg(output_tensor)) {
-      PrimExpr zero_offset = IntImm(placeholder.elem_offset().ty(), 0);
-      if (auto offset_var = placeholder.elem_offset().as<PrimVar>()) {
+      PrimExpr zero_offset =
+          IntImm(s_tir::GetElemOffsetFromLayout(placeholder.ty()->layout).ty(), 0);
+      if (auto offset_var =
+              s_tir::GetElemOffsetFromLayout(placeholder.ty()->layout).as<PrimVar>()) {
         var_map.insert_or_assign(offset_var.value().get(), zero_offset);
       }
       ffi::ObjectPtr<TensorTypeNode> type =
           ffi::make_object<TensorTypeNode>(*output_tir_tensor.ty().get());
-      type->SetElemOffset(zero_offset);
+      if (type->layout.has_value()) {
+        auto tile = type->layout.value().as_or_throw<tirx::TileLayout>();
+        type->layout = tirx::TileLayout(tile->shard, tile->replica, {}, zero_offset, tile->compact);
+      }
       output_tir_tensor =
           TensorVar(output_tir_tensor->name, TensorType(std::move(type)), output_tir_tensor->loc);
       info->root_alloc.push_back(output_tir_tensor);

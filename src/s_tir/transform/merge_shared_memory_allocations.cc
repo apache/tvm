@@ -32,6 +32,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory_scope.h>
+#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -57,12 +58,16 @@ namespace {
 
 ffi::Array<PrimExpr> GetTensorAllocationShape(const TensorVar& tensor) {
   ffi::Array<PrimExpr> alloc_shape = tensor.shape();
-  if (tensor.strides().size()) {
-    TVM_FFI_ICHECK_EQ(tensor.shape().size(), tensor.strides().size());
-    for (size_t i = tensor.strides().size() - 1; i > 0; --i) {
+  if (s_tir::GetStridesFromLayout(tensor.ty()->layout).size()) {
+    TVM_FFI_ICHECK_EQ(tensor.shape().size(),
+                      s_tir::GetStridesFromLayout(tensor.ty()->layout).size());
+    for (size_t i = s_tir::GetStridesFromLayout(tensor.ty()->layout).size() - 1; i > 0; --i) {
       TVM_FFI_ICHECK(sym::Analyzer()->CanProveEqual(
-          floormod(tensor.strides()[i - 1], tensor.strides()[i]), 0));
-      alloc_shape.Set(i, tensor.strides()[i - 1] / tensor.strides()[i]);
+          floormod(s_tir::GetStridesFromLayout(tensor.ty()->layout)[i - 1],
+                   s_tir::GetStridesFromLayout(tensor.ty()->layout)[i]),
+          0));
+      alloc_shape.Set(i, s_tir::GetStridesFromLayout(tensor.ty()->layout)[i - 1] /
+                             s_tir::GetStridesFromLayout(tensor.ty()->layout)[i]);
     }
   }
   return alloc_shape;

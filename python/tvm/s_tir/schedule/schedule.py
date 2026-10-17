@@ -3071,13 +3071,13 @@ class Schedule(tvm_ffi.Object):
                     T.evaluate(
                         T.gpu_mma_sync(
                             C.data,
-                            C.elem_offset // 256,
+                            get_elem_offset_from_layout(C.layout) // 256,
                             A.data,
-                            A.elem_offset // 256,
+                            get_elem_offset_from_layout(A.layout) // 256,
                             B.data,
-                            B.elem_offset // 256,
+                            get_elem_offset_from_layout(B.layout) // 256,
                             C.data,
-                            C.elem_offset // 256,
+                            get_elem_offset_from_layout(C.layout) // 256,
                             dtype="void",
                         )
                     )
@@ -3136,13 +3136,13 @@ class Schedule(tvm_ffi.Object):
                         T.evaluate(
                             T.gpu_mma_sync(
                                 C_1.data,
-                                C_1.elem_offset // 256,
+                                get_elem_offset_from_layout(C_1.layout) // 256,
                                 A_1.data,
-                                A_1.elem_offset // 256,
+                                get_elem_offset_from_layout(A_1.layout) // 256,
                                 B_1.data,
-                                B_1.elem_offset // 256,
+                                get_elem_offset_from_layout(B_1.layout) // 256,
                                 C_1.data,
-                                C_1.elem_offset // 256,
+                                get_elem_offset_from_layout(C_1.layout) // 256,
                                 dtype="void",
                             )
                         )

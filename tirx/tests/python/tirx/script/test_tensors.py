@@ -978,7 +978,9 @@ def test_tensor_sub_multi_iter_dim_ir():
 
     a_buf, b_buf = _collect_tensors(func)
     # 5 -> (5 // 4, 5 % 4) = (1, 1) -> 1 * 1024 + 1 * 64
-    assert int(tvm_tirx.sym.Analyzer().simplify(b_buf.elem_offset - a_buf.elem_offset)) == 1088
+    assert int(tvm_tirx.sym.Analyzer().simplify(
+        b_buf.layout.memory_origin - a_buf.layout.memory_origin
+    )) == 1088
     assert [int(s) for s in b_buf.shape] == [16]
     assert_structural_equal(
         b_buf.layout,
@@ -1031,18 +1033,24 @@ def test_tensor_sub_ir():
     a_buf, _, b_buf, _, c_buf = _collect_tensors(func)
     # sub[1, 2:6]: drop dim 0 at 1 (1 * 256) then narrow dim 1 to [2, 6) (2 * 16)
     assert [int(s) for s in b_buf.shape] == [4, 16]
-    assert int(tvm_tirx.sym.Analyzer().simplify(b_buf.elem_offset - a_buf.elem_offset)) == 288
+    assert int(tvm_tirx.sym.Analyzer().simplify(
+        b_buf.layout.memory_origin - a_buf.layout.memory_origin
+    )) == 288
     assert_structural_equal(
         b_buf.layout,
-        tvm_tirx.tirx.layout.TileLayout(T.S[(4, 16) : (16, 1)], memory_origin=b_buf.elem_offset),
+        tvm_tirx.tirx.layout.TileLayout(
+            T.S[(4, 16) : (16, 1)], memory_origin=b_buf.layout.memory_origin
+        ),
     )
     # sub[:, 1::2]: keep dim 0, split dim 1 into (4, 2) and fix the remainder at 1
     assert [int(s) for s in c_buf.shape] == [4, 4, 16]
-    assert int(tvm_tirx.sym.Analyzer().simplify(c_buf.elem_offset - a_buf.elem_offset)) == 16
+    assert int(tvm_tirx.sym.Analyzer().simplify(
+        c_buf.layout.memory_origin - a_buf.layout.memory_origin
+    )) == 16
     assert_structural_equal(
         c_buf.layout,
         tvm_tirx.tirx.layout.TileLayout(
-            T.S[(4, 4, 16) : (256, 32, 1)], memory_origin=c_buf.elem_offset
+            T.S[(4, 4, 16) : (256, 32, 1)], memory_origin=c_buf.layout.memory_origin
         ),
     )
 
@@ -1121,8 +1129,8 @@ def test_tensor_sub_swizzle_commutation():
         # fmt: on
 
     a_buf, b_buf, c_buf = _collect_tensors(func)
-    base = a_buf.elem_offset
-    assert int(analyzer.simplify(b_buf.elem_offset - base)) == 1024
+    base = a_buf.layout.memory_origin
+    assert int(analyzer.simplify(b_buf.layout.memory_origin - base)) == 1024
     for j in (0, 1, 63, 511, 1023):
         assert addr(a_buf, base, 1024 + j) == addr(b_buf, base, j)
     for j in (0, 1, 255, 511):
@@ -1156,7 +1164,7 @@ def test_tensor_sub_swizzle_commutation():
         # fmt: on
 
     a2, b2, c2, d2, e2, _ = _collect_tensors(func2)
-    base2 = a2.elem_offset
+    base2 = a2.layout.memory_origin
     shape2 = [2, 16, 8]
     for name, child, to_parent in [
         ("B", b2, lambda c: (c[0], 1, c[1])),
@@ -1164,7 +1172,7 @@ def test_tensor_sub_swizzle_commutation():
         ("D", d2, lambda c: (c[0], 1 + c[1], c[2])),
         ("E", e2, lambda c: (c[0], 1 + c[1], c[2])),
     ]:
-        assert int(analyzer.simplify(child.elem_offset - base2)) == 0
+        assert int(analyzer.simplify(child.layout.memory_origin - base2)) == 0
         child_shape = [int(s) for s in child.shape]
         for flat in range(math.prod(child_shape)):
             coords, rem = [], flat
@@ -1197,7 +1205,8 @@ def test_tensor_sub_swizzle_commutation():
 
     a3, b3 = _collect_tensors(func3)
     for j in range(8):
-        assert addr(a3, a3.elem_offset, 8 + j) == addr(b3, a3.elem_offset, j) == 8 + j
+        assert (addr(a3, a3.layout.memory_origin, 8 + j)
+                == addr(b3, a3.layout.memory_origin, j) == 8 + j)
 
 
 def test_tensor_factored_views():
@@ -1500,7 +1509,7 @@ def test_memory_scope_canonical_constructor_aliases_and_reflected_scopes():
         tensor_type = func.params[1].ty
         assert pointer_type.scope.same_as(expected_scope)
         assert tensor_type.scope.same_as(expected_scope)
-        assert tensor_type.elem_offset.value == 2
+        assert tensor_type.layout.memory_origin.value == 2
         assert tensor_type.data_alignment == 128
         script = func.script()
         if expected_scope == MemoryScope("global"):

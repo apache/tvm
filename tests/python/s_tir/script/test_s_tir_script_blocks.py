@@ -30,7 +30,7 @@ from tvm_tirx.ir import Range, TensorRegion, TensorRegionType
 from tvm_tirx.script import tirx as T
 
 # Expected completed types use the configured fixed index dtype, not shape dtype.
-_DEFAULT_ELEM_OFFSET = T.IntImm(T.Tensor((), "float32").elem_offset.ty.dtype, 0)
+_DEFAULT_ELEM_OFFSET = T.IntImm(tvm_tirx.ir.PrimType("int64").dtype, 0)
 
 
 @Ts.function

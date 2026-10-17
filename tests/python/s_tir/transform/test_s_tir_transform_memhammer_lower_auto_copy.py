@@ -25,6 +25,7 @@ import tvm
 import tvm_tirx
 from tvm import s_tir
 from tvm.s_tir import script as Ts
+from tvm.s_tir.layout import get_elem_offset_from_layout
 from tvm_tirx.script import tirx as T
 
 
@@ -489,8 +490,10 @@ class TransformedSharedToWmma:
                                                 16,
                                                 16,
                                                 16,
-                                                tgt.elem_offset // 256
-                                                + tgt.elem_offset % 256 // 16,
+                                                get_elem_offset_from_layout(tgt.layout) // 256
+                                                + get_elem_offset_from_layout(tgt.layout)
+                                                % 256
+                                                // 16,
                                                 src.ptr_to([0] * len(src.shape)),
                                                 s1,
                                                 "row_major",
@@ -564,8 +567,10 @@ class TransformedWmmaToShared:
                                                 16,
                                                 16,
                                                 16,
-                                                src.elem_offset // 256
-                                                + src.elem_offset % 256 // 16,
+                                                get_elem_offset_from_layout(src.layout) // 256
+                                                + get_elem_offset_from_layout(src.layout)
+                                                % 256
+                                                // 16,
                                                 tgt.ptr_to([0] * len(tgt.shape)),
                                                 s1,
                                                 "row_major",
@@ -628,8 +633,10 @@ class TransformedWmmaToGlobal:
                                                 16,
                                                 16,
                                                 16,
-                                                src.elem_offset // 256
-                                                + src.elem_offset % 256 // 16,
+                                                get_elem_offset_from_layout(src.layout) // 256
+                                                + get_elem_offset_from_layout(src.layout)
+                                                % 256
+                                                // 16,
                                                 tgt.ptr_to([0] * len(tgt.shape)),
                                                 s1,
                                                 "row_major",
@@ -830,8 +837,10 @@ class TransformedWmmaToGlobalWithFusion:
                                                 16,
                                                 16,
                                                 16,
-                                                src.elem_offset // 256
-                                                + src.elem_offset % 256 // 16,
+                                                get_elem_offset_from_layout(src.layout) // 256
+                                                + get_elem_offset_from_layout(src.layout)
+                                                % 256
+                                                // 16,
                                                 tgt.ptr_to([0] * len(tgt.shape)),
                                                 s1_1,
                                                 "row_major",

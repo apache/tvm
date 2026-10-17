@@ -25,6 +25,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/memory_scope.h>
+#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -182,7 +183,7 @@ class AutoPadder {
           strides.push_back(reverse_strides[i]);
         }
         strides.push_back(1);
-        b->SetStrides(strides);
+        b->layout = s_tir::WithStrides(b->layout, b->shape, strides);
         TensorVar new_tensor = TensorVar(tensor->name, TensorType(std::move(b)), tensor->loc);
         result.push_back(new_tensor);
         padded_tensor_map_.Set(tensor, new_tensor);

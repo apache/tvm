@@ -181,10 +181,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /**************** TileLayout ****************/
 TileLayout::TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
-                       ffi::Map<Axis, PrimExpr> offset, ffi::Optional<PrimExpr> memory_origin)
+                       ffi::Map<Axis, PrimExpr> offset, ffi::Optional<PrimExpr> memory_origin,
+                       bool compact)
     : Layout(ffi::UnsafeInit{}) {
   auto n = ffi::make_object<TileLayoutNode>();
   if (memory_origin.has_value()) n->memory_origin = memory_origin.value();
+  n->compact = compact;
   n->shard = shard;
   n->replica = replica;
   n->offset = offset;
@@ -201,12 +203,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TileLayoutMaybeInplaceMutate>());
 
+  refl::GlobalDef()
+      .def("tirx.TileLayoutIsRegularMemory",
+           [](TileLayout layout, ffi::Array<PrimExpr> shape) {
+             return layout->IsRegularMemory(shape);
+           })
+      .def("tirx.TileLayoutIsContiguousMemory",
+           [](TileLayout layout) { return layout->IsContiguousMemory(); });
   refl::GlobalDef().def("tirx.TileLayout", [](ffi::Array<Iter> shard, ffi::Array<Iter> replica,
                                               ffi::Map<Axis, PrimExpr> offset, bool compact,
                                               ffi::Optional<PrimExpr> memory_origin) {
-    auto result = TileLayout(shard, replica, offset, memory_origin);
-    result.CopyOnWrite()->compact = compact;
-    return result;
+    return TileLayout(shard, replica, offset, memory_origin, compact);
   });
 }
 
@@ -325,6 +332,36 @@ ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(Array<PrimExpr> coord) con
 
 ffi::Array<PrimExpr> TileLayoutNode::GetShardShape() const {
   return shard.Map([](const Iter& iter) { return iter->extent; });
+}
+
+bool TileLayoutNode::IsRegularMemory(const ffi::Array<PrimExpr>& shape) const {
+  if (!replica.empty() || shard.size() != shape.size()) return false;
+  sym::Analyzer analyzer;
+  for (size_t i = 0; i < shape.size(); ++i) {
+    if (shard[i]->axis.name() != "m" || !analyzer->CanProveEqual(shard[i]->extent, shape[i]))
+      return false;
+  }
+  for (const auto& [axis, value] : offset) {
+    if (axis.name() != "m") return false;
+  }
+  return true;
+}
+
+bool TileLayoutNode::IsContiguousMemory() const {
+  if (!replica.empty()) return false;
+  sym::Analyzer analyzer;
+  PrimExpr expected = IntImm::Int32(1);
+  for (size_t i = shard.size(); i > 0; --i) {
+    const auto& iter = shard[i - 1];
+    if (iter->axis.name() != "m" || (!analyzer->CanProveEqual(iter->extent, 1) &&
+                                     !analyzer->CanProveEqual(iter->stride, expected)))
+      return false;
+    expected = expected * iter->extent;
+  }
+  for (const auto& [axis, value] : offset) {
+    if (axis.name() != "m") return false;
+  }
+  return true;
 }
 
 bool TileLayoutNode::IsTrivial() const {
