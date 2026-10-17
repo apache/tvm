@@ -281,12 +281,6 @@ class BuiltinLower : public StmtExprMutator {
     DLDataType dtype = tensor_call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
     PrimType element_type(dtype);
     auto scope = tensor_call->ty_args[0].as_or_throw<TensorType>()->scope;
-    DictAttrs annotations = tensor_call->attrs.value().as_or_throw<DictAttrs>();
-    if (annotations->dict.count(transform::kDisableLowerTVMBuiltin)) {
-      if (annotations->dict[transform::kDisableLowerTVMBuiltin].as_or_throw<IntImm>()->value) {
-        return stmt;
-      }
-    }
     if (element_type.IsScalableVector()) {
       return stmt;
     }

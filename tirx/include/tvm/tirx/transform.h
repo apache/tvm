@@ -192,11 +192,6 @@ TVM_TIRX_DLL Pass SplitHostDevice();
 TVM_TIRX_DLL Pass SkipAssert();
 
 /*!
- * \brief This annotation is for nodes to be disabled for builtin lowering
- */
-static constexpr const char* kDisableLowerTVMBuiltin = "disable_lower_builtin";
-
-/*!
  * \brief Lower builtin intrinsics.
  * \return The pass.
  */
