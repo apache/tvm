@@ -444,13 +444,8 @@ bool TensorVar::IsScalar(bool alloc_or_decl) const { return ty()->IsScalar(alloc
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tirx.TensorVar",
-           [](ffi::String name, TensorType type, Location loc) {
-             return TensorVar(std::move(name), std::move(type), std::move(loc));
-           })
       .def_method("tirx.TensorStorageScope", &TensorVar::scope)
-      .def_method("tirx.TensorIsScalar", &TensorVar::IsScalar)
-      .def_method("tirx.TensorData", &TensorVar::data);
+      .def_method("tirx.TensorIsScalar", &TensorVar::IsScalar);
 }
 
 }  // namespace tirx
