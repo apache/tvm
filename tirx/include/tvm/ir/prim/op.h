@@ -493,7 +493,6 @@ TVM_TIRX_DLL PrimExpr max_value(PrimType dtype, Location loc = UnknownLoc());
  * uses MakeConst for scalar and vector constants.
  */
 TVM_TIRX_DLL PrimExpr cast(PrimExpr value, PrimType t, Location loc = UnknownLoc());
-TVM_TIRX_DLL PrimExpr cast(PrimExpr value, DLDataType t, Location loc = UnknownLoc());
 /*! \brief Construct integer absolute value; floating absolute value belongs to TIRX. */
 TVM_TIRX_DLL PrimExpr IntegerAbs(PrimExpr x, Location loc = UnknownLoc());
 /*!

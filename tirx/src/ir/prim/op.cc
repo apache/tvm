@@ -360,10 +360,6 @@ PrimExpr cast(PrimExpr value, PrimType t, Location loc) {
   }
 }
 
-PrimExpr cast(PrimExpr value, DLDataType dtype, Location loc) {
-  return cast(std::move(value), PrimType(dtype), std::move(loc));
-}
-
 template <typename ValueType>
 inline bool ConstPowerHelper(ValueType val, int* shift) {
   if (val <= 0) return false;
