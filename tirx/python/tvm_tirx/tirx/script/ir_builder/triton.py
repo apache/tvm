@@ -42,9 +42,10 @@ class TritonKernel(BaseKernel):
 
     This class bridges the Triton kernel with TVM runtime. The compilation includes the following
     steps:
-        - Deduce the kernel signature and generate the Triton kernel
-        - Embed the compiled kernel into the current IRModule as an external module
-        - Generate a call to the Triton kernel following its calling convention via call_packed.
+
+    - Deduce the kernel signature and generate the Triton kernel
+    - Embed the compiled kernel into the current IRModule as an external module
+    - Generate a call to the Triton kernel following its calling convention via call_packed.
     """
 
     def __init__(self, func):

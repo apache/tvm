@@ -14,7 +14,65 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Canonical TVMScript parser with language variant namespace initialization."""
+"""TVMScript translates Python syntax into an executable IR-builder program. This
+lets assignments and control flow construct IR instead of executing as ordinary
+Python, while native builder frames own the resulting functions and statements.
+
+For example, this source defines a TIRx function:
+
+.. code-block:: python
+
+    from tvm_tirx.script import tirx as T
+
+    @T.function
+    def example(a: T.int32):
+        T.evaluate(a + 1)
+
+The corresponding builder form is illustrated below. It omits generated lexical
+helpers and source-location instrumentation; it is not a verbatim transpiler dump.
+
+.. code-block:: python
+
+    from tvm_tirx.script.ir_builder import IRBuilder
+    from tvm_tirx.tirx.script import ir_builder as B
+
+    with IRBuilder() as builder:
+        with B.function_():
+            B.func_name_("example")
+            a = B.arg_("a", B.int32)
+            B.emit_(B.evaluate(a + 1))
+    example = builder.get()
+
+A language namespace implements the hooks documented by
+:mod:`tvm_tirx.script.ir_builder.parser_protocol`, including function construction,
+binding, statement emission, and control flow. Register that namespace with
+:func:`register_namespace` and construct its qualified source decorator with
+:func:`make_decorator`. For example, an extension of the TIRx namespace can
+observe statement emission while retaining its existing construction behavior:
+
+.. code-block:: python
+
+    from types import SimpleNamespace
+    from tvm_tirx.script.parser import make_decorator, register_namespace
+
+    M = SimpleNamespace(**vars(B))
+
+    def emit(value, *, loc=None):
+        print(type(value).__name__)
+        return B.emit_(value, loc=loc)
+
+    M.emit_ = emit
+    M.function = make_decorator(M, namespace_path="custom.function")
+    register_namespace("custom", M)
+
+    @M.function
+    def customized(a: M.int32):
+        M.evaluate(a + 1)
+
+Use the qualified decorator at the definition site. The registered namespace
+supplies the hooks; the shared protocol module documents their contracts and
+contains language-specific placeholders, not a complete language implementation.
+"""
 
 from __future__ import annotations
 
