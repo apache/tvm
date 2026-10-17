@@ -451,12 +451,16 @@ def TileDispatch():
     return _ffi_api.TileDispatch()  # type: ignore
 
 
-def LowerTIRx():
-    """Lower TIR to a lower-level IR.
+def LowerTensorLayouts():
+    """Apply tensor layouts to physical storage and accesses.
+
+    Run after :py:func:`TileDispatch` for generic tile compilation, or
+    independently on already dispatched IR. Backends may pair TileDispatch
+    with their own layout-lowering pass.
 
     Returns
     -------
     fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
-    return _ffi_api.LowerTIRx()  # type: ignore
+    return _ffi_api.LowerTensorLayouts()  # type: ignore

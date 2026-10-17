@@ -119,7 +119,7 @@ def _build_tiled(Mt, Nt, Kt, kinst, *, beta=0.0, dtype="float16", store=False):
 
     With ``store=True`` the result is written back to a global tensor (a full
     kernel for codegen); otherwise only the ``T.cuda.tile.apply`` is emitted (for
-    ``LowerTIRx`` dispatch checks).
+    ``TileDispatch`` checks).
     """
     Dl, Al, Bl = _frag(Mt, Nt, Kt, kinst)
     M, N, K = 16 * Mt, 8 * Nt, kinst * Kt
@@ -444,7 +444,9 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
 
 def _lower(func):
     with tvm_tirx.target.Target("cuda"):
-        return tvm_tirx.tirx.transform.LowerTIRx()(tvm_tirx.IRModule({"main": func}))
+        return tvm_tirx.ir.transform.Sequential(
+            [tvm_tirx.tirx.transform.TileDispatch(), tvm_tirx.tirx.transform.LowerTensorLayouts()]
+        )(tvm_tirx.IRModule({"main": func}))
 
 
 def test_cuda_mma_sync_is_a_registered_instruction():

@@ -19,6 +19,7 @@
 """The TIR backend compilation pipeline."""
 
 import inspect
+import os
 
 import tvm_tirx
 from tvm_tirx import tirx
@@ -41,8 +42,11 @@ def tirx_pipeline(*, prepare_only=False, target=None):
         mod = _bind_target(mod, target)
         pass_ctx = tvm_tirx.ir.transform.PassContext.current()
         config = pass_ctx.config
-        passes = [
-            tirx.transform.LowerTIRx(),
+        passes = [tirx.transform.TileDispatch()]
+        if "TVM_PRINT_AFTER_TIRX_DISPATCH_OPS" in os.environ:
+            passes.append(tvm_tirx.ir.transform.PrintIR())
+        passes += [
+            tirx.transform.LowerTensorLayouts(),
             tirx.transform.StmtSimplify(),
             tirx.transform.FlattenTensor(),
             tirx.transform.NarrowDataType(32),

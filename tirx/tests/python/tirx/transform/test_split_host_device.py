@@ -585,7 +585,9 @@ def test_cuda_required_block_size_coexists_with_launch_bounds():
                 A[bx] = 0.0
 
     with tvm_tirx.target.Target("cuda"):
-        after = tvm_tirx.tirx.transform.LowerTIRx()(Before)
+        after = tvm_tirx.ir.transform.Sequential(
+            [tvm_tirx.tirx.transform.TileDispatch(), tvm_tirx.tirx.transform.LowerTensorLayouts()]
+        )(Before)
         after = tvm_tirx.tirx.transform.SplitHostDevice()(after)
     kernel = after["main_kernel"]
     kernel_attrs = kernel.attrs["cuda.kernel_attrs"]

@@ -39,7 +39,8 @@ active-thread execution contexts, and predicate analysis remain private to
 ``src/backend/cuda/tile/``. Generic tensor layout types remain in
 ``include/tvm/tirx/layout.h``.
 
-``tirx.TileDispatch`` remains the first phase of ``LowerTIRx``.
+``tirx.TileDispatch`` runs before ``LowerTensorLayouts`` in the generic compilation pipeline.
+Backends may instead follow dispatch with their own layout-lowering pass.
 The pass recognizes ``Evaluate(Call)`` by the presence of the operator's
 ``FTileOpDispatch`` attribute. It validates the call, reads its reflected
 ``ThreadScope`` ``scope`` attribute, checks its backend against the target,
