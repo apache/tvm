@@ -55,7 +55,7 @@ namespace tirx {
  *
  * Statements are separated into three sequences to ensure correct variable
  * scoping.  Symbolic shape variables (e.g. batch_size) may appear in an
- * earlier tensor's nonlinear shape expression (batch_size * batch_size) before being defined
+ * earlier tensor's shape expression (batch_size + 1) before being defined
  * by a later tensor's shape (batch_size).  Separating definitions from
  * checks guarantees all variables are in scope when assertions reference them.
  *
@@ -127,7 +127,8 @@ class TVMFFIABIBuilder {
    * This is the primary public method after construction. It:
    * 1. Calls DecodeParam(i) for each parameter to type-check, load values,
    *    and bind scalar params
-   * 2. Binds DLTensor tensors to handles (shape, strides, dtype, device checks)
+   * 2. Binds DLTensor tensors to handles, preferring bare-variable dimensions
+   * 3. Infers unresolved linear shapes, then adds remaining shape checks
    *
    * Statements are routed to init_nest_, asserts_, or decl_tensors_.
    */
@@ -226,9 +227,9 @@ class TVMFFIABIBuilder {
 
   // ── Private binding submethods (all take ffi::reflection::AccessPath) ───────────
 
-  /*! \brief Infer an unbound variable from a linear shape, or check an existing shape. */
-  void BindShape(const PrimExpr& arg, const PrimExpr& value,
-                 const ffi::reflection::AccessPath& path);
+  /*! \brief Infer a variable from a linear shape when no bare dimension defines it. */
+  bool BindIntExpr(const PrimExpr& arg, const PrimExpr& value,
+                   const ffi::reflection::AccessPath& path);
 
   /*!
    * \brief Internal scalar bind with ffi::reflection::AccessPath tracking and rich error messages.
@@ -387,6 +388,15 @@ class TVMFFIABIBuilder {
     PrimExpr expected_expr;
   };
 
+  struct PendingShape {
+    PrimExpr arg;
+    PrimExpr value;
+    ffi::reflection::AccessPath path;
+    bool inferred{false};
+  };
+
+  /*! \brief Non-variable shapes, processed after all bare dimensions have been bound. */
+  std::vector<PendingShape> pending_shapes_;
   /*! \brief The definition map: VarNode* -> VarDefInfo (value + first_def_path). */
   std::unordered_map<const VarNode*, VarDefInfo> var_defs_;
   /*! \brief Decoded shape expressions for diagnostics of inferred variables. */

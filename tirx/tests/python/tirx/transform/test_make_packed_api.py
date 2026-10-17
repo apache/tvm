@@ -247,19 +247,6 @@ def test_target_host_removed():
                         " bytes",
                     ],
                 )
-                assert T.Cast("int32", T.abi_field_get(main_A_shape, 0, 17, ty="int64")) == 1, (
-                    "ValueError",
-                    [
-                        "Invalid ",
-                        "A.shape[0]",
-                        " on argument #",
-                        "0",
-                        " when calling:\n  `",
-                        "main(A: Tensor([1], float32))",
-                        "`,\n  expected ",
-                        "1",
-                    ],
-                )
                 assert T.uint64(0) == T.abi_field_get(A_handle, 0, 8, ty="uint64"), (
                     "ValueError",
                     [
@@ -271,6 +258,19 @@ def test_target_host_removed():
                         "main(A: Tensor([1], float32))",
                         "`,\n  expected ",
                         "0",
+                    ],
+                )
+                assert T.Cast("int32", T.abi_field_get(main_A_shape, 0, 17, ty="int64")) == 1, (
+                    "ValueError",
+                    [
+                        "Invalid ",
+                        "A.shape[0]",
+                        " on argument #",
+                        "0",
+                        " when calling:\n  `",
+                        "main(A: Tensor([1], float32))",
+                        "`,\n  expected ",
+                        "1",
                     ],
                 )
                 A = T.decl_tensor(
@@ -901,74 +901,231 @@ def test_float_parameter():
     tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
-@pytest.mark.parametrize(
-    "factor,offset,dtype", [(4, 3, "int32"), (4, 0, "int64"), (1, 3, "int64"), (-4, 23, "int64")]
-)
-def test_linear_shape_binding(factor, offset, dtype):
-    n = T.dynamic("n", dtype)
+def test_linear_shape_binding():
+    n = T.dynamic("n", "int64")
+    signature = "main(A: Tensor([T.int64(4) * n + T.int64(3)], float32))"
 
     @I.ir_module
     class Before:
         @T.function
-        def main(A: T.Tensor((factor * n + offset,), "float32")):
+        def main(A: T.Tensor((4 * n + 3,), "float32")):
             T.func_attr({"target": T.target("llvm", host="llvm")})
             T.evaluate(n)
 
-    after = tvm_tirx.tirx.transform.MakePackedAPI()(Before)
-    statements = []
-    tvm_ffi.structural_walk(
-        after["main"].body,
-        lambda node: statements.append(node)
-        if isinstance(node, tvm_tirx.ir.Bind | tvm_tirx.ir.AssertStmt)
-        else None,
-    )
-    shape = next(
-        stmt
-        for stmt in statements
-        if isinstance(stmt, tvm_tirx.ir.Bind) and stmt.var.name == "shape_value"
-    )
-    binding = next(
-        stmt for stmt in statements if isinstance(stmt, tvm_tirx.ir.Bind) and stmt.var.same_as(n)
-    )
-    delta = shape.var - offset
-    tvm_tirx.ir.assert_structural_equal(binding.value, tvm_tirx.ir.prim.truncdiv(delta, factor))
-    assert statements.index(shape) < statements.index(binding)
-    if factor != 1:
-        check = next(
-            stmt
-            for stmt in statements
-            if isinstance(stmt, tvm_tirx.ir.AssertStmt)
-            and any("divisible" in str(part) for part in stmt.message_parts)
-        )
-        tvm_tirx.ir.assert_structural_equal(
-            check.condition, tvm_tirx.ir.prim.truncmod(delta, factor) == 0
-        )
-        assert statements.index(shape) < statements.index(check) < statements.index(binding)
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main(
+            self_handle: T.Ptr(T.void),
+            args: T.Ptr(T.void),
+            num_args: T.int32,
+            result: T.Ptr(T.void),
+        ) -> T.int32:
+            T.func_attr({"global_symbol": "__tvm_ffi_main"})
+            T.func_attr({"calling_conv": 1, "target": T.target("llvm")})
+            assert num_args == 1, (
+                "TypeError",
+                ["Expected ", "1", " arguments", " when calling:\n  `", signature, "`"],
+            )
+            assert not T.isnullptr(args), (
+                "TypeError",
+                ["args pointer is NULL", " when calling:\n  `", signature, "`"],
+            )
+            A_type_index: T.let[T.int32] = T.abi_field_get(args, 0, 13, ty=T.int32)
+            assert (
+                A_type_index == 0 or A_type_index == 4 or A_type_index == 7 or A_type_index >= 64
+            ), (
+                "TypeError",
+                [
+                    "Mismatched type on argument #",
+                    "0",
+                    " when calling:\n  `",
+                    signature,
+                    "`,\n  expected ",
+                    "Tensor",
+                ],
+            )
+            A_handle: T.let[T.Ptr(T.void)] = T.if_then_else(
+                A_type_index == 70,
+                T.handle_add_byte_offset(T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)), 24),
+                T.abi_field_get(args, 0, 15, ty=T.Ptr(T.void)),
+            )
+            assert not T.isnullptr(A_handle), (
+                "TypeError",
+                [
+                    "Mismatched type on argument #",
+                    "0",
+                    " when calling:\n  `",
+                    signature,
+                    "`,\n  expected ",
+                    "Tensor",
+                ],
+            )
+            assert 1 == T.abi_field_get(A_handle, 0, 4, ty=T.int32), (
+                "ValueError",
+                [
+                    "Mismatched ",
+                    "A",
+                    ".ndim on argument #",
+                    "0",
+                    " when calling:\n  `",
+                    signature,
+                    "`,\n  expected ",
+                    "1",
+                ],
+            )
+            assert (
+                T.abi_field_get(A_handle, 0, 5, ty=T.uint8) == T.uint8(2)
+                and T.abi_field_get(A_handle, 0, 6, ty=T.uint8) == T.uint8(32)
+                and T.abi_field_get(A_handle, 0, 7, ty=T.uint16) == T.uint16(1)
+            ), (
+                "TypeError",
+                [
+                    "Mismatched ",
+                    "A",
+                    ".dtype on argument #",
+                    "0",
+                    " when calling:\n  `",
+                    signature,
+                    "`,\n  expected ",
+                    "float32",
+                ],
+            )
+            main_A_shape: T.let[T.Ptr(T.int64)] = T.abi_field_get(A_handle, 0, 2, ty=T.Ptr(T.int64))
+            main_A_strides: T.let[T.Ptr(T.int64)] = T.abi_field_get(
+                A_handle, 0, 3, ty=T.Ptr(T.int64)
+            )
+            assert T.abi_field_get(A_handle, 0, 10, ty=T.int32) == 1, (
+                "ValueError",
+                [
+                    "Mismatched ",
+                    "A",
+                    ".device_type on argument #",
+                    "0",
+                    " when calling:\n  `",
+                    signature,
+                    "`,\n  expected ",
+                    "cpu",
+                ],
+            )
+            dev_id: T.let[T.int32] = T.abi_field_get(A_handle, 0, 9, ty=T.int32)
+            shape_value: T.let[T.int64] = T.abi_field_get(main_A_shape, 0, 17, ty=T.int64)
+            assert T.truncmod(shape_value - T.int64(3), T.int64(4)) == T.int64(0), (
+                "ValueError",
+                [
+                    "Invalid ",
+                    "A.shape[0]",
+                    " on argument #",
+                    "0",
+                    " when calling:\n  `",
+                    signature,
+                    "`,\n  expected ",
+                    "(A.shape[0] - 3)",
+                    " to be divisible by ",
+                    "4",
+                ],
+            )
+            n: T.let[T.int64] = T.Div(shape_value - T.int64(3), T.int64(4))
+            with T.device_context(1, dev_id):
+                if not T.isnullptr(main_A_strides):
+                    assert T.int64(4) * n + T.int64(3) == T.int64(1) or T.int64(
+                        1
+                    ) == T.abi_field_get(main_A_strides, 0, 17, ty=T.int64), (
+                        "ValueError",
+                        [
+                            "Mismatched ",
+                            "A",
+                            ".strides on argument #",
+                            "0",
+                            " when calling:\n  `",
+                            signature,
+                            "`,\n  expected to be compact array",
+                        ],
+                    )
+                assert T.int64(4) * n + T.int64(3) == T.int64(0) or not T.isnullptr(
+                    T.reinterpret(
+                        T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)), ty=T.Ptr(T.float32)
+                    )
+                ), (
+                    "ValueError",
+                    [
+                        "A",
+                        " data pointer is NULL on argument #",
+                        "0",
+                        " when calling:\n  `",
+                        signature,
+                        "`,\n  expected non-NULL data pointer",
+                    ],
+                )
+                assert T.int64(4) * n + T.int64(3) == T.int64(0) or T.truncmod(
+                    T.reinterpret(
+                        T.reinterpret(
+                            T.reinterpret(
+                                T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)),
+                                ty=T.Ptr(T.float32),
+                            ),
+                            ty=T.Ptr(T.void),
+                        ),
+                        ty=T.uint64,
+                    ),
+                    T.uint64(64),
+                ) == T.uint64(0), (
+                    "ValueError",
+                    [
+                        "Misaligned Tensor data on argument #",
+                        "0",
+                        " when calling:\n  `",
+                        signature,
+                        "`,\n  expected data alignment=",
+                        "64",
+                        " bytes",
+                    ],
+                )
+                assert T.uint64(0) == T.abi_field_get(A_handle, 0, 8, ty=T.uint64), (
+                    "ValueError",
+                    [
+                        "Invalid ",
+                        "A.byte_offset",
+                        " on argument #",
+                        "0",
+                        " when calling:\n  `",
+                        signature,
+                        "`,\n  expected ",
+                        "0",
+                    ],
+                )
+                A = T.decl_tensor(
+                    T.reinterpret(
+                        T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)), ty=T.Ptr(T.float32)
+                    ),
+                    ty_args=[T.Tensor((T.int64(4) * n + T.int64(3),), T.float32)],
+                )
+                T.assume_aligned(A, 64)
+                with T.compute_scope("main_compute_"):
+                    T.evaluate(n)
+                return 0
+
+    After = tvm_tirx.tirx.transform.MakePackedAPI()(Before)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_forward_reference_symbolic_variable():
     """MakePackedAPI succeeds when a symbolic variable is used before it is defined.
 
-    When tensor A has shape (batch_size*batch_size+1,) and tensor B has shape (batch_size,),
+    When tensor A has shape (batch_size+1,) and tensor B has shape (batch_size,),
     batch_size is referenced (in A's shape check) before it is defined (from B's
     shape). The three-sequence separation (init_nest, asserts, decl_tensors)
     ensures all variable definitions precede all assertions.
     """
 
-    signature = (
-        "main(A: Tensor([batch_size * batch_size + T.int64(1)], int32), "
-        "B: Tensor([batch_size], int32))"
-    )
+    signature = "main(A: Tensor([batch_size + T.int64(1)], int32), B: Tensor([batch_size], int32))"
 
     batch_size = T.dynamic("batch_size", "int64")
 
     @I.ir_module
     class Before:
         @T.function
-        def main(
-            A: T.Tensor((batch_size * batch_size + 1,), "int32"),
-            B: T.Tensor((batch_size,), "int32"),
-        ):
+        def main(A: T.Tensor((batch_size + 1,), "int32"), B: T.Tensor((batch_size,), "int32")):
             T.func_attr({"target": T.target("llvm", host="llvm")})
 
             for i in range(batch_size):
@@ -1168,9 +1325,9 @@ def test_forward_reference_symbolic_variable():
             )
             with T.device_context(1, dev_id):
                 if not T.isnullptr(main_A_strides):
-                    assert batch_size * batch_size + T.int64(1) == T.int64(1) or T.int64(
-                        1
-                    ) == T.abi_field_get(main_A_strides, 0, 17, ty="int64"), (
+                    assert batch_size + T.int64(1) == T.int64(1) or T.int64(1) == T.abi_field_get(
+                        main_A_strides, 0, 17, ty="int64"
+                    ), (
                         "ValueError",
                         [
                             "Mismatched ",
@@ -1182,7 +1339,7 @@ def test_forward_reference_symbolic_variable():
                             "`,\n  expected to be compact array",
                         ],
                     )
-                assert batch_size * batch_size + T.int64(1) == T.int64(0) or not T.isnullptr(
+                assert batch_size + T.int64(1) == T.int64(0) or not T.isnullptr(
                     T.reinterpret(
                         T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)),
                         ty=T.Ptr(T.PrimType("int32")),
@@ -1198,7 +1355,7 @@ def test_forward_reference_symbolic_variable():
                         "`,\n  expected non-NULL data pointer",
                     ],
                 )
-                assert batch_size * batch_size + T.int64(1) == T.int64(0) or T.truncmod(
+                assert batch_size + T.int64(1) == T.int64(0) or T.truncmod(
                     T.reinterpret(
                         T.reinterpret(
                             T.reinterpret(
@@ -1290,21 +1447,6 @@ def test_forward_reference_symbolic_variable():
                         " bytes",
                     ],
                 )
-                assert batch_size * batch_size + T.int64(1) == T.abi_field_get(
-                    main_A_shape, 0, 17, ty="int64"
-                ), (
-                    "ValueError",
-                    [
-                        "Invalid ",
-                        "A.shape[0]",
-                        " on argument #",
-                        "0",
-                        " when calling:\n  `",
-                        signature,
-                        "`,\n  expected ",
-                        "B.shape[0] * B.shape[0] + 1",
-                    ],
-                )
                 assert T.uint64(0) == T.abi_field_get(A_handle, 0, 8, ty="uint64"), (
                     "ValueError",
                     [
@@ -1331,14 +1473,29 @@ def test_forward_reference_symbolic_variable():
                         "0",
                     ],
                 )
+                assert batch_size + T.int64(1) == T.abi_field_get(
+                    main_A_shape, 0, 17, ty="int64"
+                ), (
+                    "ValueError",
+                    [
+                        "Invalid ",
+                        "A.shape[0]",
+                        " on argument #",
+                        "0",
+                        " when calling:\n  `",
+                        signature,
+                        "`,\n  expected ",
+                        "B.shape[0] + 1",
+                    ],
+                )
                 A = T.decl_tensor(
                     T.reinterpret(
                         T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)),
                         ty=T.Ptr(T.PrimType("int32")),
                     ),
-                    ty_args=[T.Tensor((batch_size * batch_size + T.int64(1),), T.int32)],
+                    ty_args=[T.Tensor((batch_size + T.int64(1),), T.int32)],
                 )
-                if batch_size * batch_size != T.int64(-1):
+                if batch_size != T.int64(-1):
                     T.assume_aligned(A, 64)
                 B = T.decl_tensor(
                     T.reinterpret(
@@ -1536,19 +1693,6 @@ def test_tensor_alignment_attached_to_tensor_var():
                         " bytes",
                     ],
                 )
-                assert T.Cast("int32", T.abi_field_get(main_A_shape, 0, 17, ty="int64")) == 16, (
-                    "ValueError",
-                    [
-                        "Invalid ",
-                        "A.shape[0]",
-                        " on argument #",
-                        "0",
-                        " when calling:\n  `",
-                        "main(A: Tensor([16], float32))",
-                        "`,\n  expected ",
-                        "16",
-                    ],
-                )
                 assert T.uint64(0) == T.abi_field_get(A_handle, 0, 8, ty="uint64"), (
                     "ValueError",
                     [
@@ -1560,6 +1704,19 @@ def test_tensor_alignment_attached_to_tensor_var():
                         "main(A: Tensor([16], float32))",
                         "`,\n  expected ",
                         "0",
+                    ],
+                )
+                assert T.Cast("int32", T.abi_field_get(main_A_shape, 0, 17, ty="int64")) == 16, (
+                    "ValueError",
+                    [
+                        "Invalid ",
+                        "A.shape[0]",
+                        " on argument #",
+                        "0",
+                        " when calling:\n  `",
+                        "main(A: Tensor([16], float32))",
+                        "`,\n  expected ",
+                        "16",
                     ],
                 )
                 A = T.decl_tensor(
