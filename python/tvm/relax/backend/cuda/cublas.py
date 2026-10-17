@@ -20,11 +20,12 @@
 import operator
 from functools import reduce
 
+import tvm_ffi
+
 import tvm
 import tvm_tirx
 from tvm.relax import transform
 from tvm.relax.transform import PatternCheckContext
-from tvm_tirx import DataType
 from tvm_tirx.sym import Analyzer
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
@@ -104,12 +105,12 @@ def _check_matmul(context: PatternCheckContext) -> bool:
         # cuBLAS FP8 operations require all tensors being aligned to 16 bytes.
         if (
             not isinstance(rhs_shape[-1], tvm_tirx.ir.IntImm | int)
-            or rhs_shape[-1] % (16 // DataType(lhs_dtype).itemsize) != 0
+            or rhs_shape[-1] % (16 // tvm_ffi.dtype(lhs_dtype).itemsize) != 0
         ):
             return False
         if (
             not isinstance(rhs_shape[-2], tvm_tirx.ir.IntImm | int)
-            or rhs_shape[-2] % (16 // DataType(out_dtype).itemsize) != 0
+            or rhs_shape[-2] % (16 // tvm_ffi.dtype(out_dtype).itemsize) != 0
         ):
             return False
 

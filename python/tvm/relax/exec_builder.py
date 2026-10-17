@@ -110,7 +110,7 @@ class ExecBuilder(tvm_ffi.core.Object):
     def emit_call(
         self,
         name: str,
-        args: list[tvm_tirx.runtime.Tensor | tvm_tirx.DataType] | None = None,
+        args: list[tvm_tirx.runtime.Tensor | tvm_ffi.dtype] | None = None,
         dst: int | None = None,
     ) -> None:
         """emit a call instruction which calls a packed function."""
@@ -124,7 +124,7 @@ class ExecBuilder(tvm_ffi.core.Object):
                     shape_tuple = Shape(arg)
                     new_arg = self.convert_constant(shape_tuple)
                     args_.append(new_arg)
-                elif isinstance(arg, tvm_tirx.runtime.Tensor | tvm_tirx.DataType | Shape):
+                elif isinstance(arg, tvm_tirx.runtime.Tensor | tvm_ffi.dtype | Shape):
                     new_arg = self.convert_constant(arg)
                     args_.append(new_arg)
                 else:

@@ -18,6 +18,7 @@
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 from tvm import relax
@@ -254,7 +255,7 @@ def test_base_py_module_call_dps_packed_symbolic():
     """Test call_dps_packed with symbolic shapes."""
     try:
         # Register a simple test function
-        @tvm_tirx.register_global_func("test_add_packed")
+        @tvm_ffi.register_global_func("test_add_packed")
         def test_add_packed(a, b, out):
             """Add two tensors element-wise."""
             a_np = a.numpy()
@@ -283,7 +284,7 @@ def test_base_py_module_call_dps_packed_multiple_args():
     """Test call_dps_packed with multiple arguments and symbolic shapes."""
     try:
         # Register a function that takes multiple arguments
-        @tvm_tirx.register_global_func("test_matmul_packed")
+        @tvm_ffi.register_global_func("test_matmul_packed")
         def test_matmul_packed(a, b, out):
             """Matrix multiplication."""
             a_np = a.numpy()
@@ -312,7 +313,7 @@ def test_base_py_module_call_dps_packed_scalar_args():
     """Test call_dps_packed with scalar arguments and symbolic shapes."""
     try:
         # Register a function that takes scalar arguments
-        @tvm_tirx.register_global_func("test_add_scalar_packed")
+        @tvm_ffi.register_global_func("test_add_scalar_packed")
         def test_add_scalar_packed(x, scalar, out):
             """Add scalar to tensor."""
             x_np = x.numpy()

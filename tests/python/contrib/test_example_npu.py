@@ -23,6 +23,7 @@ implementation using TVM's testing infrastructure.
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -96,8 +97,8 @@ class Softmax:
 
 
 # Check if the example NPU runtime is available
-has_example_npu_codegen = tvm_tirx.get_global_func("relax.ext.example_npu", True)
-has_example_npu_runtime = tvm_tirx.get_global_func("runtime.ExampleNPUJSONRuntimeCreate", True)
+has_example_npu_codegen = tvm_ffi.get_global_func("relax.ext.example_npu", True)
+has_example_npu_runtime = tvm_ffi.get_global_func("runtime.ExampleNPUJSONRuntimeCreate", True)
 has_example_npu = has_example_npu_codegen and has_example_npu_runtime
 
 example_npu_enabled = pytest.mark.skipif(

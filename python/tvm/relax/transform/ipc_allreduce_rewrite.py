@@ -18,6 +18,8 @@
 The pass is written in Python for experiment, fast development.
 """
 
+import tvm_ffi
+
 import tvm_tirx
 from tvm import relax
 from tvm.relax.expr import Expr, Var
@@ -42,7 +44,7 @@ class IPCAllReduceRewrite:
 
     def transform_module(self, mod: IRModule, _ctx: tvm_tirx.ir.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
-        fcustom_allreduce = tvm_tirx.get_global_func(
+        fcustom_allreduce = tvm_ffi.get_global_func(
             "runtime.disco.cuda_ipc.custom_allreduce", allow_missing=True
         )
         if fcustom_allreduce is None:

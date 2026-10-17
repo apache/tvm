@@ -18,6 +18,7 @@
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -74,7 +75,7 @@ def test_subview_must_be_in_range_of_immediate_parent():
 def test_from_dlpack_shape_one():
     torch = pytest.importorskip("torch")
     values = torch.randn(1, 16)
-    tensor = tvm_tirx.runtime.from_dlpack(torch.utils.dlpack.to_dlpack(values))
+    tensor = tvm_ffi.from_dlpack(torch.utils.dlpack.to_dlpack(values))
     np.testing.assert_equal(tensor.numpy(), values.numpy())
     view = tensor._create_view((2, 8))
     np.testing.assert_equal(view.numpy(), values.numpy().reshape(2, 8))
@@ -123,7 +124,7 @@ def test_tensor_json_roundtrip(container):
 
 def test_tensor_container_identity():
     tensor = tvm_tirx.runtime.tensor([1, 2, 3])
-    values = tvm_tirx.runtime.convert([tensor, tensor])
+    values = tvm_ffi.convert([tensor, tensor])
     assert values[0].same_as(tensor)
     assert values[1].same_as(tensor)
     assert isinstance(values[0], tvm_tirx.runtime.Tensor)

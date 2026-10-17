@@ -842,8 +842,8 @@ def _original_addresses(kwargs):
 def _recipe_views(kwargs, recipe):
     """Declare the caller's explicit zero-copy aliases on the original storage."""
     dtype = kwargs.get("dtype", "float16")
-    bits = tvm_tirx.DataType(recipe.dtype).bits
-    original_bits = tvm_tirx.DataType(dtype).bits
+    bits = tvm_ffi.dtype(recipe.dtype).bits
+    original_bits = tvm_ffi.dtype(dtype).bits
     ga, sa = _original_addresses(kwargs)
     shape = tuple(reversed(recipe.dims))
     strides = tuple(reversed((1, *(s * 8 // bits for s in recipe.strides))))

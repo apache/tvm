@@ -100,7 +100,7 @@ class TensorType(Type):
         if elem_offset is not None and byte_offset is not None:
             raise ValueError("elem_offset and byte_offset cannot be set at the same time")
         if byte_offset is not None:
-            elem_offset = byte_offset * 8 // tvm_tirx.DataType(dtype.dtype).bits
+            elem_offset = byte_offset * 8 // tvm_ffi.dtype(dtype.dtype).bits
         if data_alignment is None:
             data_alignment = align
         elif align not in (0, data_alignment):
@@ -220,7 +220,7 @@ class TensorType(Type):
 
         Supported signatures are ``view(*shape, layout=None)``, where shape can contain
         ``-1`` to indicate that the dimension size is auto-inferred, and
-        ``view(dtype: Union[str, tvm_tirx.DataType])``.
+        ``view(dtype: Union[str, tvm_ffi.dtype])``.
 
         Returns
         -------
@@ -284,7 +284,7 @@ class TensorType(Type):
 
     def _byte_offset(self, expr):
         _check_tensor_property_receiver(self, expr)
-        return self.elem_offset * tvm_tirx.DataType(self.dtype).bits // 8
+        return self.elem_offset * tvm_ffi.dtype(self.dtype).bits // 8
 
     def _sub(self, expr):
         _check_tensor_property_receiver(self, expr)

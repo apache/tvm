@@ -18,13 +18,11 @@
 
 import tvm_ffi
 
-from tvm_tirx.runtime import Object
-
 from . import _ffi_api
 
 
 @tvm_ffi.register_object("sym.IntSet")
-class IntSet(Object):
+class IntSet(tvm_ffi.Object):
     """Represent a set of integer in one dimension."""
 
     def is_nothing(self):

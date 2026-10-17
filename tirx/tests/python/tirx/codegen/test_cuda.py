@@ -20,6 +20,7 @@ import re
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -188,7 +189,7 @@ def test_legacy_tensorcore_ops_require_downstream_codegen(op_name):
     )
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_80"})
     with pytest.raises(RuntimeError, match="Unresolved call.*" + re.escape(call.op.name)):
-        tvm_tirx.get_global_func("target.build.cuda")(tvm_tirx.IRModule.from_expr(func), target)
+        tvm_ffi.get_global_func("target.build.cuda")(tvm_tirx.IRModule.from_expr(func), target)
 
 
 @pytest.mark.parametrize("target_kind", ["cuda", "opencl"])
@@ -203,7 +204,7 @@ def test_warp_storage_requires_explicit_local_layout(target_kind):
 
     target = tvm_tirx.target.Target(target_kind)
     with pytest.raises(RuntimeError, match="warp storage is unsupported"):
-        tvm_tirx.get_global_func("target.build." + target_kind)(
+        tvm_ffi.get_global_func("target.build." + target_kind)(
             tvm_tirx.IRModule.from_expr(main), target
         )
 
@@ -226,7 +227,7 @@ def test_typed_buffer_bindings(monkeypatch):
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_80"})
-    source = tvm_tirx.get_global_func("target.build.cuda")(
+    source = tvm_ffi.get_global_func("target.build.cuda")(
         tvm_tirx.IRModule.from_expr(main), target
     ).inspect_source()
     assert "float* data, void* output" in source
@@ -267,7 +268,7 @@ def test_vector_pointer_preserves_packed_offset(monkeypatch):
     lowered = tvm_tirx.tirx.transform.LowerIntrin()(tvm_tirx.IRModule.from_expr(func))
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
-    source = tvm_tirx.get_global_func("target.build.cuda")(lowered, target).inspect_source()
+    source = tvm_ffi.get_global_func("target.build.cuda")(lowered, target).inspect_source()
     call = next(line.strip() for line in source.splitlines() if line.strip().startswith("consume("))
 
     assert "make_int4" not in call

@@ -32,10 +32,11 @@ functions are split across sibling private modules:
 The private-named kernel factories are re-exported from this module so the
 test suite can continue to import them via ``tvm.relax.frontend.nn.llm.kv_cache``.
 """
-
 # pylint: disable=too-many-statements,too-many-arguments,invalid-name,line-too-long
 import math
 from typing import Any, Literal
+
+import tvm_ffi
 
 import tvm_tirx
 from tvm import relax as rx
@@ -121,7 +122,7 @@ __all__ = [
 class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
     """The Paged KV Cache used in LLM batching for efficient attention computation."""
 
-    extern_mods: list[tvm_tirx.runtime.Module] = []
+    extern_mods: list[tvm_ffi.Module] = []
 
     def attention_with_fused_qkv(
         self,

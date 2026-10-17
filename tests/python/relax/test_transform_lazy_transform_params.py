@@ -16,6 +16,7 @@
 # under the License.
 # ruff: noqa: F841
 import numpy as np
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -656,11 +657,11 @@ def test_output():
     transformed = {}
     expected = [params[0].transpose(1, 0, 2, 3), params[1]]
 
-    @tvm_tirx.register_global_func("get_item", override=True)
+    @tvm_ffi.register_global_func("get_item", override=True)
     def get_item(i):
         return tvm_tirx.runtime.tensor(params[i], dev)
 
-    @tvm_tirx.register_global_func("set_item", override=True)
+    @tvm_ffi.register_global_func("set_item", override=True)
     def set_item(i, value):
         assert i not in transformed, f"Set item called multiple times for index {i}"
         transformed[i] = value.numpy()

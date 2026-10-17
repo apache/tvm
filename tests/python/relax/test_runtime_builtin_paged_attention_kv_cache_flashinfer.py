@@ -98,17 +98,17 @@ def set_global_func(rope_mode: RopeMode, target):
     global fattention_merge_state, fsplit_rotary, fcopy_single_page
     global ftranspose_append, fcopy_cache, fcompact_copy
 
-    fclear = tvm_tirx.get_global_func("vm.builtin.kv_state_clear")
-    fadd_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_add_sequence")
-    fremove_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_remove_sequence")
-    ffork_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_fork_sequence")
-    fpopn = tvm_tirx.get_global_func("vm.builtin.kv_state_popn")
-    fbegin_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_begin_forward")
-    fend_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_end_forward")
-    fattention_with_fuse_qkv = tvm_tirx.get_global_func(
+    fclear = tvm_ffi.get_global_func("vm.builtin.kv_state_clear")
+    fadd_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_add_sequence")
+    fremove_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_remove_sequence")
+    ffork_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_fork_sequence")
+    fpopn = tvm_ffi.get_global_func("vm.builtin.kv_state_popn")
+    fbegin_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_begin_forward")
+    fend_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_end_forward")
+    fattention_with_fuse_qkv = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_attention_with_fused_qkv"
     )
-    fdebug_get_kv = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
+    fdebug_get_kv = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
 
     flashinfer_prefill_mod = relax.backend.cuda.flashinfer.gen_flashinfer_prefill_module(
         dtype_q=dtype,
@@ -162,7 +162,7 @@ def set_global_func(rope_mode: RopeMode, target):
 
 
 def create_kv_cache(rope_mode):
-    fcreate = tvm_tirx.get_global_func("vm.builtin.paged_attention_kv_cache_create")
+    fcreate = tvm_ffi.get_global_func("vm.builtin.paged_attention_kv_cache_create")
     support_sliding_window = 0
     cache = fcreate(
         tvm_ffi.Shape(

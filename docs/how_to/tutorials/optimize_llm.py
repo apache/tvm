@@ -45,8 +45,6 @@ TinyLlama model from Hugging Face and deploy it on various devices.
 # - **Build and Universal Deployment**: Build the optimized model to a deployable module to the
 #   universal runtime, and execute it on different devices, such as CPU, GPU, or other accelerators.
 #
-
-
 ######################################################################
 # Construct the model architecture
 # --------------------------------
@@ -54,13 +52,13 @@ TinyLlama model from Hugging Face and deploy it on various devices.
 # pre-trained weight from Hugging Face but not the model architecture. We need to construct the
 # model architecture by ourselves. Apache TVM prepares a PyTorch-liked API to construct the model
 # architecture. We can use the API to construct the model architecture.
-
 import dataclasses
 import enum
 import os
 from pathlib import Path
 from pprint import pprint
 
+import tvm_ffi
 from tvm_ffi import Shape
 
 import tvm
@@ -553,7 +551,7 @@ if not IS_IN_CI:
 # The next step is to embed the tokens into the hidden states. We use the `embed` function
 # compiled in the Relax IRModule to embed the tokens into the hidden states.
 
-nd_view_func = tvm_tirx.get_global_func("vm.builtin.reshape")
+nd_view_func = tvm_ffi.get_global_func("vm.builtin.reshape")
 
 
 def embed(tokens, params):
@@ -568,9 +566,9 @@ def embed(tokens, params):
 # ~~~~~~~
 # Before running the forward pass, we first get some help functions for preparation.
 
-add_sequence_func = tvm_tirx.get_global_func("vm.builtin.kv_state_add_sequence")
-begin_forward_func = tvm_tirx.get_global_func("vm.builtin.kv_state_begin_forward")
-end_forward_func = tvm_tirx.get_global_func("vm.builtin.kv_state_end_forward")
+add_sequence_func = tvm_ffi.get_global_func("vm.builtin.kv_state_add_sequence")
+begin_forward_func = tvm_ffi.get_global_func("vm.builtin.kv_state_begin_forward")
+end_forward_func = tvm_ffi.get_global_func("vm.builtin.kv_state_end_forward")
 
 ######################################################################
 # As we are creating a new sequence, we need to call `add_sequence_func` to initialize

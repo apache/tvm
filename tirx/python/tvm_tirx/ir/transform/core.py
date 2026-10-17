@@ -22,13 +22,11 @@ import inspect
 
 import tvm_ffi
 
-import tvm_tirx.runtime
-
 from . import _ffi_transform_api
 
 
 @tvm_ffi.register_object("transform.PassInfo")
-class PassInfo(tvm_tirx.runtime.Object):
+class PassInfo(tvm_ffi.Object):
     """The class contains the meta data required by a pass. It is the
     container of information needed by running an optimization or analysis.
     This class can be extended by adding new members when more meta data is
@@ -48,7 +46,7 @@ class PassInfo(tvm_tirx.runtime.Object):
 
 
 @tvm_ffi.register_object("transform.PassInstrument")
-class PassInstrument(tvm_tirx.runtime.Object):
+class PassInstrument(tvm_ffi.Object):
     """A pass instrument implementation.
 
     To use, a user class can either subclass from PassInstrument
@@ -248,7 +246,7 @@ def pass_instrument(pi_cls=None):
 
 
 @tvm_ffi.register_object("transform.PassContext")
-class PassContext(tvm_tirx.runtime.Object):
+class PassContext(tvm_ffi.Object):
     """The basis where a TVM optimization/analysis runs on.
     Each pass context contains a number of auxiliary information that is used
     to help an optimization pass. Such information includes the error reporter
@@ -336,7 +334,7 @@ class PassContext(tvm_tirx.runtime.Object):
 
 
 @tvm_ffi.register_object("transform.Pass")
-class Pass(tvm_tirx.runtime.Object):
+class Pass(tvm_ffi.Object):
     """The base class of all passes. All methods here are just simple wrappers
     that are implemented in the backend. They are defined for users to
     conveniently interact with the base class.

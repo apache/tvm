@@ -19,6 +19,7 @@ from collections.abc import Sequence
 
 import numpy as np
 import pytest
+import tvm_ffi
 from tvm_ffi import Shape
 
 import tvm_tirx
@@ -64,16 +65,16 @@ def set_global_func():
     global f_begin_forward, f_end_forward, f_get, f_set, f_debug_get
     global f_tir_gets, f_tir_sets
 
-    f_clear = tvm_tirx.get_global_func("vm.builtin.kv_state_clear")
-    f_add_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_add_sequence")
-    f_remove_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_remove_sequence")
-    f_fork_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_fork_sequence")
-    f_popn = tvm_tirx.get_global_func("vm.builtin.kv_state_popn")
-    f_begin_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_begin_forward")
-    f_end_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_end_forward")
-    f_get = tvm_tirx.get_global_func("vm.builtin.rnn_state_get")
-    f_set = tvm_tirx.get_global_func("vm.builtin.rnn_state_set")
-    f_debug_get = tvm_tirx.get_global_func("vm.builtin.rnn_state_debug_get")
+    f_clear = tvm_ffi.get_global_func("vm.builtin.kv_state_clear")
+    f_add_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_add_sequence")
+    f_remove_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_remove_sequence")
+    f_fork_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_fork_sequence")
+    f_popn = tvm_ffi.get_global_func("vm.builtin.kv_state_popn")
+    f_begin_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_begin_forward")
+    f_end_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_end_forward")
+    f_get = tvm_ffi.get_global_func("vm.builtin.rnn_state_get")
+    f_set = tvm_ffi.get_global_func("vm.builtin.rnn_state_set")
+    f_debug_get = tvm_ffi.get_global_func("vm.builtin.rnn_state_debug_get")
 
     target = tvm_tirx.target.Target("cuda")
 
@@ -95,7 +96,7 @@ def set_global_func():
 
 
 def create_rnn_state(device):
-    f_create = tvm_tirx.get_global_func("vm.builtin.rnn_state_create")
+    f_create = tvm_ffi.get_global_func("vm.builtin.rnn_state_create")
     init_values = [
         tvm_tirx.runtime.tensor(np_zero, device=device),
         tvm_tirx.runtime.tensor(np_one, device=device),

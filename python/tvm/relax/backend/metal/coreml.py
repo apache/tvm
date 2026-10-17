@@ -320,7 +320,7 @@ class CodegenCoreML(PyExprVisitor):
         self.model_inputs_ = []
         self.buf_idx_ = 0
 
-        getter = tvm_tirx.get_global_func("relax.analysis.get_var2val")
+        getter = tvm_ffi.get_global_func("relax.analysis.get_var2val")
         assert getter, "Cannot find `relax.analysis.get_var2val` function."
 
         self.var2val = getter(function)

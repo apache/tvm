@@ -18,6 +18,7 @@
 import ml_dtypes
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -36,7 +37,7 @@ def get_random_tensor(shape, dtype):
 def verify_group_gemm(
     func_name, M, N, K, num_groups, x_dtype, weight_dtype, out_dtype, use_scale, rtol, atol
 ):
-    group_gemm_func = tvm_tirx.get_global_func(func_name, allow_missing=True)
+    group_gemm_func = tvm_ffi.get_global_func(func_name, allow_missing=True)
     if group_gemm_func is None:
         print(f"Skipped as {func_name} is not available")
         return
@@ -317,7 +318,7 @@ def test_fp8_e4m3_groupwise_scaled_gemm():
     assert N % 128 == 0 and K % 128 == 0  # Only support N/K are multiple of 128
 
     func_name = "cutlass.groupwise_scaled_gemm_e4m3fn_e4m3fn"
-    gemm_func = tvm_tirx.get_global_func(func_name, allow_missing=True)
+    gemm_func = tvm_ffi.get_global_func(func_name, allow_missing=True)
     if gemm_func is None:
         print(f"Skipped as {func_name} is not available")
         return
@@ -362,7 +363,7 @@ def test_fp8_e4m3_groupwise_scaled_bmm():
     assert N % 128 == 0 and K % 128 == 0  # Only support N/K are multiple of 128
 
     func_name = "cutlass.groupwise_scaled_bmm_e4m3fn_e4m3fn"
-    gemm_func = tvm_tirx.get_global_func(func_name, allow_missing=True)
+    gemm_func = tvm_ffi.get_global_func(func_name, allow_missing=True)
     if gemm_func is None:
         print(f"Skipped as {func_name} is not available")
         return

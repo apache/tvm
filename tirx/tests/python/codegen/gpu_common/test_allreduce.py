@@ -110,11 +110,11 @@ define_metal_compile_callback = tvm_tirx.testing.parameter(True, False)
 @pytest.fixture
 def optional_metal_compile_callback(define_metal_compile_callback):
     name = "tvm_callback_metal_compile"
-    cached = tvm_tirx.get_global_func(name, allow_missing=True)
+    cached = tvm_ffi.get_global_func(name, allow_missing=True)
 
     if define_metal_compile_callback:
 
-        @tvm_tirx.register_global_func(name, override=True)
+        @tvm_ffi.register_global_func(name, override=True)
         def compile_metal(src, target):
             from tvm_tirx.support.xcode import (
                 compile_metal,  # pylint: disable=import-outside-toplevel
@@ -128,7 +128,7 @@ def optional_metal_compile_callback(define_metal_compile_callback):
         if cached is None:
             tvm_ffi.registry.remove_global_func(name)
         else:
-            tvm_tirx.register_global_func(name, cached, override=True)
+            tvm_ffi.register_global_func(name, cached, override=True)
 
 
 @pytest.mark.gpu

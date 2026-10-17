@@ -51,7 +51,7 @@ def exists():
             True if CuDNN support is enabled and a CuDNN-capable GPU
             exists.  Otherwise, False.
     """
-    func = tvm_tirx.get_global_func("tvm.contrib.cudnn.exists", allow_missing=True)
+    func = tvm_ffi.get_global_func("tvm.contrib.cudnn.exists", allow_missing=True)
     if func is None:
         return False
 
@@ -199,7 +199,7 @@ def conv_output_shape(
         c_output = w_shape[0]
         x_chan = x_shape[1]
         w_chan_input = w_shape[1]
-        w_lanes = tvm_tirx.runtime.DataType(conv_dtype).lanes
+        w_lanes = tvm_ffi.dtype(conv_dtype).lanes
         assert w_lanes == 1
         x_shape = x_shape[2:]
         w_shape = w_shape[2:]
@@ -207,7 +207,7 @@ def conv_output_shape(
     else:
         raise ValueError(f"Unknown CuDNN tensor format: '{tensor_format}'")
 
-    x_lanes = tvm_tirx.runtime.DataType(data_dtype).lanes
+    x_lanes = tvm_ffi.dtype(data_dtype).lanes
     assert x_chan * x_lanes == w_chan_input * groups, (
         f"Mismatched dimensions, data has {x_chan // groups} channels/group "
         f"(dimension {x_chan} with {x_lanes} lanes/value, {groups} groups), "

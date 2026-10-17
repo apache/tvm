@@ -21,7 +21,7 @@ from __future__ import annotations
 import functools
 import operator
 
-from tvm_tirx import DataType
+import tvm_ffi
 
 # ---------------------------------------------------------------------------
 # ir_builder helpers — imported lazily to avoid circular deps at module level
@@ -114,11 +114,11 @@ def _validate_mma_alloc_shape(shape, dtype, swizzle_mode):
     if not (isinstance(rows, int) and isinstance(cols, int)):
         return
 
-    dtype_bytes = DataType(dtype).bits // 8
+    dtype_bytes = tvm_ffi.dtype(dtype).bits // 8
     if dtype_bytes == 0:
         # Sub-byte dtype (e.g. float4); ``cols`` is already in element units, so
         # use a fractional check expressed via bits.
-        col_bits = cols * DataType(dtype).bits
+        col_bits = cols * tvm_ffi.dtype(dtype).bits
         atom_bits = _swizzle_atom_bytes(swizzle_mode) * 8
         if col_bits < atom_bits or col_bits % atom_bits != 0:
             row_bytes = col_bits // 8 if col_bits % 8 == 0 else col_bits / 8
@@ -130,7 +130,8 @@ def _validate_mma_alloc_shape(shape, dtype, swizzle_mode):
                 f"swizzle atom selected by {swizzle_mode.name}. "
                 f"Use swizzle_mode=SwizzleMode.{suggestion}, or widen shape[-1] "
                 f"to a multiple of "
-                f"{(atom_bits + DataType(dtype).bits - 1) // DataType(dtype).bits} elements."
+                f"{(atom_bits + tvm_ffi.dtype(dtype).bits - 1) // tvm_ffi.dtype(dtype).bits} "
+                f"elements."
             )
     else:
         row_bytes = cols * dtype_bytes
@@ -227,7 +228,7 @@ class SMEMPool:
         # Advance in bits then round up to bytes so sub-byte dtypes (e.g.
         # float4_e2m1fn = 4 bits) still bump the cursor instead of leaving it
         # at 0 (bits // 8) and silently overlapping the next allocation.
-        self.offset += (_shape_product(shape) * DataType(dtype).bits + 7) // 8
+        self.offset += (_shape_product(shape) * tvm_ffi.dtype(dtype).bits + 7) // 8
         if self._owns_buffer:
             self.max_offset = max(self.max_offset, self.offset)
         return res

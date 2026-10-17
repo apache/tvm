@@ -23,8 +23,10 @@ import threading
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, TypeVar
 
+import tvm_ffi
+
 import tvm_tirx
-from tvm_tirx import DataType, ir
+from tvm_tirx import ir
 from tvm_tirx import ir as _ir
 from tvm_tirx import tirx as tir
 
@@ -91,7 +93,7 @@ def _get_elem_offset(elem_offset, byte_offset, dtype: str):
         return elem_offset
     if byte_offset is None:
         return None
-    return byte_offset * 8 // (DataType(_normalize_prim_type(dtype).dtype).bits)
+    return byte_offset * 8 // (tvm_ffi.dtype(_normalize_prim_type(dtype).dtype).bits)
 
 
 _meta_construction_state = threading.local()
@@ -243,7 +245,9 @@ def alloc_tensor(
     args = []
     if placement is not None:
         if not isinstance(placement, ir.Tuple):
-            placement = placement if isinstance(placement, list | tuple | ir.Array) else [placement]
+            placement = (
+                placement if isinstance(placement, list | tuple | tvm_ffi.Array) else [placement]
+            )
             placement = ir.Tuple([normalize(value) for value in placement])
         args.append(placement)
     return ir.Call(

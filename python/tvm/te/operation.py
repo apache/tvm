@@ -21,6 +21,7 @@ import inspect
 # pylint: disable=invalid-name
 from numbers import Integral as _Integral
 
+import tvm_ffi
 from tvm_ffi import Array
 
 import tvm
@@ -29,7 +30,6 @@ import tvm_tirx.tirx
 import tvm_tirx.tirx._ffi_api
 from tvm_tirx.ir import is_prim_expr
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
-from tvm_tirx.runtime import convert
 
 from . import _ffi_api
 from . import tag as _tag
@@ -135,7 +135,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=N
 
     if not isinstance(body, list | tuple):
         body = [body]
-    body = convert(body)
+    body = tvm_ffi.convert(body)
     op_node = _ffi_api.ComputeOp(name, tag, attrs, dim_var, body)
 
     num = op_node.num_outputs

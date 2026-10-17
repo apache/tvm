@@ -17,6 +17,7 @@
 # ruff: noqa: E501, F841, RUF005
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -2174,7 +2175,7 @@ def test_attention_rewrite_multi_query():
 def _test_batched_var_len_attention(
     mod, seq_lens, num_head, num_kv_head, head_size, window_size=None
 ):
-    if not tvm_tirx.get_global_func("tvm.contrib.thrust.sum_scan", True):
+    if not tvm_ffi.get_global_func("tvm.contrib.thrust.sum_scan", True):
         return
 
     hidden_size = num_head * head_size

@@ -21,6 +21,7 @@ import tempfile
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -29,7 +30,7 @@ from tvm import relax
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.rpc import connect_tracker
 from tvm.s_tir import script as Ts
-from tvm_tirx import DataType, IRModule, tirx
+from tvm_tirx import IRModule, tirx
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.support import ndk
@@ -114,7 +115,7 @@ def postprocess_pipeline(mod: IRModule) -> IRModule:
 def test_texture_copy(backend, dtype, channel_size, read_width):
     remote = get_rpc()
     M, N, K = (256, 1024, 128)
-    lanes = channel_size // DataType(dtype).bits
+    lanes = channel_size // tvm_ffi.dtype(dtype).bits
     if read_width > lanes:
         return
 

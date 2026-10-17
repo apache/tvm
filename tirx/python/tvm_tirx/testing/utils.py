@@ -71,6 +71,7 @@ import time
 import ml_dtypes
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 
@@ -143,7 +144,7 @@ def device_enabled(target):
         if not env._runtime_enabled(kind):
             continue
         if kind == "cuda" and "cudnn" in tvm_tirx.target.Target(candidate).attrs.get("libs", []):
-            exists = tvm_tirx.get_global_func("tvm.contrib.cudnn.exists", allow_missing=True)
+            exists = tvm_ffi.get_global_func("tvm.contrib.cudnn.exists", allow_missing=True)
             if env.has_cudnn() and exists is not None and exists():
                 return True
         elif tvm_tirx.device_from_target(candidate).exist:

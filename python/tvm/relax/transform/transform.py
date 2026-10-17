@@ -32,7 +32,7 @@ import tvm
 import tvm_tirx.ir
 from tvm.relax import Expr, Type, Var
 from tvm.relax.dpl import DFPattern
-from tvm_tirx.runtime import Object, Tensor
+from tvm_tirx.runtime import Tensor
 from tvm_tirx.tirx import Function, IndexMap
 
 from ..expr import Var
@@ -815,7 +815,7 @@ def FuseTIR() -> tvm_tirx.ir.transform.Pass:
 
 
 @tvm_ffi.register_object("relax.transform.PatternCheckContext")
-class PatternCheckContext(Object):
+class PatternCheckContext(tvm_ffi.Object):
     """
     The input of check function `FusionPattern.check`.
 
@@ -849,7 +849,7 @@ class PatternCheckContext(Object):
 
 
 @tvm_ffi.register_object("relax.transform.FusionPattern")
-class FusionPattern(Object):
+class FusionPattern(tvm_ffi.Object):
     """
     The pattern used by `FuseOpsByPattern`. It's mainly DFPattern but with other
     information to help during the fusion pass.
@@ -1418,7 +1418,7 @@ def SplitCallTIRByPattern(
     patterns : List[Function]
         The list of patterns to match.
 
-    fcodegen: Callable[[List[MatchResult]], List[Object]]
+    fcodegen: Callable[[List[MatchResult]], List[tvm_ffi.Object]]
         The function to generate the code for the matched patterns.
 
     Returns

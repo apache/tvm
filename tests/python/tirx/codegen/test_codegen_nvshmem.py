@@ -21,11 +21,11 @@ import tempfile
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
 from tvm.runtime import disco as di
-from tvm_tirx.runtime import ShapeTuple
 from tvm_tirx.script import tirx as T
 from tvm_tirx.support.popen_pool import PopenWorker
 from tvm_tirx.testing import env
@@ -49,7 +49,7 @@ def run_function(sess, function, *args):
 def create_nvshmem_array(sess, shape, dtype, init_data_fn=None, zero_out=True):
     """Create and optionally initialize an nvshmem-accessible DNDArray."""
     nvshmem_empty = sess.get_global_func("runtime.disco.nvshmem.empty")
-    arr = nvshmem_empty(ShapeTuple(shape), dtype, None)
+    arr = nvshmem_empty(tvm_ffi.Shape(shape), dtype, None)
 
     if init_data_fn:
         for i in range(NUM_WORKERS):
@@ -69,7 +69,7 @@ def test_codegen_nvshmem():
     def _test_func():
         ############ setup ############
         sess = di.ProcessSession(num_workers=NUM_WORKERS)
-        f_init_nvshmem_uid = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+        f_init_nvshmem_uid = tvm_ffi.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
         uid = f_init_nvshmem_uid()
         init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
         init_dfunc(uid, NUM_WORKERS, 0)

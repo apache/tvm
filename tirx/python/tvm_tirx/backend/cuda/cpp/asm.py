@@ -27,6 +27,8 @@ the PTX text, or the offset-scaling ``cp.async`` form the legacy
 
 import re
 
+import tvm_ffi
+
 from tvm_tirx import ir
 from tvm_tirx.backend.cuda.op import func_call
 from tvm_tirx.runtime import MemoryScope
@@ -447,8 +449,6 @@ def codegen_s_tir_cp_async_raw(*args):
         # PTX plain form for both .ca and .cg is just
         # ``cp.async.<v>.shared.global [dst], [src], cp_size;`` — three
         # operands, no trailing src-size / cache-policy.
-        from tvm_tirx import DataType
-
         dst_ptr_in, dst_offset, src_ptr_in, src_offset, cp_size = args[:5]
         predicate = args[5] if len(args) == 6 else -1
         cp_size_v = int(cp_size)
@@ -467,7 +467,7 @@ def codegen_s_tir_cp_async_raw(*args):
             et = ta.element_type
             if not hasattr(et, "dtype"):
                 return 1
-            bits = DataType(str(et.dtype)).bits
+            bits = tvm_ffi.dtype(str(et.dtype)).bits
             assert bits % 8 == 0, f"non-byte element dtype: {et.dtype}"
             return bits // 8
 

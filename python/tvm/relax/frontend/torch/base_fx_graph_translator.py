@@ -603,7 +603,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         scale_exp = abs(decimals)
         # Largest exponent for which 10**n is still finite in `dtype`.
         # (float16/bfloat16 are upcast to float32 above, so dtype is float32 or
-        # float64 here.) Note that `dtype` may be a tvm.DataType-like object whose
+        # float64 here.) Note that `dtype` may be a tvm_ffi.dtype-like object whose
         # repr is "T.float32" instead of a plain str, so select via == rather than
         # indexing a str-keyed dict.
         max_scale_exp = 308 if dtype == "float64" else 38

@@ -25,7 +25,7 @@ from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 
-@tvm_tirx.register_global_func("test.op.identity", override=True)
+@tvm_ffi.register_global_func("test.op.identity", override=True)
 def identity_packed(a):
     return tvm_tirx.runtime.tensor(a.numpy())
 

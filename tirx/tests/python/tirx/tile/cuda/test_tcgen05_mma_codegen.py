@@ -20,6 +20,7 @@
 import re
 
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 from tirx.layout_fixtures import scale_factor_tmem_layout
@@ -386,7 +387,7 @@ def test_gemm_tcgen05_explicit_mma_m_is_cluster_total_for_cta_group_2(rows, inst
 def _packed_fixture(a_form="packed", dtype="bfloat16", M=64, cta=2):
     """The old column-major alias is explicitly unfolded to packed 16B lines."""
     N, K = 256, 64
-    e16 = 128 // tvm_tirx.DataType(dtype).bits
+    e16 = 128 // tvm_ffi.dtype(dtype).bits
     a_layout = (
         TileLayout(S[(M, K) : (1, M)])
         if a_form == "column_major"

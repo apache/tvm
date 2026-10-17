@@ -18,6 +18,7 @@
 import uuid
 
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -107,7 +108,7 @@ def test_tensor_type_and_projection(dtype, scope):
     assert tuple(tensor.ty.shape) == (m, n)
     assert tuple(tensor.shape) == (m, n)
     assert tensor.ty.dtype == tvm_tirx.ir.PrimType(dtype)
-    assert tensor.dtype == tvm_tirx.DataType(dtype)
+    assert tensor.dtype == tvm_ffi.dtype(dtype)
     assert tensor.data.ty == tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType(dtype), scope)
     assert tensor.data.op.name == "tirx.tensor_data_ptr"
     assert tensor.data.args[0].same_as(tensor)

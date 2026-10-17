@@ -37,7 +37,7 @@ def test_check_if_device_exists():
     cmd = [
         sys.executable,
         "-c",
-        "import tvm_tirx; tvm_tirx.device('cuda').exist",
+        "import tvm_ffi; import tvm_tirx; tvm_ffi.device('cuda').exist",
     ]
     subprocess.check_call(
         cmd,

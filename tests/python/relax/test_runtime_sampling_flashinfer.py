@@ -18,6 +18,7 @@ import random
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -27,7 +28,7 @@ from tvm_tirx.support import utils
 
 @pytest.mark.skip(reason="Requires FlashInfer enabled and proper setup")
 def test_sampling():
-    def load_module(name: str, static_modules: list[tvm_tirx.runtime.Module]):
+    def load_module(name: str, static_modules: list[tvm_ffi.Module]):
         assert len(static_modules) > 0
         if len(static_modules) == 1:
             return static_modules[0]

@@ -18,6 +18,7 @@
 # ruff: noqa: F841
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -59,7 +60,7 @@ def main(p0: T.Tensor((), "int32"), T_stack: T.Tensor((T.int64(3),), "int32")):
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_normalize_function_with_scalar():
     sch = tvm.s_tir.Schedule(main)
-    f_normalize_function = tvm_tirx.get_global_func("s_tir.schedule.NormalizeFunction")
+    f_normalize_function = tvm_ffi.get_global_func("s_tir.schedule.NormalizeFunction")
     assert f_normalize_function(sch)
 
 

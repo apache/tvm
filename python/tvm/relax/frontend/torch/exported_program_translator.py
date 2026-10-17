@@ -25,6 +25,8 @@ from collections import ChainMap, OrderedDict
 from collections.abc import Callable
 from functools import partial
 
+import tvm_ffi
+
 try:
     import torch
     from torch import fx
@@ -65,7 +67,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         # Try DLPack conversion first (faster)
         try:
-            return tvm_tirx.runtime.from_dlpack(tensor_detached)
+            return tvm_ffi.from_dlpack(tensor_detached)
         except (RuntimeError, BufferError):
             # Fallback: convert to numpy and then to TVM tensor
             # This handles cases where DLPack conversion fails

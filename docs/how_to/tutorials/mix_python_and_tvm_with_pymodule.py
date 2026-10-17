@@ -47,8 +47,9 @@ This tutorial walks through the full workflow step by step.
 ######################################################################
 # Preparation
 # -----------
-
 import os
+
+import tvm_ffi
 
 try:
     import torch
@@ -192,12 +193,13 @@ if RUN_EXAMPLE:
 # - ``call_dps_packed``: call a TVM packed function (e.g., a third-party library binding)
 # - Direct Python: call any PyTorch function
 #
-# ``call_dps_packed`` is useful for calling functions registered via ``tvm.register_global_func``
+# ``call_dps_packed`` can call functions registered via
+# ``tvm_ffi.register_global_func``
 # — for example, CUBLAS or cuDNN bindings that TVM wraps as packed functions.
 
 if RUN_EXAMPLE:
     # Register a packed function (simulating an external library binding)
-    @tvm_tirx.register_global_func("my_bias_add", override=True)
+    @tvm_ffi.register_global_func("my_bias_add", override=True)
     def my_bias_add(x, bias, out):
         """Packed function: adds bias to each row of x."""
 

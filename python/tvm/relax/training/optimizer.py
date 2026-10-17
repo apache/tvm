@@ -150,7 +150,7 @@ class Optimizer:
                     f"Optimizers only support Tensor parameters, but parameter {x.name} has "
                     f"type {x.ty}"
                 )
-            data_type = tvm_tirx.DataType(x.ty.dtype.dtype)
+            data_type = tvm_ffi.dtype(x.ty.dtype.dtype)
             if data_type.type_code not in (
                 tvm_tirx.DataTypeCode.BFLOAT,
                 tvm_tirx.DataTypeCode.FLOAT,

@@ -19,6 +19,7 @@
 
 # The test here do not depend on tvmscript to cover most basic features
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.contrib.cblas
@@ -37,7 +38,7 @@ from tvm_tirx.tirx.function import Function
 
 @pytest.fixture(scope="module")
 def register_nop():
-    @tvm_tirx.register_global_func("test.blockbuilder.nop")
+    @tvm_ffi.register_global_func("test.blockbuilder.nop")
     def nop():
         pass
 

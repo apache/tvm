@@ -23,7 +23,6 @@ import tvm_ffi
 
 from tvm.s_tir import script as Ts
 from tvm_tirx.codegen import llvm, target_has_features
-from tvm_tirx.runtime import DataType
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 
@@ -93,21 +92,21 @@ def rvv_vec_dot_product_kernels(
 
     # LLVM only supports ELEN=32 or ELEN=64
     # https://llvm.org/docs//RISCV/RISCVVectorExtension.html
-    d_dtype_lanes = (64 // DataType(data_dtype).bits) * lmul
-    w_dtype_lanes = (64 // DataType(weight_dtype).bits) * lmul
+    d_dtype_lanes = (64 // tvm_ffi.dtype(data_dtype).bits) * lmul
+    w_dtype_lanes = (64 // tvm_ffi.dtype(weight_dtype).bits) * lmul
     # reduction lanes narrows
-    o_dtype_lanes = (64 // DataType(out_dtype).bits) * lmul // n_lanes
+    o_dtype_lanes = (64 // tvm_ffi.dtype(out_dtype).bits) * lmul // n_lanes
     # data type widening case
     o_dtype_lanes = max(o_dtype_lanes, 2)
 
-    weight_bytes = DataType(weight_dtype).bits // 8
-    output_bytes = DataType(out_dtype).bits // 8
+    weight_bytes = tvm_ffi.dtype(weight_dtype).bits // 8
+    output_bytes = tvm_ffi.dtype(out_dtype).bits // 8
     mask_args = () if data_dtype[0] in ("i", "u") else (T.uint64(7),)
 
     wide_dtype = out_dtype
-    if DataType(out_dtype).bits > DataType(data_dtype).bits:
+    if tvm_ffi.dtype(out_dtype).bits > tvm_ffi.dtype(data_dtype).bits:
         wide_dtype = "".join(c for c in data_dtype if not c.isdigit())
-        wide_dtype += str(DataType(data_dtype).bits * 2)
+        wide_dtype += str(tvm_ffi.dtype(data_dtype).bits * 2)
 
     # fmt: off
     @Ts.function
@@ -198,18 +197,18 @@ def register_rvv_isa_intrinsics(target: Target, inventory_only=False) -> dict():
 
     for d_dtype, w_dtype, o_dtype in zip(data_dtype, weight_dtype, output_dtype):
         # max elements to grouped registers
-        max_elems = get_max_elems(vlen, lmul=8, sew=DataType(d_dtype).bits)
+        max_elems = get_max_elems(vlen, lmul=8, sew=tvm_ffi.dtype(d_dtype).bits)
         # data widening halves available vector registers
-        if DataType(o_dtype).bits > DataType(d_dtype).bits:
+        if tvm_ffi.dtype(o_dtype).bits > tvm_ffi.dtype(d_dtype).bits:
             max_elems //= 2
         # compute optimal LMUL for full load
-        lmul = max_elems // (vlen // DataType(d_dtype).bits)
+        lmul = max_elems // (vlen // tvm_ffi.dtype(d_dtype).bits)
 
         n_elems = max_elems
         while n_elems >= 4:
-            dt = DataType(d_dtype)
-            wt = DataType(w_dtype)
-            ot = DataType(o_dtype)
+            dt = tvm_ffi.dtype(d_dtype)
+            wt = tvm_ffi.dtype(w_dtype)
+            ot = tvm_ffi.dtype(o_dtype)
             kernel_name = "rvv_dot"
             kernel_name += f"_{n_elems}{dt[0]}{dt.bits}"
             kernel_name += f"_{n_lanes}x{n_elems}{wt[0]}{wt.bits}"

@@ -27,6 +27,7 @@ import sys
 import tarfile
 
 import numpy
+import tvm_ffi
 from tvm_ffi import register_global_func
 
 import tvm_tirx
@@ -227,7 +228,7 @@ def create_aot_shared(so_name: str | pathlib.Path, files, hexagon_arch: str, opt
 
 
 def pack_imports(
-    module: tvm_tirx.runtime.Module,
+    module: tvm_ffi.Module,
     is_system_lib: bool,  # pylint: disable=unused-argument
     c_symbol_prefix: str,
     workspace_dir: str,
@@ -238,7 +239,7 @@ def pack_imports(
 
     Parameters
     ----------
-    module: tvm_tirx.runtime.Module
+    module: tvm_ffi.Module
         Module whose imported modules need to be serialized.
     is_system_lib: bool
         Flag whether the exported module will be used as a system library.
@@ -255,12 +256,12 @@ def pack_imports(
 
     path_bin = os.path.join(workspace_dir, "imports.bin")
     pack_to_bin_f_name = "runtime.ModulePackImportsToTensor"
-    fpack_to_bin = tvm_tirx.get_global_func(pack_to_bin_f_name)
+    fpack_to_bin = tvm_ffi.get_global_func(pack_to_bin_f_name)
     assert fpack_to_bin, f"Expecting {pack_to_bin_f_name} in registry"
 
     fpack_to_bin(module).numpy().tofile(path_bin)
 
-    mblob_symbol = c_symbol_prefix + tvm_tirx.get_global_func("runtime.ModuleImportsBlobName")()
+    mblob_symbol = c_symbol_prefix + tvm_ffi.get_global_func("runtime.ModuleImportsBlobName")()
 
     binary_size = os.path.getsize(path_bin)
     hexagon_toolchain = os.environ.get("HEXAGON_TOOLCHAIN")

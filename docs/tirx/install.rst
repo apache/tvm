@@ -251,8 +251,9 @@ FFI module and ``executable.jit()`` for a runnable module.
 ``tvm_tirx.codegen.load_static_library`` wraps an existing object for inclusion
 in an executable's import graph.
 
-``tvm_tirx.runtime.Module``, ``load_module``, and ``system_lib`` directly alias
-the FFI APIs. Loading no longer invokes a linker for objects or archives; export
+Use ``tvm_ffi.Module`` and ``tvm_ffi.system_lib`` directly.
+``tvm_tirx.runtime.load_module`` remains a convenience alias for
+``tvm_ffi.load_module``. Loading no longer invokes a linker for objects or archives; export
 and link explicitly before loading. Parent TVM's RPC server retains remote
 object/archive linking through its registered server hook.
 

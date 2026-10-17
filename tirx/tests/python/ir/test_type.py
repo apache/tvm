@@ -19,6 +19,7 @@
 import uuid
 
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 from tvm_tirx.runtime import MemoryScope
@@ -46,7 +47,7 @@ def test_prim_type():
 
 
 def test_func_type():
-    arg_types = tvm_tirx.runtime.convert([])
+    arg_types = tvm_ffi.convert([])
     ret_type = tvm_tirx.ir.PrimType("float32")
     tf = tvm_tirx.ir.FuncType(arg_types, ret_type)
     assert tf.arg_types == arg_types
@@ -61,7 +62,7 @@ def test_func_type():
 def test_tuple_type():
     tf = tvm_tirx.ir.FuncType([], tvm_tirx.ir.TupleType([]))
     tt = tvm_tirx.ir.PrimType("float32")
-    fields = tvm_tirx.runtime.convert([tf, tt])
+    fields = tvm_ffi.convert([tf, tt])
 
     tup_ty = tvm_tirx.ir.TupleType(fields)
     assert tup_ty.loc.same_as(tvm_tirx.ir.UnknownLoc())

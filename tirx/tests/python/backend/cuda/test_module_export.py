@@ -19,6 +19,7 @@ import ctypes
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.support.nvcc
@@ -94,10 +95,10 @@ def test_cuda_multi_lib():
             a_np = np.random.uniform(size=12).astype("float32")
             a_nd = tvm_tirx.runtime.tensor(a_np, dev)
             b_nd = tvm_tirx.runtime.tensor(a_np, dev)
-            syslibA = tvm_tirx.runtime.system_lib("modA_")
-            syslibB = tvm_tirx.runtime.system_lib("modB_")
+            syslibA = tvm_ffi.system_lib("modA_")
+            syslibB = tvm_ffi.system_lib("modB_")
             # reload same lib twice
-            syslibA = tvm_tirx.runtime.system_lib("modA_")
+            syslibA = tvm_ffi.system_lib("modA_")
             syslibA["my_inplace_update"](a_nd)
             syslibB["my_inplace_update"](b_nd)
             np.testing.assert_equal(a_nd.numpy(), a_np + 1)

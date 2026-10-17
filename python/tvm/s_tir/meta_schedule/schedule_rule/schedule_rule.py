@@ -23,6 +23,8 @@ blocks in a schedule. See also PostOrderApply.
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+import tvm_ffi
+
 # isort: off
 from typing import Literal
 
@@ -31,7 +33,6 @@ from typing import Literal
 from tvm_ffi import register_object
 
 from tvm.s_tir.schedule import SBlockRV, Schedule
-from tvm_tirx.runtime import Object
 
 from .. import _ffi_api
 
@@ -40,7 +41,7 @@ if TYPE_CHECKING:
 
 
 @register_object("s_tir.meta_schedule.ScheduleRule")
-class ScheduleRule(Object):
+class ScheduleRule(tvm_ffi.Object):
     """Rules to modify a block in a schedule."""
 
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:

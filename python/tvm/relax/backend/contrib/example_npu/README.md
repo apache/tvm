@@ -173,8 +173,9 @@ in the TVM build:
 
 ```python
 import tvm
-has_codegen = tvm.get_global_func("relax.ext.example_npu", True)
-has_runtime = tvm.get_global_func("runtime.ExampleNPUJSONRuntimeCreate", True)
+import tvm_ffi
+has_codegen = tvm_ffi.get_global_func("relax.ext.example_npu", True)
+has_runtime = tvm_ffi.get_global_func("runtime.ExampleNPUJSONRuntimeCreate", True)
 has_example_npu = has_codegen and has_runtime
 ```
 

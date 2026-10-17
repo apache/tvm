@@ -297,7 +297,7 @@ def test_flat_tensor_store_preserves_identity_and_emits_once(layout):
 
 
 def _check_stores(output):
-    outputs = output if isinstance(output, tuple | list | tvm_tirx.ir.Array) else [output]
+    outputs = output if isinstance(output, tuple | list | tvm_ffi.Array) else [output]
     stores = []
 
     for tensor in outputs:
@@ -627,7 +627,7 @@ def test_imperative_tensors_numerical(kind):
         expected = [np.array([0, 2, 0, 3], dtype="int32")]
     inputs = [te.placeholder(array.shape, str(array.dtype)) for array in arrays]
     outputs = build(*inputs)
-    outputs = list(outputs) if isinstance(outputs, list | tuple | tvm_tirx.ir.Array) else [outputs]
+    outputs = list(outputs) if isinstance(outputs, list | tuple | tvm_ffi.Array) else [outputs]
     executable = tvm_tirx.tirx.compile(te.create_function([*inputs, *outputs]), target="llvm")
     actual = [
         tvm_tirx.runtime.empty(tuple(int(dim) for dim in out.shape), out.dtype) for out in outputs

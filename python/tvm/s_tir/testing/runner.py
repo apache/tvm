@@ -20,13 +20,15 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal, Optional, Union
 
+import tvm_ffi
+
 from tvm.runtime import time_evaluator
 
 if TYPE_CHECKING:
     import numpy as np
 
     from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig
-    from tvm_tirx.runtime import Device, Module, Tensor
+    from tvm_tirx.runtime import Device, Tensor
 
 # pylint: disable=import-outside-toplevel,protected-access
 
@@ -87,18 +89,18 @@ def _normalize_export_func(export_func, output_format) -> tuple[Callable, str]:
 
 
 def local_run(  # pylint: disable=too-many-arguments,too-many-locals
-    mod: "Module",
+    mod: "tvm_ffi.Module",
     device_type: str,
     args: list[Union["np.ndarray", "Tensor", int, float]],
     evaluator_config: Optional["EvaluatorConfig"] = None,
-    export_func: Callable[["Module", str], None] | Literal["tar", "ndk"] = "tar",
+    export_func: Callable[["tvm_ffi.Module", str], None] | Literal["tar", "ndk"] = "tar",
     output_format: str | None = None,
 ):
     """Run a TVM module on a local device.
 
     Parameters
     ----------
-    mod : Module
+    mod : tvm_ffi.Module
         The TVM module to run.
     device_type : str
         The device type to run the module on.
@@ -106,7 +108,7 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
         The arguments to be fed to the module.
     evaluator_config : Optional[EvaluatorConfig]
         The evaluator configuration to use.
-    export_func : Union[Callable[Module, str], Literal["tar", "ndk"]]
+    export_func : Union[Callable[tvm_ffi.Module, str], Literal["tar", "ndk"]]
         The function to export the module to a file.
         If callable, it must be a function that takes two arguments: the module to export and the
         path to export to.
@@ -127,7 +129,7 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
     import tempfile
 
     from tvm.s_tir.meta_schedule.runner import EvaluatorConfig
-    from tvm_tirx.runtime import device, load_module
+    from tvm_tirx.runtime import load_module
     from tvm_tirx.support import cc, tar, utils
 
     evaluator_config = EvaluatorConfig._normalized(evaluator_config)
@@ -136,7 +138,7 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
     with tempfile.TemporaryDirectory() as tmp_dir:
         artifact_path = osp.join(tmp_dir, "tvm_tmp_mod." + output_format)
         export_func(mod, artifact_path)
-        device: Device = device(device_type, 0)
+        device: Device = tvm_ffi.device(device_type, 0)
 
         args = _args_to_device(args, device)
         if artifact_path.endswith((".o", ".tar")):
@@ -164,19 +166,19 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
 
 
 def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
-    mod: "Module",
+    mod: "tvm_ffi.Module",
     device_type: str,
     args: list[Union["np.ndarray", "Tensor", int, float]],
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
-    export_func: Callable[["Module", str], None] | Literal["tar", "ndk"] = "tar",
+    export_func: Callable[["tvm_ffi.Module", str], None] | Literal["tar", "ndk"] = "tar",
     output_format: str | None = None,
 ):
     """Run a TVM module on a remote device.
 
     Parameters
     ----------
-    mod : Module
+    mod : tvm_ffi.Module
         The TVM module to run.
     device_type : str
         The device type to run the module on.
@@ -191,7 +193,7 @@ def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
         - TVM_TRACKER_HOST
         - TVM_TRACKER_PORT
         - TVM_TRACKER_KEY
-    export_func : Union[Callable[Module, str], Literal["tar", "ndk"]]
+    export_func : Union[Callable[tvm_ffi.Module, str], Literal["tar", "ndk"]]
         The function to export the module to a file.
         If callable, it must be a function that takes two arguments: the module to export and the
         path to export to.

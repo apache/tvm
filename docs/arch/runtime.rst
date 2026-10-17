@@ -88,8 +88,9 @@ The following example registers PackedFunc in C++ and calls from python.
 .. code:: python
 
     import tvm
+    import tvm_ffi
 
-    myadd = tvm.get_global_func("myadd")
+    myadd = tvm_ffi.get_global_func("myadd")
     # prints 3
     print(myadd(1, 2))
 
@@ -123,13 +124,14 @@ we can pass functions from python (as PackedFunc) to C++.
 .. code:: python
 
     import tvm
+    import tvm_ffi
 
     def callback(msg):
       print(msg)
 
     # convert to PackedFunc
-    f = tvm.runtime.convert(callback)
-    callhello = tvm.get_global_func("callhello")
+    f = tvm_ffi.convert(callback)
+    callhello = tvm_ffi.get_global_func("callhello")
     # prints hello world
     callhello(f)
 

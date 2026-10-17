@@ -22,6 +22,7 @@ import struct
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -97,7 +98,7 @@ def test_llvm_add_pipeline():
 
 
 @pytest.mark.skipif(
-    tvm_tirx.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_ffi.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_bigendian_rpc():
     """Test big endian rpc when there is a PowerPC RPC server available"""

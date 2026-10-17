@@ -20,6 +20,8 @@
 from collections.abc import Callable
 from typing import Union
 
+import tvm_ffi
+
 # isort: off
 from typing import Literal
 
@@ -27,7 +29,6 @@ from typing import Literal
 
 from tvm_ffi import register_object
 
-from tvm_tirx.runtime import Object
 from tvm_tirx.runtime._tensor import Tensor
 
 from .. import _ffi_api
@@ -36,7 +37,7 @@ from ..tune_context import TuneContext
 
 
 @register_object("s_tir.meta_schedule.FeatureExtractor")
-class FeatureExtractor(Object):
+class FeatureExtractor(tvm_ffi.Object):
     """Extractor for features from measure candidates for use in cost model."""
 
     FeatureExtractorType = Union[Literal["per-store-feature"], "FeatureExtractor"]

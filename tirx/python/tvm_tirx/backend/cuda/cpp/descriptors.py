@@ -563,7 +563,7 @@ device_intrinsic(
 
 
 def _dtype_name(dtype) -> str:
-    """Name of a dtype given as a string, a DataType, or an object holding one."""
+    """Name of a dtype given as a string, a tvm_ffi.dtype, or an object holding one."""
     dtype_obj = getattr(dtype, "dtype", None)
     if dtype_obj is not None:
         return str(dtype_obj)

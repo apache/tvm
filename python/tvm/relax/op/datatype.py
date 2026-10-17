@@ -18,7 +18,6 @@
 
 import tvm_ffi
 
-from tvm_tirx import DataType
 from tvm_tirx.ir import Attrs, PrimType
 from tvm_tirx.ir import Call as _Call
 from tvm_tirx.ir.attrs import make_node as _make_attrs
@@ -37,7 +36,7 @@ class AstypeAttrs(Attrs):
 
 
 def astype(
-    x: Expr, dtype: str | DataType | PrimType, *, ty=None, loc: Location = UNKNOWN_LOC
+    x: Expr, dtype: str | tvm_ffi.dtype | PrimType, *, ty=None, loc: Location = UNKNOWN_LOC
 ) -> Expr:
     """Cast input tensor to the given data type.
 
@@ -46,7 +45,7 @@ def astype(
     x : relax.Expr
         The input data to the operator.
 
-    dtype: Union[str, DataType]
+    dtype: Union[str, tvm_ffi.dtype]
         The target data type
 
     Returns
@@ -70,7 +69,7 @@ class WrapParamAttrs(Attrs):
 
 def wrap_param(
     data: Expr,
-    dtype: str | DataType | PrimType = "float32",
+    dtype: str | tvm_ffi.dtype | PrimType = "float32",
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -81,7 +80,7 @@ def wrap_param(
     ----------
     data : relax.Expr
         The input data to the operator.
-    dtype : Union[str, DataType]
+    dtype : Union[str, tvm_ffi.dtype]
         The target data type
     Returns
     -------

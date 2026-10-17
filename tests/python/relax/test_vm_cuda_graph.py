@@ -21,6 +21,7 @@ import ctypes.util
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -182,7 +183,7 @@ def test_capture_error_is_recoverable():
         cudart.cudaGetLastError.restype = ctypes.c_int
         cudart.cudaGetLastError()
 
-        @tvm_tirx.register_global_func(
+        @tvm_ffi.register_global_func(
             "test_vm_cuda_graph.invalid_impl_for_cudagraph", override=True
         )
         def invalid_impl_for_cudagraph(arg_tensor):

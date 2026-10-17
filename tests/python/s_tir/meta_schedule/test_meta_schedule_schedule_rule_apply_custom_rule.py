@@ -18,6 +18,7 @@
 import tempfile
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -46,7 +47,7 @@ class Matmul:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
-@tvm_tirx.register_global_func("s_tir.meta_schedule.cpu.test_apply_custom_rule")
+@tvm_ffi.register_global_func("s_tir.meta_schedule.cpu.test_apply_custom_rule")
 def sch_fn(sch: tvm.s_tir.Schedule, block: tvm.s_tir.SBlock) -> list[tvm.s_tir.Schedule]:
     raise ValueError("Intended for s_tir.meta_schedule.cpu.test_apply_custom_rule")
 

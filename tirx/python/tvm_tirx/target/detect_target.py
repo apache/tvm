@@ -18,9 +18,10 @@
 
 from collections.abc import Callable
 
+import tvm_ffi
 from tvm_ffi import get_global_func
 
-from ..runtime import Device, device
+from ..runtime import Device
 from . import Target
 
 
@@ -67,7 +68,7 @@ def detect_target_from_device(dev: str | Device) -> Target:
         The detected target.
     """
     if isinstance(dev, str):
-        dev = device(dev)
+        dev = tvm_ffi.device(dev)
     device_type = Device._DEVICE_TYPE_TO_NAME[dev.dlpack_device_type()]
     if device_type not in SUPPORTED_DEVICE:
         raise ValueError(

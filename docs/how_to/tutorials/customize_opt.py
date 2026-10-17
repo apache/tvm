@@ -48,11 +48,11 @@ tutorial we will
 # - **Build and Universal Deployment**: Build the optimized model to a deployable module to the
 #   universal runtime, and execute it on different devices, such as CPU, GPU, or other accelerators.
 #
-
 import os
 import tempfile
 
 import numpy as np
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -125,7 +125,7 @@ except ImportError as e:
 class CublasDispatch:
     def transform_module(self, mod: IRModule, _ctx: tvm_tirx.ir.transform.PassContext) -> IRModule:
         # Check if CUBLAS is enabled
-        if not tvm_tirx.get_global_func("relax.ext.cublas", True):
+        if not tvm_ffi.get_global_func("relax.ext.cublas", True):
             raise Exception("CUBLAS is not enabled.")
 
         # Get interested patterns

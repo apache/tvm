@@ -54,8 +54,8 @@ def test_attrs_equal():
     dattr2 = tvm_tirx.ir.make_node("ir.DictAttrs", x=1, y=None)
     tvm_tirx.ir.assert_structural_equal(dattr0, dattr1)
     assert not tvm_ffi.structural_equal(dattr0, dattr2)
-    assert not tvm_ffi.structural_equal({"x": 1}, tvm_tirx.runtime.convert(1))
-    assert not tvm_ffi.structural_equal([1, 2], tvm_tirx.runtime.convert(1))
+    assert not tvm_ffi.structural_equal({"x": 1}, tvm_ffi.convert(1))
+    assert not tvm_ffi.structural_equal([1, 2], tvm_ffi.convert(1))
 
 
 def test_assert_structural_equal_reports_mismatch():

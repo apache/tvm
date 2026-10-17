@@ -37,7 +37,7 @@ class LibCompareVMInstrument:
 
     Parameters
     ----------
-    mod: runtime.Module
+    mod: tvm_ffi.Module
         The module of interest to be validated.
 
     device: runtime.Device

@@ -18,6 +18,7 @@
 # ruff: noqa: E501, F841
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -909,7 +910,7 @@ def test_extern():
 
 
 def test_empty():
-    @tvm_tirx.register_global_func("test_empty_assert", override=True)
+    @tvm_ffi.register_global_func("test_empty_assert", override=True)
     def test_empty_assert(_lineo, x):
         assert x.shape == (10, 10)
         assert x.dtype == "float32"

@@ -19,7 +19,6 @@
 
 import tvm_ffi
 
-from tvm_tirx import DataType
 from tvm_tirx.ir import Attrs
 from tvm_tirx.ir import Call as _Call
 from tvm_tirx.ir import PrimType as _PrimType
@@ -39,7 +38,7 @@ class MatmulAttrs(Attrs):
 def matmul(
     x1: Expr,
     x2: Expr,
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -57,7 +56,7 @@ def matmul(
     x2 : relax.Expr
         The second input tensor.
 
-    out_dtype: Optional[Union[str, DataType]]
+    out_dtype: Optional[Union[str, tvm_ffi.dtype]]
         The data type of the matmul result.
         When it is not specified, the output dtype will be the same as input dtype.
 
@@ -82,7 +81,7 @@ def linear(
     data: Expr,
     weight: Expr,
     bias: Expr | None = None,
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
 ) -> Expr:
     """Applies a linear transformation to the incoming data: y = xA^T + b
 
@@ -97,7 +96,7 @@ def linear(
     bias : Optional[Expr]
         The bias tensor.
 
-    out_dtype: Optional[Union[str, DataType]]
+    out_dtype: Optional[Union[str, tvm_ffi.dtype]]
         The data type of the matmul result.
         When it is not specified, the output dtype will be the same as input dtype.
 

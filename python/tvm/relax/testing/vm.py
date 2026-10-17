@@ -20,62 +20,64 @@
 from typing import Any
 
 import numpy as np  # type: ignore
+import tvm_ffi
 
 import tvm_tirx
 from tvm import relax
-from tvm_tirx.runtime import Object
 
 
-@tvm_tirx.register_global_func("test.vm.move")
+@tvm_ffi.register_global_func("test.vm.move")
 def move(src):
     return src
 
 
-@tvm_tirx.register_global_func("test.vm.add")
+@tvm_ffi.register_global_func("test.vm.add")
 def add(a, b):
     ret = a.numpy() + b.numpy()
     return tvm_tirx.runtime.tensor(ret)
 
 
-@tvm_tirx.register_global_func("test.vm.mul")
+@tvm_ffi.register_global_func("test.vm.mul")
 def mul(a, b):
     ret = a.numpy() * b.numpy()
     return tvm_tirx.runtime.tensor(ret)
 
 
-@tvm_tirx.register_global_func("test.vm.equal_zero")
+@tvm_ffi.register_global_func("test.vm.equal_zero")
 def equal_zero(a):
     ret = np.all(a.numpy() == 0)
     return tvm_tirx.runtime.tensor(ret)
 
 
-@tvm_tirx.register_global_func("test.vm.subtract_one")
+@tvm_ffi.register_global_func("test.vm.subtract_one")
 def subtract_one(a):
     ret = np.subtract(a.numpy(), 1)
     return tvm_tirx.runtime.tensor(ret)
 
 
-@tvm_tirx.register_global_func("test.vm.identity")
+@tvm_ffi.register_global_func("test.vm.identity")
 def identity_packed(a, b):
     b[:] = tvm_tirx.runtime.tensor(a.numpy())
 
 
-@tvm_tirx.register_global_func("test.vm.tile")
+@tvm_ffi.register_global_func("test.vm.tile")
 def tile_packed(a, b):
     b[:] = tvm_tirx.runtime.tensor(np.tile(a.numpy(), (1, 2)))
 
 
-@tvm_tirx.register_global_func("test.vm.add_scalar")
+@tvm_ffi.register_global_func("test.vm.add_scalar")
 def add_scalar(a, b):
     return a + b
 
 
-@tvm_tirx.register_global_func("test.vm.get_device_id")
+@tvm_ffi.register_global_func("test.vm.get_device_id")
 def get_device_id(device):
     return device.index
 
 
-def check_saved_func(vm: relax.VirtualMachine, func_name: str, *inputs: list[Any]) -> Object:
+def check_saved_func(
+    vm: relax.VirtualMachine, func_name: str, *inputs: list[Any]
+) -> tvm_ffi.Object:
     # uses save_function to create a closure with the given inputs
     # and ensure the result is the same
     # (assumes the functions return tensors and that they're idempotent)
@@ -87,6 +89,6 @@ def check_saved_func(vm: relax.VirtualMachine, func_name: str, *inputs: list[Any
     return res1
 
 
-@tvm_tirx.register_global_func("test.vm.check_if_defined")
-def check_if_defined(obj: tvm_tirx.Object) -> tvm_tirx.ir.IntImm:
-    return tvm_tirx.runtime.convert(obj is not None)
+@tvm_ffi.register_global_func("test.vm.check_if_defined")
+def check_if_defined(obj: tvm_ffi.Object) -> tvm_tirx.ir.IntImm:
+    return tvm_ffi.convert(obj is not None)

@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import pytest
+import tvm_ffi
 from tvm_ffi.access_path import AccessPath
 
 import tvm
@@ -639,7 +640,7 @@ def test_primitive_bindings_roundtrip_without_prim_value_marker():
 
 
 def test_data_type_imm():
-    obj = tvm_tirx.ir.DataTypeImm(tvm_tirx.DataType("float32"))
+    obj = tvm_tirx.ir.DataTypeImm(tvm_ffi.dtype("float32"))
     _assert_print_lines(obj, 'T.dtype("float32")')
 
 

@@ -49,6 +49,8 @@ Three kinds of probe live here:
 import functools
 import os
 
+import tvm_ffi
+
 import tvm_tirx
 
 __all__ = [
@@ -90,9 +92,9 @@ __all__ = [
 
 @functools.cache
 def _device_exists(kind: str, index: int = 0) -> bool:
-    """Return whether ``tvm_tirx.device(kind, index)`` is present and usable."""
+    """Return whether ``tvm_ffi.device(kind, index)`` is present and usable."""
     try:
-        return bool(tvm_tirx.device(kind, index).exist)
+        return bool(tvm_ffi.device(kind, index).exist)
     except Exception:  # pylint: disable=broad-except
         # A missing backend / driver must skip the test, not crash collection.
         return False
@@ -187,7 +189,7 @@ def _runtime_enabled(kind: str) -> bool:
 
     Used for kinds whose device existence does not imply the backend was
     compiled in -- notably ``llvm``, which maps to the always-present CPU
-    device, so ``tvm_tirx.device("llvm").exist`` is True even on ``USE_LLVM=OFF``.
+    device, so ``tvm_ffi.device("llvm").exist`` is True even on ``USE_LLVM=OFF``.
     """
     try:
         return bool(tvm_tirx.runtime.enabled(kind))
@@ -286,7 +288,7 @@ def has_nccl() -> bool:
     """True if NCCL was built in and a CUDA device is present."""
     try:
         return has_cuda() and (
-            tvm_tirx.get_global_func("runtime.disco.nccl.init_ccl", allow_missing=True) is not None
+            tvm_ffi.get_global_func("runtime.disco.nccl.init_ccl", allow_missing=True) is not None
         )
     except Exception:  # pylint: disable=broad-except
         return False
@@ -306,7 +308,7 @@ def has_nvshmem() -> bool:
     """
     try:
         return has_cuda() and (
-            tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid", allow_missing=True)
+            tvm_ffi.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid", allow_missing=True)
             is not None
         )
     except Exception:  # pylint: disable=broad-except

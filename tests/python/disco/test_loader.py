@@ -23,6 +23,7 @@ import tempfile
 
 import numpy as np
 import pytest
+import tvm_ffi
 from tvm_ffi import Shape, register_global_func
 
 import tvm
@@ -39,7 +40,7 @@ from tvm_tirx.testing import env
 
 # `runtime.disco.compiled_ccl` is registered together with the CCL runtime
 # functions, so its absence means the disco CCL runtime is not in this build.
-_compiled_ccl = tvm_tirx.get_global_func("runtime.disco.compiled_ccl", allow_missing=True)
+_compiled_ccl = tvm_ffi.get_global_func("runtime.disco.compiled_ccl", allow_missing=True)
 if _compiled_ccl is None or _compiled_ccl() != "nccl":
     pytest.skip("Disco NCCL support is not available", allow_module_level=True)
 

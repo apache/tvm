@@ -19,43 +19,44 @@
 """Testing functions for the RPC server."""
 
 import numpy as np
+import tvm_ffi
 
 import tvm_tirx
 
 
 # RPC test functions to be registered for unit-tests purposes
-@tvm_tirx.register_global_func("rpc.test.addone")
+@tvm_ffi.register_global_func("rpc.test.addone")
 def _addone(x):
     return x + 1
 
 
-@tvm_tirx.register_global_func("rpc.test.strcat")
+@tvm_ffi.register_global_func("rpc.test.strcat")
 def _strcat(name, x):
     return f"{name}:{x}"
 
 
-@tvm_tirx.register_global_func("rpc.test.except")
+@tvm_ffi.register_global_func("rpc.test.except")
 def _remotethrow(name):
     raise ValueError(f"{name}")
 
 
-@tvm_tirx.register_global_func("rpc.test.runtime_str_concat")
+@tvm_ffi.register_global_func("rpc.test.runtime_str_concat")
 def _strcat(x, y):
     return x + y
 
 
-@tvm_tirx.register_global_func("rpc.test.remote_tensor_func")
+@tvm_ffi.register_global_func("rpc.test.remote_tensor_func")
 def _remote_tensor_func(y):
     x = np.ones((3, 4))
     np.testing.assert_equal(y.numpy(), x)
 
 
-@tvm_tirx.register_global_func("rpc.test.add_to_lhs")
+@tvm_ffi.register_global_func("rpc.test.add_to_lhs")
 def _add_to_lhs(x):
     return lambda y: x + y
 
 
-@tvm_tirx.register_global_func("rpc.test.remote_return_nd")
+@tvm_ffi.register_global_func("rpc.test.remote_return_nd")
 def _my_module(name):
     # Use closure to check the ref counter correctness
     nd = tvm_tirx.runtime.tensor(np.zeros(10).astype("float32"))

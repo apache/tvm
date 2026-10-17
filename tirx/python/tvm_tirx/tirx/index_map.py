@@ -26,14 +26,13 @@ import tvm_ffi
 
 import tvm_tirx
 from tvm_tirx.ir import Expr, Range, Var
-from tvm_tirx.runtime import Object
 from tvm_tirx.runtime._tensor import Tensor
 
 from . import _ffi_api
 
 
 @tvm_ffi.register_object("tirx.IndexMap")
-class IndexMap(Object):
+class IndexMap(tvm_ffi.Object):
     """A mapping from multi-dimensional indices to another set of multi-dimensional indices
 
     Parameters

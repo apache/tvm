@@ -19,6 +19,8 @@
 
 from typing import TYPE_CHECKING, Optional, Union
 
+import tvm_ffi
+
 # isort: off
 from typing import Literal
 
@@ -28,7 +30,6 @@ from tvm_ffi import register_object, register_global_func
 
 from tvm.s_tir import Schedule
 from tvm_tirx import IRModule
-from tvm_tirx.runtime import Object
 from tvm_tirx.target import Target
 from tvm_tirx.tirx import Function
 
@@ -61,7 +62,7 @@ def _normalize_mod(mod: Function | IRModule) -> IRModule:
 
 
 @register_object("s_tir.meta_schedule.TuneContext")
-class TuneContext(Object):
+class TuneContext(tvm_ffi.Object):
     """The tune context class is designed to contain all resources for a tuning task.
 
     Parameters

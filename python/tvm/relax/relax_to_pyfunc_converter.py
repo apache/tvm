@@ -27,6 +27,7 @@ from typing import Any, Optional, Union
 import numpy  # pylint: disable=unused-import
 import torch
 import torch.nn.functional as F
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -635,7 +636,7 @@ class RelaxExpressionConverter:
 
             # If not found in current module, try global registry
             if tir_function is None:
-                tir_function = tvm_tirx.get_global_func(func_name)
+                tir_function = tvm_ffi.get_global_func(func_name)
 
             if tir_function is None:
                 if len(converted_args) >= 2:
@@ -650,7 +651,7 @@ class RelaxExpressionConverter:
                 try:
                     if isinstance(arg, torch.Tensor):
                         # Convert PyTorch tensor to TVM NDArray via DLPack
-                        tvm_arg = runtime.from_dlpack(torch.to_dlpack(arg))
+                        tvm_arg = tvm_ffi.from_dlpack(torch.to_dlpack(arg))
                         tvm_args.append(tvm_arg)
                     else:
                         tvm_args.append(arg)
@@ -745,7 +746,7 @@ class RelaxExpressionConverter:
 
         try:
             # Get the packed function from TVM
-            packed_function = tvm_tirx.get_global_func(func_name)
+            packed_function = tvm_ffi.get_global_func(func_name)
             if packed_function is None:
                 return converted_args[0] if converted_args else torch.tensor([])
 
@@ -754,7 +755,7 @@ class RelaxExpressionConverter:
             for arg in converted_args:
                 if isinstance(arg, torch.Tensor):
                     # Convert PyTorch tensor to TVM NDArray via DLPack
-                    tvm_arg = runtime.from_dlpack(torch.to_dlpack(arg))
+                    tvm_arg = tvm_ffi.from_dlpack(torch.to_dlpack(arg))
                     tvm_args.append(tvm_arg)
                 else:
                     tvm_args.append(arg)

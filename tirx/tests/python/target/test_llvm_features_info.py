@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 from tvm_tirx import codegen
@@ -34,19 +35,17 @@ def test_llvm_targets(capfd):
     assert len(codegen.llvm.get_system_triple())
     assert len(codegen.llvm.get_system_x86_vendor())
     # check ffi vs python
-    assert (
-        codegen.llvm.get_system_cpu() == tvm_tirx.get_global_func("codegen.llvm_get_system_cpu")()
-    )
+    assert codegen.llvm.get_system_cpu() == tvm_ffi.get_global_func("codegen.llvm_get_system_cpu")()
     assert (
         codegen.llvm.get_system_triple()
-        == tvm_tirx.get_global_func("codegen.llvm_get_system_triple")()
+        == tvm_ffi.get_global_func("codegen.llvm_get_system_triple")()
     )
     assert (
         codegen.llvm.get_system_x86_vendor()
-        == tvm_tirx.get_global_func("codegen.llvm_get_system_x86_vendor")()
+        == tvm_ffi.get_global_func("codegen.llvm_get_system_x86_vendor")()
     )
     assert str(codegen.llvm.get_targets()) == str(
-        tvm_tirx.get_global_func("codegen.llvm_get_targets")()
+        tvm_ffi.get_global_func("codegen.llvm_get_targets")()
     )
 
     tvm_tirx.codegen.llvm.get_cpu_features(
@@ -99,7 +98,7 @@ def test_target_features(min_llvm_version, llvm_target, cpu_arch, cpu_features, 
     assert cpu_arch in codegen.llvm.get_cpu_archlist(target)
     # check ffi vs python
     assert str(codegen.llvm.get_cpu_archlist(target)) == str(
-        tvm_tirx.get_global_func("codegen.llvm_get_cpu_archlist")(target)
+        tvm_ffi.get_global_func("codegen.llvm_get_cpu_archlist")(target)
     )
 
     ##
@@ -114,5 +113,5 @@ def test_target_features(min_llvm_version, llvm_target, cpu_arch, cpu_features, 
     # check ffi vs python
     for feat in cpu_features:
         assert str(codegen.llvm.cpu_has_features(feat, target)) == str(
-            tvm_tirx.get_global_func("codegen.llvm_cpu_has_feature")(feat, target)
+            tvm_ffi.get_global_func("codegen.llvm_cpu_has_feature")(feat, target)
         )

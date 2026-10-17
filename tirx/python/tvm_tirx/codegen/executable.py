@@ -59,7 +59,7 @@ class Executable:
         The Executable returned by tvm.compile may not be directly
         runnable as they may contain CUDA source files and objects that
         are yet to be compiled and linked.
-        This function helps to create a runtime.Module for these cases.
+        This function helps to create a tvm_ffi.Module for these cases.
 
         Parameters
         ----------
@@ -94,7 +94,7 @@ class Executable:
         if self._jitted_mod is not None and not force_recompile:
             return self._jitted_mod
 
-        # TODO(tvm-team): Update runtime.Module interface
+        # TODO(tvm-team): Update tvm_ffi.Module interface
         # to query these properties as bitmask.
         def _not_runnable(x):
             return x.kind in ("c", "static_library")
@@ -190,7 +190,7 @@ class Executable:
             If fcompile has attribute object_format, will compile host library
             to that format. Otherwise, will use default format "o".
 
-        fpack_imports: function(mod: runtime.Module, is_system_lib: bool, symbol_prefix: str,
+        fpack_imports: function(mod: tvm_ffi.Module, is_system_lib: bool, symbol_prefix: str,
                                 workspace_dir: str) -> str
             Function used to pack imported modules from `mod` into a file suitable for passing
             to fcompile as an input file. The result can be a C source, or an .o object file,

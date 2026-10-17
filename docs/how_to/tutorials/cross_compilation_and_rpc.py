@@ -102,7 +102,7 @@ import tvm_tirx
 from tvm import rpc, te
 from tvm_tirx.support import utils
 
-n = tvm_tirx.runtime.convert(1024)
+n = tvm_ffi.convert(1024)
 A = te.placeholder((n,), name="A")
 B = te.compute((n,), lambda i: A[i] + 1.0, name="B")
 mod = tvm_tirx.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "add_one"))

@@ -20,11 +20,11 @@ import os
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+import tvm_ffi
 from tvm_ffi import Array, Map
 from tvm_ffi import register_object as _register_object
 
 from tvm_tirx.ir import FloatImm, IntImm, save_json
-from tvm_tirx.runtime import Object
 from tvm_tirx.tirx.index_map import IndexMap
 
 from . import _ffi_api
@@ -58,7 +58,7 @@ def _json_from_tvm(obj):
 
 
 @_register_object("s_tir.Trace")
-class Trace(Object):
+class Trace(tvm_ffi.Object):
     """An execution trace of a scheduling program.
 
     A trace has two parts:

@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -46,7 +47,7 @@ def test_large_uint_imm():
         f = tvm_tirx.tirx.compile(Module, target=target)
 
         def run_and_check():
-            dev = tvm_tirx.device(target_kind, 0)
+            dev = tvm_ffi.device(target_kind, 0)
             a = tvm_tirx.runtime.empty((12,), dtype="uint64", device=dev)
             f(a)
             assert a.numpy()[0] == value + 3
@@ -89,7 +90,7 @@ def test_add_pipeline():
         n = 1027
 
         def run_and_check():
-            dev = tvm_tirx.device(device, 0)
+            dev = tvm_ffi.device(device, 0)
             a = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
             b = tvm_tirx.runtime.tensor(np.random.uniform(size=()).astype("float32"), dev)
             d = tvm_tirx.runtime.tensor(np.zeros(n, dtype="float32"), dev)

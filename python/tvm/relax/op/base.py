@@ -28,7 +28,7 @@ from tvm_tirx.ir import Attrs, Call, Op
 from tvm_tirx.ir.attrs import make_node as _make_attrs
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.ir.op import _make_op_api
-from tvm_tirx.runtime import DataTypeCode, Object
+from tvm_tirx.runtime import DataTypeCode
 
 from ..expr import Expr, ExternFunc, GlobalVar, Var
 from ..type import Type
@@ -367,7 +367,7 @@ def call_builtin_with_ctx(
     )
 
 
-def make_closure(func: Expr, args: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Object:
+def make_closure(func: Expr, args: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> tvm_ffi.Object:
     """
     Create a closure with free variables and return the closure.
 
@@ -382,7 +382,7 @@ def make_closure(func: Expr, args: Expr, *, ty=None, loc: Location = UNKNOWN_LOC
 
     Returns
     -------
-    ret: Object
+    ret: tvm_ffi.Object
         The VMClosure.
     """
 
@@ -427,13 +427,13 @@ def invoke_closure(
     )  # type: ignore
 
 
-def render_object(val: tvm_tirx.Object) -> str:
+def render_object(val: tvm_ffi.Object) -> str:
     """
     Given a TVM Object, renders it in string form. Used for Relax printing and assertions.
 
     Parameters
     ----------
-    val: tvm_tirx.Object
+    val: tvm_ffi.Object
         An object to render
 
     Returns
@@ -449,7 +449,7 @@ def render_object(val: tvm_tirx.Object) -> str:
     return str(val)
 
 
-@tvm_tirx.register_global_func("relax.run.shape_to_tensor")
+@tvm_ffi.register_global_func("relax.run.shape_to_tensor")
 def relax_shape_to_tensor(shape_tuple: tvm_ffi.Shape) -> tvm_tirx.runtime.Tensor:
     """
     Takes a Shape and convert it to Tensor.
@@ -462,8 +462,8 @@ def relax_shape_to_tensor(shape_tuple: tvm_ffi.Shape) -> tvm_tirx.runtime.Tensor
     return tvm_tirx.runtime.tensor([int(v) for v in shape_tuple])
 
 
-@tvm_tirx.register_global_func("relax.run.print")
-def relax_print(format_str: str, *format_args: tvm_tirx.Object) -> None:
+@tvm_ffi.register_global_func("relax.run.print")
+def relax_print(format_str: str, *format_args: tvm_ffi.Object) -> None:
     """
     Takes a list of values to print, formats with the given format string.
     If the format string is empty, simply prints.
@@ -478,7 +478,7 @@ def relax_print(format_str: str, *format_args: tvm_tirx.Object) -> None:
     format_str: str
         The first argument is a Python-style format string for printing the values
 
-    format_args: List[Object]
+    format_args: List[tvm_ffi.Object]
         The values to print.
     """
     val_strs = map(render_object, format_args)
@@ -493,9 +493,9 @@ def print(format: str | Expr, *values: Expr, ty=None, loc: Location = UNKNOWN_LO
     return Call("relax.print", [format, *values], loc=loc, ty=ty)
 
 
-@tvm_tirx.register_global_func("relax.run.assert_op")
+@tvm_ffi.register_global_func("relax.run.assert_op")
 def relax_assert_op(
-    condition: tvm_tirx.Object, format_str: str, *format_args: tvm_tirx.Object
+    condition: tvm_ffi.Object, format_str: str, *format_args: tvm_ffi.Object
 ) -> None:
     """
     A variadic function. The first value serves as the assertion condition:
@@ -510,13 +510,13 @@ def relax_assert_op(
 
     Parameters
     ----------
-    condition: tvm_tirx.Object
+    condition: tvm_ffi.Object
         The assertion condition. Must be a boolean scalar.
 
     format_str: str
         A Python-style format string for the error message.
 
-    format_args: List[tvm_tirx.Object]
+    format_args: List[tvm_ffi.Object]
         Values used for formatting the string.
     """
     if not isinstance(format_str, str):

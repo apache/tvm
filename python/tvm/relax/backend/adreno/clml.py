@@ -17,6 +17,8 @@
 # pylint: disable=invalid-name, unused-argument, pointless-exception-statement
 """Pattern table for CLML backend"""
 
+import tvm_ffi
+
 import tvm_tirx
 from tvm import relax
 from tvm.relax import transform
@@ -99,7 +101,7 @@ def clml_sdk_version():
     # Registry: "relax.get_openclml_version" — returns the CLML SDK version
     # that TVM was built against; registered unconditionally in codegen.cc.
     # Grep hint: grep -rn 'relax.get_openclml_version' src/
-    get_version = tvm_tirx.get_global_func("relax.get_openclml_version", allow_missing=True)
+    get_version = tvm_ffi.get_global_func("relax.get_openclml_version", allow_missing=True)
     if get_version is None:
         return 2
     return int(get_version())
@@ -113,7 +115,7 @@ def is_clml_runtime_enabled():
     ret: bool
         True if present, False if not.
     """
-    check_enabled = tvm_tirx.get_global_func("relax.op.is_openclml_runtime_enabled", True)
+    check_enabled = tvm_ffi.get_global_func("relax.op.is_openclml_runtime_enabled", True)
     if check_enabled:
         return check_enabled()
     return False

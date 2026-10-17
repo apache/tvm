@@ -19,6 +19,7 @@
 from collections.abc import Callable
 
 import numpy as np  # type: ignore
+import tvm_ffi
 
 import tvm_tirx
 from tvm_tirx.runtime import Tensor
@@ -81,7 +82,7 @@ def create_calculator(backend: str) -> Callable:
     """
 
     def f_calculator(
-        rt_mod: tvm_tirx.runtime.Module,
+        rt_mod: tvm_ffi.Module,
         dev: tvm_tirx.runtime.Device,  # pylint: disable=unused-argument
         input_data: dict[str, Tensor],
     ) -> list[Tensor]:
@@ -89,9 +90,9 @@ def create_calculator(backend: str) -> Callable:
 
         Parameters
         ----------
-        rt_mod : tvm_tirx.runtime.Module
+        rt_mod : tvm_ffi.Module
             The runtime module.
-        dev : tvm_tirx.device
+        dev : tvm_ffi.device
             The device type to run workload.
         input_data : Dict[str, np.ndarray]
             The input data as a dictionary.

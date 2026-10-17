@@ -21,6 +21,7 @@ import tempfile
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -37,8 +38,8 @@ from tvm_tirx.script import tirx as T
 from tvm_tirx.support import utils
 from tvm_tirx.testing import env
 
-env_checker_codegen = tvm_tirx.get_global_func("relax.ext.tensorrt", True)
-env_checker_runtime = tvm_tirx.get_global_func("relax.is_tensorrt_runtime_enabled", True)
+env_checker_codegen = tvm_ffi.get_global_func("relax.ext.tensorrt", True)
+env_checker_runtime = tvm_ffi.get_global_func("relax.is_tensorrt_runtime_enabled", True)
 
 requires_tensorrt_codegen = pytest.mark.skipif(
     not env_checker_codegen,

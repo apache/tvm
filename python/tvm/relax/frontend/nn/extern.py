@@ -30,7 +30,6 @@ import tvm
 import tvm_tirx
 from tvm_tirx import libinfo
 from tvm_tirx.codegen import load_static_library
-from tvm_tirx.runtime import Module
 from tvm_tirx.support import cc as _cc
 
 from ...op import call_dps_packed
@@ -80,10 +79,10 @@ class ExternModule:
 
         return _call
 
-    def _load(self, path: Path) -> Module:
+    def _load(self, path: Path) -> tvm_ffi.Module:
         return load_static_library(str(path), func_names=list(self._symbols.keys()))
 
-    def load(self) -> Module:
+    def load(self) -> tvm_ffi.Module:
         """Loads the external module into a TVM runtime module."""
         raise NotImplementedError
 
@@ -106,7 +105,7 @@ class ObjectModule(ExternModule):  # pylint: disable=too-few-public-methods
         self.filepath = filepath
         super().__init__(symbols)
 
-    def load(self) -> Module:
+    def load(self) -> tvm_ffi.Module:
         return self._load(self.filepath)
 
 
@@ -167,7 +166,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
 
     **A compiler pass `AttachExternModules`.** It is introduced to attach a list of
     `nn.ExternModule`s into an IRModule at any stage of the compilation pipeline,
-    and attach the compiled external modules as `runtime.Module`s into IRModule's `external_mods`
+    and attach the compiled external modules as `tvm_ffi.Module`s into IRModule's `external_mods`
     attribute. It is required by linking in `tvm.compile`, but with the existence of this pass,
     source compilation can be deferred to arbitrary stage of TVM compilation.
 
@@ -403,7 +402,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
             )
             shutil.move(str(object_path), str(output_path))
 
-    def load(self) -> Module:
+    def load(self) -> tvm_ffi.Module:
         with tempfile.TemporaryDirectory() as temp_dir_str:
             output_path = Path(temp_dir_str) / f"main{self.output_suffix}"
             self.compile(output_path)

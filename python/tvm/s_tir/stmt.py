@@ -23,13 +23,12 @@ import tvm_ffi
 from tvm.s_tir import IterVar
 from tvm_tirx.ir import Expr, Location, Scriptable, SeqStmt, Stmt, TensorRegion, Var, const
 from tvm_tirx.ir.location import UNKNOWN_LOC
-from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 
 
 @tvm_ffi.register_object("s_tir.MatchTensorRegion")
-class MatchTensorRegion(Object, Scriptable):
+class MatchTensorRegion(tvm_ffi.Object, Scriptable):
     """MatchTensorRegion node.
 
     Parameters
@@ -82,7 +81,7 @@ class SBlock(Stmt):
     match_tensors: Optional[List[MatchTensorRegion]]
         The subregion tensor match
 
-    annotations: Optional[Mapping[str, Object]]
+    annotations: Optional[Mapping[str, tvm_ffi.Object]]
         Additional annotation hints.
 
     loc : Location, optional
@@ -97,7 +96,7 @@ class SBlock(Stmt):
     init: SeqStmt | None
     alloc_tensors: list[Var]
     match_tensors: list[MatchTensorRegion]
-    annotations: Mapping[str, Object]
+    annotations: Mapping[str, tvm_ffi.Object]
     loc: Location
 
     def __init__(
@@ -110,7 +109,7 @@ class SBlock(Stmt):
         init: Stmt | Sequence[Stmt] | None = None,
         alloc_tensors: list[Var] | None = None,
         match_tensors: list[MatchTensorRegion] | None = None,
-        annotations: Mapping[str, Object] | None = None,
+        annotations: Mapping[str, tvm_ffi.Object] | None = None,
         loc: Location = UNKNOWN_LOC,
     ) -> None:
         if alloc_tensors is None:

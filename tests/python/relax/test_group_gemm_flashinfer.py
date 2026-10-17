@@ -23,6 +23,7 @@ import math
 import numpy as np
 import pytest
 import torch
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -54,7 +55,7 @@ def has_flashinfer():
 
 def has_cutlass():
     """Check if CUTLASS is available for SM90+ operations"""
-    if not tvm_tirx.get_global_func("device_api.cuda", True):
+    if not tvm_ffi.get_global_func("device_api.cuda", True):
         return False
     try:
         import pynvml  # pylint: disable=import-outside-toplevel
@@ -317,17 +318,17 @@ def generate_test_data(
             a_quantized.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
         )
     else:
-        a_tvm = tvm_tirx.runtime.from_dlpack(a_quantized)
+        a_tvm = tvm_ffi.from_dlpack(a_quantized)
 
     if dtype_b == "float8_e4m3fn":
         b_tvm = tvm_tirx.runtime.tensor(
             b_quantized.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
         )
     else:
-        b_tvm = tvm_tirx.runtime.from_dlpack(b_quantized)
+        b_tvm = tvm_ffi.from_dlpack(b_quantized)
 
-    scale_a_tvm = tvm_tirx.runtime.from_dlpack(scale_a)
-    scale_b_tvm = tvm_tirx.runtime.from_dlpack(scale_b)
+    scale_a_tvm = tvm_ffi.from_dlpack(scale_a)
+    scale_b_tvm = tvm_ffi.from_dlpack(scale_b)
 
     # Create m_indptr for grouped operation
     m_indptr = torch.tensor(cum_m, device=torch_device, dtype=torch.int32)

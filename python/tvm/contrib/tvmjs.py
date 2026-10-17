@@ -30,6 +30,7 @@ from collections.abc import Iterator, Mapping
 from typing import Any, Optional, Union
 
 import numpy as np
+import tvm_ffi
 
 try:
     import ml_dtypes
@@ -38,7 +39,6 @@ except ImportError:
 
 import tvm
 import tvm_tirx
-from tvm_tirx.runtime import DataType
 
 from .emcc import create_wasm as create_tvmjs_wasm
 from .emcc import find_wasm_lib
@@ -298,8 +298,8 @@ def dump_tensor_cache(
         # prefer to preserve original dtype, especially if the format was bfloat16
         dtype = origin_v.dtype if isinstance(origin_v, tvm_tirx.runtime.Tensor) else v.dtype
 
-        if dtype in DataType._NUMPY_DTYPE_TO_STR:
-            dtype = DataType._NUMPY_DTYPE_TO_STR[dtype]
+        if dtype in tvm_ffi.dtype._NUMPY_DTYPE_TO_STR:
+            dtype = tvm_ffi.dtype._NUMPY_DTYPE_TO_STR[dtype]
         else:
             dtype = str(dtype)
 

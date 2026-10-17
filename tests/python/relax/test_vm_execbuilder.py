@@ -168,7 +168,7 @@ def test_vm_shapeof():
 
 
 def test_vm_storage():
-    dtype = tvm_tirx.DataType("float32")
+    dtype = tvm_ffi.dtype("float32")
     shape = (4, 6)
     ib = relax.ExecBuilder()
     with ib.function("main", num_inputs=0):
