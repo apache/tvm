@@ -185,7 +185,7 @@ src[64:128, 64:128]
 
 def test_tensor_load():
     a = tirx.decl_tensor((128, 128), "float16", name="A")
-    obj = tirx.TensorLoad(a, [128, 128])
+    obj = tvm_tirx.ir.TensorLoad(a, [128, 128])
     _assert_print(
         obj,
         """A = T.Var("A", T.Tensor((128, 128), T.float16))

@@ -19,8 +19,6 @@
 
 from collections.abc import Callable
 
-import tvm_ffi as _ffi
-
 from . import _ffi_api
 from .function_pass import function_pass
 
@@ -104,11 +102,6 @@ def PointerValueTypeRewrite():
     return _ffi_api.PointerValueTypeRewrite()  # type: ignore
 
 
-@_ffi.register_object("tirx.transform.UnrollLoopConfig")
-class UnrollLoopConfig(_ffi.Object):
-    """Config for unroll loop pass"""
-
-
 def UnrollLoop():
     """Unroll the constant loop marked by unroll.
 
@@ -120,11 +113,6 @@ def UnrollLoop():
         The result pass
     """
     return _ffi_api.UnrollLoop()  # type: ignore
-
-
-@_ffi.register_object("tirx.transform.RemoveNoOpConfig")
-class RemoveNoOpConfig(_ffi.Object):
-    """Config for remove no op pass"""
 
 
 def RemoveNoOp():

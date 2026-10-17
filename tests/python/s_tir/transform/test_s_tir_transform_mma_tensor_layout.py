@@ -30,7 +30,7 @@ from tvm_tirx.script import tirx as T
 def test_explicit_matrix_ab_access_is_rejected(scope, shape, access_kind):
     tensor = tirx.decl_tensor(shape, "float32", scope=scope)
     if access_kind == "load":
-        body = tvm_tirx.ir.Evaluate(tirx.TensorLoad(tensor, [0, 0]))
+        body = tvm_tirx.ir.Evaluate(tvm_tirx.ir.TensorLoad(tensor, [0, 0]))
     else:
         body = tvm_tirx.ir.TensorStore(tensor, [0, 0], 0.0)
     block = s_tir.SBlock([], [], [], "root", body, alloc_tensors=[tensor])
