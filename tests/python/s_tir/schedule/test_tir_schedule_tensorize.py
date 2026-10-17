@@ -58,7 +58,7 @@ def mma_desc(A: T.Tensor((16, 16), "float32", align=64,  elem_offset=T.int32()),
                 C[vii, vjj] = C[vii, vjj] + A[vii, vkk] * B[vjj, vkk]
 
 @Ts.function
-def mma_intrin(A: T.Tensor((16, 16), "float32", strides=[T.int32(), 1], align=64,  elem_offset=T.int32()), B: T.Tensor((16, 16), "float32", strides=[T.int32(), 1], align=64,  elem_offset=T.int32()), C: T.Tensor((16, 16), "float32", strides=[T.int32(), 1], align=64,  elem_offset=T.int32())) -> None:
+def mma_intrin(A: T.Tensor((16, 16), "float32", layout=T.TileLayout(T.S[(16, 16) : [T.int32(), 1]]), align=64,  elem_offset=T.int32()), B: T.Tensor((16, 16), "float32", layout=T.TileLayout(T.S[(16, 16) : [T.int32(), 1]]), align=64,  elem_offset=T.int32()), C: T.Tensor((16, 16), "float32", layout=T.TileLayout(T.S[(16, 16) : [T.int32(), 1]]), align=64,  elem_offset=T.int32())) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
@@ -143,7 +143,7 @@ def outer_product_desc(A: T.Tensor((16, 1), "float32",  elem_offset=T.int32()), 
                 C[vii, vjj] = C[vii, vjj] + A[vii, 0] * B[vjj, 0]
 
 @Ts.function
-def outer_product_intrin(A: T.Tensor((16, 1), "float32",  strides=[T.int32(), 1], elem_offset=T.int32()), B: T.Tensor((16, 1), "float32",  strides=[T.int32(), 1], elem_offset=T.int32()), C: T.Tensor((16, 16), "float32",  strides=[T.int32(), 1], elem_offset=T.int32())) -> None:
+def outer_product_intrin(A: T.Tensor((16, 1), "float32",  layout=T.TileLayout(T.S[(16, 1) : [T.int32(), 1]]), elem_offset=T.int32()), B: T.Tensor((16, 1), "float32",  layout=T.TileLayout(T.S[(16, 1) : [T.int32(), 1]]), elem_offset=T.int32()), C: T.Tensor((16, 16), "float32",  layout=T.TileLayout(T.S[(16, 16) : [T.int32(), 1]]), elem_offset=T.int32())) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(

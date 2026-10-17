@@ -28,6 +28,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -154,10 +155,11 @@ ffi::Array<TensorVar> MakeScratchpads(const ffi::Array<TensorVar>& reduction_ten
   for (const TensorVar& tensor : reduction_tensors) {
     ffi::String name = is_cross_thread_tensor ? "cross" : "in";
     name = name + "_thread_" + tensor->name;
-    new_tensors.push_back(TensorVar(
-        name, TensorType(/*shape=*/{IntImm::Int32(1)}, /*dtype=*/tensor.dtype(), scope_local,
-                         /*strides=*/{IntImm::Int32(1)}, /*elem_offset=*/std::nullopt,
-                         /*data_alignment=*/0)));
+    new_tensors.push_back(
+        TensorVar(name, TensorType(/*shape=*/{IntImm::Int32(1)}, /*dtype=*/tensor.dtype(),
+                                   scope_local, /*elem_offset=*/std::nullopt, /*data_alignment=*/0,
+                                   s_tir::WithStrides(std::nullopt, /*shape=*/{IntImm::Int32(1)},
+                                                      /*strides=*/{IntImm::Int32(1)}))));
   }
   return new_tensors;
 }

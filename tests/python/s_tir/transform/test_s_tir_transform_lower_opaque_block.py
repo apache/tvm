@@ -227,7 +227,9 @@ def transformed_strided_tensor_func(
 ) -> None:
     # body
     for i0 in T.serial(4):
-        B = T.alloc_tensor(ty_args=[T.Tensor([4, 16], "float32", strides=[17, 1])])
+        B = T.alloc_tensor(
+            ty_args=[T.Tensor([4, 16], "float32", layout=T.TileLayout(T.S[[4, 16] : [17, 1]]))]
+        )
         for i1, j in T.grid(4, 16):
             B[i1, j] = A[i0 * 4 + i1, j] + T.float32(1)
         for i1, j in T.grid(4, 16):
@@ -268,7 +270,7 @@ def transformed_symbolic_strided_tensor_func(A: T.Tensor((1, n, 10240), "float32
                 T.Tensor(
                     (1, padded_size, 64),
                     "float32",
-                    strides=(72 * padded_size, 72, 1),
+                    layout=T.TileLayout(T.S[(1, padded_size, 64) : (72 * padded_size, 72, 1)]),
                     scope="shared.dyn",
                 )
             ]

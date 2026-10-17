@@ -264,7 +264,12 @@ def test_tir_op_mma_store():
     tensor_w = tirx.Var("tensor", tirx.TensorType([16, 8], "int32", scope="warp"))
     tensor = tirx.Var(
         "tensor",
-        tirx.TensorType([16, 16], "int32", scope="global", strides=[x, y]),
+        tirx.TensorType(
+            [16, 16],
+            "int32",
+            scope="global",
+            layout=tirx.layout.TileLayout(tirx.layout.S[[16, 16] : [x, y]]),
+        ),
     )
     expr = _cuda_op.mma_store(
         16,

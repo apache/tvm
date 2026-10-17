@@ -167,7 +167,15 @@ def test_allocation_constraints_prevent_lifetime_reuse(property_value, stride, o
     @T.function
     def func(output: T.Tensor((2,), "float32")):
         A = T.alloc_tensor(
-            ty_args=[T.Tensor((128,), "float32", scope, strides=[stride], elem_offset=offset)]
+            ty_args=[
+                T.Tensor(
+                    (128,),
+                    "float32",
+                    scope,
+                    layout=T.TileLayout(T.S[(128,) : [stride]]),
+                    elem_offset=offset,
+                )
+            ]
         )
         for i in T.serial(128):
             A[i] = T.float32(i)
@@ -184,7 +192,13 @@ def test_allocation_constraints_prevent_lifetime_reuse(property_value, stride, o
             B = T.alloc_tensor(ty_args=[T.Tensor((128,), T.float32, scope=scope)])
             A = T.alloc_tensor(
                 ty_args=[
-                    T.Tensor((128,), T.float32, scope=scope, strides=[stride], elem_offset=offset)
+                    T.Tensor(
+                        (128,),
+                        T.float32,
+                        scope=scope,
+                        layout=T.TileLayout(T.S[(128,) : [stride]]),
+                        elem_offset=offset,
+                    )
                 ]
             )
             for i in range(128):

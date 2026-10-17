@@ -201,7 +201,6 @@ class SMEMPool:
         self,
         shape,
         dtype="float32",
-        strides=None,
         scope="shared.dyn",
         align=0,
         layout="default",
@@ -216,11 +215,10 @@ class SMEMPool:
                     ir.Tensor(
                         shape,
                         dtype,
-                        strides=strides,
                         byte_offset=self.offset,
                         scope=scope,
                         align=align,
-                        layout=None if layout == "default" and strides else layout,
+                        layout=layout,
                     )
                 ],
             )

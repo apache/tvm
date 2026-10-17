@@ -285,7 +285,7 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
                         (SVF2, SVF2),
                         "float32",
                         elem_offset=T.int32(),
-                        strides=[T.int32(), 1],
+                        layout=T.TileLayout(T.S[(SVF2, SVF2) : [T.int32(), 1]]),
                     ),
                 )
                 A_t = T.arg_(
@@ -294,7 +294,7 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
                         (SVF2, SVF2),
                         "float32",
                         elem_offset=T.int32(),
-                        strides=[T.int32(), 1],
+                        layout=T.TileLayout(T.S[(SVF2, SVF2) : [T.int32(), 1]]),
                     ),
                 )
 
@@ -422,7 +422,7 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                         (SVF2, SVF),
                         "float16",
                         elem_offset=T.int32(),
-                        strides=[T.int32(), 1],
+                        layout=T.TileLayout(T.S[(SVF2, SVF) : [T.int32(), 1]]),
                     ),
                 )
                 A_t = T.arg_(
@@ -431,7 +431,7 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                         (SVF, SVF2),
                         "float16",
                         elem_offset=T.int32(),
-                        strides=[T.int32(), 1],
+                        layout=T.TileLayout(T.S[(SVF, SVF2) : [T.int32(), 1]]),
                     ),
                 )
 
@@ -637,7 +637,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                         (K, SVF2),
                         in_dtype,
                         elem_offset=T.int32(),
-                        strides=[T.int32(), 1],
+                        layout=T.TileLayout(T.S[(K, SVF2) : [T.int32(), 1]]),
                     ),
                 )
                 B = T.arg_(
@@ -646,7 +646,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                         (K, SVF2),
                         in_dtype,
                         elem_offset=T.int32(),
-                        strides=[T.int32(), 1],
+                        layout=T.TileLayout(T.S[(K, SVF2) : [T.int32(), 1]]),
                     ),
                 )
                 C = T.arg_(
@@ -655,7 +655,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                         (SVF2, SVF2),
                         "float32",
                         elem_offset=T.int32(),
-                        strides=[T.int32(), 1],
+                        layout=T.TileLayout(T.S[(SVF2, SVF2) : [T.int32(), 1]]),
                     ),
                 )
 

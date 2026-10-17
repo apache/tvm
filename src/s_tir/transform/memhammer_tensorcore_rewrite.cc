@@ -150,14 +150,16 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   TensorVar tgt_tensor = tensor_store->dest.as_or_throw<TensorVar>();
   std::string layout = tgt_tensor.scope() == scope_wmma_matrix_a ? "row_major" : "col_major";
   TensorVar new_src_tensor(
-      /*name=*/"src", TensorType(/*shape=*/{IntImm::Int32(16), IntImm::Int32(16)}, /*dtype=*/dtype,
-                                 /*storage_scope=*/src_tensor.scope(),
-                                 /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
-                                 16 * (/*elem_offset=*/PrimVar("src_elem_offset", int32_ty)),
-                                 /*data_alignment=*/64));
+      /*name=*/"src",
+      TensorType(
+          /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)}, /*dtype=*/dtype,
+          /*storage_scope=*/src_tensor.scope(),
+          16 * (/*elem_offset=*/PrimVar("src_elem_offset", int32_ty)), /*data_alignment=*/64,
+          s_tir::WithStrides(std::nullopt, /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
+                             /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)})));
   TensorVar new_tgt_tensor(
       /*name=*/"tgt", TensorType(/*shape=*/{IntImm::Int32(16), IntImm::Int32(16)}, /*dtype=*/dtype,
-                                 /*storage_scope=*/tgt_tensor.scope(), /*strides=*/{},
+                                 /*storage_scope=*/tgt_tensor.scope(),
                                  16 * (/*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty)),
                                  /*data_alignment=*/64));
   ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor.shape(), var_dom);
@@ -264,12 +266,13 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   const PrimType& dtype = dtype_ty;
 
   TensorVar new_src_tensor(
-      "src", TensorType({IntImm::Int32(16), IntImm::Int32(16)}, dtype, src_tensor.scope(), {},
+      "src", TensorType({IntImm::Int32(16), IntImm::Int32(16)}, dtype, src_tensor.scope(),
                         16 * (PrimVar("src_elem_offset", int32_ty)), 64));
   TensorVar new_tgt_tensor(
       "tgt", TensorType({IntImm::Int32(16), IntImm::Int32(16)}, dtype, tgt_tensor.scope(),
-                        {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
-                        16 * (PrimVar("tgt_elem_offset", int32_ty)), 64));
+                        16 * (PrimVar("tgt_elem_offset", int32_ty)), 64,
+                        s_tir::WithStrides(std::nullopt, {IntImm::Int32(16), IntImm::Int32(16)},
+                                           {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)})));
 
   ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor.shape(), var_dom);
   ffi::Array<Range> write_region = RelaxIndices(tensor_store->indices, tgt_tensor.shape(), var_dom);
@@ -494,12 +497,13 @@ Stmt RewriteMmaStore(Stmt stmt) {
   PrimType dtype_ty = src_tensor.dtype();
   const PrimType& dtype = dtype_ty;
   TensorVar new_src_tensor(
-      "src", TensorType({IntImm::Int32(8), IntImm::Int32(8)}, dtype, src_tensor.scope(), {},
+      "src", TensorType({IntImm::Int32(8), IntImm::Int32(8)}, dtype, src_tensor.scope(),
                         8 * (PrimVar("src_elem_offset", int32_ty)), 64));
   TensorVar new_tgt_tensor(
       "tgt", TensorType({IntImm::Int32(8), IntImm::Int32(8)}, dtype, tgt_tensor.scope(),
-                        {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
-                        8 * (PrimVar("tgt_elem_offset", int32_ty)), 64));
+                        8 * (PrimVar("tgt_elem_offset", int32_ty)), 64,
+                        s_tir::WithStrides(std::nullopt, {IntImm::Int32(8), IntImm::Int32(8)},
+                                           {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)})));
 
   // Step 3.2. Generate new r/w region
   ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor.shape(), var_dom);

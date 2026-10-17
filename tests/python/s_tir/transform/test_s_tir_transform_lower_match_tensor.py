@@ -236,7 +236,7 @@ As_1 = T.dynamic("As_1", "int32")
 
 @Ts.function
 def high_dim_opaque_access_with_source_strides(
-    A: T.Tensor((16, 32, 64), "float32", strides=[2576, 80, 1]),
+    A: T.Tensor((16, 32, 64), "float32", layout=T.TileLayout(T.S[(16, 32, 64) : [2576, 80, 1]])),
 ) -> None:
     for i, j, k in T.grid(16, 2, 4):
         with Ts.sblock():
@@ -262,7 +262,7 @@ def high_dim_opaque_access_with_source_strides(
 
 @Ts.function
 def transformed_high_dim_opaque_access_with_source_strides(
-    A: T.Tensor((16, 32, 64), "float32", strides=[2576, 80, 1]),
+    A: T.Tensor((16, 32, 64), "float32", layout=T.TileLayout(T.S[(16, 32, 64) : [2576, 80, 1]])),
 ) -> None:
     for i, j, k in T.grid(16, 2, 4):
         with Ts.sblock():

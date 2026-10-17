@@ -67,7 +67,7 @@ def get_make_filled_simdgroup_matrix_intrin(
             (col, row),
             dtype,
             scope="metal.simdgroup",
-            strides=[d1, d0],
+            layout=T.TileLayout(T.S[(col, row) : [d1, d0]]),
             elem_offset=T.int32(),
         ),
     ) -> None:
@@ -129,7 +129,7 @@ def get_simdgroup_load_intrin(
             dtype,
             align=align,
             scope=scope,
-            strides=[s1, s0],
+            layout=T.TileLayout(T.S[(col, row) : [s1, s0]]),
             elem_offset=T.int32(),
         ),
         C: T.Tensor(
@@ -137,7 +137,7 @@ def get_simdgroup_load_intrin(
             dtype,
             align=align,
             scope="metal.simdgroup",
-            strides=[d1, d0],
+            layout=T.TileLayout(T.S[(col, row) : [d1, d0]]),
             elem_offset=T.int32(),
         ),
     ) -> None:
@@ -200,7 +200,7 @@ def get_simdgroup_store_intrin(
             dtype,
             align=align,
             scope="metal.simdgroup",
-            strides=[s1, s0],
+            layout=T.TileLayout(T.S[(col, row) : [s1, s0]]),
             elem_offset=T.int32(),
         ),
         C: T.Tensor(
@@ -208,7 +208,7 @@ def get_simdgroup_store_intrin(
             dtype,
             align=align,
             scope=scope,
-            strides=[d1, d0],
+            layout=T.TileLayout(T.S[(col, row) : [d1, d0]]),
             elem_offset=T.int32(),
         ),
     ) -> None:
@@ -258,21 +258,21 @@ def get_simdgroup_multiply_accumulate_intrin(
             (m_dim, k_dim),
             dtype,
             scope="metal.simdgroup",
-            strides=[a1, a0],
+            layout=T.TileLayout(T.S[(m_dim, k_dim) : [a1, a0]]),
             elem_offset=T.int32(),
         ),
         B: T.Tensor(
             (k_dim, n_dim),
             dtype,
             scope="metal.simdgroup",
-            strides=[b1, b0],
+            layout=T.TileLayout(T.S[(k_dim, n_dim) : [b1, b0]]),
             elem_offset=T.int32(),
         ),
         C: T.Tensor(
             (m_dim, n_dim),
             dtype,
             scope="metal.simdgroup",
-            strides=[c1, c0],
+            layout=T.TileLayout(T.S[(m_dim, n_dim) : [c1, c0]]),
             elem_offset=T.int32(),
         ),
     ) -> None:

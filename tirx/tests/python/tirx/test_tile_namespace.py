@@ -114,7 +114,9 @@ def test_omitted_and_explicit_none_layout(scope):
     [((8, 16), None), ((8, 16), (16, 1)), ((8, 1, 16), (16, 99, 1))],
 )
 def test_effective_layout_on_tensor_type(shape, strides):
-    tensor_type = T.Tensor(shape, "float32", strides=strides)
+    tensor_type = T.Tensor(
+        shape, "float32", layout=T.TileLayout(T.S[shape:strides]) if strides else None
+    )
     before = save_json(tensor_type)
     effective = tensor_type.effective_layout()
     assert_structural_equal(
@@ -133,9 +135,9 @@ def test_effective_global_layout_preserves_source_and_region():
     assert int(layout.apply(*starts, shape=tensor.shape)["m"]) == 48
     assert int(layout.apply(starts[0] + 1, starts[1] + 3, shape=tensor.shape)["m"]) == 67
     assert save_json(tensor) == before
-    compact = Var("tensor", TensorType((8, 16), "float32", strides=(16, 1)))
+    compact = Var("tensor", TensorType((8, 16), "float32", layout=TileLayout(S[(8, 16) : (16, 1)])))
     assert int(compact.ty.effective_layout().apply(2, 3, shape=compact.shape)["m"]) == 35
-    strided = Var("tensor", TensorType((8, 16), "float32", strides=(32, 1)))
+    strided = Var("tensor", TensorType((8, 16), "float32", layout=TileLayout(S[(8, 16) : (32, 1)])))
     assert int(strided.ty.effective_layout().apply(2, 3, shape=strided.shape)["m"]) == 67
     with pytest.raises(ValueError, match="explicit layout"):
         Var("tensor", TensorType((8, 16), "float32", scope="shared")).ty.effective_layout()

@@ -249,7 +249,7 @@ def get_mfma_load_intrin(
             align=64,
             elem_offset=T.int32(),
             scope=scope,
-            strides=[s0, s1],
+            layout=T.TileLayout(T.S[memory_shape : [s0, s1]]),
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -443,7 +443,7 @@ def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
             dtype=dtype,
             scope=scope,
             elem_offset=T.int32(),
-            strides=[s0, s1],
+            layout=T.TileLayout(T.S[[M_DIM, N_DIM] : [s0, s1]]),
         ),
     ) -> None:
         with Ts.sblock("root"):

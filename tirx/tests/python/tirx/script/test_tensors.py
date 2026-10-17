@@ -765,7 +765,7 @@ def test_tensor_physical_view_printer_preserves_inherited_metadata():
         )
         B_factor = T.decl_tensor(
             A.data,
-            ty_args=[T.Tensor((2,), "float32", elem_offset=(8) * (8), scope="local")],
+            ty_args=[T.Tensor((2,), "float32", elem_offset=8, scope="local")],
         )
         B_align[0] = B_factor[0]
         # fmt: on

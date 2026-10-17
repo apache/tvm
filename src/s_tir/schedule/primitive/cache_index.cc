@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/int_set.h>
 
@@ -283,9 +284,10 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
       tensor_shape.push_back(
           sym::EvalSet(info->var_binding.at(it), sym::AsIntSet(info->range_map)).max() + 1);
     }
-    info->cache_tensor.push_back(TensorVar(
-        index_tensor_name,
-        TensorType(tensor_shape, data_ty, runtime::MemoryScope::Get(storage_scope), {1}, {0}, 0)));
+    info->cache_tensor.push_back(
+        TensorVar(index_tensor_name,
+                  TensorType(tensor_shape, data_ty, runtime::MemoryScope::Get(storage_scope), {0},
+                             0, s_tir::WithStrides(std::nullopt, tensor_shape, {1}))));
 
     // Create loop vars and block vars' binding_value
     std::vector<PrimVar> loop_vars;

@@ -120,7 +120,7 @@ class TensorTypeNode : public TypeNode {
 class TensorType : public Type {
  public:
   TVM_TIRX_DLL TensorType(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
-                          runtime::MemoryScope scope = {}, ffi::Array<PrimExpr> strides = {},
+                          runtime::MemoryScope scope = {},
                           ffi::Optional<PrimExpr> elem_offset = std::nullopt,
                           int data_alignment = 0, ffi::Optional<Layout> layout = std::nullopt,
                           Location loc = UnknownLoc());
@@ -162,13 +162,14 @@ MatchShapeStridePattern(const TensorType& tensor) {
       return std::nullopt;
     }
     prim::ExprDeepEqual equal;
+    static const Axis memory_axis = Axis::Get("m");
     for (size_t i = 0; i < tile->shard.size(); ++i) {
-      if (tile->shard[i]->axis.name() != "m" || !equal(tile->shard[i]->extent, tensor->shape[i]))
+      if (tile->shard[i]->axis != memory_axis || !equal(tile->shard[i]->extent, tensor->shape[i]))
         return std::nullopt;
       strides.push_back(tile->shard[i]->stride);
     }
     for (const auto& [axis, value] : tile->offset) {
-      if (axis.name() != "m") return std::nullopt;
+      if (axis != memory_axis) return std::nullopt;
       offset = value;
     }
   }

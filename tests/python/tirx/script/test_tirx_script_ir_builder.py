@@ -283,7 +283,15 @@ def test_symbolic_tensor_indices():
 @pytest.mark.parametrize("layout", [None, TileLayout(S[(2, 3) : (1, 2)])])
 def test_flat_tensor_store_preserves_identity_and_emits_once(layout):
     tensor = tirx.Var(
-        "tensor", tirx.TensorType((2, 3), "float32", strides=(5, 1), elem_offset=2, layout=layout)
+        "tensor",
+        tirx.TensorType(
+            (2, 3),
+            "float32",
+            elem_offset=2,
+            layout=layout
+            if layout is not None
+            else (tirx.layout.TileLayout(tirx.layout.S[(2, 3) : (5, 1)])),
+        ),
     )
     indices = T.tensor_indices(tensor, 4)
     load = tensor[indices]
@@ -479,7 +487,7 @@ def test_concrete_mutable_scalar(declare):
         )
         assert declaration.var.same_as(scalar.source)
         tvm_tirx.ir.assert_structural_equal(declaration.value.args[0], owner.data)
-        assert scalar.source.elem_offset == 2
+        assert tirx.match_shape_stride_pattern(scalar.source.ty)[2] == 2
 
 
 def test_local_scalar_initialization_and_assign():

@@ -1402,16 +1402,20 @@ def multiple_commreducer():
     @Ts.function(check_well_formed=False)
     def multiple_commreducer() -> None:
         normal_reduce_temp0 = T.Var(
-            "normal_reduce_temp0", T.Tensor([1], dtype="float32", strides=[1], scope="local")
+            "normal_reduce_temp0",
+            T.Tensor([1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"),
         )
         normal_reduce_temp1 = T.Var(
-            "normal_reduce_temp1", T.Tensor([1], dtype="float32", strides=[1], scope="local")
+            "normal_reduce_temp1",
+            T.Tensor([1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"),
         )
         reduce_temp0 = T.Var(
-            "reduce_temp0", T.Tensor([1], dtype="float32", strides=[1], scope="local")
+            "reduce_temp0",
+            T.Tensor([1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"),
         )
         reduce_temp1 = T.Var(
-            "reduce_temp1", T.Tensor([1], dtype="float32", strides=[1], scope="local")
+            "reduce_temp1",
+            T.Tensor([1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"),
         )
         for ax0_1 in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("T_softmax_maxelem_cross_thread_reduction"):

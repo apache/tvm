@@ -71,7 +71,7 @@ TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& tensor) {
   } else {
     // The original layout describes the old rank; reset it for the flattened shape.
     return TensorVar(tensor->name,
-                     TensorType(output_shape, tensor.dtype(), tensor.scope(), {}, std::nullopt,
+                     TensorType(output_shape, tensor.dtype(), tensor.scope(), std::nullopt,
                                 tensor.ty()->data_alignment, std::nullopt),
                      tensor->loc);
   }

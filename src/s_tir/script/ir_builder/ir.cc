@@ -80,7 +80,9 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
     }
   }
   TensorVar tensor(
-      "", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset, align, layout));
+      "", tvm::tirx::TensorType(
+              shape, dtype, storage_scope, elem_offset, align,
+              strides.empty() ? layout : ::tvm::s_tir::WithStrides(layout, shape, strides)));
   TVM_FFI_CHECK(tvm::tirx::MatchShapeStridePattern(tensor.ty()).has_value(), ValueError)
       << "S-TIR tensors require a regular memory layout without swizzles or thread axes";
   FunctionFrameObj::BindTensorRegion(tensor, std::move(region), std::move(allocated_addr));
@@ -221,7 +223,9 @@ TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
   }
 
   TensorVar tensor(
-      "", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset, align, layout));
+      "", tvm::tirx::TensorType(
+              shape, dtype, storage_scope, elem_offset, align,
+              strides.empty() ? layout : ::tvm::s_tir::WithStrides(layout, shape, strides)));
   TVM_FFI_CHECK(tvm::tirx::MatchShapeStridePattern(tensor.ty()).has_value(), ValueError)
       << "S-TIR tensors require a regular memory layout without swizzles or thread axes";
   IRBuilder builder = IRBuilder::Current();
