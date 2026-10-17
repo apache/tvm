@@ -883,7 +883,7 @@ PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm::Int32(value)) {}
 PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(PrimType::Float(32), value)) {}
 
 // Constants
-GenericConst::GenericConst(ffi::Any value, Type ty, Location loc) : Constant(ffi::UnsafeInit{}) {
+GenericConst::GenericConst(Type ty, ffi::Any value, Location loc) : Constant(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(!ty.as<MissingType>().has_value(), TypeError)
       << "GenericConst requires an expression type";
   TVM_FFI_CHECK(!value.as<ffi::BigInt>() && !value.as<bool>() && !value.as<double>() &&
@@ -942,8 +942,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&DataTypeImmMaybeInplaceMutate>());
   refl::GlobalDef()
       .def("ir.GenericConst",
-           [](ffi::Any value, Type ty, Location loc) {
-             return GenericConst(std::move(value), std::move(ty), std::move(loc));
+           [](Type ty, ffi::Any value, Location loc) {
+             return GenericConst(std::move(ty), std::move(value), std::move(loc));
            })
       .def("ir.DataTypeImm",
            [](DLDataType value, Location loc) { return DataTypeImm(value, std::move(loc)); })
@@ -1168,7 +1168,7 @@ Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Location loc) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.Range_from_min_extent", Range::FromMinExtent);
+  refl::GlobalDef().def("ir.RangeFromMinExtent", Range::FromMinExtent);
 }
 
 // Var
@@ -1292,7 +1292,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                            ffi::Optional<Attrs> attrs, ffi::Array<Type> ty_args,
                            Location loc) { return Call(ret_ty, op, args, attrs, ty_args, loc); });
   refl::GlobalDef().def("ir.CallValidate", [](const Call& call) { call.Validate(); });
-  refl::GlobalDef().def("ir.reinfer_type",
+  refl::GlobalDef().def("ir.CallReinferType",
                         [](const Call& call) { return Call::ReinferType(call.get()); });
 }
 

@@ -168,8 +168,8 @@ def test_bf16_masked_load_store_will_legalize():
                 B,
                 T.reinterpret(
                     T.Cast(
-                        T.reinterpret(T.masked_load(A, T.Ramp(0, 1, 4), mask[0]), ty="uint16x4"),
                         "uint32x4",
+                        T.reinterpret(T.masked_load(A, T.Ramp(0, 1, 4), mask[0]), ty="uint16x4"),
                     )
                     << T.Broadcast(T.uint32(16), 4),
                     ty="float32x4",
@@ -181,6 +181,7 @@ def test_bf16_masked_load_store_will_legalize():
                 C,
                 T.reinterpret(
                     T.Cast(
+                        "uint16x4",
                         T.reinterpret(T.masked_load(B, T.Ramp(0, 1, 4), mask[0]), ty="uint32x4")
                         + (
                             (
@@ -193,7 +194,6 @@ def test_bf16_masked_load_store_will_legalize():
                             + T.Broadcast(T.uint32(32767), 4)
                         )
                         >> T.Broadcast(T.uint32(16), 4),
-                        "uint16x4",
                     ),
                     ty="bfloat16x4",
                 ),
@@ -216,7 +216,7 @@ def test_bf16_masked_load_store_will_legalize():
             T.masked_store(
                 B,
                 T.reinterpret(
-                    T.Cast(T.masked_load(A, T.Ramp(0, 1, 4), mask[0]), "uint32x4")
+                    T.Cast("uint32x4", T.masked_load(A, T.Ramp(0, 1, 4), mask[0]))
                     << T.Broadcast(T.uint32(16), 4),
                     ty="float32x4",
                 ),
@@ -226,6 +226,7 @@ def test_bf16_masked_load_store_will_legalize():
             T.masked_store(
                 C,
                 T.Cast(
+                    "uint16x4",
                     T.reinterpret(T.masked_load(B, T.Ramp(0, 1, 4), mask[0]), ty="uint32x4")
                     + (
                         (
@@ -236,7 +237,6 @@ def test_bf16_masked_load_store_will_legalize():
                         + T.Broadcast(T.uint32(32767), 4)
                     )
                     >> T.Broadcast(T.uint32(16), 4),
-                    "uint16x4",
                 ),
                 T.Ramp(0, 1, 4),
                 mask[0],
@@ -429,7 +429,7 @@ def test_bf16_reduce_will_legalize():
                         (
                             T.reinterpret(
                                 T.shift_left(
-                                    T.Cast(T.reinterpret(A_flat_1[0], ty="uint16"), "uint32"),
+                                    T.Cast("uint32", T.reinterpret(A_flat_1[0], ty="uint16")),
                                     T.uint32(16),
                                 ),
                                 ty="float32",
@@ -462,7 +462,7 @@ def test_bf16_reduce_will_legalize():
                         (
                             T.reinterpret(
                                 T.shift_left(
-                                    T.Cast(A_flat[0], "uint32"),
+                                    T.Cast("uint32", A_flat[0]),
                                     T.uint32(16),
                                 ),
                                 ty="float32",

@@ -190,85 +190,85 @@ class ExprOperand:
 
     def __add__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__add__(self, other)
+            return _prim_expr_overload.__add__(self, other)
         result = _tensor_expr_overload.__add__(self, other)
         return result
 
     def __radd__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__radd__(self, other)
+            return _prim_expr_overload.__radd__(self, other)
         result = _tensor_expr_overload.__radd__(self, other)
         return result
 
     def __sub__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__sub__(self, other)
+            return _prim_expr_overload.__sub__(self, other)
         result = _tensor_expr_overload.__sub__(self, other)
         return result
 
     def __rsub__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__rsub__(self, other)
+            return _prim_expr_overload.__rsub__(self, other)
         result = _tensor_expr_overload.__rsub__(self, other)
         return result
 
     def __mul__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__mul__(self, other)
+            return _prim_expr_overload.__mul__(self, other)
         result = _tensor_expr_overload.__mul__(self, other)
         return result
 
     def __rmul__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__rmul__(self, other)
+            return _prim_expr_overload.__rmul__(self, other)
         result = _tensor_expr_overload.__rmul__(self, other)
         return result
 
     def __div__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__div__(self, other)
+            return _prim_expr_overload.__div__(self, other)
         result = _tensor_expr_overload.__div__(self, other)
         return result
 
     def __rdiv__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__rdiv__(self, other)
+            return _prim_expr_overload.__rdiv__(self, other)
         result = _tensor_expr_overload.__rdiv__(self, other)
         return result
 
     def __truediv__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__truediv__(self, other)
+            return _prim_expr_overload.__truediv__(self, other)
         result = _tensor_expr_overload.__truediv__(self, other)
         return result
 
     def __rtruediv__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__rtruediv__(self, other)
+            return _prim_expr_overload.__rtruediv__(self, other)
         result = _tensor_expr_overload.__rtruediv__(self, other)
         return result
 
     def __floordiv__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__floordiv__(self, other)
+            return _prim_expr_overload.__floordiv__(self, other)
         result = _tensor_expr_overload.__floordiv__(self, other)
         return result
 
     def __rfloordiv__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__rfloordiv__(self, other)
+            return _prim_expr_overload.__rfloordiv__(self, other)
         result = _tensor_expr_overload.__rfloordiv__(self, other)
         return result
 
     def __mod__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__mod__(self, other)
+            return _prim_expr_overload.__mod__(self, other)
         result = _tensor_expr_overload.__mod__(self, other)
         return result
 
     def __rmod__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__rmod__(self, other)
+            return _prim_expr_overload.__rmod__(self, other)
         result = _tensor_expr_overload.__rmod__(self, other)
         return result
 
@@ -286,7 +286,7 @@ class ExprOperand:
 
     def __neg__(self):
         if is_prim_expr(self):
-            result = _overload_prim_expr.__neg__(self)
+            result = _prim_expr_overload.__neg__(self)
             if result is NotImplemented:
                 raise TypeError("Primitive expression overload __neg__ is not registered")
             return result
@@ -297,57 +297,57 @@ class ExprOperand:
 
     def __lshift__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__lshift__(self, other)
+            return _prim_expr_overload.__lshift__(self, other)
         return NotImplemented
 
     def __rlshift__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__rlshift__(self, other)
+            return _prim_expr_overload.__rlshift__(self, other)
         return NotImplemented
 
     def __rshift__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__rshift__(self, other)
+            return _prim_expr_overload.__rshift__(self, other)
         return NotImplemented
 
     def __rrshift__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__rrshift__(self, other)
+            return _prim_expr_overload.__rrshift__(self, other)
         return NotImplemented
 
     def __and__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__and__(self, other)
+            return _prim_expr_overload.__and__(self, other)
         return NotImplemented
 
     def __rand__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__rand__(self, other)
+            return _prim_expr_overload.__rand__(self, other)
         return NotImplemented
 
     def __or__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__or__(self, other)
+            return _prim_expr_overload.__or__(self, other)
         return NotImplemented
 
     def __ror__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__ror__(self, other)
+            return _prim_expr_overload.__ror__(self, other)
         return NotImplemented
 
     def __xor__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__xor__(self, other)
+            return _prim_expr_overload.__xor__(self, other)
         return NotImplemented
 
     def __rxor__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__rxor__(self, other)
+            return _prim_expr_overload.__rxor__(self, other)
         return NotImplemented
 
     def __invert__(self):
         if is_prim_expr(self):
-            result = _overload_prim_expr.__invert__(self)
+            result = _prim_expr_overload.__invert__(self)
             if result is NotImplemented:
                 raise TypeError("Primitive expression overload __invert__ is not registered")
             return result
@@ -355,35 +355,35 @@ class ExprOperand:
 
     def __lt__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__lt__(self, other)
+            return _prim_expr_overload.__lt__(self, other)
         result = _tensor_expr_overload.__lt__(self, other)
         return result
 
     def __le__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__le__(self, other)
+            return _prim_expr_overload.__le__(self, other)
         result = _tensor_expr_overload.__le__(self, other)
         return result
 
     def __eq__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__eq__(self, other)
+            return _prim_expr_overload.__eq__(self, other)
         return Object.__eq__(self, other)
 
     def __ne__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__ne__(self, other)
+            return _prim_expr_overload.__ne__(self, other)
         return Object.__ne__(self, other)
 
     def __gt__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__gt__(self, other)
+            return _prim_expr_overload.__gt__(self, other)
         result = _tensor_expr_overload.__gt__(self, other)
         return result
 
     def __ge__(self, other):
         if is_prim_expr(self):
-            return _overload_prim_expr.__ge__(self, other)
+            return _prim_expr_overload.__ge__(self, other)
         result = _tensor_expr_overload.__ge__(self, other)
         return result
 
@@ -399,14 +399,14 @@ class ExprOperand:
     def equal(self, other, loc: Location = UNKNOWN_LOC):
         if not is_prim_expr(self):
             raise TypeError(f"Operator overloading is not supported for expression type {self.ty}")
-        result = _overload_prim_expr.equal(self, other, loc)
+        result = _prim_expr_overload.equal(self, other, loc)
         if result is NotImplemented:
             raise TypeError("Primitive expression overload equal is not registered")
         return result
 
     def astype(self, dtype, loc: Location = UNKNOWN_LOC):
         if is_prim_expr(self):
-            result = _overload_prim_expr.astype(self, dtype, loc)
+            result = _prim_expr_overload.astype(self, dtype, loc)
             if result is NotImplemented:
                 raise TypeError("Primitive expression overload astype is not registered")
             return result
@@ -524,7 +524,7 @@ class FloatImm(Constant):
 
     Parameters
     ----------
-    dtype : str
+    ty : str, DataType or PrimType
         The data type
 
     value : float
@@ -536,12 +536,14 @@ class FloatImm(Constant):
 
     value: float
 
-    def __init__(self, dtype: str | PrimType, value: float, loc: Location = UNKNOWN_LOC) -> None:
-        if isinstance(dtype, PrimType):
-            dtype = dtype.dtype
+    def __init__(
+        self, ty: str | tvm_tirx.DataType | PrimType, value: float, loc: Location = UNKNOWN_LOC
+    ) -> None:
+        if isinstance(ty, PrimType):
+            ty = ty.dtype
         self.__init_handle_by_constructor__(
             _ffi_api.FloatImm,
-            dtype,
+            ty,
             value,
             loc,  # type: ignore
         )
@@ -556,7 +558,7 @@ class IntImm(Constant):
 
     Parameters
     ----------
-    dtype : str
+    ty : str, DataType or PrimType
         The data type
 
     value : int
@@ -568,12 +570,14 @@ class IntImm(Constant):
 
     value: int
 
-    def __init__(self, dtype: str | PrimType, value: int, loc: Location = UNKNOWN_LOC) -> None:
-        if isinstance(dtype, PrimType):
-            dtype = dtype.dtype
+    def __init__(
+        self, ty: str | tvm_tirx.DataType | PrimType, value: int, loc: Location = UNKNOWN_LOC
+    ) -> None:
+        if isinstance(ty, PrimType):
+            ty = ty.dtype
         self.__init_handle_by_constructor__(
             _ffi_api.IntImm,
-            dtype,
+            ty,
             value,
             loc,  # type: ignore
         )
@@ -601,8 +605,8 @@ class IntImm(Constant):
 class GenericConst(_ExprCallable, Constant):
     """A literal payload with an explicit expression type."""
 
-    def __init__(self, value, ty: "tvm_tirx.ir.Type", loc: Location = UNKNOWN_LOC) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.GenericConst, value, ty, loc)
+    def __init__(self, ty: "tvm_tirx.ir.Type", value, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.GenericConst, ty, value, loc)
 
     def __bool__(self) -> bool:
         return True
@@ -661,8 +665,8 @@ class CallEffectKind(IntEnum):
 class Call(_CallableExprWithOp):
     """Core function call node.
 
-    Omitted or ``None`` ``ty`` uses available result inference, or a missing
-    type when no deduction is available. Explicit types, including
+    Omitted or ``None`` keyword-only ``ty`` uses available result inference,
+    or a missing type when no deduction is available. Explicit types, including
     ``Type.missing()``, are preserved exactly. Inference errors propagate.
     Construction permits provisional IR; :meth:`validate` checks the operator
     contract explicitly after inputs are ready.
@@ -681,14 +685,15 @@ class Call(_CallableExprWithOp):
         attrs: "tvm_tirx.ir.Attrs | dict | None" = None,
         ty_args: list["tvm_tirx.ir.Type"] | tuple["tvm_tirx.ir.Type", ...] | None = None,
         loc: Location = UNKNOWN_LOC,
+        *,
         ty: "tvm_tirx.ir.Type | str | None" = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Call, *self._normalize_constructor_args(op, args, attrs, ty_args, loc, ty)
+            _ffi_api.Call, *self._normalize_constructor_args(ty, op, args, attrs, ty_args, loc)
         )
 
     @staticmethod
-    def _normalize_constructor_args(op, args, attrs, ty_args, loc, ty):
+    def _normalize_constructor_args(ty, op, args, attrs, ty_args, loc):
         # pylint: disable=import-outside-toplevel
         from .attrs import DictAttrs
         from .op import Op
@@ -717,7 +722,7 @@ def reinfer_type(call: Call) -> "tvm_tirx.ir.Type":
     The operator must register a fixed return type or a context-free inference
     rule. This does not invoke the operator's validator.
     """
-    return _ffi_api.reinfer_type(call)
+    return _ffi_api.CallReinferType(call)
 
 
 @tvm_ffi.register_object("ir.TensorRegion")
@@ -931,7 +936,7 @@ class Range(Node, Scriptable):
         rng : Range
             The constructed range.
         """
-        return _ffi_api.Range_from_min_extent(min_value, extent, loc)
+        return _ffi_api.RangeFromMinExtent(min_value, extent, loc)
 
     def __eq__(self, other: Object) -> bool:
         return tvm_ffi.structural_equal(self, other)
@@ -942,5 +947,5 @@ class Range(Node, Scriptable):
 
 # Primitive overloads also initialize the concrete primitive nodes, whose bases
 # must be defined before importing them.
-from . import _overload_prim_expr  # noqa: E402  # pylint: disable=wrong-import-position
+from . import _prim_expr_overload  # noqa: E402  # pylint: disable=wrong-import-position
 from .prim import _ffi_api as _prim_ffi_api  # noqa: E402  # pylint: disable=wrong-import-position

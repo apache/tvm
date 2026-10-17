@@ -113,7 +113,12 @@ def test_cross_backend_scopes_are_rejected_at_each_boundary():
             T.cuda.tile.apply(T.ptx["sqrt.rn.f32"], tensor, tensor, scope=scope)
     call = T.cuda.tile.apply(T.ptx["sqrt.rn.f32"], tensor, tensor)
     attrs = make_node("tirx.tensor.ScopeAttrs", scope=trn_scope)
-    raw = Call(call.op, call.args, attrs=attrs, ty=call.ty)
+    raw = Call(
+        call.op,
+        call.args,
+        attrs=attrs,
+        ty=call.ty,
+    )
     with pytest.raises(ValueError, match="belongs to trn"):
         raw.validate()
     with pytest.raises(ValueError, match="does not match target"):

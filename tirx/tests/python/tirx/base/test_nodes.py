@@ -49,7 +49,10 @@ def test_tir_const_dtype_inference():
         np.float32(1),
         np.float64(1),
     ]:
-        assert tvm_tirx.tirx.const(data).ty.dtype == str(np.array(data).dtype)
+        expected = {"b": "bool", "i": "int32", "u": "int32", "f": "float32"}[
+            np.array(data).dtype.kind
+        ]
+        assert tvm_tirx.tirx.const(data).ty.dtype == expected
 
     assert tvm_tirx.tirx.const(True).ty.dtype == "bool"
     assert tvm_tirx.tirx.const(1).ty.dtype == "int32"
@@ -417,7 +420,7 @@ def _create_broadcast(lanes):
     return tvm_tirx.ir.prim.vector_expr.Broadcast(0, lanes)
 
 
-@pytest.mark.parametrize("lanes", [tvm_tirx.ir.IntImm(dtype="int64", value=11)])
+@pytest.mark.parametrize("lanes", [tvm_tirx.ir.IntImm(ty="int64", value=11)])
 @pytest.mark.parametrize("node_func", [_create_ramp, _create_broadcast])
 def test_lane_types(lanes, node_func):
     def _check_dtype(node):

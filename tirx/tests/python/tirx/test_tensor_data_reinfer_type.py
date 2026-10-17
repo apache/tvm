@@ -27,7 +27,11 @@ def test_tensor_data_reinfer_type_from_rewritten_argument():
     stale_type = global_tensor.data.ty
     expected_type = local_tensor.data.ty
 
-    call = ir.Call("tirx.tensor_data_ptr", [local_tensor], ty=stale_type)
+    call = ir.Call(
+        "tirx.tensor_data_ptr",
+        [local_tensor],
+        ty=stale_type,
+    )
     ir.assert_structural_equal(ir.reinfer_type(call), expected_type)
     ir.assert_structural_equal(call.ty, stale_type)
 

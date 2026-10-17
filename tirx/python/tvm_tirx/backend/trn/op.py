@@ -23,23 +23,23 @@ from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 
 def nki_load(res, data, *, ty=None, loc: Location = UNKNOWN_LOC):
-    return Call("tirx.nki.load", [res, data], ty=ty, loc=loc)
+    return Call("tirx.nki.load", [res, data], loc=loc, ty=ty)
 
 
 def nki_store(res, data, *, ty=None, loc: Location = UNKNOWN_LOC):
-    return Call("tirx.nki.store", [res, data], ty=ty, loc=loc)
+    return Call("tirx.nki.store", [res, data], loc=loc, ty=ty)
 
 
 def nki_tensor_copy(res, data, *, ty=None, loc: Location = UNKNOWN_LOC):
-    return Call("tirx.nki.tensor_copy", [res, data], ty=ty, loc=loc)
+    return Call("tirx.nki.tensor_copy", [res, data], loc=loc, ty=ty)
 
 
 def nki_matmul(res, lhs, rhs, accum=True, *, ty=None, loc: Location = UNKNOWN_LOC):
     return Call(
         "tirx.nki.matmul",
         [res, lhs, rhs, accum],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -49,8 +49,8 @@ def nki_activation(
     return Call(
         "tirx.nki.activation",
         [result, data, opcode, bias, scale],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -58,8 +58,8 @@ def nki_reciprocal(result, data, *, ty=None, loc: Location = UNKNOWN_LOC):
     return Call(
         "tirx.nki.reciprocal",
         [result, data],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -67,8 +67,8 @@ def nki_tensorreduce(result, data, opcode, negate, *axes, ty=None, loc: Location
     return Call(
         "tirx.nki.tensorreduce",
         [result, data, opcode, negate, *axes],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -76,8 +76,8 @@ def nki_tensortensor(result, operand0, operand1, opcode, *, ty=None, loc: Locati
     return Call(
         "tirx.nki.tensortensor",
         [result, operand0, operand1, opcode],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -94,13 +94,13 @@ def nki_tensorscalar(
     return Call(
         "tirx.nki.tensorscalar",
         [result, operand0, operand1, opcode, reverse],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
 def nki_memset(result, value, *, ty=None, loc: Location = UNKNOWN_LOC):
-    return Call("tirx.nki.memset", [result, value], ty=ty, loc=loc)
+    return Call("tirx.nki.memset", [result, value], loc=loc, ty=ty)
 
 
 def nki_activation_reduce(
@@ -118,8 +118,8 @@ def nki_activation_reduce(
     return Call(
         "tirx.nki.activation_reduce",
         [reduce_res, act_res, data, opcode, reduce_opcode, bias, scale],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -138,13 +138,13 @@ def nki_tensorscalar_reduce(
     return Call(
         "tirx.nki.tensorscalar_reduce",
         [reduce_res, tensorscalar_res, operand0, operand1, opcode, reduce_opcode, reverse],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
 def nki_identity(result, size, *, ty=None, loc: Location = UNKNOWN_LOC):
-    return Call("tirx.nki.identity", [result, size], ty=ty, loc=loc)
+    return Call("tirx.nki.identity", [result, size], loc=loc, ty=ty)
 
 
 def nki_scalar_tensor_tensor(
@@ -163,8 +163,8 @@ def nki_scalar_tensor_tensor(
     return Call(
         "tirx.nki.scalar_tensor_tensor",
         [result, data, operand0, operand1, opcode0, opcode1, reverse0, reverse1],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -184,8 +184,8 @@ def nki_scalar_tensor_scalar(
     return Call(
         "tirx.nki.scalar_tensor_scalar",
         [result, data, operand0, operand1, opcode0, opcode1, reverse0, reverse1],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -195,8 +195,8 @@ def nki_affine_select(
     return Call(
         "tirx.nki.affine_select",
         [result, pred, true_value, false_value],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 

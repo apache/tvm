@@ -516,7 +516,7 @@ def test_cuda_host_embeds_independent_binaries_in_plain_cpp(tmp_path, monkeypatc
             },
         ):
             x = T.cuda.thread_idx("x")
-            B[x] = A[x] * T.Cast(factor, "float32")
+            B[x] = A[x] * T.Cast("float32", factor)
         with T.device_entry(
             launch=T.cuda.LaunchConfig(grid=1, block=32),
             backend_config={
@@ -528,7 +528,7 @@ def test_cuda_host_embeds_independent_binaries_in_plain_cpp(tmp_path, monkeypatc
             },
         ):
             y = T.cuda.thread_idx("x")
-            C[y] = B[y] * T.Cast(other, "float32")
+            C[y] = B[y] * T.Cast("float32", other)
 
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": env.cuda_arch(0)}, host="cuda_host")
     module = tvm_tirx.tirx.compile(main, target=target)

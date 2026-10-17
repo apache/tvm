@@ -172,7 +172,7 @@ def test_call_packed_return_non_i32():
             stack_ffi_any: T.let[T.Ptr(T.PrimType("void"))] = T.stack_alloca("tvm_ffi_any", 2)
             T.abi_field_set(stack_ffi_any, 0, 13, 3)
             T.abi_field_set(stack_ffi_any, 0, 14, 0)
-            T.abi_field_set(stack_ffi_any, 0, 15, T.Cast(T.float32(1.2), "float64"))
+            T.abi_field_set(stack_ffi_any, 0, 15, T.Cast("float64", T.float32(1.2)))
             T.abi_field_set(stack_ffi_any, 1, 13, 0)
             T.abi_field_set(stack_ffi_any, 1, 14, 0)
             T.abi_field_set(stack_ffi_any, 1, 15, T.int64(0))

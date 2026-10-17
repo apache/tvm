@@ -31,7 +31,7 @@ For example, you can use addexp.a to get the left operand of an Add node.
 from tvm_tirx import ir
 from tvm_tirx.ir import Expr
 from tvm_tirx.ir import const as const
-from tvm_tirx.ir._overload_prim_expr import (  # noqa: F401
+from tvm_tirx.ir._prim_expr_overload import (  # noqa: F401
     EqualOp,
     ExprOp,
     NotEqualOp,

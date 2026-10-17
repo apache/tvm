@@ -437,12 +437,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Cast
-Cast::Cast(PrimExpr value, PrimType value_ty, Location loc) : PrimExpr(ffi::UnsafeInit{}) {
+Cast::Cast(PrimType ty, PrimExpr value, Location loc) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   PrimType value_expr_ty = value.ty();
-  TVM_FFI_ICHECK_EQ(value_ty->dtype.lanes, value_expr_ty->dtype.lanes);
+  TVM_FFI_ICHECK_EQ(ty->dtype.lanes, value_expr_ty->dtype.lanes);
   ffi::ObjectPtr<CastNode> node = ffi::make_object<CastNode>(value);
-  node->ExprNode::ty = std::move(value_ty);
+  node->ExprNode::ty = std::move(ty);
   node->loc = loc;
   data_ = std::move(node);
 }
@@ -456,9 +456,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&CastMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("prim.Cast", [](PrimExpr value, PrimType dtype, Location loc) {
-    return Cast(value, dtype, loc);
-  });
+  refl::GlobalDef().def(
+      "prim.Cast", [](PrimType ty, PrimExpr value, Location loc) { return Cast(ty, value, loc); });
 }
 
 // Add
