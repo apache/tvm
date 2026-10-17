@@ -135,7 +135,7 @@ def test_error_undeclared_tensor_in_schedulable_tir():
         iter_vars=[tvm.s_tir.IterVar(tvm_tirx.ir.Range(0, n), bi, 0)],  # 0 = kDataPar
         reads=[TensorRegion(A, [tvm_tirx.ir.Range(bi, bi + 1)], ty=TensorRegionType())],
         writes=[TensorRegion(B, [tvm_tirx.ir.Range(bi, bi + 1)], ty=TensorRegionType())],
-        body=tvm_tirx.ir.TensorStore(B, [bi], tvm_tirx.tirx.TensorLoad(A, [bi])),
+        body=tvm_tirx.ir.TensorStore(B, [bi], tvm_tirx.ir.TensorLoad(A, [bi])),
         name_hint="write_B",
     )
     block_realize = tvm.s_tir.SBlockRealize(

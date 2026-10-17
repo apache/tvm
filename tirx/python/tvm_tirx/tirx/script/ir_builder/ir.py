@@ -29,9 +29,7 @@ import tvm_tirx
 from tvm_tirx import ir
 from tvm_tirx import ir as _ir
 from tvm_tirx import tirx as tir
-
-# import tirx.expr for direct ir construction to pass structural_equal comparison
-from tvm_tirx.ir import FloatImm, IntImm, Range, TensorRegion, Type
+from tvm_tirx.ir import FloatImm, IntImm, Range, TensorLoad, TensorRegion, Type
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.ir.type import _init_type_api, _normalize_type
 from tvm_tirx.runtime import MemoryScope
@@ -47,7 +45,6 @@ from tvm_tirx.target import Target
 
 # pylint: disable=unused-import
 from tvm_tirx.tirx import Expr, IndexMap, Var, is_tensor_var, tile
-from tvm_tirx.tirx.expr import TensorLoad
 from tvm_tirx.tirx.layout import Axis, ComposeLayout, Iter, Layout, R, S, TileLayout
 from tvm_tirx.tirx.thread_scope import ThreadScope
 

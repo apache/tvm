@@ -34,7 +34,7 @@ def test_decl_tensor_data_is_use():
     data_ptr = tirx.Var("buf_data", PtrType(PrimType("float32")))
     buf = tirx.decl_tensor((n,), "float32", "buf", data=data_ptr)
 
-    body = tvm_tirx.ir.Evaluate(tirx.TensorLoad(buf, [0]))
+    body = tvm_tirx.ir.Evaluate(tvm_tirx.ir.TensorLoad(buf, [0]))
     decl = tvm_tirx.ir.Bind(
         buf,
         tvm_tirx.ir.Call(
@@ -64,7 +64,7 @@ def test_decl_tensor_elem_offset_is_use():
     elem_off = tirx.Var("buf_elem_offset", "int32")
     buf = tirx.decl_tensor((n,), "float32", "buf", data=data_ptr, elem_offset=elem_off)
 
-    body = tvm_tirx.ir.Evaluate(tirx.TensorLoad(buf, [0]))
+    body = tvm_tirx.ir.Evaluate(tvm_tirx.ir.TensorLoad(buf, [0]))
     decl = tvm_tirx.ir.Bind(
         buf,
         tvm_tirx.ir.Call(
@@ -92,7 +92,7 @@ def test_alloc_tensor_data_is_def():
     n = tirx.Var("n", "int32")
     buf = tirx.decl_tensor((n,), "float32", "buf")
 
-    body = tvm_tirx.ir.Evaluate(tirx.TensorLoad(buf, [0]))
+    body = tvm_tirx.ir.Evaluate(tvm_tirx.ir.TensorLoad(buf, [0]))
     alloc = tvm_tirx.ir.Bind(
         buf,
         tvm_tirx.ir.Call(

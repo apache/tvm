@@ -22,7 +22,7 @@ import inspect
 
 import tvm_tirx
 from tvm_tirx import tirx
-from tvm_tirx.backend.cuda import transforms as cuda_transforms
+from tvm_tirx.backend.cuda import transform as cuda_transform
 
 
 def default_tir_pipeline(*, target=None):
@@ -70,8 +70,8 @@ def _bind_target(mod, target):
     return tvm_tirx.ir.transform.Sequential(
         [
             tirx.transform.BindTarget(target),
-            cuda_transforms.BindBackendConfig(),
-            cuda_transforms.SpecializeEntryHelpers(),
+            cuda_transform.BindBackendConfig(),
+            cuda_transform.SpecializeEntryHelpers(),
         ]
     )(mod)
 
@@ -125,8 +125,8 @@ def finalize_tir_pipeline():
         [
             tirx.transform.AnnotateEntryFunc(),
             tirx.transform.SplitHostDevice(),
-            cuda_transforms.LowerIket(),
-            cuda_transforms.SpecializeDeviceHelpers(),
+            cuda_transform.LowerIket(),
+            cuda_transform.SpecializeDeviceHelpers(),
             tirx.transform.BF16ComputeLegalize(),
             tirx.transform.FP8ComputeLegalize(),
             tirx.transform.MakePackedAPI(),

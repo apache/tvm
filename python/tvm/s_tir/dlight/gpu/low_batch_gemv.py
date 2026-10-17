@@ -51,7 +51,7 @@ def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
         return None
     if not tvm_ffi.structural_equal(
         tensor_store.value.a,
-        tirx.TensorLoad(tensor_store.dest, tensor_store.indices),
+        tvm_tirx.ir.TensorLoad(tensor_store.dest, tensor_store.indices),
         map_free_vars=True,
     ):
         return None

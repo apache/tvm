@@ -342,16 +342,13 @@ def test_scoped_storage_vars():
 
 def test_tensor_load_store():
     b = tvm_tirx.tirx.decl_tensor((10,), "float32")
-    x = tvm_tirx.tirx.TensorLoad(b, [0])
+    x = tvm_tirx.ir.TensorLoad(b, [0])
     assert isinstance(x, tvm_tirx.ir.TensorLoad)
-    assert callable(tvm_tirx.tirx.TensorLoad)
     assert x.ty.dtype == "float32"
     assert x.source == b
     assert not hasattr(x, "tensor")
     loc = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("tensor_load"), 1, 2, 1, 3)
     core_load = tvm_tirx.ir.TensorLoad(b, [0], loc)
-    dialect_load = tvm_tirx.tirx.TensorLoad(b, [0], loc)
-    tvm_tirx.ir.assert_structural_equal(core_load, dialect_load)
     assert core_load.loc.same_as(loc)
     restored = tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(core_load))
     assert isinstance(restored.ty, tvm_tirx.ir.PrimType)
@@ -366,15 +363,14 @@ def test_tensor_load_store():
     )
 
 
-@pytest.mark.parametrize("constructor", [tvm_tirx.ir.TensorLoad, tvm_tirx.tirx.TensorLoad])
-def test_tensor_load_validation(constructor):
+def test_tensor_load_validation():
     tensor = tvm_tirx.tirx.decl_tensor((8, 8), "float32")
     with pytest.raises(RuntimeError, match="dimensional"):
-        constructor(tensor, [0])
+        tvm_tirx.ir.TensorLoad(tensor, [0])
     with pytest.raises(RuntimeError, match="Only the last index"):
-        constructor(tensor, [tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4), 0])
+        tvm_tirx.ir.TensorLoad(tensor, [tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4), 0])
     with pytest.raises(TypeError, match="does not support TensorLoad"):
-        constructor(tvm_tirx.tirx.Var("scalar", "float32"), [0])
+        tvm_tirx.ir.TensorLoad(tvm_tirx.tirx.Var("scalar", "float32"), [0])
 
 
 @pytest.mark.parametrize(
@@ -464,7 +460,7 @@ def test_broadcast_to_scalable_vec():
 def test_tensor_load_scalable_vec():
     buf = tvm_tirx.tirx.decl_tensor((24,), "float32")
     index = tvm_tirx.ir.prim.vector_expr.Ramp(1, 1, 8 * tvm_tirx.tirx.vscale())
-    load = tvm_tirx.tirx.TensorLoad(buf, [index])
+    load = tvm_tirx.ir.TensorLoad(buf, [index])
 
     assert isinstance(load, tvm_tirx.ir.TensorLoad)
     assert load.ty.dtype == "float32xvscalex8"

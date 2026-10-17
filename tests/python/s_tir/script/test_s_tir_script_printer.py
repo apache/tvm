@@ -102,7 +102,7 @@ def test_function_symbolic_alloc_tensor_roundtrip():
                         ty_args=[buf.ty],
                     ),
                 ),
-                tvm_tirx.ir.Evaluate(tirx.TensorLoad(buf, [0])),
+                tvm_tirx.ir.Evaluate(tvm_tirx.ir.TensorLoad(buf, [0])),
             ]
         ),
     ).with_attr({"s_tir": True, "script.namespace": "s_tir"})

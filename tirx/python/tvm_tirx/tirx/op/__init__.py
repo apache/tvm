@@ -112,7 +112,6 @@ from tvm_tirx.ir.prim.op import vscale as vscale
 
 from .. import _ffi_api
 from ..expr import ExprOp
-from ..expr import TensorLoad as _make_tensor_load
 from ..tensor import is_tensor_var, tensor_data_ptr
 from ..type import TensorMapType
 
@@ -790,7 +789,7 @@ def address_of(obj: Var | TensorLoad, loc: Location = UNKNOWN_LOC, *, ty=None) -
     """
     if is_tensor_var(obj):
         n_dim = len(obj.ty.shape)
-        tensor_load = _make_tensor_load(obj, [0] * n_dim)
+        tensor_load = TensorLoad(obj, [0] * n_dim)
         return Call("tirx.address_of", [tensor_load], loc=loc, ty=ty)
     elif isinstance(obj, Var):
         if _is_tensormap_var(obj):
