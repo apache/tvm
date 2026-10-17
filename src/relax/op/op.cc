@@ -518,15 +518,15 @@ void CheckTIRxArguments(const tvm::FuncType& signature, const ffi::Array<Expr>& 
 
 void CheckFreshTIRxDestination(const tirx::TensorTypeNode* tensor) {
   sym::Analyzer analyzer;
-  TVM_FFI_CHECK(!analyzer->CanProve(tensor->elem_offset != 0), TypeError)
+  TVM_FFI_CHECK(!analyzer->CanProve(tensor->GetElemOffset() != 0), TypeError)
       << "R.call_tir allocates fresh destinations with zero element offset";
-  if (!tensor->strides.empty()) {
+  if (!tensor->GetStrides().empty()) {
     PrimExpr compact_stride =
         IntImm(tensor->shape.empty() ? PrimType::Int(64)
                                      : tensor->shape.back()->ty.as_or_throw<PrimType>(),
                1);
     for (size_t i = tensor->shape.size(); i > 0; --i) {
-      TVM_FFI_CHECK(!analyzer->CanProve(tensor->strides[i - 1] != compact_stride), TypeError)
+      TVM_FFI_CHECK(!analyzer->CanProve(tensor->GetStrides()[i - 1] != compact_stride), TypeError)
           << "R.call_tir allocates compact destinations; incompatible native stride at dimension "
           << i - 1;
       compact_stride = compact_stride * tensor->shape[i - 1];

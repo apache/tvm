@@ -48,13 +48,9 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     return NamespaceDoc("ir")
         ->Attr("make_node")
         ->Call({LiteralDoc::Str("tirx.TensorType", std::nullopt)},
-               {"dtype", "scope", "shape", "strides", "elem_offset", "data_alignment",
-                "offset_factor", "layout"},
+               {"dtype", "scope", "shape", "data_alignment", "offset_factor", "layout"},
                {d->Translate(tensor->dtype).value(), d->Translate(tensor->scope).value(),
-                d->Translate(tensor->shape).value(), d->Translate(tensor->strides).value(),
-                d->WithExtraStateScope<bool>(
-                    "ir.explicit_value_type", true,
-                    [&] { return d->Translate(tensor->elem_offset).value(); }),
+                d->Translate(tensor->shape).value(),
                 LiteralDoc::Int(tensor->data_alignment, std::nullopt),
                 LiteralDoc::Int(tensor->offset_factor, std::nullopt),
                 tensor->layout.has_value() ? d->Translate(tensor->layout.value()).value()
@@ -85,12 +81,6 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   };
   if (tensor->scope != runtime::MemoryScope::Global()) {
     optional("scope", LiteralDoc::Str(tensor->scope.name(), std::nullopt));
-  }
-  if (!tensor->strides.empty()) optional("strides", d->Translate(tensor->strides).value());
-  if (!ffi::StructuralEqual()(tensor->elem_offset, IntImm(tirx::DefaultIndexType(), 0))) {
-    optional("elem_offset", d->WithExtraStateScope<bool>("ir.explicit_value_type", true, [&] {
-      return d->Translate(tensor->elem_offset).value();
-    }));
   }
   if (tensor->data_alignment != static_cast<int>(runtime::kAllocAlignment)) {
     optional("data_alignment", LiteralDoc::Int(tensor->data_alignment, std::nullopt));
@@ -174,6 +164,14 @@ ffi::Optional<ExprDoc> TileLayoutDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     keys.push_back("offset");
     values.push_back(DictDoc(offset_keys, offset_values));
   }
+  if (!prim::IsZero(layout->memory_origin) || layout->memory_origin.ty() != PrimType::Int(64)) {
+    keys.push_back("memory_origin");
+    values.push_back(d->Translate(layout->memory_origin).value());
+  }
+  if (layout->compact) {
+    keys.push_back("compact");
+    values.push_back(LiteralDoc::Boolean(true, std::nullopt));
+  }
   return NamespaceDoc("tirx")->Attr("TileLayout")->Attr("from_iters")->Call({}, keys, values);
 }
 
@@ -193,6 +191,10 @@ ffi::Optional<ExprDoc> ComposeLayoutDocTranslate(DocTranslatorObj* d, ffi::AnyVi
   if (!layout->swizzle_inner) {
     keys.push_back("swizzle_inner");
     values.push_back(LiteralDoc::Boolean(false, std::nullopt));
+  }
+  if (!prim::IsZero(layout->memory_origin) || layout->memory_origin.ty() != PrimType::Int(64)) {
+    keys.push_back("memory_origin");
+    values.push_back(d->Translate(layout->memory_origin).value());
   }
   return NamespaceDoc("tirx")
       ->Attr("ComposeLayout")

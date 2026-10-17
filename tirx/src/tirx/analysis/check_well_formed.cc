@@ -24,9 +24,11 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
@@ -262,6 +264,15 @@ class WellFormednessVerifier : public StmtExprVisitor {
     }
     if (auto var = tensor.elem_offset().as<Var>()) {
       define_if_needed(var.value(), field->Attr("elem_offset"));
+    }
+    if (tensor.ty()->IsRegularMemoryLayout() && tensor.ty()->layout.has_value() &&
+        prim::IsZero(tensor.elem_offset())) {
+      const auto* tile = tensor.ty()->layout.as<TileLayoutNode>();
+      for (const auto& [axis, offset] : tile->offset) {
+        if (auto var = offset.as<Var>()) {
+          define_if_needed(var.value(), field->Attr("layout")->Attr("offset"));
+        }
+      }
     }
   }
 

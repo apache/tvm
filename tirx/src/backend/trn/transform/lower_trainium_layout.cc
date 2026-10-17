@@ -72,7 +72,6 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
           tensor.value().scope() == runtime::MemoryScope::Global()) {
         TensorVar flattened = storage_lower->GetFlattenedTensor(tensor.value());
         auto type = ffi::make_object<TensorTypeNode>(*tensor.value().ty().get());
-        type->layout = std::nullopt;
         TensorVar source =
             TensorVar(tensor.value()->name, TensorType(std::move(type)), tensor.value()->loc);
         param_flattened_tensors.emplace_back(flattened, source);
@@ -169,12 +168,14 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
       flattened = buf;
       type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
       type->shape = new_shape;
-      type->strides = {};
+      type->layout = std::nullopt;
+      auto origin = buf.elem_offset();
+      type->SetElemOffset(Mutate(origin, InplaceMode::kDisallow).ValueOrUnchanged(origin));
     } else if (is_alloc) {
       if (auto tile_layout = buf.ty()->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
         sym::Analyzer ana;
-        PrimExpr mem_span = IntImm::Int32(1);
+        PrimExpr mem_span = IntImm::Int32(1) + tile_layout->memory_origin;
         for (const auto& iter : tile_layout->shard) {
           if (iter->axis->IsMemoryAxis()) {
             mem_span = mem_span + (iter->extent - 1) * iter->stride;
@@ -193,7 +194,7 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
         flattened = buf;
         type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
         type->shape = {ana->Simplify(mem_span)};
-        type->strides = {};
+        type->layout = std::nullopt;
       } else {
         flattened = FlattenedTensor(buf);
         type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
@@ -208,9 +209,7 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
     for (size_t i = 0; i < type->shape.size(); ++i) {
       type->shape.Set(i, analyzer_->canonical_simplify(type->shape[i]));
     }
-    type->layout = std::nullopt;
-    type->elem_offset = StmtExprMutator::Mutate(buf.elem_offset(), InplaceMode::kDisallow)
-                            .ValueOrUnchanged(buf.elem_offset());
+    if (!IsTrainiumLayout(trn_layout)) type->layout = std::nullopt;
     flattened = TensorVar(flattened->name, TensorType(std::move(type)), flattened->loc);
 
     VarRemapSet(buf, flattened);
@@ -261,9 +260,13 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
                                                const ffi::Array<PrimExpr>& indices) {
     static const auto scope_trn_psum = runtime::MemoryScope::Get("trn.psum");
     if (tensor.ty()->layout.has_value()) {
-      auto tile_layout = tensor.ty()->layout.value().as<TileLayoutNode>();
+      auto layout = tensor.ty()->layout.value();
+      layout = StmtExprMutator::Mutate(ffi::AnyView(layout), InplaceMode::kDisallow)
+                   .ValueOrUnchanged(layout)
+                   .as_or_throw<Layout>();
+      auto tile_layout = layout.as<TileLayoutNode>();
       if (IsTrainiumLayout(tile_layout)) {
-        auto coord = tensor.ty()->layout.value()->Apply(indices, tensor.shape());
+        auto coord = layout->Apply(indices, tensor.shape());
         std::vector<PrimExpr> res;
         for (const auto& axis : tensor.scope() == scope_trn_psum
                                     ? ffi::Array<ffi::String>{"Bank", "P", "F"}
@@ -282,7 +285,7 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
                    << "layout: unable to verify that the coordinate matches the current thread. "
                    << "Use .view() + .local() to decompose thread and memory axes.";
       }
-      auto res = tensor.ty()->layout.value()->Canonicalize()->Apply(indices, tensor.shape());
+      auto res = layout->Canonicalize()->Apply(indices, tensor.shape());
       TVM_FFI_ICHECK_EQ(res.size(), 1) << "Expected a single element offset";
       return {analyzer_->Simplify((*res.begin()).second)};
     }

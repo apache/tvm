@@ -782,7 +782,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
       }
       ffi::ObjectPtr<TensorTypeNode> type =
           ffi::make_object<TensorTypeNode>(*output_tir_tensor.ty().get());
-      type->elem_offset = zero_offset;
+      type->SetElemOffset(zero_offset);
       output_tir_tensor =
           TensorVar(output_tir_tensor->name, TensorType(std::move(type)), output_tir_tensor->loc);
       info->root_alloc.push_back(output_tir_tensor);

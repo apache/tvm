@@ -45,7 +45,7 @@ using namespace tvm::prim;
  * \brief Flatten each n-d tensor ``buf`` into a 1-d storage view ``buf'``,
  *        rewriting every access ``buf[x]`` into ``buf'[f(x)]``.
  *
- *  The invariant: ``f(x) = layout.apply(x, shape) + elem_offset`` is fully
+ *  The invariant: ``f(x) = layout.apply(x, shape)`` is fully
  *  determined by ``buf``'s geometry, and ``buf'`` is only a storage husk —
  *  same data origin, dtype, alignment and scope; no layout, no elem_offset.
  *
@@ -125,27 +125,10 @@ class TensorFlattener : public StmtExprMutatorWithAnalyzer {
     auto view_type = ffi::make_object<TensorTypeNode>(*buf.ty().get());
     auto mutate_expr = [this](const PrimExpr& expr) { return Mutate(expr).ValueOrUnchanged(expr); };
     view_type->shape = view_type->shape.Map(mutate_expr);
-    view_type->strides = view_type->strides.Map(mutate_expr);
-    if (view_type->elem_offset.defined()) {
-      view_type->elem_offset = this->Mutate(view_type->elem_offset, InplaceMode::kDisallow)
-                                   .ValueOrUnchanged(view_type->elem_offset);
-    }
-    if (auto tile = view_type->layout.as<TileLayoutNode>()) {
-      auto remap_iter = [this](const Iter& iter) {
-        PrimExpr extent =
-            this->Mutate(iter->extent, InplaceMode::kDisallow).ValueOrUnchanged(iter->extent);
-        PrimExpr stride =
-            this->Mutate(iter->stride, InplaceMode::kDisallow).ValueOrUnchanged(iter->stride);
-        if (extent.same_as(iter->extent) && stride.same_as(iter->stride)) {
-          return iter;
-        }
-        return Iter(extent, stride, iter->axis);
-      };
-      auto shard = tile->shard.Map(remap_iter);
-      auto replica = tile->replica.Map(remap_iter);
-      if (!shard.same_as(tile->shard) || !replica.same_as(tile->replica)) {
-        view_type->layout = TileLayout(shard, replica, tile->offset);
-      }
+    if (view_type->layout.has_value()) {
+      view_type->layout = this->Mutate(ffi::AnyView(view_type->layout), InplaceMode::kDisallow)
+                              .ValueOrUnchanged(view_type->layout)
+                              .cast<ffi::Optional<Layout>>();
     }
     TensorVar fold_view = TensorVar(buf->name, TensorType(std::move(view_type)), buf->loc);
 
@@ -157,9 +140,6 @@ class TensorFlattener : public StmtExprMutatorWithAnalyzer {
       type->shape.Set(i, analyzer_->canonical_simplify(type->shape[i]));
     }
     type->layout = std::nullopt;
-    if (type->elem_offset.defined() && !IsZero(type->elem_offset)) {
-      type->elem_offset = IntImm(type->elem_offset.ty().as_or_throw<PrimType>(), 0);
-    }
     // Body-local tensors keep their identity when flattening changes nothing.
     // Function-parameter tensors always rebuild: the epilogue aliases the
     // rebuilt view onto the argument tensor with an explicit DeclTensor, and

@@ -822,9 +822,10 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
     // Flat packing and lifetime reuse cannot reconstruct arbitrary physical views.
     // Preserve their original allocation before either planning step can combine it.
-    if (type->shape.size() != 1 || type->layout.has_value() || !IsConstInt(type->elem_offset, 0) ||
-        (!type->strides.empty() &&
-         (type->strides.size() != 1 || !IsConstInt(type->strides[0], 1)))) {
+    if (type->shape.size() != 1 || type->layout.has_value() ||
+        !IsConstInt(type->GetElemOffset(), 0) ||
+        (!type->GetStrides().empty() &&
+         (type->GetStrides().size() != 1 || !IsConstInt(type->GetStrides()[0], 1)))) {
       return true;
     }
     if (!call->args.empty()) return true;
@@ -857,9 +858,9 @@ class StoragePlanRewriter : public StmtExprMutator {
       const auto* call = allocation->value.as<CallNode>();
       auto type = call->ty_args[0].as_or_throw<TensorType>();
       if (type->shape.size() != 1 || type->dtype.IsScalableVector() || type->layout.has_value() ||
-          !IsConstInt(type->elem_offset, 0) ||
-          (!type->strides.empty() &&
-           (type->strides.size() != 1 || !IsConstInt(type->strides[0], 1))))
+          !IsConstInt(type->GetElemOffset(), 0) ||
+          (!type->GetStrides().empty() &&
+           (type->GetStrides().size() != 1 || !IsConstInt(type->GetStrides()[0], 1))))
         return false;
     }
     return true;

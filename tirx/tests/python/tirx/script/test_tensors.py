@@ -486,7 +486,7 @@ def test_tensor_physical_view_ir():
     assert (
         'v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((2,), T.float16, '
         'scope="local", layout=T.TileLayout.from_iters(shard=[T.Iter(2, 1, "m")], '
-        'replica=[]))])'
+        'replica=[], compact=True))])'
     ) in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
@@ -562,12 +562,12 @@ def test_tensor_physical_view_physical_order():
     assert (
         'v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((32,), T.float32, '
         'scope="local", layout=T.TileLayout.from_iters(shard=[T.Iter(32, 1, "m")], '
-        'replica=[]))])'
+        'replica=[], compact=True))])'
     ) in code
     assert (
         'v_2 = T.decl_tensor(v.data, ty_args=[T.Tensor((4, 8), T.float32, '
         'scope="local", layout=T.TileLayout.from_iters(shard=[T.Iter(4, 8, "m"), '
-        'T.Iter(8, 1, "m")], replica=[]))])'
+        'T.Iter(8, 1, "m")], replica=[], compact=True))])'
     ) in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
@@ -725,12 +725,12 @@ def test_tensor_physical_view_printer_is_stable_with_multiple_aliases():
     assert (
         'v_1 = T.decl_tensor(v.data, ty_args=[T.Tensor((32,), T.float32, '
         'scope="local", layout=T.TileLayout.from_iters(shard=[T.Iter(32, 1, "m")], '
-        'replica=[]))])'
+        'replica=[], compact=True))])'
     ) in expected
     assert (
         'v_2 = T.decl_tensor(v.data, ty_args=[T.Tensor((4, 8), T.float32, '
         'scope="local", layout=T.TileLayout.from_iters(shard=[T.Iter(4, 8, "m"), '
-        'T.Iter(8, 1, "m")], replica=[]))])'
+        'T.Iter(8, 1, "m")], replica=[], compact=True))])'
     ) in expected
     storage_line = next(line for line in expected.splitlines() if "v_3 =" in line)
     assert (
@@ -980,7 +980,10 @@ def test_tensor_sub_multi_iter_dim_ir():
     # 5 -> (5 // 4, 5 % 4) = (1, 1) -> 1 * 1024 + 1 * 64
     assert int(tvm_tirx.sym.Analyzer().simplify(b_buf.elem_offset - a_buf.elem_offset)) == 1088
     assert [int(s) for s in b_buf.shape] == [16]
-    assert_structural_equal(b_buf.layout, tvm_tirx.tirx.layout.TileLayout(T.S[(16,) : (1,)]))
+    assert_structural_equal(
+        b_buf.layout,
+        tvm_tirx.tirx.layout.TileLayout(T.S[(16,) : (1,)], memory_origin=1088),
+    )
 
     code = func.script()
     assert from_source(code).script() == code
@@ -1029,12 +1032,18 @@ def test_tensor_sub_ir():
     # sub[1, 2:6]: drop dim 0 at 1 (1 * 256) then narrow dim 1 to [2, 6) (2 * 16)
     assert [int(s) for s in b_buf.shape] == [4, 16]
     assert int(tvm_tirx.sym.Analyzer().simplify(b_buf.elem_offset - a_buf.elem_offset)) == 288
-    assert_structural_equal(b_buf.layout, tvm_tirx.tirx.layout.TileLayout(T.S[(4, 16) : (16, 1)]))
+    assert_structural_equal(
+        b_buf.layout,
+        tvm_tirx.tirx.layout.TileLayout(T.S[(4, 16) : (16, 1)], memory_origin=b_buf.elem_offset),
+    )
     # sub[:, 1::2]: keep dim 0, split dim 1 into (4, 2) and fix the remainder at 1
     assert [int(s) for s in c_buf.shape] == [4, 4, 16]
     assert int(tvm_tirx.sym.Analyzer().simplify(c_buf.elem_offset - a_buf.elem_offset)) == 16
     assert_structural_equal(
-        c_buf.layout, tvm_tirx.tirx.layout.TileLayout(T.S[(4, 4, 16) : (256, 32, 1)])
+        c_buf.layout,
+        tvm_tirx.tirx.layout.TileLayout(
+            T.S[(4, 4, 16) : (256, 32, 1)], memory_origin=c_buf.elem_offset
+        ),
     )
 
     code = func.script()
@@ -1091,7 +1100,7 @@ def test_tensor_sub_swizzle_commutation():
             rel = buf.layout.apply(coords[0])["m"]
         else:
             rel = buf.layout.apply(*coords, shape=[int(s) for s in buf.shape])["m"]
-        return int(analyzer.simplify((buf.elem_offset - base) + rel))
+        return int(analyzer.simplify(rel - base))
 
     analyzer = tvm_tirx.sym.Analyzer()
     compose = T.ComposeLayout(
@@ -1207,16 +1216,15 @@ def test_tensor_factored_views():
             assert list(map(int, B.shape)) == [3, 16, 512]
             analyzer = tvm_tirx.sym.Analyzer()
             for row in range(16):
-                address = B.layout.apply(1, row, 7, shape=B.shape)["m"] + B.elem_offset
+                address = B.layout.apply(1, row, 7, shape=B.shape)["m"]
                 expected = (64 + row // 4 * 16 + w * 4 + row % 4) * 512 + 7
                 assert analyzer.can_prove_equal(address, expected)
                 assert (
-                    int(D.layout.apply(1, row, 7, shape=D.shape)["m"] + D.elem_offset)
+                    int(D.layout.apply(1, row, 7, shape=D.shape)["m"])
                     == (64 + row * 4 + 2) * 512 + 7
                 )
                 assert (
-                    int(F.layout.apply(1, row, 7, shape=F.shape)["m"] + F.elem_offset)
-                    == (64 + 32 + row) * 512 + 7
+                    int(F.layout.apply(1, row, 7, shape=F.shape)["m"]) == (64 + 32 + row) * 512 + 7
                 )
             M = A.view(192, 512, layout="default")
             multi = (
@@ -1229,13 +1237,13 @@ def test_tensor_factored_views():
             )
             assert list(map(int, multi.shape)) == [48, 256]
             for row, col in [(0, 0), (13, 19), (47, 255)]:
-                actual = multi.layout.apply(row, col, shape=multi.shape)["m"] + multi.elem_offset
+                actual = multi.layout.apply(row, col, shape=multi.shape)["m"]
                 expected = (row // 2 * 8 + w * 2 + row % 2) * 512 + col // 8 * 16 + 8 + col % 8
                 assert analyzer.can_prove_equal(actual, expected)
             a = tvm_tirx.tirx.Var("a", "int32")
             b = tvm_tirx.tirx.Var("b", "int32")
             selected = M.view(2, 4, 24, 512).sub[a, b]
-            actual = selected.layout.apply(7, 11, shape=selected.shape)["m"] + selected.elem_offset
+            actual = selected.layout.apply(7, 11, shape=selected.shape)["m"]
             assert analyzer.can_prove_equal(actual, (a * 96 + b * 24 + 7) * 512 + 11)
 
 
@@ -1497,12 +1505,12 @@ def test_memory_scope_canonical_constructor_aliases_and_reflected_scopes():
         script = func.script()
         if expected_scope == MemoryScope("global"):
             assert "pointer: T.Ptr(T.float32)" in script
-            assert "tensor: T.Tensor((4,), T.float32, elem_offset=" in script
+            assert "tensor: T.Tensor((4,), T.float32, data_alignment=" in script
         else:
             assert f'pointer: T.Ptr(T.float32, "{expected_scope.name}")' in script
             assert f'tensor: T.Tensor((4,), T.float32, scope="{expected_scope.name}", ' in script
-        assert "elem_offset=T.int64(2), data_alignment=128" in script
-        assert 'layout=T.TileLayout.from_iters(shard=[T.Iter(4, 1, "m")], replica=[])' in script
+        assert "data_alignment=128" in script
+        assert "memory_origin=T.int64(2), compact=True)" in script
         restored = tvm_tirx.script.from_source(script, extra_vars={"T": T})
         tvm_tirx.ir.assert_structural_equal(func, restored)
         assert restored.params[0].ty.scope.same_as(expected_scope)

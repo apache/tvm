@@ -408,8 +408,9 @@ class VecAllocAccess : public StmtExprMutator {
       // Copy everything into the new tensor.
       auto type = ffi::make_object<TensorTypeNode>(
           *node->dest.template as_or_throw<TensorVar>().ty().get());
+      bool regular_layout = type->IsRegularMemoryLayout();
       type->shape = shape;
-      type->strides = strides;
+      if (!strides.empty() || regular_layout) type->SetStrides(strides);
       buf =
           TensorVar(node->dest.template as_or_throw<TensorVar>()->name, TensorType(std::move(type)),
                     node->dest.template as_or_throw<TensorVar>()->loc);
@@ -445,8 +446,9 @@ class VecAllocAccess : public StmtExprMutator {
         strides.Set(i, analyzer_->Simplify(stride));
       }
       auto type = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
+      bool regular_layout = type->IsRegularMemoryLayout();
       type->shape = shape;
-      type->strides = strides;
+      if (!strides.empty() || regular_layout) type->SetStrides(strides);
       buf = TensorVar(tensor->name, TensorType(std::move(type)), tensor->loc);
       VarRemapSet(tensor, buf);
     }

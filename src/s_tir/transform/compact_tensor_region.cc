@@ -822,7 +822,7 @@ Stmt TensorCompactorCompact(
     ffi::Array<PrimExpr> strides = CalcStrides(alloc_info, shape);
     ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
     n->shape = std::move(shape);
-    n->strides = std::move(strides);
+    n->SetStrides(std::move(strides));
     alloc_info.new_tensor = TensorVar(tensor->name, TensorType(std::move(n)), tensor->loc);
     alloc_info.region = region;
     tensor_info.emplace(tensor, std::move(alloc_info));

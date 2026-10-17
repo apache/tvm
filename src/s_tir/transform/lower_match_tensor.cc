@@ -201,6 +201,25 @@ class MatchTensorLower : public StmtExprMutator {
     const TensorRegion& source = VisitTensorRegion(match_tensor->source);
     const TensorVar& source_tensor = source->source.as_or_throw<tvm::tirx::TensorVar>();
 
+    auto memory_origin = [](const TensorVar& value) {
+      TVM_FFI_CHECK(value.ty()->IsRegularMemoryLayout(), ValueError)
+          << "S-TIR matching requires regular memory layouts";
+      ffi::Array<PrimExpr> zeros;
+      for (const auto& extent : value.shape()) zeros.push_back(IntImm(extent.ty(), 0));
+      return value.ty()->ElemOffset(zeros)[0];
+    };
+    PrimExpr target_origin = memory_origin(tensor);
+    PrimExpr source_origin = memory_origin(source_tensor);
+    auto bind_origin = [&](PrimExpr value) {
+      PrimExpr outer_origin = tensor.elem_offset();
+      if (outer_origin.as<VarNode>() && !outer_origin.same_as(target_origin)) {
+        Bind(outer_origin,
+             cast(analyzer_->Simplify(value - (target_origin - outer_origin)), outer_origin.ty()),
+             tensor->name + ".elem_offset");
+      }
+      Bind(target_origin, value, tensor->name + ".elem_offset");
+    };
+
     // Step.1.1. Check scope & dtype
     TVM_FFI_ICHECK_EQ(tensor.scope(), source_tensor.scope())
         << "MatchTensor " << tensor << " scope mismatch:" << tensor.scope() << "vs."
@@ -215,11 +234,11 @@ class MatchTensorLower : public StmtExprMutator {
                    << " required alignment=" << tensor.ty()->data_alignment
                    << ", provided alignment=" << source_tensor.ty()->data_alignment;
     }
-    if (IsZero(tensor.elem_offset())) {
-      TVM_FFI_ICHECK(IsZero(source_tensor.elem_offset()))
+    if (IsZero(target_origin)) {
+      TVM_FFI_ICHECK(IsZero(source_origin))
           << "Trying to bind a TensorVar with offset into one without offset "
-          << " required elem_offset=" << tensor.elem_offset()
-          << ", provided elem_offset=" << source_tensor.elem_offset();
+          << " required elem_offset=" << target_origin
+          << ", provided elem_offset=" << source_origin;
     }
 
     // Step.2. Update
@@ -235,16 +254,18 @@ class MatchTensorLower : public StmtExprMutator {
 
       ffi::Array<PrimExpr> tensor_start_indices = source_tensor.ty()->ElemOffset(indices);
       if (tensor_start_indices.size() == 1) {
-        Bind(tensor.elem_offset(), tensor_start_indices[0], tensor->name + ".elem_offset");
+        bind_origin(tensor_start_indices[0]);
+        PrimExpr aligned_origin =
+            IsZero(tensor.elem_offset()) ? target_origin : tensor.elem_offset();
         TVM_FFI_ICHECK(
-            analyzer_->CanProve(truncmod(tensor.elem_offset(), tensor.ty()->offset_factor) == 0))
+            analyzer_->CanProve(truncmod(aligned_origin, tensor.ty()->offset_factor) == 0))
             << "The source elem_offset " << tensor_start_indices[0]
             << " does not satisfy the offset_factor " << tensor.ty()->offset_factor << ".";
       } else {
         // Non-zero elem_offset is ill-defined for non-flat memory.
         // If needed in the future, will require `ffi::Array<PrimExpr>
         // elem_offsets`, with one offset for each flattened index.
-        Bind(tensor.elem_offset(), IntImm(tensor.elem_offset().ty(), 0));
+        bind_origin(IntImm(target_origin.ty(), 0));
       }
     }
 
@@ -264,7 +285,7 @@ class MatchTensorLower : public StmtExprMutator {
       } else {
         TVM_FFI_ICHECK_EQ(tensor.shape().size() + offset, source_tensor.strides().size());
         for (size_t i = tensor.shape().size(); i > 0; --i) {
-          const PrimExpr& stride = source_tensor.strides()[i - 1 + offset];
+          PrimExpr stride = source_tensor.strides()[i - 1 + offset];
           Bind(tensor.strides()[i - 1], stride, tensor->name + ".strides_" + std::to_string(i - 1));
         }
       }

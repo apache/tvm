@@ -164,7 +164,7 @@ def _tensor_map(ctx, region, rank, box, encoding):
         ctx.require(strides[-1] == channels, "TMA W stride must equal one interleave slice")
     alignment = 32 if packed or interleave == 2 else 16
     ctx.require(
-        (base["m"] + ty.elem_offset) * bits % (8 * alignment) == 0,
+        base["m"] * bits % (8 * alignment) == 0,
         f"TMA global origin requires {alignment}-byte alignment",
     )
     for stride in strides[:-1]:

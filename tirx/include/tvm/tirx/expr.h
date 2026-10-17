@@ -66,10 +66,10 @@ class TensorVar : public Var {
   PrimType dtype() const { return ty()->dtype; }
 
   /*! \brief Return explicit strides, or an empty array for a compact tensor. */
-  const ffi::Array<PrimExpr>& strides() const { return ty()->strides; }
+  ffi::Array<PrimExpr> strides() const { return ty()->GetStrides(); }
 
   /*! \brief Return the offset in tensor elements. */
-  const PrimExpr& elem_offset() const { return ty()->elem_offset; }
+  PrimExpr elem_offset() const { return ty()->GetElemOffset(); }
 
   /*! \brief Project the physical pointer established by the definition site. */
   Expr data() const { return Call(ty()->DataPtrType(), tensor_data_ptr_op(), {*this}); }

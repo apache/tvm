@@ -46,7 +46,7 @@ CallDoc TensorHelperCall(DocTranslatorObj* d, const Type& type, const ffi::Strin
   if (has_factor && !has_offset) {
     rhs->kwargs_keys.push_back("elem_offset");
     rhs->kwargs_values.push_back(d->WithExtraStateScope<bool>("ir.explicit_value_type", true, [&] {
-      return d->Translate(type.as_or_throw<tirx::TensorType>()->elem_offset).value();
+      return d->Translate(type.as_or_throw<tirx::TensorType>()->GetElemOffset()).value();
     }));
   }
   rhs->callee = NamespaceDoc("s_tir")->Attr(helper);

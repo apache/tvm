@@ -56,9 +56,8 @@ inline PrimType DefaultIndexType() {
  */
 class TensorTypeNode : public TypeNode {
  public:
-  explicit TensorTypeNode(ffi::UnsafeInit tag) : elem_offset(tag) {}
-
-  explicit TensorTypeNode(PrimExpr elem_offset) : elem_offset(std::move(elem_offset)) {}
+  explicit TensorTypeNode(ffi::UnsafeInit) {}
+  TensorTypeNode() = default;
 
   /*! \brief dtype in the content of the tensor */
   PrimType dtype = PrimType::Void();
@@ -71,13 +70,6 @@ class TensorTypeNode : public TypeNode {
    * generators.
    */
   ffi::Array<PrimExpr> shape;
-  /*!
-   * \brief The strides of each dimension
-   *  This can be an empty array, indicating array is contiguous
-   */
-  ffi::Array<PrimExpr> strides;
-  /*! \brief The offset in terms of number of dtype elements (including lanes) */
-  PrimExpr elem_offset;
   /*! \brief Alignment requirement of data pointer in bytes. */
   int data_alignment;
   /*!
@@ -94,16 +86,20 @@ class TensorTypeNode : public TypeNode {
         .def_ro("shape", &TensorTypeNode::shape, refl::AttachFieldFlag::SEqHashDefSimple())
         .def_ro("dtype", &TensorTypeNode::dtype)
         .def_ro("scope", &TensorTypeNode::scope, refl::DefaultValue(runtime::MemoryScope::Global()))
-        .def_ro("strides", &TensorTypeNode::strides, refl::AttachFieldFlag::SEqHashDefSimple(),
-                refl::DefaultValue(ffi::Array<PrimExpr>()))
-        .def_ro("elem_offset", &TensorTypeNode::elem_offset,
-                refl::AttachFieldFlag::SEqHashDefSimple(),
-                refl::DefaultValue(IntImm(tvm::tirx::DefaultIndexType(), 0)))
         .def_ro("data_alignment", &TensorTypeNode::data_alignment,
                 refl::DefaultValue(static_cast<int>(runtime::kAllocAlignment)))
         .def_ro("offset_factor", &TensorTypeNode::offset_factor, refl::DefaultValue(1))
         .def_ro("layout", &TensorTypeNode::layout, refl::DefaultValue(nullptr));
   }
+
+  /*! \brief Extract the ordinary shape-aligned memory layout used by the ABI and S-TIR. */
+  TVM_TIRX_DLL bool IsRegularMemoryLayout() const;
+  /*! \brief Explicit binding strides, or empty for compact binding. */
+  TVM_TIRX_DLL ffi::Array<PrimExpr> GetStrides() const;
+  /*! \brief Memory origin (after swizzling for a composed layout). */
+  TVM_TIRX_DLL PrimExpr GetElemOffset() const;
+  TVM_TIRX_DLL void SetStrides(ffi::Array<PrimExpr> strides);
+  TVM_TIRX_DLL void SetElemOffset(PrimExpr offset);
 
   /*! \return preferred index type for this tensor node */
   PrimType DefaultIndexType() const {

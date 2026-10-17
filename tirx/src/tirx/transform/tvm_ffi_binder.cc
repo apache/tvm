@@ -780,12 +780,14 @@ void TVMFFIABIBuilder::BindRegularStrides(const TensorVar& tensor, const Var& st
                                           const ffi::reflection::AccessPath& param_path) {
   PrimExpr stride_from_shape = 1;
   for (int k = tensor.strides().size() - 1; k >= 0; k--) {
-    PrimExpr explicit_stride = cast(LoadInt64ArrayElem(strides_ptr, k), tensor.shape()[k].ty());
+    PrimType stride_type = tensor.strides()[k].ty();
+    PrimExpr explicit_stride = cast(LoadInt64ArrayElem(strides_ptr, k), stride_type);
     ffi::reflection::AccessPath strides_k_path =
         param_path->Attr(ffi::String("strides"))->ArrayItem(k);
-    BindScalar(tensor.strides()[k],
-               tvm::if_then_else(v_strides_is_null, stride_from_shape, explicit_stride),
-               strides_k_path, true);
+    BindScalar(
+        tensor.strides()[k],
+        tvm::if_then_else(v_strides_is_null, cast(stride_from_shape, stride_type), explicit_stride),
+        strides_k_path, true);
     stride_from_shape *= cast(LoadInt64ArrayElem(shape_ptr, k), tensor.shape()[k].ty());
   }
 }
@@ -798,6 +800,11 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
                                            const PrimExpr& device_id, const Var& handle,
                                            const std::string& arg_name,
                                            ffi::reflection::AccessPath base_path) {
+  TVM_FFI_CHECK(tensor.ty()->IsRegularMemoryLayout(), ValueError)
+      << "Tensor parameters require a regular memory layout without swizzles or thread axes";
+  ffi::Array<PrimExpr> zero_indices;
+  for (const auto& extent : tensor.shape()) zero_indices.push_back(IntImm(extent.ty(), 0));
+  PrimExpr elem_offset = tensor.ty()->ElemOffset(zero_indices)[0];
   const PrimType tvm_ndim_type = PrimType::Int(32);
 
   std::string buf_name = tensor->name;
@@ -873,7 +880,7 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
   // ── Section: byte_offset ─────────────────────────────────────
   int data_bytes = static_cast<int>(tensor.dtype().StorageBytes());
   ffi::reflection::AccessPath byte_offset_path = param_path->Attr(ffi::String("byte_offset"));
-  if (const auto* const_offset = tensor.elem_offset().as<IntImmNode>()) {
+  if (const auto* const_offset = elem_offset.as<IntImmNode>()) {
     BindScalar(IntImm(PrimType::UInt(64), const_offset->value * data_bytes),
                Call(PrimType::UInt(64), tirx::abi_field_get_op(),
                     {handle, IntImm::Int32(0), IntImm::Int32(tirx::kDLTensorByteOffset)})
@@ -887,15 +894,21 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
     EmitAssert(truncmod(byte_offset, MakeConst(PrimType::UInt(64), data_bytes)) ==
                    MakeConst(PrimType::UInt(64), 0),
                "ValueError", "Tensor byte offset must be divisible by its element size");
-    if (BindScalar(tensor.elem_offset(),
-                   cast((Call(PrimType::UInt(64), tirx::abi_field_get_op(),
-                              {handle, IntImm::Int32(0), IntImm::Int32(tirx::kDLTensorByteOffset)})
-                             .as_or_throw<PrimExpr>() /
-                         MakeConst(PrimType::UInt(64), data_bytes)),
-                        tensor.elem_offset().ty()),
-                   byte_offset_path, true)) {
+    PrimExpr runtime_origin =
+        cast(byte_offset / MakeConst(PrimType::UInt(64), data_bytes), elem_offset.ty());
+    PrimExpr outer_origin = tensor.elem_offset();
+    bool bound_origin = false;
+    if (outer_origin.as<VarNode>() && !outer_origin.same_as(elem_offset)) {
+      bound_origin =
+          BindScalar(outer_origin,
+                     cast(analyzer_->Simplify(runtime_origin - (elem_offset - outer_origin)),
+                          outer_origin.ty()),
+                     byte_offset_path, true);
+    }
+    bool bound_full_origin = BindScalar(elem_offset, runtime_origin, byte_offset_path, true);
+    if (bound_origin || bound_full_origin) {
       if (tensor.ty()->offset_factor > 1) {
-        PrimExpr offset = tensor.elem_offset();
+        PrimExpr offset = bound_origin ? outer_origin : elem_offset;
         PrimExpr factor = IntImm(offset.ty(), tensor.ty()->offset_factor);
         PrimExpr zero = IntImm(offset.ty(), 0);
         PrimExpr acond = analyzer_->Simplify(truncmod(offset, factor) == zero);

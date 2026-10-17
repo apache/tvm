@@ -67,11 +67,6 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
       storage_lower->tensor_aliases_.Set(tensor.value(), tensor.value());
       TensorVar flattened = storage_lower->GetFlattenedTensor(tensor.value());
       TensorVar source = tensor.value();
-      if (source.ty()->layout.has_value()) {
-        auto type = ffi::make_object<TensorTypeNode>(*source.ty().get());
-        type->layout = std::nullopt;
-        source = TensorVar(source->name, TensorType(std::move(type)), source->loc);
-      }
       if (!flattened.same_as(source)) {
         param_flattened_tensors.emplace_back(flattened, source);
       }
@@ -211,8 +206,12 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
         }
         flattened = buf;
         type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
+        if (!prim::IsZero(tile_layout->memory_origin)) mem_span += tile_layout->memory_origin;
+        if (buf.ty()->IsRegularMemoryLayout() && !buf.strides().empty()) {
+          mem_span = max(mem_span, buf.strides()[0] * buf.shape()[0]);
+        }
         type->shape = {ana->Simplify(mem_span)};
-        type->strides = {};
+        type->layout = std::nullopt;
       } else if (auto compose = buf.ty()->layout.as<ComposeLayoutNode>()) {
         // A swizzle permutes addresses, so the logical element count is not
         // the allocation footprint of a strided view. Round the underlying
@@ -230,8 +229,9 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
           mem_span = floordiv(mem_span + block - 1, block) * block;
         }
         type = ffi::make_object<TensorTypeNode>(*buf.ty().get());
+        if (!prim::IsZero(compose->memory_origin)) mem_span += compose->memory_origin;
         type->shape = {analyzer_->Simplify(mem_span)};
-        type->strides = {};
+        type->layout = std::nullopt;
       } else {
         flattened = FlattenedTensor(buf);
         type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
@@ -249,17 +249,8 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
                      .ValueOrUnchanged(type->shape[i])
                      .as_or_throw<PrimExpr>()));
     }
-    for (size_t i = 0; i < type->strides.size(); ++i) {
-      type->strides.Set(
-          i, StmtExprMutator::Mutate(ffi::AnyView(type->strides[i]), InplaceMode::kDisallow)
-                 .ValueOrUnchanged(type->strides[i])
-                 .as_or_throw<PrimExpr>());
-    }
+    // All layout geometry, including its origin, is already in the access indices.
     type->layout = std::nullopt;
-    type->elem_offset =
-        StmtExprMutator::Mutate(ffi::AnyView(buf.elem_offset()), InplaceMode::kDisallow)
-            .ValueOrUnchanged(buf.elem_offset())
-            .as_or_throw<PrimExpr>();
     if (ffi::StructuralEqual()(buf.ty(), TensorType(type))) {
       return buf;
     }
@@ -302,9 +293,14 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
                    << "layout: unable to verify that the coordinate matches the current thread. "
                    << "Use .view() + .local() to decompose thread and memory axes.";
       }
-      auto res = tensor.ty()->layout.value()->Canonicalize()->Apply(indices, tensor.shape());
+      auto layout = tensor.ty()->layout.value();
+      layout = StmtExprMutator::Mutate(ffi::AnyView(layout), InplaceMode::kDisallow)
+                   .ValueOrUnchanged(layout)
+                   .as_or_throw<Layout>();
+      auto res = layout->Canonicalize()->Apply(indices, tensor.shape());
       TVM_FFI_ICHECK_EQ(res.size(), 1) << "Expected a single element offset";
-      return {analyzer_->Simplify((*res.begin()).second)};
+      PrimExpr offset = (*res.begin()).second;
+      return {analyzer_->Simplify(offset)};
     }
     auto flattened_indices = tensor.ty()->ElemOffset(indices, true);
     TVM_FFI_ICHECK_EQ(flattened_indices.size(), 1) << "Expected a single element offset";

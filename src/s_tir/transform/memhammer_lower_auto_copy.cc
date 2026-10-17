@@ -182,7 +182,7 @@ class AutoPadder {
           strides.push_back(reverse_strides[i]);
         }
         strides.push_back(1);
-        b->strides = strides;
+        b->SetStrides(strides);
         TensorVar new_tensor = TensorVar(tensor->name, TensorType(std::move(b)), tensor->loc);
         result.push_back(new_tensor);
         padded_tensor_map_.Set(tensor, new_tensor);

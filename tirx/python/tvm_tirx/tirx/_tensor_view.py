@@ -81,14 +81,20 @@ def _redecl(
     tensor_type = tvm_tirx.tirx.script.ir_builder.Tensor(
         shape,
         buf.dtype if dtype is None else dtype,
-        strides=buf.strides if strides is None else strides,
-        elem_offset=buf.elem_offset if elem_offset is None else elem_offset,
+        strides=(buf.strides if layout is None else []) if strides is None else strides,
+        elem_offset=(buf.elem_offset if layout is None else 0)
+        if elem_offset is None
+        else elem_offset,
         scope=buf.scope(),
         align=buf.data_alignment,
         offset_factor=buf.offset_factor,
         layout=layout,
     )
     return bind_(tvm_tirx.tirx.script.ir_builder.decl_tensor(buf.data, ty_args=[tensor_type]))
+
+
+def _ordinary_layout(buf):
+    return buf.ty.is_regular_memory_layout() and (buf.layout is None or not buf.layout.offset)
 
 
 def _strides(buf):
@@ -127,12 +133,12 @@ def _reshape_strides(buf, shape):
             if analyzer.can_prove_equal(product, extent):
                 break
         if not analyzer.can_prove_equal(product, extent):
-            raise ValueError("view: reshape crosses non-contiguous stride groups")
+            return None
     while i >= 0 and analyzer.can_prove_equal(shape[i], 1):
         result[i] = analyzer.simplify(result[i + 1] * shape[i + 1]) if i + 1 < len(shape) else 1
         i -= 1
     if i >= 0:
-        raise ValueError("view: reshape crosses non-contiguous stride groups")
+        return None
     return result
 
 
@@ -173,17 +179,17 @@ def view(buf: Var, *args, **kwargs) -> Var:
         if cast_dtype.bits > cur_dtype.bits:
             assert cast_dtype.bits % cur_dtype.bits == 0
             ratio = cast_dtype.bits // cur_dtype.bits
-            layout = None if buf.layout is None else buf.layout.pack(ratio, storage_axis)
+            layout = None if _ordinary_layout(buf) else buf.layout.pack(ratio, storage_axis)
             shape = [s for s in buf.shape[:-1]] + [buf.shape[-1] // ratio]
             new_elem_offset = buf.elem_offset // ratio
         else:
             assert cur_dtype.bits % cast_dtype.bits == 0
             ratio = cur_dtype.bits // cast_dtype.bits
-            layout = None if buf.layout is None else buf.layout.unpack(ratio, storage_axis)
+            layout = None if _ordinary_layout(buf) else buf.layout.unpack(ratio, storage_axis)
             shape = [s for s in buf.shape[:-1]] + [buf.shape[-1] * ratio]
             new_elem_offset = buf.elem_offset * ratio
         strides = None
-        if buf.layout is None:
+        if _ordinary_layout(buf):
             analyzer = tvm_tirx.sym.Analyzer()
             source_strides = _strides(buf)
             if not analyzer.can_prove_equal(source_strides[-1], 1):
@@ -202,7 +208,12 @@ def view(buf: Var, *args, **kwargs) -> Var:
             if not buf.strides:
                 strides = []
         return _redecl(
-            buf, shape, layout, dtype=cast_dtype, elem_offset=new_elem_offset, strides=strides
+            buf,
+            shape,
+            layout,
+            dtype=cast_dtype,
+            elem_offset=new_elem_offset if layout is None else None,
+            strides=strides,
         )
 
     shape = args
@@ -217,10 +228,14 @@ def view(buf: Var, *args, **kwargs) -> Var:
     )
     if layout is None:
         shape = _infer_shape(shape)
-    strides = (
-        [] if layout is not None else _reshape_strides(buf, shape) if buf.layout is None else None
-    )
-    return _redecl(buf, shape, buf.layout if layout is None else layout, strides=strides)
+    if layout is not None:
+        return _redecl(buf, shape, layout, elem_offset=buf.elem_offset, strides=[])
+    if _ordinary_layout(buf):
+        strides = _reshape_strides(buf, shape)
+        if strides is not None:
+            return _redecl(buf, shape, None, strides=strides)
+        # A mixed-radix layout can represent reshapes across stride groups.
+    return _redecl(buf, shape, buf.layout)
 
 
 def permute(buf: Var, *dims) -> Var:
@@ -228,7 +243,7 @@ def permute(buf: Var, *dims) -> Var:
     if sorted(dims) != list(range(len(buf.shape))):
         raise ValueError(f"permute: invalid dimensions {dims}")
     new_shape = [buf.shape[d] for d in dims]
-    if buf.layout is None:
+    if _ordinary_layout(buf):
         strides = _strides(buf)
         return _redecl(buf, new_shape, None, strides=[strides[d] for d in dims])
     layout, swizzle = _surgery_parts(buf)
@@ -333,6 +348,7 @@ def _surgery_parts(buf: Var):
             layout.swizzle_len,
             layout.atom_len,
             layout.swizzle_inner,
+            layout.memory_origin,
         )
         layout = layout.tile_layout
         # A bare swizzle describes its period, rather than the tensor extent.
@@ -344,9 +360,9 @@ def _surgery_parts(buf: Var):
 
 def _rewrap_swizzle(layout, swizzle):
     if swizzle is not None:
-        per_element, swizzle_len, atom_len, swizzle_inner = swizzle
+        per_element, swizzle_len, atom_len, swizzle_inner, memory_origin = swizzle
         return tvm_tirx.tirx.layout.ComposeLayout(
-            per_element, swizzle_len, atom_len, layout, swizzle_inner
+            per_element, swizzle_len, atom_len, layout, swizzle_inner, memory_origin
         )
     return layout
 
@@ -384,7 +400,7 @@ def _swizzle_offset_commutes(swizzle, extra_offset):
     """Return whether an offset may be folded outside a swizzle permutation."""
     if swizzle is None or extra_offset is None:
         return True
-    per_element, swizzle_len, atom_len, _ = swizzle
+    per_element, swizzle_len, atom_len, _, _ = swizzle
     if swizzle_len == 0:
         return True
     period = 1 << (int(per_element) + int(atom_len) + swizzle_len)
@@ -410,16 +426,13 @@ def _rebuild_view(buf: Var, new_shape, new_shard, grouped, swizzle, extra_offset
         offset_map[m_axis] = extra_offset if previous is None else previous + extra_offset
         extra_offset = None
     new_layout = tvm_tirx.tirx.layout.TileLayout.from_iters(
-        new_shard, list(grouped.replica), offset_map
+        new_shard, list(grouped.replica), offset_map, memory_origin=grouped.memory_origin
     )
     new_layout = _rewrap_swizzle(new_layout, swizzle)
     if is_tmem:
         addr_offset = _tmem_element_offset_to_column_offset(buf, extra_offset)
         return _redecl(buf, new_shape, new_layout, addr_offset=addr_offset)
-    elem_offset = buf.elem_offset
-    if extra_offset is not None:
-        elem_offset = elem_offset + extra_offset
-    return _redecl(buf, new_shape, new_layout, elem_offset=elem_offset)
+    return _redecl(buf, new_shape, new_layout, elem_offset=extra_offset)
 
 
 def _tmem_element_offset_to_column_offset(buf: Var, element_offset):
@@ -475,7 +488,7 @@ def _view_drop(buf: Var, dim, index):
             f"index {index_c} out of range for dim {dim} "
             f"of extent {extent_c if extent_c is not None else buf.shape[dim]}"
         )
-    if buf.layout is None:
+    if _ordinary_layout(buf):
         strides = _strides(buf)
         return _redecl(
             buf,
@@ -518,7 +531,7 @@ def _view_narrow(buf: Var, dim, start, length):
         raise ValueError(
             f"sub: range [{start_c}, {start_c + length_c}) exceeds dim {dim} extent {extent_c}"
         )
-    if buf.layout is None:
+    if _ordinary_layout(buf):
         strides = _strides(buf)
         shape = list(buf.shape)
         shape[dim] = length

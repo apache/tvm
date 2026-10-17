@@ -220,7 +220,7 @@ class SMEMPool:
                         byte_offset=self.offset,
                         scope=scope,
                         align=align,
-                        layout=layout,
+                        layout=None if layout == "default" and strides else layout,
                     )
                 ],
             )

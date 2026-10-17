@@ -58,6 +58,8 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
   }
   TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset,
                                              align, offset_factor, layout));
+  TVM_FFI_CHECK(tensor.ty()->IsRegularMemoryLayout(), ValueError)
+      << "S-TIR tensors require a regular memory layout without swizzles or thread axes";
   tvm::TensorRegion region{ffi::UnsafeInit{}};
   if (auto load = param.as<TensorLoad>()) {
     region = TensorRegion::FromTensorLoad(load.value());
@@ -210,6 +212,8 @@ TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
   }
   TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset,
                                              align, offset_factor, layout));
+  TVM_FFI_CHECK(tensor.ty()->IsRegularMemoryLayout(), ValueError)
+      << "S-TIR tensors require a regular memory layout without swizzles or thread axes";
   IRBuilder builder = IRBuilder::Current();
   auto opt_func_frame = builder->FindFrame<tirx::FunctionFrame>();
   if (opt_func_frame.has_value()) {

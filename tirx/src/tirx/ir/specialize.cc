@@ -260,46 +260,18 @@ class FunctionSpecializer : public StmtExprMutator {
 
     ffi::Array<PrimExpr> shape =
         tensor.shape().Map([this](const PrimExpr& e) { return Mutate(e).ValueOrUnchanged(e); });
-    ffi::Array<PrimExpr> strides =
-        tensor.strides().Map([this](const PrimExpr& e) { return Mutate(e).ValueOrUnchanged(e); });
-
-    PrimExpr elem_offset =
-        Mutate(tensor.elem_offset(), InplaceMode::kDisallow).ValueOrUnchanged(tensor.elem_offset());
-
-    // Layout iter extents/strides may reference the same shape vars; remap
-    // them in lock-step with shape (otherwise the specialized tensor keeps
-    // stale layout extents from before specialization).
     ffi::Optional<Layout> layout = tensor.ty()->layout;
-    bool layout_changed = false;
-    if (tensor.ty()->layout.has_value()) {
-      if (auto opt_tile = tensor.ty()->layout.value().as<TileLayoutNode>()) {
-        auto remap_iter = [this](const Iter& it) -> Iter {
-          PrimExpr new_extent = Mutate(it->extent).ValueOrUnchanged(it->extent);
-          PrimExpr new_stride = Mutate(it->stride).ValueOrUnchanged(it->stride);
-          if (new_extent.same_as(it->extent) && new_stride.same_as(it->stride)) {
-            return it;
-          }
-          return Iter(new_extent, new_stride, it->axis);
-        };
-        auto new_shard = opt_tile->shard.Map(remap_iter);
-        auto new_replica = opt_tile->replica.Map(remap_iter);
-        if (!new_shard.same_as(opt_tile->shard) || !new_replica.same_as(opt_tile->replica)) {
-          layout = TileLayout(new_shard, new_replica, opt_tile->offset);
-          layout_changed = true;
-        }
-      }
-    }
+    auto mapped_layout = Mutate(ffi::AnyView(layout), InplaceMode::kDisallow);
+    bool layout_changed = !mapped_layout.UnchangedOrSameAs(layout);
+    layout = std::move(mapped_layout).ValueOrUnchanged(layout).cast<ffi::Optional<Layout>>();
 
     bool storage_scope_changed = specialized_storage_scope.has_value() &&
                                  specialized_storage_scope.value() != tensor.scope();
-    if (tensor.elem_offset().same_as(elem_offset) && tensor.shape().same_as(shape) &&
-        tensor.strides().same_as(strides) && !layout_changed && !storage_scope_changed) {
+    if (tensor.shape().same_as(shape) && !layout_changed && !storage_scope_changed) {
       return tensor;
     } else {
       auto n = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
-      n->elem_offset = std::move(elem_offset);
       n->shape = std::move(shape);
-      n->strides = std::move(strides);
       if (layout_changed) {
         n->layout = std::move(layout);
       }

@@ -565,12 +565,14 @@ class PipelineRewriter : public StmtExprMutator {
   TensorVar RewriteAllocTensor(const TensorVar& tensor, int num_versions) {
     ffi::ObjectPtr<TensorTypeNode> new_tensor =
         ffi::make_object<TensorTypeNode>(*tensor.ty().get());
+    auto strides = tensor.strides();
     new_tensor->shape.insert(new_tensor->shape.begin(), PrimExpr(num_versions));
-    if (new_tensor->strides.size()) {
-      TVM_FFI_ICHECK(new_tensor->strides.size() + 1 == new_tensor->shape.size());
-      PrimExpr stride_0 = new_tensor->strides[0] * new_tensor->shape[1];
-      new_tensor->strides.insert(new_tensor->strides.begin(), stride_0);
+    if (!strides.empty()) {
+      TVM_FFI_ICHECK(strides.size() + 1 == new_tensor->shape.size());
+      PrimExpr stride_0 = strides[0] * new_tensor->shape[1];
+      strides.insert(strides.begin(), stride_0);
     }
+    new_tensor->SetStrides(std::move(strides));
     return TensorVar(tensor->name, TensorType(std::move(new_tensor)), tensor->loc);
   }
 

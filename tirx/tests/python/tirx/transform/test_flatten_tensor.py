@@ -503,9 +503,7 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
             base = T.alloc_shared([128], "uint64", layout=None)
             mbar = T.decl_tensor(
                 base.data,
-                ty_args=[
-                    T.Tensor((1,), "uint64", elem_offset=T.int32(0), scope="shared", layout=None)
-                ],
+                ty_args=[T.Tensor((1,), "uint64", scope="shared", layout=None)],
             )
             mbar[n[0]] = T.uint64(1)
 
@@ -544,13 +542,35 @@ def test_tensor_flatten_offset():
     class Expected:
         @T.function(private=True)
         def main(m: T.int32, n: T.int32, A: T.Tensor((m, n), "float32", elem_offset=T.int32(100))):
-            flat = T.decl_tensor(
-                A.data, ty_args=[T.Tensor((m * n,), "float32", elem_offset=T.int32(0), layout=None)]
-            )
+            flat = T.decl_tensor(A.data, ty_args=[T.Tensor((m * n,), "float32", layout=None)])
             T.evaluate(flat[n * 2 + 103])
 
     After = FlattenTensor()(Before)
     tvm_tirx.ir.assert_structural_equal(After, Expected)
+
+
+def test_explicit_dynamic_strides_and_element_offset():
+    stride = T.dynamic("stride", "int32")
+    base = T.dynamic("base", "int32")
+    layout = T.TileLayout(T.S[(4, 16) : (stride, 1)] + base)
+
+    @I.ir_module
+    class Before:
+        @T.function(private=True)
+        def main(A: T.Tensor((4, 16), "float32", layout=layout)):
+            T.evaluate(A[2, 3])
+
+    @I.ir_module
+    class Expected:
+        @T.function(private=True)
+        def main(A: T.Tensor((4, 16), "float32", layout=layout)):
+            flat = T.decl_tensor(
+                A.data,
+                ty_args=[T.Tensor((T.max(stride * 4, stride * 3 + 16),), "float32")],
+            )
+            T.evaluate(flat[stride * 2 + base + 3])
+
+    tvm_tirx.ir.assert_structural_equal(FlattenTensor()(Before), Expected)
 
 
 @pytest.mark.parametrize(

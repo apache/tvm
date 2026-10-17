@@ -55,8 +55,6 @@ class TensorType(Type):
     dtype: PrimType
     scope: MemoryScope
     shape: list
-    strides: list
-    elem_offset: tvm_tirx.ir.Expr
     data_alignment: int
     offset_factor: int
     layout: object | None
@@ -114,7 +112,8 @@ class TensorType(Type):
         if layout is MISSING:
             layout = None
         if layout == "default":
-            layout = TileLayout(S[shape])
+            default = TileLayout(S[shape])
+            layout = TileLayout.from_iters(default.shard, compact=True)
         elif layout is not None and not isinstance(layout, Layout):
             raise TypeError("layout must be a Layout, None, or 'default'")
         self.__init_handle_by_constructor__(
@@ -130,6 +129,20 @@ class TensorType(Type):
             loc if isinstance(loc, Location) else UNKNOWN_LOC,
         )
         at(loc, self)
+
+    def is_regular_memory_layout(self):
+        """Whether the layout is an ordinary shape-aligned strided memory view."""
+        return _ffi_api.TensorTypeIsRegularMemoryLayout(self)
+
+    @property
+    def strides(self):
+        """The explicit regular-memory strides; empty for compact binding."""
+        return _ffi_api.TensorTypeStrides(self)
+
+    @property
+    def elem_offset(self):
+        """The layout's memory origin."""
+        return _ffi_api.TensorTypeElemOffset(self)
 
     __expr_methods__ = (
         "is_scalar",

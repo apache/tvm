@@ -263,7 +263,7 @@ def test_tensor_type_construction_offsets_and_alignment(alignment):
     )
     tensor = tvm_tirx.ir.Var("scalar", ty)
     assert list(tensor.shape) == []
-    assert tensor.layout is None
+    assert int(tensor.layout.memory_origin) == 4
     assert int(tensor.elem_offset) == 4
     assert int(tensor.byte_offset) == 16
     assert tensor.data_alignment == 64
