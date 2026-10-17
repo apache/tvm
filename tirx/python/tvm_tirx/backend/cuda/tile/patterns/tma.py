@@ -35,9 +35,11 @@ opaque TensorMap and packed/interleaved representations.
 from itertools import product
 from math import prod
 
+import tvm_ffi
+
 from tvm_tirx.backend.cuda.ptx import PTXNamespace
 from tvm_tirx.ir import Range, TensorRegion, Tuple, Var
-from tvm_tirx.runtime import DataType, MemoryScope
+from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
 
 from .common import Context, scalar
@@ -62,7 +64,7 @@ def _descriptor_fields(fields, rank, box, default_dtype):
     force = 11 if dtype == "tf32" else -1
     if force == 11:
         dtype = "float32"
-    bits = DataType(dtype).bits
+    bits = tvm_ffi.dtype(dtype).bits
     element_strides = tuple(
         int(scalar(x)) for x in sequence(fields.pop("element_strides", (1,) * rank))
     )
@@ -98,7 +100,7 @@ def _tensor_map(ctx, region, rank, box, encoding):
         raise ValueError("TMA descriptor requires a global tensor region")
     tensor = region.source
     ty = tensor.ty
-    bits = DataType(ty.dtype.dtype).bits
+    bits = tvm_ffi.dtype(ty.dtype.dtype).bits
     packed = encoding[0] == "float4_e2m1fn"
     interleave = encoding[4]
     channels = (16 * interleave * 8 // bits) if interleave else 1
@@ -258,12 +260,12 @@ def lower(opcode, entry, modifiers, args, params, sctx):
     )
     encoding = _descriptor_fields(params, rank, box, default_dtype)
     dtype, _, element_strides, swizzle, interleave, _, _ = encoding
-    bits = DataType(dtype).bits
+    bits = tvm_ffi.dtype(dtype).bits
     packed = dtype == "float4_e2m1fn"
     if packed and not load:
         raise ValueError("TMA 16U4_ALIGN16B supports global-to-shared loads only")
     if isinstance(global_, TensorRegion):
-        if bits != DataType(global_.source.ty.dtype.dtype).bits:
+        if bits != tvm_ffi.dtype(global_.source.ty.dtype.dtype).bits:
             raise ValueError("TMA descriptor format must match the global storage element width")
         tensor_map = _tensor_map(ctx, global_, rank, box, encoding)
         tmap = T.address_of(tensor_map)

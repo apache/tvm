@@ -46,7 +46,7 @@ def _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout, chunks=1):
     # Each test explicitly chooses its number of bulk chunks. Keep both
     # original physical maps; flattening only changes the logical shape.
     canonical = (math.prod(shape),) if chunks == 1 else shape
-    chunk_bytes = math.prod(shape) * tvm_tirx.DataType(dtype).bits // 8 // chunks
+    chunk_bytes = math.prod(shape) * tvm_ffi.dtype(dtype).bits // 8 // chunks
     src = tvm_tirx.tirx.decl_tensor(canonical, dtype, "A", scope="shared.dyn", layout=src_layout)
     dst = tvm_tirx.tirx.decl_tensor(canonical, dtype, "B", scope="shared.dyn", layout=dst_layout)
     op_call = T.cuda.tile.apply(
@@ -154,7 +154,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
 
     CLUSTER_N = 2
     n_elements = functools.reduce(lambda a, b: a * b, shape, 1)
-    copy_bytes = n_elements * tvm_tirx.DataType(dtype).bits // 8
+    copy_bytes = n_elements * tvm_ffi.dtype(dtype).bits // 8
     canonical = (n_elements,) if expected == 1 else shape
     src_phys = _layout_physical_elements(src_layout)
     dst_phys = _layout_physical_elements(dst_layout)

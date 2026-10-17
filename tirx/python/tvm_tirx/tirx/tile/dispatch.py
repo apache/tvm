@@ -18,12 +18,13 @@
 
 Mirrors the C++ header ``include/tvm/tirx/tile/context.h``.
 """
-# pylint: disable=no-member
 
+import tvm_ffi
+
+# pylint: disable=no-member
 from tvm_ffi import register_object
 
 from tvm_tirx.ir import Expr, Range, Scriptable, Stmt, Var
-from tvm_tirx.runtime import Object
 from tvm_tirx.target import Target
 
 from .. import _ffi_api
@@ -31,7 +32,7 @@ from ..thread_scope import ThreadScope
 
 
 @register_object("tirx.DispatchContext")
-class DispatchContext(Object, Scriptable):
+class DispatchContext(tvm_ffi.Object, Scriptable):
     """DispatchContext node.
 
     Parameters
@@ -48,10 +49,10 @@ class DispatchContext(Object, Scriptable):
     var_range_map : Dict[Var, Range]
         A map from loop variables to their ranges.
 
-    callbacks : Dict[str, Object]
+    callbacks : Dict[str, tvm_ffi.Object]
         The callbacks of the dispatch context.
 
-    shared_state : Dict[str, Object]
+    shared_state : Dict[str, tvm_ffi.Object]
         Shared state persisting across dispatch calls within a single lowering pass.
     """
 
@@ -60,8 +61,8 @@ class DispatchContext(Object, Scriptable):
     launch_params: dict[str, tuple[Var, Expr]]
     var_range_map: dict[Var, Range]
     alloc_only: bool
-    callbacks: dict[str, Object]
-    shared_state: dict[str, Object]
+    callbacks: dict[str, tvm_ffi.Object]
+    shared_state: dict[str, tvm_ffi.Object]
     inter: dict[str, list]
     intra: dict[str, list]
     scope_kind: str
@@ -78,8 +79,8 @@ class DispatchContext(Object, Scriptable):
         launch_params: dict[str, tuple[Var, Expr]],
         var_range_map: dict[Var, Range],
         alloc_only: bool = False,
-        callbacks: dict[str, Object] = {},
-        shared_state: dict[str, Object] = {},
+        callbacks: dict[str, tvm_ffi.Object] = {},
+        shared_state: dict[str, tvm_ffi.Object] = {},
         inter: dict[str, list] | None = None,
         intra: dict[str, list] | None = None,
         scope_kind: str = "",
@@ -147,7 +148,7 @@ class DispatchContext(Object, Scriptable):
         """
         _ffi_api.DispatchContextAddPostTensorDefStmt(self, tensor, stmt)  # pylint: disable=no-member
 
-    def cache_get(self, key: str) -> Object | None:
+    def cache_get(self, key: str) -> tvm_ffi.Object | None:
         """Look up a cached value by key.
 
         Parameters
@@ -157,19 +158,19 @@ class DispatchContext(Object, Scriptable):
 
         Returns
         -------
-        Optional[Object]
+        Optional[tvm_ffi.Object]
             The cached value, or None on miss.
         """
         return _ffi_api.DispatchContextSharedStateGet(self, key)
 
-    def cache_set(self, key: str, value: Object) -> None:
+    def cache_set(self, key: str, value: tvm_ffi.Object) -> None:
         """Store a value in the cross-dispatch cache.
 
         Parameters
         ----------
         key : str
             Cache key (built by the caller from construction parameters).
-        value : Object
+        value : tvm_ffi.Object
             The object to cache (e.g. a Var or Var).
         """
         _ffi_api.DispatchContextSharedStateSet(self, key, value)

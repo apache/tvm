@@ -19,6 +19,7 @@
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 from tvm_tirx.backend.cuda.axis import laneid
@@ -101,8 +102,8 @@ def test_tcgen05_mma(m, ws, dtype, k, kind, acc_dtype, major, swizzle=3):
     if major == "mn" and kind == "tf32" and swizzle != 4:
         pytest.skip("TF32 MN-major uses the separately tested 32B-atomicity descriptor")
     n, nk = 64, 3
-    packed = 32 // tvm_tirx.DataType(acc_dtype).bits
-    bits = tvm_tirx.DataType(dtype).bits
+    packed = 32 // tvm_ffi.dtype(acc_dtype).bits
+    bits = tvm_ffi.dtype(dtype).bits
     row_bytes = 128 if swizzle == 4 else 16 << swizzle
     swizzle_len = 2 if swizzle == 4 else swizzle
     atom_len = 2 if swizzle == 4 else 3

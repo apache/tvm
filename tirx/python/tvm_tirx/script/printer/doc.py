@@ -20,17 +20,17 @@ from collections.abc import Sequence
 from enum import IntEnum, unique
 from typing import Union
 
+import tvm_ffi
 from tvm_ffi import register_object
 from tvm_ffi.access_path import AccessPath
 
 from tvm_tirx.ir import FloatImm, IntImm
-from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 
 
 @register_object("script.printer.Doc")
-class Doc(Object):
+class Doc(tvm_ffi.Object):
     """Base class of all Docs"""
 
 

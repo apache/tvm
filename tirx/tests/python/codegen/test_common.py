@@ -17,6 +17,7 @@
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -153,7 +154,7 @@ def test_decl_buffer_offset_preserves_storage_scope(target, qualifier):
         B[0] = T.float32(1)
 
     mod = tvm_tirx.IRModule({"kernel": kernel})
-    build = tvm_tirx.get_global_func(f"target.build.{target}")
+    build = tvm_ffi.get_global_func(f"target.build.{target}")
     source = build(mod, tvm_tirx.target.Target(target)).inspect_source()
     assert f"{qualifier}float* B" in source
     assert f"(({qualifier}float*)" in source

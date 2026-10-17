@@ -42,7 +42,7 @@ from tvm_tirx.ir import (
     Var,
 )
 from tvm_tirx.ir.prim import Let
-from tvm_tirx.runtime import DataType, MemoryScope
+from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
 from tvm_tirx.sym import Analyzer
 from tvm_tirx.tirx.layout import TileLayout
@@ -230,7 +230,7 @@ class Region:
             raise TypeError(f"{name}: expected a tensor region")
         self.ctx, self.name, self.region = ctx, name, region
         self.tensor, self.ty = region.source, region.source.ty
-        self.dtype = DataType(self.ty.dtype.dtype)
+        self.dtype = tvm_ffi.dtype(self.ty.dtype.dtype)
         self.bits = self.dtype.bits
         self.layout = self.ty.effective_layout()
         if self.layout is None:

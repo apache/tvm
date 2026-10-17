@@ -40,6 +40,7 @@ that the M=64 fragment's row positions hold the expected register data.
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -61,7 +62,7 @@ def _window(region):
 
 def _words(region):
     tensor = _window(region)
-    return tensor if tvm_tirx.DataType(tensor.dtype).bits == 32 else tensor.view("uint32")
+    return tensor if tvm_ffi.dtype(tensor.dtype).bits == 32 else tensor.view("uint32")
 
 
 def _atom_words(region, shape, rows):
@@ -270,7 +271,7 @@ def _run_roundtrip_16b(
     frag_rows_override=None,
     tmem_datapath: str = "D",
 ):
-    bits = tvm_tirx.runtime.DataType(dtype).bits
+    bits = tvm_ffi.dtype(dtype).bits
     assert bits == 16
     elem_per_32b = 2
     K_cols_fp32 = _COL_FACTOR_FP32[shape] * rep
@@ -913,7 +914,7 @@ def _run_load_test(shape: str, rep: int, dtype: str):
     """Stage A into TMEM via .32x32b, then read it back as the fragment via
     .<shape>.x<rep> with an explicit register layout, and compare each
     thread's registers against the expected layout-derived value."""
-    bits = tvm_tirx.runtime.DataType(dtype).bits
+    bits = tvm_ffi.dtype(dtype).bits
     elem_per_32b = 32 // bits
     # Per-warp fp32 col span x number of warps in one warpgroup covers the
     # fragment column footprint. The TMEM allocation is sized for the same
@@ -1105,7 +1106,7 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
     """
     if rep not in _SHAPE_REPS[shape]:
         pytest.skip(f"rep {rep} not valid for {shape}")
-    bits = tvm_tirx.runtime.DataType(dtype).bits
+    bits = tvm_ffi.dtype(dtype).bits
     elem_per_32b = 32 // bits
     K_cols_fp32 = _COL_FACTOR_FP32[shape] * rep
     K_cols_elem = K_cols_fp32 * elem_per_32b
@@ -1646,7 +1647,7 @@ def test_copy_tmem2reg_async(dtype, width_32b):
             return 1
         return 1 << (x - 1).bit_length()
 
-    bits = tvm_tirx.runtime.DataType(dtype).bits
+    bits = tvm_ffi.dtype(dtype).bits
     if 128 % bits != 0 or 32 % bits != 0:
         pytest.skip(f"dtype {dtype} is not supported")
 
@@ -1771,7 +1772,7 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
             return 1
         return 1 << (x - 1).bit_length()
 
-    bits = tvm_tirx.runtime.DataType(dtype).bits
+    bits = tvm_ffi.dtype(dtype).bits
     if 128 % bits != 0 or 32 % bits != 0:
         pytest.skip(f"dtype {dtype} is not supported")
 
@@ -1894,7 +1895,7 @@ def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
             return 1
         return 1 << (x - 1).bit_length()
 
-    bits = tvm_tirx.runtime.DataType(dtype).bits
+    bits = tvm_ffi.dtype(dtype).bits
     if 128 % bits != 0 or 32 % bits != 0:
         pytest.skip(f"dtype {dtype} is not supported")
 

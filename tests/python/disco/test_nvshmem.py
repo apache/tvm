@@ -27,6 +27,7 @@ import threading
 
 import numpy as np
 import pytest
+import tvm_ffi
 from tvm_ffi import Shape
 
 import tvm
@@ -181,7 +182,7 @@ def _require_cuda_devices(num_workers):
 
 def _init_finalize(session_kind, num_workers):
     sess = session_kind(num_workers=num_workers)
-    f_init_nvshmem_uid = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+    f_init_nvshmem_uid = tvm_ffi.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
     uid = f_init_nvshmem_uid()
     init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
     init_dfunc(uid, num_workers, 0)
@@ -194,7 +195,7 @@ def _init_finalize(session_kind, num_workers):
 def _empty(session_kind, num_workers):
     device = tvm_tirx.cuda()
     sess = session_kind(num_workers=num_workers)
-    f_init_nvshmem_uid = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+    f_init_nvshmem_uid = tvm_ffi.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
     uid = f_init_nvshmem_uid()
     init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
     init_dfunc(uid, num_workers, 0)
@@ -226,7 +227,7 @@ def _compile():
     num_workers = 2
     sess = di.ProcessSession(num_workers=num_workers)
 
-    f_init_nvshmem_uid = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+    f_init_nvshmem_uid = tvm_ffi.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
     uid = f_init_nvshmem_uid()
     init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
     init_dfunc(uid, num_workers, 0)
@@ -295,7 +296,7 @@ def _kernel_compile(compile_mode):
     num_workers = 2
     sess = di.ProcessSession(num_workers=num_workers)
 
-    f_init_nvshmem_uid = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+    f_init_nvshmem_uid = tvm_ffi.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
     uid = f_init_nvshmem_uid()
     init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
     init_dfunc(uid, num_workers, 0)

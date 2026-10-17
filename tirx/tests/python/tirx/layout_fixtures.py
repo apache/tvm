@@ -16,7 +16,8 @@
 # under the License.
 """Operand layouts shared by CUDA kernel tests; not part of the public API."""
 
-import tvm_tirx
+import tvm_ffi
+
 from tvm_tirx.backend.cuda.axis import Axis as CUDAAxis
 from tvm_tirx.tirx.layout import Iter, R, S, TileLayout
 
@@ -28,7 +29,7 @@ _TCGEN05_COL_FACTOR_FP32 = {"32x32b": 1, "16x64b": 2, "16x128b": 4, "16x256b": 8
 
 def tcgen05_register_layout(instr_shape, tensor_shape, dtype):
     """Build the logical register image exercised by TCGEN05 readback tests."""
-    bits = tvm_tirx.runtime.DataType(dtype).bits
+    bits = tvm_ffi.dtype(dtype).bits
     rows, cols = tensor_shape
 
     if instr_shape == "32x32b" and rows == 64:

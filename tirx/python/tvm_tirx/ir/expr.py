@@ -27,7 +27,6 @@ import tvm_ffi
 import tvm_tirx
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
-from ..runtime import Object
 from . import _ffi_api, _tensor_expr_overload
 from ._constant import const
 from .base import Node, Scriptable
@@ -368,12 +367,12 @@ class ExprOperand:
     def __eq__(self, other):
         if is_prim_expr(self):
             return _prim_expr_overload.__eq__(self, other)
-        return Object.__eq__(self, other)
+        return tvm_ffi.Object.__eq__(self, other)
 
     def __ne__(self, other):
         if is_prim_expr(self):
             return _prim_expr_overload.__ne__(self, other)
-        return Object.__ne__(self, other)
+        return tvm_ffi.Object.__ne__(self, other)
 
     def __gt__(self, other):
         if is_prim_expr(self):
@@ -537,7 +536,7 @@ class FloatImm(Constant):
     value: float
 
     def __init__(
-        self, ty: str | tvm_tirx.DataType | PrimType, value: float, loc: Location = UNKNOWN_LOC
+        self, ty: str | tvm_ffi.dtype | PrimType, value: float, loc: Location = UNKNOWN_LOC
     ) -> None:
         if isinstance(ty, PrimType):
             ty = ty.dtype
@@ -571,7 +570,7 @@ class IntImm(Constant):
     value: int
 
     def __init__(
-        self, ty: str | tvm_tirx.DataType | PrimType, value: int, loc: Location = UNKNOWN_LOC
+        self, ty: str | tvm_ffi.dtype | PrimType, value: int, loc: Location = UNKNOWN_LOC
     ) -> None:
         if isinstance(ty, PrimType):
             ty = ty.dtype
@@ -618,15 +617,15 @@ class DataTypeImm(Constant):
 
     Parameters
     ----------
-    value : str or tvm_tirx.DataType
+    value : str or tvm_ffi.dtype
         The represented data type.
     loc : Location, optional
         The source location of the literal.
     """
 
-    value: tvm_tirx.DataType
+    value: tvm_ffi.dtype
 
-    def __init__(self, value: str | tvm_tirx.DataType, loc: Location = UNKNOWN_LOC) -> None:
+    def __init__(self, value: str | tvm_ffi.dtype, loc: Location = UNKNOWN_LOC) -> None:
         self.__init_handle_by_constructor__(_ffi_api.DataTypeImm, value, loc)
 
 
@@ -798,7 +797,7 @@ class Var(_CallableExprWithOp):
         if isinstance(ty, str):
             ty = PtrType(PrimType("void")) if ty == "handle" else PrimType(ty)
         elif ty is not None:
-            ty = tvm_tirx.runtime.convert(ty)
+            ty = tvm_ffi.convert(ty)
             if not isinstance(ty, Type):
                 raise TypeError("ty must be a Type or primitive dtype string")
         self.__init_handle_by_constructor__(_ffi_api.Var, name, ty, loc)
@@ -810,7 +809,7 @@ def _lambda_type(annotation):
         return annotation
     if isinstance(annotation, str):
         return Var("", annotation).ty
-    if isinstance(annotation, tvm_tirx.DataType):
+    if isinstance(annotation, tvm_ffi.dtype):
         return tvm_tirx.ir.PrimType(annotation)
     if callable(annotation):
         value = annotation()
@@ -829,7 +828,7 @@ def _lambda_result(value):
     elif isinstance(value, str):
         value = StringImm(value)
     else:
-        value = tvm_tirx.runtime.convert(value)
+        value = tvm_ffi.convert(value)
     if not isinstance(value, Expr):
         raise TypeError("Lambda body must be an Expr or a tuple/list of expressions")
     return value
@@ -938,10 +937,10 @@ class Range(Node, Scriptable):
         """
         return _ffi_api.RangeFromMinExtent(min_value, extent, loc)
 
-    def __eq__(self, other: Object) -> bool:
+    def __eq__(self, other: tvm_ffi.Object) -> bool:
         return tvm_ffi.structural_equal(self, other)
 
-    def __ne__(self, other: Object) -> bool:
+    def __ne__(self, other: tvm_ffi.Object) -> bool:
         return not self.__eq__(other)
 
 

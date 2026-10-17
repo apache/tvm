@@ -19,6 +19,7 @@ import re
 from pathlib import Path
 
 import pytest
+import tvm_ffi
 from tvm_ffi import register_global_func
 
 import tvm_tirx
@@ -31,7 +32,7 @@ from tvm_tirx.testing import env
 @pytest.fixture(autouse=True)
 def register_linker():
     name = "tvm.contrib.hexagon.link_shared"
-    original_linker = tvm_tirx.get_global_func(name)
+    original_linker = tvm_ffi.get_global_func(name)
 
     def link_shared(so_name, _objs, _extra_args=None):
         # Codegen retains the output bytes, but these tests only inspect the

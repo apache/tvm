@@ -17,8 +17,8 @@
 # under the License.
 """TVM runtime namespace."""
 
-from tvm_ffi import convert, Object, Module, load_module, system_lib
-from tvm_ffi._dtype import dtype as DataType, DataTypeCode
+from tvm_ffi import load_module
+from tvm_ffi._dtype import DataTypeCode
 
 # class exposures
 from .device import Device
@@ -26,11 +26,9 @@ from .memory_scope import MemoryScope
 from ._tensor import Tensor, tensor, empty
 
 # function exposures
-from ._tensor import device, cpu, cuda, opencl, vulkan, metal
-from ._tensor import vpi, rocm, ext_dev, from_dlpack
+from ._tensor import cpu, cuda, opencl, vulkan, metal
+from ._tensor import vpi, rocm, ext_dev
 from . import _ffi_api
-
-from tvm_ffi import Shape as ShapeTuple
 
 
 def enabled(target):

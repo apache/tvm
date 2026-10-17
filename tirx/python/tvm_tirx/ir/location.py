@@ -16,16 +16,16 @@
 # under the License.
 """Source-location metadata and the shared unknown location."""
 
+import tvm_ffi
 from tvm_ffi import register_object
 
 from tvm_tirx.base import _RUNTIME_ONLY
-from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 
 
 @register_object("ir.SourceName")
-class SourceName(Object):
+class SourceName(tvm_ffi.Object):
     """An identifier for a source location.
 
     Parameters
@@ -39,7 +39,7 @@ class SourceName(Object):
 
 
 @register_object("ir.Location")
-class Location(Object):
+class Location(tvm_ffi.Object):
     """Non-null source-location metadata attached to IR nodes.
 
     IR constructors default to the shared :data:`UNKNOWN_LOC`.

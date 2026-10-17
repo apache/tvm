@@ -20,6 +20,7 @@
 import sys
 
 import pytest
+import tvm_ffi
 from tvm_ffi.access_path import AccessPath
 
 import tvm
@@ -2180,9 +2181,7 @@ class Module:
 def test_str_metadata():
     # This test is to check we reuse the existing metadata element for the same metadata-backed GenericConst
     # So metadata["ir.GenericConst"][0] will occur in the printed script for three times
-    str_imm = tvm_tirx.ir.GenericConst(
-        tvm_tirx.ir.AnyType(), tvm_tirx.runtime.convert(["aaa\nbbb\n"])
-    )
+    str_imm = tvm_tirx.ir.GenericConst(tvm_tirx.ir.AnyType(), tvm_ffi.convert(["aaa\nbbb\n"]))
 
     @I.ir_module
     class Module:

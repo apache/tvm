@@ -30,24 +30,11 @@ except ImportError:
     ml_dtypes = None
 
 import tvm_ffi
-from tvm_ffi import DLDeviceType, device
+from tvm_ffi import DLDeviceType
 
 from tvm_tirx.runtime import Device
 
 from . import _ffi_api
-
-
-def from_dlpack(ext_tensor):
-    """
-    Convert an external tensor to an Tensor.
-
-    Parameters
-    ----------
-    ext_tensor : object
-        The external tensor to convert.
-
-    """
-    return tvm_ffi.from_dlpack(ext_tensor)
 
 
 @tvm_ffi.register_object("ffi.Tensor")
@@ -360,7 +347,7 @@ def cpu(dev_id=0):
     dev : Device
         The created device
     """
-    return device(DLDeviceType.kDLCPU, dev_id)
+    return tvm_ffi.device(DLDeviceType.kDLCPU, dev_id)
 
 
 def cuda(dev_id=0):
@@ -376,7 +363,7 @@ def cuda(dev_id=0):
     dev : Device
         The created device
     """
-    return device(DLDeviceType.kDLCUDA, dev_id)
+    return tvm_ffi.device(DLDeviceType.kDLCUDA, dev_id)
 
 
 def rocm(dev_id=0):
@@ -392,7 +379,7 @@ def rocm(dev_id=0):
     dev : Device
         The created device
     """
-    return device(DLDeviceType.kDLROCM, dev_id)
+    return tvm_ffi.device(DLDeviceType.kDLROCM, dev_id)
 
 
 def opencl(dev_id=0):
@@ -408,7 +395,7 @@ def opencl(dev_id=0):
     dev : Device
         The created device
     """
-    return device(DLDeviceType.kDLOpenCL, dev_id)
+    return tvm_ffi.device(DLDeviceType.kDLOpenCL, dev_id)
 
 
 def metal(dev_id=0):
@@ -424,7 +411,7 @@ def metal(dev_id=0):
     dev : Device
         The created device
     """
-    return device(DLDeviceType.kDLMetal, dev_id)
+    return tvm_ffi.device(DLDeviceType.kDLMetal, dev_id)
 
 
 def vpi(dev_id=0):
@@ -440,7 +427,7 @@ def vpi(dev_id=0):
     dev : Device
         The created device
     """
-    return device(DLDeviceType.kDLVPI, dev_id)
+    return tvm_ffi.device(DLDeviceType.kDLVPI, dev_id)
 
 
 def vulkan(dev_id=0):
@@ -456,7 +443,7 @@ def vulkan(dev_id=0):
     dev : Device
         The created device
     """
-    return device(DLDeviceType.kDLVulkan, dev_id)
+    return tvm_ffi.device(DLDeviceType.kDLVulkan, dev_id)
 
 
 def ext_dev(dev_id=0):
@@ -477,7 +464,7 @@ def ext_dev(dev_id=0):
     This API is reserved for quick testing of new
     device by plugin device API as ext_dev.
     """
-    return device(DLDeviceType.kDLExtDev, dev_id)
+    return tvm_ffi.device(DLDeviceType.kDLExtDev, dev_id)
 
 
 def hexagon(dev_id=0):
@@ -493,7 +480,7 @@ def hexagon(dev_id=0):
     dev : Device
         The created device
     """
-    return device(DLDeviceType.kDLHexagon, dev_id)
+    return tvm_ffi.device(DLDeviceType.kDLHexagon, dev_id)
 
 
 def webgpu(dev_id=0):
@@ -509,7 +496,7 @@ def webgpu(dev_id=0):
     dev : Device
         The created device
     """
-    return device(DLDeviceType.kDLWebGPU, dev_id)
+    return tvm_ffi.device(DLDeviceType.kDLWebGPU, dev_id)
 
 
 # Register back to FFI

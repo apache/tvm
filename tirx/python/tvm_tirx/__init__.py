@@ -37,17 +37,16 @@ if TYPE_CHECKING or not _is_config_mode():
     import os
 
     # ffi module must load first
-    from tvm_ffi import register_object, register_global_func, get_global_func
+    import tvm_ffi as _tvm_ffi
 
     # top-level alias
     from .libinfo import __version__
     from .base import _RUNTIME_ONLY
 
     # tvm.runtime
-    from .runtime import Object
-    from .runtime._tensor import device, cpu, cuda, opencl, vulkan, metal
+    from .runtime._tensor import cpu, cuda, opencl, vulkan, metal
     from .runtime._tensor import vpi, rocm, ext_dev, hexagon
-    from .runtime import DataType, DataTypeCode
+    from .runtime import DataTypeCode
 
     # tvm.ir
     from .ir import IRModule, transform

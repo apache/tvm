@@ -23,6 +23,7 @@ import re
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -36,7 +37,7 @@ from tvm_tirx.testing import env
 def test_llvm_add_pipeline():
     """all-platform-minimal-test: Check LLVM enablement."""
     nn = 128
-    n = tvm_tirx.runtime.convert(nn)
+    n = tvm_ffi.convert(nn)
     A = te.placeholder((n,), name="A")
     B = te.placeholder((n,), name="B")
     AA = te.compute((n,), lambda *i: A(*i), name="A")

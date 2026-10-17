@@ -169,7 +169,7 @@ def test_json_containers():
     assert type(values[3]) is bool
     a = tvm_tirx.ir.Var("a", tvm_tirx.ir.PrimType("int32"))
     b = tvm_tirx.ir.Var("b", tvm_tirx.ir.PrimType("int32"))
-    objects = tvm_tirx.runtime.convert({a: 2, b: 3})
+    objects = tvm_ffi.convert({a: 2, b: 3})
     assert a in objects and b in dict(objects.items())
     assert len(objects) == 2
     assert tvm_tirx.ir.prim.Add(a, tvm_tirx.ir.IntImm("int32", 1)) not in objects

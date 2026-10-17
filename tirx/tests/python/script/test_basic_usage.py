@@ -22,13 +22,14 @@ import inspect
 import linecache
 
 import pytest
+import tvm_ffi
 
 # Script-local bindings are observed through the constructed IR.
 # ruff: noqa: F841
 from minilang import Value
 
 import tvm_tirx
-from tvm_tirx import DataType, ir
+from tvm_tirx import ir
 from tvm_tirx.ir import prim
 from tvm_tirx.ir._prim_expr_overload import EqualOp
 from tvm_tirx.script import ir as I
@@ -579,7 +580,7 @@ def test_datatype_value_roundtrip(language):
     spelling = 'T.dtype("float32")'
     source = f"@M.function\ndef main():\n    M.record({spelling})\n"
     value = entry.parse(source, extra_vars={"M": language.M, "T": tvm_tirx.script.tirx}).body[0][1]
-    ir.assert_structural_equal(value, ir.DataTypeImm(DataType("float32")))
+    ir.assert_structural_equal(value, ir.DataTypeImm(tvm_ffi.dtype("float32")))
     printed = ir.IRModule(attrs={"dtype": value}).script()
     assert f'T.module_attrs({{"dtype": {spelling}}})' in printed
 

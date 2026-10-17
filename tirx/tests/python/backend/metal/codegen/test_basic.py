@@ -203,9 +203,9 @@ def test_func_with_trailing_pod_params():
         with T.launch_thread("threadIdx.x", 16) as i:
             B[i] = A[i] + x
 
-    previous_callback = tvm_tirx.get_global_func("tvm_callback_metal_compile", allow_missing=True)
+    previous_callback = tvm_ffi.get_global_func("tvm_callback_metal_compile", allow_missing=True)
 
-    @tvm_tirx.register_global_func("tvm_callback_metal_compile", override=True)
+    @tvm_ffi.register_global_func("tvm_callback_metal_compile", override=True)
     def compile_metal(src, target):
         return xcode.compile_metal(src)
 
@@ -220,7 +220,7 @@ def test_func_with_trailing_pod_params():
         if previous_callback is None:
             tvm_ffi.registry.remove_global_func("tvm_callback_metal_compile")
         else:
-            tvm_tirx.register_global_func(
+            tvm_ffi.register_global_func(
                 "tvm_callback_metal_compile", previous_callback, override=True
             )
 
@@ -250,7 +250,7 @@ def test_codegen_simdgroup_buffer_data():
                 C_frag.data, 0, A_frag.data, 0, B_frag.data, 0, C_frag.data, 0
             )
 
-    metal_codegen = tvm_tirx.get_global_func("target.build.metal")
+    metal_codegen = tvm_ffi.get_global_func("target.build.metal")
     module = metal_codegen(Module, tvm_tirx.target.Target("metal"))
     source = module.inspect_source()
 
@@ -261,7 +261,7 @@ def test_codegen_simdgroup_buffer_data():
 
 
 def _build_metal(mod):
-    build = tvm_tirx.get_global_func("target.build.metal")
+    build = tvm_ffi.get_global_func("target.build.metal")
     return build(mod, tvm_tirx.target.Target("metal"))
 
 
@@ -525,7 +525,7 @@ def test_codegen_pointer_byte_offsets_preserve_storage_scope():
             typed_buffer[0] = T.float16(1)
             void_buffer[0] = T.float16(2)
 
-    metal_codegen = tvm_tirx.get_global_func("target.build.metal")
+    metal_codegen = tvm_ffi.get_global_func("target.build.metal")
     module = metal_codegen(Module, tvm_tirx.target.Target("metal"))
     source = module.inspect_source()
 

@@ -22,6 +22,7 @@ import operator
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -75,9 +76,9 @@ def test_gemm_tcgen05_cta_group_1(task):
     assert C_shape[0] == 128
     assert C_region[0] == (0, 128)
     assert len(C_shape) == 2
-    A_elem_bytes = tvm_tirx.runtime.DataType(A_dtype).bits // 8
-    B_elem_bytes = tvm_tirx.runtime.DataType(B_dtype).bits // 8
-    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
+    A_elem_bytes = tvm_ffi.dtype(A_dtype).bits // 8
+    B_elem_bytes = tvm_ffi.dtype(B_dtype).bits // 8
+    C_elem_bytes = tvm_ffi.dtype(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
     A_layout = mma_shared_layout(A_dtype, A_swizzle_mode, A_shape)
@@ -466,9 +467,9 @@ def test_gemm_tcgen05_cta_group_2(task):
     assert C_shape[0] == 256
     assert C_region[0] == (0, 128)
     assert len(C_shape) == 2
-    A_elem_bytes = tvm_tirx.runtime.DataType(A_dtype).bits // 8
-    B_elem_bytes = tvm_tirx.runtime.DataType(B_dtype).bits // 8
-    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
+    A_elem_bytes = tvm_ffi.dtype(A_dtype).bits // 8
+    B_elem_bytes = tvm_ffi.dtype(B_dtype).bits // 8
+    C_elem_bytes = tvm_ffi.dtype(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
 
@@ -693,9 +694,9 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
     B_shape = (N_half, K)  # per CTA: N_logical // cta_group
     C_shape = (M_per_cta * 2, N_logical)  # global output
 
-    A_elem_bytes = tvm_tirx.runtime.DataType(A_dtype).bits // 8
-    B_elem_bytes = tvm_tirx.runtime.DataType(B_dtype).bits // 8
-    C_elem_32b = 4 // (tvm_tirx.runtime.DataType(C_dtype).bits // 8)
+    A_elem_bytes = tvm_ffi.dtype(A_dtype).bits // 8
+    B_elem_bytes = tvm_ffi.dtype(B_dtype).bits // 8
+    C_elem_32b = 4 // (tvm_ffi.dtype(C_dtype).bits // 8)
     cols_alloc = max(32, next_power_of_2(N_half // C_elem_32b))
 
     A_layout = mma_shared_layout(A_dtype, swizzle_mode, A_shape)
@@ -1124,9 +1125,9 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
     assert C_region[0] == (0, 128)
     assert len(C_shape) == 2
 
-    A_elem_bytes = max(1, tvm_tirx.runtime.DataType(A_dtype).bits // 8)
-    B_elem_bytes = max(1, tvm_tirx.runtime.DataType(B_dtype).bits // 8)
-    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
+    A_elem_bytes = max(1, tvm_ffi.dtype(A_dtype).bits // 8)
+    B_elem_bytes = max(1, tvm_ffi.dtype(B_dtype).bits // 8)
+    C_elem_bytes = tvm_ffi.dtype(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
 
@@ -1147,7 +1148,7 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
     sf_mma_k = 1  # fp8: 1 scale factor per MMA iteration
     sfa_layout = scale_factor_tmem_layout(M, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
     sfb_layout = scale_factor_tmem_layout(N, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
-    sf_epc = 32 // tvm_tirx.runtime.DataType(SF_dtype).bits
+    sf_epc = 32 // tvm_ffi.dtype(SF_dtype).bits
     SFA_TMEM_SPACING = (int(sfa_layout.span("TCol")) + sf_epc - 1) // sf_epc
     SFA_TMEM_START = width
     SFB_TMEM_START = SFA_TMEM_START + SFA_TMEM_SPACING
@@ -1445,9 +1446,9 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
     assert C_region[0] == (0, 128)
     assert len(C_shape) == 2
 
-    A_elem_bytes = max(1, tvm_tirx.runtime.DataType(A_dtype).bits // 8)
-    B_elem_bytes = max(1, tvm_tirx.runtime.DataType(B_dtype).bits // 8)
-    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
+    A_elem_bytes = max(1, tvm_ffi.dtype(A_dtype).bits // 8)
+    B_elem_bytes = max(1, tvm_ffi.dtype(B_dtype).bits // 8)
+    C_elem_bytes = tvm_ffi.dtype(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
 
@@ -1469,7 +1470,7 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
 
     sf_mma_k = 1  # fp8: 1 scale factor per MMA iteration
     sf_layout = scale_factor_tmem_layout(128, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
-    sf_epc = 32 // tvm_tirx.runtime.DataType(SF_dtype).bits
+    sf_epc = 32 // tvm_ffi.dtype(SF_dtype).bits
     SF_TMEM_SPACING = (int(sf_layout.span("TCol")) + sf_epc - 1) // sf_epc
     N_cols = C_region[1][1] - C_region[1][0]
     SFA_TMEM_START = N_cols
@@ -1829,7 +1830,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
     A_fp4_shape = (M, K)
     B_fp4_shape = (N, K)
 
-    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
+    C_elem_bytes = tvm_ffi.dtype(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
 
@@ -1843,7 +1844,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
     sf_mma_k = 4  # nvfp4: 4 scale factors per MMA iteration (MMA_K=64, SF_VEC=16)
     sfa_layout = scale_factor_tmem_layout(M, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
     sfb_layout = scale_factor_tmem_layout(N, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
-    sf_epc = 32 // tvm_tirx.runtime.DataType(SF_dtype).bits
+    sf_epc = 32 // tvm_ffi.dtype(SF_dtype).bits
     SFA_TMEM_SPACING = (int(sfa_layout.span("TCol")) + sf_epc - 1) // sf_epc
     SFA_TMEM_START = width
     SFB_TMEM_START = SFA_TMEM_START + SFA_TMEM_SPACING
@@ -2152,7 +2153,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
     A_packed_shape = (M_total, K // 2)  # (256, 128)
     B_packed_shape = (N_total, K // 2)  # (64, 128)
 
-    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
+    C_elem_bytes = tvm_ffi.dtype(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
 
@@ -2166,7 +2167,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
     sf_mma_k = 4  # nvfp4: 4 scale factors per MMA iteration
     sfa_layout = scale_factor_tmem_layout(M_per_cta, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
     sfb_layout = scale_factor_tmem_layout(N_total, SF_K=sf_mma_k * 1, sf_per_mma=sf_mma_k)
-    sf_epc = 32 // tvm_tirx.runtime.DataType(SF_dtype).bits
+    sf_epc = 32 // tvm_ffi.dtype(SF_dtype).bits
     SFA_TMEM_SPACING = (int(sfa_layout.span("TCol")) + sf_epc - 1) // sf_epc
     (int(sfb_layout.span("TCol")) + sf_epc - 1) // sf_epc
     SFA_TMEM_START = width
@@ -2517,9 +2518,9 @@ def test_gemm_block_scaled_fp8_sf_id():
     A_shape = (M, K)
     B_shape = (N, K)
 
-    A_elem_bytes = max(1, tvm_tirx.runtime.DataType(A_dtype).bits // 8)
-    B_elem_bytes = max(1, tvm_tirx.runtime.DataType(B_dtype).bits // 8)
-    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
+    A_elem_bytes = max(1, tvm_ffi.dtype(A_dtype).bits // 8)
+    B_elem_bytes = max(1, tvm_ffi.dtype(B_dtype).bits // 8)
+    C_elem_bytes = tvm_ffi.dtype(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
 
@@ -2535,7 +2536,7 @@ def test_gemm_block_scaled_fp8_sf_id():
     num_ki = K // MMA_K  # 4: distinct SF positions per call
     sfa_layout = scale_factor_tmem_layout(M, SF_K=sf_mma_k * num_ki, sf_per_mma=sf_mma_k)
     sfb_layout = scale_factor_tmem_layout(N, SF_K=sf_mma_k * num_ki, sf_per_mma=sf_mma_k)
-    sf_epc = 32 // tvm_tirx.runtime.DataType(SF_dtype).bits
+    sf_epc = 32 // tvm_ffi.dtype(SF_dtype).bits
     SFA_TMEM_SPACING = (int(sfa_layout.span("TCol")) + sf_epc - 1) // sf_epc
     SFA_TMEM_START = N
     SFB_TMEM_START = SFA_TMEM_START + SFA_TMEM_SPACING
@@ -3044,11 +3045,11 @@ def test_gemm_tcgen05_arbitrary_tiles(task, copy_perm, a_major, b_major):
     B_ref_perm = B_spec[5] if len(B_spec) > 5 else None
     M = C_region[0][1] - C_region[0][0]
     N = C_region[1][1] - C_region[1][0]
-    C_elem_bytes = tvm_tirx.runtime.DataType(C_dtype).bits // 8
+    C_elem_bytes = tvm_ffi.dtype(C_dtype).bits // 8
     C_elem_32b = 4 // C_elem_bytes
     cols_alloc = max(32, next_power_of_2(C_shape[1] // C_elem_32b))
-    A_elem_bytes = tvm_tirx.runtime.DataType(A_dtype).bits // 8
-    B_elem_bytes = tvm_tirx.runtime.DataType(B_dtype).bits // 8
+    A_elem_bytes = tvm_ffi.dtype(A_dtype).bits // 8
+    B_elem_bytes = tvm_ffi.dtype(B_dtype).bits // 8
     # Accept either swizzle mode (int) or pre-built layout
     A_layout = (
         A_swizzle_mode
@@ -3455,11 +3456,11 @@ def _run_dense_gemm(
     A_swizzle, B_swizzle = 3, 3
     A_layout = mma_shared_layout(A_dtype, A_swizzle, A_shape)
     B_layout = mma_shared_layout(B_dtype, B_swizzle, B_shape)
-    C_elem_32b = 4 // (tvm_tirx.runtime.DataType(C_dtype).bits // 8)
+    C_elem_32b = 4 // (tvm_ffi.dtype(C_dtype).bits // 8)
     cols_alloc = max(32, next_power_of_2(N // C_elem_32b))
     total_bytes = functools.reduce(operator.mul, A_shape, 1) * (
-        tvm_tirx.runtime.DataType(A_dtype).bits // 8
-    ) + functools.reduce(operator.mul, B_shape, 1) * (tvm_tirx.runtime.DataType(B_dtype).bits // 8)
+        tvm_ffi.dtype(A_dtype).bits // 8
+    ) + functools.reduce(operator.mul, B_shape, 1) * (tvm_ffi.dtype(B_dtype).bits // 8)
     instruction_k = 8 if is_AB_tf32 else 32
     kind = "tf32" if is_AB_tf32 else "f8f6f4"
     atom_width = 32 if is_AB_tf32 else 128

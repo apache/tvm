@@ -62,7 +62,7 @@ def count_cp_async(stmt):
 
 def generate_global_to_shared_vectorized_copy(dtype, vector_size):
     num_iters = 128 // vector_size
-    vector_size_expr = tvm_tirx.runtime.convert(vector_size)
+    vector_size_expr = tvm_ffi.convert(vector_size)
 
     @Ts.function
     def ptx_global_to_shared_copy(
@@ -329,7 +329,7 @@ def postproc_if_missing_async_support():
     support_async = major >= 8
 
     func_name = "tvm_callback_cuda_postproc"
-    prev_postproc = tvm_tirx.get_global_func(func_name, allow_missing=True)
+    prev_postproc = tvm_ffi.get_global_func(func_name, allow_missing=True)
 
     # Store the generated code prior to the post-processing.  This
     # way, even though the generated code doesn't compile on platforms
@@ -343,7 +343,7 @@ def postproc_if_missing_async_support():
         nonlocal original_code
         return original_code
 
-    @tvm_tirx.register_global_func(func_name, override=True)
+    @tvm_ffi.register_global_func(func_name, override=True)
     def tvm_callback_cuda_postproc(code, _):
         nonlocal original_code
         original_code = code
@@ -365,7 +365,7 @@ def postproc_if_missing_async_support():
     if prev_postproc is None:
         tvm_ffi.registry.remove_global_func(func_name)
     else:
-        tvm_tirx.register_global_func(func_name, prev_postproc, override=True)
+        tvm_ffi.register_global_func(func_name, prev_postproc, override=True)
 
 
 @pytest.mark.gpu

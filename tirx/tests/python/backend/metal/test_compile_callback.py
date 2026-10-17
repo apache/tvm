@@ -47,7 +47,7 @@ def test_metal_compile_callback_source_passthrough():
         seen["src"] = src
         return (src, "metal")
 
-    tvm_tirx.register_global_func("tvm_callback_metal_compile", inspect_callback, override=True)
+    tvm_ffi.register_global_func("tvm_callback_metal_compile", inspect_callback, override=True)
     try:
         f = tvm_tirx.tirx.compile(Module, target="metal")
         dev = tvm_tirx.metal()
@@ -96,7 +96,7 @@ def test_metal_compile_callback_mixed_formats_rejected():
         # Second kernel declares textual MSL, contradicting the metallib above.
         return (src, "metal")
 
-    tvm_tirx.register_global_func("tvm_callback_metal_compile", mixed_callback, override=True)
+    tvm_ffi.register_global_func("tvm_callback_metal_compile", mixed_callback, override=True)
     try:
         with pytest.raises(Exception, match="inconsistent formats"):
             tvm_tirx.tirx.compile(Module, target="metal")

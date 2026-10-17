@@ -401,7 +401,7 @@ def test_target_from_device_vulkan(input_form):
     def run_and_check():
         dev = tvm_tirx.vulkan()
         target = Target.from_device("vulkan" if input_form == "string" else dev)
-        f_get_target_property = tvm_tirx.get_global_func("device_api.vulkan.get_target_property")
+        f_get_target_property = tvm_ffi.get_global_func("device_api.vulkan.get_target_property")
         assert target.kind.name == "vulkan"
         assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
         assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block

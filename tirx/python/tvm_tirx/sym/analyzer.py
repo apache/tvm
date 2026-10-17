@@ -23,7 +23,6 @@ from contextlib import contextmanager
 import tvm_ffi
 
 from tvm_tirx import ir
-from tvm_tirx.runtime import Object
 from tvm_tirx.sym import IntSet
 
 from . import _ffi_api
@@ -53,7 +52,7 @@ class CompareResult(enum.IntEnum):
 
 
 @tvm_ffi.register_object("sym.ModularSet")
-class ModularSet(Object):
+class ModularSet(tvm_ffi.Object):
     """Represent range of (coeff * x + base) for x in Z"""
 
     def __init__(self, coeff, base):
@@ -61,7 +60,7 @@ class ModularSet(Object):
 
 
 @tvm_ffi.register_object("sym.ConstIntBound")
-class ConstIntBound(Object):
+class ConstIntBound(tvm_ffi.Object):
     """Represent constant integer bound
 
     Parameters
@@ -105,7 +104,7 @@ class ConstraintScope:
 
 
 @tvm_ffi.register_object("sym.Analyzer")
-class Analyzer(Object):
+class Analyzer(tvm_ffi.Object):
     """Integer arithmetic analyzer
 
     This is a stateful analyzer class that can be used to perform
