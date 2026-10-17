@@ -240,32 +240,43 @@ struct LinearShape {
   PrimExpr offset;
 };
 
-// Recognize factor * var + offset using only local Add/Sub/Mul node checks.
+// Recognize factor * var + offset, allowing either operand order for Add and Mul.
 inline std::optional<LinearShape> MatchLinearShape(const PrimExpr& arg) {
-  PrimExpr linear = arg;
-  PrimExpr offset = IntImm(arg.ty(), 0);
+  PrimExpr var = arg;
   PrimExpr factor = IntImm(arg.ty(), 1);
-  // Peel off a constant operand, allowing either order in Add and Mul.
-  auto peel_const = [&linear](const PrimExpr& a, const PrimExpr& b, PrimExpr* constant) {
-    if (b.as<IntImmNode>()) {
-      *constant = b;
-      linear = a;
-    } else if (a.as<IntImmNode>()) {
-      *constant = a;
-      linear = b;
+  PrimExpr offset = IntImm(arg.ty(), 0);
+
+  // Remove the constant offset, if present.
+  if (const auto* add = var.as<AddNode>()) {
+    if (add->b.as<IntImmNode>()) {
+      var = add->a;
+      offset = add->b;
+    } else if (add->a.as<IntImmNode>()) {
+      var = add->b;
+      offset = add->a;
+    } else {
+      return std::nullopt;
     }
-  };
-  if (const auto* add = linear.as<AddNode>()) {
-    peel_const(add->a, add->b, &offset);
-  } else if (const auto* sub = linear.as<SubNode>(); sub && sub->b.as<IntImmNode>()) {
+  } else if (const auto* sub = var.as<SubNode>()) {
+    if (!sub->b.as<IntImmNode>()) return std::nullopt;
+    var = sub->a;
     offset = -sub->b;
-    linear = sub->a;
   }
-  if (const auto* mul = linear.as<MulNode>()) {
-    peel_const(mul->a, mul->b, &factor);
+
+  // Remove the constant factor; the remainder must be a variable.
+  if (const auto* mul = var.as<MulNode>()) {
+    if (mul->b.as<IntImmNode>()) {
+      var = mul->a;
+      factor = mul->b;
+    } else if (mul->a.as<IntImmNode>()) {
+      var = mul->b;
+      factor = mul->a;
+    } else {
+      return std::nullopt;
+    }
   }
-  if (!linear.as<VarNode>() || arg.same_as(linear) || IsZero(factor)) return std::nullopt;
-  return LinearShape{linear, factor, offset};
+  if (!var.as<VarNode>() || arg.same_as(var) || IsZero(factor)) return std::nullopt;
+  return LinearShape{var, factor, offset};
 }
 }  // namespace
 
@@ -273,30 +284,30 @@ bool TVMFFIABIBuilder::BindIntExpr(const PrimExpr& arg, const PrimExpr& value,
                                    const ffi::reflection::AccessPath& path) {
   auto linear = MatchLinearShape(arg);
   if (!linear || var_defs_.count(linear->var.as<VarNode>())) return false;
-  PrimExpr factor = linear->factor;
-  PrimExpr offset = linear->offset;
+  const auto& [var, factor, offset] = *linear;
 
-  // Check divisibility before binding the inferred variable.  Loading once also
-  // keeps the check and the quotient tied to the same dimension.
+  // Load once, then check divisibility before binding the quotient.
   Var shape_value("shape_value", arg.ty());
   init_nest_.emplace_back(Bind(shape_value, value));
   PrimExpr delta = shape_value.as_or_throw<PrimExpr>() - offset;
-  std::string display = RenderAccessPath(path);
+  std::string shape_path = RenderAccessPath(path);
+  std::string decoded_expr = shape_path;
   if (!IsZero(offset)) {
     std::ostringstream os;
-    os << "(" << display << " - " << offset.as_or_throw<IntImm>()->value << ")";
-    display = os.str();
+    os << "(" << shape_path << " - " << offset.as_or_throw<IntImm>()->value << ")";
+    decoded_expr = os.str();
   }
   if (!IsOne(factor)) {
     std::ostringstream os;
     os << factor.as_or_throw<IntImm>()->value;
-    EmitAssert(truncmod(delta, factor) == 0, "ValueError", "Invalid ", RenderAccessPath(path),
-               " on argument #", std::to_string(GetParamIndex(path)), when_calling_imm_, sig_imm_,
-               "`,\n  expected ", display, " to be divisible by ", os.str());
-    display += " // " + os.str();
+    std::string factor_text = os.str();
+    EmitAssert(truncmod(delta, factor) == 0, "ValueError", "Invalid ", shape_path, " on argument #",
+               std::to_string(GetParamIndex(path)), when_calling_imm_, sig_imm_, "`,\n  expected ",
+               decoded_expr, " to be divisible by ", factor_text);
+    decoded_expr += " // " + factor_text;
   }
-  BindScalar(linear->var, truncdiv(delta, factor), path, true);
-  shape_var_exprs_.emplace(linear->var.as<VarNode>(), std::move(display));
+  BindScalar(var, truncdiv(delta, factor), path, true);
+  shape_var_exprs_.emplace(var.as<VarNode>(), std::move(decoded_expr));
   return true;
 }
 
@@ -715,11 +726,13 @@ void TVMFFIABIBuilder::DecodeAllParams() {
   }
   // Shape pass 2: Infer only variables not defined by a bare dimension.
   for (auto& shape : pending_shapes_) {
-    shape.inferred = BindIntExpr(shape.arg, shape.value, shape.path);
+    shape.needs_check = !BindIntExpr(shape.arg, shape.value, shape.path);
   }
   // Shape pass 3: Check the remaining expressions after all bindings are known.
   for (const auto& shape : pending_shapes_) {
-    if (!shape.inferred) BindScalar(shape.arg, shape.value, shape.path, true);
+    if (shape.needs_check) {
+      BindScalar(shape.arg, shape.value, shape.path, true);
+    }
   }
   pending_shapes_.clear();
 }

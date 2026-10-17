@@ -227,7 +227,10 @@ class TVMFFIABIBuilder {
 
   // ── Private binding submethods (all take ffi::reflection::AccessPath) ───────────
 
-  /*! \brief Infer a variable from a linear shape when no bare dimension defines it. */
+  /*!
+   * \brief Infer a variable from a linear shape when no bare dimension defines it.
+   * \return Whether this shape defined a variable and needs no further equality check.
+   */
   bool BindIntExpr(const PrimExpr& arg, const PrimExpr& value,
                    const ffi::reflection::AccessPath& path);
 
@@ -392,7 +395,7 @@ class TVMFFIABIBuilder {
     PrimExpr arg;
     PrimExpr value;
     ffi::reflection::AccessPath path;
-    bool inferred{false};
+    bool needs_check{true};
   };
 
   /*! \brief Non-variable shapes, processed after all bare dimensions have been bound. */
