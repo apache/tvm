@@ -141,6 +141,6 @@ IKET profiling
 CUDA-specific transforms
 ------------------------
 
-.. automodule:: tvm_tirx.backend.cuda.transform
+.. automodule:: tvm_tirx.backend.cuda.transforms
    :members:
    :no-index:
