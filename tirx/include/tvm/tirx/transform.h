@@ -307,16 +307,13 @@ TVM_TIRX_DLL Pass Filter(ffi::TypedFunction<bool(Function)> fcond);
 TVM_TIRX_DLL Pass TileDispatch();
 
 /*!
- * \brief Finalize TIRx lowering by applying layout rewriters and cleanup passes.
+ * \brief Apply tensor layouts to physical storage and accesses.
+ *
+ * Run after TileDispatch for generic tile compilation, or independently on
+ * already dispatched IR. Backend-specific layout lowering may replace this pass.
  * \return The pass.
  */
-TVM_TIRX_DLL Pass LowerTIRxCleanup();
-
-/*!
- * \brief Lower the TIR to a lower level IR for the given target.
- * \return The pass.
- */
-TVM_TIRX_DLL Pass LowerTIRx();
+TVM_TIRX_DLL Pass LowerTensorLayouts();
 
 }  // namespace transform
 }  // namespace tirx
