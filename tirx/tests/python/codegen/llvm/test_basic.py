@@ -237,6 +237,27 @@ def test_llvm_vadd_pipeline():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_llvm_add_linear_shape():
+    n = T.dynamic("n", "int64")
+
+    @T.function
+    def add(
+        A: T.Tensor((4 * n + 3,), "float32"),
+        B: T.Tensor((4 * n + 3,), "float32"),
+        C: T.Tensor((4 * n + 3,), "float32"),
+    ):
+        for i in range(4 * n + 3):
+            C[i] = A[i] + B[i]
+
+    lib = tvm_tirx.tirx.compile(add, target="llvm")
+    a = tvm_tirx.runtime.tensor(np.arange(19, dtype="float32"))
+    b = tvm_tirx.runtime.tensor(np.ones(19, dtype="float32"))
+    c = tvm_tirx.runtime.tensor(np.zeros(19, dtype="float32"))
+    lib(a, b, c)
+    np.testing.assert_equal(c.numpy(), a.numpy() + b.numpy())
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_madd_pipeline():
     def check_llvm(nn, base, stride):
         @I.ir_module

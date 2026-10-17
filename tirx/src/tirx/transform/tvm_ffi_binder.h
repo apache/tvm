@@ -127,7 +127,8 @@ class TVMFFIABIBuilder {
    * This is the primary public method after construction. It:
    * 1. Calls DecodeParam(i) for each parameter to type-check, load values,
    *    and bind scalar params
-   * 2. Binds DLTensor tensors to handles (shape, strides, dtype, device checks)
+   * 2. Binds DLTensor tensors to handles, preferring bare-variable dimensions
+   * 3. Infers unresolved linear shapes, then adds remaining shape checks
    *
    * Statements are routed to init_nest_, asserts_, or decl_tensors_.
    */
@@ -225,6 +226,13 @@ class TVMFFIABIBuilder {
   PrimExpr DecodeParamFloat(int param_index, const PrimExpr& type_index, PrimType dtype);
 
   // ── Private binding submethods (all take ffi::reflection::AccessPath) ───────────
+
+  /*!
+   * \brief Infer a variable from a linear shape when no bare dimension defines it.
+   * \return Whether this shape defined a variable and needs no further equality check.
+   */
+  bool BindIntExpr(const PrimExpr& arg, const PrimExpr& value,
+                   const ffi::reflection::AccessPath& path);
 
   /*!
    * \brief Internal scalar bind with ffi::reflection::AccessPath tracking and rich error messages.
@@ -383,8 +391,19 @@ class TVMFFIABIBuilder {
     PrimExpr expected_expr;
   };
 
+  struct PendingShape {
+    PrimExpr arg;
+    PrimExpr value;
+    ffi::reflection::AccessPath path;
+    bool needs_check{true};
+  };
+
+  /*! \brief Non-variable shapes, processed after all bare dimensions have been bound. */
+  std::vector<PendingShape> pending_shapes_;
   /*! \brief The definition map: VarNode* -> VarDefInfo (value + first_def_path). */
   std::unordered_map<const VarNode*, VarDefInfo> var_defs_;
+  /*! \brief Decoded shape expressions for diagnostics of inferred variables. */
+  std::unordered_map<const VarNode*, std::string> shape_var_exprs_;
   /*! \brief Variable definitions: Binds, shape/strides DeclTensors. */
   std::vector<Stmt> init_nest_;
   /*! \brief Validation checks: all AssertStmts. */
