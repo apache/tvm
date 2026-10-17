@@ -120,9 +120,8 @@ class TensorTypeNode : public TypeNode {
 class TensorType : public Type {
  public:
   TVM_TIRX_DLL TensorType(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
-                          runtime::MemoryScope scope = {},
-                          int data_alignment = 0, ffi::Optional<Layout> layout = std::nullopt,
-                          Location loc = UnknownLoc());
+                          runtime::MemoryScope scope = {}, int data_alignment = 0,
+                          ffi::Optional<Layout> layout = std::nullopt, Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorType, Type, TensorTypeNode);
 
