@@ -37,8 +37,8 @@ def test_tensor_pointer_type_derived_from_dtype_and_scope():
 
 @pytest.mark.parametrize("scope", ["global", "shared", tvm_tirx.runtime.MemoryScope("local")])
 def test_tensor_type_constructor_scope_order(scope):
-    direct = tvm_tirx.tirx.TensorType((4, 8), "float32", scope, (16, 1), 4, 64, 2)
-    scripted = T.Tensor((4, 8), "float32", scope, (16, 1), 4, 64, 2)
+    direct = tvm_tirx.tirx.TensorType((4, 8), "float32", scope, (16, 1), 8, 64)
+    scripted = T.Tensor((4, 8), "float32", scope, (16, 1), 8, 64)
     declared = tvm_tirx.tirx.Var(
         "tensor",
         tvm_tirx.tirx.TensorType(
@@ -46,9 +46,8 @@ def test_tensor_type_constructor_scope_order(scope):
             "float32",
             scope=scope,
             strides=(16, 1),
-            elem_offset=4,
+            elem_offset=(2) * (4),
             data_alignment=64,
-            offset_factor=2,
         ),
     )
     tvm_tirx.ir.assert_structural_equal(direct, scripted)
@@ -263,11 +262,13 @@ def test_tensor_type_construction_offsets_and_alignment(alignment):
     )
     tensor = tvm_tirx.ir.Var("scalar", ty)
     assert list(tensor.shape) == []
-    assert int(tensor.layout.memory_origin) == 4
-    assert int(tensor.layout.memory_origin) == 4
-    assert int(tensor.layout.memory_origin * 4) == 16
+    assert int(tensor.layout.apply(*([0] * len(tensor.shape)), shape=tensor.shape).get("m", 0)) == 4
+    assert int(tensor.layout.apply(*([0] * len(tensor.shape)), shape=tensor.shape).get("m", 0)) == 4
+    assert (
+        int(tensor.layout.apply(*([0] * len(tensor.shape)), shape=tensor.shape).get("m", 0) * 4)
+        == 16
+    )
     assert tensor.data_alignment == 64
-    assert tensor.offset_factor == 1
 
 
 if __name__ == "__main__":

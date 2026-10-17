@@ -257,9 +257,9 @@ def test_get_tensorize_loop_mapping_conv2d_nchwc_16x4():
 def test_get_tensorize_loop_mapping_matmul_mma():
     @Ts.function
     def matmul_16x16x16xf16f16f16_desc(
-        A: T.Tensor((16, 16), "float16", align=64, offset_factor=1, elem_offset=T.int32()),
-        B: T.Tensor((16, 16), "float16", align=64, offset_factor=1, elem_offset=T.int32()),
-        C: T.Tensor((16, 16), "float16", align=64, offset_factor=1, elem_offset=T.int32()),
+        A: T.Tensor((16, 16), "float16", align=64, elem_offset=T.int32()),
+        B: T.Tensor((16, 16), "float16", align=64, elem_offset=T.int32()),
+        C: T.Tensor((16, 16), "float16", align=64, elem_offset=T.int32()),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
@@ -302,9 +302,9 @@ def test_get_tensorize_loop_mapping_matmul_mma():
 def matmul_16x8x8_desc(out_dtype):
     @Ts.function
     def desc(
-        A: T.Tensor((16, 8), "float16", offset_factor=1, elem_offset=T.int32()),
-        B: T.Tensor((8, 8), "float16", offset_factor=1, elem_offset=T.int32()),
-        C: T.Tensor((16, 8), out_dtype, offset_factor=1, elem_offset=T.int32()),
+        A: T.Tensor((16, 8), "float16", elem_offset=T.int32()),
+        B: T.Tensor((8, 8), "float16", elem_offset=T.int32()),
+        C: T.Tensor((16, 8), out_dtype, elem_offset=T.int32()),
     ):
         with Ts.sblock("root"):
             Ts.reads(C[0:16, 0:8], A[0:16, 0:8], B[0:8, 0:8])

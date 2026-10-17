@@ -161,7 +161,7 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
   };
 
   if (layout->swizzle_len == 0) return mapped;
-  if (!layout->swizzle_inner || !IsZero(tile->memory_origin)) return fallback();
+  if (!layout->swizzle_inner) return fallback();
   int scale_bits = layout->per_element + layout->atom_len;
   if (scale_bits < 0 || scale_bits >= 62) return fallback();
   int64_t atom = int64_t{1} << scale_bits;
@@ -301,10 +301,9 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
 
 /**************** ComposeLayout ****************/
 ComposeLayout::ComposeLayout(int per_element, int swizzle_len, int atom_len, TileLayout tile_layout,
-                             bool swizzle_inner, ffi::Optional<PrimExpr> memory_origin)
+                             bool swizzle_inner)
     : Layout(ffi::UnsafeInit{}) {
   auto n = ffi::make_object<ComposeLayoutNode>(std::move(tile_layout));
-  if (memory_origin.has_value()) n->memory_origin = memory_origin.value();
   n->per_element = per_element;
   n->swizzle_len = swizzle_len;
   n->atom_len = atom_len;
@@ -318,12 +317,10 @@ ComposeLayout::ComposeLayout(int per_element, int swizzle_len, int atom_len, Til
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.ComposeLayout",
-                        [](int per_element, int swizzle_len, int atom_len, TileLayout tile_layout,
-                           bool swizzle_inner, ffi::Optional<PrimExpr> memory_origin) {
-                          return ComposeLayout(per_element, swizzle_len, atom_len, tile_layout,
-                                               swizzle_inner, memory_origin);
-                        });
+  refl::GlobalDef().def("tirx.ComposeLayout", [](int per_element, int swizzle_len, int atom_len,
+                                                 TileLayout tile_layout, bool swizzle_inner) {
+    return ComposeLayout(per_element, swizzle_len, atom_len, tile_layout, swizzle_inner);
+  });
 }
 
 bool ComposeLayoutNode::VerifyWellFormed() const {
@@ -340,16 +337,13 @@ PrimExpr ComposeLayoutNode::GetSize(ffi::Optional<ffi::String> axis_name) const 
 }
 
 PrimExpr ComposeLayoutNode::GetSpan(ffi::Optional<ffi::String> axis_name) const {
-  TVM_FFI_ICHECK(!axis_name.has_value() || axis_name.value() == "m")
-      << "ValueError: compose layout only has a memory axis";
-  auto span = tile_layout->GetSpan(axis_name);
-  return IsZero(memory_origin) ? span : span + memory_origin;
+  TVM_FFI_ICHECK(!axis_name.has_value())
+      << "ValueError: axis_name is not supported for compose layout";
+  return tile_layout->GetSpan(axis_name);
 }
 
 ffi::Map<ffi::String, PrimExpr> ComposeLayoutNode::Apply(ffi::Array<PrimExpr> coord) const {
-  auto mapped = ApplyStructured(this, tile_layout, std::move(coord));
-  if (!IsZero(memory_origin)) mapped.Set("m", mapped["m"] + memory_origin);
-  return mapped;
+  return ApplyStructured(this, tile_layout, std::move(coord));
 }
 
 ffi::Map<ffi::String, PrimExpr> ComposeLayoutNode::Apply(PrimExpr coord) const {
@@ -367,9 +361,7 @@ ffi::Map<ffi::String, PrimExpr> ComposeLayoutNode::Apply(PrimExpr coord) const {
   };
   auto base = 1 << per_element;
   sym::Analyzer analyzer;
-  auto result = (f(floordiv(m, base)) << per_element) + floormod(m, base);
-  if (!IsZero(memory_origin)) result += memory_origin;
-  return {{"m", analyzer->Simplify(result)}};
+  return {{"m", analyzer->Simplify((f(floordiv(m, base)) << per_element) + floormod(m, base))}};
 }
 
 ffi::Map<ffi::String, PrimExpr> ComposeLayoutNode::Apply(const ffi::Array<PrimExpr>& coord,
@@ -380,8 +372,7 @@ ffi::Map<ffi::String, PrimExpr> ComposeLayoutNode::Apply(const ffi::Array<PrimEx
   if (!grouped.has_value()) {
     auto mapped = tile_layout->Apply(coord, shape);
     TVM_FFI_ICHECK(mapped.size() == 1 && mapped.find("m") != mapped.end());
-    auto result = ApplyFullSwizzle(this, mapped["m"]);
-    return {{"m", IsZero(memory_origin) ? result : result + memory_origin}};
+    return {{"m", ApplyFullSwizzle(this, mapped["m"])}};
   }
 
   const auto& [grouped_tile, separators] = grouped.value();
@@ -403,15 +394,12 @@ ffi::Map<ffi::String, PrimExpr> ComposeLayoutNode::Apply(const ffi::Array<PrimEx
       shard_coord.Set(i, split[j]);
     }
   }
-  auto mapped = ApplyStructured(this, grouped_tile, std::move(shard_coord));
-  if (!IsZero(memory_origin)) mapped.Set("m", mapped["m"] + memory_origin);
-  return mapped;
+  return ApplyStructured(this, grouped_tile, std::move(shard_coord));
 }
 
 Layout ComposeLayoutNode::Canonicalize() const {
   auto tile_normalized = tile_layout->Canonicalize().as<TileLayout>().value();
-  return ComposeLayout(per_element, swizzle_len, atom_len, tile_normalized, swizzle_inner,
-                       memory_origin);
+  return ComposeLayout(per_element, swizzle_len, atom_len, tile_normalized, swizzle_inner);
 }
 
 Layout ComposeLayoutNode::Tile(const TileLayout& outer, const ffi::Array<PrimExpr>& outer_shape,
@@ -424,7 +412,7 @@ Layout ComposeLayoutNode::Tile(const TileLayout& outer, const ffi::Array<PrimExp
     base = IdentityTileLayout(inner_shape);
   }
   auto tiled_B = base->Tile(outer, outer_shape, inner_shape).as<TileLayout>().value();
-  return ComposeLayout(per_element, swizzle_len, atom_len, tiled_B, swizzle_inner, memory_origin);
+  return ComposeLayout(per_element, swizzle_len, atom_len, tiled_B, swizzle_inner);
 }
 
 }  // namespace tirx

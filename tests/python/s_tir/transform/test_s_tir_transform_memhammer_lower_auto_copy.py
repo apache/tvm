@@ -25,8 +25,8 @@ import tvm
 import tvm_tirx
 from tvm import s_tir
 from tvm.s_tir import script as Ts
-from tvm.s_tir.layout import get_elem_offset_from_layout
 from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import match_shape_stride_pattern
 
 
 def _is_tensor_binding(node, *op_names):
@@ -472,7 +472,7 @@ class TransformedSharedToWmma:
                                             dtype="float16",
                                             strides=[s1, s0],
                                             scope="shared.dyn",
-                                            offset_factor=16,
+                                            elem_offset=(16) * T.int32(),
                                         )
                                         tgt = Ts.match_tensor(
                                             A_wmma[
@@ -482,7 +482,7 @@ class TransformedSharedToWmma:
                                             [16, 16],
                                             dtype="float16",
                                             scope="wmma.matrix_a",
-                                            offset_factor=16,
+                                            elem_offset=(16) * T.int32(),
                                         )
                                         T.evaluate(
                                             T.gpu_load_matrix_sync(
@@ -490,10 +490,8 @@ class TransformedSharedToWmma:
                                                 16,
                                                 16,
                                                 16,
-                                                get_elem_offset_from_layout(tgt.layout) // 256
-                                                + get_elem_offset_from_layout(tgt.layout)
-                                                % 256
-                                                // 16,
+                                                match_shape_stride_pattern(tgt.ty)[2] // 256
+                                                + match_shape_stride_pattern(tgt.ty)[2] % 256 // 16,
                                                 src.ptr_to([0] * len(src.shape)),
                                                 s1,
                                                 "row_major",
@@ -548,7 +546,7 @@ class TransformedWmmaToShared:
                                             [16, 16],
                                             dtype="float32",
                                             scope="wmma.accumulator",
-                                            offset_factor=16,
+                                            elem_offset=(16) * T.int32(),
                                         )
                                         tgt = Ts.match_tensor(
                                             C_shared[
@@ -559,7 +557,7 @@ class TransformedWmmaToShared:
                                             dtype="float32",
                                             strides=[s1, s0],
                                             scope="shared.dyn",
-                                            offset_factor=16,
+                                            elem_offset=(16) * T.int32(),
                                         )
                                         T.evaluate(
                                             T.gpu_store_matrix_sync(
@@ -567,10 +565,8 @@ class TransformedWmmaToShared:
                                                 16,
                                                 16,
                                                 16,
-                                                get_elem_offset_from_layout(src.layout) // 256
-                                                + get_elem_offset_from_layout(src.layout)
-                                                % 256
-                                                // 16,
+                                                match_shape_stride_pattern(src.ty)[2] // 256
+                                                + match_shape_stride_pattern(src.ty)[2] % 256 // 16,
                                                 tgt.ptr_to([0] * len(tgt.shape)),
                                                 s1,
                                                 "row_major",
@@ -619,24 +615,22 @@ class TransformedWmmaToGlobal:
                                                 ],
                                                 (16, 16),
                                                 scope="wmma.accumulator",
-                                                offset_factor=16,
+                                                elem_offset=(16) * T.int32(),
                                             )
                                             tgt = Ts.match_tensor(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16],
                                                 (16, 16),
                                                 strides=(s1, s0),
                                                 scope="shared.dyn",
-                                                offset_factor=16,
+                                                elem_offset=(16) * T.int32(),
                                             )
                                             T.gpu_store_matrix_sync(
                                                 src.data,
                                                 16,
                                                 16,
                                                 16,
-                                                get_elem_offset_from_layout(src.layout) // 256
-                                                + get_elem_offset_from_layout(src.layout)
-                                                % 256
-                                                // 16,
+                                                match_shape_stride_pattern(src.ty)[2] // 256
+                                                + match_shape_stride_pattern(src.ty)[2] % 256 // 16,
                                                 tgt.ptr_to([0] * len(tgt.shape)),
                                                 s1,
                                                 "row_major",
@@ -823,24 +817,22 @@ class TransformedWmmaToGlobalWithFusion:
                                                 ],
                                                 (16, 16),
                                                 scope="wmma.accumulator",
-                                                offset_factor=16,
+                                                elem_offset=(16) * T.int32(),
                                             )
                                             tgt = Ts.match_tensor(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16],
                                                 (16, 16),
                                                 strides=(s1_1, s0_1),
                                                 scope="shared.dyn",
-                                                offset_factor=16,
+                                                elem_offset=(16) * T.int32(),
                                             )
                                             T.gpu_store_matrix_sync(
                                                 src.data,
                                                 16,
                                                 16,
                                                 16,
-                                                get_elem_offset_from_layout(src.layout) // 256
-                                                + get_elem_offset_from_layout(src.layout)
-                                                % 256
-                                                // 16,
+                                                match_shape_stride_pattern(src.ty)[2] // 256
+                                                + match_shape_stride_pattern(src.ty)[2] % 256 // 16,
                                                 tgt.ptr_to([0] * len(tgt.shape)),
                                                 s1_1,
                                                 "row_major",
@@ -1045,14 +1037,14 @@ class TransformedMmaToGlobal:
                                                 ],
                                                 (8, 8),
                                                 scope="mma.matrixC",
-                                                offset_factor=8,
+                                                elem_offset=(8) * T.int32(),
                                             )
                                             tgt = Ts.match_tensor(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:8, 0:8],
                                                 (8, 8),
                                                 strides=(s1, s0),
                                                 scope="shared.dyn",
-                                                offset_factor=8,
+                                                elem_offset=(8) * T.int32(),
                                             )
                                             tx = T.launch_thread("threadIdx.x", 32)
                                             for vec in T.vectorized(2):

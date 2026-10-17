@@ -185,13 +185,7 @@ class Layout(tvm_ffi.Object):
             shard = [scale(iter) for iter in self.shard]
             shard.append(Iter(num, 1, Axis.get(axis)))
             offset = {a: v * num if a.name == axis else v for a, v in self.offset.items()}
-            return TileLayout.from_iters(
-                shard,
-                [scale(i) for i in self.replica],
-                offset,
-                self.compact,
-                self.memory_origin * num if axis == "m" else self.memory_origin,
-            )
+            return TileLayout.from_iters(shard, [scale(i) for i in self.replica], offset)
         elif isinstance(self, ComposeLayout):
             assert num & (num - 1) == 0, "num must be a power of 2"
             return ComposeLayout(
@@ -200,7 +194,6 @@ class Layout(tvm_ffi.Object):
                 self.atom_len,
                 self.tile_layout.unpack(num, axis),
                 self.swizzle_inner,
-                self.memory_origin * num if axis == "m" else self.memory_origin,
             )
         else:
             raise ValueError(f"Unsupported layout type: {type(self)}")
@@ -249,32 +242,18 @@ class Layout(tvm_ffi.Object):
                 offset[a] = value
             shard = [scale(iter) for iter in self.shard[:-1]]
             shard.append(Iter(inner_iter.extent // num, 1, inner_iter.axis))
-            if axis == "m" and analyzer.can_prove(self.memory_origin % num != 0):
-                raise ValueError(f"Layout memory origin is not divisible by {num}")
-            return TileLayout.from_iters(
-                shard,
-                [scale(i) for i in self.replica],
-                offset,
-                self.compact,
-                self.memory_origin // num if axis == "m" else self.memory_origin,
-            )
+            return TileLayout.from_iters(shard, [scale(i) for i in self.replica], offset)
         elif isinstance(self, ComposeLayout):
             assert num & (num - 1) == 0, "num must be a power of 2"
             assert self.per_element >= num.bit_length() - 1, (
                 "per_element must be greater than or equal to num.bit_length() - 1"
             )
-            if axis == "m":
-                from tvm_tirx.sym import Analyzer
-
-                if Analyzer().can_prove(self.memory_origin % num != 0):
-                    raise ValueError(f"Layout memory origin is not divisible by {num}")
             return ComposeLayout(
                 self.per_element - (num.bit_length() - 1),
                 self.swizzle_len,
                 self.atom_len,
                 self.tile_layout.pack(num, axis),
                 self.swizzle_inner,
-                self.memory_origin // num if axis == "m" else self.memory_origin,
             )
         else:
             raise ValueError(f"Unsupported layout type: {type(self)}")
@@ -570,7 +549,7 @@ class TileLayout(Layout):
     replicate: list[Iter]
     exclude: list[tuple[Axis, Expr]]
 
-    def __init__(self, spec: "_LayoutSpec", *, memory_origin: Expr | None = None):
+    def __init__(self, spec: "_LayoutSpec"):
         shard_iters = _spec_to_iters(spec.shard)
         replica_iters = _spec_to_iters(spec.replica)
         offset_dict = {}
@@ -582,8 +561,6 @@ class TileLayout(Layout):
             shard_iters,
             replica_iters,
             offset_dict,
-            False,
-            memory_origin,
         )
 
     @staticmethod
@@ -591,21 +568,11 @@ class TileLayout(Layout):
         shard: "Sequence[Iter]" = (),
         replica: "Sequence[Iter]" = (),
         offset: dict[Axis | str, Expr] | None = None,
-        compact: bool = False,
-        memory_origin: Expr | None = None,
     ) -> "TileLayout":
         """Construct a TileLayout from pre-built Iter objects."""
         if offset:
             offset = {Axis.get(k) if isinstance(k, str) else k: v for k, v in offset.items()}
-        return _ffi_api.TileLayout(shard, replica, offset or {}, compact, memory_origin)  # pylint: disable=no-member
-
-    def is_regular_memory(self, shape) -> bool:
-        """Whether this is an affine memory map aligned with the logical shape."""
-        return _ffi_api.TileLayoutIsRegularMemory(self, shape)
-
-    def is_contiguous_memory(self) -> bool:
-        """Whether shard coordinates address contiguous row-major memory."""
-        return _ffi_api.TileLayoutIsContiguousMemory(self)
+        return _ffi_api.TileLayout(shard, replica, offset or {})  # pylint: disable=no-member
 
     def is_trivial(self) -> bool:
         """Check if the layout is trivial."""
@@ -638,9 +605,7 @@ class TileLayout(Layout):
         new_shard = []
         for i in perm:
             new_shard.append(self.shard[i])
-        return TileLayout.from_iters(
-            new_shard, self.replica, self.offset, self.compact, self.memory_origin
-        )
+        return TileLayout.from_iters(new_shard, self.replica, self.offset)
 
     def permute_by_groups(self, seps: list[int], perm: list[int]) -> "TileLayout":
         """Permute groups of shard iters defined by ``seps``.
@@ -680,7 +645,6 @@ class ComposeLayout(Layout):
     atom_len: int
     swizzle_inner: bool
     tile_layout: "TileLayout"
-    memory_origin: Expr
 
     def __init__(
         self,
@@ -689,7 +653,6 @@ class ComposeLayout(Layout):
         atom_len: int,
         tile_layout: "TileLayout",
         swizzle_inner: bool = True,
-        memory_origin: Expr | None = None,
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.ComposeLayout,  # pylint: disable=no-member
@@ -698,7 +661,6 @@ class ComposeLayout(Layout):
             atom_len,
             tile_layout,
             swizzle_inner,
-            memory_origin,
         )
 
 

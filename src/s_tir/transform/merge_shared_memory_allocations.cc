@@ -58,16 +58,17 @@ namespace {
 
 ffi::Array<PrimExpr> GetTensorAllocationShape(const TensorVar& tensor) {
   ffi::Array<PrimExpr> alloc_shape = tensor.shape();
-  if (s_tir::GetStridesFromLayout(tensor.ty()->layout).size()) {
+  if (tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>().size()) {
     TVM_FFI_ICHECK_EQ(tensor.shape().size(),
-                      s_tir::GetStridesFromLayout(tensor.ty()->layout).size());
-    for (size_t i = s_tir::GetStridesFromLayout(tensor.ty()->layout).size() - 1; i > 0; --i) {
+                      tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>().size());
+    for (size_t i = tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>().size() - 1;
+         i > 0; --i) {
       TVM_FFI_ICHECK(sym::Analyzer()->CanProveEqual(
-          floormod(s_tir::GetStridesFromLayout(tensor.ty()->layout)[i - 1],
-                   s_tir::GetStridesFromLayout(tensor.ty()->layout)[i]),
+          floormod(tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>()[i - 1],
+                   tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>()[i]),
           0));
-      alloc_shape.Set(i, s_tir::GetStridesFromLayout(tensor.ty()->layout)[i - 1] /
-                             s_tir::GetStridesFromLayout(tensor.ty()->layout)[i]);
+      alloc_shape.Set(i, tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>()[i - 1] /
+                             tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>()[i]);
     }
   }
   return alloc_shape;

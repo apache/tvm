@@ -28,31 +28,6 @@ using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
- * \brief Calculate the strides of the tensor
- * \param tensor The tensor
- * \return The strides
- */
-ffi::Array<PrimExpr> GetStrides(const TensorVar& tensor) {
-  if (!s_tir::GetStridesFromLayout(tensor.ty()->layout).empty()) {
-    TVM_FFI_ICHECK_EQ(s_tir::GetStridesFromLayout(tensor.ty()->layout).size(),
-                      tensor.shape().size());
-    return s_tir::GetStridesFromLayout(tensor.ty()->layout);
-  }
-  int ndim = tensor.shape().size();
-  if (ndim == 0) {
-    return {};
-  }
-  std::vector<PrimExpr> strides;
-  strides.reserve(ndim);
-  PrimExpr stride = IntImm(tensor.ty()->DefaultIndexType(), 1);
-  for (int i = ndim - 1; i >= 0; --i) {
-    strides.push_back(stride);
-    stride = stride * tensor.shape()[i];
-  }
-  return ffi::Array<PrimExpr>(strides.rbegin(), strides.rend());
-}
-
-/*!
  * \brief Auxiliary class that collects the IterSplitExpr in the indexing pattern
  * to help decision making in layout transformation
  */
@@ -152,7 +127,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& tensor,
   }
   // Step 2. Calculate a functor that flattens a multi-dimensional index
   auto f_flatten_index =
-      [ndim, strides = GetStrides(tensor),
+      [ndim, strides = tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>(),
        dtype = tensor.ty()->DefaultIndexType()](const ffi::Array<PrimExpr>& indices) -> PrimExpr {
     PrimExpr flatten_index = IntImm(dtype, 0);
     for (int i = 0; i < ndim; ++i) {

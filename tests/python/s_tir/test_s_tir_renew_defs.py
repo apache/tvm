@@ -21,9 +21,9 @@ import tvm_tirx
 import tvm_tirx.testing
 from tvm.s_tir import SBlock
 from tvm.s_tir import script as Ts
-from tvm.s_tir.layout import get_elem_offset_from_layout, get_strides_from_layout
 from tvm_tirx.ir import Var
 from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import match_shape_stride_pattern
 from tvm_tirx.tirx.function import Function
 
 
@@ -128,25 +128,26 @@ def test_match_tensor():
     matched_tensor2 = block2.match_tensors[0].tensor
     # Stride var s should be remapped
     assert (
-        get_strides_from_layout(matched_tensor1.layout)[0]
-        != get_strides_from_layout(matched_tensor2.layout)[0]
+        match_shape_stride_pattern(matched_tensor1.ty)[1][0]
+        != match_shape_stride_pattern(matched_tensor2.ty)[1][0]
     )
     assert (
-        get_strides_from_layout(matched_tensor1.layout)[1]
-        != get_strides_from_layout(matched_tensor2.layout)[1]
+        match_shape_stride_pattern(matched_tensor1.ty)[1][1]
+        != match_shape_stride_pattern(matched_tensor2.ty)[1][1]
     )
     # s should be only remapped once
     assert (
-        get_strides_from_layout(matched_tensor1.layout)[0]
-        == get_strides_from_layout(matched_tensor1.layout)[1]
+        match_shape_stride_pattern(matched_tensor1.ty)[1][0]
+        == match_shape_stride_pattern(matched_tensor1.ty)[1][1]
     )
     assert (
-        get_strides_from_layout(matched_tensor2.layout)[0]
-        == get_strides_from_layout(matched_tensor2.layout)[1]
+        match_shape_stride_pattern(matched_tensor2.ty)[1][0]
+        == match_shape_stride_pattern(matched_tensor2.ty)[1][1]
     )
     # Element-offset var e should be remapped
-    assert get_elem_offset_from_layout(matched_tensor1.layout) != get_elem_offset_from_layout(
-        matched_tensor2.layout
+    assert (
+        match_shape_stride_pattern(matched_tensor1.ty)[2]
+        != match_shape_stride_pattern(matched_tensor2.ty)[2]
     )
 
 

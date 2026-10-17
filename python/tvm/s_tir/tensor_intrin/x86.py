@@ -28,9 +28,9 @@ from .. import TensorIntrin
 
 @Ts.function
 def dot_product_16x4_u8i8i32_desc(
-    A: T.Tensor((4,), "uint8", offset_factor=1, elem_offset=T.int32()),
-    B: T.Tensor((16, 4), "int8", offset_factor=1, elem_offset=T.int32()),
-    C: T.Tensor((16,), "int32", offset_factor=1, elem_offset=T.int32()),
+    A: T.Tensor((4,), "uint8", elem_offset=T.int32()),
+    B: T.Tensor((16, 4), "int8", elem_offset=T.int32()),
+    C: T.Tensor((16,), "int32", elem_offset=T.int32()),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads(C[0:16], A[0:4], B[0:16, 0:4])
@@ -44,9 +44,9 @@ def dot_product_16x4_u8i8i32_desc(
 
 @Ts.function
 def dot_product_16x4_u8i8i32_vnni(
-    A: T.Tensor((4,), "uint8", offset_factor=1, elem_offset=T.int32()),
-    B: T.Tensor((16, 4), "int8", offset_factor=1, elem_offset=T.int32()),
-    C: T.Tensor((16,), "int32", offset_factor=1, elem_offset=T.int32()),
+    A: T.Tensor((4,), "uint8", elem_offset=T.int32()),
+    B: T.Tensor((16, 4), "int8", elem_offset=T.int32()),
+    C: T.Tensor((16,), "int32", elem_offset=T.int32()),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads(C[0:16], A[0:4], B[0:16, 0:4])
@@ -70,9 +70,9 @@ def dot_product_16x4_u8i8i32_vnni(
 
 @Ts.function
 def dot_product_16x4_u8i8i32_avx512(
-    A: T.Tensor((4,), "uint8", offset_factor=1, elem_offset=T.int32()),
-    B: T.Tensor((16, 4), "int8", offset_factor=1, elem_offset=T.int32()),
-    C: T.Tensor((16,), "int32", offset_factor=1, elem_offset=T.int32()),
+    A: T.Tensor((4,), "uint8", elem_offset=T.int32()),
+    B: T.Tensor((16, 4), "int8", elem_offset=T.int32()),
+    C: T.Tensor((16,), "int32", elem_offset=T.int32()),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads(C[0:16], A[0:4], B[0:16, 0:4])

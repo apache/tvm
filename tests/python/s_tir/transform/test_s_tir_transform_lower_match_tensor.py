@@ -24,8 +24,8 @@ import tvm.s_tir
 import tvm_tirx
 import tvm_tirx.testing
 from tvm.s_tir import script as Ts
-from tvm.s_tir.layout import get_elem_offset_from_layout, get_strides_from_layout
 from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import match_shape_stride_pattern
 
 
 def _check(original, transformed):
@@ -50,10 +50,10 @@ def tensor_load_store(
             Ts.reads(C[i * 4 : i * 4 + 4, k * 2 : k * 2 + 2])
             Ts.writes(A[i * 4 : i * 4 + 4, j, k * 2 : k * 2 + 2])
             sub_A = Ts.match_tensor(
-                A[i * 4 : i * 4 + 4, j, k * 2 : k * 2 + 2], (4, 1, 2), offset_factor=1
+                A[i * 4 : i * 4 + 4, j, k * 2 : k * 2 + 2], (4, 1, 2), elem_offset=T.int32()
             )
             sub_C = Ts.match_tensor(
-                C[i * 4 : i * 4 + 4, k * 2 : k * 2 + 2], (4, 2), offset_factor=1
+                C[i * 4 : i * 4 + 4, k * 2 : k * 2 + 2], (4, 2), elem_offset=T.int32()
             )
             for ii, kk in T.grid(4, 2):
                 sub_A[ii, 0, kk] += sub_C[ii, kk]
@@ -95,14 +95,14 @@ def opaque_access(
                 A[i * 16 : i * 16 + 16, j, k * 16 : k * 16 + 16],
                 (16, 1, 16),
                 strides=[8192, 128, 1],
-                offset_factor=1,
+                elem_offset=T.int32(),
             )
             T.evaluate(
                 intrin_test(
                     sub_A.data,
-                    get_elem_offset_from_layout(sub_A.layout),
-                    get_strides_from_layout(sub_A.layout)[0],
-                    get_strides_from_layout(sub_A.layout)[1],
+                    match_shape_stride_pattern(sub_A.ty)[2],
+                    match_shape_stride_pattern(sub_A.ty)[1][0],
+                    match_shape_stride_pattern(sub_A.ty)[1][1],
                     sub_A.shape[0],
                     sub_A.shape[1],
                 )
@@ -115,14 +115,14 @@ def opaque_access(
                 B[i, j * 32 : j * 32 + 32, k * 8 : k * 8 + 8],
                 (32, 8),
                 strides=[Bs_0, Bs_1],
-                offset_factor=1,
+                elem_offset=T.int32(),
             )
             T.evaluate(
                 intrin_test(
                     sub_B.data,
-                    get_elem_offset_from_layout(sub_B.layout),
-                    get_strides_from_layout(sub_B.layout)[0],
-                    get_strides_from_layout(sub_B.layout)[1],
+                    match_shape_stride_pattern(sub_B.ty)[2],
+                    match_shape_stride_pattern(sub_B.ty)[1][0],
+                    match_shape_stride_pattern(sub_B.ty)[1][1],
                     sub_B.shape[0],
                     sub_B.shape[1],
                 )
@@ -168,10 +168,10 @@ def opaque_tensor_data_projection(A: T.Tensor((16,), "float32")) -> None:
     with Ts.sblock():
         Ts.reads([])
         Ts.writes(A[4:8])
-        sub_A = Ts.match_tensor(A[4:8], (4,), offset_factor=1)
+        sub_A = Ts.match_tensor(A[4:8], (4,), elem_offset=T.int32())
         T.evaluate(
             T.call_extern(
-                "consume", sub_A.data, get_elem_offset_from_layout(sub_A.layout), ty="int32"
+                "consume", sub_A.data, match_shape_stride_pattern(sub_A.ty)[2], ty="int32"
             )
         )
 
@@ -198,14 +198,14 @@ def high_dim_opaque_access(A: T.Tensor((16, 32, 64), "float32")) -> None:
                 A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16],
                 (16, 16),
                 strides=[As_0, As_1],
-                offset_factor=1,
+                elem_offset=T.int32(),
             )
             T.evaluate(
                 intrin_test(
                     sub_A.data,
-                    get_elem_offset_from_layout(sub_A.layout),
-                    get_strides_from_layout(sub_A.layout)[0],
-                    get_strides_from_layout(sub_A.layout)[1],
+                    match_shape_stride_pattern(sub_A.ty)[2],
+                    match_shape_stride_pattern(sub_A.ty)[1][0],
+                    match_shape_stride_pattern(sub_A.ty)[1][1],
                     sub_A.shape[0],
                     sub_A.shape[1],
                 )
@@ -246,14 +246,14 @@ def high_dim_opaque_access_with_source_strides(
                 A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16],
                 (16, 16),
                 strides=[As_0, As_1],
-                offset_factor=1,
+                elem_offset=T.int32(),
             )
             T.evaluate(
                 intrin_test(
                     sub_A.data,
-                    get_elem_offset_from_layout(sub_A.layout),
-                    get_strides_from_layout(sub_A.layout)[0],
-                    get_strides_from_layout(sub_A.layout)[1],
+                    match_shape_stride_pattern(sub_A.ty)[2],
+                    match_shape_stride_pattern(sub_A.ty)[1][0],
+                    match_shape_stride_pattern(sub_A.ty)[1][1],
                     sub_A.shape[0],
                     sub_A.shape[1],
                 )
@@ -303,12 +303,12 @@ def recursive_match(
                 A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16],
                 (16, 16),
                 strides=[As_0, As_1],
-                offset_factor=1,
+                elem_offset=T.int32(),
             )
             sub_B = Ts.match_tensor(
                 B[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16],
                 (16, 16),
-                offset_factor=1,
+                elem_offset=T.int32(),
             )
             for jj, kk in T.grid(4, 4):
                 with Ts.sblock():
@@ -323,19 +323,19 @@ def recursive_match(
                         sub_A[jj * 4 : jj * 4 + 4, kk * 4 : kk * 4 + 4],
                         (4, 4),
                         strides=[Ass_0, Ass_1],
-                        offset_factor=1,
+                        elem_offset=T.int32(),
                     )
                     sub_sub_B = Ts.match_tensor(
                         sub_B[jj * 4 : jj * 4 + 4, kk * 4 : kk * 4 + 4],
                         (4, 4),
-                        offset_factor=1,
+                        elem_offset=T.int32(),
                     )
                     T.evaluate(
                         intrin_test(
                             sub_sub_A.data,
-                            get_elem_offset_from_layout(sub_sub_A.layout),
-                            get_strides_from_layout(sub_sub_A.layout)[0],
-                            get_strides_from_layout(sub_sub_A.layout)[1],
+                            match_shape_stride_pattern(sub_sub_A.ty)[2],
+                            match_shape_stride_pattern(sub_sub_A.ty)[1][0],
+                            match_shape_stride_pattern(sub_sub_A.ty)[1][1],
                             sub_sub_A.shape[0],
                             sub_sub_A.shape[1],
                         )
@@ -403,9 +403,12 @@ def symbolic_match(
         with Ts.sblock():
             Ts.reads([])
             Ts.writes([A[i * m : i * m + n, 0:m], B[i * n : i * n + 2, 0 : m * 4]])
-            sub_A = Ts.match_tensor(A[i * m : i * m + m, 0:m], (m, m), offset_factor=1)
+            sub_A = Ts.match_tensor(A[i * m : i * m + m, 0:m], (m, m), elem_offset=T.int32())
             sub_B = Ts.match_tensor(
-                B[i * n : i * n + 2, 0 : m * 4], (2, m * 4), strides=[Bs_0, Bs_1], offset_factor=1
+                B[i * n : i * n + 2, 0 : m * 4],
+                (2, m * 4),
+                strides=[Bs_0, Bs_1],
+                elem_offset=T.int32(),
             )
             for ii, jj in T.grid(m, m):
                 sub_A[ii, jj] = 1
@@ -413,9 +416,9 @@ def symbolic_match(
                 T.evaluate(
                     intrin_test(
                         sub_B.data,
-                        get_elem_offset_from_layout(sub_B.layout),
-                        get_strides_from_layout(sub_B.layout)[0],
-                        get_strides_from_layout(sub_B.layout)[1],
+                        match_shape_stride_pattern(sub_B.ty)[2],
+                        match_shape_stride_pattern(sub_B.ty)[1][0],
+                        match_shape_stride_pattern(sub_B.ty)[1][1],
                         sub_B.shape[0],
                         sub_B.shape[1],
                     )
@@ -454,13 +457,13 @@ def rank0_tensor(A: T.Tensor((8, 8), "float32"), B: T.Tensor((8, 8), "float32"))
         with Ts.sblock():
             Ts.reads([])
             Ts.writes([A[i, j], B[i, j]])
-            sub_A = Ts.match_tensor(A[i, j], (), offset_factor=1)
-            sub_B = Ts.match_tensor(B[i, j], (), offset_factor=1)
+            sub_A = Ts.match_tensor(A[i, j], (), elem_offset=T.int32())
+            sub_B = Ts.match_tensor(B[i, j], (), elem_offset=T.int32())
             sub_A[()] = 1
             T.evaluate(
                 intrin_test(
                     sub_B.data,
-                    get_elem_offset_from_layout(sub_B.layout),
+                    match_shape_stride_pattern(sub_B.ty)[2],
                     0,
                     0,
                     0,
@@ -519,7 +522,7 @@ def fail_tensor_bind(A: T.Tensor((8, 8), "float32")) -> None:
     for i, j in T.grid(8, 2):
         with Ts.sblock():
             sub_A = Ts.match_tensor(
-                A[i, j * 4 : j * 4 + 4], (1, 4), strides=[stride, stride], offset_factor=1
+                A[i, j * 4 : j * 4 + 4], (1, 4), strides=[stride, stride], elem_offset=T.int32()
             )
             for jj in range(0, 4):
                 sub_A[i, j * 4 + jj] = 1
@@ -531,7 +534,7 @@ def fail_match_func_param(A: T.Tensor((8, 8), "float32"), m: T.int32, n: T.int32
     for i, j in T.grid(8, 2):
         with Ts.sblock():
             sub_A = Ts.match_tensor(
-                A[i, j * 4 : j * 4 + 4], (1, 4), strides=[m, n], offset_factor=1
+                A[i, j * 4 : j * 4 + 4], (1, 4), strides=[m, n], elem_offset=T.int32()
             )
             for jj in range(0, 4):
                 sub_A[i, j * 4 + jj] = 1
@@ -588,7 +591,7 @@ def scalar_match_tensor_type_coercion(A: T.Tensor((8, 8), "float32")) -> None:
             Ts.reads()
             Ts.writes(A[vi, vj])
             # Create scalar match tensor from single element - this triggers type coercion
-            scalar_buf = Ts.match_tensor(A[vi, vj], (), offset_factor=1)
+            scalar_buf = Ts.match_tensor(A[vi, vj], (), elem_offset=T.int32())
             scalar_buf[()] = T.float32(1.0)
 
 
@@ -612,7 +615,7 @@ def test_scalar_match_tensor_type_coercion():
 def masked_match_tensor(A: T.Tensor((8,), "float32")) -> None:
     with Ts.sblock():
         Ts.reads(A[2:6])
-        sub_A = Ts.match_tensor(A[2:6], (4,), offset_factor=1)
+        sub_A = Ts.match_tensor(A[2:6], (4,), elem_offset=T.int32())
         mask = T.meta_var(T.Broadcast(T.bool(True), 4))
         T.evaluate(T.masked_load(sub_A, T.Ramp(0, 1, 4), mask, ty="float32x4"))
 

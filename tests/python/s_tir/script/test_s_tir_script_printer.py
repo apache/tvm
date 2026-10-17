@@ -726,9 +726,9 @@ def opt_gemm_lower():
     class Module:
         @Ts.function
         def mmult(
-            A_1: T.Tensor([16384], "float32", elem_offset=0, align=64, offset_factor=1),
-            B_1: T.Tensor([1024, 1024], "float32", elem_offset=0, align=64, offset_factor=1),
-            C_1: T.Tensor([16384], "float32", elem_offset=0, align=64, offset_factor=1),
+            A_1: T.Tensor([16384], "float32", elem_offset=0, align=64),
+            B_1: T.Tensor([1024, 1024], "float32", elem_offset=0, align=64),
+            C_1: T.Tensor([16384], "float32", elem_offset=0, align=64),
         ) -> None:
             # function attr dict
             T.func_attr({"tirx.noalias": True})
@@ -1291,8 +1291,8 @@ def test_same_name_var():
 def function_with_allocate_annotations():
     @Ts.function
     def function_with_allocate_annotations(
-        placeholder_29: T.Tensor([802816], dtype="uint8", elem_offset=0, align=64, offset_factor=1),
-        T_cast_7: T.Tensor([200704], dtype="int16", elem_offset=0, align=64, offset_factor=1),
+        placeholder_29: T.Tensor([802816], dtype="uint8", elem_offset=0, align=64),
+        T_cast_7: T.Tensor([200704], dtype="int16", elem_offset=0, align=64),
     ) -> None:
         # function attr dict
         T.func_attr(

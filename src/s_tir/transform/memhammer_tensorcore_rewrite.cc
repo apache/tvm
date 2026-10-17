@@ -153,13 +153,13 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
       /*name=*/"src", TensorType(/*shape=*/{IntImm::Int32(16), IntImm::Int32(16)}, /*dtype=*/dtype,
                                  /*storage_scope=*/src_tensor.scope(),
                                  /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
-                                 /*elem_offset=*/PrimVar("src_elem_offset", int32_ty),
-                                 /*data_alignment=*/64, /*offset_factor=*/16));
+                                 16 * (/*elem_offset=*/PrimVar("src_elem_offset", int32_ty)),
+                                 /*data_alignment=*/64));
   TensorVar new_tgt_tensor(
       /*name=*/"tgt", TensorType(/*shape=*/{IntImm::Int32(16), IntImm::Int32(16)}, /*dtype=*/dtype,
                                  /*storage_scope=*/tgt_tensor.scope(), /*strides=*/{},
-                                 /*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty),
-                                 /*data_alignment=*/64, /*offset_factor=*/16));
+                                 16 * (/*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty)),
+                                 /*data_alignment=*/64));
   ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor.shape(), var_dom);
   ffi::Array<Range> write_region = RelaxIndices(tensor_store->indices, tgt_tensor.shape(), var_dom);
   static const Op gpu_load_matrix_sync_op = Op::Get("tirx.gpu_load_matrix_sync");
@@ -181,16 +181,24 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                   /*2:*/ PrimExpr(16),
                   /*3:*/ PrimExpr(16),
                   /*4:*/
-                  floordiv(s_tir::GetElemOffsetFromLayout(new_tgt_tensor.ty()->layout), 256) +
-                      floordiv(floormod(s_tir::GetElemOffsetFromLayout(new_tgt_tensor.ty()->layout),
+                  floordiv(tvm::tirx::MatchShapeStridePattern(new_tgt_tensor.ty()).value().get<2>(),
+                           256) +
+                      floordiv(floormod(tvm::tirx::MatchShapeStridePattern(new_tgt_tensor.ty())
+                                            .value()
+                                            .get<2>(),
                                         256),
                                16),
                   /*5:*/
                   Call(new_src_tensor.data()->ty, tirx::address_of_op(),
                        {TensorLoad(new_src_tensor, {PrimExpr(0), PrimExpr(0)})}),
                   /*6:*/
-                  s_tir::GetStridesFromLayout(new_src_tensor.ty()->layout)
-                      [s_tir::GetStridesFromLayout(new_src_tensor.ty()->layout).size() - 2],
+                  tvm::tirx::MatchShapeStridePattern(new_src_tensor.ty())
+                      .value()
+                      .get<1>()[tvm::tirx::MatchShapeStridePattern(new_src_tensor.ty())
+                                    .value()
+                                    .get<1>()
+                                    .size() -
+                                2],
                   /*7:*/ StringImm(layout),
               })),
           /*init=*/std::nullopt,
@@ -257,11 +265,11 @@ Stmt RewriteWmmaStore(Stmt stmt) {
 
   TensorVar new_src_tensor(
       "src", TensorType({IntImm::Int32(16), IntImm::Int32(16)}, dtype, src_tensor.scope(), {},
-                        PrimVar("src_elem_offset", int32_ty), 64, 16));
+                        16 * (PrimVar("src_elem_offset", int32_ty)), 64));
   TensorVar new_tgt_tensor(
       "tgt", TensorType({IntImm::Int32(16), IntImm::Int32(16)}, dtype, tgt_tensor.scope(),
                         {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
-                        PrimVar("tgt_elem_offset", int32_ty), 64, 16));
+                        16 * (PrimVar("tgt_elem_offset", int32_ty)), 64));
 
   ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor.shape(), var_dom);
   ffi::Array<Range> write_region = RelaxIndices(tensor_store->indices, tgt_tensor.shape(), var_dom);
@@ -283,14 +291,18 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                   /*2:*/ PrimExpr(16),
                   /*3:*/ PrimExpr(16),
                   /*4:*/
-                  floordiv(s_tir::GetElemOffsetFromLayout(new_src_tensor.ty()->layout), 256) +
-                      floordiv(floormod(s_tir::GetElemOffsetFromLayout(new_src_tensor.ty()->layout),
+                  floordiv(tvm::tirx::MatchShapeStridePattern(new_src_tensor.ty()).value().get<2>(),
+                           256) +
+                      floordiv(floormod(tvm::tirx::MatchShapeStridePattern(new_src_tensor.ty())
+                                            .value()
+                                            .get<2>(),
                                         256),
                                16),
                   /*5:*/
                   Call(new_tgt_tensor.data()->ty, tirx::address_of_op(),
                        {TensorLoad(new_tgt_tensor, {PrimExpr(0), PrimExpr(0)})}),
-                  /*6:*/ s_tir::GetStridesFromLayout(new_tgt_tensor.ty()->layout)[0],
+                  /*6:*/
+                  tvm::tirx::MatchShapeStridePattern(new_tgt_tensor.ty()).value().get<1>()[0],
                   /*7:*/ StringImm("row_major")})),
           /*init=*/std::nullopt,
           /*alloc_tensors=*/{},
@@ -483,11 +495,11 @@ Stmt RewriteMmaStore(Stmt stmt) {
   const PrimType& dtype = dtype_ty;
   TensorVar new_src_tensor(
       "src", TensorType({IntImm::Int32(8), IntImm::Int32(8)}, dtype, src_tensor.scope(), {},
-                        PrimVar("src_elem_offset", int32_ty), 64, 8));
+                        8 * (PrimVar("src_elem_offset", int32_ty)), 64));
   TensorVar new_tgt_tensor(
       "tgt", TensorType({IntImm::Int32(8), IntImm::Int32(8)}, dtype, tgt_tensor.scope(),
                         {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
-                        PrimVar("tgt_elem_offset", int32_ty), 64, 8));
+                        8 * (PrimVar("tgt_elem_offset", int32_ty)), 64));
 
   // Step 3.2. Generate new r/w region
   ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor.shape(), var_dom);

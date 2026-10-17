@@ -261,10 +261,10 @@ def test_tir_op_ptx_mma():
 def test_tir_op_mma_store():
     x = tirx.Var("x", ty="int32")
     y = tirx.Var("y", ty="int32")
-    tensor_w = tirx.Var("tensor", tirx.TensorType([16, 8], "int32", scope="warp", offset_factor=1))
+    tensor_w = tirx.Var("tensor", tirx.TensorType([16, 8], "int32", scope="warp"))
     tensor = tirx.Var(
         "tensor",
-        tirx.TensorType([16, 16], "int32", scope="global", offset_factor=1, strides=[x, y]),
+        tirx.TensorType([16, 16], "int32", scope="global", strides=[x, y]),
     )
     expr = _cuda_op.mma_store(
         16,
@@ -279,7 +279,7 @@ def test_tir_op_mma_store():
 
 
 def test_tir_op_mma_fill():
-    tensor_w = tirx.Var("tensor", tirx.TensorType([16, 8], "int32", scope="warp", offset_factor=1))
+    tensor_w = tirx.Var("tensor", tirx.TensorType([16, 8], "int32", scope="warp"))
     expr = _cuda_op.mma_fill(8, tensor_w.data, 0, ty="int32")
     assert expr.op.name == "tirx.cuda.mma_fill"
 
@@ -304,14 +304,14 @@ def test_op_ptx_cp_async():
 
 
 def test_tir_op_vector_low():
-    tensor = tirx.Var("tensor", tirx.TensorType((4, 4), "int8", offset_factor=1))
+    tensor = tirx.Var("tensor", tirx.TensorType((4, 4), "int8"))
     vec = tensor[0, tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 16)]
     expr = tirx.vector_low(vec, ty="int8x8")
     assert expr.op.name == "tirx.vector_low"
 
 
 def test_tir_op_vector_high():
-    tensor = tirx.Var("tensor", tirx.TensorType((4, 4), "int8", offset_factor=1))
+    tensor = tirx.Var("tensor", tirx.TensorType((4, 4), "int8"))
     vec = tensor[0, tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 16)]
     expr = tirx.vector_high(vec, ty="int8x8")
     assert expr.op.name == "tirx.vector_high"
@@ -326,7 +326,7 @@ def test_tir_op_dp4a():
 
 
 def test_tir_op_vector_combine():
-    tensor = tirx.Var("tensor", tirx.TensorType((4, 4), "int8", offset_factor=1))
+    tensor = tirx.Var("tensor", tirx.TensorType((4, 4), "int8"))
     vec = tensor[0, tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 16)]
     expr = tirx.vector_combine(vec, vec, ty="int8x8")
     assert expr.op.name == "tirx.vector_combine"

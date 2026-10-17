@@ -52,7 +52,8 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
   using StmtExprMutatorWithAnalyzer::Mutate;
   using StmtExprMutatorWithAnalyzer::Mutate_;
   static std::pair<Stmt, ffi::Array<Var>> Flatten(const Stmt& stmt, const ffi::Array<Var>& params,
-                                                  const Target& target) {
+                                                  const Target& target,
+                                                  bool preserve_signature_layout) {
     sym::Analyzer ana;
     auto storage_lower = ffi::make_object<LayoutApplier>(ana, target);
     ffi::Array<Var> new_params;
@@ -67,6 +68,20 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
       storage_lower->tensor_aliases_.Set(tensor.value(), tensor.value());
       TensorVar flattened = storage_lower->GetFlattenedTensor(tensor.value());
       TensorVar source = tensor.value();
+      if (auto pattern = MatchShapeStridePattern(source.ty()); pattern.has_value()) {
+        bool is_default = ana->CanProveEqual(pattern.value().get<2>(), 0);
+        PrimExpr stride = 1;
+        auto strides = pattern.value().get<1>();
+        for (size_t i = source.shape().size(); i > 0; --i) {
+          is_default &= ana->CanProveEqual(strides[i - 1], stride);
+          stride *= source.shape()[i - 1];
+        }
+        if (is_default && !preserve_signature_layout && source.ty()->layout.has_value()) {
+          auto type = ffi::make_object<TensorTypeNode>(*source.ty().get());
+          type->layout = std::nullopt;
+          source = TensorVar(source->name, TensorType(std::move(type)), source->loc);
+        }
+      }
       if (!flattened.same_as(source)) {
         param_flattened_tensors.emplace_back(flattened, source);
       }
@@ -206,11 +221,6 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
         }
         flattened = buf;
         type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
-        if (!prim::IsZero(tile_layout->memory_origin)) mem_span += tile_layout->memory_origin;
-        if (tile_layout->IsRegularMemory(buf.shape()) && !tile_layout->shard.empty() &&
-            !(tile_layout->compact && tile_layout->IsContiguousMemory())) {
-          mem_span = max(mem_span, tile_layout->shard[0]->stride * buf.shape()[0]);
-        }
         type->shape = {ana->Simplify(mem_span)};
         type->layout = std::nullopt;
       } else if (auto compose = buf.ty()->layout.as<ComposeLayoutNode>()) {
@@ -230,7 +240,6 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
           mem_span = floordiv(mem_span + block - 1, block) * block;
         }
         type = ffi::make_object<TensorTypeNode>(*buf.ty().get());
-        if (!prim::IsZero(compose->memory_origin)) mem_span += compose->memory_origin;
         type->shape = {analyzer_->Simplify(mem_span)};
         type->layout = std::nullopt;
       } else {
@@ -250,8 +259,22 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
                      .ValueOrUnchanged(type->shape[i])
                      .as_or_throw<PrimExpr>()));
     }
-    // All layout geometry, including its origin, is already in the access indices.
     type->layout = std::nullopt;
+    // Keep a regular view's origin in its flat memory layout. Allocations have
+    // already included that origin in their span and use absolute indices.
+    if (!is_alloc) {
+      if (auto pattern = MatchShapeStridePattern(buf.ty()); pattern.has_value()) {
+        PrimExpr origin = pattern.value().get<2>();
+        origin = analyzer_->canonical_simplify(
+            StmtExprMutator::Mutate(ffi::AnyView(origin), InplaceMode::kDisallow)
+                .ValueOrUnchanged(origin)
+                .as_or_throw<PrimExpr>());
+        if (!prim::IsZero(origin)) {
+          type->layout =
+              TileLayout({Iter(type->shape[0], 1, Axis::Get("m"))}, {}, {{Axis::Get("m"), origin}});
+        }
+      }
+    }
     if (ffi::StructuralEqual()(buf.ty(), TensorType(type))) {
       return buf;
     }
@@ -298,10 +321,19 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
       layout = StmtExprMutator::Mutate(ffi::AnyView(layout), InplaceMode::kDisallow)
                    .ValueOrUnchanged(layout)
                    .as_or_throw<Layout>();
+      auto flat = GetFlattenedTensor(tensor);
+      auto pattern = MatchShapeStridePattern(flat.ty()).value();
+      if (!prim::IsZero(pattern.get<2>())) {
+        // The flat view retains this origin, so only lower its relative indices.
+        auto tile = layout.as_or_throw<TileLayout>();
+        layout = TileLayout(tile->shard, tile->replica, {});
+      }
       auto res = layout->Canonicalize()->Apply(indices, tensor.shape());
+      if (res.empty() && tensor.shape().empty()) {
+        return {IntImm(tensor.ty()->DefaultIndexType(), 0)};
+      }
       TVM_FFI_ICHECK_EQ(res.size(), 1) << "Expected a single element offset";
-      PrimExpr offset = (*res.begin()).second;
-      return {analyzer_->Simplify(offset)};
+      return {analyzer_->Simplify((*res.begin()).second)};
     }
     auto flattened_indices = tensor.ty()->ElemOffset(indices);
     TVM_FFI_ICHECK_EQ(flattened_indices.size(), 1) << "Expected a single element offset";
@@ -368,7 +400,8 @@ Pass LowerTensorLayouts() {
     if (!f->body.has_value()) return f;
     Target target = ResolveTarget(f);
     auto* n = f.CopyOnWrite();
-    auto [body, params] = LayoutApplier::Flatten(n->body.value(), n->params, target);
+    auto [body, params] = LayoutApplier::Flatten(n->body.value(), n->params, target,
+                                                 f->GetAttr(tvm::attr::kGlobalSymbol).has_value());
     n->body = std::move(body);
     n->params = std::move(params);
     return f;

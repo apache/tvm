@@ -1467,9 +1467,9 @@ def test_scatter_elements():
     class Expected:
         @Ts.function(private=True)
         def scatter_elements(
-            rxplaceholder: T.Tensor((T.int64(4), T.int64(4)), "float32", offset_factor=1, elem_offset=T.int64()),
-            rxplaceholder_1: T.Tensor((T.int64(2), T.int64(2)), 'int64', offset_factor=1, elem_offset=T.int64()),
-            rxplaceholder_2: T.Tensor((T.int64(2), T.int64(2)), "float32", offset_factor=1, elem_offset=T.int64()),
+            rxplaceholder: T.Tensor((T.int64(4), T.int64(4)), "float32",  elem_offset=T.int64()),
+            rxplaceholder_1: T.Tensor((T.int64(2), T.int64(2)), 'int64',  elem_offset=T.int64()),
+            rxplaceholder_2: T.Tensor((T.int64(2), T.int64(2)), "float32",  elem_offset=T.int64()),
             out_buf: T.Tensor((T.int64(4), T.int64(4)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
@@ -1569,9 +1569,9 @@ def test_scatter_elements_symbolic():
     class Expected:
         @Ts.function(private=True)
         def scatter_elements(
-            rxplaceholder: T.Tensor((a_scatter_elements, b_scatter_elements), "float32", offset_factor=1, elem_offset=T.int64()),
-            rxplaceholder_1: T.Tensor((m_scatter_elements, n_scatter_elements), 'int64', offset_factor=1, elem_offset=T.int64()),
-            rxplaceholder_2: T.Tensor((m_scatter_elements, n_scatter_elements), "float32", offset_factor=1, elem_offset=T.int64()),
+            rxplaceholder: T.Tensor((a_scatter_elements, b_scatter_elements), "float32",  elem_offset=T.int64()),
+            rxplaceholder_1: T.Tensor((m_scatter_elements, n_scatter_elements), 'int64',  elem_offset=T.int64()),
+            rxplaceholder_2: T.Tensor((m_scatter_elements, n_scatter_elements), "float32",  elem_offset=T.int64()),
             out_buf: T.Tensor((a_scatter_elements, b_scatter_elements), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
@@ -1882,7 +1882,7 @@ def test_scatter_nd():
             return gv
 
         @Ts.function(private=True)
-        def scatter_nd(data: T.Tensor((T.int64(8),), "float32", offset_factor=1, elem_offset=T.int64()), indices: T.Tensor((T.int64(4), T.int64(1)), 'int64'), updates: T.Tensor((T.int64(4),), "float32", offset_factor=1, elem_offset=T.int64()), out_buf: T.Tensor((T.int64(8),), "float32")):
+        def scatter_nd(data: T.Tensor((T.int64(8),), "float32",  elem_offset=T.int64()), indices: T.Tensor((T.int64(4), T.int64(1)), 'int64'), updates: T.Tensor((T.int64(4),), "float32",  elem_offset=T.int64()), out_buf: T.Tensor((T.int64(8),), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):

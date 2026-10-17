@@ -28,43 +28,14 @@
 
 namespace tvm::s_tir {
 
-inline ffi::Array<PrimExpr> GetStridesFromLayout(const ffi::Optional<tirx::Layout>& layout) {
-  if (!layout.has_value()) return {};
-  const auto* tile = layout.as<tirx::TileLayoutNode>();
-  TVM_FFI_CHECK(tile && tile->IsRegularMemory(
-                            tile->shard.Map([](const tirx::Iter& iter) { return iter->extent; })),
-                ValueError)
-      << "S-TIR requires regular memory layouts";
-  if (tile->compact && tile->IsContiguousMemory()) return {};
-  return tile->shard.Map([](const tirx::Iter& iter) { return iter->stride; });
-}
-
-inline PrimExpr GetElemOffsetFromLayout(const ffi::Optional<tirx::Layout>& layout) {
-  if (!layout.has_value()) return IntImm(tirx::DefaultIndexType(), 0);
-  const auto* tile = layout.as<tirx::TileLayoutNode>();
-  TVM_FFI_CHECK(tile && tile->IsRegularMemory(
-                            tile->shard.Map([](const tirx::Iter& iter) { return iter->extent; })),
-                ValueError)
-      << "S-TIR requires regular memory layouts";
-  PrimExpr origin = tile->memory_origin;
-  for (const auto& [axis, offset] : tile->offset) {
-    origin = prim::IsZero(origin) ? offset : origin + offset;
-  }
-  return origin;
-}
-
 inline ffi::Optional<tirx::Layout> WithStrides(const ffi::Optional<tirx::Layout>& layout,
                                                const ffi::Array<PrimExpr>& shape,
                                                ffi::Array<PrimExpr> strides) {
   if (!layout.has_value() && strides.empty()) return std::nullopt;
   auto tile = layout.has_value() ? layout.value().as_or_throw<tirx::TileLayout>()
                                  : tirx::TileLayout({}, {}, {});
-  TVM_FFI_CHECK(
-      tile->IsRegularMemory(tile->shard.Map([](const tirx::Iter& iter) { return iter->extent; })),
-      ValueError)
-      << "S-TIR requires regular memory layouts";
-  bool compact = strides.empty();
-  if (compact) {
+
+  if (strides.empty()) {
     PrimExpr stride = IntImm(tirx::DefaultIndexType(), 1);
     strides = ffi::Array<PrimExpr>(shape.size(), stride);
     for (size_t i = shape.size(); i > 0; --i) {
@@ -77,8 +48,7 @@ inline ffi::Optional<tirx::Layout> WithStrides(const ffi::Optional<tirx::Layout>
   for (size_t i = 0; i < shape.size(); ++i) {
     shard.push_back(tirx::Iter(shape[i], strides[i], tirx::Axis::Get("m")));
   }
-  return tirx::TileLayout(std::move(shard), tile->replica, tile->offset, tile->memory_origin,
-                          compact);
+  return tirx::TileLayout(std::move(shard), tile->replica, tile->offset);
 }
 
 }  // namespace tvm::s_tir

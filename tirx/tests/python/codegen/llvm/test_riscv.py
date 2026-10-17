@@ -109,7 +109,7 @@ def test_rvv_vscale_llvm_dbginfo(target):
 
     # fmt: off
     @T.function
-    def rvv_with_vscale(A: T.Tensor((8,), dtype='float32', align=4, offset_factor=1, elem_offset=T.int32()), B: T.Tensor((4, 8), dtype='float32', align=4, offset_factor=1, elem_offset=T.int32(), strides=[8, 1]), C: T.Tensor((4,), dtype='float32', align=4, offset_factor=1, elem_offset=T.int32())):
+    def rvv_with_vscale(A: T.Tensor((8,), dtype='float32', align=4,  elem_offset=T.int32()), B: T.Tensor((4, 8), dtype='float32', align=4,  elem_offset=T.int32(), strides=[8, 1]), C: T.Tensor((4,), dtype='float32', align=4,  elem_offset=T.int32())):
 
         zero = T.call_llvm_intrin( 'llvm.riscv.vfmv.v.f', T.Broadcast(T.float32(0.0), T.vscale() * 2), C[0], T.uint64(1), ty='float32xvscalex2')
         vec_A = T.call_llvm_intrin( 'llvm.riscv.vle', T.Broadcast(T.float32(0.0), T.vscale() * 4), A.ptr_to([0] * len(A.shape)), T.int64(8), ty='float32xvscalex4')

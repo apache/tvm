@@ -133,8 +133,8 @@ class IterNode : public ffi::Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IterNode>()
-        .def_ro("extent", &IterNode::extent, refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("stride", &IterNode::stride, refl::AttachFieldFlag::SEqHashDefSimple())
+        .def_ro("extent", &IterNode::extent)
+        .def_ro("stride", &IterNode::stride)
         .def_ro("axis", &IterNode::axis);
   }
 
@@ -153,27 +153,14 @@ class TileLayoutNode : public LayoutNode {
   ffi::Array<Iter> shard;
   ffi::Array<Iter> replica;
   ffi::Map<Axis, PrimExpr> offset;
-  /*! \brief Use compact ABI matching, ignoring strides of unit dimensions. */
-  bool compact = false;
-  /*! \brief Memory origin independent of the per-axis mapping offsets. */
-  PrimExpr memory_origin = IntImm(PrimType::Int(64), 0);
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TileLayoutNode>()
         .def_ro("shard", &TileLayoutNode::shard)
         .def_ro("replica", &TileLayoutNode::replica)
-        .def_ro("offset", &TileLayoutNode::offset, refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("compact", &TileLayoutNode::compact, refl::DefaultValue(false))
-        .def_ro("memory_origin", &TileLayoutNode::memory_origin,
-                refl::AttachFieldFlag::SEqHashDefSimple(),
-                refl::DefaultValue(IntImm(PrimType::Int(64), 0)));
+        .def_ro("offset", &TileLayoutNode::offset);
   }
-
-  /*! \brief Whether this is an affine memory map aligned with the logical shape. */
-  TVM_TIRX_DLL bool IsRegularMemory(const ffi::Array<PrimExpr>& shape) const;
-  /*! \brief Whether shard coordinates form contiguous row-major memory, ignoring unit axes. */
-  TVM_TIRX_DLL bool IsContiguousMemory() const;
 
   /*! \brief Verify if the layout is well-formed */
   bool VerifyWellFormed() const final;
@@ -222,9 +209,7 @@ class TileLayoutNode : public LayoutNode {
 class TileLayout : public Layout {
  public:
   TVM_TIRX_DLL explicit TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
-                                   ffi::Map<Axis, PrimExpr> offset,
-                                   ffi::Optional<PrimExpr> memory_origin = std::nullopt,
-                                   bool compact = false);
+                                   ffi::Map<Axis, PrimExpr> offset);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TileLayout, Layout, TileLayoutNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TileLayoutNode);
@@ -233,18 +218,14 @@ class TileLayout : public Layout {
 // ComposeLayout
 class ComposeLayoutNode : public LayoutNode {
  public:
-  explicit ComposeLayoutNode(TileLayout tile_layout)
-      : tile_layout(std::move(tile_layout)), memory_origin(IntImm(PrimType::Int(64), 0)) {}
-  explicit ComposeLayoutNode(ffi::UnsafeInit)
-      : tile_layout(ffi::UnsafeInit{}), memory_origin(ffi::UnsafeInit{}) {}
+  explicit ComposeLayoutNode(TileLayout tile_layout) : tile_layout(std::move(tile_layout)) {}
+  explicit ComposeLayoutNode(ffi::UnsafeInit) : tile_layout(ffi::UnsafeInit{}) {}
 
   int per_element;
   int swizzle_len;
   int atom_len;
   bool swizzle_inner;
   TileLayout tile_layout;
-  /*! \brief Memory translation applied after the swizzle. */
-  PrimExpr memory_origin;
   // Cached swizzle masks: inner_mask = (1 << swizzle_len) - 1;
   // outer_mask = inner_mask << atom_len. Set by the ComposeLayout ctor.
   int inner_mask;
@@ -259,10 +240,7 @@ class ComposeLayoutNode : public LayoutNode {
         .def_ro("swizzle_inner", &ComposeLayoutNode::swizzle_inner)
         .def_ro("inner_mask", &ComposeLayoutNode::inner_mask)
         .def_ro("outer_mask", &ComposeLayoutNode::outer_mask)
-        .def_ro("tile_layout", &ComposeLayoutNode::tile_layout)
-        .def_ro("memory_origin", &ComposeLayoutNode::memory_origin,
-                refl::AttachFieldFlag::SEqHashDefSimple(),
-                refl::DefaultValue(IntImm(PrimType::Int(64), 0)));
+        .def_ro("tile_layout", &ComposeLayoutNode::tile_layout);
   }
 
   /*! \brief Verify if the layout is well-formed */
@@ -293,8 +271,7 @@ class ComposeLayoutNode : public LayoutNode {
 class ComposeLayout : public Layout {
  public:
   TVM_TIRX_DLL explicit ComposeLayout(int per_element, int swizzle_len, int atom_len,
-                                      TileLayout tile_layout, bool swizzle_inner = true,
-                                      ffi::Optional<PrimExpr> memory_origin = std::nullopt);
+                                      TileLayout tile_layout, bool swizzle_inner = true);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ComposeLayout, Layout, ComposeLayoutNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComposeLayoutNode);

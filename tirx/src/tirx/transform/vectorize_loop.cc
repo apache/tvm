@@ -442,7 +442,9 @@ class VecAllocAccess : public StmtExprMutator {
   void WidenLayout(TensorTypeNode* type, const ffi::Array<PrimExpr>& shape) {
     if (!type->layout.has_value()) return;
     auto tile = type->layout.value().as_or_throw<TileLayout>();
-    TVM_FFI_CHECK(tile->IsRegularMemory(type->shape), ValueError)
+    TVM_FFI_CHECK(
+        MatchShapeStridePattern(TensorType(ffi::make_object<TensorTypeNode>(*type))).has_value(),
+        ValueError)
         << "Vectorized allocation requires a regular memory layout";
     ffi::Array<Iter> shard;
     for (size_t i = 0; i < tile->shard.size(); ++i) {

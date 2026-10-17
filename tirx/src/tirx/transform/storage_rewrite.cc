@@ -840,8 +840,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   static bool HasCompatibleAlignment(const StorageEntry* entry, const CallNode* call) {
     auto first = entry->allocs[0]->value.as<CallNode>()->ty_args[0].as_or_throw<TensorType>();
     auto type = call->ty_args[0].as_or_throw<TensorType>();
-    return first->data_alignment == type->data_alignment &&
-           first->offset_factor == type->offset_factor;
+    return first->data_alignment == type->data_alignment;
   }
 
   // The owning lowering handles single-allocation layouts that cannot be packed
@@ -878,7 +877,6 @@ class StoragePlanRewriter : public StmtExprMutator {
         auto type = allocation->value.as<CallNode>()->ty_args[0].as_or_throw<TensorType>();
         uint64_t element_bits = type->dtype.bits() * type->dtype.lanes();
         if (!include_alignment(element_bits) ||
-            !include_alignment(element_bits * std::max(type->offset_factor, 1)) ||
             !include_alignment(static_cast<uint64_t>(std::max(type->data_alignment, 1)) * 8)) {
           return std::nullopt;
         }
@@ -1067,8 +1065,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           TensorVar buf(
               e->alloc_var->name,
               TensorType({combo_size}, alloc_type, e->scope, {}, std::nullopt,
-                         first_call->ty_args[0].as_or_throw<TensorType>()->data_alignment,
-                         first_call->ty_args[0].as_or_throw<TensorType>()->offset_factor));
+                         first_call->ty_args[0].as_or_throw<TensorType>()->data_alignment));
           e->alloc_var = buf;
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
@@ -1112,7 +1109,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
     PrimExpr alloc_size = MakeConst(shape_type, alloc_elements);
     TensorVar buf(e->alloc_var->name, TensorType({alloc_size}, e->elem_type, e->scope, {},
-                                                 std::nullopt, static_cast<int>(align / 8), 0));
+                                                 std::nullopt, static_cast<int>(align / 8)));
     e->alloc_var = buf;
     for (StorageEntry* child : e->merged_children) {
       child->alloc_var = e->alloc_var;

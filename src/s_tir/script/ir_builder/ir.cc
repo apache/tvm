@@ -46,25 +46,12 @@ FunctionFrame Function(bool is_private, bool persistent, bool is_declaration) {
 TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType dtype,
                       ffi::Optional<Expr> data, ffi::Array<PrimExpr> strides,
                       ffi::Optional<PrimExpr> elem_offset, runtime::MemoryScope storage_scope,
-                      int align, int offset_factor, ffi::Optional<Layout> layout,
+                      int align, ffi::Optional<Layout> layout,
                       ffi::Array<PrimExpr> allocated_addr) {
   if (data.has_value()) {
     storage_scope = data.value()->ty.as_or_throw<PtrType>()->scope;
   }
-  // Matching/allocation builders retain their binding contract; TensorType itself
-  // has a fixed zero offset and never invents a symbolic variable.
-  if (!elem_offset.has_value() && offset_factor && !layout.has_value()) {
-    PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
-    elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
-  }
-  TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset,
-                                             align, offset_factor, layout));
-  TVM_FFI_CHECK(
-      (!tensor.ty()->layout.has_value() ||
-       (tensor.ty()->layout.as<tvm::tirx::TileLayoutNode>() &&
-        tensor.ty()->layout.as<tvm::tirx::TileLayoutNode>()->IsRegularMemory(tensor.shape()))),
-      ValueError)
-      << "S-TIR tensors require a regular memory layout without swizzles or thread axes";
+
   tvm::TensorRegion region{ffi::UnsafeInit{}};
   if (auto load = param.as<TensorLoad>()) {
     region = TensorRegion::FromTensorLoad(load.value());
@@ -73,6 +60,29 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
   } else {
     TVM_FFI_THROW(ValueError) << "Unexpected type for MatchTensor";
   }
+  if (strides.empty() && !layout.has_value()) {
+    const auto& source = region->source.as_or_throw<TensorVar>();
+    auto source_strides = tvm::tirx::MatchShapeStridePattern(source.ty()).value().get<1>();
+    TVM_FFI_CHECK(shape.size() <= source_strides.size(), ValueError)
+        << "Match tensor rank exceeds its source rank";
+    sym::Analyzer analyzer;
+    bool contiguous = true;
+    PrimExpr stride = 1;
+    for (size_t i = shape.size(); i > 0; --i) {
+      contiguous &= analyzer->CanProveEqual(
+          source_strides[source_strides.size() - shape.size() + i - 1], stride);
+      stride *= shape[i - 1];
+    }
+    if (!contiguous) {
+      for (size_t i = source_strides.size() - shape.size(); i < source_strides.size(); ++i) {
+        strides.push_back(source_strides[i]);
+      }
+    }
+  }
+  TensorVar tensor(
+      "", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset, align, layout));
+  TVM_FFI_CHECK(tvm::tirx::MatchShapeStridePattern(tensor.ty()).has_value(), ValueError)
+      << "S-TIR tensors require a regular memory layout without swizzles or thread axes";
   FunctionFrameObj::BindTensorRegion(tensor, std::move(region), std::move(allocated_addr));
   return tensor;
 }
@@ -196,7 +206,7 @@ void BlockAttrs(ffi::Map<ffi::String, Any> attrs) {
 
 TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Optional<Expr> data,
                             ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
-                            runtime::MemoryScope storage_scope, int align, int offset_factor,
+                            runtime::MemoryScope storage_scope, int align,
                             ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr) {
   static const auto scope_shared = runtime::MemoryScope::Get("shared");
   static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
@@ -209,19 +219,10 @@ TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
         << "ValueError: For `" << scope
         << "` scope, Ts.alloc_tensor does not accept `allocated_addr`";
   }
-  // Matching/allocation builders retain their binding contract; TensorType itself
-  // has a fixed zero offset and never invents a symbolic variable.
-  if (!elem_offset.has_value() && offset_factor && !layout.has_value()) {
-    PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
-    elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
-  }
-  TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset,
-                                             align, offset_factor, layout));
-  TVM_FFI_CHECK(
-      (!tensor.ty()->layout.has_value() ||
-       (tensor.ty()->layout.as<tvm::tirx::TileLayoutNode>() &&
-        tensor.ty()->layout.as<tvm::tirx::TileLayoutNode>()->IsRegularMemory(tensor.shape()))),
-      ValueError)
+
+  TensorVar tensor(
+      "", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset, align, layout));
+  TVM_FFI_CHECK(tvm::tirx::MatchShapeStridePattern(tensor.ty()).has_value(), ValueError)
       << "S-TIR tensors require a regular memory layout without swizzles or thread axes";
   IRBuilder builder = IRBuilder::Current();
   auto opt_func_frame = builder->FindFrame<tirx::FunctionFrame>();

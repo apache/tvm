@@ -192,22 +192,20 @@ def _pack_tensor(buf, loc: Location = UNKNOWN_LOC):
         loc=loc,
         ty=PtrType(tvm_tirx.ir.PrimType("int64")),
     )
-    from ..layout import TileLayout
-
-    layout = buf.ty.layout
-    origin = 0
-    strides = 0
-    if layout is not None:
-        if not isinstance(layout, TileLayout) or not layout.is_regular_memory(buf.ty.shape):
-            raise ValueError("DLTensor packing requires a regular memory layout")
-        origin = layout.apply(*([0] * len(buf.ty.shape)), shape=buf.ty.shape).get("m", 0)
-        if not (layout.compact and layout.is_contiguous_memory()):
-            strides = Call(
-                "tirx.stack_make_shape",
-                [it.stride for it in layout.shard],
-                loc=loc,
-                ty=PtrType(tvm_tirx.ir.PrimType("int64")),
-            )
+    pattern = _ffi_api.MatchShapeStridePattern(buf.ty)
+    if pattern is None:
+        raise ValueError("DLTensor packing requires a shape-aligned strided memory layout")
+    _, stride_exprs, origin = pattern
+    strides = (
+        Call(
+            "tirx.stack_make_shape",
+            stride_exprs,
+            loc=loc,
+            ty=PtrType(tvm_tirx.ir.PrimType("int64")),
+        )
+        if stride_exprs
+        else 0
+    )
     pack_args = [
         tensor_data_ptr(buf),
         shape,

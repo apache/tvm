@@ -68,8 +68,8 @@ def test_lower_view_get():
     class Expected1:
         @T.function(private=True)
         def main(
-            in_buf: T.Tensor((64,), "float32", layout="default"),
-            out: T.Tensor((64,), "float32", layout="default"),
+            in_buf: T.Tensor((64,), "float32", layout=None),
+            out: T.Tensor((64,), "float32", layout=None),
         ):
             out_1 = T.decl_tensor(
                 out.data, ty_args=[T.Tensor((64,), "float32", layout=None, data=out.data)]
@@ -138,7 +138,7 @@ def test_lower_view_get():
                             (2,),
                             T.float16,
                             scope="local",
-                            layout=T.TileLayout(T.S[2:1]),
+                            layout="default",
                         )
                     ]
                 )
@@ -240,8 +240,8 @@ def test_lower_view_get():
     class Expected2:
         @T.function(private=True)
         def main(
-            in_buf: T.Tensor((16, 16), "float32", layout="default"),
-            out: T.Tensor((16, 16), "float32", layout="default"),
+            in_buf: T.Tensor((16, 16), "float32", layout=None),
+            out: T.Tensor((16, 16), "float32", layout=None),
         ):
             out_1 = T.decl_tensor(
                 out.data, ty_args=[T.Tensor((256,), "float32", layout=None, data=out.data)]
@@ -452,8 +452,8 @@ def test_lower_view_get():
     class Expected3_wgmma_layout:
         @T.function(private=True)
         def main(
-            in_buf: T.Tensor((128, 128), "float32", layout="default"),
-            out: T.Tensor((128, 128), "float32", layout="default"),
+            in_buf: T.Tensor((128, 128), "float32", layout=None),
+            out: T.Tensor((128, 128), "float32", layout=None),
         ):
             out_1 = T.decl_tensor(
                 out.data, ty_args=[T.Tensor((16384,), "float32", layout=None, data=out.data)]
@@ -680,8 +680,8 @@ def test_lower_view_get():
     class Expected4_multi_view_get:
         @T.function(private=True)
         def main(
-            in_buf: T.Tensor((64,), "float32", layout="default"),
-            out: T.Tensor((64,), "float32", layout="default"),
+            in_buf: T.Tensor((64,), "float32", layout=None),
+            out: T.Tensor((64,), "float32", layout=None),
         ):
             out_1 = T.decl_tensor(
                 out.data, ty_args=[T.Tensor((64,), "float32", layout=None, data=out.data)]
@@ -762,7 +762,7 @@ def test_lower_view_get():
                             (2,),
                             T.float16,
                             scope="local",
-                            layout=T.TileLayout(T.S[2:1]),
+                            layout="default",
                         )
                     ]
                 )
@@ -907,7 +907,7 @@ def test_lower_layout():
     @I.ir_module
     class Expected:
         @T.function(private=True)
-        def main(A: T.Tensor((128, 32), "float16", layout="default")) -> None:
+        def main(A: T.Tensor((128, 32), "float16", layout=None)) -> None:
             A_1 = T.decl_tensor(
                 A.data, ty_args=[T.Tensor((4096,), "float16", layout=None, data=A.data)]
             )
@@ -1029,9 +1029,11 @@ def test_lower_decl_tensor_pointer():
                 )
                 A = T.decl_tensor(
                     buf.data,
-                    ty_args=[T.Tensor((128,), "float16", scope="shared.dyn", layout=None)],
+                    ty_args=[
+                        T.Tensor((128,), "float16", elem_offset=32, scope="shared.dyn", layout=None)
+                    ],
                 )
-                T.address_of(A[T.int64(96)])
+                T.address_of(A[64])
 
     @I.ir_module
     class Dispatched:
@@ -1077,7 +1079,7 @@ def test_lower_cleanup_accepts_bool_elect_sync_else_path():
     @I.ir_module
     class Expected:
         @T.function(private=True)
-        def main(A: T.Tensor((32,), T.int32, layout="default")):
+        def main(A: T.Tensor((32,), T.int32)):
             A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((32,), T.int32)])
             with T.device_scope(1, 1, 1, 32, 1, 1, attrs=_CTA_LAUNCH_ATTRS):
                 lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
@@ -1389,7 +1391,7 @@ def test_alloc_tensor_with_thread_axis_layout():
     @I.ir_module
     class Expected:
         @T.function(private=True)
-        def main(out: T.Tensor((128, 4), "float32", layout="default")):
+        def main(out: T.Tensor((128, 4), "float32", layout=None)):
             out_1 = T.decl_tensor(
                 out.data, ty_args=[T.Tensor((512,), "float32", layout=None, data=out.data)]
             )
@@ -1489,7 +1491,7 @@ def test_alloc_tensor_layout_span_without_threads(scope):
     class Expected:
         @T.function(private=True)
         def main():
-            A = T.alloc_tensor(ty_args=[T.Tensor((48,), "uint32", scope=scope, layout=None)])
+            A = T.alloc_tensor(ty_args=[T.Tensor((39,), "uint32", scope=scope, layout=None)])
             A[38] = T.uint32(7)
 
     with tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"}):

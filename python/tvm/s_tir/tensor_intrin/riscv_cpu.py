@@ -75,9 +75,9 @@ def rvv_vec_dot_product_kernels(
 
     @Ts.function
     def rvv_vec_dot_prod_desc(
-        A: T.Tensor((n_elems,), data_dtype, offset_factor=1, elem_offset=T.int32()),
-        B: T.Tensor((n_lanes, n_elems), weight_dtype, offset_factor=1, elem_offset=T.int32()),
-        C: T.Tensor((n_lanes,), out_dtype, offset_factor=1, elem_offset=T.int32()),
+        A: T.Tensor((n_elems,), data_dtype, elem_offset=T.int32()),
+        B: T.Tensor((n_lanes, n_elems), weight_dtype, elem_offset=T.int32()),
+        C: T.Tensor((n_lanes,), out_dtype, elem_offset=T.int32()),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:n_lanes], A[0:n_elems], B[0:n_lanes, 0:n_elems])
@@ -111,9 +111,9 @@ def rvv_vec_dot_product_kernels(
     # fmt: off
     @Ts.function
     def rvv_vec_dot_prod_impl(
-        A: T.Tensor((n_elems,), data_dtype, offset_factor=1, elem_offset=T.int32()),
-        B: T.Tensor((n_lanes, n_elems), weight_dtype, offset_factor=1, elem_offset=T.int32()),
-        C: T.Tensor((n_lanes,), out_dtype, offset_factor=1, elem_offset=T.int32()),
+        A: T.Tensor((n_elems,), data_dtype,  elem_offset=T.int32()),
+        B: T.Tensor((n_lanes, n_elems), weight_dtype,  elem_offset=T.int32()),
+        C: T.Tensor((n_lanes,), out_dtype,  elem_offset=T.int32()),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:n_lanes], A[0:n_elems], B[0:n_lanes, 0:n_elems])

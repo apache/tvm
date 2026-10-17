@@ -19,12 +19,12 @@
 """Intrinsics for ARM tensorization."""
 
 from tvm.s_tir import script as Ts
-from tvm.s_tir.layout import get_elem_offset_from_layout, get_strides_from_layout
 from tvm.s_tir.script.ir_builder import function as build_function
 from tvm_tirx import tirx
 from tvm_tirx.codegen import llvm
 from tvm_tirx.script import tirx as T
 from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx import match_shape_stride_pattern
 
 from .. import TensorIntrin
 from .dot_product_common import (
@@ -40,9 +40,9 @@ from .dot_product_common import (
 
 @Ts.function
 def neon_4x4_i8i8i32_desc(
-    A: T.Tensor((4,), "int8", offset_factor=1, elem_offset=T.int32()),
-    B: T.Tensor((4, 4), "int8", offset_factor=1, elem_offset=T.int32()),
-    C: T.Tensor((4,), "int32", offset_factor=1, elem_offset=T.int32()),
+    A: T.Tensor((4,), "int8", elem_offset=T.int32()),
+    B: T.Tensor((4, 4), "int8", elem_offset=T.int32()),
+    C: T.Tensor((4,), "int32", elem_offset=T.int32()),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads(C[0:4], A[0:4], B[0:4, 0:4])
@@ -56,9 +56,9 @@ def neon_4x4_i8i8i32_desc(
 
 @Ts.function
 def neon_4x4_i8i8i32_impl(
-    A: T.Tensor((4,), "int8", offset_factor=1, elem_offset=T.int32()),
-    B: T.Tensor((4, 4), "int8", offset_factor=1, elem_offset=T.int32()),
-    C: T.Tensor((4,), "int32", offset_factor=1, elem_offset=T.int32()),
+    A: T.Tensor((4,), "int8", elem_offset=T.int32()),
+    B: T.Tensor((4, 4), "int8", elem_offset=T.int32()),
+    C: T.Tensor((4,), "int32", elem_offset=T.int32()),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads(C[0:4], A[0:4], B[0:4, 0:4])
@@ -121,9 +121,9 @@ def get_dotprod_intrin(in_dtype, out_dtype):
 
     @Ts.function
     def dot_prod_desc(
-        A: T.Tensor((4,), dtype=in_dtype, offset_factor=1, elem_offset=T.int32()),
-        B: T.Tensor((4, 4), dtype=in_dtype, offset_factor=1, elem_offset=T.int32()),
-        C: T.Tensor((4,), dtype=out_dtype, offset_factor=1, elem_offset=T.int32()),
+        A: T.Tensor((4,), dtype=in_dtype, elem_offset=T.int32()),
+        B: T.Tensor((4, 4), dtype=in_dtype, elem_offset=T.int32()),
+        C: T.Tensor((4,), dtype=out_dtype, elem_offset=T.int32()),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:4], A[0:4], B[0:4, 0:4])
@@ -138,9 +138,9 @@ def get_dotprod_intrin(in_dtype, out_dtype):
 
     @Ts.function
     def dot_prod_impl(
-        A: T.Tensor((4,), dtype=in_dtype, offset_factor=1, elem_offset=T.int32()),
-        B: T.Tensor((4, 4), dtype=in_dtype, offset_factor=1, elem_offset=T.int32()),
-        C: T.Tensor((4,), dtype=out_dtype, offset_factor=1, elem_offset=T.int32()),
+        A: T.Tensor((4,), dtype=in_dtype, elem_offset=T.int32()),
+        B: T.Tensor((4, 4), dtype=in_dtype, elem_offset=T.int32()),
+        C: T.Tensor((4,), dtype=out_dtype, elem_offset=T.int32()),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:4], A[0:4], B[0:4, 0:4])
@@ -192,13 +192,13 @@ def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
         The active lane mask intrinsic.
     """
     vertical_offset, horizontal_offset = relative_offsets
-    stride = get_strides_from_layout(tensor.layout)[0]
+    stride = match_shape_stride_pattern(tensor.ty)[1][0]
 
     # The base is the offset of the first value we wish to store
     base = T.int32(
-        get_elem_offset_from_layout(tensor.layout)
+        match_shape_stride_pattern(tensor.ty)[2]
         + vertical_offset * stride
-        + horizontal_offset * get_strides_from_layout(tensor.layout)[1]
+        + horizontal_offset * match_shape_stride_pattern(tensor.ty)[1][1]
     )
 
     # The limit is the maximum offset in the current row of 'base' that we wish to allow values
@@ -209,7 +209,7 @@ def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
     limit = (
         base
         - T.int32(horizontal_offset)
-        - T.int32(get_elem_offset_from_layout(tensor.layout) % stride)
+        - T.int32(match_shape_stride_pattern(tensor.ty)[2] % stride)
         + T.int32(stride)
     )
     limit = T.Min(limit, T.Cast("int32", vertical_limit) * stride)
@@ -263,8 +263,8 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
 
     @Ts.function
     def desc(
-        A: T.Tensor((SVF2, SVF2), dtype="float32", offset_factor=1, elem_offset=T.int32()),
-        A_t: T.Tensor((SVF2, SVF2), dtype="float32", offset_factor=1, elem_offset=T.int32()),
+        A: T.Tensor((SVF2, SVF2), dtype="float32", elem_offset=T.int32()),
+        A_t: T.Tensor((SVF2, SVF2), dtype="float32", elem_offset=T.int32()),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:SVF2, 0:SVF2])
@@ -284,7 +284,6 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
                     T.Tensor(
                         (SVF2, SVF2),
                         "float32",
-                        offset_factor=1,
                         elem_offset=T.int32(),
                         strides=[T.int32(), 1],
                     ),
@@ -294,7 +293,6 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
                     T.Tensor(
                         (SVF2, SVF2),
                         "float32",
-                        offset_factor=1,
                         elem_offset=T.int32(),
                         strides=[T.int32(), 1],
                     ),
@@ -404,8 +402,8 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
 
     @Ts.function
     def desc(
-        A: T.Tensor((SVF2, SVF), dtype="float16", offset_factor=1, elem_offset=T.int32()),
-        A_t: T.Tensor((SVF, SVF2), dtype="float16", offset_factor=1, elem_offset=T.int32()),
+        A: T.Tensor((SVF2, SVF), dtype="float16", elem_offset=T.int32()),
+        A_t: T.Tensor((SVF, SVF2), dtype="float16", elem_offset=T.int32()),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:SVF2, 0:SVF])
@@ -423,7 +421,6 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                     T.Tensor(
                         (SVF2, SVF),
                         "float16",
-                        offset_factor=1,
                         elem_offset=T.int32(),
                         strides=[T.int32(), 1],
                     ),
@@ -433,7 +430,6 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                     T.Tensor(
                         (SVF, SVF2),
                         "float16",
-                        offset_factor=1,
                         elem_offset=T.int32(),
                         strides=[T.int32(), 1],
                     ),
@@ -618,9 +614,9 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
 
     @Ts.function
     def desc(
-        A: T.Tensor((K, SVF2), dtype=in_dtype, offset_factor=1, elem_offset=T.int32()),
-        B: T.Tensor((K, SVF2), dtype=in_dtype, offset_factor=1, elem_offset=T.int32()),
-        C: T.Tensor((SVF2, SVF2), dtype="float32", offset_factor=1, elem_offset=T.int32()),
+        A: T.Tensor((K, SVF2), dtype=in_dtype, elem_offset=T.int32()),
+        B: T.Tensor((K, SVF2), dtype=in_dtype, elem_offset=T.int32()),
+        C: T.Tensor((SVF2, SVF2), dtype="float32", elem_offset=T.int32()),
     ):
         with Ts.sblock("root"):
             Ts.reads(C[0:SVF2, 0:SVF2], A[0:K, 0:SVF2], B[0:K, 0:SVF2])
@@ -640,7 +636,6 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                     T.Tensor(
                         (K, SVF2),
                         in_dtype,
-                        offset_factor=1,
                         elem_offset=T.int32(),
                         strides=[T.int32(), 1],
                     ),
@@ -650,7 +645,6 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                     T.Tensor(
                         (K, SVF2),
                         in_dtype,
-                        offset_factor=1,
                         elem_offset=T.int32(),
                         strides=[T.int32(), 1],
                     ),
@@ -660,7 +654,6 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                     T.Tensor(
                         (SVF2, SVF2),
                         "float32",
-                        offset_factor=1,
                         elem_offset=T.int32(),
                         strides=[T.int32(), 1],
                     ),
@@ -767,7 +760,7 @@ def get_sme_init_intrin():
     SVF2 = 2 * 4 * T.vscale()
 
     @Ts.function
-    def desc(C: T.Tensor((SVF2, SVF2), "float32", offset_factor=1, elem_offset=T.int32())) -> None:
+    def desc(C: T.Tensor((SVF2, SVF2), "float32", elem_offset=T.int32())) -> None:
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes(C[0:SVF2, 0:SVF2])
@@ -777,7 +770,7 @@ def get_sme_init_intrin():
                     C[v_m, v_n] = T.float32(0)
 
     @Ts.function
-    def impl(C: T.Tensor((SVF2, SVF2), "float32", offset_factor=1, elem_offset=T.int32())) -> None:
+    def impl(C: T.Tensor((SVF2, SVF2), "float32", elem_offset=T.int32())) -> None:
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes(C[0:SVF2, 0:SVF2])

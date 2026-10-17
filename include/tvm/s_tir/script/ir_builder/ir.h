@@ -45,7 +45,6 @@ FunctionFrame Function(bool is_private = false, bool persistent = false,
  * \param elem_offset The offset in terms of number of dtype elements (including lanes).
  * \param storage_scope The optional storage scope of tensor data pointer.
  * \param align The alignment requirement of data pointer in bytes.
- * \param offset_factor The factor of elem_offset field.
  * \param layout The tensor layout.
  * \param allocated_addr Addresses assigned to the tensor allocation.
  * \return The matched tensor.
@@ -55,8 +54,7 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
                       ffi::Array<PrimExpr> strides = {},
                       ffi::Optional<PrimExpr> elem_offset = std::nullopt,
                       runtime::MemoryScope storage_scope = runtime::MemoryScope::Global(),
-                      int align = -1, int offset_factor = 0,
-                      ffi::Optional<Layout> layout = std::nullopt,
+                      int align = -1, ffi::Optional<Layout> layout = std::nullopt,
                       ffi::Array<PrimExpr> allocated_addr = {});
 
 /*!
@@ -106,7 +104,6 @@ void BlockAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  * \param elem_offset The offset in terms of number of dtype elements (including lanes).
  * \param storage_scope The optional storage scope of tensor data pointer.
  * \param align The alignment requirement of data pointer in bytes.
- * \param offset_factor The factor of elem_offset field.
  * \param layout The layout of the tensor.
  * \param allocated_addr The allocated address of the tensor. Might be multi-dimensional.
  * \return The tensor attached to its enclosing block or function allocation list.
@@ -116,8 +113,7 @@ TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimTyp
                             ffi::Array<PrimExpr> strides = {},
                             ffi::Optional<PrimExpr> elem_offset = std::nullopt,
                             runtime::MemoryScope storage_scope = runtime::MemoryScope::Global(),
-                            int align = -1, int offset_factor = 0,
-                            ffi::Optional<Layout> layout = std::nullopt,
+                            int align = -1, ffi::Optional<Layout> layout = std::nullopt,
                             ffi::Array<PrimExpr> allocated_addr = {});
 
 namespace axis {

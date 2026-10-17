@@ -258,22 +258,19 @@ class WellFormednessVerifier : public StmtExprVisitor {
       ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(tensor.shape()[i], walk);
     }
     if (const auto* tile = tensor.ty()->layout.as<TileLayoutNode>();
-        tile && tile->IsRegularMemory(tensor.shape())) {
+        tile && MatchShapeStridePattern(tensor.ty()).has_value()) {
       auto site = field->Attr("layout");
-      if (!(tile->compact && tile->IsContiguousMemory())) {
-        for (size_t i = 0; i < tile->shard.size(); ++i) {
-          if (auto var = tile->shard[i]->stride.as<Var>()) {
-            define_if_needed(var.value(), site->Attr("shard")->ArrayItem(i)->Attr("stride"));
-          }
+      for (size_t i = 0; i < tile->shard.size(); ++i) {
+        if (auto var = tile->shard[i]->stride.as<Var>()) {
+          define_if_needed(var.value(), site->Attr("shard")->ArrayItem(i)->Attr("stride"));
         }
       }
-      if (auto var = tile->memory_origin.as<Var>()) {
-        define_if_needed(var.value(), site->Attr("memory_origin"));
-      }
-      if (prim::IsZero(tile->memory_origin)) {
-        for (const auto& [axis, offset] : tile->offset) {
-          if (auto var = offset.as<Var>()) define_if_needed(var.value(), site->Attr("offset"));
-        }
+      for (const auto& [axis, offset] : tile->offset) {
+        auto walk = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+          define_if_needed(var, site->Attr("offset"));
+          return ffi::WalkResult::Advance();
+        };
+        ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(offset, walk);
       }
     }
   }

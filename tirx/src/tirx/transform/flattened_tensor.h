@@ -25,6 +25,7 @@
 #define TVM_TIRX_TRANSFORM_FLATTENED_TENSOR_H_
 
 #include <tvm/ir/prim/op.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/layout.h>
 
@@ -36,15 +37,27 @@ namespace tirx {
 TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& tensor) {
   ffi::Array<PrimExpr> output_shape{1};
   const auto* tile = tensor.ty()->layout.as<TileLayoutNode>();
-  bool explicit_strides = tile && !tile->shard.empty() && tile->IsRegularMemory(tensor.shape()) &&
-                          !(tile->compact && tile->IsContiguousMemory());
+  bool explicit_strides =
+      tile && !tile->shard.empty() && MatchShapeStridePattern(tensor.ty()).has_value();
   if (explicit_strides) {
     // Keep the outer allocation footprint and cover every addressed element.
     PrimExpr span = 1;
     for (const auto& iter : tile->shard) {
       span = span + (iter->extent - 1) * iter->stride;
     }
-    output_shape.Set(0, prim::Max(tile->shard[0]->stride * tensor.shape()[0], span));
+    sym::Analyzer analyzer;
+    PrimExpr contiguous = 1;
+    bool is_contiguous = true;
+    for (size_t i = tensor.shape().size(); i > 0; --i) {
+      is_contiguous &= analyzer->CanProveEqual(tile->shard[i - 1]->stride, contiguous);
+      contiguous *= tensor.shape()[i - 1];
+    }
+    if (is_contiguous) {
+      output_shape.Set(0, PrimExpr(1));
+      for (const auto& extent : tensor.shape()) output_shape.Set(0, output_shape[0] * extent);
+    } else {
+      output_shape.Set(0, prim::Max(tile->shard[0]->stride * tensor.shape()[0], span));
+    }
   } else {
     // Otherwise, the flattened extent is the product of the input extents.
     // This also flattens rank-0 tensors to a rank-1 tensor of shape [1].
@@ -57,11 +70,10 @@ TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& tensor) {
     return tensor;
   } else {
     // The original layout describes the old rank; reset it for the flattened shape.
-    return TensorVar(
-        tensor->name,
-        TensorType(output_shape, tensor.dtype(), tensor.scope(), {}, std::nullopt,
-                   tensor.ty()->data_alignment, tensor.ty()->offset_factor, std::nullopt),
-        tensor->loc);
+    return TensorVar(tensor->name,
+                     TensorType(output_shape, tensor.dtype(), tensor.scope(), {}, std::nullopt,
+                                tensor.ty()->data_alignment, std::nullopt),
+                     tensor->loc);
   }
 }
 

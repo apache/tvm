@@ -41,9 +41,9 @@ lift = tvm_ffi.convert
 
 @Ts.function
 def sdot4(
-    A: T.Tensor((4,), "int8", offset_factor=1, elem_offset=T.int32(), align=4, scope="shared"),
-    B: T.Tensor((4,), "int8", offset_factor=1, elem_offset=T.int32(), align=4, scope="shared"),
-    C: T.Tensor((1,), "int32", offset_factor=1, elem_offset=T.int32(), align=4, scope="local"),
+    A: T.Tensor((4,), "int8", elem_offset=T.int32(), align=4, scope="shared"),
+    B: T.Tensor((4,), "int8", elem_offset=T.int32(), align=4, scope="shared"),
+    C: T.Tensor((1,), "int32", elem_offset=T.int32(), align=4, scope="local"),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads(C[0], A[0:4], B[0:4])
@@ -154,7 +154,6 @@ def get_mma_fill_intrin(dtype, local_size):
             [1, local_size],
             dtype=dtype,
             scope="local",
-            offset_factor=1,
             elem_offset=T.int32(),
         ),
     ) -> None:
@@ -216,10 +215,8 @@ def get_mfma_load_intrin(
 
     @Ts.function
     def mfma_load_desc(
-        reg: T.Tensor(
-            (WARP_SIZE, local_size), dtype, offset_factor=1, elem_offset=T.int32(), scope="local"
-        ),
-        memory: T.Tensor(memory_shape, dtype, offset_factor=1, elem_offset=T.int32(), scope=scope),
+        reg: T.Tensor((WARP_SIZE, local_size), dtype, elem_offset=T.int32(), scope="local"),
+        memory: T.Tensor(memory_shape, dtype, elem_offset=T.int32(), scope=scope),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(memory[0:row_dim, 0:col_dim])
@@ -243,7 +240,6 @@ def get_mfma_load_intrin(
             (1, local_size),
             dtype,
             align=64,
-            offset_factor=1,
             elem_offset=T.int32(),
             scope="local",
         ),
@@ -251,7 +247,6 @@ def get_mfma_load_intrin(
             memory_shape,
             dtype,
             align=64,
-            offset_factor=1,
             elem_offset=T.int32(),
             scope=scope,
             strides=[s0, s1],
@@ -300,16 +295,11 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
 
     @Ts.function
     def mfma_sync_desc(
-        A: T.Tensor(
-            (WARP_SIZE, local_size), in_dtype, offset_factor=1, elem_offset=T.int32(), scope="local"
-        ),
-        B: T.Tensor(
-            (WARP_SIZE, local_size), in_dtype, offset_factor=1, elem_offset=T.int32(), scope="local"
-        ),
+        A: T.Tensor((WARP_SIZE, local_size), in_dtype, elem_offset=T.int32(), scope="local"),
+        B: T.Tensor((WARP_SIZE, local_size), in_dtype, elem_offset=T.int32(), scope="local"),
         C: T.Tensor(
             (WARP_SIZE, local_size_out),
             out_dtype,
-            offset_factor=1,
             elem_offset=T.int32(),
             scope="local",
         ),
@@ -344,16 +334,11 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
 
     @Ts.function
     def mfma_sync_impl_float(
-        A: T.Tensor(
-            (1, local_size), in_dtype, offset_factor=1, elem_offset=T.int32(), scope="local"
-        ),
-        B: T.Tensor(
-            (1, local_size), in_dtype, offset_factor=1, elem_offset=T.int32(), scope="local"
-        ),
+        A: T.Tensor((1, local_size), in_dtype, elem_offset=T.int32(), scope="local"),
+        B: T.Tensor((1, local_size), in_dtype, elem_offset=T.int32(), scope="local"),
         C: T.Tensor(
             (1, local_size_out),
             out_dtype,
-            offset_factor=1,
             elem_offset=T.int32(),
             scope="local",
         ),
@@ -379,16 +364,11 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
 
     @Ts.function
     def mfma_sync_impl_integer(
-        A: T.Tensor(
-            (1, local_size), in_dtype, offset_factor=1, elem_offset=T.int32(), scope="local"
-        ),
-        B: T.Tensor(
-            (1, local_size), in_dtype, offset_factor=1, elem_offset=T.int32(), scope="local"
-        ),
+        A: T.Tensor((1, local_size), in_dtype, elem_offset=T.int32(), scope="local"),
+        B: T.Tensor((1, local_size), in_dtype, elem_offset=T.int32(), scope="local"),
         C: T.Tensor(
             (1, local_size_out),
             out_dtype,
-            offset_factor=1,
             elem_offset=T.int32(),
             scope="local",
         ),
@@ -456,14 +436,12 @@ def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
             [1, local_size],
             dtype=dtype,
             scope="local",
-            offset_factor=1,
             elem_offset=T.int32(),
         ),
         C: T.Tensor(
             [M_DIM, N_DIM],
             dtype=dtype,
             scope=scope,
-            offset_factor=1,
             elem_offset=T.int32(),
             strides=[s0, s1],
         ),

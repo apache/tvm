@@ -555,15 +555,9 @@ def test_func_call():
 
     @Ts.function
     def mma_sync_m16n16k16_desc(
-        A: T.Tensor(
-            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
-        ),
-        B: T.Tensor(
-            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
-        ),
-        C: T.Tensor(
-            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
-        ),
+        A: T.Tensor((32, 8), "float16", align=64, elem_offset=(16) * (T.int32()), scope="warp"),
+        B: T.Tensor((32, 8), "float16", align=64, elem_offset=(16) * (T.int32()), scope="warp"),
+        C: T.Tensor((32, 8), "float16", align=64, elem_offset=(16) * (T.int32()), scope="warp"),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
@@ -588,15 +582,9 @@ def test_func_call():
 
     @Ts.function
     def mma_sync_m16n16k16_desc_manual(
-        A: T.Tensor(
-            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
-        ),
-        B: T.Tensor(
-            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
-        ),
-        C: T.Tensor(
-            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
-        ),
+        A: T.Tensor((32, 8), "float16", align=64, elem_offset=(16) * (T.int32()), scope="warp"),
+        B: T.Tensor((32, 8), "float16", align=64, elem_offset=(16) * (T.int32()), scope="warp"),
+        C: T.Tensor((32, 8), "float16", align=64, elem_offset=(16) * (T.int32()), scope="warp"),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])

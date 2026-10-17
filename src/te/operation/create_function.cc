@@ -778,16 +778,16 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     TensorVar output_tir_tensor = info->transformer->NormalizeTensorType(placeholder);
     if (!info->IsArg(output_tensor)) {
       PrimExpr zero_offset =
-          IntImm(s_tir::GetElemOffsetFromLayout(placeholder.ty()->layout).ty(), 0);
+          IntImm(tvm::tirx::MatchShapeStridePattern(placeholder.ty()).value().get<2>().ty(), 0);
       if (auto offset_var =
-              s_tir::GetElemOffsetFromLayout(placeholder.ty()->layout).as<PrimVar>()) {
+              tvm::tirx::MatchShapeStridePattern(placeholder.ty()).value().get<2>().as<PrimVar>()) {
         var_map.insert_or_assign(offset_var.value().get(), zero_offset);
       }
       ffi::ObjectPtr<TensorTypeNode> type =
           ffi::make_object<TensorTypeNode>(*output_tir_tensor.ty().get());
       if (type->layout.has_value()) {
         auto tile = type->layout.value().as_or_throw<tirx::TileLayout>();
-        type->layout = tirx::TileLayout(tile->shard, tile->replica, {}, zero_offset, tile->compact);
+        type->layout = tirx::TileLayout(tile->shard, tile->replica, {});
       }
       output_tir_tensor =
           TensorVar(output_tir_tensor->name, TensorType(std::move(type)), output_tir_tensor->loc);

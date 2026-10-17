@@ -350,8 +350,8 @@ def test_vectorized_index_ramp():
     class Module:
         @T.function
         def main(
-            A: T.Tensor((n,), "int32", offset_factor=1, elem_offset=T.int32()),
-            B: T.Tensor((n,), "int32", offset_factor=1, elem_offset=T.int32()),
+            A: T.Tensor((n,), "int32", elem_offset=T.int32()),
+            B: T.Tensor((n,), "int32", elem_offset=T.int32()),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -389,8 +389,8 @@ def test_vectorized_index_broadcast():
     class Module:
         @T.function
         def main(
-            A: T.Tensor((n,), "int32", offset_factor=1, elem_offset=T.int32()),
-            B: T.Tensor((n,), "int32", offset_factor=1, elem_offset=T.int32()),
+            A: T.Tensor((n,), "int32", elem_offset=T.int32()),
+            B: T.Tensor((n,), "int32", elem_offset=T.int32()),
         ):
             T.func_attr({"tirx.noalias": True})
 

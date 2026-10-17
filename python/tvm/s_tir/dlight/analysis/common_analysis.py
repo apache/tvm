@@ -29,12 +29,12 @@ from tvm_ffi import get_global_func
 import tvm_tirx
 from tvm import s_tir
 from tvm.s_tir import Schedule
-from tvm.s_tir.layout import get_elem_offset_from_layout, get_strides_from_layout
 from tvm.s_tir.schedule import SBlockRV
 from tvm_tirx import ir, tirx
 from tvm_tirx.ir import TensorRegion
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.target.target import Target
+from tvm_tirx.tirx import match_shape_stride_pattern
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -447,17 +447,9 @@ def detect_dominant_read(block: s_tir.SBlock) -> tirx.Expr:
 def _tensor_region_offset(region):
     """Linear element offset of a region's first element."""
     tensor = region.source
-    offset = 0
+    _, strides, offset = match_shape_stride_pattern(tensor.ty)
     for axis, bounds in enumerate(region.region):
-        if get_strides_from_layout(tensor.layout):
-            offset += bounds.min * get_strides_from_layout(tensor.layout)[axis]
-        else:
-            offset = offset * tensor.shape[axis] + bounds.min
-    if not (
-        isinstance(get_elem_offset_from_layout(tensor.layout), tvm_tirx.ir.IntImm)
-        and get_elem_offset_from_layout(tensor.layout).value == 0
-    ):
-        offset += get_elem_offset_from_layout(tensor.layout)
+        offset += bounds.min * strides[axis]
     return tvm_tirx.sym.Analyzer().simplify(offset)
 
 

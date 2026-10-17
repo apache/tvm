@@ -69,12 +69,12 @@ def element_wise_subregion_match(A: T.Tensor((128, 128), "float32"), C: T.Tensor
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
-            B_subregion0 = Ts.match_tensor(B[vi, vj], [], offset_factor=1)
+            B_subregion0 = Ts.match_tensor(B[vi, vj], [], elem_offset=T.int32())
             B_subregion0[()] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
-            B_subregion1 = Ts.match_tensor(B[vi, vj], [], offset_factor=1)
+            B_subregion1 = Ts.match_tensor(B[vi, vj], [], elem_offset=T.int32())
             C[vi, vj] = B_subregion1[()] + 1.0
 
 @Ts.function
@@ -85,14 +85,14 @@ def element_wise_subregion_match_set_dtype(A: T.Tensor((128, 128), "float32"), C
             vi, vj = Ts.axis.remap("SS", [i, j])
             Ts.reads(A[vi, vj])
             Ts.writes(B[vi, vj])
-            B_subregion0 = Ts.match_tensor(B[vi, vj], (), "float16", offset_factor=1)
+            B_subregion0 = Ts.match_tensor(B[vi, vj], (), "float16", elem_offset=T.int32())
             B_subregion0[()] = T.cast(A[vi, vj] * 2.0, ty="float16")
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
             Ts.reads(B[vi, vj])
             Ts.writes(C[vi, vj])
-            B_subregion1 = Ts.match_tensor(B[vi, vj], (), "float16", offset_factor=1)
+            B_subregion1 = Ts.match_tensor(B[vi, vj], (), "float16", elem_offset=T.int32())
             C[vi, vj] = T.cast(B_subregion1[()], ty="float32") + 1.0
 
 use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})

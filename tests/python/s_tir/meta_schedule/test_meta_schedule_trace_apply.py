@@ -1063,9 +1063,9 @@ def get_conv2d_vnni_mod(intrin_id):
                             ic_s_inner_o = Ts.axis.reduce(1, i9_0_0 + i9_0_1)
                             Ts.reads(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16], p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4])
                             Ts.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16])
-                            A = Ts.match_tensor(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], [4], dtype="uint8", offset_factor=1)
-                            B = Ts.match_tensor(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4], [16, 4], dtype="int8", offset_factor=1)
-                            C = Ts.match_tensor(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16], [16], dtype="int32", offset_factor=1)
+                            A = Ts.match_tensor(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], [4], dtype="uint8", elem_offset=T.int32())
+                            B = Ts.match_tensor(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4], [16, 4], dtype="int8", elem_offset=T.int32())
+                            C = Ts.match_tensor(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16], [16], dtype="int32", elem_offset=T.int32())
                             A_u8x4 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.uint8x4, scope="local", elem_offset=T.int32(0))])
                             A_u8x4[0] = A[T.ramp(0, 1, 4)]
                             A_i32 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int32, scope="local", elem_offset=T.int32(0))])

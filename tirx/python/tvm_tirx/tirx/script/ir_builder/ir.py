@@ -274,7 +274,6 @@ def _alloc_tensor(
     byte_offset=None,
     scope=_SCOPE_GLOBAL,
     align=-1,
-    offset_factor=0,
     layout=MISSING,
     allocated_addr=None,
     annotations=None,
@@ -284,7 +283,7 @@ def _alloc_tensor(
     if allocated_addr is not None:
         if scope in (_SCOPE_GLOBAL, _SCOPE_SHARED, _SCOPE_SHARED_DYN, _SCOPE_LOCAL):
             raise ValueError(f"{scope} does not support allocation placement")
-        if data is not None or elem_offset is not None or byte_offset is not None or offset_factor:
+        if data is not None or elem_offset is not None or byte_offset is not None:
             raise ValueError(
                 "Allocation placement cannot be combined with pointer or offset metadata"
             )
@@ -295,7 +294,6 @@ def _alloc_tensor(
         strides,
         elem_offset,
         align,
-        offset_factor,
         layout,
         data=data,
         byte_offset=byte_offset,

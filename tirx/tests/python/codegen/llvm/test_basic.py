@@ -258,6 +258,34 @@ def test_llvm_add_linear_shape():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_llvm_strides_and_linear_layout_offset():
+    s = T.dynamic("s", "int64")
+    m = T.dynamic("m", "int64")
+
+    @T.function
+    def copy(
+        A: T.Tensor((3, 4), "float32", layout=T.TileLayout(T.S[(3, 4) : (s, 1)] + 4 * m)),
+        B: T.Tensor((3, 4), "float32"),
+    ):
+        for i, j in T.grid(3, 4):
+            B[i, j] = A[i, j] + T.Cast("float32", m + s)
+
+    lib = tvm_tirx.tirx.compile(copy, target="llvm")
+    data = np.arange(64, dtype="float32")
+    allocation = tvm_tirx.runtime.tensor(data)
+    result = tvm_tirx.runtime.tensor(np.zeros((3, 4), dtype="float32"))
+    for offset in (4, 8):
+        # CreateView keeps the allocation pointer and sets DLTensor.byte_offset.
+        view = allocation._create_view((3, 4), relative_byte_offset=offset * 4)
+        lib(view, result)
+        expected = data[offset : offset + 12].reshape(3, 4) + offset // 4 + 4
+        np.testing.assert_equal(result.numpy(), expected)
+    invalid = allocation._create_view((3, 4), relative_byte_offset=4)
+    with pytest.raises(ValueError, match="divisible"):
+        lib(invalid, result)
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_madd_pipeline():
     def check_llvm(nn, base, stride):
         @I.ir_module

@@ -3045,9 +3045,9 @@ class Schedule(tvm_ffi.Object):
 
             @Ts.function
             def mma_desc(
-                A: T.Tensor((16, 16), align=128, offset_factor=1),
-                B: T.Tensor((16, 16), align=128, offset_factor=1),
-                C: T.Tensor((16, 16), align=128, offset_factor=1),
+                A: T.Tensor((16, 16), align=128),
+                B: T.Tensor((16, 16), align=128),
+                C: T.Tensor((16, 16), align=128),
             ) -> None:
 
                 with Ts.sblock("root"):
@@ -3060,9 +3060,9 @@ class Schedule(tvm_ffi.Object):
 
             @Ts.function
             def mma_intrin(
-                A: T.Tensor((16, 16), align=128, offset_factor=1),
-                B: T.Tensor((16, 16), align=128, offset_factor=1),
-                C: T.Tensor((16, 16), align=128, offset_factor=1),
+                A: T.Tensor((16, 16), align=128),
+                B: T.Tensor((16, 16), align=128),
+                C: T.Tensor((16, 16), align=128),
             ) -> None:
 
                 with Ts.sblock("root"):
@@ -3071,13 +3071,13 @@ class Schedule(tvm_ffi.Object):
                     T.evaluate(
                         T.gpu_mma_sync(
                             C.data,
-                            get_elem_offset_from_layout(C.layout) // 256,
+                            match_shape_stride_pattern(C.ty)[2] // 256,
                             A.data,
-                            get_elem_offset_from_layout(A.layout) // 256,
+                            match_shape_stride_pattern(A.ty)[2] // 256,
                             B.data,
-                            get_elem_offset_from_layout(B.layout) // 256,
+                            match_shape_stride_pattern(B.ty)[2] // 256,
                             C.data,
-                            get_elem_offset_from_layout(C.layout) // 256,
+                            match_shape_stride_pattern(C.ty)[2] // 256,
                             dtype="void",
                         )
                     )
@@ -3119,30 +3119,30 @@ class Schedule(tvm_ffi.Object):
                             A[vio * 16 : vio * 16 + 16, vko * 16 : vko * 16 + 16],
                             [16, 16],
                             dtype="float32",
-                            offset_factor=1,
+
                         )
                         B_1 = Ts.match_tensor(
                             B[vjo * 16 : vjo * 16 + 16, vko * 16 : vko * 16 + 16],
                             [16, 16],
                             dtype="float32",
-                            offset_factor=1,
+
                         )
                         C_1 = Ts.match_tensor(
                             C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16],
                             [16, 16],
                             dtype="float32",
-                            offset_factor=1,
+
                         )
                         T.evaluate(
                             T.gpu_mma_sync(
                                 C_1.data,
-                                get_elem_offset_from_layout(C_1.layout) // 256,
+                                match_shape_stride_pattern(C_1.ty)[2] // 256,
                                 A_1.data,
-                                get_elem_offset_from_layout(A_1.layout) // 256,
+                                match_shape_stride_pattern(A_1.ty)[2] // 256,
                                 B_1.data,
-                                get_elem_offset_from_layout(B_1.layout) // 256,
+                                match_shape_stride_pattern(B_1.ty)[2] // 256,
                                 C_1.data,
-                                get_elem_offset_from_layout(C_1.layout) // 256,
+                                match_shape_stride_pattern(C_1.ty)[2] // 256,
                                 dtype="void",
                             )
                         )

@@ -34,15 +34,15 @@ from tvm_tirx.script import tirx as T
 
 @Ts.function
 def element_wise(
-    A: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
-    C: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor([128, 128], "float32", elem_offset=0, align=64),
+    C: T.Tensor([128, 128], "float32", elem_offset=0, align=64),
 ) -> None:
 
     # body
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
-        B = Ts.sblock_alloc_tensor([128, 128], elem_offset=0, align=64, offset_factor=1)
+        B = Ts.sblock_alloc_tensor([128, 128], elem_offset=0, align=64)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
                 with Ts.sblock("B"):
@@ -59,15 +59,15 @@ def element_wise(
 
 @Ts.function
 def element_wise_storage_align(
-    A: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
-    C: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor([128, 128], "float32", elem_offset=0, align=64),
+    C: T.Tensor([128, 128], "float32", elem_offset=0, align=64),
 ) -> None:
 
     # body
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
-        B = Ts.sblock_alloc_tensor([128, 128], elem_offset=0, align=64, offset_factor=1)
+        B = Ts.sblock_alloc_tensor([128, 128], elem_offset=0, align=64)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
                 with Ts.sblock("B"):
@@ -85,15 +85,15 @@ def element_wise_storage_align(
 
 @Ts.function
 def element_wise_invalid_annotation(
-    A: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
-    C: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor([128, 128], "float32", elem_offset=0, align=64),
+    C: T.Tensor([128, 128], "float32", elem_offset=0, align=64),
 ) -> None:
 
     # body
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
-        B = Ts.sblock_alloc_tensor([128, 128], elem_offset=0, align=64, offset_factor=1)
+        B = Ts.sblock_alloc_tensor([128, 128], elem_offset=0, align=64)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
                 with Ts.sblock("B"):

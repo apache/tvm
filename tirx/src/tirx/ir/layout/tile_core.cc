@@ -95,7 +95,6 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TileLayoutVisit
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->shard));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->replica));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->offset));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->memory_origin));
   return std::nullopt;
 }
 
@@ -110,19 +109,15 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TileLayoutMutate(
   using OffsetMap = ffi::Map<Axis, PrimExpr>;
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<OffsetMap>, mapped_offset,
                                     mutator->MutateExpected(self->offset));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_origin,
-                                    mutator->MutateExpected(self->memory_origin));
   if (mapped_shard.UnchangedOrSameAs(self->shard) &&
       mapped_replica.UnchangedOrSameAs(self->replica) &&
-      mapped_offset.UnchangedOrSameAs(self->offset) &&
-      mapped_origin.UnchangedOrSameAs(self->memory_origin)) {
+      mapped_offset.UnchangedOrSameAs(self->offset)) {
     return ffi::Unchanged();
   }
   ffi::ObjectPtr<TileLayoutNode> copy = ffi::make_object<TileLayoutNode>(*self);
   copy->shard = std::move(mapped_shard).ValueOrUnchanged(std::move(copy->shard));
   copy->replica = std::move(mapped_replica).ValueOrUnchanged(std::move(copy->replica));
   copy->offset = std::move(mapped_offset).ValueOrUnchanged(std::move(copy->offset));
-  copy->memory_origin = std::move(mapped_origin).ValueOrUnchanged(std::move(copy->memory_origin));
   return ffi::Any(std::move(copy));
 }
 
@@ -139,19 +134,14 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TileLayoutMaybeInplaceM
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<OffsetMap>, mapped_offset,
       mutator->MutateExpected(self->offset, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<PrimExpr>, mapped_origin,
-      mutator->MutateExpected(self->memory_origin, ffi::InplaceMode::kAllow));
   if (mapped_shard.UnchangedOrSameAs(self->shard) &&
       mapped_replica.UnchangedOrSameAs(self->replica) &&
-      mapped_offset.UnchangedOrSameAs(self->offset) &&
-      mapped_origin.UnchangedOrSameAs(self->memory_origin)) {
+      mapped_offset.UnchangedOrSameAs(self->offset)) {
     return ffi::Unchanged();
   }
   self->shard = std::move(mapped_shard).ValueOrUnchanged(std::move(self->shard));
   self->replica = std::move(mapped_replica).ValueOrUnchanged(std::move(self->replica));
   self->offset = std::move(mapped_offset).ValueOrUnchanged(std::move(self->offset));
-  self->memory_origin = std::move(mapped_origin).ValueOrUnchanged(std::move(self->memory_origin));
   return ffi::Unchanged();
 }
 
@@ -181,12 +171,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /**************** TileLayout ****************/
 TileLayout::TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
-                       ffi::Map<Axis, PrimExpr> offset, ffi::Optional<PrimExpr> memory_origin,
-                       bool compact)
+                       ffi::Map<Axis, PrimExpr> offset)
     : Layout(ffi::UnsafeInit{}) {
   auto n = ffi::make_object<TileLayoutNode>();
-  if (memory_origin.has_value()) n->memory_origin = memory_origin.value();
-  n->compact = compact;
   n->shard = shard;
   n->replica = replica;
   n->offset = offset;
@@ -203,17 +190,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TileLayoutMaybeInplaceMutate>());
 
-  refl::GlobalDef()
-      .def("tirx.TileLayoutIsRegularMemory",
-           [](TileLayout layout, ffi::Array<PrimExpr> shape) {
-             return layout->IsRegularMemory(shape);
-           })
-      .def("tirx.TileLayoutIsContiguousMemory",
-           [](TileLayout layout) { return layout->IsContiguousMemory(); });
   refl::GlobalDef().def("tirx.TileLayout", [](ffi::Array<Iter> shard, ffi::Array<Iter> replica,
-                                              ffi::Map<Axis, PrimExpr> offset, bool compact,
-                                              ffi::Optional<PrimExpr> memory_origin) {
-    return TileLayout(shard, replica, offset, memory_origin, compact);
+                                              ffi::Map<Axis, PrimExpr> offset) {
+    return TileLayout(shard, replica, offset);
   });
 }
 
@@ -253,7 +232,6 @@ PrimExpr TileLayoutNode::GetSpan(ffi::Optional<ffi::String> axis_name) const {
   for (const auto& [axis, off] : offset) {
     if (filter(axis)) result += off;
   }
-  if (filter(Axis::Get("m")) && !IsZero(memory_origin)) result += memory_origin;
   return analyzer->Simplify(result);
 }
 
@@ -322,11 +300,6 @@ ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(Array<PrimExpr> coord) con
       result.insert_or_assign(axis.name(), analyzer->Simplify(it->second + off));
     }
   }
-  if (!IsZero(memory_origin)) {
-    auto it = result.find("m");
-    result.insert_or_assign(
-        "m", analyzer->Simplify(it == result.end() ? memory_origin : it->second + memory_origin));
-  }
   return result;
 }
 
@@ -334,42 +307,12 @@ ffi::Array<PrimExpr> TileLayoutNode::GetShardShape() const {
   return shard.Map([](const Iter& iter) { return iter->extent; });
 }
 
-bool TileLayoutNode::IsRegularMemory(const ffi::Array<PrimExpr>& shape) const {
-  if (!replica.empty() || shard.size() != shape.size()) return false;
-  sym::Analyzer analyzer;
-  for (size_t i = 0; i < shape.size(); ++i) {
-    if (shard[i]->axis.name() != "m" || !analyzer->CanProveEqual(shard[i]->extent, shape[i]))
-      return false;
-  }
-  for (const auto& [axis, value] : offset) {
-    if (axis.name() != "m") return false;
-  }
-  return true;
-}
-
-bool TileLayoutNode::IsContiguousMemory() const {
-  if (!replica.empty()) return false;
-  sym::Analyzer analyzer;
-  PrimExpr expected = IntImm::Int32(1);
-  for (size_t i = shard.size(); i > 0; --i) {
-    const auto& iter = shard[i - 1];
-    if (iter->axis.name() != "m" || (!analyzer->CanProveEqual(iter->extent, 1) &&
-                                     !analyzer->CanProveEqual(iter->stride, expected)))
-      return false;
-    expected = expected * iter->extent;
-  }
-  for (const auto& [axis, value] : offset) {
-    if (axis.name() != "m") return false;
-  }
-  return true;
-}
-
 bool TileLayoutNode::IsTrivial() const {
   if (shard.size() > 1) return false;
   if (shard.size() == 1) {
     if (!shard[0]->axis->IsMemoryAxis() || !IsOne(shard[0]->stride)) return false;
   }
-  return replica.size() == 0 && offset.size() == 0 && IsZero(memory_origin);
+  return replica.size() == 0 && offset.size() == 0;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

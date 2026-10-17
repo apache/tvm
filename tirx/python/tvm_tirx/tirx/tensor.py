@@ -56,7 +56,7 @@ class TensorType(Type):
     scope: MemoryScope
     shape: list
     data_alignment: int
-    offset_factor: int
+
     layout: object | None
 
     def __init__(
@@ -67,7 +67,6 @@ class TensorType(Type):
         strides=None,
         elem_offset=None,
         align=0,
-        offset_factor=0,
         layout=None,
         *,
         data=None,
@@ -78,7 +77,7 @@ class TensorType(Type):
         """Construct a tensor access contract.
 
         An omitted element offset is zero in the configured index dtype,
-        independent of shape and offset_factor. Integer offsets use that dtype;
+        independent of shape. Integer offsets use that dtype;
         explicitly typed expressions retain theirs. Pass a symbolic offset explicitly
         when the contract permits a variable starting position. ``align`` remains a
         compatibility spelling for ``data_alignment``.
@@ -113,7 +112,7 @@ class TensorType(Type):
             layout = None
         if layout == "default":
             default = TileLayout(S[shape])
-            layout = TileLayout.from_iters(default.shard, compact=True)
+            layout = default
         elif layout is not None and not isinstance(layout, Layout):
             raise TypeError("layout must be a Layout, None, or 'default'")
         self.__init_handle_by_constructor__(
@@ -124,7 +123,6 @@ class TensorType(Type):
             () if strides is None else strides,
             elem_offset,
             data_alignment,
-            offset_factor,
             layout,
             loc if isinstance(loc, Location) else UNKNOWN_LOC,
         )
@@ -142,7 +140,6 @@ class TensorType(Type):
         "scope": lambda ty, expr: lambda: ty._scope(expr),
         "shape": _tensor_type_field("shape"),
         "data_alignment": _tensor_type_field("data_alignment"),
-        "offset_factor": _tensor_type_field("offset_factor"),
         "layout": _tensor_type_field("layout"),
         "data": lambda ty, expr: ty._data(expr),
         "dtype": lambda ty, expr: ty._dtype(expr),
@@ -306,3 +303,12 @@ def tensor_data_ptr(tensor, *, ty=None, loc: Location = UNKNOWN_LOC):
     if not is_tensor_var(tensor):
         raise TypeError("tensor_data_ptr expects a Var with TensorType")
     return Call("tirx.tensor_data_ptr", [tensor], loc=loc, ty=ty)
+
+
+def match_shape_stride_pattern(tensor_type):
+    """Return actual (shape, strides, element offset), or None for unmatched layouts.
+
+    Matches absent layouts and shape-aligned memory-only TileLayout objects using
+    expression deep equality, preserving variable identity without symbolic proofs.
+    """
+    return _ffi_api.MatchShapeStridePattern(tensor_type)

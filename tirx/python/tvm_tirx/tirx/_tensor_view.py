@@ -28,6 +28,8 @@ import tvm_ffi
 import tvm_tirx
 from tvm_tirx.runtime import MemoryScope
 
+from . import _ffi_api
+
 
 @functools.cache
 def _tmem_scope():
@@ -80,7 +82,6 @@ def _redecl(buf: Var, shape, layout, *, dtype=None, addr_offset=None):
         buf.dtype if dtype is None else dtype,
         scope=buf.scope(),
         align=buf.data_alignment,
-        offset_factor=buf.offset_factor,
         layout=layout,
     )
     return bind_(tvm_tirx.tirx.script.ir_builder.decl_tensor(buf.data, ty_args=[tensor_type]))
@@ -92,24 +93,7 @@ def _view_layout(buf):
 
     if buf.layout is not None:
         return buf.layout
-    return TileLayout.from_iters(TileLayout(S[tuple(buf.shape)]).shard, compact=True)
-
-
-def _with_origin(layout, origin):
-    from .layout import ComposeLayout, TileLayout
-
-    if isinstance(layout, TileLayout):
-        return TileLayout.from_iters(
-            layout.shard, layout.replica, dict(layout.offset.items()), layout.compact, origin
-        )
-    return ComposeLayout(
-        layout.per_element,
-        layout.swizzle_len,
-        layout.atom_len,
-        layout.tile_layout,
-        layout.swizzle_inner,
-        origin,
-    )
+    return TileLayout(S[tuple(buf.shape)])
 
 
 def _reshape_layout(tile, shape):
@@ -151,8 +135,6 @@ def _reshape_layout(tile, shape):
     return TileLayout.from_iters(
         [Iter(extent, stride, "m") for extent, stride in zip(shape, result)],
         offset=dict(tile.offset.items()),
-        compact=tile.compact,
-        memory_origin=tile.memory_origin,
     )
 
 
@@ -189,7 +171,7 @@ def view(buf: Var, *args, **kwargs) -> Var:
     from .layout import Iter, TileLayout
 
     source = _view_layout(buf)
-    regular = isinstance(source, TileLayout) and source.is_regular_memory(buf.shape)
+    regular = _ffi_api.MatchShapeStridePattern(buf.ty) is not None
     if len(args) == 1 and isinstance(args[0], str | tvm_ffi.dtype) and not kwargs:
         cast_dtype = tvm_ffi.dtype(args[0])
         cur_dtype = tvm_ffi.dtype(buf.dtype)
@@ -203,7 +185,6 @@ def view(buf: Var, *args, **kwargs) -> Var:
                 raise ValueError("view(dtype): the last dimension must have unit stride")
             values = [
                 buf.shape[-1],
-                source.memory_origin,
                 *source.offset.values(),
                 *[it.stride for it in source.shard[:-1]],
             ]
@@ -221,13 +202,11 @@ def view(buf: Var, *args, **kwargs) -> Var:
                     for i, (extent, it) in enumerate(zip(shape, source.shard))
                 ],
                 offset={axis: scale(value) for axis, value in source.offset.items()},
-                compact=source.compact,
-                memory_origin=scale(source.memory_origin),
             )
         else:
             axis = "TCol" if _is_tmem_scope(buf.scope()) else "m"
             layout = source.pack(ratio, axis) if pack else source.unpack(ratio, axis)
-        return _redecl(buf, shape, layout, dtype=cast_dtype)
+        return _redecl(buf, shape, None if buf.layout is None else layout, dtype=cast_dtype)
 
     shape = args
     assert all(
@@ -242,16 +221,6 @@ def view(buf: Var, *args, **kwargs) -> Var:
     if layout is None:
         shape = _infer_shape(shape)
     if layout is not None:
-        if layout == "default":
-            from .layout import S
-
-            layout = TileLayout.from_iters(TileLayout(S[tuple(shape)]).shard, compact=True)
-        layout = _with_origin(
-            layout,
-            source.memory_origin
-            if _concrete_int(layout.memory_origin) == 0
-            else layout.memory_origin + source.memory_origin,
-        )
         return _redecl(buf, shape, layout)
     analyzer = tvm_tirx.sym.Analyzer()
     if not analyzer.can_prove_equal(
@@ -259,6 +228,8 @@ def view(buf: Var, *args, **kwargs) -> Var:
         functools.reduce(lambda a, b: a * b, shape, 1),
     ):
         raise ValueError("view: source and result must have equal element counts")
+    if buf.layout is None:
+        return _redecl(buf, shape, None)
     if regular:
         reshaped = _reshape_layout(source, shape)
         if reshaped is not None:
@@ -272,7 +243,7 @@ def permute(buf: Var, *dims) -> Var:
         raise ValueError(f"permute: invalid dimensions {dims}")
     new_shape = [buf.shape[d] for d in dims]
     layout, swizzle = _surgery_parts(buf)
-    if layout.is_regular_memory(buf.shape):
+    if swizzle is None and _ffi_api.MatchShapeStridePattern(buf.ty) is not None:
         grouped, seps = layout, list(range(len(buf.shape) + 1))
     else:
         grouped, seps = layout.group(list(buf.shape))
@@ -376,7 +347,6 @@ def _surgery_parts(buf: Var):
             layout.swizzle_len,
             layout.atom_len,
             layout.swizzle_inner,
-            layout.memory_origin,
         )
         layout = layout.tile_layout
         # A bare swizzle describes its period, rather than the tensor extent.
@@ -388,9 +358,9 @@ def _surgery_parts(buf: Var):
 
 def _rewrap_swizzle(layout, swizzle):
     if swizzle is not None:
-        per_element, swizzle_len, atom_len, swizzle_inner, memory_origin = swizzle
+        per_element, swizzle_len, atom_len, swizzle_inner = swizzle
         return tvm_tirx.tirx.layout.ComposeLayout(
-            per_element, swizzle_len, atom_len, layout, swizzle_inner, memory_origin
+            per_element, swizzle_len, atom_len, layout, swizzle_inner
         )
     return layout
 
@@ -424,49 +394,22 @@ def _dim_group_offset(group, index):
     return offset
 
 
-def _swizzle_offset_commutes(swizzle, extra_offset):
-    """Return whether an offset may be folded outside a swizzle permutation."""
-    if swizzle is None or extra_offset is None:
-        return True
-    per_element, swizzle_len, atom_len, _, _ = swizzle
-    if swizzle_len == 0:
-        return True
-    period = 1 << (int(per_element) + int(atom_len) + swizzle_len)
-    offset_c = _concrete_int(extra_offset)
-    if offset_c is not None:
-        return offset_c % period == 0
-    from ..sym import Analyzer  # pylint: disable=import-outside-toplevel
-
-    return Analyzer().can_prove_equal(tvm_tirx.tirx.floormod(extra_offset, period), 0)
-
-
 def _rebuild_view(buf: Var, new_shape, new_shard, grouped, swizzle, extra_offset):
     """Rebuild a derived view while preserving its physical addresses."""
     offset_map = dict(grouped.offset.items())
     is_tmem = _is_tmem_scope(buf.scope())
-    if (
-        not is_tmem
-        and extra_offset is not None
-        and not _swizzle_offset_commutes(swizzle, extra_offset)
-    ):
+    if not is_tmem and extra_offset is not None:
         m_axis = tvm_tirx.tirx.layout.Axis.get("m")
         previous = offset_map.get(m_axis)
         offset_map[m_axis] = extra_offset if previous is None else previous + extra_offset
         extra_offset = None
     new_layout = tvm_tirx.tirx.layout.TileLayout.from_iters(
-        new_shard, list(grouped.replica), offset_map, memory_origin=grouped.memory_origin
+        new_shard, list(grouped.replica), offset_map
     )
     new_layout = _rewrap_swizzle(new_layout, swizzle)
     if is_tmem:
         addr_offset = _tmem_element_offset_to_column_offset(buf, extra_offset)
         return _redecl(buf, new_shape, new_layout, addr_offset=addr_offset)
-    if extra_offset is not None:
-        new_layout = _with_origin(
-            new_layout,
-            extra_offset
-            if _concrete_int(new_layout.memory_origin) == 0
-            else new_layout.memory_origin + extra_offset,
-        )
     return _redecl(buf, new_shape, new_layout)
 
 
@@ -524,7 +467,7 @@ def _view_drop(buf: Var, dim, index):
             f"of extent {extent_c if extent_c is not None else buf.shape[dim]}"
         )
     layout, swizzle = _surgery_parts(buf)
-    if layout.is_regular_memory(buf.shape):
+    if swizzle is None and _ffi_api.MatchShapeStridePattern(buf.ty) is not None:
         grouped, seps = layout, list(range(len(buf.shape) + 1))
     else:
         grouped, seps = layout.group(list(buf.shape))
@@ -561,7 +504,7 @@ def _view_narrow(buf: Var, dim, start, length):
             f"sub: range [{start_c}, {start_c + length_c}) exceeds dim {dim} extent {extent_c}"
         )
     layout, swizzle = _surgery_parts(buf)
-    if layout.is_regular_memory(buf.shape):
+    if swizzle is None and _ffi_api.MatchShapeStridePattern(buf.ty) is not None:
         grouped, seps = layout, list(range(len(buf.shape) + 1))
     else:
         grouped, seps = layout.group(list(buf.shape))

@@ -416,10 +416,12 @@ def _attention_prefill_paged_split(
         for part_idx in T.serial(4):
             with Ts.sblock("part_idx"):
                 part_output = Ts.match_tensor(
-                    temporary[part_idx, 0:qlen, 0:h_q, 0:512], (qlen, h_q, 512), offset_factor=1
+                    temporary[part_idx, 0:qlen, 0:h_q, 0:512],
+                    (qlen, h_q, 512),
+                    elem_offset=T.int32(),
                 )
                 part_lse = Ts.match_tensor(
-                    temporary_lse[part_idx, 0:qlen, 0:h_q], (qlen, h_q), offset_factor=1
+                    temporary_lse[part_idx, 0:qlen, 0:h_q], (qlen, h_q), elem_offset=T.int32()
                 )
                 body(
                     q,

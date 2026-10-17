@@ -151,7 +151,7 @@ Layout TileLayoutNode::Tile(const TileLayout& outer_in, const Array<PrimExpr>& o
         new_shard.push_back(outer->shard[i]);
       }
     }
-    outer = TileLayout(new_shard, outer->replica, outer->offset, outer->memory_origin);
+    outer = TileLayout(new_shard, outer->replica, outer->offset);
   }
 
   TVM_FFI_ICHECK(!outer_seps.empty())
@@ -184,8 +184,7 @@ Layout TileLayoutNode::Tile(const TileLayout& outer_in, const Array<PrimExpr>& o
     }
   }
 
-  return TileLayout(tile_shard, tile_rep, tile_offset, outer->memory_origin + inner->memory_origin)
-      ->Canonicalize();
+  return TileLayout(tile_shard, tile_rep, tile_offset)->Canonicalize();
 }
 
 }  // namespace tirx

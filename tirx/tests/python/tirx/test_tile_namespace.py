@@ -100,9 +100,7 @@ def test_omitted_and_explicit_none_layout(scope):
     assert T.Tensor((4, 8), "float32", scope=scope, layout=None).layout is None
     assert Var("tensor", TensorType((4, 8), "float32", scope=scope)).layout is None
     explicit = T.Tensor((4, 8), "float32", scope=scope, layout="default")
-    assert_structural_equal(
-        explicit.layout, TileLayout.from_iters(TileLayout(S[4, 8]).shard, compact=True)
-    )
+    assert_structural_equal(explicit.layout, TileLayout.from_iters(TileLayout(S[4, 8]).shard))
     with IRBuilder():
         with I.function():
             tensor_type = I.Tensor((4, 8), "float32", scope=scope)
@@ -164,10 +162,20 @@ def test_none_layout_views_keep_offsets_and_strides():
             assert list(map(int, reshaped.shape)) == [2, 2, 8]
             assert list(map(int, [it.stride for it in permuted.layout.shard])) == [1, 8]
             assert list(map(int, [it.stride for it in sliced.layout.shard])) == [8, 1]
-            assert int(sliced.layout.memory_origin) == 15
-            assert int(row.layout.memory_origin) == 21
+            assert (
+                int(sliced.layout.apply(*([0] * len(sliced.shape)), shape=sliced.shape).get("m", 0))
+                == 15
+            )
+            assert int(row.layout.apply(*([0] * len(row.shape)), shape=row.shape).get("m", 0)) == 21
             assert list(map(int, [it.stride for it in stepped.layout.shard])) == [8, 2]
-            assert int(stepped.layout.memory_origin) == 6
+            assert (
+                int(
+                    stepped.layout.apply(*([0] * len(stepped.shape)), shape=stepped.shape).get(
+                        "m", 0
+                    )
+                )
+                == 6
+            )
             linear = permuted.view(32)
             for i in range(32):
                 assert int(linear.layout.apply(i, shape=linear.shape)["m"]) == (
@@ -195,7 +203,7 @@ def test_none_layout_dtype_views(dtype, new_dtype, old_shape, new_shape):
         with I.function():
             source = I.bind(I.decl_tensor(I.ptr(dtype), ty_args=[I.Tensor(old_shape, dtype)]))
             viewed = source.view(new_dtype)
-            assert viewed.layout.compact and viewed.layout.is_contiguous_memory()
+            assert viewed.layout is None
             assert list(map(int, viewed.shape)) == list(new_shape)
     assert_structural_equal(builder.get().body.seq[-1].value.args[0], source.data)
 
@@ -206,7 +214,7 @@ def test_none_layout_dtype_view_accepts_symbolic_extent():
             size = tvm_tirx.tirx.Var("size", "int32")
             source = I.bind(I.decl_tensor(I.ptr("float32"), ty_args=[I.Tensor((size,), "float32")]))
             viewed = source.view("uint64")
-            assert viewed.layout.compact and viewed.layout.is_contiguous_memory()
+            assert viewed.layout is None
             assert_structural_equal(viewed.shape[0], size // 2)
             misaligned = I.bind(
                 I.decl_tensor(I.ptr("float32"), ty_args=[I.Tensor((8,), "float32", elem_offset=1)])

@@ -99,7 +99,6 @@ def match_tensor(
     elem_offset: Expr = None,
     scope: str | MemoryScope = MemoryScope("global"),
     align: int = -1,
-    offset_factor: int = 0,
     layout: str | Layout | None = MISSING,
     allocated_addr: Expr | int | tuple[Expr | int, ...] | None = None,
 ) -> Var:
@@ -134,7 +133,6 @@ def match_tensor(
         elem_offset,
         scope,
         align,
-        offset_factor,
         _get_layout(layout, shape, scope),
         allocated_addr,
     )
@@ -247,7 +245,6 @@ def sblock_alloc_tensor(
     elem_offset: Expr = None,
     scope: str | MemoryScope = MemoryScope("global"),
     align: int = -1,
-    offset_factor: int = 0,
     layout: str | Layout | None = MISSING,
     allocated_addr: int | tuple[int, ...] | None = None,
 ) -> Var:
@@ -269,8 +266,6 @@ def sblock_alloc_tensor(
         The optional storage scope of tensor data pointer.
     align : int
         The alignment requirement of data pointer in bytes.
-    offset_factor : int
-        The factor of elem_offset field.
     layout: Optional[Union[str, Layout]]
         The layout of the tensor.
 
@@ -300,7 +295,6 @@ def sblock_alloc_tensor(
         elem_offset,
         scope,
         align,
-        offset_factor,
         _get_layout(layout, shape, scope),
         allocated_addr,
     )

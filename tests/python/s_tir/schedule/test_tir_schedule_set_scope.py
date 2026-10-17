@@ -65,12 +65,12 @@ def element_wise_subregion_match(A: T.Tensor((128, 128), "float32"), C: T.Tensor
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
-            B_subregion0 = Ts.match_tensor(B[vi, vj], [], offset_factor=1)
+            B_subregion0 = Ts.match_tensor(B[vi, vj], [], elem_offset=T.int32())
             B_subregion0[()] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
-            B_subregion1 = Ts.match_tensor(B[vi, vj], [], offset_factor=1)
+            B_subregion1 = Ts.match_tensor(B[vi, vj], [], elem_offset=T.int32())
             C[vi, vj] = B_subregion1[()] + 1.0
 
 @Ts.function
@@ -80,12 +80,12 @@ def element_wise_subregion_match_set_scope(A: T.Tensor((128, 128), "float32"), C
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
-            B_subregion0_shared = Ts.match_tensor(B_shared[vi, vj], [], dtype="float32", scope="shared", offset_factor=1)
+            B_subregion0_shared = Ts.match_tensor(B_shared[vi, vj], [], dtype="float32", scope="shared", elem_offset=T.int32())
             B_subregion0_shared[()] = A[vi, vj] * T.float32(2)
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
-            B_subregion1_shared = Ts.match_tensor(B_shared[vi, vj], [], dtype="float32", scope="shared", offset_factor=1)
+            B_subregion1_shared = Ts.match_tensor(B_shared[vi, vj], [], dtype="float32", scope="shared", elem_offset=T.int32())
             C[vi, vj] = B_subregion1_shared[()] + T.float32(1)
 
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg

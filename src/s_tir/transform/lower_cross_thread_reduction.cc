@@ -157,7 +157,7 @@ ffi::Array<TensorVar> MakeScratchpads(const ffi::Array<TensorVar>& reduction_ten
     new_tensors.push_back(TensorVar(
         name, TensorType(/*shape=*/{IntImm::Int32(1)}, /*dtype=*/tensor.dtype(), scope_local,
                          /*strides=*/{IntImm::Int32(1)}, /*elem_offset=*/std::nullopt,
-                         /*data_alignment=*/0, /*offset_factor=*/0)));
+                         /*data_alignment=*/0)));
   }
   return new_tensors;
 }

@@ -304,12 +304,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
       TensorVar tensor = op->args[0].as_or_throw<TensorVar>();
       if (auto replacement = VarRemapGet(tensor).as<TensorVar>()) {
         TensorVar new_tensor = replacement.value();
-        PrimExpr stride = s_tir::GetStridesFromLayout(new_tensor.ty()->layout).empty()
-                              ? PrimExpr(1)
-                              : s_tir::GetStridesFromLayout(new_tensor.ty()->layout)[0];
-        if (s_tir::GetStridesFromLayout(new_tensor.ty()->layout).empty()) {
-          for (const PrimExpr& extent : tensor.shape()) stride = stride * extent;
-        }
+        PrimExpr stride = tvm::tirx::MatchShapeStridePattern(new_tensor.ty()).value().get<1>()[0];
         if ((scope_mma_matrixA && tensor.scope() == *scope_mma_matrixA) ||
             (scope_mma_matrixB && tensor.scope() == *scope_mma_matrixB)) {
           // These logical matrix allocations are distributed over a warp.
@@ -568,15 +563,15 @@ class PipelineRewriter : public StmtExprMutator {
   TensorVar RewriteAllocTensor(const TensorVar& tensor, int num_versions) {
     ffi::ObjectPtr<TensorTypeNode> new_tensor =
         ffi::make_object<TensorTypeNode>(*tensor.ty().get());
-    auto strides = s_tir::GetStridesFromLayout(tensor.ty()->layout);
+    auto strides = tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>();
     new_tensor->shape.insert(new_tensor->shape.begin(), PrimExpr(num_versions));
-    if (!strides.empty()) {
+    if (new_tensor->layout.has_value()) {
       TVM_FFI_ICHECK(strides.size() + 1 == new_tensor->shape.size());
       PrimExpr stride_0 = strides[0] * new_tensor->shape[1];
       strides.insert(strides.begin(), stride_0);
+      new_tensor->layout =
+          s_tir::WithStrides(new_tensor->layout, new_tensor->shape, std::move(strides));
     }
-    new_tensor->layout =
-        s_tir::WithStrides(new_tensor->layout, new_tensor->shape, std::move(strides));
     return TensorVar(tensor->name, TensorType(std::move(new_tensor)), tensor->loc);
   }
 

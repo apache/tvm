@@ -115,8 +115,7 @@ TileLayout FuseAxesByScope(TileLayout layout) {
     offset.Set(iter->axis, iter->stride);
   }
   // Step 7: Create and return the new layout
-  auto result = TileLayout(shard, replica, offset, layout->memory_origin);
-  result.CopyOnWrite()->compact = layout->compact;
+  auto result = TileLayout(shard, replica, offset);
   return result;
 }
 

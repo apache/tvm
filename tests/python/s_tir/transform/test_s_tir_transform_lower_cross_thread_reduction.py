@@ -807,16 +807,16 @@ def single_reduction_loop_with_tensorize(
                     input_A[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4],
                     [4],
                     dtype="uint8",
-                    offset_factor=1,
+                    elem_offset=T.int32(),
                 )
                 B = Ts.match_tensor(
                     input_B[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:32, 0:4],
                     [32, 4],
                     dtype="int8",
-                    offset_factor=1,
+                    elem_offset=T.int32(),
                 )
                 C = Ts.match_tensor(
-                    output[n, oc_chunk, oh, ow, 0:32], [32], dtype="int32", offset_factor=1
+                    output[n, oc_chunk, oh, ow, 0:32], [32], dtype="int32", elem_offset=T.int32()
                 )
                 A_u8x4: T.uint8x4 = A[T.ramp(0, 1, 4)]
                 A_i32: T.int32 = T.reinterpret(A_u8x4, ty="int32")
@@ -861,15 +861,15 @@ def nested_reduction_loop_with_inner_match_tensors(
                             in0[yi, yi * 4 + xr : yi * 4 + xr + 4],
                             [4],
                             dtype="int8",
-                            offset_factor=1,
+                            elem_offset=T.int32(),
                         )
                         B = Ts.match_tensor(
                             in1[yi, yi * 4 + xr : yi * 4 + xr + 4],
                             [4],
                             dtype="int8",
-                            offset_factor=1,
+                            elem_offset=T.int32(),
                         )
-                        C = Ts.match_tensor(out[yi, xr], [1], dtype="int32", offset_factor=1)
+                        C = Ts.match_tensor(out[yi, xr], [1], dtype="int32", elem_offset=T.int32())
                         A_i8x4: T.int8x4 = A[T.ramp(0, 1, 4)]
                         A_i32: T.int32 = T.reinterpret(A_i8x4, ty="int32")
                         B_i8x4: T.int8x4 = B[T.ramp(0, 1, 4)]

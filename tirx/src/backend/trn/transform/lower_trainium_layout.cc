@@ -169,17 +169,12 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
       type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
       type->shape = new_shape;
       type->layout = std::nullopt;
-      auto origin = trn_layout->memory_origin;
-      auto regular = TileLayoutNode::DefaultLayout(new_shape);
-      regular.CopyOnWrite()->compact = true;
-      regular.CopyOnWrite()->memory_origin =
-          Mutate(origin, InplaceMode::kDisallow).ValueOrUnchanged(origin);
-      type->layout = regular;
+      type->layout = std::nullopt;
     } else if (is_alloc) {
       if (auto tile_layout = buf.ty()->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
         sym::Analyzer ana;
-        PrimExpr mem_span = IntImm::Int32(1) + tile_layout->memory_origin;
+        PrimExpr mem_span = IntImm::Int32(1);
         for (const auto& iter : tile_layout->shard) {
           if (iter->axis->IsMemoryAxis()) {
             mem_span = mem_span + (iter->extent - 1) * iter->stride;

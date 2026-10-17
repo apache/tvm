@@ -245,9 +245,7 @@ def test_packing_preserves_different_alignment_contracts():
         for i in T.serial(17):
             A[i] = T.float32(i)
         output[0] = A[16]
-        B = T.alloc_tensor(
-            ty_args=[T.Tensor((17,), "float32", scope, elem_offset=0, align=256, offset_factor=128)]
-        )
+        B = T.alloc_tensor(ty_args=[T.Tensor((17,), "float32", scope, elem_offset=0, align=512)])
         for i in T.serial(17):
             B[i] = T.float32(i + 1)
         output[1] = B[16]
@@ -265,9 +263,7 @@ def test_packing_preserves_different_alignment_contracts():
             output[0] = A_1[16]
             A_2 = T.decl_tensor(
                 A.data,
-                ty_args=[
-                    T.Tensor((17,), T.float32, scope=scope, data_alignment=256, offset_factor=128)
-                ],
+                ty_args=[T.Tensor((17,), T.float32, scope=scope, data_alignment=512)],
             )
             for i_1 in range(17):
                 A_2[128 + i_1] = T.Cast("float32", i_1 + 1)
