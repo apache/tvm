@@ -194,7 +194,9 @@ def test_tensor_params():
 
 def test_compound_tensor_param_shape_var():
     n = tvm_tirx.tirx.Var("n", "int32")
-    A = tvm_tirx.tirx.decl_tensor((tvm_tirx.tirx.max(n, 1),), layout=None)
+    A = tvm_tirx.tirx.Var(
+        "tensor", tvm_tirx.tirx.TensorType((tvm_tirx.tirx.max(n, 1),), "float32", layout=None)
+    )
     f1 = tvm_tirx.tirx.Function([A], tvm_tirx.ir.Evaluate(n))
     f2 = tvm_tirx.tirx.renew_def(f1)
 

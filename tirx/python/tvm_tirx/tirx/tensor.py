@@ -108,6 +108,8 @@ class TensorType(Type):
         if data is not None:
             if not isinstance(data, tvm_tirx.ir.Expr) or not isinstance(data.ty, PtrType):
                 raise TypeError("Tensor data must be an Expr with PtrType")
+            if not isinstance(data.ty.element_type, PrimType):
+                raise TypeError("Tensor data must point to a primitive type")
             scope = data.ty.scope
         if layout is MISSING:
             layout = None
@@ -125,7 +127,7 @@ class TensorType(Type):
             data_alignment,
             offset_factor,
             layout,
-            UNKNOWN_LOC,
+            loc if isinstance(loc, Location) else UNKNOWN_LOC,
         )
         at(loc, self)
 
@@ -186,7 +188,7 @@ class TensorType(Type):
             The storage scope associated with this tensor.
         """
         _check_tensor_receiver(self, expr)
-        return _ffi_api.TensorStorageScope(expr)  # type: ignore
+        return self.scope
 
     def is_scalar(self, expr, alloc_or_decl=True):
         """Check if the tensor is a scalar.
@@ -312,49 +314,6 @@ def _check_tensor_property_receiver(ty, expr):
     if not is_tensor_var(expr):
         raise AttributeError("Tensor properties are only available on a Var with TensorType")
     _check_tensor_receiver(ty, expr)
-
-
-def decl_tensor(
-    shape,
-    dtype=None,
-    name="tensor",
-    data=None,
-    strides=None,
-    elem_offset=None,
-    scope=_SCOPE_GLOBAL,
-    data_alignment=-1,
-    offset_factor=0,
-    loc: Location = UNKNOWN_LOC,
-    layout=None,
-):
-    # pylint: disable=import-outside-toplevel
-    from .layout import S, TileLayout
-
-    shape = (shape,) if tvm_tirx.ir.is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    dtype = "float32" if dtype is None else dtype
-    strides = () if strides is None else strides
-
-    if layout == "default":
-        layout = TileLayout(S[tuple(shape)]) if shape else None
-
-    if data is not None:
-        if not isinstance(data, tvm_tirx.ir.Expr) or not isinstance(data.ty, PtrType):
-            raise TypeError("Tensor data must be an Expr with PtrType")
-        if not isinstance(data.ty.element_type, PrimType):
-            raise TypeError("Tensor data must point to a primitive type")
-        scope = data.ty.scope
-    tensor_type = _ffi_api.TensorType(  # type: ignore
-        shape,
-        dtype,
-        scope,
-        strides,
-        elem_offset,
-        data_alignment,
-        offset_factor,
-        layout,
-        loc,
-    )
-    return Var(name, tensor_type, loc=loc)
 
 
 def tensor_data_ptr(tensor, *, ty=None, loc: Location = UNKNOWN_LOC):

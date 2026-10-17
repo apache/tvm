@@ -32,7 +32,7 @@ def test_decl_tensor_data_is_use():
     from tvm_tirx.ir import PrimType, PtrType
 
     data_ptr = tirx.Var("buf_data", PtrType(PrimType("float32")))
-    buf = tirx.decl_tensor((n,), "float32", "buf", data=data_ptr)
+    buf = tirx.Var("buf", tirx.TensorType((n,), "float32", data=data_ptr))
 
     body = tvm_tirx.ir.Evaluate(tvm_tirx.ir.TensorLoad(buf, [0]))
     decl = tvm_tirx.ir.Bind(
@@ -62,7 +62,7 @@ def test_decl_tensor_elem_offset_is_use():
     n = tirx.Var("n", "int32")
     data_ptr = tirx.Var("buf_data", PtrType(PrimType("float32")))
     elem_off = tirx.Var("buf_elem_offset", "int32")
-    buf = tirx.decl_tensor((n,), "float32", "buf", data=data_ptr, elem_offset=elem_off)
+    buf = tirx.Var("buf", tirx.TensorType((n,), "float32", data=data_ptr, elem_offset=elem_off))
 
     body = tvm_tirx.ir.Evaluate(tvm_tirx.ir.TensorLoad(buf, [0]))
     decl = tvm_tirx.ir.Bind(
@@ -90,7 +90,7 @@ def test_alloc_tensor_data_is_def():
     not a reference to an external variable.
     """
     n = tirx.Var("n", "int32")
-    buf = tirx.decl_tensor((n,), "float32", "buf")
+    buf = tirx.Var("buf", tirx.TensorType((n,), "float32"))
 
     body = tvm_tirx.ir.Evaluate(tvm_tirx.ir.TensorLoad(buf, [0]))
     alloc = tvm_tirx.ir.Bind(
@@ -114,7 +114,7 @@ def test_alloc_tensor_data_is_def():
 
 def test_tensor_data_projection_is_tensor_use():
     """An opaque data projection must retain the TensorVar identity."""
-    buf = tirx.decl_tensor((16,), "float32", "buf")
+    buf = tirx.Var("buf", tirx.TensorType((16,), "float32"))
     stmt = tvm_tirx.ir.Evaluate(buf.data)
 
     undef = tvm_tirx.tirx.analysis.undefined_vars(stmt, [])

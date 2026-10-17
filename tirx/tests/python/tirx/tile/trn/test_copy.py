@@ -25,7 +25,7 @@ from tvm_tirx.backend.trn.tile.instruction_generator import InstructionGenerator
 from tvm_tirx.ir import assert_structural_equal as _assert_structural_equal
 from tvm_tirx.script import tirx as T
 from tvm_tirx.sym import Analyzer
-from tvm_tirx.tirx import decl_tensor
+from tvm_tirx.tirx import TensorType, Var
 from tvm_tirx.tirx.layout import S, TileLayout
 
 target = tvm_tirx.target.Target("aws/trn1/trn1.2xlarge")
@@ -53,7 +53,7 @@ def assert_structural_equal(lhs, rhs, *args, **kwargs):
 
 
 def test_instruction_generator_compact_global_layout():
-    tensor = decl_tensor((8, 16), "float32")
+    tensor = Var("tensor", TensorType((8, 16), "float32"))
     region = tensor[0:8, 0:16]
     generator = InstructionGenerator((region,), Analyzer())
     layout = generator.split_layout_views[region]

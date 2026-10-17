@@ -23,13 +23,13 @@ import tvm_tirx
 from tvm_tirx.ir import Call, Evaluate, assert_structural_equal, load_json, save_json
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import Var, decl_tensor
+from tvm_tirx.tirx import TensorType, Var
 from tvm_tirx.tirx.analysis import undefined_vars
 
 
 def test_instruction_is_a_void_call():
-    src = decl_tensor((16, 4), "float32", scope="global")
-    dst = decl_tensor((16, 4), "float32", scope="local")
+    src = Var("tensor", TensorType((16, 4), "float32", scope="global"))
+    dst = Var("tensor", TensorType((16, 4), "float32", scope="local"))
     call = T.cuda.tile.apply(T.ptx["ld.global.v4.b32"], dst, src, scope="warp")
     assert isinstance(call, Call)
     assert call.ty == tvm_tirx.ir.PrimType("void")
@@ -67,8 +67,8 @@ def test_roundtrip_and_exactly_one_evaluate(composite):
 
 
 def test_runtime_operands_are_seen_and_replaced():
-    src = decl_tensor((16, 16), "float32", scope="global")
-    dst = decl_tensor((4, 16), "float32", scope="shared")
+    src = Var("tensor", TensorType((16, 16), "float32", scope="global"))
+    dst = Var("tensor", TensorType((4, 16), "float32", scope="shared"))
     mbar = Var("mbar", "handle")
     row = Var("row", "int32")
     mask = Var("mask", "uint16")
@@ -101,8 +101,8 @@ def test_runtime_operands_are_seen_and_replaced():
 
 def test_workspace_is_an_optional_call_operand():
     tvm_tirx.backend.load("trn")
-    a = decl_tensor((16, 16), "float32", scope="shared")
-    acc = decl_tensor((16, 16), "float32", scope="trn.psum")
+    a = Var("tensor", TensorType((16, 16), "float32", scope="shared"))
+    acc = Var("tensor", TensorType((16, 16), "float32", scope="trn.psum"))
     call = T.trn.tile.matmul(a, a, a, acc_psum=acc)
     assert call.args[-1].same_as(acc)
     assert any(v.same_as(acc) for v in undefined_vars(Evaluate(call)))
@@ -110,7 +110,7 @@ def test_workspace_is_an_optional_call_operand():
 
 
 def test_direct_call_validation_cannot_bypass_signature():
-    a = decl_tensor((16, 1), "float32", scope="local")
+    a = Var("tensor", TensorType((16, 1), "float32", scope="local"))
     valid = T.cuda.tile.apply(T.ptx["mov.b32"], a, T.float32(0))
     for call in [
         Call(

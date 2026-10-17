@@ -31,7 +31,6 @@ from tvm_tirx.ir import const
 from .tensor import (
     TensorType,
     tensor_data_ptr,
-    decl_tensor,
     is_tensor_var,
 )
 from .type import TensorMapType

@@ -45,7 +45,7 @@ def _assert_print(obj, expected):
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_function_symbolic_tensor_param_roundtrip():
     n = tirx.Var("n", "int32")
-    A = tirx.decl_tensor(shape=[n + 1, n], dtype="float32", name="A", layout=None)
+    A = tirx.Var("A", tirx.TensorType([n + 1, n], "float32", layout=None))
     func = (
         tirx.Function(params=[A], body=tvm_tirx.ir.Evaluate(n))
         .with_attr("global_symbol", "main")
@@ -67,7 +67,7 @@ def test_function_symbolic_tensor_param_roundtrip():
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_function_compound_tensor_shape_first_use_roundtrip():
     n = tirx.Var("n", "int32")
-    A = tirx.decl_tensor(shape=[tirx.max(n, 1)], dtype="float32", name="A", layout=None)
+    A = tirx.Var("A", tirx.TensorType([tirx.max(n, 1)], "float32", layout=None))
     func = (
         tirx.Function(params=[A], body=tvm_tirx.ir.Evaluate(n))
         .with_attr("global_symbol", "main")
@@ -88,7 +88,7 @@ def test_function_compound_tensor_shape_first_use_roundtrip():
 
 def test_function_symbolic_alloc_tensor_roundtrip():
     size = tirx.Var("size", "int32")
-    buf = tirx.decl_tensor(shape=[size], dtype="float32", name="buf", layout=None)
+    buf = tirx.Var("buf", tirx.TensorType([size], "float32", layout=None))
     func = tirx.Function(
         params=[],
         body=tvm_tirx.ir.SeqStmt(
@@ -120,8 +120,8 @@ def test_function_symbolic_alloc_tensor_roundtrip():
 
 
 def test_function():
-    A = tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A")
-    B = tirx.decl_tensor(shape=[256, 256], dtype="float32", name="B")
+    A = tirx.Var("A", tirx.TensorType([128, 128], "float32"))
+    B = tirx.Var("B", tirx.TensorType([256, 256], "float32"))
     func = (
         tirx.Function(
             params=[A, B],
@@ -147,8 +147,8 @@ def main(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32))
 
 
 def test_function_tensor_data_use():
-    A = tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A")
-    B = tirx.decl_tensor(shape=[256, 256], dtype="float32", name="B")
+    A = tirx.Var("A", tirx.TensorType([128, 128], "float32"))
+    B = tirx.Var("B", tirx.TensorType([256, 256], "float32"))
     func = (
         tirx.Function(
             params=[A, B],
@@ -175,9 +175,9 @@ def main(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32))
 
 
 def test_function_tensor_data_argument_is_scope_hint():
-    buffer_data = tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A").data
-    A = tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A", data=buffer_data)
-    B = tirx.decl_tensor(shape=[256, 256], dtype="float32", name="B", data=buffer_data)
+    buffer_data = tirx.Var("A", tirx.TensorType([128, 128], "float32")).data
+    A = tirx.Var("A", tirx.TensorType([128, 128], "float32", data=buffer_data))
+    B = tirx.Var("B", tirx.TensorType([256, 256], "float32", data=buffer_data))
     func = (
         tirx.Function(
             params=[A, B],
@@ -258,8 +258,8 @@ with Ts.sblock("block", no_realize=True):
 
 
 def test_match_tensor_region():
-    src = tirx.decl_tensor((128, 128), "float32", name="src")
-    tgt = tirx.decl_tensor((64, 64), "float32", name="tgt")
+    src = tirx.Var("src", tirx.TensorType((128, 128), "float32"))
+    tgt = tirx.Var("tgt", tirx.TensorType((64, 64), "float32"))
     obj = s_tir.MatchTensorRegion(
         tgt,
         TensorRegion(
@@ -395,8 +395,8 @@ def main():
 
 
 def test_private_function():
-    A = tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A")
-    B = tirx.decl_tensor(shape=[256, 256], dtype="float32", name="B")
+    A = tirx.Var("A", tirx.TensorType([128, 128], "float32"))
+    B = tirx.Var("B", tirx.TensorType([256, 256], "float32"))
     func = tirx.Function(
         params=[A, B],
         ret_type=None,
@@ -543,8 +543,8 @@ def test_predicated_tensor_load_store():
     a = tirx.Var("a", "handle")
     b = tirx.Var("b", "handle")
     tensors = {
-        a: tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A"),
-        b: tirx.decl_tensor(shape=[256, 256], dtype="float32", name="B"),
+        a: tirx.Var("A", tirx.TensorType([128, 128], "float32")),
+        b: tirx.Var("B", tirx.TensorType([256, 256], "float32")),
     }
     tensor_load = tirx.call_intrin(
         "tirx.masked_load",

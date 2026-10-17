@@ -22,8 +22,8 @@ from tvm_tirx import ir, tirx
 
 
 def test_tensor_data_reinfer_type_from_rewritten_argument():
-    global_tensor = tirx.decl_tensor((8,), "float32", name="global_tensor", scope="global")
-    local_tensor = tirx.decl_tensor((8,), "float16", name="local_tensor", scope="local")
+    global_tensor = tirx.Var("global_tensor", tirx.TensorType((8,), "float32", scope="global"))
+    local_tensor = tirx.Var("local_tensor", tirx.TensorType((8,), "float16", scope="local"))
     stale_type = global_tensor.data.ty
     expected_type = local_tensor.data.ty
 

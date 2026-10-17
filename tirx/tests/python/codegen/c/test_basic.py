@@ -257,7 +257,7 @@ def test_local_alloc_buffer_uses_plain_c_pointer():
 
 
 def test_vector_pointer_uses_byte_offset():
-    buffer = tvm_tirx.tirx.decl_tensor((8,), "float32x2", name="A")
+    buffer = tvm_tirx.tirx.Var("A", tvm_tirx.tirx.TensorType((8,), "float32x2"))
     pointer = tvm_tirx.tirx.ptr_byte_offset(buffer.data, 16, ty=buffer.data.ty)
     body = tvm_tirx.ir.Evaluate(tvm_tirx.tirx.call_extern("consume", pointer, ty="void"))
     func = tvm_tirx.tirx.Function([buffer], body).with_attr("global_symbol", "main")

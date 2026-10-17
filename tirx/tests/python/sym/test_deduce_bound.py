@@ -19,7 +19,7 @@ import pytest
 
 import tvm_tirx
 import tvm_tirx.testing
-from tvm_tirx.tirx.tensor import decl_tensor
+from tvm_tirx.tirx import TensorType, Var
 
 
 def test_deduce():
@@ -236,7 +236,7 @@ def test_deduce_non_support():
     test_non_support(tvm_tirx.tirx.EQ(a, 16))
     test_non_support(tvm_tirx.tirx.NE(a, 16))
     test_non_support(tvm_tirx.tirx.log(a))
-    test_non_support(tvm_tirx.ir.TensorLoad(decl_tensor([16], "int32"), [a]))
+    test_non_support(tvm_tirx.ir.TensorLoad(Var("tensor", TensorType([16], "int32")), [a]))
 
 
 def test_deduce_floordiv():
