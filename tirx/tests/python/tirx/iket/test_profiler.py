@@ -32,7 +32,7 @@ from types import SimpleNamespace
 import pytest
 
 import tvm_tirx
-from tvm_tirx.backend.cuda import transforms as cuda_transforms
+from tvm_tirx.backend.cuda import transform as cuda_transform
 from tvm_tirx.codegen import Executable
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
@@ -379,7 +379,7 @@ def test_public_interface_is_official_only():
     assert not hasattr(profiler, "capture")
     assert not hasattr(profiler, "export")
     assert not hasattr(tvm_tirx.tirx.transform, "LowerIket")
-    assert callable(cuda_transforms.LowerIket)
+    assert callable(cuda_transform.LowerIket)
 
     script = serial_a.script()
     assert 'T.cuda.iket_mark("a")' in script
@@ -414,7 +414,7 @@ def test_annotation_ops_are_cuda_owned(name):
 
 
 def test_regular_lowering_strips_annotations_and_tokens():
-    stripped = cuda_transforms.LowerIket()(tvm_tirx.IRModule({"main": token_loop}))
+    stripped = cuda_transform.LowerIket()(tvm_tirx.IRModule({"main": token_loop}))
     script = stripped.script()
     assert "cuda.iket" not in script
     assert "sentinel" not in script
@@ -505,7 +505,7 @@ def test_tirx_pipelines_immediately_lower_iket(module_name, factory_name):
         pipeline(tvm_tirx.IRModule())
 
     split = visited.index(("after", tvm_tirx.tirx.transform.SplitHostDevice().info.name))
-    assert visited[split + 1] == ("before", cuda_transforms.LowerIket().info.name)
+    assert visited[split + 1] == ("before", cuda_transform.LowerIket().info.name)
 
 
 @pytest.mark.parametrize(

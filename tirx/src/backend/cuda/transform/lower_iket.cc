@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file backend/cuda/transforms/lower_iket.cc
+ * \file backend/cuda/transform/lower_iket.cc
  * \brief Lower frontend-only TIRx IKET annotations to CUDA tracing helpers.
  */
 
@@ -1324,7 +1324,7 @@ Pass LowerIket() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.backend.cuda.transforms.LowerIket", LowerIket);
+  refl::GlobalDef().def("tirx.backend.cuda.transform.LowerIket", LowerIket);
 }
 
 }  // namespace transform

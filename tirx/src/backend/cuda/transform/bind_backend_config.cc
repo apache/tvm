@@ -273,9 +273,9 @@ Pass SpecializeDeviceHelpers() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::GlobalDef()
-      .def("tirx.backend.cuda.transforms.BindBackendConfig", BindBackendConfig)
-      .def("tirx.backend.cuda.transforms.SpecializeDeviceHelpers", SpecializeDeviceHelpers)
-      .def("tirx.backend.cuda.transforms.SpecializeEntryHelpers", SpecializeEntryHelpers);
+      .def("tirx.backend.cuda.transform.BindBackendConfig", BindBackendConfig)
+      .def("tirx.backend.cuda.transform.SpecializeDeviceHelpers", SpecializeDeviceHelpers)
+      .def("tirx.backend.cuda.transform.SpecializeEntryHelpers", SpecializeEntryHelpers);
 }
 }  // namespace transform
 }  // namespace tirx

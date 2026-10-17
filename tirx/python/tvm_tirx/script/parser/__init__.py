@@ -14,7 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Canonical TVMScript parser with language variant namespace initialization."""
+"""Translate TVMScript syntax into IR-builder calls.
+
+Notes
+-----
+A registered language namespace supplies hooks for function construction,
+value binding, statement emission, and control flow. Use ``register_namespace``
+and ``make_decorator`` to register a namespace and create its decorator.
+The hook contracts are defined by ``script.ir_builder.parser_protocol``.
+
+Examples
+--------
+.. code-block:: python
+
+    from tvm_tirx.script import tirx as T
+
+    @T.function
+    def example(a: T.int32):
+        T.evaluate(a + 1)
+"""
 
 from __future__ import annotations
 

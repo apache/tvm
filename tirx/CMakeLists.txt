@@ -158,7 +158,7 @@ file(GLOB CODEGEN_SRCS CONFIGURE_DEPENDS
   src/codegen/llvm/canonicalizer/*.cc
   src/backend/cuda/codegen/*.cc
   src/backend/cuda/op/*.cc
-  src/backend/cuda/transforms/*.cc
+  src/backend/cuda/transform/*.cc
   src/backend/cuda/tile/*.cc
   src/backend/cuda/layout/*.cc
   src/backend/hexagon/codegen/*.cc

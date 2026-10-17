@@ -40,7 +40,7 @@ from .expr import Var, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import LShift, RShift, BitwiseAnd, BitwiseOr, BitwiseXor, BitwiseNot
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
-from .expr import Select, TensorLoad
+from .expr import Select
 from .expr import Let
 
 
