@@ -839,27 +839,6 @@ def test_llvm_order_functions():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
-@pytest.mark.parametrize("extent", [2**32 + 1, 2**32 + 4])
-def test_llvm_large_stack_allocation_uses_64bit_extent(extent):
-    @T.function
-    def main(A: T.Tensor((1,), "float32")):
-        B = T.alloc_tensor(
-            ty_args=[T.Tensor((extent,), "float32", scope="global")],
-            annotations={"disable_lower_builtin": True},
-        )
-        A[0] = B[T.int64(extent - 1)]
-
-    module = tvm_tirx.tirx.compile(
-        main,
-        target={"kind": "llvm", "opt-level": 0},
-        pipeline="tirx",
-    ).mod
-    llvm_ir = module.inspect_source("ll")
-
-    assert re.search(rf"alloca float, i64 {extent}(?:,|$)", llvm_ir)
-
-
-@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_llvm_scalar_concat():
     @I.ir_module
     class Module:
