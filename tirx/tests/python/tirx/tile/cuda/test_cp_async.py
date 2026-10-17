@@ -142,7 +142,9 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
     target = tvm_tirx.target.Target("cuda")
     with target:
         mod = tvm_tirx.IRModule({"main": copy_async})
-        mod = tvm_tirx.tirx.transform.LowerTIRx()(mod)
+        mod = tvm_tirx.ir.transform.Sequential(
+            [tvm_tirx.tirx.transform.TileDispatch(), tvm_tirx.tirx.transform.LowerTensorLayouts()]
+        )(mod)
         mod = tvm_tirx.tirx.compile(mod, target=target, pipeline="tirx")
 
         np.random.seed(0)
