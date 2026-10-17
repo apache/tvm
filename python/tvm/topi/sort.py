@@ -49,11 +49,11 @@ def sort(data, axis=-1, is_ascend=1):
         Sorted index tensor.
 
     """
-    data_buf = tvm_tirx.tirx.decl_tensor(
-        data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
+    data_buf = tvm_tirx.tirx.Var(
+        "data_buf", tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None)
     )
-    out_buf = tvm_tirx.tirx.decl_tensor(
-        data.shape, data.dtype, "out_buf", data_alignment=8, layout=None
+    out_buf = tvm_tirx.tirx.Var(
+        "out_buf", tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None)
     )
     out = te.extern(
         data.shape,
@@ -116,15 +116,18 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
         tvm_out = tvm_tirx.runtime.tensor(np.zeros(dshape, dtype=data.dtype.dtype), dev)
         f(tvm_data, tvm_out)
     """
-    data_buf = tvm_tirx.tirx.decl_tensor(
-        data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
+    data_buf = tvm_tirx.tirx.Var(
+        "data_buf", tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None)
     )
     if valid_count is not None:
-        valid_count_buf = tvm_tirx.tirx.decl_tensor(
-            valid_count.shape, valid_count.dtype, "valid_count_buf", data_alignment=4, layout=None
+        valid_count_buf = tvm_tirx.tirx.Var(
+            "valid_count_buf",
+            tvm_tirx.tirx.TensorType(
+                valid_count.shape, valid_count.dtype, data_alignment=4, layout=None
+            ),
         )
-        out_buf = tvm_tirx.tirx.decl_tensor(
-            data.shape, "int32", "out_buf", data_alignment=8, layout=None
+        out_buf = tvm_tirx.tirx.Var(
+            "out_buf", tvm_tirx.tirx.TensorType(data.shape, "int32", data_alignment=8, layout=None)
         )
         out = te.extern(
             data.shape,
@@ -139,8 +142,11 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
             tag="argsort_nms_cpu",
         )
     else:
-        out_buf = tvm_tirx.tirx.decl_tensor(
-            data.shape, dtype, "out_buf", data_alignment=8, layout=None
+        out_buf = tvm_tirx.tirx.Var(
+            "out_buf",
+            tvm_tirx.tirx.TensorType(
+                data.shape, "float32" if dtype is None else dtype, data_alignment=8, layout=None
+            ),
         )
         out = te.extern(
             data.shape,
@@ -189,8 +195,8 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
         The computed result.
     """
     assert ret_type in ["both", "values", "indices"]
-    data_buf = tvm_tirx.tirx.decl_tensor(
-        data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
+    data_buf = tvm_tirx.tirx.Var(
+        "data_buf", tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None)
     )
     out_shape = list(get_const_tuple(data.shape))
     kvar = tvm.te.var("k")
@@ -201,14 +207,18 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
     out_bufs = []
     if ret_type in ["both", "values"]:
         out_bufs.append(
-            tvm_tirx.tirx.decl_tensor(
-                out_shape, data.dtype, "value_buf", data_alignment=8, layout=None
+            tvm_tirx.tirx.Var(
+                "value_buf",
+                tvm_tirx.tirx.TensorType(out_shape, data.dtype, data_alignment=8, layout=None),
             )
         )
     if ret_type in ["both", "indices"]:
         out_bufs.append(
-            tvm_tirx.tirx.decl_tensor(
-                out_shape, dtype, "indices_buf", data_alignment=8, layout=None
+            tvm_tirx.tirx.Var(
+                "indices_buf",
+                tvm_tirx.tirx.TensorType(
+                    out_shape, "float32" if dtype is None else dtype, data_alignment=8, layout=None
+                ),
             )
         )
     out_shapes = [out_shape] * len(out_bufs)

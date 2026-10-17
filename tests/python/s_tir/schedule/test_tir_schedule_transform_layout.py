@@ -1041,7 +1041,7 @@ def test_pad_value_may_not_reference_other_tensor():
 
     sch = tvm.s_tir.Schedule(Before)
     A = sch.get(sch.get_sblock("block")).reads[0].source
-    other = tirx.decl_tensor(1, A.ty.dtype, name="other")
+    other = tirx.Var("other", tirx.TensorType(1, A.ty.dtype))
     with pytest.raises(tvm.s_tir.schedule.schedule.ScheduleError):
         sch.transform_layout(
             "block",

@@ -312,12 +312,14 @@ def extern(
             raise ValueError("expect inputs to be tensor")
         if in_tensors is None:
             input_placeholders.append(
-                tvm_tirx.tirx.decl_tensor(
-                    t.shape,
-                    t.dtype,
+                tvm_tirx.tirx.Var(
                     t.op.name,
-                    elem_offset=tvm_tirx.tirx.Var("elem_offset", "int32"),
-                    layout=None,
+                    tvm_tirx.tirx.TensorType(
+                        t.shape,
+                        t.dtype,
+                        elem_offset=tvm_tirx.tirx.Var("elem_offset", "int32"),
+                        layout=None,
+                    ),
                 )
             )
         types.add(t.dtype)
@@ -333,12 +335,14 @@ def extern(
 
         for shp, dt in zip(shape, dtype):
             output_placeholders.append(
-                tvm_tirx.tirx.decl_tensor(
-                    shp,
-                    dt,
+                tvm_tirx.tirx.Var(
                     name,
-                    elem_offset=tvm_tirx.tirx.Var("elem_offset", "int32"),
-                    layout=None,
+                    tvm_tirx.tirx.TensorType(
+                        shp,
+                        "float32" if dt is None else dt,
+                        elem_offset=tvm_tirx.tirx.Var("elem_offset", "int32"),
+                        layout=None,
+                    ),
                 )
             )
     body = fcompute(input_placeholders, output_placeholders)

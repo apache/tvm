@@ -83,7 +83,7 @@ def test_ir2():
     storage_type = ir.PrimType("int32")
     handle_type = ir.PtrType(storage_type)
     array = tvm_tirx.tirx.Var("array", handle_type)
-    buf = tvm_tirx.tirx.decl_tensor([buf_size], "int32", data=array)
+    buf = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType([buf_size], "int32", data=array))
 
     st = tvm_tirx.ir.TensorStore(buf, [1], x + 1)
     assert isinstance(st, tvm_tirx.ir.TensorStore)
@@ -306,7 +306,7 @@ def test_equality_string_imm():
 def test_function():
     x = tvm_tirx.tirx.Var("x", "int32")
     y = tvm_tirx.tirx.Var("y", "int32")
-    b = tvm_tirx.tirx.decl_tensor((x,), "float32")
+    b = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((x,), "float32"))
     stmt = tvm_tirx.ir.SeqStmt([tvm_tirx.ir.Bind(x, 10), tvm_tirx.ir.Evaluate(x + 1)])
 
     func = tvm_tirx.tirx.Function([x, y, b], stmt)
@@ -341,7 +341,7 @@ def test_scoped_storage_vars():
 
 
 def test_tensor_load_store():
-    b = tvm_tirx.tirx.decl_tensor((10,), "float32")
+    b = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((10,), "float32"))
     x = tvm_tirx.ir.TensorLoad(b, [0])
     assert isinstance(x, tvm_tirx.ir.TensorLoad)
     assert x.ty.dtype == "float32"
@@ -356,7 +356,9 @@ def test_tensor_load_store():
     s = tvm_tirx.ir.TensorStore(b, [0], 0.1)
     assert isinstance(s, tvm_tirx.ir.TensorStore)
 
-    tensor = tvm_tirx.tirx.decl_tensor((4, 8), "float32", elem_offset=100)
+    tensor = tvm_tirx.tirx.Var(
+        "tensor", tvm_tirx.tirx.TensorType((4, 8), "float32", elem_offset=100)
+    )
     tvm_tirx.ir.assert_structural_equal(
         tensor[2, 3].indices,
         [tvm_tirx.ir.IntImm("int32", 2), tvm_tirx.ir.IntImm("int32", 3)],
@@ -364,7 +366,7 @@ def test_tensor_load_store():
 
 
 def test_tensor_load_validation():
-    tensor = tvm_tirx.tirx.decl_tensor((8, 8), "float32")
+    tensor = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((8, 8), "float32"))
     with pytest.raises(RuntimeError, match="dimensional"):
         tvm_tirx.ir.TensorLoad(tensor, [0])
     with pytest.raises(RuntimeError, match="Only the last index"):
@@ -382,14 +384,14 @@ def test_tensor_load_validation():
     ],
 )
 def test_tensor_load_vector_elements(element_dtype, index_lanes, result_dtype):
-    tensor = tvm_tirx.tirx.decl_tensor((32,), element_dtype)
+    tensor = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((32,), element_dtype))
     lanes = 4 * tvm_tirx.tirx.vscale() if index_lanes == "scalable" else index_lanes
     load = tvm_tirx.ir.TensorLoad(tensor, [tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, lanes)])
     assert load.ty.dtype == result_dtype
 
 
 def test_tensor_load_rejects_two_scalable_types():
-    tensor = tvm_tirx.tirx.decl_tensor((32,), "float32xvscalex2")
+    tensor = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((32,), "float32xvscalex2"))
     with pytest.raises(RuntimeError, match="can't both be scalable"):
         tvm_tirx.ir.TensorLoad(
             tensor, [tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4 * tvm_tirx.tirx.vscale())]
@@ -458,7 +460,7 @@ def test_broadcast_to_scalable_vec():
 
 
 def test_tensor_load_scalable_vec():
-    buf = tvm_tirx.tirx.decl_tensor((24,), "float32")
+    buf = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((24,), "float32"))
     index = tvm_tirx.ir.prim.vector_expr.Ramp(1, 1, 8 * tvm_tirx.tirx.vscale())
     load = tvm_tirx.ir.TensorLoad(buf, [index])
 
@@ -467,7 +469,7 @@ def test_tensor_load_scalable_vec():
 
 
 def test_tensor_store_scalable_vec():
-    b = tvm_tirx.tirx.decl_tensor((24,), "int32")
+    b = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((24,), "int32"))
     value = tvm_tirx.ir.prim.vector_expr.Broadcast(1, 4 * tvm_tirx.tirx.vscale())
     index = tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4 * tvm_tirx.tirx.vscale())
     store = tvm_tirx.ir.TensorStore(b, [index], value)
@@ -477,7 +479,7 @@ def test_tensor_store_scalable_vec():
 
 
 def test_scalable_vec_cast():
-    b = tvm_tirx.tirx.decl_tensor((24,), "float32")
+    b = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((24,), "float32"))
     value = tvm_tirx.ir.prim.vector_expr.Broadcast(1, 12 * tvm_tirx.tirx.vscale()).astype(
         "float32xvscalex12"
     )

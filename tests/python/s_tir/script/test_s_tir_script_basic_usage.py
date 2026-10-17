@@ -242,8 +242,10 @@ def test_inferred_ty_with_tensor_args():
 
     expected = tvm_tirx.ir.FuncType(
         [
-            tvm_tirx.tirx.decl_tensor([16, 16], "float32", layout=None).ty,
-            tvm_tirx.tirx.decl_tensor([256], "int32", layout=None).ty,
+            tvm_tirx.tirx.Var(
+                "tensor", tvm_tirx.tirx.TensorType([16, 16], "float32", layout=None)
+            ).ty,
+            tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType([256], "int32", layout=None)).ty,
         ],
         tvm_tirx.ir.PrimType("float32"),
     )
@@ -264,7 +266,9 @@ def test_inferred_ty_with_internal_allocation():
 
     expected = tvm_tirx.ir.FuncType(
         [
-            tvm_tirx.tirx.decl_tensor([16, 16], "float32", layout=None).ty,
+            tvm_tirx.tirx.Var(
+                "tensor", tvm_tirx.tirx.TensorType([16, 16], "float32", layout=None)
+            ).ty,
         ],
         tvm_tirx.ir.PrimType("float32"),
     )
@@ -281,8 +285,8 @@ def test_inferred_ty_with_output_tensor():
 
     expected = tvm_tirx.ir.FuncType(
         [
-            tvm_tirx.tirx.decl_tensor([16], "float32", layout=None).ty,
-            tvm_tirx.tirx.decl_tensor([16], "float32", layout=None).ty,
+            tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType([16], "float32", layout=None)).ty,
+            tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType([16], "float32", layout=None)).ty,
         ],
         tvm_tirx.ir.TupleType([]),
     )

@@ -170,7 +170,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
             "scatter_elements reduction not in [update, add, mul, mean, min, max]:", reduction
         )
 
-    out_buf = tirx.decl_tensor(data.shape, data.dtype, "out_buf", layout=None)
+    out_buf = tirx.Var("out_buf", tirx.TensorType(data.shape, data.dtype, layout=None))
     return te.extern(
         [data.shape],
         [data, indices, updates],

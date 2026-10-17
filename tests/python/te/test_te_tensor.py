@@ -184,6 +184,12 @@ def test_extern():
     assert tuple(B.shape) == (m,)
 
 
+def test_extern_none_output_dtype_defaults_to_float32():
+    source = te.placeholder((8,), dtype="int32")
+    result = te.extern((8,), [source], lambda ins, outs: tvm_tirx.ir.Evaluate(0), dtype=[None])
+    assert result.dtype == "float32"
+
+
 def test_extern_multi_out():
     m = te.var("m")
     A = te.placeholder((m,), name="A")

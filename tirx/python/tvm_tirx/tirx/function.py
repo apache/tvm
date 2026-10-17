@@ -140,7 +140,8 @@ class Function(BaseFunc, Scriptable):
         .. code-block:: python
 
             a, _, m, n = mem_copy.params
-            func = mem_copy.specialize({a: tirx.decl_tensor((16, 16))})
+            tensor = tirx.Var("tensor", tirx.TensorType((16, 16), "float32"))
+            func = mem_copy.specialize({a: tensor})
             # or
             func = mem_copy.specialize({n: 16, m: 16})
 

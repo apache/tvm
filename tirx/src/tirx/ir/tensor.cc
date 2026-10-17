@@ -443,9 +443,7 @@ bool TensorVar::IsScalar(bool alloc_or_decl) const { return ty()->IsScalar(alloc
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def_method("tirx.TensorStorageScope", &TensorVar::scope)
-      .def_method("tirx.TensorIsScalar", &TensorVar::IsScalar);
+  refl::GlobalDef().def_method("tirx.TensorIsScalar", &TensorVar::IsScalar);
 }
 
 }  // namespace tirx

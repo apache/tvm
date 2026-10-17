@@ -32,14 +32,14 @@ from tvm_tirx.ir import (
     register_op_attr,
 )
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import Function, decl_tensor
+from tvm_tirx.tirx import Function, TensorType, Var
 from tvm_tirx.tirx.tile import DispatchContext
 from tvm_tirx.tirx.tile.dispatch import run_dispatch
 from tvm_tirx.tirx.tile.instruction import SPECS
 
 
 def test_selected_lowerer_reports_context_and_cause(monkeypatch):
-    a = decl_tensor((16,), "float32", scope="local", layout="default")
+    a = Var("tensor", TensorType((16,), "float32", scope="local", layout="default"))
     call = T.cuda.tile.apply(T.ptx["sqrt.rn.f32"], a, a)
 
     def failing(view, context):
@@ -56,7 +56,7 @@ def test_selected_lowerer_reports_context_and_cause(monkeypatch):
 
 
 def test_backend_mismatch_is_rejected():
-    a = decl_tensor((16,), "float32", scope="local", layout="default")
+    a = Var("tensor", TensorType((16,), "float32", scope="local", layout="default"))
     context = SimpleNamespace(
         target=SimpleNamespace(kind=SimpleNamespace(name="trn")), scope_kind="thread"
     )
@@ -67,7 +67,7 @@ def test_backend_mismatch_is_rejected():
 @pytest.mark.parametrize("backend", ["cuda", "trn"])
 @pytest.mark.parametrize("scope", ["kernel", "unknown"])
 def test_instruction_scope_contract(backend, scope):
-    tensor = decl_tensor((16,), "float32", scope="local", layout="default")
+    tensor = Var("tensor", TensorType((16,), "float32", scope="local", layout="default"))
     instruction = (
         (lambda *args, **kw: T.cuda.tile.apply(T.ptx["add.f32"], *args, **kw))
         if backend == "cuda"
@@ -186,7 +186,7 @@ def test_dispatch_requires_stmt_result():
 
 @pytest.mark.parametrize("result", [Function([], Evaluate(0)), const(0), None])
 def test_selected_lowerer_requires_stmt_result(monkeypatch, result):
-    tensor = decl_tensor((16,), "float32", scope="local", layout="default")
+    tensor = Var("tensor", TensorType((16,), "float32", scope="local", layout="default"))
     call = T.cuda.tile.apply(T.ptx["sqrt.rn.f32"], tensor, tensor)
     monkeypatch.setattr(SPECS[call.op.name], "lower", lambda view, context: result)
     context = SimpleNamespace(target=tvm_tirx.target.Target("cuda"), scope_kind="thread")

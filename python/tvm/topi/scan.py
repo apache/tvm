@@ -22,7 +22,7 @@ from collections.abc import Callable
 
 import tvm
 from tvm_tirx.script.ir_builder import IRBuilder
-from tvm_tirx.tirx import decl_tensor
+from tvm_tirx.tirx import TensorType, Var
 from tvm_tirx.tirx.script import ir_builder as T
 
 from ..te import extern
@@ -156,7 +156,7 @@ def scanop(
 
             return ib.get()
 
-    out_buf = decl_tensor(shape, dtype, "out_buf")
+    out_buf = Var("out_buf", TensorType(shape, dtype))
 
     return extern(
         [shape],

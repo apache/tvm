@@ -61,8 +61,12 @@ def test_inferred_ty_with_dynamic_tensor():
     N = tvm_tirx.tirx.Var("N", "int64")
     expected = tvm_tirx.ir.FuncType(
         [
-            tvm_tirx.tirx.decl_tensor([M, N], "float32", layout=None).ty,
-            tvm_tirx.tirx.decl_tensor([M * N], "float32", layout=None).ty,
+            tvm_tirx.tirx.Var(
+                "tensor", tvm_tirx.tirx.TensorType([M, N], "float32", layout=None)
+            ).ty,
+            tvm_tirx.tirx.Var(
+                "tensor", tvm_tirx.tirx.TensorType([M * N], "float32", layout=None)
+            ).ty,
         ],
         tvm_tirx.ir.TupleType([]),
     )

@@ -93,9 +93,9 @@ def test_ir_builder_tir_function_complete():
     function_actual = ib.get()
 
     # the expected function
-    c_tensor = tirx.decl_tensor((128, 128), "float32", name="c", layout=None)
-    d_tensor = tirx.decl_tensor((64, 64), "int64", name="d", layout=None)
-    e_tensor = tirx.decl_tensor((1024,), "int8", name="e", layout=None)
+    c_tensor = tirx.Var("c", tirx.TensorType((128, 128), "float32", layout=None))
+    d_tensor = tirx.Var("d", tirx.TensorType((64, 64), "int64", layout=None))
+    e_tensor = tirx.Var("e", tirx.TensorType((1024,), "int8", layout=None))
     function_expected = tirx.Function(
         params=[
             tirx.Var("a", tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("void"))),
@@ -167,10 +167,10 @@ def test_ir_builder_tir_block_complete():
 
     # the expected block
     var_a = tirx.Var("a", "int64")
-    tensor_b = tirx.decl_tensor((128, 128), "float32", name="b")
-    tensor_c = tirx.decl_tensor((128, 128), "float32", name="c")
+    tensor_b = tirx.Var("b", tirx.TensorType((128, 128), "float32"))
+    tensor_c = tirx.Var("c", tirx.TensorType((128, 128), "float32"))
     var_d = tirx.Var("d", "int32")
-    tensor_e = tirx.decl_tensor((128, 128), "float32", name="c")
+    tensor_e = tirx.Var("c", tirx.TensorType((128, 128), "float32"))
     var_f = tirx.Var("f", "int32")
     block_expected = s_tir.SBlock(
         iter_vars=[s_tir.IterVar((0, 128), tirx.Var("", "int32"), iter_type=s_tir.IterVar.DataPar)],
@@ -178,9 +178,11 @@ def test_ir_builder_tir_block_complete():
         writes=[tensor_c[var_d:128, var_d:128]],
         name_hint="block",
         body=tvm_tirx.ir.Evaluate(0),
-        alloc_tensors=[tirx.decl_tensor((128, 128), "float32")],
+        alloc_tensors=[tirx.Var("tensor", tirx.TensorType((128, 128), "float32"))],
         match_tensors=[
-            s_tir.MatchTensorRegion(tirx.decl_tensor((32, 32), "float32"), tensor_e[0:32, 0:32])
+            s_tir.MatchTensorRegion(
+                tirx.Var("tensor", tirx.TensorType((32, 32), "float32")), tensor_e[0:32, 0:32]
+            )
         ],
         annotations={"key": "value"},
     )

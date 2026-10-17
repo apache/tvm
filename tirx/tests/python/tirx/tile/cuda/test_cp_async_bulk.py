@@ -47,8 +47,12 @@ def _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout, chunks=1):
     # original physical maps; flattening only changes the logical shape.
     canonical = (math.prod(shape),) if chunks == 1 else shape
     chunk_bytes = math.prod(shape) * tvm_ffi.dtype(dtype).bits // 8 // chunks
-    src = tvm_tirx.tirx.decl_tensor(canonical, dtype, "A", scope="shared.dyn", layout=src_layout)
-    dst = tvm_tirx.tirx.decl_tensor(canonical, dtype, "B", scope="shared.dyn", layout=dst_layout)
+    src = tvm_tirx.tirx.Var(
+        "A", tvm_tirx.tirx.TensorType(canonical, dtype, scope="shared.dyn", layout=src_layout)
+    )
+    dst = tvm_tirx.tirx.Var(
+        "B", tvm_tirx.tirx.TensorType(canonical, dtype, scope="shared.dyn", layout=dst_layout)
+    )
     op_call = T.cuda.tile.apply(
         T.ptx[BULK], dst, src, chunk_bytes=chunk_bytes, mbar=Var("mbar", "handle"), remote_cta_id=1
     )
@@ -309,7 +313,9 @@ def test_dsmem_dispatch_missing_config():
     from tvm_tirx.ir import Range
 
     layout = TileLayout(S[64])
-    buf = tvm_tirx.tirx.decl_tensor((64,), "float16", "A", scope="shared.dyn", layout=layout)
+    buf = tvm_tirx.tirx.Var(
+        "A", tvm_tirx.tirx.TensorType((64,), "float16", scope="shared.dyn", layout=layout)
+    )
     br = TensorRegion(buf, [Range.from_min_extent(0, 64)], ty=TensorRegionType())
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_90a"})
     sctx = DispatchContext(target, ThreadScope("cuda.thread"), {}, {})

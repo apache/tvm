@@ -125,17 +125,23 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     id_index_const = tvm_tirx.tirx.const(id_index, "int32")
     score_index_const = tvm_tirx.tirx.const(score_index, "int32")
 
-    valid_count_buf = tvm_tirx.tirx.decl_tensor((batch_size,), "int32", "valid_count", layout=None)
-    out_tensor_buf = tvm_tirx.tirx.decl_tensor(
-        (batch_size, num_anchors, box_data_length), data.dtype, "out_tensor", layout=None
+    valid_count_buf = tvm_tirx.tirx.Var(
+        "valid_count", tvm_tirx.tirx.TensorType((batch_size,), "int32", layout=None)
     )
-    out_indices_buf = tvm_tirx.tirx.decl_tensor(
-        (batch_size, num_anchors), "int32", "out_indices", layout=None
+    out_tensor_buf = tvm_tirx.tirx.Var(
+        "out_tensor",
+        tvm_tirx.tirx.TensorType(
+            (batch_size, num_anchors, box_data_length), data.dtype, layout=None
+        ),
+    )
+    out_indices_buf = tvm_tirx.tirx.Var(
+        "out_indices", tvm_tirx.tirx.TensorType((batch_size, num_anchors), "int32", layout=None)
     )
 
     if is_score_threshold_tensor:
-        score_thresh_buf = tvm_tirx.tirx.decl_tensor(
-            score_threshold.shape, score_threshold.dtype, "score_threshold", layout=None
+        score_thresh_buf = tvm_tirx.tirx.Var(
+            "score_threshold",
+            tvm_tirx.tirx.TensorType(score_threshold.shape, score_threshold.dtype, layout=None),
         )
         valid_count, out_tensor, out_indices = te.extern(
             [(batch_size,), (batch_size, num_anchors, box_data_length), (batch_size, num_anchors)],
@@ -152,7 +158,9 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
             dtype=["int32", data.dtype, "int32"],
             out_tensors=[valid_count_buf, out_tensor_buf, out_indices_buf],
             in_tensors=[
-                tvm_tirx.tirx.decl_tensor(data.shape, data.dtype, "data", layout=None),
+                tvm_tirx.tirx.Var(
+                    "data", tvm_tirx.tirx.TensorType(data.shape, data.dtype, layout=None)
+                ),
                 score_thresh_buf,
             ],
             name="get_valid_counts",
@@ -177,7 +185,11 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
             _ir_with_const_threshold,
             dtype=["int32", data.dtype, "int32"],
             out_tensors=[valid_count_buf, out_tensor_buf, out_indices_buf],
-            in_tensors=[tvm_tirx.tirx.decl_tensor(data.shape, data.dtype, "data", layout=None)],
+            in_tensors=[
+                tvm_tirx.tirx.Var(
+                    "data", tvm_tirx.tirx.TensorType(data.shape, data.dtype, layout=None)
+                )
+            ],
             name="get_valid_counts",
             tag="get_valid_counts",
         )
@@ -757,23 +769,29 @@ def non_max_suppression(
     )
     sort_tensor = argsort(score_tensor, valid_count=valid_count, axis=1, is_ascend=False)
 
-    data_buf = tvm_tirx.tirx.decl_tensor(data.shape, data.dtype, "data", layout=None)
-    sort_buf = tvm_tirx.tirx.decl_tensor(
-        sort_tensor.shape, sort_tensor.dtype, "sorted_index", layout=None
+    data_buf = tvm_tirx.tirx.Var(
+        "data", tvm_tirx.tirx.TensorType(data.shape, data.dtype, layout=None)
     )
-    valid_count_buf = tvm_tirx.tirx.decl_tensor(
-        valid_count.shape, valid_count.dtype, "valid_count", layout=None
+    sort_buf = tvm_tirx.tirx.Var(
+        "sorted_index", tvm_tirx.tirx.TensorType(sort_tensor.shape, sort_tensor.dtype, layout=None)
     )
-    indices_buf = tvm_tirx.tirx.decl_tensor(indices.shape, indices.dtype, "indices", layout=None)
+    valid_count_buf = tvm_tirx.tirx.Var(
+        "valid_count", tvm_tirx.tirx.TensorType(valid_count.shape, valid_count.dtype, layout=None)
+    )
+    indices_buf = tvm_tirx.tirx.Var(
+        "indices", tvm_tirx.tirx.TensorType(indices.shape, indices.dtype, layout=None)
+    )
 
-    out_data_buf = tvm_tirx.tirx.decl_tensor(data.shape, data.dtype, "out_data", layout=None)
-    out_box_indices_buf = tvm_tirx.tirx.decl_tensor(
-        (batch_size, num_anchors), "int32", "out_box_indices", layout=None
+    out_data_buf = tvm_tirx.tirx.Var(
+        "out_data", tvm_tirx.tirx.TensorType(data.shape, data.dtype, layout=None)
+    )
+    out_box_indices_buf = tvm_tirx.tirx.Var(
+        "out_box_indices", tvm_tirx.tirx.TensorType((batch_size, num_anchors), "int32", layout=None)
     )
 
     if return_indices:
-        out_valid_box_count_buf = tvm_tirx.tirx.decl_tensor(
-            (batch_size, 1), "int32", "out_valid_box_count", layout=None
+        out_valid_box_count_buf = tvm_tirx.tirx.Var(
+            "out_valid_box_count", tvm_tirx.tirx.TensorType((batch_size, 1), "int32", layout=None)
         )
 
         out_data, out_box_indices, out_valid_box_count = te.extern(
@@ -852,8 +870,11 @@ def non_max_suppression(
 
 def _rearrange_out(data, batch_size, num_anchors, box_data_length, score_index):
     """Move valid boxes (score >= 0) to the top of output."""
-    out_buf = tvm_tirx.tirx.decl_tensor(
-        (batch_size, num_anchors, box_data_length), data.dtype, "rearranged", layout=None
+    out_buf = tvm_tirx.tirx.Var(
+        "rearranged",
+        tvm_tirx.tirx.TensorType(
+            (batch_size, num_anchors, box_data_length), data.dtype, layout=None
+        ),
     )
 
     def _rearrange_ir(ins, outs):
@@ -1014,20 +1035,21 @@ def _get_valid_box_count(scores, score_threshold):
 
             return ib.get()
 
-    scores_buf = tvm_tirx.tirx.decl_tensor(
-        scores.shape, scores.dtype, "scores_buf", data_alignment=8, layout=None
+    scores_buf = tvm_tirx.tirx.Var(
+        "scores_buf",
+        tvm_tirx.tirx.TensorType(scores.shape, scores.dtype, data_alignment=8, layout=None),
     )
-    searchsorted_buf = tvm_tirx.tirx.decl_tensor(
-        (batch_classes,), "int32", "searchsorted", data_alignment=8, layout=None
+    searchsorted_buf = tvm_tirx.tirx.Var(
+        "searchsorted",
+        tvm_tirx.tirx.TensorType((batch_classes,), "int32", data_alignment=8, layout=None),
     )
 
     if hasattr(score_threshold, "shape"):
-        score_thresh_buf = tvm_tirx.tirx.decl_tensor(
-            score_threshold.shape,
-            score_threshold.dtype,
+        score_thresh_buf = tvm_tirx.tirx.Var(
             "score_thresh_buf",
-            data_alignment=8,
-            layout=None,
+            tvm_tirx.tirx.TensorType(
+                score_threshold.shape, score_threshold.dtype, data_alignment=8, layout=None
+            ),
         )
         return te.extern(
             [(batch_classes,)],

@@ -161,7 +161,7 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
     assert T.metal is builder_op.metal
     assert T.nki is builder_op.nki
 
-    tensor = tvm_tirx.tirx.decl_tensor((1,), "float32")
+    tensor = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((1,), "float32"))
     calls = [
         T.cuda.elect_sync(),
         T.cuda.thread_fence(),

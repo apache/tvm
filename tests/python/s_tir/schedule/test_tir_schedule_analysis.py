@@ -38,7 +38,7 @@ from tvm.te import create_function
 from tvm_tirx.ir import Evaluate, For, ForKind
 from tvm_tirx.ir.prim import expr_deep_equal
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import IndexMap, Var, decl_tensor, floordiv, floormod
+from tvm_tirx.tirx import IndexMap, TensorType, Var, floordiv, floormod
 
 
 def _make_vars(*args: str) -> list[Var]:
@@ -62,7 +62,7 @@ def _make_loops(loop_vars: list[Var], extents: list[int]) -> list[For]:
 def test_suggest_index_map_simple():
     i, j = _make_vars("i", "j")
     index_map = suggest_index_map(
-        tensor=decl_tensor(shape=[8, 256]),
+        tensor=Var("tensor", TensorType([8, 256], "float32")),
         indices=[
             floordiv(i, 16) * 4 + floordiv(j, 16),
             floormod(i, 16) * 16 + floormod(j, 16),
@@ -87,7 +87,7 @@ def test_suggest_index_map_simple():
 def test_suggest_index_map_bijective():
     i, j = _make_vars("i", "j")
     index_map = suggest_index_map(
-        tensor=decl_tensor(shape=[8]),
+        tensor=Var("tensor", TensorType([8], "float32")),
         indices=[floormod(j, 4) * 2 + i],
         loops=_make_loops(
             loop_vars=[i, j],
@@ -111,7 +111,7 @@ def test_suggest_index_map_winograd():
     nu = floordiv(floormod(fused_outer, 336), 112) * 2 + floordiv(floormod(fused_outer, 8), 4)
     co = floormod(fused_outer, 4) * 32 + i3_3_fused
     ci = (i4_0 * 32) + i4_1
-    tensor = decl_tensor(shape=[6, 6, 128, 128])
+    tensor = Var("tensor", TensorType([6, 6, 128, 128], "float32"))
     index_map = suggest_index_map(
         tensor=tensor,
         indices=[eps, nu, co, ci],

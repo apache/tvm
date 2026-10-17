@@ -24,12 +24,10 @@ from functools import cache
 
 import tvm_ffi
 
-import tvm_tirx
 from tvm_tirx import tirx
 from tvm_tirx.ir import Attrs, Call, Op, StringImm, const
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.ir.op import _init_op_api, _make_op_api
-from tvm_tirx.ir.type import PrimType, PtrType
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.tirx.op import bitwise_and, call_intrin, ptr_byte_offset
 
@@ -208,7 +206,6 @@ _WAIT_UNTIL_SCOPE = ("cta", "cluster", "gpu", "sys")
 # allocation address out of a mailbox -- are ordinary reads after a barrier,
 # with no spin and no predicate, so they are not protocols at all.
 _WAIT_UNTIL_SPACE = ("global",)
-_WAIT_UNTIL_DTYPE = ("int32", "uint32", "int64", "uint64")
 # Widths, so a requested PTX type can be checked against the word it accesses.
 # Which spellings an instruction actually takes is the instruction table's
 # business: `add` has no `.b32` form, so a bit-typed arrival is rejected there
@@ -347,24 +344,6 @@ def wait_until(
     )
 
 
-_MBARRIER_ARRIVE_SEM = ("", "release", "relaxed")
-_MBARRIER_ARRIVE_SCOPE = ("", "cta", "cluster")
-_MBARRIER_ARRIVE_SPACE = ("shared", "shared::cta", "shared::cluster")
-
-
-def _validate_mbarrier_arrive_attrs(sem, scope, space, remote):
-    if (sem == "") != (scope == ""):
-        raise ValueError("mbarrier.arrive sem and scope must be specified together")
-    if sem not in _MBARRIER_ARRIVE_SEM:
-        raise ValueError(f"invalid sem={sem!r}; expected one of {_MBARRIER_ARRIVE_SEM}")
-    if scope not in _MBARRIER_ARRIVE_SCOPE:
-        raise ValueError(f"invalid scope={scope!r}; expected one of {_MBARRIER_ARRIVE_SCOPE}")
-    if space not in _MBARRIER_ARRIVE_SPACE:
-        raise ValueError(f"invalid space={space!r}; expected one of {_MBARRIER_ARRIVE_SPACE}")
-    if remote is not None and space != "shared::cluster":
-        raise ValueError("remote mbarrier.arrive requires space='shared::cluster'")
-
-
 _cp_async_raw = _make_op_api(Op.get("tirx.s_tir.cp_async_raw"), __name__)
 
 
@@ -388,15 +367,6 @@ def ptx_cp_async_legacy(
     dst_ptr = ptr_byte_offset(dst_ptr, dst_offset * elem_bits // 8, ty=dst_ptr.ty)
     src_ptr = ptr_byte_offset(src_ptr, src_offset * elem_bits // 8, ty=src_ptr.ty)
     return _cp_async_raw(dst_ptr, 0, src_ptr, 0, cp_size, ty=ty, loc=loc)
-
-
-def _is_static_unicast_cta_mask(cta_mask):
-    if isinstance(cta_mask, int):
-        return cta_mask == 0 or cta_mask & (cta_mask - 1) == 0
-    if isinstance(cta_mask, tvm_tirx.ir.IntImm):
-        value = int(cta_mask)
-        return value == 0 or value & (value - 1) == 0
-    return False
 
 
 def mov_sreg(bits, reg_name, *, ty=None, loc: Location = UNKNOWN_LOC):
@@ -537,32 +507,6 @@ def mma_fill(local_size, local_ptr, offset, *, ty):
     """Zero-initialize an MMA accumulation register."""
 
     return call_intrin("tirx.cuda.mma_fill", local_size, local_ptr, offset, ty=ty)
-
-
-_PTX_TO_NUMPY_DTYPE = {
-    "fp16": "float16",
-    "fp32": "float32",
-    "fp64": "float64",
-    "bf16": "bfloat16",
-    "tf32": "float32",
-    "s8": "int8",
-    "u8": "uint8",
-    "s32": "int32",
-    "s4": "int4",
-    "u4": "uint4",
-    "b1": "int1",
-    "b16": "uint16",
-    "e4m3": "float8_e4m3fn",
-    "e5m2": "float8_e5m2",
-}
-
-
-def _ptx_to_numpy_dtype(dtype_str):
-    """Map a PTX-abbreviation or numpy dtype string to a numpy dtype string
-    used by the legacy intrinsic wrappers. Unknown strings pass through unchanged
-    so a caller may also pass an already-numpy dtype."""
-    s = dtype_str if isinstance(dtype_str, str) else str(dtype_str)
-    return _PTX_TO_NUMPY_DTYPE.get(s, s)
 
 
 _legacy_ldmatrix = _make_op_api(Op.get("tirx.ptx_legacy.ldmatrix"), __name__)
@@ -1050,126 +994,6 @@ def sm100_2sm_leader_smem_addr(ptr):
     The input is a generic pointer to shared memory.
     """
     return bitwise_and(globals()["cvta_generic_to_shared"](ptr), const(0xFEFFFFFF, dtype="uint32"))
-
-
-_PTX_CVT_TYPES = {
-    "u8",
-    "u16",
-    "u32",
-    "u64",
-    "s8",
-    "s16",
-    "s32",
-    "s64",
-    "bf16",
-    "f16",
-    "f32",
-    "f64",
-    "f16x2",
-    "bf16x2",
-    "tf32",
-    "e4m3x2",
-    "e5m2x2",
-    "e2m1x2",
-    "e2m3x2",
-    "e3m2x2",
-    "e4m3x4",
-    "e5m2x4",
-    "e2m1x4",
-    "e2m3x4",
-    "e3m2x4",
-    "ue8m0x2",
-    "s2f6x2",
-}
-_PTX_CVT_ROUNDING = {"", "rni", "rzi", "rmi", "rpi", "rn", "rz", "rm", "rp", "rna", "rs"}
-_PTX_CVT_SCALED = {"", "n2::ue8m0"}
-_PTX_CVT_RETURN_TYPE = {
-    "u8": "uint8",
-    "s8": "int8",
-    "u16": "uint16",
-    "s16": "int16",
-    "u32": "uint32",
-    "s32": "int32",
-    "u64": "uint64",
-    "s64": "int64",
-    "f32": "float32",
-    "f64": "float64",
-    "f16": "uint16",
-    "bf16": "uint16",
-    "e4m3x2": "uint16",
-    "e5m2x2": "uint16",
-    "e2m1x2": "uint8",
-    "e2m3x2": "uint16",
-    "e3m2x2": "uint16",
-    "ue8m0x2": "uint16",
-    "s2f6x2": "uint16",
-    "tf32": "uint32",
-    "f16x2": "uint32",
-    "bf16x2": "uint32",
-    "e2m1x4": "uint16",
-    "e4m3x4": "uint32",
-    "e5m2x4": "uint32",
-    "e2m3x4": "uint32",
-    "e3m2x4": "uint32",
-}
-
-
-_CP_ASYNC_BULK_CACHE_HINT = ("", "evict_last", "evict_first", "evict_normal", "evict_last_use")
-
-_PTX_CACHE_POLICY = {
-    "evict_normal": 0x1000000000000000,
-    "evict_first": 0x12F0000000000000,
-    "evict_last": 0x14F0000000000000,
-}
-
-
-def _resolve_cache_policy(cache_hint, cache_policy, choices=_CP_ASYNC_BULK_CACHE_HINT):
-    _choice("cache_hint", cache_hint, choices)
-    if cache_policy is not None:
-        return cache_policy, True
-    if cache_hint:
-        if cache_hint not in _PTX_CACHE_POLICY:
-            raise ValueError(
-                f"Unsupported built-in cache policy {cache_hint!r}; pass cache_policy explicitly"
-            )
-        return const(_PTX_CACHE_POLICY[cache_hint], dtype="uint64"), True
-    return const(0, dtype="uint64"), False
-
-
-def _ptx_vec_len(vec):
-    return int(vec[1:]) if vec else 1
-
-
-def _normalize_ptx_ld_dst(dst, vec, op_name):
-    if dst is None:
-        if vec:
-            raise ValueError(f"vec {op_name} requires dst")
-        return [], 0
-    if isinstance(dst, list | tuple):
-        if not vec:
-            raise ValueError(f"{op_name} scatter dst requires vec")
-        vec_len = _ptx_vec_len(vec)
-        if len(dst) != vec_len:
-            raise ValueError(f"{op_name} scatter dst length must match {vec}: got {len(dst)}")
-        return list(dst), vec_len
-    return [dst], 1
-
-
-def _validate_ptx_address(addr, space, op_name):
-    """Validate pointer and raw shared-memory address forms."""
-    addr_ty = getattr(addr, "ty", None)
-    if isinstance(addr_ty, PtrType):
-        return
-    if isinstance(addr_ty, PrimType):
-        if addr_ty.dtype == "uint32":
-            if not str(space).startswith("shared"):
-                raise ValueError(f"{op_name} uint32 address requires shared state space")
-            return
-        if addr_ty.dtype.startswith(("int", "uint")):
-            raise ValueError(
-                f"{op_name} integer address must be uint32 in shared state space, "
-                f"got {addr_ty.dtype}"
-            )
 
 
 def atomic_cas(ptr, old_val, new_val, *, ty=None, loc: Location = UNKNOWN_LOC):

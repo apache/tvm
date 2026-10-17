@@ -47,11 +47,13 @@ def test_tir_op_tvm_struct_set():
 
 
 def test_tir_op_address_of():
-    tensor = tirx.decl_tensor((128), "float32")
+    tensor = tirx.Var("tensor", tirx.TensorType(128, "float32"))
     expr = tirx.address_of(tensor[0])
     assert expr.op.name == "tirx.address_of"
     storage = tirx.Var("storage", tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("uint8"), "shared.dyn"))
-    pooled_tensor = tirx.decl_tensor((128), "float32", data=storage, scope="shared.dyn")
+    pooled_tensor = tirx.Var(
+        "tensor", tirx.TensorType(128, "float32", data=storage, scope="shared.dyn")
+    )
     expected_ty = tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("float32"), "shared.dyn")
     assert tirx.address_of(pooled_tensor).ty == expected_ty
     assert tirx.address_of(pooled_tensor[0]).ty == expected_ty
@@ -102,7 +104,7 @@ def test_primitive_result_type_keyword(op_name):
 def test_masked_memory_wrapper_parity_and_inference():
     from tvm_tirx.script import tirx as T
 
-    tensor = tirx.decl_tensor((16,), "float32")
+    tensor = tirx.Var("tensor", tirx.TensorType((16,), "float32"))
     index = tvm_tirx.ir.prim.Ramp(0, 1, 4)
     mask = tvm_tirx.ir.prim.Broadcast(True, 4)
     loc = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("op.py"), 2, 0, 2, 8)
@@ -168,8 +170,8 @@ def test_tir_op_call_likely():
 
 
 def test_tir_op_tvm_thread_allreduce():
-    tensor = tirx.decl_tensor((128,), "float32")
-    result = tirx.decl_tensor((1,), "float32")
+    tensor = tirx.Var("tensor", tirx.TensorType((128,), "float32"))
+    result = tirx.Var("tensor", tirx.TensorType((1,), "float32"))
     axis = tirx.Var("thread", "int32")
     combine = tvm_tirx.ir.LambdaExpr(["float32", "float32"], lambda lhs, rhs: (lhs + rhs,))
     expr = tirx.gpu_thread_allreduce(
@@ -179,7 +181,7 @@ def test_tir_op_tvm_thread_allreduce():
 
 
 def test_tir_op_ptr_byte_offset():
-    tensor = tirx.decl_tensor((128,), "float32", scope="shared")
+    tensor = tirx.Var("tensor", tirx.TensorType((128,), "float32", scope="shared"))
     ty = tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("uint8"), "shared")
     offset_expr = tirx.ptr_byte_offset(tensor.data, 16, ty=ty)
     assert offset_expr.op.name == "tirx.ptr_byte_offset"
@@ -193,24 +195,24 @@ def test_tir_op_tvm_throw_last_error():
 
 
 def test_tir_op_tvm_load_matrix_sync():
-    tensor = tirx.decl_tensor((16, 16), "float32")
+    tensor = tirx.Var("tensor", tirx.TensorType((16, 16), "float32"))
     x = tirx.Var("x", "handle")
     expr = tvm_tirx.tirx.gpu_load_matrix_sync(tensor.data, 16, 16, 16, 0, x, 128, "row_major")
     assert expr.op.name == "tirx.gpu_load_matrix_sync"
 
 
 def test_tir_op_tvm_store_matrix_sync():
-    tensor = tirx.decl_tensor((16, 16), "float32")
+    tensor = tirx.Var("tensor", tirx.TensorType((16, 16), "float32"))
     x = tirx.Var("x", "handle")
     expr = tvm_tirx.tirx.gpu_store_matrix_sync(tensor.data, 16, 16, 16, 0, x, 128, "row_major")
     assert expr.op.name == "tirx.gpu_store_matrix_sync"
 
 
 def test_tir_op_tvm_mma_sync():
-    tensor_0 = tirx.decl_tensor((16, 16), "float32")
-    tensor_1 = tirx.decl_tensor((16, 16), "float32")
-    tensor_2 = tirx.decl_tensor((16, 16), "float32")
-    tensor_3 = tirx.decl_tensor((16, 16), "float32")
+    tensor_0 = tirx.Var("tensor", tirx.TensorType((16, 16), "float32"))
+    tensor_1 = tirx.Var("tensor", tirx.TensorType((16, 16), "float32"))
+    tensor_2 = tirx.Var("tensor", tirx.TensorType((16, 16), "float32"))
+    tensor_3 = tirx.Var("tensor", tirx.TensorType((16, 16), "float32"))
     expr = tvm_tirx.tirx.gpu_mma_sync(
         tensor_0.data, 0, tensor_1.data, 0, tensor_2.data, 0, tensor_3.data, 0
     )
@@ -218,10 +220,10 @@ def test_tir_op_tvm_mma_sync():
 
 
 def test_tir_op_tvm_bmma_sync():
-    tensor_0 = tirx.decl_tensor((16, 16), "float32")
-    tensor_1 = tirx.decl_tensor((16, 16), "float32")
-    tensor_2 = tirx.decl_tensor((16, 16), "float32")
-    tensor_3 = tirx.decl_tensor((16, 16), "float32")
+    tensor_0 = tirx.Var("tensor", tirx.TensorType((16, 16), "float32"))
+    tensor_1 = tirx.Var("tensor", tirx.TensorType((16, 16), "float32"))
+    tensor_2 = tirx.Var("tensor", tirx.TensorType((16, 16), "float32"))
+    tensor_3 = tirx.Var("tensor", tirx.TensorType((16, 16), "float32"))
     expr = tvm_tirx.backend.cuda.op.bmma_sync(
         tensor_0.data, 0, tensor_1.data, 0, tensor_2.data, 0, tensor_3.data, 0
     )
@@ -229,15 +231,15 @@ def test_tir_op_tvm_bmma_sync():
 
 
 def test_tir_op_tvm_fill_fragment():
-    tensor = tirx.decl_tensor((16, 16), "float32")
+    tensor = tirx.Var("tensor", tirx.TensorType((16, 16), "float32"))
     expr = tvm_tirx.tirx.gpu_fill_fragment(tensor.data, 16, 16, 16, 0, 0)
     assert expr.op.name == "tirx.gpu_fill_fragment"
 
 
 def test_tir_op_ptx_mma():
-    tensor_a = tirx.decl_tensor([32], "int4", scope="local")
-    tensor_b = tirx.decl_tensor([16], "uint4", scope="local")
-    tensor_c = tirx.decl_tensor([4], "int32", scope="local")
+    tensor_a = tirx.Var("tensor", tirx.TensorType([32], "int4", scope="local"))
+    tensor_b = tirx.Var("tensor", tirx.TensorType([16], "uint4", scope="local"))
+    tensor_c = tirx.Var("tensor", tirx.TensorType([4], "int32", scope="local"))
     expr = _cuda_op.ptx_legacy_mma(
         "m8n8k32",
         "row",
@@ -259,9 +261,10 @@ def test_tir_op_ptx_mma():
 def test_tir_op_mma_store():
     x = tirx.Var("x", ty="int32")
     y = tirx.Var("y", ty="int32")
-    tensor_w = tirx.decl_tensor([16, 8], dtype="int32", scope="warp", offset_factor=1)
-    tensor = tirx.decl_tensor(
-        [16, 16], dtype="int32", scope="global", offset_factor=1, strides=[x, y]
+    tensor_w = tirx.Var("tensor", tirx.TensorType([16, 8], "int32", scope="warp", offset_factor=1))
+    tensor = tirx.Var(
+        "tensor",
+        tirx.TensorType([16, 16], "int32", scope="global", offset_factor=1, strides=[x, y]),
     )
     expr = _cuda_op.mma_store(
         16, 16, tensor.ptr_to([0, 0]), tensor_w.data, tensor_w.ty.elem_offset, x, ty="int32"
@@ -270,14 +273,14 @@ def test_tir_op_mma_store():
 
 
 def test_tir_op_mma_fill():
-    tensor_w = tirx.decl_tensor([16, 8], dtype="int32", scope="warp", offset_factor=1)
+    tensor_w = tirx.Var("tensor", tirx.TensorType([16, 8], "int32", scope="warp", offset_factor=1))
     expr = _cuda_op.mma_fill(8, tensor_w.data, tensor_w.ty.elem_offset, ty="int32")
     assert expr.op.name == "tirx.cuda.mma_fill"
 
 
 def test_op_ptx_cp_async():
-    tensor_shared = tirx.decl_tensor([16, 16], "float16", scope="shared")
-    tensor_local = tirx.decl_tensor([8], "float16", scope="local")
+    tensor_shared = tirx.Var("tensor", tirx.TensorType([16, 16], "float16", scope="shared"))
+    tensor_local = tirx.Var("tensor", tirx.TensorType([8], "float16", scope="local"))
     expr = _cuda_op.ptx_cp_async_legacy(tensor_shared.data, 0, tensor_local.data, 0, 16)
     assert expr.op.name == "tirx.s_tir.cp_async_raw"
 
@@ -295,14 +298,14 @@ def test_op_ptx_cp_async():
 
 
 def test_tir_op_vector_low():
-    tensor = tirx.decl_tensor((4, 4), "int8", offset_factor=1)
+    tensor = tirx.Var("tensor", tirx.TensorType((4, 4), "int8", offset_factor=1))
     vec = tensor[0, tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 16)]
     expr = tirx.vector_low(vec, ty="int8x8")
     assert expr.op.name == "tirx.vector_low"
 
 
 def test_tir_op_vector_high():
-    tensor = tirx.decl_tensor((4, 4), "int8", offset_factor=1)
+    tensor = tirx.Var("tensor", tirx.TensorType((4, 4), "int8", offset_factor=1))
     vec = tensor[0, tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 16)]
     expr = tirx.vector_high(vec, ty="int8x8")
     assert expr.op.name == "tirx.vector_high"
@@ -317,7 +320,7 @@ def test_tir_op_dp4a():
 
 
 def test_tir_op_vector_combine():
-    tensor = tirx.decl_tensor((4, 4), "int8", offset_factor=1)
+    tensor = tirx.Var("tensor", tirx.TensorType((4, 4), "int8", offset_factor=1))
     vec = tensor[0, tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 16)]
     expr = tirx.vector_combine(vec, vec, ty="int8x8")
     assert expr.op.name == "tirx.vector_combine"
@@ -356,7 +359,7 @@ def test_tir_op_TVMBackendAllocWorkspace():
 
 
 def test_tir_op_TVMBackendFreeWorkspace():
-    tensor = tirx.decl_tensor((128), "float32")
+    tensor = tirx.Var("tensor", tirx.TensorType(128, "float32"))
     expr = tirx.free_workspace(0, 1, tensor.data)
     assert expr.op.name == "tirx.free_workspace"
 

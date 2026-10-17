@@ -501,8 +501,8 @@ def test_conditional_inequality_access_regions(case):
         "rounded": ([x], [(-20, 41)], tirx.all(x * 3 >= -7, x * 2 <= 9), [(-2, 7)]),
     }
     variables, domains, condition, expected = cases[case]
-    inside = tirx.decl_tensor([256] * len(variables), name="inside")
-    outside = tirx.decl_tensor([256] * len(variables), name="outside")
+    inside = tirx.Var("inside", tirx.TensorType([256] * len(variables), "float32"))
+    outside = tirx.Var("outside", tirx.TensorType([256] * len(variables), "float32"))
     body = tvm_tirx.ir.SeqStmt(
         [
             tvm_tirx.ir.If(condition, tvm_tirx.ir.Evaluate(inside[tuple(variables)]), None),

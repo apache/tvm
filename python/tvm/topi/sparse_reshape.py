@@ -19,7 +19,7 @@
 
 from tvm.te import div, extern, floordiv, floormod
 from tvm_tirx.script.ir_builder import IRBuilder
-from tvm_tirx.tirx import Cast, decl_tensor
+from tvm_tirx.tirx import Cast, TensorType, Var
 from tvm_tirx.tirx.script import ir_builder as T
 
 
@@ -278,10 +278,10 @@ def sparse_reshape(
 
             return ib.get()
 
-    new_sparse_indices_buf = decl_tensor(
-        new_sparse_indices_shape, sparse_indices.dtype, "new_sparse_indices_buf"
+    new_sparse_indices_buf = Var(
+        "new_sparse_indices_buf", TensorType(new_sparse_indices_shape, sparse_indices.dtype)
     )
-    new_shape_buf = decl_tensor(new_shape_shape, prev_shape.dtype, "new_shape_buf")
+    new_shape_buf = Var("new_shape_buf", TensorType(new_shape_shape, prev_shape.dtype))
 
     return extern(
         [new_sparse_indices_shape, new_shape_shape],

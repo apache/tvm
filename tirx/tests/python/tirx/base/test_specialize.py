@@ -195,7 +195,9 @@ def test_specialize_nothing():
 def test_specialize_matmul():
     a, _, _, n = matmul.params
     # fully specialized
-    func = matmul.specialize({a: tvm_tirx.tirx.decl_tensor((128, 128))})
+    func = matmul.specialize(
+        {a: tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((128, 128), "float32"))}
+    )
     assert_structural_equal_ignore_global_symbol(func, matmul_128)
     # partially specialized
     func = matmul.specialize({n: 128})
@@ -209,10 +211,14 @@ def test_specialize_elemwise():
     a, c = element_wise.params
     C = c
     # fully specialized
-    func = element_wise.specialize({a: tvm_tirx.tirx.decl_tensor((128, 64))})
+    func = element_wise.specialize(
+        {a: tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((128, 64), "float32"))}
+    )
     assert_structural_equal_ignore_global_symbol(func, element_wise_128_64)
     # partially specialized
-    func = element_wise.specialize({c: tvm_tirx.tirx.decl_tensor((128, C.ty.shape[1]))})
+    func = element_wise.specialize(
+        {c: tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((128, C.ty.shape[1]), "float32"))}
+    )
     assert_structural_equal_ignore_global_symbol(func, element_wise_128_n)
 
 
@@ -220,7 +226,14 @@ def test_specialize_mem_copy():
     a, _, m, n, p, q = mem_copy.params
     # fully specialized
     func = mem_copy.specialize(
-        {a: tvm_tirx.tirx.decl_tensor((16, 16), strides=[8, 1], elem_offset=T.int32(4))}
+        {
+            a: tvm_tirx.tirx.Var(
+                "tensor",
+                tvm_tirx.tirx.TensorType(
+                    (16, 16), "float32", strides=[8, 1], elem_offset=T.int32(4)
+                ),
+            )
+        }
     )
     assert_structural_equal_ignore_global_symbol(func, mem_copy_16_16_8_4)
     func = mem_copy.specialize({n: 16, m: 16, p: 8, q: 4})
@@ -249,7 +262,9 @@ def test_specialize_with_const_folding():
             B[i] = A[i // 8, i % 8] + 714
 
     b = before.params[1]
-    after = before.specialize({b: tvm_tirx.tirx.decl_tensor([16], dtype="int32")})
+    after = before.specialize(
+        {b: tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType([16], "int32"))}
+    )
     assert_structural_equal_ignore_global_symbol(expected, after)
 
 

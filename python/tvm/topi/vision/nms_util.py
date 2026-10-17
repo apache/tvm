@@ -424,11 +424,15 @@ def run_all_class_nms(
     num_class = batch_class // batch
 
     if return_scores is False:
-        all_class_num0_buf = tvm_tirx.tirx.decl_tensor(
-            (batch_class, num_boxes), "int32", "all_class_nms0", data_alignment=8, layout=None
+        all_class_num0_buf = tvm_tirx.tirx.Var(
+            "all_class_nms0",
+            tvm_tirx.tirx.TensorType(
+                (batch_class, num_boxes), "int32", data_alignment=8, layout=None
+            ),
         )
-        all_class_num1_buf = tvm_tirx.tirx.decl_tensor(
-            (batch_class,), "int32", "all_class_nms1", data_alignment=8, layout=None
+        all_class_num1_buf = tvm_tirx.tirx.Var(
+            "all_class_nms1",
+            tvm_tirx.tirx.TensorType((batch_class,), "int32", data_alignment=8, layout=None),
         )
         extern_inputs = [boxes, sorted_scores, sorted_indices, valid_count]
         if score_threshold is not None:

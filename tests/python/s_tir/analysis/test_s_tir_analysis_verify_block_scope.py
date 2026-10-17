@@ -29,7 +29,7 @@ def test_tensor_region_bounds_are_visited():
     data = tvm_tirx.tirx.Var(
         "data", tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("int32"), scope="global")
     )
-    tensor = tvm_tirx.tirx.decl_tensor([4], "int32", data=data)
+    tensor = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType([4], "int32", data=data))
     undefined = tvm_tirx.tirx.Var("undefined", "int32")
     region = TensorRegion(
         tensor, [tvm_tirx.ir.Range.from_min_extent(undefined, 4)], ty=TensorRegionType()
@@ -121,13 +121,13 @@ def test_error_undeclared_tensor_in_schedulable_tir():
     # Manually construct a TensorStore that uses a tensor without any declaration
     # inside a block context.
     n = tvm_tirx.tirx.Var("n", "int32")
-    A = tvm_tirx.tirx.decl_tensor([n], "float32", name="A")
+    A = tvm_tirx.tirx.Var("A", tvm_tirx.tirx.TensorType([n], "float32"))
     i = tvm_tirx.tirx.Var("i", "int32")
 
     # Create an undeclared tensor using an explicit data pointer that is NOT
     # a function parameter and NOT wrapped with DeclTensor.
     B_data = tvm_tirx.tirx.Var("B_data", tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("float32")))
-    B = tvm_tirx.tirx.decl_tensor([n], "float32", name="B", data=B_data)
+    B = tvm_tirx.tirx.Var("B", tvm_tirx.tirx.TensorType([n], "float32", data=B_data))
 
     # Build a block that writes to B without any declaration of B.
     bi = tvm_tirx.tirx.Var("bi", "int32")
