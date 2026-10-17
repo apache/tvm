@@ -150,7 +150,8 @@ void Dilation2DAttrs::RegisterReflection() {
               "Padding size as [pad_top, pad_left, pad_bottom, pad_right].")
       .def_ro("dilations", &Dilation2DAttrs::dilations, "Dilation size for the filter.")
       .def_ro("data_layout", &Dilation2DAttrs::data_layout,
-              "Layout of the input data ('NCHW' or 'NHWC').", refl::DefaultValue(ffi::String("NCHW")))
+              "Layout of the input data ('NCHW' or 'NHWC').",
+              refl::DefaultValue(ffi::String("NCHW")))
       .def_ro("out_dtype", &Dilation2DAttrs::out_dtype, "Specifies the output data type.");
 }
 

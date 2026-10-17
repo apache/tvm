@@ -3206,7 +3206,7 @@ def dilate(
     result : relax.Expr
         The dilated output tensor.
     """
-    if not isinstance(strides, (list, tuple)):
+    if not isinstance(strides, list | tuple):
         raise TypeError(f"strides must be a list or tuple of ints, got {type(strides)}")
     strides = [int(s) for s in strides]
     return _Call(
