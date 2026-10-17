@@ -175,8 +175,7 @@ void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const
 }
 
 void CodeGenCUDA::PrintFunctionPrefix(const Function& func, std::ostream& os) {
-  CallingConv calling_conv =
-      func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
+  CallingConv calling_conv = func->GetAttr(tvm::attr::kCallingConv, CallingConv::kDefault).value();
   in_kernel_launch_ = (calling_conv == CallingConv::kDeviceKernelLaunch);
   if (calling_conv == CallingConv::kDeviceKernelLaunch) {
     os << "extern \"C\" __global__ ";
@@ -242,9 +241,8 @@ void CodeGenCUDA::InitFuncState(const Function& func) {
   max_blocks_per_cluster_.reset();
   max_registers_per_thread_.reset();
   required_block_size_.reset();
-  in_kernel_launch_ =
-      func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value() ==
-      CallingConv::kDeviceKernelLaunch;
+  in_kernel_launch_ = func->GetAttr(tvm::attr::kCallingConv, CallingConv::kDefault).value() ==
+                      CallingConv::kDeviceKernelLaunch;
   // Thread metadata is also needed while emitting cluster index accesses.
   auto extractor = ffi::make_object<ThreadIdxExtractor>();
   extractor->Visit(func->body);
@@ -398,7 +396,7 @@ void CodeGenCUDA::Dispatch_(const ForNode* op) {
   PrimExpr end = IsZero(op->min) ? op->extent : sym::Analyzer()->Simplify(op->min + op->extent);
   std::string end_str = PrintExpr(end);
   std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
-  if (op->annotations.count(tvm::tirx::attr::kDisableUnroll)) {
+  if (op->annotations.count(tvm::tirx::attr::kDisableUnroll.name)) {
     PrintIndent();
     stream << "#pragma unroll 1\n";
   } else if (op->kind == ForKind::kUnrolled) {
@@ -1263,12 +1261,6 @@ void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
   this->PrintIndent();
   PrintStorageScope(scope, stream);
   int align = buffer.ty()->data_alignment;
-  auto it = annotations->dict.find(tvm::tirx::attr::kTensorDataAlignment);
-  if (it != annotations->dict.end()) {
-    if (const auto* n = (*it).second.as<IntImmNode>()) {
-      align = n->value.as<int>().value();
-    }
-  }
   if (align > 0 && scope == scope_shared_dyn) {
     stream << "__align__(" << align << ") ";
   } else if (align > 0) {
@@ -1298,7 +1290,7 @@ void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
   }
 
   RegisterHandleType(buffer.get(), PrimType(dtype));
-  if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
+  if (annotations->dict.count(tvm::tirx::attr::kVolatile.name)) {
     MarkVolatile(buffer.get());
   }
 }
@@ -1668,7 +1660,7 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
     TVM_FFI_ICHECK(base_func->IsInstance<FunctionNode>()) << "CodeGenCUDA: Can only take Function";
     auto function = base_func.as_or_throw<Function>();
     CallingConv calling_conv =
-        function->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
+        function->GetAttr(tvm::attr::kCallingConv, CallingConv::kDefault).value();
     TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch ||
                    calling_conv == CallingConv::kDefault)
         << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch or "

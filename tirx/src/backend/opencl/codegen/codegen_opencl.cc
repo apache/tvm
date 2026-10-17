@@ -775,7 +775,7 @@ ffi::Module BuildOpenCL(IRModule mod, Target target) {
     TVM_FFI_ICHECK(base_func->IsInstance<FunctionNode>())
         << "CodeGenOpenCL: Can only take Function";
     auto function = base_func.as_or_throw<Function>();
-    auto calling_conv = function->GetAttr<CallingConv>(tvm::attr::kCallingConv);
+    auto calling_conv = function->GetAttr(tvm::attr::kCallingConv);
     TVM_FFI_ICHECK(calling_conv.has_value())
         << "CodeGenOpenCL: expected kCallingConv attribute to be set.";
     TVM_FFI_ICHECK(calling_conv.value() == CallingConv::kDeviceKernelLaunch)

@@ -19,7 +19,7 @@
 
 #include <tvm/backend/opencl/op/memory.h>
 #include <tvm/ir/expr.h>
-#include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/op/attr.h>
 
 namespace tvm {
 namespace backend {

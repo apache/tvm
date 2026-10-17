@@ -20,7 +20,7 @@
 #include <tvm/backend/cuda/op/tcgen05.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
-#include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/op/attr.h>
 
 namespace tvm {
 namespace backend {

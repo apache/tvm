@@ -25,8 +25,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/stmt.h>
+#include <tvm/tirx/op/attr.h>
 #include <tvm/tirx/op/region.h>
-#include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
 namespace tirx {

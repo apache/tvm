@@ -54,7 +54,7 @@ class BackendConfigBinder : public StmtExprMutator {
     auto body =
         Mutate(func->body.value(), InplaceMode::kDisallow).ValueOrUnchanged(func->body.value());
     func.CopyOnWrite()->body = body;
-    return WithAttrs(func, {{tvm::attr::kTarget, target_}, {"backend_config", defaults_}});
+    return WithAttrs(func, {{tvm::attr::kTarget.name, target_}, {"backend_config", defaults_}});
   }
 
  private:
@@ -67,7 +67,7 @@ class BackendConfigBinder : public StmtExprMutator {
                              defaults_, target_)
                         .cast<ffi::Array<ffi::Any>>();
     auto attrs = op->attrs->dict;
-    attrs.Set(tvm::attr::kTarget, resolved[0]);
+    attrs.Set(tvm::attr::kTarget.name, resolved[0]);
     attrs.Set("backend_config", resolved[1]);
     auto body = Mutate(op->body, InplaceMode::kDisallow).ValueOrUnchanged(op->body);
     return RegionStmt(op->op, op->args, op->body_params, DictAttrs(attrs), body, op->result_vars,
@@ -80,7 +80,7 @@ class BackendConfigBinder : public StmtExprMutator {
 
 Pass BindBackendConfig(ffi::String defaults) {
   auto transform = [defaults](Function func, IRModule mod, PassContext ctx) -> Function {
-    auto target = func->GetAttr<Target>(tvm::attr::kTarget);
+    auto target = func->GetAttr(tvm::attr::kTarget);
     if (!target.has_value() || target.value()->kind->name != "cuda") return func;
     return BackendConfigBinder(target.value(), defaults).Apply(func);
   };
@@ -118,7 +118,7 @@ class DeviceHelperSpecializer : public StmtExprMutator {
     if (op->op->name != "tirx.device_entry") {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
-    auto entry_target = op->attrs->dict.Get(tvm::attr::kTarget);
+    auto entry_target = op->attrs->dict.Get(tvm::attr::kTarget.name);
     if (!entry_target || entry_target.value().cast<Target>()->kind->name != "cuda") {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
@@ -146,14 +146,13 @@ class DeviceHelperSpecializer : public StmtExprMutator {
     if (!active_ || !callee.has_value() || !input_->functions.count(callee.value())) return result;
     originals.insert(callee.value().get());
     auto original = input_->Lookup(callee.value()).as_or_throw<Function>();
-    auto original_target = original->GetAttr<Target>(tvm::attr::kTarget);
+    auto original_target = original->GetAttr(tvm::attr::kTarget);
     TVM_FFI_CHECK(original_target.has_value() && original_target.value()->kind->name == "cuda",
                   ValueError)
         << "CUDA device function cannot call a non-CUDA helper";
-    TVM_FFI_CHECK(
-        original->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value() ==
-            CallingConv::kDefault,
-        ValueError)
+    TVM_FFI_CHECK(original->GetAttr(tvm::attr::kCallingConv, CallingConv::kDefault).value() ==
+                      CallingConv::kDefault,
+                  ValueError)
         << "CUDA device calls must refer to private device helpers";
     GlobalVar replacement(ffi::UnsafeInit{});
     if (auto existing = replacements_.Get(callee.value())) {
@@ -166,7 +165,7 @@ class DeviceHelperSpecializer : public StmtExprMutator {
                         : GlobalVar(names_->FreshName(callee.value()->name_hint + "_cuda", false));
       replacements_.Set(callee.value(), replacement);
       auto helper =
-          WithAttrs(original, {{tvm::attr::kTarget, target_}, {"backend_config", config_}});
+          WithAttrs(original, {{tvm::attr::kTarget.name, target_}, {"backend_config", config_}});
       helper = Rewrite(helper);
       output_->Add(replacement, helper);
     }
@@ -200,7 +199,7 @@ Pass SpecializeEntryHelpers() {
     std::unordered_set<const GlobalVarNode*> originals;
     for (auto [gv, base] : mod->functions) {
       auto func = base.as<Function>();
-      auto target = func ? func.value()->GetAttr<Target>(tvm::attr::kTarget) : std::nullopt;
+      auto target = func ? func.value()->GetAttr(tvm::attr::kTarget) : std::nullopt;
       if (target && target.value()->kind->name == "cuda") {
         auto rewriter = ffi::make_object<DeviceHelperSpecializer>(
             mod, result, names, target.value(), ffi::String(), false);
@@ -249,12 +248,12 @@ Pass SpecializeDeviceHelpers() {
         result->Add(gv, base);
         continue;
       }
-      auto target = func.value()->GetAttr<Target>(tvm::attr::kTarget);
+      auto target = func.value()->GetAttr(tvm::attr::kTarget);
       if (!target.has_value() || target.value()->kind->name != "cuda") {
         result->Add(gv, base);
         continue;
       }
-      auto cc = func.value()->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault);
+      auto cc = func.value()->GetAttr(tvm::attr::kCallingConv, CallingConv::kDefault);
       if (cc.value() != CallingConv::kDeviceKernelLaunch) {
         if (target.value()->host.has_value()) result->Add(gv, base);
         continue;

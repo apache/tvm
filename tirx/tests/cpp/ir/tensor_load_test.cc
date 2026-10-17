@@ -51,12 +51,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   // A packed hook can return an arbitrary value; native hooks must obey their
   // non-nullable PrimType return contract before entering the native ABI.
   refl::TypeAttrDef<InvalidLoadSourceTypeNode>().attr(
-      type_attr::kTensorLoadInferType,
+      type_attr::kTensorLoadInferType.name,
       ffi::Function::FromTyped([](const TensorLoadNode* load) -> ffi::Any {
         if (load->indices.empty()) return Type::Missing();
         return nullptr;
       }));
-  refl::TypeAttrDef<LoadSourceTypeNode>().attr(type_attr::kTensorLoadInferType,
+  refl::TypeAttrDef<LoadSourceTypeNode>().attr(type_attr::kTensorLoadInferType.name,
                                                FTensorLoadInferType::FromNative<&InferTestLoad>());
 }
 

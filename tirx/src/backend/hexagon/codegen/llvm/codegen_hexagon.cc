@@ -479,8 +479,8 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
       continue;
     }
     auto f = kv.second.as_or_throw<Function>();
-    if (f->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc)) {
-      auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+    if (f->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc.name)) {
+      auto global_symbol = f->GetAttr(tvm::attr::kGlobalSymbol);
       TVM_FFI_ICHECK(global_symbol.has_value());
       entry_func = global_symbol.value();
     }

@@ -133,7 +133,7 @@ void ApplyDisplayNames(const Doc& root, const PrinterConfig& config,
       if (auto original = origins.Get(definition)) {
         auto attrs = ReflectedField(ReflectedField(original.value(), "attrs"), "dict");
         if (auto dict = attrs.as<ffi::Map<ffi::String, ffi::Any>>()) {
-          if (auto symbol = dict->Get(tvm::attr::kGlobalSymbol)) {
+          if (auto symbol = dict->Get(tvm::attr::kGlobalSymbol.name)) {
             TVM_FFI_CHECK(symbol.value().cast<ffi::String>() == name.value(), TypeError)
                 << "printer function global_symbol must match its definition name";
           }
@@ -459,7 +459,8 @@ std::string RenderFallbackWithInvisiblePathInfo(const ffi::String& script,
 
 std::string Script(const ffi::ObjectRef& node, const ffi::Optional<PrinterConfig>& cfg) {
   PrinterConfig config = cfg.value_or(PrinterConfig());
-  static ffi::reflection::TypeAttrColumn translate(tvm::script::printer::type_attr::kDocTranslate);
+  static ffi::reflection::TypeAttrColumn translate(
+      tvm::script::printer::type_attr::kDocTranslate.name);
   // Builtin runtime roots keep their native repr; hooks still translate them within IR.
   if (!node.defined() || node->type_index() < ffi::TypeIndex::kTVMFFIDynObjectBegin ||
       (translate[node->type_index()].type_index() == ffi::TypeIndex::kTVMFFINone &&

@@ -434,7 +434,7 @@ namespace type_attr {
 /*!
  * \brief Type attribute containing a native or packed translation hook.
  */
-inline constexpr const char* kDocTranslate = "__tvm_doc_translate__";
+inline constexpr ffi::reflection::AttrKey<FDocTranslate> kDocTranslate{"__tvm_doc_translate__"};
 }  // namespace type_attr
 
 namespace op_attr {
@@ -447,7 +447,8 @@ inline constexpr ffi::reflection::AttrKey<FDocTranslate> kDocTranslateOpCall{
 
 inline ffi::Optional<ExprDoc> DocTranslatorObj::DefaultTranslate(ffi::AnyView value,
                                                                  const ffi::Object* destination) {
-  static ffi::reflection::TypeAttrColumn column(tvm::script::printer::type_attr::kDocTranslate);
+  static ffi::reflection::TypeAttrColumn column(
+      tvm::script::printer::type_attr::kDocTranslate.name);
   ffi::AnyView attr = column[value.type_index()];
   if (attr.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {
     return ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<ffi::Optional<ExprDoc>>(

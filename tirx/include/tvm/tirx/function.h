@@ -234,43 +234,44 @@ namespace attr {
  *
  * \sa tvm::CallingConv::kDeviceKernelLaunch
  */
-constexpr const char* kKernelLaunchParams = "tirx.kernel_launch_params";
+inline constexpr ffi::reflection::AttrKey<ffi::Array<ffi::String>> kKernelLaunchParams{
+    "tirx.kernel_launch_params"};
 
 /*!
  * \brief Whether to set noalias rule on the function arguments.
  *
- * Type: IntImm
+ * Type: bool
  */
-constexpr const char* kNoAlias = "tirx.noalias";
+inline constexpr ffi::reflection::AttrKey<bool> kNoAlias{"tirx.noalias"};
 
 /*!
  * \brief Mark the function as the entry function of
  *        the final generated runtime module.
  *
- * Type: IntImm
+ * Type: bool
  *
  * \note There can only be one entry function per module.
  */
-constexpr const char* kIsEntryFunc = "tirx.is_entry_func";
+inline constexpr ffi::reflection::AttrKey<bool> kIsEntryFunc{"tirx.is_entry_func"};
 
 /*!
  * \brief Mark the function as the global function called from the host.
  *
- * Type: IntImm
+ * Type: bool
  */
-constexpr const char* kIsGlobalFunc = "tirx.is_global_func";
+inline constexpr ffi::reflection::AttrKey<bool> kIsGlobalFunc{"tirx.is_global_func"};
 
 /*!
  * \brief Mark the function as run on the host, mutually exclusive with kTarget.
  *
- * Type: IntImm
+ * Type: bool
  */
-constexpr const char* kIsHostFunc = "tirx.is_host_func";
+inline constexpr ffi::reflection::AttrKey<bool> kIsHostFunc{"tirx.is_host_func"};
 
 /*!
  * \brief Mark the kernel as persistent.
  */
-constexpr const char* kPersistentKernel = "tirx.persistent_kernel";
+inline constexpr ffi::reflection::AttrKey<bool> kPersistentKernel{"tirx.persistent_kernel"};
 
 }  // namespace attr
 }  // namespace tirx

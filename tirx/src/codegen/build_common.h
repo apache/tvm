@@ -73,12 +73,12 @@ inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModu
                                                           : runtime::ArgExtraTags::kNone);
     }
     ffi::Array<ffi::String> launch_param_tags;
-    if (auto opt = f->GetAttr<ffi::Array<ffi::String>>(tvm::tirx::attr::kKernelLaunchParams)) {
+    if (auto opt = f->GetAttr(tvm::tirx::attr::kKernelLaunchParams)) {
       for (const auto& tag : opt.value()) {
         launch_param_tags.push_back(tag);
       }
     }
-    auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = f->GetAttr(tvm::attr::kGlobalSymbol);
     if (global_symbol) {
       fmap.Set(
           global_symbol.value(),

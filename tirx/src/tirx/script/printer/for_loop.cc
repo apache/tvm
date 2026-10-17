@@ -76,7 +76,7 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
     const auto& [key, value] = *loop->annotations.begin();
     auto boolean = value.as<bool>();
     auto integer = value.as<int64_t>();
-    if (key == tvm::tirx::attr::kDisableUnroll && boolean.value_or(false)) {
+    if (key == tvm::tirx::attr::kDisableUnroll.name && boolean.value_or(false)) {
       keys.push_back("unroll");
       values.push_back(LiteralDoc::Boolean(false, std::nullopt));
       unroll_option = true;
@@ -134,7 +134,7 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<ForNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
+  ffi::reflection::TypeAttrDef<ForNode>().attr(tvm::script::printer::type_attr::kDocTranslate.name,
                                                FDocTranslate::FromNative<&ForDocTranslate>());
 }
 

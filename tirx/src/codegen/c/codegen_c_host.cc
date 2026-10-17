@@ -72,14 +72,14 @@ void CodeGenCHost::AddFunction(const GlobalVar& gvar, const Function& func) {
 
 void CodeGenCHost::AddFunction(const GlobalVar& gvar, const Function& func,
                                bool emit_fwd_func_decl) {
-  auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr(tvm::attr::kGlobalSymbol);
   if (global_symbol) {
     function_names_.push_back(global_symbol.value());
   }
 
   emit_fwd_func_decl_ = emit_fwd_func_decl;
   CodeGenC::AddFunction(gvar, func);
-  if (func->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc) && !has_tvm_ffi_main_func_) {
+  if (func->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc.name) && !has_tvm_ffi_main_func_) {
     TVM_FFI_ICHECK(global_symbol.has_value())
         << "CodeGenCHost: The entry func must have the global_symbol attribute, "
         << "but function " << gvar << " only has attributes " << func->attrs;
@@ -379,9 +379,9 @@ ffi::Module BuildCHost(IRModule mod, Target target) {
   bool emit_fwd_func_decl = true;
 
   std::unordered_set<std::string> devices;
-  if (mod->GetAttr<ffi::Map<GlobalVar, ffi::String>>(tvm::attr::kDeviceContexts) != nullptr) {
+  if (mod->GetAttr(tvm::attr::kDeviceContexts) != nullptr) {
     ffi::Map<GlobalVar, ffi::String> device_contexts =
-        mod->GetAttr<ffi::Map<GlobalVar, ffi::String>>(tvm::attr::kDeviceContexts).value();
+        mod->GetAttr(tvm::attr::kDeviceContexts).value();
     for (auto const& context : device_contexts) {
       devices.insert(context.second.data());
     }
