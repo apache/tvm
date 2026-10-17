@@ -24,6 +24,7 @@
 
 #include <tvm/backend/cuda/attr.h>
 #include <tvm/ffi/reflection/accessor.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
@@ -641,6 +642,11 @@ Pass TileDispatch() {
     return f;
   };
   return CreateFunctionPass(pass_func, 0, "tirx.TileDispatch");
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.transform.TileDispatch", TileDispatch);
 }
 
 }  // namespace transform

@@ -18,10 +18,11 @@
  */
 
 /*!
- * \file lower_tirx_cleanup.cc
- * \brief Final cleanup stage for TIRx lowering.
+ * \file lower_tensor_layouts.cc
+ * \brief Apply tensor layouts to physical storage and accesses.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
@@ -365,7 +366,7 @@ Target ResolveTarget(const Function& f) {
 
 namespace transform {
 
-Pass LowerTIRxCleanup() {
+Pass LowerTensorLayouts() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     Target target = ResolveTarget(f);
@@ -375,7 +376,12 @@ Pass LowerTIRxCleanup() {
     n->params = std::move(params);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.LowerTIRxCleanup");
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerTensorLayouts");
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.transform.LowerTensorLayouts", LowerTensorLayouts);
 }
 
 }  // namespace transform

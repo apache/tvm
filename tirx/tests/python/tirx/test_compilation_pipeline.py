@@ -44,5 +44,47 @@ def test_default_pipeline_allocations(pipeline):
     np.testing.assert_equal(b.numpy(), source + 1)
 
 
+@pytest.mark.parametrize("print_after_dispatch", [None, "", "1"])
+def test_explicit_tile_pass_order_and_diagnostic(monkeypatch, capfd, print_after_dispatch):
+    from tvm_tirx.tirx.compilation_pipeline import tirx_pipeline
+
+    if print_after_dispatch is None:
+        monkeypatch.delenv("TVM_PRINT_AFTER_TIRX_DISPATCH_OPS", raising=False)
+    else:
+        monkeypatch.setenv("TVM_PRINT_AFTER_TIRX_DISPATCH_OPS", print_after_dispatch)
+
+    @T.function
+    def kernel(A: T.Tensor((2, 4), "float32", layout="default")):
+        for i, j in T.grid(2, 4):
+            A[i, j] = T.float32(1)
+
+    visited = []
+    layouts = {}
+
+    @tvm_tirx.ir.transform.pass_instrument
+    class RecordPasses:
+        def run_after_pass(self, mod, info):
+            visited.append(info.name)
+            if info.name in ("tirx.TileDispatch", "tirx.LowerTensorLayouts"):
+                layouts[info.name] = mod.script()
+
+    pipeline, _, _ = tirx_pipeline(prepare_only=True, target=tvm_tirx.target.Target("llvm"))
+    with tvm_tirx.ir.transform.PassContext(instruments=[RecordPasses()]):
+        pipeline(tvm_tirx.IRModule({"main": kernel}))
+
+    start = visited.index("tirx.TileDispatch")
+    expected = ["tirx.TileDispatch"]
+    if print_after_dispatch is not None:
+        expected.append("PrintIR")
+    expected.extend(["tirx.LowerTensorLayouts", "tirx.StmtSimplify", "tirx.FlattenTensor"])
+    assert visited[start : start + len(expected)] == expected
+    assert "TileLayout" in layouts["tirx.TileDispatch"]
+    assert "TileLayout" not in layouts["tirx.LowerTensorLayouts"]
+    output = capfd.readouterr().err
+    assert ("PrintIR(" in output) == (print_after_dispatch is not None)
+    if print_after_dispatch is not None:
+        assert "TileLayout" in output
+
+
 if __name__ == "__main__":
     tvm_tirx.testing.main()

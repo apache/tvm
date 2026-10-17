@@ -450,7 +450,9 @@ def test_device_helpers_are_cloned_per_configuration():
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_100a"}, host="llvm")
     mod = tvm_tirx.tirx.transform.BindTarget(target)(Module)
     mod = BindBackendConfig()(mod)
-    mod = tvm_tirx.tirx.transform.LowerTIRx()(mod)
+    mod = tvm_tirx.ir.transform.Sequential(
+        [tvm_tirx.tirx.transform.TileDispatch(), tvm_tirx.tirx.transform.LowerTensorLayouts()]
+    )(mod)
     mod = tvm_tirx.tirx.transform.SplitHostDevice()(mod)
     mod = SpecializeDeviceHelpers()(mod)
     groups = {}
