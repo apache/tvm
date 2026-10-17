@@ -20,7 +20,6 @@ from typing import cast
 
 import tvm_ffi
 
-from tvm_tirx import DataType
 from tvm_tirx.ir import Attrs, is_prim_expr
 from tvm_tirx.ir import Call as _Call
 from tvm_tirx.ir import PrimType as _PrimType
@@ -49,7 +48,7 @@ def resize2d(
     cubic_alpha: float = -0.75,
     cubic_exclude: int = 0,
     extrapolation_value: float = 0.0,
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -105,7 +104,7 @@ def resize2d(
     extrapolation_value: float
         Fill value to use when roi is outside of the image
 
-    out_dtype : Optional[str | DataType]
+    out_dtype : Optional[str | tvm_ffi.dtype]
         The dtype of the output tensor.
         It it is not specified, the output will have the same dtype as input if not specified.
 
@@ -162,7 +161,7 @@ def resize3d(
     cubic_alpha: float = -0.75,
     cubic_exclude: int = 0,
     extrapolation_value: float = 0.0,
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -332,7 +331,7 @@ def dilation2d(
     padding: int | tuple[int, int, int, int] | str = 0,
     dilations: int | tuple[int, int] = (1, 1),
     data_layout: str = "NCHW",
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -375,7 +374,7 @@ def dilation2d(
     data_layout : str
         Layout of the input data. Supported: "NCHW", "NHWC".
 
-    out_dtype : Optional[str | DataType]
+    out_dtype : Optional[str | tvm_ffi.dtype]
         Specifies the output data type. If None, uses the input dtype.
 
     Returns
