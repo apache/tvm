@@ -47,8 +47,8 @@ def _tmem_address(tensor):
     if tensor.scope() != _scope_tmem():
         raise ValueError("Expected a TMEM tensor")
     return tirx.Cast(
-        tirx.reinterpret(tensor.data, ty="uint64"),
         "uint32",
+        tirx.reinterpret(tensor.data, ty="uint64"),
     )
 
 
@@ -100,7 +100,7 @@ def func_call(func_name, *args, ty=None, loc: Location = UNKNOWN_LOC):
     ``args`` contains the function arguments followed by the source string.
     ``ty`` specifies an explicit result; omitted results are void.
     """
-    return Call("tirx.cuda.func_call", [func_name, *args], ty=ty, loc=loc)
+    return Call(ty, "tirx.cuda.func_call", [func_name, *args], loc=loc)
 
 
 def warp_reduce(value, op, width=32, *, ty=None, loc: Location = UNKNOWN_LOC):
@@ -128,9 +128,9 @@ def warp_reduce(value, op, width=32, *, ty=None, loc: Location = UNKNOWN_LOC):
         The reduced value (same dtype as *value*).
     """
     return Call(
+        ty,
         "tirx.cuda.warp_reduce",
         [value, op, width],
-        ty=ty,
         loc=loc,
     )
 
@@ -177,9 +177,9 @@ def cta_reduce(value, op, num_warps, scratch, *, ty=None, loc: Location = UNKNOW
         The reduced value broadcast to all threads (same dtype as *value*).
     """
     return Call(
+        ty,
         "tirx.cuda.cta_reduce",
         [value, op, num_warps, scratch],
-        ty=ty,
         loc=loc,
     )
 
@@ -332,6 +332,7 @@ def wait_until(
         dst = dst[0]
     condition = tirx.convert(predicate(dst) if callable(predicate) else predicate)
     return Call(
+        ty,
         "tirx.cuda.wait_until",
         [
             dst,
@@ -342,7 +343,6 @@ def wait_until(
             ptx_type or "",
             tirx.convert(0 if backoff_ns is None else backoff_ns),
         ],
-        ty=ty,
         loc=loc,
     )
 
@@ -416,9 +416,9 @@ def mov_sreg(bits, reg_name, *, ty=None, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
     return Call(
+        ty,
         "tirx.cuda.mov_sreg",
         [bits, reg_name],
-        ty=ty,
         loc=loc,
     )
 
@@ -858,9 +858,9 @@ def timer_init(
     """
 
     return Call(
+        ty,
         "tirx.cuda.timer_init",
         [profiler_buffer, profiler_tag, profiler_write_offset, num_groups, group_id],
-        ty=ty,
         loc=loc,
     )
 
@@ -906,6 +906,7 @@ def timer_start(
     """  # noqa: E501
 
     return Call(
+        ty,
         "tirx.cuda.timer_start",
         [
             event_type.value if isinstance(event_type, Enum) else event_type,
@@ -915,7 +916,6 @@ def timer_start(
             profiler_write_stride,
             leader_cond,
         ],
-        ty=ty,
         loc=loc,
     )
 
@@ -961,6 +961,7 @@ def timer_end(
     """  # noqa: E501
 
     return Call(
+        ty,
         "tirx.cuda.timer_end",
         [
             event_type.value if isinstance(event_type, Enum) else event_type,
@@ -970,7 +971,6 @@ def timer_end(
             profiler_write_stride,
             leader_cond,
         ],
-        ty=ty,
         loc=loc,
     )
 
@@ -1012,9 +1012,9 @@ def timer_finalize(
     """
 
     return Call(
+        ty,
         "tirx.cuda.timer_finalize",
         [profiler_buffer, profiler_tag, profiler_write_offset, profiler_write_stride, leader_cond],
-        ty=ty,
         loc=loc,
     )
 
@@ -1037,9 +1037,9 @@ def atomic_add(res_addr, value, *, ty=None, loc: Location = UNKNOWN_LOC):
     """
     value = tir.convert(value)
     return Call(
+        ty,
         "tirx.cuda.atomic_add",
         [res_addr, value],
-        ty=ty,
         loc=loc,
     )
 
@@ -1193,9 +1193,9 @@ def atomic_cas(ptr, old_val, new_val, *, ty=None, loc: Location = UNKNOWN_LOC):
     """
     old_val = tir.convert(old_val)
     return Call(
+        ty,
         "tirx.cuda.atomic_cas",
         [ptr, old_val, new_val],
-        ty=ty,
         loc=loc,
     )
 
@@ -1214,7 +1214,7 @@ def nvshmem_my_pe(*, ty=None, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
 
-    return Call("tirx.nvshmem.my_pe", [], ty=ty, loc=loc)
+    return Call(ty, "tirx.nvshmem.my_pe", [], loc=loc)
 
 
 def nvshmem_n_pes(*, ty=None, loc: Location = UNKNOWN_LOC):
@@ -1226,7 +1226,7 @@ def nvshmem_n_pes(*, ty=None, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
 
-    return Call("tirx.nvshmem.n_pes", [], ty=ty, loc=loc)
+    return Call(ty, "tirx.nvshmem.n_pes", [], loc=loc)
 
 
 def nvshmem_getmem_nbi(dst, src, nelems, pe, *, ty=None, loc: Location = UNKNOWN_LOC):
@@ -1253,9 +1253,9 @@ def nvshmem_getmem_nbi(dst, src, nelems, pe, *, ty=None, loc: Location = UNKNOWN
     """  # noqa: E501
 
     return Call(
+        ty,
         "tirx.nvshmem.getmem_nbi",
         [dst, src, nelems, pe],
-        ty=ty,
         loc=loc,
     )
 
@@ -1284,9 +1284,9 @@ def nvshmem_putmem_nbi(dst, src, nelems, pe, *, ty=None, loc: Location = UNKNOWN
     """
 
     return Call(
+        ty,
         "tirx.nvshmem.putmem_nbi",
         [dst, src, nelems, pe],
-        ty=ty,
         loc=loc,
     )
 
@@ -1315,9 +1315,9 @@ def nvshmem_getmem_nbi_warp(dst, src, nelems, pe, *, ty=None, loc: Location = UN
     """  # noqa: E501
 
     return Call(
+        ty,
         "tirx.nvshmem.getmem_nbi_warp",
         [dst, src, nelems, pe],
-        ty=ty,
         loc=loc,
     )
 
@@ -1346,9 +1346,9 @@ def nvshmem_putmem_nbi_warp(dst, src, nelems, pe, *, ty=None, loc: Location = UN
     """
 
     return Call(
+        ty,
         "tirx.nvshmem.putmem_nbi_warp",
         [dst, src, nelems, pe],
-        ty=ty,
         loc=loc,
     )
 
@@ -1377,9 +1377,9 @@ def nvshmem_getmem_nbi_block(dst, src, nelems, pe, *, ty=None, loc: Location = U
     """  # noqa: E501
 
     return Call(
+        ty,
         "tirx.nvshmem.getmem_nbi_block",
         [dst, src, nelems, pe],
-        ty=ty,
         loc=loc,
     )
 
@@ -1408,9 +1408,9 @@ def nvshmem_putmem_nbi_block(dst, src, nelems, pe, *, ty=None, loc: Location = U
     """
 
     return Call(
+        ty,
         "tirx.nvshmem.putmem_nbi_block",
         [dst, src, nelems, pe],
-        ty=ty,
         loc=loc,
     )
 
@@ -1444,9 +1444,9 @@ def nvshmem_signal_op(sig_addr, signal, sig_op, pe, *, ty=None, loc: Location = 
 
     _choice("sig_op", sig_op, _NVSHMEM_SIG_OP)
     return Call(
+        ty,
         "tirx.nvshmem.signal_op",
         [sig_addr, signal, sig_op, pe],
-        ty=ty,
         loc=loc,
     )
 
@@ -1478,9 +1478,9 @@ def nvshmem_wait_until(
 
     _choice("cmp", cmp, _NVSHMEM_CMP)
     return Call(
+        ty,
         "tirx.nvshmem.wait_until",
         [ivar, cmp, cmp_value, type],
-        ty=ty,
         loc=loc,
     )
 
@@ -1494,7 +1494,7 @@ def nvshmem_quiet(*, ty=None, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
 
-    return Call("tirx.nvshmem.quiet", [], ty=ty, loc=loc)
+    return Call(ty, "tirx.nvshmem.quiet", [], loc=loc)
 
 
 def nvshmem_putmem_signal_nbi(
@@ -1532,9 +1532,9 @@ def nvshmem_putmem_signal_nbi(
     """  # noqa: E501
 
     return Call(
+        ty,
         "tirx.nvshmem.putmem_signal_nbi",
         [dst, src, nelems, sig_addr, signal, sig_op, pe],
-        ty=ty,
         loc=loc,
     )
 
@@ -1574,9 +1574,9 @@ def nvshmem_putmem_signal_nbi_warp(
     """  # noqa: E501
 
     return Call(
+        ty,
         "tirx.nvshmem.putmem_signal_nbi_warp",
         [dst, src, nelems, sig_addr, signal, sig_op, pe],
-        ty=ty,
         loc=loc,
     )
 
@@ -1616,9 +1616,9 @@ def nvshmem_putmem_signal_nbi_block(
     """  # noqa: E501
 
     return Call(
+        ty,
         "tirx.nvshmem.putmem_signal_nbi_block",
         [dst, src, nelems, sig_addr, signal, sig_op, pe],
-        ty=ty,
         loc=loc,
     )
 
@@ -1632,7 +1632,7 @@ def nvshmem_fence(*, ty=None, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
 
-    return Call("tirx.nvshmem.fence", [], ty=ty, loc=loc)
+    return Call(ty, "tirx.nvshmem.fence", [], loc=loc)
 
 
 def nvshmem_barrier_all(*, ty=None, loc: Location = UNKNOWN_LOC):
@@ -1644,7 +1644,7 @@ def nvshmem_barrier_all(*, ty=None, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
 
-    return Call("tirx.nvshmem.barrier_all", [], ty=ty, loc=loc)
+    return Call(ty, "tirx.nvshmem.barrier_all", [], loc=loc)
 
 
 @tvm_ffi.register_object("tirx.cuda.TensorMapEncodeTiledAttr")
@@ -1694,12 +1694,12 @@ def tensormap_encode_tiled(
     if not 1 <= rank <= 5 or len(args) != 4 * rank + 1:
         raise ValueError("tensormap_encode_tiled requires rank 1..5 and 4 * rank + 1 operands")
     return Call(
+        "int32",
         "tirx.cuda.tensormap_encode_tiled",
         args,
         attrs=TensorMapEncodeTiledAttr(
             descriptor_dtype, rank, interleave, swizzle, l2_promotion, oob_fill, force_cu_dtype
         ),
-        ty="int32",
         loc=loc,
     )
 

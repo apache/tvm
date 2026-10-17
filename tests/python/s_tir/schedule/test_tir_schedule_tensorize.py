@@ -790,7 +790,7 @@ def _tir_packed_int_to_int_to_float(storage_nbit: int):
         assert val.ty.dtype == storage_dtype
         mask = tirx.const((1 << nbit) - 1, "int32")
         unextended = (val >> (pos.astype("int32") * tirx.const(nbit, "int32"))) & mask
-        return tirx.Cast((unextended << tirx.const(32 - nbit, "int32")) >> tirx.const(32 - nbit, "int32"), dtype)
+        return tirx.Cast(dtype, (unextended << tirx.const(32 - nbit, "int32")) >> tirx.const(32 - nbit, "int32"))
 
     return f_convert
 
@@ -842,7 +842,7 @@ def test_tensorize_arith_simplification():
                                 v1 = Ts.axis.spatial(16384, ax1_0 * 512 + ax1_1 * 8 + ax1)
                                 Ts.reads(B_local[v0, v1 // 8])
                                 Ts.writes(B_decode_local[v0, v1])
-                                B_decode_local[v0, v1] = T.Cast(T.shift_right(T.shift_left(T.bitwise_and(T.shift_right(B_local[v0, v1 // 8], v1 % 8 * 4), 15), 28), 28), "float16")
+                                B_decode_local[v0, v1] = T.Cast("float16", T.shift_right(T.shift_left(T.bitwise_and(T.shift_right(B_local[v0, v1 // 8], v1 % 8 * 4), 15), 28), 28))
 
     @Ts.function
     def tensorized_decode_i4s_to_int32_to_f16():

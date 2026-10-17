@@ -196,7 +196,7 @@ def _check_module_well_formed(module: _ir.IRModule) -> None:
 
 def call_global_var_(function: _ir.GlobalVar, args: Sequence[Any]) -> _ir.Expr:
     """Implements :func:`tvm_tirx.script.ir_builder.parser_protocol.call_global_var_`."""
-    return _relax.Call(function, [_relax.utils.convert_to_expr(value) for value in args])
+    return _relax.Call(None, function, [_relax.utils.convert_to_expr(value) for value in args])
 
 
 def dataflow(*, loc=None):

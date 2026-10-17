@@ -690,7 +690,7 @@ def test_split_int64_factors():
     sch = tvm.s_tir.Schedule(elementwise_symbolic, debug_mask="all")
     block_b = sch.get_sblock("B")
     _, _, k = sch.get_loops(block_b)
-    sch.split(k, factors=[IntImm(dtype="int64", value=10), None])
+    sch.split(k, factors=[IntImm(ty="int64", value=10), None])
     assert_structural_equal_ignore_global_symbol(elementwise_symbolic_split, sch.mod["main"])
 
 

@@ -722,11 +722,12 @@ class Vectorizer : public StmtExprMutator {
       return ffi::Unchanged();
     } else {
       if (value.ty().IsScalableVector()) {
-        return prim::Cast(value, PrimType::ScalableVector(op->ty.as_or_throw<PrimType>().code(),
-                                                          op->ty.as_or_throw<PrimType>().bits(),
-                                                          value.ty().VScaleFactor()));
+        return prim::Cast(PrimType::ScalableVector(op->ty.as_or_throw<PrimType>().code(),
+                                                   op->ty.as_or_throw<PrimType>().bits(),
+                                                   value.ty().VScaleFactor()),
+                          value);
       } else {
-        return prim::Cast(value, op->ty.as_or_throw<PrimType>().WithLanes(value.ty().lanes()));
+        return prim::Cast(op->ty.as_or_throw<PrimType>().WithLanes(value.ty().lanes()), value);
       }
     }
   }
@@ -1404,7 +1405,7 @@ class LoopVectorizer : public StmtExprMutator {
     PrimType lane_dtype = scalable_lanes.ty();
     PrimExpr scalable_lanes_index = scalable_lanes;
     if (scalable_lanes_index.ty() != index_dtype) {
-      scalable_lanes_index = prim::Cast(scalable_lanes_index, index_dtype);
+      scalable_lanes_index = prim::Cast(index_dtype, scalable_lanes_index);
     }
     PrimExpr num_chunks = ceildiv(fixed_extent, scalable_lanes_index);
 
@@ -1412,7 +1413,7 @@ class LoopVectorizer : public StmtExprMutator {
     PrimVar inner(op->loop_var->name + ".vla.i", lane_dtype);
     PrimExpr inner_index = inner;
     if (inner_index.ty() != index_dtype) {
-      inner_index = prim::Cast(inner_index, index_dtype);
+      inner_index = prim::Cast(index_dtype, inner_index);
     }
     PrimExpr index = outer * scalable_lanes_index + inner_index;
     auto substituter = ffi::make_object<StmtExprMutator>();

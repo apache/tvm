@@ -559,8 +559,8 @@ def test_layout_rewrite_int64_index():
                             v_k = Ts.axis.reduce(T.int64(64), k_0 + k_1)
                             T_batch_matmul_NT[v_b, v_i, v_j] = T_batch_matmul_NT[
                                 v_b, v_i, v_j
-                            ] + T.Cast(p0[v_b, v_i, v_k], "int32") * T.Cast(
-                                p1[v_b, v_j, v_k], "int32"
+                            ] + T.Cast("int32", p0[v_b, v_i, v_k]) * T.Cast(
+                                "int32", p1[v_b, v_j, v_k]
                             )
 
     @Ts.function(private=True)
@@ -628,8 +628,8 @@ def test_layout_rewrite_int64_index():
                         v_k = Ts.axis.reduce(T.int64(64), k_0 + k_1)
                         T_batch_matmul_NT[v_b, v_i, v_j] = T_batch_matmul_NT[
                             v_b, v_i, v_j
-                        ] + T.Cast(p0[v_b, v_i, v_k], "int32") * T.Cast(
-                            p1_global[v_b // T.int64(6), v_k, v_b % T.int64(6), v_j], "int32"
+                        ] + T.Cast("int32", p0[v_b, v_i, v_k]) * T.Cast(
+                            "int32", p1_global[v_b // T.int64(6), v_k, v_b % T.int64(6), v_j]
                         )
 
     mod = tvm_tirx.IRModule.from_expr(before)

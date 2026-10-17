@@ -289,7 +289,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
 
     def maybe_cast(v):
         if out_dtype != in_dtype:
-            return Cast(v, out_dtype)
+            return Cast(out_dtype, v)
         return v
 
     def maybe_swap(i, j):

@@ -43,7 +43,7 @@ def no_grad(input: Expr, *, ty=None, loc: _Location = _UNKNOWN_LOC) -> Expr:
     result : relax.Expr
       The no-gradient representation w.r.t. input.
     """
-    return _Call("relax.grad.no_grad", [input], ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.grad.no_grad", [input], loc=loc)  # type: ignore
 
 
 def start_checkpoint(input: Expr, *, ty=None, loc: _Location = _UNKNOWN_LOC) -> Expr:
@@ -81,9 +81,9 @@ def start_checkpoint(input: Expr, *, ty=None, loc: _Location = _UNKNOWN_LOC) -> 
       The same tensor as the input.
     """
     return _Call(
+        ty,
         "relax.grad.start_checkpoint",
         [input],
-        ty=ty,
         loc=loc,
     )  # type: ignore
 
@@ -102,9 +102,9 @@ def end_checkpoint(input: Expr, *, ty=None, loc: _Location = _UNKNOWN_LOC) -> Ex
       The same tensor as the input.
     """
     return _Call(
+        ty,
         "relax.grad.end_checkpoint",
         [input],
-        ty=ty,
         loc=loc,
     )  # type: ignore
 
@@ -134,12 +134,12 @@ def nll_loss_backward(
       The gradient w.r.t. predictions.
     """
     return _Call(
+        ty,
         "relax.grad.nll_loss_backward",
         [output_grad, predictions, targets, *([] if weights is None else [weights])],
         attrs=_make_attrs(
             "relax.attrs.NLLLossAttrs", reduction=reduction, ignore_index=ignore_index
         ),
-        ty=ty,
         loc=loc,
     )
 
@@ -181,6 +181,7 @@ def max_pool2d_backward(
     if len(pool_size) == 1:
         pool_size = tuple(pool_size) * 2
     return _Call(
+        ty,
         "relax.grad.max_pool2d_backward",
         [output_grad, data],
         attrs=_make_attrs(
@@ -194,7 +195,6 @@ def max_pool2d_backward(
             layout=layout,
             out_layout=(layout if out_layout is None else out_layout),
         ),
-        ty=ty,
         loc=loc,
     )
 
@@ -236,6 +236,7 @@ def avg_pool2d_backward(
     if len(pool_size) == 1:
         pool_size = tuple(pool_size) * 2
     return _Call(
+        ty,
         "relax.grad.avg_pool2d_backward",
         [output_grad, data],
         attrs=_make_attrs(
@@ -249,7 +250,6 @@ def avg_pool2d_backward(
             layout=layout,
             out_layout=(layout if out_layout is None else out_layout),
         ),
-        ty=ty,
         loc=loc,
     )
 
@@ -277,9 +277,9 @@ def take_backward(
       The gradient w.r.t. x.
     """
     return _Call(
+        ty,
         "relax.grad.take_backward",
         [output_grad, x, indices],
         attrs=_make_attrs("relax.attrs.TakeBackwardAttrs", axis=axis),
-        ty=ty,
         loc=loc,
     )  # type: ignore

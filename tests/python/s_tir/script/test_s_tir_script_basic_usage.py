@@ -306,7 +306,11 @@ def test_reinterpret_preserves_explicit_call():
         for i in T.serial(0, 32):
             with Ts.sblock():
                 vi = Ts.axis.remap("S", [i])
-                B[vi] = I.Call("tirx.reinterpret", [A[vi]], ty="float32")
+                B[vi] = I.Call(
+                    "float32",
+                    "tirx.reinterpret",
+                    [A[vi]],
+                )
 
     tvm_tirx.ir.assert_structural_equal(func, expected)
 

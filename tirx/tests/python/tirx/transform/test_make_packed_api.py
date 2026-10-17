@@ -247,7 +247,7 @@ def test_target_host_removed():
                         " bytes",
                     ],
                 )
-                assert T.Cast(T.abi_field_get(main_A_shape, 0, 17, ty="int64"), "int32") == 1, (
+                assert T.Cast("int32", T.abi_field_get(main_A_shape, 0, 17, ty="int64")) == 1, (
                     "ValueError",
                     [
                         "Invalid ",
@@ -584,7 +584,7 @@ def test_zero_arg_function():
             with T.compute_scope("func_without_arg_compute_"):
                 T.abi_field_set(result, 0, 13, 1)
                 T.abi_field_set(result, 0, 14, 0)
-                T.abi_field_set(result, 0, 15, T.Cast(T.int64(42), "int64"))
+                T.abi_field_set(result, 0, 15, T.Cast("int64", T.int64(42)))
                 return 0
             return 0
 
@@ -745,17 +745,17 @@ def test_int_parameter():
                     "int",
                 ],
             )
-            arg: T.let[T.int32] = T.Cast(T.abi_field_get(args, 0, 15, ty="int64"), "int32")
+            arg: T.let[T.int32] = T.Cast("int32", T.abi_field_get(args, 0, 15, ty="int64"))
             with T.compute_scope("main_compute_"):
                 if arg > 0:
                     T.abi_field_set(result, 0, 13, 1)
                     T.abi_field_set(result, 0, 14, 0)
-                    T.abi_field_set(result, 0, 15, T.Cast(10, "int64"))
+                    T.abi_field_set(result, 0, 15, T.Cast("int64", 10))
                     return 0
                 else:
                     T.abi_field_set(result, 0, 13, 1)
                     T.abi_field_set(result, 0, 14, 0)
-                    T.abi_field_set(result, 0, 15, T.Cast(20, "int64"))
+                    T.abi_field_set(result, 0, 15, T.Cast("int64", 20))
                     return 0
             return 0
 
@@ -812,17 +812,17 @@ def test_bool_parameter():
                     "boolean",
                 ],
             )
-            arg: T.let[T.bool] = T.Cast(T.abi_field_get(args, 0, 15, ty="int64"), "bool")
+            arg: T.let[T.bool] = T.Cast("bool", T.abi_field_get(args, 0, 15, ty="int64"))
             with T.compute_scope("main_compute_"):
                 if arg:
                     T.abi_field_set(result, 0, 13, 1)
                     T.abi_field_set(result, 0, 14, 0)
-                    T.abi_field_set(result, 0, 15, T.Cast(10, "int64"))
+                    T.abi_field_set(result, 0, 15, T.Cast("int64", 10))
                     return 0
                 else:
                     T.abi_field_set(result, 0, 13, 1)
                     T.abi_field_set(result, 0, 14, 0)
-                    T.abi_field_set(result, 0, 15, T.Cast(20, "int64"))
+                    T.abi_field_set(result, 0, 15, T.Cast("int64", 20))
                     return 0
             return 0
 
@@ -881,19 +881,19 @@ def test_float_parameter():
             )
             arg: T.let[T.float32] = T.Select(
                 arg_type_index == 3,
-                T.Cast(T.abi_field_get(args, 0, 15, ty="float64"), "float32"),
-                T.Cast(T.abi_field_get(args, 0, 15, ty="int64"), "float32"),
+                T.Cast("float32", T.abi_field_get(args, 0, 15, ty="float64")),
+                T.Cast("float32", T.abi_field_get(args, 0, 15, ty="int64")),
             )
             with T.compute_scope("main_compute_"):
                 if arg > T.float32(0.0):
                     T.abi_field_set(result, 0, 13, 1)
                     T.abi_field_set(result, 0, 14, 0)
-                    T.abi_field_set(result, 0, 15, T.Cast(10, "int64"))
+                    T.abi_field_set(result, 0, 15, T.Cast("int64", 10))
                     return 0
                 else:
                     T.abi_field_set(result, 0, 13, 1)
                     T.abi_field_set(result, 0, 14, 0)
-                    T.abi_field_set(result, 0, 15, T.Cast(20, "int64"))
+                    T.abi_field_set(result, 0, 15, T.Cast("int64", 20))
                     return 0
             return 0
 
@@ -1432,7 +1432,7 @@ def test_tensor_alignment_attached_to_tensor_var():
             with T.device_context(1, dev_id):
                 if not T.isnullptr(main_A_strides):
                     assert 1 == T.Cast(
-                        T.abi_field_get(main_A_strides, 0, 17, ty="int64"), "int32"
+                        "int32", T.abi_field_get(main_A_strides, 0, 17, ty="int64")
                     ), (
                         "ValueError",
                         [
@@ -1485,7 +1485,7 @@ def test_tensor_alignment_attached_to_tensor_var():
                         " bytes",
                     ],
                 )
-                assert T.Cast(T.abi_field_get(main_A_shape, 0, 17, ty="int64"), "int32") == 16, (
+                assert T.Cast("int32", T.abi_field_get(main_A_shape, 0, 17, ty="int64")) == 16, (
                     "ValueError",
                     [
                         "Invalid ",

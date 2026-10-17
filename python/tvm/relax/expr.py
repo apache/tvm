@@ -417,7 +417,7 @@ class Function(BaseFunc, Scriptable):
         args: List[relax.Expr]
             Arguments.
         """
-        return tvm_tirx.ir.Call(self, args, None, None)
+        return tvm_tirx.ir.Call(None, self, args, None, None)
 
     def bind_symbolic_vars(self, binding_map: Mapping[str | tvm_tirx.tirx.Var, Expr]) -> "Function":
         """Return a new function with updated symbolic variable
@@ -628,7 +628,7 @@ def get_shape_of(expr: Expr) -> Expr:
     The function will report an error if expr's Type is not TensorType.
     It will try to return symbolic function when possible. If the tensor do not
     have a compile-time symbolic shape, the function will then choose to return
-    `Call(relax.op.shape_of, [expr])`.
+    `Call(None, relax.op.shape_of, [expr])`.
     """
     return _ffi_api.GetShapeOf(expr)  # type: ignore
 

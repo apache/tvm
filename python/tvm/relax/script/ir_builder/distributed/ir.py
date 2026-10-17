@@ -68,7 +68,7 @@ def const(
     if not isinstance(value, _tensor.Tensor):
         raise ValueError("value has to be scalar or Tensor")
 
-    return GenericConst(value, ty)
+    return GenericConst(ty, value)
 
 
 def _lookup_device_mesh(device_mesh_str: str) -> DeviceMesh:

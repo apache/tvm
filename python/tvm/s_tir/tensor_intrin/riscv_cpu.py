@@ -122,7 +122,7 @@ def rvv_vec_dot_product_kernels(
 
             vec_A = T.call_llvm_intrin(
                 "llvm.riscv.vle",
-                T.broadcast(T.Cast(0, data_dtype), T.vscale() * d_dtype_lanes),
+                T.broadcast(T.Cast(data_dtype, 0), T.vscale() * d_dtype_lanes),
                 A.data,
                 T.int64(n_elems), ty=f"{data_dtype}xvscalex{d_dtype_lanes}")
 
@@ -133,7 +133,7 @@ def rvv_vec_dot_product_kernels(
 
                     vec_B_row = T.call_llvm_intrin(
                         "llvm.riscv.vle",
-                        T.broadcast(T.Cast(0, data_dtype), T.vscale() * w_dtype_lanes),
+                        T.broadcast(T.Cast(data_dtype, 0), T.vscale() * w_dtype_lanes),
                         T.ptr_byte_offset(B.data, i * n_elems * weight_bytes, ty=B.data.ty),
                         T.int64(n_elems), ty=f"{weight_dtype}xvscalex{w_dtype_lanes}")
 
@@ -141,7 +141,7 @@ def rvv_vec_dot_product_kernels(
                         "llvm.riscv.vfmul" if out_dtype[0] == "f" else \
                         "llvm.riscv.vwmulsu" if (data_dtype[0] != weight_dtype[0]) else \
                         "llvm.riscv.vwmul",
-                        T.broadcast(T.Cast(0, wide_dtype), T.vscale() * w_dtype_lanes),
+                        T.broadcast(T.Cast(wide_dtype, 0), T.vscale() * w_dtype_lanes),
                         vec_B_row,
                         vec_A,
                         *mask_args,
@@ -149,14 +149,14 @@ def rvv_vec_dot_product_kernels(
 
                     ini_acc = T.call_llvm_intrin(
                         "llvm.riscv.vle",
-                        T.broadcast(T.Cast(0, out_dtype), T.vscale() * o_dtype_lanes),
+                        T.broadcast(T.Cast(out_dtype, 0), T.vscale() * o_dtype_lanes),
                         T.ptr_byte_offset(C.data, i * output_bytes, ty=C.data.ty),
                         T.int64(1), ty=f"{out_dtype}xvscalex{o_dtype_lanes}")
 
                     red_sum = T.call_llvm_intrin(
                         "llvm.riscv.vfredusum" if out_dtype[0] == "f" else \
                         "llvm.riscv.vwredsum",
-                        T.broadcast(T.Cast(0, out_dtype), T.vscale() * o_dtype_lanes),
+                        T.broadcast(T.Cast(out_dtype, 0), T.vscale() * o_dtype_lanes),
                         product,
                         ini_acc,
                         *mask_args,

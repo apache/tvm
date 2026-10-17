@@ -157,9 +157,8 @@ ExprDoc RawCallDocTranslate(DocTranslatorObj* d, const CallNode* call,
     keys.push_back("ty_args");
     values.push_back(ListDoc(types));
   }
-  keys.push_back("ty");
-  values.push_back(d->Translate(call->ty).value());
-  return NamespaceDoc("ir")->Attr("Call")->Call({callee, ListDoc(args)}, keys, values);
+  return NamespaceDoc("ir")->Attr("Call")->Call(
+      {d->Translate(call->ty).value(), callee, ListDoc(args)}, keys, values);
 }
 
 }  // namespace printer

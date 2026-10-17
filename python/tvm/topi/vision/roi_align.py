@@ -67,26 +67,26 @@ def _sample_common(
     count = roi_bin_grid_h * roi_bin_grid_w
     rh = te.reduce_axis((0, roi_bin_grid_h), name="rh")
     rw = te.reduce_axis((0, roi_bin_grid_w), name="rw")
-    roi_start_h = roi_start_h + tvm_tirx.tirx.Cast(ph, dtype) * bin_h
-    roi_start_w = roi_start_w + tvm_tirx.tirx.Cast(pw, dtype) * bin_w
+    roi_start_h = roi_start_h + tvm_tirx.tirx.Cast(dtype, ph) * bin_h
+    roi_start_w = roi_start_w + tvm_tirx.tirx.Cast(dtype, pw) * bin_w
 
     def sample_value(rh_idx, rw_idx):
         return bilinear_func(
             batch_index,
             c,
             roi_start_h
-            + (tvm_tirx.tirx.Cast(rh_idx, dtype) + tvm_tirx.tirx.const(0.5, dtype))
+            + (tvm_tirx.tirx.Cast(dtype, rh_idx) + tvm_tirx.tirx.const(0.5, dtype))
             * bin_h
-            / tvm_tirx.tirx.Cast(roi_bin_grid_h, dtype),
+            / tvm_tirx.tirx.Cast(dtype, roi_bin_grid_h),
             roi_start_w
-            + (tvm_tirx.tirx.Cast(rw_idx, dtype) + tvm_tirx.tirx.const(0.5, dtype))
+            + (tvm_tirx.tirx.Cast(dtype, rw_idx) + tvm_tirx.tirx.const(0.5, dtype))
             * bin_w
-            / tvm_tirx.tirx.Cast(roi_bin_grid_w, dtype),
+            / tvm_tirx.tirx.Cast(dtype, roi_bin_grid_w),
         )
 
     if avg_mode:
         return te.sum(
-            sample_value(rh, rw) / tvm_tirx.tirx.Cast(count, dtype),
+            sample_value(rh, rw) / tvm_tirx.tirx.Cast(dtype, count),
             axis=[rh, rw],
         )
     return te.max(sample_value(rh, rw), axis=[rh, rw])
@@ -107,14 +107,14 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1
     else:
         pooled_size_h, pooled_size_w = pooled_size
 
-    height_f = tvm_tirx.tirx.Cast(height, dtype)
-    width_f = tvm_tirx.tirx.Cast(width, dtype)
+    height_f = tvm_tirx.tirx.Cast(dtype, height)
+    width_f = tvm_tirx.tirx.Cast(dtype, width)
     zero = tvm_tirx.tirx.const(0.0, data.dtype)
 
     def _bilinear(n, c, y, x):
         outside = tvm_tirx.tirx.any(y < -1.0, x < -1.0, y > height_f, x > width_f)
-        y = te.min(te.max(y, 0.0), tvm_tirx.tirx.Cast(height - 1, dtype))
-        x = te.min(te.max(x, 0.0), tvm_tirx.tirx.Cast(width - 1, dtype))
+        y = te.min(te.max(y, 0.0), tvm_tirx.tirx.Cast(dtype, height - 1))
+        x = te.min(te.max(x, 0.0), tvm_tirx.tirx.Cast(dtype, width - 1))
         val = bilinear_sample_nchw(data, (n, c, y, x), height - 1, width - 1)
         return tvm_tirx.tirx.if_then_else(outside, zero, val)
 
@@ -154,14 +154,14 @@ def roi_align_nhwc(data, rois, pooled_size, spatial_scale, mode, sample_ratio=-1
     else:
         pooled_size_h, pooled_size_w = pooled_size
 
-    height_f = tvm_tirx.tirx.Cast(height, dtype)
-    width_f = tvm_tirx.tirx.Cast(width, dtype)
+    height_f = tvm_tirx.tirx.Cast(dtype, height)
+    width_f = tvm_tirx.tirx.Cast(dtype, width)
     zero = tvm_tirx.tirx.const(0.0, data.dtype)
 
     def _bilinear(n, c, y, x):
         outside = tvm_tirx.tirx.any(y < -1.0, x < -1.0, y > height_f, x > width_f)
-        y = te.min(te.max(y, 0.0), tvm_tirx.tirx.Cast(height - 1, dtype))
-        x = te.min(te.max(x, 0.0), tvm_tirx.tirx.Cast(width - 1, dtype))
+        y = te.min(te.max(y, 0.0), tvm_tirx.tirx.Cast(dtype, height - 1))
+        x = te.min(te.max(x, 0.0), tvm_tirx.tirx.Cast(dtype, width - 1))
         val = bilinear_sample_nhwc(data, (n, y, x, c), height - 1, width - 1)
         return tvm_tirx.tirx.if_then_else(outside, zero, val)
 

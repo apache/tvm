@@ -250,7 +250,7 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
       PrimExpr new_value = new_op->value;
       PrimType cast_type = visitor_->vmap.at(op);
       if (new_value.ty() != cast_type) {
-        new_value = prim::Cast(new_value, cast_type);
+        new_value = prim::Cast(cast_type, new_value);
       }
       return new_value;
     }

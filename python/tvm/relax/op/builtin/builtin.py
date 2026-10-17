@@ -73,10 +73,10 @@ def alloc_tensor(
         )
 
     return _Call(
+        ty,
         "relax.builtin.alloc_tensor",
         [shape, dtype, runtime_device_index, storage_scope],
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
     )  # type: ignore
 
@@ -97,9 +97,9 @@ def stop_lift_params(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_
         The result tensor that is the same as input tensor
     """
     return _Call(
+        ty,
         "relax.builtin.stop_lift_params",
         [x],
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
     )  # type: ignore

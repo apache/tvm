@@ -104,7 +104,7 @@ def test_conv1d_with_out_dtype():
                     Ts.writes(conv1d_ncw[v_nn, v_ff, v_yy])
                     with Ts.init():
                         conv1d_ncw[v_nn, v_ff, v_yy] = T.float16(0)
-                    conv1d_ncw[v_nn, v_ff, v_yy] = conv1d_ncw[v_nn, v_ff, v_yy] + T.Cast(pad_temp[v_nn, v_rc, v_yy + v_ry], "float16") * T.Cast(rxplaceholder_1[v_ff, v_rc, v_ry], "float16")
+                    conv1d_ncw[v_nn, v_ff, v_yy] = conv1d_ncw[v_nn, v_ff, v_yy] + T.Cast("float16", pad_temp[v_nn, v_rc, v_yy + v_ry]) * T.Cast("float16", rxplaceholder_1[v_ff, v_rc, v_ry])
     # fmt: on
 
     mod = LegalizeOps()(Conv1d)
@@ -331,7 +331,7 @@ def test_conv2d_with_out_dtype():
                     Ts.writes(conv2d_nchw[nn, ff, yy, xx])
                     with Ts.init():
                         conv2d_nchw[nn, ff, yy, xx] = T.float16(0)
-                    conv2d_nchw[nn, ff, yy, xx] = conv2d_nchw[nn, ff, yy, xx] + T.Cast(pad_temp[nn, rc, yy + ry, xx + rx], "float16") * T.Cast(rxplaceholder_1[ff, rc, ry, rx], "float16")
+                    conv2d_nchw[nn, ff, yy, xx] = conv2d_nchw[nn, ff, yy, xx] + T.Cast("float16", pad_temp[nn, rc, yy + ry, xx + rx]) * T.Cast("float16", rxplaceholder_1[ff, rc, ry, rx])
     # fmt: on
 
     mod = LegalizeOps()(Conv2d)
@@ -653,7 +653,7 @@ def test_conv3d_transpose_with_out_dtype():
                     Ts.writes(compute[v_b, v_c, v_d, v_h, v_w])
                     with Ts.init():
                         compute[v_b, v_c, v_d, v_h, v_w] = T.float16(0.0)
-                    compute[v_b, v_c, v_d, v_h, v_w] = compute[v_b, v_c, v_d, v_h, v_w] + T.Cast(data_pad[v_b, v_dc, v_d + v_dd, v_h + v_dh, v_w + v_dw], "float16") * T.Cast(kernel_transform[v_c, v_dc, v_dd, v_dh, v_dw], "float16")
+                    compute[v_b, v_c, v_d, v_h, v_w] = compute[v_b, v_c, v_d, v_h, v_w] + T.Cast("float16", data_pad[v_b, v_dc, v_d + v_dd, v_h + v_dh, v_w + v_dw]) * T.Cast("float16", kernel_transform[v_c, v_dc, v_dd, v_dh, v_dw])
     # fmt: on
 
     mod = LegalizeOps()(Conv3dTranspose)
@@ -708,7 +708,7 @@ def test_conv2d_transpose_with_out_dtype():
                     Ts.writes(compute[v_b, v_c, v_h, v_w])
                     with Ts.init():
                         compute[v_b, v_c, v_h, v_w] = T.float16(0)
-                    compute[v_b, v_c, v_h, v_w] = compute[v_b, v_c, v_h, v_w] + T.Cast(data_pad[v_b, v_dc, v_h + v_dh, v_w + v_dw], "float16") * T.Cast(kernel_transform[v_c, v_dc, v_dh, v_dw], "float16")
+                    compute[v_b, v_c, v_h, v_w] = compute[v_b, v_c, v_h, v_w] + T.Cast("float16", data_pad[v_b, v_dc, v_h + v_dh, v_w + v_dw]) * T.Cast("float16", kernel_transform[v_c, v_dc, v_dh, v_dw])
     # fmt: on
 
     mod = LegalizeOps()(Conv2dTranspose)
@@ -1022,7 +1022,7 @@ def test_avg_pool2d():
                     Ts.reads(pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
                     Ts.writes(pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
                     Ts.sblock_attr({"schedule_rule": "meta_schedule.pool_avg"})
-                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast(T.max((T.min(v_ax1 * T.int64(2) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax1 * T.int64(2), T.int64(0)) - v_ax1 * T.int64(2)) * (T.min(v_ax2 * T.int64(2) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax2 * T.int64(2), T.int64(0)) - v_ax2 * T.int64(2)), T.int64(1)), "float32")
+                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast("float32", T.max((T.min(v_ax1 * T.int64(2) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax1 * T.int64(2), T.int64(0)) - v_ax1 * T.int64(2)) * (T.min(v_ax2 * T.int64(2) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax2 * T.int64(2), T.int64(0)) - v_ax2 * T.int64(2)), T.int64(1)))
 
         @R.function
         def main(x: R.Tensor((4, 112, 112, 6), dtype="float32")) -> R.Tensor((4, 56, 56, 6), dtype="float32"):
@@ -1064,7 +1064,7 @@ def test_avg_pool2d_NCHW16c():
                     Ts.reads(pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
                     Ts.writes(pool_avg[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
                     Ts.sblock_attr({"schedule_rule": "meta_schedule.pool_avg"})
-                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] / T.Cast(T.max((T.min(T.int64(2), T.int64(111) - v_ax2) + T.int64(1) - T.max(T.int64(0) - v_ax2, T.int64(0))) * (T.min(T.int64(2), T.int64(111) - v_ax3) + T.int64(1) - T.max(T.int64(0) - v_ax3, T.int64(0))), T.int64(1)), "float32")
+                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] / T.Cast("float32", T.max((T.min(T.int64(2), T.int64(111) - v_ax2) + T.int64(1) - T.max(T.int64(0) - v_ax2, T.int64(0))) * (T.min(T.int64(2), T.int64(111) - v_ax3) + T.int64(1) - T.max(T.int64(0) - v_ax3, T.int64(0))), T.int64(1)))
         @R.function
         def main(x: R.Tensor((4, 4, 112, 112, 16), dtype="float32")) -> R.Tensor((4, 4, 110, 110, 16), dtype="float32"):
             gv = R.call_tir(Expected.avg_pool2d, (x,), ty_args=[R.Tensor((4, 4, 110, 110, 16), dtype="float32")])
@@ -1112,7 +1112,7 @@ def test_avg_pool2d_ceil_mode():
                     Ts.reads(pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
                     Ts.writes(pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
                     Ts.sblock_attr({"schedule_rule": "meta_schedule.pool_avg"})
-                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast(T.max((T.min(v_ax2 * T.int64(3) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax2 * T.int64(3), T.int64(0)) - v_ax2 * T.int64(3)) * (T.min(v_ax3 * T.int64(3) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax3 * T.int64(3), T.int64(0)) - v_ax3 * T.int64(3)), T.int64(1)), "float32")
+                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast("float32", T.max((T.min(v_ax2 * T.int64(3) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax2 * T.int64(3), T.int64(0)) - v_ax2 * T.int64(3)) * (T.min(v_ax3 * T.int64(3) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax3 * T.int64(3), T.int64(0)) - v_ax3 * T.int64(3)), T.int64(1)))
 
         @R.function
         def main(x: R.Tensor((4, 6, 112, 112), dtype="float32")) -> R.Tensor((4, 6, 38, 38), dtype="float32"):
@@ -2263,7 +2263,7 @@ def test_cross_entropy_with_logits_batch_symbolic():
                 vi = Ts.axis.spatial(T.int64(1), T.int64(0))
                 Ts.reads(T_multiply_1[()])
                 Ts.writes(T_divide[()])
-                T_divide[()] = T_multiply_1[()] / T.Cast(n_cross_entropy_with_logits, "float32")
+                T_divide[()] = T_multiply_1[()] / T.Cast("float32", n_cross_entropy_with_logits)
     # fmt: on
 
     mod = LegalizeOps()(CrossEntropyWithLogits)
@@ -2623,7 +2623,7 @@ def test_batch_norm_symbolic():
                         v_ax0 = Ts.axis.spatial(h_batch_norm, ax0)
                         Ts.reads(x_red[v_ax0])
                         Ts.writes(T_divide[v_ax0])
-                        T_divide[v_ax0] = x_red[v_ax0] / T.Cast(n_batch_norm * w_batch_norm * c_batch_norm, "float32")
+                        T_divide[v_ax0] = x_red[v_ax0] / T.Cast("float32", n_batch_norm * w_batch_norm * c_batch_norm)
                 for ax0 in range(T.int64(1)):
                     for ax1 in range(h_batch_norm):
                         for ax2 in range(T.int64(1)):
@@ -2703,7 +2703,7 @@ def test_batch_norm_symbolic():
                         v_ax0 = Ts.axis.spatial(h_batch_norm, ax0)
                         Ts.reads(T_multiply_red[v_ax0])
                         Ts.writes(T_divide_1[v_ax0])
-                        T_divide_1[v_ax0] = T_multiply_red[v_ax0] / T.Cast(n_batch_norm * w_batch_norm * c_batch_norm, "float32")
+                        T_divide_1[v_ax0] = T_multiply_red[v_ax0] / T.Cast("float32", n_batch_norm * w_batch_norm * c_batch_norm)
                 for ax0 in range(T.int64(1)):
                     for ax1 in range(h_batch_norm):
                         for ax2 in range(T.int64(1)):
@@ -2997,7 +2997,7 @@ def test_layer_norm_fp16():
                     Ts.writes(x_sum[v_ax0, v_ax1])
                     with Ts.init():
                         x_sum[v_ax0, v_ax1] = T.float32(0.0)
-                    x_sum[v_ax0, v_ax1] = x_sum[v_ax0, v_ax1] + T.Cast(x[v_ax0, v_ax1, v_k2, v_k3], "float32")
+                    x_sum[v_ax0, v_ax1] = x_sum[v_ax0, v_ax1] + T.Cast("float32", x[v_ax0, v_ax1, v_k2, v_k3])
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("x_mean"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -3011,13 +3011,13 @@ def test_layer_norm_fp16():
                     Ts.writes(x_var_sum[v_ax0, v_ax1])
                     with Ts.init():
                         x_var_sum[v_ax0, v_ax1] = T.float32(0.0)
-                    x_var_sum[v_ax0, v_ax1] = x_var_sum[v_ax0, v_ax1] + (T.Cast(x[v_ax0, v_ax1, v_k2, v_k3], "float32") - x_mean[v_ax0, v_ax1]) * (T.Cast(x[v_ax0, v_ax1, v_k2, v_k3], "float32") - x_mean[v_ax0, v_ax1])
+                    x_var_sum[v_ax0, v_ax1] = x_var_sum[v_ax0, v_ax1] + (T.Cast("float32", x[v_ax0, v_ax1, v_k2, v_k3]) - x_mean[v_ax0, v_ax1]) * (T.Cast("float32", x[v_ax0, v_ax1, v_k2, v_k3]) - x_mean[v_ax0, v_ax1])
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with Ts.sblock("T_layer_norm"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     Ts.reads(x[v_ax0, v_ax1, v_ax2, v_ax3], x_mean[v_ax0, v_ax1], x_var_sum[v_ax0, v_ax1], gamma[v_ax2, v_ax3], beta[v_ax2, v_ax3])
                     Ts.writes(T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3] = T.Cast((T.Cast(x[v_ax0, v_ax1, v_ax2, v_ax3], "float32") - x_mean[v_ax0, v_ax1]) * T.rsqrt(x_var_sum[v_ax0, v_ax1] / T.float32(20.0) + T.float32(1.0000000000000001e-05)), "float16") * gamma[v_ax2, v_ax3] + beta[v_ax2, v_ax3]
+                    T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3] = T.Cast("float16", (T.Cast("float32", x[v_ax0, v_ax1, v_ax2, v_ax3]) - x_mean[v_ax0, v_ax1]) * T.rsqrt(x_var_sum[v_ax0, v_ax1] / T.float32(20.0) + T.float32(1.0000000000000001e-05))) * gamma[v_ax2, v_ax3] + beta[v_ax2, v_ax3]
 
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float16"), gamma: R.Tensor((4, 5), dtype="float16"), beta: R.Tensor((4, 5), dtype="float16")) -> R.Tensor((2, 3, 4, 5), dtype="float16"):
@@ -3076,7 +3076,7 @@ def test_layer_norm_symbolic():
                     v_ax0 = Ts.axis.spatial(n_layer_norm, ax0)
                     Ts.reads(x_sum[v_ax0])
                     Ts.writes(x_mean[v_ax0])
-                    x_mean[v_ax0] = x_sum[v_ax0] / (T.Cast(s_layer_norm, "float32") * T.Cast(f_layer_norm, "float32"))
+                    x_mean[v_ax0] = x_sum[v_ax0] / (T.Cast("float32", s_layer_norm) * T.Cast("float32", f_layer_norm))
             for ax0, k1, k2 in T.grid(n_layer_norm, s_layer_norm, f_layer_norm):
                 with Ts.sblock("x_var_sum"):
                     v_ax0, v_k1, v_k2 = Ts.axis.remap("SRR", [ax0, k1, k2])
@@ -3090,7 +3090,7 @@ def test_layer_norm_symbolic():
                     v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
                     Ts.reads(x[v_ax0, v_ax1, v_ax2], x_mean[v_ax0], x_var_sum[v_ax0], gamma[v_ax1, v_ax2], beta[v_ax1, v_ax2])
                     Ts.writes(T_layer_norm[v_ax0, v_ax1, v_ax2])
-                    T_layer_norm[v_ax0, v_ax1, v_ax2] = (x[v_ax0, v_ax1, v_ax2] - x_mean[v_ax0]) * T.rsqrt(x_var_sum[v_ax0] / (T.Cast(s_layer_norm, "float32") * T.Cast(f_layer_norm, "float32")) + T.float32(1.0000000000000001e-05)) * gamma[v_ax1, v_ax2] + beta[v_ax1, v_ax2]
+                    T_layer_norm[v_ax0, v_ax1, v_ax2] = (x[v_ax0, v_ax1, v_ax2] - x_mean[v_ax0]) * T.rsqrt(x_var_sum[v_ax0] / (T.Cast("float32", s_layer_norm) * T.Cast("float32", f_layer_norm)) + T.float32(1.0000000000000001e-05)) * gamma[v_ax1, v_ax2] + beta[v_ax1, v_ax2]
     # fmt: on
     mod = LegalizeOps()(LayerNorm)
     tvm_tirx.ir.assert_structural_equal(mod, Expected)
@@ -3206,7 +3206,7 @@ def test_group_norm_fp16():
                     v_ax0, v_ax1, v_ax2, v_ax3, v_ax4 = Ts.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
                     Ts.reads(T_reshape_1[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
                     Ts.writes(T_cast[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
-                    T_cast[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.Cast(T_reshape_1[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4], "float32")
+                    T_cast[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.Cast("float32", T_reshape_1[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
             for ax0, ax1, k2, k3, k4 in T.grid(T.int64(2), T.int64(2), T.int64(2), T.int64(4), T.int64(5)):
                 with Ts.sblock("rxplaceholder_red_temp"):
                     v_ax0, v_ax1, v_k2, v_k3, v_k4 = Ts.axis.remap("SSRRR", [ax0, ax1, k2, k3, k4])
@@ -3236,7 +3236,7 @@ def test_group_norm_fp16():
                     v_ax0, v_ax1, v_ax2, v_ax3, v_ax4 = Ts.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
                     Ts.reads(T_cast[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4], rxplaceholder_red_temp_v0[v_ax0, v_ax1], rxplaceholder_red_temp_v1[v_ax0, v_ax1], T_reshape_2[v_ax1, v_ax2], T_reshape_3[v_ax1, v_ax2])
                     Ts.writes(T_group_norm[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
-                    T_group_norm[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.Cast((T_cast[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / T.float32(40)) * T.rsqrt(rxplaceholder_red_temp_v1[v_ax0, v_ax1] / T.float32(40) - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / T.float32(40) * (rxplaceholder_red_temp_v0[v_ax0, v_ax1] / T.float32(40)) + T.float32(1.0000000000000001e-05)), "float16") * T_reshape_2[v_ax1, v_ax2] + T_reshape_3[v_ax1, v_ax2]
+                    T_group_norm[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.Cast("float16", (T_cast[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / T.float32(40)) * T.rsqrt(rxplaceholder_red_temp_v1[v_ax0, v_ax1] / T.float32(40) - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / T.float32(40) * (rxplaceholder_red_temp_v0[v_ax0, v_ax1] / T.float32(40)) + T.float32(1.0000000000000001e-05))) * T_reshape_2[v_ax1, v_ax2] + T_reshape_3[v_ax1, v_ax2]
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(4), T.int64(4), T.int64(5)):
                 with Ts.sblock("T_reshape_3"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -3321,7 +3321,7 @@ def test_group_norm_symbolic():
                     v_ax0, v_ax1, v_ax2, v_ax3, v_ax4 = Ts.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
                     Ts.reads(T_reshape_1[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4], rxplaceholder_red_temp_v0[v_ax0, v_ax1], rxplaceholder_red_temp_v1[v_ax0, v_ax1], T_reshape_2[v_ax1, v_ax2], T_reshape_3[v_ax1, v_ax2])
                     Ts.writes(T_group_norm[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
-                    T_group_norm[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = (T_reshape_1[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / (T.Cast(c, "float32") * T.Cast(h_group_norm, "float32") * T.Cast(w_group_norm, "float32"))) * T.rsqrt(rxplaceholder_red_temp_v1[v_ax0, v_ax1] / (T.Cast(c, "float32") * T.Cast(h_group_norm, "float32") * T.Cast(w_group_norm, "float32")) - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / (T.Cast(c, "float32") * T.Cast(h_group_norm, "float32") * T.Cast(w_group_norm, "float32")) * (rxplaceholder_red_temp_v0[v_ax0, v_ax1] / (T.Cast(c, "float32") * T.Cast(h_group_norm, "float32") * T.Cast(w_group_norm, "float32"))) + T.float32(1.0000000000000001e-05)) * T_reshape_2[v_ax1, v_ax2] + T_reshape_3[v_ax1, v_ax2]
+                    T_group_norm[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = (T_reshape_1[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / (T.Cast("float32", c) * T.Cast("float32", h_group_norm) * T.Cast("float32", w_group_norm))) * T.rsqrt(rxplaceholder_red_temp_v1[v_ax0, v_ax1] / (T.Cast("float32", c) * T.Cast("float32", h_group_norm) * T.Cast("float32", w_group_norm)) - rxplaceholder_red_temp_v0[v_ax0, v_ax1] / (T.Cast("float32", c) * T.Cast("float32", h_group_norm) * T.Cast("float32", w_group_norm)) * (rxplaceholder_red_temp_v0[v_ax0, v_ax1] / (T.Cast("float32", c) * T.Cast("float32", h_group_norm) * T.Cast("float32", w_group_norm))) + T.float32(1.0000000000000001e-05)) * T_reshape_2[v_ax1, v_ax2] + T_reshape_3[v_ax1, v_ax2]
             for ax0, ax1, ax2, ax3 in T.grid(n_group_norm, c * T.int64(4), h_group_norm, w_group_norm):
                 with Ts.sblock("T_reshape_3"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -3440,7 +3440,7 @@ def test_rms_norm_fp16():
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     Ts.reads(A[v_ax0, v_ax1, v_ax2, v_ax3])
                     Ts.writes(T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3] = T.Cast(A[v_ax0, v_ax1, v_ax2, v_ax3], "float32")
+                    T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3] = T.Cast("float32", A[v_ax0, v_ax1, v_ax2, v_ax3])
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with Ts.sblock("T_multiply"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -3466,7 +3466,7 @@ def test_rms_norm_fp16():
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
                     Ts.reads(B[v_ax0, v_ax1])
                     Ts.writes(T_cast_2[v_ax0, v_ax1])
-                    T_cast_2[v_ax0, v_ax1] = T.Cast(B[v_ax0, v_ax1], "float32")
+                    T_cast_2[v_ax0, v_ax1] = T.Cast("float32", B[v_ax0, v_ax1])
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with Ts.sblock("T_rms_norm"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -3478,7 +3478,7 @@ def test_rms_norm_fp16():
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     Ts.reads(T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3])
                     Ts.writes(T_cast[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_cast[v_ax0, v_ax1, v_ax2, v_ax3] = T.Cast(T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3], "float16")
+                    T_cast[v_ax0, v_ax1, v_ax2, v_ax3] = T.Cast("float16", T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3])
 
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float16"), weight: R.Tensor((4, 5), dtype="float16")) -> R.Tensor((2, 3, 4, 5), dtype="float16"):
@@ -3548,7 +3548,7 @@ def test_rms_norm_symbolic():
                     v_ax0 = Ts.axis.spatial(n_rms_norm, ax0)
                     Ts.reads(T_multiply_red[v_ax0])
                     Ts.writes(rsqrt[v_ax0])
-                    rsqrt[v_ax0] = T.rsqrt(T_multiply_red[v_ax0] / (T.Cast(s_rms_norm, "float32") * T.Cast(f_rms_norm, "float32")) + T.float32(1.0000000000000001e-05))
+                    rsqrt[v_ax0] = T.rsqrt(T_multiply_red[v_ax0] / (T.Cast("float32", s_rms_norm) * T.Cast("float32", f_rms_norm)) + T.float32(1.0000000000000001e-05))
             for ax0, ax1 in T.grid(s_rms_norm, f_rms_norm):
                 with Ts.sblock("T_cast_1"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])

@@ -112,9 +112,23 @@ def test_direct_call_validation_cannot_bypass_signature():
     a = decl_tensor((16, 1), "float32", scope="local")
     valid = T.cuda.tile.apply(T.ptx["mov.b32"], a, T.float32(0))
     for call in [
-        Call(valid.op, valid.args[:-1], attrs=valid.attrs, ty="void"),
-        Call(valid.op, valid.args, attrs=valid.attrs, ty="int32"),
-        Call(valid.op, valid.args, ty="void"),
+        Call(
+            "void",
+            valid.op,
+            valid.args[:-1],
+            attrs=valid.attrs,
+        ),
+        Call(
+            "int32",
+            valid.op,
+            valid.args,
+            attrs=valid.attrs,
+        ),
+        Call(
+            "void",
+            valid.op,
+            valid.args,
+        ),
     ]:
         with pytest.raises((TypeError, ValueError, RuntimeError)):
             call.validate()

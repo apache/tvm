@@ -212,7 +212,14 @@ def _make_op_api(op, module_name):
                     f"{op.name}: region builders do not accept ty, ty_args or an explicit loc"
                 )
             return region(op, operands, body_params=body_params, attrs=attrs)
-        return Call(op, operands, attrs=attrs, ty_args=ty_args, loc=loc, ty=ty)
+        return Call(
+            ty,
+            op,
+            operands,
+            attrs=attrs,
+            ty_args=ty_args,
+            loc=loc,
+        )
 
     call.__name__ = op.name.rsplit(".", 1)[-1]
     call.__module__ = module_name

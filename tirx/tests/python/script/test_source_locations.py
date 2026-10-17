@@ -118,7 +118,11 @@ def test_source_inline_keeps_caller_and_each_definition_location(located):
 def calls(located_language):
     M = located_language.M
     M.evaluate = lambda value: value
-    M.call_extern = lambda dtype, name: ir.Call(ir.GlobalVar(name), [], ty=dtype)
+    M.call_extern = lambda dtype, name: ir.Call(
+        dtype,
+        ir.GlobalVar(name),
+        [],
+    )
     return M
 
 
@@ -202,7 +206,9 @@ def gallery(monkeypatch, located_language):
     monkeypatch.setitem(globals(), "__name__", "__main__")
     M = located_language.M
     M.store = lambda value: ir.Call(
-        ir.GlobalVar("store"), [tvm_tirx.ir.IntImm("int32", value)], ty="int32"
+        "int32",
+        ir.GlobalVar("store"),
+        [tvm_tirx.ir.IntImm("int32", value)],
     )
     return M
 

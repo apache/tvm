@@ -71,7 +71,7 @@ def _redecl(
             align=buf.data_alignment,
             layout=layout,
         )
-        return bind_(tvm_tirx.ir.Call("tirx.cuda.decl_tmem", [addr], ty_args=[ty]))
+        return bind_(tvm_tirx.ir.Call(None, "tirx.cuda.decl_tmem", [addr], ty_args=[ty]))
     from tvm_tirx.tirx.script.ir_builder.parser_protocol import (  # pylint: disable=import-outside-toplevel
         bind_,
     )

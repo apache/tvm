@@ -113,6 +113,7 @@ class _Visitor(PyExprVisitor):  # pylint: disable=abstract-method
         )
 
         self.binding_replacement_map[call] = relax.Call(
+            None,
             relax.ExternFunc("runtime.disco.cuda_ipc.custom_allreduce"),
             # The "cuda_ipc.custom_allreduce" implementation does not
             # yet support num_groups>1, and therefore does not use the

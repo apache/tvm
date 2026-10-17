@@ -73,7 +73,7 @@ class CastNode : public ExprNode {
  */
 class Cast : public PrimExpr {
  public:
-  TVM_TIRX_DLL Cast(PrimExpr value, PrimType value_ty, Location loc = UnknownLoc());
+  TVM_TIRX_DLL Cast(PrimType ty, PrimExpr value, Location loc = UnknownLoc());
   explicit Cast(ffi::ObjectPtr<CastNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Cast, PrimExpr, CastNode);

@@ -50,6 +50,7 @@ def _allocation(tensor: Var, allocated_addr=None) -> Bind:
     return Bind(
         tensor,
         Call(
+            None,
             "tirx.alloc_tensor",
             args,
             attrs=DictAttrs({}),

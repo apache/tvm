@@ -73,7 +73,7 @@ def binary_search(y, num_boxes, scores, score_threshold, out):
     lo = lo_buf
     hi = hi_buf
     T.tensor_store(lo, T.tensor_indices(lo, 0), T.int32(0))
-    T.tensor_store(hi, T.tensor_indices(hi, 0), tvm_tirx.tirx.Cast(num_boxes, "int32"))
+    T.tensor_store(hi, T.tensor_indices(hi, 0), tvm_tirx.tirx.Cast("int32", num_boxes))
     with T.while_(lo[T.tensor_indices(lo, 0)] < hi[T.tensor_indices(hi, 0)]):
         mid = (hi[T.tensor_indices(hi, 0)] + lo[T.tensor_indices(lo, 0)]) >> 1
         with T.if_(scores[y, mid] > score_threshold):

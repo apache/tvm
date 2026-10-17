@@ -323,7 +323,7 @@ def call_packed(
     if kwargs or not is_default:
         attrs = tvm_tirx.ir.attrs.make_node(attrs_type_key, **kwargs)
 
-    return Call(op, args, attrs=attrs, ty_args=ty_args)
+    return Call(None, op, args, attrs=attrs, ty_args=ty_args)
 
 
 def emit_with_type(
@@ -346,7 +346,7 @@ def emit_with_type(
     call: Call
         The created Relax Call
     """
-    return Call(op, args, ty_args=ty_args)
+    return Call(None, op, args, ty_args=ty_args)
 
 
 def _logical_pair(lhs, rhs, operation, primitive, python_operation):

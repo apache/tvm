@@ -72,8 +72,8 @@ def test_matmul_t_tensor():
                 T.gpu_storage_sync("shared")
                 for k in range(16):
                     C_local[0] = C_local[0] + T.Cast(
-                        A_sh[threadIdx_y * 16 + k] * B_sh[k * 16 + threadIdx_x],
                         "float32",
+                        A_sh[threadIdx_y * 16 + k] * B_sh[k * 16 + threadIdx_x],
                     )
                 T.gpu_storage_sync("shared")
 
@@ -128,8 +128,8 @@ def test_matmul_t_tensor():
                 T.gpu_storage_sync("shared")
                 for k in range(16):
                     C_local[0] = C_local[0] + T.Cast(
-                        A_sh[threadIdx_y * 16 + k + 256] * B_sh[k * 16 + threadIdx_x],
                         "float32",
+                        A_sh[threadIdx_y * 16 + k + 256] * B_sh[k * 16 + threadIdx_x],
                     )
                 T.gpu_storage_sync("shared")
 
@@ -193,8 +193,8 @@ def test_matmul_decl_tensor():
                 T.gpu_storage_sync("shared")
                 for k in range(16):
                     C_local[0] = C_local[0] + T.Cast(
-                        A_sh[threadIdx_y * 16 + k] * B_sh[k * 16 + threadIdx_x],
                         "float32",
+                        A_sh[threadIdx_y * 16 + k] * B_sh[k * 16 + threadIdx_x],
                     )
                 T.gpu_storage_sync("shared")
 

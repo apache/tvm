@@ -613,7 +613,7 @@ def test_no_func_params_fail():
 
     with pytest.raises(RuntimeError):
         with bb.function("func"):
-            gv0 = bb.emit(rx.Call(ExternFunc("test.blockbuilder.nop"), []))
+            gv0 = bb.emit(rx.Call(None, ExternFunc("test.blockbuilder.nop"), []))
             bb.emit_func_output(gv0)
 
 
@@ -725,11 +725,11 @@ def test_finalize_public_private_name_conflict():
         gvar = bb.emit_func_output(rx.const(0, "int64"))
 
     with bb.function("func", [], private=True):
-        gv0 = bb.emit(rx.Call(gvar, []))
+        gv0 = bb.emit(rx.Call(None, gvar, []))
         gvar1 = bb.emit_func_output(gv0)
 
     with bb.function("func", []):
-        gv0 = bb.emit(rx.Call(gvar1, []))
+        gv0 = bb.emit(rx.Call(None, gvar1, []))
         bb.emit_func_output(gv0)
 
     mod = bb.get()

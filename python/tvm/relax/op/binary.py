@@ -49,7 +49,7 @@ def add(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LO
       b = relax.Var("b", relax.TensorType(shape=(2, 1), dtype="float32"))
       c = bb.normalize(relax.op.add(a, b))  # c has TensorType(shape=(2, 3), dtype="float32")
     """
-    return _Call("relax.add", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.add", [x1, x2], ty_args=ty_args, loc=loc)  # type: ignore
 
 
 def divide(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -67,7 +67,7 @@ def divide(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.divide", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.divide", [x1, x2], ty_args=ty_args, loc=loc)  # type: ignore
 
 
 def floor_divide(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -85,7 +85,7 @@ def floor_divide(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = U
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.floor_divide", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.floor_divide", [x1, x2], ty_args=ty_args, loc=loc)  # type: ignore
 
 
 def log_add_exp(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -104,7 +104,7 @@ def log_add_exp(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UN
     Expr
         The element-wise log-sum-exp of `x1` and `x2`.
     """
-    return _Call("relax.log_add_exp", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)
+    return _Call(ty, "relax.log_add_exp", [x1, x2], ty_args=ty_args, loc=loc)
 
 
 def multiply(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -122,7 +122,7 @@ def multiply(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNO
     result : Expr
         The computed result.
     """
-    return _Call("relax.multiply", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.multiply", [x1, x2], ty_args=ty_args, loc=loc)  # type: ignore
 
 
 def power(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC):
@@ -140,7 +140,7 @@ def power(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.power", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.power", [x1, x2], ty_args=ty_args, loc=loc)  # type: ignore
 
 
 def atan2(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -158,7 +158,7 @@ def atan2(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.atan2", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.atan2", [x1, x2], ty_args=ty_args, loc=loc)  # type: ignore
 
 
 def subtract(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -176,7 +176,7 @@ def subtract(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNO
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.subtract", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.subtract", [x1, x2], ty_args=ty_args, loc=loc)  # type: ignore
 
 
 def mod(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -189,7 +189,7 @@ def mod(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LO
     x2 : Expr
         The second input tensor.
     """
-    return _Call("relax.mod", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.mod", [x1, x2], ty_args=ty_args, loc=loc)  # type: ignore
 
 
 def floor_mod(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -202,7 +202,7 @@ def floor_mod(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKN
     x2 : Expr
         The second input tensor.
     """
-    return _Call("relax.floor_mod", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.floor_mod", [x1, x2], ty_args=ty_args, loc=loc)  # type: ignore
 
 
 ###################### Comparison operators ######################
@@ -223,7 +223,7 @@ def equal(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.equal", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.equal", [x1, x2], ty_args=ty_args, loc=loc)  # type: ignore
 
 
 def greater(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -241,7 +241,7 @@ def greater(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOW
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.greater", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.greater", [x1, x2], ty_args=ty_args, loc=loc)  # type: ignore
 
 
 def greater_equal(
@@ -261,7 +261,7 @@ def greater_equal(
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.greater_equal", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.greater_equal", [x1, x2], ty_args=ty_args, loc=loc)  # type: ignore
 
 
 def less(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -279,7 +279,7 @@ def less(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_L
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.less", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.less", [x1, x2], ty_args=ty_args, loc=loc)  # type: ignore
 
 
 def less_equal(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -297,7 +297,7 @@ def less_equal(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNK
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.less_equal", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.less_equal", [x1, x2], ty_args=ty_args, loc=loc)  # type: ignore
 
 
 def not_equal(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -315,7 +315,7 @@ def not_equal(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKN
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.not_equal", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.not_equal", [x1, x2], ty_args=ty_args, loc=loc)  # type: ignore
 
 
 def maximum(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -333,7 +333,7 @@ def maximum(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOW
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.maximum", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)
+    return _Call(ty, "relax.maximum", [x1, x2], ty_args=ty_args, loc=loc)
 
 
 def minimum(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -351,7 +351,7 @@ def minimum(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOW
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.minimum", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)
+    return _Call(ty, "relax.minimum", [x1, x2], ty_args=ty_args, loc=loc)
 
 
 ###################### Logical operators ######################
@@ -370,7 +370,7 @@ def logical_and(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UN
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.logical_and", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)
+    return _Call(ty, "relax.logical_and", [x1, x2], ty_args=ty_args, loc=loc)
 
 
 def logical_or(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -386,7 +386,7 @@ def logical_or(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNK
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.logical_or", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)
+    return _Call(ty, "relax.logical_or", [x1, x2], ty_args=ty_args, loc=loc)
 
 
 def logical_xor(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -402,7 +402,7 @@ def logical_xor(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UN
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.logical_xor", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)
+    return _Call(ty, "relax.logical_xor", [x1, x2], ty_args=ty_args, loc=loc)
 
 
 ###################### Bitwise operators ######################
@@ -421,7 +421,7 @@ def bitwise_and(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UN
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.bitwise_and", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)
+    return _Call(ty, "relax.bitwise_and", [x1, x2], ty_args=ty_args, loc=loc)
 
 
 def bitwise_or(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -437,7 +437,7 @@ def bitwise_or(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNK
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.bitwise_or", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)
+    return _Call(ty, "relax.bitwise_or", [x1, x2], ty_args=ty_args, loc=loc)
 
 
 def bitwise_xor(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -453,7 +453,7 @@ def bitwise_xor(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UN
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.bitwise_xor", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)
+    return _Call(ty, "relax.bitwise_xor", [x1, x2], ty_args=ty_args, loc=loc)
 
 
 def left_shift(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -469,7 +469,7 @@ def left_shift(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNK
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.left_shift", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)
+    return _Call(ty, "relax.left_shift", [x1, x2], ty_args=ty_args, loc=loc)
 
 
 def right_shift(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -485,4 +485,4 @@ def right_shift(x1: Expr, x2: Expr, *, ty_args=None, ty=None, loc: Location = UN
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.right_shift", [x1, x2], ty_args=ty_args, ty=ty, loc=loc)
+    return _Call(ty, "relax.right_shift", [x1, x2], ty_args=ty_args, loc=loc)

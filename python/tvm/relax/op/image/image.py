@@ -132,6 +132,7 @@ def resize2d(
             size = ShapeExpr(size)
 
     return _Call(
+        ty,
         "relax.image.resize2d",
         [data, size],
         attrs=_make_attrs(
@@ -146,7 +147,6 @@ def resize2d(
             extrapolation_value=extrapolation_value,
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
-        ty=ty,
         loc=loc,
     )
 
@@ -192,6 +192,7 @@ def resize3d(
             size = ShapeExpr(size)
 
     return _Call(
+        ty,
         "relax.image.resize3d",
         [data, size],
         attrs=_make_attrs(
@@ -206,7 +207,6 @@ def resize3d(
             extrapolation_value=extrapolation_value,
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
-        ty=ty,
         loc=loc,
     )
 
@@ -254,6 +254,7 @@ def grid_sample(
         The sampled output tensor with shape [N, C, H_out, W_out].
     """
     return _Call(
+        ty,
         "relax.image.grid_sample",
         [data, grid],
         attrs=_make_attrs(
@@ -263,7 +264,6 @@ def grid_sample(
             padding_mode=padding_mode,
             align_corners=align_corners,
         ),
-        ty=ty,
         loc=loc,
     )
 
@@ -311,10 +311,10 @@ def affine_grid(
     return cast(
         Expr,
         _Call(
+            ty,
             "relax.image.affine_grid",
             [data, size],
             attrs=_make_attrs("relax.attrs.AffineGridAttrs", align_corners=align_corners),
-            ty=ty,
             loc=loc,
         ),
     )

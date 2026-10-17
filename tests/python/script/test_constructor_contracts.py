@@ -60,22 +60,26 @@ def test_call_type_and_validation_contract():
     x = ir.Var("x", "float32")
     loc = ir.SourceLoc(ir.SourceName("constructor"), 1, 1, 1, 5)
     for constructor in (ir.Call, I.Call):
-        call = constructor("prim.exp", [x], loc=loc)
+        call = constructor(None, "prim.exp", [x], loc=loc)
         assert isinstance(call, I.Call)
         assert call.ty == ir.PrimType("float32")
         assert call.loc.same_as(loc)
-        unlocated = constructor("prim.exp", [x], ty="float32")
+        unlocated = constructor("float32", "prim.exp", [x])
         assert unlocated.loc.same_as(ir.UNKNOWN_LOC)
         assert inspect.signature(constructor).parameters["loc"].default is ir.UNKNOWN_LOC
         with pytest.raises(TypeError):
-            constructor("prim.exp", [x], ty="float32", loc=None)
+            constructor("float32", "prim.exp", [x], loc=None)
         ir.assert_structural_equal(
             unlocated,
-            ir.Call("prim.exp", [x], ty=ir.PrimType("float32")),
+            ir.Call(
+                ir.PrimType("float32"),
+                "prim.exp",
+                [x],
+            ),
         )
         with pytest.raises(TypeError):
-            constructor("prim.exp", [], ty="float32").validate()
-        provisional = constructor("prim.exp", [], ty="float32", loc=loc)
+            constructor("float32", "prim.exp", []).validate()
+        provisional = constructor("float32", "prim.exp", [], loc=loc)
         assert not provisional.args
         assert provisional.loc.same_as(loc)
         assert provisional.ty.dtype == "float32"
@@ -84,7 +88,13 @@ def test_call_type_and_validation_contract():
 @pytest.mark.parametrize("ty", [ir.Type.missing(), "float32", "handle"])
 def test_raw_call_preserves_provisional_fields(ty):
     # Invalid arguments and type arguments must survive the raw representation.
-    call = ir.Call("prim.exp", [], attrs={"tag": 7}, ty_args=[ir.StringType()], ty=ty)
+    call = ir.Call(
+        ty,
+        "prim.exp",
+        [],
+        attrs={"tag": 7},
+        ty_args=[ir.StringType()],
+    )
     source = call.script()
     assert "T.Call(" in source
     restored = eval(source, {"I": I, "R": R, "T": T})
@@ -92,7 +102,12 @@ def test_raw_call_preserves_provisional_fields(ty):
 
 
 def test_raw_call_preserves_checked_fields():
-    call = ir.Call("prim.exp", [tvm_tirx.ir.FloatImm("float32", 0)], attrs={"tag": 7}, ty="float32")
+    call = ir.Call(
+        "float32",
+        "prim.exp",
+        [tvm_tirx.ir.FloatImm("float32", 0)],
+        attrs={"tag": 7},
+    )
     source = call.script()
     assert "T.Call(" in source
     ir.assert_structural_equal(call, eval(source, {"I": I, "R": R, "T": T}))
@@ -130,11 +145,16 @@ def test_operation_type_keywords_match_normal_constructors():
 def test_normal_constructors_in_parsed_function():
     @T.function
     def function(x: ir.PrimType("float32")):
-        T.evaluate(ir.Call("prim.exp", [x], ty="float32"))
+        T.evaluate(ir.Call("float32", "prim.exp", [x]))
 
     call = function.body[0].value
     ir.assert_structural_equal(
-        call, ir.Call("prim.exp", [function.params[0]], ty=ir.PrimType("float32"))
+        call,
+        ir.Call(
+            ir.PrimType("float32"),
+            "prim.exp",
+            [function.params[0]],
+        ),
     )
     loc = call.loc
     assert isinstance(loc, ir.SourceLoc)
@@ -142,7 +162,7 @@ def test_normal_constructors_in_parsed_function():
     assert loc.start_line == loc.end_line
     assert (
         linecache.getline(__file__, loc.start_line)[loc.start_column - 1 : loc.end_column - 1]
-        == 'ir.Call("prim.exp", [x], ty="float32")'
+        == 'ir.Call("float32", "prim.exp", [x])'
     )
 
     @R.function
@@ -171,9 +191,19 @@ def test_tuple_constructor_materializes_raw_call_arguments():
     value = tvm_tirx.ir.IntImm("int64", 1)
     nested = R.tuple(R.tuple(), R.tuple(value))
     ir.assert_structural_equal(nested, ir.Tuple([ir.Tuple([]), ir.Tuple([value])]))
-    call = ir.Call("relax.add", [nested], attrs={"tag": 1}, ty=ir.Type.missing())
+    call = ir.Call(
+        ir.Type.missing(),
+        "relax.add",
+        [nested],
+        attrs={"tag": 1},
+    )
     assert call.args[0].same_as(nested)
-    from_python = ir.Call("relax.add", [((), (value,))], attrs={"tag": 1}, ty=ir.Type.missing())
+    from_python = ir.Call(
+        ir.Type.missing(),
+        "relax.add",
+        [((), (value,))],
+        attrs={"tag": 1},
+    )
     ir.assert_structural_equal(call, from_python)
     source = call.script()
     ir.assert_structural_equal(call, eval(source, {"I": I, "R": R, "T": T}))

@@ -359,7 +359,7 @@ def test_call():
     dtype = tvm_tirx.ir.PrimType("int32")
     func = rx.Var("func", rx.FuncType([dtype], dtype))
     arg = rx.Var("arg", dtype)
-    call = rx.Call(func, [arg])
+    call = rx.Call(None, func, [arg])
     assert call.op.same_as(func)
     assert len(call.args) == 1
     assert call.args[0].same_as(arg)
@@ -371,7 +371,7 @@ def test_call_accepts_core_expr_operator():
     func = rx.Var("func", dtype)
     arg = rx.Var("arg", dtype)
 
-    call = rx.Call(func, [arg])
+    call = rx.Call(None, func, [arg])
     assert call.op.same_as(func)
     assert len(call.args) == 1
     assert call.args[0].same_as(arg)
@@ -381,7 +381,7 @@ def test_call_accepts_core_expr_operator():
 def test_call_raises_error_for_missing_operator():
     """relax::Call requires a defined operator."""
     with pytest.raises(TypeError, match=r"Expected `ir.Expr` but got `None`"):
-        rx.Call(None, [])
+        rx.Call(None, None, [])
 
 
 def test_call_reinfer_type_from_current_inputs():
@@ -390,45 +390,63 @@ def test_call_reinfer_type_from_current_inputs():
     x = rx.Var("x", original_ty)
     y = rx.Var("y", changed_ty)
 
-    initial = rx.Call("relax.abs", [x])
+    initial = rx.Call(None, "relax.abs", [x])
     _check_equal(tvm_tirx.ir.reinfer_type(initial), original_ty)
     assert tvm_tirx.ir.reinfer_type(initial).same_as(original_ty)
     _check_equal(initial.ty, original_ty)
 
-    unchanged = rx.Call("relax.abs", [x], ty=original_ty)
+    unchanged = rx.Call(
+        original_ty,
+        "relax.abs",
+        [x],
+    )
     assert tvm_tirx.ir.reinfer_type(unchanged).same_as(unchanged.ty)
 
     equivalent_ty = rx.TensorType(original_ty.shape, original_ty.dtype)
-    equivalent = rx.Call("relax.abs", [x], ty=equivalent_ty)
+    equivalent = rx.Call(
+        equivalent_ty,
+        "relax.abs",
+        [x],
+    )
     assert tvm_tirx.ir.reinfer_type(equivalent).same_as(equivalent_ty)
 
-    stale = rx.Call("relax.abs", [y], ty=original_ty)
+    stale = rx.Call(
+        original_ty,
+        "relax.abs",
+        [y],
+    )
     _check_equal(tvm_tirx.ir.reinfer_type(stale), changed_ty)
     assert tvm_tirx.ir.reinfer_type(stale).same_as(changed_ty)
     _check_equal(stale.ty, original_ty)
 
-    untyped = rx.Call("relax.abs", [rx.Var("untyped")])
+    untyped = rx.Call(None, "relax.abs", [rx.Var("untyped")])
     _check_type_missing(tvm_tirx.ir.reinfer_type(untyped))
     _check_type_missing(untyped.ty)
-    untyped_explicit = rx.Call("relax.abs", [rx.Var("untyped")], ty=original_ty)
+    untyped_explicit = rx.Call(
+        original_ty,
+        "relax.abs",
+        [rx.Var("untyped")],
+    )
     _check_type_missing(tvm_tirx.ir.reinfer_type(untyped_explicit))
     assert untyped_explicit.ty.same_as(original_ty)
-    _check_type_missing(tvm_tirx.ir.reinfer_type(rx.Call("relax.matmul", [x, x])))
+    _check_type_missing(tvm_tirx.ir.reinfer_type(rx.Call(None, "relax.matmul", [x, x])))
     func = rx.Var("func", rx.FuncType([original_ty], original_ty))
-    _check_type_missing(tvm_tirx.ir.reinfer_type(rx.Call(func, [x])))
+    _check_type_missing(tvm_tirx.ir.reinfer_type(rx.Call(None, func, [x])))
 
     invalid = rx.Call(
-        "relax.abs", [rx.Var("scalar", tvm_tirx.ir.PrimType("int32"))], ty=original_ty
+        original_ty,
+        "relax.abs",
+        [rx.Var("scalar", tvm_tirx.ir.PrimType("int32"))],
     )
     with pytest.raises(TypeError):
         tvm_tirx.ir.reinfer_type(invalid)
 
     out_ty = rx.TensorType([8], "float32")
     closure = rx.Var("closure", rx.AnyType())
-    explicit = rx.Call("relax.invoke_closure", [closure, rx.Tuple([])], ty_args=[out_ty])
+    explicit = rx.Call(None, "relax.invoke_closure", [closure, rx.Tuple([])], ty_args=[out_ty])
     _check_equal(tvm_tirx.ir.reinfer_type(explicit), out_ty)
     changed_explicit = rx.Call(
-        "relax.invoke_closure", [closure, rx.Tuple([])], ty_args=[changed_ty]
+        None, "relax.invoke_closure", [closure, rx.Tuple([])], ty_args=[changed_ty]
     )
     _check_equal(tvm_tirx.ir.reinfer_type(changed_explicit), changed_ty)
 
@@ -499,7 +517,7 @@ def test_op_set_signature_preserves_custom_validator():
     try:
         op.set_signature()
         with pytest.raises(TypeError, match="call_pure_packed expects a function argument"):
-            tvm_tirx.ir.Call(op, []).validate()
+            tvm_tirx.ir.Call(None, op, []).validate()
     finally:
         op.set_signature(
             original_args,

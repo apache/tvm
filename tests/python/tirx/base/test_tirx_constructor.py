@@ -63,7 +63,7 @@ def test_expr_constructor():
     assert isinstance(x, tvm_tirx.ir.StringImm)
     assert x.value == "xyza"
 
-    x = tvm_tirx.tirx.Cast(tvm_tirx.ir.IntImm("uint32", 1), "float32")
+    x = tvm_tirx.tirx.Cast("float32", tvm_tirx.ir.IntImm("uint32", 1))
     assert isinstance(x, tvm_tirx.tirx.Cast)
     assert x.ty == tvm_tirx.ir.PrimType("float32")
     assert x.value.value == 1
@@ -134,7 +134,11 @@ def test_expr_constructor():
     assert x.vectors[0] == a
     assert x.indices[0].value == 0
 
-    x = tvm_tirx.ir.Call("tirx.call_extern", [tvm_tirx.ir.StringImm("xyz"), a], ty="float32")
+    x = tvm_tirx.ir.Call(
+        "float32",
+        "tirx.call_extern",
+        [tvm_tirx.ir.StringImm("xyz"), a],
+    )
     assert isinstance(x, tvm_tirx.ir.Call)
     assert tvm_tirx.ir.is_prim_expr(x)
     assert x.ty == tvm_tirx.ir.PrimType("float32")
@@ -144,10 +148,10 @@ def test_expr_constructor():
 
     attr_arg = tvm_tirx.tirx.Var("attr_arg", "float32")
     x_with_attrs = tvm_tirx.ir.Call(
+        "float32",
         "tirx.call_extern",
         [tvm_tirx.ir.StringImm("xyz"), attr_arg],
         attrs={"disable_tma": True},
-        ty="float32",
     )
     assert x_with_attrs.attrs["disable_tma"] is True
     assert not tvm_ffi.structural_equal(x, x_with_attrs)
@@ -176,10 +180,10 @@ def test_expr_constructor():
     )
     assert x_from_intrin.attrs["disable_tma"] is True
     x_with_other_attrs = tvm_tirx.ir.Call(
+        "float32",
         "tirx.call_extern",
         [tvm_tirx.ir.StringImm("xyz"), attr_arg],
         attrs={"disable_tma": False},
-        ty="float32",
     )
     assert not expr_deep_equal(x_with_attrs, x_with_other_attrs)
 
@@ -189,7 +193,9 @@ def test_expr_constructor():
 
     def call_with(arg):
         return tvm_tirx.ir.Call(
-            "tirx.call_extern", [tvm_tirx.ir.StringImm("tuple_arg"), arg], ty="int32"
+            "int32",
+            "tirx.call_extern",
+            [tvm_tirx.ir.StringImm("tuple_arg"), arg],
         )
 
     assert expr_deep_equal(call_with(tuple_arg), call_with(same_tuple_arg))
@@ -202,15 +208,15 @@ def test_expr_constructor():
     cond0 = tvm_tirx.tirx.Var("cond0", "bool")
     cond1 = tvm_tirx.tirx.Var("cond1", "bool")
     inner_if = tvm_tirx.ir.Call(
+        "int32",
         "prim.if_then_else",
         [cond1, tvm_tirx.ir.IntImm("int32", 1), tvm_tirx.ir.IntImm("int32", 0)],
-        ty="int32",
     )
     outer_if = tvm_tirx.ir.Call(
+        "int32",
         "prim.if_then_else",
         [cond0, inner_if, tvm_tirx.ir.IntImm("int32", 0)],
         attrs={"keep": True},
-        ty="int32",
     )
     simplified = (
         tvm_tirx.tirx.transform.StmtSimplify()(
@@ -279,7 +285,7 @@ def test_operator_base_categories_have_primitive_type():
             None,
             0,
         ),
-        tvm_tirx.tirx.Cast(var, "float32"),
+        tvm_tirx.tirx.Cast("float32", var),
         tvm_tirx.tirx.Select(var < 1, var, 1),
         tvm_tirx.tirx.TensorLoad(tensor, [0]),
         tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4),
@@ -331,6 +337,7 @@ def test_stmt_constructor():
     x = tvm_tirx.ir.Bind(
         buf,
         tvm_tirx.ir.Call(
+            None,
             "tirx.alloc_tensor",
             [],
             attrs=tvm_tirx.ir.DictAttrs({}),

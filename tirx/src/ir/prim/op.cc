@@ -313,7 +313,7 @@ PrimExpr cast(PrimExpr value, PrimType t, Location loc) {
     } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
       return MakeConst(dtype, op->value, op->loc);
     }
-    return prim::Cast(value, std::move(t), loc);
+    return prim::Cast(std::move(t), value, loc);
   } else {
     PrimType elem_ty = dtype.WithLanes(1);
     if (!value.ty().IsScalableVector() && !value.ty().IsFixedLengthVector()) {
@@ -324,7 +324,7 @@ PrimExpr cast(PrimExpr value, PrimType t, Location loc) {
         } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
           value = MakeConst(elem_ty, op->value, op->loc);
         } else {
-          value = prim::Cast(value, elem_ty, loc);
+          value = prim::Cast(elem_ty, value, loc);
         }
       }
       if (dtype.IsScalableVector()) {
@@ -355,7 +355,7 @@ PrimExpr cast(PrimExpr value, PrimType t, Location loc) {
                             ramp->lanes, loc);
         }
       }
-      return prim::Cast(value, std::move(t), loc);
+      return prim::Cast(std::move(t), value, loc);
     }
   }
 }
@@ -815,10 +815,10 @@ PrimExpr prim::log2(PrimExpr x, Location loc) {
     PrimType f32_ty = x_ty.IsScalableVector() ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat,
                                                                          32, x_ty.VScaleFactor())
                                               : PrimType::Float(32, x_ty.lanes());
-    PrimExpr x_fp32 = prim::Cast(x, f32_ty, loc);
+    PrimExpr x_fp32 = prim::Cast(f32_ty, x, loc);
     PrimExpr result_fp32 =
         Call(f32_ty, prim::log2_op(), {x_fp32}, {}, {}, loc).as_or_throw<PrimExpr>();
-    return prim::Cast(result_fp32, x_ty, loc);
+    return prim::Cast(x_ty, result_fp32, loc);
   }
   return Call(x_ty, prim::log2_op(), {x}, {}, {}, loc).as_or_throw<PrimExpr>();
 }

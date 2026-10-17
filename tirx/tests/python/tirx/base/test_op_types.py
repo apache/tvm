@@ -367,8 +367,8 @@ def test_ptx_ops_have_variadic_call_signature():
     op = tvm_tirx.ir.Op.get(next(iter(TABLE.values())).op_name)
     assert not op.args_info
     assert op.var_args_info.name == "operands"
-    tvm_tirx.ir.Call(op, []).validate()
-    tvm_tirx.ir.Call(op, [tvm_tirx.ir.Var("x", tvm_tirx.ir.AnyType())]).validate()
+    tvm_tirx.ir.Call(None, op, []).validate()
+    tvm_tirx.ir.Call(None, op, [tvm_tirx.ir.Var("x", tvm_tirx.ir.AnyType())]).validate()
 
 
 if __name__ == "__main__":

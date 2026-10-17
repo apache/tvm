@@ -188,14 +188,17 @@ def _primexpr_dtype(expr):
 def _pack_tensor(buf, loc: Location = UNKNOWN_LOC):
     """Build intrinsics that packs the tensor."""
     shape = Call(
-        "tirx.stack_make_shape", buf.ty.shape, loc=loc, ty=PtrType(tvm_tirx.ir.PrimType("int64"))
+        PtrType(tvm_tirx.ir.PrimType("int64")),
+        "tirx.stack_make_shape",
+        buf.ty.shape,
+        loc=loc,
     )
     strides = (
         Call(
+            PtrType(tvm_tirx.ir.PrimType("int64")),
             "tirx.stack_make_shape",
             buf.ty.strides,
             loc=loc,
-            ty=PtrType(tvm_tirx.ir.PrimType("int64")),
         )
         if buf.ty.strides
         else 0
@@ -208,7 +211,12 @@ def _pack_tensor(buf, loc: Location = UNKNOWN_LOC):
         const(0, ty=buf.ty.dtype),
         buf.ty.elem_offset,
     ]
-    return Call("tirx.stack_make_dltensor", pack_args, loc=loc, ty="handle")
+    return Call(
+        "handle",
+        "tirx.stack_make_dltensor",
+        pack_args,
+        loc=loc,
+    )
 
 
 def call_packed_lowered(*args, loc: Location = UNKNOWN_LOC, ty=None):
@@ -241,9 +249,9 @@ def call_packed_lowered(*args, loc: Location = UNKNOWN_LOC, ty=None):
         for x in args
     ]
     return Call(
+        ty,
         "tirx.call_packed_lowered",
         call_args,
-        ty=ty,
         loc=loc,
     )
 
@@ -275,9 +283,9 @@ def call_cpacked_lowered(*args, loc: Location = UNKNOWN_LOC, ty=None):
         for x in args
     ]
     return Call(
+        ty,
         "tirx.call_cpacked_lowered",
         call_args,
-        ty=ty,
         loc=loc,
     )
 
@@ -313,7 +321,7 @@ def call_packed(*args, loc: Location = UNKNOWN_LOC, ty=None):
         _pack_tensor(x) if is_tensor_var(x) else _reject_tensor_region(x, "call_packed")
         for x in args
     ]
-    return Call("tirx.call_packed", call_args, ty=ty, loc=loc)
+    return Call(ty, "tirx.call_packed", call_args, loc=loc)
 
 
 @tvm_ffi.register_object("tirx.CallFFIKernelAttr")
@@ -355,10 +363,10 @@ def call_ffi_kernel(
             raise TypeError("call_ffi_kernel requires launch configuration")
         attrs = CallFFIKernelAttr(launch_params)
     return Call(
+        ty,
         "tirx.call_ffi_kernel",
         args,
         attrs=attrs,
-        ty=ty,
         loc=loc,
     )
 
@@ -390,7 +398,7 @@ def call_cpacked(*args, loc: Location = UNKNOWN_LOC, ty=None):
         _pack_tensor(x) if is_tensor_var(x) else _reject_tensor_region(x, "call_cpacked")
         for x in args
     ]
-    return Call("tirx.call_cpacked", call_args, ty=ty, loc=loc)
+    return Call(ty, "tirx.call_cpacked", call_args, loc=loc)
 
 
 def call_intrin(
@@ -424,7 +432,13 @@ def call_intrin(
         The call expression.
     """
     args = tuple(_reject_tensor_region(arg, "call_intrin") for arg in args)
-    return Call(func_name, args, attrs=attrs, loc=loc, ty=ty)
+    return Call(
+        ty,
+        func_name,
+        args,
+        attrs=attrs,
+        loc=loc,
+    )
 
 
 def call_pure_extern(func_name, *args, ty, loc: Location = UNKNOWN_LOC):
@@ -450,10 +464,10 @@ def call_pure_extern(func_name, *args, ty, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
     return Call(
+        ty,
         "tirx.call_pure_extern",
         [func_name, *(_reject_tensor_region(arg, "call_pure_extern") for arg in args)],
         loc=loc,
-        ty=ty,
     )
 
 
@@ -480,10 +494,10 @@ def call_extern(func_name, *args, ty, loc: Location = UNKNOWN_LOC):
         The call expression.
     """
     return Call(
+        ty,
         "tirx.call_extern",
         [func_name, *(_reject_tensor_region(arg, "call_extern") for arg in args)],
         loc=loc,
-        ty=ty,
     )
 
 
@@ -777,15 +791,15 @@ def address_of(obj: Var | TensorLoad, loc: Location = UNKNOWN_LOC, *, ty=None) -
     if is_tensor_var(obj):
         n_dim = len(obj.ty.shape)
         tensor_load = _make_tensor_load(obj, [0] * n_dim)
-        return Call("tirx.address_of", [tensor_load], ty=ty, loc=loc)
+        return Call(ty, "tirx.address_of", [tensor_load], loc=loc)
     elif isinstance(obj, Var):
         if _is_tensormap_var(obj):
             return call_intrin("tirx.address_of", obj, loc=loc, ty=ty)
         if not isinstance(obj.ty, tvm_tirx.ir.PrimType):
             raise TypeError(f"address_of expects a scalar or TensorMap Var, but got {obj.ty}")
-        return Call("tirx.address_of", [obj], ty=ty, loc=loc)
+        return Call(ty, "tirx.address_of", [obj], loc=loc)
     elif isinstance(obj, TensorLoad):
-        return Call("tirx.address_of", [obj], ty=ty, loc=loc)
+        return Call(ty, "tirx.address_of", [obj], loc=loc)
     else:
         raise ValueError(f"Invalid object type: {type(obj)}")
 
@@ -1115,7 +1129,7 @@ def gpu_dp4a(vec1, vec2, acc=0, **kwargs):
     call : Expr
         The call expression.
     """
-    return Call("tirx.gpu_dp4a", [vec1, vec2, acc], **kwargs)
+    return Call(kwargs.pop("ty", None), "tirx.gpu_dp4a", [vec1, vec2, acc], **kwargs)
 
 
 def reinterpret(value, *, ty, loc: Location = UNKNOWN_LOC) -> Expr:

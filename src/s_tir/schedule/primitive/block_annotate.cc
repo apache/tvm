@@ -344,7 +344,7 @@ class DTypeMutator : public ReplaceTensorMutator {
                            .as_or_throw<TensorStore>();
     if (auto replacement = VarRemapGet(original_tensor).as<TensorVar>()) {
       node.CopyOnWrite()->dest = replacement.value();
-      node.CopyOnWrite()->value = Cast(node->value, tgt_dtype_);
+      node.CopyOnWrite()->value = Cast(tgt_dtype_, node->value);
     }
     return node;
   }
@@ -355,7 +355,7 @@ class DTypeMutator : public ReplaceTensorMutator {
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                           .as_or_throw<TensorLoad>();
     if (auto replacement = VarRemapGet(original_tensor).as<TensorVar>()) {
-      return Cast(TensorLoad(replacement.value(), node->indices), src_dtype_);
+      return Cast(src_dtype_, TensorLoad(replacement.value(), node->indices));
     }
     return node;
   }

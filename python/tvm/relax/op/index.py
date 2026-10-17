@@ -74,10 +74,10 @@ def take(
         The taken result.
     """
     return _Call(
+        ty,
         "relax.take",
         [x, indices],
         attrs=_make_attrs("relax.attrs.TakeAttrs", axis=axis, mode=mode),
-        ty=ty,
         loc=loc,
     )  # type: ignore
 
@@ -143,10 +143,10 @@ def strided_slice(
     if lengths and any(length != lengths[0] for length in lengths):
         raise RuntimeError("axes, begin, end, and strides must have the same length")
     return _Call(
+        ty,
         "relax.strided_slice",
         [x, axes, begin, end, *([] if strides is None else [strides])],
         attrs=_make_attrs("relax.attrs.StridedSliceAttrs", assume_inbound=assume_inbound),
-        ty=ty,
         loc=loc,
     )  # type: ignore
 
@@ -183,8 +183,8 @@ def dynamic_strided_slice(
     same length as rank of `data` tensor.
     """
     return _Call(
+        ty,
         "relax.dynamic_strided_slice",
         [x, begin, end, strides],
-        ty=ty,
         loc=loc,
     )  # type: ignore

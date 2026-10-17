@@ -596,7 +596,7 @@ class PCastExpr : public Pattern<PCastExpr<DType, TA>> {
     }
   }
 
-  PrimExpr Eval() const { return prim::Cast(value_.Eval(), PrimType(dtype_.Eval())); }
+  PrimExpr Eval() const { return prim::Cast(PrimType(dtype_.Eval()), value_.Eval()); }
 
  private:
   typename DType::Nested dtype_;

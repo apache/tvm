@@ -467,7 +467,7 @@ def test_create():
             triu_out = op.triu(x)
             full_with_scalar_out = op.full([10, 10], fill_value=10)  # type: ignore
             full_with_FloatImm_out = op.full(
-                [10, 10], fill_value=tvm_tirx.ir.FloatImm(dtype="float32", value=10)
+                [10, 10], fill_value=tvm_tirx.ir.FloatImm(ty="float32", value=10)
             )
             full_with_Tensor_out = op.full(
                 [10, 10], fill_value=Tensor.from_scalar(10, dtype="float32")
@@ -1174,14 +1174,14 @@ def test_renormalize_top_p_top_k_prob():
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
                     Ts.reads(cumsum_sorted[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], top_p[v_ax0, 0], top_k[v_ax0, 0], sorted_prob[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))])
                     Ts.writes(cutoff[v_ax0, 0])
-                    if T.Cast(cumsum_sorted[v_ax0, 0] < top_p[v_ax0, 0] and top_k[v_ax0, 0] > T.int64(1), "int32") == 0:
+                    if T.Cast("int32", cumsum_sorted[v_ax0, 0] < top_p[v_ax0, 0] and top_k[v_ax0, 0] > T.int64(1)) == 0:
                         cutoff[v_ax0, 0] = sorted_prob[v_ax0, 0]
                     else:
-                        if T.Cast(cumsum_sorted[v_ax0, v_ax1] < top_p[v_ax0, 0] and v_ax1 + T.int64(1) < top_k[v_ax0, 0], "int32") == 1:
+                        if T.Cast("int32", cumsum_sorted[v_ax0, v_ax1] < top_p[v_ax0, 0] and v_ax1 + T.int64(1) < top_k[v_ax0, 0]) == 1:
                             if v_ax1 + T.int64(1) == vocab_size:
                                 cutoff[v_ax0, 0] = sorted_prob[v_ax0, v_ax1]
                             else:
-                                if T.Cast(cumsum_sorted[v_ax0, v_ax1 + T.int64(1)] < top_p[v_ax0, 0] and v_ax1 + T.int64(1) + T.int64(1) < top_k[v_ax0, 0], "int32") == 0:
+                                if T.Cast("int32", cumsum_sorted[v_ax0, v_ax1 + T.int64(1)] < top_p[v_ax0, 0] and v_ax1 + T.int64(1) + T.int64(1) < top_k[v_ax0, 0]) == 0:
                                     cutoff[v_ax0, 0] = sorted_prob[v_ax0, v_ax1 + T.int64(1)]
 
         @R.function

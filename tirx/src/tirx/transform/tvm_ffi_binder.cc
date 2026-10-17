@@ -484,7 +484,7 @@ Expr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int par
     PrimType api_type = APIType(prim_type.value());
     PrimExpr res = Call(api_type, tirx::abi_field_get_op(), call_args).as_or_throw<PrimExpr>();
     if (api_type != prim_type.value()) {
-      res = prim::Cast(res, prim_type.value());
+      res = prim::Cast(prim_type.value(), res);
     }
     return res;
   }
@@ -519,8 +519,8 @@ PrimExpr TVMFFIABIBuilder::DecodeParamBool(int param_index, const PrimExpr& type
       param_index,
       type_index == ffi::TypeIndex::kTVMFFIBool || type_index == ffi::TypeIndex::kTVMFFIInt,
       "boolean");
-  return prim::Cast(LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PrimType::Int(64)),
-                    PrimType::Bool());
+  return prim::Cast(PrimType::Bool(),
+                    LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PrimType::Int(64)));
 }
 
 PrimExpr TVMFFIABIBuilder::DecodeParamInt(int param_index, const PrimExpr& type_index,
@@ -544,7 +544,7 @@ PrimExpr TVMFFIABIBuilder::DecodeParamFloat(int param_index, const PrimExpr& typ
       type_index == ffi::TypeIndex::kTVMFFIFloat,
       /* true_value = */ LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, dtype),
       /* false_value = */
-      prim::Cast(LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PrimType::Int(64)), dtype));
+      prim::Cast(dtype, LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PrimType::Int(64))));
 }
 
 // ============================================================

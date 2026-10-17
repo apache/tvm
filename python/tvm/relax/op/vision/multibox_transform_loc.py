@@ -92,6 +92,7 @@ def multibox_transform_loc(
     axes are known, etc.) still run where applicable.
     """
     return _Call(
+        ty,
         "relax.vision.multibox_transform_loc",
         [cls_pred, loc_pred, anchor],
         attrs=_make_attrs(
@@ -102,6 +103,5 @@ def multibox_transform_loc(
             keep_background=keep_background,
             apply_softmax=apply_softmax,
         ),
-        ty=ty,
         loc=loc,
     )

@@ -38,6 +38,7 @@ def test_decl_tensor_data_is_use():
     decl = tvm_tirx.ir.Bind(
         buf,
         tvm_tirx.ir.Call(
+            None,
             "tirx.decl_tensor",
             [data_ptr],
             ty_args=[buf.ty],
@@ -68,6 +69,7 @@ def test_decl_tensor_elem_offset_is_use():
     decl = tvm_tirx.ir.Bind(
         buf,
         tvm_tirx.ir.Call(
+            None,
             "tirx.decl_tensor",
             [data_ptr],
             ty_args=[buf.ty],
@@ -96,6 +98,7 @@ def test_alloc_tensor_data_is_def():
     alloc = tvm_tirx.ir.Bind(
         buf,
         tvm_tirx.ir.Call(
+            None,
             "tirx.alloc_tensor",
             [],
             attrs=tvm_tirx.ir.DictAttrs({}),

@@ -72,6 +72,7 @@ def quantize(
     """
 
     return _Call(
+        ty,
         "relax.quantize",
         [data, scale, zero_point],
         attrs=_make_attrs(
@@ -79,7 +80,6 @@ def quantize(
             axis=axis,
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
-        ty=ty,
         loc=loc,
     )
 
@@ -124,6 +124,7 @@ def dequantize(
     """
 
     return _Call(
+        ty,
         "relax.dequantize",
         [data, scale, zero_point],
         attrs=_make_attrs(
@@ -131,6 +132,5 @@ def dequantize(
             axis=axis,
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
-        ty=ty,
         loc=loc,
     )

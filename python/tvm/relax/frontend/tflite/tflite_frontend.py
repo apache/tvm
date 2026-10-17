@@ -2868,8 +2868,8 @@ class OperatorConverter:
         with if_bb.function(if_name, params=params, private=True):
             result = relax.IfExpr(
                 cond,
-                relax.Call(then_func, branch_args),
-                relax.Call(else_func, branch_args),
+                relax.Call(None, then_func, branch_args),
+                relax.Call(None, else_func, branch_args),
             )
             if_bb.emit_func_output(result)
         if_func = if_bb.get()[if_name]
@@ -2903,10 +2903,10 @@ class OperatorConverter:
 
         loop_bb = relax.BlockBuilder()
         with loop_bb.function(loop_name, params=params, private=True):
-            cond = loop_bb.emit(relax.Call(cond_func, params), "while_cond")
-            next_state = relax.Call(body_func, params)
+            cond = loop_bb.emit(relax.Call(None, cond_func, params), "while_cond")
+            next_state = relax.Call(None, body_func, params)
             next_args = self._bind_call_outputs(next_state, loop_var_count)
-            true_branch = relax.Call(loop_gv, next_args)
+            true_branch = relax.Call(None, loop_gv, next_args)
             false_branch = self._make_tuple_or_single(params)
             result = relax.IfExpr(cond, true_branch, false_branch)
             loop_bb.emit_func_output(result)
@@ -2933,7 +2933,7 @@ class OperatorConverter:
             subgraph_index, f"tflite_call_subgraph_{subgraph_index}", op_name="CALL"
         )
         args = [self.get_tensor_expr(tensor) for tensor in input_tensors]
-        return relax.Call(callee, args)
+        return relax.Call(None, callee, args)
 
     def convert_if(self, op):
         """Convert TFLite IF to Relax If with private branch functions."""
@@ -2972,7 +2972,7 @@ class OperatorConverter:
             output_count,
         )
         args = [self.get_tensor_expr(tensor) for tensor in input_tensors]
-        return relax.Call(if_func, args)
+        return relax.Call(None, if_func, args)
 
     def _convert_while_like(
         self, op, op_name, cond_subgraph_index, body_subgraph_index, function_prefix
@@ -3025,7 +3025,7 @@ class OperatorConverter:
         )
 
         args = [self.get_tensor_expr(tensor) for tensor in input_tensors]
-        return relax.Call(loop_gv, args)
+        return relax.Call(None, loop_gv, args)
 
     def convert_while(self, op):
         """Convert TFLite WHILE to a recursive Relax private function."""
@@ -8294,8 +8294,8 @@ def _build_tflite_rfft2d_function(input_shape, output_pair_shape):
                 imag_sum: T.float32 = T.float32(0)
                 input_base = v_b * height * width
                 for in_y, in_x in T.grid(height, width):
-                    phase_y = T.Cast(v_oy, "float32") * T.Cast(in_y, "float32") / T.float32(height)
-                    phase_x = T.Cast(v_ox, "float32") * T.Cast(in_x, "float32") / T.float32(width)
+                    phase_y = T.Cast("float32", v_oy) * T.Cast("float32", in_y) / T.float32(height)
+                    phase_x = T.Cast("float32", v_ox) * T.Cast("float32", in_x) / T.float32(width)
                     angle = neg_two_pi_const * (phase_y + phase_x)
                     value = data_flat[input_base + in_y * width + in_x]
                     real_sum = real_sum + value * T.cos(angle)
@@ -8543,10 +8543,10 @@ def _build_stablehlo_rng_bit_generator_function(algorithm, state_len, out_dtype,
     weyl_a, weyl_b = _STABLEHLO_RNG_PHILOX_WEYL_A, _STABLEHLO_RNG_PHILOX_WEYL_B
 
     def _u32(value):
-        return T.Cast(value, "uint32")
+        return T.Cast("uint32", value)
 
     def _u64(value):
-        return T.Cast(value, "uint64")
+        return T.Cast("uint64", value)
 
     def _store_value(words, write_index):
         # Pack the generated uint32 words into one output element, reinterpreting

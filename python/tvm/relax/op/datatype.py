@@ -55,10 +55,10 @@ def astype(
         The casted result.
     """
     return _Call(
+        ty,
         "relax.astype",
         [x],
         attrs=_make_attrs("relax.attrs.AstypeAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
     )  # type: ignore
 
@@ -89,9 +89,9 @@ def wrap_param(
         The casted result.
     """
     return _Call(
+        ty,
         "relax.wrap_param",
         [data],
         attrs=_make_attrs("relax.attrs.WrapParamAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
     )  # type: ignore

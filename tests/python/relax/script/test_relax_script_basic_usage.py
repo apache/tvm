@@ -578,6 +578,7 @@ def test_call_packed():
     with bb.function("foo", (x), pure=False):
         z = bb.emit(
             relax.Call(
+                None,
                 relax.ExternFunc("vm.builtin.copy"),
                 (x,),
                 None,
@@ -600,6 +601,7 @@ def test_call_packed_without_ty_args():
     with bb.function("foo", (x), pure=False):
         z = bb.emit(
             relax.Call(
+                None,
                 relax.ExternFunc("test"),
                 (x,),
                 None,

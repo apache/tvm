@@ -66,9 +66,9 @@ def alloc_storage(
     if isinstance(runtime_device_index, int):
         runtime_device_index = prim_value(runtime_device_index)
     return _Call(
+        ty,
         "relax.vm.alloc_storage",
         [shape, runtime_device_index, dtype, storage_scope],
-        ty=ty,
         loc=loc,
     )  # type: ignore
 
@@ -116,9 +116,9 @@ def alloc_tensor(
     if isinstance(runtime_device_ind, int):
         runtime_device_ind = prim_value(runtime_device_ind)
     return _Call(
+        ty,
         "relax.vm.alloc_tensor",
         [storage, offset, shape, dtype, runtime_device_ind],
-        ty=ty,
         loc=loc,
     )  # type: ignore
 
@@ -137,7 +137,7 @@ def kill_object(obj: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Call:
     result : Call
         CallNode that kills the input object.
     """
-    return _Call("relax.vm.kill_object", [obj], ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.vm.kill_object", [obj], loc=loc)  # type: ignore
 
 
 def call_tir_dyn(func: Expr, args: Tuple, *, ty=None, loc: Location = UNKNOWN_LOC) -> Call:
@@ -162,8 +162,8 @@ def call_tir_dyn(func: Expr, args: Tuple, *, ty=None, loc: Location = UNKNOWN_LO
         args = Tuple(args)
 
     return _Call(
+        ty,
         "relax.vm.call_tir_dyn",
         [func, args],
-        ty=ty,
         loc=loc,
     )  # type: ignore

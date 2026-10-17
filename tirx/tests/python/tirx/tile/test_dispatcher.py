@@ -73,7 +73,12 @@ def test_instruction_scope_contract(backend, scope):
             "tirx.tensor." + SPECS[call.op.name].schema,
             scope=T.ThreadScope(f"{backend}.kernel"),
         )
-        raw = tvm_tirx.ir.Call(call.op, call.args, attrs=attrs, ty=call.ty)
+        raw = tvm_tirx.ir.Call(
+            call.ty,
+            call.op,
+            call.args,
+            attrs=attrs,
+        )
         with pytest.raises(ValueError, match=f"unsupported scope '{scope}'"):
             raw.validate()
     else:
@@ -92,6 +97,7 @@ def _custom_call(name):
     op.set_signature(args=["token"])
     op.set_attrs_type_key("tirx.tensor.ScopeAttrs")
     return Call(
+        None,
         op,
         [const(7, "int32")],
         attrs=make_node("tirx.tensor.ScopeAttrs", scope=T.ThreadScope("cuda.thread")),

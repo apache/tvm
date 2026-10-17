@@ -54,7 +54,7 @@ def where(condition: Expr, x1: Expr, x2: Expr, *, ty=None, loc: Location = UNKNO
     result : relax.Expr
         The result tensor.
     """
-    return _Call("relax.where", [condition, x1, x2], ty=ty, loc=loc)  # type: ignore
+    return _Call(ty, "relax.where", [condition, x1, x2], loc=loc)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.attrs.ArgmaxArgminAttrs")
@@ -93,10 +93,10 @@ def argmax(
         The computed result.
     """
     return _Call(
+        ty,
         "relax.argmax",
         [x],
         attrs=_make_attrs("relax.attrs.ArgmaxArgminAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
     )  # type: ignore
 
@@ -132,10 +132,10 @@ def argmin(
         The computed result.
     """
     return _Call(
+        ty,
         "relax.argmin",
         [x],
         attrs=_make_attrs("relax.attrs.ArgmaxArgminAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
     )  # type: ignore
 
@@ -171,9 +171,9 @@ def bucketize(
         The computed result with same shape as input_tensor.
     """
     return _Call(
+        ty,
         "relax.bucketize",
         [input_tensor, boundaries],
         attrs=_make_attrs("relax.attrs.BucketizeAttrs", out_int32=out_int32, right=right),
-        ty=ty,
         loc=loc,
     )

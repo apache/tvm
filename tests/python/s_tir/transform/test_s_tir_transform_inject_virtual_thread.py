@@ -88,8 +88,8 @@ def test_vthread_extern():
                 A = T.alloc_tensor(ty_args=[T.Tensor((m,), "float32", scope="shared")])
                 B = T.alloc_tensor(ty_args=[T.Tensor((m,), "float32", scope="shared")])
                 C = T.alloc_tensor(ty_args=[T.Tensor((m,), "float32", scope="shared")])
-                A[vt_x] = T.Cast(vt_x, "float32") + T.float32(1)
-                B[vt_y] = T.Cast(vt_y, "float32") + T.float32(1)
+                A[vt_x] = T.Cast("float32", vt_x) + T.float32(1)
+                B[vt_y] = T.Cast("float32", vt_y) + T.float32(1)
                 T.evaluate(
                     T.call_extern(
                         "Run",
@@ -224,7 +224,7 @@ def test_vthread_rewrites_masked_accesses():
         B = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", scope="shared")])
         mask = T.meta_var(T.Broadcast(T.bool(True), 4))
         loaded = T.meta_var(T.masked_load(B, T.Ramp(0, 1, 4), mask, ty="float32x4"))
-        value = T.meta_var(loaded + T.Broadcast(T.Cast(vthread, "float32"), 4))
+        value = T.meta_var(loaded + T.Broadcast(T.Cast("float32", vthread), 4))
         T.masked_store(B, value, T.Ramp(0, 1, 4), mask)
 
     after = tvm.s_tir.transform.InjectVirtualThread()(

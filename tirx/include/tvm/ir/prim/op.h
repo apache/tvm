@@ -986,9 +986,9 @@ inline void CheckMathUnaryOpInputDType(const char* op_name, const PrimType& dtyp
           x_ty.IsScalableVector()                                                             \
               ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat, 32, x_ty.VScaleFactor())   \
               : PrimType::Float(32, x_ty.lanes());                                            \
-      PrimExpr x_fp32 = prim::Cast(x, f32_ty, loc);                                           \
+      PrimExpr x_fp32 = prim::Cast(f32_ty, x, loc);                                           \
       PrimExpr result_fp32 = Call(f32_ty, op, {x_fp32}, {}, {}, loc).as_or_throw<PrimExpr>(); \
-      return prim::Cast(result_fp32, bf16_ty, loc);                                           \
+      return prim::Cast(bf16_ty, result_fp32, loc);                                           \
     } else {                                                                                  \
       return Call(x_ty, op, {x}, {}, {}, loc).as_or_throw<PrimExpr>();                        \
     }                                                                                         \

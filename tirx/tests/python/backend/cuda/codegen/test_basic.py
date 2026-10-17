@@ -686,7 +686,7 @@ def test_vectorized_casts(t0, t1, factor, *, backend_config):
             with T.launch_thread("threadIdx.x", num_thread) as i_0:
                 for i_1 in T.vectorized(factor):
                     C[i_0 * factor + i_1] = A[i_0 * factor + i_1] + T.Cast(
-                        B[i_0 * factor + i_1], t0
+                        t0, B[i_0 * factor + i_1]
                     )
 
     func = tvm_tirx.tirx.compile(Module, target={"kind": "cuda", "backend_config": backend_config})
@@ -1033,7 +1033,7 @@ def test_cuda_tensormap(*, backend_config):
         with T.launch_thread("blockIdx.x", 1) as blockIdx:
             with T.launch_thread("threadIdx.x", 128) as threadIdx:
                 if threadIdx == 0:
-                    A[0, 0] = T.Cast(T.address_of(A_map), "float32")
+                    A[0, 0] = T.Cast("float32", T.address_of(A_map))
     # fmt: on
 
     mod = tvm_tirx.IRModule({"main": main})

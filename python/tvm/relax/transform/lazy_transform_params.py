@@ -180,6 +180,7 @@ class LazyTransformParamsFuncCreator:
                     relax.VarBinding(
                         relax.Var("_", relax.AnyType()),
                         relax.Call(
+                            None,
                             relax.ExternFunc(self.fset_item),
                             [*self.extra_set_item_params, index, expr],
                             None,
@@ -266,6 +267,7 @@ class LazyInputMutator(PyExprMutator):
             index = self.params[var]
             get_item_result = self.builder_.emit(
                 relax.Call(
+                    None,
                     relax.ExternFunc(self.func_creator.fget_item),
                     self.func_creator.extra_get_item_params + [relax.prim_value(index)],
                     None,
@@ -287,6 +289,7 @@ class LazyInputMutator(PyExprMutator):
         if self.tuple_param is not None and node.tuple_value.same_as(self.tuple_param):
             get_item_result = self.builder_.emit(
                 relax.Call(
+                    None,
                     relax.ExternFunc(self.func_creator.fget_item),
                     self.func_creator.extra_get_item_params + [relax.prim_value(node.index)],
                     None,
@@ -326,6 +329,7 @@ class LazyOutputMutator(PyExprMutator):
                         # rewrite set item
                         self.builder_.emit(
                             relax.Call(
+                                None,
                                 relax.ExternFunc(self.func_creator.fset_item),
                                 self.func_creator.extra_set_item_params
                                 + [index, super().visit_var_(var)],

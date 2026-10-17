@@ -1696,7 +1696,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         if isinstance(pred, bool):
             chosen = true_graph if pred else false_graph
             gv = self._import_branch_subgraph(chosen, operands, "cond_static_branch")
-            return self.block_builder.emit(relax.Call(gv, operands))
+            return self.block_builder.emit(relax.Call(None, gv, operands))
 
         # Import both branches as Relax functions.
         true_gv = self._import_branch_subgraph(true_graph, operands, "cond_true_branch")
@@ -1705,8 +1705,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # Build the If expression.
         # true/false branches of relax.IfExpr are SeqExpr bodies, so we construct
         # the call expressions that will be the body of each branch.
-        true_call = relax.Call(true_gv, operands)
-        false_call = relax.Call(false_gv, operands)
+        true_call = relax.Call(None, true_gv, operands)
+        false_call = relax.Call(None, false_gv, operands)
         if_expr = relax.IfExpr(pred, true_call, false_call)
         return self.block_builder.emit(if_expr, name_hint="cond_result")
 

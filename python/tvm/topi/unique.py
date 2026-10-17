@@ -53,11 +53,11 @@ def _calc_adjacent_diff_ir(data, output, binop=tirx.Sub):
                         output_ptr,
                         T.tensor_indices(output_ptr, i),
                         tirx.Cast(
+                            output.dtype,
                             binop(
                                 data_ptr[T.tensor_indices(data_ptr, i)],
                                 data_ptr[T.tensor_indices(data_ptr, i - 1)],
                             ),
-                            output.dtype,
                         ),
                     )
         return ib.get()

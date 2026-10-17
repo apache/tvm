@@ -95,6 +95,7 @@ def test_function_symbolic_alloc_tensor_roundtrip():
                 tvm_tirx.ir.Bind(
                     buf,
                     tvm_tirx.ir.Call(
+                        None,
                         "tirx.alloc_tensor",
                         [],
                         attrs=tvm_tirx.ir.DictAttrs({}),
@@ -1968,7 +1969,7 @@ def tvm_struct_set_generated_in_cpp():
                             T.stack_make_shape(16),
                             T.reinterpret(T.uint64(0), ty="handle"),
                             T.uint32(1),
-                            T.Cast(0, "float32"),
+                            T.Cast("float32", 0),
                             0,
                         ),
                     )
@@ -2181,7 +2182,7 @@ def test_str_metadata():
     # This test is to check we reuse the existing metadata element for the same metadata-backed GenericConst
     # So metadata["ir.GenericConst"][0] will occur in the printed script for three times
     str_imm = tvm_tirx.ir.GenericConst(
-        tvm_tirx.runtime.convert(["aaa\nbbb\n"]), tvm_tirx.ir.AnyType()
+        tvm_tirx.ir.AnyType(), tvm_tirx.runtime.convert(["aaa\nbbb\n"])
     )
 
     @I.ir_module

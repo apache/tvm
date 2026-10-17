@@ -173,7 +173,7 @@ class GlobalVar(Expr):
         call: Expr
             A call taking the variable as a function.
         """
-        return Call(self, args)
+        return Call(None, self, args)
 
 
 class ExprOperand:
@@ -524,7 +524,7 @@ class FloatImm(Constant):
 
     Parameters
     ----------
-    dtype : str
+    ty : str, DataType or PrimType
         The data type
 
     value : float
@@ -536,12 +536,14 @@ class FloatImm(Constant):
 
     value: float
 
-    def __init__(self, dtype: str | PrimType, value: float, loc: Location = UNKNOWN_LOC) -> None:
-        if isinstance(dtype, PrimType):
-            dtype = dtype.dtype
+    def __init__(
+        self, ty: str | tvm_tirx.DataType | PrimType, value: float, loc: Location = UNKNOWN_LOC
+    ) -> None:
+        if isinstance(ty, PrimType):
+            ty = ty.dtype
         self.__init_handle_by_constructor__(
             _ffi_api.FloatImm,
-            dtype,
+            ty,
             value,
             loc,  # type: ignore
         )
@@ -556,7 +558,7 @@ class IntImm(Constant):
 
     Parameters
     ----------
-    dtype : str
+    ty : str, DataType or PrimType
         The data type
 
     value : int
@@ -568,12 +570,14 @@ class IntImm(Constant):
 
     value: int
 
-    def __init__(self, dtype: str | PrimType, value: int, loc: Location = UNKNOWN_LOC) -> None:
-        if isinstance(dtype, PrimType):
-            dtype = dtype.dtype
+    def __init__(
+        self, ty: str | tvm_tirx.DataType | PrimType, value: int, loc: Location = UNKNOWN_LOC
+    ) -> None:
+        if isinstance(ty, PrimType):
+            ty = ty.dtype
         self.__init_handle_by_constructor__(
             _ffi_api.IntImm,
-            dtype,
+            ty,
             value,
             loc,  # type: ignore
         )
@@ -601,8 +605,8 @@ class IntImm(Constant):
 class GenericConst(_ExprCallable, Constant):
     """A literal payload with an explicit expression type."""
 
-    def __init__(self, value, ty: "tvm_tirx.ir.Type", loc: Location = UNKNOWN_LOC) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.GenericConst, value, ty, loc)
+    def __init__(self, ty: "tvm_tirx.ir.Type", value, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.GenericConst, ty, value, loc)
 
     def __bool__(self) -> bool:
         return True
@@ -661,7 +665,7 @@ class CallEffectKind(IntEnum):
 class Call(_CallableExprWithOp):
     """Core function call node.
 
-    Omitted or ``None`` ``ty`` uses available result inference, or a missing
+    Explicit ``None`` for ``ty`` uses available result inference, or a missing
     type when no deduction is available. Explicit types, including
     ``Type.missing()``, are preserved exactly. Inference errors propagate.
     Construction permits provisional IR; :meth:`validate` checks the operator
@@ -676,19 +680,19 @@ class Call(_CallableExprWithOp):
 
     def __init__(
         self,
+        ty: "tvm_tirx.ir.Type | str | None",
         op: Expr | str,
         args: list[Expr] | tuple[Expr, ...],
         attrs: "tvm_tirx.ir.Attrs | dict | None" = None,
         ty_args: list["tvm_tirx.ir.Type"] | tuple["tvm_tirx.ir.Type", ...] | None = None,
         loc: Location = UNKNOWN_LOC,
-        ty: "tvm_tirx.ir.Type | str | None" = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Call, *self._normalize_constructor_args(op, args, attrs, ty_args, loc, ty)
+            _ffi_api.Call, *self._normalize_constructor_args(ty, op, args, attrs, ty_args, loc)
         )
 
     @staticmethod
-    def _normalize_constructor_args(op, args, attrs, ty_args, loc, ty):
+    def _normalize_constructor_args(ty, op, args, attrs, ty_args, loc):
         # pylint: disable=import-outside-toplevel
         from .attrs import DictAttrs
         from .op import Op

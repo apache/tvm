@@ -53,17 +53,17 @@ def roi_pool_nchw(data, rois, pooled_size, spatial_scale):
         roi_h = te.max(roi_end_h - roi_start_h + 1, tvm_tirx.tirx.const(1, "int32"))
         roi_w = te.max(roi_end_w - roi_start_w + 1, tvm_tirx.tirx.const(1, "int32"))
 
-        bin_h = tvm_tirx.tirx.Cast(roi_h, roi_dtype) / tvm_tirx.tirx.const(
+        bin_h = tvm_tirx.tirx.Cast(roi_dtype, roi_h) / tvm_tirx.tirx.const(
             float(pooled_size_h), roi_dtype
         )
-        bin_w = tvm_tirx.tirx.Cast(roi_w, roi_dtype) / tvm_tirx.tirx.const(
+        bin_w = tvm_tirx.tirx.Cast(roi_dtype, roi_w) / tvm_tirx.tirx.const(
             float(pooled_size_w), roi_dtype
         )
 
-        hstart = te.floor(tvm_tirx.tirx.Cast(ph, roi_dtype) * bin_h).astype("int32")
-        wstart = te.floor(tvm_tirx.tirx.Cast(pw, roi_dtype) * bin_w).astype("int32")
-        hend = te.ceil(tvm_tirx.tirx.Cast(ph + 1, roi_dtype) * bin_h).astype("int32")
-        wend = te.ceil(tvm_tirx.tirx.Cast(pw + 1, roi_dtype) * bin_w).astype("int32")
+        hstart = te.floor(tvm_tirx.tirx.Cast(roi_dtype, ph) * bin_h).astype("int32")
+        wstart = te.floor(tvm_tirx.tirx.Cast(roi_dtype, pw) * bin_w).astype("int32")
+        hend = te.ceil(tvm_tirx.tirx.Cast(roi_dtype, ph + 1) * bin_h).astype("int32")
+        wend = te.ceil(tvm_tirx.tirx.Cast(roi_dtype, pw + 1) * bin_w).astype("int32")
 
         hstart = te.min(te.max(hstart + roi_start_h, 0), height)
         hend = te.min(te.max(hend + roi_start_h, 0), height)

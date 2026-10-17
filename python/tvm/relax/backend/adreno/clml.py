@@ -70,7 +70,7 @@ class AppendReshapeToBNRewriter(PyExprMutator):
             if op.index == 0:
                 bn_out = relax.TupleGetItem(bn_call, 0)
                 input_shape = bn_call.args[0].ty.shape
-                return relax.Call(reshape_op, [bn_out, input_shape])
+                return relax.Call(None, reshape_op, [bn_out, input_shape])
 
         return super().visit_tuple_getitem_(op)
 

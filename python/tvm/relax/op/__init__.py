@@ -278,7 +278,7 @@ def _register_op_make():
             expr.tvm_tirx.ir.FuncType | expr.tvm.relax.FuncType | expr.tvm_tirx.ir.MissingType,
         ):
             return NotImplemented
-        return expr.tvm_tirx.ir.Call(func, args, attrs=attrs)
+        return expr.tvm_tirx.ir.Call(None, func, args, attrs=attrs)
 
     operators = {}
     operators["astype"] = (

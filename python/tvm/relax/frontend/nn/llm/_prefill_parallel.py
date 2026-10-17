@@ -408,10 +408,10 @@ def _attention_prefill_paged_split(
         # Launch each KV partition separately so long contexts do not produce
         # one long-running dispatch. Merge their softmax-weighted outputs below.
         temporary = Ts.sblock_alloc_tensor(
-            (T.int64(4), T.Cast(qlen, "int64"), T.int64(h_q), T.int64(512)), "float32"
+            (T.int64(4), T.Cast("int64", qlen), T.int64(h_q), T.int64(512)), "float32"
         )
         temporary_lse = Ts.sblock_alloc_tensor(
-            (T.int64(4), T.Cast(qlen, "int64"), T.int64(h_q)), "float32"
+            (T.int64(4), T.Cast("int64", qlen), T.int64(h_q)), "float32"
         )
         for part_idx in T.serial(4):
             with Ts.sblock("part_idx"):
