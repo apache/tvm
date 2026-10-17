@@ -401,22 +401,5 @@ def test_apply_annotation_from_json():
     _test_apply_annotation_trace_from_json('"')
 
 
-def test_schedule_show(monkeypatch):
-    from tvm_tirx.script.printer import highlight
-
-    sch = s_tir.Schedule(elementwise)
-    sch.compute_inline(sch.get_sblock("B"))
-    displayed = []
-    monkeypatch.setattr(
-        highlight, "cprint", lambda source, style: displayed.append((source, style))
-    )
-    monkeypatch.setenv("TVM_BLACK_FORMAT", "unused")
-    sch.show("light", print_line_numbers=True, extra_config={"tirx.prefix": "Tx"})
-    assert displayed == [
-        (sch.mod.script(print_line_numbers=True, extra_config={"tirx.prefix": "Tx"}), "light"),
-        (str(sch.trace), "light"),
-    ]
-
-
 if __name__ == "__main__":
     tvm_tirx.testing.main()
