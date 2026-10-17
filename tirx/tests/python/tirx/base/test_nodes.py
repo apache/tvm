@@ -217,7 +217,7 @@ def test_bitwise():
 
 
 def test_float_bitwise():
-    t = tvm_tirx.tirx.const(1.5, ty="float32")
+    t = tvm_tirx.tirx.const(1.5, dtype="float32")
     for test in [
         lambda lhs, rhs: lhs << rhs,
         lambda lhs, rhs: lhs >> rhs,

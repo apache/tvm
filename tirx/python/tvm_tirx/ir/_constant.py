@@ -28,15 +28,17 @@ if TYPE_CHECKING:
     from .expr import Expr
 
 
-def const(value, ty=None, loc: Location = UNKNOWN_LOC) -> "Expr":
+def const(value, ty=None, loc: Location = UNKNOWN_LOC, *, dtype=None) -> "Expr":
     """Construct a constant with an explicit or inferred primitive type.
 
-    When ``ty`` is omitted or None, boolean, integer and floating-point
+    The primitive type may be supplied positionally, as ``ty=`` or as
+    ``dtype=``. Supply at most one non-None type. When both are omitted or None,
+    boolean, integer and floating-point
     scalars use ``bool``, ``int32`` and ``float32``, respectively. The same
     defaults apply to NumPy scalars, regardless of their original width.
     Values outside the inferred type's range raise an error; the type never
     widens automatically. NaN and infinity are accepted floating-point values.
-    Specify ``ty`` explicitly to select another width or a vector type.
+    Specify ``ty`` or ``dtype`` explicitly to select another width or a vector type.
 
     Parameters
     ----------
@@ -48,6 +50,10 @@ def const(value, ty=None, loc: Location = UNKNOWN_LOC) -> "Expr":
 
     loc : Location, optional
         The location of the constant value in the source.
+
+    dtype : str, DataType or tvm_tirx.ir.PrimType, optional
+        Keyword-only alias for ``ty``. None leaves ``ty`` unchanged. Supplying
+        non-None values for both ``ty`` and ``dtype`` raises TypeError.
 
     Returns
     -------
@@ -63,7 +69,12 @@ def const(value, ty=None, loc: Location = UNKNOWN_LOC) -> "Expr":
         ir.const(1.0)                  # float32
         ir.const(1 << 31)              # raises ValueError: exceeds int32 range
         ir.const(1 << 31, ty="int64")  # explicit wider type
+        ir.const(1 << 31, dtype="int64")  # equivalent type keyword
     """
+    if dtype is not None:
+        if ty is not None:
+            raise TypeError("const accepts only one of ty and dtype")
+        ty = dtype
     if ty is None:
         if isinstance(value, bool | np.bool_):
             ty = "bool"

@@ -172,9 +172,9 @@ def test_tir_too_large_literal_f64():
 def test_tir_const_auto_dtype(literal, expect_dtype):
     if expect_dtype is None:
         with pytest.raises(ValueError):
-            tirx.const(literal, ty=None)
+            tirx.const(literal, dtype=None)
     else:
-        x = tirx.const(literal, ty=None)
+        x = tirx.const(literal, dtype=None)
         assert x.ty.dtype == expect_dtype
         assert x.value == literal
 

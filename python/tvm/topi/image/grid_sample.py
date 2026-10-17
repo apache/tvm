@@ -53,12 +53,12 @@ def affine_grid(data, target_shape, align_corners=True):
 
     dtype = data.dtype
     if align_corners:
-        starts = [tirx.const(-1.0, ty=dtype) for _ in target_shape]
-        steps = [tirx.const((2.0 - 1e-7) / (s - 1), ty=dtype) for s in target_shape]
+        starts = [tirx.const(-1.0, dtype=dtype) for _ in target_shape]
+        steps = [tirx.const((2.0 - 1e-7) / (s - 1), dtype=dtype) for s in target_shape]
     else:
         # Pixel centers: coordinate i maps to (2 * i + 1) / size - 1.
-        starts = [tirx.const(-1.0 + 1.0 / s, ty=dtype) for s in target_shape]
-        steps = [tirx.const(2.0 / s, ty=dtype) for s in target_shape]
+        starts = [tirx.const(-1.0 + 1.0 / s, dtype=dtype) for s in target_shape]
+        steps = [tirx.const(2.0 / s, dtype=dtype) for s in target_shape]
 
     ndim = len(target_shape)
 
@@ -146,7 +146,7 @@ def _grid_sample_2d(
         return te.if_then_else(
             te.all(h >= 0, w >= 0, h < in_height, w < in_width),
             data[n, c, h, w],
-            tirx.const(0.0, ty=data.dtype),
+            tirx.const(0.0, dtype=data.dtype),
         )
 
     def _unnormalize(h, w):
@@ -376,7 +376,7 @@ def _grid_sample_3d(
         return te.if_then_else(
             te.all(d >= 0, h >= 0, w >= 0, d < in_depth, h < in_height, w < in_width),
             data[n, c, d, h, w],
-            tirx.const(0.0, ty=data.dtype),
+            tirx.const(0.0, dtype=data.dtype),
         )
 
     def _compute_source_index(n, d, h, w):

@@ -94,14 +94,14 @@ def test_tensor_comm_reducer():
     n = te.var("n")
     A = te.placeholder((m, n), name="A")
     k = te.reduce_axis((0, n), "k")
-    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm_tirx.tirx.const(0, ty=t))
+    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm_tirx.tirx.const(0, dtype=t))
     C = te.compute((m,), lambda i: mysum(A[i, k], axis=k))
 
 
 def test_tensor_comm_reducer_overload():
     m = te.var("m")
     n = te.var("n")
-    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm_tirx.tirx.const(0, ty=t))
+    mysum = te.comm_reducer(lambda x, y: x + y, lambda t: tvm_tirx.tirx.const(0, dtype=t))
     sum_res = mysum(m, n)
 
 

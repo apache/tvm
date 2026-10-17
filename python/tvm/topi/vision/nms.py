@@ -120,7 +120,7 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
 
     is_score_threshold_tensor = isinstance(score_threshold, te.Tensor)
     if not is_score_threshold_tensor:
-        score_threshold = tvm_tirx.tirx.const(score_threshold, ty=data.dtype)
+        score_threshold = tvm_tirx.tirx.const(score_threshold, dtype=data.dtype)
 
     id_index_const = tvm_tirx.tirx.const(id_index, "int32")
     score_index_const = tvm_tirx.tirx.const(score_index, "int32")
@@ -746,9 +746,9 @@ def non_max_suppression(
     box_data_length = data.shape[2]
 
     if isinstance(max_output_size, int):
-        max_output_size = tvm_tirx.tirx.const(max_output_size, ty="int32")
+        max_output_size = tvm_tirx.tirx.const(max_output_size, dtype="int32")
     if isinstance(iou_threshold, float | int):
-        iou_threshold = tvm_tirx.tirx.const(iou_threshold, ty=data.dtype)
+        iou_threshold = tvm_tirx.tirx.const(iou_threshold, dtype=data.dtype)
 
     # Sort by score
     score_shape = (batch_size, num_anchors)

@@ -208,7 +208,7 @@ def _pack_tensor(buf, loc: Location = UNKNOWN_LOC):
         shape,
         strides,
         len(buf.ty.shape),
-        const(0, ty=buf.ty.dtype),
+        const(0, dtype=buf.ty.dtype),
         buf.ty.elem_offset,
     ]
     return Call(
@@ -663,7 +663,7 @@ def stack_make_dltensor(
         The call expression.
     """
     if isinstance(arr_dtype, str | tvm_tirx.DataType | tvm_tirx.ir.PrimType):
-        arr_dtype = const(0, ty=arr_dtype)
+        arr_dtype = const(0, dtype=arr_dtype)
 
     return call_intrin(
         "tirx.stack_make_dltensor",
