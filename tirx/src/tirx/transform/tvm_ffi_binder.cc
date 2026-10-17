@@ -32,7 +32,6 @@
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/memory.h>
 
-#include "../../sym/pattern_match.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -238,22 +237,27 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
 
 void TVMFFIABIBuilder::BindShape(const PrimExpr& arg, const PrimExpr& value,
                                  const ffi::reflection::AccessPath& path) {
-  // Peel off the constant offset and factor, allowing either operand order.
-  sym::PVar<PrimExpr> x;
-  sym::PVar<IntImm> c;
   PrimExpr linear = arg;
   PrimExpr offset = IntImm(arg.ty(), 0);
   PrimExpr factor = IntImm(arg.ty(), 1);
-  if ((x + c).Match(linear) || (c + x).Match(linear)) {
-    offset = c.Eval();
-    linear = x.Eval();
-  } else if ((x - c).Match(linear)) {
-    offset = -c.Eval();
-    linear = x.Eval();
+  // Peel off a constant operand, allowing either order in Add and Mul.
+  auto peel_const = [&linear](const PrimExpr& a, const PrimExpr& b, PrimExpr* constant) {
+    if (b.as<IntImmNode>()) {
+      *constant = b;
+      linear = a;
+    } else if (a.as<IntImmNode>()) {
+      *constant = a;
+      linear = b;
+    }
+  };
+  if (const auto* add = linear.as<AddNode>()) {
+    peel_const(add->a, add->b, &offset);
+  } else if (const auto* sub = linear.as<SubNode>(); sub && sub->b.as<IntImmNode>()) {
+    offset = -sub->b;
+    linear = sub->a;
   }
-  if ((x * c).Match(linear) || (c * x).Match(linear)) {
-    factor = c.Eval();
-    linear = x.Eval();
+  if (const auto* mul = linear.as<MulNode>()) {
+    peel_const(mul->a, mul->b, &factor);
   }
   const auto* var = linear.as<VarNode>();
   if (!var || arg.same_as(linear) || var_defs_.count(var) || IsZero(factor)) {
