@@ -27,7 +27,7 @@ from tvm_tirx.ir import assert_structural_equal, load_json, save_json
 from tvm_tirx.script import tirx as T
 from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.testing import env
-from tvm_tirx.tirx import decl_tensor
+from tvm_tirx.tirx import TensorType, Var
 from tvm_tirx.tirx.layout import Axis, S, TileLayout
 from tvm_tirx.tirx.script import ir_builder as I
 from tvm_tirx.tirx.thread_scope import ThreadScope
@@ -42,12 +42,12 @@ def test_generic_layout_without_backend_autoload():
 import sys
 import tvm_tirx
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import decl_tensor
+from tvm_tirx.tirx import Var, TensorType
 from tvm_tirx.tirx.layout import Axis, S, TileLayout
 assert Axis.m.backend is None
 assert T.Axis.m.same_as(Axis.m)
 assert TileLayout(S[8]).apply(3, shape=[8])["m"] == 3
-assert decl_tensor((8,), "float32").layout is None
+assert Var("tensor", TensorType((8,), "float32")).layout is None
 tensor_type = T.Tensor((8,), "float32")
 assert tensor_type.layout is None
 tvm_tirx.ir.assert_structural_equal(tensor_type.effective_layout(), TileLayout(S[8]))
@@ -98,7 +98,7 @@ def test_backend_axis_and_scope_identity():
 def test_omitted_and_explicit_none_layout(scope):
     assert T.Tensor((4, 8), "float32", scope=scope).layout is None
     assert T.Tensor((4, 8), "float32", scope=scope, layout=None).layout is None
-    assert decl_tensor((4, 8), "float32", scope=scope).layout is None
+    assert Var("tensor", TensorType((4, 8), "float32", scope=scope)).layout is None
     explicit = T.Tensor((4, 8), "float32", scope=scope, layout="default")
     assert_structural_equal(explicit.layout, TileLayout(S[4, 8]))
     with IRBuilder():
@@ -121,7 +121,7 @@ def test_effective_layout_on_tensor_type(shape, strides):
 
 
 def test_effective_global_layout_preserves_source_and_region():
-    tensor = decl_tensor((8, 16), "float32", elem_offset=13)
+    tensor = Var("tensor", TensorType((8, 16), "float32", elem_offset=13))
     before = save_json(tensor)
     region = tensor[2:4, 3:7]
     layout = region.source.ty.effective_layout()
@@ -130,14 +130,14 @@ def test_effective_global_layout_preserves_source_and_region():
     assert int(layout.apply(*starts, shape=tensor.shape)["m"]) == 35
     assert int(layout.apply(starts[0] + 1, starts[1] + 3, shape=tensor.shape)["m"]) == 54
     assert save_json(tensor) == before
-    compact = decl_tensor((8, 16), "float32", strides=(16, 1))
+    compact = Var("tensor", TensorType((8, 16), "float32", strides=(16, 1)))
     assert_structural_equal(compact.ty.effective_layout(), layout)
-    strided = decl_tensor((8, 16), "float32", strides=(32, 1))
+    strided = Var("tensor", TensorType((8, 16), "float32", strides=(32, 1)))
     with pytest.raises(ValueError, match="noncompact"):
         strided.ty.effective_layout()
     with pytest.raises(ValueError, match="explicit layout"):
-        decl_tensor((8, 16), "float32", scope="shared").ty.effective_layout()
-    explicit = decl_tensor((8, 16), "float32", scope="shared", layout=layout)
+        Var("tensor", TensorType((8, 16), "float32", scope="shared")).ty.effective_layout()
+    explicit = Var("tensor", TensorType((8, 16), "float32", scope="shared", layout=layout))
     assert explicit.ty.effective_layout().same_as(layout)
 
 
@@ -209,7 +209,7 @@ def test_none_layout_dtype_view_accepts_symbolic_extent():
 
 
 def test_tile_call_rejects_cross_backend_scope():
-    tensor = decl_tensor((8,), "float32", scope="local", layout="default")
+    tensor = Var("tensor", TensorType((8,), "float32", scope="local", layout="default"))
     with pytest.raises(ValueError, match="scope belongs to trn"):
         T.cuda.tile.apply(
             T.ptx["add.f32"], tensor[:], tensor[:], tensor[:], scope=T.trn.ThreadScope("thread")

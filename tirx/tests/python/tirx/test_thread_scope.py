@@ -26,7 +26,7 @@ from tvm_ffi.dataclasses import Enum
 import tvm_tirx
 from tvm_tirx.ir import Call, Evaluate, make_node
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import Function, decl_tensor
+from tvm_tirx.tirx import Function, TensorType, Var
 from tvm_tirx.tirx.thread_scope import ThreadScope
 from tvm_tirx.tirx.tile import DispatchContext
 from tvm_tirx.tirx.tile.instruction import TensorCall
@@ -79,7 +79,7 @@ def test_scope_roundtrips_keep_singleton(name):
 
 @pytest.mark.parametrize("scope", ["warp", "cuda.warp", T.cuda.ThreadScope("warp")])
 def test_instruction_normalizes_scope_before_constructing_call(scope):
-    tensor = decl_tensor((16,), "float32", scope="local", layout="default")
+    tensor = Var("tensor", TensorType((16,), "float32", scope="local", layout="default"))
     call = T.cuda.tile.apply(T.ptx["sqrt.rn.f32"], tensor, tensor, scope=scope)
     tag = ThreadScope("cuda.warp")
     assert call.attrs.scope.same_as(tag)
@@ -106,7 +106,7 @@ def test_raw_scope_attrs_are_required_and_typed():
 
 
 def test_cross_backend_scopes_are_rejected_at_each_boundary():
-    tensor = decl_tensor((16,), "float32", scope="local", layout="default")
+    tensor = Var("tensor", TensorType((16,), "float32", scope="local", layout="default"))
     trn_scope = ThreadScope("trn.thread")
     for scope in (trn_scope, "trn.thread"):
         with pytest.raises(ValueError, match="belongs to trn"):
@@ -123,7 +123,7 @@ def test_cross_backend_scopes_are_rejected_at_each_boundary():
         raw.validate()
     with pytest.raises(ValueError, match="does not match target"):
         DispatchContext(tvm_tirx.target.Target("cuda"), trn_scope, {}, {})
-    trn_tensor = decl_tensor((16,), "float32", scope="trn.sbuf", layout="default")
+    trn_tensor = Var("tensor", TensorType((16,), "float32", scope="trn.sbuf", layout="default"))
     trn_call = T.trn.tile.tensortensor(trn_tensor, trn_tensor, trn_tensor)
     func = Function([], Evaluate(trn_call)).with_attr("target", tvm_tirx.target.Target("cuda"))
     with pytest.raises(ValueError, match="does not match target"):

@@ -254,7 +254,7 @@ def test_typed_buffer_bindings(monkeypatch, alignment):
 
 
 def test_vector_pointer_preserves_packed_offset(monkeypatch):
-    tensor = tvm_tirx.tirx.decl_tensor((8,), "int4x4", name="A")
+    tensor = tvm_tirx.tirx.Var("A", tvm_tirx.tirx.TensorType((8,), "int4x4"))
     data = tvm_tirx.tirx.Var("A_data", tensor.data.ty)
     pointer = tvm_tirx.tirx.ptr_byte_offset(tensor.data, 4, ty=tensor.data.ty)
     body = tvm_tirx.ir.SeqStmt(

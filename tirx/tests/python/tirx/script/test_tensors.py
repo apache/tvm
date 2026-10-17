@@ -348,7 +348,7 @@ def test_tensor():
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_tensor_shape_repeated_var_prints_out_of_line():
     n = tvm_tirx.tirx.Var("n", "int32")
-    tensor = tvm_tirx.tirx.decl_tensor((n + n,), name="A")
+    tensor = tvm_tirx.tirx.Var("A", tvm_tirx.tirx.TensorType((n + n,), "float32"))
     func = tvm_tirx.tirx.Function([tensor], tvm_tirx.ir.Evaluate(0))
 
     code = func.script()
@@ -987,8 +987,13 @@ def test_tensor_sub_multi_iter_dim_ir():
 
 
 def test_tensor_sub_multi_iter_misaligned_rejected():
-    buf = tvm_tirx.tirx.decl_tensor(
-        (8, 16), "float16", layout=tvm_tirx.tirx.layout.TileLayout(T.S[(2, 4, 16) : (1024, 64, 1)])
+    buf = tvm_tirx.tirx.Var(
+        "tensor",
+        tvm_tirx.tirx.TensorType(
+            (8, 16),
+            "float16",
+            layout=tvm_tirx.tirx.layout.TileLayout(T.S[(2, 4, 16) : (1024, 64, 1)]),
+        ),
     )
     # sub[2:6] narrows the multi-iter dim 0 at a misaligned offset.
     with pytest.raises(ValueError, match="multiples of the inner iter block"):
@@ -1039,11 +1044,17 @@ def test_tensor_sub_ir():
 def test_tensor_view_surgery_static_bounds_rejected():
     """Statically-known out-of-range sub arguments must be rejected loudly
     (review finding: OOB offsets were silent)."""
-    buf = tvm_tirx.tirx.decl_tensor(
-        (10,), "float16", layout=tvm_tirx.tirx.layout.TileLayout(T.S[(10,) : (1,)])
+    buf = tvm_tirx.tirx.Var(
+        "tensor",
+        tvm_tirx.tirx.TensorType(
+            (10,), "float16", layout=tvm_tirx.tirx.layout.TileLayout(T.S[(10,) : (1,)])
+        ),
     )
-    grid = tvm_tirx.tirx.decl_tensor(
-        (4, 8), "float16", layout=tvm_tirx.tirx.layout.TileLayout(T.S[(4, 8) : (8, 1)])
+    grid = tvm_tirx.tirx.Var(
+        "tensor",
+        tvm_tirx.tirx.TensorType(
+            (4, 8), "float16", layout=tvm_tirx.tirx.layout.TileLayout(T.S[(4, 8) : (8, 1)])
+        ),
     )
     # int index: static bounds
     with pytest.raises(ValueError, match="out of range"):
@@ -1230,9 +1241,14 @@ def test_tensor_factored_views():
 
 def test_tensor_contiguous_regions():
     """Explicit contiguous regions preserve rank, offsets and dynamic starts."""
-    A = tvm_tirx.tirx.decl_tensor((4, 8, 16), "float16", layout="default")
-    C = tvm_tirx.tirx.decl_tensor(
-        (4, 512), "bfloat16", layout=T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(4, 512)]))
+    A = tvm_tirx.tirx.Var(
+        "tensor", tvm_tirx.tirx.TensorType((4, 8, 16), "float16", layout="default")
+    )
+    C = tvm_tirx.tirx.Var(
+        "tensor",
+        tvm_tirx.tirx.TensorType(
+            (4, 512), "bfloat16", layout=T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(4, 512)]))
+        ),
     )
     reg = A[:, :, 8:16]
     assert isinstance(reg, TensorRegion)
@@ -1277,7 +1293,7 @@ def test_tensor_view_dtype_ir():
 def test_tensor_slice_region():
     """Verify A[slice] returns TensorRegion (not DeclTensor)."""
 
-    buf = tvm_tirx.tirx.decl_tensor((128, 64), "float16")
+    buf = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((128, 64), "float16"))
     br = buf[32:64, 0:32]
     assert isinstance(br, TensorRegion)
     assert br.source.same_as(buf)

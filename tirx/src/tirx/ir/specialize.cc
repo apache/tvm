@@ -352,7 +352,7 @@ class FunctionSpecializer : public StmtExprMutator {
  *   For example, we define a tensor in Function:
  *   A: T.Tensor([m, n])
  *
- *   Then we match it with a tensor B =  tirx.decl_tensor((8, 16))
+ *   Then we match it with a tensor B =  Var("tensor", TensorType((8, 16), "float32"))
  *
  *   It means we have two var mappings here: m = 8 and n = 16
  *

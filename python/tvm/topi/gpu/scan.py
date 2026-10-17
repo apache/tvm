@@ -411,15 +411,15 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=operator.add):
 
             return ib.get()
 
-    data_buf = tvm_tirx.tirx.decl_tensor(
-        data.shape, data.dtype, "valid_indices_buf", data_alignment=8, layout=None
+    data_buf = tvm_tirx.tirx.Var(
+        "valid_indices_buf",
+        tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None),
     )
-    ex_scan_output_buf = tvm_tirx.tirx.decl_tensor(
-        ex_scan_output.shape,
-        ex_scan_output.dtype,
+    ex_scan_output_buf = tvm_tirx.tirx.Var(
         "ex_scan_output_buf",
-        data_alignment=8,
-        layout=None,
+        tvm_tirx.tirx.TensorType(
+            ex_scan_output.shape, ex_scan_output.dtype, data_alignment=8, layout=None
+        ),
     )
 
     reduction = te.extern(
@@ -483,16 +483,25 @@ def scan_thrust(
         (N-1)-D tensor storing the reduction of each scan axis.
         Returned if return_reduction is True.
     """
-    data_buf = tvm_tirx.tirx.decl_tensor(
-        data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
+    data_buf = tvm_tirx.tirx.Var(
+        "data_buf", tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None)
     )
-    output_buf = tvm_tirx.tirx.decl_tensor(
-        data.shape, output_dtype, "output_buf", data_alignment=8, layout=None
+    output_buf = tvm_tirx.tirx.Var(
+        "output_buf",
+        tvm_tirx.tirx.TensorType(
+            data.shape,
+            "float32" if output_dtype is None else output_dtype,
+            data_alignment=8,
+            layout=None,
+        ),
     )
 
     workspace_buf = (
-        tvm_tirx.tirx.decl_tensor(
-            workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8, layout=None
+        tvm_tirx.tirx.Var(
+            "workspace_buf",
+            tvm_tirx.tirx.TensorType(
+                workspace.shape, workspace.dtype, data_alignment=8, layout=None
+            ),
         )
         if workspace is not None
         else None
@@ -592,11 +601,18 @@ def exclusive_scan(
             # TIR exclusive scan accepts only 2D or higher-rank inputs.
             data = expand_dims(data, axis=0)
 
-        data_buf = tvm_tirx.tirx.decl_tensor(
-            data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
+        data_buf = tvm_tirx.tirx.Var(
+            "data_buf",
+            tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None),
         )
-        output_buf = tvm_tirx.tirx.decl_tensor(
-            data.shape, output_dtype, "output_buf", data_alignment=8, layout=None
+        output_buf = tvm_tirx.tirx.Var(
+            "output_buf",
+            tvm_tirx.tirx.TensorType(
+                data.shape,
+                "float32" if output_dtype is None else output_dtype,
+                data_alignment=8,
+                layout=None,
+            ),
         )
 
         if return_reduction:

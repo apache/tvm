@@ -268,13 +268,13 @@ def test_ir_builder_tir_inline():
     ],
 )
 def test_concrete_tensor_indices(shape, index, expected):
-    tensor = tirx.decl_tensor(shape, "float32")
+    tensor = tirx.Var("tensor", tirx.TensorType(shape, "float32"))
     assert T.tensor_indices(tensor, index) == expected
 
 
 def test_symbolic_tensor_indices():
     m, n, k = [tirx.Var(name, "int32") for name in ("m", "n", "k")]
-    tensor = tirx.decl_tensor((m, n), "float32")
+    tensor = tirx.Var("tensor", tirx.TensorType((m, n), "float32"))
     actual = T.tensor_indices(tensor, k)
     for index, expected in zip(actual, [k // n, k % n]):
         tvm_tirx.ir.assert_structural_equal(index, expected)
@@ -282,7 +282,9 @@ def test_symbolic_tensor_indices():
 
 @pytest.mark.parametrize("layout", [None, TileLayout(S[(2, 3) : (1, 2)])])
 def test_flat_tensor_store_preserves_identity_and_emits_once(layout):
-    tensor = tirx.decl_tensor((2, 3), "float32", strides=(5, 1), elem_offset=2, layout=layout)
+    tensor = tirx.Var(
+        "tensor", tirx.TensorType((2, 3), "float32", strides=(5, 1), elem_offset=2, layout=layout)
+    )
     indices = T.tensor_indices(tensor, 4)
     load = tensor[indices]
     assert load.source.same_as(tensor)
@@ -411,7 +413,10 @@ def test_gpu_imperative_tensors(kind):
         elif kind == "scan":
             from tvm.topi.gpu.scan import exclusive_scan_ir
 
-            body = exclusive_scan_ir(tirx.decl_tensor((2, 4)), tirx.decl_tensor((2, 4)))
+            body = exclusive_scan_ir(
+                tirx.Var("tensor", tirx.TensorType((2, 4), "float32")),
+                tirx.Var("tensor", tirx.TensorType((2, 4), "float32")),
+            )
             assert isinstance(body, tvm_tirx.ir.Stmt)
             return
         elif kind == "scatter_nd":

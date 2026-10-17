@@ -152,7 +152,7 @@ def test_reflected_type_recursive_values(monkeypatch):
 
 
 def test_tensor():
-    a = tirx.decl_tensor((128, 128), "float16", name="A")
+    a = tirx.Var("A", tirx.TensorType((128, 128), "float16"))
     _assert_print(
         a,
         """A = T.Var("A", T.Tensor((128, 128), T.float16))
@@ -165,7 +165,7 @@ def _assert_print(obj, expected):
 
 
 def test_tensor_region():
-    src = tirx.decl_tensor((128, 128), "float32", name="src")
+    src = tirx.Var("src", tirx.TensorType((128, 128), "float32"))
     obj = TensorRegion(
         src,
         [
@@ -184,7 +184,7 @@ src[64:128, 64:128]
 
 
 def test_tensor_load():
-    a = tirx.decl_tensor((128, 128), "float16", name="A")
+    a = tirx.Var("A", tirx.TensorType((128, 128), "float16"))
     obj = tvm_tirx.ir.TensorLoad(a, [128, 128])
     _assert_print(
         obj,
@@ -194,7 +194,7 @@ A[128, 128]""",
 
 
 def test_tensor_store():
-    a = tirx.decl_tensor((128, 128), "float16", name="A")
+    a = tirx.Var("A", tirx.TensorType((128, 128), "float16"))
     with IRBuilder() as ib:
         TB.tensor_store(a, [128, 128], a[128, 128] + 1)
     obj = ib.get()
@@ -1016,8 +1016,8 @@ T.nvshmem.putmem_signal_nbi_block(p, p, 16, p, 1, "set", 0)
 
 
 def test_printer_nki_namespace():
-    A = tir.decl_tensor([1], dtype="float16", name="A")
-    B = tir.decl_tensor([1], dtype="float16", name="B")
+    A = tir.Var("A", tir.TensorType([1], "float16"))
+    B = tir.Var("B", tir.TensorType([1], "float16"))
     a0 = A[0]
     b0 = B[0]
     _assert_namespace_print(

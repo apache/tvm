@@ -179,7 +179,7 @@ def scatter_nd(data, indices, updates, mode):
 
             return ib.get()
 
-    out_buf = tirx.decl_tensor(data.shape, data.dtype, "out_buf", layout=None)
+    out_buf = tirx.Var("out_buf", tirx.TensorType(data.shape, data.dtype, layout=None))
     return te.extern(
         [data.shape],
         [data, indices, updates],

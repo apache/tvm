@@ -23,7 +23,7 @@ import numpy as np
 import tvm
 import tvm_tirx
 import tvm_tirx.testing
-from tvm import te
+from tvm import te, topi
 
 
 def test_sort():
@@ -96,6 +96,14 @@ def test_sort_np():
     c = tvm_tirx.runtime.tensor(np.zeros(a.shape, dtype=out.dtype.dtype), dev)
     f(a, b, c)
     tvm_tirx.testing.assert_allclose(c.numpy(), np_out, rtol=1e-5)
+
+
+def test_sort_none_index_dtype_defaults_to_float32():
+    data = te.placeholder((8,), dtype="int32")
+    indices = topi.argsort(data, dtype=None)
+    top_indices = topi.topk(data, k=2, ret_type="indices", dtype=None)
+    assert indices.dtype == "float32"
+    assert top_indices.dtype == "float32"
 
 
 if __name__ == "__main__":

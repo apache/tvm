@@ -474,21 +474,3 @@ def _return_annotation(annotation):
     if callable(annotation) and not isinstance(annotation, ir.Expr | ir.Type):
         return annotation()
     return annotation
-
-
-def annotation_constructor(constructor):
-    """Expose a constructor as a real annotation class supporting Python unions.
-
-    Calls construct ordinary native values directly. The class preserves the
-    constructor's signature and documentation without adapting its arguments.
-    """
-    return type(
-        constructor.__name__,
-        (),
-        {
-            "__new__": lambda cls, *args, **kwargs: constructor(*args, **kwargs),
-            "__signature__": signature(constructor),
-            "__doc__": constructor.__doc__,
-            "__module__": constructor.__module__,
-        },
-    )

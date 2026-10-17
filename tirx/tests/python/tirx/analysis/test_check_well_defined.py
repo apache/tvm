@@ -352,7 +352,7 @@ def test_tensor_load_asserted_type_matches_source_and_indices():
 
 
 def test_tensor_load_malformed_indices_return_false_without_asserting():
-    tensor = tvm_tirx.tirx.decl_tensor((4, 4), "float32")
+    tensor = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((4, 4), "float32"))
     vector_index = tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4)
     load = tvm_tirx.ir.TensorLoad(tensor, [0, vector_index])
     func = tvm_tirx.tirx.Function([tensor], tvm_tirx.ir.Evaluate(load))
