@@ -389,15 +389,13 @@ def dilation2d(
 
     if isinstance(padding, int):
         padding = (padding, padding, padding, padding)
-    elif isinstance(padding, (tuple, list)):
+    elif isinstance(padding, tuple | list):
         if len(padding) == 2:
             padding = (padding[0], padding[1], padding[0], padding[1])
         elif len(padding) == 4:
             padding = tuple(padding)
         else:
-            raise ValueError(
-                f"padding must be int, 2-tuple, or 4-tuple, got {len(padding)}-tuple"
-            )
+            raise ValueError(f"padding must be int, 2-tuple, or 4-tuple, got {len(padding)}-tuple")
     else:
         raise TypeError(f"padding must be int, tuple, or list, got {type(padding)}")
 

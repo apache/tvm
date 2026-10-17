@@ -184,8 +184,7 @@ void CorrelationAttrs::RegisterReflection() {
               "Kernel size for correlation, must be a positive odd number.")
       .def_ro("max_displacement", &CorrelationAttrs::max_displacement,
               "Max displacement of correlation.")
-      .def_ro("stride1", &CorrelationAttrs::stride1,
-              "Stride for sampling data1 positions.")
+      .def_ro("stride1", &CorrelationAttrs::stride1, "Stride for sampling data1 positions.")
       .def_ro("stride2", &CorrelationAttrs::stride2,
               "Stride for sampling data2 within the neighborhood.")
       .def_ro("padding", &CorrelationAttrs::padding, "Padding size for both dimensions.")
@@ -1518,8 +1517,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.correlation")
-      .signature(sig::arg("data1", "The first input tensor."), sig::arg("data2", "The second input tensor."),
-                 sig::call_attrs<CorrelationAttrs>())
+      .signature(sig::arg("data1", "The first input tensor."),
+                 sig::arg("data2", "The second input tensor."), sig::call_attrs<CorrelationAttrs>())
       .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
       .set_attr(tvm::relax::op_attr::kPurity, true);
 }
