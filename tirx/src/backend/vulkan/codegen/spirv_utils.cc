@@ -128,13 +128,13 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
     auto func = kv.second.as<Function>();
     TVM_FFI_ICHECK(func);
     Function f = func.value();
-    auto calling_conv = f->GetAttr<CallingConv>(tvm::attr::kCallingConv);
+    auto calling_conv = f->GetAttr(tvm::attr::kCallingConv);
     TVM_FFI_ICHECK(calling_conv.has_value())
         << "CodeGenSPIRV: expected kCallingConv attribute to be set.";
     TVM_FFI_ICHECK(calling_conv.value() == CallingConv::kDeviceKernelLaunch)
         << "CodeGenSPIRV: expect calling_conv equals CallingConv::kDeviceKernelLaunch, but got "
         << static_cast<int>(calling_conv.value());
-    auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = f->GetAttr(tvm::attr::kGlobalSymbol);
     TVM_FFI_ICHECK(global_symbol.has_value())
         << "CodeGenSPIRV: Expect Function to have the global_symbol attribute";
 

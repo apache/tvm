@@ -145,7 +145,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
                                                        buf->getType()->getPointerAddressSpace()));
     TVM_FFI_ICHECK(!var_map_.count(buffer.get()));
     var_map_[buffer.get()] = buf;
-    if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
+    if (annotations->dict.count(tvm::tirx::attr::kVolatile.name)) {
       volatile_buf_.insert(buffer.get());
     }
   }

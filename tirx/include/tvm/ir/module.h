@@ -26,6 +26,8 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/container/tensor.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -320,7 +322,7 @@ namespace attr {
  *
  * Type: ffi::Array<runtime::Module>
  */
-constexpr const char* kExternalMods = "external_mods";
+inline constexpr ffi::reflection::AttrKey<ffi::Array<ffi::Module>> kExternalMods{"external_mods"};
 
 /*!
  * \brief A prefix for generating C symbols  system lib creation.
@@ -349,7 +351,7 @@ constexpr const char* kExternalMods = "external_mods";
  *
  * Having this attribute implies system lib generation linkage.
  */
-constexpr const char* kSystemLibPrefix = "system_lib_prefix";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kSystemLibPrefix{"system_lib_prefix"};
 
 /*!
  * \brief All the named Tensors accumulated during compilation by external codegen.
@@ -358,9 +360,11 @@ constexpr const char* kSystemLibPrefix = "system_lib_prefix";
  *
  * Type: ffi::Map<ffi::String, Tensor>
  */
-constexpr const char* kConstNameToConstant = "const_name_to_constant";
+inline constexpr ffi::reflection::AttrKey<ffi::Map<ffi::String, ffi::Tensor>> kConstNameToConstant{
+    "const_name_to_constant"};
 
-constexpr const char* kDeviceContexts = "device_contexts";
+inline constexpr ffi::reflection::AttrKey<ffi::Map<GlobalVar, ffi::String>> kDeviceContexts{
+    "device_contexts"};
 
 }  // namespace attr
 }  // namespace tvm

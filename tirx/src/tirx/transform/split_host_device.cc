@@ -39,9 +39,9 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/attr.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
-#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -68,14 +68,15 @@ class DeviceRegionAnnotater : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     static const Op device_scope = Op::Get("tirx.device_scope");
     if (op->op.same_as(device_scope)) {
-      if (op->attrs->dict.count(tvm::attr::kTarget)) return ffi::Unchanged();
+      if (op->attrs->dict.count(tvm::attr::kTarget.name)) return ffi::Unchanged();
       auto attrs = op->attrs->dict;
-      attrs.Set(tvm::attr::kTarget, device_target_);
+      attrs.Set(tvm::attr::kTarget.name, device_target_);
       return RegionStmt(op->op, op->args, op->body_params, DictAttrs(attrs), op->body,
                         op->result_vars, op->loc);
     }
     if (op->op.same_as(tirx::launch_thread_op())) {
-      return RegionStmt(device_scope, {}, {}, DictAttrs({{tvm::attr::kTarget, device_target_}}),
+      return RegionStmt(device_scope, {}, {},
+                        DictAttrs({{tvm::attr::kTarget.name, device_target_}}),
                         ffi::GetRef<Stmt>(op));
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -86,7 +87,7 @@ class DeviceRegionAnnotater : public StmtExprMutator {
 };
 
 Function AnnotateDeviceRegionsForSplit(Function func) {
-  auto opt_target = func->GetAttr<Target>(tvm::attr::kTarget);
+  auto opt_target = func->GetAttr(tvm::attr::kTarget);
   TVM_FFI_ICHECK(opt_target) << "SplitHostDevice: Require the target attribute";
   Target target = opt_target.value();
 
@@ -124,7 +125,7 @@ class HostDeviceSplitter : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     static const Op device_scope = Op::Get("tirx.device_scope");
     if (op->op.same_as(device_scope)) {
-      auto target = op->attrs->dict.Get(tvm::attr::kTarget);
+      auto target = op->attrs->dict.Get(tvm::attr::kTarget.name);
       if (!target) return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
       Target device_target = target.value().as_or_throw<Target>();
       return SplitDeviceFunc(op->body, device_target.WithoutHost(), op);
@@ -233,30 +234,30 @@ class HostDeviceSplitter : public StmtExprMutator {
            std::move(body)});
     }
     Function device_func(kernel_params, SeqStmt(body), kernel_ret_type);
-    device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
-                                                     {tvm::tirx::attr::kNoAlias, true},
-                                                     {tvm::tirx::attr::kIsGlobalFunc, true}});
+    device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget.name, device_target},
+                                                     {tvm::tirx::attr::kNoAlias.name, true},
+                                                     {tvm::tirx::attr::kIsGlobalFunc.name, true}});
     if (auto config = region->attrs->dict.Get("backend_config")) {
       device_func = WithAttr(std::move(device_func), "backend_config", config.value());
     } else if (auto config = cur_func_->GetAttr<ffi::String>("backend_config")) {
       device_func = WithAttr(std::move(device_func), "backend_config", config.value());
     }
-    if (auto script_namespace = cur_func_->GetAttr<ffi::String>(tvm::attr::kScriptNamespace)) {
-      device_func =
-          WithAttr(std::move(device_func), tvm::attr::kScriptNamespace, script_namespace.value());
+    if (auto script_namespace = cur_func_->GetAttr(tvm::attr::kScriptNamespace)) {
+      device_func = WithAttr(std::move(device_func), tvm::attr::kScriptNamespace.name,
+                             script_namespace.value());
     }
-    bool is_stir = cur_func_->attrs->dict.count(tvm::attr::kSTir);
+    bool is_stir = cur_func_->attrs->dict.count(tvm::attr::kSTir.name);
     if (is_stir) {
-      device_func = WithAttr(std::move(device_func), tvm::attr::kSTir, true);
+      device_func = WithAttr(std::move(device_func), tvm::attr::kSTir.name, true);
     }
-    if (auto launch_params =
-            cur_func_->GetAttr<ffi::Array<ffi::String>>(tvm::tirx::attr::kKernelLaunchParams)) {
-      device_func = WithAttr(std::move(device_func), tvm::tirx::attr::kKernelLaunchParams,
+    if (auto launch_params = cur_func_->GetAttr<ffi::Array<ffi::String>>(
+            tvm::tirx::attr::kKernelLaunchParams.name)) {
+      device_func = WithAttr(std::move(device_func), tvm::tirx::attr::kKernelLaunchParams.name,
                              launch_params.value());
     }
-    auto num_inputs = cur_func_->GetAttr<int64_t>(tvm::attr::kNumInputs);
+    auto num_inputs = cur_func_->GetAttr(tvm::attr::kNumInputs);
     if (num_inputs.has_value()) {
-      device_func = WithAttr(std::move(device_func), tvm::attr::kNumInputs, num_inputs);
+      device_func = WithAttr(std::move(device_func), tvm::attr::kNumInputs.name, num_inputs);
     }
     GlobalVar kernel_symbol_global = var_supply_();
     if (region->attrs->dict.count(tvm::backend::cuda::attr::kLaunchFields.name)) {
@@ -343,16 +344,15 @@ class DeviceInfoCollector : public StmtExprVisitor {
   static KernelInfo Collect(const GlobalVar& gvar, const Function& func,
                             bool allow_placeholder = false) {
     auto collector = ffi::make_object<DeviceInfoCollector>(
-        func->GetAttr<Target>(tvm::attr::kTarget).value().WithoutHost());
+        func->GetAttr(tvm::attr::kTarget).value().WithoutHost());
     collector->info_.params = func->params;
     if (func->GetAttr<ffi::Array<ffi::String>>(tvm::backend::cuda::attr::kLaunchFields)) {
       collector->info_.global_symbol =
-          func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
+          func->GetAttr(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
       return collector->info_;
     }
 
-    if (auto requested =
-            func->GetAttr<ffi::Array<ffi::String>>(tvm::tirx::attr::kKernelLaunchParams)) {
+    if (auto requested = func->GetAttr(tvm::tirx::attr::kKernelLaunchParams)) {
       for (const ffi::String& tag : requested.value()) {
         if (tag == tvm::runtime::launch_param::kUseProgramaticDependentLaunch) {
           collector->use_programmatic_dependent_launch_ = true;
@@ -386,7 +386,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
     }
 
     collector->info_.global_symbol =
-        func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
+        func->GetAttr(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
 
     for (const ffi::String& param : collector->info_.launch_params) {
       if (param == tvm::runtime::launch_param::kUseProgramaticDependentLaunch ||
@@ -628,12 +628,12 @@ Stmt MakeCudaKernelLaunch(const GlobalVar& symbol, Function* func, ffi::Array<Ex
       dimensions.push_back(dimension);
     }
   }
-  *func =
-      WithAttrs(std::move(*func), {{tvm::attr::kCallingConv, tvm::CallingConv::kDeviceKernelLaunch},
-                                   {tvm::attr::kGlobalSymbol, symbol->name_hint},
-                                   {tvm::backend::cuda::attr::kLaunchFields.name, fields},
-                                   {tvm::backend::cuda::attr::kKernelAttrs.name, kernel_attrs},
-                                   {tvm::backend::cuda::attr::kLaunchDimensions.name, dimensions}});
+  *func = WithAttrs(std::move(*func),
+                    {{tvm::attr::kCallingConv.name, tvm::CallingConv::kDeviceKernelLaunch},
+                     {tvm::attr::kGlobalSymbol.name, symbol->name_hint},
+                     {tvm::backend::cuda::attr::kLaunchFields.name, fields},
+                     {tvm::backend::cuda::attr::kKernelAttrs.name, kernel_attrs},
+                     {tvm::backend::cuda::attr::kLaunchDimensions.name, dimensions}});
   auto attrs = ffi::make_object<CallFFIKernelAttr>();
   attrs->launch_fields = fields;
   attrs->kernel_attrs = kernel_attrs;
@@ -666,7 +666,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     // helper (e.g. a same-target subroutine that SplitHostDevice
     // emitted on the host side) should compare against the host
     // target, not the device target stripped by WithoutHost().
-    auto full_target = func->GetAttr<Target>(tvm::attr::kTarget).value();
+    auto full_target = func->GetAttr(tvm::attr::kTarget).value();
     current_target_ = full_target.WithoutHost();
     if (full_target->GetHost().has_value()) {
       current_caller_host_target_ = full_target->GetHost().value();
@@ -696,7 +696,7 @@ class DeviceKernelMutator : public StmtExprMutator {
         << "This case is not yet supported.";
 
     if (is_kernel_launch || is_call_extern) {
-      func = WithAttr(std::move(func), tvm::tirx::attr::kIsGlobalFunc, true);
+      func = WithAttr(std::move(func), tvm::tirx::attr::kIsGlobalFunc.name, true);
     }
 
     if (is_kernel_launch) {
@@ -707,18 +707,18 @@ class DeviceKernelMutator : public StmtExprMutator {
       {
         auto write_ptr = func.CopyOnWrite();
         write_ptr->ret_type = VoidType();
-        Target target = func->GetAttr<Target>(tvm::attr::kTarget).value();
+        Target target = func->GetAttr(tvm::attr::kTarget).value();
         bool preserve_early_returns = target->kind->name == "cuda";
         write_ptr->body = ReturnRemover::Apply(write_ptr->body.value(), !preserve_early_returns);
       }
 
       func = WithAttrs(std::move(func),
-                       {{tvm::attr::kCallingConv, tvm::CallingConv::kDeviceKernelLaunch},
-                        {tvm::tirx::attr::kKernelLaunchParams, info.launch_params},
-                        {tvm::attr::kGlobalSymbol, info.global_symbol}});
+                       {{tvm::attr::kCallingConv.name, tvm::CallingConv::kDeviceKernelLaunch},
+                        {tvm::tirx::attr::kKernelLaunchParams.name, info.launch_params},
+                        {tvm::attr::kGlobalSymbol.name, info.global_symbol}});
 
-    } else if (is_call_extern && !func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
-      func = WithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
+    } else if (is_call_extern && !func->GetAttr(tvm::attr::kGlobalSymbol)) {
+      func = WithAttr(func, tvm::attr::kGlobalSymbol.name, gvar->name_hint);
     }
 
     return func;
@@ -806,7 +806,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     TVM_FFI_ICHECK(dev_info.launch_params.defined())
         << "CallNode attempted kernel launch to " << gvar->name_hint << " on target "
         << dev_info.target << ", but subroutine " << gvar->name_hint
-        << " did not have the tvm::tirx::attr::kKernelLaunchParams attribute "
+        << " did not have the tvm::tirx::attr::kKernelLaunchParams.name attribute "
         << "required for cross-target kernel launch";
 
     // Collected kernel information may be in terms of the callee's
@@ -929,7 +929,7 @@ Pass SplitHostDevice() {
         Function func = opt.value();
         func = AnnotateDeviceRegionsForSplit(std::move(func));
 
-        auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+        auto global_symbol = func->GetAttr(tvm::attr::kGlobalSymbol);
         auto name_prefix = global_symbol.value_or(gvar->name_hint);
         auto kernel_name = name_prefix + "_kernel";
         auto var_supply = [&global_names, &kernel_name]() -> GlobalVar {

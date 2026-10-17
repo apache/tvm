@@ -231,7 +231,7 @@ class TileDispatcher : public StmtExprMutator {
   Stmt ProcessDeviceEntry(const RegionStmtNode* entry_node) {
     Stmt body_to_visit = entry_node->body;
     Target saved_target = target_;
-    if (auto target = entry_node->attrs->dict.Get(tvm::attr::kTarget)) {
+    if (auto target = entry_node->attrs->dict.Get(tvm::attr::kTarget.name)) {
       target_ = target.value().cast<Target>();
     }
     With<Target> target_scope(target_);
@@ -503,19 +503,19 @@ class TileDispatcher : public StmtExprMutator {
                                intra_map, scope_kind);
     Stmt res = tile::Dispatch(ffi::GetRef<Call>(op), sctx);
     // Implementation found, handle callbacks
-    if (auto bufs = sctx->callbacks.Get(tirx::tile::callback::kPrivateAlloc)) {
+    if (auto bufs = sctx->callbacks.Get(tirx::tile::callback::kPrivateAlloc.name)) {
       auto buf_list = bufs.value().as<Array<Bind>>().value();
       alloc_tensors_.insert(alloc_tensors_.end(), buf_list.begin(), buf_list.end());
     }
-    if (auto stmts = sctx->callbacks.Get(tirx::tile::callback::kDeviceInitStmt)) {
+    if (auto stmts = sctx->callbacks.Get(tirx::tile::callback::kDeviceInitStmt.name)) {
       auto stmt_list = stmts.value().as<Array<Stmt>>().value();
       device_init_stmts_.insert(device_init_stmts_.end(), stmt_list.begin(), stmt_list.end());
     }
-    if (auto stmts = sctx->callbacks.Get(tirx::tile::callback::kHostInitStmt)) {
+    if (auto stmts = sctx->callbacks.Get(tirx::tile::callback::kHostInitStmt.name)) {
       auto stmt_list = stmts.value().as<Array<Stmt>>().value();
       host_init_stmts_.insert(host_init_stmts_.end(), stmt_list.begin(), stmt_list.end());
     }
-    if (auto mapping = sctx->callbacks.Get(tirx::tile::callback::kPostTensorDefStmt)) {
+    if (auto mapping = sctx->callbacks.Get(tirx::tile::callback::kPostTensorDefStmt.name)) {
       auto map = mapping.value().as_or_throw<ffi::Map<TensorVar, Array<Stmt>>>();
       for (const auto& [tensor, stmts] : map) {
         auto& vec = post_tensor_def_stmts_[tensor];
@@ -619,7 +619,7 @@ class TileDispatcher : public StmtExprMutator {
 
 namespace {
 Target ResolveTarget(const Function& f) {
-  auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+  auto target = f->GetAttr(tvm::attr::kTarget);
   if (!target.has_value()) {
     target = Target::Current(false).value();
   }

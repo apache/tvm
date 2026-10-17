@@ -226,7 +226,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const Function& f, bool skip_re
   TVM_FFI_ICHECK_EQ(name_supply_->FreshName("gridDim"), "gridDim");
 
   // add to alloc buffer type.
-  auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = f->GetAttr(tvm::attr::kGlobalSymbol);
   TVM_FFI_ICHECK(global_symbol.has_value())
       << "CodeGenWebGPU: Expect Function to have the global_symbol attribute";
 
@@ -328,7 +328,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const Function& f, bool skip_re
                     << "var<uniform> " << val_pod_args << " : " << type_pod_args << ";\n\n";
 
   // setup thread tags and param access in launch param tags;
-  if (auto opt = f->GetAttr<ffi::Array<ffi::String>>(tvm::tirx::attr::kKernelLaunchParams)) {
+  if (auto opt = f->GetAttr(tvm::tirx::attr::kKernelLaunchParams)) {
     for (const auto& thread_tag : opt.value()) {
       func_launch_param_tags.push_back(thread_tag);
     }
@@ -923,13 +923,13 @@ ffi::Module BuildWebGPU(IRModule mod, Target target) {
     TVM_FFI_ICHECK(kv.second->IsInstance<FunctionNode>())
         << "CodeGenWebGPU: Can only take Function";
     auto f = kv.second.as_or_throw<Function>();
-    auto calling_conv = f->GetAttr<CallingConv>(tvm::attr::kCallingConv);
+    auto calling_conv = f->GetAttr(tvm::attr::kCallingConv);
     TVM_FFI_ICHECK(calling_conv.has_value())
         << "CodeGenWebGPU: expected kCallingConv attribute to be set.";
     TVM_FFI_ICHECK(calling_conv.value() == CallingConv::kDeviceKernelLaunch)
         << "CodeGenWebGPU: expect calling_conv equals CallingConv::kDeviceKernelLaunch, but got "
         << static_cast<int>(calling_conv.value());
-    auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = f->GetAttr(tvm::attr::kGlobalSymbol);
     TVM_FFI_ICHECK(global_symbol.has_value())
         << "CodeGenWebGPU: Expect Function to have the global_symbol attribute";
     std::string f_name = global_symbol.value();

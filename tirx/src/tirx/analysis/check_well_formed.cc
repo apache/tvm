@@ -269,8 +269,8 @@ class WellFormednessVerifier : public StmtExprVisitor {
     std::vector<GlobalVar> globals;
     for (const auto& [global, function] : op->functions) globals.push_back(global);
     std::sort(globals.begin(), globals.end(), [&](const GlobalVar& a, const GlobalVar& b) {
-      bool a_public = op->functions[a]->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
-      bool b_public = op->functions[b]->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+      bool a_public = op->functions[a]->GetAttr(tvm::attr::kGlobalSymbol).has_value();
+      bool b_public = op->functions[b]->GetAttr(tvm::attr::kGlobalSymbol).has_value();
       return a_public != b_public ? a_public > b_public : a->name_hint < b->name_hint;
     });
     for (const auto& global : globals) {

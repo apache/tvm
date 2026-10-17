@@ -41,8 +41,9 @@ ffi::Optional<ExprDoc> TargetDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<TargetObj>().attr(tvm::script::printer::type_attr::kDocTranslate,
-                                                 FDocTranslate::FromNative<&TargetDocTranslate>());
+  ffi::reflection::TypeAttrDef<TargetObj>().attr(
+      tvm::script::printer::type_attr::kDocTranslate.name,
+      FDocTranslate::FromNative<&TargetDocTranslate>());
 }
 
 }  // namespace

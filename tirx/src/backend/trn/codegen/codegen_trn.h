@@ -93,7 +93,7 @@ namespace backend {
 namespace trn {
 namespace attr {
 
-constexpr const char* kNkiDim = "nki_dim";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kNkiDim{"nki_dim"};
 }  // namespace attr
 }  // namespace trn
 }  // namespace backend

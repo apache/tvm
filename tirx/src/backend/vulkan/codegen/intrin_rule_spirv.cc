@@ -26,7 +26,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/op/abi.h>
-#include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/op/attr.h>
 
 namespace tvm {
 namespace codegen {

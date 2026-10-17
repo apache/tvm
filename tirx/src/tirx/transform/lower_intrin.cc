@@ -408,7 +408,7 @@ namespace transform {
 Pass LowerIntrin() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    auto target = f->GetAttr(tvm::attr::kTarget);
     TVM_FFI_ICHECK(target.has_value()) << "LowerIntrin: Require the target attribute";
     sym::Analyzer analyzer;
     bool enable_fast_math = ctx->GetConfig<bool>("tirx.enable_fast_math").value_or(false);

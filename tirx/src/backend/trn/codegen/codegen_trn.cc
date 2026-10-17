@@ -106,7 +106,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const Function& func) {
   name_supply_->FreshName("v_");
 
   // add to alloc buffer type.
-  auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr(tvm::attr::kGlobalSymbol);
   TVM_FFI_ICHECK(global_symbol.has_value())
       << "CodeGenC: Expect Function to have the global_symbol attribute";
 
@@ -114,7 +114,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const Function& func) {
   this->stream << "def " << static_cast<std::string>(global_symbol.value()) << "(";
 
   // Buffer arguments
-  auto num_inputs = func->GetAttr<int64_t>(tvm::attr::kNumInputs);
+  auto num_inputs = func->GetAttr(tvm::attr::kNumInputs);
   TVM_FFI_ICHECK(num_inputs.has_value());
   std::vector<std::string> output_vids;
   size_t num_buffer = 0;
@@ -303,9 +303,9 @@ void CodeGenTrainium::Dispatch_(const ForNode* op) {
   TVM_FFI_ICHECK(IsZero(op->min));
   if (ctx_.tensorizing) {
     stream << vid << " = nl.arange(" << extent << ")\n";
-    if (op->annotations.count(tvm::backend::trn::attr::kNkiDim)) {
+    if (op->annotations.count(tvm::backend::trn::attr::kNkiDim.name)) {
       ctx_.loopvar2dim[op->loop_var.get()] =
-          op->annotations[tvm::backend::trn::attr::kNkiDim].as_or_throw<ffi::String>();
+          op->annotations[tvm::backend::trn::attr::kNkiDim.name].as_or_throw<ffi::String>();
     }
     ctx_.tensorized_loop_vars.insert(op->loop_var.get());
     TVM_FFI_ICHECK(ctx_.loopvar2dim.empty() ||
@@ -694,7 +694,7 @@ ffi::Module BuildTrainium(IRModule mod, Target target) {
   for (auto kv : mod->functions) {
     TVM_FFI_ICHECK(kv.second->IsInstance<FunctionNode>())
         << "CodeGenTrainium: Can only take Function";
-    auto global_symbol = kv.second->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = kv.second->GetAttr(tvm::attr::kGlobalSymbol);
     TVM_FFI_ICHECK(global_symbol.has_value());
     std::string func_name = global_symbol.value();
     source_maker << "# Function: " << func_name << "\n";

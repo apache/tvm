@@ -128,7 +128,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     DictAttrs annotations = call->attrs.value().as_or_throw<DictAttrs>();
     static const auto shared = runtime::MemoryScope::Get("shared");
     if (replacement.scope() == shared) {
-      annotations.CopyOnWrite()->dict.Set(tvm::tirx::attr::kVolatile, true);
+      annotations.CopyOnWrite()->dict.Set(tvm::tirx::attr::kVolatile.name, true);
     }
     ffi::Array<Expr> args = call->args;
 
@@ -988,7 +988,7 @@ class DeferredRemapper : public StmtExprMutator {
         DictAttrs annotations = call->attrs.value().as_or_throw<DictAttrs>();
         static const auto shared = runtime::MemoryScope::Get("shared");
         if (replacement.scope() == shared) {
-          annotations.CopyOnWrite()->dict.Set(tvm::tirx::attr::kVolatile, true);
+          annotations.CopyOnWrite()->dict.Set(tvm::tirx::attr::kVolatile.name, true);
         }
         ffi::Array<Expr> args = call->args;
 
@@ -1036,7 +1036,7 @@ class DeferredRemapper : public StmtExprMutator {
 
 Function LowerThreadAllreduce(Function f) {
   auto* n = f.CopyOnWrite();
-  auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+  auto target = f->GetAttr(tvm::attr::kTarget);
   TVM_FFI_ICHECK(target.has_value()) << "LowerThreadAllreduce: Require the target attribute";
   const TargetObj* target_node = target.as<TargetObj>();
   auto thread_all_reduce = ffi::make_object<ThreadAllreduceBuilder>(target_node, f->params);

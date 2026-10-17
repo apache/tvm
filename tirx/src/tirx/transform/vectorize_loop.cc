@@ -34,9 +34,9 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/attr.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/vector.h>
-#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -1340,7 +1340,7 @@ Stmt PreserveUnrollPolicy(Stmt body, const ffi::Map<ffi::String, ffi::Any>& anno
     }
   };
   auto transfer = ffi::make_object<PolicyTransfer>();
-  for (const char* key : {attr::kAutoUnrollMaxStep, attr::kUnrollExplicit}) {
+  for (const char* key : {attr::kAutoUnrollMaxStep.name, attr::kUnrollExplicit.name}) {
     if (auto value = annotations.Get(key); value.has_value() && value.value() != nullptr) {
       transfer->policy.Set(key, value.value());
     }
@@ -1357,7 +1357,7 @@ class LoopVectorizer : public StmtExprMutator {
     return StmtExprMutator::Mutate(value, inplace_mode);
   }
 
-  explicit LoopVectorizer(DictAttrs attrs) : target_(attrs.GetAttr<Target>(tvm::attr::kTarget)) {}
+  explicit LoopVectorizer(DictAttrs attrs) : target_(attrs.GetAttr(tvm::attr::kTarget)) {}
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     if (op->kind == ForKind::kVectorized) {

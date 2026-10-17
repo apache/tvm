@@ -1190,8 +1190,10 @@ inline constexpr ffi::reflection::AttrKey<int64_t> kCallEffectKind{"TCallEffectK
 using TCallEffectKind = decltype(op_attr::kCallEffectKind)::ValueType;
 
 namespace type_attr {
-inline constexpr const char* kTensorLoadInferType = "__tvm_tensor_load_infer_type__";
-inline constexpr const char* kSubscriptExprRealize = "__tvm_subscript_expr_realize__";
+inline constexpr ffi::reflection::AttrKey<FTensorLoadInferType> kTensorLoadInferType{
+    "__tvm_tensor_load_infer_type__"};
+inline constexpr ffi::reflection::AttrKey<ffi::Function> kSubscriptExprRealize{
+    "__tvm_subscript_expr_realize__"};
 }  // namespace type_attr
 
 }  // namespace tvm

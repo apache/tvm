@@ -25,8 +25,8 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/op/attr.h>
 #include <tvm/tirx/op/gpu.h>
-#include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
 namespace codegen {

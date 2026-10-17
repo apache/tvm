@@ -65,7 +65,7 @@ struct Direct {
  * For example, an off-tree backend can register a C math mapping with
  * `OpDef("prim.exp").set_attr<tirx::FLowerIntrinsic>(
  *     "my_backend.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>)` after
- * including tvm/tirx/op_attr_types.h.
+ * including tvm/tirx/op/attr.h.
  * \tparam dtype_from_arg Use the argument type of a unary call instead of its result type.
  */
 template <typename T, bool dtype_from_arg = false>

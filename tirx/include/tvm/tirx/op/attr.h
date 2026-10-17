@@ -18,15 +18,15 @@
  */
 
 /*!
- * \file tvm/tirx/op_attr_types.h
- * \brief Attribute types in the Op registry for TIR ops.
+ * \file tvm/tirx/op/attr.h
+ * \brief Attribute keys and callback contracts for TIRx operators.
  *
  * These attributes can be set via OpDef::set_attr
  *
  * \sa tvm/ir/op.h
  */
-#ifndef TVM_TIRX_OP_ATTR_TYPES_H_
-#define TVM_TIRX_OP_ATTR_TYPES_H_
+#ifndef TVM_TIRX_OP_ATTR_H_
+#define TVM_TIRX_OP_ATTR_H_
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/native_function.h>
@@ -60,4 +60,4 @@ inline constexpr ffi::reflection::AttrKey<bool> kVectorizable{"TVectorizable"};
 
 }  // namespace tirx
 }  // namespace tvm
-#endif  // TVM_TIRX_OP_ATTR_TYPES_H_
+#endif  // TVM_TIRX_OP_ATTR_H_

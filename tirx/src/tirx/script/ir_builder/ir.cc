@@ -97,11 +97,11 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> new_attrs) {
   using namespace tvm::tirx;
   FunctionFrame frame = FindFunctionFrame("T.func_attr");
   for (const auto& [key, value] : new_attrs) {
-    if (key == tvm::attr::kGlobalSymbol && frame->is_private) {
+    if (key == tvm::attr::kGlobalSymbol.name && frame->is_private) {
       TVM_FFI_THROW(InternalError)
           << "ValueError: "
-          << "A private function may not have the kGlobalSymbol (\"" << tvm::attr::kGlobalSymbol
-          << "\") attribute.  "
+          << "A private function may not have the kGlobalSymbol (\""
+          << tvm::attr::kGlobalSymbol.name << "\") attribute.  "
           << "However, a private function specified the global symbol as " << value;
     }
 

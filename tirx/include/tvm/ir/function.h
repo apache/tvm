@@ -35,6 +35,8 @@
 
 namespace tvm {
 
+class Target;
+
 /*!
  * \brief Possible Calling conventions.
  *
@@ -217,7 +219,7 @@ namespace attr {
  *
  * \sa tvm::CallingConv
  */
-constexpr const char* kCallingConv = "calling_conv";
+inline constexpr ffi::reflection::AttrKey<CallingConv> kCallingConv{"calling_conv"};
 
 /*!
  * \brief Compilation target of the function.
@@ -226,7 +228,7 @@ constexpr const char* kCallingConv = "calling_conv";
  *
  * \sa tvm::Target
  */
-constexpr const char* kTarget = "target";
+inline constexpr ffi::reflection::AttrKey<Target> kTarget{"target"};
 
 /*!
  * \brief Global linker symbol of the function in generated code.
@@ -247,7 +249,7 @@ constexpr const char* kTarget = "target";
  *
  * Type: String
  */
-constexpr const char* kGlobalSymbol = "global_symbol";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kGlobalSymbol{"global_symbol"};
 
 /*!
  * \brief The function uses s_tir (apache-derived TIR) semantics:
@@ -257,7 +259,7 @@ constexpr const char* kGlobalSymbol = "global_symbol";
  *
  * Type: IntImm (bool dtype)
  */
-constexpr const char* kSTir = "s_tir";
+inline constexpr ffi::reflection::AttrKey<bool> kSTir{"s_tir"};
 
 /*!
  * \brief Script construction namespace used to select the function decorator.
@@ -266,19 +268,19 @@ constexpr const char* kSTir = "s_tir";
  *
  * Type: String
  */
-constexpr const char* kScriptNamespace = "script.namespace";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kScriptNamespace{"script.namespace"};
 
 /*!
  * \brief Number of inputs of the Function
  *
  * Type: Int
  */
-constexpr const char* kNumInputs = "num_inputs";
+inline constexpr ffi::reflection::AttrKey<int64_t> kNumInputs{"num_inputs"};
 
 }  // namespace attr
 
 inline LinkageType BaseFuncNode::GetLinkageType() const {
-  if (GetAttr<ffi::String>(tvm::attr::kGlobalSymbol))
+  if (GetAttr(tvm::attr::kGlobalSymbol))
     return LinkageType::kExternal;
   else
     return LinkageType::kInternal;

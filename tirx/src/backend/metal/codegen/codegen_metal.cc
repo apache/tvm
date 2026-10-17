@@ -113,7 +113,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const Function& func) {
   name_supply_->FreshName("v_");
 
   // add to alloc buffer type.
-  auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr(tvm::attr::kGlobalSymbol);
   TVM_FFI_ICHECK(global_symbol.has_value())
       << "CodeGenC: Expect Function to have the global_symbol attribute";
 
@@ -186,8 +186,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const Function& func) {
   TVM_FFI_ICHECK_EQ(name_supply_->FreshName("threadIdx"), "threadIdx");
   TVM_FFI_ICHECK_EQ(name_supply_->FreshName("blockIdx"), "blockIdx");
   int work_dim = 0;
-  auto launch_params =
-      func->GetAttr<ffi::Array<ffi::String>>(tvm::tirx::attr::kKernelLaunchParams).value();
+  auto launch_params = func->GetAttr(tvm::tirx::attr::kKernelLaunchParams).value();
   for (const auto& tag : launch_params) {
     if (tag != runtime::launch_param::kUseDynamicSharedMemoryTag) {
       support::GPUThreadTag scope = support::GPUThreadTag::Parse(tag);
@@ -439,7 +438,7 @@ void CodeGenMetal::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
   }
 
   RegisterHandleType(buffer.get(), PrimType(dtype));
-  if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
+  if (annotations->dict.count(tvm::tirx::attr::kVolatile.name)) {
     MarkVolatile(buffer.get());
   }
 }
@@ -590,7 +589,7 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
 
   for (auto kv : mod->functions) {
     TVM_FFI_ICHECK(kv.second->IsInstance<FunctionNode>()) << "CodeGenMetal: Can only take Function";
-    auto global_symbol = kv.second->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = kv.second->GetAttr(tvm::attr::kGlobalSymbol);
     TVM_FFI_ICHECK(global_symbol.has_value());
     std::string func_name = global_symbol.value();
 
@@ -598,7 +597,7 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
     CodeGenMetal cg(target);
     cg.Init(output_ssa);
     auto f = kv.second.as_or_throw<Function>();
-    auto calling_conv = f->GetAttr<CallingConv>(tvm::attr::kCallingConv);
+    auto calling_conv = f->GetAttr(tvm::attr::kCallingConv);
     TVM_FFI_ICHECK(calling_conv.has_value())
         << "CodeGenMetal: expected kCallingConv attribute to be set.";
     TVM_FFI_ICHECK(calling_conv.value() == CallingConv::kDeviceKernelLaunch)
