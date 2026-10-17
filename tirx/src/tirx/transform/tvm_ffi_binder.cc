@@ -32,8 +32,6 @@
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/memory.h>
 
-#include <optional>
-
 #include "ir_utils.h"
 
 namespace tvm {
@@ -233,15 +231,9 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
   return false;
 }
 
-namespace {
-struct LinearShape {
-  PrimExpr var;
-  PrimExpr factor;
-  PrimExpr offset;
-};
-
-// Recognize factor * var + offset, allowing either operand order for Add and Mul.
-inline std::optional<LinearShape> MatchLinearShape(const PrimExpr& arg) {
+bool TVMFFIABIBuilder::TryBindLinearIntExpr(const PrimExpr& arg, const PrimExpr& value,
+                                            const ffi::reflection::AccessPath& path) {
+  // Recognize factor * var + offset, allowing either operand order for Add and Mul.
   PrimExpr var = arg;
   PrimExpr factor = IntImm(arg.ty(), 1);
   PrimExpr offset = IntImm(arg.ty(), 0);
@@ -255,10 +247,10 @@ inline std::optional<LinearShape> MatchLinearShape(const PrimExpr& arg) {
       var = add->b;
       offset = add->a;
     } else {
-      return std::nullopt;
+      return false;
     }
   } else if (const auto* sub = var.as<SubNode>()) {
-    if (!sub->b.as<IntImmNode>()) return std::nullopt;
+    if (!sub->b.as<IntImmNode>()) return false;
     var = sub->a;
     offset = -sub->b;
   }
@@ -272,24 +264,16 @@ inline std::optional<LinearShape> MatchLinearShape(const PrimExpr& arg) {
       var = mul->b;
       factor = mul->a;
     } else {
-      return std::nullopt;
+      return false;
     }
   }
-  if (!var.as<VarNode>() || arg.same_as(var) || IsZero(factor)) return std::nullopt;
-  return LinearShape{var, factor, offset};
-}
-}  // namespace
+  if (!var.as<VarNode>() || arg.same_as(var) || IsZero(factor) ||
+      var_defs_.count(var.as<VarNode>())) {
+    return false;
+  }
 
-bool TVMFFIABIBuilder::BindIntExpr(const PrimExpr& arg, const PrimExpr& value,
-                                   const ffi::reflection::AccessPath& path) {
-  auto linear = MatchLinearShape(arg);
-  if (!linear || var_defs_.count(linear->var.as<VarNode>())) return false;
-  const auto& [var, factor, offset] = *linear;
-
-  // Load once, then check divisibility before binding the quotient.
-  Var shape_value("shape_value", arg.ty());
-  init_nest_.emplace_back(Bind(shape_value, value));
-  PrimExpr delta = shape_value.as_or_throw<PrimExpr>() - offset;
+  // Check divisibility before binding the inferred variable to the quotient.
+  PrimExpr delta = value - offset;
   std::string shape_path = RenderAccessPath(path);
   std::string decoded_expr = shape_path;
   if (!IsZero(offset)) {
@@ -725,16 +709,16 @@ void TVMFFIABIBuilder::DecodeAllParams() {
     }
   }
   // Shape pass 2: Infer only variables not defined by a bare dimension.
-  for (auto& shape : pending_shapes_) {
-    shape.needs_check = !BindIntExpr(shape.arg, shape.value, shape.path);
+  for (auto& shape : pending_int_exprs_) {
+    shape.needs_check = !TryBindLinearIntExpr(shape.arg, shape.value, shape.path);
   }
   // Shape pass 3: Check the remaining expressions after all bindings are known.
-  for (const auto& shape : pending_shapes_) {
+  for (const auto& shape : pending_int_exprs_) {
     if (shape.needs_check) {
       BindScalar(shape.arg, shape.value, shape.path, true);
     }
   }
-  pending_shapes_.clear();
+  pending_int_exprs_.clear();
 }
 
 // ============================================================
@@ -872,7 +856,7 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
     if (shape.as<VarNode>()) {
       BindScalar(shape, value, shape_k_path, true);
     } else {
-      pending_shapes_.push_back({shape, value, shape_k_path});
+      pending_int_exprs_.push_back({shape, value, shape_k_path});
     }
   }
 

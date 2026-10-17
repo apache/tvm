@@ -1009,8 +1009,9 @@ def test_linear_shape_binding():
                 ],
             )
             dev_id: T.let[T.int32] = T.abi_field_get(A_handle, 0, 9, ty=T.int32)
-            shape_value: T.let[T.int64] = T.abi_field_get(main_A_shape, 0, 17, ty=T.int64)
-            assert T.truncmod(shape_value - T.int64(3), T.int64(4)) == T.int64(0), (
+            assert T.truncmod(
+                T.abi_field_get(main_A_shape, 0, 17, ty=T.int64) - T.int64(3), T.int64(4)
+            ) == T.int64(0), (
                 "ValueError",
                 [
                     "Invalid ",
@@ -1025,7 +1026,9 @@ def test_linear_shape_binding():
                     "4",
                 ],
             )
-            n: T.let[T.int64] = T.Div(shape_value - T.int64(3), T.int64(4))
+            n: T.let[T.int64] = T.Div(
+                T.abi_field_get(main_A_shape, 0, 17, ty=T.int64) - T.int64(3), T.int64(4)
+            )
             with T.device_context(1, dev_id):
                 if not T.isnullptr(main_A_strides):
                     assert T.int64(4) * n + T.int64(3) == T.int64(1) or T.int64(

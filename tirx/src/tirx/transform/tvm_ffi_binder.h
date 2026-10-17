@@ -231,8 +231,8 @@ class TVMFFIABIBuilder {
    * \brief Infer a variable from a linear shape when no bare dimension defines it.
    * \return Whether this shape defined a variable and needs no further equality check.
    */
-  bool BindIntExpr(const PrimExpr& arg, const PrimExpr& value,
-                   const ffi::reflection::AccessPath& path);
+  bool TryBindLinearIntExpr(const PrimExpr& arg, const PrimExpr& value,
+                            const ffi::reflection::AccessPath& path);
 
   /*!
    * \brief Internal scalar bind with ffi::reflection::AccessPath tracking and rich error messages.
@@ -391,15 +391,20 @@ class TVMFFIABIBuilder {
     PrimExpr expected_expr;
   };
 
-  struct PendingShape {
+  /*! \brief An integer expression deferred until bare dimensions are bound. */
+  struct PendingIntExpr {
+    /*! \brief The expected dimension expression from the tensor signature. */
     PrimExpr arg;
+    /*! \brief The dimension value loaded from the runtime argument. */
     PrimExpr value;
+    /*! \brief The argument access path used in diagnostics. */
     ffi::reflection::AccessPath path;
+    /*! \brief Whether equality still needs checking after linear inference. */
     bool needs_check{true};
   };
 
   /*! \brief Non-variable shapes, processed after all bare dimensions have been bound. */
-  std::vector<PendingShape> pending_shapes_;
+  std::vector<PendingIntExpr> pending_int_exprs_;
   /*! \brief The definition map: VarNode* -> VarDefInfo (value + first_def_path). */
   std::unordered_map<const VarNode*, VarDefInfo> var_defs_;
   /*! \brief Decoded shape expressions for diagnostics of inferred variables. */
